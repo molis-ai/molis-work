@@ -5,7 +5,7 @@ export const LINGGUANG_STYLES = `
     display: flex; flex-wrap: nowrap; align-items: center; gap: 4px;
   }
   .lingguang-selection-bar span {
-    margin: 0 4px 0 2px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
+    margin: 0 4px 0 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
   }
   .lingguang-selection-bar .mw-btn { flex: none; width: auto; }
   .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
@@ -14,20 +14,25 @@ export const LINGGUANG_STYLES = `
     width: 100%;
     grid-template-columns: minmax(0, 1.2fr) 4.75rem minmax(0, 1fr) max-content;
   }
+  /* A note reads as a page: one centred writing column, a document title and body text at reading size.
+     The fields keep their hover wash and the shared focus ring, so where you type is never in doubt. */
   .lingguang-editor {
-    display: flex; flex-direction: column; gap: 12px;
-    flex: 1; min-height: 0; max-width: 52rem; padding: 8px 20px 20px; overflow: auto;
+    display: flex; flex-direction: column; gap: 8px;
+    flex: 1; min-height: 0; max-width: none; padding: 24px max(24px, calc((100% - 46rem) / 2)) 32px; overflow: auto;
   }
   .lingguang-editor .mw-input {
-    font-size: 16px; letter-spacing: -.02em; line-height: 1.35;
+    margin-inline: -12px; padding: 8px 12px; border-color: transparent; background: transparent; box-shadow: none;
+    font-size: 24px; font-weight: var(--weight-title, 600); letter-spacing: -.025em; line-height: 1.35;
   }
   .lingguang-editor .mw-textarea {
-    flex: 1; min-height: 12rem; resize: vertical; font-size: 14px; line-height: 1.65;
+    flex: 1; min-height: 12rem; resize: vertical; margin-inline: -12px; padding: 12px; border-color: transparent; background: transparent; box-shadow: none;
+    font-size: 15px; line-height: 1.85; color: var(--ink);
   }
+  .lingguang-editor :is(.mw-input, .mw-textarea):hover:not(:focus) { background: var(--nav-hover); }
   .lingguang-chat {
     display: flex; flex-direction: column; gap: 16px;
     flex: 1; min-height: 0; width: min(40rem, 100%);
-    padding: 4px 20px 20px; overflow: hidden;
+    padding: 4px 24px 24px; overflow: hidden;
   }
   .lingguang-context {
     display: flex; flex-direction: column; gap: 12px; flex: none;
@@ -39,16 +44,16 @@ export const LINGGUANG_STYLES = `
   }
   .lingguang-context article:last-child { border-bottom: 0; padding-bottom: 0; }
   .lingguang-context strong, .lingguang-message strong {
-    font-size: 11px; font-weight: 400; color: var(--faint);
+    font-size: 11px; font-weight: var(--weight-control, 500); color: var(--faint);
   }
   .lingguang-context p, .lingguang-message p {
-    margin: 0; font-size: 14px; line-height: 1.65; color: var(--ink);
+    margin: 0; font-size: 13px; line-height: 1.65; color: var(--ink);
     overflow-wrap: anywhere; white-space: pre-wrap;
   }
   .lingguang-context strong { font-size: 13px; color: var(--ink); }
   [data-lingguang-messages] {
     flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;
-    display: flex; flex-direction: column; gap: 14px; padding: 4px 0 8px;
+    display: flex; flex-direction: column; gap: 16px; padding: 4px 0 8px;
   }
   .lingguang-message { display: flex; flex-direction: column; gap: 4px; }
   .lingguang-chat-form {
@@ -57,7 +62,7 @@ export const LINGGUANG_STYLES = `
   .lingguang-chat-form .mw-btn { flex: none; width: auto; align-self: flex-end; }
   .lingguang-note {
     position: absolute; left: 50%; bottom: 28px; z-index: 6;
-    margin: 0; padding: 8px 14px; border-radius: 8px;
+    margin: 0; padding: 8px 16px; border-radius: 8px;
     background: var(--action); color: var(--action-ink);
     font-size: 12px; transform: translateX(-50%);
     max-width: min(420px, calc(100% - 32px)); text-align: center;
@@ -65,23 +70,24 @@ export const LINGGUANG_STYLES = `
   .lingguang-note.is-error { background: var(--red); color: var(--paper); }
   .lingguang-note .mw-btn--link { color: inherit; text-decoration: underline; min-height: 0; padding: 0; }
   dialog.mw-dialog.creative-confirm { width: min(360px, calc(100vw - 32px)); }
-  .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 18px 20px 16px; }
+  .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 16px; }
   .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
   .creative-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
   .lingguang-dispatch-candidates {
-    display: flex; flex-wrap: wrap; gap: 6px;
+    display: flex; flex-wrap: wrap; gap: 8px;
     margin: 0; padding: 0; list-style: none;
   }
   .lingguang-dispatch-candidates li {
-    padding: 2px 6px; border-radius: 5px;
+    padding: 4px 8px; border-radius: 5px;
     background: color-mix(in srgb, var(--ink) 11%, transparent);
     color: var(--ink-soft); font-size: 11px;
   }
   body.immersive-workbench .plugin-stage-workspace > .lingguang-editor,
   body.immersive-workbench .plugin-stage-workspace > .lingguang-chat { flex: 1; min-height: 0; }
   @media (max-width: 760px) {
-    .lingguang-editor .mw-input, .lingguang-editor .mw-textarea,
+    .lingguang-editor .mw-textarea,
     .lingguang-chat-form .mw-textarea { font-size: 16px; }
+    .lingguang-editor .mw-input { font-size: 20px; }
     .lingguang-selection-bar .mw-btn, .lingguang-chat-form .mw-btn,
     .plugin-stage-detail-bar .mw-btn { min-height: 44px; }
   }

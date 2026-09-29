@@ -142,11 +142,10 @@ function itemEntry(overrides: {
   };
 }
 
-function stageGroup(html: string, sourceId: string): string {
-  const start = html.indexOf(`data-feed-stage-group="${sourceId}"`);
-  assert.ok(start >= 0, `missing stage group ${sourceId}`);
-  const next = html.indexOf("data-feed-stage-group=", start + 1);
-  return html.slice(start, next >= 0 ? next : html.length);
+function sourceMenuRow(html: string, sourceId: string): string {
+  const start = html.indexOf(`data-feed-task="${sourceId}"`);
+  assert.ok(start >= 0, `missing source menu row ${sourceId}`);
+  return html.slice(start, html.indexOf("</button>", start));
 }
 
 function taskConfigPanel(html: string, sourceId: string): string {
@@ -398,7 +397,9 @@ test("Gmail source detail opens Connectors with the current project", () => {
   assert.match(html, /管理账号连接/);
 });
 
-test("Feed stage list groups items by source task", () => {
+// Soft Workbench (specs/soft-workbench-rollout): the Feed column is one timeline, as in the approved prototype; the
+// per-source folds became a source menu. Attribution, counts, empty sources and source state are still checked here.
+test("Feed stage list is one timeline and the source menu keeps each source's count and state", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
   const sourceA = source({ source_id: "source-a", name: "GitHub · adeptify", ui_kind: "github" });
@@ -417,37 +418,38 @@ test("Feed stage list groups items by source task", () => {
       ],
     }),
   });
-  const github = stageGroup(workbench, "source-a");
-  const gmail = stageGroup(workbench, "source-b");
-  const other = stageGroup(workbench, "other");
-  assert.match(workbench, /data-feed-stage-group="source-a"[^>]*open/);
-  assert.match(github, /goal-collection-fold/);
-  assert.match(github, /goal-collection-caret/);
-  assert.match(github, /goal-collection-mark is-ready/);
-  assert.match(github, /data-icon="check"|href="#icon-check"/);
+  assert.doesNotMatch(workbench, /data-feed-stage-group|goal-collection-fold/);
+  assert.match(workbench, /data-feed-rows/);
+  // Every row names the source it came from, and the menu scope it belongs to.
+  assert.match(workbench, /data-feed-entry-id="entry-a"[^>]*data-feed-entry-source-id="source-a" data-feed-entry-task="source-a"/);
+  assert.match(workbench, /data-feed-entry-id="entry-b"[^>]*data-feed-entry-source-id="source-b" data-feed-entry-task="source-b"/);
+  assert.match(workbench, /data-feed-entry-id="entry-orphan"[^>]*data-feed-entry-task="other"/);
+  assert.match(workbench, /class="feed-entry-source">GitHub · adeptify</);
+  // The source menu keeps configured order, counts, empty sources and a state mark that is not colour alone.
+  const github = sourceMenuRow(workbench, "source-a");
   assert.match(github, /<strong>GitHub · adeptify<\/strong>/);
-  assert.match(github, /data-feed-stage-group-count>1</);
-  assert.match(github, /data-feed-entry-id="entry-a"/);
-  assert.doesNotMatch(github, /data-feed-entry-id="entry-b"|data-feed-entry-id="entry-orphan"/);
-  assert.match(gmail, /data-feed-entry-id="entry-b"/);
-  assert.doesNotMatch(gmail, /data-feed-entry-id="entry-a"/);
-  assert.match(other, /<strong>其他<\/strong>/);
-  assert.match(other, /data-feed-entry-id="entry-orphan"/);
-  assert.match(workbench, /data-feed-stage-group="source-empty"/);
-  const empty = stageGroup(workbench, "source-empty");
-  assert.match(empty, /这个来源还没有消息/);
-  const paused = stageGroup(workbench, "source-paused");
-  assert.match(paused, /goal-collection-mark is-attention/);
+  assert.match(github, /<em>1<\/em>/);
+  assert.match(github, /class="is-ready"/);
+  assert.match(github, /data-icon="check"|href="#icon-check"/);
+  assert.match(sourceMenuRow(workbench, "source-empty"), /<em>0<\/em>/);
+  const paused = sourceMenuRow(workbench, "source-paused");
+  assert.match(paused, /class="is-attention"/);
   assert.match(paused, /data-icon="alert"|href="#icon-alert"/);
+  assert.match(sourceMenuRow(workbench, "other"), /<strong>其他<\/strong>/);
+  assert.ok(
+    workbench.indexOf('data-feed-task="source-a"') < workbench.indexOf('data-feed-task="source-b"'),
+    "the menu follows source order",
+  );
+  assert.ok(
+    workbench.indexOf('data-feed-task="source-b"') < workbench.indexOf('data-feed-task="other"'),
+    "unmatched items sit after configured sources",
+  );
   assert.match(workbench, /data-feed-entry-detail="entry-a"/);
-  assert.ok(
-    workbench.indexOf('data-feed-stage-group="source-a"') < workbench.indexOf('data-feed-stage-group="source-b"'),
-    "stage groups follow source task order",
-  );
-  assert.ok(
-    workbench.indexOf('data-feed-stage-group="source-b"') < workbench.indexOf('data-feed-stage-group="other"'),
-    "unmatched items sit after configured source tasks",
-  );
+  // The column offers the prototype's three-way switch; the full filter menu stays beside search.
+  assert.match(workbench, /data-feed-quick="all"[^>]*aria-pressed="true"/);
+  assert.match(workbench, /data-feed-quick="unread"/);
+  assert.match(workbench, /data-feed-quick="saved"/);
+  assert.match(workbench, /data-feed-filter-trigger/);
 });
 
 test("Feed demo data keeps page-local actions and never calls real Source APIs", () => {
@@ -542,7 +544,7 @@ test("Feed demo data keeps page-local actions and never calls real Source APIs",
   const source = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-workbench", model: demoModel });
   assert.doesNotMatch(directory, /data-feed-entry-prototype="true"|data-prototype-feed-empty-state/);
   assert.match(detail, /data-feed-entry-prototype="true"/);
-  assert.match(detail, /data-feed-stage-group="prototype-source-github"/);
+  assert.match(detail, /data-feed-entry-task="prototype-source-github"/);
   assert.match(detail, /class="feed-stage-entry directory-list-row"/);
   assert.match(detail, /class="feed-stage-leading"/);
   assert.match(detail, /mw-status mw-status--attention mw-status--plain feed-entry-status/);

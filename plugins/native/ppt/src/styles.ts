@@ -5,53 +5,51 @@ export const PPT_STYLES = `
     display: inline-flex; align-items: center; flex: none; height: 28px; max-width: 28px;
     margin-right: 4px; padding: 0; overflow: hidden; border: 0; border-radius: 6px;
     background: transparent; color: var(--muted); cursor: pointer;
-    transition: max-width var(--motion-fast, 130ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
-      background-color var(--motion-fast, 130ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
-      color var(--motion-fast, 130ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1));
+    transition: background-color var(--motion-fast, 130ms) var(--ease-quint), color var(--motion-fast, 130ms) var(--ease-quint);
   }
-  .creative-artifact-act svg { width: 14px; height: 14px; flex: none; margin: 0 7px; }
+  .creative-artifact-act svg { width: 14px; height: 14px; flex: none; margin: 0 8px; }
   .creative-artifact-act span { overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 28px; padding-right: 8px; }
   .creative-artifact-act:hover, .creative-artifact-act:focus-visible {
-    max-width: 11rem; color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, var(--paper));
+    max-width: 11rem; color: var(--ink); background: var(--nav-hover);
   }
   @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .ppt-stage-chrome { pointer-events: auto; }
   [data-ppt=workbench] { --plugin-tint: var(--plugin-ppt); }
   [data-ppt-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; overflow-x: auto; }
-  [data-ppt-stage-workspace] > .ppt-note { flex-shrink: 0; margin: 0 20px 16px; }
+  [data-ppt-stage-workspace] > .ppt-note { flex-shrink: 0; margin: 0 24px 16px; }
   .ppt-workspace > * { flex-shrink: 0; }
   .ppt-workspace {
     display: flex; flex-direction: column; gap: 16px;
-    flex: 1; min-height: 0; max-width: 72rem; padding: 8px 20px 28px; overflow: auto;
+    flex: 1; min-height: 0; max-width: 72rem; padding: 8px 24px 32px; overflow: auto;
   }
   .ppt-meta {
     display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) auto;
     gap: 12px 16px; align-items: end;
   }
-  .ppt-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
-  .ppt-meta [data-ppt-title] { font-size: 16px; letter-spacing: -0.02em; color: var(--ink); }
+  .ppt-field { display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--muted); }
+  .ppt-meta [data-ppt-title] { font-size: 15px; letter-spacing: -0.02em; color: var(--ink); }
   .ppt-slide-editor textarea.mw-textarea { field-sizing: content; min-height: 72px; max-height: 220px; resize: vertical; }
   .ppt-slide-editor textarea[data-ppt-slide-notes] { min-height: 48px; max-height: 120px; }
-  .ppt-colors { display: flex; flex-wrap: wrap; gap: 12px 16px; padding-bottom: 2px; font-size: 12px; color: var(--muted); }
-  .ppt-color-field { display: flex; flex-direction: column; gap: 6px; }
-  .ppt-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ppt-colors { display: flex; flex-wrap: wrap; gap: 12px 16px; padding-bottom: 4px; font-size: 12px; color: var(--muted); }
+  .ppt-color-field { display: flex; flex-direction: column; gap: 8px; }
+  .ppt-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
   .ppt-swatch {
     width: 22px; height: 22px; padding: 0; border: 1px solid var(--line); border-radius: 6px;
-    cursor: pointer; box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 35%, transparent);
+    cursor: pointer; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--paper) 35%, transparent);
   }
   .ppt-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--action); }
   .ppt-split { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.2fr); gap: 16px; min-height: 0; }
-  .ppt-slides { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .ppt-slides { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
   .ppt-slides-head { display: flex; align-items: center; gap: 8px; }
-  .ppt-slides-head strong { font-size: 12px; font-weight: 400; color: var(--muted); }
+  .ppt-slides-head strong { font-size: 12px; font-weight: var(--weight-control, 500); color: var(--muted); }
   .ppt-slides-head .mw-btn { flex: none; width: auto; }
-  [data-ppt-slide-list] { display: flex; flex-direction: column; gap: 2px; }
+  [data-ppt-slide-list] { display: flex; flex-direction: column; gap: 4px; }
   .ppt-slide-row { display: flex; align-items: center; gap: 4px; }
   .ppt-slide-row > button:first-child {
     display: flex; align-items: center; gap: 8px;
     flex: 1; min-width: 0; text-align: left; border: 0; background: transparent;
-    color: inherit; font: inherit; padding: 6px 8px; border-radius: 6px; cursor: pointer;
-    transition: background-color var(--motion-fast, 130ms) ease;
+    color: inherit; font: inherit; padding: 8px 8px; border-radius: 6px; cursor: pointer;
+    transition: background-color var(--motion-fast, 130ms) var(--ease-quint);
   }
   .ppt-slide-row > button:first-child:hover { background: var(--nav-hover); }
   .ppt-slide-row.is-selected > button:first-child {
@@ -70,7 +68,7 @@ export const PPT_STYLES = `
   }
   .ppt-slide-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ppt-slide-editor {
-    display: flex; flex-direction: column; gap: 10px;
+    display: flex; flex-direction: column; gap: 12px;
     padding: 12px; border-radius: 8px;
     background: color-mix(in srgb, var(--rail) 82%, var(--paper));
   }
@@ -78,9 +76,9 @@ export const PPT_STYLES = `
   .ppt-preview-item { display: flex; flex-direction: column; gap: 8px; }
   .ppt-card-notes { white-space: pre-wrap; margin: 0 0 4px; padding: 0 4px; font-size: 12px; color: var(--muted); }
   .ppt-card {
-    aspect-ratio: 16 / 9; min-height: 140px; max-width: 100%; padding: 18px 20px; border-radius: 10px;
+    aspect-ratio: 16 / 9; min-height: 140px; max-width: 100%; padding: 16px 24px; border-radius: 10px;
     border: 1px solid transparent; display: flex; flex-direction: column; justify-content: center; gap: 8px;
-    transition: box-shadow var(--motion-fast, 130ms) ease;
+    transition: box-shadow var(--motion-fast, 130ms) var(--ease-quint);
   }
   .ppt-card.is-current {
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--plugin-ppt, var(--focus)) 72%, var(--focus));
@@ -90,18 +88,19 @@ export const PPT_STYLES = `
   [data-ppt-empty]:not([hidden]) ~ .ppt-placement-line { display: none; }
   .ppt-export-menu > summary { list-style: none; }
   .ppt-present { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: #000; outline: none; cursor: pointer; }
-  .ppt-present-frame { display: grid; place-items: center; width: 100%; height: 100%; }
-  .ppt-present-slide { box-sizing: border-box; width: min(100vw, calc(100vh * 16 / 9)); aspect-ratio: 16 / 9; padding: 7% 8%; border-left: 1vw solid var(--ppt-accent, #5e6ad2);
-    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif; overflow: hidden; }
-  .ppt-present-slide h2 { margin: 0 0 4%; font-size: clamp(24px, 5vmin, 64px); font-weight: 700; line-height: 1.2; }
-  .ppt-present-slide ul { margin: 0; padding-left: 1.2em; font-size: clamp(16px, 3.2vmin, 40px); line-height: 1.6; }
-  .ppt-present-slide p { margin: 0; font-size: clamp(16px, 3.2vmin, 40px); }
+  .ppt-present-frame { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; }
+  /* A slide is drawn on a fixed 16:9 canvas with the type scale and scaled whole to the screen, like a picture. */
+  .ppt-present-slide { box-sizing: border-box; flex: none; width: 960px; height: 540px; padding: 48px 64px; border-left: 10px solid var(--ppt-accent, var(--accent));
+    transform: scale(var(--present-scale, 1)); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif; overflow: hidden; }
+  .ppt-present-slide h2 { margin: 0 0 24px; font-size: 30px; font-weight: 700; line-height: 1.2; }
+  .ppt-present-slide ul { margin: 0; padding-left: 1.2em; font-size: 20px; line-height: 1.6; }
+  .ppt-present-slide p { margin: 0; font-size: 20px; }
   .ppt-present-notes { position: fixed; right: 16px; bottom: 56px; width: min(420px, calc(100vw - 32px)); max-height: 40vh; overflow: auto; padding: 12px 14px;
-    background: rgba(28, 28, 32, .92); color: #e8e8ea; border-radius: 10px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; cursor: default; }
+    background: rgba(28, 28, 32, .92); color: #e8e8ea; border-radius: 10px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; cursor: default; }
   .ppt-present-bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 6px 12px; border-radius: 10px; background: rgba(28, 28, 32, .8);
     color: #c9c9cf; font-size: 12px; white-space: nowrap; pointer-events: none; }
-  .ppt-card h2 { margin: 0; font-size: 18px; font-weight: 500; }
-  .ppt-card ul { margin: 0; padding-left: 18px; }
+  .ppt-card h2 { margin: 0; font-size: 17px; font-weight: 500; }
+  .ppt-card ul { margin: 0; padding-left: 16px; }
   .ppt-card-empty { margin: 0; font-size: 13px; font-weight: 400; color: var(--muted); }
   .ppt-note { margin: 0; font-size: 12px; color: var(--tone-done, var(--muted)); }
   .ppt-note.is-error { color: var(--red); }
@@ -110,11 +109,11 @@ export const PPT_STYLES = `
   }
   .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
   dialog.mw-dialog.creative-confirm { width: min(360px, calc(100vw - 32px)); }
-  .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 18px 20px 16px; }
+  .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 16px; }
   .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
   .creative-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
   .plugin-stage-workspace.is-arriving,
-  .is-arriving { animation: creative-arrive var(--motion-normal, 190ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)) both; }
+  .is-arriving { animation: creative-arrive var(--motion-normal, 130ms) var(--ease-quint) both; }
   @keyframes creative-arrive {
     from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
     to { opacity: 1; transform: none; filter: none; }

@@ -35,18 +35,18 @@ export {
 } from "./visual-foundation.js";
 
 export { SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "./select-menu-client.js";
-export { ONBOARDING_STYLES } from "./onboarding-styles.js";
 export {
   TYPEFACE_STYLES,
   INTER_VARIABLE_ASSET_PATH,
   NOTO_SANS_SC_ASSET_PATH,
-  INTER_FONT_STACK,
+  FONT_STACK,
+  MONO_FONT_STACK,
   interVariableFontFilePath,
   notoSansScFontFilePath,
 } from "./typeface.js";
 
 export { projectMonogram, renderProjectMonogram, type ProjectMonogramHue } from "./monogram.js";
-export { icon, renderIconSprite, ICON_LIBRARY, listedIconNames, registeredIconNames, type MolisWorkIcon } from "./icons.js";
+export { icon, renderIconSprite, ICON_LIBRARY, PLUGIN_ICON, STATUS_ICON, listedIconNames, registeredIconNames, type MolisWorkIcon } from "./icons.js";
 export {
   MW_CONTENT_MARKS,
   MW_CONTENT_SURFACES,
@@ -54,8 +54,10 @@ export {
   MW_HUES,
   MW_PLUGINS,
   MW_SURFACES,
-  renderLinearShellTokens,
+  renderControlMetrics,
   renderPaletteTokens,
+  renderShapeTokens,
+  renderShellTokens,
   type MwContentMarkId,
   type MwHueId,
 } from "./palette.js";
@@ -63,3 +65,5 @@ export * from "./primitives/index.js";
 export { renderPluginStageShell } from "./plugin-stage-shell.js";
 export * from './plugin-components.js';
 export * from './plugin-component-client.js';
+export * from './plugin-presentation.js';
+export { renderPluginPresentationExample } from './plugin-presentation-example.js';

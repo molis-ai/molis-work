@@ -61,7 +61,7 @@
 | `packages/storage` | SQLite、Filesystem、Blob、事务和 migration 技术能力 | SQLite/事务/文件/密文/联网搜索缓存 Adapter；系统搜索的本地全文索引适配（`openTextSearchIndex`，可删除重建）；业务 schema 归 Module | `partial` | 各事实迁移/Cutover；Web Home 作用域隔离 |
 | `packages/exchange` | Envelope、ACK、Cursor、Replay、CAS 与 Blob 交换 | 当前不存在正式 Server/Exchange | `absent` | F2；未来独立功能 Spec |
 | `packages/ui-host` | UI Contribution、Slot、嵌入、隔离和桥接 | FD4 registry/render 与 AP3 surface/Slot mount 校验已落地；Installed Plugin 隔离与完整安全 bridge 仍待独立实现 | `partial` | F2、FD4、AP3 |
-| `packages/design-system` | Token、基础组件、图标和可访问性基线 | 主题、密度、token、icon 与视觉样式；旧 visual-foundation 已删除 | `partial` | AP3/Cutover；真实浏览器与 Native 布局 |
+| `packages/design-system` | Token、基础组件、图标和可访问性基线 | Soft Workbench token（`palette.ts` 唯一来源）、主题、密度、字体、icon、`mw-*` 原语、终层与组件板 `/__ui/catalog`；规范见 `DESIGN.md`；旧 visual-foundation 已删除 | `partial` | AP3/Cutover；Soft Workbench 迁移（`specs/soft-workbench-rollout`）；Native 包布局待验 |
 | `packages/observability` | 结构化日志、trace、diagnostic 与安全脱敏 | 各入口零散日志 | `absent` | F2、F3、保证 Goal |
 | `packages/test-kit` | 无业务判断的公共测试工具和 fake capability | F3 boundary policy；测试中的重复 harness 待迁移 | `partial` | F2、F3；后续测试基础设施 Goal |
 

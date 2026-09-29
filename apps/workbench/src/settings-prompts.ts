@@ -15,10 +15,10 @@ export function renderPromptSettings({ L }: { L(text: string): string }): string
       </div>
       <input class="mw-input prompt-settings-search" type="search" data-prompt-search placeholder="${L("搜索名称、用途或正文")}" aria-label="${L("搜索 Prompt")}">
     </div>
-    <div class="prompt-settings-body" data-prompt-body aria-live="polite"><p class="settings-muted">${L("正在读取…")}</p></div>
+    <div class="prompt-settings-body" data-prompt-body aria-live="polite"><p class="settings-muted mw-loading">${L("正在读取…")}</p></div>
     <details class="settings-section prompt-diagnostics" id="diagnostics" data-prompt-diagnostics>
       <summary><strong>${L("开发者诊断")}</strong><span class="settings-muted">${L("每个来源登记了什么，哪些没有生效、为什么；以及还没有登记的模型调用。")}</span></summary>
-      <div data-prompt-diagnostics-body><p class="settings-muted">${L("正在读取…")}</p></div>
+      <div data-prompt-diagnostics-body><p class="settings-muted mw-loading">${L("正在读取…")}</p></div>
     </details>
   </section>`;
 }

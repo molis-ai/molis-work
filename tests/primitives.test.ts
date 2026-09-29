@@ -222,7 +222,9 @@ test("visual foundation ships primitive classes after the Coss control layer", (
   assert.doesNotMatch(PRIMITIVE_STYLES, /bottom: 24px; left: 50%/);
   assert.match(PRIMITIVE_STYLES, /@media \(max-width: 760px\) \{[\s\S]*\.mw-hint__tooltip:popover-open \{[\s\S]*left: 16px/);
   assert.match(PRIMITIVE_STYLES, /dialog\.mw-sheet/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-dir-row\.is-selected::before/);
+  // Soft Workbench (DESIGN.md → Directory rows): selection is the neutral fill, with no leading bar.
+  assert.match(PRIMITIVE_STYLES, /\.mw-dir-row\.is-selected,\s*\.mw-dir-row\[aria-current="page"\] \{\s*color: var\(--ink\);\s*background: var\(--nav-active\);/);
+  assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-dir-row\.is-selected::before/);
   assert.match(PRIMITIVE_STYLES, /body\.immersive-workbench \.tree-pane \.mw-dir-row:has\(\.mw-dir-row__icon\)/);
   assert.match(PRIMITIVE_STYLES, /\.mw-dir-row__headline \{/);
   assert.match(PRIMITIVE_STYLES, /\.mw-dir-row-wrap > :not\(\.mw-dir-row\) \{[\s\S]*?position: static/);
@@ -235,7 +237,8 @@ test("visual foundation ships primitive classes after the Coss control layer", (
   assert.match(PRIMITIVE_STYLES, /\.mw-dir-row--compact \.mw-dir-row__headline \{ display: contents/);
   assert.match(PRIMITIVE_STYLES, /\.mw-dir > \[data-slot="directory-add"\]:first-child,[\s\S]*\.mw-dir__tools \+ \[data-slot="directory-add"\]/);
   assert.match(PRIMITIVE_STYLES, /\.mw-dir-row-wrap:has\(\.is-selected\) \.mw-dir-row,[\s\S]*tree-pane \.mw-dir-row-wrap \.mw-dir-row:is\(:hover, :active, \.is-selected, \[aria-current="page"\]\) \{ background: transparent; \}/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-dir-row \{[\s\S]*background-color 180ms var\(--ease-out/);
+  // Hover tone uses the 130ms step and the quint curve (spec → 第三轮 · 动效: four durations, two curves).
+  assert.match(PRIMITIVE_STYLES, /\.mw-dir-row \{[\s\S]*background-color 130ms var\(--ease-quint/);
   assert.match(PRIMITIVE_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*text-overflow: ellipsis/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*mask-image:/);
   assert.match(PRIMITIVE_STYLES, /\.mw-dir-row, \.mw-dir-row-wrap, \.mw-dir-row-wrap\.is-yield \.mw-dir-row, \.mw-dir-row-wrap\.is-yield \.mw-dir-row__ops \{ transition: none; \}/);
@@ -251,13 +254,15 @@ test("primitive controls keep authored states instead of a class dump", () => {
   assert.match(PRIMITIVE_STYLES, /\.mw-btn \{[\s\S]*appearance: none/);
   assert.match(PRIMITIVE_STYLES, /\.mw-btn:focus-visible \{/);
   assert.match(PRIMITIVE_STYLES, /\.mw-btn--primary:active:not\(:disabled\)/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-btn--link \{[\s\S]*color: var\(--ink-soft\)/);
+  // Soft Workbench (DESIGN.md → Buttons): links are copper.
+  assert.match(PRIMITIVE_STYLES, /\.mw-btn--link \{[^}]*color: var\(--accent\);/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-btn:disabled \{[^}]*background: var\(--control-fill\)/);
   assert.match(PRIMITIVE_STYLES, /\.mw-btn--primary:disabled,[\s\S]*background: var\(--action\)/);
   assert.match(PRIMITIVE_STYLES, /\.mw-spinner \{[\s\S]*currentColor/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-catalog \.mw-btn \{ min-height: 44px/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-input:focus-visible, \.mw-textarea:focus-visible, \.mw-select:focus-visible \{[\s\S]*outline: var\(--focus-stroke, 1px solid var\(--ink\)\)/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-input:focus-visible, \.mw-textarea:focus-visible, \.mw-select:focus-visible \{[\s\S]*outline-offset: var\(--focus-stroke-inset, -1px\)/);
+  // Soft Workbench (DESIGN.md → Focus): controls take the copper stroke, fields the copper border and halo.
+  assert.match(PRIMITIVE_STYLES, /\.mw-btn:focus-visible \{[^}]*outline: var\(--focus-stroke, 2px solid var\(--accent\)\); outline-offset: var\(--focus-stroke-inset, 1px\)/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-input:focus, \.mw-textarea:focus \{ outline: none; border-color: var\(--accent\); box-shadow: 0 0 0 3px color-mix\(in srgb, var\(--accent\) 16%, transparent\)/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /outline: 2px solid var\(--focus\)/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /0 0 0 3\.5px/);
   assert.match(PRIMITIVE_STYLES, /\.mw-check, \.mw-radio \{[\s\S]*appearance: none/);
@@ -280,8 +285,8 @@ test("primitive controls keep authored states instead of a class dump", () => {
   assert.match(html, /还没有拉取任务/);
   assert.doesNotMatch(html, /mw-catalog-sidebar/);
   assert.match(PRIMITIVE_STYLES, /body\.mw-catalog-page \.mw-catalog \{[\s\S]*overflow: auto/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-dir-row\.is-selected::before[\s\S]*?background: var\(--ink\)/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-catalog-dir-stage \{[^}]*background: var\(--nav-bg/);
+  // Soft Workbench (DESIGN.md → Colors): directory columns sit on `--surface-soft` inside the surface; `--nav-bg` is the desk.
+  assert.match(PRIMITIVE_STYLES, /\.mw-catalog-dir-stage \{[^}]*background: var\(--surface-soft\)/);
   assert.match(PRIMITIVE_STYLES, /\.mw-catalog-dir \{[^}]*background: transparent/);
   assert.match(PRIMITIVE_STYLES, /\.mw-catalog-shell \{[\s\S]*border-radius: var\(--radius-surface/);
   assert.match(PRIMITIVE_STYLES, /\.mw-catalog-shell \{[\s\S]*grid-template-columns: 48px 240px/);
@@ -289,7 +294,8 @@ test("primitive controls keep authored states instead of a class dump", () => {
   assert.match(PRIMITIVE_STYLES, /:is\(\.mw-catalog, \.mw-layout-primitives\) \.mw-sidebar--rail \{[^}]*border-right: 1px solid var\(--line\)/);
   assert.match(PRIMITIVE_STYLES, /:is\(\.mw-catalog, \.mw-layout-primitives\) \.mw-sidebar--directory \{[^}]*border-right: 1px solid var\(--line\)/);
   assert.match(PRIMITIVE_STYLES, /:is\(\.mw-catalog, \.mw-layout-primitives\) \.mw-sidebar--rail \.mw-btn \{[^}]*width: 36px/);
-  assert.match(PRIMITIVE_STYLES, /:is\(\.mw-catalog, \.mw-layout-primitives\) \.mw-frame__heading h2 \{[^}]*font-size: 16px/);
+  // Soft Workbench (DESIGN.md → Typography): headings carry the 600 title role.
+  assert.match(PRIMITIVE_STYLES, /:is\(\.mw-catalog, \.mw-layout-primitives\) \.mw-frame__heading h2 \{[^}]*font-size: 17px; font-weight: var\(--weight-title, 600\)/);
   assert.match(html, /添加已有内容/);
   assert.match(html, /mw-btn--link/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-catalog \.mw-frame__header \{[^}]*border-bottom/);
@@ -297,7 +303,8 @@ test("primitive controls keep authored states instead of a class dump", () => {
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-table th, \.mw-table td \{[^}]*border-bottom: 1px/);
 });
 
-test("catalog ships a Linear-referenced palette and complete icon library", () => {
+// Soft Workbench (DESIGN.md → Plugin identity): plugins resolve to neutral ink; the reading surface aliases graphite.
+test("catalog ships the Soft Workbench palette and complete icon library", () => {
   const html = renderPrimitiveCatalog();
   assert.match(html, /id="palette"/);
   assert.match(html, /id="typeface"/);
@@ -306,11 +313,14 @@ test("catalog ships a Linear-referenced palette and complete icon library", () =
   assert.match(html, /class="mw-icon-lib"/);
   assert.match(html, /Noto Sans SC/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--hue-indigo: #5e6ad2;/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--plugin-goals: var\(--hue-blue\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /--plugin-goals: var\(--ink-soft\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /\[data-work-surface="feed"\]/);
   assert.match(INTERACTION_TEXTURE_STYLES, /\[data-work-surface="goal"\]/);
   assert.match(INTERACTION_TEXTURE_STYLES, /\.tab-item\[data-plugin="feed"\]/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /\.mw-empty__mark/);
+  // The empty mark is the shared paper picture drawn by the final layer (spec → 第三轮 · 空状态插图); the texture
+  // layer no longer tints it, and the board shows it.
+  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.mw-empty__mark/);
+  assert.match(html, /class="mw-empty__mark"/);
   assert.match(INTERACTION_TEXTURE_STYLES, /\.feed-stage-entry:is\(\.is-selected, \.is-open, \[aria-selected="true"\]\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /:is\(\.plugin-rail, \.assistant-island\) \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--faint\)/);
@@ -322,7 +332,7 @@ test("catalog ships a Linear-referenced palette and complete icon library", () =
   assert.match(html, /内容平面/);
   assert.match(html, /内容标记/);
   assert.match(html, /陶土/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--content-accent: var\(--hue-slate\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /--content-accent: var\(--action\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--mark-clay: #B27460;/);
 });
 

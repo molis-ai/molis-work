@@ -132,8 +132,15 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
           await command('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9},sessionId);
           await command('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9},sessionId);
         }
-        const focus=await evaluate<any>(`(()=>{const e=document.activeElement,s=getComputedStyle(e),bg=getComputedStyle(e.closest('[data-feed-sources-dialog]')).backgroundColor,c=document.createElement('canvas');c.width=c.height=1;const x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,1,1);const a=[...x.getImageData(0,0,1,1).data];x.fillStyle=s.outlineColor;x.fillRect(0,0,1,1);const b=[...x.getImageData(0,0,1,1).data];const lum=v=>v.slice(0,3).map(n=>n/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4).reduce((t,n,i)=>t+n*[.2126,.7152,.0722][i],0),l=lum(a),m=lum(b);return {tag:e.tagName,visible:e.matches(':focus-visible'),outline:s.outline,shadow:s.boxShadow,contrast:(Math.max(l,m)+.05)/(Math.min(l,m)+.05)}})()`);
-        assert.equal(focus.tag,kind==='select'?'BUTTON':'INPUT');assert.equal(focus.visible,true);assert.match(focus.outline,/solid 1px/);assert.equal(focus.shadow,'none');assert.ok(focus.contrast>=3,JSON.stringify(focus));
+        const focus=await evaluate<any>(`(()=>{const e=document.activeElement,s=getComputedStyle(e),bg=getComputedStyle(e.closest('[data-feed-sources-dialog]')).backgroundColor,c=document.createElement('canvas');c.width=c.height=1;const x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,1,1);const a=[...x.getImageData(0,0,1,1).data];x.fillStyle=s.outlineStyle!=='none'?s.outlineColor:s.borderTopColor;x.fillRect(0,0,1,1);const b=[...x.getImageData(0,0,1,1).data];const lum=v=>v.slice(0,3).map(n=>n/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4).reduce((t,n,i)=>t+n*[.2126,.7152,.0722][i],0),l=lum(a),m=lum(b);return {tag:e.tagName,visible:e.matches(':focus-visible'),outline:s.outline,outlineStyle:s.outlineStyle,shadow:s.boxShadow,contrast:(Math.max(l,m)+.05)/(Math.min(l,m)+.05)}})()`);
+        assert.equal(focus.tag,kind==='select'?'BUTTON':'INPUT');assert.equal(focus.visible,true);
+        // Soft Workbench focus (DESIGN.md → Focus): a plain field or control takes a 2px copper stroke; a field-styled
+        // control (`mw-input`, the `mw-select` trigger) takes a copper edge with a soft halo instead. Either way exactly one
+        // indicator, at 3:1 or better.
+        const stroke=focus.outlineStyle!=='none';
+        if(stroke){assert.match(focus.outline,/solid 2px/,JSON.stringify(focus));assert.equal(focus.shadow,'none',JSON.stringify(focus));}
+        else assert.match(focus.shadow,/ 3px$/,JSON.stringify(focus));
+        assert.ok(focus.contrast>=3,JSON.stringify(focus));
         if(kind==='select') assert.equal(await evaluate("document.activeElement.matches('[data-mw-select-trigger]')"),true);
         focusEvidence.push({theme,kind,...focus});
       }

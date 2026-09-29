@@ -1,4 +1,7 @@
 export const PPT_EN: Record<string, string> = {
+  "列表暂时读不到": "The list could not be read",
+  "请稍后重试": "Try again in a moment",
+  "重试": "Retry",
   "重新读取": "Reload",
   "恢复发布": "Resume publishing",
   "保存中": "Saving",

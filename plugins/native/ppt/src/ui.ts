@@ -65,7 +65,7 @@ export function renderPptWorkbench(model: PptUiModel): string {
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-ppt-new>${icon("plus")}<span>${p.text("新建演示稿")}</span></button>
       </header>
       <div class="mw-empty" data-ppt-empty>
-        <span class="mw-empty__mark">${icon("image")}</span>
+        <span class="mw-empty__mark">${icon("presentation")}</span>
         <strong>${p.text("还没有演示稿")}</strong>
         <p>${p.text("先建一份，再加幻灯片。写好后可以直接放映，也能导出 PowerPoint 文件。")}</p>
         <p data-placement-target></p>

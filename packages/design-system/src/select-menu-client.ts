@@ -25,23 +25,23 @@ export const SELECT_MENU_STYLES = `
   .mw-select-picker__menu {
     position: fixed; margin: 0; inset: unset; box-sizing: border-box;
     min-width: 160px; max-height: min(280px, 45dvh); overflow: auto;
-    padding: 6px; border: 1px solid var(--hairline, var(--line, var(--control-border)));
-    border-radius: var(--radius-surface, 12px); background: var(--paper);
-    box-shadow: var(--control-shadow, 0 16px 40px color-mix(in srgb, var(--ink) 18%, transparent));
+    padding: 6px; border: 0;
+    border-radius: var(--radius-surface, 12px); background: var(--popover, var(--paper));
+    box-shadow: var(--lift-3);
     color: var(--ink); z-index: 80;
   }
   .mw-select-picker__menu:not(:popover-open):not(.is-open) { display: none; }
   .mw-select-picker__menu.is-open { display: flex; flex-direction: column; }
   .mw-select-picker__menu:popover-open,
   .mw-select-picker__menu.is-open {
-    animation: creative-arrive var(--motion-fast, 130ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)) both;
+    animation: creative-arrive var(--dur-hover, 130ms) var(--ease-quint) both;
   }
   @media (prefers-reduced-motion: reduce) {
     .mw-select-picker__menu:popover-open, .mw-select-picker__menu.is-open { animation: none; }
   }
   .mw-select-picker__item {
     display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; flex-shrink: 0;
-    padding: 0 10px; border: 0; border-radius: 8px; background: transparent;
+    padding: 0 12px; border: 0; border-radius: 8px; background: transparent;
     color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; overflow-wrap: anywhere;
   }
   .mw-select-picker__item:hover, .mw-select-picker__item:focus-visible {
@@ -58,7 +58,7 @@ export const SELECT_MENU_STYLES = `
   @media (max-width: 760px), (pointer: coarse) {
     .mw-select-picker > .mw-select-picker__trigger,
     .mw-menu.mw-select-picker__menu .mw-select-picker__item { min-height: 44px; }
-    .mw-menu.mw-select-picker__menu .mw-select-picker__item { font-size: 14px; }
+    .mw-menu.mw-select-picker__menu .mw-select-picker__item { font-size: 15px; } /* touch: the next step up, readable at arm's length */
   }
 `;
 

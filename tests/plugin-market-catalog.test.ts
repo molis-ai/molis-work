@@ -54,9 +54,10 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   const tabIcons = JSON.parse(script.match(/const PLUGIN_TAB_ICON = (\{[^\n]+\});/)![1]!);
   assert.equal(tabIcons.feed, "rss");
   assert.equal(tabIcons.inbox, "inbox");
-  assert.equal(tabIcons.experiments, "sparkles");
-  assert.match(script, /\[data-feed-stage-group\]/);
-  assert.match(script, /feed-stage-group-body/);
+  // Experiments no longer borrow the AI mark: every plugin has its own glyph (spec → 第三轮 · 图标).
+  assert.equal(tabIcons.experiments, "flask");
+  // Soft Workbench: Feed sorts one timeline inside its row list (the per-source folds became a source menu).
+  assert.match(script, /\[data-feed-rows\]/);
   assert.doesNotMatch(script, /feedList\.insertBefore\(wrap, feedEmpty\)/);
   new Function(script);
 });

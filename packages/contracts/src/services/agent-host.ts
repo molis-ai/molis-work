@@ -1556,6 +1556,8 @@ export interface BuilderAgentRequest {
   skills?: readonly BuilderSkill[];
   task: string;
   contractRevision: string;
+  /** Host-owned PNG previews, sent through the same Runtime as text. Never logged as base64. */
+  images?: readonly { label: string; bytes: Uint8Array }[];
   operationIds?: readonly string[];
   /** When set, the only files (relative to the build directory) this code run may write: its own operation's, while others are written alongside it. */
   writable?: readonly string[];

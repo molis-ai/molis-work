@@ -4,7 +4,7 @@ export const CODING_COMPANION_STYLES = `
 .companion-surface { height:100%; min-height:0; }
 .companion-layout { display:grid; grid-template-columns:240px minmax(0,1fr); height:100%; min-height:0; }
 .companion-directory { min-height:0; min-width:0; overflow:hidden; padding:0; }
-.companion-directory > .mw-field { display:grid; gap:6px; padding:8px; }
+.companion-directory > .mw-field { display:grid; gap:8px; padding:8px; }
 .companion-manage { display:flex; width:100%; justify-content:flex-start; margin-bottom:8px; }
 .companion-manage > span { flex:1; text-align:left; }
 .companion-manage > svg:last-child { color:var(--faint); }
@@ -18,7 +18,7 @@ export const CODING_COMPANION_STYLES = `
 .workspace-manager { margin:0; }
 .workspace-manager .mw-frame__panel > * { max-width:640px; }
 .workspace-manager .mw-frame__header > .mw-frame__heading,.companion-reader .mw-frame__header > .mw-frame__heading { flex:1; }
-.workspace-manager form h2 { font-size:14px; font-weight:400; margin:0; }
+.workspace-manager form h2 { font-size:15px; font-weight: var(--weight-title, 600); margin:0; }
 .workspace-manager p,.companion-reader > p { color:var(--muted); font-size:13px; line-height:1.7; overflow-wrap:anywhere; max-width:70ch; }
 .workspace-list { margin:24px 0; gap:4px; }
 .workspace-choice.mw-dir-row { min-height:52px; height:auto; padding:8px 12px; }
@@ -28,8 +28,8 @@ export const CODING_COMPANION_STYLES = `
 .workspace-manager p[data-workspace-picked] { margin:0; }
 .workspace-manager p[data-workspace-picked].is-picked { color:var(--ink); }
 .workspace-manager form > button { justify-self:start; }
-[data-companion-content] { margin-top:28px; }
-[data-companion-content] .stats-counts { display:grid; grid-template-columns:minmax(0,1fr) auto; max-width:480px; gap:20px; margin:24px 0; padding:20px 0; font-size:14px; }
+[data-companion-content] { margin-top:32px; }
+[data-companion-content] .stats-counts { display:grid; grid-template-columns:minmax(0,1fr) auto; max-width:480px; gap:24px; margin:24px 0; padding:24px 0; font-size:13px; }
 [data-companion-content] .stats-counts dt { color:var(--muted); }
 [data-companion-content] .stats-counts dd { margin:0; font-size:20px; font-variant-numeric:tabular-nums; }
 [data-companion-content] .stats-origin { display:block; margin-top:4px; color:var(--muted); font-size:12px; }

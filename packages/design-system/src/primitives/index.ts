@@ -20,6 +20,7 @@ export {
   renderMeter,
   renderAutocomplete,
   renderToggle,
+  renderChoice,
 } from "./field.js";
 export {
   renderBadge,

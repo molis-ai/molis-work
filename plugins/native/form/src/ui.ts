@@ -57,7 +57,7 @@ export function renderFormWorkbench(model: FormUiModel): string {
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-form-new>${icon("plus")}<span>${p.text("新建问卷")}</span></button>
       </header>
       <div class="mw-empty" data-form-empty>
-        <span class="mw-empty__mark">${icon("list")}</span>
+        <span class="mw-empty__mark">${icon("clipboard")}</span>
         <strong>${p.text("还没有问卷")}</strong>
         <p>${p.text("先建一份，再加题目。开始收集后，别人可以在这台电脑上填，或用导出的填写页在自己的浏览器里填。")}</p>
         <p data-placement-target></p>

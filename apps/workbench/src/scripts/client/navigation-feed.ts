@@ -339,7 +339,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       if (feedSourcesDialog?.getAttribute("aria-busy") === "true") return;
       if (!feedSourcesDialog) return;
       if (stage === "config" && !feedSourcesDialog.querySelector('[data-feed-task-config="' + CSS.escape(value) + '"]')) {
-        showToast(L("这个任务已不可用，请刷新后查看。")); return;
+        showToast(L("这个任务已不可用，请刷新后查看。"), true); return;
       }
       const draft = feedSourcesDialog.querySelector("[data-feed-add-form]");
       if (stage === "choose" && draft?.dataset.createdSourceId) { stage = "setup"; value = feedSourcesDialog.querySelector("[data-feed-source-register]").dataset.feedSourceRegister; }
@@ -409,9 +409,9 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       document.querySelectorAll('button[data-feed-view]:not([data-feed-view="messages"])').forEach(button => button.hidden = !isSource);
       const sync = document.querySelector("[data-feed-current-sync]");
       if (sync) { sync.hidden = !isSource; sync.dataset.feedSourceSync = next; sync.disabled = available?.dataset.feedSourceCanSync !== "true" || available?.dataset.feedSourceState === "syncing"; }
-      if (feedWorkbench) { feedWorkbench.dataset.selectedSource = next; feedWorkbench.dataset.railOpen = "false"; feedWorkbench.querySelector("[data-feed-rail-toggle]")?.setAttribute("aria-expanded", "false"); }
+      if (feedWorkbench) { feedWorkbench.dataset.selectedSource = next; feedWorkbench.dataset.railOpen = "false"; feedWorkbench.querySelector("[data-feed-rail-toggle]")?.setAttribute("aria-expanded", "false"); feedWorkbench.querySelector("[data-feed-source-menu]")?.removeAttribute("open"); }
+      document.querySelectorAll(".feed-source-tabs").forEach((tabs) => { tabs.hidden = !isSource; });
       if (changed) { collapseFeedStage(); setFeedAddOpen(false); }
-      document.querySelectorAll("[data-feed-stage-group]").forEach(group => { if (group.dataset.feedStageGroup === next) group.open = true; });
       filterFeedItems(true, false);
       rememberFeedPresetState();
       if (persist) { document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: next } })); queueSave(); }
@@ -545,7 +545,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         list.scrollTop = scrollTop;
         return true;
       } catch {
-        if (seq === feedStageRefreshSeq) showToast(L("列表更新失败，当前输入已保留，请重试。"));
+        if (seq === feedStageRefreshSeq) showToast(L("列表更新失败，当前输入已保留，请重试。"), true);
         return false;
       }
     };
@@ -574,7 +574,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         if (!slot.querySelector("[data-feed-detail]")) {
           if (slot.contains(document.activeElement)) row.focus({ preventScroll: true });
           const loading = document.createElement("p");
-          loading.className = "feed-stage-loading";
+          loading.className = "feed-stage-loading mw-loading";
           loading.textContent = L("正在载入 Item…");
           slot.replaceChildren(loading);
         }
@@ -719,7 +719,8 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       const presetRows = rows.filter((row) => row.dataset.feedEntryType === type);
       const matchesRow = (row) => {
         const matchesType = type === "all" || row.dataset.feedEntryType === type;
-        const matchesSource = (selectedFeedTask === "all" || row.dataset.feedEntrySourceId === selectedFeedTask) && (source === "all" || row.dataset.feedEntrySource === source);
+        const matchesSource = (selectedFeedTask === "all" || (row.dataset.feedEntryTask || row.dataset.feedEntrySourceId) === selectedFeedTask) && (source === "all" || row.dataset.feedEntrySource === source);
+        const matchesQuick = feedQuickFilter === "unread" ? row.dataset.feedEntryRead !== "read" : feedQuickFilter === "saved" ? row.dataset.feedEntryStatus === "saved" : true;
         const matchesProvider = providerType === "all" || row.dataset.feedEntryProvider === providerType;
         const occurredAt = Date.parse(row.dataset.feedEntryTime || "");
         const age = Number.isFinite(occurredAt) ? Date.now() - occurredAt : Number.POSITIVE_INFINITY;
@@ -733,7 +734,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
             ? row.dataset.feedEntryStatus !== "archived"
             : row.dataset.feedEntryStatus === status;
         const matchesQuery = !query || String(row.dataset.feedEntrySearch || "").includes(query);
-        return matchesType && matchesSource && matchesProvider && matchesTime && matchesStatus && matchesQuery;
+        return matchesType && matchesSource && matchesProvider && matchesTime && matchesStatus && matchesQuery && matchesQuick;
       };
       const compare = (left, right) => {
         if (sort === "oldest") return String(left.dataset.feedEntryTime || "").localeCompare(String(right.dataset.feedEntryTime || ""));
@@ -742,45 +743,38 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         return String(right.dataset.feedEntryTime || "").localeCompare(String(left.dataset.feedEntryTime || ""));
       };
       const visible = [];
-      const groups = [...list.querySelectorAll("[data-feed-stage-group]")];
-      for (const group of groups) {
-        const groupRows = [...group.querySelectorAll("[data-feed-entry-id]")];
-        const groupVisible = [];
-        for (const row of groupRows) {
-          const wrap = row.closest("[data-feed-item-wrap]") || row;
-          const match = matchesRow(row);
-          wrap.hidden = !match;
-          if (match) groupVisible.push(row);
-        }
-        const filtersIdle = source === "all" && providerType === "all" && time === "all" && !query && (status === "active" || status === "all");
-        const configured = group.dataset.feedStageGroup !== "other";
-        group.hidden = (selectedFeedTask !== "all" && group.dataset.feedStageGroup !== selectedFeedTask) || (groupVisible.length === 0 && !(configured && filtersIdle));
-        const count = group.querySelector("[data-feed-stage-group-count]");
-        if (count) count.textContent = String(groupVisible.length);
-        const empty = group.querySelector("[data-feed-stage-group-empty]");
-        if (empty) empty.hidden = groupVisible.length > 0;
-        const body = group.querySelector(".feed-stage-group-body") || group;
-        groupRows.sort(compare).forEach((row) => {
-          const wrap = row.closest("[data-feed-item-wrap]") || row;
-          body.insertBefore(wrap, empty);
-        });
-        visible.push(...groupVisible);
+      const body = list.querySelector("[data-feed-rows]") || list;
+      const listEmpty = list.querySelector("[data-feed-empty]");
+      for (const row of rows) {
+        const wrap = row.closest("[data-feed-item-wrap]") || row;
+        const match = matchesRow(row);
+        wrap.hidden = !match;
+        if (match) visible.push(row);
       }
+      rows.sort(compare).forEach((row) => {
+        const wrap = row.closest("[data-feed-item-wrap]") || row;
+        if (body === list && listEmpty) body.insertBefore(wrap, listEmpty); else body.append(wrap);
+      });
       if (feedResultCount) feedResultCount.textContent = L("{count} 条消息", { count: visible.length });
-      const filteredEmpty = visible.length === 0 && presetRows.length > 0;
+      const taskRows = presetRows.filter((row) => selectedFeedTask === "all" || (row.dataset.feedEntryTask || row.dataset.feedEntrySourceId) === selectedFeedTask);
+      const filteredEmpty = visible.length === 0 && taskRows.length > 0;
+      const hasSources = Boolean(document.querySelector("[data-feed-source-rail] [data-feed-task]:not([data-feed-task='all'])"));
+      const otherFilters = source !== "all" || providerType !== "all" || time !== "all" || query || (status !== "active" && status !== "all");
       const liveEmpty = list.querySelector("[data-feed-empty]") || feedEmpty;
       if (liveEmpty) {
         const emptyTitle = liveEmpty.querySelector("[data-feed-empty-title]");
         const clearFilters = liveEmpty.querySelector("[data-feed-clear-filters]");
         const addTask = liveEmpty.querySelector("[data-feed-add-toggle]");
         if (emptyTitle) emptyTitle.textContent = filteredEmpty
-          ? L("没有符合当前条件的消息")
-          : groups.length
-            ? L("还没有消息，拉取后会出现在这里")
-            : L("添加一个来源，开始收集消息");
+          ? (!otherFilters && feedQuickFilter === "unread" ? L("未读内容已经读完了") : !otherFilters && feedQuickFilter === "saved" ? L("还没有保存的资料") : L("没有符合当前条件的消息"))
+          : selectedFeedTask !== "all"
+            ? L("这个来源还没有消息，拉取后会出现在这里")
+            : hasSources
+              ? L("还没有消息，拉取后会出现在这里")
+              : L("添加一个来源，开始收集消息");
         if (clearFilters) clearFilters.hidden = !filteredEmpty;
-        if (addTask) addTask.hidden = filteredEmpty;
-        liveEmpty.hidden = visible.length > 0 || groups.some((group) => !group.hidden);
+        if (addTask) addTask.hidden = filteredEmpty || hasSources;
+        liveEmpty.hidden = visible.length > 0;
       }
       const selectionVisible = visible.some((row) => row.dataset.feedEntryId === selectedFeedItem);
       if (!preserveSelection || !selectionVisible) {
@@ -852,8 +846,36 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       }
     };
 
+    const syncFeedQuickFilter = () => {
+      document.querySelectorAll("[data-feed-quick]").forEach((button) => {
+        const current = button.dataset.feedQuick === feedQuickFilter;
+        button.classList.toggle("is-current", current);
+        button.setAttribute("aria-pressed", String(current));
+      });
+    };
+    document.addEventListener("click", (event) => {
+      const button = event.target instanceof Element ? event.target.closest("[data-feed-quick]") : null;
+      if (!button) return;
+      feedQuickFilter = ["unread", "saved"].includes(button.dataset.feedQuick) ? button.dataset.feedQuick : "all";
+      syncFeedQuickFilter();
+      filterFeedItems();
+    });
+    // The reading bar draws its rule only once the page has scrolled under it.
+    document.addEventListener("scroll", (event) => {
+      const page = event.target instanceof Element && event.target.matches(".feed-stage-item-detail") ? event.target : null;
+      if (page) page.toggleAttribute("data-scrolled", page.scrollTop > 4);
+    }, true);
+    // The source menu is a disclosure; its summary keeps the older rail-toggle hook and says whether it is open.
+    document.addEventListener("toggle", (event) => {
+      const menu = event.target instanceof Element && event.target.matches("[data-feed-source-menu]") ? event.target : null;
+      if (!menu) return;
+      if (feedWorkbench) feedWorkbench.dataset.railOpen = String(menu.open);
+      menu.querySelector("[data-feed-rail-toggle]")?.setAttribute("aria-expanded", String(menu.open));
+    }, true);
+
     const rememberFeedPresetState = () => {
       feedPresetState[activeFeedPreset] = {
+        quick: feedQuickFilter,
         selected: selectedFeedItem,
         task: selectedFeedTask || "all",
         query: String(feedSearch?.value || ""),
@@ -869,6 +891,8 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       const saved = feedPresetState[preset] || defaultFeedPresetState();
       selectedFeedItem = String(saved.selected || "");
       selectedFeedTask = String(saved.task || "all");
+      feedQuickFilter = ["unread", "saved"].includes(saved.quick) ? saved.quick : "all";
+      syncFeedQuickFilter();
       if (feedSearch) feedSearch.value = String(saved.query || "");
       if (feedSourceFilter) {
         feedSourceFilter.value = saved.source || "all";

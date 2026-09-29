@@ -23,23 +23,23 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     position: static;
     min-width: var(--tree-width, clamp(292px, 24vw, 324px));
     height: 100%;
-    padding: 0 18px;
+    padding: 0 16px;
     border-right: 0;
     gap: 8px;
     transform: none;
   }
   body[data-desktop-shell="true"] .brand svg,
-  .brand svg { width: 17px; height: 17px; color: var(--ink); }
+  .brand svg { width: 16px; height: 16px; color: var(--ink); }
   body[data-desktop-shell="true"] .brand strong,
-  .brand strong { font-size: 14px; font-weight: 400; letter-spacing: -.025em; }
+  .brand strong { font-size: 15px; font-weight: var(--weight-control, 500); letter-spacing: -.025em; }
   body[data-desktop-shell="true"] .project-context { display: none; }
   body[data-desktop-shell="true"] .top-action,
   body[data-desktop-shell="true"] .theme-picker > summary,
   .top-action,
   .theme-picker > summary {
     height: 32px;
-    margin-right: 10px;
-    padding-inline: 10px;
+    margin-right: 12px;
+    padding-inline: 12px;
     border: 0;
     border-radius: 7px;
     color: var(--muted);
@@ -50,7 +50,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   a.top-action:hover,
   .theme-picker > summary:hover {
     color: var(--ink);
-    background: var(--rail);
+    background: var(--nav-hover);
   }
 
   body[data-board-view] .workspace,
@@ -84,7 +84,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   }
   .navigator-project {
     min-height: 94px;
-    padding: 13px 14px 11px;
+    padding: 12px 16px 12px;
     border: 0;
     border-bottom: 1px solid var(--line);
     border-radius: 0;
@@ -95,37 +95,37 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     display: grid;
     grid-template-columns: 18px minmax(0, 1fr);
     align-items: center;
-    gap: 6px 8px;
+    gap: 8px 8px;
   }
   .navigator-project-primary > strong {
     min-width: 0;
     overflow: hidden;
-    font-size: 14px;
-    font-weight: 400;
+    font-size: 15px;
+    font-weight: var(--weight-control, 500);
     letter-spacing: -.015em;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   body[data-desktop-shell="true"] .desktop-pane-header--navigator {
     min-height: 32px;
-    padding: 0 14px;
+    padding: 0 16px;
     border: 0;
     background: var(--rail);
   }
   body[data-desktop-shell="true"] .desktop-pane-header--navigator strong {
     color: var(--muted);
-    font-size: 10px;
-    font-weight: 400;
+    font-size: 11px;
+    font-weight: var(--weight-control, 500);
     letter-spacing: .03em;
   }
 
   .tree-chrome,
   body[data-desktop-shell="true"] .tree-chrome {
-    padding: 7px 12px 10px;
+    padding: 8px 12px 12px;
     border: 0;
     border-bottom: 1px solid var(--line);
     background: var(--rail);
-    gap: 7px;
+    gap: 8px;
   }
   .tree-search input,
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]),
@@ -137,7 +137,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     color: var(--ink);
     box-shadow: none;
   }
-  .tree-search input { height: 34px; padding-inline: 31px 45px; }
+  .tree-search input { height: 34px; padding-inline: 32px 48px; }
   .tree-search input::placeholder { color: var(--muted); opacity: 1; }
   .tree-search kbd { color: var(--muted); background: transparent; }
   .navigator-view-switch,
@@ -186,9 +186,9 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     color: var(--muted);
   }
   .tree-tool:hover,
-  a.tree-tool:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  a.tree-tool:hover { color: var(--ink); background: var(--nav-hover); }
 
-  .tree-scroll { padding: 8px 9px 20px; }
+  .tree-scroll { padding: 8px 8px 24px; }
   .tree-children { border-left-color: var(--line-strong); }
   .tree-node,
   .navigator-goal-row {
@@ -198,14 +198,14 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: transparent;
   }
   .tree-node {
-    padding: 5px 7px;
+    padding: 4px 8px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 9px;
+    gap: 8px;
   }
   .tree-node:hover,
-  .navigator-goal-row:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+  .navigator-goal-row:hover { background: var(--nav-hover); }
   .tree-node.is-selected,
   .navigator-goal-row.is-selected {
     color: var(--ink);
@@ -213,12 +213,12 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     box-shadow: none;
   }
   .tree-copy strong,
-  .navigator-goal-copy strong { font-size: 13px; font-weight: 400; line-height: 1.35; letter-spacing: -.008em; }
+  .navigator-goal-copy strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.35; letter-spacing: -.008em; }
   .tree-node.is-selected .tree-copy strong,
-  .navigator-goal-row.is-selected .navigator-goal-copy strong { font-weight: 400; }
+  .navigator-goal-row.is-selected .navigator-goal-copy strong { font-weight: var(--weight-control, 500); }
   .tree-node.is-selected .tree-copy small { color: var(--muted); }
   .tree-progress { height: auto; background: transparent; }
-  .tree-progress > span { color: var(--muted); background: transparent; font-size: 10px; }
+  .tree-progress > span { color: var(--muted); background: transparent; font-size: 11px; }
   .tree-progress > i { background: var(--line-strong); }
   .tree-progress > i > b { background: var(--blue); }
   .goal-status { --goal-status-tone: var(--ink-soft); }
@@ -226,12 +226,12 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   body[data-desktop-shell="true"] .goal-status {
     min-height: 22px;
     max-width: 100%;
-    padding: 1px 7px;
+    padding: 1px 8px;
     border: 1px solid color-mix(in srgb, var(--goal-status-tone) 28%, var(--line));
     border-radius: 6px;
     color: var(--goal-status-tone);
     background: color-mix(in srgb, var(--goal-status-tone) 7%, var(--paper));
-    font-size: 10.5px;
+    font-size: 11px;
     font-weight: 400;
     line-height: 1.2;
   }
@@ -265,21 +265,21 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .goal-status--trashed,
   .goal-status--archived { --goal-status-tone: var(--tone-quiet, var(--muted)); }
   .tree-node.is-selected .goal-status { color: var(--goal-status-tone); }
-  .tree-relations > summary strong { font-size: 10.5px; }
+  .tree-relations > summary strong { font-size: 11px; }
   .tree-relations > summary em {
     min-height: 19px;
-    padding: 1px 5px;
+    padding: 1px 4px;
     border: 1px solid color-mix(in srgb, currentColor 24%, var(--line));
     border-radius: 5px;
     background: color-mix(in srgb, currentColor 6%, var(--rail));
     display: inline-flex;
     align-items: center;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 400;
   }
   .tree-relations > summary { color: var(--muted); }
   .tree-footer {
-    padding: 0 14px;
+    padding: 0 16px;
     border: 0;
     border-top: 1px solid var(--line);
     background: var(--rail);
@@ -299,7 +299,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .goal-document {
     width: min(100%, 880px);
     margin: 0 auto;
-    padding: 44px clamp(42px, 5vw, 66px) 88px;
+    padding: 48px clamp(42px, 5vw, 66px) 88px;
   }
   body[data-desktop-shell="true"] .goal-header,
   .goal-header { padding-bottom: 24px; border: 0; }
@@ -310,16 +310,16 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .goal-title-row h1 {
     max-width: 22em;
     margin: 0;
-    font-size: clamp(27px, 2.25vw, 34px);
+    font-size: 24px;
     line-height: 1.2;
     letter-spacing: -.035em;
-    font-weight: 400;
+    font-weight: var(--weight-title, 600);
   }
   .goal-title-outcome {
     max-width: 68ch;
     margin-top: 12px;
     color: var(--muted);
-    font-size: 13.5px;
+    font-size: 13px;
     line-height: 1.65;
   }
   .goal-more > summary {
@@ -328,7 +328,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: transparent;
     color: var(--muted);
   }
-  .goal-more > summary:hover { color: var(--ink); background: var(--rail); }
+  .goal-more > summary:hover { color: var(--ink); background: var(--nav-hover); }
 
   .goal-focus-outcome,
   .goal-now,
@@ -340,16 +340,16 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   }
   .goal-now {
     margin: 8px 0 0;
-    padding: 30px 0 32px;
+    padding: 32px 0 32px;
     border: 0;
     border-top: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
     border-radius: 0;
     display: grid;
     grid-template-columns: 124px minmax(0, 1fr);
-    column-gap: 34px;
+    column-gap: 32px;
   }
-  body[data-desktop-shell="true"] .goal-now { padding: 30px 0 32px; }
+  body[data-desktop-shell="true"] .goal-now { padding: 32px 0 32px; }
   .goal-now > header {
     grid-column: 1;
     align-self: start;
@@ -363,7 +363,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     margin: 0;
     color: var(--ink);
     font-size: 13px;
-    font-weight: 400;
+    font-weight: var(--weight-title, 600);
     letter-spacing: -.01em;
   }
   .goal-now-body {
@@ -374,46 +374,30 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     align-items: start;
     gap: 0;
   }
-  .goal-now-body > div { gap: 5px; }
+  .goal-now-body > div { gap: 4px; }
   .goal-now-body > div > strong { font-size: 17px; line-height: 1.35; letter-spacing: -.015em; }
   .goal-now-body p { max-width: 62ch; color: var(--ink-soft); }
   .goal-now-body small { max-width: 68ch; color: var(--muted); line-height: 1.55; }
-  .mw-btn--primary {
-    min-height: var(--control-h);
-    padding-inline: var(--control-pad-x);
-    border: 1px solid var(--action) !important;
-    border-radius: var(--radius-control) !important;
-    background: var(--action) !important;
-    color: var(--action-ink) !important;
-    box-shadow: none !important;
-    font-weight: 400;
-  }
-  .mw-btn--primary:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--action) 90%, var(--action-ink)) !important;
-    color: var(--action-ink) !important;
-    opacity: 1;
-    transform: none;
-  }
-  .goal-now-blockers { grid-column: 2; margin-top: 20px; border-top-color: var(--line); }
+  .goal-now-blockers { grid-column: 2; margin-top: 24px; border-top-color: var(--line); }
 
   .goal-focus-criteria,
   .goal-focus-context {
-    padding: 30px 0 32px;
+    padding: 32px 0 32px;
     display: grid;
     grid-template-columns: 124px minmax(0, 1fr);
-    column-gap: 34px;
+    column-gap: 32px;
   }
   body[data-desktop-shell="true"] .goal-focus-criteria,
-  body[data-desktop-shell="true"] .goal-focus-context { padding: 30px 0 32px; }
+  body[data-desktop-shell="true"] .goal-focus-context { padding: 32px 0 32px; }
   .goal-focus-criteria > header,
   .goal-focus-context > header {
     grid-column: 1;
     align-self: start;
     display: grid;
-    gap: 5px;
+    gap: 4px;
   }
   .goal-focus-criteria > header p,
-  .goal-focus-context > header p { color: var(--muted); font-size: 10.5px; line-height: 1.45; }
+  .goal-focus-context > header p { color: var(--muted); font-size: 11px; line-height: 1.45; }
   .goal-focus-criteria > header > strong { color: var(--muted); font-size: 11px; }
   .goal-focus-criteria > ul,
   .goal-focus-criteria > .empty-row,
@@ -422,7 +406,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .goal-focus-criteria > ul { margin: 0; }
   .goal-focus-criteria li { padding: 12px 0; border-top: 1px solid var(--line); }
   .goal-focus-criteria li:first-child { border-top: 0; padding-top: 0; }
-  .goal-focus-criteria > a { width: fit-content; margin-top: 14px; color: var(--blue-dark); font-size: 11px; font-weight: 400; }
+  .goal-focus-criteria > a { width: fit-content; margin-top: 16px; color: var(--blue-dark); font-size: 11px; font-weight: 400; }
   .goal-focus-context { border-bottom: 0; }
   .goal-focus-context dl {
     margin: 0;
@@ -430,16 +414,16 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     border: 0;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 28px;
+    gap: 0 32px;
   }
   .goal-focus-context dl > div {
     min-height: 46px;
-    padding: 9px 0;
+    padding: 8px 0;
     border: 0;
     border-top: 1px solid var(--line);
   }
   .goal-focus-context dl > div:nth-child(-n+2) { border-top: 0; padding-top: 0; }
-  .goal-focus-context dt { color: var(--muted); font-size: 10px; }
+  .goal-focus-context dt { color: var(--muted); font-size: 11px; }
   .goal-focus-context dd { color: var(--ink); font-size: 12px; font-weight: 400; }
 
   .tui-pane,
@@ -458,7 +442,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .tui-tab.is-active { color: var(--ink); background: var(--rail); }
   .tui-stage { background: var(--paper); }
   .tui-parent-guard {
-    padding: 14px 2px 16px;
+    padding: 16px 4px 16px;
     border: 0;
     border-bottom: 1px solid var(--line);
     border-radius: 0;
@@ -475,20 +459,20 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .tui-child-choice strong { color: var(--ink); }
   .tui-child-choices { padding-left: 24px; gap: 0; }
   .tui-child-choice {
-    padding: 10px 2px;
+    padding: 12px 4px;
     border: 0;
     border-top: 1px solid var(--line);
     border-radius: 0;
     background: transparent;
     color: var(--ink);
   }
-  .tui-child-choice:hover { border-color: var(--line-strong); background: var(--rail); }
+  .tui-child-choice:hover { border-color: var(--line-strong); background: var(--nav-hover); }
   .tui-chrome button:not(.mw-btn) {
     border-color: var(--line-strong);
     background: var(--paper);
     color: var(--ink-soft);
   }
-  .tui-chrome button:not(.mw-btn):hover:not(:disabled) { border-color: var(--line-strong); background: var(--rail); color: var(--ink); }
+  .tui-chrome button:not(.mw-btn):hover:not(:disabled) { border-color: var(--line-strong); background: var(--nav-hover); color: var(--ink); }
   .tui-chrome button:not(.mw-btn):disabled { border-color: var(--line); background: transparent; color: var(--faint); }
   .tui-pane[data-tui-read-only="true"] .tui-chrome { opacity: 1; }
   .tui-chrome button:disabled,
@@ -517,20 +501,20 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     box-shadow: var(--shadow);
   }
   .theme-menu button { border-radius: 6px; }
-  .theme-menu button[aria-pressed="true"] { color: var(--ink); background: var(--rail); }
+  .theme-menu button[aria-pressed="true"] { color: var(--ink); background: var(--nav-active); }
 
   .settings-shell,
   .settings-content { background: var(--paper); }
   .settings-navigation {
     margin: 0;
-    padding: 28px 12px;
+    padding: 32px 12px;
     border: 0;
     border-right: 1px solid var(--line);
     border-radius: 0;
     background: var(--rail);
   }
   .settings-navigation a { border-radius: 6px; }
-  .settings-navigation a:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+  .settings-navigation a:hover { background: var(--nav-hover); }
   .settings-navigation a[aria-current="page"] {
     color: var(--ink);
     background: var(--nav-active);
@@ -544,7 +528,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: var(--paper);
     box-shadow: none;
   }
-  .settings-document { width: min(100%, 880px); margin: 0 auto; padding: 52px clamp(38px, 5vw, 64px) 90px; }
+  .settings-document { width: min(100%, 880px); margin: 0 auto; padding: 52px clamp(38px, 5vw, 64px) 88px; }
   .settings-heading { border-bottom-color: var(--line); }
   .preference-option {
     min-height: 84px;
@@ -581,7 +565,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   }
 
   @media (min-width: 761px) and (max-width: 1080px) {
-    body[data-desktop-shell="true"] .goal-document { padding-inline: 36px; }
+    body[data-desktop-shell="true"] .goal-document { padding-inline: 32px; }
     .goal-now,
     .goal-focus-criteria,
     .goal-focus-context { grid-template-columns: 104px minmax(0, 1fr); column-gap: 24px; }
@@ -591,27 +575,27 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .workspace {
       --tree-width: clamp(276px, 22vw, 304px);
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-project { min-height: 82px; padding-block: 9px 8px; }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-chrome { padding-block: 5px 7px; }
+    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-project { min-height: 82px; padding-block: 8px 8px; }
+    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-chrome { padding-block: 4px 8px; }
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-search input { height: 30px; }
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-node,
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-goal-row { min-height: 32px; }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-node { padding-block: 3px; }
+    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-node { padding-block: 4px; }
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-status {
       min-height: 20px;
-      padding-inline: 6px;
+      padding-inline: 8px;
       border: 1px solid color-mix(in srgb, var(--goal-status-tone) 28%, var(--line));
       border-radius: 5px;
       background: color-mix(in srgb, var(--goal-status-tone) 7%, var(--paper));
-      font-size: 10px;
+      font-size: 11px;
     }
     html[data-density="compact"] body[data-desktop-shell="true"][data-board-view]:not([data-board-view="decisions"]) .tree-node .goal-status {
       min-height: 20px;
-      padding-inline: 6px;
+      padding-inline: 8px;
       border: 1px solid color-mix(in srgb, var(--goal-status-tone) 28%, var(--line));
       border-radius: 5px;
       background: color-mix(in srgb, var(--goal-status-tone) 7%, var(--paper));
-      font-size: 10px;
+      font-size: 11px;
     }
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-progress > span { display: none; }
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .tree-progress > i {
@@ -621,19 +605,19 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     }
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-document {
       width: min(100%, 960px);
-      padding: 28px 42px 64px;
+      padding: 32px 48px 64px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-title-row h1 { font-size: clamp(24px, 1.9vw, 29px); }
+    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-title-row h1 { font-size: 20px; }
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-now,
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-criteria,
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-context { padding-block: 22px 24px; }
+    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-context { padding-block: 24px 24px; }
   }
 
   @media (max-width: 760px) {
     body[data-desktop-shell="true"] .app,
     .app { grid-template-rows: 48px 44px minmax(0, 1fr); }
     body[data-desktop-shell="true"] .brand,
-    .brand { min-width: 0; padding-inline: 14px; border-right: 0; }
+    .brand { min-width: 0; padding-inline: 16px; border-right: 0; }
     body[data-board-view] .workspace,
     .workspace { grid-template-columns: 1fr; }
     body[data-desktop-shell="true"] .workspace.is-desktop-tui,
@@ -650,15 +634,15 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     .mobile-switch { border-bottom: 1px solid var(--line); background: var(--paper); }
     .mobile-switch button.is-active::after { background: var(--ink); }
     body[data-desktop-shell="true"] .goal-document,
-    .goal-document { width: 100%; padding: 24px 20px 60px; }
+    .goal-document { width: 100%; padding: 24px 24px 60px; }
     body[data-desktop-shell="true"] .goal-title-row h1,
-    .goal-title-row h1 { max-width: none; font-size: 23px; }
+    .goal-title-row h1 { max-width: none; font-size: 24px; }
     .goal-now,
     .goal-focus-criteria,
     .goal-focus-context {
       padding-block: 24px;
       grid-template-columns: 1fr;
-      gap: 17px;
+      gap: 16px;
     }
     body[data-desktop-shell="true"] .goal-now,
     body[data-desktop-shell="true"] .goal-focus-criteria,
@@ -679,10 +663,10 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     .goal-focus-criteria > header p,
     .goal-focus-context > header p { max-width: 34ch; }
     .goal-focus-context dl { grid-template-columns: 1fr; }
-    .goal-focus-context dl > div:nth-child(2) { border-top: 1px solid var(--line); padding-top: 9px; }
-    .settings-navigation { margin: 0; padding: 6px 8px; border-right: 0; border-bottom: 1px solid var(--line); }
+    .goal-focus-context dl > div:nth-child(2) { border-top: 1px solid var(--line); padding-top: 8px; }
+    .settings-navigation { margin: 0; padding: 8px 8px; border-right: 0; border-bottom: 1px solid var(--line); }
     .settings-navigation a { min-height: 44px; }
-    .settings-document { padding: 30px 20px 64px; }
+    .settings-document { padding: 32px 24px 64px; }
   }
 
   @container (max-width: 380px) {
@@ -693,8 +677,8 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   /* Project identity leads; utilities fit the title instead of claiming a row. */
   .navigator-project {
     min-height: 68px;
-    padding: 10px 12px 8px;
-    gap: 5px;
+    padding: 12px 12px 8px;
+    gap: 4px;
   }
   .navigator-project-primary {
     grid-template-columns: 18px minmax(0, 1fr) auto;
@@ -702,7 +686,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   }
   html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-project {
     min-height: 62px;
-    padding-block: 7px 6px;
+    padding-block: 8px 8px;
   }
 
   /* The overview reads as work first, context second. */
@@ -714,13 +698,13 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .goal-focus-aside { min-width: 0; }
   .goal-now {
     margin: 8px 0 0;
-    padding: 20px 22px 22px;
+    padding: 24px 24px 24px;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: color-mix(in srgb, var(--rail) 76%, var(--paper));
     display: block;
   }
-  body[data-desktop-shell="true"] .goal-now { padding: 20px 22px 22px; }
+  body[data-desktop-shell="true"] .goal-now { padding: 24px 24px 24px; }
   .goal-now > header {
     display: flex;
     align-items: center;
@@ -728,42 +712,42 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   }
   .goal-now > header h2 { font-size: 12px; color: var(--muted); }
   .goal-now-body {
-    margin-top: 13px;
+    margin-top: 12px;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
   }
-  .goal-now-body > div > strong { font-size: 16px; }
+  .goal-now-body > div > strong { font-size: 15px; }
   .goal-now-body p { margin-top: 4px; }
-  .goal-now-body small { margin-top: 5px; }
+  .goal-now-body small { margin-top: 4px; }
   .goal-now-blockers {
     grid-column: auto;
-    margin: 18px 0 0;
-    padding-top: 14px;
+    margin: 16px 0 0;
+    padding-top: 16px;
   }
   .goal-focus-criteria {
-    padding: 27px 0 4px;
+    padding: 24px 0 4px;
     border: 0;
     display: block;
   }
-  body[data-desktop-shell="true"] .goal-focus-criteria { padding: 27px 0 4px; }
+  body[data-desktop-shell="true"] .goal-focus-criteria { padding: 24px 0 4px; }
   .goal-focus-criteria > header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 20px;
+    gap: 24px;
   }
   .goal-focus-criteria > header p { margin-top: 4px; font-size: 11px; }
   .goal-focus-criteria > ul,
   .goal-focus-criteria > .empty-row,
   .goal-focus-criteria > a { grid-column: auto; }
-  .goal-focus-criteria > ul { margin-top: 15px; }
-  .goal-focus-criteria li { min-height: 44px; padding: 10px 0; }
-  .goal-focus-criteria li > span:last-child > strong { font-size: 12.5px; line-height: 1.45; }
-  .goal-focus-criteria li small { margin-top: 2px; font-size: 10.5px; line-height: 1.45; }
+  .goal-focus-criteria > ul { margin-top: 16px; }
+  .goal-focus-criteria li { min-height: 44px; padding: 12px 0; }
+  .goal-focus-criteria li > span:last-child > strong { font-size: 13px; line-height: 1.45; }
+  .goal-focus-criteria li small { margin-top: 4px; font-size: 11px; line-height: 1.45; }
   .goal-focus-criteria > a { margin-top: 12px; }
   .goal-focus-aside {
-    margin-top: 28px;
+    margin-top: 32px;
     padding-top: 24px;
     border-top: 1px solid var(--line);
   }
@@ -778,7 +762,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   }
   .goal-focus-context > header p { max-width: 34ch; margin-top: 4px; line-height: 1.45; }
   .goal-focus-context > dl {
-    margin-top: 13px;
+    margin-top: 12px;
     padding: 0;
     border: 0;
     display: grid;
@@ -793,56 +777,56 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     display: grid;
     grid-template-columns: minmax(72px, 36%) minmax(0, 1fr);
     align-items: baseline;
-    gap: 10px;
+    gap: 12px;
   }
-  .goal-focus-context dt { font-size: 10px; }
+  .goal-focus-context dt { font-size: 11px; }
   .goal-focus-context dd { font-size: 11px; font-weight: 400; text-align: right; }
   body[data-desktop-shell="true"] .goal-focus-aside .companion-runtime,
   .goal-focus-aside .companion-runtime {
     margin-top: 24px;
-    padding: 15px;
+    padding: 16px;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: var(--rail);
     display: grid;
-    gap: 10px;
+    gap: 12px;
   }
   .goal-focus-aside .companion-runtime > header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 10px;
+    gap: 12px;
   }
-  .goal-focus-aside .companion-runtime header small { color: var(--muted); font-size: 9.5px; font-weight: 400; }
-  .goal-focus-aside .companion-runtime h2 { margin: 2px 0 0; font-size: 14px; letter-spacing: -.015em; }
+  .goal-focus-aside .companion-runtime header small { color: var(--muted); font-size: 11px; font-weight: 400; }
+  .goal-focus-aside .companion-runtime h2 { margin: 4px 0 0; font-size: 15px; letter-spacing: -.015em; }
   .goal-focus-aside .companion-runtime-state {
     color: var(--muted);
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    font-size: 9.5px;
+    gap: 4px;
+    font-size: 11px;
     font-weight: 400;
     white-space: nowrap;
   }
   .goal-focus-aside .companion-runtime-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
   .goal-focus-aside .companion-runtime-state.is-active { color: var(--green); }
   .goal-focus-aside .companion-runtime-state.is-active i { background: var(--green); }
-  .goal-focus-aside .companion-runtime > p { margin: 0; color: var(--ink-soft); font-size: 10.5px; line-height: 1.5; }
+  .goal-focus-aside .companion-runtime > p { margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
   .goal-focus-aside .companion-runtime-progress { display: flex; align-items: center; gap: 8px; }
   .goal-focus-aside .companion-runtime-progress > i { height: 4px; min-width: 0; flex: 1; border-radius: 2px; background: var(--line); overflow: hidden; }
   .goal-focus-aside .companion-runtime-progress b { width: var(--companion-progress); height: 100%; border-radius: inherit; background: var(--blue); display: block; }
-  .goal-focus-aside .companion-runtime-progress span { color: var(--muted); font-size: 9.5px; font-variant-numeric: tabular-nums; }
+  .goal-focus-aside .companion-runtime-progress span { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .goal-focus-aside .companion-runtime dl {
     margin: 0;
-    padding-top: 9px;
+    padding-top: 8px;
     border-top: 1px solid var(--line);
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    gap: 12px;
   }
-  .goal-focus-aside .companion-runtime dl div { display: grid; gap: 2px; }
-  .goal-focus-aside .companion-runtime dt { color: var(--muted); font-size: 9px; }
-  .goal-focus-aside .companion-runtime dd { margin: 0; color: var(--ink); font-size: 10.5px; font-weight: 400; }
+  .goal-focus-aside .companion-runtime dl div { display: grid; gap: 4px; }
+  .goal-focus-aside .companion-runtime dt { color: var(--muted); font-size: 11px; }
+  .goal-focus-aside .companion-runtime dd { margin: 0; color: var(--ink); font-size: 11px; font-weight: 400; }
   .goal-focus-aside .companion-runtime > button {
     width: fit-content;
     min-height: 26px;
@@ -856,13 +840,13 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     font: 400 10px/1.2 var(--font);
     cursor: pointer;
   }
-  .goal-focus-aside .companion-runtime > button svg { width: 11px; height: 11px; }
+  .goal-focus-aside .companion-runtime > button svg { width: 12px; height: 12px; }
 
   @container (min-width: 720px) {
     .goal-focus-layout {
       grid-template-columns: minmax(0, 1fr) minmax(220px, 250px);
       align-items: start;
-      gap: 44px;
+      gap: 48px;
     }
     .goal-focus-aside {
       margin-top: 8px;
@@ -892,7 +876,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     overflow: visible;
     display: grid;
     align-content: start;
-    gap: 14px;
+    gap: 16px;
   }
   .goal-hero,
   .goal-workspace-panels {
@@ -902,10 +886,10 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: var(--paper);
     overflow: clip;
   }
-  .goal-hero { padding: 34px clamp(30px, 4vw, 52px) 0; }
-  .goal-workspace-panels { padding: 26px clamp(30px, 4vw, 52px) 70px; }
+  .goal-hero { padding: 32px clamp(30px, 4vw, 52px) 0; }
+  .goal-workspace-panels { padding: 24px clamp(30px, 4vw, 52px) 72px; }
   body[data-desktop-shell="true"] .goal-header,
-  .goal-header { padding-bottom: 22px; }
+  .goal-header { padding-bottom: 24px; }
 
   @media (min-width: 761px) {
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-document {
@@ -913,10 +897,10 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
       padding: 0;
     }
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-hero {
-      padding: 24px 34px 0;
+      padding: 24px 32px 0;
     }
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-workspace-panels {
-      padding: 20px 34px 56px;
+      padding: 24px 32px 56px;
     }
   }
 
@@ -926,13 +910,13 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .focus-panel-heading,
   .goal-factors-heading,
   .goal-technical > header {
-    margin: 0 0 14px;
+    margin: 0 0 16px;
     padding: 0;
     border: 0;
     display: grid;
     grid-template-columns: 22px minmax(0, 1fr);
     align-items: start;
-    gap: 9px;
+    gap: 8px;
   }
   .focus-panel-heading > svg,
   .goal-factors-heading > span,
@@ -955,7 +939,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .goal-factors-heading p,
   .goal-technical > header small {
     max-width: 68ch;
-    margin: 3px 0 0;
+    margin: 4px 0 0;
     color: var(--muted);
     font-size: 11px;
     line-height: 1.5;
@@ -983,7 +967,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
     align-items: stretch;
-    gap: 10px;
+    gap: 12px;
   }
   .focus-section-card,
   .focus-section-card.goal-record-section {
@@ -993,9 +977,9 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: color-mix(in srgb, var(--rail) 72%, var(--paper));
     overflow: clip;
     transition:
-      border-color .2s ease,
-      background-color .2s ease,
-      box-shadow .28s cubic-bezier(.16, 1, .3, 1);
+      border-color 250ms var(--ease-quint),
+      background-color 250ms var(--ease-quint),
+      box-shadow 250ms var(--ease-quint);
   }
   .focus-section-card.is-active {
     border-color: var(--ink);
@@ -1008,7 +992,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     height: 100%;
     min-width: 0;
     min-height: 84px;
-    padding: 13px;
+    padding: 12px;
     border: 0;
     border-right: 0;
     border-radius: 0;
@@ -1019,7 +1003,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     grid-template-columns: 18px minmax(0, 1fr) auto auto;
     align-items: start;
     justify-content: stretch;
-    gap: 9px;
+    gap: 8px;
     text-align: left;
     cursor: pointer;
   }
@@ -1040,13 +1024,13 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     place-items: center;
   }
   .focus-section-card.is-active .focus-section-card-icon { color: var(--ink); }
-  .focus-section-card-icon svg { width: 15px; height: 15px; }
+  .focus-section-card-icon svg { width: 16px; height: 16px; }
   .focus-section-card-copy { min-width: 0; display: grid; gap: 4px; }
   .focus-section-card-copy strong {
     color: var(--ink);
     font-size: 12px;
     line-height: 1.35;
-    font-weight: 400;
+    font-weight: var(--weight-control, 500);
     overflow-wrap: anywhere;
     text-wrap: pretty;
   }
@@ -1055,7 +1039,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     max-height: none;
     overflow: visible;
     color: var(--muted);
-    font-size: 10px;
+    font-size: 11px;
     line-height: 1.5;
     opacity: 1;
     overflow-wrap: anywhere;
@@ -1070,31 +1054,31 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: transparent !important;
     color: var(--muted) !important;
     display: block;
-    font-size: 10px;
+    font-size: 11px;
   }
   .focus-section-card-count {
     min-width: 20px;
     height: 20px;
-    padding: 0 6px;
+    padding: 0 8px;
     border-radius: 10px;
     background: color-mix(in srgb, var(--ink) 6%, transparent);
     color: var(--muted);
     display: inline-grid;
     place-items: center;
-    font-size: 9px;
+    font-size: 11px;
     font-variant-numeric: tabular-nums;
   }
   .focus-section-deck.goal-factor-nav .focus-section-card-trigger .focus-section-card-count {
     min-width: 20px;
     width: auto;
     height: 20px;
-    padding: 0 6px;
+    padding: 0 8px;
     border-radius: 10px;
     background: color-mix(in srgb, var(--ink) 6%, transparent) !important;
     color: var(--muted) !important;
     display: inline-grid;
     place-items: center;
-    font-size: 9px;
+    font-size: 11px;
   }
   .focus-section-card-caret {
     width: 16px;
@@ -1102,9 +1086,9 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     display: grid;
     place-items: center;
     color: var(--muted);
-    transition: transform .34s cubic-bezier(.16, 1, .3, 1), color .2s ease;
+    transition: transform 420ms var(--ease-quint), color 250ms var(--ease-quint);
   }
-  .focus-section-card-caret svg { width: 13px; height: 13px; }
+  .focus-section-card-caret svg { width: 14px; height: 14px; }
   .focus-section-card.is-active .focus-section-card-caret { color: var(--ink); transform: rotate(90deg); }
 
   /* Relations read as records, not a pile of pills. */
@@ -1117,12 +1101,12 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .focus-section-card-reveal .relation-group { border-color: var(--line); }
   .focus-section-card-reveal .relation-group > header {
     min-height: 48px;
-    padding: 12px 14px;
+    padding: 12px 16px;
     border-color: var(--line);
     background: color-mix(in srgb, var(--rail) 64%, var(--paper));
     display: flex;
     align-items: baseline;
-    gap: 10px;
+    gap: 12px;
   }
   .focus-section-card-reveal .relation-group h3 {
     flex: 0 0 auto;
@@ -1132,7 +1116,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     line-height: 1.4;
   }
   .focus-section-card-reveal .relation-group h3 span {
-    margin-left: 2px;
+    margin-left: 4px;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
   }
@@ -1140,14 +1124,14 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     min-width: 0;
     margin: 0;
     color: var(--muted);
-    font-size: 10px;
+    font-size: 11px;
     line-height: 1.5;
     overflow-wrap: anywhere;
   }
   .focus-section-card-reveal .relation-group > div { padding: 0 12px; }
   .focus-section-card-reveal .relation-group .empty-row {
     margin: 0;
-    padding: 13px 2px 14px;
+    padding: 12px 4px 16px;
     color: var(--faint);
     font-size: 11px;
   }
@@ -1160,7 +1144,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .focus-section-card-reveal .relation-row {
     width: 100%;
     min-width: 0;
-    padding: 14px 8px 14px 2px;
+    padding: 16px 8px 16px 4px;
     display: grid;
     grid-template-columns: 54px minmax(0, 1fr) auto 16px;
     align-items: start;
@@ -1177,12 +1161,12 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     width: fit-content;
     max-width: 54px;
     margin-top: 1px;
-    padding: 2px 7px;
+    padding: 4px 8px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: color-mix(in srgb, var(--rail) 74%, var(--paper));
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.35;
     white-space: normal;
     overflow-wrap: anywhere;
@@ -1204,7 +1188,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     color: var(--ink);
     font-size: 12px;
     line-height: 1.45;
-    font-weight: 400;
+    font-weight: var(--weight-control, 500);
     overflow-wrap: anywhere;
   }
   .focus-section-card-reveal .relation-copy :is(.relation-goal-id, .relation-path, .relation-reason) {
@@ -1218,7 +1202,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: transparent !important;
     color: var(--muted);
     display: block;
-    font-size: 10px;
+    font-size: 11px;
     line-height: 1.45;
     text-align: left;
     white-space: normal;
@@ -1226,24 +1210,24 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   }
   .focus-section-card-reveal .relation-copy .relation-goal-id {
     color: var(--faint);
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: .02em;
   }
   .focus-section-card-reveal .relation-copy .relation-path { color: var(--ink-soft); }
   .focus-section-card-reveal .relation-state {
     margin-top: 1px;
-    padding: 2px 7px;
+    padding: 4px 8px;
     border: 1px solid currentColor;
     border-radius: 8px;
     background: transparent;
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.35;
     white-space: nowrap;
   }
   .focus-section-card-reveal .relation-row > svg {
     width: 14px;
     height: 14px;
-    margin-top: 2px;
+    margin-top: 4px;
   }
   .focus-section-card-reveal .relation-deactivate-open {
     align-self: stretch;
@@ -1255,7 +1239,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     border-radius: 0;
     color: var(--muted);
     background: transparent;
-    font-size: 10px;
+    font-size: 11px;
     justify-content: center;
   }
   .focus-section-card-reveal .relation-deactivate-open:hover {
@@ -1286,13 +1270,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: transparent;
     box-shadow: inset 0 0 0 1px transparent;
     transition:
-      grid-template-rows .52s cubic-bezier(.16, 1, .3, 1),
-      opacity .28s ease,
-      clip-path .52s cubic-bezier(.16, 1, .3, 1),
-      transform .46s cubic-bezier(.16, 1, .3, 1),
-      background-color .28s ease,
-      box-shadow .28s ease,
-      visibility 0s linear .52s;
+      opacity 250ms var(--ease-quint), clip-path 420ms var(--ease-quint), transform 420ms var(--ease-quint), background-color 250ms var(--ease-quint), box-shadow 250ms var(--ease-quint), visibility 0s var(--ease-quint) 420ms;
   }
   .focus-section-card-reveal.is-active {
     grid-template-rows: 1fr;
@@ -1302,17 +1280,17 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     transform: translateY(0);
     background: color-mix(in srgb, var(--rail) 46%, var(--paper));
     box-shadow: inset 0 0 0 1px var(--line);
-    transition-delay: .03s, .1s, .03s, .03s, .03s, .03s, 0s;
+    transition-delay: 130ms, 130ms, 130ms, 130ms, 130ms, 130ms, 0s;
   }
   .focus-section-card-content {
     min-height: 0;
     min-width: 0;
     overflow: hidden;
-    padding: 0 20px;
+    padding: 0 24px;
     color: var(--ink-soft);
-    transition: padding .42s cubic-bezier(.16, 1, .3, 1);
+    transition: none;
   }
-  .focus-section-card-reveal.is-active .focus-section-card-content { padding: 22px 22px 24px; }
+  .focus-section-card-reveal.is-active .focus-section-card-content { padding: 24px 24px 24px; }
   .focus-section-card-content > :first-child { margin-top: 0; }
   .focus-section-card-content > :last-child { margin-bottom: 0; }
   .focus-section-card-reveal .goal-purpose,
@@ -1321,18 +1299,18 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   .focus-section-card-reveal .document-subsection,
   .focus-section-card-reveal .progress-overview,
   .focus-section-card-reveal .goal-technical-body { margin-left: 0; padding-left: 0; }
-  .focus-section-card-reveal .document-subsection { margin-top: 15px; }
+  .focus-section-card-reveal .document-subsection { margin-top: 16px; }
   .focus-section-card-reveal .document-subsection:first-child { margin-top: 0; }
   .focus-section-card-reveal .progress-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .focus-section-card.goal-record-section { border-bottom: 1px solid var(--line); }
   .focus-section-card-reveal.goal-record-section { border-bottom: 0; }
   .goal-factor-panel .focus-section-card-content > header,
   .focus-section-card-content > .goal-factor-panel > header,
-  .focus-section-card-reveal.goal-factor-panel .focus-section-card-content > header { margin: 0 0 14px; }
-  .focus-section-card-reveal.goal-factor-panel .focus-section-card-content > header h3 { margin: 0; font-size: 14px; }
-  .focus-section-card-reveal.goal-factor-panel .focus-section-card-content > header p { margin: 3px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
-  .goal-record-section .focus-section-card-content > section { padding-top: 15px; }
-  .goal-record-section .focus-section-card-content > section > h3 { margin: 0 0 10px; font-size: 13px; }
+  .focus-section-card-reveal.goal-factor-panel .focus-section-card-content > header { margin: 0 0 16px; }
+  .focus-section-card-reveal.goal-factor-panel .focus-section-card-content > header h3 { margin: 0; font-size: 15px; }
+  .focus-section-card-reveal.goal-factor-panel .focus-section-card-content > header p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+  .goal-record-section .focus-section-card-content > section { padding-top: 16px; }
+  .goal-record-section .focus-section-card-content > section > h3 { margin: 0 0 12px; font-size: 13px; }
 
   /* Overview regions share the same quiet spacing as the detail decks. */
   .goal-focus-layout { gap: 12px; }
@@ -1344,7 +1322,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   body[data-desktop-shell="true"] .goal-focus-criteria,
   body[data-desktop-shell="true"] .goal-focus-context {
     margin: 0;
-    padding: 19px 20px 21px;
+    padding: 16px 24px 24px;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: color-mix(in srgb, var(--rail) 62%, var(--paper));
@@ -1353,7 +1331,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-now,
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-criteria,
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-focus-context {
-      padding: 14px 18px 16px;
+      padding: 16px 16px 16px;
     }
   }
   .goal-focus-aside {
@@ -1403,7 +1381,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     color: var(--ink-soft);
   }
   html[data-resolved-theme="dark"] .focus-section-card-reveal :is(.risk-actions, .impact-actions, .risk-create, .impact-create, .impact-history) summary:hover {
-    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    background: var(--nav-hover);
   }
   .focus-section-card-reveal .full-records > summary {
     background: color-mix(in srgb, var(--rail) 78%, var(--paper));
@@ -1413,7 +1391,7 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     background: color-mix(in srgb, var(--ink) 5%, var(--rail));
   }
   @container (min-width: 720px) {
-    .goal-focus-layout { gap: 14px; }
+    .goal-focus-layout { gap: 16px; }
     .goal-focus-aside { margin: 0; padding: 0; border: 0; }
   }
 
@@ -1427,19 +1405,19 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     }
     .focus-section-card-reveal .progress-facts,
     .technical-meta { grid-template-columns: 1fr; }
-    .focus-section-card-reveal.is-active .focus-section-card-content { padding: 18px 18px 21px; }
+    .focus-section-card-reveal.is-active .focus-section-card-content { padding: 16px 16px 24px; }
     .focus-section-card-reveal .relation-row {
       grid-template-columns: 50px minmax(0, 1fr) auto 14px;
-      gap: 9px;
+      gap: 8px;
     }
-    .focus-section-card-reveal .relation-group > div { padding-inline: 10px; }
+    .focus-section-card-reveal .relation-group > div { padding-inline: 12px; }
   }
 
   @container (max-width: 430px) {
     .focus-section-card-row { grid-template-columns: minmax(0, 1fr); }
     .focus-section-card-reveal .relation-record { grid-template-columns: minmax(0, 1fr); }
     .focus-section-card-reveal .relation-row {
-      padding-right: 2px;
+      padding-right: 4px;
       grid-template-columns: 48px minmax(0, 1fr) auto;
     }
     .focus-section-card-reveal .relation-row > svg { display: none; }
@@ -1456,8 +1434,8 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
     .document-pane { --focus-canvas-inset: 8px; }
     body[data-desktop-shell="true"] .goal-document,
     .goal-document { padding: 0; border-radius: 0; gap: 12px; }
-    .goal-hero { padding: 25px 18px 0; border-radius: 12px; }
-    .goal-workspace-panels { padding: 20px 18px 56px; border-radius: 12px; }
+    .goal-hero { padding: 24px 16px 0; border-radius: 12px; }
+    .goal-workspace-panels { padding: 24px 16px 56px; border-radius: 12px; }
   }
 
 `;

@@ -2,8 +2,13 @@
 /// <reference lib="dom.iterable" />
 import type { SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginComponentNode } from './plugin-components.js';
-export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[] }
-export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: string, binding: 'read' | 'submit', payload: unknown): Promise<unknown>; inspect?(nodeId: string): void }
+import type { PluginPresentation } from './plugin-presentation.js';
+import { createPluginPresentationClient } from './plugin-presentation-client.js';
+export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation }
+export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: string, binding: 'read' | 'submit', payload: unknown): Promise<unknown>; inspect?(nodeId: string): void;
+  /** Observe only accepted query results, with the same request/selection ordering as the rendered view. */
+  onRead?(nodeId: string, result: { value: unknown } | { error: string }): void;
+}
 
 /**
  * Host-owned browser renderer: model data is always text; generated code never runs in this page. Every part is drawn
@@ -12,6 +17,7 @@ export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: 
  */
 export function createPluginComponentClient(options: PluginComponentClientOptions) {
   const root = options.root; root.classList.add('pc-view');
+  const composition = createPluginPresentationClient();
   const make = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string) => {
     const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (cls) el.className = cls; return el;
   };
@@ -86,8 +92,42 @@ export function createPluginComponentClient(options: PluginComponentClientOption
   let view: PluginComponentView | undefined, currentPage = '', selection: Record<string, unknown> = {}, disposed = false, epoch = 0, fresh = false;
   const selectionVersions = new Map<string, number>();
   const pages = new Map<string, HTMLElement>(), regions = new Map<string, HTMLElement>();
-  interface Part { node: PluginComponentNode; root: HTMLElement; output: HTMLElement; feedback: HTMLElement; form?: HTMLFormElement; dialog?: HTMLDialogElement; opener?: HTMLButtonElement; confirm?: HTMLDialogElement; filter?: HTMLElement; tools?: HTMLElement; waiting?: ReturnType<typeof setTimeout>; busy: boolean; query: number; signature: string; prefilled: Map<string, number>; rows?: unknown[]; seen?: Set<string> }
+  interface Part { node: PluginComponentNode; root: HTMLElement; output: HTMLElement; feedback: HTMLElement; form?: HTMLFormElement; dialog?: HTMLDialogElement; opener?: HTMLButtonElement; confirm?: HTMLDialogElement; filter?: HTMLElement; tools?: HTMLElement; waiting?: ReturnType<typeof setTimeout>; feedbackTimer?: ReturnType<typeof setTimeout>; busy: boolean; query: number; signature: string; prefilled: Map<string, number>; rows?: unknown[]; seen?: Set<string> }
   const parts = new Map<string, Part>();
+  const details = new Map<string, { layout: HTMLElement; pane: HTMLElement; back: HTMLButtonElement; content?: string; scroll?: Array<[Element, number]> }>();
+  const detailEnabled = (id: string) => !!view?.presentation?.parts[id]?.detail;
+  function showDetail(part: Part, focus = false) {
+    const id = part.node.id;
+    part.root.toggleAttribute('data-has-detail', detailEnabled(id));
+    let detail = details.get(id);
+    if (!detailEnabled(id)) {
+      if (detail) { detail.layout.before(part.output); detail.layout.remove(); details.delete(id); part.output.classList.remove('pc-detail-source'); }
+      return;
+    }
+    if (!detail || !detail.layout.isConnected) {
+      const layout = make('div', undefined, 'pc-detail-layout'), pane = make('article', undefined, 'pc-detail-pane');
+      const back = button('返回列表', 'ghost', 'sm', 'chevron-left'); back.classList.add('pc-detail-back'); back.dataset.pcBack = id;
+      back.addEventListener('click', () => { layout.removeAttribute('data-detail-open'); for (const [element, top] of details.get(id)?.scroll ?? []) element.scrollTop = top; part.output.querySelector<HTMLElement>('[aria-current] [data-pc-select]')?.focus({ preventScroll: true }); });
+      part.output.before(layout); part.output.classList.add('pc-detail-source'); layout.append(part.output, pane);
+      detail = { layout, pane, back }; details.set(id, detail);
+    }
+    const row = selection[id], node = part.node;
+    if (focus && !detail.layout.hasAttribute('data-detail-open')) {
+      detail.scroll = []; for (let ancestor: Element | null = detail.layout.parentElement; ancestor; ancestor = ancestor.parentElement) detail.scroll.push([ancestor, ancestor.scrollTop]);
+    }
+    const content = JSON.stringify([row, node.props]);
+    if (detail.content === content) { if (focus && row) { detail.layout.setAttribute('data-detail-open', ''); detail.pane.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true }); } return; }
+    detail.content = content;
+    detail.pane.replaceChildren(detail.back);
+    if (!row) { detail.layout.removeAttribute('data-detail-open'); detail.pane.append(make('p', '选择一条，展开阅读', 'pc-detail-empty')); return; }
+    const heading = make('h2', text(at(row, node.props.titleField)) || node.props.title || '详情'); heading.tabIndex = -1;
+    const body = prose('p', at(row, node.props.textField), 'pc-detail-copy'), meta = make('div', undefined, 'pc-detail-meta');
+    for (const column of node.props.columns ?? []) if (![node.props.titleField, node.props.textField, node.props.idField].includes(column.field)) {
+      const value = at(row, column.field); if (value !== undefined) meta.append(make('span', column.label + ' · ' + text(shown(column, value))));
+    }
+    detail.pane.append(heading, body, meta);
+    if (focus) { detail.layout.setAttribute('data-detail-open', ''); heading.focus({ preventScroll: true }); }
+  }
   const ready = (id?: string) => !!id && !!view?.connected.includes(id);
   const collections = new Set(['directory', 'card', 'table', 'calendar', 'accordion']);
   /** A part whose whole input is the chosen record of one collection on its page acts on a record: it shows as a button on each record. */
@@ -99,7 +139,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
   };
   const rowLabel = (node: PluginComponentNode) => (node.props.submitLabel || node.props.title || node.purpose).replace(/选中的?/gu, '').trim() || '执行';
   const reading = (node: PluginComponentNode) => node.intent === 'reading' || node.kind === 'reader';
-  const selectable = (componentId: string) => !!view?.nodes.some(other => rowHost(other) !== componentId && [other.read, other.submit].some(binding => Object.values(binding?.input ?? {})
+  const selectable = (componentId: string) => detailEnabled(componentId) || !!view?.nodes.some(other => rowHost(other) !== componentId && [other.read, other.submit].some(binding => Object.values(binding?.input ?? {})
     .some(source => source.source === 'selection' && source.componentId === componentId || source.source === 'form' && source.prefill?.componentId === componentId)));
   /** A form that adds something new: every value typed by the person, nothing taken from elsewhere, nothing to show back. */
   const composer = (node: PluginComponentNode) => !node.read && !!node.submit && !node.submit.outputPath && Object.values(node.submit.input).some(source => source.source === 'form')
@@ -109,7 +149,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     currentPage = id; pages.forEach((page, key) => { page.hidden = key !== id; });
     tabList.querySelectorAll<HTMLButtonElement>('button').forEach(tab => { tab.setAttribute('aria-selected', String(tab.dataset.page === id)); tab.classList.toggle('is-active', tab.dataset.page === id); });
   };
-  function select(id: string, value: unknown) { selection[id] = value; selectionVersions.set(id, (selectionVersions.get(id) ?? 0) + 1); }
+  function select(id: string, value: unknown) { selection[id] = value; selectionVersions.set(id, (selectionVersions.get(id) ?? 0) + 1); const part = parts.get(id); if (part) showDetail(part, true); }
   /** Toggle items show which value a choice field holds; the value itself lives in the field. */
   const syncChoices = (scope: ParentNode) => scope.querySelectorAll<HTMLInputElement>('input[data-pc-choice]').forEach(input =>
     input.parentElement?.querySelectorAll<HTMLButtonElement>('[data-pc-value]').forEach(chip => { const on = chip.dataset.pcValue === input.value; chip.setAttribute('aria-checked', String(on)); chip.setAttribute('aria-pressed', String(on)); chip.classList.toggle('is-current', on); }));
@@ -231,7 +271,14 @@ export function createPluginComponentClient(options: PluginComponentClientOption
       for (const [index, piece] of template.split(/\{\{\s*([\w.]+)\s*\}\}/u).entries()) sentence.append(index % 2 ? make('strong', text(shown(undefined, at(value, piece)))) : document.createTextNode(piece));
       fragment.append(sentence);
     }
-    else if (value && typeof value === 'object' && !Array.isArray(value)) fragment.append(figures(value as Record<string, unknown>, pluginSchemaOf(node[binding]?.operationId, node[binding]?.outputPath), 0));
+    else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      if (node.props.titleField || node.props.textField) {
+        const article = make('article', undefined, 'pc-single-record'), record = recordBody(node, value, 'card');
+        if (record.title) article.append(make('h2', record.title));
+        if (record.body) { record.body.classList.add('pc-detail-copy'); article.append(record.body); }
+        article.append(...record.notes); if (record.meta) article.append(record.meta); fragment.append(article);
+      } else fragment.append(figures(value as Record<string, unknown>, pluginSchemaOf(node[binding]?.operationId, node[binding]?.outputPath), 0));
+    }
     else if (!Array.isArray(value)) {
       // A single value: an alert, a badge, or a card holding the text, as the part was given.
       if (kind === 'alert') { const alert = make('div', undefined, 'mw-alert mw-alert--info pc-answer'); alert.dataset.slot = 'alert'; alert.setAttribute('role', 'status'); if (node.props.title) alert.append(make('strong', node.props.title)); alert.append(prose('p', value)); fragment.append(alert); }
@@ -276,7 +323,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
         if (chosen && chosen === item.dataset.recordId) item.setAttribute('aria-current', 'true');
         // "Choose" only where another part actually consumes this component's selection.
         if (reading(node) || selectable(node.id)) {
-          const pick = button(reading(node) ? '引用这一节' : '选择', 'secondary', 'sm'); pick.classList.add('pc-row-action'); pick.dataset.pcSelect = '';
+          const pick = button(detailEnabled(node.id) ? '阅读' : reading(node) ? '引用这一节' : '选择', 'secondary', 'sm'); pick.classList.add('pc-row-action'); pick.dataset.pcSelect = '';
           // Each row's button says which record it acts on, for anyone who hears rather than sees the list.
           if (record.title) pick.setAttribute('aria-label', (reading(node) ? '引用：' : '选择：') + record.title);
           pick.addEventListener('click', event => { event.preventDefault(); choose(); void refresh(); }); actions.push(pick);
@@ -344,6 +391,11 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     }
     if (listing) { part.rows = value as unknown[]; if (!(value as unknown[]).length && node.props.idField) part.seen = new Set(); }
     part.output.replaceChildren(fragment);
+    if (binding === 'read' && Array.isArray(value) && node.props.idField && selection[node.id]) {
+      const selectedId = at(selection[node.id], node.props.idField);
+      selection[node.id] = value.find(row => at(row, node.props.idField) === selectedId);
+    }
+    showDetail(part);
   }
   /** A field's typed value, or undefined when left empty (an optional filter left at 全部). */
   function typedValue(input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, spec: { type: string; format?: string }): unknown {
@@ -419,16 +471,20 @@ export function createPluginComponentClient(options: PluginComponentClientOption
       const result = await options.call(part.node.id, 'read', { selection, form });
       if (!disposed && generation === epoch && ticket === part.query && parts.get(part.node.id) === part) {
         output(part, result, 'read');
+        options.onRead?.(part.node.id, { value: result });
         // An error a read left goes once a read succeeds; a failed save's message stays with the person's input.
         if (part.feedback.dataset.pcRead !== undefined) { part.feedback.className = ''; part.feedback.textContent = ''; delete part.feedback.dataset.pcRead; }
       }
     }
-    catch (error) { if (!disposed && generation === epoch && ticket === part.query) { part.output.querySelector('.pc-skeleton')?.remove(); report(part, 'error', error instanceof Error ? error.message : '读取失败，稍后可以重试'); part.feedback.dataset.pcRead = ''; } }
+    catch (error) { if (!disposed && generation === epoch && ticket === part.query && parts.get(part.node.id) === part) { const message = error instanceof Error ? error.message : '读取失败，稍后可以重试'; part.output.querySelector('.pc-skeleton')?.remove(); report(part, 'error', message); part.feedback.dataset.pcRead = ''; options.onRead?.(part.node.id, { error: message }); } }
   }
   /** What a part reports: an error as the catalog's alert, a success as a short badge that fades, work in progress as plain words. */
   function report(part: Part, tone: 'error' | 'success' | 'working' | '', message: string) {
+    clearTimeout(part.feedbackTimer);
     part.feedback.className = tone === 'error' ? 'pc-error mw-alert mw-alert--danger' : tone === 'success' ? 'pc-success mw-badge mw-badge--success' : tone === 'working' ? 'pc-working' : '';
     part.feedback.textContent = message;
+    // Clear the status itself, including when reduced motion disables the CSS fade.
+    if (tone === 'success') part.feedbackTimer = setTimeout(() => report(part, '', ''), 3400);
     const mirror = part.dialog?.querySelector<HTMLElement>('.pc-dialog-error'); if (mirror) { mirror.hidden = tone !== 'error'; mirror.textContent = tone === 'error' ? message : ''; }
   }
   function refresh() {
@@ -478,7 +534,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
     const dialog = make('dialog', undefined, kind === 'sheet' ? 'mw-sheet' : kind === 'confirm' ? 'mw-dialog mw-dialog--alert' : 'mw-dialog'); dialog.dataset.slot = kind === 'sheet' ? 'sheet' : kind === 'confirm' ? 'alert-dialog' : 'dialog';
     const labelled = 'pc-' + id + '-' + kind + '-title'; dialog.setAttribute('aria-labelledby', labelled);
     const form = make('form', undefined, 'mw-form ' + (kind === 'sheet' ? 'mw-sheet__shell' : 'mw-dialog__shell')); form.method = 'dialog';
-    const header = make('header', undefined, 'mw-form__header'), heading = make('div'), h2 = make('h2', title); h2.id = labelled; heading.append(h2); if (description) heading.append(make('p', description));
+    const header = make('header', undefined, 'mw-form__header'), heading = make('div'), h2 = make('h2', title), hint = make('p', description); h2.id = labelled; hint.dataset.pcOverlayDescription = ''; hint.hidden = !description; heading.append(h2, hint);
     const close = button('关闭', 'ghost', 'icon', 'x'); close.classList.add('mw-btn--icon-only', 'mw-dialog__close'); close.setAttribute('aria-label', '关闭'); close.querySelector('span')!.className = 'mw-sr-only';
     close.addEventListener('click', () => dialog.close()); header.append(heading, close);
     const body = make('div', undefined, 'mw-form__body'), footer = make('footer', undefined, 'mw-form__footer');
@@ -631,6 +687,9 @@ export function createPluginComponentClient(options: PluginComponentClientOption
   return {
     async update(next: PluginComponentView) {
       if (disposed) return;
+      const refreshNeeded = !view || JSON.stringify([view.contract.revision, view.nodes, view.connected]) !== JSON.stringify([next.contract.revision, next.nodes, next.connected]);
+      const focused = root.contains(document.activeElement) ? document.activeElement as HTMLInputElement : null;
+      const caret = focused && typeof focused.selectionStart === 'number' ? [focused.selectionStart, focused.selectionEnd] : undefined;
       if (view?.contract.revision !== next.contract.revision) { epoch++; selection = {}; selectionVersions.clear(); }
       view = next;
       const pageIds = new Set<string>(), regionIds = new Set<string>(), partIds = new Set<string>(); tabList.replaceChildren();
@@ -651,7 +710,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
               const focused = previous?.root.contains(active) ? active?.name : undefined;
               const values = new Map<string, { value: string; checked?: boolean }>();
               previous?.form?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[data-field]').forEach(input => values.set(input.name, { value: input.value, ...('checked' in input ? { checked: input.checked } : {}) }));
-              previous?.opener?.remove();
+              clearTimeout(previous?.feedbackTimer); previous?.opener?.remove(); details.delete(node.id);
               const replacement = createPart(node); previous?.root.replaceWith(replacement.root); part = replacement; parts.set(node.id, part);
               replacement.form?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[data-field]').forEach(input => { const saved = values.get(input.name); if (saved) { input.value = saved.value; if ('checked' in input && saved.checked !== undefined) input.checked = saved.checked; } if (focused === input.name) input.focus(); });
               if (replacement.form) syncChoices(replacement.form);
@@ -660,6 +719,14 @@ export function createPluginComponentClient(options: PluginComponentClientOption
               const before = part.node; part.node = node;
               const heading = part.root.querySelector<HTMLElement>('[data-pc-title]'); if (heading) { heading.textContent = node.intent === 'heading' ? headingOf(node) : node.props.title ?? ''; heading.hidden = !heading.textContent; if (heading.parentElement?.classList.contains('pc-part-head')) heading.parentElement.hidden = heading.hidden; }
               const submit = part.form?.querySelector<HTMLButtonElement>('[type=submit]'); if (submit) submit.textContent = node.props.submitLabel || '提交';
+              if (part.opener) part.opener.querySelector('[data-slot=button-label]')!.textContent = part.dialog ? node.props.title || node.props.submitLabel || '新建' : rowLabel(node);
+              const overlay = part.dialog ?? part.confirm;
+              if (overlay) {
+                overlay.querySelector('h2')!.textContent = part.dialog ? node.props.title || node.props.submitLabel || '新建' : '确定要' + rowLabel(node) + '吗？';
+                const hint = overlay.querySelector<HTMLElement>('[data-pc-overlay-description]')!;
+                if (part.dialog) { hint.textContent = node.props.description ?? ''; hint.hidden = !hint.textContent; }
+                const confirmLabel = part.confirm?.querySelector('[data-pc-confirm-yes] [data-slot=button-label]'); if (confirmLabel) confirmLabel.textContent = rowLabel(node);
+              }
               const description = part.root.querySelector<HTMLElement>('[data-pc-description]'); if (description) { description.textContent = node.props.description ?? ''; description.hidden = !node.props.description; }
               part.root.setAttribute('aria-label', node.props.title || node.purpose);
               const { title: _t, description: _d, submitLabel: _s, ...shownProps } = node.props, { title: _bt, description: _bd, submitLabel: _bs, ...wasShown } = before.props;
@@ -667,7 +734,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
             }
             // Parts appear in the view's order; a part already in place is not moved, so focus and input stay.
             const expected = previousPart ? previousPart.nextElementSibling : section.firstElementChild;
-            if (expected !== part.root) section.insertBefore(part.root, expected);
+            if ((!next.presentation && expected !== part.root) || !part.root.isConnected) section.insertBefore(part.root, expected);
             previousPart = part.root;
             const ids = [node.read?.operationId, node.submit?.operationId].filter(Boolean) as string[], live = ids.every(ready);
             // Whether this part works yet: the studio shows it while building; people using the plugin never see it.
@@ -677,22 +744,32 @@ export function createPluginComponentClient(options: PluginComponentClientOption
           }
         }
       }
-      for (const [id, part] of parts) if (!partIds.has(id)) { part.query++; part.opener?.remove(); part.root.remove(); parts.delete(id); }
+      for (const [id, part] of parts) if (!partIds.has(id)) { part.query++; clearTimeout(part.feedbackTimer); part.opener?.remove(); part.root.remove(); parts.delete(id); details.delete(id); }
       for (const part of parts.values()) {
+        const hasReader = detailEnabled(part.node.id) || next.nodes.some(other => other.id !== part.node.id && other.props.textField && Object.values(other.read?.input ?? {}).some(source => source.source === 'selection' && source.componentId === part.node.id));
+        part.root.toggleAttribute('data-reading-preview', !!next.presentation && kindOf(part.node) === 'directory' && hasReader);
         // A record action has no block of its own; what it reports, and the question it asks, go with the collection it acts on.
         const host = rowHost(part.node), home = host ? parts.get(host)?.root : part.root; part.root.hidden = !!host;
         if (home && part.feedback.parentElement !== home) home.append(part.feedback);
         if (home && part.confirm && part.confirm.parentElement !== home) home.append(part.confirm);
         // A page's "new" buttons sit in its header, on the right, when the page has one.
         const head = part.opener && !host && [...parts.values()].find(other => other.node.pageId === part.node.pageId && kindOf(other.node) === 'frame')?.root.querySelector('.pc-app-actions');
+        part.root.toggleAttribute('data-header-action', !!head);
+        for (const button of [part.opener, part.form?.querySelector<HTMLButtonElement>('[type=submit]')]) if (button && !button.classList.contains('mw-btn--danger-outline')) {
+          const primary = next.presentation ? next.presentation.parts[part.node.id]?.emphasis === 'primary' : true;
+          button.classList.toggle('mw-btn--primary', primary); button.classList.toggle('mw-btn--secondary', !primary);
+        }
         if (part.opener && !host) { const place = head || part.root; if (part.opener.parentElement !== place) place.prepend(part.opener); }
       }
       for (const [id, region] of regions) if (!regionIds.has(id)) { region.remove(); regions.delete(id); }
       for (const [id, page] of pages) if (!pageIds.has(id)) { page.remove(); pages.delete(id); }
-      selectPage(pageIds.has(currentPage) ? currentPage : next.contract.pages[0]!.id); await refresh();
+      composition.update(next.presentation, pages, parts);
+      for (const part of parts.values()) showDetail(part);
+      if (focused?.isConnected && !focused.closest('[hidden]')) { focused.focus({ preventScroll: true }); if (caret) focused.setSelectionRange(caret[0]!, caret[1]!); }
+      selectPage(pageIds.has(currentPage) ? currentPage : next.contract.pages[0]!.id); if (refreshNeeded) await refresh();
     },
     refresh,
-    destroy() { disposed = true; epoch++; for (const part of parts.values()) clearTimeout(part.waiting); parts.clear(); pages.clear(); regions.clear(); root.replaceChildren(); },
+    destroy() { disposed = true; epoch++; for (const part of parts.values()) { clearTimeout(part.waiting); clearTimeout(part.feedbackTimer); } parts.clear(); details.clear(); pages.clear(); regions.clear(); root.replaceChildren(); },
   };
 }
-export const PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT = createPluginComponentClient.toString();
+export const PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT = '((createPluginPresentationClient)=>(' + createPluginComponentClient.toString() + '))(' + createPluginPresentationClient.toString() + ')';

@@ -1,3 +1,4 @@
+import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer, type Server } from 'node:http';
@@ -30,6 +31,7 @@ test('studio: a request becomes a working, published plugin that the person can 
   const server: Server = createServer((request, response) => {
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
     const url = new URL(request.url ?? '/', 'http://localhost') /* as the product server does: no port in the base */;
+    if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     void handleAgentStudioHttp(request, response, url, options, token).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); });
   });
@@ -62,7 +64,14 @@ test('studio: a request becomes a working, published plugin that the person can 
       const state=(pick?'pick:'+pick:'')+(landing?' land:'+landing:'')+(frame.hidden?'':' frame:'+frame.dataset.mode)+(ui.hidden?'':' ui:'+ui.querySelector('em').textContent)+(code.hidden?'':' code:'+code.querySelector('em').textContent)+(wiring?' wiring:'+wiring:'')+(ticked?' ticked:'+ticked:'');const last=__placing.at(-1);if(state&&(!last||last[1]!==state))__placing.push([Math.round(performance.now()-t0),state]);},50);})()`);
     await page.click('[data-as-choose="board"]');
     await page.wait(`document.querySelector('[data-as-phase]').textContent==='构建中'`);
-    await page.evaluate(`new Promise((resolve,reject)=>{const until=Date.now()+150000;(function check(){const p=document.querySelector('[data-as-phase]').textContent;if(p==='可以试用')return resolve(true);if(p==='需要处理')return reject(new Error(document.querySelector('.as-error')?.innerText));if(Date.now()>until)return reject(new Error('build timeout: '+p));setTimeout(check,250);})()})`);
+    const readyDeadline = Date.now() + 150_000;
+    while (true) {
+      const state = await page.evaluate<{phase:string;error:string}>(`({phase:document.querySelector('[data-as-phase]').textContent,error:document.querySelector('.as-error')?.innerText??''})`);
+      if (state.phase === '可以试用') break;
+      assert.notEqual(state.phase, '需要处理', state.error);
+      assert.ok(Date.now() < readyDeadline, 'build timeout: ' + state.phase);
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
     // The replay follows the real steps and may finish after the build is ready: wait for the capability to be ticked.
     await page.wait(`__placing.some(([,state])=>/ticked:[^ ]*model\\.generate/.test(state))`);
     // Each part was taken from the spec board, framed where it goes, then placed — slowly enough to follow.
@@ -97,6 +106,20 @@ test('studio: a request becomes a working, published plugin that the person can 
     await page.click(`[data-component-id="notes"] [data-record-id="${tried}"] [data-pc-action=expand]`);
     await page.wait(`document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('（预览替身模型）间隔复习比集中复习记得更久')`);
 
+    // A visual revision uses a separate acceptance namespace and keeps the person's trial records.
+    const visualBuildId = await page.evaluate<string>('document.querySelector("[data-as-builds]").value');
+    const beforeVisual = await (await fetch(origin + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as { build: { runs: Array<{ role: string }> } };
+    await page.evaluate(`(async()=>{const r=await fetch('/api/plugin-builder/studio/builds/'+${JSON.stringify(visualBuildId)}+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:'visual',message:'收紧间距，保留完整内容'})});if(!r.ok)throw Error(await r.text())})()`);
+    await page.wait(`document.querySelector('[data-as-phase]').dataset.phase==='ready'&&!!document.querySelector('[data-pc-open="editor"]')`);
+    await page.wait(`document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('间隔复习比集中复习记得更久')`);
+    const afterVisual = await (await fetch(origin + '/api/plugin-builder/studio/builds/' + visualBuildId)).json() as typeof beforeVisual;
+    assert.equal(afterVisual.build.runs.filter(run => run.role === 'coder').length, beforeVisual.build.runs.filter(run => run.role === 'coder').length);
+    await page.click('[data-as-compare]');
+    await page.wait(`document.querySelector('[data-as-plugin]').inert&&!document.querySelector('[data-pc-open="editor"]')`);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-component-id="notes"] .pc-output').innerText`), /间隔复习比集中复习记得更久/);
+    await page.click('[data-as-compare]');
+    await page.wait(`!document.querySelector('[data-as-plugin]').inert&&!!document.querySelector('[data-pc-open="editor"]')`);
+
     // Publish once; an unchanged build cannot be published again.
     await page.click('[data-as-action="publish"]');
     await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('v1 已是当前版本')`);
@@ -117,6 +140,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     await installedPage.command('Page.enable');
     await installedPage.command('Page.navigate', { url: origin + pluginHref });
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('还没有笔记')`);
+    await installedPage.click('[data-pc-open="editor"]');
     await installedPage.fill('[data-component-id="editor"] [data-field]', '正式使用的第一条');
     await installedPage.click('[data-component-id="editor"] [type=submit]');
     await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('正式使用的第一条')`);
@@ -133,6 +157,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('（预览替身模型）正式使用的第一条')`);
     // Deleting is a button on the record itself; the one-page plugin shows no page switcher.
     assert.equal(await installedPage.evaluate(`getComputedStyle(document.querySelector('.pc-tabs')).display`), 'none');
+    await installedPage.click('[data-pc-open="editor"]');
     await installedPage.fill('[data-component-id="editor"] [data-field]', '这条马上删掉');
     await installedPage.click('[data-component-id="editor"] [type=submit]');
     await installedPage.wait(`[...document.querySelectorAll('[data-record-id]')].some(r=>r.innerText.includes('这条马上删掉'))`);
@@ -140,6 +165,15 @@ test('studio: a request becomes a working, published plugin that the person can 
     await installedPage.click(`[data-record-id="${doomed}"] [data-pc-action=remove]`);
     await installedPage.wait(`!document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('这条马上删掉')`);
     assert.match(await installedPage.evaluate<string>(`document.querySelector('[data-component-id="notes"] .pc-output').innerText`), /正式使用的第一条/);
+
+    // Publish the preceding presentation as v2, upgrade, then roll back to the exact v1 layout without losing data.
+    await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)};const act=async(action,extra={})=>{const {build}=await(await fetch('/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action,revision:build.revision,...extra})});if(!r.ok)throw Error(await r.text())};await act('undo');await act('publish');await act('upgrade',{version:2,grants:{consent:true}})})()`);
+    await installedPage.command('Page.reload');
+    await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
+    assert.equal(await installedPage.evaluate(`!!document.querySelector('[data-pc-open="editor"]')`), false, 'v2 uses the preceding inline form');
+    await page.evaluate(`(async()=>{const id=${JSON.stringify(visualBuildId)},{build}=await(await fetch('/api/plugin-builder/studio/builds/'+id)).json();const r=await fetch('/api/plugin-builder/studio/builds/'+id+'/action',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({action:'rollback',revision:build.revision,version:1})});if(!r.ok)throw Error(await r.text())})()`);
+    await installedPage.command('Page.reload');
+    await installedPage.wait(`globalThis.__molisPluginReady===true&&!!document.querySelector('[data-pc-open="editor"]')&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
 
     // The standalone page reads the same preview data through the same renderer.
     const buildId = await page.evaluate<string>(`new URLSearchParams(location.search).get('build')`);
@@ -185,10 +219,15 @@ test('studio: a request becomes a working, published plugin that the person can 
     await page.evaluate("document.querySelector('[data-agent-studio]').remove()");
     await observed(() => liveSubscriptions === 0);
 
+  } catch (error) {
+    const state = await (await fetch(origin + '/api/plugin-builder/studio/state')).json() as { builds: any[] };
+    t.diagnostic(JSON.stringify(state.builds.map(b => ({phase:b.phase,error:b.error,steps:b.steps.slice(-3),browser:b.browserResult}))));
+    throw error;
   } finally {
     await browser.close();
-    await new Promise<void>(resolve => server.close(() => resolve()));
-    await releaseAgentStudio(store, DEMO_BOARD_ID); await releaseInstalledPlugins(store, DEMO_BOARD_ID); store.close();
+    await releaseAgentStudio(store, DEMO_BOARD_ID); await releaseInstalledPlugins(store, DEMO_BOARD_ID);
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve())); store.close();
     await rm(home, { recursive: true, force: true });
   }
 });

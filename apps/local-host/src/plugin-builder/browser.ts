@@ -9,10 +9,12 @@ import type { AgentBuild, BrowserAcceptance } from '@molis-ai/molis-work-plugin-
 
 /** Host-owned G7 driver. Contract steps never supply JavaScript, selectors, URLs or browser launch arguments. */
 /** Each case starts from empty data, as the designer is told: `reset` empties the preview and the page is reopened. */
-export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { url: string; signal: AbortSignal; executable?: string; reset?: () => Promise<void> }): Promise<NonNullable<AgentBuild['browserResult']>> {
+export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { url: string; signal: AbortSignal; executable?: string; reset?: () => Promise<void>; capture?: (browser: BuilderBrowser, pageId: string) => Promise<void> }): Promise<NonNullable<AgentBuild['browserResult']>> {
   if (!build.design) throw new Error('缺少界面验收合同');
   const browser = await BuilderBrowser.open(options.signal, options.executable);
   const cases: NonNullable<AgentBuild['browserResult']>['cases'] = [];
+  const captured = new Set<string>();
+  const detailsCaptured = new Set<string>();
   try {
     await browser.navigate(options.url);
     try { await browser.wait(`globalThis.__molisPluginReady===true`); }
@@ -28,12 +30,43 @@ export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { 
         catch { throw new Error('试用页没有在 20 秒内打开完成：请确认功能都已接通后重新验收'); }
       }
       let position = 0;
-      try { const selected = new Map<string, string>(); for (const step of test.steps) { await executeStep(browser, step, selected); position++; } cases.push({ id: test.id, passed: true, detail: test.description }); }
+      try { const selected = new Map<string, string>(); for (const step of test.steps) {
+        await executeStep(browser, step, selected); position++;
+        if (options.capture && ['expect', 'select'].includes(step.action)) {
+          const page = await browser.evaluate<string>('document.querySelector(".pc-page:not([hidden])")?.dataset.page??""');
+          if (page && !captured.has(page) && await browser.evaluate<boolean>('!!document.querySelector(".pc-page:not([hidden]) [data-record-id]")')) { await options.capture(browser, page); captured.add(page); }
+          const detailVisible = step.action === 'select' && build.design.presentation?.parts[step.componentId]?.detail
+            || step.action === 'expect' && await browser.evaluate<boolean>(`!!(${component(step.componentId)})?.querySelector('.pc-single-record')`);
+          if (page && detailVisible && !detailsCaptured.has(page)) { await options.capture(browser, page + ' · 详情'); detailsCaptured.add(page); }
+        }
+      } cases.push({ id: test.id, passed: true, detail: test.description }); }
       catch (error) { cases.push({ id: test.id, passed: false, detail: await diagnose(browser, test.steps[position], position, error, build.nodes.some(node => node.id === (test.steps[position] as { componentId?: string } | undefined)?.componentId && !!node.read)) }); break; }
     }
     for (const test of build.design.acceptance) if (!cases.some(row => row.id === test.id)) cases.push({ id: test.id, passed: false, detail: '前置用例失败，尚未执行' });
+    if (options.capture) for (const page of build.design.contract.pages) if (!captured.has(page.id)) { await executeStep(browser, { action: 'page', pageId: page.id }, new Map()); await options.capture(browser, page.id); }
     return { passed: cases.length > 0 && cases.every(row => row.passed), cases, at: new Date().toISOString() };
   } finally { await browser.close(); }
+}
+/** Screenshots contain only the isolated plugin canvas, using the same authored acceptance data as G7. */
+export async function inspectBuilderPresentation(build: AgentBuild, options: Parameters<typeof runBuilderBrowserAcceptance>[1]) {
+  const images: Array<{ label: string; bytes: Uint8Array }> = [], issues: string[] = [];
+  const result = await runBuilderBrowserAcceptance(build, { ...options, capture: async (browser, pageId) => {
+    for (const [width, theme] of [[1280, 'light'], [1280, 'dark'], [390, 'light']] as const) {
+      await browser.command('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await browser.evaluate(`document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)};new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
+      const faults = await browser.evaluate<string[]>(`(()=>{const root=document.querySelector('.pc-view'),issues=[];if(!root)return ['画布不存在'];if(document.documentElement.scrollWidth>innerWidth+1)issues.push('页面横向溢出');for(const el of root.querySelectorAll('button:not(:disabled)')){if(el.closest('[hidden],dialog:not([open])')||!el.getClientRects().length)continue;const r=el.getBoundingClientRect();if(r.width<1||r.height<1)continue;if(r.left<0||r.right>innerWidth+1)issues.push('操作超出视口：'+el.textContent.trim());if(r.top>=0&&r.bottom<innerHeight){const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);if(hit&&!el.contains(hit))issues.push('操作被遮挡：'+el.textContent.trim())}}return [...new Set(issues)]})()`);
+      issues.push(...faults.map(fault => pageId + ' · ' + width + ' · ' + theme + '：' + fault));
+      if (images.length < 9) {
+        const clip = await browser.evaluate<{ x: number; y: number; width: number; height: number; scale: number }>('(()=>{const r=document.querySelector(".pc-view").getBoundingClientRect();return {x:Math.max(0,r.x+scrollX),y:Math.max(0,r.y+scrollY),width:Math.max(1,Math.min(r.width,innerWidth)),height:Math.max(1,Math.min(r.height,1200)),scale:1}})()');
+        const shot = await browser.command<{ data: string }>('Page.captureScreenshot', { format: 'png', clip, captureBeyondViewport: true });
+        images.push({ label: pageId + ' / ' + width + ' / ' + theme, bytes: Buffer.from(shot.data, 'base64') });
+      }
+    }
+    await browser.command('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await browser.evaluate('document.documentElement.dataset.resolvedTheme="light"');
+  } });
+  if (!result.passed) issues.push(...result.cases.filter(test => !test.passed).map(test => test.detail));
+  return { structural: issues.length === 0, issues, images };
 }
 const literal = (value: unknown) => JSON.stringify(value);
 /**
@@ -130,7 +163,10 @@ async function executeStep(browser: BuilderBrowser, step: BrowserAcceptance['ste
     selected.set(step.componentId, record);
     await browser.evaluate(`(()=>{const r=${record};if(r instanceof HTMLDetailsElement)r.open=true})()`);
     const choose = `(${record})?.querySelector('[data-pc-select]')`;
-    if (await browser.evaluate<boolean>(`!!${choose}`)) await browser.click(choose);
+    if (await browser.evaluate<boolean>(`!!${choose}`)) {
+      await browser.click(choose);
+      await browser.wait('globalThis.__molisPluginPending===0&&!document.querySelector("[data-pc-pending]")');
+    }
   }
   // Visible text is compared with whitespace collapsed: line breaks between a record's parts are layout, not content.
   if (['expect', 'expectOrder', 'expectAbsent'].includes(step.action)) await browser.evaluate(unfold(root));
@@ -196,7 +232,7 @@ class BuilderBrowser {
   async wait(expression: string) { await this.evaluate(`new Promise((resolve,reject)=>{const deadline=Date.now()+20000;function check(){try{if(${expression})return resolve(true)}catch(e){return reject(e)}if(Date.now()>deadline)return reject(Error('验收等待超时'));setTimeout(check,50)}check()})`); }
   async click(expression: string) {
     await this.wait(`!!(${expression})`);
-    const point = await this.evaluate<{ x: number; y: number }>(`(()=>{const el=${expression};if(el.disabled)throw Error('验收操作不可用');el.scrollIntoView({block:'center'});const b=el.getBoundingClientRect();if(!b.width||!b.height)throw Error('验收目标不可见');return{x:b.x+b.width/2,y:b.y+b.height/2}})()`);
+    const point = await this.evaluate<{ x: number; y: number }>(`(async()=>{(${expression}).scrollIntoView({block:'center',behavior:'instant'});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const el=${expression};if(!el)throw Error('验收目标已变化');if(el.disabled)throw Error('验收操作不可用');const b=el.getBoundingClientRect();if(!b.width||!b.height)throw Error('验收目标不可见');if(!el.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)))throw Error('验收操作被遮挡');return{x:b.x+b.width/2,y:b.y+b.height/2}})()`);
     await this.command('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 }); await this.command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
   }
   async fill(expression: string, value: string) {

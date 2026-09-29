@@ -42,7 +42,7 @@ import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { L } from "./web-locale.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
-import { findPluginSettingsNavItem, renderMolisWorkPrimitiveCatalog, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
+import { findPluginSettingsNavItem, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
 import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { EXPERIMENTS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-experiments";
@@ -178,6 +178,15 @@ export async function handleLocalCatalogWebRequest(
       "content-security-policy": PAGE_CSP,
     });
     response.end(renderMolisWorkPrimitiveCatalog());
+    return;
+  }
+  if (request.method === "GET" && url.pathname === "/__ui/catalog/bar") {
+    response.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "content-security-policy": PAGE_CSP,
+    });
+    response.end(renderMolisWorkBarSpecimen());
     return;
   }
   if (request.method === "GET" && url.pathname === "/settings") {

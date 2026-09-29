@@ -53,6 +53,8 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   };
   const setDetails = (open, persist = false) => {
     if (!frame) return;
+    // The document view is the Goal's details; it stays open while that view is shown.
+    if (frame.dataset.viewMode === "document") open = true;
     frame.dataset.detailsOpen = String(open);
     documentPane.hidden = !open;
     const button = frame.querySelector("[data-goal-details-toggle]");
@@ -84,9 +86,57 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     });
     const terminal = frame.querySelector("[data-tui-pane]");
     if (terminal) { terminal.hidden = workMode !== "terminal"; terminal.setAttribute("role", "tabpanel"); terminal.setAttribute("aria-labelledby", "goal-terminal-tab"); }
-    setDetails(saved.details ?? frame.clientWidth >= 840);
+    // A Goal opens as its document unless it already has a terminal session or the person last chose the terminal.
+    viewChosenAt = Date.now();
+    if (Date.now() - workRequestedAt < 3000) { workRequestedAt = 0; setView("work", true); }
+    else setView(saved.view || (hasTerminalSession() ? "work" : "document"));
     document.dispatchEvent(new CustomEvent("molis-work:work-mode-changed", { detail: { goalId, mode: workMode } }));
   };
+  let viewChosenAt = 0;
+  // 打开工作区 on a Goal's frame asks for its work area: the Goal opens in its terminal, and that is remembered as its view.
+  let workRequestedAt = 0;
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element) || !event.target.closest("[data-frame-goal-work]")) return;
+    workRequestedAt = Date.now();
+    if (getSelected()) setView("work", true);
+  }, true);
+  const hasTerminalSession = () => {
+    const empty = frame?.querySelector("[data-tui-empty]");
+    return Boolean(empty && empty.hidden);
+  };
+  const setView = (view, persist = false) => {
+    if (!frame) return;
+    frame.dataset.viewMode = view;
+    frame.querySelectorAll("[data-goal-view-tab]").forEach(button => {
+      const active = button.dataset.goalViewTab === view;
+      button.classList.toggle("is-current", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    const info = documentPane.querySelector("[data-goal-info]");
+    if (view === "document") { if (info) info.open = true; setDetails(true); }
+    else setDetails((modes[getSelected()] || {}).details ?? frame.clientWidth >= 840);
+    if (persist && getSelected()) {
+      modes[getSelected()] = { ...modes[getSelected()], view };
+      persistModes();
+    }
+  };
+  // Sessions arrive shortly after the Goal opens: a Goal that turns out to have one moves to its terminal,
+  // unless the person has chosen a view for it.
+  // Opening a form or reader in the document view starts it at the top of the Goal.
+  const aside = frame?.querySelector("[data-goal-details-aside]");
+  if (aside) new MutationObserver(() => {
+    const editing = aside.querySelector(".goal-event-document.is-editing-goal");
+    if (!editing) return;
+    // The form covers the document from its top in either view, so neither the rail nor the document stays scrolled.
+    aside.scrollTop = 0;
+    editing.scrollTop = 0;
+  }).observe(aside, { subtree: true, attributes: true, attributeFilter: ["class"] });
+  const emptyState = frame?.querySelector("[data-tui-empty]");
+  if (emptyState) new MutationObserver(() => {
+    const goalId = getSelected();
+    if (!goalId || (modes[goalId] || {}).view || frame.dataset.viewMode !== "document") return;
+    if (hasTerminalSession() && Date.now() - viewChosenAt < 2500) setView("work");
+  }).observe(emptyState, { attributes: true, attributeFilter: ["hidden"] });
   const sync = () => {
     const plugin = currentPlugin();
     if (heading) heading.hidden = false;
@@ -151,6 +201,8 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       setWorkspaceMode("runtime");
       return;
     }
+    const viewTab = event.target.closest("[data-goal-view-tab]");
+    if (viewTab && frame?.contains(viewTab)) { setView(viewTab.dataset.goalViewTab, true); return; }
     if (event.target.closest("[data-goal-details-toggle]")) setDetails(frame.dataset.detailsOpen !== "true", true);
     if (event.target.closest("[data-select-goal], [data-operation-select], [data-artifact-select], [data-inbox-row]")) {
       if (narrow()) setMobileView("document");

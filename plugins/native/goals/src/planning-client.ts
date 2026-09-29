@@ -34,7 +34,7 @@ export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
     board.dataset.planningStageBound="1";
     const loadDetail=async(path)=>{
       board.dataset.planningSplit="detail";
-      detail.textContent=L("正在加载设置");
+      detail.innerHTML='<p class="mw-loading" role="status"></p>';detail.firstChild.textContent=L("正在加载设置");
       try{
         const response=await fetch(path,{headers:{Accept:"text/html"}});
         const html=await response.text();
@@ -44,7 +44,12 @@ export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
         detail.replaceChildren(document.importNode(content,true));
         globalThis.molisWorkBindPlanningSettings?.(detail);
       }catch(error){
-        detail.textContent=error?.message||L("无法加载设置");
+        // The reason and Retry in place, like every list that cannot be read.
+        detail.innerHTML='<div class="mw-empty mw-empty--error" role="alert"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button></div>';
+        detail.querySelector("strong").textContent=L("无法加载设置");
+        detail.querySelector("p").textContent=error?.message&&error.message!==L("无法加载设置")?error.message:L("请稍后重试");
+        const retry=detail.querySelector("button");retry.textContent=L("重试");
+        retry.addEventListener("click",()=>{retry.disabled=true;void loadDetail(path);});
       }
     };
     const closeDetail=()=>{

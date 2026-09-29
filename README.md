@@ -53,6 +53,24 @@ These images show the workspace, Goal list, Goal-bound terminal, and macOS statu
 
 Built-in Runtime recipes cover Codex, Claude Code, OpenCode, Pi Agent, and Grok Build. Other Harnesses can use the same project through Molis Work's MCP server and shared Skill.
 
+### The workbench today
+
+<p align="center">
+  <img src="docs/screenshots/soft-workbench/home-en.jpg" width="49%" alt="Project home: today's work, a day strip, the Goal in progress and the day's events, with a note and things at hand in the margin">
+  <img src="docs/screenshots/soft-workbench/goals-en.jpg" width="49%" alt="Goals: a Goal opens as a document beside the Goal tree; the terminal is one switch away">
+</p>
+<p align="center">
+  <img src="docs/screenshots/soft-workbench/feed-en.jpg" width="49%" alt="Feed: a column of article cards beside a reading page">
+  <img src="docs/screenshots/soft-workbench/onboarding-en.jpg" width="49%" alt="First run: one window with the question on the left and a live preview on the right">
+</p>
+<p align="center">
+  <img src="docs/screenshots/soft-workbench/home-dark-en.jpg" width="66%" alt="Project home in Dark">
+  <img src="docs/screenshots/soft-workbench/phone-en.jpg" width="22%" alt="Project home at phone width with the two-row bottom bar">
+</p>
+<p align="center">
+  <sub>Captured from the current source with demo data. A pearl desk holds one continuous work surface; global navigation and the unified conversation live in the bottom bar. Every page shares one icon set, one type scale, four motion durations and a three-layer Dark mode. Visual spec: <a href="DESIGN.md">DESIGN.md</a>.</sub>
+</p>
+
 ## Core features
 
 Plain use, and the problem each one is for.

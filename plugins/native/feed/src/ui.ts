@@ -240,28 +240,39 @@ function renderFeedSourceRail(model: FeedUiModel): string {
   const p = model.primitives;
   const groups = groupedFeedStageEntries(model);
   return `<aside class="feed-source-rail" data-feed-source-rail aria-label="${p.text("Feed 来源")}">
-    <header><h1>Feed</h1><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-feed-add-toggle aria-label="${p.text("添加来源")}">${p.icon("plus")}</button></header>
+    <header><span>${p.text("来源")}</span><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-feed-add-toggle>${p.icon("plus")}${p.text("添加来源")}</button></header>
     <button class="feed-source-nav is-selected" type="button" data-feed-task="all" data-feed-task-toggle="all" aria-current="page"><span class="feed-source-nav-icon">${p.icon("rss")}</span><span><strong>${p.text("全部消息")}</strong><small>${p.text("所有来源的最新内容")}</small></span><em>${model.entries.length}</em></button>
-    <div class="feed-rail-label">${p.text("我的来源")}</div>
-    <nav>${groups.map(group => { const source = model.sources.find(s => s.source_id === group.sourceId); return `<button class="feed-source-nav" type="button" data-feed-task="${p.escape(group.sourceId)}" data-feed-task-toggle="${p.escape(group.sourceId)}" data-feed-source-name="${p.escape(group.label)}" data-feed-source-summary="${p.escape(source ? [source.account_label, source.status_label, source.last_fetch_label].filter(Boolean).join(" · ") : '')}" data-feed-source-state="${p.escape(group.statusKind)}" data-feed-source-can-sync="${Boolean(source && !source.prototype && source.enabled && source.status !== "disconnected")}"><span class="feed-source-nav-icon">${p.icon(sourceIconName(group.provider))}</span><span><strong>${p.escape(group.label)}</strong><small>${p.escape(source?.status_label || p.text("保留的消息"))}${source ? ` · ${p.escape(source.account_label || source.schedule_label)}` : ''}</small></span><em>${group.entries.length}</em></button>`; }).join('')}</nav>
-    <footer><button class="mw-btn mw-btn--ghost" type="button" data-feed-add-toggle>${p.icon("plus")}${p.text("添加来源")}</button><p>${p.text("关注的内容，在这里汇集。")}</p></footer>
+    ${groups.length ? `<div class="feed-rail-label">${p.text("我的来源")}</div>` : ""}
+    <nav>${groups.map(group => { const source = model.sources.find(s => s.source_id === group.sourceId); const mark = feedTaskStatusMark(group.statusKind); return `<button class="feed-source-nav" type="button" data-feed-task="${p.escape(group.sourceId)}" data-feed-task-toggle="${p.escape(group.sourceId)}" data-feed-source-name="${p.escape(group.label)}" data-feed-source-summary="${p.escape(source ? [source.account_label, source.status_label, source.last_fetch_label].filter(Boolean).join(" · ") : '')}" data-feed-source-state="${p.escape(group.statusKind)}" data-feed-source-can-sync="${Boolean(source && !source.prototype && source.enabled && source.status !== "disconnected")}"><span class="feed-source-nav-icon">${p.icon(sourceIconName(group.provider))}</span><span><strong>${p.escape(group.label)}</strong><small class="is-${mark.tone}">${p.icon(mark.icon)}${p.escape(source?.status_label || p.text("保留的消息"))}${source ? ` · ${p.escape(source.account_label || source.schedule_label)}` : ''}</small></span><em>${group.entries.length}</em></button>`; }).join('')}</nav>
   </aside>`;
 }
 
-function renderFeedSourceHeader(model: FeedUiModel): string {
+/** Soft Workbench Feed: the column reads like the prototype's article directory; sources sit in one menu above it. */
+function renderFeedColumnHead(model: FeedUiModel): string {
   const p = model.primitives;
-  return `<header class="feed-source-header" data-feed-source-header><div class="feed-source-heading"><button class="mw-btn mw-btn--ghost mw-btn--icon-only feed-mobile-sources" type="button" data-feed-rail-toggle aria-label="${p.text("选择来源")}" aria-expanded="false">${p.icon("list")}</button><div><h2 data-feed-task-title>${p.text("全部消息")}</h2><p data-feed-task-summary>${p.text("所有来源的最新内容")}</p></div><button class="mw-btn mw-btn--secondary" type="button" data-feed-current-sync hidden>${p.icon("refresh")}${p.text("立即拉取")}</button></div><nav class="feed-source-tabs" aria-label="${p.text("来源工作区")}"><button type="button" data-feed-view="messages" aria-current="page">${p.text("消息")}</button><button type="button" data-feed-view="settings" hidden>${p.text("来源设置")}</button><button type="button" data-feed-view="rules" hidden>${p.text("捕捉规则")}</button></nav></header>`;
+  return `<header class="feed-column-head" data-feed-source-header>
+    <div class="feed-column-title"><h1>Feed</h1><div class="feed-column-actions"><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-feed-current-sync hidden aria-label="${p.text("立即拉取")}" title="${p.text("立即拉取")}">${p.icon("refresh")}</button><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-feed-add-toggle aria-label="${p.text("添加来源")}" title="${p.text("添加来源")}">${p.icon("plus")}</button></div></div>
+    <details class="feed-source-menu" data-feed-source-menu>
+      <summary class="feed-scope" data-feed-rail-toggle aria-expanded="false" aria-label="${p.text("选择来源")}"><span class="feed-scope-icon" aria-hidden="true">${p.icon("rss")}</span><span class="feed-scope-copy"><strong data-feed-task-title>${p.text("全部消息")}</strong><small data-feed-task-summary>${p.text("所有来源的最新内容")}</small></span><span class="feed-scope-caret" aria-hidden="true">${p.icon("chevron-down")}</span></summary>
+      ${renderFeedSourceRail(model)}
+    </details>
+    <nav class="feed-source-tabs" aria-label="${p.text("来源工作区")}"><button type="button" data-feed-view="messages" aria-current="page">${p.text("消息")}</button><button type="button" data-feed-view="settings" hidden>${p.text("来源设置")}</button><button type="button" data-feed-view="rules" hidden>${p.text("捕捉规则")}</button></nav>
+  </header>`;
 }
 
 function renderFeedStageDirectory(model: FeedUiModel): string {
   const p = model.primitives;
-  const groups = groupedFeedStageEntries(model);
-  const total = groups.reduce((count, group) => count + group.entries.length, 0);
-  const body = groups.map((group) => renderFeedStageGroup(group, model)).join("");
-  const details = sortedFeedEntries(model).map((entry) => renderFeedStageDetailPane(entry, model)).join("");
-  return `${renderFeedSourceRail(model)}${renderFeedSourceHeader(model)}${renderFeedStageToolbar(model, total)}
-    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-feed-list>${body}<div class="feed-list-empty mw-empty" data-feed-empty${groups.length ? " hidden" : ""}><strong data-feed-empty-title>${p.text(total ? "这里还没有 Item" : "还没有来源")}</strong><button class="mw-btn mw-btn--ghost" type="button" data-feed-clear-filters hidden>${p.text("清除筛选")}</button>${model.demo ? `<button class="mw-btn mw-btn--ghost" type="button" data-prototype-feed-restore hidden>${p.text("恢复列表")}</button>` : ""}<button class="mw-btn mw-btn--link" type="button" data-feed-add-toggle>${p.text("添加来源")}</button></div></div>
-    <div class="plugin-stage-workspace feed-stage-workspace" data-feed-stage-workspace hidden>${details}<div class="feed-detail-empty mw-empty" data-feed-detail-empty hidden>${p.icon("rss")}<h1 data-feed-detail-empty-title>${p.text("正在载入 Item…")}</h1><p data-feed-detail-empty-copy hidden></p><button class="mw-btn mw-btn--secondary" type="button" data-retry-feed-detail hidden>${p.text("重试")}</button></div></div>`;
+  const entries = sortedFeedEntries(model);
+  const total = entries.length;
+  const rows = entries.map((entry) => renderFeedStageItem(entry, model)).join("");
+  const details = entries.map((entry) => renderFeedStageDetailPane(entry, model)).join("");
+  return `<div class="feed-column" data-feed-column>
+    ${renderFeedColumnHead(model)}${renderFeedStageToolbar(model, total)}
+    <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-feed-list><div class="feed-stage-rows" role="list" aria-label="${p.text("消息")}" data-feed-rows>${rows}</div><div class="feed-list-empty mw-empty" data-feed-empty${total ? " hidden" : ""}><span class="mw-empty__mark">${p.icon("rss")}</span><strong data-feed-empty-title>${p.text(model.sources.length ? "还没有消息，拉取后会出现在这里" : "还没有来源")}</strong><button class="mw-btn mw-btn--secondary" type="button" data-feed-clear-filters hidden>${p.text("查看全部")}</button>${model.demo ? `<button class="mw-btn mw-btn--ghost" type="button" data-prototype-feed-restore hidden>${p.text("恢复列表")}</button>` : ""}<button class="mw-btn mw-btn--secondary" type="button" data-feed-add-toggle>${p.icon("plus")}${p.text("添加来源")}</button></div></div>
+    <footer class="feed-column-foot">${p.icon("check")}<span data-feed-result-count>${p.text("{count} 条消息", { count: total })}</span></footer>
+  </div>
+  <div class="feed-reader-idle mw-empty" data-feed-reader-idle><span class="mw-empty__mark">${p.icon("rss")}</span><h2>${p.text("选一条消息开始读")}</h2><p>${p.text("打开后会记为已读。值得留下的，可以保存为资料、加入 Inbox，或升格为 Goal。")}</p></div>
+  <div class="plugin-stage-workspace feed-stage-workspace" data-feed-stage-workspace hidden>${details}<div class="feed-detail-empty mw-empty" data-feed-detail-empty hidden>${p.icon("rss")}<h1 data-feed-detail-empty-title>${p.text("正在载入 Item…")}</h1><p data-feed-detail-empty-copy hidden></p><button class="mw-btn mw-btn--secondary" type="button" data-retry-feed-detail hidden>${p.text("重试")}</button></div></div>`;
 }
 
 interface FeedStageGroup {
@@ -309,23 +320,6 @@ function feedTaskStatusMark(kind: FeedUiSource["status_kind"]): { icon: "check" 
   return kind === "active" ? { icon: "check", tone: "ready" } : { icon: "alert", tone: "attention" };
 }
 
-function renderFeedStageGroup(group: FeedStageGroup, model: FeedUiModel): string {
-  const p = model.primitives;
-  const id = p.escape(group.sourceId);
-  const name = p.escape(group.label);
-  const mark = feedTaskStatusMark(group.statusKind);
-  const rows = group.entries.map((entry) => renderFeedStageItem(entry, model)).join("");
-  return `<details class="goal-collection-fold" data-feed-stage-group="${id}" data-feed-task-status="${p.escape(group.statusKind)}" open>
-    <summary>
-      <span class="goal-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>
-      <span class="goal-collection-mark is-${mark.tone}" aria-hidden="true">${p.icon(mark.icon)}</span>
-      <strong>${name}</strong>
-      <small data-feed-stage-group-count>${group.entries.length}</small>
-    </summary>
-    <div class="feed-stage-group-body" role="list" aria-label="${name}">${rows}<p class="goal-collection-empty" data-feed-stage-group-empty${group.entries.length ? " hidden" : ""}>${p.text("这个来源还没有消息")}</p></div>
-  </details>`;
-}
-
 function renderFeedStageToolbar(model: FeedUiModel, count: number): string {
   const p = model.primitives;
   const sourceLabels = [...new Set(model.entries.map((entry) => entry.source_label).filter(Boolean))]
@@ -338,10 +332,13 @@ function renderFeedStageToolbar(model: FeedUiModel, count: number): string {
   const filterOptions = (kind: string, options: readonly (readonly [string, string])[], selected: string) =>
     options.map(([value, label]) => `<button class="feed-filter-option" type="button" role="radio" aria-checked="${value === selected}" data-feed-filter-option="${kind}" data-feed-filter-value="${p.escape(value)}"><span>${p.escape(label)}</span>${p.icon("check")}</button>`).join("");
   const selectOptions = (options: readonly (readonly [string, string])[]) => options.map(([value, label]) => `<option value="${p.escape(value)}">${p.escape(label)}</option>`).join("");
+  const quick = [["all", p.text("全部")], ["unread", p.text("未读")], ["saved", p.text("已保存")]] as const;
+  void count;
   return `<header class="plugin-stage-chrome feed-stage-toolbar" data-feed-stage-chrome>
-    <label class="feed-stage-search">${p.icon("search")}<input data-feed-search type="search" placeholder="${p.text("搜索消息")}" aria-label="${p.text("搜索消息")}"></label>
+    <div class="feed-search-row"><label class="feed-stage-search">${p.icon("search")}<input data-feed-search type="search" placeholder="${p.text("搜索标题、来源…")}" aria-label="${p.text("搜索消息")}"></label>
     <div class="feed-directory-tools"><div class="feed-directory-toolbar"><div class="feed-filter-control"><button class="feed-filter-trigger" type="button" data-feed-filter-trigger aria-expanded="false" aria-haspopup="true" aria-controls="feed-filter-panel" aria-label="${p.text("筛选与排序")}">${p.icon("filter")}<span data-feed-filter-badge hidden>0</span></button><section class="feed-filter-panel" id="feed-filter-panel" data-feed-filter-panel hidden aria-label="${p.text("筛选与排序")}"><header><strong>${p.text("筛选与排序")}</strong><button class="mw-btn mw-btn--link" type="button" data-feed-filter-reset>${p.text("清除筛选")}</button></header><div class="feed-filter-section"><span>${p.text("来源")}</span><div class="feed-filter-options">${filterOptions("source", sourceOptions, "all")}</div></div><div class="feed-filter-section"><span>${p.text("类型")}</span><div class="feed-filter-options">${filterOptions("type", typeOptions, "all")}</div></div><div class="feed-filter-section"><span>${p.text("时间")}</span><div class="feed-filter-options">${filterOptions("time", timeOptions, "all")}</div></div><div class="feed-filter-section"><span>${p.text("状态")}</span><div class="feed-filter-options">${filterOptions("status", statusOptions, "active")}</div></div><div class="feed-filter-section"><span>${p.text("排序")}</span><div class="feed-filter-options">${filterOptions("sort", sortOptions, "newest")}</div></div></section></div></div><select data-feed-source-filter hidden tabindex="-1" aria-hidden="true">${selectOptions(sourceOptions)}</select><select data-feed-type-filter hidden tabindex="-1" aria-hidden="true">${selectOptions(typeOptions)}</select><select data-feed-time-filter hidden tabindex="-1" aria-hidden="true">${selectOptions(timeOptions)}</select><select data-feed-status-filter hidden tabindex="-1" aria-hidden="true">${selectOptions(statusOptions)}</select><select data-feed-sort hidden tabindex="-1" aria-hidden="true">${selectOptions(sortOptions)}</select></div>
-    <span class="feed-stage-count" data-feed-result-count>${p.text("{count} 条消息", { count })}</span>
+    </div>
+    <div class="mw-toggle-group feed-quick-filter" data-slot="toggle-group" role="group" aria-label="${p.text("信息筛选")}" data-feed-quick-filter>${quick.map(([value, label], index) => `<button class="mw-toggle${index === 0 ? " is-current" : ""}" type="button" data-feed-quick="${value}" aria-pressed="${index === 0}">${p.escape(label)}</button>`).join("")}</div>
   </header>`;
 }
 
@@ -351,7 +348,7 @@ function renderFeedStageItem(entry: FeedUiEntry, model: FeedUiModel): string {
   const visible = entry.preset === model.preset;
   return `<article class="feed-stage-item" role="listitem" data-feed-item-wrap="${p.escape(entry.entry_id)}"${visible ? "" : " hidden"}>
     <div class="feed-stage-item-line">
-      <button class="feed-stage-entry directory-list-row" type="button" aria-expanded="false" aria-controls="feed-reading-${p.escape(entry.entry_id)}" tabindex="-1" draggable="true" data-frame-asset="feed" data-frame-asset-id="${p.escape(entry.entry_id)}" data-frame-asset-title="${p.escape(entry.title)}" data-frame-asset-caption="${p.escape(entry.summary)}" data-feed-entry-id="${p.escape(entry.entry_id)}"${entry.item_id ? ` data-feed-item-id="${p.escape(entry.item_id)}"` : ""}${entry.inbox_entry ? ` data-inbox-entry-id="${p.escape(entry.inbox_entry.entry_id)}" data-inbox-entry-revision="${entry.inbox_entry.revision}" data-inbox-subject-type="${entry.inbox_entry.subject_type}" data-inbox-reason="${entry.inbox_entry.reason}"` : ""} data-feed-entry-type="${entry.preset}" data-feed-entry-provider="${entry.provider}" data-feed-entry-attention-rank="${entry.attention_rank}" data-feed-entry-persisted="${entry.item && !entry.prototype ? "true" : "false"}"${entry.prototype ? ` data-feed-entry-prototype="true"` : ""} data-feed-entry-read="${entry.read ? "read" : "unread"}" data-feed-entry-source="${p.escape(entry.source_label)}" data-feed-entry-source-id="${p.escape(sourceId)}" data-feed-entry-status="${p.escape(entry.disposition)}" data-feed-entry-time="${p.escape(entry.updated_at)}" data-feed-entry-title="${p.escape(entry.title)}" data-feed-entry-search="${p.escape(`${entry.title} ${entry.summary} ${entry.source_label}`.toLocaleLowerCase())}"><span class="feed-stage-leading"><span class="feed-entry-provider" aria-hidden="true">${p.icon(sourceIconName(entry.provider))}</span><span class="feed-entry-copy"><strong title="${p.escape(entry.title)}">${p.escape(entry.title)}</strong><span class="feed-entry-preview">${p.escape(p.plainText(entry.summary))}</span></span></span><span class="feed-entry-source">${p.escape(entry.source_label)}</span><time datetime="${p.escape(entry.updated_at)}">${p.formatDate(entry.updated_at)}</time>${renderFeedEntryStatus(entry, p)}</button>
+      <button class="feed-stage-entry directory-list-row" type="button" aria-expanded="false" aria-controls="feed-reading-${p.escape(entry.entry_id)}" tabindex="-1" draggable="true" data-frame-asset="feed" data-frame-asset-id="${p.escape(entry.entry_id)}" data-frame-asset-title="${p.escape(entry.title)}" data-frame-asset-caption="${p.escape(entry.summary)}" data-feed-entry-id="${p.escape(entry.entry_id)}"${entry.item_id ? ` data-feed-item-id="${p.escape(entry.item_id)}"` : ""}${entry.inbox_entry ? ` data-inbox-entry-id="${p.escape(entry.inbox_entry.entry_id)}" data-inbox-entry-revision="${entry.inbox_entry.revision}" data-inbox-subject-type="${entry.inbox_entry.subject_type}" data-inbox-reason="${entry.inbox_entry.reason}"` : ""} data-feed-entry-type="${entry.preset}" data-feed-entry-provider="${entry.provider}" data-feed-entry-attention-rank="${entry.attention_rank}" data-feed-entry-persisted="${entry.item && !entry.prototype ? "true" : "false"}"${entry.prototype ? ` data-feed-entry-prototype="true"` : ""} data-feed-entry-read="${entry.read ? "read" : "unread"}" data-feed-entry-source="${p.escape(entry.source_label)}" data-feed-entry-source-id="${p.escape(sourceId)}" data-feed-entry-task="${p.escape(model.sources.some((source) => source.source_id === sourceId) ? sourceId : "other")}" data-feed-entry-status="${p.escape(entry.disposition)}" data-feed-entry-time="${p.escape(entry.updated_at)}" data-feed-entry-title="${p.escape(entry.title)}" data-feed-entry-search="${p.escape(`${entry.title} ${entry.summary} ${entry.source_label}`.toLocaleLowerCase())}"><span class="feed-entry-meta"><span class="feed-entry-provider" aria-hidden="true">${p.icon(sourceIconName(entry.provider))}</span><span class="feed-entry-source">${p.escape(entry.source_label)}</span><time datetime="${p.escape(entry.updated_at)}">${p.formatDate(entry.updated_at)}</time></span><span class="feed-stage-leading"><span class="feed-entry-copy"><strong title="${p.escape(entry.title)}">${p.escape(entry.title)}</strong><span class="feed-entry-preview">${p.escape(p.plainText(entry.summary))}</span></span></span><span class="feed-entry-foot">${renderFeedEntryStatus(entry, p)}</span></button>
     </div>
   </article>`;
 }
@@ -362,7 +359,7 @@ function renderFeedStageDetailPane(entry: FeedUiEntry, model: FeedUiModel): stri
     ? renderPrototypeFeedDetail(entry, true, model)
     : entry.detail_slot_html || "";
   return `<article class="feed-stage-detail" data-feed-entry-detail="${p.escape(entry.entry_id)}" hidden>
-    <header class="plugin-stage-detail-bar" data-stage-back-only><button class="plugin-stage-back" type="button" data-feed-collapse aria-label="${p.text("返回 Feed 列表")}" title="${p.text("返回 Feed 列表")}">${p.icon("chevron-right")}</button></header>
+    <header class="plugin-stage-detail-bar feed-reader-bar" data-stage-back-only><button class="plugin-stage-back" type="button" data-feed-collapse aria-label="${p.text("返回 Feed 列表")}" title="${p.text("返回 Feed 列表")}"><span class="feed-back-narrow">${p.icon("chevron-right")}</span><span class="feed-back-wide">${p.icon("x")}</span></button><span class="feed-reader-source">${p.icon(sourceIconName(entry.provider))}${p.escape(entry.source_label)}</span></header>
     <div class="feed-stage-item-detail" id="feed-reading-${p.escape(entry.entry_id)}" data-feed-item-slot>${detail}</div>
   </article>`;
 }

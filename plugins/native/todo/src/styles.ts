@@ -12,7 +12,7 @@ export const TODO_STYLES = `
   [data-todo-scope].is-current { background: var(--nav-active); color: var(--ink); }
 
   .todo-quick { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--r-card, 12px); box-shadow: var(--lift-1); }
-  .todo-quick-input { width: 100%; font-size: 14px; }
+  .todo-quick-input { width: 100%; font-size: 13px; }
   .todo-quick-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .todo-quick-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1 1 12rem; min-width: 0; }
   .todo-quick-meta .mw-btn--primary { flex: none; }
@@ -47,7 +47,7 @@ export const TODO_STYLES = `
   .todo-group > summary { margin-top: 6px; }
   .todo-row { display: grid; grid-template-columns: 22px 28px minmax(0, 1fr); align-items: center; column-gap: 2px; min-width: 0; border-radius: var(--r-row, 8px); }
   .todo-row.is-selected { background: var(--nav-active); }
-  .todo-pick { justify-self: center; opacity: .35; transition: opacity var(--dur-hover, 120ms) var(--ease-swift, ease); }
+  .todo-pick { justify-self: center; opacity: .35; transition: opacity var(--dur-hover) var(--ease-swift); }
   .todo-row:hover .todo-pick, .todo-pick:focus-visible, .todo-pick:checked, [data-todo-picking=true] .todo-pick { opacity: 1; }
   .todo-done { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--faint); cursor: pointer; }
   .todo-done:hover, .todo-done:focus-visible { color: var(--ink); background: var(--nav-hover); }

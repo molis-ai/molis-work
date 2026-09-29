@@ -25,13 +25,18 @@ test("generic focus rings do not cover mw-* primitive halos", () => {
   assert.match(COSS_CONTROL_STYLES, /button:focus-visible:not\(\[class\^="mw-"\]\)/);
 });
 
-test("keyboard focus sits inside the control instead of an outer halo", () => {
+// Soft Workbench (DESIGN.md → Focus and accessibility): controls take the shared copper stroke; fields answer
+// with a copper border and a 3px copper halo instead of the retired inset ink stroke.
+test("keyboard focus uses the shared copper stroke and field halo", () => {
   const workbench = renderMolisWorkWorkbenchStylesheet();
-  assert.match(PRIMITIVE_STYLES, /\.mw-input:focus-visible, \.mw-textarea:focus-visible, \.mw-select:focus-visible \{[\s\S]*outline-offset: var\(--focus-stroke-inset, -1px\)/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-input:focus-visible, \.mw-textarea:focus-visible, \.mw-select:focus-visible,\s*\.mw-input:focus, \.mw-textarea:focus \{ outline: none; border-color: var\(--accent\); box-shadow: 0 0 0 3px color-mix\(in srgb, var\(--accent\) 16%, transparent\)/);
+  // The focused field's edge is full copper so it reaches 3:1 against its surface (the 55% mix read about 2.8:1).
   assert.doesNotMatch(PRIMITIVE_STYLES, /0 0 0 3\.5px/);
   assert.match(workbench, /body\.immersive-workbench :focus-visible \{[\s\S]*outline: var\(--focus-stroke\);[\s\S]*outline-offset: var\(--focus-stroke-inset\)/);
   // The Feed source setup is an inline panel now; its fields take the same inside stroke from the Feed stylesheet.
-  assert.match(FEED_STYLES, /\.feed-workbench :is\(button,input,textarea,select\):focus-visible \{ outline:var\(--focus-stroke\); outline-offset:var\(--focus-stroke-inset\); \}/);
+  // Feed's rewritten stylesheet (spec → 第二轮 · 信息流) keeps the shared stroke and adds its source-menu summary.
+  // Controls take the stroke; `mw-input`/`mw-textarea` fields keep the shared field focus, so no field shows two rings.
+  assert.match(FEED_STYLES, /\.feed-workbench :is\(button:not\(\.mw-select\), summary, select:not\(\.mw-select\), input:not\(\.mw-input\), textarea:not\(\.mw-textarea\)\):focus-visible \{ outline: var\(--focus-stroke\); outline-offset: var\(--focus-stroke-inset\); \}/);
   assert.equal(workbench.includes("inset 0 0 0 1.5px color-mix(in srgb, var(--blue)"), false);
   assert.equal(workbench.includes("outline: 2px solid var(--blue)"), false);
   assert.equal(workbench.includes("outline: 2px solid var(--focus)"), false);
@@ -85,12 +90,13 @@ test("legacy input cosmetics leave mw-* fields to the primitive layer", () => {
   assert.match(settings, /:not\(\[type="range"\]\):not\(\.mw-slider\):not\(\.mw-input\):not\(\.mw-textarea\):not\(\.mw-select\)/);
 });
 
-test("shared tokens describe Coss control radius, height, and translucent borders", () => {
-  assert.match(COSS_CONTROL_STYLES, /--radius-control: 10px;/);
+// Soft Workbench (DESIGN.md → Shapes): 8px controls, 14px surfaces, 32px controls from the shared helpers.
+test("shared tokens describe control radius, height, and translucent borders", () => {
+  assert.match(COSS_CONTROL_STYLES, /--radius-control: 8px;/);
   assert.match(COSS_CONTROL_STYLES, /--radius-item: 8px;/);
-  assert.match(COSS_CONTROL_STYLES, /--radius-surface: 12px;/);
+  assert.match(COSS_CONTROL_STYLES, /--radius-surface: 14px;/);
   assert.match(COSS_CONTROL_STYLES, /--control-h: 32px;/);
-  assert.match(COSS_CONTROL_STYLES, /--control-border: color-mix\(in srgb, var\(--ink\) 8%, transparent\)/);
+  assert.match(COSS_CONTROL_STYLES, /--control-border: color-mix\(in srgb, var\(--ink\) 9%, transparent\)/);
 });
 
 test("workbench, settings, and project-index keep the Coss control layer after later surface CSS", () => {
@@ -128,8 +134,10 @@ test("primary actions stay Action fill on mw-* without chasing business selector
     /\.button-primary,[\s\S]*min-height: var\(--control-h\) !important;[\s\S]*background: var\(--action\) !important;/,
   );
   const coss = workbench.slice(workbench.lastIndexOf(COSS_CONTROL_STYLES.trim().slice(0, 80)));
-  assert.match(coss, /body\.immersive-workbench \.tree-create,[\s\S]*background: var\(--paper\) !important;/);
-  assert.match(coss, /body\.immersive-workbench \[data-tree-filter-trigger\] \{[\s\S]*padding: 0 !important;/);
+  // Soft Workbench (DESIGN.md → Plugin stage lists): the create control is a soft wash and needs no `!important`.
+  assert.match(coss, /body\.immersive-workbench \.tree-create,\s*body\.immersive-workbench \[data-tree-filter-trigger\] \{[^}]*background: var\(--control-fill\);/);
+  assert.match(coss, /body\.immersive-workbench \[data-tree-filter-trigger\] \{[^}]*padding: 0;/);
+  assert.doesNotMatch(coss, /body\.immersive-workbench \.tree-create,[^{]*\{[^}]*!important/);
   assert.doesNotMatch(coss, /source-mobile-add/);
   assert.doesNotMatch(workbench, /feed-source-task/);
   assert.doesNotMatch(workbench, /tree-pane \.feed-list-item/);
@@ -145,16 +153,20 @@ test("product stylesheets stop painting mw-btn fills through descendant button r
   assert.doesNotMatch(onboarding, /\.onboarding-actions button \{[^}]*background: transparent;/);
 });
 
-test("onboarding canvas uses the workbench page field", () => {
+// Soft Workbench (DESIGN.md → Onboarding): the onboarding window carries the shared shell tokens for both
+// themes plus its own scoped desk and window tokens; the retired `--onboarding-*` canvas is gone.
+test("onboarding window shares the workbench tokens in both themes", () => {
   const onboarding = renderMolisWorkOnboardingStylesheet();
   const workbench = renderMolisWorkWorkbenchStylesheet();
-  assert.match(workbench, /--page: #f3f4f5/);
-  assert.match(workbench, /--page: #0f1011/);
-  assert.match(onboarding, /--onboarding-canvas: #f3f4f5/);
-  assert.match(onboarding, /--onboarding-canvas: #0f1011/);
-  assert.match(onboarding, /--onboarding-paper: #161718/);
-  assert.doesNotMatch(onboarding, /--onboarding-canvas: #f4f5f8/);
-  assert.doesNotMatch(onboarding, /--onboarding-canvas: #111216/);
+  assert.match(workbench, /--page: #eeefef/);
+  assert.match(workbench, /--page: #1c1d20/);
+  assert.match(onboarding, /--page: #eeefef/);
+  assert.match(onboarding, /html\[data-resolved-theme=dark\]\{--page: #1c1d20/);
+  // The onboarding window's own palette is now derived from the shell tokens instead of near-copies of them
+  // (spec → 第三轮 · 颜色), so it follows every token change in both themes.
+  assert.match(onboarding, /--ob-page:var\(--desk\);--ob-window:var\(--paper\);/);
+  assert.match(onboarding, /html\[data-resolved-theme=dark\]\{[^}]*--ob-page:var\(--desk\);--ob-window:var\(--paper\);/);
+  assert.doesNotMatch(onboarding, /--onboarding-canvas/);
 });
 
 test("product HTML no longer uses retired control class names", () => {

@@ -629,7 +629,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(browser, /data-directory-shortcuts|directory-shortcuts-title/);
     const homeStart = browser.indexOf('data-work-surface="home"');
     assert.ok(homeStart >= 0);
-    assert.match(browser.slice(homeStart), /class="home-flow"[\s\S]*data-home-dates[\s\S]*class="home-shortcuts"[\s\S]*data-home-shortcut-add/);
+    assert.match(browser.slice(homeStart), /class="home-scroll"[\s\S]*data-home-dates[\s\S]*data-home-focus[\s\S]*data-home-note[\s\S]*class="home-shortcuts"[\s\S]*data-home-shortcut-add[\s\S]*data-home-list/);
     assert.doesNotMatch(browser.slice(homeStart, homeStart + 8000), /home-composer|home-calendar|data-home-agent-input/);
     assert.match(browser, /scrollbar-width: none/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /tree-footer[\s\S]*display: none !important/);
@@ -666,7 +666,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /添加终端/);
     assert.match(desktop, /还没有终端|上层 Goal 不直接使用终端/);
     assert.match(desktop, /class="tui-stage"/);
-    assert.match(desktop, /\.tui-stage \{[^}]*padding: 10px 12px 12px/);
+    // The terminal stage's top inset snapped 10px → 12px on the spacing scale (spec → 第三轮 · 间距与形状).
+    assert.match(desktop, /\.tui-stage \{[^}]*padding: 12px 12px 12px/);
     assert.match(desktop, /grid-template-areas: "guard" "actions" "terminal"/);
     assert.match(desktop, /class="tui-owner"/);
     assert.match(desktop, /class="tui-owner-copy"/);

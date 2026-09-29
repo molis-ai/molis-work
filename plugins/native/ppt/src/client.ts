@@ -72,6 +72,10 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     const notesEl = document.createElement("aside"); notesEl.className = "ppt-present-notes";
     const bar = document.createElement("div"); bar.className = "ppt-present-bar";
     stage.append(frame, notesEl, bar);
+    // The slide's canvas is 960×540; the stage scales it to the largest size the screen holds.
+    const fit = () => stage.style.setProperty("--present-scale", String(Math.min(window.innerWidth / 960, window.innerHeight / 540)));
+    fit();
+    window.addEventListener("resize", fit);
     const draw = () => {
       frame.replaceChildren(slideNode(record, slides[index], index));
       const text = slides[index].notes || "";
@@ -81,6 +85,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     };
     const leave = () => {
       document.removeEventListener("keydown", key, true);
+      window.removeEventListener("resize", fit);
       if (document.fullscreenElement === stage) document.exitFullscreen().catch(() => {});
       stage.remove();
       currentSlideId = slides[index].id;
@@ -665,6 +670,20 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   window.addEventListener("beforeunload", (event) => {
     if (selected && (saveError || editRevision > savedRevision)) { event.preventDefault(); event.returnValue = ""; }
   });
-  void loadList().catch((error) => showNote(error.message, true));
+  // A list that cannot be read says so where the list is, with a way to try again (the note lives in the editor).
+  const listFailed = (error) => {
+    if (empty) empty.hidden = true;
+    const box = document.createElement("div");
+    box.className = "mw-empty mw-empty--error";
+    box.setAttribute("role", "alert");
+    box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
+    box.querySelector("strong").textContent = L("列表暂时读不到");
+    box.querySelector("p").textContent = error?.message || L("请稍后重试");
+    const retry = box.querySelector("button");
+    retry.textContent = L("重试");
+    retry.addEventListener("click", () => { retry.disabled = true; void loadList().then(() => box.remove(), (next) => { retry.disabled = false; box.querySelector("p").textContent = next?.message || L("请稍后重试"); }); });
+    rowsEl.replaceChildren(box);
+  };
+  void loadList().catch((error) => { showNote(error.message, true); listFailed(error); });
 }
 `;

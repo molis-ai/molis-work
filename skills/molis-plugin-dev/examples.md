@@ -8,7 +8,7 @@
 
 人盯着一条 `feed_item`。详情上四条竞争处置：加入 Inbox、保存、升格 Goal、忽略。
 
-- UI：plugin-stage，来源任务 fold，点行出详情。
+- UI：plugin-stage 外壳里的文章列 + 阅读页：来源收在列顶的来源菜单，时间线 + 全部 / 未读 / 已保存，点卡片在右侧读。
 - HTTP：Host `/api/feed/items/:id/(inbox|save|promote|archive|…)`。
 - 动作：`feed.*` 与内容协议 `feed.content.*`；处置按钮由事项动作查询准备，旧 HTTP 只转发。
 - 场景：`feed.capture`。`feed.open` 只映射「留在 Feed」，不是 footer 按钮。打开原文常驻。
@@ -44,7 +44,7 @@
 
 ## 灵光：岛
 
-人盯着一条还没想清楚的想法。`slot: "island"`，不是侧栏插件条。丢掉 / 复制内容是对象上的处置；今天没有判断场景，不要为它新开 `action_scenes`。catalog `personal: true`。搜索来源只列未丢弃的灵光。
+人盯着一条还没想清楚的想法。`slot: "island"`，不是插件切换列表里的一级入口。丢掉 / 复制内容是对象上的处置；今天没有判断场景，不要为它新开 `action_scenes`。catalog `personal: true`。搜索来源只列未丢弃的灵光。
 
 ## Schedule：到点叫醒
 

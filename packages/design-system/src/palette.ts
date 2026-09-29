@@ -1,4 +1,4 @@
-/** Linear-referenced hues: text for 13px copy, fill for 6–8px marks, soft for 11% washes.
+/** Hue ramps: text for 13px copy, fill for 6–8px marks, soft for 11% washes. Plugin identity and status only;
  * Content family is the DropAgent reading-surface set: warm paper + five type marks, no green. */
 
 export type MwHueId =
@@ -53,12 +53,12 @@ export const MW_HUES: readonly MwHueSwatch[] = [
 ] as const;
 
 export const MW_SURFACES = [
-  { token: "--page", label: "Page", role: "外场" },
-  { token: "--paper", label: "Paper", role: "纸面" },
-  { token: "--nav-bg", label: "Nav", role: "栏" },
-  { token: "--rail", label: "Rail", role: "轨" },
-  { token: "--nav-raised", label: "Raised", role: "抬起" },
-  { token: "--line", label: "Line", role: "发丝" },
+  { token: "--page", label: "Desk", role: "珍珠灰桌面" },
+  { token: "--paper", label: "Surface", role: "连续白色工作面" },
+  { token: "--surface-soft", label: "Soft", role: "目录列 · 内层块" },
+  { token: "--rail", label: "Wash", role: "局部分组" },
+  { token: "--line", label: "Line", role: "分隔线" },
+  { token: "--line-strong", label: "Line strong", role: "边界" },
 ] as const;
 
 export const MW_TYPE_TONES = [
@@ -69,9 +69,10 @@ export const MW_TYPE_TONES = [
 ] as const;
 
 export const MW_ACTION_TONES = [
-  { token: "--action", label: "Action", role: "主按钮" },
-  { token: "--action-ink", label: "Action ink", role: "主按钮字" },
-  { token: "--focus", label: "Focus", role: "焦点" },
+  { token: "--action", label: "Graphite", role: "主操作 · 选中" },
+  { token: "--action-ink", label: "On graphite", role: "主操作上的字" },
+  { token: "--accent", label: "Copper", role: "焦点 · 链接 · 进行中" },
+  { token: "--accent-soft", label: "Copper wash", role: "引用 · 高亮" },
 ] as const;
 
 export const MW_STATUS_TONES = [
@@ -116,40 +117,14 @@ export const MW_PLUGINS = [
   { id: "settings", label: "Settings", hue: "steel" as const },
 ] as const;
 
-/** Warm reading-surface ramp. Chrome stays Linear zinc; Shelf aliases these as `--da-*`. */
+/**
+ * The reading surface is the same Soft Workbench family, not a second skin: Shelf and other reading
+ * islands alias the shell tokens through `--content-*` (and Shelf through `--da-*`). Only the terminal
+ * canvas keeps values of its own.
+ */
 export const MW_CONTENT_THEME = {
-  light: {
-    side: "#F5F5F4",
-    paper: "#FCFCFB",
-    hover: "#EEEEEE",
-    press: "#E8E9EE",
-    ink: "#292A2E",
-    muted: "#74757D",
-    line: "#E8E8E6",
-    accentPress: "#4B5874",
-    onAccent: "#FAF9F6",
-    select: "#D6DCEB",
-    tty: "#F8F7F4",
-    ttyInk: "#383A43",
-    danger: "#8C594B",
-    field: "#EEEEED",
-  },
-  dark: {
-    side: "#111112",
-    paper: "#19191B",
-    hover: "#242427",
-    press: "#28282F",
-    ink: "#E9E9ED",
-    muted: "#96969F",
-    line: "#2B2B2F",
-    accentPress: "#C5CDE6",
-    onAccent: "#2B3142",
-    select: "#4D5874",
-    tty: "#222329",
-    ttyInk: "#E2E3E9",
-    danger: "#E0B5A5",
-    field: "#202023",
-  },
+  light: { tty: "#F8F7F4", ttyInk: "#383A43" },
+  dark: { tty: "#222329", ttyInk: "#E2E3E9" },
 } as const;
 
 export const MW_CONTENT_SURFACES = [
@@ -158,7 +133,7 @@ export const MW_CONTENT_SURFACES = [
   { token: "--content-ink", label: "Ink", role: "正文" },
   { token: "--content-muted", label: "Muted", role: "说明" },
   { token: "--content-line", label: "Line", role: "发丝" },
-  { token: "--content-accent", label: "Accent", role: "主操作" },
+  { token: "--content-accent", label: "Action", role: "主操作（石墨）" },
   { token: "--content-select", label: "Select", role: "选中" },
 ] as const;
 
@@ -181,21 +156,21 @@ function hueCustomProperties(theme: "light" | "dark"): string {
 function contentCustomProperties(theme: "light" | "dark"): string {
   const surface = MW_CONTENT_THEME[theme];
   const planes = [
-    `--content-side: ${surface.side}`,
-    `--content-paper: ${surface.paper}`,
-    `--content-hover: ${surface.hover}`,
-    `--content-press: ${surface.press}`,
-    `--content-ink: ${surface.ink}`,
-    `--content-muted: ${surface.muted}`,
-    `--content-line: ${surface.line}`,
-    `--content-accent: var(--hue-slate)`,
-    `--content-accent-press: ${surface.accentPress}`,
-    `--content-on-accent: ${surface.onAccent}`,
-    `--content-select: ${surface.select}`,
+    "--content-side: var(--surface-soft)",
+    "--content-paper: var(--paper)",
+    "--content-hover: var(--nav-hover)",
+    "--content-press: var(--nav-press)",
+    "--content-ink: var(--ink)",
+    "--content-muted: var(--muted)",
+    "--content-line: var(--line)",
+    "--content-accent: var(--action)",
+    "--content-accent-press: var(--action-hover)",
+    "--content-on-accent: var(--action-ink)",
+    "--content-select: var(--nav-active)",
     `--content-tty: ${surface.tty}`,
     `--content-tty-ink: ${surface.ttyInk}`,
-    `--content-danger: ${surface.danger}`,
-    `--content-field: ${surface.field}`,
+    "--content-danger: var(--red)",
+    "--content-field: var(--rail)",
   ].join("; ");
   const marks = MW_CONTENT_MARKS.map((mark) => {
     const step = mark[theme];
@@ -204,54 +179,119 @@ function contentCustomProperties(theme: "light" | "dark"): string {
   return `${planes}; ${marks}`;
 }
 
+/**
+ * Plugins carry no identity colour on screen: the Soft Workbench keeps colour for status and selection,
+ * and a plugin is recognised by its glyph, its name and where it sits. Every `--plugin-*` resolves to the
+ * neutral secondary ink so existing consumers (icons, kind labels, washes) stay valid and calm.
+ * `MW_PLUGINS[].hue` remains data for the catalog, not a rendering rule.
+ */
 function pluginCustomProperties(): string {
-  return MW_PLUGINS.map((plugin) => `--plugin-${plugin.id}: var(--hue-${plugin.hue});`).join(" ");
+  return MW_PLUGINS.map((plugin) => `--plugin-${plugin.id}: var(--ink-soft);`).join(" ");
 }
 
 function semanticAliases(): string {
   return [
-    "--blue: var(--hue-indigo); --blue-soft: var(--hue-indigo-soft); --focus: var(--hue-indigo);",
-    "--green: var(--hue-green); --green-soft: var(--hue-green-soft);",
-    "--amber: var(--hue-orange); --amber-soft: var(--hue-orange-soft);",
-    "--red: var(--hue-red); --red-soft: var(--hue-red-soft);",
-    "--tone-idle: var(--hue-gray); --tone-progress: var(--hue-indigo); --tone-attention: var(--hue-orange);",
-    "--tone-hold: var(--hue-cyan); --tone-blocked: var(--hue-red); --tone-done: var(--hue-green); --tone-quiet: var(--faint);",
+    "--tone-idle: var(--hue-gray); --tone-progress: var(--accent); --tone-attention: var(--amber);",
+    "--tone-hold: var(--hue-cyan); --tone-blocked: var(--red); --tone-done: var(--green); --tone-quiet: var(--faint);",
     pluginCustomProperties(),
   ].join(" ");
 }
 
 export function renderPaletteTokens(theme: "light" | "dark"): string {
-  const blueDark = theme === "dark" ? "#a8aef5" : "#4c56c4";
-  return `${hueCustomProperties(theme)} --blue-dark: ${blueDark}; ${semanticAliases()} ${contentCustomProperties(theme)}`;
+  return `${hueCustomProperties(theme)} ${semanticAliases()} ${contentCustomProperties(theme)}`;
 }
 
-/** Linear zinc shell shared by foundation, Coss overlay, interaction texture, and workbench base. */
-export function renderLinearShellTokens(theme: "light" | "dark"): string {
+/**
+ * Soft Workbench shell: one source for every layer's base tokens — surfaces, type tones,
+ * status, the copper accent, depth, corners, motion and focus. Foundation, the Coss
+ * overlay, the interaction texture and the workbench base all call this instead of
+ * restating values, so no later layer quietly wins with a different number.
+ *
+ * Surfaces: a pearl desk (`--page`/`--desk`), the continuous white work surface (`--paper`, and `--canvas`
+ * for full-pane canvases inside it),
+ * a warmer inner block and plugin directory columns (`--surface-soft`), chrome bars on the desk
+ * (`--nav-bg`) and a wash for local groups (`--rail`).
+ * Graphite is the primary action; copper marks focus, links, selection details and
+ * work in progress. `--blue*` keep their historical names and now resolve to copper.
+ */
+export function renderShellTokens(theme: "light" | "dark"): string {
   if (theme === "dark") {
     return [
-      "--page: #0f1011; --canvas: #0f1011; --rail: #0f1011;",
-      "--paper: #161718; --panel: #161718; --nav-bg: #0f1011;",
-      "--ink: #f7f8f8; --text: #f7f8f8; --ink-soft: #d0d1d3;",
-      "--muted: #8a8f98; --faint: #737880;",
-      "--line: #23252a; --line-strong: #2e3036;",
-      "--nav-hover: color-mix(in srgb, var(--ink) 8%, transparent);",
-      "--nav-active: color-mix(in srgb, var(--ink) 12%, transparent);",
-      "--nav-raised: #1c1c1f;",
-      "--blue: #8b93f1; --blue-dark: #a8aef5; --blue-soft: #262848; --focus: #8b93f1;",
-      "--action: #f7f8f8; --action-ink: #0f1011;",
+      "--page: #1c1d20; --desk: #1c1d20; --nav-bg: #1c1d20; --canvas: #242528;",
+      "--paper: #242528; --panel: #242528; --surface: #242528;",
+      "--surface-soft: #292a2d; --rail: #2e2f32; --wash: #2e2f32;",
+      "--ink: #f0efed; --text: #f0efed; --ink-soft: #c0beba;",
+      "--muted: #a2a19e; --faint: #979693;",
+      "--line: #36373b; --line-strong: #4c4d50;",
+      "--nav-hover: color-mix(in srgb, var(--ink) 7%, transparent);",
+      "--nav-active: color-mix(in srgb, var(--ink) 11%, transparent);",
+      "--nav-press: color-mix(in srgb, var(--ink) 15%, transparent);",
+      "--nav-raised: #2c2d31;",
+      "--accent: #d6a18a; --accent-strong: #e8c0ad; --accent-soft: #382f2b;",
+      "--blue: var(--accent); --blue-dark: var(--accent-strong); --blue-soft: var(--accent-soft); --focus: var(--accent);",
+      "--action: #ecebe8; --action-ink: #252628; --action-hover: #ffffff;",
+      "--green: #8db99d; --green-soft: #1f2b24; --amber: #d9b67b; --amber-soft: #33291b; --red: #ee858c; --red-soft: #3a2024;",
+      "--shadow-color: #000000; --edge-highlight: rgba(255, 255, 255, .05);",
+      "--surface-shadow: 0 0 0 1px rgba(255, 255, 255, .035), 0 1px 2px rgba(0, 0, 0, .3);",
+      "--shadow-soft: 0 1px 2px rgba(0, 0, 0, .32), 0 4px 12px -4px rgba(0, 0, 0, .4);",
+      "--shadow-raised: 0 0 0 1px rgba(255, 255, 255, .05), 0 3px 8px rgba(0, 0, 0, .2), 0 14px 42px -12px rgba(0, 0, 0, .45);",
+      "--shadow: 0 0 0 1px rgba(255, 255, 255, .06), 0 3px 9px rgba(0, 0, 0, .25), 0 20px 70px -15px rgba(0, 0, 0, .55);",
+      "--control-shadow: var(--shadow);",
+      "--lift-1: var(--shadow-soft); --lift-2: var(--shadow-raised); --lift-3: var(--shadow);",
+      "--scrim: rgba(0, 0, 0, .5);",
+      /* Dark reads as three layers at a glance: the desk, the work surface a step up, floating things a step above it. */
+      "--popover: #2c2d31; --brand-tile-light: #ffffff; --brand-tile-dark: #151618; --on-accent: #ffffff;",
     ].join(" ");
   }
   return [
-    "--page: #f3f4f5; --canvas: #f3f4f5; --rail: #eceef0;",
-    "--paper: #ffffff; --panel: #ffffff; --nav-bg: #f3f4f5;",
-    "--ink: #222326; --text: #222326; --ink-soft: #3c3f44;",
-    "--muted: #6b6f76; --faint: #737882;",
-    "--line: #e2e4e7; --line-strong: #d0d6e0;",
-    "--nav-hover: color-mix(in srgb, var(--ink) 6%, transparent);",
-    "--nav-active: color-mix(in srgb, var(--ink) 10%, transparent);",
+    "--page: #eeefef; --desk: #eeefef; --nav-bg: #eeefef; --canvas: #ffffff;",
+    "--paper: #ffffff; --panel: #ffffff; --surface: #ffffff;",
+    "--surface-soft: #fafaf9; --rail: #f5f5f3; --wash: #f5f5f3;",
+    "--ink: #292a2c; --text: #292a2c; --ink-soft: #5c5d60;",
+    "--muted: #636569; --faint: #6a6c70;",
+    "--line: #e9e9e7; --line-strong: #d5d6d4;",
+    "--nav-hover: color-mix(in srgb, var(--ink) 5%, transparent);",
+    "--nav-active: color-mix(in srgb, var(--ink) 8%, transparent);",
+    "--nav-press: color-mix(in srgb, var(--ink) 11%, transparent);",
     "--nav-raised: #ffffff;",
-    "--blue: #5e6ad2; --blue-dark: #4c56c4; --blue-soft: #eef0fb; --focus: #5e6ad2;",
-    "--action: #222326; --action-ink: #ffffff;",
+    "--accent: #93604b; --accent-strong: #7a4d3a; --accent-soft: #f6eee8;",
+    "--blue: var(--accent); --blue-dark: var(--accent-strong); --blue-soft: var(--accent-soft); --focus: var(--accent);",
+    "--action: #292a2c; --action-ink: #ffffff; --action-hover: #3d3e41;",
+    "--green: #42775d; --green-soft: #e9f2ec; --amber: #8a5c18; --amber-soft: #f7f0e3; --red: #b03d45; --red-soft: #fbecec;",
+    "--shadow-color: #1c2233; --edge-highlight: transparent;",
+    "--surface-shadow: 0 1px 2px rgba(28, 34, 51, .03), 0 8px 24px -14px rgba(28, 34, 51, .1);",
+    "--shadow-soft: 0 1px 2px rgba(28, 34, 51, .05), 0 4px 12px -4px rgba(28, 34, 51, .08);",
+    "--shadow-raised: 0 3px 8px rgba(28, 34, 51, .035), 0 14px 42px -12px rgba(28, 34, 51, .14);",
+    "--shadow: 0 3px 9px rgba(28, 34, 51, .045), 0 20px 70px -15px rgba(28, 34, 51, .2);",
+    "--control-shadow: var(--shadow);",
+    "--lift-1: var(--shadow-soft); --lift-2: var(--shadow-raised); --lift-3: var(--shadow);",
+    "--scrim: rgba(21, 23, 29, .16);",
+    "--popover: #ffffff; --brand-tile-light: #ffffff; --brand-tile-dark: #151618; --on-accent: #ffffff;",
+  ].join(" ");
+}
+
+/**
+ * Control metrics. Declared only by the early layers (foundation, the Coss overlay, the workbench base) so
+ * density and touch rules later in the cascade — 28px compact, 44px on phones and coarse pointers — win.
+ */
+export function renderControlMetrics(): string {
+  return "--control-h: 32px; --control-pad-x: 12px;";
+}
+
+/** Theme-independent shape, motion and focus. Safe to restate in late layers: it carries no metrics. */
+export function renderShapeTokens(): string {
+  return [
+    "--radius-item: 8px; --radius-control: 8px; --radius-surface: 14px;",
+    "--control-border: color-mix(in srgb, var(--ink) 9%, transparent);",
+    "--control-input: color-mix(in srgb, var(--ink) 12%, transparent);",
+    "--control-fill: color-mix(in srgb, var(--ink) 4%, transparent);",
+    "--control-fill-hover: color-mix(in srgb, var(--ink) 7%, transparent);",
+    "--control-ring: var(--focus);",
+    "--hairline: color-mix(in srgb, var(--ink) 11%, transparent);",
+    "--focus-ring: var(--accent); --focus-stroke: 2px solid var(--focus-ring); --focus-stroke-inset: 1px;",
+    "--motion-instant: 130ms; --motion-fast: 130ms; --motion-normal: 250ms; --motion-arrive: 420ms; --dur-hover: 130ms; --dur-press: 130ms; --dur-move: 250ms; --dur-arrive: 420ms; --dur-moment: 640ms;",
+    "--ease-quint: cubic-bezier(.22, 1, .36, 1); --ease-spring: cubic-bezier(.2, 1.35, .4, 1); --ease-out: var(--ease-quint); --ease-standard: var(--ease-quint);",
+    "--icon-xs: 12px; --icon-sm: 14px; --icon-md: 16px; --icon-lg: 20px;",
   ].join(" ");
 }
 

@@ -142,7 +142,23 @@ Molis Work 仍然是 pull-based：Runtime 自己选择可做项并记录 Claim/R
 | **Web 工作台** | 在任意浏览器打开同一本地项目，使用 Graph、决定中心、设置和 Goal-bound 终端。 |
 | **macOS Desktop** | 把 Goals、Focus、Graph 与 Runtime 作为一个原生工作站使用。 |
 
-上面的截图来自仓库当前源码。公开的 `v0.1.0` Desktop Preview 可能尚未包含最新的工作台与桌面工作胶囊改动。
+<p align="center">
+  <img src="docs/screenshots/soft-workbench/home-zh.jpg" width="49%" alt="项目首页：今天的工作、横向日期条、正在推进的 Goal 与当天事件，右边是随手记和手边的内容">
+  <img src="docs/screenshots/soft-workbench/goals-zh.jpg" width="49%" alt="目标：Goal 以文档打开，左边是 Goal 树，终端在一个开关之外">
+</p>
+<p align="center">
+  <img src="docs/screenshots/soft-workbench/feed-zh.jpg" width="49%" alt="信息流：左边一列文章卡片，右边是阅读页">
+  <img src="docs/screenshots/soft-workbench/onboarding-zh.jpg" width="49%" alt="首次使用：一个窗口，左边是问题和选项，右边是实时预览">
+</p>
+<p align="center">
+  <img src="docs/screenshots/soft-workbench/home-dark-zh.jpg" width="66%" alt="深色模式下的项目首页">
+  <img src="docs/screenshots/soft-workbench/phone-zh.jpg" width="22%" alt="手机宽度下的项目首页与两行底栏">
+</p>
+<p align="center">
+  <sub>截图来自当前源码与演示数据。珍珠灰桌面上是一张连续的工作面，全局导航和统一对话都在底栏。所有页面共用一套图标、一套字号阶梯、四档动效时长，深色模式分三层。视觉规范见 <a href="DESIGN.md">DESIGN.md</a>。</sub>
+</p>
+
+以上截图来自仓库当前源码。公开的 `v0.1.0` Desktop Preview 可能尚未包含最新的工作台与桌面工作胶囊改动。
 
 ## 体验完整闭环
 

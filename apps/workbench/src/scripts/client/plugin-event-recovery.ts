@@ -34,15 +34,15 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
   };
   const load=async(reselect=false)=>{
     if(busy||!lifetime.visible)return;
-    const epoch=++reading, oldKey=selected&&key(selected), signal=viewSignal;fresh=false;sync();status.textContent=L('正在读取插件通知…');
+    const epoch=++reading, oldKey=selected&&key(selected), signal=viewSignal;fresh=false;sync();status.textContent=L('正在读取插件通知…');status.classList.add('mw-loading');
     try{
       const response=await lifetime.fetch(host.route('/api/plugins/runtime/events'),{cache:'no-store',signal});
       const body=await response.json();lifetime.assertCurrent(signal);if(epoch!==reading)return;
       if(!response.ok)throw Error(body.error||L('无法读取插件通知，请重新读取。'));
-      rows=body.pending||[];paint(body.history||[]);status.textContent=rows.length?L('有通知需要核对，其他插件可继续使用。'):L('没有待核对的通知。');
+      rows=body.pending||[];paint(body.history||[]);status.classList.remove('mw-loading');status.textContent=rows.length?L('有通知需要核对，其他插件可继续使用。'):L('没有待核对的通知。');
       if(reselect&&oldKey){selected=rows.find(row=>key(row)===oldKey)||null;form.elements.decision.forEach(item=>{item.checked=false;});message('');describe();}
       fresh=true;sync();
-    }catch(cause){if(epoch===reading&&!signal?.aborted&&lifetime.alive){status.textContent=cause.message; if(dialog.open)message(cause.message);fresh=false;sync();}}
+    }catch(cause){if(epoch===reading&&!signal?.aborted&&lifetime.alive){status.classList.remove('mw-loading');status.textContent=cause.message; if(dialog.open)message(cause.message);fresh=false;sync();}}
   };
   lifetime.whenVisible(signal=>{viewSignal=signal;void load();return()=>{reading++;fresh=false;if(dialog.open)dialog.close();};});
   lifetime.listen(root,'click',event=>{

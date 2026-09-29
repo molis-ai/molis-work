@@ -53,6 +53,24 @@ Molis Work 把这份记录放在本地。Codex、Claude Code、OpenCode 或其�
 
 内置启动配方覆盖 Codex、Claude Code、OpenCode、Pi Agent、Grok Build。其他 Harness 可以通过 Molis Work 的 MCP 和共享 Skill 读写同一项目。
 
+### 现在的工作台
+
+<p align="center">
+  <img src="docs/screenshots/soft-workbench/home-zh.jpg" width="49%" alt="项目首页：今天的工作、横向日期条、正在推进的 Goal 与当天事件，右边是随手记和手边的内容">
+  <img src="docs/screenshots/soft-workbench/goals-zh.jpg" width="49%" alt="目标：Goal 以文档打开，左边是 Goal 树，终端在一个开关之外">
+</p>
+<p align="center">
+  <img src="docs/screenshots/soft-workbench/feed-zh.jpg" width="49%" alt="信息流：左边一列文章卡片，右边是阅读页">
+  <img src="docs/screenshots/soft-workbench/onboarding-zh.jpg" width="49%" alt="首次使用：一个窗口，左边是问题和选项，右边是实时预览">
+</p>
+<p align="center">
+  <img src="docs/screenshots/soft-workbench/home-dark-zh.jpg" width="66%" alt="深色模式下的项目首页">
+  <img src="docs/screenshots/soft-workbench/phone-zh.jpg" width="22%" alt="手机宽度下的项目首页与两行底栏">
+</p>
+<p align="center">
+  <sub>截图来自当前源码与演示数据。珍珠灰桌面上是一张连续的工作面，全局导航和统一对话都在底栏。所有页面共用一套图标、一套字号阶梯、四档动效时长，深色模式分三层。视觉规范见 <a href="DESIGN.md">DESIGN.md</a>。</sub>
+</p>
+
 ## 核心功能
 
 每项都用大白话说：怎么用，解决什么问题。

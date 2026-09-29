@@ -90,7 +90,8 @@ test("Feed / Inbox 成功路径改走舞台刷新，工作台脚本含 refresh h
   // A failed stage refresh keeps the page and says so; it never falls back to a full reload.
   for (const script of [CLIENT_NAVIGATION_FEED_SCRIPT, CLIENT_NAVIGATION_INBOX_SCRIPT]) {
     assert.doesNotMatch(script, /location\.reload\(/);
-    assert.match(script, /showToast\(L\("列表更新失败，当前输入已保留，请重试。"\)\)/);
+    // The toast is marked as a failure (it carries the failure glyph, DESIGN.md → Toasts).
+    assert.match(script, /showToast\(L\("列表更新失败，当前输入已保留，请重试。"\), true\)/);
   }
 });
 

@@ -14,10 +14,10 @@ export function renderReuseChoices(data: ReuseCandidates, escape: (value: unknow
 
 export const WORK_REUSE_STYLES = `
 .alc-reuse { margin:24px 0 8px; border-top:1px solid var(--line); padding-top:4px; }
-.alc-reuse h3 { font-size:14px; font-weight:500; margin:20px 0 8px; }
-.alc-reuse-choice { display:flex; align-items:flex-start; gap:12px; padding:14px 0; border-bottom:1px solid var(--line); cursor:pointer; }
-.alc-reuse-choice > input { flex:none; margin-top:3px; }
-.alc-reuse-choice > span { display:flex; flex-direction:column; gap:6px; min-width:0; line-height:1.6; overflow-wrap:anywhere; }
+.alc-reuse h3 { font-size:15px; font-weight:500; margin:24px 0 8px; }
+.alc-reuse-choice { display:flex; align-items:flex-start; gap:12px; padding:16px 0; border-bottom:1px solid var(--line); cursor:pointer; }
+.alc-reuse-choice > input { flex:none; margin-top:4px; }
+.alc-reuse-choice > span { display:flex; flex-direction:column; gap:8px; min-width:0; line-height:1.6; overflow-wrap:anywhere; }
 .alc-reuse-choice strong { font-weight:500; }
 .alc-reuse-choice small { color:var(--muted); font-size:12px; }
 .alc-reuse-choice .alc-reuse-warning { color:var(--tone-blocked); }

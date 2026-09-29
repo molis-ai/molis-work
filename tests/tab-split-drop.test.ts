@@ -38,7 +38,8 @@ test("split preview uses the same half-pane ratio as the real split", () => {
   assert.equal(TAB_SPLIT_RATIO, 0.5);
   assert.match(createTabWorkspaceOps.toString(), /ratio:\.5/);
   assert.match(TAB_WORKSPACE_STYLES, /\[data-split-drop-preview\]::after \{ content: ""; position: fixed/);
-  assert.match(TAB_WORKSPACE_STYLES, /animation: feedback-reveal 120ms ease-out/);
+  // 120ms ease-out → the shared 130ms step on --ease-quint (spec → 第三轮 · 动效: four durations, two curves).
+  assert.match(TAB_WORKSPACE_STYLES, /animation: feedback-reveal 130ms var\(--ease-quint\)/);
   assert.doesNotMatch(TAB_WORKSPACE_STYLES, /--tab-split-ratio/);
   assert.doesNotMatch(TAB_WORKSPACE_STYLES, /\[data-drop-preview="left"\]::after/);
   assert.doesNotMatch(TAB_WORKSPACE_STYLES, /\[data-drop-preview\]::after \{[^}]*inset: 44px/);

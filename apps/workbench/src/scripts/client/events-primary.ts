@@ -175,8 +175,28 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         row.removeAttribute("aria-current");
       });
     };
+    // Loading and failure read like every other list: the shared loading line, then the reason and Retry in place.
+    const settingsLoadingLine = () => {
+      const line = document.createElement("p");
+      line.className = "mw-loading";
+      line.setAttribute("role", "status");
+      line.textContent = L("正在加载设置");
+      return line;
+    };
+    const settingsLoadFailed = (message, retry) => {
+      const box = document.createElement("div");
+      box.className = "mw-empty mw-empty--error";
+      box.setAttribute("role", "alert");
+      box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
+      box.querySelector("strong").textContent = L("无法加载设置");
+      box.querySelector("p").textContent = message && message !== L("无法加载设置") ? message : L("请稍后重试");
+      const button = box.querySelector("button");
+      button.textContent = L("重试");
+      button.addEventListener("click", () => { button.disabled = true; void retry(); });
+      return box;
+    };
     const fillGoalOverlay = async (pane, path, bind) => {
-      pane.textContent = L("正在加载设置");
+      pane.replaceChildren(settingsLoadingLine());
       const response = await fetch(path, { headers: { Accept: "text/html" } });
       if (!response.ok) throw new Error(L("无法加载设置"));
       const html = await response.text();
@@ -200,14 +220,17 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       shell.querySelector("[data-open-work-planning]")?.setAttribute("aria-pressed", "true");
       const prefix = document.body.dataset.routePrefix || "";
       const path = pathname || (prefix + "/settings/planning?embed=1");
-      try {
-        await fillGoalOverlay(pane, path, (root) => {
-          globalThis.molisWorkBindPlanningSettings?.(root);
-          globalThis.molisWorkBindPlanningAdoption?.(root);
-        });
-      } catch (error) {
-        pane.textContent = error?.message || L("无法加载设置");
-      }
+      const run = async () => {
+        try {
+          await fillGoalOverlay(pane, path, (root) => {
+            globalThis.molisWorkBindPlanningSettings?.(root);
+            globalThis.molisWorkBindPlanningAdoption?.(root);
+          });
+        } catch (error) {
+          pane.replaceChildren(settingsLoadFailed(error?.message, run));
+        }
+      };
+      await run();
     };
     const openGoalWorkRules = async () => {
       const shell = document.querySelector("[data-goal-canvas-shell]");
@@ -222,13 +245,16 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       shell.dataset.goalRules = "open";
       shell.querySelector("[data-open-work-rules]")?.setAttribute("aria-pressed", "true");
       const prefix = document.body.dataset.routePrefix || "";
-      try {
-        await fillGoalOverlay(pane, prefix + "/settings/rules?embed=1", (root) => {
-          globalThis.molisWorkBindProjectRules?.(root);
-        });
-      } catch (error) {
-        pane.textContent = error?.message || L("无法加载设置");
-      }
+      const run = async () => {
+        try {
+          await fillGoalOverlay(pane, prefix + "/settings/rules?embed=1", (root) => {
+            globalThis.molisWorkBindProjectRules?.(root);
+          });
+        } catch (error) {
+          pane.replaceChildren(settingsLoadFailed(error?.message, run));
+        }
+      };
+      await run();
     };
     globalThis.molisWorkOpenGoalWorkPlanning = () => openGoalWorkPlanning();
     globalThis.molisWorkOpenGoalWorkRules = () => openGoalWorkRules();
@@ -603,11 +629,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       }
       const feedView = target.closest("button[data-feed-view]");
       if (feedView) { showFeedView(feedView.dataset.feedView); return; }
-      if (target.closest("[data-feed-rail-toggle]")) {
-        const open = feedWorkbench.dataset.railOpen !== "true";
-        feedWorkbench.dataset.railOpen = String(open);
-        target.closest("[data-feed-rail-toggle]").setAttribute("aria-expanded", String(open)); return;
-      }
       if (await handleFeedRuleAction(target)) return;
       const feedChoice = target.closest("[data-feed-choose-kind], [data-feed-connect-kind]");
       if (feedChoice) { showFeedSetup("setup", feedChoice.dataset.feedChooseKind || feedChoice.dataset.feedConnectKind); return; }

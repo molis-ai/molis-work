@@ -198,6 +198,13 @@ export function pluginTabGlyphs(): Record<string, string> {
   ]);
 }
 
+/** One sentence per plugin (the market summary) for the page heading's description line, keyed by work surface. */
+export function pluginStageSummaries(): Record<string, string> {
+  return Object.fromEntries(BUILTIN_PLUGIN_CATALOG
+    .filter((entry) => Boolean(entry.summary))
+    .map((entry) => [entry.project_plugin_id, entry.summary as string]));
+}
+
 export function pluginTabTitles(): Record<string, string> {
   const enabled = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
   return Object.fromEntries([

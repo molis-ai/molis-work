@@ -93,12 +93,13 @@ test("Host modules reach a model only through the register, apart from the trans
 
 test("Plugin Builder's designer and code Agents are registered as the prompts they run, not its unused manifest set", () => {
   const known = registered();
-  for (const name of ["designer", "implement", "revise", "repair", "acceptance"]) assert.ok(known.has(`io.molis.work.plugin-builder/builder-${name}`), name);
+  for (const name of ["designer", "experience", "ui", "review", "implement", "revise", "repair", "acceptance"]) assert.ok(known.has(`io.molis.work.plugin-builder/builder-${name}`), name);
   const designer = builtinRegistrations().find(owner => owner.owner_id === "io.molis.work.plugin-builder")!.prompts.find(prompt => prompt.prompt_id === "builder-designer")!;
-  assert.equal(designer.version, 30200, "登记版本随 designer/3.2.0 变化，默认更新时才会提示用户");
+  assert.equal(designer.version, 30700, "登记版本随 designer/3.7.0 变化，默认更新时才会提示用户");
   const roles = builtinRegistrations().find(owner => owner.owner_id === "io.molis.work.plugin-builder")!.roles;
-  assert.deepEqual(roles.map(role => [role.role_id, role.prompt_ids.length]), [["designer", 1], ["coder", 4]], "两个 Agent 作为 Character 列出");
+  assert.deepEqual(roles.map(role => [role.role_id, role.prompt_ids.length]), [["designer", 4], ["coder", 4]], "两个 Agent 作为 Character 列出");
+  assert.deepEqual(roles.find(role => role.role_id === "designer")!.prompt_ids, ["builder-designer", "builder-experience", "builder-ui", "builder-review"]);
   for (const legacy of ["builder-base", "builder-design", "builder-behavior"]) assert.ok(!known.has(`io.molis.work.plugin-builder/${legacy}`), legacy);
   const workflow = read("plugins/native/plugin-builder/src/agent-workflow.ts");
-  assert.doesNotMatch(workflow, /BUILDER_PROMPTS\.(designer|implement|revise|repair|acceptance)/, "工作流要经 this.prompt() 取得登记后的文字");
+  assert.doesNotMatch(workflow, /BUILDER_PROMPTS\.(designer|experience|ui|review|implement|revise|repair|acceptance)/, "工作流要经 this.prompt() 取得登记后的文字");
 });

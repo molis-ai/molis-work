@@ -8,6 +8,6 @@ export const experimentsManifest: PluginManifest = {
   permissions: [{ permission: "storage:private", required: true, reason: "保存个人实验快照、模型配置和复核记录" }],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
   ui: { contributions: [EXPERIMENTS_UI_CONTRIBUTION_ID], views: [
-    { view_id: "directory", slot: "navigator", title: "实验", contribution_id: EXPERIMENTS_UI_CONTRIBUTION_ID, icon: "sparkles", order: 56 },
+    { view_id: "directory", slot: "navigator", title: "实验", contribution_id: EXPERIMENTS_UI_CONTRIBUTION_ID, icon: "flask", order: 56 },
   ] },
 };

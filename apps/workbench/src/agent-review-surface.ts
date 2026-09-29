@@ -37,14 +37,14 @@ export interface AgentReviewSurfaceModel {
 
 export const AGENT_REVIEW_STYLES = `
 .agent-review { min-width:0; padding:12px; border-top:1px solid var(--line); }
-.agent-review-row { min-width:0; margin-bottom:14px; font-size:12px; line-height:1.6; }
-.agent-review-row[data-agent-review-phase=pending] { padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--paper, #fff); box-shadow:0 1px 2px rgb(0 0 0 / .04); }
-.agent-review-head { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; color:var(--muted); }
+.agent-review-row { min-width:0; margin-bottom:16px; font-size:12px; line-height:1.6; }
+.agent-review-row[data-agent-review-phase=pending] { padding:12px 16px; border:1px solid var(--line); border-radius:10px; background:var(--paper, #fff); box-shadow:var(--lift-1); }
+.agent-review-head { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; color:var(--muted); }
 .agent-review-head svg { width:14px; height:14px; }
-.agent-review-row:has(> details) { margin-bottom:2px; }
-.agent-review-row > details > summary { display:flex; align-items:center; gap:6px; min-height:30px; margin:0 -6px; padding:3px 6px; border-radius:6px; list-style:none; cursor:pointer; }
+.agent-review-row:has(> details) { margin-bottom:4px; }
+.agent-review-row > details > summary { display:flex; align-items:center; gap:8px; min-height:30px; margin:0 -8px; padding:4px 8px; border-radius:6px; list-style:none; cursor:pointer; }
 .agent-review-row > details > summary::-webkit-details-marker { display:none; }
-.agent-review-row > details > summary::before { content:""; flex:none; width:5px; height:5px; margin:0 3px 0 1px; border-right:1.5px solid var(--faint, var(--muted)); border-bottom:1.5px solid var(--faint, var(--muted)); transform:rotate(-45deg); transition:transform .15s ease; }
+.agent-review-row > details > summary::before { content:""; flex:none; width:5px; height:5px; margin:0 4px 0 1px; border-right:1.5px solid var(--faint, var(--muted)); border-bottom:1.5px solid var(--faint, var(--muted)); transform:rotate(-45deg); transition:transform 130ms var(--ease-quint); }
 .agent-review-row > details[open] > summary::before { transform:rotate(45deg); }
 .agent-review-row > details > summary:hover { background:var(--nav-hover, var(--rail)); }
 .agent-review-row > details > summary .agent-review-head { flex:1 1 auto; min-width:0; flex-wrap:nowrap; }
@@ -54,23 +54,23 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-title { min-width:0; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
 .agent-review-title--code { font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
 .agent-review-head time { margin-left:auto; font-size:11px; }
-.agent-review-doc { margin:10px 0; overflow-wrap:anywhere; }
+.agent-review-doc { margin:12px 0; overflow-wrap:anywhere; }
 .agent-review-doc pre { max-height:360px; overflow:auto; white-space:pre; padding:8px; background:var(--rail); border-radius:var(--radius-control); font-size:12px; }
-.agent-review-doc details { margin-top:6px; }
+.agent-review-doc details { margin-top:8px; }
 .agent-review-doc details > summary { cursor:pointer; color:var(--muted); font-size:12px; }
-.agent-review-doc dl { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:2px 12px; margin:6px 0 0; }
+.agent-review-doc dl { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:4px 12px; margin:8px 0 0; }
 .agent-review-doc dt { color:var(--muted); }
 .agent-review-doc dd { margin:0; }
 .agent-review-fields dd { white-space:pre-wrap; max-height:220px; overflow:auto; }
 .agent-review-target { color:var(--ink); }
 .agent-review-meta { color:var(--muted); margin:4px 0 0; }
-.agent-review-concurrent { margin:6px 0 0; padding:6px 8px; border-radius:6px; color:var(--ink); background:color-mix(in srgb, var(--amber) 14%, transparent); }
-.agent-review-background { margin:6px 0 0; padding:6px 8px; border-radius:6px; color:var(--ink); background:color-mix(in srgb, var(--accent, #3b82f6) 10%, transparent); }
-.agent-review-warning { margin:6px 0 0; padding:6px 10px; border-radius:6px; color:var(--text); background:color-mix(in srgb,var(--amber,#b7791f) 14%,transparent); font-size:13px; }
+.agent-review-concurrent { margin:8px 0 0; padding:8px 8px; border-radius:6px; color:var(--ink); background:color-mix(in srgb, var(--amber) 14%, transparent); }
+.agent-review-background { margin:8px 0 0; padding:8px 8px; border-radius:6px; color:var(--ink); background:color-mix(in srgb, var(--accent) 10%, transparent); }
+.agent-review-warning { margin:8px 0 0; padding:8px 12px; border-radius:6px; color:var(--text); background:color-mix(in srgb,var(--amber,#b7791f) 14%,transparent); font-size:13px; }
 .agent-review-command { white-space:pre-wrap !important; word-break:break-word; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); color:var(--ink); }
 .agent-review-prompt { color:var(--muted); user-select:none; }
-.agent-review-file { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; margin:0; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
-.agent-review-tag { font-family:inherit; font-size:11px; padding:0 6px; border-radius:999px; background:var(--rail); color:var(--muted); }
+.agent-review-file { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px; margin:0; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
+.agent-review-tag { font-family:inherit; font-size:11px; padding:0 8px; border-radius:999px; background:var(--rail); color:var(--muted); }
 .agent-review-count[data-added] { color:var(--green, #1a7f37); }
 .agent-review-count[data-removed] { color:var(--red, #cf222e); }
 .agent-review-diff-wrap { margin-top:8px; max-height:420px; overflow:auto; border:1px solid var(--line); border-radius:8px; }
@@ -83,16 +83,16 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-diff tr[data-diff=delete] { background:color-mix(in srgb, var(--red, #cf222e) 10%, transparent); }
 .agent-review-diff tr[data-diff=insert] .agent-review-sign { color:var(--green, #1a7f37); }
 .agent-review-diff tr[data-diff=delete] .agent-review-sign { color:var(--red, #cf222e); }
-.agent-review-gap td { color:var(--muted); background:var(--rail); text-align:center; font-family:inherit; padding:2px 8px; }
+.agent-review-gap td { color:var(--muted); background:var(--rail); text-align:center; font-family:inherit; padding:4px 8px; }
 .agent-review-actions { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:8px; }
-.agent-review-actions [data-agent-review-approve]:focus::after { content:"↵"; margin-left:6px; font-size:11px; opacity:.72; }
-.agent-review-remember { display:inline-flex; align-items:center; gap:6px; margin-right:auto; color:var(--muted); font-size:12px; cursor:pointer; }
+.agent-review-actions [data-agent-review-approve]:focus::after { content:"↵"; margin-left:8px; font-size:11px; opacity:.72; }
+.agent-review-remember { display:inline-flex; align-items:center; gap:8px; margin-right:auto; color:var(--muted); font-size:12px; cursor:pointer; }
 .agent-review-remember input { margin:0; }
 .agent-review-rule { color:var(--muted); }
-.agent-review-feedback { margin-block:10px; }
+.agent-review-feedback { margin-block:12px; }
 .agent-review-feedback .mw-field__label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 /* Optional feedback stays one line until someone starts writing, so approve stays within reach. */
-.agent-review-feedback textarea { min-height:36px; height:36px; resize:none; transition:height .16s ease; }
+.agent-review-feedback textarea { min-height:36px; height:36px; resize:none; transition:none; }
 .agent-review-feedback textarea:focus,.agent-review-feedback textarea:not(:placeholder-shown) { height:84px; resize:vertical; }
 .agent-review-feedback .mw-field__hint { display:none; }
 .agent-review-feedback:focus-within .mw-field__hint,.agent-review-feedback:has(textarea:not(:placeholder-shown)) .mw-field__hint { display:block; }
@@ -164,7 +164,7 @@ const PHASE_MARK: Record<AgentReviewPhase, { icon: string; tone: string; label: 
   done: { icon: "check", tone: "done", label: "已完成" },
   failed: { icon: "alert", tone: "blocked", label: "已批准，但执行未完成" },
   rejected: { icon: "x", tone: "blocked", label: "已拒绝" },
-  cancelled: { icon: "blocked", tone: "idle", label: "已撤回" },
+  cancelled: { icon: "status-cancelled", tone: "idle", label: "已撤回" },
   expired: { icon: "clock", tone: "idle", label: "已过期" },
 };
 
@@ -172,7 +172,7 @@ export function renderAgentReviewSurface(model: AgentReviewSurfaceModel): string
   const { primitives: p } = model;
   if (model.rows.length === 0) {
     return `<section class="agent-review" data-agent-review>
-      <div class="mw-empty" data-agent-review-empty>${p.icon("check")}<p>${p.escape("没有待决定的操作")}</p></div>
+      <div class="mw-empty" data-agent-review-empty><span class="mw-empty__mark">${p.icon("check")}</span><p>${p.escape("没有待决定的操作")}</p></div>
     </section>`;
   }
   return `<section class="agent-review" data-agent-review>

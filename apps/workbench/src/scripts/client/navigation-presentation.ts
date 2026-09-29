@@ -1,11 +1,25 @@
+import { pluginStageSummaries } from "../../plugin-catalog.js";
 /** Menus of the bottom bar and the stage: presentation only; opening one never selects or starts a tool. */
 export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
+  // Plugin list pages draw their heading from the surface's own label (craft-finish, "Plugin list pages").
+  // The label is set once on the shell, so a plugin that re-renders its list keeps the heading.
+  const STAGE_SUMMARIES = ${JSON.stringify(pluginStageSummaries())};
+  const titleStages = () => document.querySelectorAll(':is(.plugin-stage-shell, .session-stage-shell)[data-work-surface-label]').forEach((shell) => {
+    const title = JSON.stringify(L(shell.dataset.workSurfaceLabel || ''));
+    if (shell.style.getPropertyValue('--stage-title') !== title) shell.style.setProperty('--stage-title', title);
+    const summary = STAGE_SUMMARIES[shell.dataset.workSurface || ''];
+    const desc = JSON.stringify(summary ? L(summary) : '');
+    if (shell.style.getPropertyValue('--stage-desc') !== desc) shell.style.setProperty('--stage-desc', desc);
+  });
+  titleStages();
+  const stageHost = document.querySelector('.immersive-plugin-stage');
+  if (stageHost) new MutationObserver(titleStages).observe(stageHost, { childList: true });
   const dismiss = (event) => {
     // The project menu and the account menu close once something in them is chosen, on Escape, or on a click outside.
     // The path is taken at dispatch, so a row that re-rendered under the click still counts as inside its menu.
     const path = typeof event.composedPath === 'function' ? event.composedPath().filter((node) => node instanceof Element) : [];
     const along = (selector) => path.some((node) => node.matches(selector)) || Boolean(event.target instanceof Element && event.target.closest(selector));
-    for (const menu of document.querySelectorAll('[data-project-menu][open], [data-global-menu][open]')) {
+    for (const menu of document.querySelectorAll('[data-project-menu][open], [data-global-menu][open], [data-feed-source-menu][open]')) {
       const inside = event.type !== 'keydown' && (path.includes(menu) || menu.contains(event.target));
       // Ticking a plugin for the Dock is a setting, not a destination: the menu stays for the next one.
       const chosen = inside && along('a, button') && !along('summary, [data-dock-choice]');

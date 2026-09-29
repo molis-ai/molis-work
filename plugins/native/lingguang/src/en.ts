@@ -1,4 +1,7 @@
 export const LINGGUANG_EN: Record<string, string> = {
+  "列表暂时读不到": "The list could not be read",
+  "请稍后重试": "Try again in a moment",
+  "重试": "Retry",
   "灵光": "Lingguang",
   "还没有灵光": "Nothing here yet",
   "想法还没想清楚时先扔进来，再决定留下或丢掉。": "Drop a thought here before it has a place, then keep or discard it.",

@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../agent-definitions/builtin-registrations.js';
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
@@ -8,7 +9,7 @@ import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platfo
 import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertContract, createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { prologueModelConfiguration } from '@molis-ai/molis-work-service-agent-host';
-import { escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
+import { resolvePluginComponentCall, escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
 import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderPromptVersion, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, renderAgentStudio, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { openConfiguredModels } from '../configured-models.js';
@@ -20,7 +21,7 @@ import { STABLE_PREVIEW } from './storage.js';
 import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { buildManifest, canonical, createBuildProject, readBuildFile } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
-import { runBuilderBrowserAcceptance } from './browser.js';
+import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
 import type { AgentDesign } from '@molis-ai/molis-work-plugin-builder';
 import type { PluginPlatformOptions } from '../plugin-platform.js';
@@ -52,6 +53,7 @@ export interface AgentStudioOptions {
   parallel?: number;
 }
 interface Studio {
+  callAcceptance(buildId: string, key: string, componentId: string, binding: 'read' | 'submit', payload: unknown): Promise<SandboxJson>;
   workflow: AgentBuilderWorkflow;
   storage: PluginPrivateStorage;
   root: string;
@@ -201,6 +203,24 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       runner.catch(() => { if (studio.runners.get(slot)?.runner === runner) studio.runners.delete(slot); });
       return runner;
     };
+    const trials = new Map<string, { original: string; build: AgentBuild }>();
+    studio.callAcceptance = async (buildId, key, componentId, binding, payload) => {
+      const trial = trials.get(key);
+      if (!trial || trial.original !== buildId) throw new Error('这轮界面验收已结束');
+      const node = trial.build.nodes.find(node => node.id === componentId);
+      if (!node) throw new Error('界面组件不存在');
+      const call = resolvePluginComponentCall(node, binding, payload);
+      const capabilities = await studio.catalog();
+      return (await runnerFor(trial.build, slowOperations(trial.build.design!.contract, capabilities).has(call.operationId) ? 'slow' : 'quick', capabilities)).call(call.operationId, call.input);
+    };
+    const inTrial = async <T,>(build: AgentBuild, signal: AbortSignal, run: (options: Parameters<typeof runBuilderBrowserAcceptance>[1]) => Promise<T>) => {
+      if (!studio.origin) throw new Error('界面验收需要从创作台页面发起');
+      const key = randomUUID(), trial = { ...build, id: build.id + ':acceptance:' + key };
+      accepting.add(trial.id); trials.set(key, { original: build.id, build: trial });
+      const reset = async () => { await stopRunner(trial.id); studio.storage.delete(PREVIEW_KEY + STABLE_PREVIEW + trial.id); };
+      try { return await run({ url: studio.origin + (options.routePrefix ?? '') + '/plugin-builder/studio/preview/' + build.id + '?acceptance=' + key, signal, reset, ...(options.browserExecutable ? { executable: options.browserExecutable } : {}) }); }
+      finally { trials.delete(key); await reset(); accepting.delete(trial.id); }
+    };
     const ports: AgentBuilderPorts = {
       projectId: options.boardId,
       // What a design may use: the project's unified action directory, as offered to generated plugins.
@@ -274,14 +294,11 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         return entries.filter(entry => entry.isFile() && entry.name.endsWith('.ts') && entry.name !== 'index.ts').map(entry => 'src/' + entry.name).sort();
       },
       async resetPreview(buildId) { await stopRunner(buildId); studio.storage.delete(PREVIEW_KEY + STABLE_PREVIEW + buildId); },
+      presentation: true,
+      visionAvailable: () => { const selection = selected(); return !!selection && models(store => store?.list().find(provider => provider.provider_id === selection.provider_id)?.models.find(model => model.model_id === selection.model_id)?.vision === true); },
+      inspectPresentation: (build, signal) => inTrial(build, signal, options => inspectBuilderPresentation(build, options)),
       choose: choice.choose, selectionAvailable: () => choice.selectionAvailable(),
-      async browserAcceptance(build, signal) {
-        if (!studio.origin) throw new Error('界面验收需要从创作台页面发起');
-        // Acceptance is repeatable and free: capabilities answer with their stand-ins until it ends.
-        accepting.add(build.id);
-        try { return await runBuilderBrowserAcceptance(build, { url: studio.origin + (options.routePrefix ?? '') + '/plugin-builder/studio/preview/' + build.id, signal, reset: () => ports.resetPreview(build.id), ...(options.browserExecutable ? { executable: options.browserExecutable } : {}) }); }
-        finally { accepting.delete(build.id); }
-      },
+      browserAcceptance: (build, signal) => inTrial(build, signal, options => runBuilderBrowserAcceptance(build, options)),
       async publish(build, manifest, bundlePath, version) {
         const directory = join(studio.root, 'releases', build.id, 'v' + version);
         await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -289,7 +306,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         await writeFile(target, await readBuildFile(dirname(bundlePath), bundlePath.slice(dirname(bundlePath).length + 1), 8 * 1024 * 1024), { mode: 0o400, flag: 'wx' });
         await writeFile(join(directory, 'manifest.json'), JSON.stringify(manifest, null, 2), { mode: 0o400, flag: 'wx' });
         await writeFile(join(directory, 'contract.json'), JSON.stringify(build.design!.contract, null, 2), { mode: 0o400, flag: 'wx' });
-        await writeFile(join(directory, 'interface.json'), JSON.stringify({ nodes: build.nodes, acceptance: build.design!.acceptance }, null, 2), { mode: 0o400, flag: 'wx' });
+        await writeFile(join(directory, 'interface.json'), JSON.stringify({ nodes: build.nodes, acceptance: build.design!.acceptance, presentation: build.design!.presentation }, null, 2), { mode: 0o400, flag: 'wx' });
         // What it tells the model, as the checked sources declare it: registered when this version is installed.
         const { prompts, problems } = readPluginPrompts(await buildSources(build.directory!, settledFor(build.directory!), build.design!.contract.operations.length));
         if (problems.length) throw new Error('发布前请先修好调用模型的写法：' + problems[0]);
@@ -310,8 +327,8 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
 /** What the browser sees of a build: no host paths (build directory, bundles, release folders). */
 function publicBuild(build: AgentBuild) {
   const { directory: _directory, history, checks, ...rest } = build;
-  return { ...rest, history: history.map(({ directory: _path, ...item }) => item),
-    checks: Object.fromEntries(Object.entries(checks).map(([key, value]) => [key, { passed: value.passed, gates: value.gates }])) };
+  const publicChecks = (values: AgentBuild['checks']) => Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { passed: value.passed, gates: value.gates }]));
+  return { ...rest, history: history.map(({ directory: _path, checks: previous, ...item }) => ({ ...item, ...(previous ? { checks: publicChecks(previous) } : {}) })), checks: publicChecks(checks) };
 }
 /** Each operation's last passing source for one build revision, beside (not inside) what the code agent can write. */
 const settledFor = (directory: string) => directory + '.settled';
@@ -380,7 +397,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
           html(response, page(release.design.title, '<main class="as-preview-page"><h1>插件暂时无法运行</h1><p role="alert">' + escapeHtml(recoveryError)
             + '</p><a href="' + escapeHtml(prefix + '/plugin-builder/studio?build=' + buildId) + '">在创作台检查安装</a></main>', '', controlToken)); return true;
         }
-        const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), connected: release.design.contract.operations.map(item => item.id) };
+        const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation, connected: release.design.contract.operations.map(item => item.id) };
         const body = '<header class="as-installed-bar"><b>' + escapeHtml(release.design.title) + '</b><span>v' + release.version + ' · 数据保存在本机</span><a href="' + escapeHtml(prefix + '/plugin-builder/studio?build=' + buildId) + '">在创作台中修改</a></header>'
           + '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';
         html(response, page(release.design.title, body, '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')(),mode:"installed",call:' + literal(prefix + '/api/plugin-builder/installed/' + pluginId + '/call') + ',view:' + literal(view) + ',components:' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + '});', controlToken));
@@ -396,7 +413,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     if (studioPage && method === 'GET') { html(response, page('插件创作工作台', renderAgentStudio(), factories + ',mode:"studio"});', controlToken)); return true; }
     if (preview && method === 'GET') {
       const build = workflow.store.require(preview[1]!);
-      html(response, page(build.title, '<main class="as-preview-page" data-studio-preview="' + escapeHtml(build.id) + '"></main>', factories + ',mode:"preview",build:' + literal(build.id) + '});', controlToken));
+      html(response, page(build.title, '<main class="as-preview-page" data-studio-preview="' + escapeHtml(build.id) + '"></main>', factories + ',mode:"preview",acceptance:' + literal(url.searchParams.get('acceptance')) + ',build:' + literal(build.id) + '});', controlToken));
       return true;
     }
     const route = api![1] ?? '', build = /^\/builds\/([a-f0-9-]{36})(\/[a-z]+)?$/u.exec(route), mockup = /^\/builds\/([a-f0-9-]{36})\/mockups\/([a-z0-9-]{1,64})$/u.exec(route);
@@ -461,7 +478,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     if (build && build[2] === '/call' && method === 'POST') {
       const body = await readLocalWebBody(request);
       if (body.binding !== 'read' && body.binding !== 'submit') throw new Error('未知的组件操作');
-      sendLocalWebJson(response, 200, { value: await workflow.call(build[1]!, String(body.componentId ?? ''), body.binding, body.payload ?? {}) }); return true;
+      sendLocalWebJson(response, 200, { value: await (typeof body.acceptance === 'string' ? studio.callAcceptance(build[1]!, body.acceptance, String(body.componentId ?? ''), body.binding, body.payload ?? {}) : workflow.call(build[1]!, String(body.componentId ?? ''), body.binding, body.payload ?? {})) }); return true;
     }
     sendLocalWebJson(response, 404, { error: '未声明的创作台操作' }); return true;
   } catch (error) {

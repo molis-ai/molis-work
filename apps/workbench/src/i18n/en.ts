@@ -30,6 +30,9 @@ import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 import { ASSISTANT_EN } from "./assistant-en.js";
 import { PLACEMENT_EN } from "./placement-en.js";
+import { ONBOARDING_EN } from "./onboarding-en.js";
+import { RENDERER_GAP_EN } from "./renderer-gap-en.js";
+import { HOME_EN } from "./home-en.js";
 
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
@@ -126,6 +129,9 @@ export const EN: Record<string, string> = {
 
   ...INFORMATION_LOOP_EN,
   ...ASSISTANT_EN,
+  ...ONBOARDING_EN,
+  ...RENDERER_GAP_EN,
+  ...HOME_EN,
   ...IMAGES_EN,
   "待解决：{text}": "To resolve: {text}",
   "待你验收：{text}": "Awaiting your review: {text}",

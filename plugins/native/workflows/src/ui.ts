@@ -60,7 +60,7 @@ export function renderWorkflowsWorkbench(model: WorkflowsUiModel): string {
       <header class="plugin-stage-chrome">
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-wf-action="new">${icon("plus")}<span>${t("新建流程")}</span></button>
       </header>
-      <div data-wf-list aria-live="polite"><p class="wf-muted">${t("正在读取流程…")}</p></div>
+      <div data-wf-list aria-live="polite"><p class="wf-muted mw-loading">${t("正在读取流程…")}</p></div>
     </div>
     <div class="plugin-stage-workspace wf-workspace" data-wf-workspace hidden>
       <div class="wf-view" data-wf-view></div>

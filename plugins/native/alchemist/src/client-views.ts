@@ -17,7 +17,7 @@ export const ALCHEMIST_VIEWS = String.raw`
     if(collection==='ideas')for(const [value,label] of [['exploring','研究中'],['build','去做'],['hold','先放着'],['drop','不做']])html+=group(label,data.ideas.filter(i=>i.lifecycle===value&&match(i.title)).map(i=>row('idea',i.id,i.title,'v'+i.currentVersion,i.lifecycle,i.currentVersion)));
     if(collection==='decisions')for(const [value,label] of [['pending','待决策'],['decided','已决策'],['old_version','旧版本']])html+=group(label,decisions.cases.filter(c=>c.status===value&&match(c.title,c.decision?.reason)).map(c=>row('idea',c.ideaId,c.title,c.decision?.reason||c.nextAction,c.decision?.outcome||'exploring',c.ideaVersion)));
     if(collection==='pulse')html=group('研究报告',pulse.reports.filter(b=>match(b.report.title,b.report.summary)).map(b=>row('pulse',b.report.id,b.report.title,new Date(b.report.createdAt).toLocaleDateString(),b.report.status)));
-    const folded=new Set([...el.querySelectorAll('details:not([open])')].map(d=>d.dataset.alcGroup));el.innerHTML=html||empty(q?'没有匹配的内容。':'当前集合还没有内容。新建方向，或采集一轮市场信号开始。');
+    const folded=new Set([...el.querySelectorAll('details:not([open])')].map(d=>d.dataset.alcGroup));el.innerHTML=html||(q?empty('没有匹配的内容。'):'<div class="mw-empty alc-empty"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-zap"></use></svg></span><strong>'+tx('这里还是空的')+'</strong><p>'+tx('当前集合还没有内容。新建方向，或采集一轮市场信号开始。')+'</p></div>');
     el.querySelectorAll('details[data-alc-group]').forEach(d=>{if(folded.has(d.dataset.alcGroup))d.open=false;});$('[data-alchemist=directory]').scrollTop=scroll;
   }
   function renderDirection(d){

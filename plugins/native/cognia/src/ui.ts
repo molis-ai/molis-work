@@ -16,7 +16,7 @@ export function renderCogniaWorkbench({ primitives: p }: CogniaUiModel): string 
       <div class="cognia-selection">${tool("整理选中材料", "synthesize", "sparkles")}<span data-cognia-selected>${t("选择 1–5 份材料")}</span><span class="cognia-selection__gap" aria-hidden="true"></span>${tool("检索问答", "query", "message")}${tool("审阅草稿", "drafts", "review")}</div>
       <p class="cognia-model-note" data-cognia-model hidden>${t("尚未配置文字模型，导入、搜索和阅读仍可使用。")}</p>
       <a class="mw-btn mw-btn--ghost cognia-model-settings" href="/settings/models" data-cognia-action="model-settings" hidden>${t("打开模型设置")}</a>
-      <div data-cognia-rows aria-live="polite"><p class="cognia-empty">${t("正在读取资料…")}</p></div>
+      <div data-cognia-rows aria-live="polite"><p class="cognia-empty mw-loading">${t("正在读取资料…")}</p></div>
     </div>
     <section class="plugin-stage-workspace cognia-workspace" data-cognia-workspace hidden>
       <header class="plugin-stage-detail-bar"><button type="button" class="plugin-stage-back" data-cognia-action="back" aria-label="${t("返回资料列表")}">${icon("chevron-right")}</button><h1 data-cognia-heading>${t("资料")}</h1><span data-placement-slot data-placement-scope="home" data-placement-saved="off"></span>${button("编辑", "edit-material")}${button("移出列表", "delete-material")}${button("整理为知识", "synthesize-current")}<a class="mw-btn mw-btn--ghost" data-cognia-download>${t("下载原文")}</a></header>

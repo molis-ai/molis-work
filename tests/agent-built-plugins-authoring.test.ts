@@ -38,6 +38,9 @@ test('one-line acceptance steps parse, and a single-field form needs no field na
   const parts = [{ id: 'editor', pageId: 'home', regionId: 'main', intent: 'input' as const, purpose: 'p', props: {}, submit: { operationId: 'notes.add', input: { text: { source: 'form' as const, field: 'text' } } } }];
   assert.deepEqual(parseStep('fill editor = 你好', parts, 's'), { action: 'fill', componentId: 'editor', field: 'text', value: '你好' });
   assert.deepEqual(parseStep('fill editor.done = true', parts, 's'), { action: 'fill', componentId: 'editor', field: 'done', value: true });
+  for (const step of ['fill list.keyword = ', 'fill list.keyword = ""']) assert.deepEqual(parseStep(step, parts, 's'), { action: 'fill', componentId: 'list', field: 'keyword', value: '' }, 'clearing a search field must stay an explicit fill with an empty value');
+  assert.throws(() => parseStep('fill list.keyword', parts, 's'), /看不懂/);
+  assert.throws(() => parseStep('reset list.keyword', parts, 's'), /清空字段写 fill/);
   assert.deepEqual(parseStep('expect notes "你好"', parts, 's'), { action: 'expect', componentId: 'notes', text: '你好' });
   assert.deepEqual(parseStep('expect-not notes 你好', parts, 's'), { action: 'expectAbsent', componentId: 'notes', text: '你好' });
   assert.deepEqual(parseStep('select notes #n1', parts, 's'), { action: 'select', componentId: 'notes', recordId: 'n1' });
@@ -50,6 +53,14 @@ test('examples that can never pass on an empty store are rejected before any cod
   const design = { operations: [{ id: 'notes.list', kind: 'query', input: {}, output: [{ id: 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [{ id: 'n1' }] }] }],
     pages: [{ id: 'home', parts: [{ id: 'notes', intent: 'collection', purpose: 'p', read: 'notes.list' }] }], acceptance: [{ id: 'a', steps: ['expect notes x'] }] };
   assert.throws(() => expandDesign(design, base, 'io.molis.work.generated.x', 'r', []), /空存储/);
+  for (const field of ['includes', 'outputIncludes', 'expect']) for (const expected of [[{ id: 'n1' }], { id: 'n1' }, {}]) {
+    const partial = { ...design, operations: [{ ...design.operations[0], examples: [{ input: {}, [field]: expected }] }] };
+    assert.throws(() => expandDesign(partial, base, 'io.molis.work.generated.x', 'r', []), /空存储/, field + ' cannot bypass the same empty-store rule');
+  }
+  for (const effects of [{ capabilities: ['goals.list'] }, { networkDomains: ['example.com'] }, {}]) {
+    const external = { ...design, operations: [{ ...design.operations[0], effects, examples: [{ input: {}, includes: [{ id: 'n1' }] }] }] };
+    assert.doesNotThrow(() => expandDesign(external, base, 'io.molis.work.generated.x', 'r', []), 'capability, network and static data are not an empty local store');
+  }
   const unused = { ...design, operations: [...design.operations.map(item => ({ ...item, examples: [{ input: {}, output: [] }] })), { id: 'notes.add', kind: 'command', input: { text: 'string' }, output: 'string', effects: ['storage'], examples: [{ input: { text: 'a' }, output: 'a' }] }] };
   assert.throws(() => expandDesign(unused, base, 'io.molis.work.generated.x', 'r', []), /没有任何组件使用/);
   const query = { ...design, operations: [{ ...design.operations[0], effects: { storage: ['write'] }, examples: [{ input: {}, output: [] }] }] };

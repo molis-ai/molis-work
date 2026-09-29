@@ -102,9 +102,10 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
   assert.ok(trafficLightClearance.webTitlebarLeft <= 2, JSON.stringify(trafficLightClearance));
   assert.equal(await evaluate("document.querySelector('[data-directory-list-title]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')"), null);
-  await expectContained(".immersive-titlebar", "[data-work-surface=home] .home-tl");
-  await expectContained("[data-workspace-chrome]", "[data-work-surface=home] .home-tl");
-  await expectContained(".workbench-bar", "[data-work-surface=home] .home-tl");
+  // Soft Workbench Home (prototype layout): the whole home column scrolls in [data-home-scroll]; the day's events are one section of it.
+  await expectContained(".immersive-titlebar", "[data-work-surface=home] [data-home-scroll]");
+  await expectContained("[data-workspace-chrome]", "[data-work-surface=home] [data-home-scroll]");
+  await expectContained(".workbench-bar", "[data-work-surface=home] [data-home-scroll]");
 
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");

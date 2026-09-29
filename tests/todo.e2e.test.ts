@@ -125,3 +125,50 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
   await noOverflow();
   await screenshot("after-delete");
 });
+
+test("Todo reminders and the project home: a due reminder shows once, later and got-it act on it, home lists today's todos", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const everything = { projectId, everything: true, actor: "user" as const, actorId: "test" };
+  const store = openTodoStore(homeDirectory);
+  const now = Date.now();
+  let dueId = "", overdueId = "";
+  try {
+    dueId = store.create({ title: "交报销单", remind_at: new Date(now - 5 * 60_000).toISOString() }, everything).item.id;
+    store.create({ title: "给妈妈打电话", remind_at: new Date(now - 3 * 3_600_000).toISOString() }, everything);
+    const yesterday = new Date(now - 86_400_000);
+    overdueId = store.create({ title: "逾期的方案", due_date: `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}` }, everything).item.id;
+  } finally { store.close(); }
+  const output = new URL(`../${specEvidenceDirectory("specs/todo-plugin/verification")}/`, import.meta.url);
+  await mkdir(output, { recursive: true });
+  const screenshot = async (name: string) => {
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await writeFile(new URL(`todo-${name}-1440.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  };
+  const read = (id: string) => { const opened = openTodoStore(homeDirectory); try { return opened.get(id, everything); } finally { opened.close(); } };
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+
+  // The project home lists what needs attention today, Todo among the other sources.
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.querySelector('[data-home-list]') && document.querySelector('[data-home-list]').textContent.includes('交报销单')");
+  assert.match(String(await evaluate("document.querySelector('[data-home-list]').textContent")), /逾期的方案/);
+  await screenshot("home");
+
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-id=todo]')");
+  if (await evaluate("document.body.dataset.desktopSurface") !== "todo") await click("[data-plugin-strip] [data-plugin-id=todo]");
+  await waitFor("!document.querySelector('[data-todo-reminders]').hidden && document.querySelectorAll('[data-todo-reminder]').length === 2");
+  assert.match(String(await evaluate("document.querySelector('[data-todo-reminders]').textContent")), /错过：/);
+  await screenshot("reminders");
+
+  await click(`[data-todo-reminder="${dueId}"] .todo-reminder-later > summary`);
+  await click(`[data-todo-reminder="${dueId}"] [data-todo-reminder-later]`);
+  await waitFor("document.querySelector('[data-todo-note-text]').textContent.startsWith('会在')");
+  assert.ok(Date.parse(read(dueId).remind_at!) > now, "稍后把提醒挪到之后");
+  await waitFor("document.querySelectorAll('[data-todo-reminder]').length === 1");
+  await click("[data-todo-reminder] [data-todo-reminder-ack]");
+  await waitFor("document.querySelector('[data-todo-reminders]').hidden");
+  assert.equal(read(overdueId).status, "open");
+});

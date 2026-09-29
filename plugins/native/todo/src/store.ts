@@ -1,4 +1,4 @@
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   TODO_STATUSES,
@@ -61,7 +61,7 @@ export type TodoLinkInput = Omit<TodoLink, "link_id" | "added_at">;
 interface ItemRow {
   id: string; title: string; notes: string; status: string; placement: string; project_id: string | null;
   due_date: string | null; due_time: string | null; planned_date: string | null; remind_at: string | null;
-  important: number; waiting_json: string | null; sources_json: string; links_json: string; edited_fields_json: string;
+  important: number; reminder_acknowledged_at: string | null; waiting_json: string | null; sources_json: string; links_json: string; edited_fields_json: string;
   archived_at: string | null; completed_at: string | null; created_at: string; updated_at: string; revision: number;
 }
 interface ChangeRow {
@@ -133,6 +133,7 @@ export class TodoStore {
       due_time: fields.due_time ?? null,
       planned_date: fields.planned_date ?? null,
       remind_at: fields.remind_at ?? null,
+      reminder_acknowledged_at: null,
       important: fields.important ?? false,
       waiting: fields.waiting ?? null,
       sources,
@@ -172,6 +173,31 @@ export class TodoStore {
     let result!: { item: TodoItem; change_id: string | null };
     this.transaction(() => { result = this.applyArchive(id, archived, expectedRevision, access, null); });
     return result;
+  }
+
+  /**
+   * Reminders whose time has come and that the person has not acknowledged, for todos still open. A reminder
+   * older than the stale window is not delivered late; `late` marks one that passed while nobody was looking.
+   */
+  dueReminders(access: TodoAccess, now: Date = this.now(), staleHours = 48): { item: TodoItem; late: boolean }[] {
+    const at = now.getTime();
+    return this.list(access)
+      .filter(item => item.remind_at && item.reminder_acknowledged_at === null && item.archived_at === null
+        && ["open", "doing", "waiting"].includes(item.status))
+      .map(item => ({ item, time: Date.parse(item.remind_at!) }))
+      .filter(entry => entry.time <= at && entry.time >= at - staleHours * 3_600_000)
+      .sort((a, b) => a.time - b.time)
+      .map(entry => ({ item: entry.item, late: entry.time < at - 30 * 60_000 }));
+  }
+
+  /** “知道了”: this reminder stops showing. Not a change to the todo itself, so its revision stays. */
+  acknowledgeReminder(id: string, access: TodoAccess): TodoItem {
+    const current = this.get(id, access);
+    if (!current.remind_at) throw new TodoError("todo.invalid", "这件待办没有提醒");
+    if (current.reminder_acknowledged_at) return current;
+    const at = this.now().toISOString();
+    this.db.prepare("UPDATE todo_items SET reminder_acknowledged_at = ? WHERE id = ? AND revision = ?").run(at, id, current.revision);
+    return { ...current, reminder_acknowledged_at: at };
   }
 
   /** Permanent: the item, its history and the request receipts that pointed at it are removed. */
@@ -284,7 +310,7 @@ export class TodoStore {
     const current = this.get(id, access);
     assertRevision(current, expectedRevision);
     const fields = normalizeFields(patch, current, access);
-    const next: TodoItem = { ...current, ...stripProject(fields), project_id: fields.placement !== undefined ? fields.project_id ?? null : current.project_id };
+    let next: TodoItem = { ...current, ...stripProject(fields), project_id: fields.placement !== undefined ? fields.project_id ?? null : current.project_id };
     if (!next.title) throw invalid("请写下要做什么");
     if (next.due_time && !next.due_date) throw invalid("有截止时间时要同时有截止日期");
     const before: Record<string, unknown> = {}, after: Record<string, unknown> = {};
@@ -292,6 +318,8 @@ export class TodoStore {
       if (JSON.stringify(current[field]) !== JSON.stringify(next[field])) { before[field] = current[field]; after[field] = next[field]; }
     }
     if (!Object.keys(after).length) return { item: current, change_id: null };
+    // A new reminder time is a new reminder: the person has not seen it yet.
+    if ("remind_at" in after) next = { ...next, reminder_acknowledged_at: null };
     const edited = access.actor === "user"
       ? [...new Set([...current.edited_fields, ...EDITABLE.filter(field => field in after)])]
       : current.edited_fields;
@@ -355,15 +383,15 @@ export class TodoStore {
 
   private insert(item: TodoItem): void {
     this.db.prepare(`INSERT INTO todo_items (id, title, notes, status, placement, project_id, due_date, due_time, planned_date, remind_at, important,
-      waiting_json, sources_json, links_json, edited_fields_json, archived_at, completed_at, created_at, updated_at, revision)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...toRow(item));
+      waiting_json, sources_json, links_json, edited_fields_json, archived_at, completed_at, created_at, updated_at, revision, reminder_acknowledged_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...toRow(item));
   }
 
   private write(current: TodoItem, next: TodoItem): void {
     const values = toRow(next);
     const result = this.db.prepare(`UPDATE todo_items SET id = ?, title = ?, notes = ?, status = ?, placement = ?, project_id = ?, due_date = ?, due_time = ?,
       planned_date = ?, remind_at = ?, important = ?, waiting_json = ?, sources_json = ?, links_json = ?, edited_fields_json = ?, archived_at = ?,
-      completed_at = ?, created_at = ?, updated_at = ?, revision = ? WHERE id = ? AND revision = ?`).run(...values, current.id, current.revision);
+      completed_at = ?, created_at = ?, updated_at = ?, revision = ?, reminder_acknowledged_at = ? WHERE id = ? AND revision = ?`).run(...values, current.id, current.revision);
     if (result.changes !== 1) throw conflict();
   }
 
@@ -429,6 +457,7 @@ export function openTodoStore(homeDirectory: string, now?: () => Date): TodoStor
       created_at TEXT NOT NULL
     );
   `);
+  ensureSqliteColumn(db, "todo_items", "reminder_acknowledged_at", "TEXT");
   return new TodoStore(db, now);
 }
 
@@ -531,7 +560,8 @@ function restore(current: TodoItem, change: TodoChange, at: string): TodoItem {
     const links = added ? current.links.filter(link => link.link_id !== added.link_id) : removed ? [...current.links, removed] : current.links;
     return { ...current, links, updated_at: at, revision: current.revision + 1 };
   }
-  return { ...current, ...(before as Partial<TodoItem>), updated_at: at, revision: current.revision + 1 };
+  const restored = { ...current, ...(before as Partial<TodoItem>), updated_at: at, revision: current.revision + 1 };
+  return "remind_at" in before ? { ...restored, reminder_acknowledged_at: null } : restored;
 }
 
 function assertRevision(item: TodoItem, expected: number | undefined): void {
@@ -554,6 +584,7 @@ function fromRow(row: ItemRow): TodoItem {
     due_time: row.due_time,
     planned_date: row.planned_date,
     remind_at: row.remind_at,
+    reminder_acknowledged_at: row.reminder_acknowledged_at ?? null,
     important: row.important === 1,
     waiting: row.waiting_json ? JSON.parse(row.waiting_json) as TodoWaiting : null,
     sources: JSON.parse(row.sources_json) as TodoSource[],
@@ -570,7 +601,7 @@ function fromRow(row: ItemRow): TodoItem {
 function toRow(item: TodoItem): (string | number | null)[] {
   return [item.id, item.title, item.notes, item.status, item.placement, item.project_id, item.due_date, item.due_time, item.planned_date, item.remind_at,
     item.important ? 1 : 0, item.waiting ? JSON.stringify(item.waiting) : null, JSON.stringify(item.sources), JSON.stringify(item.links),
-    JSON.stringify(item.edited_fields), item.archived_at, item.completed_at, item.created_at, item.updated_at, item.revision];
+    JSON.stringify(item.edited_fields), item.archived_at, item.completed_at, item.created_at, item.updated_at, item.revision, item.reminder_acknowledged_at];
 }
 
 function changeFromRow(row: ChangeRow): TodoChange {

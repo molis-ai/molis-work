@@ -19,12 +19,12 @@ import {
 
 const TODAY = "2026-09-28";
 
-function fixture(t: { after(fn: () => void): void }) {
+function fixture(t: { after(fn: () => void): void }, now = () => new Date("2026-09-28T10:30:00+08:00")) {
   const home = mkdtempSync(join(tmpdir(), "todo-actions-"));
-  const store = openTodoStore(home);
+  const store = openTodoStore(home, now);
   const service = new ActionService();
   service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
-    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ withStore: run => run(store), today: () => TODAY }) });
+    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ withStore: run => run(store), today: () => TODAY, now }) });
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
   const as = (project_id: string | null, audience: ActionCallContext["audience"] = "user") =>
     bindActionClient(service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: TODO_ACTION_PERMISSIONS }));
@@ -33,10 +33,10 @@ function fixture(t: { after(fn: () => void): void }) {
 
 const titles = (result: TodoListResult) => result.items.map(item => item.title).sort();
 
-test("manifest parses, every action is home-scoped and delete is the only irreversible one", () => {
+test("manifest parses, every action is home-scoped (the home page source is per project) and delete is the only irreversible one", () => {
   const manifest = parsePluginManifest(JSON.parse(JSON.stringify(todoManifest)));
   assert.equal(manifest.plugin_id, "io.molis.work.todo");
-  for (const definition of todoManifest.actions!) assert.equal(definition.action.scope, "home", definition.capability_id);
+  for (const definition of todoManifest.actions!) assert.equal(definition.action.scope, definition.capability_id === "todo.home.events" ? "project" : "home", definition.capability_id);
   const irreversible = todoManifest.actions!.filter(definition => actionEffect(definition.action, definition.capability_id) === "irreversible").map(definition => definition.capability_id);
   assert.deepEqual(irreversible, ["todo.items.delete"]);
   assert.deepEqual(actions.create.action.result_subject, { id: "item.id", revision: "item.revision" });
@@ -222,4 +222,52 @@ test("quick entry reads due dates, planned days and reminders without a model, a
   assert.deepEqual([timeOnly.parts[0]!.date, timeOnly.parts[0]!.time], ["2026-09-29", "09:00"]);
   const monthEnd = parseTodoQuickText("月底前报销", now);
   assert.equal(monthEnd.parts[0]!.date, "2026-09-30");
+});
+
+test("reminders: due once, late when missed, not delivered after 48 hours, gone once acknowledged, done or moved", async t => {
+  let clock = new Date("2026-09-28T10:30:00+08:00");
+  const f = fixture(t, () => clock);
+  const soon = (await f.me.invoke(actions.create, { title: "交报销单", remind_at: "2026-09-28T10:00:00+08:00" })).item;
+  const missed = (await f.me.invoke(actions.create, { title: "给妈妈打电话", remind_at: "2026-09-27T20:00:00+08:00" })).item;
+  await f.me.invoke(actions.create, { title: "太久以前", remind_at: "2026-09-25T09:00:00+08:00" });
+  await f.me.invoke(actions.create, { title: "还没到", remind_at: "2026-09-28T18:00:00+08:00" });
+  const due = await f.me.invoke(actions.dueReminders, {});
+  assert.deepEqual(due.reminders.map(entry => [entry.item.title, entry.late]), [["给妈妈打电话", true], ["交报销单", false]]);
+  const acked = await f.me.invoke(actions.acknowledgeReminder, { id: soon.id });
+  assert.ok(acked.item.reminder_acknowledged_at);
+  assert.equal(acked.item.revision, soon.revision, "知道了不改待办本身");
+  await f.me.invoke(actions.status, { id: missed.id, status: "done" });
+  assert.deepEqual((await f.me.invoke(actions.dueReminders, {})).reminders, []);
+  // Later: a new time is a new reminder, shown again when it comes.
+  await f.me.invoke(actions.update, { id: soon.id, remind_at: "2026-09-28T10:45:00+08:00" });
+  assert.equal((await f.me.invoke(actions.dueReminders, {})).reminders.length, 0);
+  clock = new Date("2026-09-28T10:50:00+08:00");
+  assert.deepEqual((await f.me.invoke(actions.dueReminders, {})).reminders.map(entry => entry.item.title), ["交报销单"]);
+  // A project's reminders reach only callers in that project.
+  await f.inB.invoke(actions.create, { title: "B 的提醒", placement: "project", remind_at: "2026-09-28T10:40:00+08:00" });
+  assert.deepEqual((await f.agentA.invoke(actions.dueReminders, {})).reminders.map(entry => entry.item.title), ["交报销单"]);
+});
+
+test("home events: due reminders and overdue need attention; due, planned and follow-up days show for today; scoped to the project", async t => {
+  // Local wall-clock times: "today" and the shown clock follow this computer's time zone.
+  const local = (hours: number, minutes = 0) => new Date(2026, 8, 28, hours, minutes);
+  const f = fixture(t, () => local(10, 30));
+  await f.me.invoke(actions.create, { title: "逾期的", due_date: "2026-09-26" });
+  await f.me.invoke(actions.create, { title: "今天截止", due_date: TODAY, status: "waiting", waiting: { who: "小李", what: "预算", follow_up_on: null } });
+  await f.me.invoke(actions.create, { title: "计划今天", planned_date: TODAY });
+  await f.me.invoke(actions.create, { title: "约好今天问", status: "waiting", waiting: { who: "王总", what: "回复", follow_up_on: TODAY } });
+  await f.me.invoke(actions.create, { title: "提醒到了", remind_at: local(10, 15).toISOString() });
+  await f.inB.invoke(actions.create, { title: "B 项目逾期", placement: "project", due_date: "2026-09-20" });
+  await f.me.invoke(actions.create, { title: "完成了的", due_date: "2026-09-20", status: "done" });
+  const window = { from: local(0).toISOString(), to: new Date(2026, 8, 29).toISOString(), now: local(10, 30).toISOString() };
+  const collection = await f.agentA.invoke(actions.homeEvents, window);
+  assert.equal(collection.source.surface, "todo");
+  assert.deepEqual(collection.events.map(event => [event.title, event.placement, event.needs_attention, event.summary]), [
+    ["提醒到了", "today", true, "提醒 · 10:15"],
+    ["逾期的", "today", true, "已逾期，截止 2026-09-26"],
+    ["今天截止", "today", false, "今天截止，还在等 小李"],
+    ["计划今天", "today", false, "计划今天做"],
+    ["约好今天问", "today", false, "约定今天跟进 王总"],
+  ]);
+  assert.deepEqual(collection.events[0]!.open, { kind: "item", surface: "todo", id: collection.events[0]!.subject.id, title: "提醒到了", label: "打开待办" });
 });

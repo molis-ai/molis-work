@@ -24,6 +24,7 @@ export { TodoError } from "./error.js";
 export { todoActions, TODO_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoAccess } from "./actions.js";
 export type { TodoActionPorts, TodoListItem, TodoListResult } from "./actions.js";
 export { todoSearchActions, todoText } from "./search.js";
+export { todoHomeEventsAction, todoHomeEvents } from "./home-events.js";
 export { parseTodoQuickText } from "./quick-parse.js";
 export type { TodoQuickParse, TodoQuickPart } from "./quick-parse.js";
 export { inView, selectView, todoFlags, viewCounts } from "./views.js";

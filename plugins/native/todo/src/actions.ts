@@ -4,6 +4,7 @@ import { isTodoDate, localDate } from "./dates.js";
 import type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoStore } from "./store.js";
 import { selectView, todoFlags, viewCounts, type TodoFlag } from "./views.js";
 import { createTodoSearchHandlers, todoSearchActions } from "./search.js";
+import { createTodoHomeEventsHandler, todoHomeEventsAction } from "./home-events.js";
 
 export const TODO_READ = ["todo:read"] as const;
 export const TODO_WRITE = ["todo:read", "todo:write"] as const;
@@ -31,7 +32,7 @@ const link = object({ link_id: id, kind: linkKind, subject, title: text, relatio
 const editable = { enum: ["title", "notes", "due_date", "due_time", "planned_date", "remind_at", "placement", "important", "waiting"] };
 const itemFields = {
   id, title: text, notes: text, status, placement, project_id: nullable(id), due_date: nullable(date), due_time: nullable(time), planned_date: nullable(date),
-  remind_at: nullable(instant), important: { type: "boolean" }, waiting: nullable(waiting), sources: array(source), links: array(link),
+  remind_at: nullable(instant), reminder_acknowledged_at: nullable(text), important: { type: "boolean" }, waiting: nullable(waiting), sources: array(source), links: array(link),
   edited_fields: array(editable), archived_at: nullable(text), completed_at: nullable(text), created_at: text, updated_at: text, revision,
 };
 const item = object(itemFields);
@@ -108,6 +109,11 @@ export const todoActions = {
   link: define<Identity & { add?: TodoLinkInput; remove_link_id?: string }, { item: TodoItem; change_id: string }>("items.link", "关联到待办", "给待办加上或去掉一项关联：Goal、材料、另一件待办（依赖、拆分、合并、相关）、成果（草稿或已完成的动作）、助理工作", "command",
     { ...object({ id, ...expected, add: linkInput, remove_link_id: id }, ["id"]), oneOf: [{ required: ["add"] }, { required: ["remove_link_id"] }] }, object({ item, change_id: id }),
     { result_subject: resultSubject }),
+  dueReminders: define<Record<string, never>, { reminders: { item: TodoItem; late: boolean }[] }>("reminders.due", "到了时间的提醒", "列出已到提醒时间、还没点“知道了”、事情还没做完的待办；超过 48 小时的不再补发。late 表示是在没人看时错过的", "query",
+    object({}), object({ reminders: array(object({ item, late: { type: "boolean" } })) })),
+  acknowledgeReminder: define<{ id: string }, { item: TodoItem }>("reminders.acknowledge", "知道了", "这次提醒不再显示；不改变待办本身，也不改提醒时间", "command",
+    object({ id }), object({ item }), { result_subject: resultSubject }),
+  homeEvents: todoHomeEventsAction,
   searchEntries: todoSearchActions.entries,
   subject: todoSearchActions.subject,
 };
@@ -118,6 +124,8 @@ export interface TodoActionPorts {
   withStore<T>(run: (store: TodoStore) => T): T;
   /** Today in the person's time zone; tests pin it. */
   today?(): string;
+  /** The current instant, for reminders; tests pin it. */
+  now?(): Date;
 }
 
 /** Who is asking, as far as a todo is concerned. Only the person's own page may read across projects. */
@@ -166,6 +174,10 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
     bind(todoActions.batch, (input, caller) => ports.withStore(store => store.batch(input.ids, input.change, input.expected_revisions, todoAccess(caller, caller.audience === "user")))),
     bind(todoActions.revert, (input, caller) => ports.withStore(store => store.revert(input, todoAccess(caller, caller.audience === "user")))),
     bind(todoActions.link, (input, caller) => ports.withStore(store => store.link(input.id, { add: input.add, remove_link_id: input.remove_link_id }, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.dueReminders, (_input, caller) => ports.withStore(store => ({
+      reminders: store.dueReminders(todoAccess(caller, caller.audience === "user"), ports.now?.()) }))),
+    bind(todoActions.acknowledgeReminder, (input, caller) => ports.withStore(store => ({ item: store.acknowledgeReminder(input.id, todoAccess(caller, caller.audience === "user")) }))),
+    createTodoHomeEventsHandler(ports.withStore, ports.now),
     ...createTodoSearchHandlers(ports.withStore),
   ];
 }

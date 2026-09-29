@@ -32,12 +32,14 @@ export const TODO_NATIVE_PLUGIN_ROUTES = [
   route("todo.create", "POST", /^\/api\/todo$/u),
   route("todo.batch", "POST", /^\/api\/todo\/batch$/u),
   route("todo.revert", "POST", /^\/api\/todo\/revert$/u),
+  route("todo.reminders", "GET", /^\/api\/todo\/reminders$/u),
   route("todo.get", "GET", /^\/api\/todo\/([^/]+)$/u, ["id"]),
   route("todo.update", "POST", /^\/api\/todo\/([^/]+)$/u, ["id"]),
   route("todo.status", "POST", /^\/api\/todo\/([^/]+)\/status$/u, ["id"]),
   route("todo.archive", "POST", /^\/api\/todo\/([^/]+)\/archive$/u, ["id"]),
   route("todo.delete", "POST", /^\/api\/todo\/([^/]+)\/delete$/u, ["id"]),
   route("todo.link", "POST", /^\/api\/todo\/([^/]+)\/link$/u, ["id"]),
+  route("todo.acknowledge", "POST", /^\/api\/todo\/([^/]+)\/acknowledge$/u, ["id"]),
 ] as const satisfies readonly TodoPluginRouteDefinition[];
 
 export class TodoPluginRouteTable {

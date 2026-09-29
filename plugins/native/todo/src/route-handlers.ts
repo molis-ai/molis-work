@@ -33,6 +33,8 @@ export function createTodoRouteHandlers(ports: TodoRoutePorts): Record<string, T
     "todo.archive": call(todoActions.archive, identified),
     "todo.delete": call(todoActions.remove, identified),
     "todo.link": call(todoActions.link, identified),
+    "todo.reminders": call(todoActions.dueReminders, () => ({})),
+    "todo.acknowledge": call(todoActions.acknowledgeReminder, ({ params }) => ({ id: params.id })),
   };
 }
 

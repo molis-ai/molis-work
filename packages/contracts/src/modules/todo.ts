@@ -83,6 +83,8 @@ export interface TodoItem {
   readonly planned_date: string | null;
   /** When to remind, an instant with its offset. */
   readonly remind_at: string | null;
+  /** The person saw the current reminder and said “知道了”; cleared whenever the reminder time changes. */
+  readonly reminder_acknowledged_at: string | null;
   /** Set only by the person. */
   readonly important: boolean;
   readonly waiting: TodoWaiting | null;
@@ -115,6 +117,9 @@ export interface TodoChange {
   /** Set once undone; an undone change cannot be undone again. */
   readonly reverted_by: string | null;
 }
+
+/** How long a reminder the person never saw stays worth showing; older ones are not delivered late. */
+export const TODO_REMINDER_STALE_HOURS = 48;
 
 /** The views the Todo page offers; each answers one question. */
 export type TodoView = "today" | "waiting" | "unscheduled" | "upcoming" | "all" | "closed";

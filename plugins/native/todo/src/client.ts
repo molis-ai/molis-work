@@ -12,6 +12,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const empty = $("[data-todo-empty]");
   const loading = $("[data-todo-loading]");
   const summary = $("[data-todo-summary]");
+  const remindersBox = $("[data-todo-reminders]");
   const note = $("[data-todo-note]");
   const noteText = $("[data-todo-note-text]");
   const undoButton = $("[data-todo-undo]");
@@ -375,9 +376,61 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     items = payload.items || [];
     counts = payload.counts || {};
+    void loadReminders().catch(() => {});
     today = payload.today || isoDay(new Date());
     for (const id of [...picked]) if (!items.some((item) => item.id === id)) picked.delete(id);
     renderList();
+  };
+
+  // ---------- reminders ----------
+  let reminders = [];
+  let reminderSeq = 0;
+  const laterOptions = () => {
+    const now = new Date();
+    const at = (hours, minutes, dayOffset) => { const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset, hours, minutes); return d; };
+    const tonight = at(20, 0, 0);
+    return [
+      [L("15 分钟后"), new Date(now.getTime() + 15 * 60000)],
+      [L("1 小时后"), new Date(now.getTime() + 60 * 60000)],
+      ...(tonight.getTime() - now.getTime() > 30 * 60000 ? [[L("今晚 20:00"), tonight]] : []),
+      [L("明早 9:00"), at(9, 0, 1)],
+    ];
+  };
+  const renderReminders = () => {
+    remindersBox.hidden = reminders.length === 0;
+    const late = reminders.filter((entry) => entry.late).length;
+    $("[data-todo-reminders-title]").textContent = late === reminders.length && late > 1
+      ? L("错过了 {count} 条提醒（当时应用没打开）").replace("{count}", late)
+      : L("到了时间的提醒");
+    const box = $("[data-todo-reminder-rows]");
+    box.replaceChildren();
+    reminders.forEach(({ item, late: missed }) => {
+      const row = make("div", "todo-reminder");
+      row.dataset.todoReminder = item.id;
+      const text = make("div", "todo-reminder-text");
+      const title = make("button", "mw-btn mw-btn--link", item.title);
+      title.type = "button";
+      title.dataset.todoId = item.id;
+      text.append(title, make("small", "", (missed ? L("错过：") : "") + timeLabel(item.remind_at)));
+      const actions = make("div", "todo-reminder-actions");
+      const button = (label, attrs) => { const node = make("button", "mw-btn mw-btn--ghost", label); node.type = "button"; Object.assign(node.dataset, attrs); return node; };
+      const later = make("details", "todo-reminder-later");
+      const summaryNode = make("summary", "mw-btn mw-btn--ghost", L("稍后"));
+      const menu = make("div", "mw-menu");
+      menu.setAttribute("role", "menu");
+      laterOptions().forEach(([label, when]) => { const option = button(label, { todoReminderLater: item.id, todoReminderAt: when.toISOString() }); option.className = "mw-menu__item"; menu.append(option); });
+      later.append(summaryNode, menu);
+      actions.append(button(L("完成"), { todoReminderDone: item.id }), later, button(L("知道了"), { todoReminderAck: item.id }), button(L("关闭提醒"), { todoReminderClose: item.id }));
+      row.append(text, actions);
+      box.append(row);
+    });
+  };
+  const loadReminders = async () => {
+    const seq = ++reminderSeq;
+    const payload = await request("GET", "/api/todo/reminders");
+    if (seq !== reminderSeq) return;
+    reminders = payload.reminders || [];
+    renderReminders();
   };
 
   // ---------- batch ----------
@@ -646,6 +699,24 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (button.matches("[data-todo-id]")) { await flush(); await openDetail(button.dataset.todoId); return; }
+      const reminder = reminders.find((entry) => [button.dataset.todoReminderDone, button.dataset.todoReminderAck, button.dataset.todoReminderClose, button.dataset.todoReminderLater].includes(entry.item.id));
+      if (reminder) {
+        const item = reminder.item;
+        if (button.dataset.todoReminderAck) {
+          await request("POST", "/api/todo/" + encodeURIComponent(item.id) + "/acknowledge", {});
+          await loadReminders();
+          return;
+        }
+        if (button.dataset.todoReminderDone) { await setStatus(item.id, "done", item.revision); return; }
+        const remindAt = button.dataset.todoReminderLater ? button.dataset.todoReminderAt : null;
+        if (button.dataset.todoReminderLater) button.closest("details").open = false;
+        const payload = await request("POST", "/api/todo/" + encodeURIComponent(item.id), { remind_at: remindAt, expected_revision: item.revision });
+        await load();
+        if (selected && selected.id === item.id) await openDetail(item.id, true);
+        showNote(remindAt ? L("会在 {time} 再提醒「{title}」").replace("{time}", timeLabel(remindAt)).replace("{title}", item.title) : L("已关闭「{title}」的提醒").replace("{title}", item.title),
+          { undo: payload.change_id ? { change_id: payload.change_id } : null });
+        return;
+      }
       if (button.matches("[data-todo-open-linked]")) { await flush(); await openDetail(button.dataset.todoOpenLinked); return; }
       if (button.matches("[data-todo-back]")) { await closeDetail(); return; }
       if (button.matches("[data-todo-batch-action]")) {
@@ -747,6 +818,8 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     }).catch(() => {});
   });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !dirtyFields.size) void load().catch(() => {}); });
+  // Reminders come due while the page stays open.
+  setInterval(() => { if (!document.hidden && !workbench.hidden) void loadReminders().catch(() => {}); }, 60000);
   window.addEventListener("beforeunload", (event) => { if (dirtyFields.size || saving) { event.preventDefault(); event.returnValue = ""; } });
 
   renderPlacementChoices(quickPlacement, quickDefaultPlacement(), "data-todo-quick-placement-choice");

@@ -25,6 +25,18 @@ export const TODO_STYLES = `
   .todo-quick-hint, .todo-hint, .todo-muted { font-size: 12px; color: var(--muted); margin: 0; }
 
   .todo-summary { margin: 0; padding: 0 4px; font-size: 13px; color: var(--ink-soft); }
+  .todo-reminders { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--r-card, 12px); box-shadow: var(--lift-1); }
+  .todo-reminders[hidden] { display: none; }
+  .todo-reminders h2 { margin: 0; font-size: 12px; font-weight: 400; color: var(--tone-attention, var(--ink-soft)); }
+  .todo-reminder { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; min-height: 36px; }
+  .todo-reminder-text { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .todo-reminder-text .mw-btn--link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .todo-reminder-text small { flex: none; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .todo-reminder-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+  .todo-reminder-later { position: relative; }
+  .todo-reminder-later > summary { list-style: none; }
+  .todo-reminder-later > summary::-webkit-details-marker { display: none; }
+  .todo-reminder-later .mw-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 6; min-width: 140px; }
   .todo-note { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0 4px; font-size: 12px; color: var(--muted); }
   .todo-note.is-error { color: var(--red, var(--ink)); }
   .todo-loading { display: flex; flex-direction: column; gap: 8px; padding: 4px; }
@@ -89,7 +101,7 @@ export const TODO_STYLES = `
   /* With a todo open beside it, the list column is navigation: views and rows, no entry form. */
   @media (min-width: 761px) {
     body.immersive-workbench .plugin-stage-shell[data-todo=workbench][data-expanded="true"] > .todo-list.plugin-stage-list { padding: 12px 8px 20px; }
-    [data-todo=workbench][data-expanded="true"] :is(.todo-quick, .todo-chrome-tools, .todo-summary) { display: none; }
+    [data-todo=workbench][data-expanded="true"] :is(.todo-quick, .todo-chrome-tools, .todo-summary, .todo-reminder-actions) { display: none; }
     body.immersive-workbench [data-todo=workbench][data-expanded="true"] .plugin-stage-list .todo-row > .todo-entry.feed-stage-entry { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "meta" "trail"; }
     [data-todo=workbench][data-expanded="true"] .todo-trail { justify-content: flex-start; }
     [data-todo=workbench][data-expanded="true"] .todo-trail:empty { display: none; }

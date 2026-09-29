@@ -196,6 +196,9 @@ test("search entries and the object reader follow the caller's scope", async t =
   assert.equal(context.revision, "1");
   assert.match(context.content, /状态：待处理/u);
   assert.deepEqual(context.open, { surface: "todo", id: mine.id });
+  assert.equal(context.project_id, null, "个人待办不属于项目");
+  const inA = (await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project" })).item;
+  assert.equal((await f.agentA.invoke(todoSearchActions.subject, { subject_id: inA.id })).project_id, "project-a", "项目待办说明属于哪个项目");
   await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: inB.id }), { code: "todo.not_found" });
   // Archived reads as gone from use (the readers' shared convention), though Todo still lists it under 已归档.
   const done = await f.me.invoke(actions.status, { id: mine.id, status: "done", expected_revision: mine.revision });

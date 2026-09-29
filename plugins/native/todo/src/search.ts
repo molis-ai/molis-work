@@ -47,8 +47,9 @@ export function createTodoSearchHandlers(withStore: <T>(run: (store: TodoStore) 
       catch { throw new ActionError("todo.not_found", "这件待办已删除，或不在当前范围内"); }
       // Readers treat an archived object as gone from use (the shared convention); Todo itself still lists it under 已归档.
       if (item.archived_at) throw new ActionError("todo.not_found", "这件待办已归档");
+      // Todos live in the person's Home; one that belongs to a project says which (personal and unplaced leave it empty).
       return subjectContext({ subject: { kind: TODO_SUBJECT_KIND, id: item.id }, revision: String(item.revision), title: item.title,
-        content: todoText(item), goal_ids: goals(item), session_id: null, open: open(item.id) });
+        content: todoText(item), goal_ids: goals(item), session_id: null, open: open(item.id), project_id: item.placement === "project" ? item.project_id : null });
     }) },
   ];
 }

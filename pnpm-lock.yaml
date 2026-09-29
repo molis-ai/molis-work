@@ -179,6 +179,9 @@ importers:
       '@molis-ai/molis-work-plugin-text-stats':
         specifier: workspace:*
         version: link:plugins/native/text-stats
+      '@molis-ai/molis-work-plugin-todo':
+        specifier: workspace:*
+        version: link:plugins/native/todo
       '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:plugins/native/work
@@ -453,6 +456,9 @@ importers:
       '@molis-ai/molis-work-plugin-text-stats':
         specifier: workspace:*
         version: link:../../plugins/native/text-stats
+      '@molis-ai/molis-work-plugin-todo':
+        specifier: workspace:*
+        version: link:../../plugins/native/todo
       '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:../../plugins/native/work
@@ -625,6 +631,9 @@ importers:
       '@molis-ai/molis-work-plugin-text-stats':
         specifier: workspace:*
         version: link:../../plugins/native/text-stats
+      '@molis-ai/molis-work-plugin-todo':
+        specifier: workspace:*
+        version: link:../../plugins/native/todo
       '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:../../plugins/native/work
@@ -1167,6 +1176,18 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+
+  plugins/native/todo:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
 
   plugins/native/work:
     dependencies:

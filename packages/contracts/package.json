@@ -74,6 +74,10 @@
       "types": "./dist/modules/lingguang.d.ts",
       "import": "./dist/modules/lingguang.js"
     },
+    "./modules/todo": {
+      "types": "./dist/modules/todo.d.ts",
+      "import": "./dist/modules/todo.js"
+    },
     "./modules/alchemist": {
       "types": "./dist/modules/alchemist.d.ts",
       "import": "./dist/modules/alchemist.js"

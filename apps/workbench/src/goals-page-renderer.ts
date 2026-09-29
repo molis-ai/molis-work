@@ -86,6 +86,7 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderCogniaNativePluginSurface(surface: "directory" | "workbench"): string;
   renderJellyNativePluginSurface(surface: "directory" | "workbench"): string;
   renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderTodoNativePluginSurface(surface: "directory" | "workbench"): string;
   renderAlchemistNativePluginSurface(surface: "directory" | "workbench"): string;
   renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string;
 }
@@ -100,7 +101,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderTodoNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -245,6 +246,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             : "",
           shelf: "",
           lingguang: "",
+          todo: "",
           alchemist: "",
           workflows: "",
           experiments: "",
@@ -279,6 +281,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderDatasetNativePluginSurface("workbench")}
             ${renderPptNativePluginSurface("workbench")}
             ${renderLingguangNativePluginSurface("workbench")}
+            ${renderTodoNativePluginSurface("workbench")}
             ${renderJellyNativePluginSurface("workbench")}
             ${renderCogniaNativePluginSurface("workbench")}
             ${renderAlchemistNativePluginSurface("workbench")}

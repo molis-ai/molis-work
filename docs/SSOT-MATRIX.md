@@ -122,6 +122,7 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | `plugins/native/dataset` | Dataset 一级入口：本机数据表 | 行列编辑、CSV 导入导出、版本回滚；另有显式「AI 拟列」（经 Prologue 文字模型）；对外只经动作目录与逐客户端授权 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
 | `plugins/native/ppt` | PPT 一级入口：本机演示稿 | 多页大纲、主题色、预览与 JSON 导出；不做 PPTX；对外只经动作目录与逐客户端授权 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
 | `plugins/native/lingguang` | 灵光一级入口：本机临时灵感池 | 快记、流式列表、丢掉确认、「复制内容」；头脑风暴对话经 Prologue 文字模型，未配置模型时如实显示不可用；不写 Goal/Artifact；动作经逐客户端授权对外 | `partial` | `specs/archive/lingguang-plugin/spec.md` |
+| `plugins/native/todo` | 待办一级入口：用户需要推进的事项的正式管理位置 | 个人与项目待办（先记录后归属）、五种状态与归档、截止/计划/提醒三种日期、来源与形成原因、关联、修改记录与撤销、视图/搜索/批量；私人库 `{home}/todo/todo.db`；动作 Home 级登记，项目内只见本项目与个人待办，“所有项目”只给本人界面；AI 整理与推进归系统 Assistant | `partial` | `specs/todo-plugin/spec.md` |
 | `plugins/native/alchemist` | 炼金术士：项目隔离的 Founder Lab | Direction / Idea / 双 Lens / 证据决策 / Pulse / Copilot / Memory；AI 经 Prologue，公开证据经 SEL；旧演示库只读；验收见 spec | `partial` | `specs/alchemist-plugin/spec.md` |
 | `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion；支持研究库发布包接收；用户显式配置规则可自动加入 Inbox，需复核保留原因；仍只写 Attention | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3；`specs/archive/function-scene-action-scope/spec.md` |
 | `plugins/native/coding` | Coding App（`app`）：会话、轮次、计划、报告、变更集、协同与委派 | Plugin Runtime 托管；执行经 Agent Host/Prologue；产出 Coding 报告与变更集 Artifact；16 项 `coding.*` 动作 | `partial` | `specs/coding-plugin/spec.md` 第 0 节；后续 `next-requirements.md` |

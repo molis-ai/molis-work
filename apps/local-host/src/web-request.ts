@@ -20,6 +20,8 @@ import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
 import { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
+import { TODO_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-todo";
+import { handleTodoNativePluginHttp } from "./todo-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
@@ -373,6 +375,9 @@ export async function handleMolisWorkWebRequest(
         }))) return;
         if (serverOptions.homeDirectory && await handleJellyNativePluginHttp(request, response, url, transport =>
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS, ...transport })))) return;
+        // Todo is personal but project-aware: inside a project the person sees that project's todos too.
+        if (serverOptions.homeDirectory && await handleTodoNativePluginHttp(request, response, url, transport =>
+          bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: TODO_ACTION_PERMISSIONS, ...transport })))) return;
   if (serverOptions.homeDirectory && await handleCogniaNativePluginHttp(request, response, url, transport =>
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS, ...transport })))) return;
   if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(

@@ -21,6 +21,7 @@ import { pagesActionProvider } from "./pages-actions.js";
 import { formActionProvider } from "./form-actions.js";
 import { datasetActionProvider } from "./dataset-actions.js";
 import { jellyActionProvider } from "./jelly-actions.js";
+import { todoActionProvider } from "./todo-actions.js";
 import { lingguangActionProvider } from "./lingguang-actions.js";
 import { scheduleActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
@@ -238,6 +239,7 @@ export class MolisWorkLocalHost {
       return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), boardId: project?.board_id };
     });
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(jellyActionProvider(options.homeDirectory, options.completeText));
+    if (options.homeDirectory) this.host.actionRegistry().registerProvider(todoActionProvider(options.homeDirectory));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(cogniaActionProvider(options.homeDirectory, this.homeActionClient(), options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(shelfActionProvider(options.homeDirectory));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(experimentsActionProvider(options.homeDirectory, this.homeActionClient()));

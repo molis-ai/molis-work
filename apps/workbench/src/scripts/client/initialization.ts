@@ -31,6 +31,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       saveUiState: () => saveUiState(),
     });
     pluginWorkbench = (${PLUGIN_WORKBENCH_FACTORY_SCRIPT})({
+      mountPluginClient,
       route, translate: L, projectId: state.project?.project_id,
       setSurface: surface => { setDesktopDirectory("artifacts", false, false); setDesktopWorkSurface(surface); },
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),

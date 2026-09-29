@@ -65,7 +65,8 @@ node --import tsx --test --test-concurrency=1 tests/plugin-runtime-integration.t
   - 内部 route 可携带可信 `execution`（signal/beforeEffect）保留原调用控制；HTTP 适配器不得从参数或 JSON body 构造它，actor 名称不授予内部调用权。
   - 事件发布检查项目和当前安装，发布 client 绑定 activation，旧 client 在重启后仍失效。订阅游标绑定 install_id 与安装世代，重装不能继承旧订阅的进度；未绑定身份的旧游标只保留为历史，新订阅从当前日志尾开始。
   - 事件处理器收到自己的安装身份、signal 和 beforeEffect；异步等待后先检查再产生副作用。先持久写 delivering，确认时复查实例/版本/订阅；中断后的未知处理隔离，不自动重放，尚未派出的启动失败可以恢复。关闭数据库前 await events.close()。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin-private-storage.test.ts tests/plugin-upgrades.test.ts tests/plugin-host-executor.test.ts tests/plugin-events.test.ts tests/plugin-platform-composition.test.ts`
+  - 隔离事件由 Host 管理入口读取和明确 retry/skip，插件 clients 没有恢复方法。确认绑定所见事件、游标 revision、安装世代和代码版本；只推进当前事件，决定与 actor/依据历史同事务保存，重装和过期确认拒绝。恢复不授予权限，实际重试仍走原订阅检查。
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin-private-storage.test.ts tests/plugin-upgrades.test.ts tests/plugin-host-executor.test.ts tests/plugin-events.test.ts tests/plugin-platform-composition.test.ts tests/plugin-event-recovery.test.ts`
 - 相关手册：[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)、[skills/molis-plugin-dev/host.md](../../skills/molis-plugin-dev/host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

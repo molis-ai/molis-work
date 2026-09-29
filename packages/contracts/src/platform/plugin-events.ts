@@ -26,6 +26,8 @@ export type PluginEventErrorCode =
   | "event_payload_too_large"
   | "event_identity_invalid"
   | "event_delivery_revoked"
+  | "event_recovery_changed"
+  | "event_recovery_invalid"
   | "event_subscription_invalid";
 
 export class PluginEventError extends Error {
@@ -117,6 +119,8 @@ export interface PluginEventSubscriberIdentity {
 export type PluginEventCursorState = "idle" | "delivering" | "retry_wait" | "quarantined";
 
 export interface PluginEventCursorRecord {
+  /** Changes on every persisted transition; empty only on migrated history. */
+  revision: string;
   board_id: string;
   subscriber_plugin_id: string;
   /** Empty only for unbound legacy cursors whose installation cannot be proven. */
@@ -170,7 +174,48 @@ export interface PluginEventsRepository {
   ): PluginEventCursorRecord | null;
   listCursors(boardId: string, subscriberPluginId?: string): PluginEventCursorRecord[];
   saveCursor(record: PluginEventCursorRecord): void;
+  resolveCursor(previous: PluginEventCursorRecord, next: PluginEventCursorRecord, resolution: PluginEventResolutionRecord): boolean;
+  resolutions(boardId: string, subscriberPluginId?: string): PluginEventResolutionRecord[];
   deleteCursors(boardId: string, subscriberPluginId: string): void;
+}
+
+export interface PluginEventResolutionRecord {
+  board_id: string;
+  subscriber_plugin_id: string;
+  subscriber_install_id: string;
+  subscriber_generation: string;
+  source_plugin_id: string;
+  event_type_id: string;
+  type_version: number;
+  event_id: string;
+  cursor_revision: string;
+  subscriber_version: string;
+  decision: "retry" | "skip";
+  actor_id: string;
+  reason: string;
+  resolved_at: string;
+}
+
+/** Expected identities prevent a stale confirmation; none of them supplies authority. */
+export interface PluginEventRecoveryInput extends PluginEventSubscribeSource {
+  subscriber_plugin_id: string;
+  expected_revision: string;
+  expected_install_id: string;
+  expected_generation: string;
+  expected_version: string;
+  event_id: string;
+  decision: "retry" | "skip";
+  reason: string;
+}
+
+export interface PluginEventRecoveryView {
+  cursor: PluginEventCursorRecord;
+  event: PluginEventRecord | null;
+  subscriber_name: string;
+  source_name: string;
+  subscriber_version: string | null;
+  can_recover: boolean;
+  unavailable_reason: string | null;
 }
 
 export interface PluginEventSubscribeSource {

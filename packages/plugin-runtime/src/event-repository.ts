@@ -5,6 +5,7 @@ import type {
   PluginEventSubscribeSource,
   PluginEventsRepository,
   PluginEventSubscriberIdentity,
+  PluginEventResolutionRecord,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export interface PluginEventsDatabase {
@@ -49,6 +50,7 @@ export class MemoryPluginEventsRepository implements PluginEventsRepository {
   readonly #events: PluginEventRecord[] = [];
   readonly #cursors = new Map<string, PluginEventCursorRecord>();
   readonly #sequences = new Map<string, number>();
+  readonly #resolutions: PluginEventResolutionRecord[] = [];
 
   append(record: Omit<PluginEventRecord, "sequence">): PluginEventRecord {
     const sequence = (this.#sequences.get(record.board_id) ?? 0) + 1;
@@ -97,6 +99,21 @@ export class MemoryPluginEventsRepository implements PluginEventsRepository {
       }, { install_id: record.subscriber_install_id, installation_generation: record.subscriber_generation }),
       { ...record },
     );
+  }
+
+  resolveCursor(previous: PluginEventCursorRecord, next: PluginEventCursorRecord, resolution: PluginEventResolutionRecord): boolean {
+    const current = this.cursor(previous.board_id, previous.subscriber_plugin_id, previous,
+      { install_id: previous.subscriber_install_id, installation_generation: previous.subscriber_generation });
+    if (current?.state !== "quarantined" || current.revision !== previous.revision) return false;
+    const saved = structuredClone(resolution);
+    this.saveCursor(next);
+    this.#resolutions.push(saved);
+    return true;
+  }
+
+  resolutions(boardId: string, subscriberPluginId?: string): PluginEventResolutionRecord[] {
+    return this.#resolutions.filter(record => record.board_id === boardId
+      && (subscriberPluginId === undefined || record.subscriber_plugin_id === subscriberPluginId)).map(record => structuredClone(record));
   }
 
   deleteCursors(boardId: string, subscriberPluginId: string): void {
@@ -162,6 +179,7 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
       subscriber_plugin_id TEXT NOT NULL,
       subscriber_install_id TEXT NOT NULL,
       subscriber_generation TEXT NOT NULL,
+      revision TEXT NOT NULL DEFAULT '',
       source_plugin_id TEXT NOT NULL,
       event_type_id TEXT NOT NULL,
       type_version INTEGER NOT NULL,
@@ -178,12 +196,18 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
       try {
         db.exec("ALTER TABLE plugin_event_cursors RENAME TO plugin_event_cursors_legacy");
         db.exec(cursorTable);
-        db.exec(`INSERT INTO plugin_event_cursors SELECT board_id, subscriber_plugin_id, '', '', source_plugin_id, event_type_id, type_version,
+        db.exec(`INSERT INTO plugin_event_cursors SELECT board_id, subscriber_plugin_id, '', '', '', source_plugin_id, event_type_id, type_version,
           delivered_sequence, state, retry_at, last_error_code, updated_at FROM plugin_event_cursors_legacy`);
         db.exec("DROP TABLE plugin_event_cursors_legacy");
         db.exec("RELEASE plugin_event_cursor_identity");
       } catch (error) { db.exec("ROLLBACK TO plugin_event_cursor_identity"); db.exec("RELEASE plugin_event_cursor_identity"); throw error; }
     } else db.exec(cursorTable);
+    if (columns.some(column => column.name === "subscriber_generation") && !columns.some(column => column.name === "revision")) {
+      db.exec("ALTER TABLE plugin_event_cursors ADD COLUMN revision TEXT NOT NULL DEFAULT ''");
+    }
+    db.exec(`CREATE TABLE IF NOT EXISTS plugin_event_resolutions (
+      resolution_id TEXT PRIMARY KEY, board_id TEXT NOT NULL, subscriber_plugin_id TEXT NOT NULL, record_json TEXT NOT NULL
+    )`);
   }
 
   append(record: Omit<PluginEventRecord, "sequence">): PluginEventRecord {
@@ -274,12 +298,12 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
   saveCursor(record: PluginEventCursorRecord): void {
     this.db.prepare(`INSERT INTO plugin_event_cursors (
       board_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version,
-      delivered_sequence, state, retry_at, last_error_code, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      delivered_sequence, state, retry_at, last_error_code, updated_at, revision
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (board_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version)
     DO UPDATE SET delivered_sequence = excluded.delivered_sequence, state = excluded.state,
       retry_at = excluded.retry_at, last_error_code = excluded.last_error_code,
-      updated_at = excluded.updated_at`).run(
+      updated_at = excluded.updated_at, revision = excluded.revision`).run(
       record.board_id,
       record.subscriber_plugin_id,
       record.subscriber_install_id,
@@ -292,7 +316,40 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
       record.retry_at,
       record.last_error_code,
       record.updated_at,
+      record.revision,
     );
+  }
+
+  resolveCursor(previous: PluginEventCursorRecord, next: PluginEventCursorRecord, resolution: PluginEventResolutionRecord): boolean {
+    this.db.exec("SAVEPOINT plugin_event_resolution");
+    try {
+      const changed = this.db.prepare(`UPDATE plugin_event_cursors SET delivered_sequence = ?, state = ?, retry_at = ?,
+        last_error_code = ?, updated_at = ?, revision = ? WHERE board_id = ? AND subscriber_plugin_id = ?
+        AND subscriber_install_id = ? AND subscriber_generation = ? AND source_plugin_id = ? AND event_type_id = ?
+        AND type_version = ? AND revision = ? AND state = 'quarantined'`).run(next.delivered_sequence, next.state, next.retry_at,
+        next.last_error_code, next.updated_at, next.revision, previous.board_id, previous.subscriber_plugin_id,
+        previous.subscriber_install_id, previous.subscriber_generation, previous.source_plugin_id, previous.event_type_id,
+        previous.type_version, previous.revision) as { changes: number };
+      if (changed.changes !== 1) {
+        this.db.exec("RELEASE plugin_event_resolution");
+        return false;
+      }
+      this.db.prepare("INSERT INTO plugin_event_resolutions (resolution_id, board_id, subscriber_plugin_id, record_json) VALUES (?, ?, ?, ?)")
+        .run(next.revision, resolution.board_id, resolution.subscriber_plugin_id, JSON.stringify(resolution));
+      this.db.exec("RELEASE plugin_event_resolution");
+      return true;
+    } catch (error) {
+      this.db.exec("ROLLBACK TO plugin_event_resolution");
+      this.db.exec("RELEASE plugin_event_resolution");
+      throw error;
+    }
+  }
+
+  resolutions(boardId: string, subscriberPluginId?: string): PluginEventResolutionRecord[] {
+    const rows = subscriberPluginId === undefined
+      ? this.db.prepare("SELECT record_json FROM plugin_event_resolutions WHERE board_id = ? ORDER BY rowid").all(boardId)
+      : this.db.prepare("SELECT record_json FROM plugin_event_resolutions WHERE board_id = ? AND subscriber_plugin_id = ? ORDER BY rowid").all(boardId, subscriberPluginId);
+    return rows.map(row => JSON.parse((row as { record_json: string }).record_json) as PluginEventResolutionRecord);
   }
 
   deleteCursors(boardId: string, subscriberPluginId: string): void {

@@ -8,7 +8,7 @@
 
 改造前核实：Cognia 与 Coding draft 各自创建临时 Prologue Runtime；公共推理端口只返回文本/不透明 usage；Builder 已使用共享 Scheduler，但提醒、定时 operation、存储和待执行队列仍绑定 Builder。Schedule 本身已是官方 native 插件，不新建调度系统。源 SDK 位于 `/Users/yijunwang/code/prologue-dispatch-denied`，消费基线 `03c6ba0b`，SDK 改动须由源码构建再更新 vendored 依赖。
 
-其他活跃 Session 正在主检出做动作授权/Feed 提交边界和独立 UI 原型。本任务先推进无重叠 AI 链路，进入重叠模块前检查它们最新 diff，不能覆盖或重复搬运未完成成果。
+开始时其他 Session 在主检出做动作授权/Feed 提交边界和独立 UI 原型。架构修复 Session 的已完成结果已通过 PR #95 纳入本分支；最近核对为完成状态。本任务继续使用隔离工作树，进入其他仍在修改的模块前核对当前差异，不能覆盖或重复搬运成果。
 
 ## 范围、归属和依赖
 
@@ -21,7 +21,7 @@
 | 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 已实现提醒/operation 归位、独立安装 owner、安装世代、全量旧 pending 迁移及明确恢复；工程、真实 SQLite/进程中断/Seatbelt 与 Chrome 路径通过，未运行付费模型和用户本人验收 |
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开操作从发布契约派生，当前及传递依赖 cost 已接通；最终跨入口验收随 12 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；整体构建及 22 文件 135 项回归通过，最终跨消费者验收随 12 |
-| 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭已实现并验证；领域 journal 桥接、实际领域消费者及 unknown 显式恢复仍待完成 |
+| 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭，以及 unknown 明确恢复已实现并验证；领域 journal 桥接与实际领域消费者仍待完成 |
 | 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 02；待实现 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
 | 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已完成实现与工程/浏览器验证：Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板 |
@@ -180,6 +180,14 @@ Host 只留单向旧数据读取器：在同事务导入已知任务和全部 pe
 
 同一安装重新启用后，新发布沿同一来源补齐仍未派出的持久队列，并按序投递，不依赖调用者额外 resume 才能解开缺口；已经进入处理器但结果未知的游标继续隔离。重启回归同时持久化 Runtime 安装与事件，不能用新建内存安装冒充同一安装重启。
 
+08 后续代码复核：Coding/Git 有发布声明而无生产发布；Files/Git 的 Host 通知端口尚未装配。Artifact 的发布/失效已与领域 journal 同事务提交，应通知已有输入图；文件写入和 Git 操作的执行真相在 Prologue Effect/Run 回执，不能假定项目 journal 包含这些事实，也不能从一次普通读取推断操作成功。领域接线继续按各自事实 owner 处理，不能把所有查询改成事件。
+
+在新增生产投递之前完成未知事件的明确恢复：Runtime 按项目查询隔离记录，展示事件来源、处理插件、时间、错误和当前安装是否匹配；Workbench 插件管理提供查看、重新读取、取消、明确 retry/skip。retry 明示可能重复副作用，skip 只确认当前事件，不跳过后续。恢复必须由当前受控本地用户入口调用，不能暴露为插件自己的服务或替插件补授权；使用既有 Runtime 管理 HTTP 边界，不伪装成业务插件能力。
+
+游标新增不可复用 revision，旧记录迁移保留全部字段；恢复比较所见 revision、首条未确认事件、安装世代和当前代码版本，拒绝重装、升级、停用、并发或重复提交。修改游标和记录 actor/时间/理由/决定的恢复历史必须同事务，失败全部回滚；重试仅解除该事件隔离，仍走原总线授权与派出检查。没有可信安装的历史只可查看，不能自动转交新安装。验证真实 SQLite 重开、CAS/回滚、事件顺序与旧 callback 拒绝，并以真实 HTTP 及 Chrome 验证权限、错误保留、取消和明确操作；外部副作用本身仍需人核对。
+
+提交链复查还发现 delivering 落库失败会被当作普通处理器失败并错误推进游标；现显式区分是否已经进入处理器，未派出时保留 retry_wait，不丢事件。人工恢复后唤醒失败以同步错误返回、已保存的决定仍可查询，不留下脱离请求的 rejected Promise。前端每次请求捕获本次可见性 signal，重新进入页面不能让旧请求借用新生命周期覆盖界面。
+
 ### 内置插件装配与生成式公开声明
 
 07 当前证据：普通 Runtime 插件已由 Manifest.actions 与实际 contribution 注册，停用撤销，MCP/Agent/Workflow 复用目录，不需再造发现层。内置插件仍在 Workbench 的 catalog、workbench packs 和 Host 历史 MCP handler 表重复绑定同一个身份；Coding 设置还在 composition 单独注册。不同 Native Host 工厂携带各自领域依赖，显式注入这些端口是必要的装配，不以动态反射替代。
@@ -254,7 +262,7 @@ Native UI 兼容证据：Goals Manifest 明确只声明静态产品位置，内�
 
   最终 69 包边界检查 errors 为空，diff whitespace 检查通过；日志 /tmp/platform-scheduled-operations-boundary.log。源码与构建完成后再回归，回归期间没有改源码、脚本、package.json 或 Skill。
 
-接续位置：05 的调度归位、安装运行独立与恢复链路，06 的执行策略及依赖复核，07 的 Native 装配与生成式公开声明均已实现相应链路；08 的订阅身份、安装世代与处理中断隔离已实现。后续继续 08 的领域 journal 提交桥接、实际消费者及 unknown 显式恢复；09 的材料提取/资源契约；再完成 01–03 及其余实际消费者、文档与 Skill 的最终总验收。仍只交付本地改造，不以已完成切片替代整个任务。
+接续位置：05 的调度归位、安装运行独立与恢复链路，06 的执行策略及依赖复核，07 的 Native 装配与生成式公开声明均已实现相应链路；08 的订阅身份、安装世代、处理中断隔离与明确恢复已实现。后续继续 08 的领域 journal 提交桥接和实际消费者；09 的材料提取/资源契约；再完成 01–03 及其余实际消费者、文档与 Skill 的最终总验收。仍只交付本地改造，不以已完成切片替代整个任务。
 
 - 安装调用策略更新：删除启动时固定依赖目录、通道和时限的旧路径，每次 operation 使用当前依赖事实，经可信 beforeEffect 复核。query 动态拒绝 metered/写入/停用依赖；无关目录变化不影响本次调用。Sandbox 的单次时限在排队前复制，不进入 worker JSON，也不改 CPU、内存、频率或 grants。嵌套 Action/服务超时的 unknown 贯穿 HTTP 与公开 Action；插件捕获错误后不能继续写入或伪装成功。返回值违反 schema 也保留可能已提交的效果，撤下死进程，下一次明确调用可重新执行。手册、Skill 与包约定同步。
 
@@ -282,5 +290,9 @@ Native UI 兼容证据：Goals Manifest 明确只声明静态产品位置，内�
   整体构建通过。首轮 32 文件 219/221：一个测试只持久化事件却创建了新安装，改为真实 SQLite Runtime 后验证同一安装世代跨重启不变；另一个捕获重新启用后旧队列缺口导致后续投递卡住，已在发布路径按来源接回未派出的队列，并增强完整顺序断言。修复后重新整体构建，受影响的 13 文件 85/85，无跳过；其余首轮通过证据仍有效。覆盖真实 Host、SQLite 旧表迁移/故障回滚、旧 client 失效、重装隔离、重复 resume、慢清理期间零晚写入，以及业务提交后 SIGKILL 的未知工作零自动重放。日志 /tmp/platform-event-identity-final-build.log、/tmp/platform-event-identity-regression.log、/tmp/platform-event-identity-recheck-build.log、/tmp/platform-event-identity-recheck.log。
 
   全部使用隔离数据；未运行付费模型或外部服务。以上是事件基础边界的工程证据，领域提交桥接、实际领域消费者和显式 unknown 恢复尚未完成，不能计为 08 或整个 Goal 完成。
+
+- 未知事件明确恢复：Runtime 管理提供当前项目隔离记录与处理历史；Workbench 插件管理接入真实 Host HTTP，用户核对后明确选择重试或只跳过当前事件。安装世代、代码版本、事件和游标 revision 共同拒绝过期确认；SQLite 同事务保存游标与 actor/理由/决定，失败回滚。旧无身份记录保留查看，不自动补权。修复派出前写库失败误确认未执行事件，以及页面重新进入时旧请求覆盖结果的生命周期问题。
+
+  整体构建通过，最终 28 文件 161/161，无跳过；69 包边界检查 errors 为空，diff whitespace 检查通过。包含真实 SQLite 两连接 CAS、事务故障、重启与迁移、明确 retry/skip 后的顺序及副作用，以及真实 Host/Chrome 的控制权限、取消、过期确认、读取失败保留输入和提交后历史。390px 窄屏浅色/深色截图均已检查，使用既有单选组件修复控件布局；截图在 `.impeccable/qa/review/plugin-event-recovery-{light,dark}.png`。日志 `/tmp/platform-event-recovery-final-build.log`、`/tmp/platform-event-recovery-regression.log`、`/tmp/platform-event-recovery-boundary.log`。无真实付费模型或外部副作用调用，未代表用户本人验收；领域桥接与材料契约仍未完成。
 
   最终 69 包边界检查 errors 为空，diff whitespace 检查通过；日志 /tmp/platform-event-identity-boundary.log。回归期间未改源码、脚本、package.json 或 Skill。

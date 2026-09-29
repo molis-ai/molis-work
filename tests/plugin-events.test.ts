@@ -333,6 +333,26 @@ test("a failing handler does not block the next event and is reported", async ()
   assert.equal(rig.bus.cursors(BOARD, FILES)[0]?.delivered_sequence, 2);
 });
 
+test("a failed delivering write cannot acknowledge an event whose handler never ran", async () => {
+  const seen: unknown[] = [];
+  const coding = eventPlugin({ id: CODING, publishes: [{ type: CHANGED, version: 1 }] });
+  const files = eventPlugin({ id: FILES, subscribes: [{ type: CHANGED, version: 1, from: [CODING] }],
+    onEvent: event => { seen.push(event.payload); } });
+  const rig = harness([coding.definition, files.definition]); await rig.start();
+  const save = rig.repository.saveCursor.bind(rig.repository); let unavailable = true;
+  rig.repository.saveCursor = record => {
+    if (unavailable && record.state === "delivering") { unavailable = false; throw new Error("storage unavailable"); }
+    save(record);
+  };
+  rig.publish(CODING, CHANGED, 1, { path: "not-lost.txt" }); await rig.bus.drain();
+  assert.deepEqual(seen, []);
+  assert.equal(rig.bus.cursors(BOARD, FILES)[0]!.delivered_sequence, 0);
+  assert.equal(rig.bus.cursors(BOARD, FILES)[0]!.state, "retry_wait");
+  await rig.bus.resume(BOARD); await rig.bus.drain();
+  assert.deepEqual(seen, [{ path: "not-lost.txt" }]);
+  assert.equal(rig.bus.cursors(BOARD, FILES)[0]!.delivered_sequence, 1);
+});
+
 test("publishing is refused outside the Plugin's own declared contract", async () => {
   const coding = eventPlugin({
     id: CODING,
@@ -515,7 +535,7 @@ test("legacy SQLite cursors remain unbound history and migration rolls back as a
     assert.equal((db.prepare('SELECT * FROM plugin_event_cursors').get() as { last_error_code: string }).last_error_code, 'old-error');
     const repository = new SqlitePluginEventsRepository(db), current = { install_id: 'install', installation_generation: 'new' };
     assert.equal(repository.cursor(BOARD, FILES, { source_plugin_id: CODING, event_type_id: CHANGED, type_version: 1 }, current), null);
-    assert.deepEqual(repository.listCursors(BOARD), [{ board_id: BOARD, subscriber_plugin_id: FILES, subscriber_install_id: '', subscriber_generation: '', source_plugin_id: CODING,
+    assert.deepEqual(repository.listCursors(BOARD), [{ revision: '', board_id: BOARD, subscriber_plugin_id: FILES, subscriber_install_id: '', subscriber_generation: '', source_plugin_id: CODING,
       event_type_id: CHANGED, type_version: 1, delivered_sequence: 4, state: 'retry_wait', retry_at: null, last_error_code: 'old-error', updated_at: 'old-time' }]);
     assert.deepEqual(new SqlitePluginEventsRepository(db).listCursors(BOARD), repository.listCursors(BOARD));
   } finally { db.close(); }

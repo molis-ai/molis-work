@@ -20,9 +20,11 @@ import {
   type PluginEventsRepository,
   type PluginEventSubscriberIdentity,
   type PluginEventSubscribeSource,
+  type PluginEventRecoveryInput,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
+import { readEventRecoveries, resolveEventRecovery } from "./event-recovery.js";
 
 interface Envelope {
   generation: number;
@@ -59,8 +61,8 @@ function safeErrorCode(error: unknown): string {
  *
  * Publish only validates and accepts; delivery happens afterwards so a slow or
  * failing subscriber never blocks the publisher. Every accepted event is stored
- * before anyone is woken, so a restart resumes from durable cursors instead of
- * losing or replaying work.
+ * before anyone is woken. Restart resumes unstarted work and isolates handler
+ * outcomes that could not be confirmed; external effects are never blindly replayed.
  */
 export class PluginEventBus implements PluginEventBusApi {
   readonly #boardId: string;
@@ -187,8 +189,30 @@ export class PluginEventBus implements PluginEventBusApi {
     await this.drain();
   }
 
+  /** Administrative Host seam; never handed to plugin event clients. */
+  recoveries(boardId: string) {
+    return boardId === this.#boardId ? readEventRecoveries({ boardId, lifecycle: this.#lifecycle,
+      repository: this.#repository, closed: this.#closed }) : [];
+  }
+
+  recoveryHistory(boardId: string) {
+    return boardId === this.#boardId ? this.#repository.resolutions(boardId) : [];
+  }
+
+  recover(boardId: string, actorId: string, input: PluginEventRecoveryInput) {
+    if (boardId !== this.#boardId) throw new PluginEventError("event_identity_invalid", "事件不属于当前项目");
+    const result = resolveEventRecovery({ boardId, lifecycle: this.#lifecycle, repository: this.#repository,
+      closed: this.#closed, now: this.#now, busy: (plugin, source) => this.#tails.has(`${plugin}\u0000${source}`) }, actorId, input);
+    this.#resume(boardId);
+    return result;
+  }
+
   /** Replay everything a subscriber has not acknowledged. Safe to call repeatedly. */
   async resume(boardId: string): Promise<number> {
+    return this.#resume(boardId);
+  }
+
+  #resume(boardId: string): number {
     if (this.#closed || boardId !== this.#boardId) return 0;
     let queued = 0;
     for (const subscriberPluginId of this.#lifecycle.enabledPluginIds()) {
@@ -360,21 +384,23 @@ export class PluginEventBus implements PluginEventBusApi {
       beforeEffect,
     };
     let abort = () => {};
+    let dispatched = false;
     try {
       beforeEffect();
       this.#saveCursor(envelope, { advance: false, state: "delivering", code: null });
       const aborted = new Promise<never>((_, reject) => { abort = () => reject(new PluginEventError("event_delivery_revoked", "事件投递已停止，处理结果可能尚未确认")); controller.signal.addEventListener("abort", abort, { once: true }); });
-      await Promise.race([Promise.resolve().then(() => { beforeEffect(); return onEvent.call(subscriber.contribution, structuredClone(record), context); }), aborted]);
+      await Promise.race([Promise.resolve().then(() => { beforeEffect(); dispatched = true; return onEvent.call(subscriber.contribution, structuredClone(record), context); }), aborted]);
       beforeEffect();
       this.#saveCursor(envelope, { advance: true, state: "idle", code: null });
     } catch (error) {
       const revoked = controller.signal.aborted || !this.#current(envelope) || !subscriber.active();
       this.#saveCursor(envelope, {
-        advance: !revoked,
-        state: revoked ? "quarantined" : "idle",
+        advance: dispatched && !revoked,
+        state: dispatched ? revoked ? "quarantined" : "idle" : "retry_wait",
         code: safeErrorCode(error),
       });
-      this.#fail(revoked ? "subscriber_revoked" : "subscriber_handler_failed", pluginId, record, revoked ? "订阅者已撤销，未确认的处理保留隔离且不自动重投" : "订阅者处理事件时失败；该事件不再重投");
+      this.#fail(!dispatched ? "subscriber_start_failed" : revoked ? "subscriber_revoked" : "subscriber_handler_failed", pluginId, record,
+        !dispatched ? "事件尚未派出，保留等待恢复" : revoked ? "订阅者已撤销，未确认的处理保留隔离且不自动重投" : "订阅者处理事件时失败；该事件不再重投");
     } finally {
       controller.signal.removeEventListener("abort", abort);
       this.#untrack(pluginId, controller);
@@ -391,7 +417,7 @@ export class PluginEventBus implements PluginEventBusApi {
   #cursor(pluginId: string, source: PluginEventSubscribeSource, identity: PluginEventSubscriberIdentity, start: number): PluginEventCursorRecord {
     const existing = this.#repository.cursor(this.#boardId, pluginId, source, identity);
     if (existing) return existing;
-    const created: PluginEventCursorRecord = { board_id: this.#boardId, subscriber_plugin_id: pluginId,
+    const created: PluginEventCursorRecord = { revision: randomUUID(), board_id: this.#boardId, subscriber_plugin_id: pluginId,
       subscriber_install_id: identity.install_id, subscriber_generation: identity.installation_generation,
       source_plugin_id: source.source_plugin_id, event_type_id: source.event_type_id, type_version: source.type_version,
       delivered_sequence: start, state: "idle", retry_at: null, last_error_code: null, updated_at: this.#now().toISOString() };
@@ -410,6 +436,7 @@ export class PluginEventBus implements PluginEventBusApi {
       type_version: record.type_version,
     }, identity);
     this.#repository.saveCursor({
+      revision: randomUUID(),
       board_id: this.#boardId,
       subscriber_plugin_id: pluginId,
       subscriber_install_id: identity.install_id,

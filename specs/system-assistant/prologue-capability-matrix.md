@@ -1,6 +1,6 @@
 # Prologue 能力矩阵（P12，AC28）
 
-核对日期：2026-09-28。对象是本分支实际使用的 SDK：`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant-memory.tgz`，源码在 `~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`（`ac4d1135`；与此前的 `4702abe3` 只差记忆的 project 作用域类型）。
+核对日期：2026-09-28，2026-09-29 按新包补核。对象是本分支实际使用的 SDK：`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`（`c63ea1a1`，由 main 的 resource-intake 线 `18a1c827` 与助理的记忆项目作用域 `ac4d1135` 合成，见 vendor README）。相对 9-28 核对的包，公开面新增 `collectRun`、`decodeJsonOutput`，以及结构校验、网络派出授权与原图摄取限额；这些都已补进下表。
 
 **核对方法**
 - SDK 公开面：`createRuntime` 返回的 `Runtime` 接口（`packages/sdk/src/composition/core/runtime.ts`）逐个成员，以及 `Session` 接口（`session/core/session.ts`）逐个方法；另查了 `LocalQueue`、`heartbeats`、`subagents` 等子面的方法。
@@ -59,7 +59,7 @@
 | SDK 公开面 | Host 接入 | 助理 | Coding | 状态与证据 |
 | --- | --- | --- | --- | --- |
 | `memory`（write/list/update/purge/recall） | Agent Host `memory` 能力；SDK 补了 `project` 作用域（`ac4d1135`） | 明确要求的个人／项目记忆：记住、召回、查看、停用、删除 | — | ✅ `assistant-memory`、SDK `memory-project-scope.live`；§13（MiniMax 实测） |
-| `memoryInbox`（候选提炼） | — | — | — | ⛔ 从工作中提炼经验的候选（需用户认可）未接 |
+| `memoryInbox`（候选提炼） | 不采用：候选只存在进程内存（重启即丢）、没有个人／项目范围 | 经验候选改由 Host 保存（`suggest-memory`，按个人／项目两个开关，默认关），用户认可后走同一个 `memory.write` | — | ➖ SDK 这一面不用；能力本身 ✅ `assistant-memory` 第三项，§13（MiniMax 实测） |
 
 ## 8. 上下文整理、压缩、历史与预算
 
@@ -103,6 +103,10 @@
 | SDK 公开面 | Host 接入 | 助理 | Coding | 状态与证据 |
 | --- | --- | --- | --- | --- |
 | `images` | 推理客户端 `images.generate` | 插件出图经 Host；助理的图片输入走 `beginIntake` ＋ `start.attachments`（见上） | — | ✅ |
+| `collectRun`（有界收集一次运行的结果） | main 平台整合线：Host 的共享推理（插件的模型调用，如炼金术士、Jelly、置物架） | 助理的轮次走会话与事件流，不需要一次性收集 | — | ➖ 助理不适用；插件侧由 main 接入 |
+| `decodeJsonOutput`、运行前结构校验 | main：炼金术士、Jelly 的结构化输出 | 助理的输出是对话与工具调用，不要求 JSON | — | ➖ 助理不适用 |
+| 网络派出授权（`beforeNetworkDispatch`） | Host 对每次真实网络请求做可信复核（包括 MCP） | 助理的模型与 MCP 请求一样受它约束 | ✅ | ✅ SDK `network-dispatch-authority.live`；撤权场景见 §12 第二片 |
+| 原图摄取限额（整批容量、原子发布、取消不复活） | `beginIntake` 所在的同一路径 | 图片附件经此吸入 | — | ✅ SDK `resource-intake*.live`；§5 P2 图片（合包后图片测试 `assistant-attachments` 通过） |
 | `speech` | — | — | — | ⛔ 语音输入／转录未接 |
 | `surfaces`（UiControl） | — | 助理读页面经插件上下文协议，不直接看屏幕 | — | ⛔ 未接（目前以插件声明的上下文代替界面观察；计算机操作不在当前范围） |
 
@@ -165,7 +169,7 @@
 
 按对完整度的影响排序：
 
-1. 记忆的候选提炼（memoryInbox）与 Character 维度（明确要求的个人／项目记忆已接通）。
+1. 记忆的 Character 维度（明确要求的个人／项目记忆、待认可的经验候选已接通）。
 2. 助理的 Skill（插件方法）与 SDK Subagent：均被 app 模式拒绝；已分别由 Host 登记的插件方法（P5 第三片）与 Host 委托子任务（P9）替代实现。
 3. 按工作的预算（每日上限已接通）。
 4. 语音（PDF 附件与图片输入已接通）。

@@ -775,6 +775,23 @@ const CRAFT_BASE_STYLES = `
     /* While typing the input takes the column; focusing a chip keeps that chip on screen. */
     ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention, .bar-composer-search) { display: none; }
   }
+  /* A crowded composer at any width takes the same steps, as far as the island measures it needs (data-fit): the chips
+     present — a work, its materials, what needs a look, who does it — would otherwise leave the input no room at all. */
+  ${SHELL} .bar-composer[data-fit] { gap: 4px; }
+  ${SHELL} .bar-composer[data-fit] .bar-composer-search { gap: 0; padding: 0 6px; }
+  ${SHELL} .bar-composer[data-fit] .bar-composer-search kbd { display: none; }
+  ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
+  ${SHELL} .bar-composer[data-fit="narrow"] .plugin-picker { flex: none; max-width: 80px; }
+  ${SHELL} .bar-composer[data-fit="narrow"] .plugin-picker-current > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* With the panel open the choosers are back; the ones nobody changed give up their width before the input does. */
+  ${SHELL} .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) { flex: 0 1 auto; min-width: 0; }
+  ${SHELL} .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* The input's floor holds only where the column has room for it; a narrow column's own steps above take over there. */
+  @container assistant-bar (min-width: 461px) {
+    ${SHELL} .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
+    ${SHELL} .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) .assistant-target { min-width: 56px; }
+    ${SHELL} .bar-composer[data-fit="narrow"] .assistant-target { max-width: 96px; }
+  }
   /* A phone keeps the bar at the foot of the page: menu, the Assistant with its switcher, the project. */
   @media (max-width: 600px) {
     ${SHELL} .immersive-workspace,

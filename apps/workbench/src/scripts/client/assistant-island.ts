@@ -1607,9 +1607,34 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
   });
 
-  loadDraft(); render();
+  // The input keeps room to type. The bar's middle is at most 600px and the chips beside the input come and go (a
+  // work, its materials, what needs a look, who does it), so the composer measures itself, as the Dock does, and
+  // steps down: first the quiet parts narrow, then the choosers nobody has changed fold while the panel is closed,
+  // and last the plugin and work chips narrow (an open panel's head carries the work's whole title).
+  const INPUT_ROOM = 120;
+  let fitFrame = 0;
+  const fitComposer = () => {
+    fitFrame = 0;
+    delete composer.dataset.fit;
+    for (const level of ["tight", "folded", "narrow"]) {
+      if (input.clientWidth >= INPUT_ROOM) return;
+      composer.dataset.fit = level;
+    }
+  };
+  const refit = () => { if (!fitFrame) fitFrame = requestAnimationFrame(fitComposer); };
+  // The island's width is the bar's, never its chips'; the chips' own changes arrive as attributes and labels.
+  const fitWatchers = [];
+  if ("ResizeObserver" in window) { const watcher = new ResizeObserver(refit); watcher.observe(island); fitWatchers.push(watcher); }
+  if ("MutationObserver" in window) {
+    const watcher = new MutationObserver(refit);
+    watcher.observe(composer, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["hidden", "data-chosen"] });
+    if (panel) watcher.observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+    fitWatchers.push(watcher);
+  }
+
+  loadDraft(); render(); refit();
   // The work's own draft is known only once the list arrives; fill it then unless the person has already typed.
   // Changes already done before this page loaded are not news; only ones completing from now on are announced.
   loadWorks().then(() => { if (!typed) loadDraft(); if (currentId) return refresh().then(schedule); }).finally(() => { announcing = true; });
-  return { isOpen: () => Boolean(panel && !panel.hidden), dispose: () => { clearTimeout(pollTimer); clearInterval(listTimer); } };
+  return { isOpen: () => Boolean(panel && !panel.hidden), dispose: () => { clearTimeout(pollTimer); clearInterval(listTimer); cancelAnimationFrame(fitFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
 }`;

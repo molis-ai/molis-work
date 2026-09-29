@@ -14,4 +14,8 @@ test("a field's declared choices read by their labels: oneOf titles, or value=la
   assert.equal(actionFieldValue("placement", "elsewhere", titled), "elsewhere");
   assert.equal(actionFieldOptions({ type: "string" }), null);
   assert.equal(actionFieldValue("title", "周报", undefined), "周报");
+  // A nullable field: choices wrapped with a null branch (as Todo declares its optional relation).
+  const nullable = { anyOf: [{ oneOf: [{ const: "blocks", title: "要等它先完成" }, { const: "related", title: "相关" }] }, { type: "null" }] };
+  assert.equal(actionFieldValue("relation", "related", nullable), "相关");
+  assert.deepEqual(actionFieldOptions({ anyOf: [{ const: "a", title: "甲" }, { type: "null" }] }), [{ value: "a", label: "甲" }]);
 });

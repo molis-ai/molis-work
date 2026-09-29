@@ -664,7 +664,11 @@ export function actionFieldLabel(key: string, declared?: { title?: string; descr
 export function actionFieldOptions(declared?: unknown): Array<{ value: string; label: string }> | null {
   if (!declared || typeof declared !== "object") return null;
   const schema = declared as { enum?: unknown; oneOf?: unknown; anyOf?: unknown; description?: unknown };
-  const listed = [schema.oneOf, schema.anyOf].find(Array.isArray) as unknown[] | undefined;
+  const isNull = (item: unknown) => Boolean(item) && typeof item === "object" && (item as { type?: unknown }).type === "null";
+  const listedAll = [schema.oneOf, schema.anyOf].find(Array.isArray) as unknown[] | undefined;
+  // A nullable field wraps its choices with a null branch: read the choices inside.
+  const listed = listedAll?.filter(item => !isNull(item));
+  if (listed?.length === 1 && listed[0] && typeof listed[0] === "object" && (listed[0] as { const?: unknown }).const === undefined) return actionFieldOptions(listed[0]);
   if (listed?.length && listed.every(item => item && typeof item === "object" && typeof (item as { const?: unknown }).const === "string")) {
     return listed.map(item => ({ value: (item as { const: string }).const, label: typeof (item as { title?: unknown }).title === "string" ? (item as { title: string }).title : (item as { const: string }).const }));
   }

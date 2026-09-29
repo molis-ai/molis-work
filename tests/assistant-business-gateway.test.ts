@@ -516,3 +516,19 @@ test("a capability identity the round never found is answered as unknown, not as
   await assert.rejects((executors["read-capability"] as any)({ args: { capability_id: "lingguang_spark_read", version: 1, provider_id: "io.molis.work.lingguang", input: {} } }),
     (error: any) => /No capability with that exact identity/.test(error.message) && /find-capabilities/.test(error.message));
 });
+
+test("a suggestion whose fields are partly beside its input still becomes the card it meant (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    // The model put one field beside `input`, as it did with a to-do's placement: the tool used to reject it four times.
+    () => reply({ name: "suggest-action", input: { title: "保存这条笔记", summary: "把“会后发纪要”存进项目笔记", capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: {}, text: "会后发纪要" } }),
+    () => reply(undefined, "Here it is."),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "suggest a note", request_id: "req-00000061" }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["suggest-action:completed"]);
+    assert.equal(done.cards.length, 1);
+    assert.ok(done.cards[0]!.fields.some(field => field.label === "内容" && field.value === "会后发纪要"), JSON.stringify(done.cards[0]!.fields));
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "suggesting runs nothing");
+  } finally { await f.close(); }
+});

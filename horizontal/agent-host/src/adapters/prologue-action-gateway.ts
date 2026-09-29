@@ -61,10 +61,12 @@ const abortedBy = (signal: AbortSignal) => new Promise<never>((_resolve, reject)
 function parseCapability(args: Record<string, unknown>): CapabilityArgs {
   if (typeof args.capability_id !== "string" || !args.capability_id || typeof args.provider_id !== "string" || !args.provider_id
     || !Number.isSafeInteger(args.version)) throw new ActionError("actions.reference_invalid", "Name the capability exactly: capability_id, version and provider_id as find-capabilities returned them.");
-  // Models sometimes put the capability's fields beside its identity instead of inside `input`: that is the input they meant.
+  // Models sometimes put the capability's fields beside its identity instead of inside `input` (all or some of them):
+  // that is the input they meant. A field given inside `input` wins over the same one beside it.
   const { capability_id: _id, version: _version, provider_id: _provider, input, ...beside } = args;
+  const nested = input !== null && typeof input === "object" && !Array.isArray(input);
   return { capability_id: args.capability_id, version: args.version as number, provider_id: args.provider_id,
-    input: input !== undefined ? input : Object.keys(beside).length ? beside : undefined };
+    input: input === undefined ? (Object.keys(beside).length ? beside : undefined) : nested && Object.keys(beside).length ? { ...beside, ...input as Record<string, unknown> } : input };
 }
 
 /**
@@ -147,7 +149,9 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     // A proposal for the person: recorded by the caller, checked against the capability as it is now; runs nothing.
     [GATEWAY_TOOLS.suggest]: guarded(async args => {
       if (!gateway.client.offer) throw new ActionError("actions.forbidden", "This round cannot offer actions.");
-      const parsed = parseCapability(args);
+      // The button's own words are not the capability's input; anything else beside the identity is.
+      const { title: _title, summary: _summary, editable: _editable, missing: _missing, ...call } = args;
+      const parsed = parseCapability(call);
       const view = (await gateway.client.discover()).find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
       if (!view || !view.action.audiences.includes("agent") || !view.availability.available) throw new ActionError("actions.missing", "That capability is not available here; nothing was suggested. Search again with find-capabilities.");
       const text = (value: unknown, field: string, max: number) => { if (typeof value !== "string" || !value.trim() || value.length > max) throw new ActionError("actions.reference_invalid", `"${field}" must be 1–${max} characters.`); return value.trim(); };
@@ -190,7 +194,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     input: { description: "The prepared input as a JSON value matching the capability's input_schema." },
     editable: { type: "array", items: { type: "string" }, description: "Top-level input fields the person may adjust before running it." },
     missing: { type: "array", items: { type: "object", properties: { field: { type: "string" }, question: { type: "string" } }, required: ["field", "question"] }, description: "Required fields you could not fill, each with the question to ask." },
-  }, required: ["title", "summary", "capability_id", "version", "provider_id", "input"], additionalProperties: false };
+  }, required: ["title", "summary", "capability_id", "version", "provider_id", "input"] };
   const tools = [
     tool(GATEWAY_TOOLS.find, "Search the business capabilities available in this work's scope by provider and name (e.g. \"Pages 新建\"). Returns each match's exact identity, whether it reads or changes data, and its input schema.",
       { type: "object", properties: { query: { type: "string", description: "Words from the provider or capability name, separated by spaces." } }, required: ["query"], additionalProperties: false }, "safe-read"),
@@ -239,7 +243,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   const all = tools.map(one => one.registration.name);
   const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (name !== GATEWAY_TOOLS.direct || (gateway.operate && gateway.client.direct)) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
     && (!(Object.values(MEMORY_TOOLS) as string[]).includes(name) || gateway.client.memory) && (name !== MEMORY_TOOLS.propose || gateway.client.memory?.propose));
-  const pack: ScenarioPack = { id: PACK_ID, version: "2.3.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+  const pack: ScenarioPack = { id: PACK_ID, version: "2.3.1", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names, known };

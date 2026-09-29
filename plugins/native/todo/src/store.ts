@@ -163,6 +163,16 @@ export class TodoStore {
     return result;
   }
 
+  /**
+   * Moves a todo on the person's word from the placement panel: into a project (any, by id) or back to the personal
+   * space (`null`; an unplaced todo stays unplaced). Recorded like an edit, so it shows in the history and can be undone.
+   */
+  move(id: string, toProjectId: string | null, access: TodoAccess): { item: TodoItem; change_id: string | null } {
+    let result!: { item: TodoItem; change_id: string | null };
+    this.transaction(() => { result = this.applyUpdate(id, {}, undefined, access, null, { to: toProjectId }); });
+    return result;
+  }
+
   setStatus(id: string, status: TodoStatus, expectedRevision: number | undefined, access: TodoAccess, batchId: string | null = null): { item: TodoItem; change_id: string | null } {
     let result!: { item: TodoItem; change_id: string | null };
     this.transaction(() => { result = this.applyStatus(id, status, expectedRevision, access, batchId); });
@@ -342,11 +352,13 @@ export class TodoStore {
     return { items, removed_ids: removed };
   }
 
-  private applyUpdate(id: string, patch: TodoFields, expectedRevision: number | undefined, access: TodoAccess, batchId: string | null): { item: TodoItem; change_id: string | null } {
+  private applyUpdate(id: string, patch: TodoFields, expectedRevision: number | undefined, access: TodoAccess, batchId: string | null,
+    move?: { readonly to: string | null }): { item: TodoItem; change_id: string | null } {
     const current = this.get(id, access);
     assertRevision(current, expectedRevision);
     const fields = normalizeFields(patch, current, access);
     let next: TodoItem = { ...current, ...stripProject(fields), project_id: fields.placement !== undefined ? fields.project_id ?? null : current.project_id };
+    if (move) next = move.to ? { ...next, placement: "project", project_id: move.to } : { ...next, placement: current.placement === "project" ? "personal" : current.placement, project_id: null };
     if (!next.title) throw invalid("请写下要做什么");
     if (next.due_time && !next.due_date) throw invalid("有截止时间时要同时有截止日期");
     const before: Record<string, unknown> = {}, after: Record<string, unknown> = {};

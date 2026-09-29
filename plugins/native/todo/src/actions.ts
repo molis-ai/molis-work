@@ -1,6 +1,7 @@
-import { ActionError, withActionEffect, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, PERSONAL_SPACE_PROJECT_ID, bindHomeObjectMoveHandler, defineObjectMoveAction, withActionEffect, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_SUBJECT_KIND, type TodoChange, type TodoItem, type TodoPlacement, type TodoStatus, type TodoView } from "@molis-ai/molis-work-contracts/modules/todo";
 import { isTodoDate, localDate } from "./dates.js";
+import { todoCallerProject } from "./caller.js";
 import type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoStore } from "./store.js";
 import { selectView, todoFlags, viewCounts, type TodoFlag } from "./views.js";
 import { createTodoSearchHandlers, todoSearchActions } from "./search.js";
@@ -86,6 +87,8 @@ function define<I, O>(name: string, title: string, description: string, operatio
     input_schema: input, output_schema: output, ...extra } };
 }
 const resultSubject = { id: "item.id", revision: "item.revision" };
+/** How a change is taken back: the revert command, fed from this change's own output (D08: runs when asked, then 撤销). */
+const undoChange = { capability_id: "todo.changes.revert", version: 1, input: { change_id: "change_id" } };
 
 export const todoActions = {
   list: define<ListInput, TodoListResult>("items.list", "列出待办", "按视图读取待办：today 今天要做、waiting 在等别人、unscheduled 没安排、upcoming 7 天内截止、all 全部进行中、closed 已完成或已取消。在项目里调用时范围是个人、暂未归类和这个项目的待办", "query",
@@ -95,27 +98,29 @@ export const todoActions = {
     object({ id }), object({ item, flags: array(flag), history: array(change), backlinks: array(object({ item_id: id, title: text, relation: nullable(relation) })) })),
   create: define<TodoCreateInput & { status?: TodoStatus }, { item: TodoItem; change_id: string; replayed: boolean }>("items.create", "新建待办", "记下一件要推进的事。日期只写原文或用户明确给出的，不猜；request_id 用于同一次请求的恢复，重试不会重复创建", "command",
     object({ ...fieldInput, status: { ...status, title: "状态" }, sources: { ...array(sourceInput), maxItems: 20, title: "来源与形成原因" }, request_id: { ...id, title: "请求号" } }, ["title"]),
-    object({ item, change_id: id, replayed: { type: "boolean" } }), { result_subject: resultSubject, result_view: { summary: "已加入待办", title_pointer: "/item/title" } }),
+    object({ item, change_id: id, replayed: { type: "boolean" } }), { result_subject: resultSubject, result_view: { summary: "已加入待办", title_pointer: "/item/title" }, undo: undoChange }),
   update: define<TodoFields & Identity, { item: TodoItem; change_id: string | null }>("items.update", "修改待办", "只改给出的字段；带上读取时的 expected_revision，别处改过时拒绝而不覆盖", "command",
-    object({ id, ...expected, ...fieldInput }, ["id"]), changed, { result_subject: resultSubject, result_view: { summary: "已修改待办", title_pointer: "/item/title" } }),
+    object({ id, ...expected, ...fieldInput }, ["id"]), changed, { result_subject: resultSubject, result_view: { summary: "已修改待办", title_pointer: "/item/title" }, undo: undoChange }),
   status: define<Identity & { status: TodoStatus }, { item: TodoItem; change_id: string | null }>("items.status", "改待办状态", "改为待处理、进行中、等待他人、已完成或已取消。只在用户确认这件事做完时才标为已完成", "command",
-    object({ id, ...expected, status }, ["id", "status"]), changed, { result_subject: resultSubject, result_view: { summary: "已改状态", title_pointer: "/item/title" } }),
+    object({ id, ...expected, status }, ["id", "status"]), changed, { result_subject: resultSubject, result_view: { summary: "已改状态", title_pointer: "/item/title" }, undo: undoChange }),
   archive: define<Identity & { archived: boolean }, { item: TodoItem; change_id: string | null }>("items.archive", "归档或取回待办", "把已完成或已取消的待办收起，或取回；不改变状态", "command",
-    object({ id, ...expected, archived: { type: "boolean" } }, ["id", "archived"]), changed, { result_subject: resultSubject }),
+    object({ id, ...expected, archived: { type: "boolean" } }, ["id", "archived"]), changed, { result_subject: resultSubject, undo: undoChange }),
   remove: withActionEffect(define<Identity, { deleted: true; id: string }>("items.delete", "删除待办", "永久删除一件待办及其修改记录，不能撤销", "command",
     object({ id, ...expected }, ["id"]), object({ deleted: { const: true }, id })), "irreversible"),
   batch: define<{ ids: string[]; change: TodoBatchChange; expected_revisions?: Record<string, number> }, { items: TodoItem[]; batch_id: string }>("items.batch", "批量处理待办", "对选中的几件待办做同一处理（改状态、改计划或截止日期、推后几天、改归属、归档），全部成功或全部不改；可凭 batch_id 一起撤销", "command",
     object({ ids: { ...array(id), minItems: 1, maxItems: 200, uniqueItems: true }, change: batchChange, expected_revisions: { type: "object", additionalProperties: revision } }, ["ids", "change"]),
-    object({ items: array(item), batch_id: id })),
+    object({ items: array(item), batch_id: id }), { undo: { capability_id: "todo.changes.revert", version: 1, input: { batch_id: "batch_id" } } }),
   revert: define<{ change_id?: string; batch_id?: string }, { items: TodoItem[]; removed_ids: string[] }>("changes.revert", "撤销待办修改", "撤销一次修改或一整批修改；之后又被改过就拒绝。撤销新建会去掉那件待办", "command",
     { ...object({ change_id: id, batch_id: id }, []), oneOf: [{ required: ["change_id"] }, { required: ["batch_id"] }] }, object({ items: array(item), removed_ids: array(id) })),
   link: define<Identity & { add?: TodoLinkInput; remove_link_id?: string }, { item: TodoItem; change_id: string }>("items.link", "关联到待办", "给待办加上或去掉一项关联：Goal、材料、另一件待办（依赖、拆分、合并、相关）、成果（草稿或已完成的动作）、助理工作", "command",
     { ...object({ id, ...expected, add: linkInput, remove_link_id: id }, ["id"]), oneOf: [{ required: ["add"] }, { required: ["remove_link_id"] }] }, object({ item, change_id: id }),
-    { result_subject: resultSubject }),
+    { result_subject: resultSubject, undo: undoChange }),
   dueReminders: define<Record<string, never>, { reminders: { item: TodoItem; late: boolean }[] }>("reminders.due", "到了时间的提醒", "列出已到提醒时间、还没点“知道了”、事情还没做完的待办；超过 48 小时的不再补发。late 表示是在没人看时错过的", "query",
     object({}), object({ reminders: array(object({ item, late: { type: "boolean" } })) })),
   acknowledgeReminder: define<{ id: string }, { item: TodoItem }>("reminders.acknowledge", "知道了", "这次提醒不再显示；不改变待办本身，也不改提醒时间", "command",
     object({ id }), object({ item }), { result_subject: resultSubject }),
+  // The placement panel's “移到…”: Todo keeps where each todo belongs, so the move is Todo's own (only the person, at Home).
+  move: defineObjectMoveAction("todo.placement.move", [TODO_SUBJECT_KIND], "待办", TODO_WRITE, "home"),
   homeEvents: todoHomeEventsAction,
   searchEntries: todoSearchActions.entries,
   subject: todoSearchActions.subject,
@@ -137,7 +142,7 @@ export interface TodoActionPorts {
 /** Who is asking, as far as a todo is concerned. Only the person's own page may read across projects. */
 export function todoAccess(caller: ActionCallContext, everything = false): TodoAccess {
   if (everything && caller.audience !== "user") throw new ActionError("actions.forbidden", "只有你自己在 Todo 页面里能看到所有项目的待办");
-  return { projectId: caller.project_id, everything, actor: caller.audience === "user" ? "user" : caller.audience === "agent" ? "assistant" : "other", actorId: caller.actor_id };
+  return { projectId: todoCallerProject(caller), everything, actor: caller.audience === "user" ? "user" : caller.audience === "agent" ? "assistant" : "other", actorId: caller.actor_id };
 }
 
 export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerBinding[] {
@@ -157,7 +162,7 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
       const counts = viewCounts(items, day);
       const selected = input.archived ? items.filter(entry => entry.archived_at !== null).sort((a, b) => (b.archived_at ?? "").localeCompare(a.archived_at ?? ""))
         : selectView(items, input.view ?? "today", day);
-      return { today: day, project_id: caller.project_id, everything: access.everything, counts,
+      return { today: day, project_id: todoCallerProject(caller), everything: access.everything, counts,
         items: selected.map(entry => ({ ...entry, flags: todoFlags(entry, day) })) };
     })),
     bind(todoActions.get, (input, caller) => ports.withStore(store => {
@@ -183,6 +188,17 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
     bind(todoActions.dueReminders, (_input, caller) => ports.withStore(store => ({
       reminders: store.dueReminders(todoAccess(caller, caller.audience === "user"), ports.now?.()) }))),
     bind(todoActions.acknowledgeReminder, (input, caller) => ports.withStore(store => ({ item: store.acknowledgeReminder(input.id, todoAccess(caller, caller.audience === "user")) }))),
+    bindHomeObjectMoveHandler(todoActions.move, (input, caller) => ports.withStore(store => {
+      if (input.subject.kind !== TODO_SUBJECT_KIND) throw new ActionError("actions.input_invalid", "这里只能移动待办");
+      // The person, across projects: the placement service calls at Home with their own authority.
+      const access = todoAccess(caller, true);
+      const current = store.get(input.subject.id, access);
+      const to = input.to_project_id === PERSONAL_SPACE_PROJECT_ID ? null : input.to_project_id;
+      // Personal and unplaced are both the personal space; unplaced only means “not sorted yet”.
+      if ((current.placement === "project" ? current.project_id : null) === to) throw new ActionError("placement.same_location", "它已经在这个位置");
+      const { item } = store.move(current.id, to, access);
+      return { subject: { kind: TODO_SUBJECT_KIND, id: item.id }, project_id: item.project_id ?? PERSONAL_SPACE_PROJECT_ID, revision: String(item.revision) };
+    })),
     createTodoHomeEventsHandler(ports.withStore, ports.now),
     ...createTodoOrganizeHandlers({ withStore: ports.withStore, today: ports.today, completeText: ports.completeText, access: todoAccess,
       modelAvailability: () => ports.modelAvailability?.() ?? (ports.completeText ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" }) }),

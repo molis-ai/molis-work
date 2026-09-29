@@ -2,6 +2,7 @@ import { assertHomeEventWindow, defineHomeEventsAction, type ActionCallContext, 
 import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
 import { localDate } from "./dates.js";
 import type { TodoAccess, TodoStore } from "./store.js";
+import { todoCallerProject } from "./caller.js";
 import { todoFlags } from "./views.js";
 
 /**
@@ -56,7 +57,7 @@ export function createTodoHomeEventsHandler(withStore: <T>(run: (store: TodoStor
   return { ...todoHomeEventsAction, handle: (caller: ActionCallContext, value: unknown): HomeEventCollection => {
     const window = value as HomeEventWindow;
     assertHomeEventWindow(window);
-    const access: TodoAccess = { projectId: caller.project_id, everything: false, actor: "other", actorId: caller.actor_id };
+    const access: TodoAccess = { projectId: todoCallerProject(caller), everything: false, actor: "other", actorId: caller.actor_id };
     return { source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办", icon: "list" }, events: withStore(store => todoHomeEvents(store, access, now())) };
   } };
 }

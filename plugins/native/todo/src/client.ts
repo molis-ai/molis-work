@@ -1,3 +1,4 @@
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parseTodoQuickText } from "./quick-parse.js";
 
 /** Todo workbench client: views, quick entry, inline completion, batch changes, the detail editor and undo. */
@@ -68,7 +69,11 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   let quickAttempt = null;
   let dropped = new Set();
   let placementChoice = "";
-  const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
+  // The personal space is a location, not a project: there Todo is the personal view (personal and unplaced todos).
+  const projectId = () => {
+    const current = (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
+    return current === ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)} ? "" : current;
+  };
   try { placementChoice = window.localStorage.getItem("molis.todo.quick-placement") || ""; } catch { placementChoice = ""; }
 
   const headers = () => typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" };
@@ -1158,6 +1163,15 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     void load().then(async () => {
       if (!selected) return;
       if (dirtyFields.size) { showDetailNote(L("助理刚改过这件待办；你还有没保存的输入，保存时会提示冲突，不会覆盖。"), true); return; }
+      await openDetail(selected.id).catch(() => closeDetail());
+    }).catch(() => {});
+  });
+  // Moved from the placement panel: same todo, new place. Read it again; close it if it left what this page shows.
+  window.addEventListener("molis:placement-changed", (event) => {
+    const detail = event.detail || {};
+    if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("todo_item")) return;
+    void load().then(async () => {
+      if (!selected || !detail.from || selected.id !== detail.from.id || dirtyFields.size) return;
       await openDetail(selected.id).catch(() => closeDetail());
     }).catch(() => {});
   });

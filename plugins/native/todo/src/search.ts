@@ -1,6 +1,7 @@
 import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
 import type { TodoAccess, TodoStore } from "./store.js";
+import { todoCallerProject } from "./caller.js";
 
 /** Todo's part in the system search and in object reading (the Assistant's "this todo"). */
 export const todoSearchActions = {
@@ -34,7 +35,7 @@ const goals = (item: TodoItem) => item.links.filter(link => link.kind === "goal"
 
 export function createTodoSearchHandlers(withStore: <T>(run: (store: TodoStore) => T) => T): ActionHandlerBinding[] {
   // Search and readers see what the caller sees: personal, unplaced, and the caller's own project.
-  const access = (caller: ActionCallContext): TodoAccess => ({ projectId: caller.project_id, everything: false, actor: "other", actorId: caller.actor_id });
+  const access = (caller: ActionCallContext): TodoAccess => ({ projectId: todoCallerProject(caller), everything: false, actor: "other", actorId: caller.actor_id });
   return [
     bindSearchEntriesHandler(todoSearchActions.entries, caller => withStore(store => store.list(access(caller)).map((item): SearchEntry => ({
       subject: { kind: TODO_SUBJECT_KIND, id: item.id }, revision: String(item.revision), title: item.title,

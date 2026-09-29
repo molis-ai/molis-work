@@ -109,6 +109,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
       <div class="plugin-stage-detail-bar">
         <button class="plugin-stage-back" type="button" data-todo-back aria-label="${p.text("返回待办列表")}" title="${p.text("返回待办列表")}">${icon("chevron-right")}</button>
         <h1 data-todo-editor-heading>${p.text("待办")}</h1>
+        <span data-placement-slot data-placement-saved="off" data-placement-scope="home"></span>
         <span class="mw-status mw-status--quiet" data-todo-save-status></span>
         <button class="mw-btn mw-btn--ghost todo-delegate" type="button" data-todo-delegate title="${p.text("交给助理推进")}">${icon("sparkles")}<span>${p.text("交给助理推进")}</span></button>
         <details class="plugin-stage-more">

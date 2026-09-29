@@ -1,6 +1,6 @@
 ---
 name: Molis Work Feed
-description: 沿用共享 Linear × coss.ui 视觉系统的来源工作台
+description: 沿用共享 Soft Workbench 视觉系统的来源工作台
 colors:
   paper-light: "#ffffff"
   paper-dark: "#161718"
@@ -16,69 +16,70 @@ colors:
   input-border-dark: "#2e3036"
 typography:
   body:
-    fontFamily: "Inter Variable, Inter, Noto Sans SC, PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif"
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Inter Variable, Noto Sans SC, system-ui, sans-serif"
     fontSize: "13px"
     fontWeight: 400
-  source-title:
-    fontSize: "20px"
-    fontWeight: 400
-  reader-title:
-    fontSize: "23px"
-    fontWeight: 400
-    lineHeight: 1.45
-  message-title:
-    fontSize: "13px"
-    fontWeight: 400
+  column-title:
+    fontSize: "22px"
+    fontWeight: 600
+  card-title:
+    fontSize: "13.5px"
+    fontWeight: 500
     lineHeight: 1.55
-  secondary:
-    fontSize: "12px"
+  reader-title:
+    fontSize: "28px"
+    fontWeight: 600
+    lineHeight: 1.4
+  reader-lead:
+    fontSize: "16px"
+    lineHeight: 1.9
+  reader-body:
+    fontSize: "15px"
+    lineHeight: 1.9
   metadata:
     fontSize: "11px"
 rounded:
-  source: "8px"
-  input: "6px"
-  message: "6px"
-  mode-group: "7px"
-  mode-button: "5px"
+  scope: "8px"
+  card: "10px"
+  menu: "12px"
+  input: "8px"
 spacing:
   tight: "4px"
   control-gap: "8px"
-  row-gap: "12px"
-  section: "16px"
-  composer: "24px"
-  desktop-gutter: "28px"
+  card-gap: "4px"
+  column-gutter: "18px"
+  reader-column: "700px"
 components:
-  source-rail:
-    width: "236px"
-    padding: "16px 10px"
-  source-row:
-    rounded: "{rounded.source}"
-    padding: "10px 9px"
-  source-header:
-    padding: "24px 28px 0"
-  message-row:
-    rounded: "{rounded.message}"
-    padding: "14px 10px"
-  input:
-    rounded: "{rounded.input}"
-    padding: "9px 11px"
+  article-column:
+    width: "clamp(300px, 30%, 360px)"
+    background: "--surface-soft"
+  source-menu:
+    rounded: "{rounded.menu}"
+    row-height: "48px"
+  article-card:
+    rounded: "{rounded.card}"
+    padding: "13px 14px 14px"
+  reader-bar:
+    height: "56px"
+  reader-page:
+    maxWidth: "{spacing.reader-column}"
 ---
 
 # Design System: Molis Work Feed
 
 ## Overview
 
-**Creative North Star: "来源工作台"**
+**Creative North Star: "读的地方"**
 
-Feed 继承产品已确认的 Linear × coss.ui 中性色、连续内容面、细分隔线和共享控件。来源身份稳定留在左侧，消息、阅读、设置和捕捉规则占用同一个右侧工作面。视觉层级由空间、文字尺寸、选中底色和页签下划线表达。
+Feed 继承产品的 Soft Workbench（见根目录 DESIGN.md），并按已认可的原型做成「文章列 + 阅读页」：左侧一列文章卡片，右侧一张安静的阅读页。本文件的色值是历史记录，现行色值以 `palette.ts` 为准。
 
 这是已实现表面的局部设计记录（2026-09-24），不替代[根设计系统](../../../DESIGN.md)。表面任务策略、所有权及验证边界见[来源工作台记录](../../../.impeccable/surfaces/feed-source-workbench.md)。
 
 **Key Characteristics:**
 
-- 来源上下文持续可见，右侧围绕当前来源操作。
-- 平面列表与原位表单，主要操作使用共享按钮。
-- 轻量字重、可扫描的消息摘要、独立的阅读空间。
+- 左列回答「现在在看什么」：一个来源菜单、搜索与筛选、全部 · 未读 · 已保存，然后是一条时间线。
+- 右侧是阅读页：标题、署名、导语、正文，页尾写清去向和能做的事。
+- 来源的设置与捕捉规则在阅读侧原位打开，不另起弹窗。
 
 ## Colors
 
@@ -96,19 +97,17 @@ Feed 继承产品已确认的 Linear × coss.ui 中性色、连续内容面、�
 
 ## Typography
 
-字体继承共享 `--font`，中英文由 Inter Variable 与 Noto Sans SC 及系统回退组合。共享字体层统一常规字重；不在 Feed 用粗体制造新的层级。
+字体继承共享 `--font`（系统无衬线优先，Inter Variable 与 Noto Sans SC 只作离线后备）。字重按共享角色：标题 600、条目标题与控件 500、正文 400；不在 Feed 另造字重。
 
 来源标题、阅读标题、消息标题与辅助文案的角色值见前置 token。来源栏标题为（18px），表单标题为（17px），小节标题为（14px）；摘要行高为（1.6），多行输入为（1.65）。来源名称及摘要在列表中可截断，阅读正文完整展开，规则说明允许任意位置换行。数量使用等宽数字，便于纵向扫描。
 
 ## Layout
 
-桌面是左侧固定来源栏、右侧弹性内容的网格：`236px minmax(0, 1fr)`。右侧分为来源标题与页签、工具栏、列表；进入阅读或配置时，工作面占据工具栏以下区域。打开消息后隐藏列表和搜索，保留来源栏及来源标题；不会再增加第三个并排面板。
+桌面是两列网格：文章列 `clamp(300px, 30%, 360px)`（`--surface-soft`，右侧一条细线）与阅读侧 `minmax(0, 1fr)`。文章列自上而下：Feed 标题（22px / 600，右侧「立即拉取」只在选中单个来源时出现、「添加来源」常在）；来源菜单（44px 的一行，写明当前是全部消息还是某个来源及其状态、账号）；选中单个来源时出现「消息 · 来源设置 · 捕捉规则」三个页签；搜索框（36px，筛选与排序菜单在框内右侧）；「全部 · 未读 · 已保存」三段切换；一条按时间排列的卡片列表（卡片 4px 间距）；列脚写条数。
 
-消息行最小高度（78px），列宽为弹性正文、（108px）元信息、（78px）尾部区域。搜索高（32px）、最大宽（280px）。表单主体最大宽（700px），居中放在右工作面；主体单独滚动，底部动作区保持可见。阅读内边距为（24px 32px 40px），正文最大宽（76ch）。
+阅读侧空闲时居中写「选一条消息开始读」，不自动打开第一条（打开即记为已读）。打开后顶部是 56px 的阅读条（关闭、来源），页面滚动后才出现下边线；下面是最宽 700px 的阅读页。添加来源、来源设置与捕捉规则占据阅读侧，表单主体最宽 700px，底部动作区保持可见。
 
-窄屏依据 **Feed 容器宽度不大于（700px）** 切换，不能只按整个窗口判断：来源栏隐藏为可展开导航，展开宽度为 `min(260px, 85%)`；右侧各区域跨满网格，来源选择后收起导航。消息行改为弹性正文与（62px）尾列，隐藏时间，列表左右留白缩到（8px）。阅读内边距改为（20px 18px），表单主体改为（12px 18px 24px）。
-
-窄屏规则行按文案在上、启停与删除动作在下排列，按钮自适应宽度，避免挤压规则名称。窗口宽度不大于（760px）时页签和匹配模式按钮最小高度（44px）；容器窄屏规则动作也为（44px）。来源导航行最小高度从（58px）增至（60px）。移动来源开关当前为（32px）方形，不能把本实现表述为全部控件均达到 44px。
+窄屏依据 **Feed 容器宽度不大于 820px** 切换（不按整个窗口判断）：一次只显示一侧——文章列，或它打开的阅读页 / 设置；阅读条的关闭换成返回箭头。窗口不大于 760px 时来源菜单、页签、三段切换与阅读动作的点击目标加高到手机尺寸。
 
 ## Elevation & Depth
 
@@ -120,13 +119,15 @@ Feed 继承产品已确认的 Linear × coss.ui 中性色、连续内容面、�
 
 ## Components
 
-### 来源导航与页签
+### 来源菜单与页签
 
-来源行显示图标、名称、状态或账号、数量；选中项有底色与 `aria-current`。全部消息只显示消息页签，具体来源才显示来源设置、捕捉规则及拉取动作。页签使用原生按钮与当前页标记，来源开关带可访问名称及 `aria-expanded`。
+来源菜单是一个 disclosure：摘要行写当前范围；展开后列出「全部消息」和每个来源（图标、名称、状态或账号、数量），状态用图标加文字（已连接 ✓ / 未连接 ⚠），不只靠颜色。选中后菜单收起。菜单在外部点击、选中与 Esc 时关闭，与底栏菜单同一套规则。具体来源才显示来源设置、捕捉规则页签与「立即拉取」。
 
-### 消息与阅读
+### 文章卡片与阅读
 
-保留搜索、筛选和排序；阅读替换右侧列表，返回恢复当前来源及列表上下文。消息操作继续使用已有入箱、保存资料、升格 Goal、开始处理与忽略路径。加载失败显示文字和重试入口；空来源与筛选无结果使用不同提示。
+卡片：来源图标与名称、时间；标题（最多两行，未读时前面一个铜色小点，已读标题退一级墨色）；一行摘要；离开 Feed 的条目在底部写去向（已保存为资料的去向用完成色）。已读 / 未读文字仍保留给读屏。时间线默认最新在前，筛选菜单里的来源、类型、时间、状态与排序全部保留；「已保存」对应 saved 去向。
+
+阅读页：kicker（Feed 为铜色，其后是来源、读状态与去向）、标题 28px / 600、署名行（作者、时间、查看来源、打开原文）、导语（摘要，16px，下方一条细线）、正文 15px / 1.9、标签与附带资料，最后是页尾：左边写「当前去向」，右边是加入 Inbox、保存为资料、升格为 Goal、忽略。加载失败显示文字和重试入口；空来源、筛选为空、未读读完、没有已保存各有自己的说法，并给出「查看全部」或「添加来源」。
 
 ### 来源设置与添加
 
@@ -146,11 +147,13 @@ Feed 继承产品已确认的 Linear × coss.ui 中性色、连续内容面、�
 
 ### Do:
 
-- **Do** 保留左来源、右工作面的稳定关系；窄屏通过切换与导航展开处理空间。
+- **Do** 保留「左文章列、右阅读页」的关系；窄屏一次显示一侧。
 - **Do** 复用共享主题和控件，在相邻表单中保持相同的保存、取消和反馈语义。
 - **Do** 把预览结果与正式执行的后果写清楚，将实际验证范围记在表面记录中。
 
 ### Don't:
+
+- **Don't** 把来源重新做成常驻的第三列，或按来源把时间线切成折叠组。
 
 - **Don't** 把来源设置或规则编辑重新移回大模态弹窗。
 - **Don't** 把账号授权或 AI 判断定义复制到 Feed 数据层。

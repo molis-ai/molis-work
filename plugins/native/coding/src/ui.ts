@@ -376,7 +376,7 @@ function renderToolTab(tool: CodingToolAvailability, p: CodingUiPrimitives): str
 function renderToolPanel(tool: CodingToolAvailability, p: CodingUiPrimitives): string {
   if (!tool.available) {
     return `<div class="coding-tool-panel is-unavailable" data-coding-tool-panel="${tool.page}" hidden>
-      <div class="mw-empty">${p.icon("blocked")}<p>${p.escape(tool.reason ?? "这一页现在不可用")}</p></div>
+      <div class="mw-empty"><span class="mw-empty__mark">${p.icon("blocked")}</span><p>${p.escape(tool.reason ?? "这一页现在不可用")}</p></div>
     </div>`;
   }
   return `<div class="coding-tool-panel" data-coding-tool-panel="${tool.page}" hidden></div>`;

@@ -19,7 +19,8 @@ test("public status mounts prefer collection state, retain hooks and escape tran
   assert.match(visible, /data-state="current"/);
   assert.match(visible, /data-label="current"/);
   assert.match(visible, /等你/);
-  assert.equal(renderer.visibleGoalStatusIcon({ status: "executing", display_status: "waiting_user" }), icon("user"));
+  // Every state has one fixed glyph (spec → 第三轮 · 状态图标): "needs you" is CircleUserRound, not the bare person.
+  assert.equal(renderer.visibleGoalStatusIcon({ status: "executing", display_status: "waiting_user" }), icon("status-needs-you"));
   const untrusted = createWorkbenchGoalsStatusRenderer({ translate: () => 'Text "<unsafe>', escapeHtml, icon });
   const html = untrusted.renderStatus("waiting_for_human");
   assert.match(html, /title="Text &quot;&lt;unsafe&gt;"/);

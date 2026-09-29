@@ -371,7 +371,8 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /expandShelfStage/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-collapse/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /copy: "copy", hide: "x", down: "download", trash: "trash"/);
-  assert.match(SHELF_STYLES, /shelf-confirm-title \{[\s\S]*font-weight: 400/);
+  // Soft Workbench (DESIGN.md → Typography): the confirm heading takes the 600 title role.
+  assert.match(SHELF_STYLES, /shelf-confirm-title \{[^}]*font-weight: var\(--weight-title, 600\)/);
   assert.match(workbench, /data-shelf-confirm-out/);
   assert.match(workbench, /将生成 pdf.md。原文件保持不变。/);
   assert.match(SHELF_STYLES, /shelf-drop-frame/);
@@ -430,9 +431,14 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(SHELF_STYLES, /plugin-section\[data-plugin-section="shelf"\] > \.immersive-plugin-link \{[\s\S]*display: none !important;/);
   assert.doesNotMatch(SHELF_STYLES, /#5e6ad2|--focus:|filter: brightness/);
   const sheet = renderMolisWorkWorkbenchStylesheet();
-  assert.ok(sheet.indexOf(INTERACTION_TEXTURE_STYLES) < sheet.lastIndexOf("--da-accent: var(--content-accent)"));
+  // Soft Workbench (DESIGN.md → Plugin identity): Shelf keeps DropAgent structure on the shared tokens —
+  // graphite for its primary action, copper for focus, links and on-states.
+  assert.ok(sheet.indexOf(INTERACTION_TEXTURE_STYLES) < sheet.lastIndexOf("--da-action: var(--content-accent)"));
+  assert.match(SHELF_STYLES, /--da-accent: var\(--accent\);/);
+  assert.match(SHELF_STYLES, /\.shelf-primary \{[^}]*background: var\(--da-action\);/);
   assert.match(sheet, /\[data-plugin-id="shelf"\][\s\S]*--plugin-tint: var\(--plugin-shelf\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--content-accent: var\(--hue-slate\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /--content-accent: var\(--action\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /--content-side: var\(--surface-soft\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--mark-clay: #B27460;/);
   assert.match(INTERACTION_TEXTURE_STYLES, /data-resolved-theme="dark"[\s\S]*--hue-slate: #a6afd5;/);
   assert.match(INTERACTION_TEXTURE_STYLES, /data-resolved-theme="dark"[\s\S]*--mark-clay: #D29C87;/);

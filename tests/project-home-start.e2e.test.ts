@@ -108,11 +108,10 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   await waitFor("document.body.dataset.desktopSurface === 'goal'");
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
-  const homeStack = await evaluate<{ gap: number; dates: number }>("(()=>{const d=document.querySelector('.home-dates').getBoundingClientRect();const v=document.querySelector('.home-dayview').getBoundingClientRect();const l=document.querySelector('.home-launch').getBoundingClientRect();return {gap:Math.round(v.left-d.right),dates:Math.round(d.width)}})()");
-  // craft-finish: the date column is its own half-step desk column, flush against the day view (no gutter, no line).
-  assert.ok(homeStack.gap >= 0 && homeStack.gap <= 1, "day column sits flush beside the date column: " + homeStack.gap);
-  assert.notEqual(await evaluate("getComputedStyle(document.querySelector('.home-dates')).backgroundColor"), "rgba(0, 0, 0, 0)", "the date column carries its own surface");
-  assert.ok(homeStack.dates >= 90 && homeStack.dates <= 130, "date cards stay a narrow rail: " + homeStack.dates);
+  // Soft Workbench home (DESIGN.md → Home): the day strip runs across the top of the day column, and the margin
+  // (note and things at hand) sits beside that column on a wide home.
+  const homeStack = await evaluate<{ stripAbove: boolean; inColumn: boolean; marginBeside: boolean }>("(()=>{const d=document.querySelector('.home-dates').getBoundingClientRect();const list=document.querySelector('.home-tl').getBoundingClientRect();const m=document.querySelector('.home-margin').getBoundingClientRect();return {stripAbove:d.bottom<=list.top,inColumn:Math.abs(d.left-list.left)<2,marginBeside:m.left>=list.right}})()");
+  assert.deepEqual(homeStack, { stripAbove: true, inColumn: true, marginBeside: true });
   await mkdir(captures, { recursive: true });
   for (const [name, width, height, dark] of [["desktop", 1440, 1000, false], ["desktop-dark", 1440, 1000, true], ["user-1024", 1024, 768, false], ["user-1024-dark", 1024, 768, true], ["mobile", 390, 844, false], ["mobile-dark", 390, 844, true]] as const) {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);

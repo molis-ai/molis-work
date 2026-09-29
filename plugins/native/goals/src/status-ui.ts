@@ -5,29 +5,29 @@ import type { GoalsTreeItem } from "./tree-ui-model.js";
 import { visibleGoalStatus } from "./tree-presentation.js";
 import { createGoalStateExplainer, type GoalStatusTranslate } from "./goal-state-explanation.js";
 import { createGoalActionPresenter } from "./action-presentation.js";
-export type GoalStatusIcon = "waiting" | "user" | "tree" | "play" | "blocked" | "ready" | "completed" | "review" | "refresh" | "alert" | "archive" | "trash";
+export type GoalStatusIcon = "status-todo" | "status-progress" | "status-waiting" | "status-needs-you" | "status-blocked" | "status-done" | "status-cancelled" | "waiting" | "user" | "tree" | "play" | "blocked" | "ready" | "completed" | "review" | "refresh" | "alert" | "archive" | "trash";
 export interface GoalsStatusPrimitives {
     translate: GoalStatusTranslate;
     escapeHtml(value: string): string;
     icon(name: GoalStatusIcon): string;
 }
 const STATUS_ICONS: Record<GoalPresentationState, GoalStatusIcon> = {
-    waiting_for_human: "user",
-    executing: "play",
-    execution_blocked: "blocked",
-    execution_pending: "ready",
-    satisfied: "completed",
+    waiting_for_human: "status-needs-you",
+    executing: "status-progress",
+    execution_blocked: "status-blocked",
+    execution_pending: "status-todo",
+    satisfied: "status-done",
     invalidated: "alert",
     trashed: "trash",
     archived: "archive",
 };
 const DISPLAY_STATUS_ICONS: Record<GoalDisplayStatus, GoalStatusIcon> = {
-    continue: "ready",
-    in_progress: "play",
-    waiting_user: "user",
-    waiting: "waiting",
-    blocked: "blocked",
-    completed: "completed",
+    continue: "status-todo",
+    in_progress: "status-progress",
+    waiting_user: "status-needs-you",
+    waiting: "status-waiting",
+    blocked: "status-blocked",
+    completed: "status-done",
 };
 function createStatusRenderer(primitives: GoalsStatusPrimitives) {
     const { translate, escapeHtml, icon } = primitives;

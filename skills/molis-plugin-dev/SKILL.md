@@ -90,9 +90,9 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 | 人要的 | 用 | 不要用 |
 | --- | --- | --- |
-| 侧栏一级入口 | `ui.views` slot `navigator` + plugin-stage | 第二栏 dashboard、自绘壳 |
-| 不占侧栏的工具面 | slot `stage` | 硬塞进导航 |
-| 项目卡片上方的岛 | slot `island` | 当成普通插件条 |
+| 一级入口（底栏插件切换 / Dock） | `ui.views` slot `navigator` + plugin-stage | 第二栏 dashboard、自绘壳、全局侧栏 |
+| 不进插件切换的工具面 | slot `stage` | 硬塞进导航 |
+| 底栏右侧的个人常驻入口（岛） | slot `island` | 当成普通插件条 |
 | 当前项目关联目录 / 浏览目录 | `projectSettingsCapabilities`，Manifest 按项 consumes | 读其他插件 storage、Workspace ports、传 project_id |
 | 本机偏好 | `settings-page` → `workbench.settings` | 把 Feed 账号做成全局设置 |
 | 点按钮改数据 | HTTP + 已有 Module API 或私人库 | 抢 Module 的业务表 |
@@ -108,7 +108,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 - **一等 Native**：workspace 包 + catalog + Workbench pack + Host HTTP 与动作装配（+ i18n）。清单：[host.md](host.md)。
 - **一等 app**（Coding 族）：`createXPlugin` + Host `start()`（`coding-surface.ts` 一类），`start()` 必须兑现 Manifest 每一条 view/route/mcp/behavior。
 - **integration**：`definePollingIntegrationPlugin` + Connector Host；OAuth/secret 见 [integrations.md](integrations.md)。
-- **第三方 / 本地样例**：`molis-work plugin create` → `validate` → `dev` → `pack`。今天脚手架是 integration 样例，不是产品侧栏插件。
+- **第三方 / 本地样例**：`molis-work plugin create` → `validate` → `dev` → `pack`。今天脚手架是 integration 样例，不是产品一级入口插件。
 
 ## 禁止
 

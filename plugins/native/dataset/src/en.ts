@@ -1,4 +1,7 @@
 export const DATASET_EN: Record<string, string> = {
+  "列表暂时读不到": "The list could not be read",
+  "请稍后重试": "Try again in a moment",
+  "重试": "Retry",
   "重新读取": "Reload table",
   "重新读取会丢弃当前未保存的输入。继续吗？": "Reloading discards unsaved input. Continue?",
   "数据表已在别处修改，当前输入已保留。请复制需要保留的内容，再重新读取。": "This table changed elsewhere. Your input is preserved. Copy what you need to keep, then reload the table.",

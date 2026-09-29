@@ -164,16 +164,17 @@ molis-work-mcp
 
 ## 前端与控件板
 
-改工作台、插件或共享控件时，**视觉、动效、图标与色彩都是本切片的工作**，不是以后再说。编译过、测试绿、能点，都不等于做完。工艺底线见 [ui-craft-floor](../specs/ui-craft-floor/spec.md)；意图见 [DESIGN.md](../DESIGN.md)。
+改工作台、插件或共享控件时，**视觉、动效、图标与色彩都是本切片的工作**，不是以后再说。编译过、测试绿、能点，都不等于做完。工艺底线见 [ui-craft-floor](../specs/ui-craft-floor/spec.md)；视觉规范见 [DESIGN.md](../DESIGN.md)（Soft Workbench）。
 
 硬规则：
 
 - **不准把操作系统默认控件当成产品 UI。** 禁止系统下拉菜单、系统颜色选择器、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。选择打开后必须是 `mw-menu`，原生 `<select>` 只可隐藏当表单值。文件选择可隐藏原生 input，按钮必须是 `mw-btn`。原生 `<dialog>` 只留 Escape 和焦点圈，外观走 `mw-*`。详见 [mw-select-custom-menu](../specs/archive/mw-select-custom-menu/spec.md)。
-- **图标与色彩成套。** 动作图标从 Lucide 库取。插件身份走 `--plugin-tint`（轨、目录、空态、当前舞台）。状态走 status family。靛（`--blue` / `--focus`）只给链接、选区和进行中，不是焦点描边，也不是第二套按钮。不要第二套 emoji 图标，不要灰图标配随机强调色。
-- **动效成套，而且要做。** 只用 `--motion-*` / `--ease-*` 和已有位移（分段滑块、插件轨、目录 yield、`creative-arrive`）。状态变了要看得出走过去或到达，不要硬切。hover / press 是色阶，不是浮起。`prefers-reduced-motion` 去掉位移。不为动而动。
-- **键盘焦点**是内侧 1px `--ink`（`--focus-stroke`）。禁止 `outline: 2px solid var(--focus|blue)` 和 `0 0 0 2px var(--focus)`。详见 [neutral-focus-stroke](../specs/archive/neutral-focus-stroke/spec.md)。
+- **图标与色彩成套。** 动作图标从 Lucide 库取，色随表面（`--ink-soft`，当前 `--ink`）。插件没有身份色（`--plugin-*` 都是中性色）。石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）只给焦点、链接和进行中，不填按钮。状态走 status family。颜色、圆角、高度、时长只取 `palette.ts` 的 token，不写 hex，不用 `!important` 或按插件覆盖去压前面的层。不要第二套 emoji 图标。
+- **动效成套，而且要做。** 只用 `--dur-*`（按压 130、状态 250、到达 420）/ `--ease-quint` / `--ease-spring` 和已有位移（分段滑块、目录 yield、底栏菜单升起、`craft-rise` 到达）。状态变了要看得出走过去或到达，不要硬切。hover 是色阶，不是浮起；按下回弹。`prefers-reduced-motion` 去掉位移。不为动而动。
+- **键盘焦点**只用 `--focus-stroke`（2px 铜色、偏移 1px）；字段是铜色边框加 3px 铜色光晕。不要自己写焦点色，不要去掉焦点。旧的「内侧 1px ink」规则（[neutral-focus-stroke](../specs/archive/neutral-focus-stroke/spec.md)）已被 Soft Workbench 取代。
+- **字与层次。** 系统字体栈，字重只有 400 / 500 / 600（`--weight-body` / `--weight-control` / `--weight-title`），不准全局强制字重。工作都在一张连续白色工作面上，插件不画自己的外框卡片；只有浮起的东西投影。
 
-改共享控件、状态或微动效，先打开 `/__ui/catalog` 对照标本再动手。一次性草稿可以先写在业务里，**进产品主链前换成 `mw-*`，不得带着系统控件进去**。已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进 `packages/design-system` 的 Catalog。产品专属编排不必做成标本。用法见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。
+改共享控件、状态或微动效，先打开 `/__ui/catalog` 对照标本再动手（真实底栏在 `/__ui/catalog/bar`，组合示例在「组合」一节）。一次性草稿可以先写在业务里，**进产品主链前换成 `mw-*`，不得带着系统控件进去**。已经达到产品美学要求的共享控件、状态变体或微动效，**要**补进 `packages/design-system` 的 Catalog。产品专属编排不必做成标本。用法见 [design-system README](../packages/design-system/README.md)；平台分工见 [UI Platform](platform/UI-PLATFORM.md)。
 
 ## 开发验证
 

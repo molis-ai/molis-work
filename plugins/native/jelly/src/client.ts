@@ -25,6 +25,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const clockLabel = (minutes) => minutes === null || minutes === undefined ? '' : String(Math.floor(minutes/60)).padStart(2,'0') + ':' + String(minutes%60).padStart(2,'0');
   const parseClock = (value) => value ? Number(value.slice(0,2))*60+Number(value.slice(3,5)) : null;
   const tones = ['blue','green','amber','red','purple','teal','gray'];
+  // Stored category colours: these hex values identify a saved choice and must match existing data; the swatches draw from tokens.
   const toneColors={blue:'#5E6AD2',green:'#2D7A5A',amber:'#8A5C18',red:'#B03D45',purple:'#8B5CF6',teal:'#3D6F78',gray:'#737882'};
   const categoryTone = (category) => tones.find((tone)=>toneColors[tone].toLowerCase()===String(category?.color).toLowerCase())||'blue';
   const category = (id) => state?.categories.find((entry) => entry.id === id);

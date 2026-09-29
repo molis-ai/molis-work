@@ -23,7 +23,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   .top-action.is-current,
   a.top-action.is-current {
     color: var(--ink);
-    background: color-mix(in srgb, var(--ink) 6%, transparent);
+    background: var(--nav-active);
   }
   body[data-desktop-shell="true"] .app { grid-template-rows: 44px minmax(0, 1fr); }
   body[data-desktop-shell="true"] .topbar {
@@ -43,30 +43,30 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
     background: var(--rail);
   }
   .navigator-project {
-    padding: 13px 14px 8px;
+    padding: 12px 16px 8px;
     gap: 4px;
   }
   .navigator-project-primary > strong {
     color: var(--ink);
     font-size: 13px;
-    font-weight: 400;
+    font-weight: var(--weight-control, 500);
   }
   body[data-desktop-shell="true"] .desktop-pane-header--navigator {
     min-height: 30px;
-    padding-inline: 14px;
+    padding-inline: 16px;
   }
   body[data-desktop-shell="true"] .desktop-pane-header--navigator strong {
     color: var(--faint);
-    font-size: 10px;
-    font-weight: 400;
+    font-size: 11px;
+    font-weight: var(--weight-control, 500);
     letter-spacing: .035em;
   }
   body[data-desktop-shell="true"] .tree-pane {
     grid-template-rows: auto 30px auto minmax(0, 1fr) 42px;
   }
 
-  .tree-chrome { padding: 7px 10px 9px; }
-  body[data-desktop-shell="true"] .tree-chrome { padding: 7px 12px 9px; }
+  .tree-chrome { padding: 8px 12px 8px; }
+  body[data-desktop-shell="true"] .tree-chrome { padding: 8px 12px 8px; }
   .tree-search input,
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]),
   textarea:not(.mw-textarea),
@@ -77,7 +77,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
     color: var(--ink);
     box-shadow: inset 0 0 0 1px var(--line);
   }
-  .tree-search input { height: 32px; padding-inline: 30px 46px; }
+  .tree-search input { height: 32px; padding-inline: 32px 48px; }
   .tree-search kbd {
     border: 0;
     border-radius: 5px;
@@ -85,7 +85,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   }
   .navigator-view-switch,
   .workbench-switch {
-    padding: 2px;
+    padding: 4px;
     border: 0;
     border-radius: var(--radius-control);
     background: color-mix(in srgb, var(--ink) 5%, transparent);
@@ -96,7 +96,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   .workbench-switch button.is-active {
     color: var(--ink);
     background: var(--paper);
-    box-shadow: 0 1px 3px rgba(28, 29, 26, .08);
+    box-shadow: var(--lift-1);
   }
   .tree-tool,
   a.tree-tool {
@@ -109,27 +109,27 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   a.tree-tool:hover {
     border-color: transparent;
     color: var(--ink);
-    background: color-mix(in srgb, var(--ink) 6%, transparent);
+    background: var(--nav-hover);
   }
-  .tree-scroll { padding-inline: 10px; }
+  .tree-scroll { padding-inline: 12px; }
   .tree-children { border-left-color: color-mix(in srgb, var(--ink) 9%, transparent); }
   .tree-node,
   .navigator-goal-row { border-radius: var(--radius-item); }
   .tree-node:hover,
-  .navigator-goal-row:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+  .navigator-goal-row:hover { background: var(--nav-hover); }
   .tree-node.is-selected,
   .navigator-goal-row.is-selected {
     color: var(--ink);
-    background: color-mix(in srgb, var(--ink) 7%, transparent);
+    background: var(--nav-active);
     box-shadow: none;
   }
   .tree-node.is-selected .tree-copy small { color: var(--muted); }
   .navigator-goal-row.is-selected .navigator-goal-leading { color: var(--ink); }
   .navigator-group { border-bottom-color: transparent; }
-  .navigator-group + .navigator-group { margin-top: 3px; }
+  .navigator-group + .navigator-group { margin-top: 4px; }
   .navigator-group > header { height: 36px; }
   .navigator-group > header strong { color: var(--muted); letter-spacing: .025em; }
-  .tree-footer { padding-inline: 14px; color: var(--muted); }
+  .tree-footer { padding-inline: 16px; color: var(--muted); }
 
   .tree-resizer,
   .tui-resizer { background: var(--page); }
@@ -146,11 +146,11 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   body[data-desktop-shell="true"] .goal-document {
     width: min(100%, 980px);
     margin-inline: auto;
-    padding: 30px clamp(28px, 3.2vw, 48px) 68px;
+    padding: 32px clamp(28px, 3.2vw, 48px) 68px;
   }
-  body[data-desktop-shell="true"] .goal-header { padding-bottom: 20px; }
+  body[data-desktop-shell="true"] .goal-header { padding-bottom: 24px; }
   body[data-desktop-shell="true"] .goal-title-row h1 {
-    font-size: clamp(25px, 2vw, 31px);
+    font-size: 24px;
     line-height: 1.18;
     letter-spacing: -.032em;
   }
@@ -164,43 +164,23 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   .goal-more > summary:hover {
     border-color: transparent;
     color: var(--ink);
-    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    background: var(--nav-hover);
   }
   .goal-focus-outcome,
   .goal-now,
   .goal-focus-criteria,
   .goal-focus-context,
   .document-section { border-bottom-color: color-mix(in srgb, var(--line) 78%, transparent); }
-  .goal-focus-outcome { padding-block: 25px 24px; }
+  .goal-focus-outcome { padding-block: 24px 24px; }
   .goal-focus-outcome > span { color: var(--ink-soft); }
   .goal-focus-outcome p { max-width: 72ch; color: var(--ink); }
-  .goal-now { padding-block: 23px; }
-  .mw-btn--primary {
-    border-color: var(--action) !important;
-    border-radius: var(--radius-control) !important;
-    background: var(--action) !important;
-    color: var(--action-ink) !important;
-    box-shadow: none !important;
-  }
-  .mw-btn--primary:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--action) 90%, var(--action-ink)) !important;
-    color: var(--action-ink) !important;
-    opacity: 1;
-  }
-  .mw-btn--danger {
-    border-color: var(--danger-action) !important;
-    background: var(--danger-action) !important;
-    color: var(--danger-action-ink) !important;
-  }
-  .mw-btn--danger:hover {
-    background: color-mix(in srgb, var(--danger-action) 90%, var(--danger-action-ink)) !important;
-    color: var(--danger-action-ink) !important;
-  }
+  .goal-now { padding-block: 24px; }
+  /* Button fills belong to the shared primitives (primitives.ts); this layer no longer restates them. */
   .goal-now-blockers { border-top-color: var(--line); }
   .goal-focus-criteria li,
   .goal-focus-context dl > div { border-top-color: color-mix(in srgb, var(--line) 78%, transparent); }
   .goal-focus-context dl {
-    padding-block: 3px;
+    padding-block: 4px;
     border-top: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
   }
@@ -218,7 +198,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   .theme-menu button { border-radius: 8px; }
   .theme-menu button[aria-pressed="true"] {
     color: var(--ink);
-    background: color-mix(in srgb, var(--ink) 6%, transparent);
+    background: var(--nav-active);
   }
   .tui-pane,
   .tui-tabs,
@@ -234,13 +214,13 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   .settings-content { background: var(--page); }
   .settings-navigation {
     margin: 8px 0 8px 8px;
-    padding: 16px 10px;
+    padding: 16px 12px;
     border: 0;
     border-radius: var(--radius-surface) 0 0 var(--radius-surface);
     background: var(--rail);
   }
   .settings-navigation a { border-radius: 8px; }
-  .settings-navigation a:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+  .settings-navigation a:hover { background: var(--nav-hover); }
   .settings-navigation a[aria-current="page"] {
     color: var(--ink);
     background: color-mix(in srgb, var(--ink) 7%, transparent);
@@ -256,7 +236,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
     margin-left: 8px;
     border-radius: var(--radius-surface);
   }
-  .settings-document { padding: 44px clamp(30px, 4vw, 56px) 84px; }
+  .settings-document { padding: 48px clamp(30px, 4vw, 56px) 84px; }
   .settings-heading { border-bottom-color: var(--line); }
   .preference-option {
     min-height: 88px;
@@ -289,11 +269,11 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   .service-action-row .mw-btn:hover {
     border-color: var(--line-strong);
     color: var(--ink);
-    background: color-mix(in srgb, var(--ink) 5%, var(--paper));
+    background: var(--nav-hover);
   }
   .project-rules-intro {
-    margin: 22px 0 18px;
-    padding: 0 0 22px;
+    margin: 24px 0 16px;
+    padding: 0 0 24px;
     border: 0;
     border-bottom: 1px solid var(--line);
     border-radius: 0;
@@ -301,7 +281,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
   }
   .project-rules-intro ol { gap: 0; }
   .project-rules-intro li {
-    padding: 9px 14px;
+    padding: 8px 16px;
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -348,7 +328,7 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
     color: var(--ink-soft);
     font-weight: 400;
   }
-  .project-list a:hover { background: color-mix(in srgb, var(--ink) 5%, var(--paper)); }
+  .project-list a:hover { background: var(--nav-hover); }
   .project-list a:hover svg { color: var(--ink); }
   .project-index-note { background: color-mix(in srgb, var(--paper) 42%, var(--rail)); }
   .project-index-start a { border-radius: var(--radius-control); }
@@ -384,9 +364,9 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
     }
     html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .goal-document {
       width: min(100%, 1120px);
-      padding: 14px 24px 36px;
+      padding: 16px 24px 32px;
     }
-    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-project { padding: 7px 9px 5px; }
+    html[data-density="compact"] body[data-board-view]:not([data-board-view="decisions"]) .navigator-project { padding: 8px 8px 4px; }
   }
 
   @media (max-width: 760px) {

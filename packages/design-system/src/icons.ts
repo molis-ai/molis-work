@@ -24,8 +24,10 @@ import {
   Circle,
   CircleAlert,
   CircleDot,
+  CircleEllipsis,
   CircleHelp,
   CirclePlay,
+  CircleUserRound,
   CircleX,
   ClipboardCheck,
   Clock3,
@@ -116,9 +118,22 @@ import {
   X,
   Zap,
   type IconNode,
+  FlaskConical,
+  Presentation,
 } from "lucide";
 
 const ICONS = {
+  /* Plugin identities that must not share a glyph with another plugin or with the AI mark. */
+  presentation: Presentation,
+  flask: FlaskConical,
+  /* One fixed glyph per state, one circle family, everywhere a state is shown (colour comes from the tone). */
+  "status-todo": Circle,
+  "status-progress": CirclePlay,
+  "status-waiting": CircleEllipsis,
+  "status-needs-you": CircleUserRound,
+  "status-blocked": Ban,
+  "status-done": CheckCircle2,
+  "status-cancelled": CircleX,
   accepted: BadgeCheck,
   activity: Activity,
   alert: AlertTriangle,
@@ -242,6 +257,29 @@ const ICONS = {
 
 export type MolisWorkIcon = keyof typeof ICONS;
 
+/**
+ * Each plugin's one glyph: the Dock, the plugin switcher, tabs, the market, empty states and search all draw this one.
+ * The Manifests are the source; a test holds this map to them and keeps every glyph unique.
+ */
+export const PLUGIN_ICON = {
+  home: "home", goals: "target", sessions: "terminal", inbox: "inbox", feed: "rss", schedule: "timer",
+  workflows: "workflow", pages: "note", form: "clipboard", dataset: "database", ppt: "presentation",
+  artifacts: "package", images: "image", jelly: "calendar", cognia: "book", shelf: "library", lingguang: "idea",
+  coding: "code", characters: "user", experiments: "flask", alchemist: "zap", "plugin-builder": "wand", market: "grid",
+  files: "folder-tree", git: "git-branch", diff: "git-compare", "text-stats": "hash",
+} as const satisfies Record<string, MolisWorkIcon>;
+
+/** The fixed glyph for each state, shared by every plugin that shows one (DESIGN.md → Iconography). */
+export const STATUS_ICON = {
+  todo: "status-todo",
+  progress: "status-progress",
+  waiting: "status-waiting",
+  "needs-you": "status-needs-you",
+  blocked: "status-blocked",
+  done: "status-done",
+  cancelled: "status-cancelled",
+} as const satisfies Record<string, MolisWorkIcon>;
+
 export const ICON_LIBRARY: ReadonlyArray<{ id: string; label: string; icons: readonly MolisWorkIcon[] }> = [
   {
     id: "chrome",
@@ -266,7 +304,7 @@ export const ICON_LIBRARY: ReadonlyArray<{ id: string; label: string; icons: rea
     label: "对象",
     icons: [
       "inbox", "mail", "calendar", "bookmark", "flag", "star", "tag", "hash", "link", "paperclip",
-      "file", "note", "folder", "folder-open", "folder-tree", "image", "book", "library", "database", "code", "terminal",
+      "file", "note", "folder", "folder-open", "folder-tree", "image", "presentation", "book", "flask", "library", "database", "code", "terminal",
       "message", "user", "review", "target", "tree", "git-branch", "git-compare", "workflow", "network", "globe", "rss", "cloud",
       "package", "key", "lock", "shield", "brand", "claim", "clipboard", "evidence", "impact", "input",
       "output", "history", "archive", "system", "sun", "moon", "tune", "switch",
@@ -276,6 +314,7 @@ export const ICON_LIBRARY: ReadonlyArray<{ id: string; label: string; icons: rea
     id: "status",
     label: "状态",
     icons: [
+      "status-todo", "status-progress", "status-waiting", "status-needs-you", "status-blocked", "status-done", "status-cancelled",
       "info", "alert", "circle-alert", "question", "clock", "waiting", "ready", "activity",
       "bell", "sparkles", "wand", "zap", "timer", "bug", "idea", "circle", "dot", "accepted", "completed",
       "blocked", "rejected", "risk",

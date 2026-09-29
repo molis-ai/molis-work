@@ -1,8 +1,7 @@
 /** Host layout only. Chat facts and drafts belong to im-ui and the shared server. */
 export const DISCUSSION_SPLIT_STYLES = String.raw`
-html body.immersive-workbench:not([data-pane-embedded]) [data-plugin-stage]{transition:margin-right 340ms cubic-bezier(.22,1,.36,1),margin-bottom 340ms cubic-bezier(.22,1,.36,1)}
 html body.immersive-workbench[data-discussion-open=true] [data-plugin-stage]{margin-right:calc(var(--discussion-size,35vw) + 8px)}
-html body.immersive-workbench #dock-window-im{position:fixed;display:flex;flex-direction:column;inset:calc(var(--desktop-titlebar-height,32px) + 0px) 8px calc(var(--dock-h,48px) + 8px) auto;width:var(--discussion-size,35vw);height:auto;z-index:10;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:none;animation:none;opacity:0;transform:translateX(24px);transition:opacity 220ms ease,transform 340ms cubic-bezier(.22,1,.36,1),width 340ms cubic-bezier(.22,1,.36,1);pointer-events:none}
+html body.immersive-workbench #dock-window-im{position:fixed;display:flex;flex-direction:column;inset:calc(var(--desktop-titlebar-height,32px) + 0px) 8px calc(var(--dock-h,48px) + 8px) auto;width:var(--discussion-size,35vw);height:auto;z-index:10;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:none;animation:none;opacity:0;transform:translateX(24px);transition:opacity 250ms var(--ease-quint), transform 420ms var(--ease-quint);pointer-events:none}
 html body.immersive-workbench #dock-window-im[hidden]{display:none}
 html body.immersive-workbench[data-discussion-open=true] #dock-window-im{opacity:1;transform:none;pointer-events:auto}
 html body.immersive-workbench #dock-window-im>.dock-window-head{display:none}

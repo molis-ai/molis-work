@@ -2,7 +2,7 @@
 
 写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 走完整路径：对象与时刻 → Manifest → UI/客户端 → HTTP → 现场动作 → 判断场景 → MCP → Artifact / 事件 / ports → 按 kind 接到 Host 或 CLI。本文件是命令、MCP 登记、动作录取和打包的手册，不替代那份顺序。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
 
-Native 新工作面除 catalog / Workbench pack 外，还需 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts` 的实际 mount 和页面调用；否则侧栏可见但正文为空。
+Native 新工作面除 catalog / Workbench pack 外，还需 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts` 的实际 mount 和页面调用；否则底栏插件切换器里可见但正文为空。
 
 平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
@@ -23,7 +23,7 @@ Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plug
 `skills/molis-plugin-dev` 是做插件的唯一标准：官方插件（人或编码 Agent 手写）按它写，插件创作台生成插件时，主线设计与代码 Agent 在运行时经 Prologue 挂载它（设计阶段挂 `process.md`、`generated-design.md`、`generated-ai.md`、`ui.md` 的质量线与 `capabilities.md`；代码阶段挂 `generated-code.md`、`generated-ai.md` 与 `capabilities.md`；版本取正文摘要，写进每次运行的 promptVersion）。
 
 - 交付流程与每步做完的标准：`process.md`（按模型能力伸缩：能出图就给效果图，能读图就加截图走查）。
-- 质量线（所有插件）：`ui.md#质量线所有插件`——只用 UI 目录组件、三态、一处主操作、token 配色、不重复插件名大标题。
+- 质量线（所有插件）：`ui.md#质量线所有插件`——只用 UI 目录组件、三态、一处主操作、token 配色、不重复插件名大标题。视觉统一按 [DESIGN.md](../../DESIGN.md) 的 Soft Workbench：插件画在同一张连续白色工作面里，不画自己的外框卡片、不带身份色；石墨主操作、铜色焦点与链接、字重 400/500/600；全局入口在底栏（Dock 与插件切换器），`navigator` Slot id 保留，没有全局侧栏。
 - 能力：`capabilities.md`——统一动作服务是唯一目录；动作写清 `effect`（read / write / irreversible），带 `agent` 受众的可逆动作自动对生成插件开放，`plugin: false` 可退出。
 
 生成插件从能力到安装：

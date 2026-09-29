@@ -37,20 +37,20 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       gap: 8px;
       color: var(--ink);
     }
-    .personal-sidebar-brand svg { width: 17px; height: 17px; color: var(--ink); }
-    .personal-sidebar-brand strong { font-size: 15px; font-weight: 400; letter-spacing: -.025em; }
+    .personal-sidebar-brand svg { width: 16px; height: 16px; color: var(--ink); }
+    .personal-sidebar-brand strong { font-size: 15px; font-weight: var(--weight-control, 500); letter-spacing: -.025em; }
 
     .personal-space-context {
       min-width: 0;
       min-height: 54px;
-      margin: 4px 8px 10px;
-      padding: 9px 10px;
+      margin: 4px 8px 12px;
+      padding: 8px 12px;
       border: 1px solid var(--line);
       border-radius: 10px;
       display: grid;
       grid-template-columns: 30px minmax(0, 1fr) auto;
       align-items: center;
-      gap: 9px;
+      gap: 8px;
       background: color-mix(in srgb, var(--paper) 62%, var(--rail));
     }
     .personal-space-mark {
@@ -63,44 +63,44 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       background: var(--paper);
       box-shadow: inset 0 0 0 1px var(--line);
     }
-    .personal-space-mark svg { width: 15px; height: 15px; }
+    .personal-space-mark svg { width: 16px; height: 16px; }
     .personal-space-copy { min-width: 0; display: grid; gap: 1px; }
     .personal-space-copy strong {
       overflow: hidden;
       color: var(--ink);
       font-size: 12px;
-      font-weight: 400;
+      font-weight: var(--weight-control, 500);
       letter-spacing: -.01em;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .personal-space-copy small { color: var(--muted); font-size: 10px; }
+    .personal-space-copy small { color: var(--muted); font-size: 11px; }
     .personal-space-state {
-      padding: 2px 5px;
+      padding: 4px 4px;
       border-radius: 5px;
       color: var(--muted);
       background: var(--rail);
-      font-size: 9px;
+      font-size: 11px;
       font-weight: 400;
     }
 
     .personal-new-goal {
       min-height: 38px;
       margin: 0 8px 12px;
-      padding: 0 11px;
+      padding: 0 12px;
       border: 0;
       border-radius: 8px;
       display: flex;
       align-items: center;
-      gap: 9px;
+      gap: 8px;
       color: var(--action-ink);
       background: var(--action);
       font-size: 12px;
       font-weight: 400;
       cursor: pointer;
-      transition: opacity .18s ease, transform .18s cubic-bezier(.16, 1, .3, 1);
+      transition: opacity 130ms var(--ease-quint), transform 130ms var(--ease-quint);
     }
-    .personal-new-goal svg { width: 15px; height: 15px; }
+    .personal-new-goal svg { width: 16px; height: 16px; }
     .personal-new-goal:hover { opacity: .9; transform: translateY(-1px); }
     .personal-new-goal:active { transform: translateY(0); }
 
@@ -109,12 +109,12 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       min-width: 0;
       padding: 0 8px;
       display: grid;
-      gap: 2px;
+      gap: 4px;
     }
-    .personal-primary-nav { padding-bottom: 10px; }
+    .personal-primary-nav { padding-bottom: 12px; }
     .personal-utility-nav {
       margin: 0 8px;
-      padding: 9px 0 10px;
+      padding: 8px 0 12px;
       border-top: 1px solid var(--line);
       border-bottom: 1px solid var(--line);
     }
@@ -122,7 +122,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       width: 100%;
       min-width: 0;
       min-height: 34px;
-      padding: 0 9px;
+      padding: 0 8px;
       border: 0;
       border-radius: 7px;
       display: grid;
@@ -138,7 +138,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
     a.personal-nav-item,
     button.personal-nav-item { cursor: pointer; }
     a.personal-nav-item:hover,
-    button.personal-nav-item:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+    button.personal-nav-item:hover { color: var(--ink); background: var(--nav-hover); }
     .personal-nav-item.is-current {
       color: var(--ink);
       background: color-mix(in srgb, var(--paper) 72%, var(--rail));
@@ -156,14 +156,14 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
     .personal-nav-item > strong {
       min-width: 19px;
       min-height: 19px;
-      padding: 0 5px;
+      padding: 0 4px;
       border-radius: 5px;
       display: grid;
       place-items: center;
       color: var(--muted);
       background: color-mix(in srgb, var(--ink) 5%, transparent);
-      font-size: 10px;
-      font-weight: 400;
+      font-size: 11px;
+      font-weight: var(--weight-control, 500);
     }
     .personal-nav-item.has-pending > strong { color: var(--blue-dark); background: var(--blue-soft); }
     .personal-nav-item kbd {
@@ -178,7 +178,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
     .personal-nav-item.is-planned > small,
     .personal-nav-item.is-planned > em {
       color: var(--faint);
-      font-size: 9px;
+      font-size: 11px;
       font-style: normal;
       white-space: nowrap;
     }
@@ -189,19 +189,19 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
     .personal-recent-projects {
       min-width: 0;
       min-height: 0;
-      padding: 17px 8px 10px;
+      padding: 16px 8px 12px;
       align-self: start;
     }
     .personal-recent-projects h2 {
-      margin: 0 9px 7px;
+      margin: 0 8px 8px;
       color: var(--faint);
-      font-size: 10px;
-      font-weight: 400;
+      font-size: 11px;
+      font-weight: var(--weight-title, 600);
     }
     .personal-project-link {
       min-width: 0;
       min-height: 32px;
-      padding: 0 9px;
+      padding: 0 8px;
       border-radius: 7px;
       display: grid;
       grid-template-columns: 16px minmax(0, 1fr);
@@ -210,7 +210,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       color: var(--ink-soft);
       text-decoration: none;
     }
-    .personal-project-link:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+    .personal-project-link:hover { color: var(--ink); background: var(--nav-hover); }
     .personal-project-link svg { width: 14px; height: 14px; }
     .personal-project-link span {
       min-width: 0;
@@ -223,14 +223,14 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
 
     .personal-sidebar-footer {
       min-width: 0;
-      padding: 10px 8px 2px;
+      padding: 12px 8px 4px;
       border-top: 1px solid var(--line);
       display: grid;
-      gap: 7px;
+      gap: 8px;
     }
     .personal-settings-link {
       min-height: 32px;
-      padding: 0 9px;
+      padding: 0 8px;
       border-radius: 7px;
       display: flex;
       align-items: center;
@@ -240,21 +240,21 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       font-weight: 400;
       text-decoration: none;
     }
-    .personal-settings-link:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
-    .personal-settings-link svg { width: 15px; height: 15px; }
+    .personal-settings-link:hover { color: var(--ink); background: var(--nav-hover); }
+    .personal-settings-link svg { width: 16px; height: 16px; }
     .personal-local-state {
       min-width: 0;
-      padding: 4px 9px 0;
+      padding: 4px 8px 0;
       display: grid;
       grid-template-columns: 15px minmax(0, 1fr);
       align-items: start;
       gap: 8px;
       color: var(--muted);
     }
-    .personal-local-state > svg { width: 14px; height: 14px; margin-top: 2px; }
+    .personal-local-state > svg { width: 14px; height: 14px; margin-top: 4px; }
     .personal-local-state > span { min-width: 0; display: grid; gap: 1px; }
-    .personal-local-state strong { color: var(--ink-soft); font-size: 10px; font-weight: 400; }
-    .personal-local-state small { overflow: hidden; color: var(--faint); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+    .personal-local-state strong { color: var(--ink-soft); font-size: 11px; font-weight: var(--weight-control, 500); }
+    .personal-local-state small { overflow: hidden; color: var(--faint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 
     body[data-desktop-shell="true"]:not(.settings-page) .topbar {
       min-width: 0;
@@ -276,7 +276,7 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       min-height: 55px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
     .desktop-project-mark {
       width: 30px;
@@ -287,47 +287,47 @@ export const PERSONAL_SHELL_STYLES = `  /* Personal workspace shell. The applica
       color: var(--ink-soft);
       background: var(--rail);
     }
-    .desktop-project-mark svg { width: 15px; height: 15px; }
+    .desktop-project-mark svg { width: 16px; height: 16px; }
     .desktop-project-copy { min-width: 0; max-width: min(30vw, 360px); display: grid; gap: 0; }
-    .desktop-project-copy small { color: var(--faint); font-size: 9px; }
+    .desktop-project-copy small { color: var(--faint); font-size: 11px; }
     .desktop-project-copy strong {
       min-width: 0;
       overflow: hidden;
       color: var(--ink);
       font-size: 13px;
-      font-weight: 400;
+      font-weight: var(--weight-control, 500);
       letter-spacing: -.015em;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     .desktop-project-sync {
       min-height: 22px;
-      padding: 0 7px;
+      padding: 0 8px;
       border-radius: 5px;
       display: inline-flex;
       align-items: center;
       color: var(--green);
       background: var(--green-soft);
-      font-size: 9px;
+      font-size: 11px;
       font-weight: 400;
       white-space: nowrap;
     }
     .desktop-project-sync.is-syncing { color: var(--blue-dark); background: var(--blue-soft); }
     .desktop-project-sync.is-offline { color: var(--amber); background: var(--amber-soft); }
-    .desktop-project-actions { display: flex; align-items: center; gap: 2px; }
+    .desktop-project-actions { display: flex; align-items: center; gap: 4px; }
     .desktop-project-actions a {
       min-height: 30px;
       padding: 0 8px;
       border-radius: 7px;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
       color: var(--muted);
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 400;
       text-decoration: none;
     }
-    .desktop-project-actions a:hover { color: var(--ink); background: var(--rail); }
+    .desktop-project-actions a:hover { color: var(--ink); background: var(--nav-hover); }
     .desktop-project-actions svg { width: 14px; height: 14px; }
 
     body[data-desktop-shell="true"] .mobile-switch { display: none; }

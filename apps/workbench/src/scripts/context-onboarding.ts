@@ -35,9 +35,6 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const recapText = () => L('已选')+' '+picked().length+' '+L('个来源')+' · '+readable().length+' '+L('个已就绪');
   const preparationHint = () => L('勾选不会读取正文。下一步逐项授权，再预览本次内容。');
   function sourceIcon(kind) { return kind === 'gmail' ? document.getElementById('cx-gmail-icon').innerHTML : icon(icons[kind]); }
-  function intro(step) {
-    return '<aside class="cx-intro"><h1>' + (step === 1 ? L('让零散的内容，') + '<br>' + L('慢慢连起来。') : L('从你正在做的事') + '<br>' + L('开始。')) + '</h1><p>' + L('带上文件、网页和工作往来，Molis 帮你整理背景、进展与下一步。') + '</p><ol class="cx-steps">' + ['选择来源','预览内容','整理与采用'].map((s,i) => '<li class="' + (step === i ? 'current' : '') + '"><span class="cx-step">' + (i+1) + '</span>' + L(s) + '</li>').join('') + '</ol><div class="cx-trust">' + icon('shield') + '<span>' + L(preparing?'正在准备 '+preparing:'只读取清单中选中的范围。') + '<br>' + L('原文件与消息保持原样。') + '</span></div></aside>';
-  }
   function hint(s) {
     if (s.references?.length) return s.references.length+' '+L('份正文已暂存；沿用本次快照');
     if(directory(s)) return grants[s.kind]?.path || L({downloads:'最近下载的工作文件',documents:'保存在文稿中的笔记和资料',desktop:'桌面上正在处理的内容',custom:'选择一个明确的工作文件夹'}[s.kind]);
@@ -56,23 +53,91 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     else content = '<label for="cx-upload-'+s.kind+'">'+L(s.kind==='directory'?'选择文件夹':s.kind==='chat'?'选择聊天导出文件':'选择文件')+'</label><input id="cx-upload-'+s.kind+'" type="file" multiple '+(s.kind==='directory'?'webkitdirectory directory':'accept=".md,.markdown,.txt,.csv,.json,.html,.htm,.pdf,.docx"')+' data-upload="'+s.kind+'"><div class="cx-file-list">'+esc((s.files||[]).map(f=>f.path).join('\n'))+'</div><p>'+L(s.kind==='chat'?'当前支持导出的文本；飞书 / Slack 会话正文的直接连接还未接入。':'最多 50 份、总大小 6 MB。先预览文件名，开始后读取正文；PDF 读取文本层，Word 读取正文。')+'</p>';
     return '<div class="cx-scope" id="cx-scope-'+s.kind+'"><div>'+content+'</div></div>';
   }
+  const firstRun = document.body.dataset.onboardingMode === 'first_run';
+  const introKey = 'molis-work:onboarding-intro';
+  const still = navigator.webdriver === true;
+  const readIntro = () => { try { return localStorage.getItem(introKey); } catch { return null; } };
+  let introStep = null;
+  if (firstRun && readIntro() !== 'done') { let saved = null; try { saved = sessionStorage.getItem(introKey); } catch {} introStep = saved === 'appearance' ? 'appearance' : 'language'; }
+  const setIntro = next => { introStep = next; try { if (next) sessionStorage.setItem(introKey, next); else { sessionStorage.removeItem(introKey); localStorage.setItem(introKey, 'done'); } } catch {} };
+  const steps = () => firstRun ? ['语言','外观','来源','确认','整理','开始'] : ['来源','确认','整理','开始'];
+  let lastView = null, lastIndex = -1, lastPicked = new Set();
+  function progress(current) {
+    return '<ol class="ob-progress" aria-label="'+L('引导进度')+'">'+steps().map((label,i)=>'<li class="'+(i<current?'complete':'')+'"'+(i===current?' aria-current="step"':'')+'><span aria-hidden="true"></span><b class="ob-sr">'+L(label)+(i<current?' · '+L('已完成'):'')+'</b></li>').join('')+'</ol>';
+  }
+  function frame(step, view, question, scene, actions, wide) {
+    return '<div class="ob-content'+(wide?' is-wide':'')+'" data-ob-step="'+step+'" data-ob-view="'+view+'"><section class="ob-question">'+question+'</section>'+(scene?'<aside class="ob-preview" aria-hidden="true">'+scene+'</aside>':'')+'</div><footer class="ob-footer">'+progress(steps().indexOf(step))+'<div class="ob-footer-actions">'+actions+'</div></footer>';
+  }
+  const title = text => '<h1 id="ob-title" tabindex="-1">'+text+'</h1>';
+  const check = '<span class="mw-choice__check" aria-hidden="true">'+icon('check')+'</span>';
+  const introBack = () => firstRun ? '<button type="button" class="ob-back" data-action="intro-back">'+L('上一步')+'</button>' : '';
+  function docState(s) { return s.error ? 'failed' : s.references?.length ? 'done' : ready(s) ? 'ready' : 'pending'; }
+  function docLabel(s) { return s.error ? '未读取' : s.references?.length ? '已读取' : journey.phase==='reading' ? '等待中' : sourceStatus(s); }
+  function projectScene(name, state, list = picked()) {
+    const shown = list.slice(0, 4);
+    const cards = shown.map((s,i)=>'<div class="ob-doc'+(lastPicked.has(s.kind)?'':' is-new')+'" style="--i:'+i+'" data-kind="'+s.kind+'" data-state="'+docState(s)+'">'+sourceIcon(s.kind)+'<span><b>'+L(names[s.kind])+'</b><small>'+L(docLabel(s))+'</small></span></div>').join('');
+    return '<div class="ob-scene" data-count="'+Math.min(list.length,4)+'"><div class="ob-docs">'+cards+(list.length>4?'<div class="ob-doc ob-doc--more" style="--i:4">+'+(list.length-4)+'</div>':'')+'</div><div class="ob-folder">'+icon('folder')+'<strong class="ob-project-name">'+esc(name)+'</strong><small>'+esc(state)+'</small></div></div>';
+  }
+  function language() {
+    const current = String(document.documentElement.lang || 'zh').toLowerCase().startsWith('en') ? 'en' : 'zh';
+    const next = encodeURIComponent(location.pathname + location.search);
+    const option = (value, label) => '<a class="mw-choice" data-slot="choice" href="/locale?lang='+value+'&next='+next+'" lang="'+value+'" hreflang="'+value+'"'+(current===value?' aria-current="true"':'')+'><span class="mw-choice__label">'+label+'</span>'+check+'</a>';
+    return frame('语言','language', title(L('语言'))+'<p>'+L('用你最熟悉的语言开始。之后可以在设置里随时更改。')+'</p><div class="ob-options" role="group" aria-label="'+L('界面语言')+'">'+option('zh','简体中文')+option('en','English')+'</div>',
+      '<div class="ob-greeting"><strong lang="'+current+'">'+(current==='en'?'Hello.':'你好。')+'</strong><span>Molis Work</span></div>',
+      '<button type="button" class="cx-button primary ob-continue" data-action="intro-next">'+L('继续')+'<kbd aria-hidden="true">↵</kbd></button>');
+  }
+  function miniWorkbench() {
+    const row = (glyph, width, sub) => '<div class="ob-mini-row"><i>'+icon(glyph)+'</i><span><b style="width:'+width+'%"></b><s style="width:'+sub+'%"></s></span></div>';
+    return '<div class="ob-mini"><div class="ob-mini-surface"><b class="ob-mini-title"></b>'+row('target',62,40)+row('rss',48,58)+row('note',70,36)+'</div><div class="ob-mini-bar"><span class="ob-mini-dock"><i></i><i class="is-on"></i><i></i></span><span class="ob-mini-composer"><i></i><em></em></span><span class="ob-mini-avatar"></span></div></div>';
+  }
+  function appearance() {
+    const prefs = globalThis.molisWorkPreferences, theme = prefs ? prefs.theme() : 'system', density = prefs ? prefs.density() : 'standard';
+    const option = (attr, value, label, current, glyph) => '<button type="button" class="mw-choice" data-slot="choice" '+attr+'="'+value+'" aria-pressed="'+(current===value)+'"><span class="mw-choice__label">'+icon(glyph)+L(label)+'</span>'+check+'</button>';
+    return frame('外观','appearance', title(L('外观'))+'<p>'+L('选择浅色、深色，或跟随系统。改动立即生效，只保存在这台设备。')+'</p><div class="ob-options" role="group" aria-label="'+L('主题')+'">'+option('data-theme-option','light','浅色',theme,'sun')+option('data-theme-option','dark','深色',theme,'moon')+option('data-theme-option','system','跟随系统',theme,'system')+'</div><p class="ob-label">'+L('界面密度')+'</p><div class="ob-options" role="group" aria-label="'+L('界面密度')+'">'+option('data-density-option','standard','标准',density,'rows')+option('data-density-option','compact','紧凑',density,'list')+'</div>',
+      miniWorkbench(),
+      '<button type="button" class="ob-back" data-action="intro-back">'+L('上一步')+'</button><button type="button" class="cx-button primary ob-continue" data-action="intro-next">'+L('继续')+'<kbd aria-hidden="true">↵</kbd></button>');
+  }
   function resumeNotice() {
-    return config.resume && config.resume.id !== journey.id ? '<section class="cx-panel cx-resume"><span>'+L('上次还有一份未完成的整理')+' · '+esc(config.resume.title)+'</span><button class="cx-button small" data-action="resume">'+L('继续上次整理')+'</button></section>' : '';
+    return config.resume && config.resume.id !== journey.id ? '<div class="ob-notice cx-resume">'+icon('history')+'<span>'+L('上次还有一份未完成的整理')+(config.resume.title&&config.resume.title!=='未完成的整理'?' · '+esc(config.resume.title):'')+'</span><button class="cx-button small" data-action="resume">'+L('继续上次整理')+'</button></div>' : '';
   }
   function savingProject() {
-    const saving=journey.phase==='adopting';
-    return '<main class="cx-layout">'+intro(2)+'<section class="cx-panel"><div class="cx-blank"><h2>'+esc(journey.adoption.title)+'</h2><p>'+L(saving?'正在保存项目与资料，请稍候。':'项目内容已经确认。继续保存会恢复同一个项目。')+'</p><p class="cx-error" role="alert">'+esc(error||journey.error)+'</p><button class="cx-button primary" data-action="adopt" '+(busy||saving?'disabled':'')+'>'+L(saving?'正在保存…':'继续保存项目')+'</button></div></section></main>';
+    const saving = journey.phase === 'adopting';
+    return frame('开始','saving', '<div class="ob-mark">'+icon('folder')+'<b>'+icon(saving?'refresh':'check')+'</b></div>'+title(esc(journey.adoption.title))+'<p>'+L(saving?'正在保存项目与资料，请稍候。':'项目内容已经确认。继续保存会恢复同一个项目。')+'</p><p class="cx-error" role="alert">'+esc(error||journey.error)+'</p>',
+      projectScene(journey.adoption.title, L(saving?'正在保存…':'等待继续保存')),
+      '<button class="cx-button primary" data-action="adopt" '+(busy||saving?'disabled':'')+'>'+L(saving?'正在保存…':'继续保存项目')+'</button>');
+  }
+  function blankForm() {
+    return frame('来源','blank', title(L('给新项目一个名字'))+'<p>'+L(materialsOnly?'已导入的资料会带入项目，摘要可以稍后整理。':'先建一个空间，资料和下一步可以慢慢补充。')+'</p><form id="cx-blank-form" class="ob-field"><label for="cx-blank-name">'+L('项目名称')+'</label><input class="cx-field" id="cx-blank-name" maxlength="120" required autocomplete="off" placeholder="'+L('例如：秋季内容计划')+'"><p class="cx-error" role="alert">'+esc(error)+'</p></form>',
+      projectScene(L('新项目'), L(materialsOnly?'带入已读取的资料':'空白项目'), materialsOnly ? picked().filter(s=>s.references?.length) : []),
+      '<button class="ob-back" type="button" data-action="back">'+L('返回')+'</button><button class="cx-button primary" type="submit" form="cx-blank-form" '+(busy?'disabled':'')+'>'+L(busy?'正在创建…':'创建项目')+' '+icon('arrow')+'</button>');
   }
   function checklist() {
-    if (blank) return '<main class="cx-layout">'+intro(0)+'<section class="cx-panel"><form id="cx-blank-form" class="cx-blank"><h2>'+L('给新项目一个名字')+'</h2><p>'+L(materialsOnly?'已导入的资料会带入项目，摘要可以稍后整理。':'先建一个空间，资料和下一步可以慢慢补充。')+'</p><label for="cx-blank-name">'+L('项目名称')+'</label><input class="cx-field" id="cx-blank-name" maxlength="120" required autocomplete="off" placeholder="'+L('例如：秋季内容计划')+'"><p class="cx-error" role="alert">'+esc(error)+'</p><div class="cx-actions"><button class="cx-button quiet" type="button" data-action="back">'+L('返回')+'</button><button class="cx-button primary" type="submit" '+(busy?'disabled':'')+'>'+L(busy?'正在创建…':'创建项目')+'</button></div></form></section></main>';
-    return '<main class="cx-layout">'+intro(0)+'<div>'+resumeNotice()+(journey.summary?'<p class="cx-hint">'+L('已保留读入的资料。再次开始整理会替换当前摘要，请确认所选范围。')+'</p>':'')+(journey.oauth_status==='pending'?'<div class="cx-error" role="status">'+L('请在浏览器中完成 Google 授权，完成后会继续。')+' <button class="cx-button small" data-action="skip-auth">'+L('跳过 Gmail，继续')+'</button></div>':'')+'<p class="cx-error" role="alert">'+esc(error)+'</p><section class="cx-panel" aria-label="'+L('选择材料来源')+'"><header class="cx-panel-head"><h2>'+L('想带入哪些内容？')+'</h2><label class="cx-select-all"><input type="checkbox" class="cx-check" id="cx-all" '+(picked().length===journey.sources.length?'checked':'')+'>'+L('全选')+'</label></header>'+journey.sources.map(s=>'<article class="cx-row '+(s.selected?'selected':'')+'"><div class="cx-row-main"><label class="cx-source" for="cx-select-'+s.kind+'"><input type="checkbox" class="cx-check" id="cx-select-'+s.kind+'" data-select="'+s.kind+'" '+(s.selected?'checked':'')+'>'+sourceIcon(s.kind)+'<span class="cx-source-copy"><span class="cx-source-title">'+L(names[s.kind])+'<span class="cx-status '+(ready(s)?'ready':'')+'">'+L(sourceStatus(s))+'</span></span><small>'+esc(hint(s))+'</small></span></label>'+(s.kind==='gmail'&&!ready(s)&&(config.gmail_configured||connected().length)?'<button class="cx-button small" data-action="'+(connected().length?'choose-account':'connect')+'" '+(busy?'disabled':'')+'>'+L(connected().length?'选择已有账号':'连接 Google')+' '+icon('arrow')+'</button>':'')+'<button class="cx-button quiet small cx-row-action" data-scope="'+s.kind+'" aria-controls="cx-scope-'+s.kind+'" aria-expanded="'+(expanded===s.kind)+'" aria-label="'+L('调整')+L(names[s.kind])+L('范围')+'">'+icon('chevron-down')+'</button></div>'+(expanded===s.kind?scope(s):'')+'</article>').join('')+'<footer class="cx-footer"><div class="cx-recap"><span>'+recapText()+'</span><span class="cx-model">'+(config.model?esc(config.model):'<a href="'+route('/settings/models')+'" target="_blank" rel="noopener">'+L('连接文字模型')+'</a>')+'</span></div><p class="cx-preparation" role="status">'+preparationHint()+'</p><div class="cx-actions"><button class="cx-button quiet" data-action="blank">'+L('空白开始')+' '+icon('arrow')+'</button><button class="cx-button primary" data-action="prepare" '+(!picked().length||busy?'disabled':'')+'>'+L(startLabel())+' '+icon('arrow')+'</button></div></footer></section><p class="cx-footnote">'+L(config.model?'预览并开始后，选定正文会发送给上方模型。':'可以先带入资料，连接文字模型后再生成摘要。')+'<br>'+L('只做本次整理，不自动持续同步。')+'</p></div></main>';
+    if (blank) return blankForm();
+    const rows = journey.sources.map(s=>'<article class="cx-row'+(s.selected?' selected':'')+'"><div class="cx-row-main"><label class="cx-source" for="cx-select-'+s.kind+'"><input type="checkbox" class="cx-check" id="cx-select-'+s.kind+'" data-select="'+s.kind+'" '+(s.selected?'checked':'')+'>'+sourceIcon(s.kind)+'<span class="cx-source-copy"><span class="cx-source-title">'+L(names[s.kind])+'<span class="cx-status '+(ready(s)?'ready':'')+'">'+L(sourceStatus(s))+'</span></span><small>'+esc(hint(s))+'</small></span>'+check+'</label>'+(s.kind==='gmail'&&!ready(s)&&(config.gmail_configured||connected().length)?'<button class="cx-button small" data-action="'+(connected().length?'choose-account':'connect')+'" '+(busy?'disabled':'')+'>'+L(connected().length?'选择已有账号':'连接 Google')+' '+icon('arrow')+'</button>':'')+'<button class="cx-button quiet small cx-row-action" data-scope="'+s.kind+'" aria-controls="cx-scope-'+s.kind+'" aria-expanded="'+(expanded===s.kind)+'" aria-label="'+L('调整')+L(names[s.kind])+L('范围')+'">'+icon('chevron-down')+'</button></div>'+(expanded===s.kind?scope(s):'')+'</article>').join('');
+    const question = title(L('想带入哪些内容？'))+'<p>'+L('带上文件、网页和工作往来，Molis 帮你整理背景、进展与下一步。')+'</p>'+resumeNotice()
+      +(journey.summary?'<p class="cx-hint">'+L('已保留读入的资料。再次开始整理会替换当前摘要，请确认所选范围。')+'</p>':'')
+      +(journey.oauth_status==='pending'?'<div class="ob-notice" role="status">'+icon('clock')+'<span>'+L('请在浏览器中完成 Google 授权，完成后会继续。')+'</span><button class="cx-button small" data-action="skip-auth">'+L('跳过 Gmail，继续')+'</button></div>':'')
+      +'<p class="cx-error" role="alert">'+esc(error)+'</p><section class="ob-sources" aria-label="'+L('选择材料来源')+'"><header class="ob-sources-head"><span>'+L('来源')+'</span><label class="cx-select-all"><input type="checkbox" class="cx-check" id="cx-all" '+(picked().length===journey.sources.length?'checked':'')+'>'+L('全选')+'</label></header>'+rows+'</section>'
+      +'<div class="cx-recap"><span>'+recapText()+'</span><span class="cx-model">'+(config.model?esc(config.model):'<a href="'+route('/settings/models')+'" target="_blank" rel="noopener">'+L('连接文字模型')+'</a>')+'</span></div><p class="cx-preparation" role="status">'+preparationHint()+'</p><p class="cx-footnote">'+L(config.model?'预览并开始后，选定正文会发送给上方模型。':'可以先带入资料，连接文字模型后再生成摘要。')+' '+L('只做本次整理，不自动持续同步。')+'</p>';
+    return frame('来源','sources', question,
+      projectScene(L('新项目'), picked().length ? recapText() : L('勾选左侧来源，它们会出现在这里')),
+      introBack()+'<button class="cx-button quiet" data-action="blank">'+L('空白开始')+'</button><button class="cx-button primary" data-action="prepare" '+(!picked().length||busy?'disabled':'')+'>'+L(startLabel())+' '+icon('arrow')+'</button>');
   }
   function issues(s){return s.issues?.length?'<details class="cx-issues"><summary>'+s.issues.length+' '+L('项未读入')+'</summary>'+s.issues.map(i=>'<p>'+esc(i.path)+' · '+esc(i.reason)+'</p>').join('')+'</details>':'';}
   function reading() {
-    const done = picked().filter(s => s.references || s.error).length;
-    const materialsReady=journey.phase==='failed'&&journey.needs_model&&picked().some(s=>s.references?.length);
-    if(materialsReady)return '<main class="cx-layout">'+intro(2)+'<section class="cx-panel"><div class="cx-reading-head"><h2>'+L('资料已经准备好')+'</h2><p>'+L('给它一个项目名字，就可以开始阅读和创作。摘要可以连接文字模型后再整理。')+'</p></div>'+picked().map(s=>'<div class="cx-receipt">'+sourceIcon(s.kind)+'<div>'+L(names[s.kind])+'<small>'+esc(s.error||((s.references?.length||0)+' '+L('份正文已暂存')))+'</small></div></div>'+issues(s)).join('')+'<footer class="cx-footer"><p class="cx-error" role="alert">'+esc(error)+'</p><div class="cx-actions"><button class="cx-button quiet" data-action="restart">'+L('调整来源')+'</button><button class="cx-button primary" data-action="materials-only">'+L('保存资料，开始工作')+'</button></div><p class="cx-footnote"><a href="'+route('/settings/models')+'" target="_blank" rel="noopener">'+L('连接文字模型')+'</a> · <button class="cx-button quiet small" data-action="retry">'+L('已连接，继续整理')+'</button></p></footer></section></main>';
-    return '<main class="cx-layout">'+intro(1)+'<section class="cx-panel"><div class="cx-reading-head"><h2>'+L(journey.phase==='reading'?(done===picked().length?'正在整理工作脉络':'正在读入你的材料'):'材料已保留')+'</h2><p role="status">'+L(journey.phase==='reading'?'可以离开，回来后接着整理。':'修复连接或模型设置后，可以接着完成。')+'</p><div class="cx-progress"><span style="transform:scaleX('+(done/Math.max(1,picked().length))+')"></span></div></div>'+(journey.synthesis?'<p class="cx-hint" role="status">'+L('分批整理')+' · '+L('第')+' '+journey.synthesis.stage+' '+L('轮')+' · '+journey.synthesis.completed+' / '+journey.synthesis.total+'</p>':'')+picked().map(s=>'<div class="cx-receipt">'+sourceIcon(s.kind)+'<div>'+L(names[s.kind])+'<small>'+esc(s.error || (s.references?s.references.length+' '+L('份正文已保存')+(s.skipped?' · '+s.skipped+' '+L('项已跳过'):''):hint(s)))+'</small></div><span>'+L(s.error?'未读取':s.references?'已读取':'等待中')+'</span></div>').join('')+'<div>'+picked().map(issues).join('')+'</div><footer class="cx-footer"><p class="cx-error" role="alert">'+esc(journey.error||error)+'</p>'+(journey.phase==='failed'?'<div class="cx-actions"><a class="cx-button quiet" href="'+route('/settings/models')+'" target="_blank" rel="noopener">'+L('模型设置')+'</a><button class="cx-button primary" data-action="retry" '+(busy?'disabled':'')+'>'+L('继续整理')+'</button></div><button class="cx-button quiet small" data-action="restart">'+L('返回清单，调整范围')+'</button>'+(picked().some(s=>s.references?.length)?'<button class="cx-button quiet small" data-action="materials-only">'+L('带入资料，先开始')+'</button>':''):'<span class="cx-model">'+esc(journey.model || config.model || L('尚未连接文字模型'))+'</span>')+'</footer></section></main>';
+    const done = picked().filter(s=>s.references||s.error).length;
+    const materialsReady = journey.phase==='failed' && journey.needs_model && picked().some(s=>s.references?.length);
+    const receipts = picked().map(s=>'<div class="cx-receipt" data-state="'+docState(s)+'">'+sourceIcon(s.kind)+'<div>'+L(names[s.kind])+'<small>'+esc(s.error||(s.references?s.references.length+' '+L(materialsReady?'份正文已暂存':'份正文已保存')+(s.skipped?' · '+s.skipped+' '+L('项已跳过'):''):hint(s)))+'</small></div><span>'+L(s.error?'未读取':s.references?'已读取':'等待中')+'</span></div>').join('');
+    if (materialsReady) return frame('整理','materials', title(L('资料已经准备好'))+'<p>'+L('给它一个项目名字，就可以开始阅读和创作。摘要可以连接文字模型后再整理。')+'</p><div class="ob-receipts">'+receipts+'</div>'+picked().map(issues).join('')+'<p class="cx-error" role="alert">'+esc(error)+'</p><p class="cx-footnote"><a href="'+route('/settings/models')+'" target="_blank" rel="noopener">'+L('连接文字模型')+'</a> · <button class="cx-button quiet small" data-action="retry">'+L('已连接，继续整理')+'</button></p>',
+      projectScene(L('新项目'), L('资料已暂存')),
+      '<button class="cx-button quiet" data-action="restart">'+L('调整来源')+'</button><button class="cx-button primary" data-action="materials-only">'+L('保存资料，开始工作')+'</button>');
+    const heading = journey.phase==='reading' ? (done===picked().length?'正在整理工作脉络':'正在读入你的材料') : '材料已保留';
+    return frame('整理','reading', title(L(heading))+'<p role="status">'+L(journey.phase==='reading'?'可以离开，回来后接着整理。':'修复连接或模型设置后，可以接着完成。')+'</p><div class="cx-progress" aria-hidden="true"><span style="transform:scaleX('+(done/Math.max(1,picked().length))+')"></span></div>'
+      +(journey.synthesis?'<p class="cx-hint" role="status">'+L('分批整理')+' · '+L('第 {n} 轮',{n:journey.synthesis.stage})+' · '+journey.synthesis.completed+' / '+journey.synthesis.total+'</p>':'')
+      +'<div class="ob-receipts">'+receipts+'</div><div>'+picked().map(issues).join('')+'</div><p class="cx-error" role="alert">'+esc(journey.error||error)+'</p>'
+      +(journey.phase==='failed'?'<div class="ob-inline-actions"><button class="cx-button quiet small" data-action="restart">'+L('返回清单，调整范围')+'</button>'+(picked().some(s=>s.references?.length)?'<button class="cx-button quiet small" data-action="materials-only">'+L('带入资料，先开始')+'</button>':'')+'</div>':''),
+      projectScene(L('新项目'), journey.phase==='reading' ? L(heading) : L('材料已保留')),
+      journey.phase==='failed' ? '<a class="cx-button quiet" href="'+route('/settings/models')+'" target="_blank" rel="noopener">'+L('模型设置')+'</a><button class="cx-button primary" data-action="retry" '+(busy?'disabled':'')+'>'+L('继续整理')+'</button>' : '<span class="cx-model">'+esc(journey.model||config.model||L('尚未连接文字模型'))+'</span>');
   }
   function markdown(text) {
     const out=[];let paragraph=[];
@@ -82,20 +147,45 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   }
   function review() {
     const s=journey.summary;
-    return '<main class="cx-review"><div class="cx-review-header"><button class="cx-button quiet small" data-action="restart">'+L('调整来源并重新整理')+'</button></div><h1>'+L('这就是你工作的起点。')+'</h1><p class="cx-subtitle">'+L('根据已有材料，整理了一份项目建议。名字和摘要都可以修改。')+'</p><p class="cx-error" role="alert">'+esc(error||journey.error)+'</p><div class="cx-review-grid"><section class="cx-document"><label for="cx-project-title">'+L('项目名称')+'</label><input id="cx-project-title" class="cx-field cx-title-input" maxlength="120" value="'+esc(s.title)+'"><div class="cx-actions"><span class="cx-status">'+L('工作摘要')+'</span><button class="cx-button quiet small" data-action="edit">'+L(editing?'完成编辑':'编辑摘要')+'</button></div>'+(editing?'<textarea id="cx-summary-editor" class="cx-field cx-summary-editor" maxlength="100000" aria-label="'+L('编辑摘要')+'">'+esc(s.body)+'</textarea>':'<div class="cx-summary">'+markdown(s.body)+'</div>')+'</section><aside class="cx-sources"><h2>'+L('依据这些材料')+' · '+s.references.length+'</h2>'+s.references.map(r=>'<button class="cx-reference" data-cite="'+r.label+'"><span>'+r.label+' · '+L('版本')+' '+r.version+'</span>'+esc(r.title)+'</button>').join('')+picked().filter(s=>s.error).map(s=>'<p class="cx-source-meta">'+L(names[s.kind])+': '+esc(s.error)+'</p>').join('')+picked().map(issues).join('')+'</aside></div><footer class="cx-review-actions"><span>'+L('摘要和来源快照会一起保存在项目中。')+'</span><button class="cx-button primary" data-action="adopt" '+(busy?'disabled':'')+'>'+L(busy?'正在保存…':'采用，开始工作')+' '+icon('arrow')+'</button></footer></main>';
+    return frame('开始','review', '<div class="ob-review-head"><div>'+title(L('这就是你工作的起点。'))+'<p class="cx-subtitle">'+L('根据已有材料，整理了一份项目建议。名字和摘要都可以修改。')+'</p></div><button class="cx-button quiet small" data-action="restart">'+L('调整来源并重新整理')+'</button></div><p class="cx-error" role="alert">'+esc(error||journey.error)+'</p><div class="cx-review-grid"><section class="cx-document"><label for="cx-project-title">'+L('项目名称')+'</label><input id="cx-project-title" class="cx-field cx-title-input" maxlength="120" value="'+esc(s.title)+'"><div class="cx-actions"><span class="cx-status">'+L('工作摘要')+'</span><button class="cx-button quiet small" data-action="edit">'+L(editing?'完成编辑':'编辑摘要')+'</button></div>'+(editing?'<textarea id="cx-summary-editor" class="cx-field cx-summary-editor" maxlength="100000" aria-label="'+L('编辑摘要')+'">'+esc(s.body)+'</textarea>':'<div class="cx-summary">'+markdown(s.body)+'</div>')+'</section><aside class="cx-sources"><h2>'+L('依据这些材料')+' · '+s.references.length+'</h2>'+s.references.map(r=>'<button class="cx-reference" data-cite="'+r.label+'"><span>'+r.label+' · '+L('版本')+' '+r.version+'</span>'+esc(r.title)+'</button>').join('')+picked().filter(s=>s.error).map(s=>'<p class="cx-source-meta">'+L(names[s.kind])+': '+esc(s.error)+'</p>').join('')+picked().map(issues).join('')+'</aside></div>',
+      '',
+      '<span class="ob-footer-note">'+L('摘要和来源快照会一起保存在项目中。')+'</span><button class="cx-button primary" data-action="adopt" '+(busy?'disabled':'')+'>'+L(busy?'正在保存…':'采用，开始工作')+' '+icon('arrow')+'</button>', true);
+  }
+  function view() {
+    if (!journey) return frame(steps()[0],'error', title(L('暂时打不开引导'))+'<p class="cx-error" role="alert">'+esc(error)+'</p>', '', '<button class="cx-button primary" data-action="reload">'+L('重新加载')+'</button>');
+    if (introStep === 'language') return language();
+    if (introStep === 'appearance') return appearance();
+    if (journey.requires_reselection) return frame('来源','reselect', title(L('继续你的工作'))+'<p>'+esc(journey.error)+'</p>', projectScene(L('新项目'), L('需要重新选择资料')), '<button class="cx-button primary" data-action="new-journey">'+L('重新选择资料')+'</button>');
+    if (journey.adoption) return savingProject();
+    if (blank) return checklist();
+    if (journey.phase === 'selecting') return journey.previewed && !blank ? preview() : checklist();
+    return journey.summary ? review() : reading();
   }
   function render(focus) {
     app.setAttribute('aria-busy',String(busy));
-    app.innerHTML = !journey ? '<main class="cx-review"><p class="cx-error" role="alert">'+esc(error)+'</p><button class="cx-button" data-action="reload">'+L('重新加载')+'</button></main>' : journey.requires_reselection ? '<main class="cx-review"><h1>'+L('继续你的工作')+'</h1><p>'+esc(journey.error)+'</p><button class="cx-button primary" data-action="new-journey">'+L('重新选择资料')+'</button></main>' : journey.adoption ? savingProject() : blank ? checklist() : journey.phase==='selecting' ? (journey.previewed&&!blank?preview():checklist()) : journey.summary ? review() : reading();
+    app.innerHTML = view();
+    const content = app.querySelector('.ob-content');
+    const viewKey = content?.dataset.obView || '', index = steps().indexOf(content?.dataset.obStep || '');
+    const moved = lastView !== null && viewKey !== lastView;
+    const reduced = still || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (content && moved && !reduced) {
+      const shift = index >= lastIndex ? 22 : -22;
+      content.animate([{opacity:0,transform:'translateX('+shift+'px)',filter:'blur(4px)'},{opacity:1,transform:'none',filter:'blur(0)'}],{duration:480,easing:'cubic-bezier(.22,1,.36,1)'});
+    }
+    if (moved || reduced) app.querySelectorAll('.ob-doc.is-new').forEach(node => node.classList.remove('is-new'));
+    lastView = viewKey; lastIndex = index; lastPicked = new Set(journey ? picked().map(s=>s.kind) : []);
     const all=document.getElementById('cx-all'); if(all)all.indeterminate=picked().length>0&&picked().length<journey.sources.length;
     if(busy)app.querySelectorAll('button,input,select,textarea').forEach(el=>el.disabled=true);
     if(focus)document.getElementById(focus)?.focus({preventScroll:true});
+    else if(moved)document.getElementById('ob-title')?.focus({preventScroll:true});
   }
   function invalidateSource(s) { delete s.references;delete s.files;delete s.error;delete s.skipped;delete s.issues; }
   function refreshSelection() {
     for(const s of journey.sources){const box=document.getElementById('cx-select-'+s.kind);if(box){box.checked=s.selected;const copy=box.closest('label').querySelector('.cx-source-copy');copy.querySelector('small').textContent=hint(s);const status=copy.querySelector('.cx-status');status.textContent=L(sourceStatus(s));status.classList.toggle('ready',ready(s));}}
     const all=document.getElementById('cx-all');if(all){all.checked=picked().length===journey.sources.length;all.indeterminate=picked().length>0&&picked().length<journey.sources.length;}
     const recap=app.querySelector('.cx-recap>span');if(recap)recap.textContent=recapText();
+    app.querySelectorAll('.ob-doc[data-kind]').forEach(node=>{const s=source(node.dataset.kind);if(!s)return;node.dataset.state=docState(s);const label=node.querySelector('small');if(label)label.textContent=L(docLabel(s));});
+    const folderState=app.querySelector('.ob-folder small');if(folderState&&journey.phase==='selecting'&&!blank)folderState.textContent=picked().length?recapText():L('勾选左侧来源，它们会出现在这里');
     const preparation=app.querySelector('.cx-preparation');if(preparation)preparation.textContent=preparationHint();
     const start=app.querySelector('[data-action="prepare"]');if(start){start.disabled=!picked().length||busy;start.innerHTML=L(startLabel())+' '+icon('arrow');}
   }
@@ -173,11 +263,11 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const previewReady = s => ready(s) && (!directory(s)||Boolean(s.references?.length||s.metadata));
   function preview() {
     const total=selectionTotal(), missing=picked().some(s=>!previewReady(s)), over=total.count>50||total.bytes>6000000;
-    return '<main class="cx-layout">'+intro(1)+'<div><p class="cx-error" role="alert">'+esc(error)+'</p><section class="cx-panel cx-preview"><header class="cx-panel-head"><div><h2>'+L('确认这次带入的内容')+'</h2><p class="cx-muted">'+L(picked().some(s=>s.references?.length)?'沿用已暂存正文，新选文件只显示信息。':'这里只列文件信息，开始后才读取正文。')+'</p></div><button class="cx-button quiet small" data-action="sources">'+L('调整来源')+'</button></header>'+picked().map(s=>{
+    return frame('确认','preview', '<div class="ob-review-head"><div>'+title(L('确认这次带入的内容'))+'<p class="cx-muted">'+L(picked().some(s=>s.references?.length)?'沿用已暂存正文，新选文件只显示信息。':'这里只列文件信息，开始后才读取正文。')+'</p></div><button class="cx-button quiet small" data-action="sources">'+L('调整来源')+'</button></div><p class="cx-error" role="alert">'+esc(error)+'</p><section class="cx-preview">'+picked().map(s=>{
       const items=s.metadata?.files||[], selected=included(s), folders=[...new Set(items.filter(f=>f.path.includes('/')).map(f=>f.path.slice(0,f.path.indexOf('/'))))];
       return '<section class="cx-preview-source"><div class="cx-preview-heading">'+sourceIcon(s.kind)+'<div><h3>'+L(names[s.kind])+'</h3><small>'+esc(hint(s))+'</small></div>'+(directory(s)?'<select class="cx-field cx-range" aria-label="'+L(names[s.kind])+L('时间范围')+'" data-range="'+s.kind+'">'+[[7,'最近 7 天'],[30,'最近 30 天'],[90,'最近 90 天'],[0,'全部时间']].map(([days,label])=>'<option value="'+days+'" '+((s.days??30)===days?'selected':'')+'>'+L(label)+'</option>').join('')+'</select>':'')+'</div>'+
       (!previewReady(s)?'<div class="cx-missing"><p>'+esc(s.error||L(directory(s)?'还没有完成授权。可以再次选择目录，或本次跳过。':s.kind==='gmail'?'连接账号后，在开始时读取所选时间内的邮件。':'请先添加内容。刷新后，浏览器选择的文件需要重新选择。'))+'</p><div class="cx-actions"><button class="cx-button small" '+(directory(s)?'data-authorize="'+s.kind+'"':s.kind==='gmail'&&!connected().length?'data-action="connect"':'data-add="'+s.kind+'"')+'>'+L(directory(s)?'选择并授权':s.kind==='gmail'?(connected().length?'选择已有账号':'连接 Google'):'添加内容')+'</button><button class="cx-button quiet small" data-skip="'+s.kind+'">'+L('本次跳过')+'</button></div></div>':s.references?.length?'<p class="cx-hint">'+L('已暂存的原文会沿用；调整范围会重新读取。')+'</p>':s.metadata?'<div class="cx-file-tools"><span>'+selected.length+' / '+items.length+' '+L('份')+'</span><button class="cx-button quiet small" data-files-all="'+s.kind+'">'+L(selected.length===items.length?'取消全选':'全选文件')+'</button>'+(directory(s)?'<button class="cx-button quiet small" data-refresh="'+s.kind+'">'+L('刷新预览')+'</button>':'')+'</div>'+folders.map(folder=>'<label class="cx-folder-toggle"><input class="cx-check" type="checkbox" data-folder="'+s.kind+'" data-path="'+esc(folder)+'" '+(!(s.excluded||[]).includes(folder)?'checked':'')+'>'+icon('folder')+esc(folder)+'<span>'+L('整个子目录')+'</span></label>').join('')+'<div class="cx-metadata-list">'+items.map((file,i)=>'<label class="cx-file-row"><input class="cx-check" type="checkbox" data-file="'+s.kind+'" data-index="'+i+'" '+(selected.includes(file)?'checked':'')+'><span>'+esc(file.path)+'</span><small>'+size(file.size)+' · '+new Date(file.modified_ms).toLocaleDateString()+'</small></label>').join('')+'</div>'+(!items.length?'<p class="cx-hint">'+L('这个时间范围没有支持的文件。可扩大范围或跳过。')+'</p>':'')+(s.metadata.truncated?'<p class="cx-hint">'+L('仅展示最近 200 份；扫描范围有上限，未列出的文件不会读取。')+'</p>':'')+(s.metadata.skipped?'<p class="cx-hint">'+s.metadata.skipped+' '+L('项因时间、类型或访问范围未列入。')+'</p>':''):'<p class="cx-hint">'+esc(s.kind==='gmail'?hint(s):L('已添加的内容将在开始后整理。'))+'</p>')+'</section>';
-    }).join('')+'<footer class="cx-footer"><div class="cx-recap"><span>'+total.count+' '+L('份本地内容')+' · '+size(total.bytes)+(picked().some(s=>s.kind==='gmail')?' + '+L('最多 20 封邮件'):'')+'</span><span class="cx-model">'+esc(config.model||L('尚未连接模型'))+'</span></div><p class="cx-preparation">'+L(over?'超过 50 份或 6 MB，请取消部分文件。':missing?'先补齐上方来源，或跳过本次不需要的内容。':'开始后读取选中正文。本轮最多 50 份、6 MB，邮件也计入；单个文件失败会保留原因。')+'</p><div class="cx-actions"><button class="cx-button quiet" data-action="sources">'+L('返回清单')+'</button><button class="cx-button primary" data-action="start" '+(busy||missing||over||(!total.count&&!picked().some(s=>s.kind==='gmail'))?'disabled':'')+'>'+L(busy?(readingLocal?'正在读取 '+readingLocal:'正在准备…'):config.ai_available?'开始整理':'先带入资料')+' '+icon('arrow')+'</button></div><p class="cx-footnote">'+L(config.ai_available?'正文会发送给所选模型；原文件保持原样。':'原文暂存在本机，稍后可连接模型生成摘要。')+'</p></footer></section></div></main>';
+    }).join('')+'</section><div class="cx-recap"><span>'+total.count+' '+L('份本地内容')+' · '+size(total.bytes)+(picked().some(s=>s.kind==='gmail')?' + '+L('最多 20 封邮件'):'')+'</span><span class="cx-model">'+esc(config.model||L('尚未连接模型'))+'</span></div><p class="cx-preparation">'+L(over?'超过 50 份或 6 MB，请取消部分文件。':missing?'先补齐上方来源，或跳过本次不需要的内容。':'开始后读取选中正文。本轮最多 50 份、6 MB，邮件也计入；单个文件失败会保留原因。')+'</p><p class="cx-footnote">'+L(config.ai_available?'正文会发送给所选模型；原文件保持原样。':'原文暂存在本机，稍后可连接模型生成摘要。')+'</p>', '', '<button class="cx-button quiet" data-action="sources">'+L('返回清单')+'</button><button class="cx-button primary" data-action="start" '+(busy||missing||over||(!total.count&&!picked().some(s=>s.kind==='gmail'))?'disabled':'')+'>'+L(busy?(readingLocal?'正在读取 '+readingLocal:'正在准备…'):config.ai_available?'开始整理':'先带入资料')+' '+icon('arrow')+'</button>', true);
   }
   async function start() {
     if(journey.phase==='selecting') {
@@ -267,6 +357,11 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       }catch(e){error=String(e.message||e);}finally{busy=false;render();}return;
     }
     const action=b.dataset.action;if(!action)return;
+    if (action === 'intro-next' || action === 'intro-back') {
+      setIntro(action === 'intro-next' ? (introStep === 'language' ? 'appearance' : null) : (introStep === 'appearance' ? 'language' : 'appearance'));
+      render();
+      return;
+    }
     if(action==='choose-account'){source('gmail').selected=true;expanded='gmail';render('cx-account');try{await save();}catch(e){error=e.message;render();}return;}
     if(action==='edit'){preserveEdits();if(editing){try{await saveDraft();}catch(e){error=e.message;render('cx-summary-editor');return;}}editing=!editing;render(editing?'cx-summary-editor':'cx-project-title');return;}
     if(action==='blank'||action==='materials-only'){materialsOnly=action==='materials-only';blank=true;error='';render('cx-blank-name');return;}
@@ -277,6 +372,14 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     catch(e){error=e.message;}finally{busy=false;render();}
   });
   dialog.addEventListener('click',e=>{if(e.target.closest('[data-close]'))dialog.close();});dialog.addEventListener('close',()=>opener?.focus());
+  app.addEventListener('input', e => { if (e.target.id === 'cx-blank-name') { const name = app.querySelector('.ob-project-name'); if (name) name.textContent = e.target.value.trim() || L('新项目'); } });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    const target = e.target;
+    if (target !== document.body && target?.id !== 'ob-title') return;
+    const next = app.querySelector('.ob-footer .ob-continue:not(:disabled)');
+    if (next) { e.preventDefault(); next.click(); }
+  });
   document.getElementById('cx-theme').addEventListener('click',()=>{const theme=document.documentElement.dataset.resolvedTheme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;try{localStorage.setItem('molis-work:theme',theme);}catch{}});
   document.getElementById('cx-exit').addEventListener('click',async()=>{try{await saveQueue;if(document.body.dataset.onboardingMode==='first_run')await api('/api/onboarding/dismiss',{kind:'first_run',user_confirmed:true});location.assign(route('/'));}catch(e){error=e.message;render();}});
   (async()=>{try{

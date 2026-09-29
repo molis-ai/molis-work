@@ -7,12 +7,12 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     border-radius: 8px;
     color: var(--ink-soft);
     background: transparent;
-    transition: color .14s ease, background .14s ease, box-shadow .14s ease;
+    transition: color 130ms var(--ease-quint), background 130ms var(--ease-quint), box-shadow 130ms var(--ease-quint);
   }
   body[data-desktop-shell="true"] .directory-row-state {
     min-width: 0;
     min-height: 20px;
-    padding: 1px 6px;
+    padding: 1px 8px;
     border: 1px solid color-mix(in srgb, currentColor 24%, var(--line));
     border-radius: 5px;
     color: var(--muted);
@@ -21,7 +21,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    font-size: 9px;
+    font-size: 11px;
     font-style: normal;
     font-weight: 400;
     line-height: 1.2;
@@ -55,12 +55,12 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-entry:hover {
     color: var(--ink);
-    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    background: var(--nav-hover);
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-entry.is-selected {
     color: var(--ink);
     background: var(--paper);
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 28%, transparent);
+    box-shadow: var(--lift-1);
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-entry:has(.tree-relations[open]) {
     grid-template-rows: auto auto;
@@ -68,7 +68,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-node {
     width: auto;
     min-height: 22px;
-    padding: 5px 0 0 7px;
+    padding: 4px 0 0 8px;
     border-radius: 8px;
     color: inherit;
     background: transparent;
@@ -105,7 +105,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     overflow: hidden;
     color: inherit;
     font-size: 12px;
-    font-weight: 400;
+    font-weight: var(--weight-control, 500);
     line-height: 1.35;
     letter-spacing: -.008em;
     overflow-wrap: anywhere;
@@ -117,7 +117,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry > .tree-node {
     min-height: 30px;
-    padding-block: 5px;
+    padding-block: 4px;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry > .tree-node .tree-title-line strong {
     overflow-wrap: normal;
@@ -137,18 +137,18 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     grid-row: 1;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-entry.is-selected .tree-title-line strong {
-    font-weight: 400;
+    font-weight: var(--weight-control, 500);
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-meta-line {
     min-width: 0;
-    padding: 0 0 5px 7px;
-    gap: 7px;
+    padding: 0 0 4px 8px;
+    gap: 8px;
     color: var(--faint);
     grid-column: 1;
     grid-row: 2;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-meta-line:has(.tree-relations[open]) {
-    padding-right: 7px;
+    padding-right: 8px;
     flex-wrap: wrap;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-meta-line > small {
@@ -159,7 +159,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     overflow: hidden;
     color: var(--faint);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 8.5px;
+    font-size: 11px;
     line-height: 1.25;
     letter-spacing: 0;
     text-overflow: ellipsis;
@@ -171,8 +171,8 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     color: var(--muted);
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    font-size: 8.5px;
+    gap: 4px;
+    font-size: 11px;
     font-variant-numeric: tabular-nums;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-progress > i {
@@ -187,7 +187,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-progress.is-blocked > span { color: var(--red); }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-progress.is-blocked > i > b { background: var(--red); }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .directory-row-state {
-    margin-right: 7px;
+    margin-right: 8px;
     grid-column: 2;
     grid-row: 1 / 3;
     justify-self: end;
@@ -200,7 +200,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     border: 0;
     border-radius: 0;
     background: transparent;
-    font-size: 9px;
+    font-size: 11px;
   }
   html[data-density="compact"] body[data-desktop-shell="true"][data-board-view]:not([data-board-view="decisions"]):where(:not(.immersive-workbench)) .desktop-goal-directory .directory-row-state > .goal-status {
     min-height: 0;
@@ -208,7 +208,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     border: 0;
     border-radius: 0;
     background: transparent;
-    font-size: 9px;
+    font-size: 11px;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations {
     width: auto;
@@ -234,11 +234,11 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     border: 0;
     border-radius: 0;
     background: transparent;
-    font-size: 8.5px;
+    font-size: 11px;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations > summary strong {
-    font-size: 8.5px;
-    font-weight: 400;
+    font-size: 11px;
+    font-weight: var(--weight-control, 500);
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-relations > summary .tree-relations-mark {
     display: none;
@@ -248,12 +248,12 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-deps {
     width: min(206px, calc(100vw - 90px));
-    margin: 3px 0 4px;
-    padding: 3px 0 2px 7px;
+    margin: 4px 0 4px;
+    padding: 4px 0 4px 8px;
   }
 
   body[data-desktop-shell="true"] .feed-item-scroll {
-    padding: 4px 7px 12px;
+    padding: 4px 8px 12px;
   }
   body[data-desktop-shell="true"] .feed-list-item {
     width: 100%;
@@ -276,7 +276,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
   body[data-desktop-shell="true"] .feed-list-item.is-selected {
     color: var(--ink);
     background: var(--paper) !important;
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 28%, transparent);
+    box-shadow: var(--lift-1);
   }
   body[data-desktop-shell="true"] .feed-list-item:focus-visible {
     outline: var(--focus-stroke);
@@ -293,20 +293,20 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
   body[data-desktop-shell="true"] .feed-list-copy {
     min-width: 0;
     display: grid;
-    gap: 2px;
+    gap: 4px;
   }
   body[data-desktop-shell="true"] .feed-list-copy > .feed-list-meta {
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
   }
   body[data-desktop-shell="true"] .feed-list-copy em,
   body[data-desktop-shell="true"] .feed-list-copy small,
   body[data-desktop-shell="true"] .feed-list-copy time {
     overflow: hidden;
     color: var(--faint);
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.25;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -331,8 +331,8 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     min-width: 0;
     overflow: hidden;
     color: inherit;
-    font-size: 11.5px;
-    font-weight: 400;
+    font-size: 12px;
+    font-weight: var(--weight-control, 500);
     line-height: 1.35;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -341,7 +341,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     margin: 0;
     overflow: hidden;
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.4;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -359,13 +359,13 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
   body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="archived"] { color: var(--faint); }
 
   body[data-desktop-shell="true"] .feed-directory-search { height: 32px; }
-  body[data-desktop-shell="true"] .feed-directory-search input { font-size: 10.5px; }
+  body[data-desktop-shell="true"] .feed-directory-search input { font-size: 11px; }
   body[data-desktop-shell="true"] .feed-detail[data-feed-detail-read="unread"] [data-feed-read-state] {
     color: var(--blue-dark);
     font-weight: 400;
   }
   body[data-desktop-shell="true"] .feed-directory-footer span,
-  body[data-desktop-shell="true"] .feed-directory-footer small { font-size: 8.5px; }
+  body[data-desktop-shell="true"] .feed-directory-footer small { font-size: 11px; }
 
   body[data-desktop-shell="true"] .feed-source-list { gap: 4px; }
   body[data-desktop-shell="true"] .feed-source-row {
@@ -394,13 +394,13 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
   body[data-desktop-shell="true"] .feed-source-copy {
     min-width: 0;
     display: grid;
-    gap: 2px;
+    gap: 4px;
   }
   body[data-desktop-shell="true"] .feed-source-copy strong {
     overflow: hidden;
     color: var(--ink);
-    font-size: 11.5px;
-    font-weight: 400;
+    font-size: 12px;
+    font-weight: var(--weight-control, 500);
     line-height: 1.35;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -409,7 +409,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     margin: 0;
     overflow: hidden;
     color: var(--muted);
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.4;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -417,7 +417,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
   body[data-desktop-shell="true"] .feed-source-copy small {
     overflow: hidden;
     color: var(--faint);
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.3;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -426,17 +426,17 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals est
     min-width: 0;
     display: grid;
     justify-items: end;
-    gap: 6px;
+    gap: 8px;
   }
   body[data-desktop-shell="true"] .feed-source-side > .directory-row-state[data-source-status="active"] { color: var(--green); }
   body[data-desktop-shell="true"] .feed-source-side > .directory-row-state[data-source-status="paused"] { color: var(--muted); }
   body[data-desktop-shell="true"] .feed-source-side > .directory-row-state[data-source-status="error"] { color: var(--red); }
   body[data-desktop-shell="true"] .feed-source-side > .directory-row-state[data-source-status="disconnected"] { color: var(--amber); }
-  body[data-desktop-shell="true"] .feed-source-dialog-shell > header h2 { font-size: 21px; }
+  body[data-desktop-shell="true"] .feed-source-dialog-shell > header h2 { font-size: 20px; }
 
   body[data-desktop-shell="true"] .feed-detail-header h1 {
     max-width: 26ch;
-    font-size: clamp(21px, 2.4vw, 28px);
+    font-size: 24px;
     line-height: 1.16;
     letter-spacing: -.028em;
   }

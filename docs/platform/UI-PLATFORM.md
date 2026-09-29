@@ -11,9 +11,13 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 ## 2. 控件原语
 
-产品控件、色板、图标、字体的用法和文件表在 [`packages/design-system/README.md`](../../packages/design-system/README.md)。视觉意图在 [`DESIGN.md`](../../DESIGN.md)。开发预览标本是 `/__ui/catalog`。改共享控件、状态或微动效**要**对照这块板；达标标本**要**补进 Catalog。不准把系统下拉、系统色盘、系统确认框当产品控件。动效、图标色是切片内工作。过程说明见 [CLI 与开发](../cli-and-development.md#前端与控件板) 与 [ui-craft-floor](../../specs/ui-craft-floor/spec.md)。
+产品控件、色板、图标、字体的用法和文件表在 [`packages/design-system/README.md`](../../packages/design-system/README.md)。视觉规范是 [`DESIGN.md`](../../DESIGN.md) 的 Soft Workbench：珍珠灰桌面上一张连续白色工作面，石墨主操作，铜色焦点与链接，字重 400/500/600，动效约 130/250/420ms。开发预览组件板是 `/__ui/catalog`（真实底栏标本在 `/__ui/catalog/bar`）。改共享控件、状态或微动效**要**对照这块板；达标标本**要**补进 Catalog。不准把系统下拉、系统色盘、系统确认框当产品控件。动效、图标色是切片内工作。过程说明见 [CLI 与开发](../cli-and-development.md#前端与控件板) 与 [ui-craft-floor](../../specs/ui-craft-floor/spec.md)。
 
-合同是 HTML Slot：从 `@molis-ai/molis-work-design-system` 导入 `render*` / `icon`，产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。壳层选中走 `--nav-*`；靛只做链接、选区和进行中，不是焦点描边。
+合同是 HTML Slot：从 `@molis-ai/molis-work-design-system` 导入 `render*` / `icon`，产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。颜色、圆角、高度和时长只取 `palette.ts` 的共享 token，不写 hex、不用 `!important` 或按插件覆盖去压前面的层。壳层选中走 `--nav-*`；石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）给焦点、链接和进行中；插件没有身份色。
+
+### 全局导航
+
+没有全局左侧栏。全局入口只有一处：窗口底部的常驻栏——左侧 Dock 菜单与 Dock（项目首页 + 用户选定常驻的插件），中间统一对话栏（Assistant 输入胶囊，前面是插件切换器，⌘K 搜索也从这里开），右侧 Shelf / 灵光、讨论和项目按钮。插件贡献的 `navigator` Slot id 不变，含义是「出现在插件切换器、可被放进 Dock 的入口」；`island` 是底栏右侧的个人常驻入口。插件自己的目录（`workbench.directory`）是工作面里的一列，不是第二套全局导航。
 
 ## 3. 嵌入
 

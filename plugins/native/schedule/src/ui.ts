@@ -60,7 +60,7 @@ export function renderScheduleWorkbench(model: ScheduleUiModel): string {
     : `<details class="goal-collection-fold" open><summary><span class="goal-collection-caret">${p.icon("chevron-right")}</span><strong>${p.text("其他插件的闹钟")}</strong><small>${model.jobs.length}</small></summary>${jobRows}</details>`;
   const empty = model.tasks.length === 0 && model.jobs.length === 0;
   const listBody = empty
-    ? `<div class="mw-empty" data-schedule-empty>${p.icon("timer")}<h1>${p.text("还没有定时任务")}</h1><p>${p.text("新建一条之后，到点会在它自己的对话里跑一轮只读 Agent。其他插件登记的闹钟也会出现在这里。")}</p></div>`
+    ? `<div class="mw-empty" data-schedule-empty><span class="mw-empty__mark">${p.icon("timer")}</span><h1>${p.text("还没有定时任务")}</h1><p>${p.text("新建一条之后，到点会在它自己的对话里跑一轮只读 Agent。其他插件登记的闹钟也会出现在这里。")}</p></div>`
     : `${taskRows}${jobFold}`;
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="schedule" data-work-surface-label="Schedule" hidden data-schedule-workbench data-schedule-stage-shell data-expanded="false">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-schedule-list>

@@ -14,10 +14,10 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
       </div>
       <input class="mw-input prompt-settings-search" type="search" data-assistant-capability-search placeholder="${L("搜索能力或插件")}" aria-label="${L("搜索能力")}">
     </div>
-    <div class="prompt-settings-body" data-assistant-capabilities aria-live="polite"><p class="settings-muted">${L("正在读取…")}</p></div>
+    <div class="prompt-settings-body" data-assistant-capabilities aria-live="polite"><p class="settings-muted mw-loading">${L("正在读取…")}</p></div>
     <details class="settings-section prompt-diagnostics" id="contributions" data-assistant-contributions>
       <summary><strong>${L("插件接入诊断")}</strong><span class="settings-muted">${L("每个插件为助理提供了什么：能否读回它的对象、改动能否关联回工作、能力是否写清用途；缺什么、为什么。")}</span></summary>
-      <div data-assistant-contributions-body><p class="settings-muted">${L("正在读取…")}</p></div>
+      <div data-assistant-contributions-body><p class="settings-muted mw-loading">${L("正在读取…")}</p></div>
     </details>
   </section>`;
 }

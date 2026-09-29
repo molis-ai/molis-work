@@ -16,7 +16,7 @@ export const COGNIA_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const el=$('[data-cognia-rows]');
     el.innerHTML=state.materials.length?state.materials.map(m=>'<article class="cognia-row"><input type="checkbox" class="mw-check" data-cognia-select="'+esc(m.id)+'" aria-label="'+tx('选择材料')+' '+esc(m.title)+'" '+(selected.has(m.id)?'checked':'')+' '+(m.role==='attachment'?'disabled':'')+'><button type="button" class="cognia-entry" data-cognia-id="'+esc(m.id)+'"><div><strong>'+esc(m.title)+'</strong><small>'+esc(m.path)+'</small>'+(m.excerpt?'<small>'+esc(m.excerpt)+'</small>':'')+'</div><span>'+tx(roles[m.role])+'</span><span>'+esc(state.domains.find(d=>d.id===m.domain_id)?.name||L('未分类'))+'</span><span>'+esc(new Date(m.updated_at).toLocaleDateString())+'</span></button></article>').join(''):(($('[data-cognia-search]').value || $('[data-cognia-domain]').value || $('[data-cognia-source]').value)
       ? '<div class="cognia-empty"><strong>'+tx('没有符合条件的资料')+'</strong><p>'+tx('试试其他关键词，或清除筛选查看全部资料。')+'</p>'+button(L('清除筛选'),'clear-filters')+'</div>'
-      : '<div class="cognia-empty"><strong>'+tx('把已有的知识带进来')+'</strong><p>'+tx('导入 Markdown 目录，或添加一份材料。')+'</p>'+button(L('导入知识库'),'import')+button(L('添加材料'),'add')+'</div>');
+      : '<div class="cognia-empty"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-book"></use></svg></span><strong>'+tx('把已有的知识带进来')+'</strong><p>'+tx('导入 Markdown 目录，或添加一份材料。')+'</p>'+button(L('导入知识库'),'import')+button(L('添加材料'),'add')+'</div>');
     $('[data-cognia-selected]').textContent=L('已选')+' '+selected.size+' / 5';
   }
   async function load() {

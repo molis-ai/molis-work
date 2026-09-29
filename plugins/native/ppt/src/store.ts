@@ -104,6 +104,52 @@ export class PptStore {
     });
   }
 
+  /**
+   * Move one deck to another partition (the personal space or a project); its id stays, so links keep finding it.
+   * Fixed versions already saved stay with the old place's results, so the numbering starts again here.
+   */
+  relocate(id: string, from: string, to: string): PptRecord {
+    const target = normalizeProjectId(to);
+    return this.transaction(() => {
+      const current = this.get(id, from);
+      if (current.publication_pending) throw new PptError("ppt.publication_pending", "上次固定版本还没存完，请先在原位置恢复，再移动");
+      const result = this.db.prepare("UPDATE presentations SET project_id = ?, artifact_id = '', artifact_version = 0, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?")
+        .run(target, new Date().toISOString(), id, current.version);
+      if (result.changes !== 1) throw new PptError("ppt.conflict", "演示稿刚被修改，请重新读取后再移动");
+      return this.get(id, target);
+    });
+  }
+
+  /** An independent copy in another partition; the same request always returns the same copy. */
+  duplicate(id: string, from: string, to: string, requestId: string): PptRecord {
+    const target = normalizeProjectId(to);
+    return this.transaction(() => {
+      const prior = this.db.prepare("SELECT target_id FROM presentation_copies WHERE project_id = ? AND request_id = ?").get(target, requestId) as { target_id: string } | undefined;
+      if (prior) return this.get(prior.target_id, target);
+      const source = this.get(id, from);
+      const now = new Date().toISOString();
+      const copy: PptRecord = { ...source, id: crypto.randomUUID(), project_id: target, created_at: now, updated_at: now, version: 1, artifact_id: "", artifact_version: 0,
+        slides: source.slides.map(slide => ({ ...slide, id: crypto.randomUUID() })) };
+      delete (copy as { publication_pending?: unknown }).publication_pending;
+      this.write(copy, true);
+      this.db.prepare("INSERT INTO presentation_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)").run(target, requestId, id, copy.id, now);
+      return copy;
+    });
+  }
+
+  /** A deck made from an outline another plugin hands over; one delivery makes one deck. */
+  receive(projectId: string, requestId: string, title: string, slides: readonly PptSlideInput[]): PptRecord {
+    const target = normalizeProjectId(projectId);
+    return this.transaction(() => {
+      const prior = this.db.prepare("SELECT target_id FROM presentation_copies WHERE project_id = ? AND request_id = ?").get(target, "receive:" + requestId) as { target_id: string } | undefined;
+      if (prior) return this.get(prior.target_id, target);
+      const created = this.create({ title, project_id: target });
+      const filled = this.update(created.id, { slides, expected_version: created.version }, target);
+      this.db.prepare("INSERT INTO presentation_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)").run(target, "receive:" + requestId, "", filled.id, filled.updated_at);
+      return filled;
+    });
+  }
+
   beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: PptPublicationSnapshot): PptPublicationIntent {
     return this.transaction(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
@@ -187,6 +233,7 @@ export function openPptStore(homeDirectory: string): PptStore {
   ensureSqliteColumn(db, "presentations", "artifact_id", "TEXT NOT NULL DEFAULT ''");
   ensureSqliteColumn(db, "presentations", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
   ensureSqliteColumn(db, "presentations", "publication_pending_json", "TEXT");
+  db.exec("CREATE TABLE IF NOT EXISTS presentation_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id))");
   return new PptStore(db);
 }
 

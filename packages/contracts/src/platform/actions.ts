@@ -14,6 +14,8 @@ import { WORKFLOW_CONTENT_SCHEMAS } from "./workflow-content.js";
 export * from "./workflow-content.js";
 import { searchSourceDeclarationProblems, type SearchSourceDeclaration } from "./search-sources.js";
 export * from "./search-sources.js";
+import { placementDeclarationProblems } from "./placement.js";
+export * from "./placement.js";
 
 /** JSON Schema is preserved at the boundary; providers must not invent output guarantees. */
 export type ActionSchema = Readonly<Record<string, unknown>>;
@@ -134,6 +136,17 @@ export interface ActionMetadata {
     readonly state: string;
     readonly done: readonly string[];
     readonly failed: readonly string[];
+  };
+  /**
+   * How this change is taken back: another command of the same provider, with its input read from this command's
+   * output (a path such as "spark.id"; a one-item array wraps the value in an array, e.g. ["spark.id"]). A change that
+   * declares it may run without a confirmation when the person asked for exactly this effect (they can set it back to
+   * confirm each time), and the work then offers “撤销”. Never on an irreversible change.
+   */
+  readonly undo?: {
+    readonly capability_id: string;
+    readonly version: number;
+    readonly input: Readonly<Record<string, string | readonly [string]>>;
   };
 }
 
@@ -519,7 +532,17 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
             problems.push(`能力 ${key} 的后台任务声明必须是命令，并写明状态查询、任务标识与状态的位置和结束状态`);
           }
         }
+        if (a.undo !== undefined) {
+          const undo = a.undo;
+          const path = (value: unknown) => typeof value === "string" && /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(value);
+          const fields = object(undo) && object(undo.input) ? Object.entries(undo.input) : [];
+          if (raw.operation !== "command" || a.effect === "irreversible" || !object(undo) || !id(undo.capability_id) || !version(undo.version) || !fields.length
+            || fields.some(([, value]) => !(path(value) || (Array.isArray(value) && value.length === 1 && path(value[0]))))) {
+            problems.push(`能力 ${key} 的撤销声明必须是可撤回的命令，并写明同一提供方的撤销命令与其输入在本次输出里的位置`);
+          }
+        }
         problems.push(...searchSourceDeclarationProblems(key, a, raw.operation, canonicalSchema));
+        problems.push(...placementDeclarationProblems(key, a, raw.operation, canonicalSchema));
         if (a.workflow_content !== undefined) {
           const w = a.workflow_content;
           if (!object(w) || !/^[a-z][a-z0-9-]{1,40}$/.test(String(w.id)) || !text(w.title) || !text(w.icon)

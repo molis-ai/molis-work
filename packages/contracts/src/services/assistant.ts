@@ -360,6 +360,8 @@ export interface AssistantWorkView {
   schedule_survives_close?: boolean;
   /** Changes still running at their owner when a round stopped or ran out of time, and what the owner finally did. */
   unsettled?: AssistantUnsettledChange[];
+  /** Changes of this work that say how they are undone: each can be taken back once, by the person. */
+  undoable?: AssistantUndoable[];
   /** Background work this work started in plugins, and how each stands. */
   jobs?: AssistantBackgroundJob[];
   /**
@@ -546,6 +548,18 @@ export type AssistantRuleInput = Pick<AssistantRule, "kind" | "surfaces" | "exce
  * A change the round had sent to its owner that had not answered when the round stopped or ran out of time. The Host
  * keeps listening: `pending` until the owner answers, then whether it happened. Never re-sent.
  */
+/** A change the person can take back: its owner said how (the action's `undo`), and the Host kept the exact input. */
+export interface AssistantUndoable {
+  undo_id: string;
+  /** The change as the person reads it: provider · title. */
+  title: string;
+  state: "available" | "undone" | "failed";
+  created_at: string;
+  undone_at?: string;
+  /** Why taking it back did not work, in the owner's words. */
+  detail?: string;
+}
+
 export interface AssistantUnsettledChange {
   change_id: string;
   work_id: string;

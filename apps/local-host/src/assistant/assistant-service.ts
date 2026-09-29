@@ -11,6 +11,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
+import { directEligible } from "./assistant-authority.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AssistantStoreError, type AssistantStore, type StoredCard, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
@@ -328,7 +329,7 @@ export function cardSubject(view: Pick<ActionView, "action" | "operation">, inpu
 const CODING_MODES: readonly string[] = ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"];
 
 export function presentActivity(activity: readonly AgentToolActivity[], titles: CapabilityTitles | undefined, ended = false): AssistantActivity[] {
-  const verbs: Record<string, string> = { "find-capabilities": "lookup", "read-capability": "read", "change-capability": "change", "ask-user": "ask", "update-todo": "todo",
+  const verbs: Record<string, string> = { "find-capabilities": "lookup", "read-capability": "read", "change-capability": "change", "change-reversible": "change", "ask-user": "ask", "update-todo": "todo",
     // A professional Agent's own tools, as the person reads them: on files and commands, never a business capability.
     "read": "file-read", "read-file": "file-read", "list": "file-list", "search": "file-search", "edit": "file-change", "edit-file": "file-change",
     "write": "file-change", "run-command": "command", "command-output": "command-output", "await-commands": "command-output", "find-tools": "lookup-tools",
@@ -350,7 +351,7 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
       // The person answered “拒绝” on its confirmation.
       : /This effect is denied/.test(said) ? "declined" as const
       // Refused before anyone was asked: its input did not fit the capability (a plain failure the round can correct).
-      : /blocked "change-capability"|blocked "read-capability"/.test(said) ? undefined
+      : /blocked "change-capability"|blocked "change-reversible"|blocked "read-capability"/.test(said) ? undefined
       : /EFFECT_NOT_AUTHORIZED/.test(item.summary) ? "not-authorized" as const
       : /TOOL_INTERRUPTED/.test(`${item.summary} ${item.output ?? ""}`) ? "interrupted" as const
       // Switched off for the Assistant, uninstalled or no longer offered by the time it would run (even after approval).
@@ -748,6 +749,7 @@ export class AssistantService {
     const claim = scheduled.length ? await this.scheduleClaim() : null;
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     const jobs = this.store.jobs(this.actorId, work.work_id).map(({ key: _key, status: _status, input: _input, path: _path, done: _done, failed: _failed, checks: _checks, told: _told, ...view }) => view);
+    const undoable = this.store.undos(this.actorId, work.work_id).slice(-10).map(({ work_id: _work, reference: _reference, input: _input, told: _told, ...view }) => view);
     const usage = work.executor.kind === "coding" ? null : await this.workUsage(work).catch(() => null);
     // A suggestion about an object the person has since changed or removed by hand is not offered any more.
     for (const card of this.store.cards(work.work_id).filter(item => item.target && (item.status === "ready" || item.status === "needs-input"))) {
@@ -756,7 +758,7 @@ export class AssistantService {
     }
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
-      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}),
+      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}),
       ...(usage && (usage.rounds || usage.budget_tokens !== null) ? { usage } : {}), ...(problem ? { problem } : {}) };
   }
 
@@ -1108,10 +1110,46 @@ export class AssistantService {
   /** A command the Assistant ran for this work succeeded: keep the object it created or changed, at its new revision. */
   recordResult(work: StoredWork, view: ActionView, input: unknown, output: unknown): void {
     void this.watchJob(work, view, output).catch(() => undefined);
+    this.recordUndo(work, view, output);
     const result = actionResultSubject(view.action, input, output);
     if (!result) return;
     this.store.relations.link(identity(work), "result", { kind: result.subject.kind, id: result.subject.id, revision: result.revision },
       `${view.provider.title} · ${view.action.title}`);
+  }
+
+  /** A change that declares how it is undone leaves that undo on its work, with the exact input its output gives. */
+  private recordUndo(work: StoredWork, view: ActionView, output: unknown): void {
+    const undo = view.action.undo;
+    if (!undo || view.operation !== "command") return;
+    const input: Record<string, unknown> = {};
+    for (const [field, path] of Object.entries(undo.input)) {
+      const value = pathValue(output, Array.isArray(path) ? path[0]! : path as string);
+      // The output does not say what to undo: nothing is offered rather than an undo that might hit something else.
+      if (value === undefined || value === null || value === "") return;
+      input[field] = Array.isArray(path) ? [value] : value;
+    }
+    this.store.saveUndo(this.actorId, { undo_id: randomUUID(), work_id: work.work_id, title: `${view.provider.title} · ${view.action.title}`, state: "available",
+      created_at: this.now().toISOString(), reference: { capability_id: undo.capability_id, version: undo.version, provider_id: view.provider.provider_id }, input });
+  }
+
+  /** The person takes a change back: the owner's own undo, run once as the person's choice; the next round is told. */
+  async undo(workId: string, undoId: string): Promise<AssistantWorkView> {
+    const work = this.store.get(this.actorId, workId);
+    const record = this.store.undos(this.actorId, workId).find(item => item.undo_id === undoId);
+    if (!record) throw new AssistantError("assistant.invalid", "这项修改不能在这里撤销");
+    if (record.state === "undone") throw new AssistantError("assistant.state", "这项修改已经撤销过了");
+    let actions: PersonActions | null = null;
+    try { actions = await this.ports.scopeActions?.(work) ?? null; } catch { actions = null; }
+    if (!actions) throw new AssistantError("assistant.unsupported", "现在不能撤销，请到原处修改");
+    try {
+      await actions.invoke(record.reference, record.input);
+      this.store.saveUndo(this.actorId, { ...record, state: "undone", undone_at: this.now().toISOString(), detail: undefined });
+    } catch (error) {
+      const detail = (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_.]+:\s*/, "").slice(0, 300);
+      this.store.saveUndo(this.actorId, { ...record, state: "failed", detail });
+      throw new AssistantError("assistant.failed", `没能撤销「${record.title}」：${detail}`);
+    }
+    return this.read(workId);
   }
 
   /**
@@ -1601,14 +1639,16 @@ export class AssistantService {
   /** What exists, grouped by who provides it, so the round knows what to search for; schemas stay deferred until needed. */
   private directory(views: readonly ActionView[]): string {
     const groups = new Map<string, string[]>();
+    const confirm = this.store.confirmAlways(this.actorId);
     for (const view of views) {
       const effect = actionEffect(view.action, view.capability_id);
-      const mark = effect === "read" ? "" : effect === "irreversible" ? "（不可撤回）" : "（修改）";
+      const direct = directEligible(view, views, confirm);
+      const mark = effect === "read" ? "" : effect === "irreversible" ? "（不可撤回）" : direct ? "（可撤销）" : "（修改）";
       const list = groups.get(view.provider.title) ?? [];
       list.push(view.action.title + mark);
       groups.set(view.provider.title, list);
     }
-    return ["本轮可用的业务能力（按提供方分组）。用 find-capabilities 按“提供方 名称”搜索取得准确标识与参数；读取类用 read-capability，标“修改”“不可撤回”的用 change-capability，执行前会请用户确认：",
+    return ["本轮可用的业务能力（按提供方分组）。用 find-capabilities 按“提供方 名称”搜索取得准确标识与参数；读取类用 read-capability；标“可撤销”的，用户明确要求这个效果时用 change-reversible 直接做（事后告诉用户可以在工作面板撤销）；标“修改”“不可撤回”的用 change-capability，执行前会请用户确认：",
       ...[...groups].map(([provider, titles]) => `- ${provider}：${titles.join("、")}`)].join("\n");
   }
 
@@ -1631,6 +1671,13 @@ export class AssistantService {
     const handled = this.store.cards(work.work_id).filter(card => card.updated_at > since && ["done", "failed", "unknown", "dismissed", "stale"].includes(card.status));
     if (handled.length) out.push(...chunked({ ...base, title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${card.outcome.slice(0, 300)}）` : ""}`).join("\n")));
     // Background work this work started: running ones as such, ended ones once.
+    // Changes the person took back since: never to be redone unless they ask again.
+    const undone = this.store.undos(this.actorId, work.work_id).filter(item => item.state === "undone" && !item.told);
+    if (undone.length) {
+      out.push(...chunked({ ...base, title: "用户撤销的修改" }, "undone", ["下面这些你做过的修改，用户已经撤销；除非用户再次要求，不要重新做：",
+        ...undone.map(item => `- 「${item.title}」（${item.undone_at ?? ""}）`)].join("\n")));
+      for (const item of undone) this.store.saveUndo(this.actorId, { ...item, told: true });
+    }
     const jobs = this.store.jobs(this.actorId, work.work_id).filter(job => job.state === "running" || !job.told);
     if (jobs.length) {
       out.push(...chunked({ ...base, title: "后台任务" }, "jobs", jobs.map(job => `- 「${job.title}」（任务 ${job.job_id}）：${job.state === "running" ? "仍在进行" : job.state === "completed" ? "已完成" : job.state === "failed" ? "没有完成" : "不再跟进"}${job.last_state ? `（${job.last_state}）` : ""}`).join("\n")));

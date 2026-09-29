@@ -148,4 +148,32 @@ export const FORM_STYLES = `
   .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
   .creative-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
   body.immersive-workbench .plugin-stage-workspace > .form-workspace { flex: 1; min-height: 0; }
+
+  .form-placement-line { margin: 2px 0 10px; }
+  [data-form-empty]:not([hidden]) ~ .form-placement-line { display: none; }
+  .form-share-menu > summary { list-style: none; }
+  .form-collect-state { white-space: nowrap; }
+  .form-collect-help { margin: 14px 0 0; }
+  .form-results-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .form-results-head p { margin: 0; font-weight: 500; }
+  .form-results-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .form-result-stats { display: grid; gap: 10px; margin-bottom: 14px; }
+  .form-stats-origin { margin: 0; color: var(--muted); font-size: 12px; }
+  .form-stat { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+  .form-stat small { color: var(--muted); }
+  .form-stat-bars { display: grid; gap: 4px; margin-top: 4px; }
+  .form-stat-bars > div { display: grid; grid-template-columns: minmax(80px, 160px) 1fr 32px; align-items: center; gap: 8px; font-size: 12.5px; }
+  .form-stat-track { height: 8px; border-radius: 4px; background: var(--nav-hover); overflow: hidden; }
+  .form-stat-track i { display: block; height: 100%; background: var(--blue); border-radius: 4px; }
+  .form-stat-count { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .form-stat-texts { margin: 4px 0 0; padding-left: 1.1em; color: var(--ink-soft, var(--ink)); }
+  .form-result-details > summary { cursor: pointer; color: var(--muted); margin-bottom: 8px; }
+  .form-fill-page { position: fixed; inset: 0; z-index: 90; overflow: auto; background: var(--page, var(--canvas)); padding: 40px 16px; }
+  .form-fill-sheet { max-width: 640px; margin: 0 auto; padding: 28px; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; display: grid; gap: 14px; }
+  .form-fill-sheet h1 { margin: 0; font-size: 22px; font-weight: 600; }
+  .form-fill-kicker { margin: 0; color: var(--muted); font-size: 12px; }
+  .form-fill-lede { margin: 0; color: var(--muted); }
+  .form-fill-fields { display: grid; gap: 16px; }
+  .form-fill-error { margin: 0; color: var(--red); min-height: 1.2em; }
+  .form-fill-actions { display: flex; justify-content: space-between; gap: 8px; }
 `;

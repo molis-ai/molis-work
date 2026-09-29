@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { LINGGUANG_CONVERSATION } from "./prompts.js";
-import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangConversationState, LingguangStore } from "./store.js";
 import { createLingguangSearchHandlers, lingguangSearchActions } from "./search.js";
@@ -23,11 +23,15 @@ function define<I, O>(name: string, title: string, description: string, operatio
     // A reply waits on a model; the store commits it only against the conversation snapshot it was asked about.
     ...(name === "conversation.message" ? { scheduling: "concurrent" as const } : {}) } };
 }
+const undoable = <I, O>(definition: ActionDefinition<I, O>, undo: NonNullable<ActionDefinition["action"]["undo"]>): ActionDefinition<I, O> =>
+  ({ ...definition, action: { ...definition.action, undo } });
 export const lingguangActions = {
   list: define<Record<string, never>, { sparks: LingguangSpark[] }>("list", "灵光列表", "读取当前项目尚未丢弃的全部灵光", "query", object({}), object({ sparks: { type: "array", items: spark } }), read),
   get: define<{ id: string }, { spark: LingguangSpark }>("get", "读取灵光", "读取当前项目的一条灵光，包括已丢弃记录", "query", object({ id }), object({ spark }), read),
-  create: define<{ title?: string; body?: string; request_id?: string }, { spark: LingguangSpark }>("create", "记下灵光", "在当前项目保存一条灵光；带同一 request_id 重试时返回第一次保存的那条", "command",
-    object({ ...fields, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ spark }), write),
+  // Noting a spark is taken back by discarding it (kept as a discarded record, not erased): the Assistant may note one
+  // when asked without a confirmation, and the person can undo it.
+  create: undoable(define<{ title?: string; body?: string; request_id?: string }, { spark: LingguangSpark }>("create", "记下灵光", "在当前项目保存一条灵光；带同一 request_id 重试时返回第一次保存的那条", "command",
+    object({ ...fields, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ spark }), write), { capability_id: "lingguang.discard", version: 1, input: { ids: ["spark.id"] } }),
   update: define<{ id: string; title?: string; body?: string; expected_updated_at?: string }, { spark: LingguangSpark }>("update", "修改灵光", "修改当前项目灵光；提供读取时的 updated_at 可防止覆盖其他编辑", "command",
     object({ id, ...fields, expected_updated_at: text }, ["id"]), object({ spark }), write),
   discard: define<{ ids: string[] }, { ok: true }>("discard", "丢弃灵光", "全部对象校验通过后将所选灵光移出列表，保留原数据", "command", object({ ids }), object({ ok: { const: true } }), write),
@@ -37,6 +41,8 @@ export const lingguangActions = {
     object({ id, body: { type: "string", minLength: 1, maxLength: 2000, pattern: "\\S" } }), conversationState, [...read, ...write, "model:invoke"]),
   searchEntries: lingguangSearchActions.entries,
   subject: lingguangSearchActions.subject,
+  move: defineObjectMoveAction("lingguang.placement.move", ["lingguang_spark"], "灵光", [...read, ...write]),
+  copy: defineObjectCopyAction("lingguang.placement.copy", ["lingguang_spark"], "灵光", [...read, ...write]),
 };
 export const LINGGUANG_ACTIONS: readonly ActionDefinition[] = Object.values(lingguangActions);
 export const LINGGUANG_ACTION_PERMISSIONS = [...new Set(LINGGUANG_ACTIONS.flatMap(definition => definition.action.permissions))];
@@ -55,6 +61,14 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}),
   });
   return [
+    bindObjectMoveHandler(lingguangActions.move, input => ports.withStore(store => {
+      const moved = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
+      return { subject: { kind: "lingguang_spark", id: moved.id }, project_id: moved.project_id, revision: moved.updated_at };
+    })),
+    bindObjectCopyHandler(lingguangActions.copy, input => ports.withStore(store => {
+      const copy = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
+      return { subject: { kind: "lingguang_spark", id: copy.id }, project_id: copy.project_id, revision: copy.updated_at };
+    })),
     bind(lingguangActions.list, (_, caller) => ports.withStore(store => ({ sparks: store.list(project(caller)) }))),
     bind(lingguangActions.get, (input, caller) => ports.withStore(store => ({ spark: store.get(input.id, project(caller)) }))),
     bind(lingguangActions.create, (input, caller) => ports.withStore(store => ({ spark: store.create({ ...input, project_id: project(caller) }) }))),

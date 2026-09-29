@@ -68,9 +68,10 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         <span class="mw-empty__mark">${icon("idea")}</span>
         <strong>${p.text("还没有灵光")}</strong>
         <p>${p.text("想法还没想清楚时先扔进来，再决定留下或丢掉。")}</p>
-        <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
+        <p data-placement-target></p>
         <button class="mw-btn mw-btn--primary" type="button" data-lingguang-capture>${icon("plus")}<span>${p.text("记下第一条灵光")}</span></button>
       </div>
+      <p class="lingguang-placement-line" data-placement-target></p>
       <div data-lingguang-rows></div>
     </div>
     <div class="plugin-stage-workspace" data-lingguang-stage-workspace hidden>
@@ -79,11 +80,14 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         <h1 data-lingguang-editor-title>${p.text("灵光")}</h1>
         <span data-lingguang-save-status role="status" aria-live="polite"></span>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-save-retry hidden>${p.text("重试保存")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-discard-current>${p.text("丢掉")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-dispatch-current>${p.text("复制内容")}</button>
+        <span data-placement-slot data-placement-saved="off"></span>
+        <button class="mw-btn mw-btn--secondary" type="button" data-lingguang-to-doc title="${p.text("做成一篇可以继续写的文档，记着它来自这条灵光；灵光本身不变")}">${p.text("转成文档")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-to-goal title="${p.text("在这个位置建一个 Goal，这条灵光作为它的来源")}">${p.text("建成 Goal")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-todo data-make-todo="lingguang" data-make-todo-subject="lingguang_spark" data-make-todo-surface="lingguang" data-make-todo-reason="${p.text("你从灵光转为待办")}">${p.text("转为待办")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-brainstorm-current>${p.text("头脑风暴")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-ask-toggle aria-expanded="false" aria-controls="lingguang-ask">${p.text("交给助理")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-dispatch-current>${p.text("复制内容")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-discard-current>${p.text("丢掉")}</button>
       </div>
       <form class="lingguang-ask" id="lingguang-ask" data-lingguang-ask hidden>
         <input class="mw-input" data-lingguang-ask-input autocomplete="off" aria-label="${p.text("要助理做什么？")}" placeholder="${p.text("要助理做什么？")}">

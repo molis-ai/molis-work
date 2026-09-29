@@ -88,6 +88,7 @@
     "@molis-ai/molis-work-service-listener-host": "workspace:*",
     "@molis-ai/molis-work-service-runtime-host": "workspace:*",
     "@molis-ai/molis-work-service-scheduler": "workspace:*",
+    "@molis-ai/molis-work-service-placement": "workspace:*",
     "@molis-ai/molis-work-service-search": "workspace:*",
     "@molis-ai/molis-work-storage": "workspace:*",
     "@molis-ai/molis-work-ui-host": "workspace:*",

@@ -27,6 +27,8 @@ export function createPptRouteHandlers(ports: PptRoutePorts): Record<string, Ppt
     "ppt.delete": call(pptActions.delete, identified),
     "ppt.export": call(pptActions.export, ({ params, request }) => ({ id: params.id,
       ...(request.query.has("expected_version") ? { expected_version: Number(request.query.get("expected_version")) } : {}) })),
+    "ppt.pptx": call(pptActions.pptx, ({ params, request }) => ({ id: params.id,
+      ...(request.query.has("expected_version") ? { expected_version: Number(request.query.get("expected_version")) } : {}) })),
     "ppt.promote": call(pptActions.promote, identified),
   };
 }

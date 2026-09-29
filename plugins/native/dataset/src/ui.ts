@@ -59,10 +59,11 @@ export function renderDatasetWorkbench(model: DatasetUiModel): string {
       <div class="mw-empty" data-dataset-empty>
         <span class="mw-empty__mark">${icon("database")}</span>
         <strong>${p.text("还没有数据表")}</strong>
-        <p>${p.text("先建一张表，再加列和行。可以粘贴 CSV，也能存一版再回滚。")}</p>
-        <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
+        <p>${p.text("先建一张表，再加列和行。可以导入 CSV 文件或粘贴 CSV，也能存一版再回滚。")}</p>
+        <p data-placement-target></p>
         <button class="mw-btn mw-btn--primary" type="button" data-dataset-new>${icon("plus")}<span>${p.text("新建数据表")}</span></button>
       </div>
+      <p class="dataset-placement-line" data-placement-target></p>
       <div data-dataset-rows></div>
     </div>
     <div class="plugin-stage-workspace" data-dataset-stage-workspace hidden>
@@ -70,7 +71,8 @@ export function renderDatasetWorkbench(model: DatasetUiModel): string {
         <button class="plugin-stage-back" type="button" data-dataset-back aria-label="${p.text("返回数据表列表")}" title="${p.text("返回数据表列表")}">${icon("chevron-right")}</button>
         <h1 data-dataset-editor-title>${p.text("数据表")}</h1>
         <span data-dataset-editor-status></span>
-        <button class="mw-btn mw-btn--ghost" type="button" data-dataset-artifact="" data-dataset-artifact-bar>${p.text("保存成果版本")}</button>
+        <span data-placement-slot data-placement-saved="off"></span>
+        <button class="mw-btn mw-btn--ghost" type="button" data-dataset-artifact="" data-dataset-artifact-bar title="${p.text("把当前表存成不会再变的一版，放进这个位置的成果（Artifacts）")}">${p.text("存为固定版本")}</button>
         <details class="plugin-stage-more">
           <summary class="mw-btn mw-btn--ghost" aria-label="${p.text("更多操作")}">${icon("more")}<span>${p.text("更多")}</span></summary>
           <div class="plugin-stage-more-actions">
@@ -113,9 +115,13 @@ export function renderDatasetWorkbench(model: DatasetUiModel): string {
           <table class="mw-table" data-dataset-table hidden></table>
         </div>
         <details class="dataset-panel">
-          <summary>${icon("chevron-down")}<span>${p.text("粘贴 CSV 会覆盖当前表")}</span></summary>
+          <summary>${icon("chevron-down")}<span>${p.text("导入 CSV（会覆盖当前表）")}</span></summary>
           <textarea class="mw-textarea" data-dataset-csv rows="4" placeholder="${p.text("姓名,分数")}"></textarea>
-          <button class="mw-btn mw-btn--secondary" type="button" data-dataset-import>${p.text("导入")}</button>
+          <div class="dataset-import-actions">
+            <button class="mw-btn mw-btn--secondary" type="button" data-dataset-import>${p.text("导入粘贴的内容")}</button>
+            <button class="mw-btn mw-btn--ghost" type="button" data-dataset-import-file>${p.text("选择 CSV 文件…")}</button>
+            <input type="file" data-dataset-import-input accept=".csv,text/csv,text/plain" hidden>
+          </div>
         </details>
         <div class="dataset-versions">
           <div class="dataset-versions-head">

@@ -341,11 +341,28 @@ function renderCoverageHtml(item: WebGoalView): string {
   ).join("")}</ul>`;
 }
 
+/**
+ * The Goal's materials (specs/work-placement §4): create straight into this Goal's project and bind, list what is bound
+ * with where it lives and whether it still opens. Plugin objects are filled in by the placement client from their owners.
+ */
 function renderInputBindingsHtml(item: WebGoalView): string {
-  if (!item.input_bindings.length) return "";
-  return `<h3>${L("绑定资料")}</h3><div class="bound-list">${item.input_bindings.map((binding) =>
-    `<article>${renderReference(binding.source_ref, binding.input_name)}<small>${escapeHtml(binding.state)} · ${escapeHtml(binding.reason)}${binding.snapshot_digest ? ` · ${escapeHtml(binding.snapshot_digest)}` : ""}</small></article>`
-  ).join("")}</div>`;
+  const goalId = escapeHtml(item.goal.goal_id);
+  const active = item.input_bindings.filter((binding) => binding.state !== "inactive");
+  const rows = active.map((binding) => {
+    if (binding.source_type === "plugin_object") {
+      let subject: [string, string] | null = null;
+      try { const value = JSON.parse(binding.source_ref); if (Array.isArray(value) && value.length === 2) subject = [String(value[0]), String(value[1])]; } catch { subject = null; }
+      if (!subject) return "";
+      return `<article class="placement-goal-material" data-placement-material data-placement-kind="${escapeHtml(subject[0])}" data-placement-id="${escapeHtml(subject[1])}" data-placement-binding="${escapeHtml(binding.binding_id)}" data-goal-id="${goalId}"><div><strong>${escapeHtml(binding.input_name)}</strong><small data-placement-material-state>${escapeHtml(L("正在读取…"))}</small></div><span class="placement-goal-material-actions"></span></article>`;
+    }
+    return `<article>${renderReference(binding.source_ref, binding.input_name)}<small>${escapeHtml(binding.state)} · ${escapeHtml(binding.reason)}${binding.snapshot_digest ? ` · ${escapeHtml(binding.snapshot_digest)}` : ""}</small></article>`;
+  }).join("");
+  const create = ([["pages", "文档"], ["ppt", "演示稿"], ["form", "问卷"], ["dataset", "数据表"]] as const)
+    .map(([station, label]) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${station}" data-goal-id="${goalId}">${escapeHtml(L(label))}</button>`).join("");
+  return `<section class="placement-goal-materials" data-placement-goal-materials data-goal-id="${goalId}"><h3>${L("资料")}</h3>
+    <div class="placement-goal-create"><span>${L("为这个 Goal 新建")}</span>${create}</div>
+    ${rows ? `<div class="bound-list">${rows}</div>` : `<p class="empty-row">${L("还没有绑定资料。")}</p>`}
+    <p class="placement-goal-hint">${L("新建的内容存到本项目并关联到这个 Goal；已有的资料可以在它的位置条里选“关联到 Goal…”，不会复制或移动。")}</p></section>`;
 }
 
 function renderGoalDecisionHtml(item: WebGoalView, view: MolisWorkWebView): string {

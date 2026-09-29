@@ -32,6 +32,17 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
       sendJson(response, 200, molisWorkOnboardingStatus(homeDirectory, projectCount));
       return true;
     }
+    // “空白开始”不必先建项目：进入个人空间，之后随时建项目、把内容移过去。
+    if (request.method === "POST" && url.pathname === "/api/onboarding/personal") {
+      try {
+        const space = await ports.withCatalog({ homeDirectory }, catalog => catalog.ensurePersonalSpace());
+        completeMolisWorkOnboarding(homeDirectory, space.project_id);
+        sendJson(response, 200, { project: projectNavigation(space), path: `/projects/${encodeURIComponent(space.project_id)}/` });
+      } catch (error) {
+        sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
+      }
+      return true;
+    }
     if (request.method === "POST" && url.pathname === "/api/onboarding/dismiss") {
       const body = await readBody(request);
       const kind = body.kind === "first_run" || body.kind === "update" ? body.kind : null;

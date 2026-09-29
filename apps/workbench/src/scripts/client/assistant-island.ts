@@ -666,12 +666,32 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const scheduled = work && view && view.scheduled ? view.scheduled : [];
     const unsettled = work && view && view.unsettled ? view.unsettled : [];
     const jobs = work && view && view.jobs ? view.jobs : [];
+    const undoable = work && view && view.undoable ? view.undoable : [];
     const signature = JSON.stringify([work && work.work_id, children.map((c) => [c.work_id, c.state, c.follow_ups, c.title]), parent && parent.work_id,
-      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome]), unsettled.map((u) => [u.change_id, u.state]), jobs.map((j) => [j.job_id, j.state, j.last_state])]);
+      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome]), unsettled.map((u) => [u.change_id, u.state]), jobs.map((j) => [j.job_id, j.state, j.last_state]),
+      undoable.map((u) => [u.undo_id, u.state, u.detail])]);
     if (delegatedBox.dataset.signature === signature) return;
     delegatedBox.dataset.signature = signature;
-    delegatedBox.hidden = !children.length && !parent && !scheduled.length && !unsettled.length && !jobs.length;
+    delegatedBox.hidden = !children.length && !parent && !scheduled.length && !unsettled.length && !jobs.length && !undoable.length;
     delegatedBox.replaceChildren();
+    /* Changes this work made that say how they are taken back: one click undoes it, once. */
+    const UNDO = { available: "可以撤销", undone: "已撤销", failed: "没能撤销" };
+    undoable.slice().reverse().forEach((change) => {
+      const row = el("p", "assistant-object");
+      row.append(el("span", "assistant-object-relation", L("修改")), el("span", "assistant-object-title", change.title),
+        el("span", "assistant-object-state", L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : "")));
+      if (change.state !== "undone") {
+        const undo = el("button", "assistant-object-open", L("撤销")); undo.type = "button";
+        undo.setAttribute("aria-label", L("撤销") + "：" + change.title);
+        undo.addEventListener("click", async () => {
+          undo.disabled = true;
+          try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {}); render(); }
+          catch (error) { host.showToast?.(error.message); undo.disabled = false; }
+        });
+        row.append(undo);
+      }
+      delegatedBox.append(row);
+    });
     /* Background work this work started in plugins, followed until it ends. */
     const JOB = { running: "后台进行中", completed: "后台已完成", failed: "后台没有完成", unknown: "不再跟进，请到原处查看" };
     jobs.forEach((job) => {

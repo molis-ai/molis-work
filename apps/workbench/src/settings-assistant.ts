@@ -115,6 +115,18 @@ export const ASSISTANT_SETTINGS_CLIENT_SCRIPT = String.raw`
         });
         head.append(copy, meta, control);
         item.append(head);
+        // A change that can be undone runs when asked without a confirmation; the person may want it confirmed each time.
+        if (row.reversible && row.enabled) {
+          const mode = el("label", "settings-muted assistant-capability-mode"), box = el("input"); box.type = "checkbox"; box.checked = Boolean(row.confirm_always);
+          mode.append(box, document.createTextNode(" " + L("每次执行前都请我确认（它可以撤销，默认在你明确要求时直接执行）")));
+          box.addEventListener("change", async () => {
+            box.disabled = true;
+            try { await api("/capabilities", "POST", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, confirm_always: box.checked }); row.confirm_always = box.checked; }
+            catch (failure) { box.checked = Boolean(row.confirm_always); alert(failure.message); }
+            finally { box.disabled = false; }
+          });
+          item.append(mode);
+        }
         list.append(item);
       });
       section.append(list);

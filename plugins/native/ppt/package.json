@@ -27,7 +27,8 @@
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-design-system": "workspace:*",
-    "@molis-ai/molis-work-storage": "workspace:*"
+    "@molis-ai/molis-work-storage": "workspace:*",
+    "fflate": "0.8.2"
   },
   "molis-work": {
     "path": "plugins/native/ppt",

@@ -86,6 +86,20 @@ export const PPT_STYLES = `
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--plugin-ppt, var(--focus)) 72%, var(--focus));
   }
   .ppt-card h2, .ppt-card li, .ppt-card-notes { overflow-wrap: anywhere; }
+  .ppt-placement-line { margin: 2px 0 10px; }
+  [data-ppt-empty]:not([hidden]) ~ .ppt-placement-line { display: none; }
+  .ppt-export-menu > summary { list-style: none; }
+  .ppt-present { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: #000; outline: none; cursor: pointer; }
+  .ppt-present-frame { display: grid; place-items: center; width: 100%; height: 100%; }
+  .ppt-present-slide { box-sizing: border-box; width: min(100vw, calc(100vh * 16 / 9)); aspect-ratio: 16 / 9; padding: 7% 8%; border-left: 1vw solid var(--ppt-accent, #5e6ad2);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif; overflow: hidden; }
+  .ppt-present-slide h2 { margin: 0 0 4%; font-size: clamp(24px, 5vmin, 64px); font-weight: 700; line-height: 1.2; }
+  .ppt-present-slide ul { margin: 0; padding-left: 1.2em; font-size: clamp(16px, 3.2vmin, 40px); line-height: 1.6; }
+  .ppt-present-slide p { margin: 0; font-size: clamp(16px, 3.2vmin, 40px); }
+  .ppt-present-notes { position: fixed; right: 16px; bottom: 56px; width: min(420px, calc(100vw - 32px)); max-height: 40vh; overflow: auto; padding: 12px 14px;
+    background: rgba(28, 28, 32, .92); color: #e8e8ea; border-radius: 10px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; cursor: default; }
+  .ppt-present-bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 6px 12px; border-radius: 10px; background: rgba(28, 28, 32, .8);
+    color: #c9c9cf; font-size: 12px; white-space: nowrap; pointer-events: none; }
   .ppt-card h2 { margin: 0; font-size: 18px; font-weight: 500; }
   .ppt-card ul { margin: 0; padding-left: 18px; }
   .ppt-card-empty { margin: 0; font-size: 13px; font-weight: 400; color: var(--muted); }

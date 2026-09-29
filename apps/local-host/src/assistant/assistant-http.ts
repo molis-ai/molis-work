@@ -39,7 +39,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     host: async () => { await ports.agentReady(); return ports.agentHost; },
     authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), service.delegation(work),
-      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work)),
+      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work), () => store.confirmAlways(WEB_ACTOR)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
       // A Character published in the work's project, frozen at its exact version for the round (the Host checks it again at dispatch).
       ...(work.project_ref ? { resolveCharacter: await projectCharacters(ports, work.project_ref).then(characters => characters.resolve) } : {}) }),
@@ -111,7 +111,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       }
       // What the Assistant may use here, and what the person switched off for it.
       if (method === "GET" && parts.length === 1 && parts[0] === "capabilities") {
-        const off = store.disabledActions(WEB_ACTOR);
+        const off = store.disabledActions(WEB_ACTOR), confirm = store.confirmAlways(WEB_ACTOR);
         const reference = ports.projectRef;
         const caller = { actor_id: WEB_ACTOR, actor_kind: "runtime" as const, project_id: reference?.project_id ?? null, audience: "agent" as const, permissions: [] };
         const catalog = await ports.localHost.inspectActions(caller, reference);
@@ -119,6 +119,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
           capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider: view.provider.title, title: view.action.title,
           description: view.action.description, operation: view.operation, effect: actionEffect(view.action, view.capability_id), scope: view.action.scope,
           enabled: !off.has(actionKey({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })),
+          // A change that says how it is undone runs when asked without a confirmation, unless the person set it to confirm each time.
+          ...(view.action.undo && view.operation === "command" ? { reversible: true, confirm_always: confirm.has(actionKey({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })) } : {}),
         })) } };
       }
       // What each plugin here contributes for the Assistant, and exactly what is missing (developer diagnostics).
@@ -129,8 +131,11 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         return { status: 200, body: { contributions: assistantContributions(catalog) } };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "capabilities") {
-        if (typeof body.capability_id !== "string" || !Number.isSafeInteger(body.version) || typeof body.provider_id !== "string" || typeof body.enabled !== "boolean") throw new AssistantError("assistant.invalid", "能力标识无效");
-        store.setActionEnabled(WEB_ACTOR, actionKey({ capability_id: body.capability_id, version: body.version as number, provider_id: body.provider_id }), body.enabled);
+        if (typeof body.capability_id !== "string" || !Number.isSafeInteger(body.version) || typeof body.provider_id !== "string"
+          || (typeof body.enabled !== "boolean" && typeof body.confirm_always !== "boolean")) throw new AssistantError("assistant.invalid", "能力标识无效");
+        const key = actionKey({ capability_id: body.capability_id, version: body.version as number, provider_id: body.provider_id });
+        if (typeof body.enabled === "boolean") store.setActionEnabled(WEB_ACTOR, key, body.enabled);
+        if (typeof body.confirm_always === "boolean") store.setConfirmAlways(WEB_ACTOR, key, body.confirm_always);
         return { status: 200, body: { ok: true } };
       }
       // What deserves the person's attention now, and on which surface (their rules hold some while it matches).
@@ -180,6 +185,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts.length === 5 && parts[2] === "cards" && parts[4] === "run") return { status: 200, body: await service.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values as Record<string, string> | undefined }) };
       if (parts.length === 5 && parts[2] === "cards" && parts[4] === "dismiss") return { status: 200, body: service.dismissCard(workId, parts[3]!) };
       if (parts.length === 3 && parts[2] === "mode") return { status: 200, body: await service.setExecutorMode(workId, String(body.mode ?? "")) };
+      if (parts.length === 4 && parts[2] === "undo") return { status: 200, body: await service.undo(workId, parts[3]!) };
       if (parts.length === 3 && parts[2] === "budget") return { status: 200, body: await service.saveWorkBudget(workId, body.budget_tokens) };
       if (parts.length === 3 && parts[2] === "results") return { status: 200, body: await service.receiveResult(workId, body) };
       if (parts.length === 3 && parts[2] === "handover") return { status: 200, body: await service.handover(workId, { to: body.to as "coding" | "assistant", ...(typeof body.mode === "string" ? { mode: body.mode } : {}) }) };

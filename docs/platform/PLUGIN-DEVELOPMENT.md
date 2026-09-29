@@ -137,6 +137,7 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 - 监听 `molis:assistant-effect` 并在没有未保存修改时重读；用户在页面上改变了助理可能展示的对象时发 `molis:assistant-surface-changed`。
 - 页面缓存的设置在本页没有未保存改动时采用已保存值，避免把别处的修改写回。
 - 要给助理发信息，发 `molis:assistant-message` 并写明用途：`background`（只作上下文）、`change`（对象变了）、`suggest`（由用户决定是否发送）、`delegate`（用户刚在页面上要求交给助理，只有真实用户操作才立即开始）、`reply`（把结果交回某项工作）。不要自称“用户已同意”。
+- 可以撤回的修改声明 `undo`：`{ capability_id, version, input: { 字段: "输出路径" } }`，指向同一提供方的撤销命令，以及它的输入在本次输出里的位置；需要数组时写 `["路径"]`。这样的修改在用户明确要求时由助理直接执行、事后可撤销，用户也可以把它设成每次确认。删除、对外发送这类撤不回的修改不要声明。样例：灵光“记下灵光”用“丢弃灵光” `{ ids: ["spark.id"] }` 撤回。
 - 会启动后台任务的命令（研究、生成等）声明 `background_job`：`{ status: { capability_id, version }, id: "run.jobId", input: "id", state: "status", done: [...], failed: [...] }`——输出里任务标识的位置、同一提供方的状态查询、它接收标识的字段、状态的位置和结束状态。助理（或用户点的建议按钮）启动后，Host 经 Prologue 队列按状态查询跟进到结束，结束时提醒用户、按钮显示结果，并在下一轮告诉助理；不必自己推送。样例：炼金术士的“启动炼化”“启动研究”。
 - 修改已有对象的动作，输入里用 `<种类>_id`（或 `subject_id`、`id`）写对象标识：助理的建议按钮据此在用户手动改过该对象后自动失效。
 - 设置“助理”里的“插件接入诊断”会列出你的插件为助理提供了什么、缺什么（对象读取、结果关联、能力说明），按那里的提示补齐即可。
@@ -154,6 +155,10 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/system-assistant/sp
 - 来源的受众不能比你原有的读取更宽：原来只给本机界面看的内容（例如剪贴板历史）单独声明一个来源，受众限为 `["user"]`，助理、工作流与 MCP 客户端就搜不到它。
 
 系统负责首次建立、按集合版本与条目版本增量更新、删除清理、失败保留与重试、停用/卸载清理、按调用者授权过滤和打开前核对。清单里声明的来源经 `inspectActionDeclarations` 校验规范合同。细则与判例见 [搜索接入](../../skills/molis-plugin-dev/search.md)，需求见 `specs/system-search/spec.md`。
+
+## 放在哪里：位置、关联与完成提示
+
+对象存在个人空间还是某个项目、和哪项工作有关、谁能读取、做完后从哪里找回，由系统放置服务统一说明。插件要做的是：为展示的对象提供 `*.subject.read`（带 `open`）；能移动、复制的对象声明放置协议（`defineObjectMoveAction` / `defineObjectCopyAction`，只对本人）；能接收内容的做成工作流内容站；页面写 `data-assistant-context` 并留 `data-placement-slot`；新建、导入、导出、存固定版本后发 `molis:placement-result`。不要在插件里自己记“用于哪个项目”“复制自哪里”，也不要把内部动作写成交付。细则见 [放在哪里](../../skills/molis-plugin-dev/placement.md)，需求见 `specs/work-placement/spec.md`。
 
 ## 调用模型：登记的指令
 

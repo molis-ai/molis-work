@@ -2,7 +2,7 @@ import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prolog
 import { ActionError, actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionClient, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action" } as const;
+export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action", direct: "change-reversible" } as const;
 /** Tools for handing sub-tasks to separate works, present only where the caller offers delegation. */
 export const DELEGATION_TOOLS = { start: "delegate-work", check: "check-delegated-work", follow: "follow-up-delegated-work", stop: "stop-delegated-work" } as const;
 /** The person's memory, present only where the caller lets this round form memories. */
@@ -13,11 +13,11 @@ const FIND_LIMIT = 8;
 type Gateway = NonNullable<AgentFrozenRole["action_gateway"]>;
 interface CapabilityArgs { capability_id: string; version: number; provider_id: string; input?: unknown }
 
-const describe = (view: ActionView) => {
+const describe = (view: ActionView, direct = false) => {
   const effect = actionEffect(view.action, view.capability_id);
   return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider: view.provider.title,
-    title: view.action.title, effect: effect === "read" ? "read" : effect === "irreversible" ? "irreversible-change" : "change",
-    use: effect === "read" ? GATEWAY_TOOLS.read : GATEWAY_TOOLS.change, description: view.action.description.slice(0, 600), input_schema: view.action.input_schema };
+    title: view.action.title, effect: effect === "read" ? "read" : effect === "irreversible" ? "irreversible-change" : direct ? "reversible-change" : "change",
+    use: effect === "read" ? GATEWAY_TOOLS.read : direct ? GATEWAY_TOOLS.direct : GATEWAY_TOOLS.change, description: view.action.description.slice(0, 600), input_schema: view.action.input_schema };
 };
 
 /** The person's memory tools; each refuses when the round was not given memory. */
@@ -134,7 +134,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       }).filter(row => terms.length === 0 || row.score > 0).sort((a, b) => b.score - a.score);
       if (!scored.length) return JSON.stringify({ found: 0, note: "Nothing matches; try the provider's name or a shorter word from the capability directory." });
       for (const row of scored.slice(0, FIND_LIMIT)) known.add(row.view.capability_id);
-      return JSON.stringify({ found: scored.length, shown: Math.min(scored.length, FIND_LIMIT), capabilities: scored.slice(0, FIND_LIMIT).map(row => describe(row.view)) });
+      return JSON.stringify({ found: scored.length, shown: Math.min(scored.length, FIND_LIMIT), capabilities: scored.slice(0, FIND_LIMIT).map(row => describe(row.view, Boolean(gateway.client.direct?.(row.view)))) });
     }),
     [GATEWAY_TOOLS.read]: guarded(async (args, signal) => { const parsed = parseCapability(args); return invoke(parsed, await current(parsed, false), signal); }),
     // A proposal for the person: recorded by the caller, checked against the capability as it is now; runs nothing.
@@ -160,6 +160,15 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       const view = await current(parsed, true);
       return invoke(parsed, view, signal, true);
     }),
+    // A change that says how it is undone, which the person lets run without asking: it runs now and can be taken back.
+    [GATEWAY_TOOLS.direct]: guarded(async (args, signal) => {
+      if (!gateway.operate) throw new ActionError("actions.forbidden", "This role may only read.");
+      const parsed = parseCapability(args);
+      const view = await current(parsed, true);
+      if (!gateway.client.direct?.(view)) throw new ActionError("actions.gateway_mismatch", `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`);
+      const output = await invoke(parsed, view, signal, true);
+      return JSON.stringify({ result: JSON.parse(output), note: "It ran without a confirmation because it can be undone. Tell the person what changed and that they can undo it from this work's panel." });
+    }),
   };
   const capability = { type: "object", properties: {
     capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
@@ -180,6 +189,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       { type: "object", properties: { query: { type: "string", description: "Words from the provider or capability name, separated by spaces." } }, required: ["query"], additionalProperties: false }, "safe-read"),
     tool(GATEWAY_TOOLS.read, "Run a capability that only reads data, with the exact identity from find-capabilities.", capability, "safe-read"),
     tool(GATEWAY_TOOLS.change, "Run a capability that changes data, with the exact identity from find-capabilities. The person reviews the exact capability and input before it runs; do not ask them separately.", capability, "mutate-external"),
+    tool(GATEWAY_TOOLS.direct, "Run a change the capability directory marks 可撤销 (find-capabilities says use: change-reversible) directly, when the person has asked for exactly this effect. It runs without a confirmation and can be undone from the work; any other change goes through change-capability.", capability, "mutate-external"),
     tool(GATEWAY_TOOLS.suggest, "Offer the person a ready-to-run action as a button, with its exact capability and prepared input, when you are suggesting something they may want done but have not asked you to do. Nothing runs until they click it.", suggest, "safe-read"),
     ...[
       tool(DELEGATION_TOOLS.start, "Hand one independent sub-task to a separate work that runs on its own (same person and scope, its own session). Give it a clear brief, the acceptance bar, and only the material it needs. Its changes still wait for the person's confirmation; it cannot delegate further. Use it for parts that can proceed independently; do small things yourself.",
@@ -213,9 +223,9 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   // The runtime keeps one declaration per pack and one per tool name, so every session declares the same full set;
   // what a round may call is its own list of names (and a tool outside it refuses in its executor anyway).
   const all = tools.map(one => one.registration.name);
-  const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
+  const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (name !== GATEWAY_TOOLS.direct || (gateway.operate && gateway.client.direct)) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
     && (!(Object.values(MEMORY_TOOLS) as string[]).includes(name) || gateway.client.memory));
-  const pack: ScenarioPack = { id: PACK_ID, version: "2.1.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+  const pack: ScenarioPack = { id: PACK_ID, version: "2.2.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names, known };
@@ -264,8 +274,8 @@ export function normalizedInput(view: ActionView, input: unknown): unknown {
  * or asked for through the wrong tool. Null when it may proceed (a change then still waits for the person).
  */
 export async function gatewayProblem(gateway: Gateway, toolName: string, input: unknown, known?: Set<string>): Promise<string | null> {
-  if (toolName !== GATEWAY_TOOLS.read && toolName !== GATEWAY_TOOLS.change) return null;
-  if (toolName === GATEWAY_TOOLS.change && !gateway.operate) return "This role may only read.";
+  if (toolName !== GATEWAY_TOOLS.read && toolName !== GATEWAY_TOOLS.change && toolName !== GATEWAY_TOOLS.direct) return null;
+  if ((toolName === GATEWAY_TOOLS.change || toolName === GATEWAY_TOOLS.direct) && !gateway.operate) return "This role may only read.";
   let parsed: CapabilityArgs;
   try { parsed = parseCapability((input ?? {}) as Record<string, unknown>); } catch (error) { return (error as Error).message; }
   const views = await gateway.client.discover();
@@ -274,7 +284,8 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   known?.add(view.capability_id);
   if (!view.availability.available) return `${view.availability.reason}; nothing was done.`;
   const reads = actionEffect(view.action, view.capability_id) === "read";
-  if (toolName === GATEWAY_TOOLS.change && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;
+  if ((toolName === GATEWAY_TOOLS.change || toolName === GATEWAY_TOOLS.direct) && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;
+  if (toolName === GATEWAY_TOOLS.direct && !gateway.client.direct?.(view)) return `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`;
   if (toolName === GATEWAY_TOOLS.read && !reads) return `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`;
   // The same validation dispatch will do, before anyone is asked to approve an input that cannot run.
   try { await gateway.client.check?.({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, normalizedInput(view, parsed.input)); }

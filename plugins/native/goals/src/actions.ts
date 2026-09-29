@@ -24,6 +24,7 @@ import { boardSnapshotSchema, goalContractSchema } from "./snapshot-action-schem
 import type { BoardSnapshot, GoalContractView } from "./goal-entry-contract.js";
 
 import { goalsBoardActions, createGoalsBoardActionHandlers } from "./board-actions.js";
+import { goalsInputActions, createGoalsInputActionHandlers } from "./input-actions.js";
 import type { LegacyV3ImportPorts } from "./board-v3-import.js";
 import { goalsCollectionAction, createGoalsCollectionActionHandler } from "./collection-action.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
@@ -41,6 +42,9 @@ export const goalsActions = {
   searchEntries: defineSearchEntriesAction("goals.search.entries", [{ kind: "goal", title: "目标", surface: "goals" }], "目标", ["goals:read"]),
   ...goalsBoardActions,
   ...goalsEventActions,
+  inputsBind: goalsInputActions.bind,
+  inputsRelease: goalsInputActions.release,
+  inputsList: goalsInputActions.list,
   ...goalsPlanningActions,
   ...goalsGuidanceActions,
   ...goalsLifecycleActions,
@@ -113,13 +117,15 @@ export function createGoalsActionHandlers({ events, boardId, history, planning, 
   board: LegacyV3ImportPorts;
 }): ActionHandlerBinding[] {
   return [
+    ...createGoalsInputActionHandlers(boardId, collection.inputs, goalId => Boolean(readGoal(goalId) && events.readDirectoryItem(boardId, goalId))),
     { ...goalsActions.subject, handle: (_caller, input) => {
       const id = (input as { subject_id: string }).subject_id;
       const goal = readGoal(id);
       if (!goal || !events.readDirectoryItem(boardId, id)) throw new ActionError("actions.subject_unavailable", "当前目标已不存在或已归档");
       const state = events.readState(boardId, id);
       return subjectContext({ subject: { kind: "goal", id }, revision: `${goal.current_contract_revision}:${state.goal_event_cursor}`, title: goal.title,
-        content: [state.intent.title, state.intent.why, state.intent.business_logic, goal.outcome, `当前工作状态：${state.work_status}`, state.progress_summary?.summary, state.progress_summary?.next_step].filter(Boolean).join("\n\n"), goal_ids: [id], session_id: null });
+        content: [state.intent.title, state.intent.why, state.intent.business_logic, goal.outcome, `当前工作状态：${state.work_status}`, state.progress_summary?.summary, state.progress_summary?.next_step].filter(Boolean).join("\n\n"), goal_ids: [id], session_id: null,
+        open: { surface: "goals", id } });
     } },
     bindSearchEntriesHandler(goalsActions.searchEntries, () => {
       const entries: SearchEntry[] = [];

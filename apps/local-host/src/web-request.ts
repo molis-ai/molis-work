@@ -65,6 +65,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { handleAssistantHttp } from "./assistant/assistant-http.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
+import { handlePlacementHttp } from "./placement-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
 import { SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
@@ -98,6 +99,10 @@ export async function handleMolisWorkWebRequest(
   workspaceFor: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>,
 ): Promise<void> {
   const { PAGE_CSP, handleSessions, handleDesktopPanelApi, goalsReadHttp, planningHttp, desktopRuntimeAvailability, servePtyClient, workbenchRenderer, buildCapsuleSnapshot, handleArtifactNativePluginHttp, isDesktopShellRequest } = composition;
+  // The personal space always exists for the person; it is made the first time anyone opens it.
+  if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath) {
+    await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
+  }
   const resolved = await resolveWebRequest(serverOptions, url.pathname, composition.withCatalog);
   if (request.method === "GET" && resolved.kind !== "project_not_found"
     && (resolved.kind === "board" ? resolved.pathname === "/" : url.pathname === "/")
@@ -340,6 +345,7 @@ export async function handleMolisWorkWebRequest(
         }
         // Search reaches every plugin through the same directory and the person's own authority in this project.
         if (await handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS))) return;
+        if (await handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS))) return;
         if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
           actions: bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, "inbox:write", "functions:manage"]),
         })) return;

@@ -15,6 +15,17 @@ export const ASSISTANT_ACTOR = "web-user";
 export const actionKey = (ref: Pick<ActionReference, "capability_id" | "version" | "provider_id">) => JSON.stringify([ref.capability_id, ref.version, ref.provider_id ?? ""]);
 
 /**
+ * Whether a change may run without the person's confirmation: it declares how it is undone, that undo is offered here
+ * now, and the person has not asked to confirm it each time. Irreversible changes never do.
+ */
+export function directEligible(view: ActionView, offered: readonly ActionView[], confirmAlways: ReadonlySet<string>): boolean {
+  const undo = view.action.undo;
+  if (!undo || view.operation !== "command" || view.action.effect === "irreversible") return false;
+  if (confirmAlways.has(actionKey({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }))) return false;
+  return offered.some(row => row.capability_id === undo.capability_id && row.version === undo.version && row.provider.provider_id === view.provider.provider_id && row.availability.available);
+}
+
+/**
  * What the Assistant may call for a work: every action this Home offers to agents in the work's own scope (its
  * project's and the person's own), less the ones the person switched off for the Assistant. The person decided this
  * default on 2026-09-28; each write still stops at a review of its exact parameters, and the grants are the Assistant's
@@ -30,7 +41,9 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   /** Told of a change its owner was still running when the round stopped or ran out of time, to learn how it ended. */
   unsettled?: (view: ActionView, call: Promise<unknown>) => void,
   /** Remember, list and forget for the person (absent when forming memories is switched off). */
-  memory?: AgentMemoryTools): AgentStartAuthority {
+  memory?: AgentMemoryTools,
+  /** Changes the person wants confirmed each time even though they could be undone (action keys). */
+  confirmAlways?: () => ReadonlySet<string>): AgentStartAuthority {
   const reference = work.project_ref;
   const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`,
     ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [], ...(signal ? { signal } : {}) });
@@ -57,15 +70,20 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       } };
   };
   const service = () => reference ? localHost.actionClient(reference) : localHost.homeActionClient();
+  // What this round was last shown, with availability: a change runs directly only if its undo is available now.
+  let discovered: readonly ActionView[] = [];
+  const discover = async (validate?: () => void | Promise<void>) => { discovered = await service().discover(await context(validate)); return discovered; };
   return {
     manifest: ASSISTANT_AGENT,
     prompts: ASSISTANT_PROMPTS,
     authorizedDirectories: [],
     actions: async (_runtimeId, validate) => ({
-      discover: async () => service().discover(await context(validate)),
+      discover: () => discover(validate),
       ...(offer ? { offer: async (proposal: AgentActionOffer) => offer(proposal, await service().discover(await context(validate))) } : {}),
       ...(delegation ? { delegate: delegation } : {}),
       ...(memory ? { memory } : {}),
+      // A change that can be undone runs without a confirmation unless the person asked to confirm it each time.
+      direct: view => directEligible(view, discovered, confirmAlways?.() ?? new Set()),
       // Exactly the validation dispatch performs, so a bad input is refused before the person is asked.
       check: async (action, input) => {
         const view = (await service().discover(await context(validate))).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);

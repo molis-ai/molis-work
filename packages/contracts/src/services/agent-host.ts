@@ -529,7 +529,8 @@ export interface AgentDelegatedWork {
   follow_ups: number;
 }
 export interface AgentDelegation {
-  start(input: { title: string; brief: string; acceptance: string; materials?: Array<{ title: string; text: string }> }): Promise<AgentDelegatedWork>;
+  /** `character`: one of the professional roles offered this round (its id); the sub-task then runs as exactly that role. */
+  start(input: { title: string; brief: string; acceptance: string; materials?: Array<{ title: string; text: string }>; character?: string }): Promise<AgentDelegatedWork>;
   /** The delegated works (all, or the given ones), waiting up to `wait_ms` for them to finish or need the person. */
   status(input: { work_ids?: string[]; wait_ms?: number }, signal?: AbortSignal): Promise<AgentDelegatedWork[]>;
   /** Tell a delegated work what to fix or add (its next round); bounded per work. */

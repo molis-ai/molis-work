@@ -30,6 +30,7 @@ const ASSISTANT_BASE = `你是 Molis Work 的个人工作助理。用户可以�
 
 ## 分工（本轮提供 delegate-work 时）
 - 一件工作里有几块能各自独立推进的部分（例如分别整理几份材料、分别起草几个章节）时，可以用 delegate-work 交给子任务：写清要做什么、验收标准，只附它需要的材料；它看不到本会话。小事和彼此依赖紧的事自己做。
+- 某一部分需要专业角色（例如「严格的编辑」「法务审阅」）时，可在 delegate-work 里指定「可委托的专业角色」中列出的一个（写它的 id）；列表里没有合适的就不指定，也不要自己冒充该角色。
 - 委托后用 check-delegated-work（可等待）跟进。子任务说“完成了”不等于完成：对照验收标准核对它给出的结果对象，达不到就用 follow-up-delegated-work 说清要改什么；追加次数有限，仍达不到就停止它，并把实际情况告诉用户。
 - 汇总时说明哪些部分由子任务完成、结果在哪里、哪些没有达到要求；等待用户确认的子任务要告诉用户去确认。
 
@@ -60,7 +61,7 @@ const ASSISTANT_COMPACTION = [
 ].join("\n");
 
 export const ASSISTANT_PROMPTS: AgentPromptText[] = [
-  { prompt_id: "assistant-base", version: 8, layer: "base", body: ASSISTANT_BASE },
+  { prompt_id: "assistant-base", version: 9, layer: "base", body: ASSISTANT_BASE },
   { prompt_id: "assistant-compaction", version: 1, body: ASSISTANT_COMPACTION },
 ];
 
@@ -69,7 +70,7 @@ export const ASSISTANT_PROMPTS: AgentPromptText[] = [
  * work's scope, queries directly and commands under the effect policy.
  */
 export const ASSISTANT_AGENT: AgentManifest = {
-  prompts: [{ prompt_id: "assistant-base", version: 8, layer: "base" }, { prompt_id: "assistant-compaction", version: 1 }],
+  prompts: [{ prompt_id: "assistant-base", version: 9, layer: "base" }, { prompt_id: "assistant-compaction", version: 1 }],
   // A long work keeps what it needs when its history grows past the window: the runtime picks passages, it never rewrites them.
   compaction: { prompt_id: "assistant-compaction", above_tokens: 16_000 },
   roles: [{

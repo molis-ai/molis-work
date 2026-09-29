@@ -188,6 +188,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
           brief: { type: "string", description: "What to do, with the context it needs. It does not see this conversation." },
           acceptance: { type: "string", description: "How to tell it is done and right: what must exist and hold." },
           materials: { type: "array", items: { type: "object", properties: { title: { type: "string" }, text: { type: "string" } }, required: ["title", "text"] }, description: "Only the text it needs (at most 4)." },
+          character: { type: "string", description: "Optional: the id of one professional role from \"可委托的专业角色\" when this part needs that role; the sub-task then runs as exactly that role. Leave it out otherwise." },
         } }, "safe-read"),
       tool(DELEGATION_TOOLS.check, "Read the delegated works (all, or given work_ids): state, latest reply, objects they produced. With wait_seconds (≤50) it waits for them to finish or to need the person. A work's own report is not proof: check its results against the acceptance bar before relying on them.",
         { type: "object", additionalProperties: false, properties: { work_ids: { type: "array", items: { type: "string" } }, wait_seconds: { type: "integer", minimum: 0, maximum: 50 } } }, "safe-read"),
@@ -233,7 +234,8 @@ function delegationExecutors(given: Gateway["client"]["delegate"], guarded: (run
     [DELEGATION_TOOLS.start]: guarded(async args => {
       const materials = Array.isArray(args.materials) ? args.materials.flatMap(item => item && typeof item === "object" && typeof (item as { title?: unknown }).title === "string" && typeof (item as { text?: unknown }).text === "string"
         ? [{ title: (item as { title: string }).title.slice(0, 200), text: (item as { text: string }).text.slice(0, 20_000) }] : []).slice(0, 4) : [];
-      const started = await delegate.start({ title: text(args.title, "title", 80), brief: text(args.brief, "brief", 8000), acceptance: text(args.acceptance, "acceptance", 2000), ...(materials.length ? { materials } : {}) });
+      const character = typeof args.character === "string" && args.character.trim() ? args.character.trim().slice(0, 200) : undefined;
+      const started = await delegate.start({ title: text(args.title, "title", 80), brief: text(args.brief, "brief", 8000), acceptance: text(args.acceptance, "acceptance", 2000), ...(materials.length ? { materials } : {}), ...(character ? { character } : {}) });
       return JSON.stringify({ delegated: started, note: "It runs on its own now. Use check-delegated-work to follow it; do not redo its part yourself meanwhile." });
     }),
     [DELEGATION_TOOLS.check]: guarded(async (args, signal) => {

@@ -1333,6 +1333,12 @@ export class AssistantService {
     const since = this.store.rounds(work.work_id).at(-1)?.started_at ?? "";
     const handled = this.store.cards(work.work_id).filter(card => card.updated_at > since && ["done", "failed", "unknown", "dismissed", "stale"].includes(card.status));
     if (handled.length) out.push(...chunked({ ...base, title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${card.outcome.slice(0, 300)}）` : ""}`).join("\n")));
+    // Professional roles this work may hand a part to (published here, runnable now): delegation names one by its id.
+    if (!work.delegated_by && work.project_ref && this.ports.characters && work.executor.kind !== "coding") {
+      const roles = (await this.ports.characters(work.project_ref).catch(() => [])).filter(item => item.available);
+      if (roles.length) out.push(...chunked({ ...base, title: "可委托的专业角色" }, "roles",
+        ["需要专业角色处理某一部分时，在 delegate-work 的 character 里写它的 id；没有合适的就不指定。", ...roles.map(item => `- 「${item.title}」 v${item.reference.version}（id：${item.reference.artifact_id}）`)].join("\n")));
+    }
     // What the person asked to be remembered that bears on this round.
     const remembered = await this.recallFor(work, `${request} ${work.title} ${materials.map(item => item.title).join(" ")}`);
     if (remembered) out.push(...chunked({ ...base, title: "记住的偏好与背景" }, "memory", remembered));
@@ -1532,6 +1538,16 @@ export class AssistantService {
     return {
       start: async input => {
         const host = await this.ports.host();
+        // A professional role, when asked for: exactly one the person published here and can run now — never a stand-in.
+        let role: AssistantCharacterChoice | undefined;
+        if (input.character) {
+          const choices = parent.project_ref && this.ports.characters ? await this.ports.characters(parent.project_ref) : [];
+          const named = choices.filter(item => item.reference.artifact_id === input.character || item.title === input.character)
+            .sort((a, b) => Number(b.available) - Number(a.available) || b.reference.version - a.reference.version);
+          role = named[0];
+          if (!role) throw new AssistantError("assistant.not_found", `没有叫「${input.character}」的专业角色（只能用「可委托的专业角色」里列出的）；没有换成别的角色`);
+          if (!role.available) throw new AssistantError("assistant.character_unavailable", `角色「${role.title}」现在不能用：${role.reason ?? "不可用"}；没有换成别的角色`);
+        }
         const children = this.store.delegatedBy(this.actorId, parent.work_id);
         const active = (await Promise.all(children.map(child => this.stateFor(host, child)))).filter(state => !["completed", "failed", "stopped", "idle"].includes(state)).length;
         if (children.length >= MAX_DELEGATED) throw new AssistantError("assistant.limit", `这项工作已经委托了 ${MAX_DELEGATED} 个子任务，不能再多；请自己完成剩下的部分或告诉用户`);
@@ -1541,7 +1557,8 @@ export class AssistantService {
           delegated_by: { work_id: parent.work_id, title: parent.title, acceptance: input.acceptance.slice(0, 2000) } });
         const materials: AssistantMaterial[] = (input.materials ?? []).slice(0, 4).map((material, index) => ({ material_id: `delegated-${index + 1}`, kind: "text", title: material.title.slice(0, 200),
           text: material.text.slice(0, 20_000), explicit: true, source: { surface: "assistant", title: parent.title } }));
-        await this.dispatch(child, [`这是「${parent.title}」委托给你的子任务，只做这一部分。`, input.brief, `验收标准：${input.acceptance}`,
+        const assigned = role ? await this.chooseCharacter(child, role.reference) : child;
+        await this.dispatch(assigned, [`这是「${parent.title}」委托给你的子任务，只做这一部分。`, input.brief, `验收标准：${input.acceptance}`,
           "完成时说明结果在哪里（对象名称）、是否满足验收；做不到的部分如实说明，不要声称已完成。"].join("\n\n"), materials, null);
         return view(this.store.get(this.actorId, child.work_id));
       },

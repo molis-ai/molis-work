@@ -253,7 +253,9 @@ export function cardView(card: StoredCard): AssistantCard {
         }
         continue;
       }
-      fields.push({ key, label: labelOf(properties, key), value: value !== undefined ? actionFieldValue(key, value, properties[key]) : "", editable, ...choices(properties[key], value) });
+      // The object it acts on reads by its title, not by its identifier.
+      const target = !editable && card.target?.title && value === card.target.id ? card.target.title : null;
+      fields.push({ key, label: labelOf(properties, key), value: target ?? (value !== undefined ? actionFieldValue(key, value, properties[key]) : ""), editable, ...choices(properties[key], value) });
     }
   } else fields.push({ key: "", label: "内容", value: actionFieldValue("", card.input), editable: false });
   return { card_id: card.card_id, revision: card.revision, run_id: card.run_id, title: card.title, summary: card.summary, provider: card.provider,

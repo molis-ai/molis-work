@@ -175,6 +175,7 @@ test("what the person does in the plugin settles what it made redundant: a sugge
     const sent = await f.service.send({ text: "看看 n7 能不能改短", request_id: "req-00000131" }, { project_ref: f.project });
     let view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
     assert.equal(view.cards[0]!.status, "ready");
+    assert.equal(view.cards[0]!.fields.find(field => field.key === "id")?.value, "a long note", "the object it acts on reads by its title");
     // The person shortens the note themselves, in the plugin.
     f.notes.set("n7", { text: "short by hand", version: 2 });
     view = await f.service.read(sent.work.work_id);

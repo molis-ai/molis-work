@@ -45,6 +45,15 @@ test('the capability board is the project\'s action directory: platform, install
   assert.equal((await capabilityCatalog(actions, 'web-user')).find(entry => entry.id === 'schedules.add')?.provider_id, SCHEDULE_OPERATION_PROVIDER_ID, 'scheduled operations belong to Schedule too');
 });
 
+test('a composition that hands the studio no metadata inspection still gets the directory the caller can discover, never an empty board', async () => {
+  const { actions, unregister } = project();
+  // As the workbench page once did: registry and a client that can only discover (no inspect anywhere).
+  const client = { discover: (caller: Parameters<typeof actions.client.discover>[0]) => actions.client.discover(caller), invoke: actions.client.invoke.bind(actions.client) };
+  const catalog = await capabilityCatalog({ registry: actions.registry, client, project_id: actions.project_id }, 'web-user');
+  assert.ok(catalog.some(entry => entry.id === 'model.generate' && entry.offered), JSON.stringify(catalog.map(entry => entry.id)));
+  unregister();
+});
+
 test('MCP tools show as MCP on the board whether a plugin or 服务连接 registered them', async () => {
   const { actions } = project();
   const tool = (capability_id: string): ActionDefinition => ({ capability_id, version: 1, operation: 'command',

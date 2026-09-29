@@ -1,3 +1,4 @@
+import { modelPromptText } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
@@ -50,7 +51,7 @@ test('proposed slots preserve cross-midnight occupancy and report no slot when f
 });
 test('long material keeps original evidence identities through hierarchical summaries',async t=>{
   const store=fixture(t);store.execute({type:'inspiration.create',raw_text:'第一段真实观察。'.repeat(1600)+'\n\n'+'第二段包含边界。'.repeat(1600)});let calls=0;
-  const result=await runJellyAi(store.read(),{kind:'digest',source_type:'inspiration',source_id:store.read().inspirations[0]!.id},{completeJson:async prompt=>{
+  const result=await runJellyAi(store.read(),{kind:'digest',source_type:'inspiration',source_id:store.read().inspirations[0]!.id},{completeJson:async input=>{const prompt=modelPromptText(input);
     calls++;const blockMatch=prompt.match(/<材料块>\n([\s\S]*?)\n<\/材料块>/u);
     if(blockMatch){const blocks=JSON.parse(blockMatch[1]!);const id=blocks[0].id;return {thesis:{text:'观察摘要',evidence_block_ids:[id]},takeaways:[{text:'保留观察与边界',evidence_block_ids:[id]}],chapters:[],quotes:[],dropped:[]};}
     const summaries=JSON.parse(prompt.match(/<分段摘要>\n([\s\S]*?)\n<\/分段摘要>/u)![1]!);return {...summaries[0],takeaways:summaries.map((s:any)=>s.takeaways[0])};

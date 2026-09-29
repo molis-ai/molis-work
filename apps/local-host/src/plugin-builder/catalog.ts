@@ -11,7 +11,7 @@ import type { SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contract
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { MODEL_STAND_IN_PREFIX, studioCapability } from '@molis-ai/molis-work-plugin-builder';
 import { isMcpToolCapability } from '../mcp-tool-actions.js';
-import { latestCapability, type CapabilityImplementations } from './capabilities.js';
+import { latestCapability, type ModelGenerateInput, type CapabilityImplementations } from './capabilities.js';
 
 /** Designs made against this catalog call real actions with their real schemas; older designs keep the studio's own list. */
 export const CATALOG_VERSION = 'actions/1';
@@ -47,7 +47,7 @@ export function registerPlatformCapabilities(actions: ProjectActions, implementa
   };
   const definitions = [define('model.generate', 'read', 'concurrent')];
   const handlers: ActionHandlerBinding[] = [
-    { capability_id: 'model.generate', version: 1, handle: async (context, input) => implementations.generate(pluginOf(context), input as { instructions: string; input: string }, context.signal ?? new AbortController().signal,
+    { capability_id: 'model.generate', version: 1, handle: async (context, input) => implementations.generate(pluginOf(context), input as ModelGenerateInput, context.signal ?? new AbortController().signal,
       () => context.beforeEffect()) },
   ];
   return actions.registry.registerProvider({ provider: { provider_id: PLATFORM_PROVIDER_ID, title: '插件平台', kind: 'system', project_id: actions.project_id }, definitions, handlers });
@@ -56,8 +56,9 @@ export function registerPlatformCapabilities(actions: ProjectActions, implementa
 /** Everything a generated plugin may be granted in this project, and the agent-facing actions it may not, with the reason. */
 export async function capabilityCatalog(actions: ProjectActions, actorId: string): Promise<CatalogCapability[]> {
   const client = actions.client as ActionClient & { inspect?(context: ActionCallContext): ActionView[] };
+  // Metadata inspection when the composition offers it; otherwise what the caller can discover, never an empty board.
   const ask = async (audience: 'plugin' | 'agent', permissions: string[]) => { const caller: ActionCallContext = { actor_id: actorId, project_id: actions.project_id, audience, permissions };
-    return [...(actions.inspect ? await actions.inspect(caller) : client.inspect?.(caller) ?? [])]; };
+    return [...(actions.inspect ? await actions.inspect(caller) : client.inspect ? client.inspect(caller) : await client.discover(caller))]; };
   // Asked again holding every permission the actions need (an installation's grant brings them), so what is still
   // unavailable says why for real: its plugin is not enabled here, or it only answers its own installation.
   const list = async (audience: 'plugin' | 'agent') => { const first = await ask(audience, []), needed = [...new Set(first.flatMap(view => view.action.permissions))];

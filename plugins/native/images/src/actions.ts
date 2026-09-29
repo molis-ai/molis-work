@@ -2,6 +2,7 @@ import { ActionError, type ActionDefinition, type ActionSchema, type ActionHandl
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
 import type { ImagesService } from "./service.js";
+import { createImagesSearchHandlers, imagesSearchActions } from "./search.js";
 const text = {type:"string"}, id = {...text,minLength:1,pattern:"\\S"};
 const object = (properties:Record<string,unknown>,required=Object.keys(properties)):ActionSchema=>({type:"object",properties,required,additionalProperties:false});
 const array = (items:unknown)=>({type:"array",items});
@@ -26,6 +27,8 @@ export const imagesActions={
   cancel:define<{id:string},{job:ImageJob}>("jobs.cancel","停止本机等待","停止当前项目任务等待；厂商可能仍在生成或计费，不会自动重新生成","command","project",object({id}),changed,["images:generate"]),
   delete:define<{id:string},{deleted:true}>("jobs.delete","删除生成记录","删除终态任务及本机图片文件；运行中需先取消","command","project",object({id}),object({deleted:{const:true}}),["images:delete"]),
   image:define<{id:string;image_id:string},{base64:string;mime_type:string;filename:string}>("images.read","读取生成图片","返回任务中实际图片字节的 Base64、MIME 和文件名；不是厂商 URL","query","project",object({id,image_id:id}),object({base64:text,mime_type:mime,filename:text}),["images:read"]),
+  searchEntries:imagesSearchActions.entries,
+  subject:imagesSearchActions.subject,
 };
 export const IMAGES_ACTION_PERMISSIONS=[...new Set(Object.values(imagesActions).flatMap(d=>d.action.permissions))];
 export interface ImagesActionPorts { service():ImagesService; authConnections():ConnectorConnectionView[]; validateConnection(input:Omit<ImageConnectionInput,"api_key">):void }
@@ -41,6 +44,6 @@ export function createImagesActionHandlers(ports:ImagesActionPorts):ActionHandle
     bind(imagesActions.start,(input,caller)=>({job:ports.service().start(project(caller),input)})),
     bind(imagesActions.cancel,(input,caller)=>({job:ports.service().cancel(project(caller),input.id)})),
     bind(imagesActions.delete,(input,caller)=>{ports.service().deleteJob(project(caller),input.id);return {deleted:true};}),
-    bind(imagesActions.image,(input,caller)=>{const image=ports.service().readImage(project(caller),input.id,input.image_id);return {base64:image.bytes.toString("base64"),mime_type:image.mime,filename:image.filename};}),
+    bind(imagesActions.image,(input,caller)=>{const image=ports.service().readImage(project(caller),input.id,input.image_id);return {base64:image.bytes.toString("base64"),mime_type:image.mime,filename:image.filename};}),    ...createImagesSearchHandlers(ports.service),
   ];
 }

@@ -20,6 +20,8 @@ import { MW_PLUGINS } from "../palette.js";
 
 const WORKBENCH = "body.immersive-workbench";
 const SHELL = "body.immersive-workbench:not([data-pane-embedded])";
+/** The resident Assistant lives in the workbench bar and, for personal work without a project, on the project list. */
+const ASSIST = ":is(body.immersive-workbench:not([data-pane-embedded]), body.project-index-page)";
 const RAIL_LINK = ":is(.plugin-rail, .assistant-island, .workspace-chrome) :is(.immersive-plugin-link, .navigator-project-search, .navigator-project-settings, .navigator-directory-toggle, .immersive-show-directory, .personal-account)";
 const PAGES = "body:is(.immersive-workbench, .settings-page, .project-index-page, .project-preferences-page)";
 
@@ -141,7 +143,7 @@ const CRAFT_BASE_STYLES = `
   ${viewChipTints()}
 
   /* ─── Plugin rail: this project — where the work lives and its plugins; the account at the foot ── */
-  :root ${SHELL} :is(.assistant-island-card, .workspace-chrome .navigator-project-primary, .plugin-rail-items, .plugin-rail .personal-sidebar-footer) {
+  :root ${ASSIST} :is(.assistant-island-card, .workspace-chrome .navigator-project-primary, .plugin-rail-items, .plugin-rail .personal-sidebar-footer) {
     background: transparent; box-shadow: none; border: 0;
   }
   /* The zone hairline above the account sits in the 8px gap and takes no height. */
@@ -439,17 +441,172 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] > span { color: var(--ink); }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item:not([aria-current]):hover { background: var(--nav-hover); }
   /* Its answers open above the bar and stay until closed. */
-  ${SHELL} .assistant-panel {
-    position: absolute; z-index: 50; left: 0; right: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; overflow: hidden;
-    height: auto; max-height: min(460px, calc(100dvh - var(--desktop-titlebar-height) - var(--dock-h) - 32px));
+  ${ASSIST} .assistant-panel {
+    position: absolute; z-index: 50; left: -40px; right: -40px; bottom: calc(100% + 8px); display: flex; flex-direction: column; overflow: hidden;
+    height: min(600px, calc(100dvh - var(--desktop-titlebar-height) - var(--dock-h) - 32px));
     border-radius: 12px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise 220ms var(--ease-quint) both;
   }
-  ${SHELL} .assistant-panel[hidden] { display: none; }
-  /* The answer sets the height; a short one keeps the panel short. */
-  ${SHELL} .assistant-panel .assistant-plan { flex: 0 1 auto; min-height: 0; overflow: auto; padding: 14px 16px 16px; font-size: 13px; }
-  ${SHELL} .assistant-panel .assistant-plan > p.assistant-ask { margin: 0 0 10px; padding: 0 0 10px; box-shadow: inset 0 -1px 0 var(--line); color: var(--ink); font-weight: 500; }
-  ${SHELL} .assistant-panel .assistant-plan > strong { display: block; margin-bottom: 4px; font-weight: 500; }
-  ${SHELL} .assistant-panel .assistant-plan > p { color: var(--muted); }
+  ${ASSIST} .assistant-panel[hidden] { display: none; }
+  /* Head: which work, its real state, where it belongs, and what can be done to it now. */
+  ${ASSIST} .assistant-head { flex: none; display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 6px 0 6px; box-shadow: inset 0 -1px 0 var(--line); }
+  ${ASSIST} .assistant-work-switch {
+    display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 55%; height: 28px; padding: 0 8px; border: 0; border-radius: 7px;
+    background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  ${ASSIST} .assistant-work-switch:is(:hover, [aria-expanded="true"]) { background: var(--nav-hover); }
+  ${ASSIST} .assistant-work-switch:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-work-switch > svg { flex: none; width: 12px; height: 12px; color: var(--muted); }
+  ${ASSIST} .assistant-work-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-state { flex: none; font-size: 11px; font-weight: 400; color: var(--muted); }
+  ${ASSIST} .assistant-state:empty { display: none; }
+  ${ASSIST} .assistant-state[data-state="running"]::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: var(--hue-green-fill); vertical-align: 1px; }
+  ${ASSIST} .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { color: var(--ink); }
+  ${ASSIST} .assistant-state[data-state="failed"] { color: var(--danger); }
+  ${ASSIST} .assistant-work-scope { flex: none; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 6px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 11px; }
+  ${ASSIST} .assistant-head-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+  ${ASSIST} .assistant-head-actions .dock-window-action[hidden] { display: none; }
+  /* The person's works, newest first. */
+  ${ASSIST} .assistant-works { flex: none; display: flex; flex-direction: column; gap: 1px; max-height: 45%; overflow: auto; padding: 6px; box-shadow: inset 0 -1px 0 var(--line); }
+  ${ASSIST} .assistant-works[hidden] { display: none; }
+  ${ASSIST} .assistant-works-item {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 6px 10px; border: 0; border-radius: 7px;
+    background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer;
+  }
+  ${ASSIST} .assistant-works-item:hover { background: var(--nav-hover); color: var(--ink); }
+  ${ASSIST} .assistant-works-item[aria-current] { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} .assistant-works-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-works-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  ${ASSIST} .assistant-works-meta { font-size: 11px; color: var(--muted); }
+  ${ASSIST} .assistant-works-new { flex-direction: row; font-size: 13px; color: var(--muted); }
+  /* What the work started from, used, produced and handed to — as the owners have them now. */
+  ${ASSIST} .assistant-objects { flex: none; padding: 4px 10px; box-shadow: inset 0 -1px 0 var(--line); font-size: 12px; }
+  ${ASSIST} .assistant-objects[hidden] { display: none; }
+  ${ASSIST} .assistant-objects summary { cursor: pointer; color: var(--muted); padding: 2px 0; border-radius: 5px; }
+  ${ASSIST} .assistant-objects summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+  ${ASSIST} .assistant-objects-items { list-style: none; margin: 4px 0 2px; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow: auto; }
+  ${ASSIST} .assistant-object { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 3px 4px; border-radius: 6px; }
+  ${ASSIST} .assistant-object-relation { font-size: 11px; color: var(--muted); padding: 0 5px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); white-space: nowrap; }
+  ${ASSIST} .assistant-object-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
+  ${ASSIST} .assistant-object-state { font-size: 11px; color: var(--faint); white-space: nowrap; }
+  ${ASSIST} .assistant-object--changed .assistant-object-state { color: var(--warning, #b7791f); }
+  ${ASSIST} :is(.assistant-object--missing, .assistant-object--unavailable) .assistant-object-state { color: var(--danger, #c53030); }
+  ${ASSIST} .assistant-object-open, ${ASSIST} .assistant-material-add { padding: 1px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--accent, var(--ink)); font: inherit; font-size: 12px; cursor: pointer; }
+  ${ASSIST} :is(.assistant-object-open, .assistant-material-add):hover { background: var(--nav-hover); }
+  ${ASSIST} :is(.assistant-object-open, .assistant-material-add):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-material--optional .assistant-material-label { color: var(--muted); }
+  ${ASSIST} .assistant-round-executor { margin: 0 0 4px; font-size: 11px; color: var(--muted); }
+  /* The conversation: the person's words on the right, the assistant's answer as text, what it did as quiet lines. */
+  ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
+  ${ASSIST} .assistant-empty { color: var(--muted); }
+  ${ASSIST} .assistant-empty strong { display: block; margin-bottom: 4px; color: var(--ink); font-weight: 500; }
+  ${ASSIST} .assistant-empty p { margin: 0; }
+  ${ASSIST} .assistant-empty[hidden] { display: none; }
+  ${ASSIST} .assistant-round { display: flex; flex-direction: column; gap: 8px; }
+  ${ASSIST} .assistant-msg { max-width: 100%; overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-msg--user { align-self: flex-end; max-width: 85%; padding: 7px 12px; border-radius: 12px; background: var(--nav-active); color: var(--ink); white-space: pre-wrap; }
+  ${ASSIST} .assistant-msg--assistant { color: var(--ink); }
+  ${ASSIST} .assistant-msg--note { font-size: 12px; color: var(--muted); }
+  ${ASSIST} .assistant-rich > :last-child { margin-bottom: 0; }
+  ${ASSIST} .assistant-rich p { margin: 0 0 8px; }
+  ${ASSIST} .assistant-rich :is(ul, ol) { margin: 0 0 8px; padding-left: 20px; }
+  ${ASSIST} .assistant-rich .assistant-rich-heading { font-weight: 600; }
+  ${ASSIST} .assistant-rich pre { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--wash); overflow: auto; font-size: 12px; }
+  ${ASSIST} .assistant-rich code { padding: 0 3px; border-radius: 4px; background: var(--wash); font-size: 12px; }
+  ${ASSIST} .assistant-rich pre code { padding: 0; background: none; }
+  ${ASSIST} :is(.assistant-activity, .assistant-round-status, .assistant-materials, .assistant-muted) { margin: 0; font-size: 12px; color: var(--muted); }
+  ${ASSIST} .assistant-activity[data-state="failed"] { color: var(--danger); }
+  ${ASSIST} .assistant-round-status[hidden] { display: none; }
+  ${ASSIST} .assistant-round-status[data-phase="failed"] { color: var(--danger); }
+  /* What needs the person: a question to answer, or an exact effect to allow. */
+  ${ASSIST} .assistant-card { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line-strong); }
+  ${ASSIST} .assistant-card-title { margin: 0; font-weight: 500; color: var(--ink); }
+  ${ASSIST} .assistant-card--action { box-shadow: 0 0 0 1px var(--line-strong); }
+  ${ASSIST} .assistant-card--action[data-status="done"] { box-shadow: 0 0 0 1px var(--line); }
+  ${ASSIST} .assistant-card--action :is(input.mw-input, textarea.mw-input) { width: 100%; font: inherit; font-size: 12px; }
+  ${ASSIST} .assistant-card-status { margin: 0; font-size: 12px; color: var(--muted); }
+  ${ASSIST} .assistant-card--action[data-status="failed"] .assistant-card-status { color: var(--danger); }
+  ${ASSIST} .assistant-card--action[data-status="unknown"] .assistant-card-status { color: var(--ink); }
+  ${ASSIST} .assistant-card p { margin: 0; }
+  ${ASSIST} .assistant-card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  ${ASSIST} .assistant-answer { display: flex; gap: 6px; }
+  ${ASSIST} .assistant-answer .mw-input { flex: 1; min-width: 0; }
+  ${ASSIST} .assistant-questionnaire { display: flex; flex-direction: column; gap: 8px; }
+  ${ASSIST} .assistant-questionnaire fieldset { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; border: 0; }
+  ${ASSIST} .assistant-questionnaire legend { padding: 0; margin-bottom: 2px; font-weight: 500; }
+  ${ASSIST} .assistant-fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12px; }
+  ${ASSIST} .assistant-fields dt { color: var(--muted); }
+  ${ASSIST} .assistant-diff { margin: 0; max-height: 280px; overflow: auto; padding: 6px 8px; border-radius: 6px; background: var(--wash); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-diff .is-added { color: var(--hue-green-fill); }
+  ${ASSIST} .assistant-diff .is-removed { color: var(--danger); }
+  ${ASSIST} .assistant-fields dd { margin: 0; max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-problem { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--wash); }
+  ${ASSIST} .assistant-problem p { margin: 0; }
+  ${ASSIST} .assistant-recovery { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 0; padding-left: 18px; font-size: 12px; }
+  /* On the project list the Assistant floats at the foot of the page, in the person's own scope. */
+  body.project-index-page .project-index { padding-bottom: 96px; }
+  body.project-index-page .project-index-dock { position: fixed; z-index: 40; left: 50%; bottom: 16px; width: min(640px, calc(100vw - 32px)); transform: translateX(-50%); }
+  body.project-index-page .project-index-dock .bar-center { position: relative; min-width: 0; }
+  body.project-index-page .project-index-dock .bar-composer { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 6px; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--lift-2); }
+  body.project-index-page .project-index-dock .bar-composer:focus-within { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-2); }
+  body.project-index-page .project-index-dock .assistant-composer-input { flex: 1; min-width: 0; height: 32px; padding: 0 6px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 14px; outline: none; }
+  body.project-index-page .project-index-dock .assistant-composer-input::placeholder { color: var(--faint); }
+  body.project-index-page .project-index-dock .assistant-panel { left: 0; right: 0; height: min(560px, calc(100dvh - 140px)); }
+  body.project-index-page .assistant-head .dock-window-action {
+    display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+  }
+  body.project-index-page .assistant-head .dock-window-action:hover { background: var(--nav-hover); color: var(--ink); }
+  body.project-index-page .assistant-head .dock-window-action svg { width: 14px; height: 14px; }
+  /* In front of the input: where the next Send goes — a new work (and whose), or the work it continues. */
+  ${ASSIST} .assistant-target { display: inline-flex; flex: 0 1 auto; align-items: center; min-width: 0; max-width: 26%; height: 28px; border-radius: 7px; box-shadow: 0 0 0 1px var(--line); }
+  ${ASSIST} .assistant-target[data-mode="work"] { background: var(--nav-hover); box-shadow: none; }
+  ${ASSIST} .assistant-target-main {
+    min-width: 0; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted);
+    font: inherit; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  }
+  ${ASSIST} .assistant-target-main > span { display: block; overflow: hidden; text-overflow: ellipsis; }
+  ${ASSIST} .assistant-target[data-mode="work"] .assistant-target-main { color: var(--ink); padding-right: 2px; }
+  ${ASSIST} .assistant-target-main:hover { color: var(--ink); }
+  ${ASSIST} :is(.assistant-target-main, .assistant-target-clear):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; margin-right: 3px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+  ${ASSIST} .assistant-target-clear[hidden] { display: none; }
+  ${ASSIST} .assistant-target-clear:hover { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} .assistant-target-clear svg { width: 11px; height: 11px; }
+  /* What goes with this Send, and ways to begin: small popovers rising from the composer. */
+  ${ASSIST} .assistant-executor { display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; box-shadow: 0 0 0 1px var(--line); color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  ${ASSIST} .assistant-executor[hidden] { display: none; }
+  ${ASSIST} .assistant-executor svg { width: 11px; height: 11px; color: var(--muted); }
+  ${ASSIST} .assistant-executor:hover { box-shadow: 0 0 0 1px var(--line-strong); color: var(--ink); }
+  ${ASSIST} .assistant-executor:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-work-executor { flex: none; height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: var(--nav-hover); color: var(--ink-soft); font: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
+  ${ASSIST} .assistant-work-executor[hidden] { display: none; }
+  ${ASSIST} .assistant-work-executor:hover:not(:disabled) { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} .assistant-starter[aria-current] { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach) {
+    display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px;
+    background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+  }
+  ${ASSIST} .assistant-materials-button { background: var(--nav-hover); color: var(--ink); }
+  ${ASSIST} .assistant-materials-button[hidden] { display: none; }
+  ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach) svg { width: 14px; height: 14px; }
+  ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach):hover { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-popover {
+    position: absolute; z-index: 60; left: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 2px; width: min(420px, 100%);
+    max-height: 50dvh; overflow: auto; padding: 8px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); font-size: 13px;
+  }
+  ${ASSIST} .assistant-popover[hidden] { display: none; }
+  ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 6px; font-size: 11px; color: var(--faint); }
+  ${ASSIST} .assistant-material { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 7px; }
+  ${ASSIST} .assistant-material:hover { background: var(--nav-hover); }
+  ${ASSIST} .assistant-material-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+  ${ASSIST} .assistant-material-origin { font-size: 11px; color: var(--faint); white-space: nowrap; }
+  ${ASSIST} .assistant-material-remove { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+  ${ASSIST} .assistant-material-remove:hover { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} .assistant-starter { width: 100%; padding: 6px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer; }
+  ${ASSIST} .assistant-starter:hover { background: var(--nav-hover); color: var(--ink); }
+  ${ASSIST} :is(.assistant-starter, .assistant-material-remove):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-exact summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+  ${ASSIST} .assistant-exact pre { margin: 4px 0 0; max-height: 200px; overflow: auto; padding: 8px 10px; border-radius: 8px; background: var(--wash); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   /* ⌘K search opens from the same place: one entry for finding and for asking. */
   @media (min-width: 601px) {
     ${SHELL} dialog.global-search-dialog[open] { position: fixed; inset: auto 0 calc(var(--dock-h) + 8px) 0; margin: 0 auto; width: min(640px, calc(100vw - 32px)); max-height: min(70dvh, 560px); }
@@ -584,10 +741,68 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .dock-pins, ${SHELL} .bar-residents { display: none; }
     ${SHELL} .plugin-picker-trigger { max-width: 120px; }
     html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; }
-    ${SHELL} .assistant-panel, ${SHELL} .dock-window { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; height: min(70dvh, 560px); }
+    ${ASSIST} .assistant-panel, ${SHELL} .dock-window { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; height: min(70dvh, 560px); }
+    ${ASSIST} .assistant-target { max-width: 30%; }
+    /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
+    ${SHELL} .bar-composer { gap: 4px; }
+    ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 24px; min-width: 24px; }
+    /* Search stays reachable on a phone: the icon alone. */
+    ${SHELL} .bar-composer .bar-composer-search { flex: none; gap: 0; padding: 0 6px; }
+    ${SHELL} .bar-composer .plugin-picker { flex: none; max-width: 64px; }
+    ${SHELL} .bar-composer .plugin-picker-trigger > svg { display: none; }
+    ${SHELL} .bar-composer .plugin-picker-trigger { padding: 0 7px; max-width: 64px; }
+    ${SHELL} .bar-composer .plugin-picker-current { min-width: 0; overflow: hidden; }
+    ${SHELL} .bar-composer .plugin-picker-current > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    ${ASSIST} .assistant-executor { flex: 0 1 auto; min-width: 28px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 5px; }
+    ${ASSIST} .assistant-executor > svg { display: none; }
+    /* A phone bar has room for one chooser beside the input: the Character appears while the panel is open (to choose) or
+       once chosen (then it replaces the executor, which a Character implies); search steps aside while the panel is open. */
+    ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
+    ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
+    ${SHELL} [data-assistant-island]:has(.assistant-panel:not([hidden])) .bar-composer .bar-composer-search { display: none; }
+    /* Only while typing: focusing the switcher or a chip must keep it on screen. */
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button, .bar-composer-search) { display: none; }
     ${SHELL} .account-global-popover { position: fixed; left: 8px; bottom: 64px; width: min(300px, calc(100vw - 16px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 8px; left: auto; bottom: 64px; }
   }
+
+  /* Prompt 与 Character settings: grouped by source, each prompt expandable to edit, the default beside the person's version. */
+  .prompt-settings-notice { margin: 0 0 16px; padding: 10px 12px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); color: var(--ink-soft); font-size: 13px; }
+  .prompt-settings-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .prompt-settings-search { flex: 1 1 220px; min-width: 0; }
+  .prompt-group-title { margin: 0 0 8px; font-size: 14px; }
+  .prompt-roles-label { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
+  .prompt-roles { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .prompt-role { display: inline-flex; flex-direction: column; align-items: flex-start; padding: 5px 9px; border: 0; border-radius: 7px; background: transparent; color: inherit; box-shadow: 0 0 0 1px var(--line); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+  .prompt-role:hover { background: var(--hover); }
+  .prompt-role[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--accent); }
+  .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; background: var(--hover); font-size: 13px; }
+  .prompt-role-focus p { margin: 2px 0 0; color: var(--muted); }
+  .prompt-diagnostics { margin-top: 20px; }
+  .prompt-diagnostics > summary { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+  .prompt-diagnostics-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .prompt-diagnostics-owner { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+  .prompt-diagnostics-issues { margin: 4px 0 0; padding-left: 18px; font-size: 12px; }
+  .prompt-diagnostics-issue--warning { color: var(--tone-attention, var(--amber)); }
+  .prompt-diagnostics-issue--info { color: var(--muted); }
+  .prompt-diagnostics-heading { margin: 16px 0 0; font-size: 13px; font-weight: 500; }
+  .prompt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .prompt-row { padding: 8px 10px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); }
+  .prompt-row-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; }
+  .prompt-row-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .prompt-row-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+  .prompt-row-meta { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+  .prompt-tag, .prompt-state { font-size: 11px; padding: 1px 6px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); white-space: nowrap; }
+  .prompt-state--user { color: var(--ink); background: var(--nav-active); }
+  .prompt-state--updated { color: var(--warning, #b7791f); }
+  .prompt-editor { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .prompt-editor-text { width: 100%; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; line-height: 1.55; }
+  .prompt-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .prompt-editor-count { margin-left: auto; font-size: 11px; }
+  .prompt-default summary, .prompt-history summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+  .prompt-default-text { max-height: 260px; overflow: auto; margin: 6px 0 0; padding: 8px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); white-space: pre-wrap; font-size: 12px; }
+  .prompt-history-list { margin: 6px 0 0; padding-left: 18px; font-size: 12px; color: var(--ink-soft); }
+  @media (max-width: 600px) { .prompt-row-head { grid-template-columns: minmax(0, 1fr); } .prompt-row-meta { justify-content: flex-start; } }
 
   /* The project is its own mark: a letter on a stable hue, not a generic database glyph. */
   .project-monogram {

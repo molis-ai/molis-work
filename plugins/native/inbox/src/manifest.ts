@@ -1,4 +1,4 @@
-import { inboxContentActions, inboxSubjectAction } from "./content-actions.js";
+import { inboxContentActions, inboxSearchEntriesAction, inboxSubjectAction } from "./content-actions.js";
 import { inboxHomeEventsAction } from "./home-events.js";
 import { inboxNextScene } from "./scenes.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -27,7 +27,7 @@ export const inboxManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-inbox-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [...new Set([...INBOX_ACTION_PERMISSIONS, ...Object.values(inboxContentActions).flatMap(d => d.action.permissions)])].map(permission => ({ permission, required: false, reason: "使用对应的 Inbox 能力" })),
-  actions: [...INBOX_ACTIONS, ...Object.values(inboxContentActions), inboxSubjectAction, inboxHomeEventsAction],
+  actions: [...INBOX_ACTIONS, ...Object.values(inboxContentActions), inboxSubjectAction, inboxSearchEntriesAction, inboxHomeEventsAction],
   action_scenes: [inboxNextScene],
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },

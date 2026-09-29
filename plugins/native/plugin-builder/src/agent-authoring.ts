@@ -171,7 +171,7 @@ function datesIn(value: unknown, found: string[] = []): string[] {
 }
 /** An example runs at every check; a date it expects must come from its own input, never from today. */
 function timeless(expected: unknown, input: unknown, at: string) {
-  const typed = (value: unknown): string | undefined => typeof value === 'string' && /^(?:string|number|integer|boolean|date|datetime|url)(?:\(.*\))?(?:\s.*)?$/.test(value.trim()) ? value.trim()
+  const typed = (value: unknown): string | undefined => typeof value === 'string' && /^(?:string|number|integer|boolean|date|datetime|url|array|object|list)(?:\(.*\))?(?:\s.*)?$/.test(value.trim()) ? value.trim()
     : Array.isArray(value) ? value.map(typed).find(Boolean) : object(value) ? Object.values(value).map(typed).find(Boolean) : undefined;
   const word = typed(expected);
   if (word) fail(at, `示例的期望结果里写的是类型「${word}」，示例要写一个具体的值；这个值会变（比如当前月份）就去掉这个字段`);
@@ -183,7 +183,7 @@ function settle(expected: unknown, input: unknown, at: string, dropped: string[]
   if (!object(expected)) return expected;
   const given = new Set(datesIn(input)), kept: Json = {};
   for (const [key, value] of Object.entries(expected)) {
-    const typeName = typeof value === 'string' && /^(?:string|number|integer|boolean|date|datetime|url)(?:\(.*\))?(?:\s.*)?$/.test(value.trim());
+    const typeName = typeof value === 'string' && /^(?:string|number|integer|boolean|date|datetime|url|array|object|list)(?:\(.*\))?(?:\s.*)?$/.test(value.trim());
     const today = typeof value === 'string' && datesIn(value).length > 0 && !given.has(value.trim());
     if (typeName || today) dropped.push(`${at} 的 ${key}（${typeName ? '写成了类型名' : '依赖当天日期'}，检查时无法满足，已去掉）`); else kept[key] = value;
   }

@@ -167,3 +167,36 @@ test('an operation that declares a site or a capability must actually reach it: 
     assert.equal((await runPluginChecks(options)).gates.find(g => g.id === 'G4')?.passed, true);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test('G4 refuses a model call that sends inline instructions or names an undeclared prompt, and passes a declared one', mac, async () => {
+  const body = (call: string, declared = '') => `import type {SandboxJson,SandboxSdk} from '@molis/plugin-sdk';${declared}
+export default async function(input:SandboxJson,sdk:SandboxSdk):Promise<SandboxJson>{if(typeof input!=='string')throw Error('string required');
+if(input==='__never__'){await sdk.capability.call('model.generate',${call});}return input.toUpperCase()}`;
+  const declared = `export const prompts=[{id:'shout',title:'大写',purpose:'把输入写成大写',body:'只输出大写后的原文。'}] as const;`;
+  for (const [source, expected] of [
+    [body(`{instructions:'只输出大写',input}`), /still sends instructions/],
+    [body(`{prompt:'other',input}`, declared), /no export const prompts declares/],
+  ] as const) {
+    const f = await fixture();
+    try {
+      await writeFile(f.project.operationFiles.echo!, source);
+      const result = await runPluginChecks(f.options), g4 = result.gates.find(g => g.id === 'G4')!;
+      assert.equal(result.passed, false); assert.equal(g4.passed, false); assert.match(g4.detail, expected);
+    } finally { await f.close(); }
+  }
+  const f = await fixture();
+  try {
+    await writeFile(f.project.operationFiles.echo!, body(`{prompt:'shout',input}`, declared));
+    const result = await runPluginChecks(f.options);
+    assert.equal(result.gates.find(g => g.id === 'G4')?.passed, true, JSON.stringify(result.gates));
+  } finally { await f.close(); }
+});
+
+test('a failing Agent test says which test and what it got, so the code agent can repair it', mac, async () => {
+  const f = await fixture();
+  try {
+    await writeFile(f.project.testFiles.echo!, `import type {SandboxTest} from '@molis/plugin-sdk';export const tests:SandboxTest[]=[async(_,call,assert)=>{assert.same(await call('a'),'A')},async(_,call,assert)=>{assert.same(await call('b'),'wrong')}];`);
+    const g5 = (await runPluginChecks(f.options)).gates.find(g => g.id === 'G5')!;
+    assert.equal(g5.passed, false); assert.match(g5.detail, /same assertion failed in test 2 of 2: got "B", expected "wrong"/);
+  } finally { await f.close(); }
+});

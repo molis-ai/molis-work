@@ -9,8 +9,11 @@ import { assertMatches, SandboxError, type SandboxLimits, type SandboxServices, 
 import { studioCapability, type StudioCapability } from '@molis-ai/molis-work-plugin-builder';
 
 export interface CapabilityImplementations {
-  /** A tool-less model call with the plugin's own instructions, on the model the person configured. */
-  generate(pluginId: string, input: { instructions: string; input: string }, signal: AbortSignal, beforeDispatch?: () => void | Promise<void>): Promise<{ text: string }>;
+  /**
+   * A tool-less model call on the model the person configured, with one of the plugin's declared prompts (by id, as
+   * the person left it) or, from plugins generated before prompts were declared, inline instructions.
+   */
+  generate(pluginId: string, input: ModelGenerateInput, signal: AbortSignal, beforeDispatch?: () => void | Promise<void>): Promise<{ text: string }>;
   /** The project's goals, reached through the Goals plugin's own actions as this plugin installation. */
   goals?: {
     list(identity: Readonly<SandboxIdentity>, control?: SandboxServiceContext): Promise<Array<{ id: string; title: string; status: string }>>;
@@ -18,6 +21,7 @@ export interface CapabilityImplementations {
   };
 }
 type CapabilityService = NonNullable<SandboxServices['capability']>;
+export interface ModelGenerateInput { prompt?: string; instructions?: string; input: string }
 
 function known(id: string): StudioCapability {
   const capability = studioCapability(id);

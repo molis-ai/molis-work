@@ -20,6 +20,7 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 | [src/schema.ts](src/schema.ts) | schema 辅助与 opaque blob |
 | [src/adapters/local-security-paths.ts](src/adapters/local-security-paths.ts) | Home 作用域 |
 | [src/adapters/file-secret-store.ts](src/adapters/file-secret-store.ts) | 本地凭据适配 |
+| [src/adapters/text-search-index.ts](src/adapters/text-search-index.ts) | 系统搜索的本地全文索引（切分、写入、查询、重建） |
 
 可对照现有调用方 [apps/local-host/src/project-database.ts](../../apps/local-host/src/project-database.ts) 阅读装配方式。
 
@@ -54,8 +55,8 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 ## 开发要求
 
-- 负责：SQLite、文件系统、Blob、事务、迁移、备份与本地密钥存储的技术端口。
-- 不负责：Module schema 的业务含义、跨 Module 查询。
+- 负责：SQLite、文件系统、Blob、事务、迁移、备份与本地密钥存储的技术端口；系统搜索的本地全文索引适配（`openTextSearchIndex`，`{home}/search/search.db`）。
+- 不负责：Module schema 的业务含义、跨 Module 查询；搜索来源的发现、同步与权限（归 `horizontal/search`）。
 - 公开入口：`@molis-ai/molis-work-storage`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/storage`。
 - 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
@@ -63,7 +64,10 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
   - 钥匙串主密钥读取失败后，同一进程、Home 与配置停止自动重试；不改密文、不自动降级到文件存储。
   - 只有部分操作需要凭据的服务用 `createLazyFileSecretStore`：读取尚未保存的引用不初始化后端。
   - 原子文件写入、日志与幂等记录由这里提供，Module 不各建一套。
-- 改动后必跑：`node scripts/run-tests.mjs tests/secret-store-keychain-retry.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts`
+  - 搜索索引是可删除的派生缓存：文件缺失、损坏或 schema 版本不符时清空重建，不读回任何业务事实。
+  - 索引切分：中日韩每字单独、相邻两字成词，其余字母数字按小写词、查询用前缀；候选必须在原文（NFKC、小写）里真实出现才返回，两字中文与 `Q4` 这类短词可查。
+  - 正文由读取器提供的条目，只对能读该种类的调用来源返回。
+- 改动后必跑：`node scripts/run-tests.mjs tests/secret-store-keychain-retry.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts`
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

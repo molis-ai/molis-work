@@ -12,6 +12,7 @@ export { FORM_UI_CONTRIBUTION_ID, formUiContribution, formUiDescriptor, renderFo
 export type { FormUiModel, FormUiPrimitives, FormUiSurface } from "./ui.js";
 export { FORM_STYLES } from "./styles.js";
 export { FORM_EN } from "./en.js";
+export { FORM_INSTRUCTIONS } from "./prompts.js";
 export { FORM_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { FORM_NATIVE_PLUGIN_ROUTES, FormPluginRouteTable } from "./routes.js";
 export type { FormPluginRouteHandler, FormPluginRouteRequest, FormPluginRouteResponse } from "./routes.js";

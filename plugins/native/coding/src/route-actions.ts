@@ -1,4 +1,4 @@
-import type { ActionAudience, ActionDefinition, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteMethod, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 const id = { type: "string", minLength: 1, maxLength: 200 };
@@ -28,6 +28,13 @@ const fromRequest = (request: PluginRouteRequest, keys: readonly string[] = []) 
 
 /** Coding's business surface: the Runtime instance redeems these, and the matching routes only forward to them. */
 export const codingRouteActions: Readonly<Record<string, { definition: ActionDefinition<Record<string, unknown>, unknown> } & Translate>> = {
+  // One session as a subject: its title, state and latest rounds, by the shared protocol (the Assistant, references).
+  "coding.subject": { definition: defineSubjectContextAction("coding.subject.read", "coding_session", "编码会话", ["artifact:read"]) as unknown as ActionDefinition<Record<string, unknown>, unknown>,
+    toInput: request => ({ subject_id: request.params.sessionId }), toRequest: input => ({ method: "GET", params: { sessionId: String(input.subject_id ?? "") }, query: {}, body: {} }) },
+  // System search: every session of the project by version; its text is read back through `coding.subject`.
+  "coding.search-entries": { definition: defineSearchEntriesAction("coding.search.entries", [{ kind: "coding_session", title: "编码会话", surface: "coding" }], "编码会话", ["artifact:read"]) as unknown as ActionDefinition<Record<string, unknown>, unknown>,
+    toInput: request => ({ cursor: typeof request.query.cursor === "string" && request.query.cursor ? request.query.cursor : null, limit: Number(request.query.limit ?? 500) }),
+    toRequest: input => ({ method: "GET", params: {}, query: { ...(typeof input.cursor === "string" ? { cursor: input.cursor } : {}), limit: String(input.limit ?? 500) }, body: {} }) },
   "coding.state": { definition: define("state", "Coding 概况", "读取本项目的编码会话、可用模型、运行时、方法与当前工作目录", "query", closed({}), ["artifact:read"], READS),
     toInput: () => ({}), toRequest: () => ({ method: "GET", params: {}, query: {}, body: {} }) },
   "coding.create-session": { definition: define("sessions.create", "新建编码会话", "新建一个编码会话；第一轮任务开始前不会调用模型", "command", closed({ title: { type: "string", maxLength: 200 } }, []), ["storage:private"], READS),

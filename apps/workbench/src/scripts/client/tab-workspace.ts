@@ -911,7 +911,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     persist();
   };
   // Search keeps owner-specific save/select behavior, including inside a split pane.
-  const SEARCH_ROWS = ${JSON.stringify([...pluginSearchRows(), ["feed", "[data-feed-task-toggle]", "feedTaskToggle"]])};
+  const SEARCH_ROWS = ${JSON.stringify([...pluginSearchRows(), ["feed", "[data-feed-task-toggle]", "feedTaskToggle"], ["characters", "[data-character-id]", "characterId"]])};
   let cancelRecordJump = null;
   const openPluginRecord = (plugin, itemId) => {
     const spec = SEARCH_ROWS.find(([id]) => id === plugin);

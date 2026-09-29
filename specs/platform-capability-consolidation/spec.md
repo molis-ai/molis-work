@@ -22,7 +22,7 @@
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开操作从发布契约派生，当前及传递依赖 cost 已接通；最终跨入口验收随 12 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；整体构建及 22 文件 135 项回归通过，最终跨消费者验收随 12 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事实通知、独立订阅身份/生命周期 | 既有领域 journal / 输入图及 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭、unknown 明确恢复，以及 Artifact journal 到输入图的通知已实现并验证；Coding/Git 真实 Run/Effect 通知、Files/Git Host 消费与可见刷新已接通并验证；最终全消费者复核随 12 |
-| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Pages/DOCX/ZIP 的 Host 解析、领域转换与双入口装配也已迁移并验证；Shelf、Cognia、Artifacts 和其余旧解析删除继续实施 |
+| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Pages/DOCX/ZIP 的 Host 解析、领域转换与双入口装配也已迁移并验证；Cognia 无损 vault/附件边界已复核并保留；Shelf、Artifacts 和其余旧解析删除继续实施 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
 | 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已覆盖 Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板，并补齐 Files/Git、独立 Diff/Text Stats 与 Host 审查的真实挂载/隐藏/卸载链；工程与 Chrome 验证通过，最终跨消费者复核随 12 |
 | 12 | 旧路径、文档、测试预期漂移 → 删除重复并更新手册/Skill/消费者示例 | 对应模块 + 开发规范 | 随每项更新，最终总验收 |
@@ -394,3 +394,35 @@ Host 注入 Pages 的 prepareImport 端口，预览和正式导入共用同一�
 接续：先整合远端主分支已完成的提示词登记/新功能约定，再迁移 Shelf 的材料/AI recipe 和 Cognia、Artifacts 剩余材料调用，最后对 01–12 按实际新代码总验收。已核对 `origin/main` 对本次材料路径没有重复解析迁移；仅 `bdf417c3` 改了 Pages 的 Host 模型提示词解析，属于后续必须合入的 AI 协议。相关 onboarding 会话当前已完成且是产品需求讨论，不在修改本次解析实现。继续保护主检出未提交内容；以上仍仅为本地改造。
 
   Pages 切片最终 69 包 boundary errors 为空，diff whitespace 检查通过，日志 `/tmp/platform-document-import-boundary.log`。未推送，工作继续在同一隔离分支。
+
+
+### 与当前主分支的接口整合
+
+在继续剩余消费者前，将已完成的主分支 `22f383cb` 合入本任务隔离分支；整合前回滚点为 `999d9f30`。保留主分支 Assistant、提示词登记/用户覆盖及公共搜索契约，同时保留本任务唯一 Home 执行 owner、有界结构结果、声明式装配、事件生命周期及 Host 材料解析。不得按冲突文件整体选择一侧而丢失另一侧行为。
+
+SDK 以本任务真实源码 `4b6cd9bc` 合入主分支实际依赖的 `4702abe3`，同时提供 collectRun、结构校验、网络派出复核、app 模式和 session-stop；不纳入其他会话尚未被当前主分支消费的 project-memory 提交。由本任务 SDK 工作树构建、定向验证、打包，并更新单一依赖、补丁和来源说明。业务提示词按新的 instructed / resolveModelPrompt 契约迁移，仍保留取消、授权与业务提交边界。
+
+整合后先整体构建，再验证 Agent/Prologue、提示词登记、Assistant、能力目录、Schedule、材料及受影响入口；发现交叉回归先修真实调用链。仅在本地 feature 分支整合，不改主检出，不推送。回滚整合提交须同时恢复 SDK 依赖与 lockfile；不回退主检出的真实 Home 数据。
+
+
+整合的人工调用链复核：Cognia 保持共享 Runtime 的单次调用，并将已有可编辑角色正文作为 system 输入，避免提示词登记仍可编辑但不生效；Jelly 保持 Host JSON 解码与领域校验，接收 instructed 后在 Host 解析用户覆盖。Builder 保留独立安装 owner：命名提示词解析、安装/停用/升级/卸载/重启登记均迁到该 owner，创作台只负责编辑和发布 prompt 声明。搜索行声明进入同一 builtin 目录，Pages 保留显式 concurrent/执行费用，同时接入 subject/revision 元数据。
+
+
+接续代码证据（不是完成声明）：Shelf 的 runJob 仍直接调用 readCliHelp/headlessArguments/runAgentProcess，image 分支直接同步 OCR，PDF 预览和正文另用私有解析；Host runJob 端口未保留 Action caller。迁移应覆盖执行、取消和提交检查，保留副本及产物语义。website.fetchHtml 先完整 arrayBuffer 后裁 4 MiB，并没有限制接收容量；归 Host 时需边读边限量。Artifacts 的 readHtml 仍导入 Shelf 实现，须改为公共 Host 转换。
+
+Cognia 当前扫描由 Host 负责路径/容量与取消，插件只解码严格 UTF-8 的 Markdown/TXT、存储原字节并解释 frontmatter/wiki 引用；PDF/媒体只是原始附件，并没有第二套 OCR/PDF 解析。公共提取器的控制字符/BOM/截断语义不同，不能为了复用把它强塞进无损 vault 导入。最终复核区分纯传输/领域格式校验与系统提取，不凭扩展名重复建设解析链。
+
+新主分支的 Prompt 登记需继续核对两项交叉约束：一是 builtin-instructions 的人工插件清单应与现有共同装配声明一致；二是 generated owner 当前按 Home + plugin_id 登记，同一插件若在不同项目安装不同版本，模型调用不能借用另一安装的默认正文或因另一项目卸载失去自己的覆盖。先以实际安装/提示词调用复现，再确定最小修复；整合回归通过不代替这两项验收。
+
+
+提示词清单归位决定：内置插件的 instructions 与 manifest、Agent 正文、UI 和历史 MCP 一起放在既有 BuiltinPluginEntry。Host 的 builtin-instructions 从共同目录派生插件指令，只保留 Host 自己的 onboarding/information 指令和特殊角色装配。不另造 registry 或包；沿用现有 prompt-registration 扫描验证“已定义必已登记”，以及真实覆盖/安装消费验证。这样新内置插件仍只在共同装配处声明一次，不回到两个手工插件名单。
+
+
+本次主分支整合验证：合并 SDK 源码为 `93bbe1db`，SDK build 与 10 文件 70 项通过，1 项真实模型因无凭据跳过。Molis 整体 build 通过；145 文件首轮 1043 通过、1 失败、2 跳过。唯一失败是提示词门禁只识别旧 hostCompleteText，误判 Alchemist 已不再直接调用；门禁扩展到 hostTextGeneration，并识别生成插件的命名提示词解析。model-draft 是接收调用方 instructions 的平台传输口，其调用方固定指令在最终消费者复核中继续检查，不把它伪装成 Host 自有提示词。
+
+首轮通过覆盖了真实本地 SDK/HTTP/HTTPS、用户修改后的 Cognia 角色与生成插件命名提示词、安装停用/重启/卸载重装、长期执行与取消/撤权、Schedule unknown 恢复、文档材料、系统搜索/外部 MCP 权限及多个 Chrome 桌面/窄屏页面。跳过项为真实官方 npm 下载及需要 MINIMAX_API_KEY 的外部模型；未替用户验收。日志 `/tmp/platform-integration-regression.log`。修正门禁后，将内置 instructions 放入同一 BuiltinPluginEntry，由 Host 派生；Coding 的新增 surfaceChanged 通知补生命周期检查。重新整体构建通过，随后对变更范围复验；过程中遵守测试与源文件/Skill 编辑串行。
+
+
+整合最终复验：14 文件 52/52，无跳过；包含纠正后的提示词门禁、共同目录/自动挂载、声明/Agent 文本、i18n 与客户端名称检查、Coding Chrome 卸载与重挂、独立安装宿主、生成模型真实 SDK/HTTP 和安装构建一致性。日志 `/tmp/platform-integration-final-regression.log`，最终整体构建 `/tmp/platform-integration-catalog-build.log`。70 包边界检查 errors 为空；本地整合差异相对 `22f383cb` 的 whitespace 检查通过（排除必须保留上下文空格的源码补丁），完整 SDK 补丁 reverse apply --check 通过；日志 `/tmp/platform-integration-boundary.log`。首轮已通过且未受后续小改动影响的回归证据保留，不重复跑整批。仅本地整合提交，未推送、开 PR 或修改主检出。
+
+接续以当前同一 Goal 为准，不重复 Goal Prompt：先确认新 Prompt 登记的多项目/安装版本问题是否有真实可达调用，再按既定 09 完成 Shelf/Artifacts 的公共材料与 01 Shelf AI 链路；Cognia 保留经复核的无损 vault 边界。最后覆盖包括 Coding 草稿调用方固定指令在内的全消费者审查，以及 01–12 总验收。此次整合不代表整个 Goal 已完成。

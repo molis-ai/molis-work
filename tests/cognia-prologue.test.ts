@@ -17,6 +17,8 @@ import { withConnectorConnections } from "../apps/local-host/src/connector-conne
 import { createCogniaProloguePort } from "../apps/local-host/src/cognia-prologue.js";
 import { ensureSystemAgentService } from "../apps/local-host/src/system-agent-service.js";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
+import { agentDefinitionsFor } from "../apps/local-host/src/agent-definitions/agent-definitions.js";
+import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-registrations.js";
 
 function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
   const home = mkdtempSync(join(tmpdir(), "cognia-prologue-"));
@@ -42,10 +44,12 @@ function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
 
 test("Cognia discovery never decrypts or starts Prologue; actual packed SDK receives fixed evidence and no tools", { timeout: 30_000 }, async t => {
   const f = fixture(t); let reads = 0, requests = 0;
+  agentDefinitionsFor(f.home, builtinRegistrations).save("io.molis.work.cognia/cognia-evidence", "COGNIA_ROLE_OVERRIDE", null, "person");
   const get = f.secrets.get.bind(f.secrets); t.mock.method(f.secrets, "get", ref => { reads++; return get(ref); });
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     requests++; const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     assert.equal(body.model, "fixture-model"); assert.equal(body.tools?.length ?? 0, 0);
+    assert.match(JSON.stringify(body.system), /COGNIA_ROLE_OVERRIDE/, "shared inference preserves the editable Cognia role instructions");
     assert.match(JSON.stringify(body.messages), /ORIGINAL_FIXED_EVIDENCE/); assert.match(JSON.stringify(body.messages), /不可信资料/);
     assert.doesNotMatch(JSON.stringify(body), /UNSELECTED_EVIDENCE/);
     return response("# SDK 知识草稿\n已读取固定证据 [S1]");

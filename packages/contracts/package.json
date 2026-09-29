@@ -154,6 +154,10 @@
       "types": "./dist/platform/plugin-agent.d.ts",
       "import": "./dist/platform/plugin-agent.js"
     },
+    "./platform/model-prompts": {
+      "types": "./dist/platform/model-prompts.d.ts",
+      "import": "./dist/platform/model-prompts.js"
+    },
     "./platform/plugin-events": {
       "types": "./dist/platform/plugin-events.d.ts",
       "import": "./dist/platform/plugin-events.js"
@@ -182,6 +186,14 @@
       "types": "./dist/services/agent-host.d.ts",
       "import": "./dist/services/agent-host.js"
     },
+    "./services/assistant": {
+      "types": "./dist/services/assistant.d.ts",
+      "import": "./dist/services/assistant.js"
+    },
+    "./services/agent-definitions": {
+      "types": "./dist/services/agent-definitions.d.ts",
+      "import": "./dist/services/agent-definitions.js"
+    },
     "./services/connector-host": {
       "types": "./dist/services/connector-host.d.ts",
       "import": "./dist/services/connector-host.js"
@@ -201,6 +213,10 @@
     "./services/scheduler": {
       "types": "./dist/services/scheduler.d.ts",
       "import": "./dist/services/scheduler.js"
+    },
+    "./services/search": {
+      "types": "./dist/services/search.d.ts",
+      "import": "./dist/services/search.js"
     },
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",

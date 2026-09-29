@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
+import { builtinRegistrations } from '../agent-definitions/builtin-registrations.js';
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -7,12 +9,13 @@ import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contract
 import { assertContract, createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { prologueModelConfiguration } from '@molis-ai/molis-work-service-agent-host';
 import { escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
-import { AgentBuilderWorkflow, inDesignOrder, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, renderAgentStudio, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderPromptVersion, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, renderAgentStudio, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { openConfiguredModels } from '../configured-models.js';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
 import { builderSkill } from './skill.js';
+import { buildSources, readPluginPrompts } from './prompts.js';
 import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { buildManifest, canonical, createBuildProject, readBuildFile } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
@@ -103,6 +106,17 @@ function previewServices(storage: PluginPrivateStorage): SandboxServices {
         return next;
       },
     },
+  };
+}
+
+/**
+ * Plugin Builder's Agent prompts as the person left them in “Prompt 与 Character”. The version names which text ran
+ * (`designer/3.2.0+user.2` for their second edit), so every run's record says so.
+ */
+export function builderPrompts(home: string): NonNullable<AgentBuilderPorts['prompt']> {
+  return (name, shipped) => {
+    const resolved = agentDefinitionsFor(home, builtinRegistrations).effective(BUILDER_PLUGIN_ID, { prompt_id: `builder-${name}`, version: builderPromptVersion(name), layer: "role", body: shipped.text });
+    return resolved.user_revision === undefined ? shipped : { version: `${shipped.version}+user.${resolved.user_revision}`, text: resolved.body };
   };
 }
 
@@ -218,6 +232,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       }),
       validateContract: contract => assertContract(contract),
       skill: stage => builderSkill(stage),
+      prompt: builderPrompts(home),
       async prepareBuild(previous, design, manifest) {
         const directory = join(studio.root, 'builds', previous.id, design.contract.revision);
         await rm(directory, { recursive: true, force: true }); await rm(settledFor(directory), { recursive: true, force: true }); await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
@@ -275,7 +290,11 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         await writeFile(join(directory, 'manifest.json'), JSON.stringify(manifest, null, 2), { mode: 0o400, flag: 'wx' });
         await writeFile(join(directory, 'contract.json'), JSON.stringify(build.design!.contract, null, 2), { mode: 0o400, flag: 'wx' });
         await writeFile(join(directory, 'interface.json'), JSON.stringify({ nodes: build.nodes, acceptance: build.design!.acceptance }, null, 2), { mode: 0o400, flag: 'wx' });
-        return { directory, bundlePath: target, packagePath: directory };
+        // What it tells the model, as the checked sources declare it: registered when this version is installed.
+        const { prompts, problems } = readPluginPrompts(await buildSources(build.directory!, settledFor(build.directory!), build.design!.contract.operations.length));
+        if (problems.length) throw new Error('发布前请先修好调用模型的写法：' + problems[0]);
+        await writeFile(join(directory, 'prompts.json'), JSON.stringify(prompts, null, 2), { mode: 0o400, flag: 'wx' });
+        return { directory, bundlePath: target, packagePath: directory, prompts };
       },
       installations: async () => installed.installations(),
       lifecycle: installed.lifecycle,

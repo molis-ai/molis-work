@@ -1,3 +1,4 @@
+import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { ActionError, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { datasetManifest, createDatasetActionHandlers, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -20,7 +21,7 @@ export function datasetActionProvider(home: string, runtime: MolisWorkProjectRun
       },
       completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
         const complete = model(); if (!complete) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
-        return complete(prompt, options);
+        return complete(resolveModelPrompt(home, prompt, "io.molis.work.dataset"), options);
       }),
     }),
   };

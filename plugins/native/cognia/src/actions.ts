@@ -3,6 +3,7 @@ import { generateCogniaDraft, type CogniaAiPorts } from "./ai.js";
 import type { CogniaStore } from "./store.js";
 import { COGNIA_LIMITS, requireCognia, type Domain, type Draft, type ImportFile, type Material, type Preview, type Receipt, type Source, type SourceKind } from "./types.js";
 import * as s from "./action-schema.js";
+import { cogniaSearchActions, createCogniaSearchHandlers } from "./search.js";
 
 const read = ["cognia:read"], write = [...read, "cognia:write"];
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = operation === "query" ? read : write, concurrent = false, required_actions?: ActionDefinition["action"]["required_actions"], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
@@ -41,6 +42,8 @@ export const cogniaActions = {
   draft: define<{ id: string }, { draft: Draft }>("draft.get", "读取审阅草稿", "读取尚未归档的草稿及生成时的固定版本证据", "query", s.object({ id: s.id }), s.object({ draft: s.draft })),
   saveDraft: define<{ id: string }, { material: Material }>("draft.save", "采纳知识草稿", "将草稿保存为知识库资料；重复采纳返回原资料，不重复创建", "command", s.object({ id: s.id }), s.object({ material: s.material })),
   archiveDraft: define<{ id: string }, { deleted: true }>("draft.archive", "归档审阅草稿", "移出待审阅列表，保留已采纳资料的来源引用", "command", s.object({ id: s.id }), s.deleted),
+  searchEntries: cogniaSearchActions.entries,
+  subject: cogniaSearchActions.subject,
 };
 export const COGNIA_ACTIONS: readonly ActionDefinition[] = Object.values(cogniaActions);
 export const COGNIA_ACTION_PERMISSIONS = [...new Set(COGNIA_ACTIONS.flatMap(definition => definition.action.permissions))];
@@ -79,5 +82,6 @@ export function createCogniaActionHandlers(ports: CogniaActionPorts): ActionHand
     bind(cogniaActions.draft, input => ports.withStore(store => { const draft = store.drafts().find(d => d.id === input.id); requireCognia(draft, "草稿不存在", 404); return { draft }; })),
     bind(cogniaActions.saveDraft, input => ports.withStore(store => ({ material: store.saveDraft(input.id) }))),
     bind(cogniaActions.archiveDraft, input => ports.withStore(store => { store.archiveDraft(input.id); return { deleted: true }; })),
+    ...createCogniaSearchHandlers(ports.withStore),
   ];
 }

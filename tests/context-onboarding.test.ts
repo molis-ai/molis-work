@@ -1,3 +1,4 @@
+import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
@@ -76,7 +77,7 @@ test('large materials keep their ending and resume completed model batches after
   const original='# Long material\n\n'+('Ordinary work context.\n'.repeat(9000))+'FINAL FACT: launch is postponed to October 10.\n';
   selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[{path:'long.md',data:Buffer.from(original).toString('base64')}]}]});
   const prompts:string[]=[];let readCalls=0,failed=false;
-  const ports={...pagesPorts(dir),readSource:async(h:string,s:Parameters<typeof readContextSource>[1])=>{readCalls++;return readContextSource(h,s);},model:async()=>({runtimeLabel:'batch fixture',completeText:async(prompt:string)=>{
+  const ports={...pagesPorts(dir),readSource:async(h:string,s:Parameters<typeof readContextSource>[1])=>{readCalls++;return readContextSource(h,s);},model:async()=>({runtimeLabel:'batch fixture',completeText:async(input:ModelPromptInput)=>{const prompt=modelPromptText(input);
     assert.ok(prompt.length<82_000,'each model call has a bounded serialized prompt');prompts.push(prompt);
     if(prompts.length===2&&!failed){failed=true;throw Error('Temporary batch failure');}
     return prompt.includes('这是完整材料的一部分')?'# Evidence\nWork facts retained [S1]':'# Work\nLaunch is postponed to October 10 [S1]';
@@ -102,7 +103,7 @@ test('local scope → grounded summary → one real project and editable source 
   const id=randomUUID();withContextJourneys(dir,s=>s.create(id));
   selectContextSources(dir,id,{sources:[{kind:'directory',selected:true,files:[{path:'brief.md',data:Buffer.from('# Brief\nLaunch October 8').toString('base64')}]},{kind:'gmail',selected:true,days:7}]});
   let calls=0;
-  const ports={...pagesPorts(dir),model:async()=>({runtimeLabel:'test model',completeText:async(prompt:string)=>{calls++;assert.match(prompt,/Launch October 8/);assert.doesNotMatch(prompt,/private hidden/);return '# 秋季发布\n## 当前进展\n计划于 10 月 8 日发布。[S1]\n## 下一步\n建议核对发布物料。[S1]';}})};
+  const ports={...pagesPorts(dir),model:async()=>({runtimeLabel:'test model',completeText:async(input:ModelPromptInput)=>{const prompt=modelPromptText(input);calls++;assert.match(prompt,/Launch October 8/);assert.doesNotMatch(prompt,/private hidden/);return '# 秋季发布\n## 当前进展\n计划于 10 月 8 日发布。[S1]\n## 下一步\n建议核对发布物料。[S1]';}})};
   startContextJourney(dir,id,ports);startContextJourney(dir,id,ports);
   const ready=await waitContextJourney(dir,id);assert.equal(ready.phase,'review');assert.equal(calls,1);assert.equal(ready.summary?.references.length,1);updateContextDraft(dir,id,{title:'已修改的草稿',body:ready.summary!.body});assert.equal(readContextJourney(dir,id).summary!.title,'已修改的草稿');assert.match(ready.sources[1]!.error!,/连接 Google/);
   const [a,b]=await Promise.all([adoptContextJourney(dir,id,{title:'用户确认的发布',body:ready.summary!.body},ports),adoptContextJourney(dir,id,{title:'用户确认的发布'},ports)]);

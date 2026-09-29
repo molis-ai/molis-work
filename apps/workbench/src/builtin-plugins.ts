@@ -1,7 +1,7 @@
-import { COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, runCogniaMcpTool } from "@molis-ai/molis-work-plugin-cognia";
+import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, runCogniaMcpTool } from "@molis-ai/molis-work-plugin-cognia";
 import { builderManifest, builderPrompts, builderUiContribution, BUILDER_STYLES, BUILDER_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
 import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-images";
-import { JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, runJellyMcpTool } from "@molis-ai/molis-work-plugin-jelly";
+import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, runJellyMcpTool } from "@molis-ai/molis-work-plugin-jelly";
 import { experimentsManifest, EXPERIMENTS_CLIENT_FACTORY_SCRIPT, EXPERIMENTS_STYLES, experimentsUiContribution } from "@molis-ai/molis-work-plugin-experiments";
 import { type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -18,17 +18,19 @@ import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "@mo
 import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "@molis-ai/molis-work-plugin-schedule";
 import { SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "@molis-ai/molis-work-plugin-shelf";
 import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest } from "@molis-ai/molis-work-plugin-characters";
-import { PAGES_PROJECT_PLUGIN_ID, pagesManifest, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, runPagesMcpTool } from "@molis-ai/molis-work-plugin-pages";
-import { FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, runFormMcpTool } from "@molis-ai/molis-work-plugin-form";
-import { DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, runDatasetMcpTool } from "@molis-ai/molis-work-plugin-dataset";
+import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, runPagesMcpTool } from "@molis-ai/molis-work-plugin-pages";
+import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, runFormMcpTool } from "@molis-ai/molis-work-plugin-form";
+import { DATASET_INSTRUCTIONS, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, runDatasetMcpTool } from "@molis-ai/molis-work-plugin-dataset";
 import { PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution, runPptMcpTool } from "@molis-ai/molis-work-plugin-ppt";
-import { LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution } from "@molis-ai/molis-work-plugin-lingguang";
+import { LINGGUANG_INSTRUCTIONS, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution } from "@molis-ai/molis-work-plugin-lingguang";
 import { ALCHEMIST_PROJECT_PLUGIN_ID, alchemistManifest, ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistUiContribution } from "@molis-ai/molis-work-plugin-alchemist";
-import { WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution } from "@molis-ai/molis-work-plugin-workflows";
+import { WORKFLOWS_INSTRUCTIONS, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution } from "@molis-ai/molis-work-plugin-workflows";
 import { WORK_PROJECT_PLUGIN_ID, workManifest, workTerminalUiContribution, workUiContribution } from "@molis-ai/molis-work-plugin-work";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
 export interface PluginSearchRow { readonly selector: string; readonly idDataset: string }
 export interface BuiltinPluginWorkbench {
@@ -47,6 +49,8 @@ export interface BuiltinPluginEntry {
   readonly manifest: PluginManifest;
   readonly personal?: boolean;
   readonly summary?: string;
+  /** Fixed model-call instructions, exported by this plugin and registered by the Host. */
+  readonly instructions?: readonly InstructionPrompt[];
   readonly agent?: { readonly prompts: readonly AgentPromptText[]; readonly skills?: readonly AgentSkillDefinition[] };
   readonly workbench?: BuiltinPluginWorkbench;
   /** Historical MCP spellings only; new public functions use Manifest.actions. No Host I/O or credentials. */
@@ -58,6 +62,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: COGNIA_PROJECT_PLUGIN_ID,
     manifest: cogniaManifest,
+    instructions: COGNIA_INSTRUCTIONS,
     personal: true,
     summary: "导入本地知识，保留来源，整理为可追溯的知识。",
     workbench: {
@@ -92,11 +97,13 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       contributions: [imagesUiContribution],
       stylesheet: IMAGES_STYLES,
       clientFactory: IMAGES_CLIENT_FACTORY_SCRIPT,
+      searchRow: { selector: "[data-images-job]", idDataset: "imagesJob" },
     },
   },
   {
     project_plugin_id: JELLY_PROJECT_PLUGIN_ID,
     manifest: jellyManifest,
+    instructions: JELLY_INSTRUCTIONS,
     personal: true,
     summary: "安排事项、写笔记、收集灵感，把想法放进每天。",
     workbench: {
@@ -118,6 +125,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       contributions: [experimentsUiContribution],
       stylesheet: EXPERIMENTS_STYLES,
       clientFactory: EXPERIMENTS_CLIENT_FACTORY_SCRIPT,
+      searchRow: { selector: "[data-exp-open]", idDataset: "expOpen" },
     },
   },
   {
@@ -172,6 +180,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       contributions: [scheduleUiContribution],
       stylesheet: SCHEDULE_STYLES,
       clientFactory: SCHEDULE_CLIENT_FACTORY_SCRIPT,
+      searchRow: { selector: "[data-schedule-row][data-schedule-task-id]", idDataset: "scheduleTaskId" },
     },
   },
   {
@@ -200,6 +209,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID,
     manifest: lingguangManifest,
+    instructions: LINGGUANG_INSTRUCTIONS,
     personal: true,
     summary: "先记下还没想清楚的想法，再决定留下或丢掉。",
     workbench: {
@@ -219,6 +229,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: PAGES_PROJECT_PLUGIN_ID,
     manifest: pagesManifest,
+    instructions: PAGES_INSTRUCTIONS,
     personal: true,
     summary: "写文档，用块和格式，保存在这台电脑。",
     workbench: {
@@ -233,6 +244,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: FORM_PROJECT_PLUGIN_ID,
     manifest: formManifest,
+    instructions: FORM_INSTRUCTIONS,
     personal: true,
     summary: "建问卷，预览填写，看结果。",
     workbench: {
@@ -247,6 +259,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: DATASET_PROJECT_PLUGIN_ID,
     manifest: datasetManifest,
+    instructions: DATASET_INSTRUCTIONS,
     personal: true,
     summary: "改表格，导入 CSV，留下版本。",
     workbench: {
@@ -288,6 +301,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: WORKFLOWS_PROJECT_PLUGIN_ID,
     manifest: workflowsManifest,
+    instructions: WORKFLOWS_INSTRUCTIONS,
     personal: true,
     summary: "把已有插件按顺序串成一件可以做完的事。",
     workbench: {

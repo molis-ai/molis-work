@@ -1,6 +1,15 @@
 # Prologue SDK 构建来源
 
-**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
+## 当前依赖：有界结果与 Assistant
+
+`prologue-sdk-0.0.0-rc.1-bounded-results-assistant.tgz` 合并下面两条已消费的能力线：collectRun、有界文本/结构校验/真实用量与网络派出授权，以及 app 模式和 session-stop。公开调用继续由同一 Runtime 执行，不恢复应用侧临时 Runtime 或轮询。
+
+- 源码：`/Users/yijunwang/code/prologue-dispatch-denied`，分支 `feature/molis-bounded-results`，提交 `93bbe1db280540361bf9f24be9e82589e8818e5c`（合并 `4b6cd9bc` 与 `4702abe3`）。不含另一工作树后续 project-memory 改动。完整补丁 [bounded-results-assistant.patch](bounded-results-assistant.patch) 相对 `af7375c7`。
+- 重建：检出 `af7375c7`，应用完整补丁，`pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-bounded-results-assistant.tgz`。
+- SHA-256：`32201e9e8d3ea6bb8de7cd74b155c1e31677b4b61d9bdd431506ac88419b024f`。
+- SDK build 通过；结果收集、结构校验、函数引擎、app 模式、session-stop、网络授权与取消 10 文件 70 项通过，1 项真实 MiniMax 因无凭据跳过。包含真实 Node Host 和本地 HTTP 路径，未运行真实付费模型。源码与包仅本地提交，未发布 npm。
+
+**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-bounded-results-assistant.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
 
 ```bash
 git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz
@@ -8,9 +17,21 @@ git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendo
 
 下文写着"保留以便回退""保留用于回溯"的地方，都按上面这条从 git 历史取。换新包时把旧的当前包一并删掉，不再在这里累积。
 
-## 当前依赖：有界 Run 结果、结构校验与网络授权
+## 历史依赖：assistant（2026-09-28，系统级个人助理 + network-dispatch）
 
-当前包 `prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz` 从已使用的 `03c6ba0b` 增量构建，保留全部既有修复。新增公开 `collectRun`，从原 Run 事件收集引用、终态、文字、模型和 typed usage；取消/超限清理原订阅并取消原 Run。普通 Run 在完成前执行声明的结构校验，失败仍保留用量，不自动重试。schema 增加 nullable/anyOf、字符串/数组长度和数值范围；不支持的约束继续派出前拒绝。新增纯语法 `decodeJsonOutput`，Model schema、Function 和 Molis 的 Alchemist/Jelly 复用；围栏容忍需显式启用，不能代替领域校验，不自动纠正。
+`prologue-sdk-0.0.0-rc.1-assistant.tgz`。把 main 的 network-dispatch 与系统级个人助理需要的两项 SDK 改动放进同一个包，取代 `network-dispatch.tgz` 与只在助理分支用过的 `app-mode.tgz`。
+
+- **network-dispatch**（来自 main 21cdfbf8，见下节）：`beforeNetworkDispatch` 覆盖 Node Host 每次真实 fetch；MCP 未派发时取消按 `CANCELLED` 收尾。
+- **workspace "app"**：`startAgentRun({ workspace: "app" })` 没有授权根，只用会话包工具和不碰工作区的系统工具（`APP_MODE_SYSTEM_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"]`），`toolNames` 必须显式给出；文件与命令工具、根、执行器、子任务、技能、MCP、挂载、工作区上下文在起跑时拒绝（`AGENT_START_INVALID`）；写入类包工具照常走副作用链审批。系统工具执行器的根与 mutator 变为可选。个人助理在没有项目目录时也能使用业务能力。
+- **session-stop 钩子**：一次 Run 正要自然收工时触发，载荷 `{ session, run, text }`；钩子 `deny` 时保留原回答、放入理由、接着跑，发 `model-response-repair`（reason `stop-held`）；一次 Run 最多挡两次；没有登记钩子时行为不变。Molis 用它实现“只说不做自动续做一次”（Host `announce-guard.ts`，仅限可写角色）。
+- 源码：本机 `~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`：`03c6ba0b`（dispatch-denied）→ `6f530d5a`（app 模式）→ `22a1be08`（session-stop）→ `4702abe3`（并入 network-dispatch 在 03c6ba0b 之后的增量）。完整补丁 [assistant.patch](assistant.patch) 相对 `af7375c7`。尚未推送到 molis-ai/prologue。
+- 重建：检出 `af7375c7`，应用 `assistant.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`；在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-assistant.tgz`。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`22265b9165486a265cacbed3b080f8b172a0e161b7e718da3220e7d01a9301a5`。
+- 验证：`app-mode.live`、`dispatch-denied.live`、`network-dispatch-authority.live` 12/12 通过；SDK 全量 3348 项：3328 通过、20 跳过，`host-storage-full.live` 一个文件在全量负载下失败、单跑 2/2 通过；类型检查无错。
+
+## 历史依赖：有界 Run 结果、结构校验与网络授权
+
+历史包 `prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz` 从已使用的 `03c6ba0b` 增量构建，保留全部既有修复。新增公开 `collectRun`，从原 Run 事件收集引用、终态、文字、模型和 typed usage；取消/超限清理原订阅并取消原 Run。普通 Run 在完成前执行声明的结构校验，失败仍保留用量，不自动重试。schema 增加 nullable/anyOf、字符串/数组长度和数值范围；不支持的约束继续派出前拒绝。新增纯语法 `decodeJsonOutput`，Model schema、Function 和 Molis 的 Alchemist/Jelly 复用；围栏容忍需显式启用，不能代替领域校验，不自动纠正。
 
 - 源码：`/Users/yijunwang/code/prologue-dispatch-denied`，分支 `feature/molis-bounded-results`，源码提交 `4b6cd9bcf772f2b73185d8858a3ab4c7c52aa962`，基线 `03c6ba0b`；增量完整保存在 [bounded-results.patch](bounded-results.patch)，包括源码、合同和测试，以及 main `21cdfbf8` 引入的网络授权增量。历史 [network-dispatch.patch](network-dispatch.patch) 相对 `af7375c7`，已包含在当前完整补丁中，不要重复应用。
 - SHA-256：`2269225bc71c3fd4fccaf4cdd5690244f6608348b79a56b73d50bbe6aef6b04a`。

@@ -4,6 +4,7 @@ import { ActionError, type ActionClient, type ActionProviderRegistration } from 
 import { pagesManifest, createPagesActionHandlers, createPagesContentHandlers, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { hostCompleteText, type HostCompleteText } from "./host-complete-text.js";
+import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { registerPagesArtifactVersion, readPagesArtifactVersion } from "./pages-artifact.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 
@@ -32,7 +33,7 @@ export function pagesActionProvider(home: string, runtime: MolisWorkProjectRunti
       completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
         const complete = model();
         if (!complete) throw new ActionError("actions.connection_required", "请先配置文字模型，再使用写作助手");
-        return complete(prompt, options);
+        return complete(resolveModelPrompt(home, prompt, "io.molis.work.pages"), options);
       }),
     }), ...createPagesContentHandlers(actions)],
   };

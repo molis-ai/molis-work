@@ -18,7 +18,8 @@ test('Images standard MCP generates and retrieves real bytes, then preserves the
   const call=async(client:Client,name:string,args:Record<string,unknown>={})=>{const result=await client.callTool({name:`images.${name}__v1`,arguments:args});assert.equal(result.isError,false,JSON.stringify(result));return result.structuredContent as any;};
   try{
     const client=await connect('a');const names=(await client.listTools()).tools.map(tool=>tool.name).filter(name=>name.startsWith('images.'));
-    assert.equal(names.length,9);assert.equal(calls,0);
+    // Nine Images actions plus its system search source and object reader.
+    assert.equal(names.length,11);assert.equal(calls,0);
     const {connection}=await call(client,'connections.save',{name:'MCP provider',api_format:'openai-images',base_url:`http://127.0.0.1:${address.port}/v1`,model:'fixture-image'});
     assert.equal((await call(client,'connections.list')).connections[0].id,connection.id);
     const input={request_id:'same-click',connection_id:connection.id,prompt:'MCP image'};

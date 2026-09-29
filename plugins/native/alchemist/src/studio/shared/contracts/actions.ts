@@ -1,4 +1,4 @@
-import { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineSearchEntriesAction, defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { z } from "zod";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createDirectionInputSchema } from "./direction.js";
@@ -98,6 +98,13 @@ function operation<I extends z.ZodType, O extends z.ZodType>(name: string, title
 
 /** One contract feeds discovery, function calls and the HTTP adapter. No Host IDs or credentials are accepted as input. */
 export const alchemistOperations = {
+  /** System search: this project's directions and Ideas by title and core problem; the index keeps only these summaries. */
+  searchEntries: {
+    definition: defineSearchEntriesAction("alchemist.search.entries", [{ kind: "alchemist-direction", title: "探索方向", surface: "alchemist" },
+      { kind: "alchemist-idea", title: "Idea", surface: "alchemist" }], "炼金术士", ["alchemist:read"]),
+    input: z.object({ cursor: z.string().nullable(), limit: z.number().int().min(1).max(500) }).strict(),
+    output: z.object({ entries: z.array(z.object({ subject: z.object({ kind: z.string(), id: z.string() }) }).passthrough()), next_cursor: z.string().nullable(), collection_revision: z.string() }),
+  },
   playbookContext: {
     definition: defineSubjectContextAction("alchemist.playbook.context", "alchemist-playbook", "已确认研究方法", ["alchemist:read"]),
     input: object({ subject_id: id }),

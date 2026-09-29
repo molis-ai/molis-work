@@ -1,4 +1,5 @@
 import { decodePrologueJsonOutput } from "@molis-ai/molis-work-service-agent-host";
+import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { ActionError, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createJellyActionHandlers, createJellyServiceHandlers, jellyManifest, openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
 import { createJellyCompletion, readJellyModelSettings, saveJellyModelSettings } from "./jelly-model.js";
@@ -21,7 +22,7 @@ export function jellyActionProvider(home: string, completion?: HostCompleteText 
           const complete = model();
           if (!complete) throw new ActionError("actions.connection_required", "请先配置 Jelly 文字模型");
           await caller.beforeEffect();
-          const text = await complete(prompt, { ...options, beforeDispatch: caller.beforeEffect });
+          const text = await complete(resolveModelPrompt(home, prompt, "io.molis.work.jelly"), { ...options, beforeDispatch: caller.beforeEffect });
           await caller.beforeEffect();
           options?.signal?.throwIfAborted();
           const decoded = decodePrologueJsonOutput(text, { allowCodeFence: true });

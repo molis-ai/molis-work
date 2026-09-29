@@ -12,6 +12,7 @@ export { LINGGUANG_UI_CONTRIBUTION_ID, lingguangUiContribution, lingguangUiDescr
 export type { LingguangUiModel, LingguangUiPrimitives, LingguangUiSurface } from "./ui.js";
 export { LINGGUANG_STYLES } from "./styles.js";
 export { LINGGUANG_EN } from "./en.js";
+export { LINGGUANG_INSTRUCTIONS } from "./prompts.js";
 export { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { LINGGUANG_NATIVE_PLUGIN_ROUTES, LingguangPluginRouteTable } from "./routes.js";
 export type { LingguangPluginRouteHandler, LingguangPluginRouteRequest, LingguangPluginRouteResponse } from "./routes.js";

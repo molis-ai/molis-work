@@ -1,0 +1,1051 @@
+diff --git a/docs/slices/network-dispatch-authority.md b/docs/slices/network-dispatch-authority.md
+new file mode 100644
+index 00000000..70afb9d4
+--- /dev/null
++++ b/docs/slices/network-dispatch-authority.md
+@@ -0,0 +1,11 @@
++# Node Host 网络派发前复核
++
++消费方：Molis 的系统动作服务调用 Prologue MCP HTTP 工具时，调用已获授权，但 SDK 的准备、凭据或 DNS 等待期间授权可能撤回。现有 model-only 回调无法覆盖 MCP 的最后一次 fetch。
++
++保持 Host 模块的网络、凭据、目标策略与派发记录所有权（`packages/sdk/src/host/README.md`、`docs/product/requirements/modules/host.md`）。新增 Node 装配选项 `beforeNetworkDispatch?: () => void | Promise<void>`，在每次真实 fetch（含重定向）前执行，可拒绝而不能放宽 Host policy；现有 beforeModelDispatch 保持只在 model 通道执行。两者同时提供时均执行。无新 Runtime 槽、存储、网络实现或公共凭据读口。App 选择可信回调，终端用户仍通过消费 App 撤权，没有用户可关闭的 Host 硬边界。Native Tauri 不承诺支持此 Node 装配回调。
++
++拒绝沿用基线 03c6ba0b 的 EFFECT_NOT_AUTHORIZED，保留真实 dispatched 状态，不重试、换目标或伪造网络故障；取消和超时保留现有含义。修改范围为 Node Host、模块合同、本切片及定向真实 HTTP 测试。Molis 通过已有调用级异步上下文接入该回调，独立验证已发布包和消费 App 生产链路。
++
++验收：真实 MCP HTTP 的 prepare 结束后撤权，tools/call 为零且 Host inspect 表示未派发；重新授权能执行一次；等待最终复核时取消不发请求；并发调用只拒绝自己的上下文；model-only 回调不会影响 MCP。测试使用真实 Node Host 和本地 HTTP 服务，构建及相关模型/MCP 回归通过。源码基线是已提交的 03c6ba0b，不包含其他工作树未提交内容。
++
++取消测试发现原 MCP HTTP 将“调用了 Host execute”当成“已上线”，在尚未通过最终检查时发送多余取消通知，并错误进入需对账。沿已有 inspect 口修复：先停止 Host stream，再查询该 handle 的实际派发事实；仅 Host 明确 dispatched=false 时不发远端取消通知、返回 CANCELLED。已派发或 inspect 失败仍保守地保持需对账。无新增状态存储或派发判定主人；本切片范围因此包含 `mcp/plugin/http.ts` 的取消收尾。
+diff --git a/packages/sdk/src/agent/core/loop.ts b/packages/sdk/src/agent/core/loop.ts
+index c1dbee76..8d5f885b 100644
+--- a/packages/sdk/src/agent/core/loop.ts
++++ b/packages/sdk/src/agent/core/loop.ts
+@@ -235,6 +235,15 @@ export interface AgentLoopInput {
+      *
+      * 只是一个窄口：循环不认识证据账，也不认识 Session。判在外面做。
+      */
++    /**
++     * 自然收工前问一次 `session-stop` 钩子。**不给就是没装钩子**，照常收工。
++     *
++     * 挡住（`blocked`）时，理由作为运行时提示放回历史，循环接着跑——
++     * 例如这一轮只宣布了「现在去改」却一个工具都没调：收工的话，人看到的
++     * 是一句承诺，什么都没发生。放不放、放几次由 App 的钩子判；循环自己
++     * 另有上限，一个总说「不许停」的钩子不会让它转到轮次预算耗尽。
++     */
++    readonly fireStop?: (answer: { readonly text: string }) => Promise<{ readonly blocked: boolean; readonly why: string | undefined }>;
+     readonly objective?: {
+       check(): Promise<{
+         readonly mayFinish: boolean;
+@@ -380,6 +389,9 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+    */
+   let continuations = 0;
+   const MAX_CONTINUATIONS = 8;
++  // 收工钩子一次 Run 里最多挡这么多次；之后照常收工，不再问。
++  const MAX_STOP_HOLDS = 2;
++  let stopHolds = 0;
+   /** 这一段回答里之前几次续写已经说出的正文。收工时和最后一段拼成完整回答再过护栏。 */
+   let continuedText = "";
+   /**
+@@ -1138,8 +1150,10 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+            * 这个目标不再试了。还有备选、而且这一次**还动得**（见
+            * `readRetrySignal`），就换下一个——换目标是**新的一次调用**：
+            * 新请求体、新回执、新用量条目，不是这一次的续跑。
++           *
++           * App 拒绝派出的不换：拒的是这一跑的授权，不是这个目标，换了也一样被拒。
+            */
+-          if (next !== undefined && signal !== undefined && canSendAgain(signal)) {
++          if (next !== undefined && signal !== undefined && canSendAgain(signal) && errorFromUnknown(error).code !== "EFFECT_NOT_AUTHORIZED") {
+             if (signal.dispatched) await recordUsage();
+             input.run.emit({
+               type: "fallback",
+@@ -1370,6 +1384,25 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+         );
+         continue;
+       }
++      /*
++       * **收工钩子。** 放在目标判断之后：目标管「证据够不够」，钩子管
++       * App 自己的收工条件。挡住就把这段回答留在历史里（模型要看得见
++       * 自己刚说了什么），再放入钩子的理由，接着跑；这一轮不扣轮次预算
++       * 以外的东西，也不提记忆候选——还没收工。
++       */
++      if (input.guards.fireStop !== undefined && stopHolds < MAX_STOP_HOLDS) {
++        const held = await input.guards.fireStop({ text: answerText });
++        if (held.blocked) {
++          stopHolds += 1;
++          history.push({ kind: "text", role: "assistant", text: turnText, source: "assistant" });
++          history.push(runtimePromptRecord(
++            held.why ?? "Not done yet. If the task needs actions, call the tools now; if it is finished or blocked, say so plainly.",
++            "runtime:stop-hook",
++          ));
++          input.run.emit({ type: "model-response-repair", reason: "stop-held" });
++          continue;
++        }
++      }
+       /*
+        * **收工那一刻提一次候选。**
+        *
+@@ -1560,7 +1593,9 @@ function mapNetworkError(error: unknown): import("../../kernel/core/index.js").P
+   if (
+     mapped.code === "CANCELLED" ||
+     mapped.code === "MODEL_HTTP_ERROR" ||
+-    mapped.code === "MODEL_NETWORK_FAILED"
++    mapped.code === "MODEL_NETWORK_FAILED" ||
++    // App 在派出前拒绝：什么都没发出去，不是网络问题。
++    mapped.code === "EFFECT_NOT_AUTHORIZED"
+   ) {
+     return mapped;
+   }
+diff --git a/packages/sdk/src/agent/core/start-input.ts b/packages/sdk/src/agent/core/start-input.ts
+index bf56f06f..748fc894 100644
+--- a/packages/sdk/src/agent/core/start-input.ts
++++ b/packages/sdk/src/agent/core/start-input.ts
+@@ -121,7 +121,7 @@ function narrowNames(
+ 
+ /** 冻住的这一轮配方。转向和续跑都改不了它。 */
+ export interface FrozenStart {
+-  readonly workspace?: "none";
++  readonly workspace?: "none" | "app";
+   readonly idempotencyKey: string;
+   readonly limits: ModeLimits;
+   /** 有效工具名单。`undefined` 表示不额外收窄。 */
+@@ -264,7 +264,7 @@ function intersectNetwork(wanted: NetworkAllowance | undefined, ceiling: Network
+  */
+ export function freezeStart(input: {
+   readonly start: AgentStartInput;
+-  readonly workspace?: "none";
++  readonly workspace?: "none" | "app";
+   readonly posture: Posture;
+   readonly assembled: ModeCapabilities;
+   /** Runtime 的出网上限。 */
+diff --git a/packages/sdk/src/composition/api/index.ts b/packages/sdk/src/composition/api/index.ts
+index da408b14..8de6ab5f 100644
+--- a/packages/sdk/src/composition/api/index.ts
++++ b/packages/sdk/src/composition/api/index.ts
+@@ -5,6 +5,7 @@ export type { AssembleAgentContext } from "../core/index.js";
+ export type { SlotImplementations, SlotInput } from "../core/index.js";
+ export {
+   createRuntime,
++  APP_MODE_SYSTEM_TOOLS,
+   type CreateRuntimeInput,
+   type Runtime,
+   type RuntimeState,
+diff --git a/packages/sdk/src/composition/core/index.ts b/packages/sdk/src/composition/core/index.ts
+index dbba51a5..c0557dd3 100644
+--- a/packages/sdk/src/composition/core/index.ts
++++ b/packages/sdk/src/composition/core/index.ts
+@@ -3,6 +3,7 @@ export type { AssembleAgentContext } from "./agent-context.js";
+ export type { SlotImplementations, SlotInput } from "./runtime.js";
+ export {
+   createRuntime,
++  APP_MODE_SYSTEM_TOOLS,
+   type CreateRuntimeInput,
+   type Runtime,
+   type RuntimeState,
+diff --git a/packages/sdk/src/composition/core/runtime.ts b/packages/sdk/src/composition/core/runtime.ts
+index 84722258..438edb55 100644
+--- a/packages/sdk/src/composition/core/runtime.ts
++++ b/packages/sdk/src/composition/core/runtime.ts
+@@ -404,6 +404,12 @@ import {
+   type PolicySnapshotStore,
+ } from "../../effect-policy/core/index.js";
+ 
++/**
++ * The system tools an App-tools run (`workspace: "app"`) may name: none of them reads or writes a workspace.
++ * Asking the person, the run's todo list, looking up deferred tool schemas and the context room left.
++ */
++export const APP_MODE_SYSTEM_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"] as const;
++
+ export type RuntimeState = "starting" | "ready" | "failed" | "stopped";
+ 
+ export interface Runtime {
+@@ -919,6 +925,14 @@ export interface Runtime {
+     /** Pure inference on this Session: no workspace capability or tools. */
+     readonly workspace: "none";
+     readonly rootRef?: never;
++  } | {
++    /**
++     * No authorized root, but the App's own tools: the Session pack's tools and the system tools that touch no
++     * workspace (`APP_MODE_SYSTEM_TOOLS`). File and command tools are never available. The App's business
++     * authority is separate from a code directory; this is where it runs.
++     */
++    readonly workspace: "app";
++    readonly rootRef?: never;
+   }) & {
+     readonly session: Session;
+     /** Trusted App grants, frozen for this exact Session/Run/root; never global or inherited. */
+@@ -1780,7 +1794,8 @@ export async function createRuntime(
+    * 要冻住的配方和当前 Session，公开入口拿不到。
+    */
+   const sharedSystemToolDeps = (at: {
+-    readonly rootRef: ExactRef<"authorized-root">;
++    /** Absent for an App-tools run: its file and command tools then fail as unavailable. */
++    readonly rootRef?: ExactRef<"authorized-root"> | undefined;
+     readonly ignore: IgnoreRules;
+     /**
+      * 报进展时**这一跑是谁**。不给就是没有人——那时它报不了任何写着
+@@ -1873,7 +1888,7 @@ export async function createRuntime(
+       ...(at.name === undefined ? {} : { name: at.name }),
+       now: async () => (await runtime.readClock()).wallTimeMs,
+     }),
+-    mutator: runtime.createMutator({
++    mutator: at.rootRef === undefined ? undefined : runtime.createMutator({
+       rootRef: at.rootRef,
+       mode: "build" as const,
+     }),
+@@ -1990,8 +2005,10 @@ export async function createRuntime(
+      * 回执里。
+      */
+     readImage: async (path: string) => {
++      const rootRef = at.rootRef;
++      if (rootRef === undefined) throw createPrologueError("TOOL_UNAVAILABLE", "This run has no authorized workspace to read an image from.");
+       const head = await input.host.readBytes({
+-        rootRef: at.rootRef,
++        rootRef,
+         path,
+         offset: 0,
+         length: 1,
+@@ -2014,7 +2031,7 @@ export async function createRuntime(
+       const ref = resources.adoptHostBytes(
+         {
+           // 字节在 Host 里，这里只记它在哪、多大、是什么。
+-          stageId: `image:${at.rootRef.id}:${path}`,
++          stageId: `image:${rootRef.id}:${path}`,
+           byteLength: head.totalBytes,
+           digest: head.digest,
+           label: path,
+@@ -2022,7 +2039,7 @@ export async function createRuntime(
+         },
+         async (offset: number, length: number) => {
+           const part = await input.host.readBytes({
+-            rootRef: at.rootRef,
++            rootRef,
+             path,
+             offset,
+             length,
+@@ -2162,7 +2179,7 @@ export async function createRuntime(
+    * 钩子仍然只能加严：说 `deny` 就是挡住。
+    */
+   const fireObserved = async (
+-    event: "prompt-submit" | "compaction-before" | "compaction-after" | "subagent-start" | "subagent-end",
++    event: "prompt-submit" | "compaction-before" | "compaction-after" | "subagent-start" | "subagent-end" | "session-stop",
+     payload: unknown,
+     /**
+      * 这一次是谁的。**每个触发点都要给**——给不出来的那几项留空，
+@@ -4077,12 +4094,24 @@ export async function createRuntime(
+       assertReady(state);
+       assertAssembled(assembled, "agent", "Running an Agent");
+       const noWorkspace = workspaceMode === "none";
++      // No root, but the App's own tools. Everything that needs a root stays out, exactly as for "none".
++      const appMode = workspaceMode === "app";
++      const rootless = noWorkspace || appMode;
+       const grants = freezeAgentGrants(requestedGrants);
+       if (rootRef !== undefined) rootRef = Object.freeze({ ...rootRef });
+-      if (workspaceMode !== undefined && workspaceMode !== "required" && !noWorkspace) {
++      if (workspaceMode !== undefined && workspaceMode !== "required" && !rootless) {
+         throw createPrologueError("AGENT_START_INVALID", "Unknown Agent workspace mode.");
+       }
+-      if (noWorkspace) {
++      if (appMode) {
++        if (grants !== undefined || rootRef !== undefined || start.rootRef !== undefined || runTool !== undefined ||
++            subagentOptions !== undefined || agent.toolNames === undefined ||
++            agent.workingDirectory !== undefined || (agent.skillNames?.length ?? 0) > 0 ||
++            (agent.mcpConnections?.length ?? 0) > 0 || (agent.mount?.sources?.length ?? 0) > 0 ||
++            (agent.mount?.artifacts?.length ?? 0) > 0 ||
++            Object.keys(input_context ?? {}).some((key) => !["windowTokens", "compactAboveTokens", "continueWhenCompactionFails"].includes(key))) {
++          throw createPrologueError("AGENT_START_INVALID", "An App-tools Agent names its tools explicitly and cannot carry a root, runner, subagents, skills, MCP, mounts, or workspace context.");
++        }
++      } else if (noWorkspace) {
+         if (grants !== undefined || rootRef !== undefined || start.rootRef !== undefined || runTool !== undefined ||
+             subagentOptions !== undefined || agent.toolNames === undefined || agent.toolNames.length !== 0 ||
+             agent.workingDirectory !== undefined || (agent.skillNames?.length ?? 0) > 0 ||
+@@ -4163,6 +4192,15 @@ export async function createRuntime(
+       if (noWorkspace && (installed?.pack.tools.length ?? 0) > 0) {
+         throw createPrologueError("AGENT_START_INVALID", "A workspace-free Agent cannot use a Session pack that contributes tools.");
+       }
++      if (appMode) {
++        // Only this Session's own pack tools and the root-free system tools. A name outside both is refused here,
++        // before anything is frozen, rather than surfacing later as a tool that cannot run.
++        const own = new Set(installed?.pack.tools.map((one) => one.registration.name) ?? []);
++        const outside = (agent.toolNames ?? []).filter((name) => !own.has(name) && !(APP_MODE_SYSTEM_TOOLS as readonly string[]).includes(name));
++        if (outside.length > 0) {
++          throw createPrologueError("AGENT_START_INVALID", `An App-tools Agent cannot use ${outside.sort().join(", ")}: only this Session's pack tools and ${APP_MODE_SYSTEM_TOOLS.join(", ")}.`);
++        }
++      }
+       /*
+        * 包的配置作为**一层**进来，在 App 显式之下、模块默认之上。
+        *
+@@ -4244,6 +4282,13 @@ export async function createRuntime(
+           (profile?.input.skills?.length ?? 0) > 0 || (profile?.input.mcp?.length ?? 0) > 0)) {
+         throw createPrologueError("AGENT_START_INVALID", "A workspace-free Character cannot bind tools, skills, or MCP.");
+       }
++      if (appMode) {
++        const own = new Set(installed?.pack.tools.map((one) => one.registration.name) ?? []);
++        if ((profile?.input.skills?.length ?? 0) > 0 || (profile?.input.mcp?.length ?? 0) > 0 ||
++            (profile?.input.tools ?? []).some((name) => !own.has(name) && !(APP_MODE_SYSTEM_TOOLS as readonly string[]).includes(name))) {
++          throw createPrologueError("AGENT_START_INVALID", "An App-tools Character may bind only this Session's pack tools and the root-free system tools, and no skills or MCP.");
++        }
++      }
+       const skillSnapshot = skills.snapshot();
+       const frozenWorkspaces =
+         subagentOptions === undefined || rootRef === undefined
+@@ -4256,8 +4301,8 @@ export async function createRuntime(
+               lookup: (ref) => workspace.get(ref),
+             });
+       const startSnapshot = freezeStart({
+-        start: noWorkspace ? { ...agent, skillNames: [], mcpConnections: [] } : agent,
+-        ...(noWorkspace ? { workspace: "none" as const } : {}),
++        start: rootless ? { ...agent, skillNames: [], mcpConnections: [] } : agent,
++        ...(noWorkspace ? { workspace: "none" as const } : appMode ? { workspace: "app" as const } : {}),
+         posture,
+         assembled,
+         defaultMaxTurns: config.agent.maxTurns,
+@@ -4574,7 +4619,7 @@ export async function createRuntime(
+        * 还要再过一次本轮名单：开跑时点了 `skillNames`，目录里也只能
+        * 有那几条，否则模型看得见却调不动。
+        */
+-      const visibleSkills = !noWorkspace && config.skill.autoSelect
++      const visibleSkills = !rootless && config.skill.autoSelect
+         ? skillSnapshot
+             .catalog({ capabilities: available, forAutoSelection: true })
+             .entries.filter(
+@@ -4807,8 +4852,9 @@ export async function createRuntime(
+         }
+         return undefined;
+       };
+-      const dispatchChild = () => {
+-        if (rootRef === undefined) throw createPrologueError("TOOL_UNAVAILABLE", "A workspace-free Agent cannot dispatch tools or subagents.");
++      const dispatchChild = (): ReturnType<typeof subagentDispatcher> => {
++        // A rootless run (App tools) builds its tool runner too; a child it cannot have fails when asked for, not before.
++        if (rootRef === undefined) return async () => { throw createPrologueError("TOOL_UNAVAILABLE", "A workspace-free Agent cannot dispatch tools or subagents."); };
+         return subagentDispatcher({
+           subagents: runSubagents,
+           registry: subagentRegistry,
+@@ -4892,7 +4938,7 @@ export async function createRuntime(
+        * 没法被引用。
+        */
+       const runSignal: { current: AbortSignal | undefined } = { current: undefined };
+-      const builtinRunner: ToolRunner = rootRef === undefined || mutator === undefined
++      const builtinRunner: ToolRunner = noWorkspace || !appMode && (rootRef === undefined || mutator === undefined)
+         ? async () => { throw createPrologueError("TOOL_UNAVAILABLE", "A workspace-free Agent has no tools."); }
+         : createSystemToolRunner({
+           ...sharedSystemToolDeps({
+@@ -5075,7 +5121,8 @@ export async function createRuntime(
+               });
+             },
+           },
+-          dispatchSubagent: dispatchChild(),
++          // No root, no child to dispatch: the tool then reports itself unavailable, as for any unwired system tool.
++          ...(rootRef === undefined ? {} : { dispatchSubagent: dispatchChild() }),
+           /**
+            * 编排入口。**每一个都委托给已有主人**——这一层不另存一份
+            * 消息账。操作别人的 Session 要经策略，所以这些工具的
+@@ -5278,14 +5325,16 @@ export async function createRuntime(
+        * 闭集里那三样有主人的名字轮不到它们答。内置提问者同样：丢掉
+        * `asksUser` 会把普通提问重新变成一笔虚构 Effect。
+        */
+-      const handsOff = noWorkspace ? builtinRunner : runTool ?? runtimeToolRunner ?? builtinRunner;
++      // An App-tools run never reaches the Runtime-wide executor slot: that one may be bound to a workspace. Its pack
++      // tools go to this Session's own executors and everything else to the root-free built-in runner.
++      const handsOff = rootless ? builtinRunner : runTool ?? runtimeToolRunner ?? builtinRunner;
+ 
+       const handOff: ToolRunner = async (callInput) => {
+         if (noWorkspace) return builtinRunner(callInput);
+-        if (runTool !== undefined) {
++        if (!appMode && runTool !== undefined) {
+           return runTool(callInput);
+         }
+-        if (runtimeToolRunner !== undefined) {
++        if (!appMode && runtimeToolRunner !== undefined) {
+           return runtimeToolRunner(callInput);
+         }
+         const contributed = installed?.pack.tools.find(
+@@ -5482,7 +5531,7 @@ export async function createRuntime(
+                 });
+               },
+               skills: () => {
+-                if (noWorkspace) return [];
++                if (rootless) return [];
+                 const seen = new Set(remindedSkills);
+                 const fresh = skillSnapshot
+                   .catalog({ capabilities: [] })
+@@ -5544,6 +5593,17 @@ export async function createRuntime(
+             ...(continueWhenCompactionFails ? { continueWhenCompactionFails } : {}),
+             windowTokens,
+             objective: { check: judgeAgainstObjective },
++            fireStop: async ({ text }) => {
++              const held = await fireObserved(
++                "session-stop",
++                { session: session.ref.id, run: currentRunId, text },
++                {
++                  session: session.ref.id,
++                  ...(currentRunId === undefined ? {} : { run: currentRunId }),
++                },
++              );
++              return { blocked: held.blocked, why: held.why };
++            },
+             fireCompaction: async (when) => {
+               const held = await fireObserved(
+                 `compaction-${when}`,
+diff --git a/packages/sdk/src/composition/core/system-tools.ts b/packages/sdk/src/composition/core/system-tools.ts
+index 6e2474b4..0b01cd77 100644
+--- a/packages/sdk/src/composition/core/system-tools.ts
++++ b/packages/sdk/src/composition/core/system-tools.ts
+@@ -365,8 +365,12 @@ function describeNode(
+ 
+ export function createSystemToolRunner(input: {
+   readonly workspace: Workspace;
+-  readonly rootRef: ExactRef<"authorized-root">;
+-  readonly mutator: WorkspaceMutator;
++  /**
++   * The run's authorized root. Absent for an App-tools run (`workspace: "app"`): every file and command tool then
++   * fails as unavailable, and the tools that touch no workspace (asking the person, the todo list, …) still work.
++   */
++  readonly rootRef?: ExactRef<"authorized-root"> | undefined;
++  readonly mutator?: WorkspaceMutator | undefined;
+   readonly pendings: PendingLedger;
+   /**
+    * 普通提问能等多久。开跑冻结。不给沿用现有 10 分钟。
+@@ -677,11 +681,20 @@ export function createSystemToolRunner(input: {
+   const started = new Map<string, "background" | "interactive">();
+ 
+   // 忽略规则跟着这一次的装配走——**读也要拦**，不只是列表过滤。
+-  const reader = input.workspace.reader(input.rootRef, input.ignore);
++  const noRoot = () => createPrologueError("TOOL_UNAVAILABLE", "This run has no authorized workspace; file and command tools are not available here.");
++  const rootReader = input.rootRef === undefined ? undefined : input.workspace.reader(input.rootRef, input.ignore);
++  const ownReader = (): WorkspaceReader => {
++    if (rootReader === undefined) throw noRoot();
++    return rootReader;
++  };
++  const mutatorOf = (): WorkspaceMutator => {
++    if (input.mutator === undefined) throw noRoot();
++    return input.mutator;
++  };
+   const readRoots = new Map((input.readRoots ?? []).map((one) => [one.id, input.workspace.reader(one.rootRef, input.ignore, { observe: false })]));
+   /** The reader a read-only tool call names: this run's own root, or one of the roots it may read. */
+   const readerFor = (args: Record<string, unknown>): WorkspaceReader => {
+-    if (args.workspace === undefined) return reader;
++    if (args.workspace === undefined) return ownReader();
+     const named = typeof args.workspace === "string" ? readRoots.get(args.workspace) : undefined;
+     if (named === undefined) {
+       throw createPrologueError(
+@@ -741,7 +754,7 @@ export function createSystemToolRunner(input: {
+       approvalReceived = args[0].pending?.kind === "effect-approval" && result.state === "authorized";
+       return result;
+     } } : gate;
+-    const receipt = await input.mutator.applyPatch(plan, await input.now(), observedGate);
++    const receipt = await mutatorOf().applyPatch(plan, await input.now(), observedGate);
+     input.evidence?.noteChange(receipt);
+     return `${name === "write" ? "wrote" : "edited"} ${receipt.path} (${name === "write" ? `${receipt.byteLength} bytes, ` : ""}checkpoint ${receipt.checkpointId})\n`
+       + (approvalReceived ? "Authorization: approval was received through the host review while this tool waited.\n"
+@@ -810,7 +823,7 @@ export function createSystemToolRunner(input: {
+          * 门在工作区那边：它送进链的是**这条路径**，而不是「叫 write
+          * 的工具」。工具那一层递下来的加严和「怎么等人」跟着 `gate` 走。
+          */
+-        const plan = await input.mutator.preparePatch({
++        const plan = await mutatorOf().preparePatch({
+           path: text(args.path, "path"),
+           nextText: typeof args.text === "string" ? args.text : text(args.text, "text"),
+         });
+@@ -820,11 +833,11 @@ export function createSystemToolRunner(input: {
+         const path = text(args.path, "path");
+         const find = text(args.find, "find");
+         // The whole file is read to make the change, not to show it: a file over 64 KB can still be edited.
+-        const current = (await reader.read({ path, forEdit: true })).text;
++        const current = (await ownReader().read({ path, forEdit: true })).text;
+         if (!current.includes(find)) {
+           throw createPrologueError("TOOL_ARGUMENTS_INVALID", "That exact text is not in the file.");
+         }
+-        const plan = await input.mutator.preparePatch({
++        const plan = await mutatorOf().preparePatch({
+           path,
+           nextText: current.replace(
+             find,
+@@ -852,7 +865,7 @@ export function createSystemToolRunner(input: {
+           );
+         }
+         commandInvocations += 1;
+-        const plan = input.mutator.prepareCommand({
++        const plan = mutatorOf().prepareCommand({
+           executable,
+           argv,
+           operationKey: `run-command:${commandInvocations}`,
+@@ -877,7 +890,7 @@ export function createSystemToolRunner(input: {
+             if (callId !== undefined && input.onCommandReceipt !== undefined) {
+               try {
+                 await input.onCommandReceipt(callId, { kind: "workspace-command-receipt", version: 1,
+-                  rootRef: input.rootRef, executable, argv, receipt });
++                  rootRef: input.rootRef!, executable, argv, receipt });
+               } catch {
+                 // The process already ran. A storage failure must not invite
+                 // a new command; preserve the existing effect for reconciliation.
+@@ -890,7 +903,7 @@ export function createSystemToolRunner(input: {
+         };
+         const stop = abort?.subscribe(async () => {
+           try {
+-            await input.mutator.cancelCommand(plan.commandId, "timed-out");
++            await mutatorOf().cancelCommand(plan.commandId, "timed-out");
+           } catch {
+             // 取消没送成，仍要等到这次执行有个真实结局。
+           }
+@@ -904,7 +917,7 @@ export function createSystemToolRunner(input: {
+           }
+         });
+         try {
+-          running = input.mutator.runCommand(plan, await input.now(), gate);
++          running = mutatorOf().runCommand(plan, await input.now(), gate);
+           opened();
+           const receipt = await running;
+           await record(receipt);
+@@ -938,7 +951,7 @@ export function createSystemToolRunner(input: {
+           );
+         }
+         commandInvocations += 1;
+-        const plan = input.mutator.prepareCommand({
++        const plan = mutatorOf().prepareCommand({
+           executable,
+           argv,
+           operationKey: `start-command:${String(commandInvocations)}`,
+@@ -946,12 +959,12 @@ export function createSystemToolRunner(input: {
+         const interactive = args["interactive"] === true;
+         const now = await input.now();
+         if (interactive) {
+-          const opened = await input.mutator.openInteractive(plan, now);
++          const opened = await mutatorOf().openInteractive(plan, now);
+           started.set(opened.sessionId, "interactive");
+           return `started interactive session ${opened.sessionId}; send input with command-input, read with command-output`;
+         }
+         input.background?.admit();
+-        const running = await input.mutator.startBackground(plan, now, { outlive: input.background?.outlive === true, ...(gate === undefined ? {} : { gate }) });
++        const running = await mutatorOf().startBackground(plan, now, { outlive: input.background?.outlive === true, ...(gate === undefined ? {} : { gate }) });
+         started.set(running.commandId, "background");
+         await input.background?.started(running.commandId, `${executable} ${argv.join(" ")}`.trim());
+         return `started ${running.commandId} in the background; read it with command-output, or wait for it with await-commands` +
+@@ -963,8 +976,8 @@ export function createSystemToolRunner(input: {
+         const cursor = typeof args["cursor"] === "number" ? args["cursor"] : undefined;
+         const out =
+           kind === "interactive"
+-            ? await input.mutator.readInteractive(handle, cursor)
+-            : await input.mutator.backgroundOutput(handle, cursor);
++            ? await mutatorOf().readInteractive(handle, cursor)
++            : await mutatorOf().backgroundOutput(handle, cursor);
+         return [
+           // 游标先给：模型下一次要用它，而它在长输出末尾就找不着了。
+           `cursor ${String(out.cursor)}`,
+@@ -989,7 +1002,7 @@ export function createSystemToolRunner(input: {
+             `${handle} was not started with interactive: true, so nothing can be sent to it.`,
+           );
+         }
+-        await input.mutator.writeInteractive(
++        await mutatorOf().writeInteractive(
+           { sessionId: handle, text: text(args["text"], "text") },
+           await input.now(),
+         );
+@@ -1013,9 +1026,9 @@ export function createSystemToolRunner(input: {
+          * Runtime 上会越积越多。
+          */
+         if (kind === "interactive") {
+-          await input.mutator.closeInteractive(handle);
++          await mutatorOf().closeInteractive(handle);
+         } else {
+-          await input.mutator.cancelCommand(handle, "cancelled");
++          await mutatorOf().cancelCommand(handle, "cancelled");
+         }
+         // 已经停了的再停一次**不是错误**。
+         started.delete(handle);
+diff --git a/packages/sdk/src/hooks/core/bus.ts b/packages/sdk/src/hooks/core/bus.ts
+index fdab7c5e..07d27553 100644
+--- a/packages/sdk/src/hooks/core/bus.ts
++++ b/packages/sdk/src/hooks/core/bus.ts
+@@ -13,6 +13,12 @@ export type HookEvent =
+   | "tool-failed"
+   | "session-start"
+   | "session-end"
++  /**
++   * 一次 Run **正要自然收工**：模型这一轮只写了回答、没有调用工具，目标判断也放行了。
++   *
++   * `deny` 表示「还不能停」：理由作为运行时提示放回历史，循环接着跑（一次 Run 最多挡两次）。
++   * 载荷是 `{ session, run, text }`，`text` 是这次要收工的整段回答。
++   */
+   | "session-stop"
+   | "session-stop-failed"
+   /**
+diff --git a/packages/sdk/src/host/README.md b/packages/sdk/src/host/README.md
+index d42ead7c..0ae2f4cb 100644
+--- a/packages/sdk/src/host/README.md
++++ b/packages/sdk/src/host/README.md
+@@ -60,6 +60,10 @@ Current authorization and durable directory identity have separate lifetimes. Th
+ 
+ ## MCP HTTP 网络合同
+ 
++Node 装配允许可信 App 通过 `beforeNetworkDispatch` 在每次 fetch 前收紧当前调用的授权（含 MCP HTTP 与重定向）；异步复核受原请求的取消/超时约束。拒绝为 `EFFECT_NOT_AUTHORIZED`，Host 继续独占派发事实，原网络和凭据政策不可被回调放宽。旧 `beforeModelDispatch` 只检查 model 通道，若两者都有则都执行。没有新增 Runtime 配置或存储；见 [本次合同](../../../../docs/slices/network-dispatch-authority.md)。
++
++MCP 取消先停止 Host 执行再读取其派发事实。Host 明确从未派发时保持 CANCELLED，不向远端发送无对应请求的取消通知；已派发或无法核实时保留需对账语义。
++
+ 既有 network 准备口可选 POST/DELETE，只有 mcp 通道可 DELETE；现有 model/web 的通道、目标、重定向和凭据约束继续生效。可选 onResponse 只提供有限的 status/contentType/mcpSessionId，先于正文，非成功状态同样可见；不暴露任意头。无认证 web/mcp 仍签发一次性派出许可；model 仍要凭据。Native/Node 必须同义，取消与真实派出状态只由 Host 回答，UTF-8 跨块不损坏。四层、精确口形状和本次实施边界见 [HTTP 合同](../../../../docs/slices/mcp-http-standard.md)，未装配仍零外发。
+ 
+ For optional network response metadata, supplying `onResponse` opts into status handling: a fully consumed non-2xx response may complete and the consumer handles its status. Omitting the callback preserves the existing MODEL_HTTP_ERROR behavior. Unrequested metadata is not parsed; MCP session ids are read and exposed only for the MCP channel. Native model requests cannot use authScheme=none. Rejected handle reuse preserves the original terminal inspect status.
+diff --git a/packages/sdk/src/host/plugin/node.ts b/packages/sdk/src/host/plugin/node.ts
+index 56d7d09a..c88f0715 100644
+--- a/packages/sdk/src/host/plugin/node.ts
++++ b/packages/sdk/src/host/plugin/node.ts
+@@ -8,6 +8,7 @@ import {
+   zeroize,
+   type AppIdentity,
+   type ClockReading,
++  type PrologueError,
+ } from "../../kernel/core/index.js";
+ import type {
+   CredentialSnapshot,
+@@ -203,6 +204,8 @@ function parseRetryAfter(header: string | null, nowMs: number): number | undefin
+ }
+ 
+ export interface NodeHostOptions {
++  /** Trusted App revocation check after preparation, before every network dispatch (including MCP and redirect hops). Can deny, never bypass Host policy. */
++  readonly beforeNetworkDispatch?: () => void | Promise<void>;
+   /** Trusted App revocation check after preparation, immediately before model bytes leave. Can deny, never bypass Host policy. */
+   readonly beforeModelDispatch?: () => void | Promise<void>;
+   /**
+@@ -734,7 +737,17 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+          * 之后任何一种挂法——连接被拒、读到一半断线、进程被杀——都不该
+          * 让引擎以为它没出去过。下面的 `catch` 只在能确定没上线时翻回来。
+          */
+-        if (record.channel === "model" && options.beforeModelDispatch) await awaitDispatchGuard(options.beforeModelDispatch(), signal);
++        if (options.beforeNetworkDispatch || (record.channel === "model" && options.beforeModelDispatch)) {
++          try {
++            if (options.beforeNetworkDispatch) await awaitDispatchGuard(options.beforeNetworkDispatch(), signal);
++            if (record.channel === "model" && options.beforeModelDispatch) await awaitDispatchGuard(options.beforeModelDispatch(), signal);
++          } catch (error) {
++            // 等到超时或被取消的，保留原来的意思；只有 App 说「不行」才算拒绝。
++            if (isCancelled() || signal.aborted) throw error;
++            setStatus("failed");
++            throw dispatchDenied(error);
++          }
++        }
+         if (isCancelled()) return "cancelled";
+         record.dispatched = true;
+         response = await fetch(target.url, {
+@@ -1114,6 +1127,18 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+   };
+ }
+ 
++/**
++ * App 的撤权复核拒绝了这一次派出（授权被收回、Character 被停用）。
++ *
++ * **不是网络失败**：一个字节都没出本机，重发或换备选得到的还是同一个答复。
++ * 报成 `MODEL_NETWORK_FAILED` 会让人去查网络。App 给的原因保留在消息里。
++ */
++function dispatchDenied(error: unknown): PrologueError {
++  const mapped = errorFromUnknown(error);
++  if (mapped.code === "CANCELLED" || mapped.code === "EFFECT_NOT_AUTHORIZED") return mapped;
++  return createPrologueError("EFFECT_NOT_AUTHORIZED", `The App refused this network dispatch before sending: ${mapped.safeMessage}`);
++}
++
+ async function awaitDispatchGuard(work: void | Promise<void>, signal: AbortSignal): Promise<void> {
+   signal.throwIfAborted();
+   let abort: (() => void) | undefined;
+diff --git a/packages/sdk/src/index.ts b/packages/sdk/src/index.ts
+index bec555df..04ca189a 100644
+--- a/packages/sdk/src/index.ts
++++ b/packages/sdk/src/index.ts
+@@ -106,6 +106,7 @@ export {
+ } from "./runtime/api/index.js";
+ export {
+   createRuntime,
++  APP_MODE_SYSTEM_TOOLS,
+   type AgentContextOptions,
+   type CreateRuntimeInput,
+   type Runtime,
+diff --git a/packages/sdk/src/mcp/plugin/http.ts b/packages/sdk/src/mcp/plugin/http.ts
+index 0658e849..4325a772 100644
+--- a/packages/sdk/src/mcp/plugin/http.ts
++++ b/packages/sdk/src/mcp/plugin/http.ts
+@@ -355,13 +355,18 @@ export async function openMcpHttp(input: {
+         await stopHostStream();
+         return;
+       }
+-      abortError ??=
+-        dispatched && ready && inputPost.rpcMethod !== "initialize"
+-          ? unknownMcpResult(inputPost.rpcMethod)
+-          : cancelledBeforeSend(inputPost.rpcMethod);
+       sealed = true;
+       if (cancelJob === undefined) {
+-        cancelJob = Promise.all([sendCancelled(), stopHostStream()]).then(() => undefined);
++        cancelJob = (async () => {
++          // Entering execute is not proof of dispatch: the Host may still be awaiting the App's final authority check.
++          await stopHostStream();
++          if (handle !== undefined) {
++            const inspected = await input.port.inspectModelNetwork(handle).catch(() => undefined);
++            if (inspected?.dispatched === false) dispatched = false;
++          }
++          abortError = unknownOrCancel();
++          await sendCancelled();
++        })();
+         watch(cancelJob);
+       }
+       await cancelJob;
+diff --git a/packages/sdk/src/model/core/types.ts b/packages/sdk/src/model/core/types.ts
+index 72232007..083a2f5a 100644
+--- a/packages/sdk/src/model/core/types.ts
++++ b/packages/sdk/src/model/core/types.ts
+@@ -353,7 +353,7 @@ export type ModelEvent =
+    */
+   | Readonly<{ type: "agent-control"; state: "running" | "pausing" | "paused" }>
+   /** 整批工具未执行，已请求模型纠正；不代表纠正成功，不含原始工具名或参数。 */
+-  | Readonly<{ type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" }>
++  | Readonly<{ type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" | "stop-held" }>
+   /** Explicit recovery of an interrupted Run, never a reconstructed tool transcript. */
+   | Readonly<{ type: "run-recovered"; atMs: number; transcript: "opening-only" | "durable-prefix";
+       questions?: readonly { ref: ExactRef<"pending">; kind: string; prompt: string }[];
+diff --git a/packages/sdk/src/session/core/run.ts b/packages/sdk/src/session/core/run.ts
+index eaf0e597..a944f70a 100644
+--- a/packages/sdk/src/session/core/run.ts
++++ b/packages/sdk/src/session/core/run.ts
+@@ -536,7 +536,8 @@ function mapNetworkError(error: unknown): PrologueError {
+   if (mapped.code === "CANCELLED") {
+     return mapped;
+   }
+-  if (mapped.code === "MODEL_HTTP_ERROR" || mapped.code === "MODEL_NETWORK_FAILED") {
++  // App 在派出前拒绝（`EFFECT_NOT_AUTHORIZED`）：什么都没发出去，不是网络问题。
++  if (mapped.code === "MODEL_HTTP_ERROR" || mapped.code === "MODEL_NETWORK_FAILED" || mapped.code === "EFFECT_NOT_AUTHORIZED") {
+     return mapped;
+   }
+   return createPrologueError("MODEL_NETWORK_FAILED", mapped.safeMessage);
+diff --git a/packages/sdk/test/app-mode.live.test.ts b/packages/sdk/test/app-mode.live.test.ts
+new file mode 100644
+index 00000000..f001b458
+--- /dev/null
++++ b/packages/sdk/test/app-mode.live.test.ts
+@@ -0,0 +1,169 @@
++import { mkdtempSync, rmSync } from "node:fs";
++import { createServer, type ServerResponse } from "node:http";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++import { APP_MODE_SYSTEM_TOOLS, createRuntime, type ModelEvent, type Run, type ScenarioPack, type ToolRunner } from "../src/index.js";
++import { createNodeHost } from "../src/node.js";
++
++function watch(run: Run) {
++  const events: ModelEvent[] = [];
++  run.subscribe(event => { events.push(event); });
++  const until = (type: ModelEvent["type"] | "terminal") => new Promise<ModelEvent>((resolve, reject) => {
++    const timer = setInterval(() => {
++      const found = events.find(event => type === "terminal" ? ["completed", "failed", "cancelled"].includes(event.type) : event.type === type);
++      if (found) { clearInterval(timer); clearTimeout(limit); resolve(found); }
++    }, 5);
++    const limit = setTimeout(() => { clearInterval(timer); reject(new Error(`no ${type}: ${events.map(e => e.type + (e.type === "failed" ? JSON.stringify((e as any).error) : e.type === "tool-result" ? JSON.stringify((e as any).text ?? (e as any).error ?? e) : "")).join(",")}`)); }, 4000);
++  });
++  return { events, until };
++}
++function say(response: ServerResponse, text = "done") {
++  response.writeHead(200, { "content-type": "text/event-stream" });
++  response.end(`data: ${JSON.stringify({ model: "m", choices: [{ delta: { content: text } }], usage: { prompt_tokens: 7, completion_tokens: 3 } })}\n\ndata: [DONE]\n\n`);
++}
++function call(response: ServerResponse, name: string, args: object) {
++  response.writeHead(200, { "content-type": "text/event-stream" });
++  response.end(`data: ${JSON.stringify({ usage: { prompt_tokens: 7, completion_tokens: 3 }, choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", type: "function", function: { name, arguments: JSON.stringify(args) } }] } }] })}\n\ndata: [DONE]\n\n`);
++}
++
++/** A pack like an App's business actions: one read and one write, each with its own executor. */
++function businessPack(executors: { lookup: ToolRunner; save: ToolRunner }): { pack: ScenarioPack; executors: Record<string, ToolRunner> } {
++  const tool = (name: string, effectKind: "safe-read" | "mutate-external") => ({ executor: name, registration: { name, version: "1", description: `${name} a business record`,
++    parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false }, effectKind, gate: "broker" as const, timeoutMs: 5000, idempotency: "none" as const } });
++  return { executors, pack: { id: "business-actions", version: "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: ["lookup", "save"] },
++    permissions: { tools: ["lookup", "save"], network: [], paths: [] }, memory: { scope: "session", write: "deny" },
++    roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {},
++    tools: [tool("lookup", "safe-read"), tool("save", "mutate-external")] } };
++}
++
++async function fixture(handler: (body: any, response: ServerResponse, turn: number) => void) {
++  const home = mkdtempSync(join(tmpdir(), "prologue-app-mode-"));
++  const workspaceCalls: string[] = [], requests: any[] = [];
++  let turn = 0;
++  const server = createServer(async (request, response) => {
++    let raw = ""; for await (const chunk of request) raw += chunk;
++    const body = JSON.parse(raw); requests.push(body); handler(body, response, turn++);
++  });
++  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
++  const address = server.address(); if (!address || typeof address === "string") throw new Error("missing endpoint");
++  const actual = createNodeHost({ storageRoot: join(home, "store") });
++  const methods = new Set(["authorizeRoot", "listDirectory", "searchFiles", "readFile", "readBinary", "readBytes", "writeFile", "applyPatch", "prepareCommand", "runCommand"]);
++  const host = new Proxy(actual, { get(target, key, receiver) { const value = Reflect.get(target, key, receiver); return typeof value !== "function" ? value : (...args: unknown[]) => { if (methods.has(String(key))) workspaceCalls.push(String(key)); return value.apply(target, args); }; } });
++  const runtime = await createRuntime({ app: { appId: "prologue.app-mode", appVersion: "1.0.0" }, host, preset: "local-agent",
++    network: { model: true, loopback: true }, posture: { sandbox: "workspace-write", approval: "untrusted" }, permissionMode: { mode: "ask-always" } });
++  const credentialRef = (await runtime.credentials.write({ label: "test", secret: { plaintext: new TextEncoder().encode("synthetic") } })).ref;
++  const start = (text = "task") => ({ protocol: "openai-compatible", endpoint: `http://127.0.0.1:${address.port}/chat`, credentialRef, model: "m", messages: [{ role: "user" as const, text }] });
++  return { runtime, workspaceCalls, requests, start, async close() { await runtime.shutdown(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); rmSync(home, { recursive: true, force: true }); } };
++}
++
++it("workspace:app runs the Session pack's own tools and asks the person, with zero workspace calls", async () => {
++  const looked: unknown[] = [];
++  const f = await fixture((_body, response, turn) => turn === 0 ? call(response, "lookup", { id: "plan-7" }) : turn === 1 ? call(response, "ask-user", { why: "Which week?" }) : say(response, "added"));
++  try {
++    const { pack, executors } = businessPack({ lookup: async input => { looked.push(input.args); return "plan-7: three items"; }, save: async () => "saved" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const started = await f.runtime.startAgentRun({ session, workspace: "app", start: f.start(), agent: { idempotencyKey: "a1", mode: "build", toolNames: ["lookup", "save", "ask-user"] } });
++    const run = watch(started.run);
++    const asked = await run.until("awaiting-input") as Extract<ModelEvent, { type: "awaiting-input" }>;
++    await f.runtime.effects.pendings.answer(asked.pendingRef, { kind: "text", text: "week 42" }, await f.runtime.readClock());
++    expect((await run.until("terminal")).type).toBe("completed");
++    expect(looked).toEqual([{ id: "plan-7" }]);
++    // The model saw exactly the named tools: the pack's and asking, never a file tool.
++    const offered = f.requests[0].tools.map((one: any) => one.function.name).sort();
++    expect(offered).toEqual(["ask-user", "lookup", "save"]);
++    expect(JSON.stringify(f.requests[2])).toContain("week 42");
++    expect(f.workspaceCalls).toEqual([]);
++  } finally { await f.close(); }
++});
++
++it("workspace:app holds a writing pack tool for approval like any other effect", async () => {
++  const saved: unknown[] = [];
++  const f = await fixture((_body, response, turn) => turn === 0 ? call(response, "save", { id: "plan-7" }) : say(response));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "", save: async input => { saved.push(input.args); return "saved"; } });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const started = await f.runtime.startAgentRun({ session, workspace: "app", start: f.start(), agent: { idempotencyKey: "a2", mode: "build", toolNames: ["save"] } });
++    const run = watch(started.run);
++    const asked = await run.until("awaiting-approval") as Extract<ModelEvent, { type: "awaiting-approval" }>;
++    expect(saved).toEqual([]);
++    await f.runtime.effects.pendings.answer(asked.pendingRef, { kind: "effect-approval", answer: "allow" }, await f.runtime.readClock());
++    expect((await run.until("terminal")).type).toBe("completed");
++    expect(saved).toEqual([{ id: "plan-7" }]);
++    expect(f.workspaceCalls).toEqual([]);
++  } finally { await f.close(); }
++});
++
++it("workspace:app refuses file tools, roots, runners, subagents, skills and workspace context before the network", async () => {
++  const f = await fixture((_body, response) => say(response));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "", save: async () => "" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const base = { session, workspace: "app" as const, start: f.start(), agent: { idempotencyKey: "r", mode: "build" as const, toolNames: ["lookup"] } };
++    for (const change of [
++      { agent: { idempotencyKey: "missing" } },
++      ...["read", "write", "run-command", "list", "dispatch-subagent", "session-send"].map(name => ({ agent: { idempotencyKey: name, toolNames: ["lookup", name] } })),
++      { rootRef: { kind: "authorized-root", id: "fake", revision: 1 } }, { runTool: async () => "forbidden" }, { subagents: {} },
++      { grants: { toolNames: ["lookup"], paths: ["."] } }, { context: { projectTrusted: true } },
++      { agent: { idempotencyKey: "skills", toolNames: ["lookup"], skillNames: ["anything"] } },
++      { agent: { idempotencyKey: "directory", toolNames: ["lookup"], workingDirectory: "." } },
++    ]) {
++      await expect(f.runtime.startAgentRun({ ...base, ...change } as never)).rejects.toMatchObject({ code: "AGENT_START_INVALID" });
++    }
++    // Another Session's pack tools are not this one's.
++    const bare = await f.runtime.sessions.create();
++    await expect(f.runtime.startAgentRun({ ...base, session: bare })).rejects.toMatchObject({ code: "AGENT_START_INVALID" });
++    expect(f.requests).toEqual([]);
++    expect(f.workspaceCalls).toEqual([]);
++    expect(APP_MODE_SYSTEM_TOOLS).toEqual(["ask-user", "update-todo", "find-tools", "context-remaining"]);
++  } finally { await f.close(); }
++});
++
++it("workspace:none keeps refusing every tool, including a pack's", async () => {
++  const f = await fixture((_body, response) => say(response));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "", save: async () => "" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    await expect(f.runtime.startAgentRun({ session, workspace: "none", start: f.start(), agent: { idempotencyKey: "n", toolNames: [] } })).rejects.toMatchObject({ code: "AGENT_START_INVALID" });
++  } finally { await f.close(); }
++});
++
++it("a session-stop hook can hold a run that only announced what it would do; the loop continues with the hook's reason, at most twice", async () => {
++  const f = await fixture((_body, response, turn) => turn === 0 ? say(response, "现在去保存。") : turn === 1 ? call(response, "lookup", { id: "plan-7" }) : say(response, turn === 2 ? "Now saving." : turn === 3 ? "Saving now." : "all done"));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "plan-7", save: async () => "saved" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const seen: Array<{ text: unknown; run: unknown }> = [];
++    // Holds every stop: the loop's own limit must still end the run.
++    f.runtime.hooks.register({ id: "announce-guard", event: "session-stop", forSession: session.ref.id, handler: async context => {
++      seen.push({ text: (context.input as { text?: unknown }).text, run: context.origin?.run });
++      return { kind: "deny" as const, why: "You only announced the next step; call the tool now or say you are done." };
++    } });
++    const started = await f.runtime.startAgentRun({ session, workspace: "app", start: f.start(), agent: { idempotencyKey: "s1", mode: "build", toolNames: ["lookup", "save"] } });
++    const run = watch(started.run);
++    expect((await run.until("terminal")).type).toBe("completed");
++    const repairs = run.events.filter(event => event.type === "model-response-repair");
++    expect(repairs).toEqual([{ type: "model-response-repair", reason: "stop-held" }, { type: "model-response-repair", reason: "stop-held" }]);
++    expect(seen.map(one => one.text)).toEqual(["现在去保存。", "Now saving."]);
++    expect(seen.every(one => typeof one.run === "string")).toBe(true);
++    // The held answer stays in the model's view, followed by the hook's reason.
++    const second = JSON.stringify(f.requests[1]);
++    expect(second).toContain("现在去保存。");
++    expect(second).toContain("You only announced the next step");
++    // Two holds, then it finishes on the third plain answer without asking again.
++    expect(f.requests).toHaveLength(4);
++  } finally { await f.close(); }
++});
++
++it("without a session-stop hook a plain answer completes the run as before", async () => {
++  const f = await fixture((_body, response) => say(response, "现在去保存。"));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "plan-7", save: async () => "saved" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const started = await f.runtime.startAgentRun({ session, workspace: "app", start: f.start(), agent: { idempotencyKey: "s2", mode: "build", toolNames: ["lookup"] } });
++    const run = watch(started.run);
++    expect((await run.until("terminal")).type).toBe("completed");
++    expect(run.events.some(event => event.type === "model-response-repair")).toBe(false);
++    expect(f.requests).toHaveLength(1);
++  } finally { await f.close(); }
++});
+diff --git a/packages/sdk/test/dispatch-denied.live.test.ts b/packages/sdk/test/dispatch-denied.live.test.ts
+new file mode 100644
+index 00000000..5d80ae7c
+--- /dev/null
++++ b/packages/sdk/test/dispatch-denied.live.test.ts
+@@ -0,0 +1,83 @@
++import { mkdtempSync, rmSync } from "node:fs";
++import { createServer, type ServerResponse } from "node:http";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++import { createRuntime, type ModelEvent, type Run } from "../src/index.js";
++import { createNodeHost } from "../src/node.js";
++
++/**
++ * The App's last check before model bytes leave (`beforeModelDispatch`) said no: a Character was disabled, a grant
++ * withdrawn. That is a denial, not a network failure — nothing was sent, and sending again or to a fallback target
++ * gets the same answer. It used to surface as `MODEL_NETWORK_FAILED`, which sent people off to check their network.
++ */
++function end(run: Run) {
++  return new Promise<ModelEvent[]>((resolve, reject) => {
++    const events: ModelEvent[] = [];
++    const timer = setTimeout(() => reject(new Error(`Run did not finish: ${events.map(e => e.type).join(",")}`)), 8000);
++    run.subscribe(event => { events.push(event); if (["completed", "failed", "cancelled"].includes(event.type)) { clearTimeout(timer); resolve(events); } });
++  });
++}
++function say(response: ServerResponse) {
++  response.writeHead(200, { "content-type": "text/event-stream" });
++  response.end(`data: ${JSON.stringify({ model: "provider-model", choices: [{ delta: { content: "answered" } }], usage: { prompt_tokens: 7, completion_tokens: 3 } })}\n\ndata: [DONE]\n\n`);
++}
++async function fixture(guard: () => Promise<void>) {
++  const home = mkdtempSync(join(tmpdir(), "prologue-dispatch-denied-"));
++  const requests: unknown[] = [];
++  const server = createServer(async (request, response) => { let raw = ""; for await (const chunk of request) raw += chunk; requests.push(JSON.parse(raw)); say(response); });
++  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
++  const address = server.address(); if (!address || typeof address === "string") throw new Error("missing endpoint");
++  const host = createNodeHost({ storageRoot: join(home, "store"), beforeModelDispatch: guard });
++  const runtime = await createRuntime({ app: { appId: "prologue.dispatch-denied", appVersion: "1.0.0" }, host, preset: "local-agent",
++    network: { model: true, loopback: true }, posture: { sandbox: "workspace-write" }, permissionMode: { mode: "ask-always" } });
++  const credentialRef = (await runtime.credentials.write({ label: "test", secret: { plaintext: new TextEncoder().encode("synthetic") } })).ref;
++  const target = (model: string) => ({ protocol: "openai-compatible" as const, endpoint: `http://127.0.0.1:${address.port}/chat`, credentialRef, model });
++  return { runtime, requests, target, async close() { await runtime.shutdown(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); rmSync(home, { recursive: true, force: true }); } };
++}
++
++it("an agent round the App refuses fails as a denial with the App's reason, sends nothing and does not fall back", async () => {
++  const f = await fixture(async () => { throw new Error("Character disabled"); });
++  try {
++    const session = await f.runtime.sessions.create();
++    const { run } = await f.runtime.startAgentRun({ session, workspace: "none", history: "session",
++      start: { ...f.target("primary"), fallback: [f.target("backup")], messages: [{ role: "user", text: "task" }] },
++      agent: { idempotencyKey: "denied", toolNames: [] } });
++    const events = await end(run);
++    const last = events.at(-1);
++    expect(last?.type).toBe("failed");
++    if (last?.type !== "failed") return;
++    expect(last.error.code).toBe("EFFECT_NOT_AUTHORIZED");
++    expect(last.error.safeMessage).toMatch(/Character disabled/);
++    expect(events.some(event => event.type === "fallback")).toBe(false);
++    expect(f.requests).toHaveLength(0);
++  } finally { await f.close(); }
++});
++
++it("a one-shot run the App refuses fails as a denial, not a network failure", async () => {
++  const f = await fixture(async () => { throw new Error("grant withdrawn"); });
++  try {
++    const session = await f.runtime.sessions.create({ ephemeral: true });
++    const run = await session.startRun({ ...f.target("primary"), messages: [{ role: "user", text: "hello" }], timeoutMs: 5000 });
++    const last = (await end(run)).at(-1);
++    expect(last?.type).toBe("failed");
++    if (last?.type !== "failed") return;
++    expect(last.error.code).toBe("EFFECT_NOT_AUTHORIZED");
++    expect(last.error.safeMessage).toMatch(/grant withdrawn/);
++    expect(f.requests).toHaveLength(0);
++  } finally { await f.close(); }
++});
++
++it("cancelling while the App is still deciding stays a cancellation", async () => {
++  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
++  const f = await fixture(async () => { entered.resolve(); await release.promise; });
++  try {
++    const session = await f.runtime.sessions.create({ ephemeral: true });
++    const run = await session.startRun({ ...f.target("primary"), messages: [{ role: "user", text: "hello" }], timeoutMs: 5000 });
++    const ended = end(run);
++    await entered.promise;
++    await run.cancel();
++    expect((await ended).at(-1)?.type).toBe("cancelled");
++    expect(f.requests).toHaveLength(0);
++  } finally { release.resolve(); await f.close(); }
++});
+diff --git a/packages/sdk/test/network-dispatch-authority.live.test.ts b/packages/sdk/test/network-dispatch-authority.live.test.ts
+new file mode 100644
+index 00000000..1f06710e
+--- /dev/null
++++ b/packages/sdk/test/network-dispatch-authority.live.test.ts
+@@ -0,0 +1,70 @@
++import { AsyncLocalStorage } from "node:async_hooks";
++import { mkdtempSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++import { createNodeHost } from "../src/node.js";
++import { createRuntime, openMcpHttp, type McpHttpPort } from "../src/index.js";
++import { startMcpHttpServer } from "./fixtures/mcp-http-server.mjs";
++
++async function fixture(guard: () => void | Promise<void>, prepare?: () => Promise<void>) {
++  const root = mkdtempSync(join(tmpdir(), "sdk-network-authority-"));
++  let modelChecks = 0;
++  const host = createNodeHost({ storageRoot: root, beforeNetworkDispatch: guard, beforeModelDispatch: () => { modelChecks++; } });
++  const runtime = await createRuntime({ app: { appId: "prologue.network-authority", appVersion: "1.0.0" }, host, network: { mcp: true, loopback: true } });
++  const server = await startMcpHttpServer();
++  let callHandle: Awaited<ReturnType<typeof host.prepareModelNetwork>> | undefined;
++  const port: McpHttpPort = { prepareModelNetwork: async input => {
++    const handle = await host.prepareModelNetwork(input);
++    if (JSON.parse(new TextDecoder().decode(input.body)).method === "tools/call") { callHandle = handle; await prepare?.(); }
++    return handle;
++  }, executeModelNetwork: input => host.executeModelNetwork(input), cancelModelNetwork: handle => host.cancelModelNetwork(handle), inspectModelNetwork: handle => host.inspectModelNetwork(handle) };
++  const session = await openMcpHttp({ port, spec: { endpoint: `http://127.0.0.1:${server.port}/mcp`, requestTimeoutMs: 5000 }, clientName: "authority-test" });
++  const call = (control?: Parameters<typeof session.request>[1]) => session.request(id => ({ jsonrpc: "2.0", id, method: "tools/call", params: { name: "lookup", arguments: { q: "one" } } }), control);
++  return { call, seen: server.seen, inspect: () => host.inspectModelNetwork(callHandle!), modelChecks: () => modelChecks, async close() {
++    await session.close(); await runtime.shutdown(); server.server.closeAllConnections(); await new Promise<void>(resolve => server.server.close(() => resolve())); rmSync(root, { recursive: true, force: true });
++  } };
++}
++
++it("MCP authority revoked after real preparation prevents dispatch and remains a denial; a fresh authorized call works", async () => {
++  let allowed = true, pause = true;
++  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
++  const f = await fixture(() => { if (!allowed) throw new Error("MCP grant withdrawn"); }, async () => { if (pause) { entered.resolve(); await release.promise; } });
++  try {
++    const pending = f.call(), rejected = expect(pending).rejects.toMatchObject({ code: "EFFECT_NOT_AUTHORIZED" });
++    await entered.promise; allowed = false; release.resolve(); await rejected;
++    expect(f.seen.methods.filter(method => method === "tools/call")).toHaveLength(0);
++    expect(await f.inspect()).toMatchObject({ dispatched: false, retryable: false, status: "failed" });
++    allowed = true; pause = false;
++    expect(JSON.stringify(await f.call())).toContain("found it");
++    expect(f.seen.methods.filter(method => method === "tools/call")).toHaveLength(1);
++    expect(f.modelChecks()).toBe(0);
++  } finally { allowed = true; release.resolve(); await f.close(); }
++});
++
++it("cancellation while the final MCP guard waits sends no tool bytes and does not hang on the guard", async () => {
++  let hold = false;
++  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), abort = new AbortController();
++  const f = await fixture(async () => { if (hold) { entered.resolve(); await release.promise; } });
++  try {
++    hold = true;
++    const pending = f.call({ signal: abort.signal }), rejected = expect(pending).rejects.toMatchObject({ code: "CANCELLED" });
++    await entered.promise; abort.abort(); await rejected;
++    expect(f.seen.methods.filter(method => method === "tools/call")).toHaveLength(0);
++    expect(await f.inspect()).toMatchObject({ dispatched: false, status: "cancelled" });
++  } finally { hold = false; release.resolve(); await f.close(); }
++});
++
++it("concurrent MCP callers keep separate authority and a denied caller does not contaminate a later call", async () => {
++  const guards = new AsyncLocalStorage<() => void | Promise<void>>();
++  const f = await fixture(async () => { await guards.getStore()?.(); });
++  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
++  try {
++    const rejected = expect(guards.run(async () => { entered.resolve(); await release.promise; throw new Error("Only this caller is revoked"); }, () => f.call())).rejects.toMatchObject({ code: "EFFECT_NOT_AUTHORIZED" });
++    await entered.promise;
++    expect(JSON.stringify(await guards.run(() => {}, () => f.call()))).toContain("found it");
++    release.resolve(); await rejected;
++    expect(JSON.stringify(await f.call())).toContain("found it");
++    expect(f.seen.methods.filter(method => method === "tools/call")).toHaveLength(2);
++  } finally { release.resolve(); await f.close(); }
++});

@@ -1,11 +1,14 @@
 import { renderProjectMonogram } from "@molis-ai/molis-work-design-system";
 import { CONTROL_CLIENT_SCRIPT, PROJECT_INDEX_CLIENT_SCRIPT } from "./browser-assets.js";
 import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "./scripts/client/background-tasks.js";
+import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./scripts/client/assistant-island.js";
+import { renderAssistantDock } from "./assistant-dock.js";
+import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 export interface ProjectDirectoryPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: "database" | "arrow" | "brand" | "settings" | "search" | "plus" | "sparkles" | "activity"): string;
+  icon(name: MolisWorkIcon): string;
   withDesktopQuery(path: string): string;
   htmlLang(): string;
   renderIconSprite(): string;
@@ -65,7 +68,13 @@ function renderMolisWorkProjectIndex(
       <p class="project-index-note">${L("项目和文档保存在这台电脑。")}</p>
     </section>
   </main>
-  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${PROJECT_INDEX_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}(${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: globalThis.L, projectId: null, openItem: () => {} });</script>
+  <!-- Personal work needs no project: the same Assistant, in the person's own scope. -->
+  <div class="project-index-dock" data-dock>${renderAssistantDock({ L, icon })}</div>
+  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${PROJECT_INDEX_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}(${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: globalThis.L, projectId: null, openItem: () => {} });
+  (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: path => path, headers: () => molisWorkControlHeaders(), project: null });
+  (() => { const island = document.querySelector("[data-assistant-island]"), panel = island?.querySelector("[data-assistant-panel]");
+    island?.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => { panel.hidden = true; });
+    document.addEventListener("keydown", event => { if (event.key === "Escape" && panel && !panel.hidden && island.contains(document.activeElement)) { event.preventDefault(); panel.hidden = true; } }); })();</script>
 </body>
 </html>`;
 }

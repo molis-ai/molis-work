@@ -216,7 +216,29 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     fillGoalSelect();
   };
+  // What the Assistant sees when the person turns to it: the open document, its version, and edits not yet saved.
+  const docText = (node) => !node ? "" : typeof node.text === "string" ? node.text
+    : Array.isArray(node.content) ? node.content.map(docText).join(node.type === "doc" ? "\\n" : "") : "";
+  const publishContext = () => {
+    const unsaved = Boolean(selected && (saveTimer || dirty));
+    const context = { plugin_id: "io.molis.work.pages", surface_title: "Pages" };
+    if (selected) {
+      context.object = { kind: "pages_document", id: selected.id, version: selected.version, title: titleInput.value || selected.title };
+      context.starters = [
+        { label: L("总结这篇文档"), prompt: L("总结当前这篇文档的要点") },
+        { label: L("改写得更简洁"), prompt: L("把当前这篇文档改写得更简洁，保留原意") },
+        { label: L("列出待跟进的事"), prompt: L("从当前这篇文档里列出需要跟进的事项") },
+      ];
+      if (unsaved) {
+        context.unsaved = true;
+        const text = docText(editor && Editor ? Editor.getDoc(editor) : selected.body);
+        if (text) context.draft_text = text.slice(0, 20000);
+      }
+    }
+    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+  };
   const syncEditorChrome = () => {
+    publishContext();
     if (!selected) return;
     if (starEditor) {
       starEditor.classList.toggle("is-on", Boolean(selected.starred));
@@ -523,6 +545,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       const saved = await enqueueSave(draft);
       if (editVersion === draft.version && !saveTimer) dirty = false;
+      publishContext();
       return saved;
     } catch (error) {
       dirty = true;
@@ -534,6 +557,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     statusEl.textContent = L("保存中");
     editVersion += 1;
     dirty = true;
+    publishContext();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
   };
@@ -650,6 +674,23 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
 
   ${PAGES_IMPORT_CLIENT_SCRIPT}
+
+  // The Assistant changed a Pages document: show the saved version, unless the person has edits of their own in flight.
+  window.addEventListener?.("molis:assistant-effect", (event) => {
+    const capability = event.detail && event.detail.capability_id;
+    if (typeof capability !== "string" || capability.indexOf("pages.") !== 0) return;
+    void (async () => {
+      const before = selected ? { id: selected.id, version: selected.version } : null;
+      await loadList();
+      if (!before || !selected || selected.id !== before.id) return;
+      const next = records.find((item) => item.id === before.id);
+      if (!next || next.version === before.version) return;
+      if (saveTimer || dirty) { showNote(L("助理刚修改了这篇文档；你还有未保存的修改，保存时会提示冲突，不会覆盖。"), true); return; }
+      fillEditor(next);
+      dirty = false;
+      editVersion += 1;
+    })().catch(() => {});
+  });
 
   titleInput.addEventListener("input", () => {
     if (titleEl) titleEl.textContent = titleInput.value || L("文档");

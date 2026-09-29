@@ -43,7 +43,7 @@ export type PrologueEvent =
   | { type: "usage-recorded"; callId: string; receipt: PrologueUsageReceipt }
   | { type: "compaction-usage-recorded"; callId: string; receipt: PrologueUsageReceipt }
   | { type: "compaction-skipped"; usageRecorded?: boolean }
-  | { type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" }
+  | { type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" | "stop-held" }
   | { type: "compaction-started" }
   | { type: "compacted"; replaced?: number; usageRecorded?: boolean }
   | { type: "compaction-failed"; why?: string }
@@ -132,7 +132,8 @@ function target(input: Record<string, unknown> | undefined): string {
     const line = words.join(" ");
     return line.length <= 200 ? line : `${line.slice(0, 200)}…`;
   }
-  for (const key of ["path", "file_path", "command", "pattern", "query"]) {
+  // A business gateway call names its capability; the surface turns that into the capability's title.
+  for (const key of ["path", "file_path", "command", "pattern", "query", "capability_id"]) {
     const value = input[key];
     if (typeof value !== "string" || value === "") continue;
     return value.length <= 200 ? value : `${value.slice(0, 200)}…`;
@@ -400,6 +401,15 @@ export function applyPrologueEvent(
         const sequence = state.next_sequence++;
         state.activity.push({ call_id: `model-continue-${sequence}`, name: "接着写", target: "回答",
           state: "completed", summary: "回答写到单次输出上限，已让模型从断开处接着写", at, sequence });
+        return true;
+      }
+      if (event.reason === "stop-held") {
+        // The round said what it would do and did nothing: the Host let it continue, once. Shown, not hidden.
+        closeStreaming(state);
+        const sequence = state.next_sequence++;
+        state.activity.push({ call_id: `model-held-${sequence}`, name: "自动续做", target: "上一段只说了要做什么，没有实际执行",
+          state: "completed", summary: "这一轮只说明了接下来要做什么、没有调用工具，已让它接着实际去做（每轮最多一次）", at, sequence });
+        state.phase = "running";
         return true;
       }
       if (event.reason !== "tool-not-declared") return false;

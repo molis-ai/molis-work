@@ -59,6 +59,8 @@ export type AgentRuntimeCapabilityMatrix = Record<AgentRuntimeCapability, AgentC
 export interface AgentRuntimeDescriptor {
   supports_action_tools?: boolean;
   supports_workspace_none?: boolean;
+  /** Runs business roles: no directory, the unified actions given at start and the root-free host tools. */
+  supports_workspace_business?: boolean;
   runtime_id: string;
   display_name: string;
   provider_version: string;
@@ -119,7 +121,9 @@ export interface AgentWorkingDirectory {
 /** Absence retains the historical workspace requirement. No process cwd fallback is permitted. */
 export type AgentWorkspace =
   | { workspace?: "required"; directory: AgentWorkingDirectory }
-  | { workspace: "none"; directory?: never };
+  | { workspace: "none"; directory?: never }
+  /** Business work: no directory; the Host gives it unified actions (by effect) and root-free tools only. */
+  | { workspace: "business"; directory?: never };
 
 export interface AgentTextMaterial {
   material_id: string;
@@ -415,6 +419,8 @@ export interface AgentFrozenCharacter extends CharacterContent {
 
 interface AgentFrozenStartFields {
   action_tools?: ExactActionReference[];
+  /** The run used the Host's action gateway (see AgentStartRequest.action_gateway). */
+  action_gateway?: true;
   /** Exact imported Skill ids used by this Run; the full Character snapshot remains immutable. */
   character_skill_ids?: string[];
   execution_plan?: AgentExecutionPlan;
@@ -446,7 +452,9 @@ interface AgentFrozenStartFields {
    * Plugin role, or project. Without it the list is a flat set of ids that
    * nobody can attribute, which is the state this used to be in.
    */
-  prompts: Array<{ prompt_id: string; version: number; layer: AgentPromptLayer }>;
+  prompts: Array<{ prompt_id: string; version: number; layer: AgentPromptLayer;
+    /** Present when the run used the person's edit of this prompt (its revision) instead of the default. */
+    user_revision?: number }>;
   skills: AgentSkillDeclaration[];
   mcp_tools: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
@@ -466,6 +474,7 @@ interface AgentCreateSessionFields {
 export type AgentCreateSessionInput = AgentCreateSessionFields & (
   | { workspace?: "required"; directory: AgentWorkingDirectory; role_id?: string }
   | { workspace: "none"; directory?: never; role_id: string }
+  | { workspace: "business"; directory?: never; role_id: string }
 );
 
 /**
@@ -485,13 +494,36 @@ export interface AgentSubagentWorkspace {
   directory: AgentWorkingDirectory;
 }
 
+/**
+ * An action the model proposes for the person to run with one click: the exact capability and prepared input, what
+ * it does in plain words, and which fields the person may adjust or must still supply. A proposal runs nothing.
+ */
+export interface AgentActionOffer {
+  /** The button's words, verb first ("加入计划（3 项）"). */
+  title: string;
+  /** What clicking does: to which object, with which key values, in the person's words. */
+  summary: string;
+  reference: ExactActionReference;
+  input: unknown;
+  /** Top-level input fields the person may change before running it. */
+  editable?: string[];
+  /** Fields still needed, each with the question to ask; the card cannot run until they are given. */
+  missing?: Array<{ field: string; question: string }>;
+}
+
 export interface AgentActionClient {
   discover(): Promise<readonly ActionView[]>;
+  /** Record a proposal for the person; validated against the current capability. Absent: this caller takes none. */
+  offer?(offer: AgentActionOffer): Promise<{ offer_id: string }>;
+  /** Validate an input exactly as dispatch will, running nothing; throws the contract's own error. */
+  check?(reference: ExactActionReference, input: unknown): Promise<void>;
   invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;
 }
 
 export interface AgentFrozenRole {
-  workspace?: "required" | "none";
+  workspace?: "required" | "none" | "business";
+  /** Trusted Host composition only. `operate` lets the gateway request changes; reads are always allowed. */
+  action_gateway?: { client: AgentActionClient; operate: boolean };
   /** Trusted Host composition only. Never serialized into run history. */
   actions?: { tools: ActionView[]; client: AgentActionClient };
   character_skill_ids?: string[];
@@ -513,6 +545,12 @@ export interface AgentFrozenRole {
 
 interface AgentStartRequestFields {
   action_tools?: ExactActionReference[];
+  /**
+   * Business roles only: instead of one tool per action, the Host's gateway — find the actions in scope, run a read,
+   * or request a change (held for review). The directory is read at every call, so installing, upgrading or switching
+   * off an action takes effect at once. Exclusive with `action_tools`.
+   */
+  action_gateway?: boolean;
   /** Explicit subset of the selected Character's imported Skills. Empty uses rules only. */
   character_skill_ids?: string[];
   execution_plan?: AgentExecutionPlan;
@@ -712,7 +750,7 @@ export interface AgentRunView {
 
 export interface AgentSessionView {
   /** Immutable session mode; missing historical values mean required. */
-  workspace?: "required" | "none";
+  workspace?: "required" | "none" | "business";
   /** A manual rewind is in progress or has an unresolved execution outcome. */
   checkpoint_busy?: boolean;
   /** Persisted work exists but is not safe to continue automatically. */

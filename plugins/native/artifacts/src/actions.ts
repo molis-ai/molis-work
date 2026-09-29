@@ -1,8 +1,8 @@
-import { ActionError, defineSubjectContextAction, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, type SearchEntry, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactConsumerType, ArtifactReference, ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { ARTIFACT_SUBJECT_KIND, parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, type ArtifactBrowserView } from "./browser.js";
+import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactDisplayTitle, artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
 import { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
 import type { ExternalDocumentSource } from "./document-import.js";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -26,8 +26,18 @@ function define<I, O>(name: string, title: string, description: string, operatio
   return { capability_id: `artifacts.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
     scope: "project", audiences: ["user", "agent", "workflow", "mcp"], permissions, subject_kinds: ["artifact"], input_schema: input, output_schema: output } };
 }
+/** System search: the newest available version of each Artifact, by title and the text inside its payload. */
+const searchEntries = defineSearchEntriesAction("artifacts.search.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
+function payloadText(value: unknown, out: string[] = [], budget = { left: 4000 }): string[] {
+  if (budget.left <= 0 || value == null) return out;
+  if (typeof value === "string") { const text = searchText(value, budget.left); if (text) { out.push(text); budget.left -= text.length; } }
+  else if (Array.isArray(value)) for (const item of value) payloadText(item, out, budget);
+  else if (typeof value === "object") for (const item of Object.values(value)) payloadText(item, out, budget);
+  return out;
+}
 export const artifactsActions = {
   subject,
+  searchEntries,
   browser: define<{ reference?: ArtifactReference | null; supported_types?: ArtifactConsumerType[] }, ArtifactBrowserView>("browse", "浏览项目成果", "读取当前项目全部成果版本及指定的固定版本；保留原生产方、正文和可用状态", "query",
     object({ reference: nullable(reference), supported_types: consumerTypes }, []), browser),
   read: define<{ reference: ArtifactReference; supported_types?: ArtifactConsumerType[] }, Omit<ArtifactBrowserView, "versions">>("read", "读取固定成果版本", "按准确身份和版本读取成果及兼容性，不自动替换成最新版本", "query",
@@ -74,6 +84,17 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         && currentProject(edge.target.project_id) && edge.source.module === "goals" && currentProject(edge.source.project_id))
         .map(edge => edge.source.id);
       return artifactAnalysisContext(artifact, goalIds);
+    }),
+    bindSearchEntriesHandler(artifactsActions.searchEntries, () => {
+      const latest = new Map<string, ArtifactVersionRecord>();
+      for (const record of ports.artifacts.query.listArtifacts(ports.boardId)) {
+        if (record.lifecycle_state !== "active" || record.availability !== "available") continue;
+        const current = latest.get(record.artifact_id);
+        if (!current || record.version > current.version) latest.set(record.artifact_id, record);
+      }
+      return [...latest.values()].map((record): SearchEntry => ({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
+        revision: `${record.version}:${record.content_digest}`, title: artifactDisplayTitle(record), summary: payloadText(record.payload).join("\n").slice(0, 4000),
+        updated_at: record.created_at, content: "summary", open: { surface: "artifacts", id: artifactVersionPath(record) } }));
     }),
     bind(artifactsActions.browser, input => readArtifactBrowser(ports.artifacts.query, ports.boardId, input.reference ?? null, input.supported_types)),
     bind(artifactsActions.read, input => readArtifactSelection(ports.artifacts.query, ports.boardId, input.reference, input.supported_types)),

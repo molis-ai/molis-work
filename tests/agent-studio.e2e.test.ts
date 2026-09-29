@@ -25,7 +25,7 @@ test('studio: a request becomes a working, published plugin that the person can 
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0); let modelDelay = 0;
   const options = { store, boardId: DEMO_BOARD_ID, homeDirectory: home, ...fixture,
-    generate: async (pluginId: string, input: { instructions: string; input: string }) => { await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
+    generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => { await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
   let liveSubscriptions = 0, subscriptions = 0;
   const server: Server = createServer((request, response) => {
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }

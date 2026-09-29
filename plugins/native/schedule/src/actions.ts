@@ -5,6 +5,7 @@ import type { ScheduleConversationTaskView } from "./tasks.js";
 import type { RecoverScheduleReminderInput, ScheduleJobView } from "./reminder-management.js";
 import type { RecoverScheduledOperationInput, ScheduledOperationView } from "./operation-management.js";
 import type { ScheduledOperationOccurrence } from "./operations.js";
+import { createScheduleSearchHandlers, scheduleSearchActions } from "./search.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1 };
@@ -69,6 +70,8 @@ export const scheduleActions = {
     "先读取原功能、输入、当前安装与执行记录，再决定恢复、重试最早的未知结果（可能重复副作用）或跳过该次。预期版本与 revision 拒绝过期确认；不会直接执行插件代码，保留原排期与历史", "command",
     object({ operation_id: id, decision: { enum: ["resume", "retry", "skip"] }, expected_revision: id, expected_installation_id: id, expected_generation: id, expected_version: id }),
     object({ operation: operationView }), write, { plugin: false }),
+  searchEntries: scheduleSearchActions.entries,
+  subject: scheduleSearchActions.subject,
 };
 export const SCHEDULE_ACTIONS: readonly ActionDefinition[] = Object.values(scheduleActions);
 export const SCHEDULE_ACTION_PERMISSIONS = [...new Set(SCHEDULE_ACTIONS.flatMap(definition => definition.action.permissions))];
@@ -115,5 +118,6 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
       if (!ports.recoverOperation) throw new ActionError("actions.unredeemed", "当前宿主未提供定时操作恢复入口");
       return { operation: ports.recoverOperation(input) };
     }),
+    ...createScheduleSearchHandlers(projectId, () => ports.listTasks()),
   ];
 }

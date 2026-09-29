@@ -15,10 +15,16 @@ export interface ContextScope {
 }
 
 export interface ObjectRef {
-  module: "goals" | "artifacts" | "feed" | "private-work-context" | "projects";
+  /**
+   * Whose object it is. `assistant` is an Assistant work; `plugins` is an object a Plugin owns, named by
+   * `object_type` (the subject kind its context reader declares, e.g. `pages_document`) within `project_id`.
+   */
+  module: "goals" | "artifacts" | "feed" | "private-work-context" | "projects" | "assistant" | "plugins";
   id: string;
   /** null means an identity reference, not an invented historical version. Artifacts require a version. */
   version: number | null;
+  /** The owner's own revision when it is not a counter (an opaque token). Compared exactly, never interpreted. */
+  revision?: string;
   scope: ContextScope;
   /** Object namespace, distinct from privacy scope. null preserves unknown legacy provenance. */
   project_id?: string | null;

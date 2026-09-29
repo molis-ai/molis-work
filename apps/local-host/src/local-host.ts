@@ -33,6 +33,8 @@ export interface LocalHostOptions<Runtime> {
     before(runtime: Runtime, reference: LocalHostProjectReference, capability: HostCapabilityDefinition, input: unknown, caller: ActionCallContext): unknown;
     after(runtime: Runtime, ticket: unknown, result: unknown, threw: boolean): void;
   };
+  /** A provider was registered or withdrawn, with the project it was bound to. Observers must not throw. */
+  actionProvidersChanged?(provider: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider): void;
   /** Every action handler that ran, with its caller and outcome; never its input or result. */
   actionSettled?(caller: ActionCallContext, action: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference & { operation: string; title: string; provider_title: string },
     outcome: { ok: true } | { ok: false; code?: string; message: string }): void;
@@ -168,15 +170,18 @@ export class LocalHost<Runtime> {
         throw new ActionError("actions.scope_mismatch", "能力来源不能注册到其他项目");
       }
       const expanded = withSceneConfigurationActions(registration, this.sceneClient(project));
+      const bound = { ...registration.provider, ...(project ? { project_id: project.project_id } : {}) };
       const remove = this.actionService.registerProvider({ ...expanded,
-        provider: { ...registration.provider, ...(project ? { project_id: project.project_id } : {}) },
+        provider: bound,
         availability: caller => this.state !== "running" || entry?.state === "closing"
           ? { available: false, code: "actions.host_closed", reason: "能力所在运行环境已关闭" }
           : registration.availability?.(caller) ?? { available: true },
       });
       const owner = entry?.actionDisposers ?? this.globalActionDisposers;
-      const dispose = () => { remove(); owner.delete(dispose); };
+      const announce = () => { try { this.options.actionProvidersChanged?.(bound); } catch { /* An observer never changes registration. */ } };
+      const dispose = () => { remove(); owner.delete(dispose); announce(); };
       owner.add(dispose);
+      announce();
       return dispose;
     } };
   }

@@ -11,21 +11,55 @@ export interface ActionSubjectContext {
   truncated: boolean;
   goal_ids: string[];
   session_id: string | null;
+  /** Where the person opens it: the workbench surface and item. Absent when the object has no page of its own. */
+  open?: { surface: string; id: string };
 }
 const id = { type: "string", minLength: 1 };
 export const ACTION_SUBJECT_SCHEMA = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false };
 export const SUBJECT_CONTEXT_INPUT_SCHEMA = { type: "object", properties: { subject_id: id }, required: ["subject_id"], additionalProperties: false };
 const properties = { subject: ACTION_SUBJECT_SCHEMA, revision: id, title: { type: "string", maxLength: 1000 }, content: { type: "string", maxLength: 32000 },
   truncated: { type: "boolean" }, goal_ids: { type: "array", items: id, uniqueItems: true }, session_id: { type: ["string", "null"] } };
-export const SUBJECT_CONTEXT_OUTPUT_SCHEMA = { type: "object", properties, required: Object.keys(properties), additionalProperties: false };
-export function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[]): ActionDefinition<{ subject_id: string }, ActionSubjectContext> {
+const open = { type: "object", properties: { surface: { ...id, pattern: "^[a-zA-Z0-9_-]+$" }, id }, required: ["surface", "id"], additionalProperties: false };
+export const SUBJECT_CONTEXT_OUTPUT_SCHEMA = { type: "object", properties: { ...properties, open }, required: Object.keys(properties), additionalProperties: false };
+/** The v1 output before `open` was added: readers declared with it keep working. */
+export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN = { type: "object", properties, required: Object.keys(properties), additionalProperties: false };
+/**
+ * A reader of one object kind's context. `scope` is where its objects live: a project's (the default), or the
+ * person's own Home (a calendar, personal notes), so personal work can read them back too.
+ */
+export function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<{ subject_id: string }, ActionSubjectContext> {
   return { capability_id: capabilityId, version: 1, operation: "query", action: { title, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
-    kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: [kind],
+    kind: "query", scope, scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: [kind],
     input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, input_schema: SUBJECT_CONTEXT_INPUT_SCHEMA, output_schema: SUBJECT_CONTEXT_OUTPUT_SCHEMA } };
 }
 export function subjectContext(input: Omit<ActionSubjectContext, "truncated"> & { truncated?: boolean }): ActionSubjectContext {
   return { ...input, title: input.title.slice(0, 1000), content: input.content.slice(0, 32000), truncated: input.truncated === true || input.content.length > 32000,
     goal_ids: [...new Set(input.goal_ids)] };
+}
+
+/** The object a completed command created or changed, and its new revision, when the action says or shows it. */
+export function actionResultSubject(action: Pick<ActionDefinition["action"], "kind" | "subject_kinds" | "result_subject">, input: unknown, output: unknown):
+  { subject: ActionSubject; revision: string | null } | null {
+  if (action.kind === "query" || action.kind === "navigation" || action.subject_kinds.length !== 1) return null;
+  const kind = action.subject_kinds[0]!;
+  const at = (value: unknown, path: string): unknown => path.split(".").reduce<unknown>((node, key) => node && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined, value);
+  const token = (value: unknown): string | null => typeof value === "number" && Number.isFinite(value) ? String(value) : typeof value === "string" && value ? value : null;
+  if (action.result_subject) {
+    const id = at(output, action.result_subject.id);
+    return typeof id === "string" && id ? { subject: { kind, id }, revision: action.result_subject.revision ? token(at(output, action.result_subject.revision)) : null } : null;
+  }
+  // Undeclared: the output itself, or its one nested record, when it carries an id and a version or revision.
+  const record = (value: unknown) => value && typeof value === "object" && !Array.isArray(value) && typeof (value as Record<string, unknown>).id === "string" ? value as Record<string, unknown> : null;
+  const nested = output && typeof output === "object" ? Object.values(output as Record<string, unknown>).map(record).filter(Boolean) : [];
+  const found = record(output) ?? (nested.length === 1 ? nested[0]! : null);
+  if (found) return { subject: { kind, id: String(found.id) }, revision: token(found.version ?? found.revision) };
+  const named = record(input);
+  return named ? { subject: { kind, id: String(named.id) }, revision: null } : null;
+}
+
+/** An action that reads one object's context by the shared subject protocol. */
+export function isSubjectReader(action: Pick<ActionDefinition["action"], "input_type" | "output_type">): boolean {
+  return action.input_type === SUBJECT_REFERENCE_TYPE && action.output_type === SUBJECT_CONTEXT_TYPE;
 }
 /** Protocol discovery confers no authority; invocation keeps the original caller and exact provider. */
 export async function resolveActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<{ context: ActionSubjectContext; reader: ActionReference }> {

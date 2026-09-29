@@ -57,6 +57,9 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActionProvider } from "./inbox-actions.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
+import { createSearchHost, type SearchHost } from "./search-actions.js";
+import { localWebActionContext } from "./local-web-actions.js";
+import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 
 export interface MolisWorkProjectRuntime {
   store: LocalProjectDatabase;
@@ -129,6 +132,8 @@ export class MolisWorkLocalHost {
   private readonly sessions: SessionRuntimeService;
   /** Commands that ran in this Home, for the 调用记录 page; absent without a Home directory. */
   readonly callLog?: ActionCallLog;
+  /** System search over this Home's plugins; absent without a Home directory. */
+  readonly search?: SearchHost;
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     this.sessions = new SessionRuntimeService(options);
@@ -136,7 +141,12 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
     this.host = new LocalHost({
       instanceId: options.instanceId,
-      actionSettled: (caller, action, outcome) => this.callLog?.record(caller, action, outcome),
+      actionSettled: (caller, action, outcome) => {
+        this.callLog?.record(caller, action, outcome);
+        // Any successful command, from a page, the Assistant, a workflow or MCP, may change what search should find.
+        if (outcome.ok && action.operation === "command" && action.provider_id) this.search?.changed(action.provider_id, caller.project_id);
+      },
+      actionProvidersChanged: provider => this.search?.providerChanged(provider),
       actionAvailability: options.actionAvailability,
       sceneAvailability: options.sceneAvailability,
       observation: {
@@ -255,6 +265,18 @@ export class MolisWorkLocalHost {
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor },
     );
     if (options.homeDirectory) ensureSystemAgentService(this, options.homeDirectory, undefined, { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor });
+    if (options.homeDirectory) {
+      const home = options.homeDirectory;
+      this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
+        project: projectId => this.host.status().projects.find(row => row.project_id === projectId && row.state !== "closing"),
+        projectClient: reference => this.actionClient(reference), homeClient: () => this.homeActionClient(),
+        ownerContext: reference => localWebActionContext(this, reference, LOCAL_OWNER_PERMISSIONS),
+        // A project is gone only when the catalog no longer has it and no runtime of it is open (deletion closes it first).
+        knownProjects: async () => this.catalogRunner
+          ? [...await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().map(project => project.project_id)),
+            ...this.host.status().projects.map(project => project.project_id)] : null,
+        onError: (error, where) => { if (process.env.MOLIS_WORK_SEARCH_DEBUG) console.warn(`[search] ${where}:`, error); } });
+    }
   }
 
   /** Platform startup injects the existing Catalog owner before accepting requests. */
@@ -410,6 +432,7 @@ export class MolisWorkLocalHost {
     return this.closing ??= (async () => {
       releaseSystemAgentService(this);
       this.connectorMcp?.close();
+      await this.search?.close().catch(() => undefined);
       try { await this.host.close(); }
       finally {
         this.systemFunctions?.dispose();

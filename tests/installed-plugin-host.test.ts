@@ -18,6 +18,8 @@ import { exposedActionId } from '../apps/local-host/src/plugin-builder/exposed-a
 import { studioStorage } from '../apps/local-host/src/plugin-builder/storage.js';
 import { buildManifest } from '../apps/local-host/src/plugin-builder/build-project.js';
 import { scheduleServiceFor } from '../apps/local-host/src/schedule-runtime.js';
+import { agentDefinitionsFor } from '../apps/local-host/src/agent-definitions/agent-definitions.js';
+import { builtinRegistrations } from '../apps/local-host/src/agent-definitions/builtin-registrations.js';
 
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: 'project' };
@@ -38,6 +40,7 @@ async function publishedFixture(home: string, name: string, lookup = false) {
   const bundlePath = join(home, name + '.mjs');
   await writeFile(bundlePath, `export const operations={save:async(input,sdk)=>{await sdk.storage.set('value',input.value);return input.value},read:async(_,sdk)=>await sdk.storage.get('value')??'empty',schedule:async(at,sdk)=>(await sdk.capability.call('schedules.add',{operation:'save',at,input:{value:'scheduled'},inbox:false})).scheduleId${lookup ? ",lookup:async(_,sdk)=>{const value=await sdk.capability.call('fixture.lookup',null);await sdk.storage.set('value',value);return value}" : ''}};`);
   const release: AgentRelease = { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home,
+    prompts: [{ id: 'summary', title: 'Summary', purpose: 'Summarize notes', body: 'Shipped instruction' }],
     design: { id: 'one', catalog: 'actions/1', title: 'Installed fixture', description: 'Fixture', rationale: 'Fixture', journey: [], contract, parts: [], acceptance: [] },
     nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read', 'write'], capabilities: ['schedules.add', ...(lookup ? ['fixture.lookup'] : [])] }, publishedAt: new Date().toISOString() };
   builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
@@ -148,17 +151,28 @@ test('explicitly disabled installations stay disabled after Host restart and onl
   const control = () => host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, boardId: DEMO_BOARD_ID, homeDirectory: home,
     actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: 'project' } }));
   try {
-    const installed = await control(); await installed.lifecycle('disable', fixture.release);
+    const installed = await control();
+    const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';
+    const promptState = () => { const source = registry.prompt(key).source; return source.kind === 'plugin' ? source.state : undefined; };
+    assert.equal(promptState(), 'enabled');
+    registry.save(key, 'Edited instruction', null, 'person');
+    await installed.lifecycle('disable', fixture.release);
+    assert.equal(promptState(), 'disabled');
     await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home });
     assert.equal((await host.actionClient(fixture.ref).discover(caller)).some(view => view.capability_id.startsWith('generated.')), false);
     const restored = await control(); assert.equal(restored.installations()[0]?.state, 'disabled');
+    assert.equal(registry.prompt(key).effective, 'user');
+    assert.equal(promptState(), 'disabled');
     await restored.lifecycle('enable', fixture.release);
+    assert.equal(promptState(), 'enabled');
     assert.equal((await host.actionClient(fixture.ref).discover(caller)).filter(view => view.capability_id.startsWith('generated.')).length, 3);
     const action = (operation: string) => ({ capability_id: exposedActionId(fixture.release, operation), version: 1, provider_id: 'plugin:' + fixture.release.pluginId });
     await host.actionClient(fixture.ref).invoke(caller, action('save'), { value: 'kept across reinstall' });
     await restored.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.equal(registry.hasPrompt(fixture.release.pluginId, 'summary'), false);
     assert.equal((await host.actionClient(fixture.ref).discover(caller)).some(view => view.capability_id.startsWith('generated.')), false);
     await restored.lifecycle('install', fixture.release, { consent: true });
+    assert.equal(registry.prompt(key).effective, 'user');
     assert.equal(await host.actionClient(fixture.ref).invoke(caller, action('read'), null), 'kept across reinstall');
     await restored.lifecycle('uninstall', fixture.release, { keepData: false });
     await restored.lifecycle('install', fixture.release, { consent: true });

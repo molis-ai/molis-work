@@ -1,3 +1,4 @@
+import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { ActionError, bindActionClient, retainActionAuthority, type ActionClient, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { feedQueryActions, FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions, INBOX_PLUGIN_ID } from "@molis-ai/molis-work-plugin-inbox";
@@ -36,7 +37,7 @@ export function informationActionProvider(home: string, projectId: string, clien
         const snapshot = await actions.invoke(feedQueryActions.snapshot, {});
         const { entries } = await actions.invoke(inboxActions.list, {});
         return planInformationWork({ ...snapshot, inbox_entries: [...entries] }, projectId, input as { prompt: string }, complete,
-          { signal: caller.signal, beforeDispatch: caller.beforeEffect });
+          { signal: caller.signal, beforeDispatch: caller.beforeEffect }, prompt => resolveModelPrompt(home, prompt, "system.information"));
       },
     }] };
 }

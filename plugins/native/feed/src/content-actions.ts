@@ -1,5 +1,5 @@
 import { FEED_PLUGIN_ID } from "./identity.js";
-import { retainActionAuthority, ActionError, defineSubjectContextAction, subjectContext, bindWorkflowContentHandlers, defineWorkflowContentActions, type WorkflowPayload, type ActionSubject, type ActionSubjectContext, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { retainActionAuthority, ActionError, defineSubjectContextAction, subjectContext, bindSearchEntriesHandler, defineSearchEntriesAction, searchRevisionOf, searchText, type SearchEntry, bindWorkflowContentHandlers, defineWorkflowContentActions, type WorkflowPayload, type ActionSubject, type ActionSubjectContext, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { FeedItemRecord } from "./projection.js";
 import { createFeedHomeEventsHandler } from "./home-events.js";
@@ -9,6 +9,12 @@ export const feedContentActions = defineWorkflowContentActions({ id: "feed", tit
 
 export const feedSubjectAction = defineSubjectContextAction("feed.subject.read", "feed_item", "Feed 材料", ["feed:read"]);
 export const feedSourceSubjectAction = defineSubjectContextAction("feed.source.subject.read", "source", "来源状态", ["feed:read"]);
+/**
+ * System search: materials by title, summary, source and tags, and sources by name. Retained bodies are encrypted at rest
+ * and only this owner decrypts them on request, so they never enter the plain-text index.
+ */
+export const feedSearchEntriesAction = defineSearchEntriesAction("feed.search.entries",
+  [{ kind: "feed_item", title: "Feed 材料", surface: "feed" }, { kind: "source", title: "来源", surface: "feed" }], "Feed", ["feed:read"]);
 
 export function createFeedContentHandlers(feed: FeedApplication, board: string, hydrate: (item: FeedItemRecord) => FeedItemRecord, readSubject?: (subject: ActionSubject, caller: ActionCallContext) => Promise<ActionSubjectContext>) {
   return [createFeedHomeEventsHandler(feed, board, hydrate, readSubject), ...bindWorkflowContentHandlers(feedContentActions, {
@@ -33,6 +39,17 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
       await feed.flushPendingJudgments(retainActionAuthority(caller, { ...feedContentActions.receive, provider_id: FEED_PLUGIN_ID }));
       return { plugin: "feed", item_id: item.item_id, title: item.title };
     },
+  }), bindSearchEntriesHandler(feedSearchEntriesAction, () => {
+    const snapshot = feed.snapshot(board);
+    const items = snapshot.feed_items.filter(item => item.disposition !== "archived").map((item): SearchEntry => {
+      const summary = searchText([item.summary, item.source_label, item.author, ...(item.tags ?? [])].filter(Boolean).join(" · "), 1000);
+      return { subject: { kind: "feed_item", id: item.item_id }, revision: searchRevisionOf([String(item.revision), item.disposition, item.title, summary]), title: item.title,
+        summary, updated_at: item.updated_at || item.imported_at, content: "summary", open: { surface: "feed", id: item.item_id } };
+    });
+    const sources = snapshot.sources.filter(source => source.source_id !== "workflow-handoffs").map((source): SearchEntry => ({
+      subject: { kind: "source", id: source.source_id }, revision: searchRevisionOf([source.updated_at, source.name, source.description ?? "", source.status]), title: source.name,
+      summary: searchText(source.description, 600), updated_at: source.updated_at, content: "summary", open: { surface: "feed", id: source.source_id } }));
+    return [...items, ...sources];
   }), { ...feedSubjectAction, handle: (_caller: unknown, input: unknown) => {
     const item = hydrate(feed.getFeedItem(board, (input as { subject_id: string }).subject_id));
     if (item.disposition === "archived") throw new ActionError("actions.subject_unavailable", "材料已归档，请回到原记录查看");

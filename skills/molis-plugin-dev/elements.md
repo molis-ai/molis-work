@@ -111,6 +111,7 @@ SSOT：`specs/archive/plugin-outbound-mcp/spec.md`。
 - 输出口：`services.outputs.publish`、`invalidate(port, 给人看的原因)`、`retain(引用)`。同一轮输入是否算一组，由 Host 创建 client 时附上 `scope_key`。`publish` 参数里没有这个字段。
 - `input_groups`：组之间换着用；选中的那一组端口生效，其余不绑也不算失败。
 - 完整输入一次送达 `onUpstreamReady`；失效走 `onUpstreamUnavailable`。Host 不投递半套。
+- 输入状态的 `missing.reason` 区分未选择和已失效，界面保留 waiting/unavailable 的语义。输入通知刷新当前投影，不是一次性业务命令。`onUpstreamReady(inputs, context)` 接到可用且未归档的固定版本；异步读取后、更新投影前调用 `context.beforeEffect()`，并把 `context.signal` 传给可取消操作。Host 从已提交的领域 journal 发现失效/归档并重算既有输入图。新实例重新读取当前输入，不能把重启通知当作再次执行外部操作的授权。
 
 ## 插件事件总线（不是判断场景）
 
@@ -130,8 +131,10 @@ SSOT：`specs/archive/plugin-outbound-mcp/spec.md`。
 - **事件 id 放合同**，不放发布者插件包。Coding 的 `file-changed` 在 `workspace-artifacts` 合同里，Files 只点名 id，不 import Coding 实现。
 - `PluginDefinition.event_types` 的 `validate` 必须覆盖自己 publishes 的每一种；Host 只存校验通过的。
 - 发布：`context.services.events.publish({ event_type_id, type_version, payload })`。没声明 publishes 就没有 `services.events`。
-- 接收：`start()` 返回的 contribution 上写 `onEvent`（Files/Git 用来刷工作区）。
-- 落项目库，按 (订阅者, 来源) 串行，重启从游标续。
+- 接收：`start()` 返回的 contribution 上写 `onEvent(event, delivery)`（Files/Git 用来刷工作区）。使用订阅安装自己的身份及 `delivery.signal`，每次异步等待后、写入前调用 `delivery.beforeEffect()`；传给 Host 端口时继续传该控制，不能长期保留原发布 Action 的临时授权。
+- 落项目库，按 (订阅者, 来源) 串行，游标绑定 install_id 与安装世代。同一安装重启续接未派出的工作，重装建立新订阅，不继承旧游标或重放历史。无可信身份的旧游标保留原数据，仅作为历史。
+- 处理前持久记录 delivering，确认前重查实例、版本和订阅。处理器已开始但崩溃或被撤销，结果未知则隔离，不能自动重试；启动失败且没有派出处理器时可以恢复。普通处理器异常记录后不自动重投，不能声称任意副作用 exactly-once。Host 关闭先 `await events.close()` 再关闭数据库。
+- 隔离事件由人从项目「插件 → 待核对的插件通知」核对，填写依据后明确 retry/skip。插件不能给自己恢复，普通启用不能补权。所见 revision、首条事件、安装世代与版本必须保持一致，决定及历史同事务保存；不替换原安装，不跳过后续事件。重试存在重复副作用的可能，必须在确认中说明。
 
 **今天只有 Coding 族这条 `createPluginPlatform` 真的在跑总线。** Feed / Inbox / Pages 这类构建期 Native 没有。给 Native 抄 Coding 的 `events:` 块，运行时不会投递。
 
@@ -169,3 +172,5 @@ SSOT：`specs/archive/plugin-outbound-mcp/spec.md`。
 从 `contracts/modules/projects` 导入 `projectSettingsCapabilities`：`workspaces` 返回当前项目已关联目录，`browsingWorkspace` 返回 Files/Git 的当前浏览目录或 null。逐项将完整 `capability_id` 写入 Manifest consumes，然后调用 `invoke(capability, [])`。不可传 project_id，不支持 key 袋或通配读取。Host 裁剪其他项目关联字段。工作目录在项目设置中维护，不再接 Workspace 输出。Coding 会话执行目录独立；`projects.workspace.read.v1` 只保留旧执行默认值兼容。
 
 `settings` 槽只放页面，不给其他插件读权；`storage:private` 只存自己的偏好。项目说明仍属 Goals。归属与例子见 `docs/platform/PROJECT-SETTINGS.md`。
+
+生产事件要从事实 owner 的提交或回执接出，不能从审批通过或一次历史查询推断新执行。Coding `run-updated`、Git `operation-updated` 是刷新提示，包含失败/未知状态；不冒充旧的 review 失效或 file-changed 协议。Host 按项目和 activation 装配、停止时注销；提示到 Files/Git 后只失效视图 revision。可靠业务副作用仍需要自己的提交一致性，不能由 UI revision 冒充持久 outbox。

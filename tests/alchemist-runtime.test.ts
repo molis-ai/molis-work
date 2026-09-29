@@ -1,3 +1,4 @@
+import { alchemistOutput } from "./fixtures/alchemist-output.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -25,7 +26,7 @@ function fakeHost() {
       const value = properties.reply ? { reply: "这条假设需要下次访谈验证。" }
         : properties.judgments ? { judgments: labels.map(label => ({ label, status: "tentative", conclusion: "只有有限支持", rationale: "根据给定来源，仍需访谈", supportingEvidenceIndexes: [0], counterEvidenceIndexes: [], unknowns: ["持续使用"], changeConditions: ["新增独立访谈"] })) }
         : properties.summary ? { summary: "已有有限支持，仍需验证持续使用。" } : generation;
-      return { text: JSON.stringify(value), runtimeLabel: model.runtimeLabel, usage: { inputTokens: 12, outputTokens: 7 } };
+      return alchemistOutput(JSON.stringify(value), model.runtimeLabel, { inputTokens: 12, outputTokens: 7 });
     },
     async search(input) {
       searched.push(input.query);
@@ -111,7 +112,7 @@ test("Alchemist: host settings contain no secret surface; generation uses select
 test("Alchemist: invalid generated JSON fails without persisting cards and a new exploration can retry", async () => {
   await withRuntime(async (runtime, host) => {
     const original = host.ai.generate;
-    host.ai.generate = async () => ({ text: '{"cards":[]}', runtimeLabel: model.runtimeLabel });
+    host.ai.generate = async () => alchemistOutput('{"cards":[]}', model.runtimeLabel);
     const { direction } = await api(runtime, "/directions", "POST", { description: "让独立创始人保留真实访谈证据" });
     const first = await api(runtime, `/directions/${direction.id}/explorations`, "POST");
     await runtime.runPending();
@@ -156,9 +157,9 @@ test("Alchemist: each Lens searches one concise problem or MVP capability, witho
       market: "Temperature alerts disappear across vendor dashboards software tools user reviews", cost: "MQTT temperature sensor ingestion implementation official documentation" },
   ]) await withRuntime(async (runtime, host) => {
     const generate = host.ai.generate;
-    host.ai.generate = async input => ({ ...await generate(input), text: JSON.stringify({ ...generation, cards: [{ ...generation.cards[0],
+    host.ai.generate = async input => { await generate(input); return alchemistOutput(JSON.stringify({ ...generation, cards: [{ ...generation.cards[0],
       title: example.title, targetUser: example.targetUser, problem: example.problem,
-      mvp: { inScope: [example.capability, "另一个不应塞入同次检索的功能"], outOfScope: ["全球扩展"] } }] }) });
+      mvp: { inScope: [example.capability, "另一个不应塞入同次检索的功能"], outOfScope: ["全球扩展"] } }] }), model.runtimeLabel); };
     const requests: Parameters<AlchemistAiPort["search"]>[0][] = [];
     host.ai.search = async input => {
       requests.push(input);
@@ -268,13 +269,13 @@ test("Alchemist: Copilot consumes object content, prior discussion, and enabled 
 });
 
 test("Alchemist: close waits for cancelled in-flight work before closing SQLite", async () => {
-  await withRuntime(async (runtime, host) => {
+  await withRuntime(async (runtime, host, databasePath) => {
     const entered = Promise.withResolvers<void>();
     const released = Promise.withResolvers<void>();
     let signal: AbortSignal | undefined;
     host.ai.generate = async input => { signal = input.signal; entered.resolve(); await released.promise; input.signal!.throwIfAborted(); throw new Error("expected cancellation"); };
     const { direction } = await api(runtime, "/directions", "POST", { description: "让独立创始人保留真实访谈证据" });
-    const { runId } = await api(runtime, `/directions/${direction.id}/explorations`, "POST");
+    const { runId, jobId } = await api(runtime, `/directions/${direction.id}/explorations`, "POST");
     const work = runtime.runPending();
     await entered.promise;
     const closing = runtime.close();
@@ -283,6 +284,18 @@ test("Alchemist: close waits for cancelled in-flight work before closing SQLite"
     released.resolve();
     await Promise.all([work, closing]);
     assert.throws(() => runtime.database.prepare("SELECT status FROM exploration_runs"), /not open|closed/);
+    let repeatedCalls = 0;
+    host.ai.generate = async () => { repeatedCalls++; throw new Error("must not repeat an ambiguous model call"); };
+    const restarted = createLocalRuntime({ databasePath, ai: host.ai, pulseSourceMode: "fixture" });
+    try {
+      assert.equal((restarted.database.prepare("SELECT status FROM exploration_runs WHERE id = ?").get(runId) as { status: string }).status, "running", "shutdown must not record a domain failure");
+      assert.equal((restarted.database.prepare("SELECT status FROM jobs WHERE id = ?").get(jobId) as { status: string }).status, "running", "shutdown preserves the checkpoint for recovery");
+      restarted.database.prepare("UPDATE jobs SET lease_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?").run(jobId);
+      await restarted.runPending();
+      const recovered = restarted.database.prepare("SELECT status, error_code FROM exploration_runs WHERE id = ?").get(runId);
+      assert.deepEqual({ ...recovered }, { status: "failed", error_code: "AI_CALL_INTERRUPTED" });
+      assert.equal(repeatedCalls, 0);
+    } finally { await restarted.close(); }
   });
 });
 

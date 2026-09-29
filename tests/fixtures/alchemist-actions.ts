@@ -1,3 +1,4 @@
+import { alchemistOutput } from "./alchemist-output.js";
 import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -18,7 +19,7 @@ export function controlledAlchemistAi() {
         : { understanding: { summary: "访谈证据工具", assumptions: ["愿意整理"], unknowns: ["使用频率"], concreteness: "direction" },
           cards: ["证据卡", "访谈时间线"].map(title => ({ title, highlight: "保留原文", targetUser: "创始人", scenario: "访谈后", problem: "证据散落", mechanism: "关联证据和判断",
             valueProposition: "少重复研究", whyItMayWork: "已有记录需求", assumptions: ["愿意记录"], unknowns: ["付费意愿"], mvp: { inScope: ["保存证据"], outOfScope: ["团队协作"] } })), noCardsReason: null };
-      return { text: JSON.stringify(value), runtimeLabel: model.runtimeLabel };
+      return alchemistOutput(JSON.stringify(value), model.runtimeLabel);
     },
   };
   return { ai, requests, model };

@@ -266,7 +266,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <div class="tab-workspace mw-frame__panel" data-tab-workspace>
           <div class="tab-workspace-panes" data-tab-panes></div>
           <div class="tab-workspace-exclusive" data-tab-exclusive hidden></div>
-          <div class="tab-workspace-pool" data-surface-pool>
+          <div class="tab-workspace-pool" data-surface-pool hidden>
             ${renderProjectHome(view.project?.display_name || title, primitives)}
             ${goalStage}
             ${frameStage}

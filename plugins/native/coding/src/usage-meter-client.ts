@@ -5,6 +5,7 @@
  * The budget is the person's own line; reaching it is reported and never stops a round.
  */
 export const CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT = `(ports)=>{
+  const lifetime=ports.lifetime;
   const {q,api,current,status,refresh}=ports;
   const root=q('[data-coding-meter]'),toggle=q('[data-coding-meter-toggle]'),panel=q('[data-coding-meter-panel]'),fill=q('[data-coding-meter-fill]'),label=q('[data-coding-meter-label]');
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
@@ -16,9 +17,9 @@ export const CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     return {windowTokens,used,share:windowTokens && used!==undefined?used/windowTokens:null,coverage:run?.usage?.context?.coverage};};
   const spentOf=(data)=>data.usage_total?data.usage_total.tokens.input+data.usage_total.tokens.output:0;
   const open=(on)=>{panel.hidden=!on;toggle.setAttribute('aria-expanded',String(on));if(on){draw();panel.querySelector('button,input')?.focus({preventScroll:true});}};
-  toggle.addEventListener('click',()=>open(panel.hidden));
-  panel.addEventListener('keydown',event=>{if(event.key==='Escape'){event.stopPropagation();open(false);toggle.focus();}});
-  document.addEventListener('pointerdown',event=>{if(!panel.hidden && !root.contains(event.target))open(false);});
+  lifetime.listen(toggle,'click',()=>open(panel.hidden));
+  lifetime.listen(panel,'keydown',event=>{if(event.key==='Escape'){event.stopPropagation();open(false);toggle.focus();}});
+  lifetime.listen(document,'pointerdown',event=>{if(!panel.hidden && !root.contains(event.target))open(false);});
   const section=(title)=>{const node=el('section');node.append(el('h3','',title));panel.append(node);return node;};
   const draw=()=>{
     if(!view)return;
@@ -35,7 +36,7 @@ export const CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const next=data.next_history || {history:'session'};
     box.append(el('p','',next.history==='digest'?'下一轮会把前面的对话整理成摘要带入（'+next.reason+'），工具输出的原文不再带入。':'下一轮会完整带入前面的对话；上下文用到 60% 以上时自动整理。'));
     if(data.run_count){const compact=el('button','mw-btn mw-btn--ghost',data.compact_requested?'取消下一轮的整理':'下一轮整理上下文');compact.type='button';
-      compact.addEventListener('click',async()=>{compact.disabled=true;try{await api('/sessions/'+encodeURIComponent(current())+'/compact','POST',{on:!data.compact_requested});await refresh();status(data.compact_requested?'已取消：下一轮照常带入前面的对话。':'下一轮会把前面的对话整理成摘要带入。');}catch(error){status(error.message,true);}finally{compact.disabled=false;}});
+      lifetime.listen(compact,'click',async()=>{compact.disabled=true;try{await api('/sessions/'+encodeURIComponent(current())+'/compact','POST',{on:!data.compact_requested});await refresh();status(data.compact_requested?'已取消：下一轮照常带入前面的对话。':'下一轮会把前面的对话整理成摘要带入。');}catch(error){if(!lifetime.alive)return;status(error.message,true);}finally{compact.disabled=false;}});
       box.append(compact);}
     if(total){
       const usage=section('本会话用量'),list=el('dl'),row=(key,value)=>list.append(el('dt','',key),el('dd','',value));
@@ -49,9 +50,9 @@ export const CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const limit=section('预算'),form=el('form','coding-meter-budget'),input=el('input','mw-input'),save=el('button','mw-btn mw-btn--secondary','保存');
       input.type='number';input.min='0.1';input.step='any';input.inputMode='decimal';input.placeholder='不设';input.value=budget?String(budget.tokens/1e4):'';input.setAttribute('aria-label','本会话预算，单位万 tokens');save.type='submit';
       form.append(input,el('span','','万 tokens'),save);
-      form.addEventListener('submit',async event=>{event.preventDefault();const value=input.value.trim(),tokens=value?Math.round(Number(value)*1e4):null;
+      lifetime.listen(form,'submit',async event=>{event.preventDefault();const value=input.value.trim(),tokens=value?Math.round(Number(value)*1e4):null;
         if(value && !(tokens>=1000)){status('预算至少 0.1 万 tokens。',true);return;}
-        save.disabled=true;try{await api('/sessions/'+encodeURIComponent(current()),'PATCH',{budget:tokens===null?null:{tokens}});warned='';status(tokens?'预算已保存。达到后只提示，不会停下。':'已取消这个会话的预算。');await refresh();}catch(error){status(error.message,true);}finally{save.disabled=false;}});
+        save.disabled=true;try{await api('/sessions/'+encodeURIComponent(current()),'PATCH',{budget:tokens===null?null:{tokens}});warned='';status(tokens?'预算已保存。达到后只提示，不会停下。':'已取消这个会话的预算。');await refresh();}catch(error){if(!lifetime.alive)return;status(error.message,true);}finally{save.disabled=false;}});
       limit.append(form,el('p','coding-meter-note',budget?'已用 '+short(spent)+' / '+short(budget.tokens)+' tokens（'+Math.round(spent/budget.tokens*100)+'%）。达到后只提示，不会停下。':'按输入加输出的 token 计。达到后只提示，不会停下。'));
     }
   };

@@ -12,6 +12,7 @@ import { agentStudioFixture } from './agent-studio-preview-fixture.mjs';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
 import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.js';
 import { handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
+import { releaseInstalledPlugins } from '../apps/local-host/src/installed-plugin-host.js';
 import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '../apps/local-host/src/web-http.js';
 
 const fixture = process.argv.includes('--fixture');
@@ -32,5 +33,5 @@ server.listen(portArg > 0 ? Number(process.argv[portArg + 1]) : 0, '127.0.0.1', 
   const address = server.address();
   if (address && typeof address === 'object') console.log('Agent studio preview' + (fixture ? '（替身模型）' : '') + ': http://127.0.0.1:' + address.port + '/plugin-builder/studio');
 });
-const stop = () => server.close(() => { void releaseAgentStudio(store, DEMO_BOARD_ID).then(() => { store.close(); process.exit(0); }); });
+const stop = () => server.close(() => { void releaseAgentStudio(store, DEMO_BOARD_ID).then(() => releaseInstalledPlugins(store, DEMO_BOARD_ID)).then(() => { store.close(); process.exit(0); }); });
 process.on('SIGTERM', stop); process.on('SIGINT', stop);

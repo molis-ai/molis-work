@@ -1,6 +1,43 @@
 # Prologue SDK 构建来源
 
-## 当前依赖：assistant-memory（2026-09-28，在 assistant 包上补记忆的 project 作用域）
+## 当前依赖：assistant-intake（2026-09-29，main 的原图摄取线 + 助理的记忆项目作用域）
+
+`prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`。把两条从 `4702abe3` 分出的线合在一起：main 的 `resource-intake`（有界结果、原图摄取与资源限额，见下节）与系统级助理的记忆 `project` 作用域（`memory-project.patch`，见“历史依赖：assistant-memory”）。两者只在记忆那两个文件上相交，合并无冲突。
+
+- 源码：`~/code/prologue-assistant` 仓库的工作树分支 `feat/molis-assistant-resource-intake`，提交 `c63ea1a1`（合并 `18a1c827` 与 `ac4d1135`）。
+- 重建：检出 `af7375c7`，先应用 [resource-intake.patch](resource-intake.patch)，再应用 [memory-project.patch](memory-project.patch)；`pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`5eab31e2c4a8b2a4d4b9c2bf7ab30804800025b2df709c3cd8c85822782e95b0`。
+- 验证：记忆（含项目作用域）、app 模式、派出前拒绝、原图摄取与限额、网络派出授权 8 个文件 71 项全过，类型检查无错。
+- 本目录暂时多出两份已不被依赖的包：`resource-intake.tgz`（main 上一版当前依赖）与 `assistant-memory.tgz`（助理分支上一版）。按本目录约定应删除，删 vendor 文件由用户决定。
+
+## 上一依赖：原图摄取与资源限额（main）
+
+`prologue-sdk-0.0.0-rc.1-resource-intake.tgz` 保留此前有界结果、Assistant、网络授权等全部改动，修复原图输入所用的 Runtime → Node Host intake → ResourceStore：采用当前 App 限额、整批容量/引用原子发布、取消后不复活、在途清理和内存资源竞争容量。没有新增模型循环或业务状态。
+
+- 源码：`/Users/yijunwang/code/prologue-dispatch-denied`，分支 `feature/molis-bounded-results`，提交 `18a1c827c933eb22624a6904b71d704945567682`，基于 `93bbe1db`。完整补丁 [resource-intake.patch](resource-intake.patch) 相对 `af7375c7`，包括源码、合同与测试；旧补丁仅用于历史重建，不叠加应用。
+- 重建：检出 `af7375c7`，应用完整补丁，`pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-resource-intake.tgz`。
+- SHA-256：`2f7c0eb3eda0d748079d628d1260eac1a812afd50d08153483ff502ceb707974`。
+- SDK build 与根 `tsconfig.typecheck.json` 通过；资源/配置/持久恢复 8 文件 96 项及整理/结构/派出授权/app 模式 5 文件 41 项通过，无跳过。类型检查中发现旧整理测试夹具参数类型过期，现引用实际 Runtime 类型，生产整理行为和测试断言不变。
+- Molis 整体构建与 70 包边界检查通过；原图/配置/推理 4 文件 33 项通过，Host/Actions/Review/Images/安装等 16 文件 110 项通过、1 项真实 MiniMax 因无凭据未运行。520 个 dist 文件与源码构建、tarball、实际安装逐字节一致。结果记录在本次 spec，Shelf 消费者迁移仍继续。尚未使用付费供应商或代表用户验收；源码与包仅本地提交，不发布 npm。
+
+## 历史依赖：有界结果与 Assistant
+
+`prologue-sdk-0.0.0-rc.1-bounded-results-assistant.tgz` 合并下面两条已消费的能力线：collectRun、有界文本/结构校验/真实用量与网络派出授权，以及 app 模式和 session-stop。公开调用继续由同一 Runtime 执行，不恢复应用侧临时 Runtime 或轮询。
+
+- 源码：`/Users/yijunwang/code/prologue-dispatch-denied`，分支 `feature/molis-bounded-results`，提交 `93bbe1db280540361bf9f24be9e82589e8818e5c`（合并 `4b6cd9bc` 与 `4702abe3`）。不含另一工作树后续 project-memory 改动。完整补丁 [bounded-results-assistant.patch](bounded-results-assistant.patch) 相对 `af7375c7`。
+- 重建：检出 `af7375c7`，应用完整补丁，`pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-bounded-results-assistant.tgz`。
+- SHA-256：`32201e9e8d3ea6bb8de7cd74b155c1e31677b4b61d9bdd431506ac88419b024f`。
+- SDK build 通过；结果收集、结构校验、函数引擎、app 模式、session-stop、网络授权与取消 10 文件 70 项通过，1 项真实 MiniMax 因无凭据跳过。包含真实 Node Host 和本地 HTTP 路径，未运行真实付费模型。源码与包仅本地提交，未发布 npm。
+
+**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖（见最上一节），以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
+
+```bash
+git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz
+```
+
+下文写着"保留以便回退""保留用于回溯"的地方，都按上面这条从 git 历史取。换新包时把旧的当前包一并删掉，不再在这里累积。
+
+## 历史依赖：assistant-memory（2026-09-28，在 assistant 包上补记忆的 project 作用域）
 
 `prologue-sdk-0.0.0-rc.1-assistant-memory.tgz`。在下面的 assistant 包之上只改一处：记忆作用域 `MemoryScope` 新增 `"project"`（归属者是 App 的项目标识，同一人不同项目的记忆各自隔离），并加测试 `test/memory-project-scope.live.test.ts`。
 
@@ -10,7 +47,7 @@
 - 核对：与 assistant 包逐文件比对，只有 `dist/memory/core/memory.d.ts` 不同（运行时 JS 相同）。SDK 记忆测试 4 个文件 51 项全过。
 - 旧的 `prologue-sdk-0.0.0-rc.1-assistant.tgz` 仍在本目录，已不被依赖；按本目录约定应删除，删 vendor 文件由用户决定。
 
-## 上一依赖：assistant（2026-09-28，系统级个人助理 + network-dispatch）
+## 历史依赖：assistant（2026-09-28，系统级个人助理 + network-dispatch）
 
 `prologue-sdk-0.0.0-rc.1-assistant.tgz`。把 main 的 network-dispatch 与系统级个人助理需要的两项 SDK 改动放进同一个包，取代 `network-dispatch.tgz` 与只在助理分支用过的 `app-mode.tgz`。
 
@@ -22,31 +59,20 @@
 - 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`22265b9165486a265cacbed3b080f8b172a0e161b7e718da3220e7d01a9301a5`。
 - 验证：`app-mode.live`、`dispatch-denied.live`、`network-dispatch-authority.live` 12/12 通过；SDK 全量 3348 项：3328 通过、20 跳过，`host-storage-full.live` 一个文件在全量负载下失败、单跑 2/2 通过；类型检查无错。
 
-**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-assistant.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
+## 历史依赖：有界 Run 结果、结构校验与网络授权
 
-```bash
-git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz
-```
+历史包 `prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz` 从已使用的 `03c6ba0b` 增量构建，保留全部既有修复。新增公开 `collectRun`，从原 Run 事件收集引用、终态、文字、模型和 typed usage；取消/超限清理原订阅并取消原 Run。普通 Run 在完成前执行声明的结构校验，失败仍保留用量，不自动重试。schema 增加 nullable/anyOf、字符串/数组长度和数值范围；不支持的约束继续派出前拒绝。新增纯语法 `decodeJsonOutput`，Model schema、Function 和 Molis 的 Alchemist/Jelly 复用；围栏容忍需显式启用，不能代替领域校验，不自动纠正。
 
-下文写着"保留以便回退""保留用于回溯"的地方，都按上面这条从 git 历史取。换新包时把旧的当前包一并删掉，不再在这里累积。
+- 源码：`/Users/yijunwang/code/prologue-dispatch-denied`，分支 `feature/molis-bounded-results`，源码提交 `4b6cd9bcf772f2b73185d8858a3ab4c7c52aa962`，基线 `03c6ba0b`；增量完整保存在 [bounded-results.patch](bounded-results.patch)，包括源码、合同和测试，以及 main `21cdfbf8` 引入的网络授权增量。历史 [network-dispatch.patch](network-dispatch.patch) 相对 `af7375c7`，已包含在当前完整补丁中，不要重复应用。
+- SHA-256：`2269225bc71c3fd4fccaf4cdd5690244f6608348b79a56b73d50bbe6aef6b04a`。
+- 重建：检出 `03c6ba0b`，应用上述补丁，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz`。
+- SDK build 与结果收集/结构化/参数 38 项定向验证通过，含真实 Node Host + 本地 HTTP 模型成功、结构失败、取消和用量。全仓 `tsconfig.typecheck.json` 仍有原先两处 `agent-compaction-public.test.ts` 类型错误，未虚称通过。JSON 解码补充后 SDK build 与四文件 40 项验证通过，1 项真实 MiniMax 因无凭据跳过。消费端进度与其他验证见 [本次 spec](../../specs/platform-capability-consolidation/spec.md)。未发布 npm、未修改用户安装。
 
-## 上一依赖：network-dispatch
-
-上一依赖为 `prologue-sdk-0.0.0-rc.1-network-dispatch.tgz`（2026-09-28，已并入上面的 assistant 包）。沿用 claims 的全部能力，新增可信 App 的 `beforeNetworkDispatch`，覆盖 Node Host 每次真实 fetch（包括 MCP 和重定向）；现有 `beforeModelDispatch` 仍只针对模型，两者同时提供时都执行。回调可拒绝当前请求，不能放宽 Host 网络政策。
-
-- 源仓库：<https://github.com/molis-ai/prologue>。源码基线为已提交的 `af7375c74a2e551184c443e2a5e06e105168fed3`；增量 [network-dispatch.patch](network-dispatch.patch) 包含其后已提交的 `03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2`（拒绝不算网络故障、不重试或切换模型）及本轮未提交的网络回调、MCP 取消收尾和真实 HTTP 回归。没有纳入其他 SDK 工作树的未提交功能。
-- MCP 在尚未真实派发时取消，按 Host inspect 的事实返回 `CANCELLED`，不发送多余取消通知；已派发或事实不可读仍保留需对账状态。
-- 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e`。
-- 重建：检出 `af7375c7`，应用 `network-dispatch.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`；在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-network-dispatch.tgz`。补丁已在干净 af7375c7 工作树检查可应用。
-- SDK 构建通过；网络授权、拒绝语义、MCP HTTP、有界推理 **32/32** 通过。518 个 dist 文件在构建、包和实际安装中逐文件一致。SDK 全量测试类型检查仍有 `agent-compaction-public.test.ts` 两处旧参数错误；干净 af7375c7 上同样复现，不能称为全量类型通过。
-- 应用侧把同一动作和父运行的持续授权按调用作用域传到该回调；取消信号通过 SDK 公开 ToolAbort 口进入传输。真实授权/撤权、取消、恢复与应用回归记录见 [main 复查报告](../../specs/action-architecture/review-2026-09-28.md)。
-
-源码补丁随本仓库保存，未另行提交到 Prologue 源仓库或发布 npm；旧包可从 Git 历史恢复。
-
+合并网络授权后，同一 Node Host 对所有真实 fetch（含 MCP/重定向）执行可信 App 的 `beforeNetworkDispatch`；model-only 回调仍仅作用于模型。拒绝保持 `EFFECT_NOT_AUTHORIZED`，不改为网络错误或换模型；MCP 取消按 Host inspect 的真实派发事实处理。SDK 重新构建，8 个测试文件 75 项通过、1 项真实 MiniMax 因缺少凭据跳过，日志 `/tmp/prologue-combined-tests.log`；没有将全量测试类型检查标为通过。
 
 ## 上一依赖：dispatch-denied
 
-上一依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`（2026-09-28，仓库防腐整理 F-15）。在下面的 claims 包之上只改一件事：**App 的派出前复核拒绝时，报 `EFFECT_NOT_AUTHORIZED`，不再算作网络失败**。
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`（2026-09-28，仓库防腐整理 F-15）。在下面的 claims 包之上只改一件事：**App 的派出前复核拒绝时，报 `EFFECT_NOT_AUTHORIZED`，不再算作网络失败**。
 
 - Node Host 的 `beforeModelDispatch` 是 App 的撤权复核（授权被收回、Character 被停用、密钥变了）。它拒绝时一个字节都没出本机，原来却被 agent loop 与 session run 两处 `mapNetworkError` 改成 `MODEL_NETWORK_FAILED`，消费方据此提示"检查网络"；带备选目标时还会换到下一个目标再被拒一次。
 - 现在：复核抛错（不是取消、不是等待超时）时这次调用记为 failed，报 `EFFECT_NOT_AUTHORIZED`，消息保留 App 给的原因（`The App refused this model dispatch before sending: <原因>`）；两处 `mapNetworkError` 原样传出这个码；被拒后不换备选目标。取消和超时保持原来的含义。图片、TypeSafe 那条路本来就原样抛出 Host 的错误，随之拿到新码。

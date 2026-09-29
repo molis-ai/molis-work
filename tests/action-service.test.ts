@@ -436,3 +436,56 @@ test("shared registration schemas retain independent validation and later regist
     for (const definition of definitions) await assert.rejects(service.invoke(context, definition, { nested: { count: 2 } }), { code: "actions.input_invalid" });
   } finally { dispose(); }
 });
+
+test("declared deadlines cancel the caller wait and fence late SQLite writes", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const db = new DatabaseSync(":memory:"); db.exec("CREATE TABLE writes (body TEXT)");
+  const service = new ActionService();
+  const definition = { ...judgment, capability_id: "arbitrary.slow", action: { ...judgment.action, execution: { timeout_ms: 40 } } };
+  let started!: () => void, release!: () => void, finished!: () => void;
+  const entered = new Promise<void>(resolve => { started = resolve; });
+  const blocked = new Promise<void>(resolve => { release = resolve; });
+  const done = new Promise<void>(resolve => { finished = resolve; });
+  let signal: AbortSignal | undefined, late: unknown;
+  service.registerProvider({ provider, definitions: [definition], handlers: [{ ...definition, async handle(c) {
+    signal = c.signal; started(); await blocked;
+    try { await c.beforeEffect(); db.prepare("INSERT INTO writes VALUES (?)").run("late"); return { follow_up: true }; }
+    catch (error) { late = error; throw error; } finally { finished(); }
+  } }] });
+  try {
+    const call = service.invoke(context, definition, { text: "start" });
+    const refused = assert.rejects(call, (e: ActionError) => e.code === "actions.timeout");
+    await entered; t.mock.timers.tick(40); await refused;
+    assert.equal(signal?.aborted, true);
+    release(); await done;
+    assert.ok(late instanceof ActionError);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM writes").get()!.n, 0);
+  } finally { release(); db.close(); }
+});
+
+test("declared call budgets are shared across audiences and isolated by trusted caller project and installation", async t => {
+  t.mock.timers.enable({ apis: ["Date"], now: 1_000 });
+  const service = new ActionService();
+  const definition = { ...judgment, capability_id: "arbitrary.metered", action: { ...judgment.action, execution: { cost: "metered" as const, max_calls_per_minute: 2 } } };
+  let calls = 0;
+  service.registerProvider({ provider, definitions: [definition], handlers: [{ ...definition, handle: () => { calls++; return { follow_up: true }; } }] });
+  await service.invoke(context, definition, { text: "one" });
+  await service.invoke({ ...context, actor_kind: "runtime", audience: "workflow" }, definition, { text: "two" });
+  await assert.rejects(service.invoke({ ...context, actor_kind: "user", audience: "mcp" }, definition, { text: "three" }), (e: ActionError) => e.code === "actions.rate_limited");
+  for (const identity of [{ actor_id: "bob" }, { project_id: "project-two" }, { plugin_install_id: "installed-two" }]) {
+    await service.invoke({ ...context, ...identity }, definition, { text: "distinct" });
+  }
+  assert.equal(calls, 5);
+  t.mock.timers.tick(60_000);
+  await service.invoke(context, definition, { text: "new minute" });
+  assert.equal(calls, 6);
+});
+
+test("invalid execution policies cannot enter the action directory", () => {
+  for (const execution of [{ timeout_ms: 0 }, { timeout_ms: 2_147_483_648 }, { max_calls_per_minute: 1.5 }, { cost: false }, { timeout_ms: 10, retry: true }]) {
+    const service = new ActionService();
+    const definition = { ...judgment, action: { ...judgment.action, execution } } as unknown as ActionDefinition;
+    assert.throws(() => service.registerProvider({ provider, definitions: [definition], handlers: [{ ...definition, handle: () => ({ follow_up: false }) }] }), /执行策略无效/);
+    assert.deepEqual(service.discover(context), []);
+  }
+});

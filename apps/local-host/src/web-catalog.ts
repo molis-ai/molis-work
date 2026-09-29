@@ -398,6 +398,7 @@ async function renderCatalogPluginSettings(contributionId: string, host: MolisWo
     return renderPluginSettingsContribution(contributionId, {
       settings: snapshot.settings,
       runtime: snapshot.runtime,
+      ai: snapshot.ai,
       storage_path: snapshot.root,
       primitives,
     });

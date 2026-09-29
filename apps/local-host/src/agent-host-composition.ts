@@ -179,11 +179,12 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       } });
     return { review_id: request.review_id };
   });
-  // A short draft from the model (a commit message): its own throwaway runtime, no tools, no review queue.
-  const unregisterDraft = options.localHost.registerCapability(agentHostCapabilities.draftText, async (project, input) => {
+  // Drafts borrow the same owner as Agent runs; only the ephemeral model Session is scoped to the request.
+  const unregisterDraft = options.localHost.registerCapability(agentHostCapabilities.draftText, async (_project, input, invocation) => {
     if (!options.prologue) throw new Error("模型执行方尚未接通，不能起草");
-    const { reviewQueue: _queue, storageRoot: _root, ...prologue } = options.prologue;
-    return draftText(prologue, path.join(options.homeDirectory ?? resolveConfiguredHome(), "agent-drafts"), project.board_id, input);
+    return draftText({ homeDirectory: options.homeDirectory ?? resolveConfiguredHome(),
+      resolveInference: async () => { await initialize(); if (!prologue) throw new Error("模型执行方尚未接通"); return prologue.inference; },
+    }, input, { signal: invocation.signal, beforeDispatch: () => invocation.beforeEffect(), pluginId: invocation.plugin?.plugin_id });
   });
   const unregisterGitOperations = options.localHost.registerCapability(readGitOperationsCapability, async (project, input) => {
     await initialize();

@@ -61,6 +61,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       homeDirectory: storageHome,
       actionAvailability,
       sceneAvailability: actionAvailability,
+      projectRoutePrefix: projectId => fixture && projectId === fixture.boardId ? "" : `/projects/${encodeURIComponent(projectId)}`,
       workspacesFor: (projectId) => platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
       workspaceFor: (projectId) => {
         const configuredRoot = () => {

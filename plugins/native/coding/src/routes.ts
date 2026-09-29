@@ -1,3 +1,4 @@
+import { CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { bindOwnerPluginAction, parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingRouteActions } from "./route-actions.js";
 import { codingReportSteps } from "./report-steps.js";
@@ -17,8 +18,8 @@ import { codingReportPreview, codingReportReference, createCodingExecutionReport
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 import { codingContinuation, CONTINUATION_MARKER } from "./continuation.js";
-import { COMMIT_DRAFT_INSTRUCTIONS, COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
-import { codingHistoryDigest, historySummaryMaterial, HISTORY_SUMMARY_INSTRUCTIONS, nextHistoryMode, summaryDigest } from "./history-digest.js";
+import { COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
+import { codingHistoryDigest, historySummaryMaterial, nextHistoryMode, summaryDigest } from "./history-digest.js";
 import { asAttachment, delegationViewOf, isDelegation } from "./delegation-view.js";
 import { OPEN_WAIT, appData, holdReason, waitViewOf, wakeBodyOf } from "./waits.js";
 import { CodingCooperationStore, DELEGATION_ENDED, DELEGATION_STATE_LABEL, MAX_DELEGATION_HOPS, type CodingDelegation } from "./cooperation.js";
@@ -30,6 +31,8 @@ import { characterSelection, characterTitle, savedCharacter, savedCharacterSkill
 import { confirmedPlan, executionSteps, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
 import { CODING_PLAN_TYPE } from "./artifacts.js";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+
+import { CODING_RUN_UPDATED_EVENT } from "./events.js";
 
 export const DEFAULT_SESSION_TITLE = "新编码会话";
 /** First meaningful line of a task, without Markdown decoration, short enough for a list row. */
@@ -298,29 +301,36 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   // replaces it, and a Host that stops answering (the plugin closing) ends it.
   const following = new Map<string, symbol>();
   const follow = (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts,
-    sessionId: string, session: { runtime_id: string; session_id: string }, run: { session_id: string; run_id: string }) => {
+    sessionId: string, session: { runtime_id: string; session_id: string }, run: { session_id: string; run_id: string }, workspaceId: string) => {
     const token = Symbol(sessionId);
     following.set(sessionId, token);
-    const current = () => following.get(sessionId) === token;
+    const current = () => !stopped.signal.aborted && following.get(sessionId) === token;
     void (async () => {
       let since: string | null = null;
       while (current()) {
-        const waited: { version: string; view: AgentRunView } = await api.invoke(agent.waitRun, [session, run, since, 25_000]);
+        const waited: { version: string; view: AgentRunView } = await api.invoke(agent.waitRun, [session, run, since, 25_000], { signal: stopped.signal });
         if (!current()) return;
         const view = waited.view;
         since = waited.version;
         const record = execution.sessions.get(boardId, sessionId), next = sessionState(view);
         if (next !== record.state) execution.sessions.setState(boardId, sessionId, next, record.updated_at);
         if (["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) {
+          // Notification only: terminal does not mean every tool succeeded or that a file changed.
+          // The activation-owned events client rejects publication after stop/revocation.
+          try { context.services?.events?.publish({ event_type_id: CODING_RUN_UPDATED_EVENT, type_version: 1,
+            payload: { workspace_id: workspaceId, session_id: session.session_id, run_id: run.run_id, phase: view.phase } }); }
+          catch { /* A missed UI hint must never retry or reclassify an already executed Run. */ }
+          if (!current()) return;
           // A round that ended parked (waiting for an answer or a command) shows as waiting from here on.
           if (view.phase !== "reconcile-required" && await openWaitOf(api, execution.sessions.get(boardId, sessionId)).catch(() => undefined)) {
+            if (!current()) return;
             execution.sessions.setState(boardId, sessionId, "queued", new Date().toISOString());
             wakeLoop(api, execution, session.runtime_id);
           }
           break;
         }
       }
-    })().catch(() => undefined).finally(() => { if (current()) following.delete(sessionId); });
+    })().catch(() => undefined).finally(() => { if (following.get(sessionId) === token) following.delete(sessionId); });
   };
   // The directory a page shows: every session's current state, with what a new round needs. Read by coding.state.
   let stateRead: Promise<unknown> | null = null, stateNext: Promise<unknown> | null = null;
@@ -474,7 +484,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     const digestFor = async () => digest ??= await (async () => {
   const runs = await earlierRuns();
   try {
-    const draft = await api!.invoke(agent.draftText, { purpose: "整理前面的对话", instructions: HISTORY_SUMMARY_INSTRUCTIONS,
+    const draft = await api!.invoke(agent.draftText, { purpose: "整理前面的对话", prompt: CODING_HISTORY_SUMMARY.prompt_id,
       material: historySummaryMaterial(runs), model_selection: { provider_id: model.provider_id, model_id: model.model_id } });
     if (draft.usage) {
       const spent = savedDigestUsage(record.session_id) ?? { calls: 0, tokens: { input: 0, output: 0 } };
@@ -519,7 +529,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
       workspace_id: body.workspace_id, actor_id: actorId,
       origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
-    follow(api!, execution, record.session_id, session, run.ref);
+    follow(api!, execution, record.session_id, session, run.ref, workspace.workspace_id);
     return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
   ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
   };
@@ -1537,7 +1547,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       if (!rounds.length) throw new Error("这一轮之前没有已落盘的改动可以起草");
       const plan = execution.sessions.plan(boardId, record.session_id);
       const selection = typeof body.provider_id === "string" && typeof body.model_id === "string" ? { provider_id: body.provider_id, model_id: body.model_id } : undefined;
-      const draft = await api!.invoke(agent.draftText, { purpose: "起草 git 提交说明", instructions: COMMIT_DRAFT_INSTRUCTIONS,
+      const draft = await api!.invoke(agent.draftText, { purpose: "起草 git 提交说明", prompt: CODING_COMMIT_DRAFT.prompt_id,
         material: commitDraftMaterial({ ...(plan?.confirmed ? { planTitle: plan.content.title } : {}), rounds }), ...(selection ? { model_selection: selection } : {}) });
       return { message: commitMessageFrom(draft.text), usage: draft.usage, rounds: rounds.map(round => round.number) };
     }),

@@ -13,7 +13,7 @@ const runner = await createSandboxRunner({
   identity: { projectId, installationId, pluginId: contract.pluginId, namespace: 'preview' },
   grants, services,
 });
-try { const output = await runner.call('notes.list', input); }
+try { const output = await runner.call('notes.list', input, { signal, beforeEffect }); }
 finally { await runner.stop(); }
 ```
 
@@ -22,6 +22,10 @@ match the contract: `export const operations = { 'notes.list': async (input, sdk
 The host snapshots the bundle before execution. SDK calls are asynchronous; every call
 must be awaited. Return values and thrown `{code,message}` errors cross a bounded JSON
 channel. Declared errors retain their codes; unexpected errors use `PLUGIN_ERROR`.
+Trusted Host errors may carry `SandboxError.outcome = 'unknown'`. A service timeout or
+an adapter reporting an uncertain external result fences subsequent effects and rejects
+the operation even if plugin code catches the SDK error and returns a fallback. Worker
+error JSON cannot supply this marker, and it does not carry into the next explicit call.
 
 Contracts use a strict, bounded JSON Schema subset. Object schemas require `properties`,
 `required`, and `additionalProperties:false`; arrays require `items`. Supported constraints
@@ -47,7 +51,13 @@ and CPU every 200 ms; OS scheduling can exceed that interval. Limits terminate t
 group, reject queued calls, abort host services and clean staged files. A new instance must
 be explicitly started by the lifecycle host after a crash.
 
-Host adapters receive a frozen identity bound to the channel and an AbortSignal. Never
+Host adapters receive a frozen identity bound to the channel, an AbortSignal and a
+`beforeEffect()` guard preserving the trusted Host invocation. It never enters the worker's
+JSON channel. Recheck the guard after asynchronous waits and before storage commits,
+nested actions and network dispatch. Operation deadlines include admission and final
+authority checks after reaching the head of the queue. Cancelling queued work does not
+terminate another running operation; cancelling active work terminates its channel without
+replaying an operation whose external result may be unknown. Never
 derive storage scope or artifact ownership from plugin payloads. `storage.transaction`
 must serialize by the complete identity, give the callback a private Map snapshot, and
 atomically persist only after success while the signal is active. Broker quota checks run
@@ -57,7 +67,13 @@ plugins. Logical resource names map to host-approved resources; never join untru
 to a filesystem path. Adapters must honor cancellation before committing side effects.
 Missing adapters, missing effect declarations, or omitted grants deny the call.
 
-`createHttpsProxy` is the production network adapter. It requires exact approved DNS
+The trusted Host can pass per-call `limits.operationTimeoutMs` and `limits.serviceTimeoutMs`
+from current capability metadata. They are copied when the call enters the queue and do
+not mutate process defaults or another call's policy. Values must be positive timer-safe
+integers. These controls never cross worker JSON and do not change grants, CPU, memory,
+queue or frequency limits. The Host revalidates the selected policy in `beforeEffect()`.
+
+`createHttpsProxy` is the package's strict network adapter. It requires exact approved DNS
 domains, HTTPS port 443, and no credentials in URLs. Every DNS answer must be public
 unicast; the connection pins one checked IP while retaining the original hostname for
 TLS certificate validation and SNI. It never follows redirects, uses proxy environment
@@ -67,6 +83,9 @@ only in the trusted host, and each secret specifies its header and permitted dom
 Responses containing the secret or common URI/JSON/base64/hex encodings are rejected.
 Approved upstreams necessarily receive the injected credential: approve only trusted APIs;
 the scanner cannot prove absence of every possible upstream transformation of a secret.
+The generated-plugin Host currently supplies its own `plugin-builder/network.ts` adapter
+for preview policy and its existing fake-IP DNS allowance. That adapter also preserves
+invocation guards; its address policy is distinct from this package's strict proxy.
 
 `HttpsProxyOptions.resolveHostname(hostname, signal)` is an optional trusted-host port;
 its default remains `dns.lookup(..., {all:true, verbatim:true})`. A host using a VPN with
@@ -108,12 +127,12 @@ answers and validates every resulting address; it does not change production def
 - 负责：生成插件的 macOS 进程隔离与异步宿主中介（网络、存储、能力调用）。
 - 不负责：插件产品状态、模型执行、安装流程与构建门禁。
 - 公开入口：`@molis-ai/molis-work-plugin-sandbox`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin-sandbox`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-kernel`（共享执行生命周期）。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 沙箱不自带能力：宿主必须显式提供授予与已连接的服务，异步中介调用必须被等待。
   - 查询操作不能声明存储或成果写入、也不能发事件。
   - 读权限只覆盖暂存的 bundle/worker、Node 可执行文件与必要系统路径；CPU 是整个进程的预算。
   - 私有存储按完整身份串行，回调拿到快照，只在成功且信号仍有效时原子落盘；适配器在提交副作用前遵守取消。
-  - 联网只走 `createHttpsProxy`：精确批准的域名、443 端口、URL 不带凭据、每个 DNS 答案必须是公网地址；公司代理的 fake-IP 需注入批准的 DoH 解析器。
+  - 沙箱不能直接联网，Host 必须显式装配网络适配器。`createHttpsProxy` 要求精确批准的域名、443 端口、URL 不带凭据、每个 DNS 答案必须是公网地址；fake-IP 需注入批准的 DoH 解析器。现有生成式 Host 适配器的代理策略见上文，不能把两者误写成同一实现。
 - 改动后必跑：`node scripts/run-tests.mjs tests/plugin-sandbox.test.ts tests/plugin-sandbox-network.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

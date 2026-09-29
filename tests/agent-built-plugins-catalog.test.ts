@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
+import { REMINDER_ACTIONS, createReminderActionHandlers, SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, createScheduledOperationActionHandlers } from '@molis-ai/molis-work-plugin-schedule';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/src/plugin-builder/catalog.js';
 
 const schema = { type: 'object', properties: {}, additionalProperties: false };
@@ -20,6 +21,10 @@ function project() {
     } })) });
   const generated: string[] = [];
   const unregister = registerPlatformCapabilities(actions, { generate: async (pluginId, input) => { generated.push(pluginId + ':' + input.input); return { text: '真实回答' }; } });
+  service.registerProvider({ provider: { provider_id: SCHEDULE_REMINDER_PROVIDER_ID, title: 'Schedule 提醒', kind: 'system', project_id: 'p' },
+    definitions: REMINDER_ACTIONS, handlers: createReminderActionHandlers('p', { add: () => ({ reminderId: 'fixture' }), cancel: () => ({ cancelled: true }) }) });
+  service.registerProvider({ provider: { provider_id: SCHEDULE_OPERATION_PROVIDER_ID, title: 'Schedule 定时操作', kind: 'system', project_id: 'p' },
+    definitions: SCHEDULE_OPERATION_ACTIONS, handlers: createScheduledOperationActionHandlers('p', { add: () => ({ scheduleId: 'fixture' }), cancel: () => ({ cancelled: true }) }) });
   return { actions, calls, generated, unregister };
 }
 
@@ -36,6 +41,8 @@ test('the capability board is the project\'s action directory: platform, install
   assert.match(catalog.find(entry => entry.id === 'goals.note')!.consent, /^写入：/);
   unregister();
   assert.equal((await capabilityCatalog(actions, 'web-user')).some(entry => entry.id === 'model.generate'), false, 'withdrawn with the studio');
+  assert.equal((await capabilityCatalog(actions, 'web-user')).find(entry => entry.id === 'reminders.add')?.provider_id, SCHEDULE_REMINDER_PROVIDER_ID, 'Schedule remains available after the Studio withdraws');
+  assert.equal((await capabilityCatalog(actions, 'web-user')).find(entry => entry.id === 'schedules.add')?.provider_id, SCHEDULE_OPERATION_PROVIDER_ID, 'scheduled operations belong to Schedule too');
 });
 
 test('a composition that hands the studio no metadata inspection still gets the directory the caller can discover, never an empty board', async () => {
@@ -148,7 +155,7 @@ test('an installed plugin\'s functions are actions of the directory: people, the
   assert.deepEqual(await service.invoke(caller, { capability_id: exposedActionId(release, 'words.add'), version: 2 }, { word: 'serendipity' }), { id: 'w1', word: 'serendipity' });
   assert.deepEqual(calls, [['io.molis.work.generated.words', 'words.add', { word: 'serendipity' }]]);
   await assert.rejects(service.invoke(caller, { capability_id: exposedActionId(release, 'words.list'), version: 2 }, {}), /插件出错了/);
-  withdraw();
+  withdraw.dispose();
   assert.deepEqual(ids('agent'), [], 'uninstalled: nothing left in the directory');
 });
 
@@ -161,4 +168,27 @@ test('the designer\'s catalog stays within budget: what is in use and the most r
   assert.deepEqual(trimmed.find(entry => entry.id === 'goals.list'), entries[3], 'what the design uses stays whole');
   assert.equal(trimmed[0], entries[0], 'the most relevant fits');
   assert.deepEqual((trimmed[1]!.input as { fields: string[] }).fields.slice(0, 2), ['field0', 'field1']);
+});
+
+test('arbitrarily named providers drive sandbox limits, cost disclosure and rate limits through the same directory', async () => {
+  const { capabilityLimits, slowOperations } = await import('../apps/local-host/src/plugin-builder/capabilities.js');
+  const { actions } = project();
+  const base = goals('research.summarize', 'query');
+  const definition: ActionDefinition = { ...base, version: 2, action: { ...base.action, execution: { timeout_ms: 75_000, cost: 'metered', max_calls_per_minute: 1 } } };
+  let calls = 0;
+  actions.registry.registerProvider({ provider: { provider_id: 'research', title: 'Research', kind: 'plugin', project_id: 'p' }, definitions: [{ ...base, action: { ...base.action, execution: { timeout_ms: 100, cost: 'none' } } }, definition],
+    handlers: [{ ...base, handle: () => { throw new Error('old version must not execute'); } }, { ...definition, handle: () => { calls++; return { recorded: true }; } }] });
+  const catalog = await capabilityCatalog(actions, 'user');
+  assert.equal(catalog.find(item => item.id === 'research.summarize' && item.version === 2)!.execution.cost, 'metered');
+  assert.equal(catalog.find(item => item.id === 'goals.list')!.execution.cost, 'unknown');
+  const effects = { capabilities: ['research.summarize'] };
+  assert.deepEqual(capabilityLimits(effects, catalog), { serviceTimeoutMs: 80_000, operationTimeoutMs: 105_000 });
+  assert.deepEqual([...slowOperations({ operations: [{ id: 'summarize', effects }, { id: 'list', effects: {} }] }, catalog)], ['summarize']);
+  const service = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true });
+  const context = { identity: { projectId: 'p', installationId: 'i', pluginId: 'plugin', namespace: 'installed' as const }, signal: new AbortController().signal, operationId: 'summarize' };
+  await service.call(context, 'research.summarize', {});
+  // Recreating an adapter cannot reset the provider's budget.
+  const second = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true });
+  await assert.rejects(second.call(context, 'research.summarize', {}), /次数太多/);
+  assert.equal(calls, 1);
 });

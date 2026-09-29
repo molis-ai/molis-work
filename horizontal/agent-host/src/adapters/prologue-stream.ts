@@ -1,3 +1,7 @@
+import type { PrologueUsageReceipt } from "../inference.js";
+import type { TokenCount as PrologueTokenCount } from "@prologue/sdk";
+export type { PrologueUsageReceipt } from "../inference.js";
+export type { TokenCount as PrologueTokenCount } from "@prologue/sdk";
 import type {
   AgentRunPhase,
   AgentRunUsage,
@@ -24,19 +28,6 @@ export type PrologueControlState =
   | "completed"
   | "failed"
   | "reconcile-required";
-
-export interface PrologueTokenCount {
-  tokens: number | undefined;
-  source: "reported" | "estimated" | "unknown";
-}
-
-export interface PrologueUsageReceipt {
-  input: PrologueTokenCount;
-  output: PrologueTokenCount;
-  cacheRead: PrologueTokenCount;
-  cacheWrite: PrologueTokenCount;
-  cost: { source: string; amount: number | undefined; currency: string | undefined };
-}
 
 /** The event shapes this projection reads. Anything else is left alone. */
 export type PrologueEvent =

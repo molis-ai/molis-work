@@ -1,4 +1,5 @@
-import { ALCHEMIST_CROSS_CHECK_BUILD, ALCHEMIST_CROSS_CHECK_MARKET, ALCHEMIST_SYNTHESIZE } from "../../../prompts.js";
+import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { ALCHEMIST_SYNTHESIS, ALCHEMIST_CROSS_CHECK } from "../../../prompts.js";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { Claim, Evidence, LensReport } from "../../domain/research/report.js";
@@ -95,7 +96,7 @@ export class HostResearchRuntimeAdapter implements ResearchExecutionRuntimePort 
     const generated = await generateWithHost(this.options.ai, {
       operationId: `${input.plan.id}:cross_checking`,
       purpose: "交叉验证研究证据并形成可校准的核心判断",
-      systemPrompt: input.plan.key.lens === "market_space" ? ALCHEMIST_CROSS_CHECK_MARKET : ALCHEMIST_CROSS_CHECK_BUILD,
+      systemPrompt: instructed(ALCHEMIST_CROSS_CHECK, JSON.stringify({ dimensions: input.plan.key.lens === "market_space" ? marketLabels : buildLabels })),
       userPrompt: JSON.stringify({
         idea: input.ideaVersion.content,
         evidence: input.evidence.map((item, index) => ({
@@ -133,7 +134,7 @@ export class HostResearchRuntimeAdapter implements ResearchExecutionRuntimePort 
     const generated = await generateWithHost(this.options.ai, {
       operationId: `${input.plan.id}:synthesizing`,
       purpose: "综合研究证据与反证，输出简洁而有条件的 Lens 结论",
-      systemPrompt: ALCHEMIST_SYNTHESIZE,
+      systemPrompt: instructed(ALCHEMIST_SYNTHESIS, ""),
       userPrompt: JSON.stringify({ idea: input.ideaVersion.content, judgments: input.claims }),
       jsonSchema: z.toJSONSchema(resultSchema) as Record<string, unknown>,
       parse: (value) => resultSchema.parse(value),

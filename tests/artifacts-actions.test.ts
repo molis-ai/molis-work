@@ -14,6 +14,8 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local
 import { projectActionAvailability } from "../apps/local-host/src/project-action-availability.js";
 import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { artifactActionProvider } from "../apps/local-host/src/artifact-actions.js";
 
 test("Artifacts share real records through Host and production MCP, preserving fixed versions, authority and restart", { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "artifacts-actions-"));
@@ -136,4 +138,40 @@ test("external Artifact import checks live authority and plugin state after fetc
     for (const key of keys) { if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key]; }
     await rm(home, { recursive: true, force: true });
   }
+});
+
+for (const stop of ["withdraw", "cancel"] as const) test(`Artifact imports stay concurrent and ${stop} before commit cannot save a late document`, { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "artifact-import-execution-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "board", projectId: "project" });
+  try {
+    await host.withProject(ref, async runtime => {
+      runtime.coordinator.initializeBoard({ board_id: "board", title: "Imports", actor_id: "owner", idempotency_key: "init" });
+      const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
+      const service = new ActionService(undefined, { beforeEffect: async caller => {
+        if (caller.actor_id === "slow") { entered.resolve(); await release.promise; }
+      } });
+      const dispose = service.registerProvider(artifactActionProvider(runtime, { homeDirectory: home }));
+      const caller: ActionCallContext = { actor_id: "slow", project_id: "project", audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS };
+      const html = { source: "file", filename: "slow.html", content: "<p>Slow document</p>" };
+      const pending = service.invoke({ ...caller, signal: controller.signal }, a.importFile, html);
+      const rejected = assert.rejects(pending, stop === "cancel" ? { name: "AbortError" } : { code: "actions.provider_changed" });
+      let fast: Promise<unknown> | undefined, timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await entered.promise;
+        assert.equal(a.importExternal.action.scheduling, "concurrent");
+        fast = service.invoke({ ...caller, actor_id: "fast" }, a.importFile, { source: "file", filename: "fast.txt", content: "Fast document" });
+        const result = await Promise.race([fast, new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), 2_000); })]) as ArtifactImportResult | null;
+        assert.ok(result, "a waiting import must not occupy the project's serial write queue");
+        if (stop === "withdraw") dispose(); else controller.abort();
+        release.resolve(); await rejected;
+        const rows = runtime.coordinator.artifacts.query.listArtifacts("board");
+        assert.equal(rows.length, 1); assert.equal(rows[0]!.artifact_id, result.artifact_id);
+        assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion("board", result)!.payload as Record<string, unknown>).content, "Fast document");
+      } finally {
+        clearTimeout(timer); controller.abort(); release.resolve();
+        await Promise.allSettled([pending, rejected, ...(fast ? [fast] : [])]); dispose();
+      }
+    });
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

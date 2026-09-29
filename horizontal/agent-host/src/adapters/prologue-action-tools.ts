@@ -47,7 +47,7 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
     return { executor: name, registration: { name, version: String(view.version), description: label + "\n" + view.action.description,
       parameters: wrapped ? { type: "object", properties: { input: view.action.input_schema }, required: ["input"], additionalProperties: false } : view.action.input_schema,
       effectKind: view.operation === "query" ? "safe-read" as const : "mutate-external" as const,
-      gate: "broker" as const, timeoutMs, idempotency: "none" as const } };
+      gate: "broker" as const, timeoutMs: Math.min(timeoutMs, view.action.execution?.timeout_ms ?? timeoutMs), idempotency: "none" as const } };
   });
   const names = contributions.map(item => item.registration.name);
   const pack: ScenarioPack = { id: "molis-actions-" + scope,

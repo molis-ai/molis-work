@@ -1,3 +1,4 @@
+import { ShelfError } from "./errors.js";
 import type {
   ShelfItemKind,
   ShelfRecipeAvailability,
@@ -39,7 +40,7 @@ export const SHELF_RECIPES: readonly ShelfRecipeSpec[] = [
     tone: "slate",
     accepts: ["pdf", "image", ...TEXTY, "url", "website", "folder"],
     output_file: "summary.md",
-    needs_network: false,
+    needs_network: true,
     requires_agent: true,
     minimum_count: 1,
     choice_label: "篇幅",
@@ -60,7 +61,7 @@ export const SHELF_RECIPES: readonly ShelfRecipeSpec[] = [
     tone: "blue",
     accepts: ["pdf", "image", ...TEXTY, "website"],
     output_file: "extracted.json",
-    needs_network: false,
+    needs_network: true,
     requires_agent: true,
     minimum_count: 1,
     choice_label: "抽取",
@@ -123,7 +124,7 @@ export const SHELF_RECIPES: readonly ShelfRecipeSpec[] = [
     tone: "clay",
     accepts: [...TEXTY, "pdf", "website"],
     output_file: "redacted.md",
-    needs_network: false,
+    needs_network: true,
     requires_agent: true,
     minimum_count: 1,
     choice_label: "范围",
@@ -143,7 +144,7 @@ export const SHELF_RECIPES: readonly ShelfRecipeSpec[] = [
     tone: "plum",
     accepts: ["pdf", "image", "url", ...TEXTY, "website"],
     output_file: "converted.md",
-    needs_network: false,
+    needs_network: true,
     requires_agent: true,
     minimum_count: 1,
     choice_label: "版式",
@@ -163,7 +164,7 @@ export const SHELF_RECIPES: readonly ShelfRecipeSpec[] = [
     tone: "ochre",
     accepts: ["pdf", "image", ...TEXTY, "url", "website", "folder", "file"],
     output_file: "brief.md",
-    needs_network: false,
+    needs_network: true,
     requires_agent: true,
     minimum_count: 2,
     choice_label: "篇幅",
@@ -189,7 +190,7 @@ export const SHELF_SHORTCUT_RECIPE: ShelfRecipeSpec = {
   tone: "ochre",
   accepts: ["pdf", "image", "text", "markdown", "url", "website", "file", "folder"],
   output_file: "output.md",
-  needs_network: false,
+  needs_network: true,
   requires_agent: true,
   minimum_count: 1,
   choice_label: "",
@@ -218,7 +219,8 @@ export function resolvedChoiceId(recipe: ShelfRecipeId, optionId: string | null 
   return spec.default_choice;
 }
 
-export function shelfRecipeOutputName(recipe: ShelfRecipeId, kind: ShelfItemKind): string {
+export function shelfRecipeOutputName(recipe: ShelfRecipeId, kind: ShelfItemKind, optionId?: string | null): string {
+  if (recipe === "extract_structure" && resolvedChoiceId(recipe, optionId) !== "json") return "extracted.md";
   if (recipe !== "extract_text") return shelfRecipeSpec(recipe).output_file;
   if (kind === "pdf") return "pdf.md";
   return kind === "image" ? "ocr.md" : "extract.md";
@@ -253,62 +255,6 @@ export function recipeAvailability(
     choices: spec.choices,
     default_choice: spec.default_choice,
   };
-}
-
-/** DropAgent `RecipeCatalog.fileGuardrail`. Kept word for word. */
-export function fileGuardrail(outputFileName: string): string {
-  return [
-    "阅读当前工作目录里的材料。只使用相对路径，不要访问目录之外的文件。",
-    "不要修改已有材料文件。",
-    `把完整结果写成文件：${outputFileName}`,
-    `该文件里必须是交付正文，不要写「已完成」「已写入 ${outputFileName}」这类说明。`,
-    "不要只在对话里口头回复；结果区只会收取这一份文件。",
-  ].join("\n");
-}
-
-/** DropAgent `RecipeCatalog.prompt`. */
-export function recipePrompt(recipe: ShelfRecipeId, optionId?: string | null): string {
-  const spec = shelfRecipeSpec(recipe);
-  const choice = resolvedChoiceId(recipe, optionId);
-  return `${fileGuardrail(spec.output_file)}\n${instruction(recipe, choice)}\n`;
-}
-
-function instruction(recipe: ShelfRecipeId, choiceId: string): string {
-  switch (recipe) {
-    case "summarize":
-      if (choiceId === "short") return "用中文写一份约 200 字的短总结（Markdown）。";
-      if (choiceId === "long") return "用中文写一份约 1000 字的长总结（Markdown）。";
-      if (choiceId === "outline") return "用中文只写提纲，不要展开成段落（Markdown）。";
-      return "用中文写一份约 500 字的简洁 Markdown 总结。";
-    case "extract_structure":
-      if (choiceId === "points") return "提取要点列表，写成 Markdown。";
-      if (choiceId === "todos") return "提取待办事项，写成 Markdown。";
-      if (choiceId === "quotes") return "提取引用与数据，写成 Markdown。";
-      return "提取结构化信息，写成 JSON 对象。";
-    case "translate": {
-      const target = choiceId === "en" ? "English" : choiceId === "ja" ? "日本語" : choiceId === "ko" ? "한국어" : "中文";
-      return `源语言自动识别。翻译成 ${target} 并尽量保留原有结构，写成 Markdown。`;
-    }
-    case "redact":
-      if (choiceId === "contact") return "把电话、邮箱、地址等联系方式替换为 [REDACTED]，写成 Markdown。";
-      if (choiceId === "ids") return "把金额、证件号、账号等替换为 [REDACTED]，写成 Markdown。";
-      return "把姓名、电话、邮箱、密钥、金额等敏感信息替换为 [REDACTED]，写成 Markdown。";
-    case "to_markdown":
-      if (choiceId === "body") return "转成只要正文的 Markdown，去掉导航和页眉页脚。";
-      if (choiceId === "toc") return "转成带目录的结构清楚的 Markdown。";
-      return "转成尽量保留原有结构的 Markdown。";
-    case "combine": {
-      const length = choiceId === "page" ? "大约一页。" : "完整一份，把各份材料里该保留的内容都写进去。";
-      return [
-        "用中文把这些材料写成一份合成稿（Markdown）。",
-        "正文必须来自材料：保留结论、数字、日期、人名、待办和关键原话；重复的合并，说法冲突的并列并标明来源。",
-        "不要只交代「已整合」或「已生成 brief.md」。",
-        `篇幅：${length}`,
-      ].join("\n");
-    }
-    default:
-      return "抽出 PDF 里已经嵌着的文字，不要调用终端 Agent，不要做扫描件 OCR。";
-  }
 }
 
 /** DropAgent `RecipeOutput`. Progress chatter is never a deliverable. */
@@ -370,29 +316,16 @@ function isCompletionReport(text: string): boolean {
   return zh || zhDone || en;
 }
 
-/** `.json` deliverables lose a fenced wrapper, same as DropAgent `finalize`. */
-export function finalizeOutput(text: string, fileName: string): string {
-  if (!fileName.toLowerCase().endsWith(".json")) return text;
-  return unwrapJson(text.trim());
-}
-
-function unwrapJson(text: string): string {
-  if (isJson(text)) return text;
-  if (!text.startsWith("```")) return text;
-  const lines = text.split("\n");
-  if (lines.length < 2) return text;
-  lines.shift();
-  if (lines.at(-1)?.startsWith("```")) lines.pop();
-  const inner = lines.join("\n").trim();
-  return isJson(inner) ? inner : text;
-}
-
-function isJson(text: string): boolean {
-  if (!text) return false;
-  try {
-    JSON.parse(text);
-    return true;
-  } catch {
-    return false;
+/** SDK owns JSON syntax; Shelf owns deliverable meaning, output format and coverage presentation. */
+export function finalizeShelfRecipeResult(recipe: ShelfRecipeId, optionId: string | null, text: string,
+  decodeJson: (text: string) => { ok: true; value: unknown } | { ok: false }, coverage: readonly string[] = []): string {
+  if (recipe === "extract_structure" && resolvedChoiceId(recipe, optionId) === "json") {
+    const decoded = decodeJson(text);
+    if (!decoded.ok || !decoded.value || typeof decoded.value !== "object" || Array.isArray(decoded.value)) {
+      throw new ShelfError("shelf.invalid_result", "结构化结果必须是 JSON 对象");
+    }
+    return JSON.stringify(decoded.value, null, 2);
   }
+  if (!looksLikeDeliverable(text)) throw new ShelfError("shelf.invalid_result", "模型只返回了进度或完成说明，没有可交付的正文");
+  return coverage.length ? `${text}\n\n---\n材料覆盖说明：\n${coverage.map(note => `- ${note}`).join("\n")}\n` : text;
 }

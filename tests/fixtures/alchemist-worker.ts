@@ -1,3 +1,4 @@
+import { alchemistOutput } from "./alchemist-output.js";
 import { createAlchemistStudioRuntime, type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 
 const [databasePath, provider] = process.argv.slice(2);
@@ -7,7 +8,7 @@ const ai: AlchemistAiPort = {
   generate: async input => {
     const result = await fetch(provider, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: input.userPrompt }), signal: input.signal });
     if (!result.ok) throw new Error("Controlled provider failed");
-    return { text: await result.text(), runtimeLabel: "Controlled HTTP" };
+    return alchemistOutput(await result.text(), "Controlled HTTP");
   },
   search: async () => { throw new Error("This fixture only generates ideas"); },
 };

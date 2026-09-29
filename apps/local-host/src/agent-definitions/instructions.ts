@@ -2,14 +2,18 @@ import { composeInstructedPrompt, modelPromptText, type InstructionPrompt, type 
 import { agentDefinitionsFor } from "./agent-definitions.js";
 import { builtinRegistrations } from "./builtin-registrations.js";
 
+/** Resolve a named instruction in a Host-bound owner's namespace. */
+export function resolveInstructionPrompt(homeDirectory: string, ownerId: string, promptId: string, caller: string): string {
+  return agentDefinitionsFor(homeDirectory, builtinRegistrations).instruction(ownerId, promptId, caller).body;
+}
+
 /**
  * The text a model call sends: registered instructions as the person left them (their version, or the default),
  * then the call's data. A plain string passes through; the prompt-registration check keeps new ones from appearing.
  */
 export function resolveModelPrompt(homeDirectory: string | undefined, prompt: ModelPromptInput, caller: string): string {
   if (typeof prompt === "string" || !homeDirectory) return modelPromptText(prompt);
-  const registry = agentDefinitionsFor(homeDirectory, builtinRegistrations);
-  const { body } = registry.instruction(prompt.instruction.owner_id, prompt.instruction.prompt_id, caller);
+  const body = resolveInstructionPrompt(homeDirectory, prompt.instruction.owner_id, prompt.instruction.prompt_id, caller);
   return composeInstructedPrompt(body, prompt.data);
 }
 

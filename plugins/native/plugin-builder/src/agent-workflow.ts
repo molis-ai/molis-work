@@ -216,7 +216,7 @@ export class AgentBuilderWorkflow {
   /** The catalog as the designer sees it: what bears on `focus` in full, what the design already uses always, the rest summarised. */
   private async designContext(focus = '', keep: readonly string[] = []) {
     const all = await this.ports.catalog(), { capabilities, moreCapabilities } = focusCatalog(all, focus, keep);
-    return { catalog: withinBudget(capabilities, keep), more: moreCapabilities, ids: all.map(item => item.id), resources: [...(this.ports.resources ?? [])] };
+    return { all, catalog: withinBudget(capabilities, keep), more: moreCapabilities, ids: all.map(item => item.id), resources: [...(this.ports.resources ?? [])] };
   }
   /** Stage one: clarify once at most, then 2–3 product-level proposals the person compares on the canvas. */
   private async propose(id: string, token: string, signal: AbortSignal) {
@@ -277,10 +277,10 @@ export class AgentBuilderWorkflow {
       pages: contract.pages.map(page => ({ id: page.id, title: page.title, parts: parts.filter(part => part.pageId === page.id).map(part => ({ id: part.id, intent: part.intent, purpose: part.purpose, uses: part.read?.operationId ?? part.submit?.operationId })) })) };
   }
   /** Expands and strictly validates one full design answer (detail or revision). */
-  private acceptDesign(id: string, output: string, base: { id: string; title: string; description: string; rationale: string; journey: string[] }, ids: string[], resources: string[]) {
+  private acceptDesign(id: string, output: string, base: { id: string; title: string; description: string; rationale: string; journey: string[] }, capabilities: CatalogEntry[], resources: string[]) {
     const value = parseModelJson(output), dropped: string[] = [];
-    const design = expandDesign(value, base, 'io.molis.work.generated.' + id, randomUUID(), dropped);
-    const valid = validateAgentDesign(design, ids, resources, this.ports.validateContract);
+    const design = expandDesign(value, base, 'io.molis.work.generated.' + id, randomUUID(), dropped, capabilities);
+    const valid = validateAgentDesign(design, capabilities.map(item => item.id), resources, this.ports.validateContract);
     const source = value && typeof value === 'object' && !Array.isArray(value) && 'design' in value ? (value as { design: unknown }).design : value;
     // A change inside an operation that its contract cannot show (e.g. what the model is asked) still reaches the code.
     const rework: Record<string, string> = {};
@@ -304,11 +304,11 @@ export class AgentBuilderWorkflow {
     if (!chosen) throw new Error('选中的方案已失效，请重新选择');
     // Capabilities are settled before the design is written in full: it is written against their real inputs and outputs.
     const proposal = await this.pickCapabilities(id, token, signal, chosen), picked = usedCapabilities(proposal.preview.contract.operations);
-    const stepId = 'detail:' + token, { catalog, more, ids, resources } = await this.designContext([initial.brief, proposal.title, proposal.description, ...proposal.journey,
+    const stepId = 'detail:' + token, { all, catalog, more, resources } = await this.designContext([initial.brief, proposal.title, proposal.description, ...proposal.journey,
       ...proposal.preview.contract.operations.map(operation => operation.description)].join('\n'), picked);
     this.step(id, { id: stepId, agent: 'design', action: 'design', label: '细化「' + proposal.title + '」：功能合同、界面与验收', status: 'active' });
     const result = await this.designer(id, token, signal, stepId, { mode: 'detail', brief: initial.brief, messages: initial.messages, proposal: this.sketch(proposal), capabilities: catalog, moreCapabilities: more, resources },
-      output => this.acceptDesign(id, output, proposal, ids, resources));
+      output => this.acceptDesign(id, output, proposal, all, resources));
     await this.adopt(id, token, result, stepId, '主线已确定：' + result.design.contract.operations.length + ' 项功能、' + result.design.parts.length + ' 个界面零件、' + result.design.acceptance.length + ' 条验收');
   }
   /**
@@ -352,11 +352,11 @@ export class AgentBuilderWorkflow {
     const initial = this.store.require(id), design = initial.design;
     if (!design) throw new Error('还没有确定的方案可以修改');
     const request = hostRequest ?? [...initial.messages].reverse().find(item => item.role === 'user')?.text ?? '';
-    const stepId = 'revise:' + token + (hostRequest ? ':' + randomUUID().slice(0, 8) : ''), { catalog, more, ids, resources } = await this.designContext([initial.brief, request, design.title].join('\n'), usedCapabilities(design.contract.operations));
+    const stepId = 'revise:' + token + (hostRequest ? ':' + randomUUID().slice(0, 8) : ''), { all, catalog, more, resources } = await this.designContext([initial.brief, request, design.title].join('\n'), usedCapabilities(design.contract.operations));
     this.step(id, { id: stepId, agent: 'design', action: 'design', label: hostRequest ? '按验收结果调整界面显示' : '按你的意见修订主线', status: 'active', detail: request.slice(0, 300) });
     const result = await this.designer(id, token, signal, stepId, { mode: 'revise', brief: initial.brief, request, messages: initial.messages,
       current: initial.designSource ? JSON.parse(initial.designSource) : { title: design.title, operations: design.contract.operations, parts: design.parts, acceptance: design.acceptance },
-      capabilities: catalog, moreCapabilities: more, resources }, output => this.acceptDesign(id, output, design, ids, resources));
+      capabilities: catalog, moreCapabilities: more, resources }, output => this.acceptDesign(id, output, design, all, resources));
     const reworked = Object.keys(result.rework);
     await this.adopt(id, token, result, stepId, (hostRequest ? '已按验收调整界面显示；' : '') + describeRevision(design, result.design) + (reworked.length ? '；要改代码：' + reworked.map(item => '「' + operationName(result.design, item) + '」').join('、') : ''));
   }

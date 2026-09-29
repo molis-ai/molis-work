@@ -20,8 +20,8 @@ const SHARED: readonly ActionAudience[] = ["user", "agent", "mcp"];
 /** Disconnecting removes an account's credentials: only the person at this computer does that. */
 const LOCAL: readonly ActionAudience[] = ["user"];
 function define<Input, Output>(suffix: string, title: string, description: string, input: ActionSchema, output: ActionSchema,
-  audiences: readonly ActionAudience[] = SHARED, permissions: readonly string[] = ["feed:read", "feed:write"], scheduling?: "concurrent"): ActionDefinition<Input, Output> {
-  return { capability_id: `feed.sources.${suffix}`, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project",
+  audiences: readonly ActionAudience[] = SHARED, permissions: readonly string[] = ["feed:read", "feed:write"], scheduling?: "concurrent", execution?: ActionDefinition["action"]["execution"]): ActionDefinition<Input, Output> {
+  return { capability_id: `feed.sources.${suffix}`, version: 1, operation: "command", action: { title, description, ...(execution ? { execution } : {}), kind: "operation", scope: "project",
     audiences, permissions, subject_kinds: ["source"], input_schema: input, output_schema: output, ...((scheduling ?? (suffix === "sync" ? "concurrent" : undefined)) ? { scheduling: scheduling ?? "concurrent" } : {}) } };
 }
 
@@ -47,9 +47,9 @@ export const feedSourceActions = {
   disconnect: define<{ source_id: string }, { source: FeedSourceRecord }>("disconnect", "断开来源账号", "断开账号型来源所用的账号；公开来源请暂停或删除",
     closed({ source_id: id }, ["source_id"]), sourceResult, LOCAL),
   sync: define<{ source_id: string; idempotency_key?: string; mode?: "normal" | "rebuild_cursor" }, FeedSourceSyncResult>("sync", "立即拉取", "立即从来源拉取新消息，并按当前捕捉规则处理；同一幂等键重试不会重复拉取",
-    closed({ source_id: id, idempotency_key: { type: "string", maxLength: 200 }, mode: { enum: ["normal", "rebuild_cursor"] } }, ["source_id"]), { type: "object" }),
+    closed({ source_id: id, idempotency_key: { type: "string", maxLength: 200 }, mode: { enum: ["normal", "rebuild_cursor"] } }, ["source_id"]), { type: "object" }, undefined, undefined, "concurrent", { cost: "metered" }),
   tick: define<Record<string, never>, FeedSourceSchedulerResult>("tick", "执行到期拉取", "执行已启用来源的到期拉取计划，并更新下次拉取时间",
-    closed({}, []), closed({ due: { type: "integer" }, completed: { type: "integer" }, failed: { type: "integer" }, skipped: { type: "integer" } }, ["due", "completed", "failed", "skipped"]), LOCAL, ["feed:read", "feed:write"], "concurrent"),
+    closed({}, []), closed({ due: { type: "integer" }, completed: { type: "integer" }, failed: { type: "integer" }, skipped: { type: "integer" } }, ["due", "completed", "failed", "skipped"]), LOCAL, ["feed:read", "feed:write"], "concurrent", { cost: "metered" }),
 } as const;
 export const FEED_SOURCE_ACTIONS: readonly ActionDefinition[] = Object.values(feedSourceActions);
 

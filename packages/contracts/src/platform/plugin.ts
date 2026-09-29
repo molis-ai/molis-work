@@ -22,6 +22,7 @@ import type {
 } from "./plugin-events.js";
 import type {
   PluginInputsClient,
+  PluginInputDeliveryContext,
   PluginOutputsClient,
   PluginPortsDeclaration,
   PluginUpstreamReadyInputs,
@@ -229,6 +230,8 @@ export interface PluginManifest {
 
 export interface PluginInstanceRecord {
   install_id: string;
+  /** Changes on confirmed reinstall, unlike the stable private-data namespace. Missing on legacy records. */
+  installation_generation?: string;
   plugin_id: string;
   version: string;
   publisher_id: string;
@@ -273,7 +276,11 @@ export interface PluginRouteRequest {
   query: Readonly<Record<string, string>>;
   body: unknown;
   actor_id: string;
+  /** Trusted Host invocation control, never decoded from route parameters or JSON body. */
+  execution?: PluginExecutionControl;
 }
+
+export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect">;
 
 export interface PluginRouteResponse {
   status: number;
@@ -314,7 +321,7 @@ export interface PluginAppContribution {
   /** Complete, fixed input set. The Host never delivers a partial change. */
   onUpstreamReady?(
     inputs: PluginUpstreamReadyInputs,
-    context: { signal: AbortSignal },
+    context: PluginInputDeliveryContext,
   ): void | Promise<void>;
   onUpstreamUnavailable?(reason: PluginUpstreamUnavailableReason): void | Promise<void>;
   onEvent?(
@@ -411,7 +418,7 @@ export interface PluginRuntimeApi {
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
   start(installId: string): Promise<PluginLifecycleReceipt>;
   /** Stop a running Plugin without uninstalling it. Restart goes back through `start`. */
-  stop(installId: string): Promise<PluginLifecycleReceipt>;
+  stop(installId: string, options?: { preserve_enabled?: boolean }): Promise<PluginLifecycleReceipt>;
   reportCrash(installId: string, errorCode?: string): Promise<PluginLifecycleReceipt>;
   /** Quarantine release requires an explicit Host action; ordinary recovery never releases it. */
   recover(installId: string, options?: { release_quarantine?: boolean }): Promise<PluginLifecycleReceipt>;

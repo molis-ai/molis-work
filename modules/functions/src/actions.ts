@@ -21,7 +21,7 @@ function define<Input, Output>(id: string, title: string, description: string, i
   return { capability_id: id, version: 1, operation: judgment ? "command" : "query", action: {
     title, description, kind: judgment ? "judgment" : "query", scope: "home", audiences: ["user", "agent", "workflow", "mcp"],
     permissions: judgment ? ["functions:invoke"] : [], subject_kinds: [], input_schema: input, output_schema: output,
-    ...(judgment ? { scheduling: "concurrent" as const } : {}),
+    ...(judgment ? { scheduling: "concurrent" as const, execution: { cost: "metered" as const } } : {}),
   } };
 }
 

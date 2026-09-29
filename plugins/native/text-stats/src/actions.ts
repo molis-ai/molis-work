@@ -23,7 +23,10 @@ export function textStatsActionHandlers(context: PluginStartContext): ActionHand
   return [{ ...textStatsActions.state, handle: () => {
     try {
       const record = context.services?.inputs?.read("text");
-      if (!record) return { view: waitingStats() };
+      if (!record) {
+        const state = context.services?.inputs?.status();
+        return { view: state?.status === "missing" && state.reason?.code === "content_unavailable" ? unavailableStats() : waitingStats() };
+      }
       if (record.availability !== "available" || record.lifecycle_state !== "active") return { view: unavailableStats() };
       return { view: projectTextStats({ snapshot: parseFileSnapshot(record.payload), source_plugin_id: record.producer_plugin_id, content_version: record.version }) };
     } catch { return { view: unavailableStats() }; }

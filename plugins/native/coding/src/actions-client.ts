@@ -1,5 +1,6 @@
 /** Next-run references only; the Host rechecks authority and Character scope before dispatch. */
 export const CODING_ACTIONS_CLIENT = `(host) => {
+  const lifetime=host.lifetime;
   const {q,api,current,selections,save,controls,status}=host;
   const dialog=q('[data-coding-actions-dialog]'),list=q('[data-coding-actions-list]'),error=q('[data-coding-actions-error]'),submit=q('[data-coding-actions-save]');
   const key=ref=>JSON.stringify([ref.capability_id,ref.version,ref.provider_id]);
@@ -28,7 +29,7 @@ export const CODING_ACTIONS_CLIENT = `(host) => {
     }catch(failure){if(request===ticket && current()===id)error.textContent=failure.message+'；原选择保持。';}
   };
   q('[data-coding-actions-open]').onclick=()=>void open();q('[data-coding-actions-close]').onclick=close;
-  dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
+  lifetime.listen(dialog,'cancel',event=>{event.preventDefault();close();});
   q('[data-coding-actions-form]').onsubmit=async event=>{
     event.preventDefault();if(busy || submit.disabled)return;
     if(current()!==session){error.textContent='会话已切换，请重新打开当前会话的能力选择。';return;}

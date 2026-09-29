@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
 import { UNREGISTERED_MODEL_CALLS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";
 
@@ -33,7 +34,26 @@ const TRANSITIONAL: Readonly<Record<string, string>> = {
 };
 
 /** Modules that only build a Host text model and hand it to a caller that resolves its instructions. */
-const FACTORIES = new Set(["apps/local-host/src/jelly-model.ts"]);
+const FACTORIES = new Set([
+  "apps/local-host/src/jelly-model.ts",
+]);
+
+/** Resolve an owner from its declaration, including a plugin's single Manifest constant. */
+function ownerConstant(file: string, name: string, seen = new Set<string>()): string | undefined {
+  const key = `${file}/${name}`;
+  if (seen.has(key)) return undefined;
+  seen.add(key);
+  const source = read(file);
+  const local = new RegExp(`const ${name}\\s*=\\s*["']([^"']+)["']`).exec(source)?.[1];
+  if (local) return local;
+  for (const match of source.matchAll(/import\s*\{([^}]+)\}\s*from\s*["'](\.[^"']+)["']/g)) {
+    for (const binding of match[1]!.split(",")) {
+      const [imported, alias = imported] = binding.trim().split(/\s+as\s+/);
+      if (alias === name) return ownerConstant(join(dirname(file), match[2]!.replace(/\.js$/, ".ts")), imported!, seen);
+    }
+  }
+  return undefined;
+}
 
 test("every instruction a built-in model call defines is registered where the person can see and edit it", () => {
   const known = registered();
@@ -42,11 +62,13 @@ test("every instruction a built-in model call defines is registered where the pe
     const text = read(path);
     for (const match of text.matchAll(/defineInstructionPrompt\(\{[\s\S]*?prompt_id:\s*"([^"]+)"/g)) {
       const owner = /owner_id:\s*([A-Z_]+|"[^"]+")/.exec(text.slice(match.index))?.[1] ?? "";
-      const ownerId = owner.startsWith("\"") ? owner.slice(1, -1) : new RegExp(`const ${owner}\\s*=\\s*"([^"]+)"`).exec(text)?.[1];
-      assert.ok(ownerId, `${path}: ${match[1]} 的 owner_id 需是字面量或同文件常量`);
+      const ownerId = owner.startsWith("\"") ? owner.slice(1, -1) : ownerConstant(path, owner);
+      assert.ok(ownerId, `${path}: ${match[1]} 的 owner_id 需能解析到字面量、同文件常量或相对模块导出的常量`);
       defined.push(`${ownerId}/${match[1]}`);
     }
   }
+  // Shelf creates its option prompts from the recipe catalog; inspect every actual declaration too.
+  defined.push(...SHELF_INSTRUCTIONS.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}`));
   assert.ok(defined.length >= 12, `只找到 ${defined.length} 段指令，检查是否漏扫`);
   assert.deepEqual(defined.filter(key => !known.has(key)), [], "这些指令未登记到 BUILTIN_INSTRUCTIONS");
 });
@@ -57,16 +79,16 @@ test("a Plugin's model port takes registered instructions, not a raw prompt stri
 });
 
 test("Host modules reach a model only through the register, apart from the transitional list", () => {
-  const direct = /hostCompleteText\(|\.completeText(Result)?\(\{/;
+  const direct = /host(?:CompleteText|TextGeneration)\(|\.completeText(Result)?\(\{/;
   const offenders = HOST.filter(path => {
     const text = read(path);
     if (!direct.test(text)) return false;
-    return !/resolveModelPrompt|withRegisteredPrompts|registeredInstructionBody/.test(text) && !TRANSITIONAL[path] && !FACTORIES.has(path);
+    return !/resolveModelPrompt|resolveInstructionPrompt|withRegisteredPrompts|resolvePluginPrompt/.test(text) && !TRANSITIONAL[path] && !FACTORIES.has(path);
   });
   assert.deepEqual(offenders, [], "这些 Host 模块直接调用模型而没有经过登记的指令");
   for (const path of Object.keys(TRANSITIONAL)) assert.ok(direct.test(read(path)), `${path} 已不再直接调用模型，从过渡清单里去掉它`);
   // Every exception that is not the transport itself is shown to developers too, with the same reason.
-  assert.deepEqual(UNREGISTERED_MODEL_CALLS.map(call => call.owner_id), [], "过渡清单与开发者诊断里的“还没有登记的模型调用”要一致");
+  assert.deepEqual(UNREGISTERED_MODEL_CALLS, [], "已迁移的消费者不再保留未登记指令例外");
 });
 
 test("Plugin Builder's designer and code Agents are registered as the prompts they run, not its unused manifest set", () => {

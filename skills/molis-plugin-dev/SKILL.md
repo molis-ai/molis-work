@@ -38,7 +38,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 1. **人在看什么对象？** 一条消息、一份文档、一个来源、一个 Goal。不是「整个系统」。
 2. **什么时刻？** 点开插件、一条新进来、点开一行、Agent 要动手。
 3. **点下去发生什么？** 改状态、打开、写出 Artifact、调外部。事实归 Module，不要插件第二张业务表。私人库（本机文档）可以。
-4. **还要给谁用？** 只给人点 → UI + HTTP + 客户端。也要给 Agent → 再加 MCP。要消费判断 → 声明 `action_scenes` 并兑现触发、绑定与消费；建议按钮仍需真实点击实现。要通知别的插件 → 事件。要拉外部世界 → integration。
+4. **还要给谁用？** 只给人点 → UI + 动作/HTTP + 客户端。也要给 Agent 或外部 MCP → 公共动作声明对应 audience，经统一目录与真实授权发现，不重复实现工具。要消费判断 → 声明 `action_scenes` 并兑现触发、绑定与消费；建议按钮仍需真实点击实现。要通知别的插件 → 事件。要拉外部世界 → integration。
 
 答不出就停在方案，不要先铺 Manifest 空字段。行为或 UI 有变先写 `specs/{slug}/spec.md`。
 
@@ -85,6 +85,12 @@ description: The single standard for building Molis Work plugins, hand-written o
 14. `agent`：Agent 驱动才加。Schedule 是 native 带 agent；Coding 是 app 带 agent。提示词正文还要进 catalog，见 [host.md](host.md)。`agent.mcp` 不是对外贡献开关。
 15. Integration：外部协议 → Signal / Feed。账号设置挂 `workbench.settings`；来源任务留在 Feed。
 16. 接到运行处：本仓库产品走 [host.md](host.md)；仓库外样例走 [authoring.md](authoring.md)。**Manifest 写完不等于能看见。**
+    通用到点提醒使用公共目录的 `reminders.add/cancel`，由 Schedule 持久化和投递 Inbox；不要在 Builder 或插件里另建提醒计时器。安装身份来自调用上下文，重装不能继承旧安装的提醒；daily/weekly 是固定间隔。运行插件 operation 的 `schedules.*` 是另一条调用链，不能把提醒当作代码执行。
+    历史提醒缺少可信安装世代时保留暂停。管理入口先展示提醒及 Host 解析的当前安装，再用 `schedule.reminders.recover` 明确恢复；预期安装 ID/世代只防止过期确认，不能当授权。普通启用不补权，重装后要重新查看和确认；恢复沿用原排期，过期补提醒一次，不执行插件代码。
+    恢复动作声明 `plugin: false`，不由生成插件自行接管旧提醒。仅从 audiences 去掉 plugin 不能替代这一声明，因为 Agent 能力默认也可供生成插件使用。
+    持久任务不能只记可复用的 `install_id`：同时绑定 Runtime 的安装世代，由 Host 读取并在执行前复查。重装更新世代，升级和重启不更新；旧记录归属不明时保留并暂停，不能用新安装的授权补跑。
+    定时运行自己插件的 operation 使用 `schedules.add/cancel`，生产实现归 Schedule，Host 提供当前安装执行器。启动或注册执行器不能自行清空队列补跑；只能由新的 Scheduler lease 唤醒持久 pending。已派出但结果未知时停止后续排期，先核对外部结果，不能假定失败而自动重试。daily/weekly 仍是固定 24 小时/7 天间隔。
+    旧定时 operation 与未知结果在 Schedule 查看原输入和历史，用 `schedule.operations.recover` 明确 resume/retry/skip；所见 revision 与安装 ID/世代/版本须与当前一致。管理动作禁止 plugin 自行调用，普通启用不能绕过核对；重试可能重复副作用，跳过一次性任务则结束。所有决定只调整持久计划，实际执行仍等待新的 lease。
 17. 发布新版本时递增 `version`，再按数据格式声明精确的 `upgrade_compatibility` 来源版本。直接兼容与可迁移来源不同；不要为未验证的旧版本声明兼容。细则见 [elements.md · 版本升级](elements.md#版本升级)。
 
 ## 要素怎么选（别全要）
@@ -118,6 +124,10 @@ description: The single standard for building Molis Work plugins, hand-written o
 - 把 Feed 账号、Inbox 列表做成全局设置页。
 - 仅声明 `action_scenes` 而没有绑定、触发和消费处理器，或给宿主加场景/去向白名单。
 - 等模型或外部服务的动作不声明 `scheduling: "concurrent"`：等待期间它会占住整个项目的串行队列（门禁 `tests/action-model-scheduling.test.ts`）。
+- 按能力名称猜测时限、费用或调用限额：提供方应在 `action.execution` 声明真实的 `timeout_ms`、`cost` 和必要的 `max_calls_per_minute`，消费者读取共同目录。直接生成和启动后台 AI 任务都应声明 metered；任务读取与取消不因此收费，后台任务时限仍归任务 owner。费用未声明是 unknown；超时只停止等待与合作式执行，不代表厂商没有计费，未知副作用不自动重试。异步返回提交前仍需 `beforeEffect()`。详见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md)。
+- 将安装时的依赖策略当作永久有效：Host 每次 operation 读取当前版本、费用、时限与可用性，等待后再次复查；query 运行时也拒绝收费和写入能力。嵌套调用的未知结果必须向公开 Action 和 Schedule 透传，不能 catch 后继续提交或伪装成功；可信控制不放入 worker JSON。
+- 丢弃原调用的执行控制：生成式动作进入 route/沙箱后，仍需传递可信 Host 的 signal/beforeEffect，嵌套 Action、网络派出和存储提交前复查；不能从 JSON 或固定 actor 名称重建授权。沙箱队列负责操作串行，外层动作声明 concurrent，避免回调平台时死锁。取消后结果未知的操作不自动重放；持久任务不能复用创建时的临时授权回调。
+- 把已安装插件运行绑在创作页面：Host 的安装运行入口读取已发布工件和明确批准记录，Studio 仅委托它管理安装。恢复和发现不能初始化创作 Workflow 或启动草稿模型任务；正常 Host 关闭保留启用意图，用户停用须保持到显式启用。缺少批准记录时报告恢复失败，不从发布权限清单自动补权。
 - 读取已存历史的结果合同只按新写入的枚举收紧：一条旧记录不合规，整个读取就失败。结果合同读取兼容、写入严格。
 - 给 Native 插件抄 `events:` 块指望投递。今天只有 Coding 族的 `createPluginPlatform` 在跑总线。
 - 为未发生的失败预埋兼容层；为「以后可能有」声明空 ports / 空 MCP。

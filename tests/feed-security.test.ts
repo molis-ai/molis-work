@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createCipheriv, createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -7,6 +8,7 @@ import test from "node:test";
 import { createFeedEvidenceContentStore } from "@molis-ai/molis-work-module-feed";
 import {
   createFileSecretStore,
+  createEvidenceContentStore,
   peekSealedEntry,
   resetSecretStoreCache,
 } from "@molis-ai/molis-work-storage";
@@ -123,4 +125,38 @@ test("SecretStore preserves its populated backend and refuses silent key rotatio
     else process.env.MOLIS_WORK_ENCRYPTION_KEY = oldEncryptionKey;
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+
+test("Storage reads deployed Feed ciphertext and both public APIs keep the same references", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-evidence-compatibility-"));
+  try {
+    withFeedHome(directory, () => {
+      const secrets = createFileSecretStore();
+      const key = Buffer.alloc(32, 19), iv = Buffer.alloc(12, 7);
+      secrets.put("system:feed:evidence-content-key:v1", key.toString("base64"));
+      const markdown = "# Historical evidence\n\nKept before the Storage extraction.";
+      const digest = createHash("sha256").update(markdown).digest("hex");
+      const ref = `molis-work-feed/sha256/${digest}`;
+      // Construct the deployed format independently of either store's writer.
+      const cipher = createCipheriv("aes-256-gcm", key, iv);
+      cipher.setAAD(Buffer.from(ref));
+      const ct = Buffer.concat([cipher.update(markdown, "utf8"), cipher.final()]);
+      const ciphertext = JSON.stringify({ v: 1, alg: "aes-256-gcm", iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), ct: ct.toString("base64") });
+      const bucket = join(directory, "molis-work-home", "feed", "evidence", "blobs", digest.slice(0, 2));
+      mkdirSync(bucket, { recursive: true });
+      const filename = join(bucket, `${digest}.blob`);
+      writeFileSync(filename, ciphertext);
+      const current = createEvidenceContentStore({ secretStore: secrets });
+      const legacy = createFeedEvidenceContentStore({ secretStore: secrets });
+      assert.equal(current.read(ref), markdown);
+      assert.equal(legacy.read(ref), markdown);
+      assert.deepEqual(current.write(markdown), { contentRef: ref });
+      assert.equal(readFileSync(filename, "utf8"), ciphertext, "existing ciphertext is not rewritten");
+      assert.equal(legacy.read(current.write("New shared evidence").contentRef), "New shared evidence");
+      assert.equal(current.read(legacy.write("Old caller's evidence").contentRef), "Old caller's evidence");
+      assert.throws(() => current.read("molis-work-feed/sha256/../../outside"), /reference rejected/);
+      assert.throws(() => current.write("x".repeat(1_048_577)), /retention limit/);
+    });
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });

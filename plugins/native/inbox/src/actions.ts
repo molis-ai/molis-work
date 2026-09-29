@@ -38,8 +38,8 @@ export type InboxPagesResult = Omit<PagesGenerationRecord, "inputs"> & { entry_i
 export interface InboxGeneratedPages { document: PagesRecord; replayed: boolean; request_id: string; entry_ids: string[] }
 
 function action<Input, Output>(id: string, title: string, description: string, operation: "query" | "command",
-  input: ActionSchema, output: ActionSchema, permissions: string[], requiredScene?: { scene_id: string; version: number }, requiredActions?: readonly ActionReference[]): ActionDefinition<Input, Output> {
-  return { capability_id: id, version: 1, operation, action: { title, description,
+  input: ActionSchema, output: ActionSchema, permissions: string[], requiredScene?: { scene_id: string; version: number }, requiredActions?: readonly ActionReference[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<Input, Output> {
+  return { capability_id: id, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}),
     kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "agent", "workflow", "mcp"],
     permissions, ...(requiredScene ? { required_scene: requiredScene } : {}), ...(requiredActions ? { required_actions: requiredActions } : {}),
     subject_kinds: ["inbox_entry"], input_schema: input, output_schema: output,
@@ -75,7 +75,7 @@ export const inboxActions = {
     required: ["request_id", "entry_ids", "title", "instructions"], additionalProperties: false,
   }, { type: "object", properties: { document: documentSchema, replayed: { type: "boolean" }, request_id: text, entry_ids: strings },
     required: ["document", "replayed", "request_id", "entry_ids"] }, ["inbox:read", "pages:read", "pages:write", "model:invoke"], undefined,
-    ["pages.generations.get", "pages.get", "pages.generate"].map(capability_id => ({ capability_id, version: 1, provider_id: PAGES_PLUGIN_ID }))),
+    ["pages.generations.get", "pages.get", "pages.generate"].map(capability_id => ({ capability_id, version: 1, provider_id: PAGES_PLUGIN_ID })), { cost: "metered" }),
   readJudgment: action<Record<string, never>, InboxJudgmentState>("inbox.judgment.read", "下一步判断规则", "读取绑定的判断规则及适用的已发布规则", "query", empty, {
     type: "object", properties: { summary: { type: "object", properties: { name: nullableText, enabled: { type: "boolean" }, available: { type: "boolean" }, reason: nullableText }, required: ["name", "enabled", "available", "reason"] }, function_key: functionKey, functions: { type: "array", items: { type: "object",
       properties: { function_key: { type: "string" }, name: { type: "string" } }, required: ["function_key", "name"] } } }, required: ["function_key", "functions"],
@@ -87,7 +87,7 @@ export const inboxActions = {
   }, { type: "object", properties: { function_key: functionKey }, required: ["function_key"] }, ["inbox:write"]),
   evaluateJudgment: action<{ entry_ids: string[] }, { judgments: readonly JudgmentRecord[] }>("inbox.judgment.evaluate", "判断下一步", "对选择的事项执行已绑定规则并保存判断结果", "command", {
     type: "object", properties: { entry_ids: ids }, required: ["entry_ids"], additionalProperties: false,
-  }, { type: "object", properties: { judgments: { type: "array", items: judgmentSchema } }, required: ["judgments"] }, ["inbox:read", "model:invoke"], { scene_id: INBOX_NEXT_SCENE_ID, version: 1 }),
+  }, { type: "object", properties: { judgments: { type: "array", items: judgmentSchema } }, required: ["judgments"] }, ["inbox:read", "model:invoke"], { scene_id: INBOX_NEXT_SCENE_ID, version: 1 }, undefined, { cost: "metered" }),
 } as const;
 
 export const INBOX_ACTIONS: readonly ActionDefinition[] = Object.values(inboxActions);

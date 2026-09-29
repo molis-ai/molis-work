@@ -1,3 +1,4 @@
+import { preparePagesFileImport } from "../apps/local-host/src/pages-import.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -28,7 +29,7 @@ async function fixture(t: test.TestContext) {
   const caller: ActionCallContext = { actor_id: "owner", project_id: "project", audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "home:read"],
     validate_permissions() { if (!permitted) throw new ActionError("actions.forbidden", "权限已撤销"); } };
   actions.registerProvider({ provider: { provider_id: pagesId, kind: "plugin", title: "Pages", project_id: "project" }, definitions: PAGES_ACTIONS,
-    handlers: createPagesActionHandlers({ withStore: run => run(store), modelAvailability: () => ({ available: true }),
+    handlers: createPagesActionHandlers({ prepareImport: (files, caller) => preparePagesFileImport(files, { signal: caller.signal }), withStore: run => run(store), modelAvailability: () => ({ available: true }),
       async completeText(_prompt, options) { await beforeRequest(options.beforeDispatch); dispatches++; return "有边界的整理。[材料 1]"; } }) });
   const pages = createInboxPagesHandlers({
     async generation(request_id, current) { return (await actions.invoke(current, { ...pagesActions.generation, provider_id: pagesId }, { request_id }) as { record: ReturnType<typeof store.generation> }).record; },

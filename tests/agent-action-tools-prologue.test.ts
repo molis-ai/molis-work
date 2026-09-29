@@ -196,3 +196,18 @@ test("real SDK binds identical tools to separate callers and cancellation reache
     assert.equal(cancelledCompleted, 0);
   } finally { firstRelease.resolve(); cancelRelease.resolve(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+test("Agent tool declarations preserve provider deadlines within the Agent ceiling", async () => {
+  const { prologueActionTools } = await import('../horizontal/agent-host/src/adapters/prologue-action-tools.js');
+  const { ActionService } = await import('@molis-ai/molis-work-kernel');
+  const service = new ActionService();
+  const definitions: ActionDefinition[] = [2_000, 120_000, undefined].map((timeout_ms, index) => ({ capability_id: 'arbitrary.tool' + index, version: 1, operation: 'query',
+    action: { title: 'tool', description: 'tool', kind: 'query', scope: 'home', audiences: ['agent'], permissions: [], subject_kinds: [], input_schema: { type: 'object' },
+      ...(timeout_ms === undefined ? {} : { execution: { timeout_ms } }) } }));
+  service.registerProvider({ provider: { provider_id: 'fixture', title: 'fixture', kind: 'system' }, definitions, handlers: definitions.map(definition => ({ ...definition, handle: () => ({}) })) });
+  const context = { actor_id: 'agent', project_id: null, audience: 'agent' as const, permissions: [] };
+  const tools = service.discover(context);
+  const actions = { tools, client: { discover: () => service.discover(context), invoke: (ref: ExactActionReference, input: unknown, signal?: AbortSignal) => service.invoke({ ...context, signal }, ref, input) } };
+  const projected = prologueActionTools(actions, 60_000);
+  assert.deepEqual(projected.pack.tools!.map(tool => tool.registration.timeoutMs), [2_000, 60_000, 60_000]);
+});

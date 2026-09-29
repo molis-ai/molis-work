@@ -1,4 +1,5 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
 import { DIRECT_WORK_SURFACE_IDS, islandEntries, pluginMarketCards, railEntries } from "./plugin-catalog.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 
@@ -249,6 +250,7 @@ export function renderPluginMarket({ L, icon }: ImmersiveShellPrimitives): strin
     <header class="plugin-market-heading"><div><h1>${L("插件")}</h1></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${L("添加到")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>
     <label class="plugin-market-search mw-input-group">${icon("search")}<input class="mw-input" type="search" data-market-search placeholder="${L("搜索插件")}" aria-label="${L("搜索插件")}" autocomplete="off"></label>
     <div class="plugin-market-status-row"><p class="plugin-market-status" data-market-status role="status"></p><button class="mw-btn mw-btn--secondary" type="button" data-market-retry hidden>${L("重试")}</button></div>
+    ${renderPluginEventRecovery(L)}
     <section class="plugin-market-installed" data-market-installed hidden><div class="plugin-market-section-head"><h2>${L("已添加")}</h2></div><div class="plugin-market-installed-row" data-market-installed-row></div></section>
     <div class="plugin-market-scope mw-toggle-group" role="group" aria-label="${L("筛选插件")}"><button class="mw-toggle is-current" type="button" data-market-scope="all" aria-pressed="true">${L("全部")}</button><button class="mw-toggle" type="button" data-market-scope="added" aria-pressed="false">${L("已添加")}</button></div>
     <section class="plugin-market-catalog" data-market-catalog><div class="plugin-market-section-head"><h2>${L("内置")}</h2></div><div class="plugin-market-list">${rows}</div></section>

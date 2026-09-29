@@ -4,13 +4,14 @@
  * surface teaches the others. Nothing here runs a round; sending stays the person's explicit act.
  */
 export const CODING_COMMANDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
+  const lifetime=ports.lifetime;
   const {q,input,commands,sessions,openSession,current}=ports;
   const mac=/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   const keyLabel=(keys)=>keys.replace(/Mod/g,mac?'⌘':'Ctrl').replace(/Alt/g,mac?'⌥':'Alt').replace(/Shift/g,mac?'⇧':'Shift').replace(/\\+/g,mac?'':'+');
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
   // Loose matching: every typed character in order, so "ctx" finds "上下文与用量 /usage" by its slash word too.
   const matches=(needle,...hay)=>{const word=needle.toLowerCase().trim();if(!word)return true;return hay.some(text=>{const value=String(text||'').toLowerCase();if(value.includes(word))return true;let at=0;for(const char of value){if(char===word[at])at++;if(at===word.length)return true;}return false;});};
-  const run=async(command)=>{try{await command.run();}catch(error){ports.status(error.message,true);}};
+  const run=async(command)=>{try{await command.run();}catch(error){if(!lifetime.alive)return;ports.status(error.message,true);}};
 
   // The slash menu: "/" at the start of an empty composer lists commands; typing narrows them.
   const menu=q('[data-coding-slash-menu]');let items=[],active=0;
@@ -21,7 +22,7 @@ export const CODING_COMMANDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       if(mention&&typeof item==='object')option.append(el('span','coding-slash-label',item.name),el('span','coding-slash-hint',item.kind+' · 第 '+item.line+' 行'));
       else if(mention){const slash=item.lastIndexOf('/');option.append(el('span','coding-slash-label',item.slice(slash+1)),el('span','coding-slash-hint',slash>0?item.slice(0,slash):''));}
       else option.append(el('code','','/'+item.slug),el('span','coding-slash-label',item.label),el('span','coding-slash-hint',item.hint || ''));
-      option.addEventListener('mousedown',event=>{event.preventDefault();pick(index);});menu.append(option);});
+      lifetime.listen(option,'mousedown',event=>{event.preventDefault();pick(index);});menu.append(option);});
     if(mention && !items.length)menu.append(el('p','coding-slash-empty',mention.file!==undefined?(symbolsError || (symbols.has(symbolKey())?'这个文件里没有匹配的定义':'正在读取文件里的定义…')):(filesError || (files?'没有匹配的文件':'正在读取工作区文件…'))));
     input.setAttribute('aria-activedescendant',items.length?'coding-slash-'+active:'');menu.children[active]?.scrollIntoView({block:'nearest'});
   };
@@ -32,9 +33,9 @@ export const CODING_COMMANDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const symbols=new Map();let symbolsError='';
   const symbolKey=()=>ports.workspace()+'\u0000'+(mention?.file ?? '');
   const loadSymbols=async(file)=>{const key=ports.workspace()+'\u0000'+file;if(symbols.has(key) || !ports.symbols || !ports.workspace())return;symbols.set(key,null);symbolsError='';
-    try{const value=await ports.symbols(ports.workspace(),file);symbols.set(key,value.symbols || []);if(value.unreadable)symbolsError='读不到这个文件';refresh();}catch(error){symbols.delete(key);symbolsError=error.message;refresh();}};
+    try{const value=await ports.symbols(ports.workspace(),file);symbols.set(key,value.symbols || []);if(value.unreadable)symbolsError='读不到这个文件';refresh();}catch(error){if(!lifetime.alive)return;symbols.delete(key);symbolsError=error.message;refresh();}};
   const loadFiles=async()=>{const key=ports.workspace();if(!key){filesError='请先选择工作区';return;}if(filesFor===key && (files || !filesError))return;filesFor=key;files=null;filesError='';
-    try{const value=await ports.files(key);if(filesFor===key){files=value.files;refresh();}}catch(error){if(filesFor===key){filesError=error.message;refresh();}}};
+    try{const value=await ports.files(key);if(filesFor===key){files=value.files;refresh();}}catch(error){if(!lifetime.alive)return;if(filesFor===key){filesError=error.message;refresh();}}};
   const refresh=()=>{
     const before=input.value.slice(0,input.selectionStart ?? input.value.length),at=/(^|\\s)[@＠]([^\\s@＠]*)$/.exec(before);
     const hash=at?at[2].search(/[#＃]/):-1;
@@ -59,11 +60,11 @@ export const CODING_COMMANDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     if(mention){const text=typeof item==='object'?mention.file+'#'+item.name:item;const end=mention.start+1+mention.query.length,value=input.value.slice(0,mention.start)+'@'+text+' '+input.value.slice(end);input.value=value;const caret=mention.start+text.length+2;input.setSelectionRange(caret,caret);close();input.dispatchEvent(new Event('input',{bubbles:true}));return;}
     input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));close();void run(item);};
   input.setAttribute('aria-controls','coding-slash-menu');
-  input.addEventListener('input',()=>{active=0;refresh();});
-  input.addEventListener('click',()=>refresh());
-  input.addEventListener('blur',()=>setTimeout(close,120));
+  lifetime.listen(input,'input',()=>{active=0;refresh();});
+  lifetime.listen(input,'click',()=>refresh());
+  lifetime.listen(input,'blur',()=>lifetime.timeout(close,120));
   // Registered before the composer's own keys, so an open menu takes Enter, Tab and Esc (Esc never stops a round here).
-  input.addEventListener('keydown',event=>{
+  lifetime.listen(input,'keydown',event=>{
     if(menu.hidden || event.isComposing || event.keyCode===229)return;
     if(event.key==='ArrowDown' || event.key==='ArrowUp'){event.preventDefault();if(items.length){active=(active+(event.key==='ArrowDown'?1:items.length-1))%items.length;draw();}}
     else if((event.key==='Enter' || event.key==='Tab') && items.length){event.preventDefault();event.stopImmediatePropagation();pick(active);}
@@ -81,25 +82,25 @@ export const CODING_COMMANDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     if(!entries.length)list.append(el('li','coding-palette-empty','没有匹配的命令或会话'));
     entries.forEach((entry,index)=>{const item=el('li','coding-palette-item');item.id='coding-palette-'+index;item.setAttribute('role','option');item.setAttribute('aria-selected',String(index===selected));
       item.append(el('span','coding-palette-kind',entry.kind),el('span','coding-palette-label',entry.label),el('span','coding-palette-detail',entry.detail));if(entry.keys)item.append(el('kbd','mw-kbd',keyLabel(entry.keys)));
-      item.addEventListener('mousedown',event=>{event.preventDefault();choose(index);});list.append(item);});
+      lifetime.listen(item,'mousedown',event=>{event.preventDefault();choose(index);});list.append(item);});
     field.setAttribute('aria-activedescendant',entries.length?'coding-palette-'+selected:'');list.children[selected]?.scrollIntoView({block:'nearest'});
   };
   const openPalette=()=>{if(palette.open)return;returnFocus=document.activeElement;field.value='';selected=0;drawPalette();palette.showModal();field.focus();};
   const closePalette=()=>{if(!palette.open)return;palette.close();if(returnFocus?.isConnected)returnFocus.focus({preventScroll:true});};
   const choose=(index)=>{const entry=entries[index];if(!entry)return;palette.close();void run(entry);};
-  field.addEventListener('input',()=>{selected=0;drawPalette();});
-  field.addEventListener('keydown',event=>{
+  lifetime.listen(field,'input',()=>{selected=0;drawPalette();});
+  lifetime.listen(field,'keydown',event=>{
     if(event.isComposing || event.keyCode===229)return;
     if(event.key==='ArrowDown' || event.key==='ArrowUp'){event.preventDefault();if(entries.length){selected=(selected+(event.key==='ArrowDown'?1:entries.length-1))%entries.length;drawPalette();}}
     else if(event.key==='Enter'){event.preventDefault();choose(selected);}
   });
-  palette.addEventListener('cancel',event=>{event.preventDefault();closePalette();});
-  palette.addEventListener('click',event=>{if(event.target===palette)closePalette();});
+  lifetime.listen(palette,'cancel',event=>{event.preventDefault();closePalette();});
+  lifetime.listen(palette,'click',event=>{if(event.target===palette)closePalette();});
 
   // Shortcuts, chosen to stay clear of the browser's and the workbench's own (⌘K search, ⌘F find, tab switching).
   const editable=(target)=>target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
   const step=(delta)=>{const list=sessions(),at=list.findIndex(session=>session.session_id===current()),next=list[at<0?0:(at+delta+list.length)%list.length];if(next)void openSession(next.session_id,next.title);};
-  document.addEventListener('keydown',event=>{
+  lifetime.listen(document,'keydown',event=>{
     if(!q('[data-coding-task]').isConnected || q('[data-coding-task]').closest('[hidden]'))return;
     const mod=event.metaKey || event.ctrlKey;
     if(mod && event.shiftKey && !event.altKey && event.key.toLowerCase()==='p'){event.preventDefault();palette.open?closePalette():openPalette();return;}

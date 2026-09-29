@@ -33,6 +33,7 @@ import {
   PluginRuntime,
   PluginRuntimeError,
   PluginSupervisor,
+  pluginInstallationGeneration,
   SqlitePluginRuntimeRepository,
 } from "@molis-ai/molis-work-plugin-runtime";
 
@@ -230,6 +231,37 @@ test("Plugin identity is signature-bound while references retain plugin id and v
     (error: unknown) => error instanceof PluginRuntimeError
       && error.code === "plugin_definition_conflict",
   );
+});
+
+test("installation generations survive restart but change on same-millisecond reinstall without moving the data identity", async () => {
+  const definition = createGithubIntegrationPlugin({ provider: {
+    type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
+    async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
+  } });
+  const repository = new MemoryPluginRuntimeRepository();
+  let clock = new Date('2026-09-28T00:00:00.000Z');
+  const runtime = new PluginRuntime(repository, undefined, { now: () => clock });
+  const grants = definition.manifest.permissions.filter(item => item.required).map(item => item.permission);
+  const input = { definition, deployment: 'local' as const, grants };
+  const first = runtime.install(input).install, originalGeneration = pluginInstallationGeneration(first);
+  assert.ok(first.installation_generation);
+  assert.equal(pluginInstallationGeneration(runtime.install(input).install), originalGeneration);
+  await runtime.start(first.install_id);
+  await runtime.stop(first.install_id, { preserve_enabled: true });
+  await runtime.start(first.install_id);
+  assert.equal(pluginInstallationGeneration(runtime.get(first.install_id)), originalGeneration);
+  await runtime.uninstall(first.install_id, { retain_private_data: true });
+  const second = runtime.install({ ...input, definition: { ...definition } }).install;
+  assert.equal(second.install_id, first.install_id);
+  assert.equal(second.installed_at, first.installed_at, 'the wall clock did not advance');
+  assert.notEqual(pluginInstallationGeneration(second), originalGeneration, 'a timestamp alone cannot identify this reinstall');
+  const reopened = new PluginRuntime(repository, undefined, { now: () => clock });
+  assert.equal(pluginInstallationGeneration(reopened.install(input).install), pluginInstallationGeneration(second));
+  await reopened.uninstall(second.install_id);
+  clock = new Date('2026-09-29T00:00:00.000Z');
+  const third = reopened.install(input).install;
+  assert.equal(third.installed_at, clock.toISOString(), 'installed_at describes the current installation');
+  assert.equal(pluginInstallationGeneration({ installed_at: first.installed_at }), 'legacy:' + first.installed_at, 'legacy identity is deterministic across reads');
 });
 
 test("official Plugin composition restarts a source when Provider configuration changes", async () => {
@@ -804,7 +836,12 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
     pathname: `/api/plugins/${consumerId}/ping`,
     actor_id: "actor",
   });
-  assert.deepEqual(received.at(-1), { path: "src/restored.ts" });
+  assert.deepEqual(received, [
+    { path: "src/a.ts" },
+    { path: "src/queued.ts" },
+    { path: "src/after.ts" },
+    { path: "src/restored.ts" },
+  ], "新启用世代按序接回同一安装尚未派出的事件，不能越过或卡住旧队列");
   assert.equal(delivered.length, 2);
   assert.equal(allowed?.status, 200);
   assert.equal(routes, 2);

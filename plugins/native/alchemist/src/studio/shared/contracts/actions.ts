@@ -87,17 +87,15 @@ const followedJob = (id: string) => ({ status: { capability_id: "alchemist.runs.
   done: ["completed", "partial"], failed: ["failed", "cancelled", "interrupted"] });
 
 function operation<I extends z.ZodType, O extends z.ZodType>(name: string, title: string, description: string, kind: "query" | "command", input: I, output: O,
-  extraPermissions: readonly string[] = [], job?: ReturnType<typeof followedJob>) {
+  extraPermissions: readonly string[] = [], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", job?: ReturnType<typeof followedJob>) {
   const definition: ActionDefinition<z.input<I>, z.output<O>> = {
     capability_id: `alchemist.${name}`, version: 1, operation: kind,
-    action: { title, description, kind: kind === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
+    action: { title, description, ...(execution ? { execution } : {}), kind: kind === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
       subject_kinds: ["alchemist"], permissions: ["alchemist:read", ...(kind === "command" ? ["alchemist:write"] : []), ...extraPermissions],
       input_schema: z.toJSONSchema(input, { target: "draft-7", io: "input" }),
       // Studio results are objects, including card/message unions; MCP can return the same shape without an envelope.
       output_schema: { ...z.toJSONSchema(output, { target: "draft-7" }), type: "object" },
-      // A reply waits on a model; Studio storage keeps each caller's messages consistent, so it need not hold
-      // every other operation of the project in line while the model answers.
-      ...(name === "conversation.send" ? { scheduling: "concurrent" as const } : {}),
+      ...(scheduling ? { scheduling } : {}),
       ...(job ? { background_job: job } : {}) },
   };
   return { definition, input, output };
@@ -118,7 +116,7 @@ export const alchemistOperations = {
     output: object({ subject: object({ kind: z.literal("alchemist-playbook"), id }), revision: id, title: text, content: text, truncated: z.boolean(), goal_ids: strings, session_id: z.null() }),
   },
   reuseCandidates: operation("reuse.candidates", "寻找可沿用成果与方法", "读取当前授权范围内固定版本成果与适用方法；查询不运行模型，不代表已采用", "query", reuseCandidateInputSchema, reuseCandidatesSchema),
-  reuseAssess: operation("reuse.assess", "检查复用适用性", "通过 Prologue 判断给定候选的适用、失效与重核条件，不自动采用", "command", reuseAssessInputSchema, reuseAssessmentSchema, ["alchemist:generate"]),
+  reuseAssess: operation("reuse.assess", "检查复用适用性", "通过 Prologue 判断给定候选的适用、失效与重核条件，不自动采用", "command", reuseAssessInputSchema, reuseAssessmentSchema, ["alchemist:generate"], { cost: "metered" }, "concurrent"),
   reusePublish: operation("reuse.publish", "保存研究固定版本", "将研究与证据幂等登记为当前项目私有 Artifact，不公开发布", "command", object({ reportId: id }), object({ reference: reuseReferenceSchema })),
   reuseReceipt: operation("reuse.receipt", "读取实际复用记录", "区分已选择、已实际消费和关系补写状态，返回固定方法及成果版本", "query", object({ planId: id }), object({ receipt: reuseReceiptSchema.nullable() })),
   reuseReconcile: operation("reuse.reconcile", "补写复用关系", "仅补写已实际消费的 Context Ledger 关系，不重复模型调用", "command", object({ planId: id }), object({ receipt: reuseReceiptSchema.nullable() })),
@@ -127,7 +125,7 @@ export const alchemistOperations = {
   conversationList: operation("conversation.list", "读取炼金术士讨论", "读取当前项目的讨论消息、关联对象及实际回复状态", "query", empty, object({ messages: z.array(conversationMessage) })),
   conversationSend: operation("conversation.send", "与炼金术士讨论", "保存消息，使用所选对象、历史与启用的 Taste 生成回复；不可用或失败时保留消息并明确状态", "command",
     createConversationMessageSchema.extend({ context: conversationContext }), z.union([object({ message: conversationMessage, assistantMessage: conversationMessage }),
-      object({ message: conversationMessage, assistant: object({ state: z.literal("runtime_unavailable"), message: text }) })]), ["alchemist:generate"]),
+      object({ message: conversationMessage, assistant: object({ state: z.literal("runtime_unavailable"), message: text }) })]), ["alchemist:generate"], { cost: "metered" }, "concurrent"),
   decisionsList: operation("decisions.list", "读取决策列表", "读取待决策 Idea、历史决定和实际活动记录", "query", empty,
     object({ cases: z.array(decisionWorkspace.extend({ status: z.enum(["pending", "decided", "old_version"]), nextPanel: z.enum(["market", "cost", "decision"]), nextAction: text })),
       log: z.array(decision.extend({ title: text, destination: text })), activities: z.array(activity) })),
@@ -151,7 +149,7 @@ export const alchemistOperations = {
     object({ latestRun: pulseRun.optional(), reports: z.array(object({ report: pulseReport, opportunities: z.array(opportunity), signals: z.array(supplySignal) })) })),
   pulseSources: operation("pulse.sources", "读取市场来源", "读取来源启用状态、能力和局限", "query", empty, object({ sources: z.array(pulseSource) })),
   pulseSourceUpdate: operation("pulse.sources.configure", "设置市场来源", "启用或停用已有市场来源", "command", object({ sourceId, enabled: z.boolean() }), object({ source: pulseSource })),
-  pulseStart: operation("pulse.start", "运行市场脉搏", "从已启用来源抓取真实信号并生成报告，返回后台任务", "command", startPulseRunRequestSchema, object({ run: pulseRun }), ["alchemist:collect"]),
+  pulseStart: operation("pulse.start", "运行市场脉搏", "从已启用来源抓取真实信号并生成报告，返回后台任务", "command", startPulseRunRequestSchema, object({ run: pulseRun }), ["alchemist:collect"], { cost: "metered" }),
   opportunitySave: operation("opportunities.save", "暂存市场机会", "将新机会加入稍后查看，并返回真实位置", "command", identity,
     object({ opportunity, destination: object({ surface: z.literal("pulse"), collection: z.literal("saved_for_later") }) })),
   opportunityConvert: operation("opportunities.convert", "市场机会形成方向", "从机会创建探索方向；重复转换返回原方向，并以 created 说明是否新建", "command", identity,
@@ -163,7 +161,7 @@ export const alchemistOperations = {
   directionUpdate: operation("directions.update", "编辑探索方向", "修改已有方向，保留已生成的卡片和 Idea", "command", createDirectionInputSchema.extend({ id }), object({ direction: directionSchema })),
   directionStatus: operation("directions.status", "归档或恢复方向", "归档后保留历史，并停止从该方向启动新炼化", "command", object({ id, status: z.enum(["active", "archived"]) }), object({ direction: directionSchema })),
   explorationStart: operation("explorations.start", "启动炼化", "将方向加入后台生成任务；reuseExisting 为 true 时返回最近一次炼化", "command", object({ id, reuseExisting: z.boolean().optional() }),
-    object({ runId: id, jobId: id.optional(), reused: z.boolean().optional() }), ["alchemist:generate"], followedJob("jobId")),
+    object({ runId: id, jobId: id.optional(), reused: z.boolean().optional() }), ["alchemist:generate"], { cost: "metered" }, undefined, followedJob("jobId")),
   explorationGet: operation("explorations.get", "读取炼化", "读取真实运行状态、候选卡与来源方向", "query", identity, object({ direction: directionSchema, exploration: explorationSchema })),
   cardGet: operation("cards.get", "读取候选卡", "读取卡片正文；已保留的卡片返回对应 Idea 和版本", "query", identity,
     z.discriminatedUnion("kind", [object({ kind: z.literal("candidate"), model: candidateModel }), object({ kind: z.literal("idea_redirect"), ideaId: id, version })])),
@@ -177,7 +175,7 @@ export const alchemistOperations = {
   researchPlan: operation("research.plan", "创建研究计划", "设置研究模型和调用次数上限；仅创建计划，不执行研究", "command",
     researchPlanRequestSchema.safeExtend({ id, lens: z.enum(["market_space", "build_cost"]), reuse: reuseSelectionSchema.optional() }), object({ plan: researchPlanSchema })),
   researchStart: operation("research.start", "启动研究", "执行已确认的研究计划并返回后台任务引用", "command",
-    object({ id, lens: z.enum(["market_space", "build_cost"]), planId: id }), object({ run: lensRunSchema }), ["alchemist:generate"], followedJob("run.jobId")),
+    object({ id, lens: z.enum(["market_space", "build_cost"]), planId: id }), object({ run: lensRunSchema }), ["alchemist:generate"], { cost: "metered" }, undefined, followedJob("run.jobId")),
   runCancel: operation("research.cancel", "取消研究", "按研究 run.jobId 取消市场或成本研究；不接受 run.id，也不取消探索或脉搏任务", "command", identity, object({ run: lensRunSchema })),
   runEvents: operation("runs.events", "读取任务事件", "按 jobId（不是研究 run.id）读取 after 游标后的事件；重复查询不会取消任务", "query",
     object({ id, after: z.number().int().nonnegative().optional() }), object({ jobId: id, status: runStatusSchema, cursor: z.number().int().nonnegative(),

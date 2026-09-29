@@ -130,6 +130,10 @@ test("Workbench registers the Schedule UI Contribution through the generic UI Ho
   assert.match(populated, /叫醒成功/);
   assert.match(populated, /其他插件的闹钟/);
   assert.match(populated, /data-work-surface="schedule"/);
+  const failed = host.render({ contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, surface: 'workbench',
+    model: model({ jobs: [job({ last_wakeup: { ...job().last_wakeup!, status: 'failed', detail: '原安装身份需要确认 <legacy>' } })] }) });
+  assert.match(failed, /叫醒失败/);
+  assert.match(failed, /原安装身份需要确认 &lt;legacy&gt;/, 'the person sees the actual failure reason as escaped text');
   const conversation = host.render({
     contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,
     surface: "workbench",
@@ -156,6 +160,7 @@ test("Schedule HTTP 能列出任务并暂停", async () => {
         return next;
       },
       listTasks: () => [],
+      recoverReminder: unused,
       createTask: unused,
       updateTask: unused,
       archiveTask: unused,

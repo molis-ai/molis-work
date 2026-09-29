@@ -1,5 +1,6 @@
 import type {
   ShelfCustomRuntime,
+  ShelfModelSelection,
   ShelfDeviceSettings,
   ShelfHotKeys,
   ShelfItemKind,
@@ -118,6 +119,7 @@ export function defaultShelfDeviceSettings(): ShelfDeviceSettings {
     hotkeys: defaultShelfHotKeys(),
     panel_keys: defaultPanelKeys(),
     engine: "auto",
+    model_selection: null,
     custom_runtimes: [],
     shortcuts: [],
     action_order: defaultActionOrder(),
@@ -135,6 +137,7 @@ export function normalizeShelfSettings(raw: unknown): ShelfDeviceSettings {
     hotkeys: normalizeHotKeys(record.hotkeys),
     panel_keys: normalizePanelKeys(record.panel_keys),
     engine: normalizeEngine(record.engine),
+    model_selection: parseModelSelection(record.model_selection),
     custom_runtimes: normalizeRuntimes(record.custom_runtimes),
     shortcuts,
     action_order: normalizeOrder(record.action_order, shortcuts),
@@ -153,6 +156,7 @@ export function mergeShelfSettings(current: ShelfDeviceSettings, patch: ShelfSet
     },
     panel_keys: { ...current.panel_keys, ...patch.panel_keys },
     engine: patch.engine ?? current.engine,
+    model_selection: patch.model_selection === undefined ? current.model_selection ?? null : patch.model_selection,
     custom_runtimes: patch.custom_runtimes ?? current.custom_runtimes,
     shortcuts,
     action_order: patch.action_order ?? current.action_order,
@@ -170,6 +174,7 @@ export function parseSettingsWriteBody(body: unknown): { ok: ShelfSettingsPatch 
     hotkeys?: Partial<ShelfHotKeys>;
     panel_keys?: Partial<ShelfPanelKeys>;
     engine?: string;
+    model_selection?: ShelfModelSelection | null;
     custom_runtimes?: readonly ShelfCustomRuntime[];
     shortcuts?: readonly ShelfShortcutAction[];
     action_order?: readonly string[];
@@ -190,6 +195,11 @@ export function parseSettingsWriteBody(body: unknown): { ok: ShelfSettingsPatch 
     const parsed = parsePanelKeysPatch(record.panel_keys);
     if ("error" in parsed) return parsed;
     patch.panel_keys = parsed.ok;
+  }
+  if ("model_selection" in record) {
+    const selection = parseModelSelection(record.model_selection);
+    if (record.model_selection !== null && !selection) return { error: "请选择有效的 AI 模型" };
+    patch.model_selection = selection;
   }
   if ("engine" in record) {
     if (typeof record.engine !== "string" || !isKnownEngine(record.engine)) {
@@ -323,4 +333,12 @@ function parseShortcuts(raw: unknown): { ok: ShelfShortcutAction[] } | { error: 
 
 function newId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function parseModelSelection(raw: unknown): ShelfModelSelection | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  if (typeof value.provider_id !== "string" || !value.provider_id.trim() || value.provider_id.length > 200
+    || typeof value.model_id !== "string" || !value.model_id.trim() || value.model_id.length > 200) return null;
+  return { provider_id: value.provider_id, model_id: value.model_id };
 }

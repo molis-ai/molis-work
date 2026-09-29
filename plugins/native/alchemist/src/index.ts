@@ -1,3 +1,4 @@
+export { ALCHEMIST_INSTRUCTIONS, ALCHEMIST_COPILOT, ALCHEMIST_EXPLORATION, ALCHEMIST_REUSE, ALCHEMIST_SYNTHESIS, ALCHEMIST_CROSS_CHECK, ALCHEMIST_FORMAT_CORRECTION } from "./prompts.js";
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-alchemist",
   packagePath: "plugins/native/alchemist",
@@ -28,4 +29,3 @@ export { createApp as createAlchemistHttpApp } from "./studio/server/app.js";
 export type { WorkReuseHostPort, ReuseSelection, ReuseSnapshot, ReuseCandidates, ReuseReceipt } from "./work-reuse/contracts.js";
 export { WorkReuseService, artifactReuseKey } from "./work-reuse/service.js";
 
-export { ALCHEMIST_INSTRUCTIONS, ALCHEMIST_COPILOT } from "./prompts.js";

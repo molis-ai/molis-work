@@ -7,7 +7,7 @@ Jelly 的日历、笔记、灵感工作区，使用 Molis Work 控件与舞台�
 Contract: `@molis-ai/molis-work-contracts/platform/plugin` 与 `@molis-ai/molis-work-contracts/modules/jelly`。
 Migration Goal: `goal-reorg-f2`。
 
-Host 通过包公开接口注入模型/素材能力；MCP 默认关闭。原始素材和 AI 提案只有在用户确认后才写入日历或笔记。当前实现、工程证据、实际体验和真人验收分别记录，不将本地构建视为完整复刻验收。
+Host 通过包公开接口注入模型/素材能力；`completeJson` 使用 Prologue 的公共格式解码，Jelly 只验证证据引用和领域内容。每次分段/合并调用及最终提交都复查原 Action 权限；MCP 默认关闭。原始素材和 AI 提案只有在用户确认后才写入日历或笔记。当前实现、工程证据、实际体验和真人验收分别记录，不将本地构建视为完整复刻验收。
 
 
 动作服务：Manifest 声明 59 项 Home 级能力，由插件的 `actions.ts`、`command-actions.ts` 和 `service-actions.ts` 提供合同及处理器。Host 只注入原 Store、模型和素材端口；HTTP 与旧 MCP 名称转发到同一客户端。写入携带当前 workspace revision，导入及永久删除仍需原确认预览。模型/素材等待使用声明式并发调度，保存前检查原文及素材变化；原表、历史和引用保持不变。
@@ -27,3 +27,5 @@ Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个�
   - `delete_preview` 只保存确认凭证（显式声明为写），真正删除是另一个动作。
 - 改动后必跑：`node scripts/run-tests.mjs tests/jelly-actions.test.ts tests/jelly-content.test.ts tests/jelly-mcp.test.ts tests/jelly-model.test.ts tests/jelly-plugin.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+素材解析通过 Host 的公共 `materials` 契约执行；原生源代码、构建、二进制与许可证归 `apps/local-host/native/materials`。Jelly 不再构建解析组件；历史 `jelly/imports` 与 `jelly/models` 路径保持不变。等待后和上传保存/派出前复核当前调用，取消不能提交晚结果。

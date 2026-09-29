@@ -40,8 +40,8 @@ export const homeDockScene: ActionSceneDefinition = {
   result_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] },
     suggested_behavior_ids: { type: "array", items: {} } }, required: ["status", "suggested_behavior_ids"] },
 };
-const define = <I, O>(id: string, title: string, operation: "query" | "command", input: Record<string, unknown>, output: Record<string, unknown>, permissions: string[], requiredScene?: { scene_id: string; version: number }): ActionDefinition<I, O> => ({
-  capability_id: id, version: 1, operation, action: { title, description: title, kind: operation === "query" ? "query" : "operation",
+const define = <I, O>(id: string, title: string, operation: "query" | "command", input: Record<string, unknown>, output: Record<string, unknown>, permissions: string[], requiredScene?: { scene_id: string; version: number }, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> => ({
+  capability_id: id, version: 1, operation, action: { title, description: title, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation",
     scope: "project", audiences: ["user", "agent", "workflow", "mcp"], permissions, ...(requiredScene ? { required_scene: requiredScene } : {}), subject_kinds: [], input_schema: input, output_schema: output,
     ...(id === "home.judgment.evaluate" ? { scheduling: "concurrent" as const } : {}) },
 });
@@ -58,7 +58,7 @@ export const homeActions = {
   }, { type: "object", properties: { function_key: { type: ["string", "null"] } }, required: ["function_key"] }, ["home:write"]),
   evaluate: define<{ subjects: HomeSubject[] }, HomeRecommendations>("home.judgment.evaluate", "重新判断首页事项", "command", {
     type: "object", properties: { subjects: { type: "array", minItems: 1, maxItems: 20, items: subjectSchema } }, required: ["subjects"], additionalProperties: false,
-  }, resultSchema, [...homeDockScene.permissions], homeDockScene),
+  }, resultSchema, [...homeDockScene.permissions], homeDockScene, { cost: "metered" }),
   recommendations: define<Record<string, never>, HomeRecommendations>("home.recommendations.read", "当前首页建议", "query", empty, resultSchema, ["home:read"]),
 };
 export const HOME_ACTION_PERMISSIONS = ["home:read", "home:write", "feed:read", "inbox:read", "model:invoke", "functions:invoke"] as const;

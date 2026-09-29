@@ -243,6 +243,17 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
         try { settings = await savePatch(scope, { engine: input.value }); } catch {}
       });
     });
+    scope.querySelectorAll("[data-shelf-model]").forEach((input) => {
+      if (input.dataset.shelfSettingsBound === "1") return;
+      input.dataset.shelfSettingsBound = "1";
+      input.addEventListener("change", async () => {
+        try {
+          const value = input.value ? JSON.parse(input.value) : null;
+          settings = await savePatch(scope, { model_selection: value ? { provider_id: value[0], model_id: value[1] } : null });
+          await reloadPage();
+        } catch {}
+      });
+    });
     const runtimeForm = scope.querySelector("[data-shelf-runtime-form]");
     if (runtimeForm && runtimeForm.dataset.shelfSettingsBound !== "1") {
       runtimeForm.dataset.shelfSettingsBound = "1";

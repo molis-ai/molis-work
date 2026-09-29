@@ -3,9 +3,11 @@ import type {
   PluginCommandInput,
   PluginDefinition,
   PluginStartContext,
+  PluginEventDeliveryContext,
+  PluginInputDeliveryContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-import { gitEventTypes } from "./events.js";
+import { GIT_OPERATION_UPDATED_EVENT, type GitOperationUpdate, gitEventTypes } from "./events.js";
 import { gitManifest } from "./manifest.js";
 import { gitUiContribution } from "./ui.js";
 import { gitActionHandlers } from "./actions.js";
@@ -20,6 +22,8 @@ import { gitRoutes } from "./routes.js";
  * change set from being a place where work can be committed.
  */
 export interface GitPluginPorts {
+  /** Host receipt observer; the returned disposer belongs to this activation. */
+  observeOperationSettled?(listener: (event: GitOperationUpdate) => void): () => void;
   /** Whether a workspace is bound and is a repository. */
   ready?(): boolean;
   /** Whether a Run's change set is currently offerable. */
@@ -27,7 +31,7 @@ export interface GitPluginPorts {
   /** The change currently selected, for the `current` command input. */
   selectedPath?(): readonly string[] | null;
   /** The Host re-reads status; the Plugin only says when it should. */
-  onWorkingTreeChanged?(reason: "upstream" | "event" | "unavailable"): void | Promise<void>;
+  onWorkingTreeChanged?(reason: "upstream" | "event" | "unavailable", delivery?: PluginEventDeliveryContext | PluginInputDeliveryContext): void | Promise<void>;
   onStop?(context: PluginStartContext): void | Promise<void>;
 }
 
@@ -40,6 +44,8 @@ function objectIdFor(input: PluginCommandInput, ports: GitPluginPorts): string |
 }
 
 export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
+  const subscriptions = new Map<string, () => void>();
+  const key = (context: PluginStartContext) => `${context.install_id}:${context.board_id}`;
   return {
     manifest: gitManifest,
     event_types: gitEventTypes,
@@ -48,6 +54,15 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
       for (const permission of gitManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);
       }
+      let active = true;
+      const unsubscribe = ports.observeOperationSettled?.(event => {
+        if (!active) return;
+        // Publication checks this activation before the Host view is invalidated.
+        context.services?.events?.publish({ event_type_id: GIT_OPERATION_UPDATED_EVENT, type_version: 1, payload: event });
+        void Promise.resolve(ports.onWorkingTreeChanged?.("event")).catch(() => { /* Projection failures never retry an Effect. */ });
+      });
+      subscriptions.get(key(context))?.();
+      subscriptions.set(key(context), () => { active = false; unsubscribe?.(); });
       return {
         kind: "app",
         views: [gitUiContribution],
@@ -74,21 +89,27 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
             title: commandId === "git.accept-run-changes" ? "接受变更" : objectId,
           };
         },
-        onUpstreamReady: async () => {
-          await ports.onWorkingTreeChanged?.("upstream");
+        onUpstreamReady: async (_inputs, delivery) => {
+          delivery.beforeEffect();
+          await ports.onWorkingTreeChanged?.("upstream", delivery);
+          delivery.beforeEffect();
         },
         onUpstreamUnavailable: async () => {
           repositoryReady = false;
           await ports.onWorkingTreeChanged?.("unavailable");
         },
-        onEvent: async () => {
+        onEvent: async (_event, delivery) => {
           // A Run wrote, or invalidated what it had prepared. Either way the
           // working tree on screen may no longer be the one on disk.
-          await ports.onWorkingTreeChanged?.("event");
+          delivery.beforeEffect();
+          await ports.onWorkingTreeChanged?.("event", delivery);
+          delivery.beforeEffect();
         },
       };
     },
     async stop(context: PluginStartContext): Promise<void> {
+      subscriptions.get(key(context))?.();
+      subscriptions.delete(key(context));
       await ports.onStop?.(context);
     },
     async health(): Promise<{ ok: boolean; message: string }> {

@@ -7,6 +7,7 @@
  * step on yourself, hand it back, or record your own result on it.
  */
 export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
+  const lifetime=ports.lifetime;
   const {board,current,navigate,status,ownTask,amend,roleName}=ports;
   const list=board.querySelector('[data-coding-board-list]'),notice=board.querySelector('[data-coding-board-status]'),title=board.querySelector('[data-coding-board-title]'),meta=board.querySelector('[data-coding-board-meta]');
   let owner='',data=null,key='',loadError='';const collapsed=new Set();
@@ -145,7 +146,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const node=row.node,nodes=row.board.nodes,index=row.position,waiting=node.state==='not-started'||node.state==='ready';
     const group=el('span','coding-board-tools');
     const tool=(label,icon,action)=>{const button=el('button','mw-btn mw-btn--ghost mw-btn--icon-only');button.type='button';button.title=label;button.setAttribute('aria-label',label+'：'+row.title);button.innerHTML=svg(icon);
-      button.addEventListener('click',event=>{event.stopPropagation();action();});group.append(button);};
+      lifetime.listen(button,'click',event=>{event.stopPropagation();action();});group.append(button);};
     const change=async(amendment)=>{board.dataset.busy='true';try{await amend(row.runId,row.board.version,amendment,row.live);}finally{delete board.dataset.busy;key='';render();}};
     const ask=(fields,label,build)=>{
       list.querySelector('.coding-board-form')?.remove();const form=el('form','coding-board-form');
@@ -154,8 +155,8 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         const input=el('input','mw-input');input.name=name;input.placeholder=placeholder;input.maxLength=max;input.required=true;form.append(input);return input;});
       const cancel=el('button','mw-btn mw-btn--ghost','取消'),ok=el('button','mw-btn mw-btn--primary',label);cancel.type='button';ok.type='submit';form.append(cancel,ok);board.dataset.editing='true';
       const close=()=>{form.remove();delete board.dataset.editing;key='';render();};
-      cancel.addEventListener('click',close);form.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close();}});
-      form.addEventListener('submit',async event=>{event.preventDefault();if(inputs.some(input=>input.type!=='checkbox'&&!input.value.trim()))return;ok.disabled=true;delete board.dataset.editing;
+      lifetime.listen(cancel,'click',close);lifetime.listen(form,'keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close();}});
+      lifetime.listen(form,'submit',async event=>{event.preventDefault();if(inputs.some(input=>input.type!=='checkbox'&&!input.value.trim()))return;ok.disabled=true;delete board.dataset.editing;
         await change(build(inputs.map(input=>input.type==='checkbox'?input.checked:input.value.trim())));});
       entry.after(form);inputs[0].focus();
     };
@@ -179,11 +180,11 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const entry=el('div','coding-board-entry'),lead=el('span','coding-board-lead'),open=!collapsed.has(row.key);
     if(row.children.length){
       const toggle=el('button','coding-board-toggle');toggle.type='button';toggle.innerHTML=svg('chevron-down');toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',(open?'折叠 ':'展开 ')+row.title);
-      toggle.addEventListener('click',()=>{if(collapsed.has(row.key))collapsed.delete(row.key);else collapsed.add(row.key);key='';render();});lead.append(toggle);
+      lifetime.listen(toggle,'click',()=>{if(collapsed.has(row.key))collapsed.delete(row.key);else collapsed.add(row.key);key='';render();});lead.append(toggle);
     }else lead.append(el('span','coding-board-guide'));
     const main=el('button','coding-board-node');main.type='button';if(row.hint)main.title=row.hint;
     if(row.label)main.append(el('span','coding-board-key',row.label));main.append(el('strong','',row.title));
-    main.addEventListener('click',()=>void navigate(owner,row.target).catch(error=>status(error.message,true)));
+    lifetime.listen(main,'click',()=>void navigate(owner,row.target).catch(error=>status(error.message,true)));
     lead.append(main);entry.append(lead,renderState(row.state),renderProgress(row.progress),renderDeps(row),renderMeta(row));
     const controls=tools(row,entry);if(controls)entry.append(controls);
     item.append(entry);
@@ -209,7 +210,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const fold=el('details','coding-board-fold');fold.open=!collapsed.has('group:'+group.id);fold.dataset.boardGroup=group.id;
       const summary=el('summary');summary.innerHTML='<span class="coding-board-caret">'+svg('chevron-down')+'</span><span class="coding-board-fold-mark">'+svg(group.mark)+'</span>';
       summary.append(el('strong','',group.label),el('small','',group.count||String(group.items.length)));
-      fold.addEventListener('toggle',()=>{if(fold.open)collapsed.delete('group:'+group.id);else collapsed.add('group:'+group.id);});
+      lifetime.listen(fold,'toggle',()=>{if(fold.open)collapsed.delete('group:'+group.id);else collapsed.add('group:'+group.id);});
       const rows=el('ul','coding-board-tree');for(const row of group.items)rows.append(renderRow(row,0));
       fold.append(summary,rows);list.append(fold);
     }

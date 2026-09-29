@@ -58,7 +58,7 @@ export const todoOrganizeActions = {
       method: { enum: ["basic", "organizer"], title: "整理方法：basic 基本整理；organizer 待办整理师的方法" } }, ["materials"]),
     object({ batch, replayed: { type: "boolean" } }), [...WRITE, "model:invoke"],
     // Organizing only saves a result to confirm; taking it back puts that result away (nothing was added to Todo).
-    { scheduling: "concurrent", result_subject: { id: "batch.batch_id", revision: "batch.revision" }, result_view: { summary: "整理结果已保存，等你确认", title_pointer: "/batch/title" },
+    { execution: { cost: "metered" }, scheduling: "concurrent", result_subject: { id: "batch.batch_id", revision: "batch.revision" }, result_view: { summary: "整理结果已保存，等你确认", title_pointer: "/batch/title" },
       undo: { capability_id: "todo.organize.close", version: 1, input: { id: "batch.batch_id" } } }),
   list: define<{ status?: "open" | "all" }, { batches: TodoBatch[] }>("organize.list", "整理结果", "列出等你确认的整理结果（或全部最近的）", "query",
     object({ status: { enum: ["open", "all"] } }, []), object({ batches: array(batch) }), READ),

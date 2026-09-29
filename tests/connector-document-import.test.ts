@@ -18,9 +18,15 @@ test("document import reads only the selected account, preserves provenance and 
   const ports = { boardId: "board", actorId: "fixture", routePrefix: "", artifacts };
   const calls: string[] = [];
   let revoke: (() => void) | undefined;
+  let revokeAtMetadata = false;
+  let beforeSave: (() => void | Promise<void>) | undefined;
+  const guardedPorts = { ...ports, beforeSave: () => beforeSave?.() };
   t.mock.method(globalThis, "fetch", async (url: unknown, init?: RequestInit) => {
     const auth = new Headers(init?.headers).get("authorization")!; calls.push(auth);
-    if (!String(url).endsWith("/markdown")) return Response.json({ object: "page", properties: {} });
+    if (!String(url).endsWith("/markdown")) {
+      if (revokeAtMetadata) revoke?.();
+      return Response.json({ object: "page", properties: {} });
+    }
     revoke?.();
     return Response.json({ object: "page_markdown", markdown: `Read via ${auth}`, truncated: false, unknown_block_ids: [] });
   });
@@ -44,6 +50,24 @@ test("document import reads only the selected account, preserves provenance and 
       revoke = undefined;
       await assert.rejects(importLocalArtifactDocument({ ...input, connection_id: b!.connection_id }, ports), /所选连接不可用/u);
       assert.equal(withConnectorConnections(home, store => store.state(store.require(a!.connection_id))), "connected");
+      const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+      beforeSave = async () => { entered.resolve(); await release.promise; };
+      const pending = importLocalArtifactDocument({ ...input, connection_id: a!.connection_id }, guardedPorts);
+      const rejected = assert.rejects(pending, { code: "document.connection_revoked" });
+      try {
+        await entered.promise;
+        withConnectorConnections(home, store => store.disconnect(a!.connection_id));
+      } finally { release.resolve(); }
+      await rejected;
+      assert.deepEqual(artifacts.query.listArtifacts("board"), before, "connection changes during the final asynchronous guard must not commit");
+      beforeSave = undefined;
+      const c = withConnectorConnections(home, store => store.createToken({ serviceId: "notion", displayName: "C", token: "fixture-account-c" }));
+      revokeAtMetadata = true;
+      revoke = () => withConnectorConnections(home, store => store.disconnect(c.connection_id));
+      const count = calls.length;
+      await assert.rejects(importLocalArtifactDocument({ ...input, connection_id: c.connection_id }, guardedPorts), { code: "document.connection_revoked" });
+      assert.equal(calls.length, count + 1, "disconnect after metadata prevents the following body request");
+      assert.deepEqual(artifacts.query.listArtifacts("board"), before);
     });
   } finally { db.close(); rmSync(home, { recursive: true, force: true }); }
 });

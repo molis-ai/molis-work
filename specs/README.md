@@ -34,7 +34,7 @@
 
 ## 已收
 
-155 份，在 [`archive/`](archive/)。其中按开头状态收走的是第一批；后来对着代码核对、确认产品里已经有这份行为的，也收在同一处。
+156 份，在 [`archive/`](archive/)。其中按开头状态收走的是第一批；后来对着代码核对、确认产品里已经有这份行为的，也收在同一处。
 
 <details>
 <summary>名单</summary>
@@ -133,6 +133,7 @@
 - [native-titlebar-traffic-light-clearance](archive/native-titlebar-traffic-light-clearance/spec.md)
 - [neutral-focus-stroke](archive/neutral-focus-stroke/spec.md)
 - [onboarding-palette-alignment](archive/onboarding-palette-alignment/spec.md)
+- [platform-capability-consolidation](archive/platform-capability-consolidation/spec.md)：12 项本地改造、调用链复核与验收；真实外部服务及用户本人验收的未验证边界见正文。
 - [plugin-default-no-tab](archive/plugin-default-no-tab/spec.md)
 - [plugin-detail-back-row](archive/plugin-detail-back-row/spec.md)
 - [plugin-dev-skill-complete](archive/plugin-dev-skill-complete/spec.md)

@@ -8,7 +8,7 @@ import type {
 import { comparePluginVersions } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import { buildEventContract, type PluginEventContract } from "./event-contract.js";
-import { pluginManifestDigest } from "./identity.js";
+import { pluginManifestDigest, pluginInstallationGeneration } from "./identity.js";
 import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
 import {
   createPluginRuntimeReleaseArtifact,
@@ -312,6 +312,14 @@ export class PluginSupervisor implements PluginHostLifecycle {
       .sort();
   }
 
+  installation(pluginId: string) {
+    if (!this.#isEnabled(pluginId)) return undefined;
+    const manifest = this.#activeEntries.get(pluginId)?.definition.manifest;
+    const record = this.#runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === manifest?.publisher.signature && item.state !== "uninstalled");
+    return record ? { install_id: record.install_id, installation_generation: pluginInstallationGeneration(record), version: record.version,
+      running: record.state === "running" && this.#runtime.contribution(record.install_id) !== null } : undefined;
+  }
+
   manifest(pluginId: string): PluginManifest | undefined {
     return this.#activeEntries.get(pluginId)?.definition.manifest;
   }
@@ -422,6 +430,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       install_id: state.install_id,
       active: () => this.#tokens.get(pluginId) === token
         && this.#isEnabled(pluginId)
+        && this.#runtime.contribution(state.install_id!) === contribution
         && this.#states.get(pluginId)?.status === "running",
       contribution,
     };

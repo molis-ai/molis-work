@@ -1,6 +1,5 @@
-import { createFeedExactRouteResolver } from "@molis-ai/molis-work-plugin-feed";
 /**
- * Embedded Intelligence Client exact path over the shared RSS SearchRuntime.
+ * Embedded Intelligence Client over a Host-composed SearchRuntime and explicit exact routes.
  *
  * Storage foundation is created lazily on first executeExact so Host bootstrap
  * stays synchronous. Trusted caller context is fixed here — never from the body.
@@ -14,6 +13,7 @@ import { createEmbeddedIntelligenceIntentTransportV1 } from "@adeptify/intellige
 import {
   createSearchIntentRuntimeV1,
   type SearchIntentRuntimeV1,
+  type SearchIntentRouteResolverV1,
 } from "@adeptify/search-evidence-layer/intent";
 import {
   createSearchIntentPersistenceV1,
@@ -26,22 +26,9 @@ import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 
 import { createFileSecretStore, type SecretStore } from "@molis-ai/molis-work-storage";
 import {
-  YOUTUBE_CHANNEL_DEFINITION_ID,
-  YOUTUBE_PUBLIC_FEED_HOST,
-  isYouTubePublicFeedUrl,
-} from "@molis-ai/molis-work-integration-youtube";
-import {
-  CUSTOM_RSS_DEFINITION_ID,
-  customRssFeedHost,
-  isCustomRssFeedUrl,
-} from "@molis-ai/molis-work-integration-rss";
-import {
-  listRegisterableFeeds,
-} from "@molis-ai/molis-work-integration-rss";
-import {
-  createFeedSearchAead,
-  createFeedSearchOpaqueBlobStore,
-  createFeedSearchSecretStore,
+  createSearchAead,
+  createSearchOpaqueBlobStore,
+  createSearchSecretStore,
 } from "@molis-ai/molis-work-storage";
 
 const APP_ID = "molis-work";
@@ -51,7 +38,6 @@ const APP_ID = "molis-work";
 const KEY_NAMESPACE = "feed-intent-v2";
 const TENANT_ID = "solo";
 const PRINCIPAL_REF = "molis-work:local";
-const WEB_QUERY_PROVIDER_ID = "anysearch";
 
 /** Composition-root only. Never accept identity from request bodies. */
 const MOLIS_WORK_TRUSTED_CALLER_CONTEXT = Object.freeze({
@@ -59,8 +45,8 @@ const MOLIS_WORK_TRUSTED_CALLER_CONTEXT = Object.freeze({
   appId: APP_ID,
 });
 
-import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-plugin-feed";
-export type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-plugin-feed";
+export type IntelligenceCollectRequest = Parameters<IntelligenceIntentClientV1["executeExact"]>[0];
+export type IntelligenceCollectResult = Readonly<Pick<SearchIntentExactResultV1, "operationId" | "intentFingerprint" | "outcome" | "requirementMet" | "materials" | "receipts" | "warnings" | "budget">>;
 
 export interface IntelligenceCollectAdapter {
   executeExact(request: IntelligenceCollectRequest, options?: { signal?: AbortSignal }): Promise<IntelligenceCollectResult>;
@@ -71,11 +57,13 @@ export function createIntelligenceCollectAdapter(options: {
   readonly db: SqliteDatabase;
   readonly secretStore?: SecretStore;
   readonly searchRuntime: SearchRuntime;
-  /** Optional AnySearch runtime for exact web-query Inbox Sources. */
-  readonly querySearchRuntime?: SearchRuntime;
+  readonly routeResolver: SearchIntentRouteResolverV1;
 }): IntelligenceCollectAdapter {
   let ready: Promise<ReadyState> | null = null;
   let shutDown = false;
+  let closing: Promise<void> | undefined;
+  const stop = new AbortController();
+  const active = new Set<Promise<IntelligenceCollectResult>>();
 
   const ensureReady = (): Promise<ReadyState> => {
     if (shutDown) {
@@ -86,7 +74,7 @@ export function createIntelligenceCollectAdapter(options: {
         options.db,
         options.secretStore ?? createFileSecretStore(),
         options.searchRuntime,
-        options.querySearchRuntime,
+        options.routeResolver,
       ).catch((error) => {
         ready = null;
         throw error;
@@ -98,23 +86,28 @@ export function createIntelligenceCollectAdapter(options: {
   return {
     async executeExact(request, executeOptions) {
       assertExactRequestHasNoCallerIdentity(request);
-      const state = await ensureReady();
-      const result = await state.client.executeExact(
-        request as IntelligenceCollectRequest,
-        executeOptions,
-      );
-      return toPublicResult(result);
+      const signal = AbortSignal.any([stop.signal, ...(executeOptions?.signal ? [executeOptions.signal] : [])]);
+      const work = (async () => {
+        signal.throwIfAborted();
+        const state = await ensureReady();
+        signal.throwIfAborted();
+        const result = await state.client.executeExact(request, { signal });
+        signal.throwIfAborted();
+        return toPublicResult(result);
+      })();
+      active.add(work);
+      try { return await work; } finally { active.delete(work); }
     },
 
-    async shutdown() {
+    shutdown() {
       shutDown = true;
-      if (!ready) return;
-      try {
-        const state = await ready;
-        await state.foundation.shutdown();
-      } finally {
-        ready = null;
-      }
+      stop.abort(new Error("Search service stopped"));
+      return closing ??= (async () => {
+        await Promise.allSettled([...active]);
+        if (!ready) return;
+        try { const state = await ready; await state.foundation.shutdown(); }
+        finally { ready = null; }
+      })();
     },
   };
 }
@@ -129,14 +122,14 @@ async function bootstrapReady(
   db: SqliteDatabase,
   secretStore: SecretStore,
   searchRuntime: SearchRuntime,
-  querySearchRuntime?: SearchRuntime,
+  routeResolver: SearchIntentRouteResolverV1,
 ): Promise<ReadyState> {
-  const blobStore = createFeedSearchOpaqueBlobStore(db);
+  const blobStore = createSearchOpaqueBlobStore(db);
   const foundation = await createSearchStorageFoundation({
     appId: APP_ID,
     keyNamespace: KEY_NAMESPACE,
-    aead: createFeedSearchAead(),
-    secretStore: createFeedSearchSecretStore(secretStore),
+    aead: createSearchAead(),
+    secretStore: createSearchSecretStore(secretStore),
     operationStore: blobStore,
     contentStore: blobStore,
   });
@@ -157,12 +150,8 @@ async function bootstrapReady(
     },
   });
   const intentRuntime = createSearchIntentRuntimeV1({
-    searchRuntime: multiplexExactSearchRuntime(searchRuntime, querySearchRuntime),
-    routeResolver: createFeedExactRouteResolver({
-      listCatalog: listRegisterableFeeds,
-      customRss: { id: CUSTOM_RSS_DEFINITION_ID, acceptsUrl: isCustomRssFeedUrl, host: customRssFeedHost },
-      youtube: { id: YOUTUBE_CHANNEL_DEFINITION_ID, host: YOUTUBE_PUBLIC_FEED_HOST, acceptsUrl: isYouTubePublicFeedUrl },
-    }),
+    searchRuntime,
+    routeResolver,
     persistence,
     scopeAuthority,
   });
@@ -173,39 +162,6 @@ async function bootstrapReady(
     }),
   });
   return { client, foundation, intentRuntime };
-}
-
-/**
- * Catalog RSS exact routes, pinned YouTube official feeds, pinned custom
- * HTTPS RSS/Atom URLs, and pinned AnySearch web-query exact routes. Fail
- * closed before network unless the matching selector set is present.
- */
-function multiplexExactSearchRuntime(
-  feedRuntime: SearchRuntime,
-  queryRuntime?: SearchRuntime,
-): SearchRuntime {
-  if (!queryRuntime) return feedRuntime;
-  if (queryRuntime.app.id !== feedRuntime.app.id) {
-    throw new Error("exact SearchRuntime app ids must match");
-  }
-  return {
-    app: feedRuntime.app,
-    providers: {
-      doctor: (providerId) =>
-        providerId === WEB_QUERY_PROVIDER_ID
-          ? queryRuntime.providers.doctor(providerId)
-          : feedRuntime.providers.doctor(providerId),
-    },
-    operations: {
-      create: (plan, options) =>
-        (plan as { providerId?: string }).providerId === WEB_QUERY_PROVIDER_ID
-          ? queryRuntime.operations.create(plan, options)
-          : feedRuntime.operations.create(plan, options),
-    },
-    shutdown: async () => {
-      // Parent composition owns lifecycle of both runtimes.
-    },
-  };
 }
 
 function isTrustedCallerContext(value: unknown): boolean {

@@ -1,3 +1,4 @@
+import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ALCHEMIST_COPILOT } from "../../../prompts.js";
 import { z } from "zod";
 import type { AlchemistOperationInput } from "../../shared/contracts/actions.js";
@@ -30,7 +31,7 @@ export async function sendConversationMessage(dependencies: ApiDependencies, inp
         const result = await dependencies.runtimeSettings.generateStructured({
           operationId: dependencies.idFactory.next("conversation_generation"),
           purpose: "围绕当前 Direction、Idea 或报告与创始人继续讨论",
-          systemPrompt: ALCHEMIST_COPILOT,
+          systemPrompt: instructed(ALCHEMIST_COPILOT, ""),
           userPrompt: JSON.stringify({ context: input.context, object, history, message: input.body,
             founderTaste: dependencies.memory.listTasteRules(dependencies.workspaceId).filter(rule => rule.status === "active")
               .map(rule => ({ title: rule.title, statement: rule.statement, appliesTo: rule.appliesTo, exceptions: rule.exceptions })) }),

@@ -1,5 +1,6 @@
 /** Exact published selection for the next Run; never derives history from the current library. */
 export const CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT = `(host) => {
+  const lifetime=host.lifetime;
   const {q,api,current,selections,titles,skillSelections,save,controls,status}=host;
   const dialog=q('[data-coding-character-dialog]'),list=q('[data-coding-character-list]'),error=q('[data-coding-character-error]'),submit=q('[data-coding-character-save]');
   const key=ref=>ref ? JSON.stringify([ref.artifact_id,ref.version]) : '';
@@ -22,7 +23,7 @@ export const CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT = `(host) => {
         row.className='coding-material';label.className='mw-check-row';radio.className='mw-radio';radio.type='radio';radio.name='coding-character-choice';radio.value=String(index);
         radio.checked=key(candidate)===key(item.reference);radio.disabled=!item.available;
         name.textContent=item.title+(item.reference?' · v'+item.reference.version:'');label.append(radio,name);row.append(label);
-        radio.addEventListener('change',()=>{if(busy)return;candidate=structuredClone(item.reference);selectedSkills=[];list.querySelectorAll('[data-character-skill]').forEach(input=>{input.checked=false;input.disabled=input.dataset.owner!==key(candidate) || input.dataset.compatible!=='true';});submit.disabled=false;error.textContent='';});
+        lifetime.listen(radio,'change',()=>{if(busy)return;candidate=structuredClone(item.reference);selectedSkills=[];list.querySelectorAll('[data-character-skill]').forEach(input=>{input.checked=false;input.disabled=input.dataset.owner!==key(candidate) || input.dataset.compatible!=='true';});submit.disabled=false;error.textContent='';});
         if(!item.available){const reason=document.createElement('p');reason.textContent=item.reason || '此版本不可用';row.append(reason);}
         if(item.reference && typeof item.instructions==='string'){
           const detail=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('pre'),scope=document.createElement('p');
@@ -41,10 +42,10 @@ export const CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT = `(host) => {
       submit.disabled=Boolean(candidate && !rows.some(item=>key(item.reference)===key(candidate) && item.available));
     }catch(failure){if(request===ticket && current()===id)error.textContent=failure.message;}
   };
-  q('[data-coding-character-open]').addEventListener('click',()=>void open());
-  q('[data-coding-character-close]').addEventListener('click',close);
-  dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
-  q('[data-coding-character-form]').addEventListener('submit',async event=>{
+  lifetime.listen(q('[data-coding-character-open]'),'click',()=>void open());
+  lifetime.listen(q('[data-coding-character-close]'),'click',close);
+  lifetime.listen(dialog,'cancel',event=>{event.preventDefault();close();});
+  lifetime.listen(q('[data-coding-character-form]'),'submit',async event=>{
     event.preventDefault();if(busy || submit.disabled)return;
     if(current()!==session){error.textContent='会话已切换，请关闭后为当前会话重新选择。';return;}
     const id=session,selected=rows.find(item=>key(item.reference)===key(candidate));

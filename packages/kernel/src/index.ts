@@ -2,6 +2,7 @@ import type {
   HostCapabilityDefinition,
   HostCapabilityDescriptor,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
+export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetimeOptions } from "./execution-lifetime.js";
 import { ActionError, requireSynchronous, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 export { subjectOfferChoices, subjectOfferChoiceKey, judgmentRecommendationKeys, subjectOfferCompatibilityReason, type SubjectOfferChoiceView } from "./subject-offer-choices.js";
 

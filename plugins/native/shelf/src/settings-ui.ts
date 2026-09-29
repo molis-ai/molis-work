@@ -4,6 +4,7 @@ import type {
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import type {
+  ShelfAiStatus,
   ShelfCustomRuntime,
   ShelfDeviceSettings,
   ShelfHotKeyChord,
@@ -33,6 +34,7 @@ export const SHELF_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.shelf.set
 export interface ShelfSettingsUiModel {
   readonly settings: ShelfDeviceSettings;
   readonly runtime?: ShelfRuntimeStatus;
+  readonly ai?: ShelfAiStatus;
   readonly storage_path?: string;
   readonly primitives: ShelfUiPrimitives;
 }
@@ -65,7 +67,7 @@ const SECTIONS = [
   { id: "actions", title: "快捷动作", tone: "ochre", glyph: SHELF_GLYPH.bolt, detail: "管理动作，设置动作栏的内容与顺序。" },
   { id: "shortcuts", title: "快捷键", tone: "ochre", glyph: SHELF_GLYPH.keyboard, detail: "设置打开面板、添加文件和抓取网页的快捷键。" },
   { id: "guide", title: "使用指南", tone: "slate", glyph: SHELF_GLYPH.book, detail: "了解材料导入、文件处理和结果导出。" },
-  { id: "machine", title: "Agent 与存储", tone: "blue", glyph: SHELF_GLYPH.terminal, detail: "选择本机 Agent，以及材料副本和结果的存放位置。" },
+  { id: "machine", title: "AI、终端与存储", tone: "blue", glyph: SHELF_GLYPH.terminal, detail: "选择自动动作的 AI 模型、人工终端，以及材料存放位置。" },
   { id: "appearance", title: "外观", tone: "plum", glyph: SHELF_GLYPH.sun, detail: "设置主题、语言和拖放显示。" },
 ] as const;
 
@@ -219,27 +221,18 @@ function guidePane(model: ShelfSettingsUiModel): string {
 function machinePane(model: ShelfSettingsUiModel): string {
   const { primitives: p, settings } = model;
   const runtime = model.runtime;
-  const line = !runtime || !runtime.runtime_key
-    ? p.text("未发现终端 Agent。暂存、预览、拖出和本机文字提取仍然可用。")
-    : runtime.capability_pending
-      ? `${p.escape(runtime.title)} · ${p.text("执行时检查，登录尚未确认")}`
-    : runtime.can_run_job
-      ? `${p.escape(runtime.title)} · ${p.escape(runtime.isolation_fact)}`
-      : `${p.escape(runtime.title)} · ${p.text("没有无界面执行入口，动作不能跑。")}`;
+  const line = runtime?.runtime_key ? p.escape(runtime.title) : p.text("未发现终端 Agent。暂存、预览、拖出和本机文字提取仍然可用。");
+  const selection = settings.model_selection;
+  const encode = (value: { provider_id: string; model_id: string }) => JSON.stringify([value.provider_id, value.model_id]);
+  const modelOptions = (model.ai?.choices ?? []).map(choice => `<option value="${p.escape(encode(choice))}"${selection && encode(selection) === encode(choice) ? " selected" : ""}>${p.escape(choice.label)}${choice.vision ? ` · ${p.text("支持图片")}` : ""}</option>`).join("");
+  const missingModel = selection && !(model.ai?.choices ?? []).some(choice => encode(selection) === encode(choice))
+    ? `<option value="${p.escape(encode(selection))}" selected>${p.text("所选模型已不可用")}</option>` : "";
   const catalog = runtime?.catalog ?? [];
   const options = [{ runtime_key: "auto", title: "自动", executable: "auto", can_run_job: true, capability_pending: false, install_url: "" }, ...catalog];
   const rows = options.map((entry) => {
     const on = settings.engine === entry.runtime_key;
     const missing = entry.runtime_key !== "auto" && !entry.executable;
-    const state = entry.runtime_key === "auto"
-      ? p.text("按安装顺序挑一个")
-      : missing
-        ? p.text("未装")
-        : entry.capability_pending
-          ? p.text("执行时检查")
-        : entry.can_run_job
-          ? p.text("可跑动作")
-          : p.text("只能对话");
+    const state = entry.runtime_key === "auto" ? p.text("按安装顺序挑一个") : missing ? p.text("未装") : p.text("人工终端");
     const install = entry.install_url
       ? `<a class="shelf-paper quiet" href="${p.escape(entry.install_url)}" target="_blank" rel="noreferrer">${p.text("安装说明")}</a>`
       : "";
@@ -253,10 +246,16 @@ function machinePane(model: ShelfSettingsUiModel): string {
       </div>`;
   }).join("");
   return `<div class="shelf-settings-block">
-      <h3>${p.text("本机 Agent")}</h3>
+      <h3>${p.text("自动动作的 AI 模型")}</h3>
+      <label>${p.text("模型")} <select data-shelf-model><option value=""${!selection ? " selected" : ""}>${p.text("自动选择可用模型")}</option>${missingModel}${modelOptions}</select></label>
+      <p class="settings-hint">${p.text("总结、翻译与快捷动作通过 Prologue 调用所选模型。图片需要模型支持视觉；本机文字提取不调用模型。")}</p>
+      ${model.ai?.reason ? `<p class="settings-hint">${p.escape(model.ai.reason)}</p>` : ""}
+      <a class="shelf-paper quiet" href="/settings/models">${p.text("配置 AI 模型")}</a>
+    </div><div class="shelf-settings-block">
+      <h3>${p.text("人工终端")}</h3>
       <p class="shelf-settings-line" data-shelf-agent-line>${line}</p>
       <div class="shelf-runtime-picks">${rows}</div>
-      <p class="settings-hint">${p.text("快捷动作和 CLI Recipe 都跟这一个。没有无界面执行入口的 Agent 仍可对话。")}</p>
+      <p class="settings-hint">${p.text("仅用于主动打开终端或发送到终端，自动动作使用上方 AI 模型。")}</p>
     </div>
     <div class="shelf-settings-block">
       <h3>${p.text("自定义 Runtime")}</h3>

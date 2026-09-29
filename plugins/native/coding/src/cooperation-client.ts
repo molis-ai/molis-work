@@ -7,10 +7,11 @@
  * listed too, with a way to stop one still running. None of it reaches the model.
  */
 export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
+  const lifetime=ports.lifetime;
   const {q,api,current,status,openSession,refreshSessions,rounds,prefill,materialsChanged,openArtifact}=ports;
   const banner=q('[data-coding-delegation-banner]'),section=q('[data-coding-cooperation]'),dialog=q('[data-coding-delegate-dialog]'),backgroundSection=q('[data-coding-background]');
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
-  const button=(label,variant,handler)=>{const node=el('button','mw-btn'+(variant?' mw-btn--'+variant:''),label);node.type='button';node.addEventListener('click',handler);return node;};
+  const button=(label,variant,handler)=>{const node=el('button','mw-btn'+(variant?' mw-btn--'+variant:''),label);node.type='button';lifetime.listen(node,'click',handler);return node;};
   const time=(value)=>value?new Date(value).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
   const EVENT={submitted:'已提交',delivered:'已送达对方会话',accepted:'对方已接受',started:'对方开始执行','delivery-sent':'对方交付了成果','delivery-accepted':'已收下交付','delivery-rejected':'没有收下交付',completed:'已完成',rejected:'对方拒绝',cancelled:'已取消',failed:'失败'};
   const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',queued:'挂起等待',done:'本轮结束'};
@@ -31,12 +32,12 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const line=el('p','coding-coop-line');line.append(el('span','coding-coop-note',(task.exit_code===undefined?'':'exit '+task.exit_code+' · ')+'开始于 '+time(task.started_at_ms)+(task.ended_at_ms?' · 结束于 '+time(task.ended_at_ms):'')));
       item.append(head,line);
       if(task.state==='running')item.append(button('停止','ghost',async()=>{
-        try{await api('/sessions/'+encodeURIComponent(current())+'/background/'+encodeURIComponent(task.task_id)+'/stop','POST',{});status('已停止这条后台命令。');}catch(error){status(error.message,true);}await refresh(true);}));
+        try{await api('/sessions/'+encodeURIComponent(current())+'/background/'+encodeURIComponent(task.task_id)+'/stop','POST',{});status('已停止这条后台命令。');}catch(error){if(!lifetime.alive)return;status(error.message,true);}await refresh(true);}));
       list.append(item);
     }
     backgroundSection.append(list);
   };
-  const act=async(path,body,done)=>{try{await api('/sessions/'+encodeURIComponent(current())+'/delegations'+path,'POST',body);if(done)status(done);await refresh(true);}catch(error){status(error.message,true);await refresh(true);}};
+  const act=async(path,body,done)=>{try{await api('/sessions/'+encodeURIComponent(current())+'/delegations'+path,'POST',body);if(done)status(done);await refresh(true);}catch(error){if(!lifetime.alive)return;status(error.message,true);await refresh(true);}};
   const receipts=(delegation)=>{const details=el('details','coding-coop-receipts'),summary=el('summary','','回执 '+delegation.receipts.length+' 条'),list=el('ol');
     for(const receipt of delegation.receipts){const item=el('li');item.append(el('span','coding-coop-event',EVENT[receipt.event]||receipt.event),el('time','',time(receipt.at)));
       if(receipt.note)item.append(el('span','coding-coop-note',receipt.note));if(receipt.recorded_only)item.append(el('span','coding-coop-late','在结束之后到达，只记录'));list.append(item);}
@@ -44,7 +45,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const stateChip=(delegation)=>{const chip=el('span','mw-status mw-status--plain',delegation.state_label);chip.dataset.tone=TONE[delegation.state]||'idle';return chip;};
   const sessionLink=(side)=>side?.title?button('「'+side.title+'」','ghost',()=>void openSession(side.session_id,side.title)):el('span','coding-coop-gone','已不存在的会话');
   const reasonForm=(label,confirm,handler)=>{const form=el('form','coding-coop-reason'),input=el('textarea','mw-textarea');input.rows=2;input.maxLength=2000;input.required=true;input.setAttribute('aria-label',label);input.placeholder=label;
-    const send=el('button','mw-btn mw-btn--secondary',confirm);send.type='submit';form.append(input,send);form.addEventListener('submit',event=>{event.preventDefault();if(input.value.trim())void handler(input.value.trim());});return form;};
+    const send=el('button','mw-btn mw-btn--secondary',confirm);send.type='submit';form.append(input,send);lifetime.listen(form,'submit',event=>{event.preventDefault();if(input.value.trim())void handler(input.value.trim());});return form;};
   // The receiving side: where the work came from, and handing the finished round back.
   const drawBanner=(incoming)=>{
     banner.hidden=!incoming;banner.replaceChildren();if(!incoming)return;
@@ -71,7 +72,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         for(const round of finished.slice().reverse()){const option=el('option','','第 '+round.number+' 轮');option.value=round.run_id;choice.append(option);}
         for(const [value,label] of [['report','报告（现在固定）'],['changeset','固定变更（需已固定）']]){const option=el('option','',label);option.value=value;kind.append(option);}
         choice.setAttribute('aria-label','交付哪一轮');kind.setAttribute('aria-label','交付的成果');note.placeholder='说明（可选）';note.maxLength=2000;note.setAttribute('aria-label','交付说明');send.type='submit';
-        form.append(choice,kind,note,send);form.addEventListener('submit',event=>{event.preventDefault();send.disabled=true;void act(path+'/deliveries',{run_id:choice.value,kind:kind.value,note:note.value,expected_revision:incoming.revision},'已交付，等发起的会话决定。');});
+        form.append(choice,kind,note,send);lifetime.listen(form,'submit',event=>{event.preventDefault();send.disabled=true;void act(path+'/deliveries',{run_id:choice.value,kind:kind.value,note:note.value,expected_revision:incoming.revision},'已交付，等发起的会话决定。');});
         banner.append(form);
       }
       for(const delivery of incoming.deliveries.filter(item=>item.state==='rejected').slice(-1))banner.append(el('p','coding-coop-rejected','上次交付没有被收下：'+delivery.reason));
@@ -93,7 +94,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const body=el('details','coding-coop-task');body.append(el('summary','',message.body.split('\\n')[0].slice(0,80)),el('p','',message.body));
       item.append(head,line,body);
       if(message.outgoing && ['queued','delivered','accepted'].includes(message.state))item.append(button('撤回','ghost',async()=>{
-        try{await api('/sessions/'+encodeURIComponent(current())+'/messages/'+encodeURIComponent(message.message_id)+'/cancel','POST',{});status('已撤回这封信。');}catch(error){status(error.message,true);}await refresh(true);}));
+        try{await api('/sessions/'+encodeURIComponent(current())+'/messages/'+encodeURIComponent(message.message_id)+'/cancel','POST',{});status('已撤回这封信。');}catch(error){if(!lifetime.alive)return;status(error.message,true);}await refresh(true);}));
       list.append(item);
     }
     section.append(el('h4','','会话间的信'),list);
@@ -135,7 +136,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       // Redrawn only when something changed: a redraw replaces the forms, so a click or a half-written note would be lost.
       const key=JSON.stringify([id,value,mail,commands,rounds().map(round=>[round.run_id,round.phase,round.number])]);
       if(force || key!==drawnKey){drawnKey=key;drawBanner(value.incoming);drawSection(value);drawBackground();}}
-    catch(error){if(id===current()){banner.hidden=true;}}finally{reading=false;}
+    catch(error){if(!lifetime.alive)return;if(id===current()){banner.hidden=true;}}finally{reading=false;}
   };
   // Delegating: a new session gets the task as its draft, with fixed outputs handed over at their versions.
   const openDialog=async()=>{
@@ -145,9 +146,9 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const choices=value.materials.filter(item=>!item.error && ['本会话的固定成果','已选固定版本','其他会话的固定成果'].includes(item.source));
       if(!choices.length)list.append(el('p','coding-coop-note','这个会话还没有固定的报告或变更。可以先在"每轮成果"里固定。'));
       for(const item of choices){const label=el('label','mw-check-row'),check=el('input','mw-check');check.type='checkbox';check.value=JSON.stringify(item.reference);label.append(check,el('span','',item.title));list.append(label);}}
-    catch(error){list.replaceChildren(el('p','coding-coop-note',error.message));}
+    catch(error){if(!lifetime.alive)return;list.replaceChildren(el('p','coding-coop-note',error.message));}
   };
-  dialog.querySelector('form').addEventListener('submit',async event=>{
+  lifetime.listen(dialog.querySelector('form'),'submit',async event=>{
     event.preventDefault();const id=current(),message=dialog.querySelector('[data-coding-delegate-status]'),send=dialog.querySelector('[data-coding-delegate-create]');
     const task=dialog.querySelector('[data-coding-delegate-task]').value.trim(),title=dialog.querySelector('[data-coding-delegate-title]').value.trim();
     if(!task){message.textContent='请写下要委派的任务。';return;}
@@ -155,8 +156,8 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     send.disabled=true;message.textContent='正在创建委派…';
     try{const result=await api('/sessions/'+encodeURIComponent(id)+'/delegations','POST',{task,...(title?{title}:{}),materials});dialog.close();
       await refreshSessions();status('已委派给新会话「'+result.session.title+'」。对方接受并发送后才会执行。');await refresh(true);}
-    catch(error){message.textContent=error.message;}finally{send.disabled=false;}
+    catch(error){if(!lifetime.alive)return;message.textContent=error.message;}finally{send.disabled=false;}
   });
-  dialog.querySelector('[data-coding-delegate-cancel]').addEventListener('click',()=>dialog.close());
+  lifetime.listen(dialog.querySelector('[data-coding-delegate-cancel]'),'click',()=>dialog.close());
   return {refresh,openDialog,reset(){owner='';data=null;mail=[];commands=[];backgroundSection.hidden=true;backgroundSection.replaceChildren();banner.hidden=true;banner.replaceChildren();section.hidden=true;section.replaceChildren();}};
 }`;

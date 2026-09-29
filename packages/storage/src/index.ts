@@ -41,4 +41,5 @@ export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendI
 
 export * from "./adapters/search-storage.js";
 
+export { createEvidenceContentStore, type EvidenceContentStore } from "./adapters/evidence-content.js";
 export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";

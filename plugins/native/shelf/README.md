@@ -1,5 +1,7 @@
 # Shelf 置物架入口
 
+文件入库与提取任务沿原 Action 传递 signal/beforeEffect；PDF 预览、文字层和 OCR 由 Host 注入公共材料口。所有选中材料逐项提取并保留不完整提示，取消/撤权/副本变化不保存迟到结果或失败成果。视觉布局不变。
+
 把 DropAgent 的材料 / 结果 / 剪贴板工作台挂进 Molis 目录与主工作面，视觉与交互跟 DropAgent。
 
 包名：`@molis-ai/molis-work-plugin-shelf`。工作区内部包，通过仓库构建和 Host 装配使用。
@@ -50,6 +52,7 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.
   - 个人架子的编辑、隐藏或移除不改项目里的旧版本。
   - 提交时 Host 重读原对象并核对预览指纹，浏览器不能提交替代正文。
   - 旧确认不能覆盖后来的选择；跨项目、已归档或非自身的材料不能设为输出。
+  - URL 入库和剪贴板转材料必须将 Action signal / beforeEffect 传到 Module；抓取后复查再保存，源剪贴板已删除时不能生成迟到材料。
 - 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-coding-materials-http.test.ts tests/shelf-terminal-recovery.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/shelf-plugin.e2e.test.ts`
 - 相关手册：[docs/modules/shelf.md](../../../docs/modules/shelf.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
@@ -63,4 +66,6 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`
 
-Agent 列表与页面刷新不启动本机 CLI。已找到程序但尚未检查能力时显示“执行时检查”；动作确认保留登录与隔离未知的提示。用户真正执行动作时由原 Shelf Module 检查所选 Agent，不遍历启动其他程序。
+Agent 列表与页面刷新不启动本机 CLI。人工终端保留全部引擎；自动动作通过独立 AI 模型选择和共享 Prologue。确认页说明材料会发给所选模型、可能计费、原件不变以及无终端写入工具。本机提取单独声明无模型成本与权限。固定指令由插件 prompts.ts 登记，界面、MCP 与 Workflow 使用同一 Action 定义。
+
+Shelf 和结果面板使用 Host 注入的 UI 生命周期。卸载释放全局事件、请求、观察器及计时器；隐藏停止运行进度查询，返回时保留编辑/确认/运行中的交互，其余状态读取最新快照。迟到的旧快照不能覆盖较新的读取或命令结果。

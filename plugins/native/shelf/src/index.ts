@@ -39,3 +39,5 @@ export { SHELF_PLUGIN_ID, SHELF_PROJECT_PLUGIN_ID, shelfManifest } from "./manif
 export type { ShelfResultPorts } from "./plugin.js";
 export { SHELF_RUNTIME_ACTIONS, shelfRuntimeActions } from "./runtime-actions.js";
 export { createShelfPlugin } from "./plugin.js";
+
+export { SHELF_INSTRUCTIONS, shelfInstruction } from "./prompts.js";

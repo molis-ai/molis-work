@@ -112,31 +112,34 @@ html:has(.as-preview-page),body:has(.as-preview-page){margin:0;background:var(--
 
 /** Browser client; a string so the host can inline it. Receives the host's routes and the component renderer. */
 export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
+ const root=document.querySelector(host.mode==='preview'?'[data-studio-preview]':host.mode==='installed'?'[data-installed-plugin]':'[data-agent-studio]');
+ if(!root)return;const lifetime=host.mountPluginClient(root);if(!lifetime)return;
+
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const icon=n=>'<svg aria-hidden="true"><use href="#icon-'+n+'"/></svg>';
  const headers=m=>m==='GET'?{}:(globalThis.molisWorkControlHeaders?.()||{'content-type':'application/json'});
- async function api(path,method='GET',body){
-  const r=await fetch(host.api(path),{method,cache:'no-store',headers:headers(method),...(body===undefined?{}:{body:JSON.stringify(body)})});
-  const v=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(v.error||'操作失败，内容已保留'),{status:r.status});return v;
+ async function api(path,method='GET',body,signal){
+  const r=await lifetime.fetch(host.api(path),{method,signal,cache:'no-store',headers:headers(method),...(body===undefined?{}:{body:JSON.stringify(body)})});
+  const v=await r.json().catch(()=>({}));lifetime.assertCurrent(signal);if(!r.ok)throw Object.assign(new Error(v.error||'操作失败，内容已保留'),{status:r.status});return v;
  }
  let pending=0;globalThis.__molisPluginPending=0;
- const pluginCall=id=>async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{return (await api('/builds/'+id+'/call','POST',{componentId,binding,payload})).value}finally{pending--;globalThis.__molisPluginPending=pending}};
+ const pluginCall=id=>async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{return (await api('/builds/'+id+'/call','POST',{componentId,binding,payload})).value}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
  if(host.mode==='preview'){
-  const root=document.querySelector('[data-studio-preview]');
   const plugin=host.components({root,call:pluginCall(host.build)});
+ lifetime.own(()=>plugin.destroy());
   // Read-only probe for the host's acceptance run: what a part's query returns, to tell display from behavior problems.
   globalThis.__molisPluginRead=componentId=>pluginCall(host.build)(componentId,'read',{selection:{}});
-  api('/builds/'+host.build).then(async({build})=>{if(!build.design)throw new Error('这个草稿还没有确定方案');await plugin.update({contract:build.design.contract,nodes:build.nodes,connected:build.connected});globalThis.__molisPluginReady=true;}).catch(e=>{root.textContent=e.message;});
+  api('/builds/'+host.build).then(async({build})=>{if(!build.design)throw new Error('这个草稿还没有确定方案');await plugin.update({contract:build.design.contract,nodes:build.nodes,connected:build.connected});if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
   return;
  }
  if(host.mode==='installed'){
   // An installed plugin: the same renderer; every call goes to the plugin's own sandboxed process through the host.
-  const root=document.querySelector('[data-installed-plugin]');if(parent!==window)root.dataset.framed='';
-  const call=async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{const r=await fetch(host.call,{method:'POST',cache:'no-store',headers:headers('POST'),body:JSON.stringify({componentId,binding,payload})});const v=await r.json().catch(()=>({}));if(!r.ok)throw new Error(v.error||'操作失败，输入已保留');return v.value;}finally{pending--;globalThis.__molisPluginPending=pending}};
-  host.components({root,call}).update(host.view).then(()=>{globalThis.__molisPluginReady=true;}).catch(e=>{root.textContent=e.message;});
+  if(parent!==window)root.dataset.framed='';
+  const call=async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{const r=await lifetime.fetch(host.call,{method:'POST',cache:'no-store',headers:headers('POST'),body:JSON.stringify({componentId,binding,payload})});const v=await r.json().catch(()=>({}));lifetime.assertCurrent();if(!r.ok)throw new Error(v.error||'操作失败，输入已保留');return v.value;}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
+  const plugin=host.components({root,call});lifetime.own(()=>plugin.destroy());plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
   return;
  }
- const root=document.querySelector('[data-agent-studio]'),$=s=>root.querySelector(s);
+ const $=s=>root.querySelector(s);
  const feed=$('[data-as-feed]'),input=$('[data-as-input]'),canvas=$('[data-as-canvas]'),scroll=$('[data-as-scroll]'),pluginRoot=$('[data-as-plugin]'),empty=$('[data-as-empty]');
  let state={builds:[],releases:[],models:[],model:null,components:[],selectionAvailable:false},current=null,versions=[],preview=null,tab='build',target=null,source=null,frame=0,busy=false,notice='',openSteps=null,rendered='',seenWired=new Set(),firstPaint=true;
  // The UI Agent's placements, paced so each one can be seen: a part waits in the queue, is taken from the spec board and set in place.
@@ -151,6 +154,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const capabilityOf=id=>(state.capabilities||[]).find(c=>c.id===id&&c.offered!==false)||(state.capabilities||[]).find(c=>c.id===id)||{id,title:id,source:{kind:'platform'}};
  function usedCapabilities(b){const ops=b?.design?.contract.operations||[];return [...new Set(ops.flatMap(o=>o.effects?.capabilities||[]))].map(id=>{const using=ops.filter(o=>(o.effects?.capabilities||[]).includes(id));return {c:capabilityOf(id),done:using.every(o=>b.connected.includes(o.id)),ops:using.map(o=>o.id)};});}
  const plugin=host.components({root:pluginRoot,call:(id,binding,payload)=>current?pluginCall(current.id)(id,binding,payload):Promise.reject(new Error('还没有草稿')),inspect:id=>{if(tab!=='build'||!current?.design)return;target=id;schedule();input.focus();}});
+ lifetime.own(()=>plugin.destroy());
  const PHASE={draft:'草稿',designing:'设计中',clarifying:'等你回答',choosing:'比较方案',building:'构建中',paused:'已暂停',failed:'需要处理',ready:'可以试用'};
  // A build stopped on a question for the person is waiting for them, not paused.
  const phaseOf=b=>!b.active&&(b.pendingPlugins?.length||b.pendingPart)?'等你决定':PHASE[b.phase]||b.phase;
@@ -196,7 +200,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  function installHtml(b){const latest=versions[0],inst=installed(b);if(!latest)return '';
   if(!inst)return '<div class="as-install"><p class="as-small">v'+latest.version+' 已发布，安装后会出现在这个项目里，数据和试用分开保存。</p><div class="as-actions"><button type="button" class="as-button as-primary" data-as-install="'+latest.version+'">'+icon('download')+'安装到这个项目</button></div></div>';
   const upgrade=latest.version>inst.version?'<button type="button" class="as-button" data-as-upgrade="'+latest.version+'">'+icon('refresh')+'升级到 v'+latest.version+'</button>':'';
-  return '<div class="as-install"><p class="as-small"><span class="as-chip ok">已安装 v'+inst.version+'</span>'+(inst.state==='running'?'':' <span class="as-chip bad">'+esc(inst.state)+'</span>')+'</p><div class="as-actions"><a class="as-button as-primary" href="'+esc(host.plugin(inst.pluginId))+'" target="_blank" rel="noopener" data-as-open-plugin="'+esc(b.id)+'">'+icon('external')+'打开插件</a>'+upgrade+'<button type="button" class="as-button" data-as-uninstall>'+icon('trash')+'卸载</button></div></div>';}
+  return '<div class="as-install"><p class="as-small"><span class="as-chip ok">已安装 v'+inst.version+'</span>'+(inst.state==='running'?'':' <span class="as-chip bad">'+esc(inst.state)+'</span>')+'</p>'+(inst.error?'<p class="as-small" role="alert">'+esc(inst.error)+'</p>':'')+'<div class="as-actions"><a class="as-button as-primary" href="'+esc(host.plugin(inst.pluginId))+'" target="_blank" rel="noopener" data-as-open-plugin="'+esc(b.id)+'">'+icon('external')+'打开插件</a>'+upgrade+(inst.state==='disabled'?'<button type="button" class="as-button" data-as-install-enable>启用</button>':'')+'<button type="button" class="as-button" data-as-uninstall>'+icon('trash')+'卸载</button></div></div>';}
  // What an installation grants, grouped the way the person weighs it: its own data, what it reads (granted with the
  // installation), and what it changes outside itself (each listed).
  function effectsList(e){const own=[],reads=[],writes=[],other=[];if(e?.storage?.length)own.push(e.storage.includes('write')?'在本机保存和读取它自己的数据（只属于这个插件）':'读取它自己保存的数据');
@@ -210,8 +214,8 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   settle(d,resolve);});}
  // Resolve from the form's own submit (synchronous with the click) and from Escape; a dialog's close event is not
  // delivered while the page is in the background.
- function settle(d,resolve){root.append(d);d.querySelector('form').addEventListener('submit',e=>{e.preventDefault();const value=e.submitter?.value||'';d.close();d.remove();resolve(value);});
-  d.addEventListener('cancel',e=>{e.preventDefault();d.close();d.remove();resolve('');});d.showModal();}
+ function settle(d,resolve){const stop=lifetime.own(()=>{d.close();d.remove();resolve('');});root.append(d);d.querySelector('form').addEventListener('submit',e=>{e.preventDefault();const value=e.submitter?.value||'';d.close();d.remove();resolve(value);stop();});
+  d.addEventListener('cancel',e=>{e.preventDefault();d.close();d.remove();resolve('');stop();});d.showModal();}
  function consent(title,effects,confirmLabel){return new Promise(resolve=>{const d=document.createElement('dialog');d.className='as-dialog';const refs=effects?.secretRefs||[];
   d.innerHTML='<form method="dialog"><h3>'+esc(title)+'</h3>'+(effectsList(effects).map(([head,rows])=>'<p class="as-small as-muted">'+esc(head)+'</p><ul>'+rows.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>').join('')||'<p class="as-small">不需要任何额外权限。</p>')
    +(refs.length?'<p class="as-small as-muted">它要用到的密钥（保存在本机加密存储里，插件只拿到名字，看不到内容）</p>'+refs.map(r=>'<div class="as-secret" data-secret="'+esc(r)+'"><b>'+esc(r)+'</b><input data-secret-header value="Authorization" aria-label="'+esc(r)+' 放在哪个请求头" required><input type="password" data-secret-value placeholder="例如 Bearer sk-…" aria-label="'+esc(r)+' 的内容" required autocomplete="off"></div>').join(''):'')
@@ -265,7 +269,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  }
  /** What the rendered plugin actually uses from the catalog: every component carries its catalog slot. */
  function usedSlots(){const used=new Map();for(const el of pluginRoot.querySelectorAll('[data-slot]')){if(el.closest('[hidden]'))continue;const k=({'directory-row':'directory','button-loading-indicator':'spinner','collapsible':'accordion'})[el.dataset.slot]||el.dataset.slot;used.set(k,(used.get(k)||0)+1);}return used;}
- function renderBoard(){
+ function renderBoard(){if(!lifetime.alive)return;
   const b=current,board=$('[data-as-board]'),panel=$('[data-as-catalog-panel]');board.hidden=!b?.design;if(board.hidden){tip.hidden=true;panel.hidden=true;return;}
   // Only what has landed counts as placed; a part still waiting its turn is not on the page yet.
   const placed=b.nodes.filter(n=>revealed.has(n.id)),parts=new Map();for(const n of placed)parts.set(catalogKind(n.kind),(parts.get(catalogKind(n.kind))||0)+1);
@@ -307,7 +311,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   else if(!view)empty.innerHTML='<div class="as-skeleton" aria-label="正在理解需求"><div style="width:40%"></div><div class="tall"></div><div></div><div style="width:70%"></div></div><p style="margin-top:18px">“'+esc(b.brief.slice(0,120))+'”</p>';
   else if(!view.nodes.length)empty.innerHTML=b.pendingPlugins?.length?'<p>等你决定要不要启用'+b.pendingPlugins.map(p=>'「'+esc(p.title)+'」').join('、')+'，决定后 UI Agent 就开始放组件。</p>':active(b)?'<p>UI Agent 正在从规格板里挑第一个组件…</p>':'<p>还没有放组件。</p>';
   if(b?.design)stage(b);
-  const key=view?JSON.stringify(view):'';if(view&&key!==lastView){lastView=key;await plugin.update(view);}
+  const key=view?JSON.stringify(view):'';if(view&&key!==lastView){lastView=key;await plugin.update(view);lifetime.assertCurrent();}
   decorate();
  }
  /** New parts join the queue in the order they were placed; opening a build, or trying it, shows everything at once. */
@@ -315,11 +319,11 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   if(tab!=='build'||document.hidden){ids.forEach(id=>revealed.add(id));queue=[];return;}
   // The part being landed has left the queue but is not revealed yet; an update arriving meanwhile must not queue it again.
   for(const id of ids)if(!revealed.has(id)&&!queue.includes(id)&&id!==landing)queue.push(id);
-  if(queue.length&&!playing)void play();}
+  if(queue.length&&!playing)void play().catch(backgroundError);}
  /** A capability whose operations are all connected joins the wiring queue; in the background it is simply ticked. */
  function stageWires(b){for(const {c,done,ops} of usedCapabilities(b)){if(!done||wiredCaps.has(c.id)||wires.some(w=>w.cap===c.id))continue;
    if(tab!=='build'||document.hidden)wiredCaps.add(c.id);else wires.push({cap:c.id,title:c.title,ops});}
-  if(wires.length&&!wiringPlay)void playWires();}
+  if(wires.length&&!wiringPlay)void playWires().catch(backgroundError);}
  /** D22: the code agent takes the capability from the capability board, carries it to the part that calls it, and the board ticks it. */
  async function playWires(){while(playing)await wait(150);if(wiringPlay)return;wiringPlay=true;const token=playToken,code=$('[data-as-pointer="code"]'),frameEl=$('[data-as-frame]');
   try{while(wires.length&&token===playToken){
@@ -333,10 +337,10 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
    if(el){const view=scroll.getBoundingClientRect(),box=el.getBoundingClientRect();if(box.top<view.top+40||box.bottom>view.bottom-90){el.scrollIntoView({block:'center',behavior:'smooth'});await wait(380);}
     frameAt(el,'landing','代码 Agent · '+w.title);aim(code,el,'接上「'+w.title+'」','right');await wait(680);click(code);}
    if(token!==playToken)break;
-   wires.shift();wiredCaps.add(w.cap);wiring=null;renderBoard();const done=$('[data-as-board] .as-cap[data-cap="'+CSS.escape(w.cap)+'"]');done?.setAttribute('data-as-arrive','');setTimeout(()=>done?.removeAttribute('data-as-arrive'),700);
+   wires.shift();wiredCaps.add(w.cap);wiring=null;renderBoard();const done=$('[data-as-board] .as-cap[data-cap="'+CSS.escape(w.cap)+'"]');done?.setAttribute('data-as-arrive','');lifetime.timeout(()=>done?.removeAttribute('data-as-arrive'),700);
    if(el)frameAt(el,'placed','代码 Agent · 已接上「'+w.title+'」');await wait(560);frameEl.hidden=true;
   }}finally{wiringPlay=false;wiring=null;code.hidden=true;if(!playing)frameEl.hidden=true;renderBoard();}}
- const wait=ms=>new Promise(r=>setTimeout(r,ms));
+ const wait=ms=>lifetime.delay(ms);
  const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+CSS.escape(id)+'"]');if(!el)return null;if(el.hidden)return pluginRoot.querySelector('[data-pc-action="'+CSS.escape(id)+'"]');const box=el.getBoundingClientRect();return box.width&&box.height?el:pluginRoot.querySelector('[data-pc-open="'+CSS.escape(id)+'"]')||el;};
  function click(pointer){pointer.removeAttribute('data-click');void pointer.offsetWidth;pointer.setAttribute('data-click','');}
  async function play(){playing=true;const token=++playToken,ui=$('[data-as-pointer="ui"]'),frameEl=$('[data-as-frame]');
@@ -354,17 +358,17 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
     frameAt(el,'landing','UI Agent · '+name);aim(ui,el,'放入「'+(node.props.title||name)+'」','corner');await wait(680);click(ui);}
    // 3. It lands and the spec board ticks it off.
    landing=null;picking=null;revealed.add(id);renderBoard();decorate();
-   const placed=partEl(id);if(placed){const root=placed.closest('[data-component-id]');root?.setAttribute('data-as-arrive','');setTimeout(()=>root?.removeAttribute('data-as-arrive'),700);frameAt(placed,'placed','UI Agent · '+name);}
+   const placed=partEl(id);if(placed){const root=placed.closest('[data-component-id]');root?.setAttribute('data-as-arrive','');lifetime.timeout(()=>root?.removeAttribute('data-as-arrive'),700);frameAt(placed,'placed','UI Agent · '+name);}
    await wait(560);frameEl.hidden=true;
-  }}finally{if(token===playToken){playing=false;landing=null;picking=null;frameEl.hidden=true;renderBoard();decorate();if(wires.length&&!wiringPlay)void playWires();}}}
- function frameAt(el,mode,label){const f=$('[data-as-frame]'),box=el.getBoundingClientRect(),area=scroll.getBoundingClientRect(),was=f.hidden;f.hidden=false;f.dataset.mode=mode;f.querySelector('span').textContent=label;
+  }}finally{if(token===playToken){playing=false;landing=null;picking=null;frameEl.hidden=true;renderBoard();decorate();if(wires.length&&!wiringPlay)void playWires().catch(backgroundError);}}}
+ function frameAt(el,mode,label){if(!lifetime.alive)return;const f=$('[data-as-frame]'),box=el.getBoundingClientRect(),area=scroll.getBoundingClientRect(),was=f.hidden;f.hidden=false;f.dataset.mode=mode;f.querySelector('span').textContent=label;
   if(was)f.style.transition='none';f.style.transform='translate('+Math.round(box.left-area.left+scroll.scrollLeft-6)+'px,'+Math.round(box.top-area.top+scroll.scrollTop-6)+'px)';f.style.width=Math.round(box.width+12)+'px';f.style.height=Math.round(box.height+12)+'px';if(was){void f.offsetWidth;f.style.transition='';}}
- function decorate(){
+ function decorate(){if(!lifetime.alive)return;
   const b=current;const nodes=[...pluginRoot.querySelectorAll('[data-component-id]')];
   for(const el of nodes){const id=el.dataset.componentId;el.toggleAttribute('data-as-target',id===target);
    el.toggleAttribute('data-as-queued',queue.includes(id));el.toggleAttribute('data-as-landing',landing===id);
    const node=b?.nodes.find(n=>n.id===id),ops=[node?.read?.operationId,node?.submit?.operationId].filter(Boolean),wired=ops.length&&ops.every(o=>b.connected.includes(o));
-   if(wired&&!seenWired.has(id)){seenWired.add(id);if(tab==='build'){el.setAttribute('data-as-wired','');setTimeout(()=>el.removeAttribute('data-as-wired'),1700);}}}
+   if(wired&&!seenWired.has(id)){seenWired.add(id);if(tab==='build'){el.setAttribute('data-as-wired','');lifetime.timeout(()=>el.removeAttribute('data-as-wired'),1700);}}}
   pointers();
  }
  /** Point at an element from inside the canvas: above it (the spec board), at its top-right area (a part), or at its right edge. */
@@ -373,7 +377,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   let x=where==='above'?left+box.width/2-6:where==='right'?left+box.width-28:left+Math.min(box.width*.62,box.width-40),y=where==='above'?top-62:where==='right'?top+Math.min(box.height*.5,44):top+12;
   x=Math.max(scroll.scrollLeft+6,Math.min(x,scroll.scrollLeft+area.width-width-12));
   if(was)pointer.style.transition='none';pointer.style.transform='translate('+Math.round(x)+'px,'+Math.round(y)+'px)';if(was){void pointer.offsetWidth;pointer.style.transition='';}}
- function pointers(){
+ function pointers(){if(!lifetime.alive)return;
   const b=current,ui=$('[data-as-pointer="ui"]'),code=$('[data-as-pointer="code"]');
   if(!b?.design||tab!=='build'){ui.hidden=true;code.hidden=true;$('[data-as-frame]').hidden=true;return;}
   if(!playing){
@@ -386,24 +390,25 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   const bound=writing&&b.nodes.find(n=>revealed.has(n.id)&&(n.read?.operationId===writing.operationId||n.submit?.operationId===writing.operationId));
   if(wiringPlay)return;if(bound)aim(code,partEl(bound.id),'编写 '+writing.operationId,'right');else code.hidden=true;
  }
- function renderAll(){renderHead();renderFeed();renderBoard();void renderCanvas();
+ function renderAll(){if(!lifetime.alive)return;renderHead();renderFeed();renderBoard();void renderCanvas().catch(backgroundError);
   const s=$('[data-as-status]'),b=current;s.innerHTML='<span>'+(!b?'':active(b)?(b.active.stage==='design'?'主线设计正在工作':'UI Agent 与代码 Agent 正在协作'):b.phase==='ready'?'全部功能已接通，可以试用和发布':b.phase==='clarifying'?'等你回答问题':b.phase==='choosing'?'等你选择方案':b.pendingPart?'等你选择组件':b.pendingPlugins?.length?'等你决定要不要启用插件':PHASE[b.phase]||'')+'</span><span>'+(b?.connected.length?'已接通 '+b.connected.length+'/'+(b.design?.contract.operations.length||0)+' 项功能 · 输入会保留':'')+'</span>';}
- // Animation frames do not run in a hidden page; render there directly so the page never shows a stale build.
- function schedule(){if(frame)return;const paint=()=>{frame=0;renderAll();};frame=document.hidden?setTimeout(paint,0):requestAnimationFrame(paint);}
- document.addEventListener('visibilitychange',()=>{if(!document.hidden){pointers();void refreshState();}});
+ // Hidden views read the authoritative build again on return.
+ function schedule(){if(frame||!lifetime.visible)return;const paint=()=>{frame=0;renderAll();};frame=lifetime.frame(paint);}
+ let viewSignal,opening=0,initialized=false;
+ const backgroundError=e=>{if(lifetime.alive&&!viewSignal?.aborted){notice=e.message;schedule();}};
  function renderBuilds(){const select=$('[data-as-builds]');select.innerHTML='<option value="">'+(state.builds.length?'我的插件（'+state.builds.length+'）':'还没有插件')+'</option>'+state.builds.map(b=>'<option value="'+esc(b.id)+'"'+(b.id===current?.id?' selected':'')+'>'+esc(b.design?.title||b.title)+' · '+esc(phaseOf(b))+'</option>').join('');
   const model=$('[data-as-model]');model.innerHTML=(state.model?'':'<option value="">选择模型</option>')+state.models.map(m=>'<option value="'+esc(m.provider_id+'\n'+m.model_id)+'"'+(m.provider_id===state.model?.provider_id&&m.model_id===state.model?.model_id?' selected':'')+'>'+esc(m.label.endsWith(m.model_id)&&m.label!==m.model_id?m.model_id+' · '+m.label.slice(0,-m.model_id.length).replace(/\s*·\s*$/,''):m.label)+'</option>').join('');
   const setup=$('[data-as-model-setup]');if(setup)setup.hidden=state.models.length>0;}
- function subscribe(id){source?.close();source=null;if(!id)return;source=new EventSource(host.api('/builds/'+id+'/events'));source.onmessage=e=>{const b=JSON.parse(e.data);if(b.id!==current?.id)return;if(b.design?.contract.revision!==current.design?.contract.revision)seenWired=new Set();current=b;
+ function subscribe(id){source?.close();source=null;if(!id||!lifetime.visible)return;const subscribed=source=new EventSource(host.api('/builds/'+id+'/events'));source.onmessage=e=>{if(source!==subscribed||!lifetime.visible)return;const b=JSON.parse(e.data);if(b.id!==current?.id)return;if(b.design?.contract.revision!==current.design?.contract.revision)seenWired=new Set();current=b;
    const listed=state.builds.find(x=>x.id===b.id);if(listed&&(listed.phase!==b.phase||(listed.design?.title||listed.title)!==(b.design?.title||b.title))){Object.assign(listed,{phase:b.phase,title:b.title,design:b.design});renderBuilds();}
    schedule();};}
- async function open(id){target=null;preview=null;rendered='';lastView='';seenWired=new Set();firstPaint=true;tab='build';playToken++;playing=false;queue=[];landing=null;picking=null;revealed=new Set();wiredCaps=new Set();wires=[];wiring=null;
+ async function open(id,signal){const ticket=++opening;target=null;preview=null;rendered='';lastView='';seenWired=new Set();firstPaint=true;tab='build';playToken++;playing=false;queue=[];landing=null;picking=null;revealed=new Set();wiredCaps=new Set();wires=[];wiring=null;
   if(!id){current=null;versions=[];subscribe(null);history.replaceState(null,'',location.pathname);schedule();return;}
-  const v=await api('/builds/'+id);current=v.build;versions=v.versions;current.nodes.forEach(n=>revealed.add(n.id));usedCapabilities(current).forEach(x=>{if(x.done)wiredCaps.add(x.c.id);});subscribe(id);history.replaceState(null,'',location.pathname+'?build='+encodeURIComponent(id));renderBuilds();schedule();}
- async function refreshState(){state=await api('/state');renderBuilds();}
- async function run(work){if(busy)return;busy=true;notice='';schedule();try{await work();}catch(e){notice=e.message;}finally{busy=false;schedule();}}
+  const v=await api('/builds/'+id,'GET',undefined,signal);if(ticket!==opening)return;current=v.build;versions=v.versions;current.nodes.forEach(n=>revealed.add(n.id));usedCapabilities(current).forEach(x=>{if(x.done)wiredCaps.add(x.c.id);});subscribe(id);history.replaceState(null,'',location.pathname+'?build='+encodeURIComponent(id));renderBuilds();schedule();}
+ async function refreshState(signal){state=await api('/state','GET',undefined,signal);renderBuilds();}
+ async function run(work){if(busy||!lifetime.alive)return;busy=true;notice='';schedule();try{await work();}catch(e){notice=e.message;}finally{busy=false;schedule();}}
  async function act(action,extra={}){const v=await api('/builds/'+current.id+'/action','POST',{action,revision:current.revision,...extra});if(v.build)current=v.build;if(v.release){versions=(await api('/builds/'+current.id)).versions;notice='';}if(v.deleted){await refreshState();await open(null);}}
- root.addEventListener('click',e=>{const el=e.target.closest('button,a');if(!el||!root.contains(el))return;
+ lifetime.listen(root,'click',e=>{const el=e.target.closest('button,a');if(!el||!root.contains(el))return;
   // Framed in the workbench, the plugin opens in place as a workbench stage rather than in a new window.
   if(el.dataset.asOpenPlugin&&parent!==window){e.preventDefault();parent.postMessage({type:'molis-studio-open-plugin',surface:'app-'+el.dataset.asOpenPlugin},location.origin);return;}
   if(el.matches('[data-as-model-setup]')){if(parent!==window){e.preventDefault();parent.postMessage({type:'molis-work:open-settings',href:'/settings/models'},location.origin);}return;}
@@ -422,15 +427,16 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
     await act('install',{version:v.version,grants:{consent:true}});await refreshState();});});return;}
   if(el.dataset.asUpgrade){const v=versions.find(x=>x.version===Number(el.dataset.asUpgrade)),inst=installed(current);const go=()=>run(async()=>{await act('upgrade',{version:v.version,grants:{consent:true}});await refreshState();});
    if(covered(v?.permissions,inst?.effects))go();else consent('升级到 v'+v.version+' 需要新的权限',v?.permissions,'确认并升级').then(ok=>{if(ok)go();});return;}
+  if(el.hasAttribute('data-as-install-enable')){const inst=installed(current);if(inst)run(async()=>{await act('enable',{version:inst.version});await refreshState();});return;}
   if(el.hasAttribute('data-as-uninstall')){const inst=installed(current);if(!inst)return;ask('卸载「'+(current.design?.title||'')+'」','卸载后它会从这个项目里移除。它保存的数据可以留着，以后重新安装还能看到。',[['keep','卸载，保留数据',true],['drop','卸载并删除数据'],['cancel','取消']]).then(choice=>{if(choice==='keep'||choice==='drop')run(async()=>{await act('uninstall',{version:inst.version,grants:{keepData:choice==='keep'}});await refreshState();if(parent!==window)parent.postMessage({type:'molis-studio-plugin-removed',surface:'app-'+current.id},location.origin);});});return;}
   if(el.hasAttribute('data-as-remove')){ask('删除「'+(current.design?.title||current.title)+'」这个草稿？','构建目录和试用数据会一起删除，已发布并安装的插件不受影响。',[['remove','删除',true],['cancel','取消']]).then(choice=>{if(choice==='remove')run(()=>act('remove'));});return;}
   if(el.hasAttribute('data-as-new')){run(()=>open(null));input.focus();}
  });
- feed.addEventListener('click',e=>{const summary=e.target.closest?.('[data-as-steps] > summary');if(summary)openSteps=!summary.parentElement.open;});
- $('[data-as-builds]').addEventListener('change',e=>run(()=>open(e.target.value||null)));
- $('[data-as-model]').addEventListener('change',e=>{const[provider_id,model_id]=e.target.value.split('\n');if(!provider_id)return;run(async()=>{await api('/settings','POST',{provider_id,model_id});await refreshState();});});
- input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('[data-as-composer]').requestSubmit();}});
- $('[data-as-composer]').addEventListener('submit',e=>{e.preventDefault();const text=input.value.trim();if(!text||busy)return;
+ lifetime.listen(feed,'click',e=>{const summary=e.target.closest?.('[data-as-steps] > summary');if(summary)openSteps=!summary.parentElement.open;});
+ lifetime.listen($('[data-as-builds]'),'change',e=>run(()=>open(e.target.value||null)));
+ lifetime.listen($('[data-as-model]'),'change',e=>{const[provider_id,model_id]=e.target.value.split('\n');if(!provider_id)return;run(async()=>{await api('/settings','POST',{provider_id,model_id});await refreshState();});});
+ lifetime.listen(input,'keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('[data-as-composer]').requestSubmit();}});
+ lifetime.listen($('[data-as-composer]'),'submit',e=>{e.preventDefault();const text=input.value.trim();if(!text||busy)return;
   const go=fresh=>run(async()=>{
    if(!current||fresh){const v=await api('/builds','POST',{brief:text});input.value='';await refreshState();await open(v.build.id);return;}
    const node=target&&current.nodes.find(n=>n.id===target);await act('message',{message:node?'［'+node.purpose+'］'+text:text});input.value='';target=null;});
@@ -438,11 +444,20 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   if(current?.design&&!target&&/^(我|帮我|请)?(要|想|需要|来)?(做|建|创建|新建|开发|搭)(一个|个|一款|款)/.test(text))
    ask('做一个新插件，还是修改「'+current.design.title+'」？','“'+text.slice(0,80)+'”',[['new','做成新插件',true],['modify','修改「'+current.design.title+'」'],['cancel','取消']]).then(choice=>{if(choice==='new')go(true);else if(choice==='modify')go(false);});
   else go(false);});
- scroll.addEventListener('scroll',()=>{if(!playing)pointers();},{passive:true});addEventListener('resize',()=>pointers());
- const board=$('[data-as-board]');board.addEventListener('pointerover',e=>{const b=e.target.closest?.('.as-part');if(b)showTip(b);});board.addEventListener('pointerleave',()=>{tip.hidden=true;});
- board.addEventListener('focusin',e=>{const b=e.target.closest?.('.as-part');if(b)showTip(b);});board.addEventListener('focusout',()=>{tip.hidden=true;});
- const catalogPanel=$('[data-as-catalog-panel]');catalogPanel.addEventListener('pointerover',e=>{const b=e.target.closest?.('.as-part');if(b)showTip(b);});catalogPanel.addEventListener('pointerleave',()=>{tip.hidden=true;});
- new MutationObserver(()=>{if(!frame)(document.hidden?setTimeout:requestAnimationFrame)(()=>decorate());}).observe(pluginRoot,{childList:true,subtree:true});
+ lifetime.listen(scroll,'scroll',()=>{if(!playing)pointers();},{passive:true});lifetime.listen(window,'resize',()=>pointers());
+ const board=$('[data-as-board]');lifetime.listen(board,'pointerover',e=>{const b=e.target.closest?.('.as-part');if(b)showTip(b);});lifetime.listen(board,'pointerleave',()=>{tip.hidden=true;});
+ lifetime.listen(board,'focusin',e=>{const b=e.target.closest?.('.as-part');if(b)showTip(b);});lifetime.listen(board,'focusout',()=>{tip.hidden=true;});
+ const catalogPanel=$('[data-as-catalog-panel]');lifetime.listen(catalogPanel,'pointerover',e=>{const b=e.target.closest?.('.as-part');if(b)showTip(b);});lifetime.listen(catalogPanel,'pointerleave',()=>{tip.hidden=true;});
+ lifetime.observe(new MutationObserver(()=>{if(!frame&&lifetime.visible)lifetime.frame(()=>decorate());}),pluginRoot,{childList:true,subtree:true});
  // Coming in without a plugin named in the address starts a new one; earlier ones are a click away, never opened for you.
- run(async()=>{await refreshState();const id=new URLSearchParams(location.search).get('build');await open(id&&state.builds.some(b=>b.id===id)?id:null);});
+ lifetime.whenVisible(signal=>{
+  viewSignal=signal;
+  void (async()=>{
+   await refreshState(signal);
+   if(!initialized){const id=new URLSearchParams(location.search).get('build');await open(id&&state.builds.some(b=>b.id===id)?id:null,signal);initialized=true;}
+   else if(current){const id=current.id,ticket=opening,v=await api('/builds/'+id,'GET',undefined,signal);if(current?.id!==id||opening!==ticket)return;current=v.build;versions=v.versions;current.nodes.forEach(n=>revealed.add(n.id));subscribe(id);}
+   schedule();
+  })().catch(backgroundError);
+  return()=>{source?.close();source=null;playToken++;playing=false;wiringPlay=false;landing=null;picking=null;queue=[];wires=[];wiring=null;lifetime.cancelFrame(frame);frame=0;};
+ });
 }`;

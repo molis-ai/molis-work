@@ -1,3 +1,4 @@
+import { observeGitOperations } from "./git-operation-notifications.js";
 import { feedRuleActions, feedSourceActions, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
@@ -77,6 +78,7 @@ import { resolveWebRequest } from "./web-routing.js";
 import { handleLocalCatalogWebRequest } from "./web-catalog.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
+import { isPluginEventManagementPath } from "./plugin-event-http.js";
 import { handleCodingPluginHttp, type CodingSurfacePorts } from "./coding-surface.js";
 
 export async function handleMolisWorkWebRequest(
@@ -187,11 +189,9 @@ export async function handleMolisWorkWebRequest(
           return;
         }
 
-        const codingServices: Pick<CodingSurfacePorts, "capabilities" | "actions" | "execution" | "homeDirectory" | "characterWorkspaces" | "characterSpawn"> = {
-          // Metadata inspection travels with the directory: whichever page opens the Plugin Builder first (the workbench
-          // render, or the studio itself), its capability catalog is the project's whole directory, not an empty list.
-          actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id,
-            inspect: caller => localHost.inspectActions(caller, hostReference) },
+        const codingServices: Pick<CodingSurfacePorts, "capabilities" | "actions" | "execution" | "homeDirectory" | "characterWorkspaces" | "characterSpawn" | "observeGitOperations"> = {
+          actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
+          observeGitOperations: listener => observeGitOperations(agentHost.reviews, options.boardId, listener),
           characterSpawn: request => ptyHost.spawn(request),
           characterWorkspaces: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => options.project ? catalog.listWorkspaceDirectory(options.project.project_id) : []),
           homeDirectory: serverOptions.homeDirectory,
@@ -223,7 +223,7 @@ export async function handleMolisWorkWebRequest(
           actorId: "web-user", goalTitle: (id) => coordinator.goalQueries.getGoal(options.boardId, id)?.title,
           escapeHtml: (value) => String(value), translate: (value) => value }, controlToken)) return;
         const runtimePluginRoute = /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\//u.exec(url.pathname);
-        const runtimeUpdatesRoute = url.pathname === "/api/plugins/runtime/updates";
+        const runtimeUpdatesRoute = url.pathname === "/api/plugins/runtime/updates" || isPluginEventManagementPath(url.pathname);
         const runtimeEntry = runtimePluginRoute
           ? BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === runtimePluginRoute[1]) : undefined;
         if (runtimeUpdatesRoute || (runtimePluginRoute && (!runtimeEntry || runtimeEntry.manifest.kind === "app" || runtimeEntry.manifest.routes?.length))) {

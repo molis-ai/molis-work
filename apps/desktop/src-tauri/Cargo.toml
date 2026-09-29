@@ -9,11 +9,6 @@ rust-version = "1.77"
 name = "molis-work-desktop"
 path = "../adapters/tauri/src/main.rs"
 
-# On-device text recognition, spawned by the shelf for image materials.
-[[bin]]
-name = "molis-work-ocr"
-path = "../adapters/tauri/src/ocr_main.rs"
-
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

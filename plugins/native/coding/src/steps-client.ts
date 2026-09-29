@@ -1,5 +1,6 @@
 /** User assessments stay separate from original SDK reports and never mutate the graph. */
 export const CODING_STEPS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
+  const lifetime=ports.lifetime;
   const {q,api,current,status,refresh,prepareRework}=ports,dialog=q('[data-coding-step-dialog]'),detail=q('[data-coding-step-detail]'),notes=q('[data-coding-step-notes]'),message=q('[data-coding-step-status]');
   const accept=q('[data-coding-step-accept]'),reject=q('[data-coding-step-reject]'),rework=q('[data-coding-step-rework]'),reload=q('[data-coding-step-refresh]');
   let owner='',runId='',stepId='',data=null,entry=null,node=null,verdict=null,busy=false,ticket=0;
@@ -30,7 +31,7 @@ export const CODING_STEPS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       else detail.append(el('p','用户尚未评价。'));
       if(!notes.value && verdict?.notes)notes.value=verdict.notes;
       const run=data.runs.find(run=>run.ref.run_id===runId);message.textContent=['completed','failed','stopped','cancelled'].includes(run.phase)?'原执行已经结束；步骤回报保留原状态，请分别核对。':'本轮仍在执行，结束后可以评价；可重新读取最新回报。';
-    }catch(error){if(at===ticket){entry=null;node=null;verdict=null;message.textContent=error.message;}}
+    }catch(error){if(!lifetime.alive)return;if(at===ticket){entry=null;node=null;verdict=null;message.textContent=error.message;}}
     finally{if(at===ticket){busy=false;update();}}
   };
   const save=async(action)=>{
@@ -39,11 +40,11 @@ export const CODING_STEPS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       action,notes:notes.value,expected_revision:verdict?.revision||0,board_id:entry.board.board_id,board_version:entry.board.version});
       if(at!==ticket)return;try{sessionStorage.removeItem(key());}catch{}await read();if(id===current())await refresh();
       if(at===ticket)message.textContent=action==='accepted'?'已保存用户验收；原模型回报保持。':'返工说明已保存；可据此调整下一版计划。';
-    }catch(error){if(at===ticket)message.textContent=error.message;}
+    }catch(error){if(!lifetime.alive)return;if(at===ticket)message.textContent=error.message;}
     finally{if(at===ticket){busy=false;update();}}
   };
-  notes.addEventListener('input',remember);accept.addEventListener('click',()=>void save('accepted'));reject.addEventListener('click',()=>void save('needs-work'));
-  reload.addEventListener('click',()=>void read());q('[data-coding-step-close]').addEventListener('click',()=>dialog.close());dialog.addEventListener('close',()=>{remember();ticket++;busy=false;});
-  rework.addEventListener('click',()=>{if(busy||verdict?.status!=='needs-work')return;const reason='原执行 '+runId+' / 计划修订 '+entry.revision+' / '+stepId+' 需返工：'+verdict.notes;dialog.close();try{prepareRework(reason);}catch(error){status(error.message,true);}});
+  lifetime.listen(notes,'input',remember);lifetime.listen(accept,'click',()=>void save('accepted'));lifetime.listen(reject,'click',()=>void save('needs-work'));
+  lifetime.listen(reload,'click',()=>void read());lifetime.listen(q('[data-coding-step-close]'),'click',()=>dialog.close());lifetime.listen(dialog,'close',()=>{remember();ticket++;busy=false;});
+  lifetime.listen(rework,'click',()=>{if(busy||verdict?.status!=='needs-work')return;const reason='原执行 '+runId+' / 计划修订 '+entry.revision+' / '+stepId+' 需返工：'+verdict.notes;dialog.close();try{prepareRework(reason);}catch(error){if(!lifetime.alive)return;status(error.message,true);}});
   return {sync(id){if(dialog.open && owner!==id)dialog.close();},async open(id,run,step){if(busy){status('原步骤请求仍在处理，请稍后重试。',true);return;}ticket++;owner=id;runId=run;stepId=step;data=null;entry=null;node=null;verdict=null;detail.replaceChildren();notes.value='';try{notes.value=sessionStorage.getItem(key())||'';}catch{}dialog.showModal();await read();}};
 }`;

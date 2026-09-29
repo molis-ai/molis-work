@@ -1,4 +1,5 @@
 import type { PersistedJob, SqliteJobRunner } from "./sqlite-job-runner.js";
+import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 
 export class JobExecutionError extends Error {
   readonly name = "JobExecutionError";
@@ -12,7 +13,7 @@ export interface JobHandlerControl {
   /** Write to the business repositories only while this worker still owns the job. */
   commit<T>(write: () => T): T;
   saveCheckpoint(checkpoint: unknown, event?: { type: string; payload: unknown }): void;
-  /** Includes remote cancellation and a lost/expired execution lease. */
+  /** Includes local shutdown, remote cancellation and a lost/expired execution lease. */
   isCancelled(): boolean;
   signal: AbortSignal;
 }
@@ -48,38 +49,33 @@ export class LocalWorker {
     let settle = () => {};
     this.settlement = new Promise(resolve => { settle = resolve; });
     this.active = { id: job.id, controller };
-    let leaseLost = false;
-    const loseLease = () => {
-      leaseLost = true;
-      clearInterval(heartbeat);
-      controller.abort(new Error("JOB_LEASE_NOT_OWNED"));
-    };
-    const heartbeat = setInterval(() => {
-      try {
-        if (!this.jobs.renewLease(job.id)) loseLease();
-      } catch { loseLease(); }
-    }, this.jobs.renewalIntervalMs);
-    heartbeat.unref();
+    const lifetime = createExecutionLifetime({
+      signal: controller.signal,
+      monitor: { intervalMs: this.jobs.renewalIntervalMs, check: () => {
+        if (!this.jobs.renewLease(job.id)) throw new Error("JOB_LEASE_NOT_OWNED");
+      } },
+    });
+    const isCancelled = () => lifetime.signal.aborted || !this.jobs.ownsLease(job.id);
     try {
       await handler(job, {
         commit: write => {
-          if (leaseLost) throw new Error("JOB_LEASE_NOT_OWNED");
+          lifetime.assertActive();
           return this.jobs.withLease(job.id, write);
         },
         saveCheckpoint: (checkpoint, event) => {
-          if (leaseLost) throw new Error("JOB_LEASE_NOT_OWNED");
+          lifetime.assertActive();
           this.jobs.saveCheckpoint(job.id, checkpoint, event);
         },
-        isCancelled: () => leaseLost || !this.jobs.ownsLease(job.id),
-        signal: controller.signal,
+        isCancelled,
+        signal: lifetime.signal,
       });
-      if (leaseLost || !this.jobs.ownsLease(job.id)) return true;
+      if (isCancelled()) return true;
       this.jobs.complete(job.id);
     } catch (error) {
-      if (leaseLost || !this.jobs.ownsLease(job.id)) return true;
+      if (isCancelled()) return true;
       this.jobs.fail(job.id, error instanceof JobExecutionError ? error.code : "JOB_EXECUTION_FAILED");
     } finally {
-      clearInterval(heartbeat);
+      lifetime.dispose();
       this.active = undefined;
       settle();
     }

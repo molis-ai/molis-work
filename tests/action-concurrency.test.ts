@@ -48,3 +48,23 @@ for (const scope of ["home", "project"] as const) test(`${scope} caller cannot f
     await assert.rejects(client.invoke({ ...caller, permissions: [] }, serial, {}), { code: "actions.forbidden" });
   } finally { released.resolve(); await first; await host.close(); }
 });
+
+test("Alchemist reuse assessment waits beside same-project edits using its production declaration", { timeout: 5000 }, async () => {
+  const { alchemistActions } = await import("@molis-ai/molis-work-plugin-alchemist");
+  const entered = gate(), released = gate(); let writes = 0;
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const slow = alchemistActions.reuseAssess, edit = define("test.edit-during-reuse", "project", false);
+  const caller: ActionCallContext = { actor_id: "user", project_id: "a", audience: "user", permissions: [...slow.action.permissions, "edit"] };
+  host.actionRegistry(ref).registerProvider({ provider: { provider_id: "fixture", title: "fixture", kind: "system" }, definitions: [slow, edit], handlers: [
+    { ...slow, handle: async () => { entered.resolve(); await released.promise; return { recommendations: [], runtimeLabel: "fixture" }; } },
+    { ...edit, handle: () => ++writes },
+  ] });
+  const client = host.actionClient(ref);
+  const pending = client.invoke(caller, slow, { intent: "检验适用性", references: [], methodIds: [] });
+  try {
+    await entered.promise;
+    const writing = client.invoke(caller, edit, {});
+    await setImmediate(); assert.equal(writes, 1, "an awaited assessment must not hold the project queue");
+    await writing; released.resolve(); await pending;
+  } finally { released.resolve(); await pending; await host.close(); }
+});

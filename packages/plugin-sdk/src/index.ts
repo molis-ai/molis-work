@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetimeOptions } from "@molis-ai/molis-work-kernel";
 import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -15,7 +16,7 @@ export { defineSearchEntriesAction, defineSearchQueryAction, bindSearchEntriesHa
 export type { SearchEntry, SearchEntriesInput, SearchEntriesPage, SearchQueryInput, SearchQueryHit, SearchQueryResult, SearchOpenTarget, SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEventWindow, HomeEvent, HomeEventCollection, HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionSubject, ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
-export type { ActionResultView, ActionResultPresentation, ActionDefinition, ActionCallContext, ActionHandlerBinding, ActionSceneDefinition, ActionSceneHandlerBinding,
+export type { ActionExecutionPolicy, ActionResultView, ActionResultPresentation, ActionDefinition, ActionCallContext, ActionHandlerBinding, ActionSceneDefinition, ActionSceneHandlerBinding,
   ActionSceneReference, ActionSceneBinding, ActionSceneTargetDefinition, ActionSceneTarget, ActionSceneConfigureOptions, ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,

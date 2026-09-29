@@ -7,7 +7,8 @@
 import type { SandboxEffects, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { pluginSchemaAt, type PluginComponentIntent, type PluginComponentPlan, type PluginInputValue, type PluginOperationBinding } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign, AgentProposal, BrowserAcceptance } from './agent-model.js';
-import { MODEL_STAND_IN_PREFIX } from './agent-capabilities.js';
+import type { CatalogEntry } from './agent-catalog.js';
+import { STUDIO_CAPABILITIES, MODEL_STAND_IN_PREFIX } from './agent-capabilities.js';
 
 type Json = Record<string, unknown>;
 const object = (value: unknown): value is Json => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -122,7 +123,7 @@ function kindOf(value: unknown, where: string): 'query' | 'command' {
   return fail(where, 'kind 只能是 query（只读）或 command（会改数据）');
 }
 /** Storage and the declared platform abilities; a command that writes its storage also reads it. */
-export function normalizeEffects(raw: unknown, kind: 'query' | 'command', where: string): SandboxEffects {
+export function normalizeEffects(raw: unknown, kind: 'query' | 'command', where: string, capabilities: readonly CatalogEntry[] = STUDIO_CAPABILITIES): SandboxEffects {
   const effects: Record<string, Set<string>> = {};
   const add = (key: string, value: string) => { (effects[key] ??= new Set()).add(value); };
   const storage = (value: unknown) => {
@@ -148,7 +149,7 @@ export function normalizeEffects(raw: unknown, kind: 'query' | 'command', where:
   if (effects.storage?.has('write')) add('storage', 'read');
   if (kind === 'query' && (effects.storage?.has('write') || effects.events?.size)) fail(where, '查询（query）不能写入存储或发布事件；会改数据的操作用 command');
   // Reads run on their own whenever the page opens; a model call there would cost the person on every visit.
-  if (kind === 'query' && effects.capabilities?.has('model.generate')) fail(where, '查询（query）不能调用模型：打开页面就会自动调用、产生费用；调用模型放进 command，由按钮触发，回答存下来再由 query 列出');
+  if (kind === 'query' && capabilities.some(item => item.execution?.cost === 'metered' && effects.capabilities?.has(item.id))) fail(where, '查询（query）不能调用收费能力：打开页面就会自动调用、产生费用；请放进 command，由按钮触发，回答存下来再由 query 列出');
   return Object.fromEntries(Object.entries(effects).map(([key, values]) => [key, [...values].sort()])) as SandboxEffects;
 }
 function normalizeErrors(raw: unknown, where: string): SandboxOperationContract['errors'] {
@@ -256,7 +257,7 @@ function withinOutput(examples: SandboxOperationContract['examples'], output: Sa
     return JSON.stringify(kept) === JSON.stringify(example.output) ? example : { input: example.input, outputIncludes: kept };
   });
 }
-function normalizeOperation(raw: unknown, index: number, dropped: string[], withExamples: boolean): SandboxOperationContract {
+function normalizeOperation(raw: unknown, index: number, dropped: string[], withExamples: boolean, capabilities: readonly CatalogEntry[] = STUDIO_CAPABILITIES): SandboxOperationContract {
   const where = `第 ${index + 1} 个操作`;
   if (!object(raw)) return fail(where, '操作写成对象');
   const id = slug(pick(raw, 'id', 'name', 'operationId'), where), at = `操作 ${id}`;
@@ -265,7 +266,7 @@ function normalizeOperation(raw: unknown, index: number, dropped: string[], with
   if (input.type !== 'object') fail(at, 'input 必须是对象（字段表）');
   const output = raw.output === undefined ? { type: 'null' as const } : expandType(raw.output, at + ' 的 output', dropped);
   const base = { id, kind, description: text(raw.description).slice(0, 300) || id, input, output,
-    errors: normalizeErrors(raw.errors, at), effects: normalizeEffects(pick(raw, 'effects', 'uses'), kind, at) };
+    errors: normalizeErrors(raw.errors, at), effects: normalizeEffects(pick(raw, 'effects', 'uses'), kind, at, capabilities) };
   // A query's inputs are what the person filters by: one its examples leave out is optional, not missing.
   if (withExamples && kind === 'query' && input.type === 'object' && Array.isArray(raw.examples)) {
     const left = (input.required ?? []).filter(field => (raw.examples as unknown[]).some(example => object(example) && (!object(example.input) || !(field in example.input))));
@@ -570,11 +571,11 @@ function referenceProblems(pages: unknown, operations: SandboxOperationContract[
   if (unused.length) problems.push(`操作 ${unused.join('、')} 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）`);
   return problems;
 }
-export function expandDesign(raw: unknown, base: { id: string; title: string; description: string; rationale: string; journey: string[] }, pluginId: string, revision: string, dropped: string[]): AgentDesign {
+export function expandDesign(raw: unknown, base: { id: string; title: string; description: string; rationale: string; journey: string[] }, pluginId: string, revision: string, dropped: string[], capabilities: readonly CatalogEntry[] = STUDIO_CAPABILITIES): AgentDesign {
   if (!object(raw)) return fail('细化方案', '写成对象 {"operations":…, "pages":…, "acceptance":…}');
   const design = object(raw.design) ? raw.design as Json : raw;
   const operationsRaw = Array.isArray(design.operations) ? design.operations : object(design.contract) && Array.isArray((design.contract as Json).operations) ? (design.contract as Json).operations as unknown[] : fail('细化方案', '缺少 operations');
-  const operations = (operationsRaw as unknown[]).map((operation, index) => normalizeOperation(operation, index, dropped, true));
+  const operations = (operationsRaw as unknown[]).map((operation, index) => normalizeOperation(operation, index, dropped, true, capabilities));
   if (new Set(operations.map(operation => operation.id)).size !== operations.length) fail('细化方案', '操作标识重复');
   unifyChoices(operations, dropped);
   const pagesRaw = withParts(design.pages ?? (object(design.contract) ? (design.contract as Json).pages : undefined), design.parts), problems = referenceProblems(pagesRaw, operations);

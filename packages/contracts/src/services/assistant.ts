@@ -277,7 +277,8 @@ export interface AssistantCard {
   capability_id: string;
   effect: "read" | "write" | "irreversible";
   /** The prepared input, field by field as the person reads it; `editable` ones can be changed before running. */
-  fields: Array<{ key: string; label: string; value: string; editable: boolean }>;
+  /** `options`: the choices of a field that has them (the value sent is `raw`; `value` is its label). */
+  fields: Array<{ key: string; label: string; value: string; editable: boolean; raw?: string; options?: Array<{ value: string; label: string }> }>;
   missing: Array<{ field: string; question: string }>;
   status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
   /** What happened, or why not, in the owner's words. */

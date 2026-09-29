@@ -345,6 +345,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "没有匹配的能力；换个词，或直接说要做什么": "No matching capability; try other words, or just say what to do",
   "用量": "Usage",
   "已移到": "Moved to ",
+  "请选择": "Choose…",
   "建议记住一条": "Suggested something to keep",
   "可以记住（等你认可）": "Worth keeping (waiting for you)",
   "不用": "No thanks",

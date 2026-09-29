@@ -1,7 +1,7 @@
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegatedWork, AgentDelegation, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, actionFieldLabel, actionFieldOptions, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
@@ -216,6 +216,11 @@ function summarizeResult(result: unknown): string {
 
 type SchemaProperties = Record<string, { title?: string; description?: string; properties?: SchemaProperties; type?: unknown }>;
 const labelOf = (properties: SchemaProperties | undefined, key: string) => actionFieldLabel(key, properties?.[key]);
+/** A field with declared choices is shown by its label and edited by picking one; the raw value is what runs. */
+const choices = (declared: unknown, value: unknown) => {
+  const options = actionFieldOptions(declared);
+  return options ? { options, ...(typeof value === "string" ? { raw: value } : {}) } : {};
+};
 const plainObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value) && (value as { type?: unknown }).type !== "doc";
 
 export function cardView(card: StoredCard): AssistantCard {
@@ -231,11 +236,12 @@ export function cardView(card: StoredCard): AssistantCard {
       if (plainObject(value)) {
         for (const [child, inner] of Object.entries(value)) {
           if (inner === undefined || inner === null || inner === "") continue;
-          fields.push({ key: `${key}.${child}`, label: labelOf(properties[key]?.properties, child), value: actionFieldValue(child, inner), editable: editable || card.editable.includes(`${key}.${child}`) });
+          fields.push({ key: `${key}.${child}`, label: labelOf(properties[key]?.properties, child), value: actionFieldValue(child, inner, properties[key]?.properties?.[child]), editable: editable || card.editable.includes(`${key}.${child}`),
+            ...choices(properties[key]?.properties?.[child], inner) });
         }
         continue;
       }
-      fields.push({ key, label: labelOf(properties, key), value: value !== undefined ? actionFieldValue(key, value) : "", editable });
+      fields.push({ key, label: labelOf(properties, key), value: value !== undefined ? actionFieldValue(key, value, properties[key]) : "", editable, ...choices(properties[key], value) });
     }
   } else fields.push({ key: "", label: "内容", value: actionFieldValue("", card.input), editable: false });
   return { card_id: card.card_id, revision: card.revision, run_id: card.run_id, title: card.title, summary: card.summary, provider: card.provider,

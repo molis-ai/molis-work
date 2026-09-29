@@ -325,9 +325,9 @@ export function readableInput(schema: Record<string, unknown>, input: unknown): 
     // One level of nesting reads field by field, as the person would name them.
     if (value && typeof value === "object" && !Array.isArray(value) && (value as { type?: unknown }).type !== "doc") {
       return Object.entries(value as Record<string, unknown>).flatMap(([child, inner]) => inner === undefined || inner === null || inner === "" ? []
-        : [{ label: actionFieldLabel(child, properties[key]?.properties?.[child]), value: clip(actionFieldValue(child, inner)) }]);
+        : [{ label: actionFieldLabel(child, properties[key]?.properties?.[child]), value: clip(actionFieldValue(child, inner, properties[key]?.properties?.[child])) }]);
     }
-    return [{ label: actionFieldLabel(key, properties[key]), value: clip(actionFieldValue(key, value)) }];
+    return [{ label: actionFieldLabel(key, properties[key]), value: clip(actionFieldValue(key, value, properties[key])) }];
   });
 }
 

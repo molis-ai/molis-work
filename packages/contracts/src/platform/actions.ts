@@ -657,9 +657,26 @@ export function actionFieldLabel(key: string, declared?: { title?: string; descr
   return declared?.description && declared.description.length <= 24 ? declared.description : key;
 }
 
-/** A field's value as a person reads it: rich text as its text, minutes-of-day as a time, the rest as it is. */
-export function actionFieldValue(key: string, value: unknown): string {
-  if (typeof value === "string") return value;
+/**
+ * The choices a field declares, each with the words a person reads: `oneOf`/`anyOf` entries `{ const, title }`, or an
+ * `enum` whose description names them as `value=label` (e.g. "personal=个人，project=当前项目"). Null when none.
+ */
+export function actionFieldOptions(declared?: unknown): Array<{ value: string; label: string }> | null {
+  if (!declared || typeof declared !== "object") return null;
+  const schema = declared as { enum?: unknown; oneOf?: unknown; anyOf?: unknown; description?: unknown };
+  const listed = [schema.oneOf, schema.anyOf].find(Array.isArray) as unknown[] | undefined;
+  if (listed?.length && listed.every(item => item && typeof item === "object" && typeof (item as { const?: unknown }).const === "string")) {
+    return listed.map(item => ({ value: (item as { const: string }).const, label: typeof (item as { title?: unknown }).title === "string" ? (item as { title: string }).title : (item as { const: string }).const }));
+  }
+  if (!Array.isArray(schema.enum) || !schema.enum.length || !schema.enum.every(item => typeof item === "string")) return null;
+  const named = new Map<string, string>();
+  if (typeof schema.description === "string") for (const [, value, label] of schema.description.matchAll(/([A-Za-z0-9_.-]+)\s*=\s*([^，,；;、\n]+)/g)) named.set(value!, label!.trim());
+  return (schema.enum as string[]).map(value => ({ value, label: named.get(value) ?? value }));
+}
+
+/** A field's value as a person reads it: a declared choice by its label, rich text as its text, minutes-of-day as a time, the rest as it is. */
+export function actionFieldValue(key: string, value: unknown, declared?: unknown): string {
+  if (typeof value === "string") return actionFieldOptions(declared)?.find(option => option.value === value)?.label ?? value;
   if (typeof value === "number" && /_time$/.test(key) && Number.isInteger(value) && value >= 0 && value < 1440) {
     return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
   }

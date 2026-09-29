@@ -423,7 +423,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const asked = card.missing.find((item) => item.field === field.key);
         list.append(el("dt", "", asked ? asked.question : L(field.label)));
         const cell = el("dd");
-        if (field.editable && open) {
+        if (field.editable && open && field.options) {
+          // A declared choice is picked by its words; what runs is its value.
+          const control = el("select", "mw-input");
+          if (!field.raw) control.append(el("option", "", L("请选择")));
+          field.options.forEach((option) => { const item = el("option", "", option.label); item.value = option.value; item.selected = option.value === field.raw; control.append(item); });
+          control.setAttribute("aria-label", asked ? asked.question : field.label);
+          inputs[field.key] = control; cell.append(control);
+        } else if (field.editable && open) {
           const control = el(field.value.includes("\n") || field.value.length > 60 ? "textarea" : "input", "mw-input");
           control.value = field.value; control.setAttribute("aria-label", asked ? asked.question : field.label);
           if (control.tagName === "TEXTAREA") control.rows = Math.min(8, field.value.split("\n").length + 1);

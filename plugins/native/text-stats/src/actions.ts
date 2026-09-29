@@ -25,7 +25,7 @@ export function textStatsActionHandlers(context: PluginStartContext): ActionHand
       const record = context.services?.inputs?.read("text");
       if (!record) {
         const state = context.services?.inputs?.status();
-        return { view: state?.status === "missing" && state.reason ? unavailableStats() : waitingStats() };
+        return { view: state?.status === "missing" && state.reason?.code === "content_unavailable" ? unavailableStats() : waitingStats() };
       }
       if (record.availability !== "available" || record.lifecycle_state !== "active") return { view: unavailableStats() };
       return { view: projectTextStats({ snapshot: parseFileSnapshot(record.payload), source_plugin_id: record.producer_plugin_id, content_version: record.version }) };

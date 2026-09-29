@@ -75,6 +75,10 @@ test("Text Stats never counts retained payload from an unavailable or archived A
     const publish = () => host.outputs("files").publish({ port: "before", content: { kind: "inline", payload: {
       workspace: { workspace_id: "ws", name: "项目" }, path: ["note.txt"], text: "中文🙂\n",
     } } }).artifact;
+    publish(); await host.platform.wiring.drain();
+    host.outputs("files").invalidate("before", "已切换工作区，请固定新快照");await host.platform.wiring.drain();
+    const reset = await host.state("text-stats");
+    assert.equal(reset.phase, "waiting");assert.equal(reset.characters, undefined);assert.equal(reset.source, undefined);
     const first = publish(); await host.platform.wiring.drain();
     const ready = await host.state("text-stats");
     assert.equal(ready.phase, "ready"); assert.equal(ready.characters, 4); assert.equal(ready.utf8_bytes, 11); assert.equal(ready.lines, 1);

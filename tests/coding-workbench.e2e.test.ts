@@ -89,6 +89,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click('[data-companion="git"] [data-git-refresh]');
   await waitFor("document.querySelector('[data-companion=" + '"git"' + "] [data-git-list] button')");
+  await waitFor("!document.querySelector('[data-companion=git] [data-git-refresh]').disabled");
   await click('[data-companion="git"] [data-git-list] button');
   await waitFor("document.querySelector('[data-companion=" + '"git"' + "] [data-git-diff] [data-phase=ready]')");
   assert.equal(await evaluate("document.querySelectorAll('[data-companion=git] [data-git-list] .is-selected').length"), 1);
@@ -100,6 +101,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await open("coding");
   await click(`${coding} [data-coding-face="files"]`);
   await waitFor(`document.querySelector('${coding} [data-files-tree] [title="note.txt"]')`);
+  await waitFor(`!document.querySelector('${coding} [data-files-refresh]').disabled && !document.querySelector('${coding} [data-git-refresh]').disabled`);
   await click(`${coding} [data-files-tree] [title="note.txt"]`);
   await waitFor(`!document.querySelector('${coding} [data-files-text]').hidden && document.querySelector('${coding} [data-files-text]').value.startsWith('second')`);
   // Layout can settle a frame after the text arrives under a loaded suite; a reader that never shows still fails here.

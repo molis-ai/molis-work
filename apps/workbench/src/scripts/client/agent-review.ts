@@ -10,18 +10,22 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
     const reject=row.querySelector('[data-agent-review-reject]');if(reject)reject.textContent=hasFeedback?'拒绝并反馈':'拒绝';
     const input=row.querySelector('[data-agent-review-feedback]');if(input)input.disabled=busy.has(id);
   };
-  const read=async(path,body) => {
-    const response=await fetch(host.route(path),body ? {method:'POST',headers:host.headers(),body:JSON.stringify(body)} : {});
-    const data=await response.json(); if(!response.ok) throw new Error(data.error || '审查暂不可用');return data;
+  const current=(state,control)=>state.lifetime.alive && control.lifetime.alive && control.lifetime.visible && !control.signal?.aborted && state.control.lifetime===control.lifetime && state.control.signal===control.signal;
+  const read=async(path,body,control) => {
+    const {lifetime,signal}=control;
+    const response=await control.requestLifetime.fetch(host.route(path),body ? {method:'POST',headers:host.headers(),body:JSON.stringify(body),signal:lifetime.signal} : {signal});
+    const data=await response.json();control.requestLifetime.assertCurrent();lifetime.assertCurrent(body?undefined:signal);if(!response.ok) throw new Error(data.error || '审查暂不可用');return data;
   };
   // scope.runSession lists every run of one runtime session; scope.limit keeps open items plus that much settled history.
-  const show=async(container,refs,sessionId,workspaceId,scope) => {
-    if(!container) return;
+  const show=async(container,refs,sessionId,workspaceId,scope,control) => {
+    if(!container || !control.lifetime.visible || control.signal?.aborted) return;
     let state=mounts.get(container);
     if(!state) {
-      state={key:'',ticket:0,refs:[],more:0}; mounts.set(container,state);
-      container.addEventListener('click',event=>{if(!event.target.closest('[data-review-more]'))return;state.more+=50;void show(container,state.refs,state.sessionId,state.workspaceId,state.scope);});
-      container.addEventListener('input',event=>{
+      const lifetime=host.mountPluginClient(container);if(!lifetime)return;
+      state={key:'',ticket:0,refs:[],more:0,control,lifetime}; mounts.set(container,state);
+      lifetime.own(()=>{state.ticket++;if(mounts.get(container)===state)mounts.delete(container);});
+      state.lifetime.listen(container,'click',event=>{if(!event.target.closest('[data-review-more]'))return;state.more+=50;void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);});
+      state.lifetime.listen(container,'input',event=>{
         if(event.target.matches('[data-agent-review-feedback]')){
           const row=event.target.closest('[data-agent-review-item]');saveFeedback(row.dataset.agentReviewItem,event.target.value);syncActions(row);return;
         }
@@ -29,30 +33,30 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         const row=event.target.closest('[data-agent-review-item]');
         recoveryDrafts.set(row.dataset.agentReviewItem,{reason:row.querySelector('[data-review-recovery-reason]')?.value || '',confirmed:row.querySelector('[data-review-recovery-confirm]')?.checked===true});
       });
-      container.addEventListener('click',async event=>{
+      state.lifetime.listen(container,'click',async event=>{
         const recoveryButton=event.target.closest('[data-agent-review-inspect],[data-review-recheck],[data-review-confirm-not]');
         if(recoveryButton && container.contains(recoveryButton)) {
           const row=recoveryButton.closest('[data-agent-review-item]'), review_id=row.dataset.agentReviewItem;
           if(busy.has(review_id))return;
-          const scopeKey=state.key, scope={workspaceId:state.workspaceId,sessionId:state.sessionId};
+          const control=state.control,scopeKey=state.key, scope={workspaceId:state.workspaceId,sessionId:state.sessionId};
           const holder=row.querySelector('[data-review-recovery]');
           busy.add(review_id); recoveryButton.disabled=true;
           try {
             let data;
-            if(recoveryButton.hasAttribute('data-agent-review-inspect'))data=await read('/api/agent/reviews/recovery?review_id='+encodeURIComponent(review_id));
+            if(recoveryButton.hasAttribute('data-agent-review-inspect'))data=await read('/api/agent/reviews/recovery?review_id='+encodeURIComponent(review_id),undefined,control);
             else {
               const confirm=recoveryButton.hasAttribute('data-review-confirm-not');
               const panel=row.querySelector('[data-review-recovery-view]');
               const confirmed=row.querySelector('[data-review-recovery-confirm]')?.checked===true;
               const reason=row.querySelector('[data-review-recovery-reason]')?.value || '';
               if(confirm && (!confirmed || !reason.trim()))throw new Error('请填写具体依据并确认原操作未发生');
-              data=await read('/api/agent/reviews/recovery',{review_id,action:confirm?'not-happened':'refresh',confirmed,reason,revision:panel?.dataset.reviewRevision});
+              data=await read('/api/agent/reviews/recovery',{review_id,action:confirm?'not-happened':'refresh',confirmed,reason,revision:panel?.dataset.reviewRevision},control);
             }
-            if(scopeKey!==state.key || !container.contains(row))return;
+            if(!current(state,control) || scopeKey!==state.key || !container.contains(row))return;
             if(!data.view.receipt.effect_uncertain) {
               recoveryDrafts.delete(review_id);
               await host.onDecision?.({...scope,receipt:data.view.receipt,error:null});
-              await show(container,state.refs,state.sessionId,state.workspaceId,state.scope);
+              if(!current(state,control))return;await show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);
             } else {
               holder.innerHTML=data.html;
               const draft=recoveryDrafts.get(review_id);
@@ -61,12 +65,12 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
               if(check)check.checked=false;
             }
           } catch(error) {
-            if(scopeKey===state.key && container.contains(row)) {
+            if(current(state,control) && scopeKey===state.key && container.contains(row)) {
               let note=holder.querySelector('[data-review-recovery-error]');
               if(!note){note=document.createElement('p');note.dataset.reviewRecoveryError='';note.setAttribute('role','alert');holder.append(note);}
               note.textContent=error.message;
             }
-          } finally {busy.delete(review_id);recoveryButton.disabled=false;}
+          } finally {busy.delete(review_id);if(control.lifetime.alive)recoveryButton.disabled=false;}
           return;
         }
         const button=event.target.closest('[data-agent-review-approve],[data-agent-review-reject]');
@@ -76,18 +80,20 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         const row=button.closest('[data-agent-review-item]'),note=row.querySelector('[data-agent-review-feedback]')?.value.trim() || '';
         if(button.dataset.agentReviewApprove && note)return;
         busy.add(review_id); syncActions(row);
-        const scope={workspaceId:state.workspaceId,sessionId:state.sessionId};let receipt=null,decisionError=null;
+        const control=state.control,scopeKey=state.key,scope={workspaceId:state.workspaceId,sessionId:state.sessionId};let receipt=null,decisionError=null;
         const remember=Boolean(button.dataset.agentReviewApprove && row.querySelector('[data-agent-review-remember]')?.checked);
-        try { ({receipt}=await read('/api/agent/reviews/decide',{review_id,decision:button.dataset.agentReviewApprove ? 'approve' : 'reject',...(note?{note}: {}),...(remember?{remember:'session'}:{})}));if(!receipt.delivery_error)saveFeedback(review_id,''); }
+        try { ({receipt}=await read('/api/agent/reviews/decide',{review_id,decision:button.dataset.agentReviewApprove ? 'approve' : 'reject',...(note?{note}: {}),...(remember?{remember:'session'}:{})},control));if(!receipt.delivery_error)saveFeedback(review_id,''); }
         catch(error) {
           decisionError=error.message;
+          if(!current(state,control) || scopeKey!==state.key)return;
           const row=button.closest('[data-agent-review-item]');
           let note=row.querySelector('[data-review-error]');
           if(!note){note=document.createElement('p');note.dataset.reviewError='';note.className='agent-review-error';note.setAttribute('role','alert');row.append(note);}
           note.textContent=error.message;
-        } finally {busy.delete(review_id);syncActions(row);await host.onDecision?.({...scope,receipt,error:decisionError});void show(container,state.refs,state.sessionId,state.workspaceId,state.scope);}
+        } finally {busy.delete(review_id);if(current(state,control) && scopeKey===state.key){syncActions(row);await host.onDecision?.({...scope,receipt,error:decisionError});if(current(state,control))void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);}else if(current(state,state.control)){void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);}}
       });
     }
+    control={...control,requestLifetime:state.lifetime};state.control=control;
     const key=JSON.stringify([refs,sessionId,workspaceId,scope?.runSession || null]); const ticket=++state.ticket;
     if(state.key!==key){container.replaceChildren();delete container.dataset.reviewHtml;state.key=key;state.more=0;}
     state.refs=refs;state.sessionId=sessionId;state.workspaceId=workspaceId;state.scope=scope;
@@ -95,8 +101,8 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       const query=new URLSearchParams();if(sessionId)query.set('session_id',sessionId);if(workspaceId)query.set('workspace_id',workspaceId);refs.forEach(ref=>query.append('run_id',ref.run_id));
       if(scope?.runSession)query.set('run_session_id',scope.runSession);if(scope?.limit)query.set('limit',String(scope.limit+state.more));
-      const data=await read('/api/agent/reviews?'+query);
-      if(ticket!==state.ticket || key!==state.key) return;
+      const data=await read('/api/agent/reviews?'+query,undefined,control);
+      if(!current(state,control) || ticket!==state.ticket || key!==state.key) return;
       container.hidden=data.reviews.length===0;
       container.querySelector('[data-review-load-error]')?.remove();
       if(container.dataset.reviewHtml!==data.html) {
@@ -123,7 +129,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(data.omitted>0){if(!more){more=document.createElement('button');more.type='button';more.className='mw-btn mw-btn--ghost';more.dataset.reviewMore='';}container.append(more);more.textContent='显示更早的 '+data.omitted+' 条审查记录';}
       else more?.remove();
     } catch(error) {
-      if(ticket!==state.ticket) return;
+      if(!current(state,control) || ticket!==state.ticket) return;
       container.hidden=false;
       let note=container.querySelector('[data-review-load-error]');
       if(!note){note=document.createElement('p');note.dataset.reviewLoadError='';note.setAttribute('role','alert');container.prepend(note);}

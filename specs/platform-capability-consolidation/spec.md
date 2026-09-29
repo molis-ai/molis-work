@@ -24,7 +24,7 @@
 | 08 | 领域提交到插件事件缺桥接 → 已提交事实通知、独立订阅身份/生命周期 | 既有领域 journal / 输入图及 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭、unknown 明确恢复，以及 Artifact journal 到输入图的通知已实现并验证；Coding/Git 实际生产通知仍待接通 |
 | 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 02；待实现 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
-| 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已完成实现与工程/浏览器验证：Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板 |
+| 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已覆盖 Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板，并补齐 Files/Git、独立 Diff/Text Stats 与 Host 审查的真实挂载/隐藏/卸载链；工程与 Chrome 验证通过，最终跨消费者复核随 12 |
 | 12 | 旧路径、文档、测试预期漂移 → 删除重复并更新手册/Skill/消费者示例 | 对应模块 + 开发规范 | 随每项更新，最终总验收 |
 
 不能新增无消费者的框架、第二调度引擎、RAG/向量库、全局聊天数据库或全量视觉重做。领域提示词、来源选择、业务状态机、结果有效性和未知副作用恢复由业务 owner 决定。插件只能走公开 Contract，不 import 另一插件内部实现。MCP 注册不授予执行权限。
@@ -307,4 +307,23 @@ Native UI 兼容证据：Goals Manifest 明确只声明静态产品位置，内�
 
   整体构建通过。首轮 6 文件 31/32 捕获 Text Stats 状态退化，修复产品反馈后重新整体构建，最终 41 文件 252/252，无跳过；69 包边界 errors 为空，diff whitespace 检查通过。真实 SQLite 两连接与外层事务验证提交/回滚、跨项目隔离、重新激活和关闭；慢处理与启动等待验证旧输入零晚写入；已有真实 Coding Chrome 生命周期路径通过。日志 `/tmp/platform-artifact-bridge-final-build.log`、`/tmp/platform-artifact-bridge-regression.log`、`/tmp/platform-artifact-bridge-boundary.log`。未调用付费模型或外部服务，没有新增视觉布局，未代表用户本人验收。
 
+11 后续调用链复核：Workbench 的独立 companions 仍直接创建 MutationObserver，Files/Git 的嵌入和独立客户端仍使用无 signal 的 Host request、直接监听及定时器。Git 的 summary/operations/conflict 和审查视图还缺少等待后的显示世代检查；切页、重新进入和同一 DOM 重新挂载可能显示旧结果或重复监听。因此此前 11 的完成表述只覆盖已列出的主客户端，伴随面板仍待补齐。
+
+继续使用 UI Host 现有 mountPluginClient：Files/Git 各自以目录节点拥有生命周期，不占用 Coding 根节点；结果面板随对应目录视图清理。独立 Diff/Text Stats 的挂载与显示由同一机制管理，删除私有 observer。GET 查询传递可见性 signal，写命令保留挂载 signal；写入返回只在原显示世代仍有效时更新 UI，不自动重放，不把隐藏/卸载当作服务端回滚。重新进入读取当前持久状态，操作中按钮和错误/重试保留原语义。Host 审查渲染使用调用方生命周期，容器因空内容而 hidden 不得阻断后续读取，也不得把插件赋予的 UI 生命周期当成执行授权。
+
+验证实际 Chrome 中独立/嵌入 Files/Git、Diff/Text Stats 的隐藏祖先、慢响应、重新进入、卸载、同一 DOM 重挂以及单次点击只有一次请求；慢审查查询和决定返回不写入新的视图，仍以真实 Host 结果读取恢复。保留已有文件快照、Git 审查与写入回归。整体构建后按包要求回归，边界检查随后执行；此改动不宣称生产事件自动刷新已接通。
+
+相关回归发现上轮 Artifact 输入修复将 Text Stats 的所有 missing.reason 都映射为快照丢失。区分主动撤销当前输出（例如切换项目目录）与固定 Artifact 内容确已不可用：前者等待重新固定、后者提示重新捕获，均不得继续统计旧内容。保留原 Files HTTP 跨工作区断言，并增加与 Artifact 失效/归档并列的输入撤销用例，不能把旧断言改成与错误实现一致。
+
+Git 刷新原本在 summary/operations 尚未读取完时解除 busy，随后插入 source-control 区域会移动已有行。将该读取纳入同一刷新世代，完成后再显示变化行和解除 busy；浏览器操作等本次 Files/Git 刷新结束，再点击真实行，仍要求正文/差异可见与返回焦点正确，不用固定延时替代完成条件。
+
 09 初步代码证据：Shelf 的 `pdf.ts` 自行解析 PDF 字符流，项目导入在 Host 使用 pdfjs，Jelly 的原生 PDF/OCR/音视频工具仍放在业务插件目录，HTML 文字/Markdown 提取也分散在 Shelf 与 Jelly Host。后续将解析器和系统工具归 Host，保留已有上传引用、各入口大小与取消策略、页码/时间定位和完整性表达；不能把 Pages 的任务卡/知识页生成或 Cognia 的业务引用一起搬入解析层。尚未实施该迁移。
+
+
+- 伴随面板生命周期补齐：Files/Git 目录子树、独立 Diff/Text Stats 与 Host 审查使用现有 UI Host 挂载，删除私有 observer、裸监听和复制反馈 timer。读取绑定当前可见性，写入绑定挂载；隐藏后的旧读取、决定、错误和后续查询不能借用新显示世代。审查容器因空数据隐藏仍可读取，新显示世代只从 Host 重新取事实，不消费旧决定回调或重放命令。Git summary/operations 纳入原刷新并保持提交草稿。补充修复上轮 Text Stats 对主动失效输出的状态误判：切换工作区等待新快照，真正不可读/归档的固定内容提示不可用，均不统计旧数据。README、UI 手册和开发 Skill 已同步。
+
+  整体构建通过。首轮 34 文件 147 项中 144 通过、3 失败：Text Stats 真实状态退化已修复并保留原 HTTP 断言；Coding 操作在面板加载未结束时点击到移动后的控件，修复 Git 刷新完成边界，测试等明确 busy 结束后仍要求真实可见正文与正确返回焦点；新增浏览器夹具先删 Chrome 数据再关进程造成清理失败，改为关闭服务器/浏览器后删除。原有通过项的证据保留，相关改动继续定向验证，没有放宽业务断言。
+
+  最终影响面 8 文件复验 25 项：24 通过，余下新增夹具缺 UTF-8 声明使中文加载提示读成乱码；仅修正夹具编码后完整重跑该文件 5/5，零跳过。其余复验证据仍有效。覆盖实际 Workbench/Host 的文件快照、跨目录、嵌入/独立 Files/Git、Diff/Text Stats、窄屏返回、慢响应/请求中止、同 DOM 重挂单次派出，以及审查决定跨隐藏不重放、普通轮询不丢决定回调、空列表恢复。实际 Chrome 的 390px 深色 Files/Git 阅读截图已查看，沿用现有布局，无溢出；位于 `.tmp/coding-component-board-v2/{files,git}-mobile-dark.png`。验证使用隔离 SQLite/Home 和受控 HTTP 夹具，没有调用真实付费模型/外部服务，不代表用户本人验收。
+
+  69 包边界检查 errors 为空，diff whitespace 检查通过。日志 `/tmp/platform-companion-lifecycle-final-build.log`、`/tmp/platform-companion-lifecycle-regression.log`、`/tmp/platform-companion-lifecycle-final-check.log`、`/tmp/platform-companion-lifecycle-browser-check.log`、`/tmp/platform-companion-lifecycle-boundary.log`。回归期间未改源码/脚本/package.json/Skill，也未并发构建；失败处理后再构建和复验。08 Coding/Git 的生产事件通知、09 公共材料提取与最终跨消费者验收继续保留未完成，不把本次生命周期补齐当作整个 Goal 完成。

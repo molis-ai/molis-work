@@ -28,6 +28,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   if (!root || !directory) return;
   const lifetime=host.mountPluginClient(root);if(!lifetime)return;
   let viewSignal;
+  const showReviews=(container,refs,sessionId,workspaceId,scope)=>host.showReviews?.(container,refs,sessionId,workspaceId,scope,{lifetime,signal:viewSignal});
   const q = (selector) => root.querySelector(selector);
   const turns = q('[data-coding-turns]'), input = q('[data-coding-task]');
   const resultVisibility=()=>q('[data-coding-results-open]').setAttribute('aria-expanded',String(root.dataset.codingResults==='true'));
@@ -103,7 +104,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let earlierRuns=[],earlierFingerprint='',olderViews=new Map(),olderPlanEntries=[],olderSubagents=[],windowRuns=[],allRuns=[],pageLoading=false;
   const resetWindow=()=>{earlierRuns=[];earlierFingerprint='';olderViews=new Map();olderPlanEntries=[];olderSubagents=[];windowRuns=[];allRuns=[];pageLoading=false;};
   const subagentCards = (${CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT})({lifetime,api,current:()=>current,status,refresh:()=>readCurrent(),timeline,
-    showReviews:(container,refs,sid)=>host.showReviews?.(container,refs,sid),sessionId:()=>runtimeSessionId,
+    showReviews:(container,refs,sid)=>showReviews(container,refs,sid),sessionId:()=>runtimeSessionId,
     parentLive:(run)=>!terminal(run.phase),prefill:(text)=>{const next=input.value.trim()?input.value+'\\n\\n'+text:text;input.value=next;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();},
     openInPanel:(childId)=>{root.dataset.codingResults='true';const row=q('[data-coding-subagents] details[data-child="'+CSS.escape(childId)+'"]');if(row){row.open=true;row.scrollIntoView({block:'center'});row.querySelector('textarea')?.focus({preventScroll:true});}}});
   const usageMeter = (${CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,status,refresh:()=>readCurrent()});
@@ -754,7 +755,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const offeredApprovals=new Set();
   const offerApproval = (inline) => {
     const card=inline.querySelector('[data-agent-review-phase=pending]'),id=card?.dataset.agentReviewItem,approve=card?.querySelector('[data-agent-review-approve]');
-    if(!inline.isConnected || !id || !approve || approve.disabled || offeredApprovals.has(id))return;
+    if(!lifetime.visible || !inline.isConnected || !id || !approve || approve.disabled || offeredApprovals.has(id))return;
     offeredApprovals.add(id);
     if(document.activeElement?.matches?.('input,textarea,select,[contenteditable=""],[contenteditable=true]') || document.querySelector('dialog[open]'))return;
     approve.focus({preventScroll:true});
@@ -876,7 +877,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       let inline=block.querySelector(':scope > [data-coding-inline-review]');
       if(run===all.at(-1) && run.phase==='awaiting-review') {
         if(!inline){inline=document.createElement('div');inline.className='coding-inline-review';inline.dataset.codingInlineReview='';}
-        const footer=block.querySelector(':scope > .coding-run-footer');if(inline.nextElementSibling!==footer || inline.parentElement!==block)block.insertBefore(inline,footer);void Promise.resolve(host.showReviews?.(inline,[run.ref],runtimeSessionId)).then(()=>offerApproval(inline));
+        const footer=block.querySelector(':scope > .coding-run-footer');if(inline.nextElementSibling!==footer || inline.parentElement!==block)block.insertBefore(inline,footer);const signal=viewSignal;void Promise.resolve(showReviews(inline,[run.ref],runtimeSessionId)).then(()=>{if(!signal?.aborted)offerApproval(inline);});
       } else inline?.remove();
       timeline.renderFooter(block,run,all.indexOf(run),run===all.at(-1) && (run.phase==='reconcile-required' || !recovery && !checkpointBusy),run!==all.at(-1) && graphLatest && !recovery && !checkpointBusy);
     }
@@ -1093,7 +1094,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(checkpointBusy){statusKey='checkpoint';status('回退操作尚未结束，请查看右侧审查或核对结果。');}
       // The results panel lists this session's reviews by session, not by naming every round: open items always, and the
       // latest settled history with the rest one click away. It is only read while the panel is open.
-      if(root.dataset.codingResults==='true')void host.showReviews?.(q('[data-coding-host-reviews]'), (data.subagents || []).flatMap(group=>(group.children || []).flatMap(child=>child.child_run ? [child.child_run] : [])), data.session.runtime_session_id, undefined, data.session.runtime_session_id ? {runSession:data.session.runtime_session_id,limit:30} : undefined);
+      if(root.dataset.codingResults==='true')void showReviews(q('[data-coding-host-reviews]'), (data.subagents || []).flatMap(group=>(group.children || []).flatMap(child=>child.child_run ? [child.child_run] : [])), data.session.runtime_session_id, undefined, data.session.runtime_session_id ? {runSession:data.session.runtime_session_id,limit:30} : undefined);
       const nextCheckpointKey=JSON.stringify([id,data.runs.at(-1)?.ref.run_id,data.runs.at(-1)?.ended_at,checkpointBusy]);
       if(fresh || checkpointKey!==nextCheckpointKey){checkpointKey=nextCheckpointKey;void readCheckpoints();}
       if(data.error) status(data.error,true);
@@ -1111,7 +1112,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     materialTicket++;q('[data-coding-material-dialog]').close();
     closeReport();
     if(current) { offsets.set(current,turns.scrollTop); void flushDraft().catch(error=>status(error.message,true)); }
-    void host.showReviews?.(q('[data-coding-host-reviews]'), []);
+    void showReviews(q('[data-coding-host-reviews]'), []);
     recoveryLoading=false;recoveryBusy=false;recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery]').hidden=true;
     resetWindow();cooperationUi.reset();current=id; draftOwner=''; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
     taskboard.loading(id);

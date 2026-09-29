@@ -65,7 +65,7 @@
 | P10 | 撤权、超时、重启、升级、后台与定时、预算 | AC21、AC22、AC24–AC26 | 未开始 |
 | P11 | 体验完整性：首次使用、缺配置、键盘/输入法/读屏、窄窗口、明暗主题 | AC27 | 未开始 |
 | P12 | Prologue 能力矩阵：实际版本全部公开能力逐项归类、接入状态与证据 | AC28 | 未开始 |
-| P13 | Host 统一 Agent 定义登记（系统/插件/用户的 Prompt、角色/Character、Skill；插件生命周期；用户覆盖层；开跑冻结版本）＋开发流程检查（未登记即失败、诊断）＋ Character 与 Prompt 设置：系统/用户/插件 Character 全部可见可改；新增 Prompt 设置模块（系统与插件 Prompt 可见可改）；用户覆盖层、恢复默认、升级差异、执行记录可查实际版本（用户 2026-09-28 补充） | AC42–AC45 | 进行中（登记、设置、直接调用迁移、系统/插件 Character、生成插件随生命周期登记、开发者诊断已完成；差 Alchemist 迁移与生成插件真实安装后的改写实测，见第 7 节） |
+| P13 | Host 统一 Agent 定义登记（系统/插件/用户的 Prompt、角色/Character、Skill；插件生命周期；用户覆盖层；开跑冻结版本）＋开发流程检查（未登记即失败、诊断）＋ Character 与 Prompt 设置：系统/用户/插件 Character 全部可见可改；新增 Prompt 设置模块（系统与插件 Prompt 可见可改）；用户覆盖层、恢复默认、升级差异、执行记录可查实际版本（用户 2026-09-28 补充） | AC42–AC45 | 工程与真实场景通过（全部内置与生成插件的模型调用经登记、可见可改、有诊断；外部安装插件尚无入口，见第 7 节）；待用户验收 |
 | P14 | 连续工作（U18）：工作与对象的关系记入 Context Ledger；对象上下文读取覆盖官方插件；用户手动修改经版本比较被感知；“正在看”与“当前工作”分开；助手工作交给 Coding 再回来；从归属方恢复；插件开发手册 | AC46–AC51 | 进行中（AC46、AC47、AC49、AC50、AC51 已真实走通；其余官方插件接入与多窗口等见 6.4） |
 
 ## 4. 已知缺口与待用户决定
@@ -244,7 +244,8 @@
 - 自动化：`tests/prompt-registration.test.ts`（5 项）、`tests/agent-built-plugins-workflow.test.ts` 新增“设计师用用户版、记录版本、恢复默认后回到默认”；受影响的 78 个测试文件 615 项中 9 项是测试替身按字符串读 Prompt，改用 `modelPromptText` 后全部通过；根 `tsc --noEmit` 通过。
 - 生成插件随生命周期登记（AC43、AC45，本次）：`apps/local-host/src/plugin-builder/prompts.ts`（读取声明、G4 规则、版本换算、登记/撤下、调用时解析）；`model.generate` 输入改为 `{ prompt, input }`（旧的 `instructions` 仍接受）；发布写 `prompts.json`；设置里标“插件创作台生成”“已停用，暂不会被调用”。Skill `generated-ai.md`、`generated-code.md` 与能力说明改为声明式写法。
 - 开发者诊断（本次）：`GET /api/agent-definitions/diagnostics`，“Prompt 与 Character”页底部“开发者诊断”（设置·诊断页有入口）：每个来源登记了几段角色组成/调用指令/几个 Character/你改过几段，以及未生效原因（插件已停用、你的版本基于旧默认、生成于登记之前、登记后还没被调用过）；另列“还没有登记的模型调用”（现为 Alchemist，与门禁的过渡清单一致）。
-- 未完成：Alchemist 的 systemPrompt 迁移；从外部安装（非创作台生成、带 agent 块）的插件还没有安装入口，出现时沿用同一登记接口。
+- Alchemist 迁移（2026-09-29）：七段固定指令（炼化方向、交叉验证·市场空间/构建成本、综合结论、修正输出格式、复用适用性检查、Founder Copilot）在插件 `prompts.ts` 声明并登记；`systemPrompt` 的类型改为登记的指令，Host 适配器经 `registeredInstructionBody` 取用户版本。过渡清单与开发者诊断里的“还没有登记的模型调用”现在为空。实测（MiniMax-M3）：炼金术士里对一个方向提问，默认版正常回答；在设置里给 Founder Copilot 追加“reply 以「副驾：」开头”后回答以“副驾：”开头，使用记录为用户版 #2；恢复默认。（第一次改写写成“每次回复以「副驾：」开头”导致模型把字放在 JSON 外、解析失败，助理如实报“运行时暂时失败，消息已保存”——改写 Prompt 可能破坏结构化输出，编辑页已提示改文字不改权限，另需提示保持输出格式。）
+- 仍未完成：从外部安装（非创作台生成、带 agent 块）的插件还没有安装入口，出现时沿用同一登记接口。
 - 真实验证（MiniMax-M3，隔离 Home，2026-09-28）：在插件创作台提“会议待办提炼”需求，设计 Agent 选用 `model.generate`，代码 Agent（真实模型）按新写法声明 `export const prompts = [{ id: "extract-todos", … }]` 并按 id 调用，G1–G6 与界面验收全部通过；发布 v1（版本里带声明的 Prompt）并安装后，“Prompt 与 Character”出现“插件 · 会议待办 1.0.0 · 插件创作台生成 / 提炼会议待办”。在安装后的插件页面粘贴同一段会议记录：默认版得到三条普通待办（登记使用记录 user_revision=null）；在设置里追加“每条待办必须以【负责人】开头”后再提炼，得到“【小李】周三前把报价单发给客户 / 【小王】… / 【小张】…”（使用记录 user_revision=1）。开发者诊断列出这个插件“模型调用指令 1 · 你改过 1”，并在“还没有登记的模型调用”里列出炼金术士及原因。
   - 过程中暴露并修掉的：能力目录为空（见下条）；设计 Agent 把示例写成 `todos: "array"`（类型名）导致冻结后永远过不了检查——现在和其他类型名一样去掉并说明；检查里 Agent 自己的测试失败只报 “same assertion failed”，代码 Agent 修不动——现在带上第几条测试与实际值/期望值。
 - 顺带修掉（main 上同样存在）：插件创作台的能力目录在真实 Web 里是空的——工作台页面先用不带 `inspect` 的动作端口创建了创作台实例并被缓存，之后设计 Agent 看到的能力列表为空，只能用自有存储，要调模型的设计在校验时报“项目能力目录中没有：model.generate”。改为 `web-request.ts` 的项目动作端口本身带 `inspect`，`capabilityCatalog` 在没有 `inspect` 时退回 `discover`（测试 `agent-built-plugins-catalog` 新增一项，旧代码下失败）。

@@ -258,11 +258,11 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const detail = surfaceFocus();
     if ((detail ? detail.context_id : null) === (focusShown ? focusShown.context_id : null)) return;
     focusShown = detail;
-    workbench.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail }));
+    workbench.dispatchEvent?.(new CustomEvent("molis:surface-focus", { bubbles: true, detail }));
   };
   // The person chose one of this document's actions in the bar: run it on the range they had in hand when it was
   // ranked, through the writing popup, so the result is a candidate they accept before anything is written.
-  window.addEventListener("molis:assistant-context-action-chosen", (event) => {
+  window.addEventListener?.("molis:assistant-context-action-chosen", (event) => {
     const chosen = event.detail;
     if (!chosen || chosen.plugin_id !== "io.molis.work.pages" || !focusShown || !focusNow || chosen.context_id !== focusShown.context_id) return;
     if (!editor || !editor.runCommand || !["result", "replace", "insert_after"].includes(chosen.apply) || typeof chosen.prepare !== "function") return;

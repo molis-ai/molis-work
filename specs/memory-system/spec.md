@@ -385,6 +385,15 @@ SDK 改动沿用现有做法：在 prologue 工作树提交，打成 vendored tg
 | 2026-09-30 | D1–D4（见第 1 节） | 用户 |
 | 2026-09-30 | 记忆系统与动态交互分成两条支线、两个会话并行推进；本线基于 `feature/system-assistant`，动态交互线从 main 开 | 用户（“按你建议”） |
 | 2026-09-30 | SDK 改动只由本线负责；与侧栏线的 SDK 补丁按顺序叠加，后落地的一方负责变基 | 用户（同上） |
+| 2026-09-30 | **与助理会话 [a806f0] 的边界**：`apps/local-host/src/assistant/` 只改记忆调用处（service 的记忆方法转调平台服务、http 的三组记忆路由保留路径内部转发、store 的三张旧表只读供迁移、`assistant-agent.ts` 记忆一节随规则升版）；agent-host 的 `AgentMemoryCapability` / `AgentMemoryTools` 可加字段，`announce-guard` 与 `memoryRounds` 挡回保留，但“记忆关着＝本轮没给记忆工具”的含义改动时要对齐；“记忆设置”那段（`memory-off`）换注入方式后保留等价说明；`tests/assistant-memory.test.ts` 的断言迁到新形态，角色轮次那一项不删。迁移：启动时从 `<Home>/assistant/assistant.db` 一次性读三张表，按人记迁移标记、可重复执行；候选的 14 天过期、每项工作最多 3 条、拒绝过的同文不再提这三条规则保留。合并节奏：它有新提交或 #98 合入时告知提交号；两条 SDK 补丁都以 `c63ea1a1` 为父，后合的一方负责叠成一个合成包 | 助理会话回复 |
+| 2026-09-30 | **与页面动线会话 [47c510] 的边界**：等它合入后我再加挂载：`settings-sections.ts` 的 `HOST_SECTIONS` 加 `{ id: "memory", label: "记忆", group: "个人", order: 15 }`（图标不用 book）；`plugin-settings-catalog.ts` 的 `isHostGlobalSettingsSection` 加 `memory`；`settings-renderer.ts` 与 `web-catalog.ts` 只加分支；页面脚本写成可重复绑定的 `globalThis.molisWorkBindMemorySettings(root)`，并在 `scripts/client/settings-directory.ts` 的 `bindEmbed` 加一行；项目设置在“项目说明”后加 `memory`；`settings-assistant.ts` 的“记忆与偏好”改成摘要＋跳转（用它的 `molis-work:open-settings-section` 事件）。合入前页面组件放在自己的新文件里 | 页面动线会话回复 |
+| 2026-09-30 | **与面板改版会话 [3c6203] 的边界**：数据归本线、渲染归它。工作视图加 `memory_changes`（`MemoryChange` 形状，撤销后 `state:"undone"`、`undoable:false`、正文清空）放左栏“成果”里的“记住的事”；每个 round 加 `memories_used: { used, omitted }`，在回答下面折叠显示“用到 N 条记忆”；撤销调 `POST /api/memory/changes/<id>/undo`；候选仍在“还等你处理”，路由 `/api/assistant/memory-candidates/<id>/accept|discard` 不变 | 面板会话回复 |
+| 2026-09-30 | **动态交互合同**：`memory.recall` 与 `memory.signals.report` 以 `packages/contracts/src/services/memory.ts` 为准，已发给动态交互会话 [fe3191]，它先用替身、只经动作目录调用。它的用法：每次判断前 recall 一次（kinds 偏好与约定、limit 5、budget 800）；信号只在明确操作时报，“看见了没点”不算忽略 | 本线定，对方确认 |
+| 2026-09-30 | **使用方身份从调用上下文来**：audience `user`→界面推荐、`agent`/`workflow`→Agent 工作、`plugin`→插件、`mcp`→外部客户端；助理和 Coding 在 Host 进程内直接调服务并写明使用方。输入里没有“我是谁”字段。理由：可信身份不从输入读（AGENTS.md 硬约束），而且这样说谎也拿不到别的使用方的开关 | 推荐 |
+| 2026-09-30 | **界面信号门槛**：同一“建议能力 × 情境 × 信号”累计至少 3 次、且来自至少 2 个不同 occurrence，才生成待认可的候选（依据 inferred）；从不自动写入。理由：单次永不形成记忆（§6.1），两个不同场合才算“反复” | 推荐 |
+| 2026-09-30 | **开关按范围存**：个人一份；项目各一份，没有单独设过的项目用“项目默认”。助理旧的全局开关迁移为：`form`→个人与项目默认的“允许记住”，`use_personal`→个人的“助理可以用”，`use_project`→项目默认的“助理可以用”，`learn_personal`/`learn_project`→个人/项目默认的“从工作里提出建议”；用户没改过的旧开关用新默认值。理由：项目页有自己的“怎么形成 / 谁可以用”（§10.2），旧开关又是全局的 | 推荐 |
+| 2026-09-30 | **版本历史在 Host 旁表**：Prologue 的存储有意只留一行（删除才删得干净），所以每次修改前的正文由 Host 记在历史表；删除一条时连历史、使用记录一起清掉，最近变动里的正文清空。理由：满足“查看历史、回到某一版”，又不破坏“删除后任何路径都不再带出” | 推荐 |
+| 2026-09-30 | **M1 用 Host 旁表放结构化信息，M2 做 S3 后迁进 SDK 条目**（spec §5.1 的过渡办法）。旁表只按 memory ref 关联类别、来源、依据、状态等；正文、版本号、墓碑与隔离仍只在 Prologue Memory，召回的候选也从 Prologue 读，所以不是第二套记忆运行系统 | 推荐 |
 
 范围清楚、可以撤回的取舍按推荐直接做，并追加到本表，写明理由。
 

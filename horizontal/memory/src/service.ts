@@ -36,7 +36,7 @@ import {
   type MemoryWriteResult,
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { completePrefs, consumerAccess, CONSUMER_LABELS, PERSONAL_PREFS_KEY, PROJECT_DEFAULT_PREFS_KEY, projectPrefsKey } from "./prefs.js";
-import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sameText } from "./text.js";
+import { keywordScore, looksLikeInstruction, looksLikeSecret, normalized, recallKeywords, sameText } from "./text.js";
 import { fromEntryMeta, pauseReason, toEntryMeta } from "./facts.js";
 import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -103,6 +103,29 @@ export interface MemoryCaller {
   person?: boolean;
 }
 
+/** One thing a work's drawing-out proposes (the model's output shape). Nothing here is trusted: the gate checks it all. */
+export interface MemoryProposal {
+  text: string;
+  kind: MemoryKind;
+  scope: MemoryScope;
+  applies_when?: string | null;
+  basis: "explicit" | "inferred";
+  /** The person's own words it rests on, verbatim. */
+  quote: string;
+  /** A waiting suggestion that says the same thing. */
+  same_as?: string | null;
+  /** A kept memory this corrects. */
+  supersedes?: string | null;
+}
+
+export interface MemoryLearned {
+  text: string;
+  outcome: MemoryWriteResult["outcome"] | "skipped";
+  reason: string;
+  candidate_id: string | null;
+  memory_id: string | null;
+}
+
 /** The first version's state (the Assistant's own tables, spec §2.1.1), folded in once per person. */
 export interface LegacyMemoryState {
   /** Only what the person had actually saved; null when they never changed the switches. */
@@ -134,6 +157,10 @@ export const MEMORY_GATE_RULE = `自动记住 · 规则 v${MEMORY_GATE_VERSION}`
 export const SIGNAL_THRESHOLD = { count: 3, distinct: 2 } as const;
 const CANDIDATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const PENDING_PER_WORK = 3;
+/** “Don't remember this”: this work forms nothing (spec §11); it does not delete what the work already holds. */
+const DO_NOT_REMEMBER = /(?:不要|别|不用|无需|不必)(?:帮我)?(?:记|记住|记下|记录)(?!得)|(?:don['’]?t|do not|never) (?:remember|save|store)/i;
+/** Words of a standing wish, a correction or a lesson: only rounds with one are worth a model call. */
+const STANDING_WISH = /以后|今后|往后|每次|每回|总是|一律|一直|都要|都用|都别|都不|别再|不要再|下次|下回|记住|习惯|偏好|喜欢|讨厌|统一|规范|约定|规定|改成|应该|不对|always|never|from now on|every time|prefer|going forward|next time/i;
 const MAX_TEXT = 400;
 const LEGACY_SOURCE = "assistant-p8";
 const EXPLICIT_SOURCES: readonly MemorySource[] = ["said", "manual", "accepted", "imported"];
@@ -380,6 +407,13 @@ export class MemoryService {
       if (!target) throw new MemoryError("memory.not_found", "要替换的那条记忆不在这个范围里（可能已删除，或属于别的范围）");
     }
     const asCandidate = async (why: string): Promise<MemoryWriteResult> => {
+      // Already waiting (suggested once before): it keeps waiting, now saying why it was not kept automatically.
+      const waiting = input.candidate_id ? this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === input.candidate_id) : undefined;
+      if (waiting) {
+        const held: MemoryCandidateRecord = { ...waiting, hold_reason: why, ...(input.why ? { why: input.why.slice(0, 300) } : {}) };
+        this.ports.ledger.saveCandidate(held);
+        return { outcome: "candidate", reason: why, applies_text: appliesText, memory: null, candidate: candidateView(held), change_id: null };
+      }
       const candidate = await this.propose(caller, { scope: input.scope, text, kind: input.kind, applies: input.applies, basis: input.basis, why: input.why ?? why,
         from: input.from ?? "gate", hold_reason: why, supersedes: target?.entry.memory_id ?? null }, { gate: true });
       return { outcome: "candidate", reason: why, applies_text: appliesText, memory: null, candidate, change_id: null };
@@ -693,6 +727,86 @@ export class MemoryService {
     const undone: MemoryChangeRecord = { ...(this.ports.ledger.change(changeId) ?? record), state: "undone", undoable: false, ...(plan.action === "remove" ? { text: "" } : {}) };
     this.ports.ledger.saveChange(undone);
     return { change: changeView(undone) };
+  }
+
+  /* ---- learning from work (spec §6.1 item 2, §6.2) ---- */
+
+  /**
+   * Whether a finished round is worth drawing memories out of: forming and learning from work are on in a scope it may
+   * write, the person did not say not to remember, and they said something that reads like a standing wish or a lesson.
+   * Deterministic, so most rounds cost no model call at all (spec §15).
+   */
+  worthLearning(caller: MemoryCaller, said: readonly string[]): boolean {
+    const latest = said.at(-1) ?? "";
+    if (!latest.trim() || said.some(text => DO_NOT_REMEMBER.test(text))) return false;
+    const scopes = this.scopesFor(caller, undefined, true);
+    const allowed = scopes.some(where => { const prefs = this.prefsFor(caller.actor_id, where.scope, where.scope === "project" ? where.owner : null); return prefs.form && prefs.learn_from_work; });
+    return allowed && STANDING_WISH.test(latest);
+  }
+
+  /** What the drawing-out sees besides the person's words: memories already kept and suggestions waiting (so it can say "the same"). */
+  async learningContext(caller: MemoryCaller): Promise<{ existing: Array<{ memory_id: string; scope: MemoryScope; kind: MemoryKind; text: string }>;
+    pending: Array<{ candidate_id: string; scope: MemoryScope; kind: MemoryKind; text: string; work_title: string | null }> }> {
+    const existing: Array<{ memory_id: string; scope: MemoryScope; kind: MemoryKind; text: string }> = [];
+    for (const where of this.scopesFor(caller, undefined, true)) {
+      for (const located of await this.located(caller, where.scope, where.owner)) existing.push({ memory_id: located.entry.memory_id, scope: where.scope, kind: located.meta.kind, text: located.entry.text.slice(0, 200) });
+    }
+    const pending = (await this.candidates({ ...caller, person: true }, { scope: "all" })).map(item => ({ candidate_id: item.candidate_id, scope: item.scope, kind: item.kind,
+      text: item.text.slice(0, 200), work_title: item.work?.title ?? null }));
+    return { existing: existing.slice(-30), pending: pending.slice(-20) };
+  }
+
+  /**
+   * The write gate over what a work's drawing-out proposed (spec §6.2). The model only proposes; this decides, the same
+   * way every time: its quote must really be in what the person said this time, or it is only an inference; said in two
+   * different works it counts as repeated and low-risk kinds are kept automatically (undoable); anything else waits.
+   */
+  async learnFromWork(caller: MemoryCaller, input: { said: readonly string[]; proposals: readonly MemoryProposal[] }): Promise<MemoryLearned[]> {
+    const out: MemoryLearned[] = [];
+    if (input.said.some(text => DO_NOT_REMEMBER.test(text))) return out;
+    const spoken = normalized(input.said.join("\n"));
+    for (const proposal of input.proposals.slice(0, 3)) {
+      const text = String(proposal.text ?? "").trim();
+      const skip = (reason: string) => { out.push({ text, outcome: "skipped", reason, candidate_id: null, memory_id: null }); };
+      if (!text || text.length > MAX_TEXT || !MEMORY_KINDS.includes(proposal.kind)) { skip("提议不合形状"); continue; }
+      const scope: MemoryScope = proposal.scope === "project" && caller.project_id ? "project" : "personal";
+      const where = this.where(caller, scope);
+      const prefs = this.prefsFor(caller.actor_id, scope, scope === "project" ? where.owner : null);
+      if (!prefs.form || !prefs.learn_from_work) { skip("这个范围没有允许从工作里学习"); continue; }
+      // Only what is really in the person's own words counts as theirs; anything else is an inference.
+      const quote = String(proposal.quote ?? "").trim().slice(0, 200);
+      const verified = quote.length >= 2 && spoken.includes(normalized(quote));
+      const basis: MemoryBasis = verified && proposal.basis === "explicit" ? "explicit" : "inferred";
+      const applies: MemoryApplies = proposal.applies_when?.trim() ? { task: proposal.applies_when.trim().slice(0, 200) } : {};
+      if ((await this.located(caller, scope, where.owner)).some(located => sameText(located.entry.text, text))) { skip("已经记着这一条了"); continue; }
+      const work = caller.work ?? null;
+      const records = await this.candidateRecords(caller.actor_id, scope, where.owner);
+      // The same wish, suggested before in another work from the person's own words: now it is repeated.
+      const earlier = records.find(item => item.state === "pending" && item.basis === "explicit" && item.from === "extraction"
+        && (item.candidate_id === proposal.same_as || sameText(item.text, text)) && item.work?.work_id !== work?.work_id);
+      if (records.some(item => item.state === "pending" && sameText(item.text, text) && item.work?.work_id === work?.work_id)) { skip("这项工作里已经提过"); continue; }
+      const at = this.now().toISOString();
+      const evidence: MemoryEvidence[] = verified ? [{ kind: "said", text: quote, ...(work ? { ref: { kind: "work", id: work.work_id } } : {}), at }] : [];
+      const supersedes = proposal.supersedes && (await this.located(caller, scope, where.owner)).some(located => located.entry.memory_id === proposal.supersedes) ? proposal.supersedes : null;
+      if (earlier && basis === "explicit") {
+        const works = [earlier.work?.title, work?.title].filter(Boolean).map(title => `「${title}」`).join("和");
+        const result = await this.offer({ ...caller, work }, { scope, text: earlier.text, kind: earlier.kind, applies: earlier.applies, basis: "repeated",
+          why: `你在工作${works}里都这样要求`, evidence: [...evidence], from: "extraction", supersedes: earlier.supersedes ?? supersedes, candidate_id: earlier.candidate_id });
+        out.push({ text: earlier.text, outcome: result.outcome, reason: result.reason, candidate_id: result.candidate?.candidate_id ?? earlier.candidate_id, memory_id: result.memory?.memory_id ?? null });
+        continue;
+      }
+      try {
+        const candidate = await this.propose({ ...caller, work }, { scope, text, kind: proposal.kind, applies, basis, from: "extraction", supersedes, evidence: evidence.length ? evidence : undefined,
+          why: verified ? `你在工作${work ? `「${work.title}」` : ""}里说：“${quote}”` : `从工作${work ? `「${work.title}」` : ""}里推断`,
+          hold_reason: basis === "explicit"
+            ? "只在一项工作里出现过：在另一项工作里再这样要求会自动记住，也可以现在就认可"
+            : "只是推断出来的，需要你认可才会生效" });
+        out.push({ text, outcome: "candidate", reason: candidate.hold_reason ?? "等你认可", candidate_id: candidate.candidate_id, memory_id: null });
+      } catch (error) {
+        skip(error instanceof Error ? error.message : String(error));
+      }
+    }
+    return out;
   }
 
   /* ---- interface signals ---- */

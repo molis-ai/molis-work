@@ -61,6 +61,8 @@ export interface AssistantServicePorts {
   methods?: { list(): AgentMethodView[]; read(ownerId: string, skillId: string, version?: number): AgentMethodRegistration };
   /** The platform memory of this Home (specs/memory-system). Absent: the Assistant keeps and recalls nothing. */
   memory?(): MemoryService | undefined;
+  /** A round of a work finished: the platform memory may draw out what is worth keeping from the person's own words. */
+  learnFromRound?(input: { work: StoredWork; said: string[]; run_id: string }): void;
 }
 
 /** Where a Send came from: the page's own project, when there is one. Only used to scope a new work. */
@@ -506,6 +508,10 @@ export class AssistantService {
     else if (state === "waiting-review") raise("needs-decision", `「${work.title}」在等你确认一项修改`);
     else if (state === "waiting-input") raise("needs-decision", `「${work.title}」在等你回答一个问题`);
     else if (state === "completed" && ["running", "paused", "waiting-input", "waiting-review"].includes(before)) raise("completed", `「${work.title}」做完了`);
+    // What the person said in this work may hold a standing wish worth keeping: the platform memory decides (a sub-task's
+    // words are the delegating work's, not the person's, so it never learns from those).
+    if (state === "completed" && before !== "completed" && !work.delegated_by && round !== "none")
+      this.ports.learnFromRound?.({ work, said: this.store.rounds(work.work_id).map(item => item.text).slice(-6), run_id: round });
   }
 
   /** Open notices, each saying whether one of the person's rules holds it here and now (on this surface). */

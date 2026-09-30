@@ -38,6 +38,7 @@ function reply(tool?: { name: string; input: unknown }, text = "好的。"): Res
 
 test("what the person asks to keep is remembered in Prologue Memory, recalled only where it applies, and switched off or forgotten exactly as asked", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-"));
+  const learned: Array<{ work: string; said: string[] }> = [];
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const projectA = { project_id: "project-a", board_id: "board-a", storage_key: "memory:a" };
   const projectB = { project_id: "project-b", board_id: "board-b", storage_key: "memory:b" };
@@ -57,7 +58,8 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
   const service: AssistantService = new AssistantService(store, { host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
       memory: (task: string) => service.memoryForRound(work, task) }),
-    projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+    projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙", timeZone: "Asia/Shanghai", memory: () => memory,
+    learnFromRound: input => learned.push({ work: input.work.work_id, said: input.said }) }, "web-user");
   const round = async (text: string, project: typeof projectA | null, request: string, workId?: string) => {
     const before = requests.length;
     const sent = await service.send({ text, request_id: request, ...(workId ? { work_id: workId } : {}) }, project ? { project_ref: project } : {});
@@ -72,6 +74,9 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
       () => reply({ name: "remember", input: { text: "项目甲里 NSM 指北极星指标", scope: "project", said: "记住：NSM 是北极星指标" } }),
       () => reply(undefined, "记下了：回答用要点列表（个人）；NSM 指北极星指标（项目甲）。"));
     const first = await round("以后回答都用要点列表；另外记住：NSM 是北极星指标", projectA, "req-memory-001");
+    // A finished round hands the person's own words to the platform memory's learning (once per round).
+    await until(async () => { await service.list(); return learned.find(item => item.work === first.work.work_id); }, "learning handed over");
+    assert.deepEqual(learned.find(item => item.work === first.work.work_id)!.said, ["以后回答都用要点列表；另外记住：NSM 是北极星指标"]);
     assert.ok(first.first.tools.some((tool: { name: string }) => tool.name === "remember"), "the round may remember");
     const kept = await service.memories("project-a");
     assert.deepEqual(kept.map(item => [item.scope, item.text, item.disabled]), [["personal", "回答用要点列表", false], ["project", "项目甲里 NSM 指北极星指标", false]]);

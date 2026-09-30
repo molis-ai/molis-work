@@ -23,6 +23,7 @@ import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_STORE_NAME, AssistantStore } from "../assistant/assistant-store.js";
+import { learnFromWork, type MemoryLearningRequest } from "./memory-learning.js";
 
 /**
  * Host wiring of the platform memory (specs/memory-system §5.2): Prologue Memory of this Home's one runtime as the
@@ -38,6 +39,11 @@ export interface MemoryHost {
   readonly service: MemoryService;
   /** Who the call is for, from its trusted context: the consumer from the audience, never from input. */
   caller(context: ActionCallContext, work?: { work_id: string; title: string } | null): MemoryCaller;
+  /**
+   * A work's round finished: draw out what may be worth keeping, once per round (`key`), through the runtime's durable
+   * queue so a restart does not lose it. Nothing runs when the round said nothing worth learning.
+   */
+  learnLater(request: MemoryLearningRequest & { key: string; session_id: string | null }): Promise<void>;
   close(): void;
 }
 
@@ -53,6 +59,8 @@ export interface MemoryHostPorts {
   agentHost: AgentHost;
   /** Starts the runtime when needed; memory lives in it. */
   ready(): Promise<void>;
+  /** Settles once the runtime started because something needed it (never starts it). */
+  started?(): Promise<void>;
   projectTitle?(projectId: string): Promise<string | null>;
 }
 
@@ -118,9 +126,36 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const dispose = ports.localHost.actionRegistry().registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: "记忆", kind: "system" },
     definitions: [memoryActions.recall, memoryActions.list, memoryActions.write, memoryActions.change, memoryActions.history, memoryActions.candidates, memoryActions.accept,
       memoryActions.discard, memoryActions.changes, memoryActions.undo, memoryActions.prefs, memoryActions.savePrefs, memoryActions.signal], handlers });
+  // Drawing out memories: a queued task of the runtime's own durable queue (one runner for its kind).
+  const LEARN_KIND = "memory.learn";
+  let queueAttached = false;
+  const runLearning = async (request: MemoryLearningRequest) => {
+    migrate();
+    const outcome = await learnFromWork(service, ports.homeDirectory, request);
+    if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn", JSON.stringify(outcome));
+  };
+  const attachQueue = () => {
+    if (queueAttached) return;
+    const schedule = ports.agentHost.adapter(RUNTIME).schedule;
+    if (!schedule) return;
+    schedule.handle(LEARN_KIND, async task => { await runLearning(task.payload as unknown as MemoryLearningRequest); });
+    queueAttached = true;
+  };
+  void ports.started?.().then(attachQueue).catch(() => undefined);
   const host: MemoryHost = {
     get service() { migrate(); return service; },
     caller,
+    learnLater: async request => {
+      const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6);
+      if (!service.worthLearning(request.caller, said)) return;
+      await ports.ready();
+      attachQueue();
+      const schedule = ports.agentHost.adapter(RUNTIME).schedule;
+      const payload = { caller: request.caller, said } as unknown as Record<string, unknown>;
+      // Without the durable queue (or a session to hang it on) it runs now; a failure leaves nothing half written.
+      if (!schedule || !request.session_id) { void runLearning({ caller: request.caller, said }).catch(error => console.warn("[memory] 提炼没有完成", error)); return; }
+      await schedule.enqueue({ key: `memory-learn:${request.key}`, session_id: request.session_id, kind: LEARN_KIND, payload, due_at: new Date().toISOString(), max_attempts: 2 });
+    },
     close: () => { dispose(); ledger.close(); hosts.delete(ports.localHost); },
   };
   hosts.set(ports.localHost, { home: ports.homeDirectory, host });

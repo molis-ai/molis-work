@@ -41,6 +41,22 @@ test("目录栏顶部有五个导航面，当前面被标记", () => {
   assert.match(html, /class="mw-dir__label">TaskBoard<\/span>/);
 });
 
+// Every face draws in the directory column: the task outline, the Goal and the saved results each have a panel there,
+// hidden until their face is chosen. The full-width board is the main area's own view, switched from its header.
+test("每个导航面都在左栏有自己的面板；任务图是主区域的视图，由标题栏切换", () => {
+  const directory = renderCodingDirectory(model());
+  assert.match(directory, /<section class="coding-face-panel" data-coding-board-outline hidden/);
+  assert.match(directory, /data-coding-board-expand/);
+  assert.match(directory, /<section class="coding-face-panel" data-coding-goal-face hidden/);
+  assert.match(directory, /data-coding-goal-face-open/);
+  assert.match(directory, /<section class="coding-face-panel" data-coding-artifact-directory hidden/);
+  const workbench = renderCodingWorkbench(model());
+  assert.match(workbench, /data-coding-view="dialogue" aria-pressed="true"/);
+  assert.match(workbench, /data-coding-view="board" aria-pressed="false"/);
+  assert.match(workbench, /data-coding-view-board-count/);
+  assert.match(workbench, /data-coding-results-index/);
+});
+
 test("会话标题里的标记被转义，不会变成页面上的标签", () => {
   const nasty: CodingSessionEntry = {
     session_id: "s<1>",

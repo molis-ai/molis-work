@@ -27,13 +27,47 @@ export const CODING_STYLES = `
 [data-coding-workbench]:not([data-coding-detail=true]) .coding-dialogue,
 [data-coding-workbench]:not([data-coding-detail=true]) .coding-tools { display:none; }
 [data-coding-detail=true] .coding-start { display:none; }
-.coding-directory[data-coding-current-face=files] .coding-search,.coding-directory[data-coding-current-face=files] .coding-filters,.coding-directory[data-coding-current-face=files] [data-coding-sessions],.coding-directory[data-coding-current-face=files] [data-coding-new] { display:none; }
+/* Each face owns the directory column: the session list and its search only show on the sessions face. */
+.coding-directory:not([data-coding-current-face=sessions]) :is(.coding-query,[data-coding-sessions],[data-coding-new],[data-coding-search-toggle]) { display:none; }
 [data-coding-tools][data-companion-open=true]>:not([data-files-results]):not([data-git-results]):not(.coding-tool-tabs) { display:none; }
-.coding-directory[data-coding-current-face=artifacts] .coding-search,.coding-directory[data-coding-current-face=artifacts] .coding-filters,.coding-directory[data-coding-current-face=artifacts] [data-coding-sessions],.coding-directory[data-coding-current-face=artifacts] [data-coding-new] { display:none; }
-[data-coding-artifact-directory] { min-height:0; overflow:auto; }
+.coding-face-panel { display:flex; flex-direction:column; gap:8px; min-height:0; padding:0 4px; }
+.coding-face-panel[hidden] { display:none; }
+.coding-face-meta, .coding-face-note { margin:0; padding:0 4px; font-size:11px; line-height:16px; }
+.coding-face-meta { color:var(--muted); font-variant-numeric:tabular-nums; }
+.coding-face-note { color:var(--faint); }
+.coding-face-panel > .mw-btn { align-self:flex-start; height:28px; min-height:28px; padding:0 8px; font-size:12px; }
+.coding-face-panel > .mw-btn svg { width:14px; height:14px; }
+.coding-outline { display:flex; flex-direction:column; gap:1px; min-height:0; overflow:auto; overscroll-behavior:contain; }
+.coding-outline-tree, .coding-outline-children { margin:0; padding:0; list-style:none; }
+.coding-outline .mw-dir__heading { display:flex; align-items:baseline; gap:6px; }
+.coding-outline .mw-dir__heading small { color:var(--faint); font-size:11px; font-weight:400; font-variant-numeric:tabular-nums; }
+/* An outline row: mark, key, title, and who is on it; the depth indents it like the board's rows. */
+.coding-outline-row { display:flex; align-items:center; gap:6px; width:100%; min-height:28px; padding:0 6px 0 calc(6px + var(--board-depth,0) * 14px); border:0; border-radius:6px; background:transparent; color:var(--ink); font:inherit; font-size:12px; line-height:16px; text-align:left; cursor:pointer; }
+.coding-outline-row:hover { background:var(--nav-hover); }
+.coding-outline-row:focus-visible { outline:var(--focus-stroke, 2px solid var(--blue)); outline-offset:-2px; }
+.coding-outline-row > strong { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight: var(--weight-control, 500); }
+.coding-outline-item[style*="--board-depth:0"] > .coding-outline-row > strong { font-weight:600; }
+.coding-outline-row > .coding-board-key { flex:none; min-width:0; }
+.coding-outline-mark { flex:none; display:grid; place-items:center; width:14px; height:14px; color:var(--faint); }
+.coding-outline-mark svg { width:12px; height:12px; }
+.coding-outline-mark .coding-board-pulse { margin:0; }
+.coding-outline-mark[data-tone="done"], .coding-outline-mark[data-tone="accepted"] { color:var(--green); }
+.coding-outline-mark[data-tone="blocked"] { color:var(--red); }
+.coding-outline-mark[data-tone="attention"] { color:var(--amber); }
+.coding-outline-mark[data-tone="progress"] { color:var(--blue); }
+.coding-outline-mark[data-tone="ready"] { color:var(--ink-soft, var(--ink)); }
+.coding-outline-count { flex:none; color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; }
+.coding-outline-row > .coding-board-avatar { width:16px; height:16px; font-size:11px; }
+.coding-goal-face-current { display:grid; gap:4px; padding:8px 8px; border:1px solid var(--line); border-radius:8px; background:var(--paper); font-size:12px; line-height:16px; }
+.coding-goal-face-current strong { font-size:13px; line-height:18px; font-weight: var(--weight-control, 500); color:var(--ink); overflow-wrap:anywhere; }
+.coding-goal-face-current span { color:var(--muted); overflow-wrap:anywhere; }
+.coding-goal-face-actions { display:flex; flex-wrap:wrap; gap:4px; }
+.coding-goal-face-actions .mw-btn { height:28px; min-height:28px; padding:0 8px; font-size:12px; }
+.coding-goal-face-actions .mw-btn svg { width:14px; height:14px; }
+[data-coding-artifact-directory] .coding-search { padding:0 4px; }
 /* TaskBoard: the Goal list's row grammar — 28px rows, indented by depth, with state, progress, prerequisites and who is working. */
 [data-coding-workbench][data-coding-board-open="true"] :is([data-coding-turns],[data-coding-latest],[data-coding-report-reader]) { display:none !important; }
-.coding-board { flex:1 1 auto; min-height:0; overflow:auto; padding:24px 32px 32px; outline:none; }
+.coding-board { flex:1 1 auto; min-height:0; overflow:auto; padding:24px 32px 32px; outline:none; container:coding-board / inline-size; }
 .coding-board-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin:0 0 16px; }
 .coding-board-heading { min-width:0; }
 .coding-board-head h2 { margin:0; font-size:15px; font-weight:500; line-height:22px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -97,7 +131,7 @@ export const CODING_STYLES = `
 .coding-board-dep em { grid-column:2; font-size:11px; font-style:normal; }
 .coding-board-dep.is-ready em { color:var(--green); } .coding-board-dep.is-waiting em { color:var(--amber); } .coding-board-dep.is-blocked em { color:var(--red); }
 .coding-board-meta { display:inline-flex; align-items:center; justify-content:flex-end; gap:8px; min-width:0; }
-.coding-board-time { min-width:5ch; color:var(--muted); font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11px; font-variant-numeric:tabular-nums; text-align:right; }
+.coding-board-time { min-width:5ch; color:var(--muted); font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11px; font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
 .coding-board-time.is-empty { visibility:hidden; }
 .coding-board-agent { max-width:6.5rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:var(--muted); }
 .coding-board-avatar { flex:none; display:grid; place-items:center; width:18px; height:18px; border-radius:50%; font-size:11px; line-height:1; color:var(--ink); background:var(--rail); }
@@ -121,6 +155,15 @@ export const CODING_STYLES = `
 .coding-board-form { display:flex; gap:8px; align-items:center; margin:4px 8px 8px calc(var(--board-depth, 0) * 16px + 26px); }
 .coding-board-form .mw-input { flex:1 1 12rem; min-width:0; height:28px; }
 .coding-board-note { margin:16px 8px 0; font-size:11px; color:var(--faint); }
+/* The board sheds columns as its own width shrinks: prerequisites first, then progress; the state and who stay. */
+@container coding-board (max-width: 820px) {
+  .coding-board-columns, .coding-board-entry { grid-template-columns:minmax(10rem,1fr) 6.5rem 4.5rem minmax(8rem,auto); }
+  .coding-board-columns > span:nth-child(4), .coding-board-deps { display:none; }
+}
+@container coding-board (max-width: 620px) {
+  .coding-board-columns, .coding-board-entry { grid-template-columns:minmax(8rem,1fr) 6rem minmax(6rem,auto); }
+  .coding-board-columns > span:nth-child(3), .coding-board-progress { display:none; }
+}
 @media (max-width: 760px) {
   .coding-board { padding:16px 12px 24px; }
   .coding-board-columns { display:none; }
@@ -128,9 +171,8 @@ export const CODING_STYLES = `
   .coding-board-progress, .coding-board-deps, .coding-board-agent, .coding-board-time { display:none; }
 }
 @media (prefers-reduced-motion: reduce) { .coding-board-pulse { animation:none; } }
-[data-coding-artifact-list] .coding-session-row { display:flex; flex-direction:column; align-items:flex-start; gap:4px; width:100%; height:auto; text-align:left; white-space:normal; overflow-wrap:anywhere; }
-[data-coding-artifact-list] strong { font-weight: var(--weight-control, 500); }
-[data-coding-artifact-list] .coding-session-row > span { color:var(--muted); font-size:11px; }
+.coding-artifact-row { width:100%; cursor:pointer; }
+[data-coding-artifact-list] .mw-empty { padding:16px 8px; }
 .coding-faces { display:flex; gap:4px; padding:0 4px 8px; }
 .coding-faces .coding-face { flex:1; background:transparent; border:0; border-radius:var(--radius-item); box-shadow:none; }
 .coding-faces .coding-face[aria-pressed=true] { color:var(--plugin-tint,var(--ink)); background:var(--nav-active); }
@@ -374,6 +416,11 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-tools-title { flex:1 1 auto; margin:0; font-size:15px; font-weight:600; color:var(--ink); }
 [data-coding-tools][data-companion-open=true] .coding-tools-title { visibility:hidden; }
 .coding-tool-tabs .coding-results-close { flex:none; width:28px; height:28px; min-height:28px; padding:0; justify-content:center; order:9; }
+/* The index under the panel's title: one chip per section on show. */
+.coding-results-index { display:flex; flex-wrap:wrap; gap:4px; padding:8px 12px 0 20px; }
+.coding-results-index[hidden] { display:none; }
+.coding-results-index .mw-btn { height:24px; min-height:24px; padding:0 8px; font-size:11px; color:var(--muted); }
+.coding-results-index .mw-btn:hover:not(:disabled) { color:var(--ink); }
 .coding-results-close svg { width:16px; height:16px; }
 .coding-result { padding:12px 24px; font-size:13px; color:var(--muted); overflow-wrap:anywhere; }
 .coding-result h3 { margin:0 0 12px; font-size:13px; font-weight:500; color:var(--ink); }
@@ -540,6 +587,12 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-workspace-chip svg { width:12px; height:12px; flex:none; opacity:.75; }
 .coding-workspace-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .coding-head-actions { display:flex; align-items:center; gap:8px; flex:none; }
+/* The main area's view: the conversation, or the session's TaskBoard with the latest graph's progress on its tab. */
+.coding-view-switch { flex:none; padding:2px; }
+.coding-view-switch .mw-toggle { min-height:24px; padding:0 10px; font-size:12px; }
+.coding-view-count { color:var(--muted); font-variant-numeric:tabular-nums; }
+.coding-view-count[hidden] { display:none; }
+.mw-toggle.is-current .coding-view-count { color:var(--ink-soft, var(--ink)); }
 .coding-head-actions .coding-results-toggle { height:28px; min-height:28px; padding:0 12px; gap:8px; font-size:12px; color:var(--muted); }
 .coding-head-actions .coding-results-toggle svg { width:16px; height:16px; }
 .coding-phase { display:inline-flex; align-items:center; gap:8px; height:24px; padding:0 12px; border-radius:999px; font-size:12px; background:color-mix(in srgb, var(--blue) 10%, transparent); color:var(--blue-dark, var(--blue)); }

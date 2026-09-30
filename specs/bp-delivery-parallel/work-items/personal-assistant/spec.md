@@ -1,5 +1,7 @@
 # 启发式个人工作助理
 
+状态：已退役（2026-09-30）。本切片的代码（`apps/local-host/src/personal-assistant-*.ts`、`apps/workbench/src/personal-assistant-ui.ts`、对应测试与脚本）已从仓库删除：产品没有任何入口到达它，现行助理在 `apps/local-host/src/assistant/`，需求见下文链接的系统级助理说明。本文只保留需求与验证历史。
+
 范围承接（2026-09-27）：本文保留原启发式建议切片的需求、实施与验证历史。底部入口、全局上下文、插件联动、分层记忆及 Prologue 全能力的后续总需求统一见 [系统级个人工作助理需求说明](../../../system-assistant/spec.md)；本文的原切片边界不再代表最终 Assistant 的范围。
 
 2026-09-26，用户授权实施。总约定：`../../spec.md`。目标：内部完整；所有 AI 经 Prologue，执行复用共享 Action，角色沿用 Character。

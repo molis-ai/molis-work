@@ -331,6 +331,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     panel.dataset.side = sideOpen() ? "open" : "closed";
     sideToggle?.setAttribute("aria-expanded", String(sideOpen()));
     island.toggleAttribute("data-side-shown", !panel.hidden && sideOpen());
+    paintStrip();
     const anchor = !panel.hidden && sideWidth() ? panel.offsetParent : null;
     if (anchor) panel.style.setProperty("--assistant-room", Math.round(window.innerWidth - sideWidth() - 12 - anchor.getBoundingClientRect().right) + "px");
     else panel.style.removeProperty("--assistant-room");
@@ -341,6 +342,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (sideOpen()) side?.querySelector("button, select, summary")?.focus();
   });
   wide.addEventListener?.("change", () => { drawerOpen = false; paintLayout(); });
+  island.querySelector(".assistant-main")?.addEventListener("pointerdown", () => { if (!spacious() && drawerOpen) { drawerOpen = false; paintLayout(); } });
   let spaciousBefore = spacious();
   const sideChanged = () => { const now = spacious(); if (now !== spaciousBefore) { spaciousBefore = now; drawerOpen = false; } paintLayout(); };
   if ("MutationObserver" in window) new MutationObserver(sideChanged).observe(document.body, { attributes: true, attributeFilter: ["data-side-open", "style"] });
@@ -1431,7 +1433,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     thread.scrollTo({ top: node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop - 16, behavior: still ? "auto" : "smooth" });
     node.removeAttribute("data-flash"); void node.offsetWidth; node.setAttribute("data-flash", "");
     setTimeout(() => node.removeAttribute("data-flash"), 700);
-    node.querySelector("button:not([disabled]), input, select, textarea")?.focus({ preventScroll: true });
+    // The card's own decision first (允许执行, 回答, the action), not a copy button inside the code it shows.
+    (node.querySelector(".assistant-card-actions button:not([disabled]), .assistant-choice:not([disabled]), .assistant-answer input, .assistant-questionnaire input")
+      || node.querySelector("button:not([disabled]):not(.assistant-code-copy):not(.assistant-code-more), input, select, textarea"))?.focus({ preventScroll: true });
   };
   const nextStep = (work) => {
     if (!work || !view || view.work.work_id !== work.work_id) return null;
@@ -1448,6 +1452,24 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return null;
   };
   const nextButton = island.querySelector("[data-assistant-next]");
+  const strip = island.querySelector("[data-assistant-strip]");
+  /* With the side pane out of sight (a narrow panel's closed drawer, or folded away), the conversation's top line
+     carries what the summary would when there is something to do: the state, the one next step, pause, resume or stop. */
+  function paintStrip() {
+    if (!strip || !panel) return;
+    const work = view && view.work.work_id === currentId ? view.work : currentWork();
+    const state = work ? work.state : "idle", next = work ? nextStep(work) : null;
+    const liveChildren = work && view && view.delegated ? view.delegated.filter((child) => isLive(child.state)).length : 0;
+    strip.hidden = !work || panel.hidden || sideOpen() || !(next || state === "running" || state === "paused" || liveChildren);
+    if (strip.hidden) return;
+    strip.dataset.tone = WAITING.has(state) ? "waiting" : state === "running" ? "running" : "";
+    const stateNode = strip.querySelector("[data-assistant-strip-state]"), nowNode = strip.querySelector("[data-assistant-strip-now]");
+    stateNode.textContent = stateLabel(state); stateNode.dataset.state = state;
+    nowNode.textContent = nowLine(work); nowNode.title = nowNode.textContent;
+    const go = strip.querySelector("[data-assistant-strip-next]");
+    go.hidden = !next;
+    if (next) { go.textContent = next.label; go.onclick = next.run; }
+  }
   const metaRow = (label, ...content) => { const term = el("dt", "", label), detail = el("dd"); detail.append(...content); return [term, detail]; };
   function paintSummary() {
     const work = view && view.work.work_id === currentId ? view.work : currentWork();
@@ -1461,11 +1483,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const next = nextStep(work);
     if (nextButton) { nextButton.hidden = !next; if (next) { nextButton.textContent = next.label; nextButton.onclick = next.run; } }
     const state = work ? work.state : "idle";
-    island.querySelector('[data-assistant-control="pause"]').hidden = state !== "running";
-    island.querySelector('[data-assistant-control="resume"]').hidden = state !== "paused";
+    // The same controls sit in the summary and in the conversation's top line: both follow the state.
+    const controls = (kind) => island.querySelectorAll('[data-assistant-control="' + kind + '"]');
+    controls("pause").forEach((button) => { button.hidden = state !== "running"; });
+    controls("resume").forEach((button) => { button.hidden = state !== "paused"; });
     /* Stop also reaches the sub-tasks it handed out, so it stays offered while any of them still runs. */
     const liveChildren = work && view && view.delegated ? view.delegated.filter((child) => isLive(child.state)).length : 0;
-    island.querySelector('[data-assistant-control="stop"]').hidden = !isLive(state) && !liveChildren;
+    controls("stop").forEach((button) => { button.hidden = !isLive(state) && !liveChildren; });
+    paintStrip();
     if (!metaEl) return;
     const characters = characterAllowed() ? characterChoices() : null;
     // A chooser only when there is something to choose: a project's published Characters.
@@ -2416,6 +2441,21 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     requestOverride = "msg-" + message.message_id;
     composer.requestSubmit(send);
   };
+  /* Another part of the page opens the panel for the person (the contextual actions' “助理：…” hint, say): the work it
+     names or a new one, with words and materials put in, nothing sent. The person reads it and sends. */
+  document.addEventListener("molis:assistant-open", async (event) => {
+    const detail = event.detail && typeof event.detail === "object" ? event.detail : {};
+    const named = typeof detail.work_id === "string" && detail.work_id ? detail.work_id : "";
+    if (named && works.some((work) => work.work_id === named)) await switchTo(named);
+    else if (detail.new === true || named) await switchTo(null);
+    const source = detail.source && typeof detail.source.surface === "string" && detail.source.surface
+      ? { surface: detail.source.surface.slice(0, 80), title: typeof detail.source.title === "string" && detail.source.title ? detail.source.title.slice(0, 80) : detail.source.surface.slice(0, 80) } : null;
+    const brought = Array.isArray(detail.materials) ? detail.materials.filter((item) => item && typeof item.title === "string" && typeof item.text === "string" && item.text).slice(0, 4) : [];
+    brought.forEach((item, index) => files.push(Object.assign({ material_id: "open-" + Date.now().toString(36) + "-" + index, kind: "text", title: item.title.slice(0, 200),
+      text: item.text.slice(0, 20000), explicit: true }, source ? { source } : {})));
+    if (typeof detail.text === "string" && detail.text.trim()) { input.value = detail.text.trim().slice(0, 8000); typed = true; saveDraft(false); }
+    syncSend(); paintMaterials(); setPanel(true); input.focus();
+  });
   window.addEventListener("molis:assistant-message", (event) => {
     const message = tidyMessage(event.detail);
     if (!message || heard.has(message.message_id)) return;

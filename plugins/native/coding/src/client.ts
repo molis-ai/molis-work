@@ -31,7 +31,26 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const showReviews=(container,refs,sessionId,workspaceId,scope)=>host.showReviews?.(container,refs,sessionId,workspaceId,scope,{lifetime,signal:viewSignal});
   const q = (selector) => root.querySelector(selector);
   const turns = q('[data-coding-turns]'), input = q('[data-coding-task]');
-  const resultVisibility=()=>q('[data-coding-results-open]').setAttribute('aria-expanded',String(root.dataset.codingResults==='true'));
+  // The results panel's index: one chip per section on show, to jump to it. It is rebuilt only when the set of
+  // sections changes, so its own writes never loop back through the observer that schedules it.
+  const SECTION_SHORT={'协作与相关会话':'协作','文件检查点':'检查点','中断恢复':'恢复','本轮概况':'概况','每轮成果':'成果','本轮变更':'变更','命令回执':'命令','后台命令':'后台'};
+  let indexed=[],indexSignature='',indexTimer=0;
+  const sectionLabel=(section)=>{const own=section.getAttribute('aria-label');if(own)return own;const by=section.getAttribute('aria-labelledby'),named=by?document.getElementById(by):null;
+    return (named||section.querySelector(':scope > h3, :scope > header h3, :scope > details > summary'))?.textContent?.trim()||'';};
+  const resultsIndex=()=>{
+    const nav=q('[data-coding-results-index]'),tools=q('[data-coding-tools]');if(!nav||!tools)return;
+    const sections=root.dataset.codingResults==='true'&&tools.dataset.companionOpen!=='true'
+      ?[...tools.children].filter(node=>node!==nav&&!node.classList.contains('coding-tool-tabs')&&!node.hidden&&sectionLabel(node)&&getComputedStyle(node).display!=='none'):[];
+    const signature=sections.map(sectionLabel).join('|');if(signature===indexSignature)return;indexSignature=signature;indexed=sections;
+    nav.replaceChildren();
+    sections.forEach((section,at)=>{const chip=document.createElement('button');chip.type='button';chip.className='mw-btn mw-btn--ghost';const text=sectionLabel(section);chip.textContent=SECTION_SHORT[text]||text;chip.title='跳到：'+text;chip.dataset.codingResultsJump=String(at);nav.append(chip);});
+    nav.hidden=sections.length<2;
+  };
+  const scheduleResultsIndex=()=>{lifetime.clearTimeout(indexTimer);indexTimer=lifetime.timeout(resultsIndex,80);};
+  lifetime.listen(q('[data-coding-results-index]'),'click',event=>{const chip=event.target.closest('[data-coding-results-jump]'),tools=q('[data-coding-tools]'),section=chip&&indexed[Number(chip.dataset.codingResultsJump)];if(!section)return;
+    tools.scrollTo({top:section.getBoundingClientRect().top-tools.getBoundingClientRect().top+tools.scrollTop-8,behavior:'smooth'});section.tabIndex=-1;section.focus({preventScroll:true});});
+  lifetime.observe(new MutationObserver(scheduleResultsIndex),q('[data-coding-tools]'),{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','data-companion-open']});
+  const resultVisibility=()=>{q('[data-coding-results-open]').setAttribute('aria-expanded',String(root.dataset.codingResults==='true'));scheduleResultsIndex();};
   lifetime.observe(new MutationObserver(resultVisibility),root,{attributes:true,attributeFilter:['data-coding-results']});resultVisibility();
   const prefix = root.dataset.codingPrefix + '/api/plugins/io.molis.work.coding';
   const STICK_THRESHOLD_PX = ${STICK_THRESHOLD_PX};
@@ -67,7 +86,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const renderedText = new WeakMap();
   const directoryRows = new Map(), directoryGroups = new Map();
-  let directoryClaimed = false;
+  let directoryClaimed = false, stateLoaded = false;
   const drafts = new Map(), offsets = new Map(), draftWrites = new Map();
   const materialSelections = new Map(), characterSelections = new Map(), characterSkills = new Map(), characterTitles = new Map();
   const questionDrafts = new Map(), methodSelections = new Map(), configurations = new Map(), adoptedConfigurations = new Map(), mcpSelections = new Map(), mcpSourceSelections = new Map();
@@ -132,11 +151,19 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     };
     taskboard.update(id,merged());
     const key=id+':'+(data.run_count??allRuns.length);
-    if(root.dataset.codingBoardOpen==='true'&&boardAll.key!==key){boardAll.key=key;
+    if((root.dataset.codingBoardOpen==='true'||directory.dataset.codingCurrentFace==='taskboard')&&boardAll.key!==key){boardAll.key=key;
       void api('/sessions/'+encodeURIComponent(id)+'/taskboard').then(value=>{if(current!==id)return;boardAll={key,id,value};taskboard.update(id,merged());}).catch(()=>{boardAll.key='';});}
   };
-  const showBoard=(open)=>{root.dataset.codingBoardOpen=String(open);if(open)taskboard.show();else taskboard.hide();};
-  const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,board:q('[data-coding-board]'),current:()=>current,status,ownTask,roleName:id=>ROLE_NAMES[id]||id||'Agent',
+  // The main area shows the conversation or the TaskBoard; the header's switch and the board's "回到对话" both set it.
+  const showBoard=(open)=>{root.dataset.codingBoardOpen=String(open);
+    root.querySelectorAll('[data-coding-view]').forEach(button=>{const on=(button.dataset.codingView==='board')===open;button.setAttribute('aria-pressed',String(on));button.classList.toggle('is-current',on);});
+    if(open)taskboard.show();else taskboard.hide();};
+  // A session is "on show" from the moment it is opened until its tab closes or it is archived. Going back to the
+  // directory on a narrow screen does not end it: the faces there describe the session the person just left.
+  let sessionOnShow=false;
+  const onShow=()=>sessionOnShow&&Boolean(current);
+  const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,board:q('[data-coding-board]'),outline:directory.querySelector('[data-coding-board-outline]'),current:()=>current,onShow,status,ownTask,roleName:id=>ROLE_NAMES[id]||id||'Agent',
+    progress:text=>{const count=q('[data-coding-view-board-count]');count.textContent=text?' '+text:'';count.hidden=!text;},
     amend:async(runId,version,amendment,live=true)=>{
       const id=current;
       try{const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/plan-amendments','POST',{amendment,expected_version:version});
@@ -155,7 +182,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(target.kind==='step'){await stepReports.open(id,target.run_id,target.step_id);return;}
     if(target.kind==='fixed-plan'){await plans.openFixed(target.revision);return;}
     // Everything else lives in the conversation or the results panel: leave the board and show it there.
-    directory.querySelector('[data-coding-face=sessions]')?.click();showBoard(false);if(['plan','child','recovery','reviews'].includes(target.kind))root.dataset.codingResults='true';
+    showBoard(false);if(['plan','child','recovery','reviews'].includes(target.kind))root.dataset.codingResults='true';
     const node=target.kind==='plan'?q('[data-coding-plan]'):target.kind==='recovery'?q('[data-coding-recovery]'):target.kind==='reviews'?q('[data-coding-host-reviews]'):
       target.kind==='child'?[...q('[data-coding-subagents]').querySelectorAll('details[data-child]')].find(node=>node.dataset.child===target.child_id):[...turns.children].find(node=>node.dataset.run===target.run_id);
     if(!node || node.hidden)throw new Error('原内容暂不可读，请等待任务刷新后重试。');
@@ -347,29 +374,52 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   (${CODING_ACTIONS_CLIENT})({lifetime,q,api,current:()=>current,selections:actionSelections,save:id=>saveDraft(id,id===current?input.value:localDraft(id) || ''),controls,status});
   (${CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,selections:characterSelections,titles:characterTitles,skillSelections:characterSkills,
     save:id=>saveDraft(id,id===current?input.value:localDraft(id) || ''),controls,status});
+  // Saved results read like the session rows: what it is by its icon, the title, when it was saved, and its version.
   const renderArtifacts = () => {
     const list=directory.querySelector('[data-coding-artifact-list]'),needle=directory.querySelector('[data-coding-artifact-search]').value.trim().toLocaleLowerCase();list.replaceChildren();
+    const pad=(n)=>String(n).padStart(2,'0'),stamp=(value)=>{const at=new Date(value),now=new Date();if(Number.isNaN(at.getTime()))return '';return at.toDateString()===now.toDateString()?pad(at.getHours())+':'+pad(at.getMinutes()):pad(at.getMonth()+1)+'-'+pad(at.getDate());};
     for(const item of artifactRows.filter(item=>item.title.toLocaleLowerCase().includes(needle))) {
-      const row=document.createElement('button');row.type='button';row.className='mw-btn mw-btn--ghost coding-session-row';
-      row.dataset.codingArtifact=item.reference.artifact_id;row.setAttribute('aria-current',String((reportItem || changeItem)===item.reference.artifact_id));
-      const title=document.createElement('strong'),meta=document.createElement('span');title.textContent=item.title;meta.textContent=(item.kind==='changeset'?'固定变更 · '+item.file_count+' 个修改':'执行报告')+' · v'+item.reference.version+' · '+new Date(item.saved_at).toLocaleString()+(item.archived?' · 已归档':'');row.append(title,meta);list.append(row);
+      const row=document.createElement('button');row.type='button';row.className='mw-dir-row mw-dir-row--meta coding-artifact-row';row.title=item.title;
+      row.dataset.codingArtifact=item.reference.artifact_id;const open=(reportItem || changeItem)===item.reference.artifact_id;row.setAttribute('aria-current',String(open));row.classList.toggle('is-selected',open);
+      const icon=document.createElement('span');icon.className='mw-dir-row__icon';icon.innerHTML='<svg aria-hidden="true"><use href="#icon-'+(item.kind==='changeset'?'git-compare':'file')+'"></use></svg>';
+      const copy=document.createElement('span'),headline=document.createElement('span'),title=document.createElement('strong'),when=document.createElement('span'),meta=document.createElement('small');
+      copy.className='mw-dir-row__copy';headline.className='mw-dir-row__headline';when.className='mw-dir-row__count';
+      title.textContent=item.title;when.textContent=stamp(item.saved_at);when.title=new Date(item.saved_at).toLocaleString('zh-CN');
+      meta.textContent=(item.kind==='changeset'?'固定变更 · '+item.file_count+' 个修改':'执行报告')+' · v'+item.reference.version+(item.archived?' · 已归档':'');
+      headline.append(title,when);copy.append(headline,meta);row.append(icon,copy);list.append(row);
     }
-    if(!list.children.length)list.textContent=artifactRows.length?'没有匹配的成果。':'还没有可读取的固定成果。打开已结束的一轮，保存报告或固定变更。';
+    if(!list.children.length){const empty=document.createElement('div');empty.className='mw-empty';const text=document.createElement('p');text.textContent=artifactRows.length?'没有匹配的成果。':'还没有保存的成果。打开已结束的一轮，保存报告或固定变更。';empty.append(text);list.append(empty);}
   };
   const loadArtifacts = async () => {
     const ticket=++artifactTicket,notice=directory.querySelector('[data-coding-artifact-status]');notice.textContent='正在读取已保存成果…';
     try{const value=await api('/artifacts');if(ticket!==artifactTicket)return;artifactRows=value.artifacts;renderArtifacts();notice.textContent='只列出已保存的报告与固定变更；打开不会开始新执行。';}
     catch(error){if(!lifetime.alive)return;if(ticket===artifactTicket)notice.textContent=error.message+'；可点击刷新重试。';}
   };
+  // The Goal face: the open session's Goal for the next round, with the way to change it and the way to it.
+  const renderGoalFace = () => {
+    const box=directory.querySelector('[data-coding-goal-face-current]'),open=directory.querySelector('[data-coding-goal-face-open]'),visit=directory.querySelector('[data-coding-goal-face-visit]');
+    if(!box)return;
+    // The session list may still be on its way when the open session has already been read; the read's own record serves.
+    const session=current&&onShow()?(state?.sessions||[]).find(item=>item.session_id===current)||(lastData?.session?.session_id===current?lastData.session:null):null;
+    box.replaceChildren();
+    const line=(tag,text)=>{const node=document.createElement(tag);node.textContent=text;box.append(node);};
+    if(!session){line('span','先在「会话」里打开一个会话。');open.disabled=true;visit.hidden=true;return;}
+    open.disabled=false;
+    if(session.goal_id){line('strong',session.goal_title || '关联的 Goal 暂不可用');line('span','下一轮关联的目标 · '+session.title);open.querySelector('[data-slot=button-label]').textContent='更换目标';visit.hidden=false;visit.dataset.goalId=session.goal_id;visit.dataset.goalTitle=session.goal_title || '';}
+    else {line('strong','还没有关联目标');line('span','会话 · '+session.title);open.querySelector('[data-slot=button-label]').textContent='关联目标';visit.hidden=true;}
+  };
   const renderDirectory = () => {
+    renderGoalFace();
     const selectedFilter = directory.querySelector('[data-coding-filter][aria-pressed=true]')?.dataset.codingFilter || 'all';
     // The filters double as the background-task overview: how many rounds are working and how many wait on you.
     const counts={running:state.sessions.filter(session=>session.state==='running').length,'needs-you':state.sessions.filter(session=>session.checkpoint_busy || ['paused','waiting-answer','waiting-approval','failed','reconcile-required'].includes(session.state)).length};
     directory.querySelectorAll('[data-coding-filter]').forEach(button=>{const count=counts[button.dataset.codingFilter];if(count===undefined)return;let badge=button.querySelector('.coding-filter-count');if(!badge){badge=document.createElement('span');badge.className='coding-filter-count';button.append(badge);}badge.textContent=count?String(count):'';badge.hidden=!count;});
     const needle = directory.querySelector('[data-coding-search]').value.trim().toLocaleLowerCase();
     const list = directory.querySelector('[data-coding-sessions]');
-    // Replace the server's first paint once, then preserve live pointer targets.
-    if (!directoryClaimed) { list.replaceChildren(); directoryClaimed=true; }
+    // Replace the server's first paint once, then preserve live pointer targets. Until the session list has been read
+    // (a restored tab reads its session first, and a cold start takes a while), the server's paint stays: replacing it
+    // with "no sessions" would say something untrue.
+    if (!directoryClaimed) { if(!stateLoaded) return; list.replaceChildren(); directoryClaimed=true; }
     const visible = state.sessions.filter((session) => session.title.toLocaleLowerCase().includes(needle)
       && (selectedFilter === 'all' || selectedFilter === 'running' && session.state === 'running' || selectedFilter === 'needs-you' && (session.checkpoint_busy || ['paused','waiting-answer','waiting-approval','failed','reconcile-required'].includes(session.state))));
     const visibleIds=new Set(visible.map(session=>session.session_id));
@@ -455,7 +505,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const readState = async () => {
     const before=current && state?.sessions?.find(item=>item.session_id===current)?.title;
-    const result=await api('/state'); state=result;
+    const result=await api('/state'); state=result; stateLoaded=true;
     retitle(current,before,current && result.sessions.find(item=>item.session_id===current)?.title);
     const models=q('[data-coding-model]'); const previous=models.value;
     const options=result.models.map((model) => { const option=document.createElement('option'); option.value=JSON.stringify([model.provider_id,model.model_id]); option.textContent=model.label; return option; });
@@ -1128,8 +1178,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const select = async(id) => {
     host.revealTask?.();
     root.dataset.codingResults='false';
-    root.dataset.codingDetail='true';
-    if(id===current) return selectionTask;
+    root.dataset.codingDetail='true';sessionOnShow=true;
+    // The same session back on show (its tab reopened): the directory's faces read from what is already held.
+    if(id===current){taskboard.refreshOutline();renderGoalFace();return selectionTask;}
     if(changeReview.active())changeReview.close();q('[data-coding-outcome-list]').replaceChildren();q('[data-coding-outcomes]').hidden=true;
     materialTicket++;q('[data-coding-material-dialog]').close();
     closeReport();
@@ -1153,9 +1204,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(prefix==='coding-changeset:'){changeItem=itemId;await changeReview.openFixed(runId);}else{reportItem=itemId;await showReport(runId);}if(ticket===itemTicket)renderArtifacts();
   };
   lifetime.listen(root,'molis-work:select-item',event=>{
-    root.dataset.codingDetail=String(Boolean(event.detail.itemId));
+    root.dataset.codingDetail=String(Boolean(event.detail.itemId));sessionOnShow=Boolean(event.detail.itemId);
     if(event.detail.itemId) void openCodingItem(event.detail.itemId).catch(error=>status(error.message,true));
-    else void flushDraft().catch(error=>status(error.message,true));
+    // Nothing on show any more (the tab closed): the faces say so rather than keep describing the closed session.
+    else {taskboard.refreshOutline();renderGoalFace();void flushDraft().catch(error=>status(error.message,true));}
   });
   // A new session is only worth keeping once something is written in it: an untouched empty one is reused
   // instead of piling up. Anything with a draft, a Goal or a past run is left alone.
@@ -1320,21 +1372,26 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         host.openItem('coding',id,title);await select(id); }
       if(target.matches('[data-coding-open-beside]')) { host.openBeside?.('coding'); return; }
       if(target.matches('[data-coding-filter]')) { directory.querySelectorAll('[data-coding-filter]').forEach(item=>{item.setAttribute('aria-pressed',String(item===target));}); renderDirectory(); }
+      // A face changes the directory column only. The Files face is the companion browsers' (the Host shows them);
+      // every other face hides them and shows its own panel. The main area keeps whatever it shows.
       if(target.matches('[data-coding-face]')) {
-        const face=target.dataset.codingFace;
-        if(face==='taskboard' || face==='artifacts' || host.onDirectoryFace?.(face) || face==='sessions') {
-          if(face==='artifacts'||face==='taskboard')host.onDirectoryFace?.('sessions');
-          directory.dataset.codingCurrentFace=face;
-          directory.querySelector('[data-coding-artifact-directory]').hidden=face!=='artifacts';
-          showBoard(face==='taskboard');
-          directory.querySelectorAll('[data-coding-face]').forEach(button=>{button.setAttribute('aria-pressed',String(button===target));});
-          directory.querySelector('.mw-dir__label').textContent=face==='taskboard'?'TaskBoard':face==='artifacts'?'产物':face==='files'?'文件':'会话';
-          if(face==='taskboard'&&current)await readCurrent();
-          if(face==='artifacts')await loadArtifacts();
-        } else if(face==='goals') await openGoals();
-        else status('这个导航面尚未装配，现阶段可使用会话、目标关联和文件入口。');
+        const face=target.dataset.codingFace,handled=host.onDirectoryFace?.(face) ?? false;
+        if(face==='files' && !handled){status('文件面尚未装配，现阶段可使用会话、任务、目标和产物。');return;}
+        directory.dataset.codingCurrentFace=face;
+        directory.querySelector('[data-coding-artifact-directory]').hidden=face!=='artifacts';
+        directory.querySelector('[data-coding-goal-face]').hidden=face!=='goals';
+        directory.querySelectorAll('[data-coding-face]').forEach(button=>{button.setAttribute('aria-pressed',String(button===target));});
+        directory.querySelector('.mw-dir__label').textContent=face==='taskboard'?'TaskBoard':face==='goals'?'目标':face==='artifacts'?'产物':face==='files'?'文件':'会话';
+        if(face==='taskboard'){taskboard.showOutline();if(current)await readCurrent();}else taskboard.hideOutline();
+        if(face==='goals')renderGoalFace();
+        if(face==='artifacts')await loadArtifacts();
       }
-      if(target.matches('[data-coding-board-close]')) directory.querySelector('[data-coding-face=sessions]')?.click();
+      if(target.matches('[data-coding-view]')){const open=target.dataset.codingView==='board';showBoard(open);if(open&&current)await readCurrent();}
+      // Expanding from the directory brings the session's main area back on a narrow screen, where the two take turns.
+      if(target.matches('[data-coding-board-expand]') && current && onShow()){host.revealTask?.();root.dataset.codingDetail='true';showBoard(true);await readCurrent();q('[data-coding-board]').focus({preventScroll:true});}
+      if(target.matches('[data-coding-board-close]')){showBoard(false);q('[data-coding-view=dialogue]')?.focus({preventScroll:true});}
+      if(target.matches('[data-coding-goal-face-open]')) await openGoals();
+      if(target.matches('[data-coding-goal-face-visit]') && target.dataset.goalId) host.openItem('goals',target.dataset.goalId,target.dataset.goalTitle || '');
       if(target.matches('[data-coding-latest]')) { pinned=true;turns.scrollTop=turns.scrollHeight;target.hidden=true; }
       if(target.matches('[data-coding-continue]')) { target.disabled=true; await continueRound(target.dataset.codingContinue); target.disabled=false; }
       if(target.matches('[data-coding-recover-continue]')) { target.disabled=true; await recoverAndContinue(target.dataset.codingRecoverContinue); target.disabled=false; }
@@ -1350,7 +1407,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         const id=current;
         try {
           await api('/sessions/'+encodeURIComponent(id),'PATCH',{archive:true});
-          generation++;current='';lastRun=null;root.dataset.codingDetail='false';
+          generation++;current='';lastRun=null;root.dataset.codingDetail='false';sessionOnShow=false;taskboard.loading('');renderGoalFace();
           await refreshState();status('会话已归档。');
         } finally {target.disabled=false;}
       }

@@ -55,8 +55,9 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const labelOf = (node) => node.querySelector('span')?.textContent?.trim() || node.getAttribute('title') || '';
   const glyphOf = (id) => railItem(id)?.querySelector('svg')?.cloneNode(true) || null;
 
-  const setWindow = (id, open) => {
-    if(id==='im')document.dispatchEvent(new CustomEvent(open?'molis:side-open':'molis:side-close',{detail:{}}));
+  // Opened on purpose from the bar, the side panel takes focus (its current tab); opened by context it never does.
+  const setWindow = (id, open, focus = false) => {
+    if(id==='im')document.dispatchEvent(new CustomEvent(open?'molis:side-open':'molis:side-close',{detail:{focus}}));
   };
 
   /* The switcher. */
@@ -264,7 +265,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
     const toggle = target.closest('[data-dock-toggle]');
-    if (toggle) { const id = toggle.dataset.dockToggle; setWindow(id, document.body.dataset.sideOpen !== 'true'); return; }
+    if (toggle) { const id = toggle.dataset.dockToggle; setWindow(id, document.body.dataset.sideOpen !== 'true', true); return; }
     if (target.closest('[data-assistant-panel-close]')) { setPanel(false); return; }
     if (target.closest('[data-plugin-picker-toggle]')) { setPicker(pickerPopover?.hidden !== false); return; }
     if (target.closest('[data-dock-more]')) { setOverflow(overflow?.hidden !== false); return; }

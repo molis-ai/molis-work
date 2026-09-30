@@ -45,7 +45,8 @@ import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHeader } from "./web-http.js";
-import { L } from "./web-locale.js";
+import { htmlLang, L } from "./web-locale.js";
+import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import fs from "node:fs";
 import { handleGoalsWebHttp, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
@@ -162,10 +163,16 @@ export async function handleMolisWorkWebRequest(
       const sideView = /^\/side\/([^/]+)\/([^/]+)$/u.exec(url.pathname);
       if (sideView && request.method === "GET" && options.project) {
         const projectId = options.project.project_id;
-        const enabled = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.listProjectPlugins(projectId));
+        // The same plugins the page lists, personal ones included (they are on without being stored per project).
+        const enabled = [...availableProjectPluginIds(await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.listProjectPlugins(projectId)))];
         const html = workbenchRenderer.renderSideViewDocument({ projectPluginId: decodeURIComponent(sideView[1]!), viewId: decodeURIComponent(sideView[2]!),
           projectId, routePrefix: `/projects/${encodeURIComponent(projectId)}`, enabled, controlToken });
-        if (!html) { sendJson(response, 404, { error: L("这个侧栏内容已经不在了（插件可能已停用）") }); return; }
+        if (!html) {
+          // Shown inside the panel's frame: a sentence in the panel's colours, not a JSON body.
+          response.writeHead(404, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
+          response.end(`<!doctype html><html lang="${htmlLang()}"><meta charset="utf-8"><meta name="color-scheme" content="light dark"><body style="margin:16px;font:13px/1.6 system-ui,sans-serif;color:GrayText;background:Canvas">${escapeHtml(L("这个侧栏内容已经不在了（插件可能已停用）"))}</body></html>`);
+          return;
+        }
         response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
         response.end(html);
         return;

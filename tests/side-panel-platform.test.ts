@@ -147,6 +147,16 @@ test("real Host: the file tab lists and previews plugin files through the action
     const other = await fetch(`${origin}/projects/${b.project_id}/api/side/files/entries?source=${encodeURIComponent(pages.id)}`);
     const otherBody = await other.json() as { page?: { entries: unknown[] } };
     assert.ok(other.status === 404 || (otherBody.page?.entries.length ?? 0) === 0, "project boundary");
+
+    // A plugin's side tab also renders for a personal plugin, on without being stored per project (灵光); a view that is
+    // not there answers the panel's frame with a sentence, not a JSON body.
+    const sideTab = await fetch(`${origin}/projects/${a.project_id}/side/lingguang/side`);
+    assert.equal(sideTab.status, 200);
+    assert.match(await sideTab.text(), /data-side-view="lingguang\/side"/u);
+    const gone = await fetch(`${origin}/projects/${a.project_id}/side/nothing/side`);
+    assert.equal(gone.status, 404);
+    assert.match(gone.headers.get("content-type") ?? "", /text\/html/u);
+    assert.match(await gone.text(), /侧栏内容已经不在了/u);
     void randomUUID;
   } finally {
     await new Promise<void>(resolve => server.listening ? server.close(() => resolve()) : resolve());

@@ -1,6 +1,6 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
-import { TYPEFACE_STYLES, VISUAL_FOUNDATION_STYLES, renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { renderWorkbenchDocument, WORKBENCH_UI_SLOTS } from "./document-shell.js";
 import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
 import { sideEntries } from "./plugin-catalog.js";
@@ -54,11 +54,15 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
   return renderWorkbenchDocument({
     lang: input.lang,
     title: `${view.title} · Molis Work`,
-    head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<style>${TYPEFACE_STYLES}\n${VISUAL_FOUNDATION_STYLES}\n${pack?.stylesheet ?? ""}\n${SIDE_VIEW_STYLES}</style>`,
+    // The workbench's own stylesheet (cached with the page), so a plugin's view looks here as it does on the stage.
+    head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>${SIDE_VIEW_STYLES}</style>`,
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}` },
     body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root>${html}</main>
     <script>${input.clientI18nScript}${CONTROL_CLIENT_SCRIPT}${SIDE_LINKS_SCRIPT}
       const L = globalThis.L;
+      // This document is the view's host: the work surface a plugin reuses here waits, hidden, for its host to show it
+      // (the workbench's surface manager does that on the stage), and its client only starts once it is visible.
+      for (const surface of document.querySelectorAll('[data-side-view-root] > [data-work-surface][hidden]')) surface.hidden = false;
       const mountPluginClient = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
       ${client}
     </script>`,

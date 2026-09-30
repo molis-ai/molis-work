@@ -7,6 +7,7 @@ import {
   AGENT_PROMPT_MAX_CHARS,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
   type AgentPromptView, type AgentRoleRegistration, type AgentRoleView, type AgentDefinitionsDiagnostics, type AgentUnregisteredCall,
+  type AgentMethodRegistration, type AgentMethodView,
 } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -66,6 +67,12 @@ export class AgentDefinitions {
     for (const role of registration.roles) {
       const missing = role.prompt_ids.filter(id => !ids.has(id));
       if (missing.length) throw new AgentDefinitionsError("agent_definitions.invalid", `角色 ${role.role_id} 引用了未登记的 Prompt：${missing.join("、")}`);
+    }
+    const methods = new Set<string>();
+    for (const method of registration.methods ?? []) {
+      if (methods.has(method.skill_id)) throw new AgentDefinitionsError("agent_definitions.invalid", `${registration.owner_id} 重复登记了方法 ${method.skill_id}`);
+      methods.add(method.skill_id);
+      if (!method.body.trim() || method.body.length > 20_000) throw new AgentDefinitionsError("agent_definitions.invalid", `${registration.owner_id}/${method.skill_id} 的方法正文为空或过长`);
     }
     const declarations = this.scopes.get(registration.owner_id) ?? new Map();
     declarations.set(scope, structuredClone(registration));
@@ -137,6 +144,19 @@ export class AgentDefinitions {
   prompt(key: string): AgentPromptView {
     const { owner, prompt } = this.registered(key);
     return this.view(owner, prompt);
+  }
+
+  /** Methods owners offer to other Agents for business work; the body is read with `method`. */
+  methods(): AgentMethodView[] {
+    return [...this.owners.values()].flatMap(owner => (owner.methods ?? []).map(method => ({ key: keyOf(owner.owner_id, method.skill_id), owner_id: owner.owner_id,
+      source: structuredClone(owner.source), skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary, tools: [...method.tools] })));
+  }
+
+  /** One registered method with its body, by owner, id and (when given) exact version. */
+  method(ownerId: string, skillId: string, version?: number): AgentMethodRegistration {
+    const method = this.owners.get(ownerId)?.methods?.find(item => item.skill_id === skillId);
+    if (!method || (version !== undefined && method.version !== version)) throw new AgentDefinitionsError("agent_definitions.not_found", "没有登记这个方法版本");
+    return structuredClone(method);
   }
 
   roles(): AgentRoleView[] {
@@ -222,7 +242,8 @@ export class AgentDefinitions {
       const idle = views.filter(view => !used.has(view.key));
       if (idle.length) issues.push({ level: "info", text: `${idle.length} 段登记后还没有被调用过（功能可能还没用到）：${idle.map(view => view.title).join("、")}` });
       return { owner_id: owner.owner_id, source: structuredClone(owner.source), prompts: views.filter(view => view.kind === "agent").length,
-        instructions: views.filter(view => view.kind === "instruction").length, roles: owner.roles.length, edited: views.filter(view => view.effective === "user").length, issues };
+        instructions: views.filter(view => view.kind === "instruction").length, roles: owner.roles.length, ...(owner.methods?.length ? { methods: owner.methods.length } : {}),
+        edited: views.filter(view => view.effective === "user").length, issues };
     });
     return { owners, unregistered: unregistered.map(item => ({ ...item })) };
   }

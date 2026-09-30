@@ -46,6 +46,7 @@
     "@molis-ai/molis-work-plugin-goals": "workspace:*",
     "@molis-ai/molis-work-plugin-inbox": "workspace:*",
     "@molis-ai/molis-work-plugin-lingguang": "workspace:*",
+    "@molis-ai/molis-work-plugin-todo": "workspace:*",
     "@molis-ai/molis-work-plugin-workflows": "workspace:*",
     "@molis-ai/molis-work-plugin-alchemist": "workspace:*",
     "@molis-ai/molis-work-plugin-ppt": "workspace:*",

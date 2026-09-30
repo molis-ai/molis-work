@@ -97,7 +97,9 @@ test("settings serve complete category pages; the project gear opens them in the
   assert.ok(Math.abs(workbenchColumn.offset) <= 24, "workbench settings column is centered, offset " + workbenchColumn.offset);
   for (const [category, selector] of [["workspaces", "[data-project-workspaces-add]"], ["guidance", "[data-guidance-form]"], ["general", "[data-project-rename]"]]) {
     await click(`[data-directory-panel=project-settings] [data-settings-section="${category}"]`);
-    await waitFor(`!!document.querySelector('[data-work-surface=project-settings] ${selector}')`);
+    // Each category is a page the server renders from the whole project view: 1–3 s here, longer when the machine is
+    // busy (it failed about one run in five under parallel test load with the default 4 s).
+    await waitFor(`!!document.querySelector('[data-work-surface=project-settings] ${selector}')`, 15_000);
     assert.equal(await evaluate("location.pathname.includes('/settings')"), false);
     assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
     assert.equal(await evaluate(`!!document.querySelector('[data-directory-panel=project-settings] ${selector}')`), false);

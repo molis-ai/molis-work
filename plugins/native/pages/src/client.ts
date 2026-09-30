@@ -44,6 +44,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   let openingId = null;
   let editVersion = 0;
   let dirty = false;
+  // The open document's body cannot be shown by this editor: read-only, never autosaved (see fillEditor).
+  let unshowable = false;
   let saveQueue = Promise.resolve();
   const publishing = new Set();
   const keepListScroll = (paint) => {
@@ -77,6 +79,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const showNote = (text, isError) => {
     if (!note) return;
     if (!text && selected?.publication_pending) text = L("上次成果保存尚未完成。继续保存会恢复当时的快照，当前编辑内容可在之后另存一版。");
+    // While the open body cannot be shown, clearing other notes leaves this one: the page is read-only for that reason.
+    if (!text && unshowable) { text = L("这篇文档的内容结构在编辑器里显示不了，为了不覆盖原内容，这里暂停编辑和自动保存。可以让助理重新写一遍，或在助理的工作面板里撤销那次修改。"); isError = true; }
     note.hidden = !text;
     note.textContent = text || "";
     note.classList.toggle("is-error", Boolean(isError && text));
@@ -247,7 +251,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     fillGoalSelect();
     const artifactBar = workbench.querySelector("[data-pages-artifact-bar]");
-    if (artifactBar) artifactBar.textContent = selected.publication_pending ? L("继续保存上次成果") : selected.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+    if (artifactBar) artifactBar.textContent = selected.publication_pending ? L("继续保存上次固定版本") : selected.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
     if (selected.publication_pending) showNote("", false);
   };
   const markSelected = (id) => {
@@ -262,7 +266,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     button.type = "button";
     button.className = "creative-artifact-act";
     button.dataset[key] = record.id;
-    const label = record.publication_pending ? L("继续保存上次成果") : record.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+    const label = record.publication_pending ? L("继续保存上次固定版本") : record.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
     button.setAttribute("aria-label", label);
     button.innerHTML = ICON("upload") + "<span></span>";
     button.lastElementChild.textContent = label;
@@ -428,6 +432,15 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (!selected || selected.id !== id || editVersion !== revision) throw new Error(L("文档已改变，请重新生成"));
         return result;
       },
+      // Selected text to the resident Assistant, as a suggestion or as the person's own request (spec 8.3).
+      askAssistant: (input) => {
+        if (!selected) return;
+        window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
+          message_id: crypto.randomUUID(), purpose: input.mode, source: { surface: "pages", title: "Pages" },
+          object: { kind: "pages_document", id: selected.id, title: selected.title, version: selected.version },
+          text: input.request, materials: input.selection.trim() ? [{ title: L("选中的文字") + " · " + selected.title, text: input.selection }] : [],
+        } }));
+      },
       onCreateFromAi: async (input) => {
         const content = String(input.text || "").split(/\\n{2,}/).map((part) => (
           part.trim()
@@ -502,11 +515,16 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     titleEl.textContent = record.title;
     statusEl.textContent = L("已保存");
     titleInput.value = record.title;
+    // A body this editor cannot show (written elsewhere in another structure) is not shown as an empty page: the next
+    // keystroke would save that empty page over it. It stays read-only and unsaved until it is replaced or undone.
+    unshowable = Boolean(record.body && Editor && Editor.canShow && !Editor.canShow(record.body));
     try {
-      ensureEditor(record.body || (Editor && Editor.emptyDoc()));
+      ensureEditor(unshowable ? Editor.emptyDoc() : record.body || (Editor && Editor.emptyDoc()));
     } finally {
       filling = false;
     }
+    if (editor && editor.view) editor.view.setProps({ editable: () => !unshowable });
+    titleInput.disabled = unshowable;
     markSelected(record.id);
     syncEditorChrome();
     showNote("", false);
@@ -534,7 +552,13 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (selected) {
       const next = records.find((item) => item.id === selected.id);
       if (!next) closeEditor();
-      else if (!saveTimer && !dirty) remember(next, false);
+      else if (!saveTimer && !dirty) {
+        // Changed elsewhere (the Assistant, another window): show what is there now. The old text left on screen under
+        // the new version would be saved over the change by the next keystroke.
+        const moved = next.version !== selected.version;
+        remember(next, moved);
+        if (moved) editVersion += 1;
+      }
     }
   };
   const save = async () => {
@@ -554,6 +578,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
   const queueSave = () => {
+    if (unshowable) return;
     statusEl.textContent = L("保存中");
     editVersion += 1;
     dirty = true;
@@ -601,19 +626,39 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     })().catch((error) => { if (seq === selectionSeq) showNote(error.message || L("保存失败"), true); })
       .finally(() => { if (seq === selectionSeq) openingId = null; });
   });
-  const exportHtml = () => {
+  /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
+  const placed = (detail) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
+  const safeName = (value) => String(value || L("无标题")).replace(/[\\\\/:*?"<>|]/g, "_").slice(0, 80);
+  const htmlDocument = (body) => "<!doctype html><html lang=\\"zh-CN\\"><head><meta charset=\\"utf-8\\"><title>"
+    + escapeHtml(selected.title) + "</title><style>body{max-width:760px;margin:40px auto;padding:0 20px;font:15px/1.7 -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;color:#222}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body><h1>"
+    + escapeHtml(selected.title) + "</h1>" + Editor.toHTML(body) + "</body></html>";
+  const exportDocument = (format) => {
     if (!selected || !Editor) return;
     const body = editor ? Editor.getDoc(editor) : selected.body;
-    const html = "<!doctype html><html lang=\\"zh-CN\\"><head><meta charset=\\"utf-8\\"><title>"
-      + escapeHtml(selected.title) + "</title></head><body><h1>"
-      + escapeHtml(selected.title) + "</h1>" + Editor.toHTML(body) + "</body></html>";
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const markdown = format === "md";
+    const content = markdown ? "# " + (selected.title || L("无标题")) + "\\n\\n" + Editor.toMarkdown(body) : htmlDocument(body);
+    const blob = new Blob([content], { type: markdown ? "text/markdown;charset=utf-8" : "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = (selected.title || "page") + ".html";
+    link.download = safeName(selected.title) + (markdown ? ".md" : ".html");
     link.click();
     URL.revokeObjectURL(url);
+    placed({ verb: "exported", title: selected.title, file: { name: link.download, format: markdown ? "Markdown" : L("网页") } });
+  };
+  const printDocument = () => {
+    if (!selected || !Editor) return;
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
+    document.body.append(frame);
+    frame.srcdoc = htmlDocument(editor ? Editor.getDoc(editor) : selected.body);
+    frame.addEventListener("load", () => {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+      placed({ verb: "printed", title: selected?.title || "" });
+      setTimeout(() => frame.remove(), 1000);
+    }, { once: true });
   };
   const escapeHtml = (value) => String(value ?? "")
     .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
@@ -626,6 +671,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const payload = await request("POST", "/api/plugins/pages", body || {});
     await loadList();
     openCreated(payload.document);
+    placed({ verb: "created", title: payload.document.title || L("无标题"), object: { kind: "pages_document", id: payload.document.id } });
     dirty = false;
     editVersion += 1;
     titleInput.focus();
@@ -660,7 +706,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         goal_id: current.publication_pending?.goal_id ?? current.goal_id ?? "", expected_version: current.version,
       });
       if (draft) adoptSaved(draft, payload.document); else storeDocument(payload.document);
-      showNote(payload.recovered ? L("已恢复上次成果；当前编辑内容已保留，需要时可再存一版。") : L("已存成 Artifact"), false);
+      if (payload.recovered) showNote(L("已恢复上次成果；当前编辑内容已保留，需要时可再存一版。"), false);
+      placed({ verb: "versioned", title: payload.document.title, object: { kind: "pages_document", id: payload.document.id },
+        note: L("第 {version} 版 · 放在这个位置的成果（Artifacts）里；继续编辑不会改变这一版", { version: payload.document.artifact_version }) });
     } catch (error) {
       // A failed response may follow an already committed Artifact. Refresh its
       // durable recovery state while preserving any local edits made in flight.
@@ -674,6 +722,31 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
 
   ${PAGES_IMPORT_CLIENT_SCRIPT}
+
+  // Moved or copied from the placement bar: the list here changed; a document moved away is no longer here to edit.
+  window.addEventListener?.("molis:placement-changed", (event) => {
+    const detail = event.detail || {};
+    if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("pages_document")) return;
+    void (async () => {
+      if (detail.mode === "move" && detail.from && selected && selected.id === detail.from.id) closeEditor();
+      await loadList();
+    })().catch((error) => showNote(error.message || L("文档请求失败"), true));
+  });
+
+  // Back in this window: the open document may have changed elsewhere (another window, the Assistant in another tab).
+  // Only it is read again; the change shows at once when nothing of the person's own waits, and otherwise they are told.
+  const recheckOpen = async () => {
+    if (!selected || document.hidden) return;
+    const id = selected.id, version = selected.version;
+    const payload = await request("GET", "/api/plugins/pages/" + encodeURIComponent(id));
+    const next = payload && payload.document;
+    if (!next || !selected || selected.id !== id || next.version === version) return;
+    if (saveTimer || dirty) { showNote(L("这篇文档刚在别处改过；你还有未保存的修改，保存时会提示冲突，不会覆盖。"), true); return; }
+    remember(next, true);
+    editVersion += 1;
+  };
+  window.addEventListener?.("focus", () => { void recheckOpen().catch(() => {}); });
+  document.addEventListener?.("visibilitychange", () => { void recheckOpen().catch(() => {}); });
 
   // The Assistant changed a Pages document: show the saved version, unless the person has edits of their own in flight.
   window.addEventListener?.("molis:assistant-effect", (event) => {
@@ -862,7 +935,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-pages-export]") && selected) {
         closeMore();
-        exportHtml();
+        exportDocument(event.target.closest("[data-pages-export]").dataset.pagesExport || "html");
+        return;
+      }
+      if (event.target.closest("[data-pages-print]") && selected) {
+        closeMore();
+        printDocument();
         return;
       }
       if (event.target.closest("[data-pages-delete]") && selected) {

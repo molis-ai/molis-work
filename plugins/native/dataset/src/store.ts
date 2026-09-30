@@ -99,6 +99,49 @@ export class DatasetStore {
     return next;
   }
 
+  /** Move to another partition; the id and saved versions go with it. Fixed versions already published stay with the old place. */
+  relocate(id: string, from: string, to: string): DatasetRecord {
+    const target = normalizeProjectId(to);
+    return this.transaction(() => {
+      const current = this.get(id, from);
+      if (current.publication_pending) throw new DatasetError("dataset.publication_pending", "上次固定版本还没存完，请先在原位置恢复，再移动");
+      // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
+      const result = this.db.prepare("UPDATE datasets SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?")
+        .run(target, id, current.version);
+      if (result.changes !== 1) throw new DatasetError("dataset.conflict", "数据表刚被修改，请重新读取后再移动");
+      return this.get(id, target);
+    });
+  }
+
+  /** An independent copy of the current table (not its saved versions) in another partition; the same request returns the same copy. */
+  duplicate(id: string, from: string, to: string, requestId: string): DatasetRecord {
+    return this.once(normalizeProjectId(to), "copy:" + requestId, () => {
+      const source = this.get(id, from);
+      const created = this.create({ title: source.title, project_id: to });
+      return this.update(created.id, { description: source.description, columns: source.columns, rows: source.rows, expected_version: created.version }, to);
+    });
+  }
+
+  /** A table made from CSV another plugin hands over (a form's responses); one delivery makes one table. */
+  receiveCsv(projectId: string, requestId: string, title: string, csv: string): DatasetRecord {
+    return this.once(normalizeProjectId(projectId), "receive:" + requestId, () => {
+      const parsed = parseCsv(csv);
+      if (parsed.columns.length === 0) throw new DatasetError("dataset.invalid", "收到的内容不是带表头的 CSV");
+      const created = this.create({ title: title.slice(0, 80) || "未命名数据表", project_id: projectId });
+      return this.update(created.id, { columns: parsed.columns, rows: parsed.rows, expected_version: created.version }, projectId);
+    });
+  }
+
+  private once(projectId: string, requestId: string, make: () => DatasetRecord): DatasetRecord {
+    return this.transaction(() => {
+      const prior = this.db.prepare("SELECT dataset_id FROM dataset_receipts WHERE project_id = ? AND request_id = ?").get(projectId, requestId) as { dataset_id: string } | undefined;
+      if (prior) return this.get(prior.dataset_id, projectId);
+      const made = make();
+      this.db.prepare("INSERT INTO dataset_receipts (project_id, request_id, dataset_id, created_at) VALUES (?, ?, ?, ?)").run(projectId, requestId, made.id, new Date().toISOString());
+      return made;
+    });
+  }
+
   delete(id: string, projectId?: string, expectedVersion?: number): void {
     this.transaction(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
@@ -262,11 +305,13 @@ export function openDatasetStore(homeDirectory: string): DatasetStore {
   ensureSqliteColumn(db, "datasets", "artifact_id", "TEXT NOT NULL DEFAULT ''");
   ensureSqliteColumn(db, "datasets", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
   ensureSqliteColumn(db, "datasets", "publication_pending_json", "TEXT");
+  db.exec("CREATE TABLE IF NOT EXISTS dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id))");
   return new DatasetStore(db);
 }
 
 export function parseCsv(text: string): { columns: DatasetColumn[]; rows: DatasetRow[] } {
-  const lines = csvRecords(text);
+  // Spreadsheet exports (ours included) start with a byte-order mark; it is not part of the first column's name.
+  const lines = csvRecords(text.replace(/^\ufeff/u, ""));
   if (lines.length === 0) return { columns: [], rows: [] };
   const headers = lines[0]!;
   const columns = headers.map((name, index) => ({

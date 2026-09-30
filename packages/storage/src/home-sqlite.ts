@@ -10,6 +10,7 @@ export const PERSONAL_HOME_SQLITE_STORES = [
   "dataset",
   "ppt",
   "lingguang",
+  "todo",
   "jelly",
   "cognia",
   "alchemist",

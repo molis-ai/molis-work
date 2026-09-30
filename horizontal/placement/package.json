@@ -1,0 +1,44 @@
+{
+  "name": "@molis-ai/molis-work-service-placement",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Where objects live, who can read them, what they are linked to, and how they move, copy and convert between the personal space and projects.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*"
+  },
+  "molis-work": {
+    "path": "horizontal/placement",
+    "kind": "horizontal",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/services/placement",
+    "migrationGoals": [
+      "goal-reorg-f2"
+    ],
+    "ssot": "docs/SSOT-MATRIX.md",
+    "capabilities": [
+      "placement.describe.v1",
+      "placement.links.v1"
+    ]
+  }
+}

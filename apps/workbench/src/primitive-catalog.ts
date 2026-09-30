@@ -8,8 +8,8 @@ import {
   renderProjectMonogram,
   renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
-import { renderAccountGlobalItems, renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
-import { renderPersonalMenuItems, renderPluginRailAccountFooter } from "./settings-directory.js";
+import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
+import { renderPersonalMenuItems } from "./settings-directory.js";
 
 const CATALOG_PLUGINS = ["goals", "inbox", "feed", "sessions", "schedule", "workflows", "pages", "shelf", "lingguang", "plugin-builder"] as const;
 
@@ -26,7 +26,6 @@ function renderBarSpecimen(): string {
   const bar = renderWorkbenchBar(primitives, {
     enabled: CATALOG_PLUGINS,
     rail: renderPluginRail(primitives, CATALOG_PLUGINS, ""),
-    accountFooter: renderPluginRailAccountFooter(primitives).replace("<!-- account-global-items -->", renderAccountGlobalItems(primitives, CATALOG_PLUGINS)),
     projectChrome: renderWorkspaceChrome(primitives, projectMenu),
   });
   const pin = (id: string, glyph: Parameters<typeof icon>[0], label: string, extra = "") => `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" data-dock-pin="${id}" aria-label="${label}" title="${label}"${extra}>${icon(glyph)}</button>`;

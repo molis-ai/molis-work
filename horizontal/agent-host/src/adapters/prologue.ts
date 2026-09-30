@@ -1,5 +1,5 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { parseAgentRunBudget, agentTextMaterialContent, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { parseAgentRunBudget, agentTextMaterialContent, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
@@ -87,6 +87,8 @@ export interface PrologueModelConfiguration {
   prompt_cache?: "off" | "best-effort" | "required";
   /** The model thinks before answering. Absent means off, and no thinking field is sent. */
   thinking?: "adaptive";
+  /** What the model settings say about seeing images. Absent means unknown — never guessed. */
+  vision?: boolean;
 }
 
 export interface PrologueAdapterPorts {
@@ -136,6 +138,8 @@ export interface PrologueStartInput {
   compaction?: { prompt: string; above_tokens: number };
   task: string;
   text_materials?: readonly AgentTextMaterial[];
+  /** Images shown to the model in this Run (runtime resource references). */
+  image_materials?: readonly AgentImageMaterial[];
   skills?: readonly AgentSkillDefinition[];
   mcp_tools?: readonly AgentMcpToolRef[];
   mcp_sources?: readonly AgentMcpSourceRef[];
@@ -172,12 +176,20 @@ export interface PrologueRuntimePort {
   waits?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentWaitsCapability;
   background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
+  /** The runtime's durable local queue for timed work. */
+  schedule?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduleCapability;
+  /** Prologue Memory, scope by scope. */
+  memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryCapability;
+  /** Documents parsed by the runtime's own parsers. */
+  documents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
   skillLibrary?: AgentSkillLibrary;
   mcpLibrary?: AgentMcpLibrary;
   saveRunTiming?(run: AgentRunRef, timing: PrologueRunTiming): Promise<void>;
   /** This runtime prepares selected bounded text methods through SDK public APIs. */
   inlineMethods?: boolean;
+  /** Images taken in by this runtime can be attached to a Run's model calls. */
+  imageAttachments?: boolean;
   /** Node composition actually supplies a cancellable SDK ContextCompactor. */
   compaction?: boolean;
   /** null only when the original owner confirms the question was answered. */
@@ -283,6 +295,9 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
   readonly recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
+  readonly schedule?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduleCapability;
+  readonly memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryCapability;
+  readonly documents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentCapability;
   readonly #runtime: PrologueRuntimePort;
   readonly #ports: PrologueAdapterPorts;
   readonly #now: () => Date;
@@ -301,6 +316,9 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (options.runtime.messages) this.messages = options.runtime.messages;
     if (options.runtime.waits) this.waits = options.runtime.waits;
     if (options.runtime.background) this.background = options.runtime.background;
+    if (options.runtime.schedule) this.schedule = options.runtime.schedule;
+    if (options.runtime.memory) this.memory = options.runtime.memory;
+    if (options.runtime.documents) this.documents = options.runtime.documents;
     if (options.runtime.subagents) this.subagents = {
       ...(options.runtime.subagents.workspaces ? { workspaces: true as const } : {}),
       list: async run => { await this.read(run); return options.runtime.subagents!.list(run); },
@@ -473,11 +491,17 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const textMaterials = request.text_materials ?? [];
     if (textMaterials.length > 30 || new Set(textMaterials.map(item => item.material_id)).size !== textMaterials.length) throw new Error("材料过多或选择重复");
     textMaterials.forEach(agentTextMaterialContent);
+    const imageMaterials = request.image_materials ?? [];
+    if (imageMaterials.length > 4 || new Set(imageMaterials.map(item => item.material_id)).size !== imageMaterials.length
+      || imageMaterials.some(item => !item || typeof item.resource?.id !== "string" || !Number.isSafeInteger(item.resource.revision) || !/^image\//.test(String(item.media_type)))) throw new Error("图片过多、重复或格式无效");
+    if (imageMaterials.length && (!this.#runtime.imageAttachments || request.workspace !== "business")) throw new PrologueAdapterError("agent.capability_unavailable", "这个运行方式还不能把图片交给模型");
     if (request.budget?.max_turns !== undefined && (!Number.isSafeInteger(request.budget.max_turns) || request.budget.max_turns < 1 || request.budget.max_turns > 100)) throw new Error("执行轮次预算必须为 1–100 的整数");
     const model = await this.#ports.modelConfiguration(request.model_selection);
     if (model === null) {
       throw new PrologueAdapterError("agent.model_not_configured", "还没有配置可用的模型");
     }
+    // A model the settings mark as not seeing images never gets them: nothing is sent, and the person hears why.
+    if (imageMaterials.length && model.vision === false) throw new PrologueAdapterError("agent.capability_unavailable", `模型设置里标注「${model.model}」不支持看图，图片没有发出；可以换一个支持看图的模型，或去掉图片再发`);
     const role = request.role;
     if (role === undefined) {
       throw new PrologueAdapterError(
@@ -546,6 +570,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         source_artifact_id: material.source_artifact_id,
         source_version: material.source_version,
       })),
+      ...(imageMaterials.length ? { image_materials: imageMaterials.map(({ material_id, title, media_type }) => ({ material_id, title, media_type })) } : {}),
       ...(request.execution_plan ? { execution_plan: request.execution_plan } : {}),
       ...(request.continue_step_board_of ? { continues_step_board_of: request.continue_step_board_of } : {}),
       ...(request.history === "digest" ? { history: "digest" as const } : {}),
@@ -578,6 +603,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),
       ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
       text_materials: textMaterials,
+      ...(imageMaterials.length ? { image_materials: imageMaterials } : {}),
       skills: role.skills ?? [],
       mcp_tools: request.mcp_tools ?? [],
       mcp_sources: request.mcp_sources ?? [],
@@ -763,7 +789,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ? controlPhase === "stopped" || controlPhase === "cancelled"
         ? "已请求停止，正在收尾并保存执行记录"
         : "正在保存本轮执行记录"
-      : phase === "stopped" ? "已停止" : record.state.stop_reason;
+      // A round the runtime stopped itself (a guardrail or its circuit breaker) keeps the reason it gave; one the person stopped says so.
+      : phase === "stopped" ? (record.state.phase === "stopped" && record.state.stop_reason) || "已停止" : record.state.stop_reason;
     if (stampTerminal && isEnded(phase) && this.#runtime.saveRunTiming && !record.timingReady) {
       if (!record.timingCommit) {
         record.observedEndAt = record.view.ended_at ?? this.#now().toISOString();
@@ -806,6 +833,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         ...(this.#runtime.readPendingQuestion ? { answerable: false, unavailable_reason: "正在读取原问题" } : {}),
       })),
       stop_reason: stopReason,
+      ...(record.state.todo?.length ? { todo: record.state.todo.map(item => ({ ...item })) } : {}),
       ...(stampTerminal && isEnded(phase) && record.view.ended_at === null
         ? { ended_at: record.observedEndAt ?? this.#now().toISOString() }
         : {}),

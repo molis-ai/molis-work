@@ -18,6 +18,15 @@ export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const active=status=>['queued','running'].includes(status);
   let data={directions:[],explorations:[],ideas:[]},pulse={reports:[]},decisions={cases:[],activities:[],log:[]},runtime={models:[],configured:false},memory={taste:[],playbook:[]};
   let collection='directions',showArchived=false,current=null,model=null,research=null,decision=null,pulseBundle=null,context={kind:'surface',label:L('方向'),surface:'ideas'},target=null,selection=null,sideMode='',onSubmit=null,formBusy=false,returnFocus=null,seq=0,loadSeq=0,loaded=false,pollTimer,detailSignature='',lastRow=null;
+  // What is on screen, for the Assistant: the direction or Idea being looked at, under the kinds system search uses. It is
+  // republished whenever the content redraws (every view sets the discussion context above as it renders).
+  let shownContext='';
+  const publishContext=()=>{const c={plugin_id:'io.molis.work.alchemist',surface_title:L('炼金术士')};
+    if(context.kind==='direction'&&context.directionId)c.object={kind:'alchemist-direction',id:context.directionId,title:context.label||''};
+    else if(context.kind==='idea'&&context.ideaId&&context.version!=='draft')c.object={kind:'alchemist-idea',id:context.ideaId,...(context.version?{version:String(context.version)}:{}),title:context.label||''};
+    const text=JSON.stringify(c);if(text!==shownContext){shownContext=text;root.setAttribute('data-assistant-context',text);}};
+  if(content)new MutationObserver(publishContext).observe(content,{childList:true});
+  publishContext();
   const persistenceKey='molis-work:alchemist:'+host.projectId()+':'+(new URLSearchParams(location.search).get('workbenchPane')||'main');
   const persist=()=>{try{localStorage.setItem(persistenceKey,JSON.stringify({collection,current}));}catch{}};
   const sameCurrent=v=>JSON.stringify(v)===JSON.stringify(current);

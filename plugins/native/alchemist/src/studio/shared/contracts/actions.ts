@@ -82,8 +82,12 @@ const opportunity = object({ id, reportId: id, title: text, highlight: text, rat
 const supplySignal = object({ id, sourceId, title: text, url: text, summary: text, observedAt: text, publishedAt: text.optional(), categories: strings,
   nativeMetrics: z.array(object({ name: text, label: text, value: z.number(), unit: z.enum(["count", "percent", "visits", "score"]), observedAt: text, definition: text })), supports: strings, cannotProve: strings });
 
+/** Background work an operation starts: followed through `runs.events` by its job id until a final status. */
+const followedJob = (id: string) => ({ status: { capability_id: "alchemist.runs.events", version: 1 }, id, input: "id", state: "status",
+  done: ["completed", "partial"], failed: ["failed", "cancelled", "interrupted"] });
+
 function operation<I extends z.ZodType, O extends z.ZodType>(name: string, title: string, description: string, kind: "query" | "command", input: I, output: O,
-  extraPermissions: readonly string[] = [], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent") {
+  extraPermissions: readonly string[] = [], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", job?: ReturnType<typeof followedJob>) {
   const definition: ActionDefinition<z.input<I>, z.output<O>> = {
     capability_id: `alchemist.${name}`, version: 1, operation: kind,
     action: { title, description, ...(execution ? { execution } : {}), kind: kind === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
@@ -91,7 +95,8 @@ function operation<I extends z.ZodType, O extends z.ZodType>(name: string, title
       input_schema: z.toJSONSchema(input, { target: "draft-7", io: "input" }),
       // Studio results are objects, including card/message unions; MCP can return the same shape without an envelope.
       output_schema: { ...z.toJSONSchema(output, { target: "draft-7" }), type: "object" },
-      ...(scheduling ? { scheduling } : {}) },
+      ...(scheduling ? { scheduling } : {}),
+      ...(job ? { background_job: job } : {}) },
   };
   return { definition, input, output };
 }
@@ -156,7 +161,7 @@ export const alchemistOperations = {
   directionUpdate: operation("directions.update", "编辑探索方向", "修改已有方向，保留已生成的卡片和 Idea", "command", createDirectionInputSchema.extend({ id }), object({ direction: directionSchema })),
   directionStatus: operation("directions.status", "归档或恢复方向", "归档后保留历史，并停止从该方向启动新炼化", "command", object({ id, status: z.enum(["active", "archived"]) }), object({ direction: directionSchema })),
   explorationStart: operation("explorations.start", "启动炼化", "将方向加入后台生成任务；reuseExisting 为 true 时返回最近一次炼化", "command", object({ id, reuseExisting: z.boolean().optional() }),
-    object({ runId: id, jobId: id.optional(), reused: z.boolean().optional() }), ["alchemist:generate"], { cost: "metered" }),
+    object({ runId: id, jobId: id.optional(), reused: z.boolean().optional() }), ["alchemist:generate"], { cost: "metered" }, undefined, followedJob("jobId")),
   explorationGet: operation("explorations.get", "读取炼化", "读取真实运行状态、候选卡与来源方向", "query", identity, object({ direction: directionSchema, exploration: explorationSchema })),
   cardGet: operation("cards.get", "读取候选卡", "读取卡片正文；已保留的卡片返回对应 Idea 和版本", "query", identity,
     z.discriminatedUnion("kind", [object({ kind: z.literal("candidate"), model: candidateModel }), object({ kind: z.literal("idea_redirect"), ideaId: id, version })])),
@@ -170,7 +175,7 @@ export const alchemistOperations = {
   researchPlan: operation("research.plan", "创建研究计划", "设置研究模型和调用次数上限；仅创建计划，不执行研究", "command",
     researchPlanRequestSchema.safeExtend({ id, lens: z.enum(["market_space", "build_cost"]), reuse: reuseSelectionSchema.optional() }), object({ plan: researchPlanSchema })),
   researchStart: operation("research.start", "启动研究", "执行已确认的研究计划并返回后台任务引用", "command",
-    object({ id, lens: z.enum(["market_space", "build_cost"]), planId: id }), object({ run: lensRunSchema }), ["alchemist:generate"], { cost: "metered" }),
+    object({ id, lens: z.enum(["market_space", "build_cost"]), planId: id }), object({ run: lensRunSchema }), ["alchemist:generate"], { cost: "metered" }, undefined, followedJob("run.jobId")),
   runCancel: operation("research.cancel", "取消研究", "按研究 run.jobId 取消市场或成本研究；不接受 run.id，也不取消探索或脉搏任务", "command", identity, object({ run: lensRunSchema })),
   runEvents: operation("runs.events", "读取任务事件", "按 jobId（不是研究 run.id）读取 after 游标后的事件；重复查询不会取消任务", "query",
     object({ id, after: z.number().int().nonnegative().optional() }), object({ jobId: id, status: runStatusSchema, cursor: z.number().int().nonnegative(),

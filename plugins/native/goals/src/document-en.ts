@@ -81,4 +81,6 @@ export const GOALS_DOCUMENT_EN: Record<string, string> = {
   "上方 Goal 收尾前，需要下方 Goal 先完成。": "The Goal above needs the Goal below to finish before it can close.",
   "未补充原因": "No reason given",
   "查看原始记录标识": "Show the original record identifier",
+  "{count} 份": "{count}",
+  "新建或关联": "Create or link",
 };

@@ -330,4 +330,12 @@ export const SHELF_EN: Record<string, string> = {
   "Shelf": "Shelf",
   "无法保存 Shelf 设置": "Could not save Shelf settings",
   "Shelf 请求失败": "Shelf request failed",
+  "来自 {source}": "From {source}",
+  "可以在 Shelf 里用于项目": "You can use it in a project from Shelf",
+  "放进 Shelf 失败": "Couldn't add to Shelf",
+  "已存一份固定版本到项目材料": "Saved a fixed copy to project materials",
+  "存一份固定版本到项目": "Save a fixed copy to the project",
+  "用于本项目": "Use in this project",
+  "项目首页会列出它，你在项目里能打开最新内容；它仍只在你的 Shelf 里": "The project home lists it and opens the latest content; it stays only in your Shelf",
+  "复制一份不会再变的原文到项目材料，项目里的 Coding 和助理能读取；之后改 Shelf 不影响这一份": "Copy the original, unchanging, into project materials where Coding and assistants in the project can read it; later Shelf changes won't affect it",
 };

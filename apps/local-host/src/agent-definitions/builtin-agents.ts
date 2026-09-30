@@ -35,5 +35,18 @@ export function builtinRegistrations(): AgentDefinitionRegistration[] {
     else registrations.push({ owner_id: inline.owner_id, source: sourceOf(inline.owner_id), prompts: [structuredClone(inline.prompt)], roles: [] });
   }
   for (const inline of BUILTIN_INLINE_AGENT_ROLES) registrations.find(row => row.owner_id === inline.owner_id)?.roles.push(structuredClone(inline.role));
+  // Methods a built-in Plugin offers to other Agents: registered with it, bodies from its package, exactly as declared.
+  for (const entry of BUILTIN_PLUGIN_CATALOG) {
+    const declared = entry.manifest.methods ?? [];
+    if (!declared.length) continue;
+    const methods = declared.flatMap(method => {
+      const body = entry.methods?.find(item => item.skill_id === method.skill_id && item.version === method.version)?.body;
+      return body ? [{ skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary, tools: [...method.tools], body }] : [];
+    });
+    const owner = registrations.find(row => row.owner_id === entry.manifest.plugin_id);
+    const missing = declared.filter(method => !methods.some(item => item.skill_id === method.skill_id)).map(method => `方法 ${method.skill_id} 声明了但包里没有正文，未登记`);
+    if (owner) { owner.methods = methods; if (missing.length) owner.notes = [...owner.notes ?? [], ...missing]; }
+    else registrations.push({ owner_id: entry.manifest.plugin_id, source: sourceOf(entry.manifest.plugin_id), prompts: [], roles: [], methods, ...(missing.length ? { notes: missing } : {}) });
+  }
   return registrations;
 }

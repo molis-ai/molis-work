@@ -103,12 +103,15 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   assert.ok(await evaluate("document.querySelector('[data-goal-node-workspace]')?.hidden === false || document.querySelector('[data-goal-frame-surface]')?.hidden === false"));
   assert.equal(await evaluate("document.querySelector('[data-goal-event-document]')?.dataset.goalView"), "INTERFACES");
 
-  // A Goal page has no list of its own to put in a drawer; the switcher in front of the Assistant is the navigation.
+  // A Goal page has no list of its own to put in a drawer; the switcher at the bar's left is the navigation, and
+  // search heads its list (⌘K opens it from anywhere).
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-directory-show]')).display"), "none");
   state = await snap();
   assert.equal(state.directory, "root");
   assert.equal(isHiddenFromUse(state.tree), true);
-  assert.equal(state.searchVisible, true);
+  await click("[data-plugin-picker-toggle]");
+  assert.equal((await snap()).searchVisible, true, "search is one tap away, at the top of the switcher list");
+  await click("[data-plugin-picker-toggle]");
 
   await click('[data-plugin-strip] [data-plugin-id="inbox"]');
   await waitFor(`document.body.dataset.desktopSurface === "inbox" && !document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);

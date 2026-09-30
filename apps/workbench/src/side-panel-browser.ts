@@ -175,7 +175,8 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     else if(state.popup_depth>0){strip.hidden=false;strip.dataset.tone='popup';strip.innerHTML='<p>'+esc(L('这是网页打开的新窗口（例如登录）。关闭后回到原来的页面。'))+'</p>'+button('popup-close',L('关闭并返回'));}
     else{strip.hidden=true;strip.innerHTML='';}
     renderSheet();renderControl();
-    if(state.status==='ready'&&!state.loading&&state.title)say(L('已打开：{title}',{title:state.title}));
+    // A page that failed to load is announced by its problem above, never as opened.
+    if(state.status==='ready'&&!state.loading&&state.title&&!problem)say(L('已打开：{title}',{title:state.title}));
   };
   const renderSheet=()=>{
     const dialog=state.dialog,chooser=state.file_chooser,download=[...state.downloads].reverse().find(item=>item.state==='completed'&&!seenDownloads.has(item.id));

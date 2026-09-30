@@ -1,6 +1,6 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { GATEWAY_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
-import { ANNOUNCE_HELD, announcesWithoutActing } from "./announce-guard.js";
+import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, MEMORY_CLAIM_HELD, MEMORY_OFF_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, writesToolCallAsText } from "./announce-guard.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { createPrologueInference } from "./prologue-inference.js";
@@ -14,6 +14,8 @@ import { createNodeHost } from "@prologue/sdk/node";
 // Codes the runtime raises before it creates a run: nothing ran, so the attempt is a settled refusal.
 const REFUSED_BEFORE_RUN = new Set(["AGENT_START_INVALID", "CONTEXT_BUDGET_EXCEEDED", "CONTEXT_SOURCE_MISSING", "CONTEXT_INBOUND_HELD", "EFFECT_RECONCILE_REQUIRED"]);
 import path from "node:path";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 
 import {
@@ -83,6 +85,8 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
 }
 
 export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
+  /** Parsers the App supplies for documents people bring (PDF…); the runtime ships none. */
+  documentParsers?: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentParser[];
   /** Host-owned surface; absence keeps all writes unavailable. */
   reviewQueue?: AgentReviewQueue;
   /** App identity Prologue records against this Runtime's work. */
@@ -113,6 +117,10 @@ export const THINKING_OUTPUT_TOKENS = 32_768;
 export const SUBAGENT_DEFAULT_TURNS = 20;
 /** Turns a round started without a budget may take: the SDK's own default, unchanged. */
 const ROUND_DEFAULT_TURNS = 8;
+/** One model call's wait for its answer to start, and between its parts, when the round has no time budget. */
+export const MODEL_CALL_TIMEOUT_MS = 180_000;
+/** Images a model call can carry, as recognised from their bytes. */
+const IMAGE_MEDIA_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
 /**
  * Build the Prologue Runtime on the Node host.
@@ -148,10 +156,26 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
   });
+  // Timed work the runtime keeps across restarts. Its runner is attached here, once; the Host registers what each kind
+  // does later, so a task that falls due while the Host is still starting waits for its runner instead of failing.
+  // The Host's private directory images are taken in from (authorized once, on first use).
+  let intakeRoot: Promise<{ path: string; ref: ExactRef<"authorized-root"> }> | undefined;
+  const scheduleRunners = new Map<string, (task: import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduledTask) => Promise<void>>();
+  const scheduledView = (task: import("@prologue/sdk").QueuedTask): import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduledTask => ({
+    task_id: task.ref.id, key: task.key, session_id: task.sessionRef.id, kind: task.work.kind, payload: { ...task.work.payload },
+    due_at: new Date(task.dueAtMs).toISOString(), state: task.state, attempts: task.attempts, runs: task.runs, ...(task.lastFailure ? { last_failure: task.lastFailure } : {}) });
+  const runScheduled = async (task: import("@prologue/sdk").QueuedTask): Promise<void> => {
+    for (let waited = 0; !scheduleRunners.has(task.work.kind) && waited < 120_000; waited += 500) await new Promise(resolve => setTimeout(resolve, 500));
+    const run = scheduleRunners.get(task.work.kind);
+    if (!run) throw new Error(`没有处理「${task.work.kind}」的执行者`);
+    await run(scheduledView(task));
+  };
   const runtime = await createRuntime({
     app: options.app,
     host,
     preset: "local-agent",
+    onQueuedWork: runScheduled,
+    ...(options.documentParsers?.length ? { slots: { "document-parser": { implementation: "molis-host-document-parsers", version: "1.0.0", impl: options.documentParsers } } } : {}),
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
     // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.
     // Background commands belong to the session and keep running after its round (the person's decision), at most four
@@ -163,7 +187,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       : { sandbox: "read-only", approval: "on-request" },
     ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }, { what: "tool" as const, name: "session-send" }] }, rules: [...codingExecutionRules,
       // A change through the business gateway always stops for the person's review of its exact input; its reads do not.
-      { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.change } }] } : {}),
+      { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.change } },
+      // A reversible change the person lets run without asking: the gateway itself refuses any other change on this tool.
+      { source: "runtime" as const, effect: "allow" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.direct } }] } : {}),
     require: ["secrets", "network", "clock", "workspace.read", "storage"],
   });
 
@@ -181,8 +207,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const actionToolSessions = new Set<string>();
   /** The gateway a business session's latest round runs with, for describing a held change to the person. */
   const gatewayRuns = new Map<string, NonNullable<PrologueStartInput["action_gateway"]>>();
+  /** Per session, the capabilities the round now running has seen offered (so one gone later reads as taken away). */
+  const gatewayKnown = new Map<string, Set<string>>();
   const gatewayHooks = new Set<string>();
   // Rounds that may change things: an ending that only announces the next step is held once per run.
+  /** Per session, what the round now running really kept and forgot (only for sessions given memory tools). */
+  const memoryRounds = new Map<string, { keep: number; forget: number; off: boolean; spoken: string }>();
+  // Suggestions this round really made, for the same check: a reply may not say a button is ready when none was.
+  const offerRounds = new Map<string, { offered: number }>();
   const stopGuards = new Map<string, { writing: boolean; held: Set<string> }>();
   const actionControllers = new Map<string, AbortController>();
   const runRoots = new Map<string, ExactRef<"authorized-root">>();
@@ -734,6 +766,80 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       },
       release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
     },
+    documents: {
+      intakeImage: async input => {
+        // The runtime takes files in only from an authorized directory: a private one of the Host's, emptied at once.
+        const dir = await (intakeRoot ??= (async () => {
+          const where = options.storageRoot ? path.join(options.storageRoot, "image-intake") : await mkdtemp(path.join(tmpdir(), "molis-image-intake-"));
+          await mkdir(where, { recursive: true, mode: 0o700 });
+          const canonical = await realpath(where);
+          return { path: canonical, ref: (await runtime.workspace.authorize({ path: canonical })).ref };
+        })());
+        const file = `${randomUUID()}.img`;
+        await writeFile(path.join(dir.path, file), input.bytes, { mode: 0o600 });
+        try {
+          const batch = runtime.beginIntake(dir.ref);
+          try {
+            const item = await batch.add(file, input.name.slice(0, 120) || "image");
+            if (!item.mediaType || !IMAGE_MEDIA_TYPES.includes(item.mediaType)) throw new PrologueAdapterError("agent.capability_unavailable", "只能带 PNG、JPEG、GIF 或 WebP 图片");
+            await batch.publish();
+            return { resource: { id: item.ref.id, revision: item.ref.revision }, media_type: item.mediaType, byte_length: item.byteLength };
+          } catch (error) { await batch.cancel(); throw error; }
+        } finally { await rm(path.join(dir.path, file), { force: true }); }
+      },
+      parse: async input => {
+        const stage = runtime.resources.stage({ mediaKind: "binary", byteLength: input.bytes.byteLength, label: input.name.slice(0, 120) || "attachment" });
+        let ref;
+        try { stage.write(input.bytes); ref = (await stage.publishDurable()).ref; }
+        catch (error) { stage.discard(); throw error; }
+        const parsed = await runtime.parseResource({ ref });
+        return { text: parsed.text, truncated: parsed.truncated, ...(parsed.pages !== undefined ? { pages: parsed.pages } : {}) };
+      },
+    },
+    memory: (() => {
+      type Entry = import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryEntry;
+      const view = (entry: import("@prologue/sdk").MemoryEntry): Entry => ({ memory_id: entry.ref.id, scope: entry.scope as Entry["scope"], owner: entry.owner,
+        text: entry.text, origin: entry.origin, tags: [...entry.tags], version: entry.version });
+      const hydrated = new Set<string>();
+      const ready = async (scope: Entry["scope"], owner: string) => {
+        const key = `${scope}:${owner}`;
+        if (!hydrated.has(key)) { await runtime.memory.hydrate([{ scope, owner }]); hydrated.add(key); }
+      };
+      const find = async (scope: Entry["scope"], owner: string, id: string) => {
+        await ready(scope, owner);
+        const entry = runtime.memory.list({ scope, owner }).find(item => item.ref.id === id);
+        if (!entry) throw new PrologueAdapterError("agent.capability_unavailable", "这条记忆不存在或已删除");
+        return entry;
+      };
+      return {
+        list: async (scope, owner) => { await ready(scope, owner); return runtime.memory.list({ scope, owner }).map(view); },
+        write: async input => { await ready(input.scope, input.owner); return view(await runtime.memory.write({ scope: input.scope, owner: input.owner, text: input.text, origin: input.origin, ...(input.tags ? { tags: input.tags } : {}) })); },
+        update: async input => view(await runtime.memory.update((await find(input.scope, input.owner, input.memory_id)).ref, input.text)),
+        remove: async input => { await runtime.memory.purge((await find(input.scope, input.owner, input.memory_id)).ref); return true; },
+        recall: async input => { await ready(input.scope, input.owner);
+          return runtime.memory.recall({ scope: input.scope, owner: input.owner, keywords: input.keywords, ...(input.limit ? { limit: input.limit } : {}) }).hits.map(hit => ({ entry: view(hit.entry), score: hit.score })); },
+      };
+    })(),
+    schedule: {
+      claim: () => { const claim = runtime.queue.claim(); return { survives_window_close: claim.survivesWindowClose, why: claim.why }; },
+      enqueue: async input => {
+        const index = await readIndex(input.session_id);
+        if (!index) throw new PrologueAdapterError("agent.session_unknown", "会话不存在，不能安排定时");
+        const due = Date.parse(input.due_at);
+        if (!Number.isFinite(due)) throw new PrologueAdapterError("agent.capability_unavailable", "定时的时间无效");
+        return scheduledView(await runtime.queue.enqueue({ key: input.key, sessionRef: index.ref, work: { kind: input.kind, payload: { ...input.payload } }, dueAtMs: due,
+          ...(input.max_attempts ? { maxAttempts: input.max_attempts } : {}) }));
+      },
+      cancel: async key => {
+        const task = runtime.queue.find(key);
+        if (!task) return null;
+        if (task.state !== "queued") return scheduledView(task);
+        return scheduledView(await runtime.queue.cancel(task.ref));
+      },
+      find: key => { const task = runtime.queue.find(key); return task ? scheduledView(task) : null; },
+      list: kind => runtime.queue.list().filter(task => !kind || task.work.kind === kind).map(scheduledView),
+      handle: (kind, run) => { scheduleRunners.set(kind, run); return () => { if (scheduleRunners.get(kind) === run) scheduleRunners.delete(kind); }; },
+    },
     recovery: {
       inspect: session => inspectRecovery(session.session_id),
       close: async (session, runId, expectedVersion) => {
@@ -756,6 +862,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     workspaceNone: true,
     workspaceBusiness: true,
     inlineMethods: true,
+    imageAttachments: true,
     compaction: true,
     ...(checkpoints ? { checkpoints } : {}),
     async saveRunTiming(run, timing) {
@@ -874,11 +981,30 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const actionController = new AbortController();
       // None sessions do not construct or adopt any tool pack.
       // Business work with the gateway binds its three tools instead of one per action.
-      const actionTools = none ? undefined : input.action_gateway
-        ? { ...prologueActionGateway(input.action_gateway, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal), scope: "gateway" }
+      // What this round really kept or forgot, for the stop check below: a reply may not claim what no call did.
+      // A business round the person gave no memory (switched off) keeps nothing, so any claim of keeping is held too.
+      const memory = input.action_gateway?.client.memory;
+      // What the round has said so far: a claim made before the call that then failed counts as much as one at the end.
+      const memoryDone = { keep: 0, forget: 0, off: !memory, spoken: "" };
+      if (input.action_gateway) memoryRounds.set(input.session_id, memoryDone); else memoryRounds.delete(input.session_id);
+      const offer = input.action_gateway?.client.offer;
+      const offersDone = { offered: 0 };
+      if (offer) offerRounds.set(input.session_id, offersDone); else offerRounds.delete(input.session_id);
+      const gatewayForRun = input.action_gateway && (memory || offer) ? { ...input.action_gateway, client: { ...input.action_gateway.client,
+        ...(memory ? { memory: {
+          remember: async (value: Parameters<typeof memory.remember>[0]) => { const kept = await memory.remember(value); memoryDone.keep += 1; return kept; },
+          list: () => memory.list(),
+          forget: async (id: string) => { const result = await memory.forget(id); if (result.forgotten) memoryDone.forget += 1; return result; },
+          ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
+        } } : {}),
+        ...(offer ? { offer: async (proposal: Parameters<typeof offer>[0]) => { const made = await offer(proposal); offersDone.offered += 1; return made; } } : {}),
+      } } : input.action_gateway;
+      const actionTools = none ? undefined : gatewayForRun
+        ? { ...prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal), scope: "gateway" }
         : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
       if (input.action_gateway) {
         gatewayRuns.set(input.session_id, input.action_gateway);
+        if (actionTools && "known" in actionTools) gatewayKnown.set(input.session_id, actionTools.known as Set<string>);
         // Refused before any review: a call to a capability that is gone, switched off or asked through the wrong tool.
         if (!gatewayHooks.has(input.session_id)) {
           gatewayHooks.add(input.session_id);
@@ -886,7 +1012,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           runtime.hooks.register({ id: `molis-action-gateway-${sessionId}`, event: "tool-before", forSession: sessionId, handler: async context => {
             const gateway = gatewayRuns.get(sessionId);
             if (!gateway || !context.toolName) return { kind: "allow" as const };
-            const problem = await gatewayProblem(gateway, context.toolName, context.input);
+            const problem = await gatewayProblem(gateway, context.toolName, context.input, gatewayKnown.get(sessionId));
             return problem ? { kind: "deny" as const, why: problem } : { kind: "allow" as const };
           } });
         }
@@ -899,7 +1025,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         stopGuards.set(sessionId, created);
         runtime.hooks.register({ id: `molis-announce-guard-${sessionId}`, event: "session-stop", forSession: sessionId, handler: async context => {
           const run = context.origin?.run, text = (context.input as { text?: unknown } | undefined)?.text;
-          if (!created.writing || !run || typeof text !== "string" || created.held.has(run) || !announcesWithoutActing(text)) return { kind: "allow" as const };
+          if (!run || typeof text !== "string" || created.held.has(run)) return { kind: "allow" as const };
+          // A claim of keeping or forgetting that no call made this round is held once, whatever the round's execution.
+          const tracked = memoryRounds.get(sessionId);
+          const claim = tracked ? claimsMemoryChange(tracked.spoken.trim() ? tracked.spoken.slice(-1200) : text) : null;
+          if (claim && memoryRounds.get(sessionId)![claim] === 0) { created.held.add(run); return { kind: "deny" as const, why: memoryRounds.get(sessionId)!.off ? MEMORY_OFF_HELD : MEMORY_CLAIM_HELD[claim] }; }
+          if (business && writesToolCallAsText(text)) { created.held.add(run); return { kind: "deny" as const, why: WRITTEN_CALL_HELD }; }
+          if (offerRounds.get(sessionId)?.offered === 0 && claimsButton(text)) { created.held.add(run); return { kind: "deny" as const, why: BUTTON_CLAIM_HELD }; }
+          if (!created.writing || !announcesWithoutActing(text)) return { kind: "allow" as const };
           created.held.add(run);
           return { kind: "deny" as const, why: ANNOUNCE_HELD };
         } });
@@ -1111,8 +1244,13 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           model: input.model.model,
           credentialRef,
           ...(input.provenance.frozen.budget?.max_output_tokens === undefined ? {} : { params: { maxOutputTokens: input.provenance.frozen.budget.max_output_tokens } }),
-          ...(input.provenance.frozen.budget?.max_duration_ms === undefined ? {} : { timeoutMs: input.provenance.frozen.budget.max_duration_ms }),
+          // How long one model call may take to answer and then pause between parts. The SDK's 60 s default cut off
+          // reasoning models on larger rounds before their first byte (MiniMax-M3, measured 2026-09-28); a round with
+          // a time budget keeps that budget.
+          timeoutMs: input.provenance.frozen.budget?.max_duration_ms ?? MODEL_CALL_TIMEOUT_MS,
           messages: [{ role: "user", text: input.task }],
+          // Images the person brought ride on every model call of this Run; their bytes are spliced in by the Host.
+          ...(input.image_materials?.length ? { attachments: input.image_materials.map(image => ({ ref: { kind: "resource" as const, id: image.resource.id, revision: image.resource.revision }, as: "original" as const })) } : {}),
           // `off` sends no field, so a Run with caching turned off is byte for
           // byte the request it would have been before caching existed.
           ...(input.model.prompt_cache === undefined || input.model.prompt_cache === "off"
@@ -1169,6 +1307,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           ref: { id: started.run.ref.id },
           subscribe: (listener: (event: PrologueEvent) => void) =>
             started.run.subscribe((event) => {
+              if (event.type === "text-delta" && typeof (event as { text?: unknown }).text === "string") memoryDone.spoken = (memoryDone.spoken + (event as { text: string }).text).slice(-4000);
               if (["completed", "failed", "cancelled"].includes(event.type)) {
                 actionController.abort(); actionControllers.delete(started.run.ref.id);
                 if (stepBoard) stepBoards.unfollow(stepBoard.ref.id);

@@ -165,6 +165,12 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   };
   market.addEventListener("input", filter);
   market.addEventListener("change", filter);
+  // The title bar bell opens this project's notifications, and the list only shows them for the current project.
+  document.addEventListener("molis-work:plugin-events-reveal", () => {
+    if (pending || !projectId || selector.value === projectId || !projects?.some(project => project.project_id === projectId)) return;
+    selector.value = projectId;
+    filter();
+  });
   popover.addEventListener("toggle", () => {
     requestAnimationFrame(() => {
       const open = popover.matches(":popover-open");

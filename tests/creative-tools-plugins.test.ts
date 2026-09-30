@@ -144,7 +144,7 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
   );
   const market = pluginMarketCards();
   assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id), [...PERSONAL_PLUGIN_IDS]);
-  assert.equal(market.find((card) => card.id === "form")?.copy, "建问卷，预览填写，看结果。");
+  assert.equal(market.find((card) => card.id === "form")?.copy, "建问卷，收答卷，看逐题汇总。");
 });
 
 test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label 里", () => {
@@ -164,14 +164,17 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
   assert.match(html, /data-form-result-list/);
   assert.match(html, /class="mw-textarea"/);
   assert.match(html, /class="mw-select"/);
-  assert.match(html, /还没有列。先加一列，或打开下面粘贴 CSV。/);
+  // An empty table shows the shape of a table (ghost grid) and the two ways to fill it, not a sentence (plugin-e2e-review §3.5).
+  assert.match(html, /data-dataset-table-empty[\s\S]*class="dataset-ghost"[\s\S]*data-dataset-add-column[\s\S]*data-dataset-import-file[\s\S]*data-dataset-paste-open/);
+  assert.doesNotMatch(html, /data-dataset-column-name|data-dataset-column-type/);
   assert.match(html, /data-dataset-filter-empty/);
   assert.match(html, /没有匹配的格子/);
   assert.match(html, /placeholder="可选"/);
   assert.match(html, /讲者备注/);
   assert.match(html, /class="form-prompt"/);
   assert.match(html, /class="dataset-prompt"/);
-  assert.match(html, /粘贴 CSV 会覆盖当前表/);
+  // Importing replaces the table; the button says so before anyone clicks it.
+  assert.match(html, /导入 CSV（会覆盖当前表）/);
   assert.match(html, /<div class="form-prompt">[\s\S]*data-form-ai-prompt[\s\S]*<\/label>[\s\S]*data-form-generate/);
   assert.match(html, /<div class="dataset-prompt">[\s\S]*data-dataset-ai-prompt[\s\S]*<\/label>[\s\S]*data-dataset-generate/);
   assert.doesNotMatch(html, /data-form-ai-prompt"[^>]*>\s*<button[^>]*data-form-generate/);
@@ -225,19 +228,22 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /plugin-stage-kind/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /kindChip\("form"/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /kindChip\("dataset"/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /kindChip\("ppt"/);
-  assert.doesNotMatch(FORM_CLIENT_FACTORY_SCRIPT, /mw-status--plain feed-entry-status/);
+  // Rows no longer repeat the plugin's name as a chip; their only label is the record's state (plugin-e2e-review §4 X2).
+  for (const script of [FORM_CLIENT_FACTORY_SCRIPT, DATASET_CLIENT_FACTORY_SCRIPT, PPT_CLIENT_FACTORY_SCRIPT]) {
+    assert.doesNotMatch(script, /kindChip\(/);
+    assert.doesNotMatch(script, /plugin-stage-kind/);
+    assert.match(script, /fixedCell\(record\)/);
+    assert.match(script, /L\("固定版本"\) \+ " v" \+ record\.artifact_version/);
+    // The row-level "存为固定版本" control is gone: it looked like share and was the least-used action; the editor keeps it.
+    assert.doesNotMatch(script, /creative-artifact-act/);
+  }
+  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /L\("空表"\)/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /is-arriving/);
   assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /is-arriving/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /is-arriving/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /mw-status mw-status--" \+ \(published/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /mw-status mw-status--plain mw-status--" \+ \(published/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-slide-index/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /className = "feed-entry-status"/);
+  // The PPT row carries no placeholder status span any more; its state cell is fixedCell (asserted above).
   assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /mw-status--quiet feed-entry-status/);
   assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /L\("草稿"\)/);
   assert.doesNotMatch(FORM_CLIENT_FACTORY_SCRIPT, /className = "form-row/);

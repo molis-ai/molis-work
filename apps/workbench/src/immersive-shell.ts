@@ -1,6 +1,6 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { DIRECT_WORK_SURFACE_IDS, islandEntries, pluginMarketCards, railEntries } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 
 export interface ImmersiveShellPrimitives {
@@ -29,7 +29,7 @@ function directoryPlugins(enabled: readonly string[]) {
 
 function pluginLink(
   { L, icon }: ImmersiveShellPrimitives,
-  plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon },
+  plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon; hint?: string },
   extraClass = "",
   suffix = "",
 ): string {
@@ -39,7 +39,9 @@ function pluginLink(
     ? ` aria-label="${plugin.label}"`
     : ` aria-label="${L("切换到插件")}：${plugin.label}"`;
   const className = extraClass ? `immersive-plugin-link ${extraClass}` : "immersive-plugin-link";
-  return `<button class="${className}" type="button" data-plugin-id="${plugin.id}"${directory} data-work-surface-open="${plugin.surface}"${feedPreset}${aria} title="${plugin.label}">${icon(plugin.glyph)}<span>${plugin.label}</span>${suffix}</button>`;
+  // One line under the name says what the person gets there (the switcher shows it; the Dock does not).
+  const hint = plugin.hint ? `<small class="plugin-rail-hint">${plugin.hint}</small>` : "";
+  return `<button class="${className}" type="button" data-plugin-id="${plugin.id}"${directory} data-work-surface-open="${plugin.surface}"${feedPreset}${aria} title="${plugin.label}">${icon(plugin.glyph)}<span>${plugin.label}</span>${hint}${suffix}</button>`;
 }
 
 function currentListPlugin(directory: string): string {
@@ -73,10 +75,19 @@ function islandPlugins(enabled: readonly string[]) {
  */
 const RAIL_CORE_ORDER = ["goals", "inbox", "feed", "sessions"];
 const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
+/**
+ * Groups read as what the person wants to do, not as kinds of software: 推进 (the backbone plus its helpers),
+ * 写与做 (things one makes), 个人 (what belongs to the person, 灵光 first), 研究, 编码. See
+ * specs/plugin-e2e-review/spec.md §3.1.
+ */
 const RAIL_TOOL_GROUPS: ReadonlyArray<readonly [label: string, ids: readonly string[]]> = [
-  ["工作", ["schedule", "workflows"]],
-  ["创作", ["pages", "form", "dataset", "ppt", "images", "artifacts"]],
+  ["推进", ["schedule", "workflows"]],
+  ["写与做", ["pages", "form", "dataset", "ppt", "images", "artifacts"]],
+  ["个人", ["todo", "jelly", "cognia", "shelf"]],
+  ["研究", ["experiments", "alchemist"]],
+  ["编码", ["coding"]],
 ];
+const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入口。";
 const RAIL_GROUPED_TOOL_IDS = new Set(RAIL_TOOL_GROUPS.flatMap(([, ids]) => ids));
 const RAIL_EXTEND_PLUGIN_IDS = new Set(["plugin-builder"]);
 
@@ -93,18 +104,21 @@ export function renderPluginRail(
 ): string {
   const { L, icon, escapeHtml } = primitives;
   const entries = directoryPlugins(enabled);
+  const hints = pluginStageSummaries();
   const zoned = (html: string, zone: string) => html.replace("<button ", `<button data-rail-zone="${zone}" `).replace("<a ", `<a data-rail-zone="${zone}" `);
-  const link = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon }, zone: string, suffix = "") =>
-    zoned(pluginLink(primitives, plugin, "plugin-rail-item", suffix), zone);
+  const link = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon; hint?: string }, zone: string, suffix = "") =>
+    zoned(pluginLink(primitives, { ...plugin, hint: plugin.hint ?? (hints[plugin.id] ? L(hints[plugin.id]) : undefined) }, "plugin-rail-item", suffix), zone);
   const subgroup = (label: string, buttons: string) => buttons ? `<p class="plugin-rail-subgroup" data-rail-zone="more">${label}</p>${buttons}` : "";
-  const home = link({ id: "home", surface: "home", label: L("项目首页"), glyph: "home" }, "core");
+  const home = link({ id: "home", surface: "home", label: L("项目首页"), glyph: "home", hint: L(RAIL_HOME_HINT) }, "core");
   const core = entries.filter(plugin => RAIL_CORE_PLUGIN_IDS.has(plugin.id))
     .sort((a, b) => RAIL_CORE_ORDER.indexOf(a.id) - RAIL_CORE_ORDER.indexOf(b.id)).map(plugin => link(plugin, "core")).join("");
-  // 灵光 is a plugin like any other: it leads the first group, which sits directly under 插件.
+  // 灵光 is a plugin like any other: it leads 个人, the group of what belongs to the person.
   const personal = islandPlugins(enabled).map(plugin => link(plugin, "tool")).join("");
   const grouped = RAIL_TOOL_GROUPS.map(([label, ids], index) => {
     const links = entries.filter(plugin => ids.includes(plugin.id)).map(plugin => link(plugin, "tool")).join("");
-    return index === 0 ? personal + links : subgroup(L(label), links);
+    // The backbone already sits under the first heading; its helpers follow without a second one.
+    if (index === 0) return links;
+    return subgroup(L(label), label === "个人" ? personal + links : links);
   }).join("");
   // Plugins the project installed at run time (built in the studio) have no directory; their name is their own.
   const own = installed.map(plugin => `<button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="tool" data-plugin-id="${escapeHtml(plugin.surface)}" data-work-surface-open="${escapeHtml(plugin.surface)}" aria-label="${L("切换到插件")}：${escapeHtml(plugin.label)}" title="${escapeHtml(plugin.label)}">${icon("package")}<span>${escapeHtml(plugin.label)}</span></button>`);
@@ -113,7 +127,7 @@ export function renderPluginRail(
   const toggle = `<button class="immersive-plugin-link plugin-rail-item plugin-rail-toggle" type="button" data-rail-tools-toggle aria-expanded="false" aria-label="${L("全部插件")}" title="${L("全部插件")}">${icon("more")}<span data-rail-toggle-label="${L("收起插件")}">${L("全部插件")}</span></button>`;
   return `<nav class="mw-sidebar mw-sidebar--rail plugin-rail immersive-plugin-strip" data-plugin-strip data-plugin-heading aria-label="${L("项目入口")}">
     ${personalIsland}
-    <div class="plugin-rail-items">${home}${core}<p class="plugin-rail-group" data-rail-zone="tools">${L("插件")}</p>${grouped}${subgroup(L("更多"), other)}${toggle}</div>
+    <div class="plugin-rail-items">${home}<p class="plugin-rail-group" data-rail-zone="tools">${L(RAIL_TOOL_GROUPS[0][0])}</p>${core}${grouped}${subgroup(L("更多"), other)}${toggle}</div>
     ${accountFooter.replace("<!-- account-global-items -->", renderAccountGlobalItems(primitives, enabled))}
   </nav>`;
 }
@@ -133,31 +147,42 @@ export function renderAccountGlobalItems(primitives: ImmersiveShellPrimitives, e
 const BAR_RESIDENT_IDS = ["shelf", "lingguang"];
 
 /**
- * The bottom bar replaces the rail. Left: the Dock menu (the market, the plugin studio, which plugins stay
- * in the Dock) and the plugins chosen to stay. Centre: the resident Assistant, with the plugin switcher in
- * front of it. Right: Shelf and 灵光 with the project's discussion (one click opens group and direct chat beside the
- * work) in one tray, then the project as a round button whose menu holds the project and the person — switching,
- * settings, capabilities. The project's navigation lives in the switcher, so every plugin keeps its entry.
+ * The bottom bar replaces the rail. Left, where you go: the switcher — it names where you are (one chip per pane
+ * when split) and opens search and every entry of the project, with the Dock's own settings at its foot (the market,
+ * the plugin studio, which plugins stay in the Dock) — then the plugins chosen to stay; the two sit in one tray.
+ * Centre: the resident Assistant, only an input. Right: Shelf and 灵光 with the project's discussion (one click opens
+ * group and direct chat beside the work) in one tray, then the project as a round button whose menu holds the project
+ * and the person — switching, search, settings, capabilities.
  */
 export function renderWorkbenchBar(
   primitives: ImmersiveShellPrimitives,
-  parts: { rail: string; accountFooter: string; projectChrome: string; enabled: readonly string[] },
+  parts: { rail: string; projectChrome: string; enabled: readonly string[] },
 ): string {
   const { L, icon } = primitives;
   const collapse = `<button class="dock-window-action" type="button" data-dock-collapse aria-label="${L("最小化")}" title="${L("最小化")}">${icon("chevron-down")}</button>`;
   const known = [...directoryPlugins(parts.enabled), ...islandPlugins(parts.enabled)];
   const residents = BAR_RESIDENT_IDS.map(id => known.find(plugin => plugin.id === id)).filter(plugin => plugin !== undefined)
     .map(plugin => `<button class="bar-resident" type="button" data-bar-resident="${plugin.id}" data-craft-tip="${plugin.label}" aria-label="${L("切换到插件")}：${plugin.label}">${icon(plugin.glyph)}</button>`).join("");
+  // The Dock's own settings sit at the foot of the full list, where the plugins they are about are.
+  const dockSettings = `<footer class="personal-sidebar-footer">
+          <section class="account-global-popover dock-settings" data-global-menu aria-label="${L("Dock 与插件")}">
+            ${renderAccountGlobalItems(primitives, parts.enabled)}
+            <p class="account-global-heading">${L("常驻在 Dock")}</p>
+            <div class="dock-choices" data-dock-choices role="group" aria-label="${L("常驻在 Dock")}"></div>
+          </section>
+        </footer>`;
   return `<div class="workbench-bar" data-dock aria-label="${L("底栏")}">
     <div class="bar-start">
-      ${parts.accountFooter}
+      <div class="plugin-picker" data-plugin-picker>
+        <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${L("全部插件与 Dock")}" title="${L("全部插件与 Dock")}"><span class="plugin-picker-all" aria-hidden="true">${icon("grid")}</span><span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${L("项目首页")}</span></span>${icon("chevron-up")}</button>
+        <div class="plugin-picker-popover" data-plugin-picker-popover hidden>
+          <button class="plugin-picker-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}<span>${L("搜索")}</span><kbd>⌘K</kbd></button>
+          ${parts.rail}${dockSettings}
+        </div>
+      </div>
       <div class="dock-pins" data-dock-pins role="toolbar" aria-label="${L("常驻插件")}"></div>
     </div>
-    ${renderAssistantDock(primitives, { search: true, picker: `        <div class="plugin-picker" data-plugin-picker>
-          <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${L("切换插件")}" title="${L("切换插件")}"><span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${L("项目首页")}</span></span>${icon("chevron-up")}</button>
-          <div class="plugin-picker-popover" data-plugin-picker-popover hidden>${parts.rail}</div>
-        </div>
-` })}
+    ${renderAssistantDock(primitives)}
     <div class="bar-end">
       <div class="bar-residents" role="toolbar" aria-label="${L("常驻插件")}">${residents}<button class="bar-chat" type="button" data-dock-toggle="im" aria-expanded="false" aria-controls="dock-window-im" data-craft-tip="${L("项目讨论")}" aria-label="${L("项目讨论")}">${icon("message")}</button></div>
       <section class="dock-window dock-window--end" id="dock-window-im" role="region" aria-label="${L("群聊")}" data-dock-window="im" hidden>
@@ -200,6 +225,7 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
     <nav class="container-tabs" data-container-tabs aria-label="${L("工作区标签")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
     <button class="mw-btn mw-btn--ghost background-tasks-button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-background-tasks-count>0</span></button>
+    <button class="mw-btn mw-btn--ghost plugin-notifications-button" type="button" data-plugin-notifications aria-label="${L("插件通知")}" title="${L("插件通知")}" hidden>${icon("bell")}<span data-plugin-notifications-count>0</span></button>
   </header>`;
 }
 

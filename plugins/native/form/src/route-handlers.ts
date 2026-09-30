@@ -31,13 +31,17 @@ export function createFormRouteHandlers(ports: FormRoutePorts): Record<string, F
     "form.publish": call(formActions.publish, identified),
     "form.submit": call(formActions.submit, identified),
     "form.results": call(formActions.results, ({ params }) => ({ id: params.id })),
+    "form.close": call(formActions.close, identified),
+    "form.answers.import": call(formActions.importAnswers, identified),
+    "form.csv": call(formActions.csv, ({ params }) => ({ id: params.id })),
+    "form.fillpage": call(formActions.fillPage, ({ params }) => ({ id: params.id })),
   };
 }
 
 export function formRouteErrorResponse(error: unknown): FormPluginRouteResponse {
   const code = error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : "";
   const message = error instanceof Error ? error.message : "问卷请求失败";
-  const status = code === "form.not_found" ? 404 : ["form.unavailable", "form.conflict", "form.request_conflict", "form.publication_pending", "form.publication_conflict"].includes(code) ? 409
+  const status = code === "form.not_found" ? 404 : ["form.unavailable", "form.conflict", "form.closed", "form.request_conflict", "form.publication_pending", "form.publication_conflict"].includes(code) ? 409
     : ["actions.forbidden", "actions.scope_mismatch", "form.publication_owner"].includes(code) ? 403 : 400;
   return { status, body: { error: message, ...(code ? { code } : {}) } };
 }

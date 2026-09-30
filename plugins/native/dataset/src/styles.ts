@@ -121,4 +121,21 @@ export const DATASET_STYLES = `
 .dataset-assist > summary { display:flex; align-items:center; gap:8px; width:fit-content; cursor:pointer; color:var(--muted); font-size:13px; min-height:32px; }
 .dataset-assist > summary svg { width:16px; height:16px; }
 .dataset-assist[open] > summary { color:var(--ink); margin-bottom:12px; }
+
+  .dataset-placement-line { margin: 2px 0 10px; }
+  [data-dataset-empty]:not([hidden]) ~ .dataset-placement-line { display: none; }
+  .dataset-import-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+
+  /* The starter is the shape of a table: three ghost columns and rows, and the two real ways to fill them. */
+  .dataset-starter { display: flex; flex-direction: column; gap: 12px; padding: 8px 0 4px; }
+  .dataset-ghost { display: grid; grid-template-rows: 32px repeat(3, 32px); gap: 1px; padding: 1px; border-radius: 8px; background: var(--line); overflow: hidden; }
+  .dataset-ghost > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; }
+  .dataset-ghost > div > span { background: var(--paper); }
+  .dataset-ghost > .dataset-ghost-head > span { background: var(--surface-soft); }
+  .dataset-starter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .dataset-starter-actions .mw-btn { width: auto; flex: none; }
+  .dataset-add-column-cell { width: 40px; padding: 0 4px; vertical-align: middle; }
+  .dataset-add-row td { padding: 4px 0 0; }
+  .dataset-add-row .mw-btn { width: auto; }
+  .dataset-filter { max-width: 320px; }
 `;

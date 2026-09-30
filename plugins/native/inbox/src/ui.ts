@@ -70,7 +70,7 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
   const details = model.entries.map((entry) => renderInboxDetail(entry, false, p)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="inbox" data-work-surface-label="Inbox" hidden data-inbox-workbench data-inbox-directory data-inbox-stage-shell data-expanded="false" data-inbox-current-filter="active">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-inbox-list>
-      <header class="plugin-stage-chrome inbox-compose-toolbar"><button class="mw-btn mw-btn--ghost tree-create" type="button" data-inbox-compose-open="">${p.icon("note")}<span>${p.text("整理材料到 Pages")}</span></button></header>
+      <header class="plugin-stage-chrome inbox-compose-toolbar"><button class="mw-btn mw-btn--ghost inbox-compose-trigger" type="button" data-inbox-compose-open="">${p.icon("note")}<span>${p.text("整理材料到 Pages")}</span></button></header>
       ${model.judgment ? `<details class="inbox-next-config"><summary><span class="goal-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>${p.text("下一步建议")}</summary><p>${p.escape(model.judgment.name || p.text("尚未绑定规则"))}${model.judgment.name && model.judgment.reason ? ` · ${p.escape(p.text(model.judgment.reason))}` : ""}</p><button class="mw-btn mw-btn--secondary" type="button" data-inbox-functions>${p.text("配置判断规则")}</button><button class="mw-btn mw-btn--secondary" type="button" data-inbox-evaluate${model.judgment.available && active.length ? "" : " disabled"}>${p.text("更新前 20 条待处理建议")}</button><p role="status" data-inbox-evaluate-status></p></details>` : ""}
       ${renderInboxFold("active", p.text("待处理"), "alert", active, p)}
       ${renderInboxFold("history", p.text("历史"), "check", history, p)}
@@ -126,12 +126,20 @@ function renderInboxStageRow(entry: InboxUiEntry, p: InboxUiPrimitives): string 
 
 function renderInboxDetail(entry: InboxUiEntry, selected: boolean, p: InboxUiPrimitives): string {
   const openAction = openButton(entry, p);
-  return `<article class="feed-detail feed-detail--attention inbox-reference-detail" data-inbox-detail="${p.escape(entry.entry_id)}" data-inbox-subject-type="${entry.subject_type}"${selected ? "" : " hidden"}>
+  return `<article class="feed-detail feed-detail--attention inbox-reference-detail" data-inbox-detail="${p.escape(entry.entry_id)}" data-inbox-subject-type="${entry.subject_type}" data-make-todo-scope${selected ? "" : " hidden"}>
     <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-inbox-collapse aria-label="${p.text("返回 Inbox 列表")}" title="${p.text("返回 Inbox 列表")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--attention">${p.escape(entry.kind_label)}</span><span class="mw-status mw-status--quiet">${p.escape(entry.source_label)}</span><span class="mw-status mw-status--${entry.status === "open" ? "attention" : entry.status === "in_progress" ? "progress" : entry.status === "done" ? "done" : "quiet"}">${p.escape(entry.status_label)}</span></div></header>
     <header class="feed-detail-header"><h1>${p.escape(entry.title)}</h1></header>
-    <div class="inbox-reference-footer">${renderNextSuggestion(entry, p)}<div class="feed-detail-actions">${openAction}${entry.subject_type === "feed_item" && entry.available ? renderMaterialActions(entry, p) : ""}${resultActions(entry, p)}</div><p class="feed-action-status" data-inbox-action-status role="status" hidden></p></div>
+    <div class="inbox-reference-footer">${renderNextSuggestion(entry, p)}<div class="feed-detail-actions">${openAction}${entry.subject_type === "feed_item" && entry.available ? renderMaterialActions(entry, p) : ""}${todoButton(entry, p)}${resultActions(entry, p)}</div><p class="feed-action-status" data-inbox-action-status data-make-todo-status role="status" hidden></p></div>
     <div class="inbox-reference-body"><section class="inbox-attention-context" aria-label="${p.text("处理上下文")}"><dl><div><dt>${p.text("为什么进入 Inbox")}</dt><dd>${p.escape(entry.reason_label)}</dd></div><div><dt>${p.text("关联对象")}</dt><dd>${p.escape(entry.relation_label)}</dd></div><div class="inbox-attention-next"><dt>${p.text("下一步")}</dt><dd>${p.escape(entry.next_action)}</dd></div><div><dt>${p.text("当前状态")}</dt><dd>${p.escape(entry.status_label)}</dd></div></dl></section><section data-inbox-entry-results="${p.escape(entry.entry_id)}" aria-label="${p.text("处理结果")}"></section></div>
   </article>`;
+}
+
+/**
+ * "转为待办": the workbench composes it with Todo when Todo is there (and hides it otherwise). The entry is kept as the
+ * todo's source; handling this entry does not complete the todo, and converting does not handle the entry.
+ */
+function todoButton(entry: InboxUiEntry, p: InboxUiPrimitives): string {
+  return `<button class="mw-btn mw-btn--secondary" type="button" data-make-todo="inbox" data-make-todo-id="${p.escape(entry.entry_id)}" data-make-todo-subject="inbox_entry" data-make-todo-surface="inbox" data-make-todo-title="${p.escape(entry.title)}" data-make-todo-reason="${p.text("你从 Inbox 转为待办")}">${p.icon("list")}${p.text("转为待办")}</button>`;
 }
 
 function resultActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {

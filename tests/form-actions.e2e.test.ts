@@ -101,7 +101,8 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   const remoteVersion=read().forms[0]!.version;
   await input('[data-form-description]','必须保留的本地编辑');
   await waitFor("document.querySelector('[data-form-editor-status]').textContent === '保存失败'");
-  await click('[data-form-publish]');await idle();
+  // Already collecting: there is no second “开始收集” to press, so a stale editor cannot republish.
+  assert.equal(await evaluate("document.querySelector('[data-form-publish]').hidden"),true);
   await click('[data-form-back]');await idle();
   assert.equal(read().forms[0]!.version,remoteVersion);
   assert.equal(await evaluate("document.querySelector('[data-form-description]').value"),'必须保留的本地编辑');
@@ -134,7 +135,7 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
     // Legacy answer has no historical snapshot; preserve unknown IDs explicitly in the result.
     db.prepare('INSERT INTO submissions (id,form_id,answers_json,submitted_at) VALUES (?,?,?,?)').run('old-answer',id,JSON.stringify({'removed-question':'历史回答'}),'2025-01-01T00:00:00Z');
   }finally{db.close();}
-  assert.equal(await evaluate("document.querySelector('[data-form-artifact-bar]').textContent"),'恢复发布');
+  assert.equal(await evaluate("document.querySelector('[data-form-artifact-bar]').textContent"),'继续保存上次固定版本');
   await input('[data-form-description]','发布后继续编辑');await saved();await screenshot('recovery');
   assert.equal(await evaluate("document.querySelector('[data-form-note]').hidden"),true);
   assert.equal(await evaluate("document.querySelector('[data-form-publication-note]').hidden"),false);

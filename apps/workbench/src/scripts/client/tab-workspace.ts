@@ -127,10 +127,20 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
     if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem) {
       ops.setExclusive(state, null);
-      ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
+      const opened = ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
+      // A Goal opened for its materials lands on its work view rather than the Frame canvas.
+      if (requestedPlugin === "goals" && paneParams.get("openGoalView") === "work" && opened) opened.goalView = "work";
       const returnedUrl = new URL(location.href);
-      returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openItem"); returnedUrl.searchParams.delete("openTitle");
+      returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openItem"); returnedUrl.searchParams.delete("openTitle"); returnedUrl.searchParams.delete("openGoalView");
       history.replaceState(history.state, "", returnedUrl);
+    }
+    // A record in a plugin whose objects open from its own list (Forms, Dataset, PPT…): jump to it once the list is up.
+    const requestedRecord = paneParams.get("openRecord");
+    if (requestedPlugin && requestedRecord) {
+      const returnedUrl = new URL(location.href);
+      returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openRecord");
+      history.replaceState(history.state, "", returnedUrl);
+      requestAnimationFrame(() => openPluginRecord(requestedPlugin, requestedRecord));
     }
     // Resolve an explicit Goal link before applying saved tabs; applying the old
     // active item first can enqueue a stale document read over the requested Goal.
@@ -199,6 +209,27 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       row.classList.remove("is-selected");
       if (row.hasAttribute("aria-selected")) row.setAttribute("aria-selected", "false");
     });
+    // The open object left the screen without the plugin knowing: stop naming it to the Assistant and the placement bar.
+    [surface, ...surface.querySelectorAll("[data-assistant-context]")].forEach((node) => {
+      if (!node.hasAttribute("data-assistant-context")) return;
+      try {
+        const context = JSON.parse(node.getAttribute("data-assistant-context") || "{}");
+        if (!context.object) return;
+        delete context.object;
+        delete context.unsaved;
+        node.setAttribute("data-assistant-context", JSON.stringify(context));
+      } catch {}
+    });
+  };
+  // A page load or a burst of state changes renders several times in a row, each naming the same object: the plugin
+  // hears it once. Only an identical, immediately repeated request is dropped; a later click on the tab still re-opens it.
+  const lastSelection = new WeakMap();
+  const selectItem = (surface, itemId) => {
+    if (!surface) return;
+    const last = lastSelection.get(surface), now = Date.now();
+    if (last && last.itemId === itemId && now - last.at < 250) return;
+    lastSelection.set(surface, { itemId, at: now });
+    surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId } }));
   };
   // Collapses the shell makes itself (showing a page for the first time, returning from a tab, the location chip) are
   // not the person closing a record: the record watcher below lets them pass, and the callers keep history themselves.
@@ -207,7 +238,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (!plugin) return;
     shellCollapse.add(plugin);
     queueMicrotask(() => shellCollapse.delete(plugin));
-    topLevelSurface(plugin)?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: null } }));
+    selectItem(topLevelSurface(plugin), null);
     if (plugin === "goals") {
       document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", L("收起 Goal，返回关系画布"));
       (restoreBoard || showCanvas)?.();
@@ -244,7 +275,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   const applyTabContent = (tab, keepFrame) => {
     if (!tab) return;
-    topLevelSurface(tab.plugin)?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: tab.kind === "item" ? tab.itemId : null } }));
+    selectItem(topLevelSurface(tab.plugin), tab.kind === "item" ? tab.itemId : null);
     if (tab.plugin === "goals" && tab.kind === "item" && tab.itemId) {
       if (supportsGoalFrames() && tab.goalView !== "work") { applySelection?.(tab.itemId); showGoalFrame?.(tab.itemId); return; }
       releaseFrame?.();
@@ -323,7 +354,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
   const tabLabel = (tab) => {
-    if (tab.plugin === "home") return L("项目首页");
+    if (tab.plugin === "home") return document.body.dataset.projectId === "personal" ? L("个人首页") : L("项目首页");
     if (tab.kind === "mother") return tab.plugin === "goals" ? L("画布") : ops.pluginTitle(tab.plugin);
     return tab.title;
   };
@@ -1202,13 +1233,21 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const pane = ops.focused(state), key = paneFrameKey(pane);
     const frame = key && panesEl.querySelector('iframe[data-pane-tab="' + CSS.escape(key) + '"]');
     const current = () => !state.exclusive && ops.focused(state) === pane && pane.viewPlugin === plugin && !pane.activeTabId && (!frame || (frame.isConnected && !frame.hidden && frame.dataset.paneOwner === pane.id));
-    let observer = null, timer = null, done = false, clicks = 0, lastClick = 0;
-    const finish = () => { done = true; observer?.disconnect(); clearTimeout(timer); frame?.removeEventListener('load', watch); if (cancelRecordJump === finish) cancelRecordJump = null; };
+    let observer = null, timer = null, asked = null, done = false, clicks = 0, lastClick = 0;
+    const finish = () => { done = true; observer?.disconnect(); clearTimeout(timer); clearTimeout(asked); frame?.removeEventListener('load', watch); if (cancelRecordJump === finish) cancelRecordJump = null; };
+    const surfaceIn = (doc) => doc?.querySelector('[data-work-surface="' + plugin + '"]') || null;
+    // The plugin says it has the record open (its current object), however it got there.
+    const showsIt = (doc) => {
+      const node = surfaceIn(doc);
+      const holder = node && (node.hasAttribute('data-assistant-context') ? node : node.querySelector('[data-assistant-context]'));
+      try { const context = JSON.parse(holder?.getAttribute('data-assistant-context') || '{}'); return Boolean(context.object && context.object.id === itemId); } catch { return false; }
+    };
     const check = () => {
       if (done) return;
       if (!current()) { finish(); return; }
       const doc = frame ? frame.contentDocument : document;
       if (!doc || (frame && !doc.body?.hasAttribute('data-pane-embedded'))) return;
+      if (showsIt(doc)) { finish(); return; }
       const row = [...doc.querySelectorAll(spec[1])].find(el => el.dataset[spec[2]] === itemId);
       if (!row) return;
       // A row the server drew can be there before the plugin has read its records, and a click then does nothing.
@@ -1229,8 +1268,11 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       check();
     };
     cancelRecordJump = finish;
+    // Not among the rows shown now (another view or filter): a plugin that opens records by id is asked directly.
+    asked = setTimeout(() => { if (!done && current()) surfaceIn(frame ? frame.contentDocument : document)?.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId } })); }, 1500);
     timer = setTimeout(() => {
-      const stillCurrent = current(); finish();
+      const stillCurrent = current(); const opened = showsIt(frame ? frame.contentDocument : document); finish();
+      if (opened) return;
       if (quiet) forgetRecord(plugin);
       else if (stillCurrent) showToast?.(L('未能打开这条内容，请重试或从列表中选择。'), true);
     }, quiet ? 8000 : 10000);
@@ -1295,6 +1337,15 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     ops.openBeside(state, plugin, itemId || null, itemId ? titleForItem(plugin, itemId, title) : undefined);
     apply();
     persist();
+  };
+  // An object that moved to another place no longer opens here: its tabs close (the move card offers the new place).
+  const closeItem = (plugin, itemId) => {
+    let closed = false;
+    state.panes.forEach((pane) => pane.tabs.filter((tab) => tab.plugin === plugin && tab.kind === "item" && tab.itemId === itemId).map((tab) => tab.id)
+      .forEach((id) => { ops.closeTab(state, pane.id, id); closed = true; }));
+    // Nor does its plugin's page reopen it after a reload.
+    if (openRecords[plugin] === itemId) forgetRecord(plugin);
+    if (closed) { apply(); persist(); }
   };
   const openGoalWork = () => {
     const tab = ops.activeTab(state);
@@ -1960,7 +2011,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (event.data?.type === "workbench-feed-add") setFeedAddOpen?.(true);
   });
   if (embedded && paneParams.has("paneFeedTask")) requestAnimationFrame(() => setFeedTask?.(paneParams.get("paneFeedTask"), false));
-  return { apply, openPlugin, openPluginRecord, openItem, openBeside, openGoalWork, addFeedTask, setExclusive, restore, landAtProjectRoot,
+  return { apply, openPlugin, openPluginRecord, openItem, openBeside, openGoalWork, closeItem, addFeedTask, setExclusive, restore, landAtProjectRoot,
     leavePlugin, closeCover, openCover, registerCover, noteCover, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     exclusive: () => state.exclusive, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };

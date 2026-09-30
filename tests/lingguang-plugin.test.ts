@@ -121,7 +121,7 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
   assert.equal(entry?.glyph, "idea");
   const market = pluginMarketCards().find((card) => card.id === "lingguang");
   assert.equal(market?.personal, true);
-  assert.equal(market?.copy, "先记下还没想清楚的想法，再决定留下或丢掉。");
+  assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
   assert.equal(lingguangManifest.ui.views?.[0]?.slot, "island");
   assert.equal(lingguangManifest.mcp_exports, undefined);
@@ -130,14 +130,14 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
 test("工作台挂上灵光空态、确认框和快记区", () => {
   const html = renderMolisWorkWeb(emptyView());
   assert.match(html, /data-plugin-id="lingguang"/);
-  // Unified bottom bar (craft-finish, fourth round): the assistant in the middle with the plugin choice before its input,
+  // Unified bottom bar: the plugin switcher (every entry of the project) at the left, the assistant in the middle,
   // Shelf and 灵光 as resident buttons right beside the project button. 灵光 itself still opens as a full stage.
   const stack = html.slice(html.indexOf('class="workbench-bar"'), html.indexOf('id="goal-tree-pane"'));
   const stripAt = stack.indexOf("data-plugin-strip"), assistantAt = stack.indexOf("data-assistant-island");
   const residentAt = stack.indexOf('data-bar-resident="lingguang"'), projectAt = stack.indexOf("data-project-island");
-  assert.ok(assistantAt >= 0 && stripAt > assistantAt && residentAt > stripAt && projectAt > residentAt, "底栏：助手居中、插件选择在输入框前、灵光常驻按钮紧贴项目圆钮");
+  assert.ok(stripAt >= 0 && assistantAt > stripAt && residentAt > assistantAt && projectAt > residentAt, "底栏：插件切换在最左、助手居中、灵光常驻按钮紧贴项目圆钮");
   assert.match(stack.slice(residentAt - 200, projectAt), /data-bar-resident="shelf"[\s\S]*data-bar-resident="lingguang"[\s\S]*data-dock-toggle="im"/);
-  assert.match(stack.slice(stripAt, residentAt), /data-plugin-id="lingguang"/, "插件选择列表是项目的全部入口，灵光也在其中");
+  assert.match(stack.slice(stripAt, assistantAt), /data-plugin-id="lingguang"/, "插件切换列表是项目的全部入口，灵光也在其中");
   assert.match(stack, /data-assistant-island/);
   assert.doesNotMatch(stack, /data-assistant-toggle/, "助手是 Dock 里的一个容器，不再是浮窗开关");
   assert.match(stack, /data-assistant-composer/);

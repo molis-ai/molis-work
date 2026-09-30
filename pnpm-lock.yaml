@@ -179,6 +179,9 @@ importers:
       '@molis-ai/molis-work-plugin-text-stats':
         specifier: workspace:*
         version: link:plugins/native/text-stats
+      '@molis-ai/molis-work-plugin-todo':
+        specifier: workspace:*
+        version: link:plugins/native/todo
       '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:plugins/native/work
@@ -194,6 +197,9 @@ importers:
       '@molis-ai/molis-work-service-listener-host':
         specifier: workspace:*
         version: link:horizontal/listener-host
+      '@molis-ai/molis-work-service-placement':
+        specifier: workspace:*
+        version: link:horizontal/placement
       '@molis-ai/molis-work-service-runtime-host':
         specifier: workspace:*
         version: link:horizontal/runtime-host
@@ -453,6 +459,9 @@ importers:
       '@molis-ai/molis-work-plugin-text-stats':
         specifier: workspace:*
         version: link:../../plugins/native/text-stats
+      '@molis-ai/molis-work-plugin-todo':
+        specifier: workspace:*
+        version: link:../../plugins/native/todo
       '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:../../plugins/native/work
@@ -471,6 +480,9 @@ importers:
       '@molis-ai/molis-work-service-listener-host':
         specifier: workspace:*
         version: link:../../horizontal/listener-host
+      '@molis-ai/molis-work-service-placement':
+        specifier: workspace:*
+        version: link:../../horizontal/placement
       '@molis-ai/molis-work-service-runtime-host':
         specifier: workspace:*
         version: link:../../horizontal/runtime-host
@@ -631,6 +643,9 @@ importers:
       '@molis-ai/molis-work-plugin-text-stats':
         specifier: workspace:*
         version: link:../../plugins/native/text-stats
+      '@molis-ai/molis-work-plugin-todo':
+        specifier: workspace:*
+        version: link:../../plugins/native/todo
       '@molis-ai/molis-work-plugin-work':
         specifier: workspace:*
         version: link:../../plugins/native/work
@@ -647,8 +662,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-resource-intake.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-resource-intake.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -660,6 +675,12 @@ importers:
         version: link:../../packages/contracts
 
   horizontal/listener-host:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+
+  horizontal/placement:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
@@ -1155,6 +1176,9 @@ importers:
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../../packages/storage
+      fflate:
+        specifier: 0.8.2
+        version: 0.8.2
 
   plugins/native/schedule:
     dependencies:
@@ -1185,6 +1209,18 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+
+  plugins/native/todo:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../../../packages/design-system
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
 
   plugins/native/work:
     dependencies:
@@ -1566,8 +1602,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-resource-intake.tgz':
-    resolution: {integrity: sha512-vGHwTvZJN9oqmTZj/peGdyw1kTILWRagLCxUjxSuxmnFK7f9G1vKMrAiVCWPonB6zaEk2rtr9D/X/XvkL2i23w==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-resource-intake.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz':
+    resolution: {integrity: sha512-HeJKDic3EpgryNbCyFIEIFIZqJGV7uy3EWEwvkuvdxpEgHZb0antWuqV87T6Jl1kcko7/rWolIzCaPpyts1IWQ==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz}
     version: 0.0.0-rc.1
 
   '@rolldown/binding-android-arm-eabi@1.2.9':
@@ -2991,7 +3027,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-resource-intake.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

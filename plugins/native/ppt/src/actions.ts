@@ -1,4 +1,8 @@
-import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
+import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { slidesFromMarkdown } from "./content-actions.js";
+import { PPT_DRAFT_OUTLINE } from "./prompts.js";
 import type { PptRecord, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { promotePpt, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
 import type { PptStore } from "./store.js";
@@ -16,11 +20,13 @@ const changed = object({ presentation: record }), identity = { id, expected_vers
 const read = ["ppt:read"], write = ["ppt:read", "ppt:write"];
 type Identity = { id: string; expected_version?: number };
 type Edit = Identity & { title?: string; description?: string; color_primary?: string; color_background?: string; color_text?: string; slides?: readonly PptSlideInput[] };
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write): ActionDefinition<I, O> {
-  return { capability_id: `ppt.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["ppt"], input_schema: input, output_schema: output, permissions } };
+function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
+  // An action that waits on a model discloses the cost and runs beside the serial queue, like Forms' AI drafting.
+  return { capability_id: `ppt.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["ppt"], input_schema: input, output_schema: output, permissions, ...(name === "outline_ai" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const pptActions = {
-  list: define<Record<string, never>, { presentations: PptRecord[] }>("list", "演示稿列表", "读取当前项目的演示稿", "query", object({}), object({ presentations: array(record) })),
+  list: define<Record<string, never>, { presentations: PptRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "演示稿列表", "读取当前项目的演示稿，以及当前调用方能否让模型整理大纲", "query", object({}),
+    object({ presentations: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { presentation: PptRecord }>("get", "读取演示稿", "读取幻灯片、配色、版本和发布状态；id 来自列表或创建结果", "query", object({ id }), changed),
   create: define<{ title?: string }, { presentation: PptRecord }>("create", "新建演示稿", "创建带一页空白幻灯片的演示稿", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
   update: define<Edit, { presentation: PptRecord }>("update", "编辑演示稿", "替换指定字段或整组幻灯片；提交读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, color_primary: color, color_background: color, color_text: color,
@@ -28,20 +34,53 @@ export const pptActions = {
   delete: define<Identity, { ok: true }>("delete", "删除演示稿", "删除当前项目演示稿，待恢复的 Artifact 发布需先完成", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   export: define<Identity, { filename: string; mime_type: "application/json"; content: string }>("export", "导出演示稿 JSON", "返回已保存演示稿的完整 JSON、文件名和 MIME 类型；不是 PPTX", "query", object(identity, ["id"]), object({ filename: text, mime_type: { const: "application/json" }, content: text })),
   promote: define<Identity, { presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "演示稿存成 Artifact", "发布固定幻灯片与配色或恢复原发布；后续编辑保留", "command", object(identity, ["id"]), object({ presentation: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  pptx: define<Identity, { filename: string; mime_type: typeof PPTX_MIME_TYPE; content_base64: string; slide_count: number }>("pptx", "导出 PowerPoint 文件",
+    "按已保存的版本生成 .pptx（每页标题、要点、讲者备注与配色），PowerPoint、Keynote、WPS 可直接打开和放映；不含图片与图表", "query", object(identity, ["id"]),
+    object({ filename: text, mime_type: { const: PPTX_MIME_TYPE }, content_base64: text, slide_count: { type: "integer", minimum: 1 } })),
+  outline: define<Identity & { text: string; replace?: boolean }, { presentation: PptRecord; slide_count: number }>("outline", "按文字生成大纲",
+    "把一段要点或 Markdown 变成幻灯片：`#` 是演示稿标题，`##` 分页，列表成为要点，`>` 成为讲者备注；没有标题时每 6 条要点一页。追加到现有页之后，或替换现有页；本地处理，不调用模型", "command",
+    object({ ...identity, text: { ...text, minLength: 1, maxLength: 20000 }, replace: { type: "boolean" } }, ["id", "text"]), object({ presentation: record, slide_count: { type: "integer", minimum: 1 } })),
+  outlineAi: define<Identity & { text: string; replace?: boolean }, { presentation: PptRecord; slide_count: number }>("outline_ai", "AI 整理成大纲",
+    "让当前文字模型把一段文字整理成幻灯片大纲，再按标题分页；模型失败、返回空或演示稿已变化时不写入", "command",
+    object({ ...identity, text: { ...text, minLength: 1, maxLength: 20000 }, replace: { type: "boolean" } }, ["id", "text"]), object({ presentation: record, slide_count: { type: "integer", minimum: 1 } }), [...write, "model:invoke"], { cost: "metered" }),
+  move: defineObjectMoveAction("ppt.placement.move", ["presentation"], "演示稿", write),
+  copy: defineObjectCopyAction("ppt.placement.copy", ["presentation"], "演示稿", write),
   searchEntries: pptSearchActions.entries,
   subject: pptSearchActions.subject,
 };
 export const PPT_ACTION_PERMISSIONS = [...new Set(Object.values(pptActions).flatMap(definition => definition.action.permissions))];
 export interface PptActionPorts {
   withStore<T>(run: (store: PptStore) => T): T;
+  /** Whether the current text model can be asked; absent means no model in this environment. */
+  modelAvailability?(): ActionAvailability;
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
   publishArtifact?: (input: Parameters<PptPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<PptPublishArtifactPort>;
   readArtifact?: (input: Parameters<PptReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<PptReadArtifactPort>;
 }
+/** Slides parsed from an outline join the deck after its pages, or replace them; a deck that is still one blank page is simply filled. */
+function applyOutline(store: PptStore, input: { id: string; expected_version?: number; replace?: boolean }, projectId: string, markdown: string): { presentation: PptRecord; slide_count: number } {
+  const current = store.get(input.id, projectId);
+  if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后生成");
+  const parsed = slidesFromMarkdown(markdown, current.title);
+  const blank = current.slides.length === 1 && !current.slides[0]!.bullets.length && !current.slides[0]!.notes;
+  const kept = input.replace || blank ? [] : current.slides.map(slide => ({ id: slide.id, title: slide.title, bullets: slide.bullets, notes: slide.notes }));
+  const slides = [...kept, ...parsed.slides].slice(0, 40);
+  const untitled = current.title === "未命名演示稿" && parsed.title && parsed.title !== current.title;
+  const presentation = store.update(input.id, { slides, ...(untitled ? { title: parsed.title } : {}), expected_version: current.version }, projectId);
+  return { presentation, slide_count: Math.min(parsed.slides.length, 40 - kept.length) };
+}
+
 export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
+  const modelAvailability = (): ActionAvailability => ports.modelAvailability ? ports.modelAvailability() : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" };
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   return [
-    bind(pptActions.list, (_, caller) => ports.withStore(store => ({ presentations: store.list(project(caller)) }))),
+    bind(pptActions.list, (_, caller) => {
+      const ai = modelAvailability(), permitted = pptActions.outlineAi.action.permissions.every(p => caller.permissions.includes(p))
+        && (!caller.allowed_capability_ids || caller.allowed_capability_ids.includes(pptActions.outlineAi.capability_id));
+      return ports.withStore(store => ({ presentations: store.list(project(caller)), ai_available: ai.available && permitted,
+        ai_unavailable_reason: !permitted ? "当前调用方未获 AI 整理大纲的授权" : ai.available ? null : ai.reason ?? "请先配置可用的文字模型" }));
+    }),
     bind(pptActions.get, (input, caller) => ports.withStore(store => ({ presentation: store.get(input.id, project(caller)) }))),
     bind(pptActions.create, (input, caller) => ports.withStore(store => ({ presentation: store.create({ ...input, project_id: project(caller) }) }))),
     bind(pptActions.update, (input, caller) => ports.withStore(store => ({ presentation: store.update(input.id, input, project(caller)) }))),
@@ -53,6 +92,31 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
     })),
     bind(pptActions.promote, (input, caller) => ports.withStore(store => promotePpt(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
       () => ports.publishArtifact ? { available: true } : { available: false, code: "ppt.unavailable", reason: "当前环境不能发出 Artifact" }),
+    bind(pptActions.pptx, (input, caller) => ports.withStore(store => {
+      const presentation = store.get(input.id, project(caller));
+      if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后导出");
+      return { filename: pptxFilename(presentation.title), mime_type: PPTX_MIME_TYPE, content_base64: Buffer.from(buildPptx(presentation)).toString("base64"), slide_count: presentation.slides.length };
+    })),
+    bind(pptActions.outline, (input, caller) => ports.withStore(store => applyOutline(store, input, project(caller), input.text))),
+    bind(pptActions.outlineAi, async (input, caller) => {
+      const current = ports.withStore(store => store.get(input.id, project(caller)));
+      if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后生成");
+      caller.signal?.throwIfAborted();
+      if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
+      const markdown = (await ports.completeText(instructed(PPT_DRAFT_OUTLINE, JSON.stringify({ text: input.text })), { signal: caller.signal })).trim();
+      caller.signal?.throwIfAborted();
+      if (!markdown) throw new ActionError("ppt.invalid", "模型没有返回大纲，请调整文字后重试");
+      await caller.beforeEffect();
+      return ports.withStore(store => applyOutline(store, { ...input, expected_version: current.version }, project(caller), markdown));
+    }, () => modelAvailability()),
+    bindObjectMoveHandler(pptActions.move, input => ports.withStore(store => {
+      const presentation = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
+      return { subject: { kind: "presentation", id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
+    })),
+    bindObjectCopyHandler(pptActions.copy, input => ports.withStore(store => {
+      const presentation = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
+      return { subject: { kind: "presentation", id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
+    })),
     ...createPptSearchHandlers(ports.withStore),
   ];
 }

@@ -18,6 +18,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   const tableEmpty = workbench.querySelector("[data-dataset-table-empty]");
   const filterEmpty = workbench.querySelector("[data-dataset-filter-empty]");
   const filterInput = workbench.querySelector("[data-dataset-filter]");
+  const toolbar = workbench.querySelector("[data-dataset-toolbar]");
   const columnName = workbench.querySelector("[data-dataset-column-name]");
   const columnType = workbench.querySelector("[data-dataset-column-type]");
   const aiPrompt = workbench.querySelector("[data-dataset-ai-prompt]");
@@ -44,15 +45,24 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     paint();
     if (list) list.scrollTop = top;
   };
-  const firstLine = (value) => {
+  const firstLine = (value, fallback = "") => {
     const line = String(value || "").trim().split("\\n")[0].trim();
-    return line || L("还没有说明");
+    return line || fallback;
   };
-  const kindChip = (kind, label) => {
+  const whenOf = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const sameYear = date.getFullYear() === new Date().getFullYear();
+    return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
+  };
+  // A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name.
+  const fixedCell = (record) => {
     const node = document.createElement("span");
-    node.className = "mw-status plugin-stage-kind";
-    node.dataset.kind = kind;
-    node.textContent = label;
+    node.className = "mw-status mw-status--plain feed-entry-status";
+    if (record.publication_pending) { node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
+    else if (record.artifact_version > 0) { node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
+    else node.setAttribute("aria-hidden", "true");
     return node;
   };
   const textCell = (className, text) => {
@@ -101,13 +111,25 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     node.classList.add("is-arriving");
     return node;
   };
+  /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
+  const placed = (detail) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
+  /** The table on screen, for the placement bar and the Assistant. */
+  const publishContext = () => {
+    const context = { plugin_id: "io.molis.work.dataset", surface_title: "Dataset" };
+    if (selected) {
+      context.object = { kind: "dataset", id: selected.id, version: selected.version, title: titleInput.value || selected.title };
+      if (editRevision > savedRevision || saveError) context.unsaved = true;
+    }
+    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+  };
   const paintStatus = (record) => {
+    if (selected && selected.id === record.id) publishContext();
     const ready = record.status === "ready";
     statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : ready ? "done" : "quiet");
     statusEl.textContent = saveError ? L("保存失败") : savePromise ? L("保存中") : editRevision > savedRevision ? L("尚未保存") : busy ? L("处理中") : L("已保存");
     const pending = workbench.querySelector("[data-dataset-publication-note]");
     pending.hidden = !record.publication_pending;
-    pending.textContent = record.publication_pending ? L("上次发布尚未完成。恢复发布会使用上次的固定内容；后续修改可另存一版。") : "";
+    pending.textContent = record.publication_pending ? L("上次固定版本还没存完。恢复会使用上次的固定内容，之后的修改可以再存一版。") : "";
   };
   const ask = (message, okLabel) => new Promise((resolve) => {
     if (!confirmDialog) { resolve(false); return; }
@@ -150,6 +172,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!columns.length) {
       tableEl.replaceChildren();
       tableEl.hidden = true;
+      if (toolbar) toolbar.hidden = !filterInput.value;
       if (tableEmpty) tableEmpty.hidden = false;
       if (filterEmpty) filterEmpty.hidden = true;
       renderedFilter = filterInput.value;
@@ -174,7 +197,10 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       th.querySelector("[data-column-type]").value = column.type || "text";
       headRow.append(th);
     });
-    headRow.append(document.createElement("th"));
+    const addColumnCell = document.createElement("th");
+    addColumnCell.className = "dataset-add-column-cell";
+    addColumnCell.innerHTML = '<button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-dataset-add-column aria-label="' + L("加一列") + '" title="' + L("加一列") + '"><svg aria-hidden="true"><use href="#icon-plus"></use></svg></button>';
+    headRow.append(addColumnCell);
     thead.append(headRow);
     const tbody = document.createElement("tbody");
     (record.rows || []).forEach((row) => {
@@ -206,8 +232,20 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       tr.append(remove);
       tbody.append(tr);
     });
-    tableEl.replaceChildren(thead, tbody);
     const noMatch = Boolean(query && !tbody.childElementCount);
+    if (!query) {
+      // The table grows from its own edge: a "+" after the last column, a row of "+" under the last row.
+      const addRow = document.createElement("tr");
+      addRow.className = "dataset-add-row";
+      const cell = document.createElement("td");
+      cell.colSpan = columns.length + 1;
+      cell.innerHTML = '<button class="mw-btn mw-btn--ghost" type="button" data-dataset-add-row><svg aria-hidden="true"><use href="#icon-plus"></use></svg><span>' + L("加一行") + '</span></button>';
+      addRow.append(cell);
+      tbody.append(addRow);
+    }
+    tableEl.replaceChildren(thead, tbody);
+    // Filtering earns its place once there is something to filter through.
+    if (toolbar) toolbar.hidden = !((record.rows || []).length >= 8 || query);
     tableEl.hidden = noMatch;
     if (filterEmpty) filterEmpty.hidden = !noMatch;
     renderedFilter = filterInput.value;
@@ -276,22 +314,12 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     selected = null;
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
+    publishContext();
   };
   const renderList = () => {
     keepListScroll(() => paintList());
   };
-  const artifactLabel = (record) => record?.publication_pending ? L("恢复发布") : record && record.artifact_version > 0 ? L("再存一版") : L("保存成果版本");
-  const artifactControl = (record, key) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "creative-artifact-act";
-    button.dataset[key] = record.id;
-    const label = artifactLabel(record);
-    button.setAttribute("aria-label", label);
-    button.innerHTML = '<svg aria-hidden="true"><use href="#icon-upload"></use></svg><span></span>';
-    button.lastElementChild.textContent = label;
-    return button;
-  };
+  const artifactLabel = (record) => record?.publication_pending ? L("继续保存上次固定版本") : record && record.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
   const paintList = () => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
@@ -309,18 +337,14 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       title.title = record.title;
       title.textContent = record.title;
       leading.append(title);
-      const ready = record.status === "ready";
-      const status = document.createElement("span");
-      status.className = "mw-status mw-status--" + (ready ? "done" : "quiet") + " feed-entry-status";
-      status.textContent = ready ? L("已就绪") : L("草稿");
+      const columns = (record.columns || []).length, rows = (record.rows || []).length;
       row.append(
         leading,
-        kindChip("dataset", L("数据表")),
-        textCell("plugin-stage-fact", (record.columns || []).length + " × " + (record.rows || []).length),
-        textCell("plugin-stage-meta", firstLine(record.description)),
-        status,
+        textCell("plugin-stage-fact", columns ? columns + " " + L("列") + " × " + rows + " " + L("行") : L("空表")),
+        textCell("plugin-stage-meta", firstLine(record.description, whenOf(record.updated_at))),
+        fixedCell(record),
       );
-      item.append(row, artifactControl(record, "datasetArtifact"));
+      item.append(row);
       rowsEl.append(item);
     });
     const bar = workbench.querySelector("[data-dataset-artifact-bar]");
@@ -420,6 +444,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         const payload = await request("POST", "/api/plugins/dataset", {});
         await loadList();
         await fillEditor(payload.dataset);
+        placed({ verb: "created", title: payload.dataset.title, object: { kind: "dataset", id: payload.dataset.id } });
         return;
       }
       const artifact = event.target.closest("[data-dataset-artifact]");
@@ -442,7 +467,8 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
           }
           throw error;
         }
-        showNote(L("已保存成果版本"), false);
+        placed({ verb: "versioned", title: payload.dataset.title, object: { kind: "dataset", id: payload.dataset.id },
+          note: L("第 {version} 版 · 放在这个位置的成果（Artifacts）里；继续编辑不会改变这一版", { version: payload.artifact.version }) });
         await loadList();
         if (payload.dataset && selected && selected.id === payload.dataset.id) remember(payload.dataset, false);
         return;
@@ -462,17 +488,23 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-dataset-add-column]") && selected) {
         const draft = draftFromDom();
+        const firstColumn = draft.columns.length === 0;
         draft.columns.push({
           id: "col-" + crypto.randomUUID(),
-          name: columnName.value.trim() || L("列") + " " + (draft.columns.length + 1),
-          type: columnType.value,
+          name: (columnName?.value || "").trim() || L("列") + " " + (draft.columns.length + 1),
+          type: columnType?.value || "text",
           order: draft.columns.length + 1,
         });
-        columnName.value = "";
+        if (columnName) columnName.value = "";
+        // The first column turns the starter into a grid the person can type into: three empty rows come with it.
+        if (firstColumn && draft.rows.length === 0) {
+          for (let index = 0; index < 3; index += 1) draft.rows.push({ id: "row-" + crypto.randomUUID(), cells: Object.fromEntries(draft.columns.map((column) => [column.id, ""])) });
+        }
         selected = { ...selected, ...draft };
         renderTable(selected);
         const columns = tableEl.querySelectorAll("[data-dataset-column]");
         arrive(columns[columns.length - 1]);
+        columns[columns.length - 1]?.querySelector("[data-column-name]")?.select();
         queueSave();
         return;
       }
@@ -481,8 +513,16 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         draft.rows.push({ id: "row-" + crypto.randomUUID(), cells: Object.fromEntries(draft.columns.map((column) => [column.id, ""])) });
         selected = { ...selected, ...draft };
         renderTable(selected);
-        arrive(tableEl.querySelector("[data-dataset-row]:last-child"));
+        const rows = tableEl.querySelectorAll("[data-dataset-row]");
+        arrive(rows[rows.length - 1]);
+        rows[rows.length - 1]?.querySelector("[data-cell]")?.focus();
         queueSave();
+        return;
+      }
+      if (event.target.closest("[data-dataset-paste-open]") && selected) {
+        const panel = workbench.querySelector(".dataset-panel");
+        if (panel) panel.open = true;
+        workbench.querySelector("[data-dataset-csv]")?.focus();
         return;
       }
       if (event.target.closest("[data-column-remove]") && selected) {
@@ -536,15 +576,22 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         await loadList();
         return;
       }
+      if (event.target.closest("[data-dataset-import-file]") && selected) {
+        const input = workbench.querySelector("[data-dataset-import-input]");
+        input.value = ""; input.click();
+        return;
+      }
       if (event.target.closest("[data-dataset-export-csv]") && selected) {
         await save();
         const payload = await request("GET", "/api/plugins/dataset/" + encodeURIComponent(selected.id) + "/export");
-        download((selected.title || "dataset") + ".csv", payload.csv || "", "text/csv;charset=utf-8");
+        download((selected.title || "dataset") + ".csv", "\ufeff" + (payload.csv || ""), "text/csv;charset=utf-8");
+        placed({ verb: "exported", title: selected.title, file: { name: (selected.title || "dataset") + ".csv", format: L("{count} 行 · Excel、Numbers 可以打开", { count: (selected.rows || []).length }) } });
         return;
       }
       if (event.target.closest("[data-dataset-export-json]") && selected) {
         await save();
         download((selected.title || "dataset") + ".json", JSON.stringify(selected, null, 2), "application/json");
+        placed({ verb: "exported", title: selected.title, file: { name: (selected.title || "dataset") + ".json", format: L("数据文件") } });
         return;
       }
       if (event.target.closest("[data-dataset-snapshot]") && selected) {
@@ -598,6 +645,28 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     selected = { ...selected, ...draftFromDom() };
     renderTable(selected);
     queueSave();
+  });
+  workbench.querySelector("[data-dataset-import-input]")?.addEventListener("change", async (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file || !selected) return;
+    try {
+      if (file.size > 2_000_000) throw new Error(L("CSV 文件超过 2 MB，请拆分后再导入"));
+      if (!await ask(L("导入会覆盖当前表格的列和行。确定吗？"), L("导入"))) return;
+      await save();
+      const text = (await file.text()).replace(/^\ufeff/, "");
+      const payload = await request("POST", "/api/plugins/dataset/" + encodeURIComponent(selected.id) + "/import-csv", { csv: text, expected_version: selected.version });
+      await fillEditor(payload.dataset);
+      await loadList();
+      showNote(L("已从文件导入 {count} 行", { count: (payload.dataset.rows || []).length }), false);
+    } catch (error) { showNote(error.message || L("导入失败"), true); }
+    finally { event.target.value = ""; }
+  });
+  // Moved or copied from the placement bar: this list changed; a table moved away is no longer here to edit.
+  window.addEventListener("molis:placement-changed", (event) => {
+    const detail = event.detail || {};
+    if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("dataset")) return;
+    if (detail.mode === "move" && detail.from && selected && selected.id === detail.from.id) closeEditor();
+    void loadList().catch((error) => showNote(error.message, true));
   });
   window.addEventListener("beforeunload", (event) => {
     if (selected && (saveError || editRevision > savedRevision)) {

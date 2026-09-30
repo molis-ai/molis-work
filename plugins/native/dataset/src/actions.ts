@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DATASET_NAME_COLUMN } from "./prompts.js";
-import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { DatasetRecord, DatasetVersionRecord, DatasetColumnInput, DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { promoteDataset, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStore } from "./store.js";
@@ -38,7 +38,12 @@ export const datasetActions = {
   promote: define<Identity, { dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布数据表", "把固定表内容存成 Artifact，或恢复上次中断发布；本机快照不进入发布内容", "command", object(identity, ["id"]), object({ dataset: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   searchEntries: datasetSearchActions.entries,
   subject: datasetSearchActions.subject,
+  move: defineObjectMoveAction("dataset.placement.move", ["dataset"], "数据表", write),
+  copy: defineObjectCopyAction("dataset.placement.copy", ["dataset"], "数据表", write),
 };
+/** A table is a workflow content station: it hands its CSV on, and makes a new table from CSV it receives (a form's responses). */
+export const datasetContentActions = defineWorkflowContentActions({ id: "dataset", title: "数据表", icon: "database", create: true,
+  read_permissions: ["dataset:read"], write_permissions: ["dataset:read", "dataset:write"] });
 export const DATASET_ACTION_PERMISSIONS = [...new Set(Object.values(datasetActions).flatMap(d => d.action.permissions))];
 export interface DatasetActionPorts {
   withStore<T>(run: (store: DatasetStore) => T): T;
@@ -82,5 +87,27 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
     bind(datasetActions.promote, (input, caller) => ports.withStore(store => promoteDataset(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
       () => ports.publishArtifact ? { available: true } : { available: false, code: "dataset.unavailable", reason: "当前环境不能发出 Artifact" }),
     ...createDatasetSearchHandlers(ports.withStore),
+    bindObjectMoveHandler(datasetActions.move, input => ports.withStore(store => {
+      const dataset = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
+      return { subject: { kind: "dataset", id: dataset.id }, project_id: dataset.project_id, revision: String(dataset.version) };
+    })),
+    bindObjectCopyHandler(datasetActions.copy, input => ports.withStore(store => {
+      const dataset = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
+      return { subject: { kind: "dataset", id: dataset.id }, project_id: dataset.project_id, revision: String(dataset.version) };
+    })),
   ];
+}
+
+/** The table as a workflow content station: hands its rows on as CSV and turns CSV it receives into a table. */
+export function createDatasetContentHandlers(withStore: DatasetActionPorts["withStore"]): ActionHandlerBinding[] {
+  const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
+  return bindWorkflowContentHandlers(datasetContentActions, {
+    list: caller => withStore(store => store.list(project(caller)).map(dataset => ({ item_id: dataset.id, title: dataset.title, caption: dataset.rows.length + " 行", at: dataset.updated_at }))),
+    read: ({ item_id }, caller) => withStore(store => { const dataset = store.get(item_id, project(caller)); return { title: dataset.title, body: toCsv(dataset), source: "数据表" }; }),
+    receive: ({ payload, context }, caller) => withStore(store => {
+      const dataset = store.receiveCsv(project(caller), workflowDeliveryKey(context), payload.title, payload.body);
+      return { plugin: "dataset", item_id: dataset.id, title: dataset.title };
+    }),
+    create: ({ title }, caller) => withStore(store => { const dataset = store.create({ title, project_id: project(caller) }); return { plugin: "dataset", item_id: dataset.id, title: dataset.title }; }),
+  });
 }

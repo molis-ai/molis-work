@@ -10,6 +10,7 @@ import type {
   FormSubmissionRecord,
 } from "@molis-ai/molis-work-contracts/modules/form";
 import { FormError } from "./error.js";
+import { FORM_ANSWER_FORMAT } from "./fillpage.js";
 import type { FormPublicationIntent, FormPublicationSnapshot } from "./promote.js";
 
 interface FormRow {
@@ -36,6 +37,7 @@ interface SubmissionRow {
   form_version: number | null;
   questions_json: string | null;
   request_id: string | null;
+  source: string | null;
 }
 
 const QUESTION_TYPES: readonly FormQuestionType[] = [
@@ -132,6 +134,96 @@ export class FormStore {
     return next;
   }
 
+  /** A form made from a list of questions another plugin hands over; one delivery makes one form. */
+  receive(projectId: string, requestId: string, title: string, questions: readonly FormQuestionInput[]): FormRecord {
+    const target = normalizeProjectId(projectId);
+    return this.transaction(() => {
+      const prior = this.db.prepare("SELECT target_id FROM form_copies WHERE project_id = ? AND request_id = ?").get(target, "receive:" + requestId) as { target_id: string } | undefined;
+      if (prior) return this.get(prior.target_id, target);
+      const created = this.create({ title, project_id: target });
+      const filled = this.update(created.id, { questions, expected_version: created.version }, target);
+      this.db.prepare("INSERT INTO form_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)").run(target, "receive:" + requestId, "", filled.id, filled.updated_at);
+      return filled;
+    });
+  }
+
+  /** Stop collecting: the fill page says so and takes no more answers; answers already in stay. */
+  closeCollection(id: string, projectId?: string, expectedVersion?: number): FormRecord {
+    const current = this.get(id, projectId);
+    this.assertVersion(current, expectedVersion);
+    const next: FormRecord = { ...current, status: "closed", updated_at: new Date().toISOString(), version: current.version + 1 };
+    const result = this.db.prepare("UPDATE forms SET status = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?")
+      .run(next.status, next.updated_at, next.version, id, current.version);
+    if (result.changes !== 1) throw new FormError("form.conflict", "问卷已改变，请重新读取后再停止收集");
+    return next;
+  }
+
+  /**
+   * Answer files people sent back from the exported fill page. Each file is untrusted: it must name this form, carry
+   * its own question snapshot and valid answers. The same answer imported twice counts once.
+   */
+  importAnswers(id: string, files: readonly { name: string; content: string }[], projectId?: string): { imported: number; skipped: number; rejected: { name: string; reason: string }[] } {
+    return this.transaction(() => {
+      const form = this.get(id, projectId);
+      let imported = 0, skipped = 0;
+      const rejected: { name: string; reason: string }[] = [];
+      for (const file of files) {
+        const name = String(file.name ?? "").slice(0, 200) || "答卷";
+        try {
+          if (file.content.length > 400_000) throw new FormError("form.invalid", "文件过大，不像一份答卷");
+          const parsed = JSON.parse(file.content) as Record<string, unknown>;
+          if (parsed.format !== FORM_ANSWER_FORMAT) throw new FormError("form.invalid", "不是 Molis 问卷答卷文件");
+          if (parsed.form_id !== form.id) throw new FormError("form.invalid", "这份答卷属于另一份问卷");
+          const answerId = typeof parsed.answer_id === "string" && /^[A-Za-z0-9-]{8,80}$/u.test(parsed.answer_id) ? parsed.answer_id : "";
+          if (!answerId) throw new FormError("form.invalid", "答卷缺少编号");
+          const requestId = "file:" + answerId;
+          if (this.db.prepare("SELECT 1 FROM submissions WHERE form_id = ? AND request_id = ?").get(id, requestId)) { skipped += 1; continue; }
+          const questions = normalizeQuestions(Array.isArray(parsed.questions) ? parsed.questions as FormQuestionInput[] : []);
+          const answers = normalizeAnswers(questions, (parsed.answers && typeof parsed.answers === "object" ? parsed.answers : {}) as Record<string, string>);
+          const at = typeof parsed.submitted_at === "string" && Number.isFinite(Date.parse(parsed.submitted_at)) ? new Date(parsed.submitted_at).toISOString() : new Date().toISOString();
+          const version = Number.isSafeInteger(parsed.form_version) ? Number(parsed.form_version) : null;
+          this.db.prepare("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id, source) VALUES (?, ?, ?, ?, ?, ?, ?, 'file')")
+            .run(crypto.randomUUID(), id, JSON.stringify(answers), at, version, JSON.stringify(questions), requestId);
+          imported += 1;
+        } catch (error) {
+          rejected.push({ name, reason: error instanceof FormError ? error.message : "文件内容无法读取" });
+        }
+      }
+      return { imported, skipped, rejected };
+    });
+  }
+
+  /** Move to another partition; the id stays and its answers go with it. Fixed versions stay with the old place. */
+  relocate(id: string, from: string, to: string): FormRecord {
+    const target = normalizeProjectId(to);
+    return this.transaction(() => {
+      const current = this.get(id, from);
+      if (current.publication_pending) throw new FormError("form.publication_pending", "上次固定版本还没存完，请先在原位置恢复，再移动");
+      // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
+      const result = this.db.prepare("UPDATE forms SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?")
+        .run(target, id, current.version);
+      if (result.changes !== 1) throw new FormError("form.conflict", "问卷刚被修改，请重新读取后再移动");
+      return this.get(id, target);
+    });
+  }
+
+  /** A copy of the questions in another partition, without answers and not collecting; the same request returns the same copy. */
+  duplicate(id: string, from: string, to: string, requestId: string): FormRecord {
+    const target = normalizeProjectId(to);
+    return this.transaction(() => {
+      const prior = this.db.prepare("SELECT target_id FROM form_copies WHERE project_id = ? AND request_id = ?").get(target, requestId) as { target_id: string } | undefined;
+      if (prior) return this.get(prior.target_id, target);
+      const source = this.get(id, from);
+      const now = new Date().toISOString();
+      const copy: FormRecord = { id: crypto.randomUUID(), project_id: target, title: source.title, description: source.description, status: "draft", share_id: null,
+        questions: source.questions, created_at: now, updated_at: now, version: 1, artifact_id: "", artifact_version: 0 };
+      this.db.prepare("INSERT INTO forms (id, project_id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(copy.id, copy.project_id, copy.title, copy.description, copy.status, null, JSON.stringify(copy.questions), now, now, 1);
+      this.db.prepare("INSERT INTO form_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)").run(target, requestId, id, copy.id, now);
+      return copy;
+    });
+  }
+
   delete(id: string, projectId?: string, expectedVersion?: number): void {
     this.transaction(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
@@ -156,9 +248,10 @@ export class FormStore {
   }
 
   submit(id: string, answers: Readonly<Record<string, string>>, projectId?: string,
-    options: { expectedVersion?: number; requestId?: string } = {}): FormSubmissionRecord {
+    options: { expectedVersion?: number; requestId?: string; source?: "preview" | "fill" } = {}): FormSubmissionRecord {
     return this.transaction(() => {
       const form = this.get(id, projectId);
+      if (options.source === "fill" && form.status !== "published") throw new FormError("form.closed", form.status === "closed" ? "这份问卷已停止收集答卷" : "这份问卷还没有开始收集答卷");
       if (options.requestId) {
         const existing = this.db.prepare("SELECT * FROM submissions WHERE form_id = ? AND request_id = ?").get(id, options.requestId) as SubmissionRow | undefined;
         if (existing) {
@@ -172,10 +265,11 @@ export class FormStore {
       }
       this.assertVersion(form, options.expectedVersion);
       const normalized = normalizeAnswers(form.questions, answers);
+      const source = options.source ?? "preview";
       const submission: FormSubmissionRecord = { id: crypto.randomUUID(), form_id: id, answers: normalized,
-        submitted_at: new Date().toISOString(), form_version: form.version, questions: form.questions };
-      this.db.prepare("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
-        .run(submission.id, id, JSON.stringify(normalized), submission.submitted_at, form.version, JSON.stringify(form.questions), options.requestId ?? null);
+        submitted_at: new Date().toISOString(), form_version: form.version, questions: form.questions, source };
+      this.db.prepare("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(submission.id, id, JSON.stringify(normalized), submission.submitted_at, form.version, JSON.stringify(form.questions), options.requestId ?? null, source);
       return submission;
     });
   }
@@ -268,6 +362,8 @@ export function openFormStore(homeDirectory: string): FormStore {
   ensureSqliteColumn(db, "submissions", "form_version", "INTEGER");
   ensureSqliteColumn(db, "submissions", "questions_json", "TEXT");
   ensureSqliteColumn(db, "submissions", "request_id", "TEXT");
+  ensureSqliteColumn(db, "submissions", "source", "TEXT");
+  db.exec("CREATE TABLE IF NOT EXISTS form_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id))");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS submissions_request ON submissions (form_id, request_id) WHERE request_id IS NOT NULL");
   return new FormStore(db);
 }
@@ -293,7 +389,8 @@ function fromRow(row: FormRow): FormRecord {
 
 function submissionFromRow(row: SubmissionRow): FormSubmissionRecord {
   return { id: row.id, form_id: row.form_id, answers: JSON.parse(row.answers_json), submitted_at: row.submitted_at,
-    form_version: row.form_version ?? null, questions: row.questions_json ? JSON.parse(row.questions_json) : null };
+    form_version: row.form_version ?? null, questions: row.questions_json ? JSON.parse(row.questions_json) : null,
+    source: row.source === "fill" || row.source === "file" ? row.source : "preview" };
 }
 
 function normalizeProjectId(value: string): string {

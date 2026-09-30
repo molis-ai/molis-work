@@ -85,7 +85,8 @@ for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save order
     await click(selector);
   };
   await moreClick('[data-dataset-export-csv]'); await idle();
-  assert.deepEqual(parseCsv(await exportedFile('第二笔.csv', toCsv(read()[0]!))).rows.map(row => Object.values(row.cells)), read()[0]!.rows.map(row => Object.values(row.cells)));
+  // The download carries a byte-order mark so spreadsheet apps read the text as UTF-8.
+  assert.deepEqual(parseCsv(await exportedFile('第二笔.csv', '\ufeff' + toCsv(read()[0]!))).rows.map(row => Object.values(row.cells)), read()[0]!.rows.map(row => Object.values(row.cells)));
   await moreClick('[data-dataset-export-json]'); await idle();
   assert.deepEqual(JSON.parse(await exportedFile('第二笔.json', JSON.stringify(read()[0]!, null, 2))).rows, read()[0]!.rows);
   // An external writer changes the version. A stale publish must retain input and do nothing.
@@ -108,11 +109,11 @@ for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save order
   try {
     db.exec("CREATE TRIGGER fail_dataset_ui_publication BEFORE UPDATE OF artifact_version ON datasets WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
     await click('[data-dataset-artifact-bar]'); await idle(); assert.equal(read()[0]!.publication_pending!.version, 1);
-    assert.equal(await evaluate("document.querySelector('[data-dataset-artifact-bar]').textContent"), '恢复发布');
+    assert.equal(await evaluate("document.querySelector('[data-dataset-artifact-bar]').textContent"), '继续保存上次固定版本');
     db.exec('DROP TRIGGER fail_dataset_ui_publication');
   } finally { db.close(); }
   await moreClick('[data-dataset-reload]'); await idle();
-  assert.equal(await evaluate("document.querySelector('[data-dataset-artifact-bar]').textContent"), '恢复发布');
+  assert.equal(await evaluate("document.querySelector('[data-dataset-artifact-bar]').textContent"), '继续保存上次固定版本');
   await input('[data-dataset-description]', '发布中继续编辑'); await saved();
   await evaluate("document.querySelector('[data-dataset-publication-note]').scrollIntoView({block:'nearest'})");
   assert.equal(await evaluate("document.querySelector('[data-dataset-title]').value"), '另一客户端修改');

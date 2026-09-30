@@ -80,6 +80,7 @@ export function prologueModelConfiguration(
       ? {}
       : { prompt_cache: selection.provider.prompt_cache }),
     ...(selection.provider.thinking === "adaptive" ? { thinking: "adaptive" as const } : {}),
+    ...(selection.model.vision === undefined ? {} : { vision: selection.model.vision }),
   };
 }
 

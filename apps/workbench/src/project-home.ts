@@ -30,6 +30,7 @@ export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: Imme
             <ul class="home-shortcuts" data-home-shortcuts aria-label="${L("快捷方式")}"><li class="home-shortcut home-shortcut-add"><button type="button" class="home-shortcut-main" data-home-shortcut-add><span class="home-shortcut-icon">${icon("plus")}</span><span>${L("添加快捷方式")}</span></button></li></ul>
             <p class="home-shortcut-error" data-home-shortcut-error role="alert" hidden></p>
           </section>
+          <section class="placement-related" data-placement-related aria-label="${L("关联资料")}" hidden></section>
           <p class="home-margin-note">${icon("shield")}${L("你的节奏，你的工作空间。")}</p>
         </aside>
         <section class="home-tl" aria-label="${L("当天的事件")}">

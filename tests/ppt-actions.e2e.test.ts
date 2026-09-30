@@ -57,10 +57,21 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   await evaluate("document.querySelector('.ppt-workspace').scrollTop=0");await screenshot('editor');
   const downloads=join(homeDirectory,'exports');await mkdir(downloads);await command('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads});
   const moreClick = async (selector: string) => {
-    if (!await evaluate("document.querySelector('[data-ppt-stage-workspace] .plugin-stage-more').open")) await click('[data-ppt-stage-workspace] .plugin-stage-more > summary');
+    if (!await evaluate("document.querySelector('[data-ppt-stage-workspace] .plugin-stage-more:not(.ppt-export-menu)').open")) await click('[data-ppt-stage-workspace] .plugin-stage-more:not(.ppt-export-menu) > summary');
     await click(selector);
   };
-  await moreClick('[data-ppt-export]');await idle();
+  // Export has its own menu: a PowerPoint file first, the raw data last and named as data.
+  const exportClick = async (format: string) => {
+    if (!await evaluate("document.querySelector('[data-ppt-stage-workspace] .ppt-export-menu').open")) await click('[data-ppt-stage-workspace] .ppt-export-menu > summary');
+    await click(`[data-ppt-export="${format}"]`);
+  };
+  await exportClick('pptx');await idle();
+  const pptxDeadline=Date.now()+4000;let pptx:Buffer|null=null;
+  while(!pptx){try{pptx=await readFile(join(downloads,'季度回顾.pptx'));}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
+    if(!pptx){if(Date.now()>pptxDeadline)throw new Error('PPT PowerPoint download missing');await new Promise(resolve=>setTimeout(resolve,50));}}
+  assert.equal(pptx.subarray(0,2).toString('latin1'),'PK','a PowerPoint file is a zip package');
+  assert.ok(pptx.includes(Buffer.from('ppt/slides/slide1.xml')),'it carries slide parts');
+  await exportClick('json');await idle();
   const deadline=Date.now()+4000;let exported='';
   while(!exported){try{exported=await readFile(join(downloads,'季度回顾.json'),'utf8');}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
     if(!exported){if(Date.now()>deadline)throw new Error('PPT JSON download missing');await new Promise(resolve=>setTimeout(resolve,50));}}
@@ -81,7 +92,7 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   try{db.exec("CREATE TRIGGER fail_ppt_ui BEFORE UPDATE OF artifact_version ON presentations WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
     await click('[data-ppt-artifact-bar]');await idle();assert.equal(read()[0]!.publication_pending!.version,1);db.exec('DROP TRIGGER fail_ppt_ui');
   }finally{db.close();}
-  await input('[data-ppt-description]','继续编辑保留');await saved();assert.equal(await evaluate("document.querySelector('[data-ppt-artifact-bar]').textContent"),'恢复发布');await screenshot('recovery');
+  await input('[data-ppt-description]','继续编辑保留');await saved();assert.equal(await evaluate("document.querySelector('[data-ppt-artifact-bar]').textContent"),'继续保存上次固定版本');await screenshot('recovery');
   // The presentation being edited comes back by itself (specs/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
   await reloadPage();await open();await waitFor("document.querySelector('[data-ppt-title]')?.getClientRects().length > 0");await idle();
   await click('[data-ppt-artifact-bar]');await idle();assert.equal(read()[0]!.artifact_version,1);assert.equal(read()[0]!.publication_pending,undefined);assert.equal(read()[0]!.description,'继续编辑保留');

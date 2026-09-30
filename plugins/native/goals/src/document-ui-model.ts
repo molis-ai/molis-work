@@ -9,6 +9,8 @@ export interface GoalsDocumentItem extends GoalsTreeItem {
   evidence: ReadonlyArray<{ evidence_id: string }>;
   events: ReadonlyArray<{ type: string; actor_id: string; reason: string }>;
   event_work?: boolean;
+  /** Materials bound to this Goal (Goal-owned receipts); counted in the Goal info entry. */
+  input_bindings?: ReadonlyArray<{ state: string; source_type: string }>;
 }
 export interface GoalsDocumentContext {
   activeGoalId: string | null;

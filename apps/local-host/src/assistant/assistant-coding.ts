@@ -24,10 +24,15 @@ export class CodingUnavailable extends Error {
  * session is Coding's; the Assistant keeps a reference to it, so both entries show and control one conversation.
  */
 export class CodingExecutor {
+  // One executor serves one operation; what Coding offers is looked up once for it, not before every call (the
+  // dispatcher still checks each call's current definition and availability).
+  private offered: Promise<readonly ActionView[]> | null = null;
+
   constructor(private readonly actions: PersonActions) {}
 
   private async reference(name: string): Promise<ExactActionReference> {
-    const view = (await this.actions.discover()).find(row => row.capability_id === `coding.${name}` && row.version === 1);
+    this.offered ??= this.actions.discover();
+    const view = (await this.offered).find(row => row.capability_id === `coding.${name}` && row.version === 1);
     if (!view) throw new CodingUnavailable("这个项目还没有可用的 Coding 插件", "在插件市场添加 Coding");
     if (!view.availability.available) throw new CodingUnavailable(view.availability.reason);
     return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };

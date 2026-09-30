@@ -158,6 +158,34 @@ test("a guardrail stop is terminal but is not a failure", () => {
   assert.match(railBroke.stop_reason ?? "", /自身出错/u);
 });
 
+test("the runtime's circuit breaker ends the round as stopped, in words, instead of leaving it waiting to close", () => {
+  // Seen with MiniMax-M3: four malformed calls in a row tripped the breaker; the round then hung at “正在收尾”.
+  const state = emptyPrologueStreamState();
+  apply(state, { type: "circuit-tripped", reason: "same-tool-failure", count: 4, why: "change-capability kept failing" } as never);
+  assert.equal(state.phase, "stopped");
+  assert.match(state.stop_reason ?? "", /连续 4 次调用都没有成功.*已完成的保留/u);
+  assert.equal(state.unknown_frames, 0);
+  // The runtime's own reasons read in the person's words, not the runtime's English.
+  const repeated = emptyPrologueStreamState();
+  apply(repeated, { type: "circuit-tripped", reason: "repeated-calls", count: 4, why: "the same call was made 4 times in a row; this run stopped going in circles." } as never);
+  assert.match(repeated.stop_reason ?? "", /^同一个调用连续重复了 4 次，没有进展，这一轮先停在这里/u);
+  assert.doesNotMatch(repeated.stop_reason ?? "", /[a-z]{4}/);
+});
+
+test("the Run's own step list is kept as the runtime last replaced it; malformed entries are left out", () => {
+  const state = emptyPrologueStreamState();
+  apply(state, { type: "todo-changed", items: [{ id: "a", text: "读取", state: "pending" }, { id: "b", text: "排序", state: "in-progress" }] } as never);
+  apply(state, { type: "todo-changed", items: [{ id: "a", text: "读取", state: "done" }, { id: "b", text: "排序", state: "in-progress" }, { id: "c", state: "pending" }, { id: "d", text: "x", state: "odd" }] } as never);
+  assert.deepEqual(state.todo, [{ id: "a", text: "读取", state: "done" }, { id: "b", text: "排序", state: "in-progress" }]);
+  assert.equal(state.unknown_frames, 0);
+});
+
+test("a question to the person is named by what it asks", () => {
+  const state = emptyPrologueStreamState();
+  apply(state, { type: "tool-call", call: { id: "q1", name: "ask-user", input: { why: "截止日期定在哪天？", questions: [] } } });
+  assert.equal(state.activity[0]!.target, "截止日期定在哪天？");
+});
+
 test("compaction is a phase, not an outcome", () => {
   const state = emptyPrologueStreamState();
   apply(state, { type: "compaction-started" });

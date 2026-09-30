@@ -46,7 +46,7 @@
 | `apps/desktop` | macOS 外壳、生命周期、Native Bridge | Native Bridge、Panel、Capsule 与发布工具；Tauri 配置在 apps/desktop/src-tauri | `partial` | AP4/DV4/Cutover；实际平台安装证据见验证报告 |
 | `apps/workbench` | 本地产品 UI 与页面组合 | Shell、导航、页面组合与注册 UI contribution；通用呈现边界，不拥有 Goal 完成算法；无数据库实现 | `partial` | AP3/FD4/GW5/EX4/AR3/WK3/Cutover |
 | `apps/local-host` | 本地唯一业务 composition root 和 single writer | 唯一项目数据库和业务装配；统一动作服务的宿主侧（能力目录合成、系统动作、逐客户端 MCP 授权、调用记录、跨进程动作网关）；可信身份与 Web/CLI/MCP 装配；各 Native 插件的组合适配（注入存储位置、模型、Artifact 发布等端口）；凭据与本机 IO | `partial` | AP2/Cutover；动作服务见 `specs/action-architecture/` |
-| `apps/server` | 轻量交换、Team 控制面、Team Plugin Host | 当前无正式 Server 实现 | `absent` | F2；未来独立功能 Spec |
+| `apps/server` | 轻量交换、Team 控制面、Team Plugin Host | 实验性：`server/`（身份、设备、项目访问、接续回执、事件传输、IM 领域）与 `apps/server`（本地可部署启动器）约 1,200 行已存在，所有业务读写调用现有 Action Host；没有产品入口、不随 Desktop/npm 发布，也不是正式的交换/Team 控制面 | `partial`（实验，无产品入口） | `specs/molis-work-im/spec.md`；正式 Server/Exchange 仍待独立功能 Spec |
 | `apps/cli` | 参数、协议和终端展示适配 | 协议参数、命令分发与公开应用 adapter；root bin 仅注入启动环境 | `partial` | DV1/Cutover；CLI 协议和真实进程验证 |
 | `apps/mcp` | MCP schema、audience 和 Capability 适配 | 当前连接、Goal、事件、约定、决定请求、结构与历史；插件贡献由 Host 从 Manifest 合成，不在此写死 Functions 工具；Host 注入普通调用的项目与身份；用户决定仅受保护入口可执行 | `partial` | DV1/DV2/Cutover；事件工作流收敛 |
 
@@ -64,6 +64,7 @@
 | `packages/design-system` | Token、基础组件、图标和可访问性基线 | Soft Workbench token（`palette.ts` 唯一来源）、主题、密度、字体、icon、`mw-*` 原语、终层与组件板 `/__ui/catalog`；规范见 `DESIGN.md`；旧 visual-foundation 已删除 | `partial` | AP3/Cutover；Soft Workbench 迁移（`specs/soft-workbench-rollout`）；Native 包布局待验 |
 | `packages/observability` | 结构化日志、trace、diagnostic 与安全脱敏 | 各入口零散日志 | `absent` | F2、F3、保证 Goal |
 | `packages/test-kit` | 无业务判断的公共测试工具和 fake capability | F3 boundary policy；测试中的重复 harness 待迁移 | `partial` | F2、F3；后续测试基础设施 Goal |
+| `packages/im-ui` | 群聊（IM）页面、样式与浏览器控制器 | 由 `apps/server` 的 IM 页面和 Workbench 的“项目讨论”分屏消费；不拥有消息事实 | `partial`（实验） | `specs/molis-work-im/spec.md` |
 
 `packages/contracts/modules`、`services`、`platform` 是同一个发布包的 subpath 分区，不是三个独立 npm package。
 
@@ -104,6 +105,7 @@
 | `horizontal/runtime-host` | Runtime 启动、恢复、中断、stream 与技术 Receipt | Runtime router、Codex app-server 与 PTY server host 已迁；浏览器 transport/reconnect 由 Work 消费 | `partial` | WK2 已迁 Host/Adapter；WK3 已迁产品编排 |
 | `horizontal/agent-host` | Agent Runtime 注册、能力矩阵、启动授权与副作用 Review 队列 | Prologue 为主执行引擎（文字/结构化/图片/判断推理、Agent 轮次、外部 MCP、任务板、子代理、检查点、后台命令与等待），CLI Runtime 为辅；同一 Home 只有一个执行归属（`.molis-runtime-owner.db` 锁）；审查队列；唯一直接依赖 `@prologue/sdk` 的包 | `partial` | Plugin Platform v2；`docs/platform/PROLOGUE-AI.md` |
 | `horizontal/search` | 系统搜索：经动作目录发现插件的搜索来源、维护可重建索引、按调用者权限聚合结果 | `SearchService`；系统动作 `search.query/open/status/rebuild` 由 Host 装配；索引持久化在 storage 适配；不读插件私有库 | `partial` | `specs/system-search/spec.md` |
+| `horizontal/placement` | 放在哪里：对象的位置、访问范围、关联（用于项目、Goal 资料、来自/复制自）与移动后的位置索引 | `PlacementService`；系统动作 `placement.describe/spaces/related/locate/link/unlink/move/copy/convert/goals/goal.bind/create` 由 Host 装配；关系写 Home 级 Context Ledger（`placement.db`）；对象事实总向所有者读；移动/复制经插件放置协议 | `partial` | `specs/work-placement/spec.md` |
 
 Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal、Action、Session 或 Run 等业务事实。
 
@@ -122,6 +124,7 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | `plugins/native/dataset` | Dataset 一级入口：本机数据表 | 行列编辑、CSV 导入导出、版本回滚；另有显式「AI 拟列」（经 Prologue 文字模型）；对外只经动作目录与逐客户端授权 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
 | `plugins/native/ppt` | PPT 一级入口：本机演示稿 | 多页大纲、主题色、预览与 JSON 导出；不做 PPTX；对外只经动作目录与逐客户端授权 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
 | `plugins/native/lingguang` | 灵光一级入口：本机临时灵感池 | 快记、流式列表、丢掉确认、「复制内容」；头脑风暴对话经 Prologue 文字模型，未配置模型时如实显示不可用；不写 Goal/Artifact；动作经逐客户端授权对外 | `partial` | `specs/archive/lingguang-plugin/spec.md` |
+| `plugins/native/todo` | 待办一级入口：用户需要推进的事项的正式管理位置 | 个人与项目待办（先记录后归属）、五种状态与归档、截止/计划/提醒三种日期、来源与形成原因、关联、修改记录与撤销、视图/搜索/批量；私人库 `{home}/todo/todo.db`；动作 Home 级登记，项目内只见本项目与个人待办，“所有项目”只给本人界面；AI 整理与推进归系统 Assistant | `partial` | `specs/todo-plugin/spec.md` |
 | `plugins/native/alchemist` | 炼金术士：项目隔离的 Founder Lab | Direction / Idea / 双 Lens / 证据决策 / Pulse / Copilot / Memory；AI 经 Prologue，公开证据经 SEL；旧演示库只读；验收见 spec | `partial` | `specs/alchemist-plugin/spec.md` |
 | `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion；支持研究库发布包接收；用户显式配置规则可自动加入 Inbox，需复核保留原因；仍只写 Attention | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3；`specs/archive/function-scene-action-scope/spec.md` |
 | `plugins/native/coding` | Coding App（`app`）：会话、轮次、计划、报告、变更集、协同与委派 | Plugin Runtime 托管；执行经 Agent Host/Prologue；产出 Coding 报告与变更集 Artifact；16 项 `coding.*` 动作 | `partial` | `specs/coding-plugin/spec.md` 第 0 节；后续 `next-requirements.md` |

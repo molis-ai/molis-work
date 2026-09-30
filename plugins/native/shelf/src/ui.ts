@@ -68,7 +68,7 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
     <div class="plugin-stage-list" data-shelf="directory">
       <header class="shelf-side-head shelf-stage-chrome">
         <label class="shelf-search shelf-stage-search">${SHELF_GLYPH.search}<input type="search" data-shelf-search placeholder="${p.text("搜索材料")}" aria-label="${p.text("搜索材料")}" autocomplete="off"></label>
-        <span class="shelf-side-op" role="button" tabindex="0" data-shelf-pick aria-label="${p.text("添加材料")}" title="${p.text("添加材料")}">${SHELF_GLYPH.plus}</span>
+        <span class="shelf-side-op shelf-side-op--add" role="button" tabindex="0" data-shelf-pick aria-label="${p.text("添加材料")}" title="${p.text("添加材料")}">${SHELF_GLYPH.plus}<b>${p.text("添加材料")}</b></span>
         <span class="shelf-side-op" role="button" tabindex="0" data-shelf-side-more aria-label="${p.text("更多")}" title="${p.text("更多")}" aria-haspopup="menu">${SHELF_GLYPH.more}</span>
         <div class="shelf-side-menu" data-shelf-side-menu role="menu" hidden>
           <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-receive-open>${p.text("接收项目成果")}</span>
@@ -79,7 +79,7 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
         <ul class="shelf-find" data-shelf-find hidden></ul>
       </header>
       <div class="shelf-side-scroll">
-      ${stageFold(p.text("材料"), "materials", model.materials.length, `<ul class="shelf-tree" data-shelf-list="materials">${model.materials.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("") || emptyLine(p.text("还没有材料"))}</ul>`)}
+      ${stageFold(p.text("材料"), "materials", model.materials.length, `<ul class="shelf-tree" data-shelf-list="materials">${model.materials.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("") || `<li class="shelf-empty-line shelf-drop-line" data-shelf-empty role="button" tabindex="0" data-shelf-pick>${SHELF_GLYPH.tray}<span>${p.text("拖文件到这里，或点添加材料")}</span></li>`}</ul>`)}
       ${stageFold(p.text("生成结果"), "results", model.results.length, `<ul class="shelf-tree" data-shelf-list="results">${model.results.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("") || emptyLine(p.text("还没有生成结果"))}</ul>`)}
       ${stageFold(p.text("剪贴板历史"), "clipboard", model.clipboard.length, `<p class="shelf-clip-hint" data-shelf-clip-hint ${model.clipboard.length ? "" : "hidden"}>${p.text("单击选择，双击复制为当前。⌘V 仍直接上架当前剪贴板。")}</p><ul class="shelf-tree" data-shelf-list="clipboard">${model.clipboard.map((clip) => renderClip(clip, clip.clip_id === model.current_clip_id, clip.clip_id === model.selected_id, p)).join("") || emptyLine(p.text("剪贴板是空的"))}</ul><button class="shelf-clip-more" type="button" data-shelf-clip-more hidden>${p.text("显示全部")}</button>`)}
       </div>
@@ -95,7 +95,7 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
     </dialog>
     <dialog class="mw-dialog mw-dialog--form" data-shelf-material-dialog aria-label="${p.text("保存项目材料")}">
       <form class="mw-form mw-dialog__shell" data-shelf-material-form>
-        <header class="mw-form__header"><h2>${p.text("保存到项目材料")}</h2>${renderButton({ label: p.text("关闭"), variant: "ghost", attrs: { "data-shelf-material-close": "" } })}</header>
+        <header class="mw-form__header"><h2>${p.text("存一份固定版本到项目")}</h2>${renderButton({ label: p.text("关闭"), variant: "ghost", attrs: { "data-shelf-material-close": "" } })}</header>
         <div class="mw-form__body"><p data-shelf-material-destination></p><p>${p.text("保存下面的固定原文，之后可在 Coding 的「＋ 材料」中选择。编辑或移除 Shelf 副本不会改变已保存版本。")}</p><pre class="shelf-material-body" data-shelf-material-body></pre><p role="status" data-shelf-material-status></p></div>
         <footer class="mw-form__footer">${renderButton({ label: p.text("重新读取"), variant: "secondary", attrs: { "data-shelf-material-refresh": "" } })}${renderButton({ label: p.text("保存固定版本"), type: "submit", attrs: { "data-shelf-material-save": "", disabled: true } })}${renderButton({ label: p.text("设为材料输出"), attrs: { "data-shelf-material-output": "", hidden: true } })}</footer>
       </form>
@@ -105,7 +105,9 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
         <button class="plugin-stage-back" type="button" data-shelf-collapse aria-label="${p.text("返回材料列表")}" title="${p.text("返回材料列表")}">${icon("chevron-right")}</button>
         <span class="shelf-chrome-title" data-shelf-chrome-title></span>
         <span class="shelf-chrome-tag" data-shelf-chrome-tag></span>
-        ${renderButton({ label: p.text("保存到项目材料"), variant: "ghost", attrs: { "data-shelf-project-material": "", hidden: true } })}
+        <span data-placement-slot data-placement-scope="home" data-placement-saved="off"></span>
+        ${renderButton({ label: p.text("用于本项目"), variant: "ghost", attrs: { "data-shelf-use-in-project": "", hidden: true, title: p.text("项目首页会列出它，你在项目里能打开最新内容；它仍只在你的 Shelf 里") } })}
+        ${renderButton({ label: p.text("存一份固定版本到项目"), variant: "ghost", attrs: { "data-shelf-project-material": "", hidden: true, title: p.text("复制一份不会再变的原文到项目材料，项目里的 Coding 和助理能读取；之后改 Shelf 不影响这一份") } })}
         <a class="mw-btn mw-btn--ghost" data-shelf-original-artifact hidden>${p.text("查看原固定成果")}</a>
         <span class="shelf-paper" role="button" tabindex="0" data-shelf-edit hidden>${p.text("编辑副本")}</span>
       </header>

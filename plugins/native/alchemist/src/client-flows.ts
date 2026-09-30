@@ -36,6 +36,7 @@ export const ALCHEMIST_FLOWS = String.raw`
   }
   function closeAfterSubmit(){formBusy=false;closeDialog();}
   async function action(name,el){
+    if(name==='to-goal'&&model){const nl=String.fromCharCode(10)+String.fromCharCode(10);const made=decision&&decision.decision;window.dispatchEvent(new CustomEvent('molis:placement-convert',{detail:{source:{kind:'alchemist-idea',id:model.ideaId||model.cardId},goal:true,payload:{title:model.title,body:[model.highlight||'',made&&made.reason?tx('决定：去做。')+made.reason:'',made&&made.revisitCondition?tx('下一步：')+made.revisitCondition:''].filter(Boolean).join(nl)||model.title},note:tx('这个想法和决定是它的来源；炼金术士里的记录不变')}}));return;}
     if(name==='notice-close'){notice('');return;}
     if(name==='back'){closeDetail();return;}
     if(name==='close'){closeDialog();return;}

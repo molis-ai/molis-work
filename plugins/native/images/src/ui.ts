@@ -41,7 +41,7 @@ export function renderImagesWorkbench({ primitives: p }: ImagesUiModel): string 
           <button class="mw-btn mw-btn--ghost tree-create" type="button" data-images-new>${icon("plus")}<span>${p.text("新建图片")}</span></button>
           <button class="mw-btn mw-btn--ghost" type="button" data-images-refresh>${icon("refresh")}<span>${p.text("刷新")}</span></button>
         </header>
-        <div class="mw-empty" data-images-history-empty><span class="mw-empty__mark">${icon("image")}</span><strong>${p.text("还没有图片")}</strong><p>${p.text("这里会留下当前项目的图片与生成记录。")}</p></div>
+        <div class="mw-empty" data-images-history-empty><span class="mw-empty__mark">${icon("image")}</span><strong>${p.text("还没有图片")}</strong><p>${p.text("这里会留下生成的图片与记录。")}</p><p data-placement-target></p></div>
         <div data-images-rows></div>
         <p class="images-note" role="status" data-images-list-note hidden></p>
       </div>
@@ -49,13 +49,14 @@ export function renderImagesWorkbench({ primitives: p }: ImagesUiModel): string 
         <header class="plugin-stage-detail-bar">
           <button class="plugin-stage-back" type="button" data-images-back aria-label="${p.text("返回生成记录")}" title="${p.text("返回生成记录")}">${icon("chevron-right")}</button>
           <h1 data-images-title>${p.text("新建图片")}</h1>
+          <span data-placement-slot data-placement-saved="off"></span>
           <button class="mw-btn mw-btn--ghost" type="button" data-images-refresh>${p.text("刷新")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" data-images-connections>${p.text("管理服务")}</button>
         </header>
         <div class="images-workspace-body">
           <form class="images-compose" data-images-compose>
             <div class="images-intro"><h2>${p.text("把想法变成图片")}</h2><p>${p.text("选择生图服务，写下画面、风格和细节。")}</p></div>
-            <div class="images-connection-empty" data-images-connection-empty hidden><p>${p.text("先连接一个生图服务。密钥加密保存在这台电脑，配置可跨项目使用。")}</p><button class="mw-btn mw-btn--secondary" type="button" data-images-connections>${p.text("连接生图服务")}</button></div>
+            <div class="images-connection-empty" data-images-connection-empty hidden><p>${p.text("先连接一个生图服务。密钥加密保存在这台电脑，配置可跨项目使用。")}</p><button class="mw-btn mw-btn--primary" type="button" data-images-connections>${p.text("连接生图服务")}</button></div>
             <p class="images-note is-error" data-images-service-unavailable role="status" hidden></p>
             <div data-images-connected hidden>
               <label class="images-field-label">${p.text("生图服务与模型")}</label>

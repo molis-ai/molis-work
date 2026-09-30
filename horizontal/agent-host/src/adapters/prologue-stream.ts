@@ -7,6 +7,7 @@ import type {
   AgentRunUsage,
   AgentUsageCoverage,
   AgentToolActivity,
+  AgentTodoItem,
   AgentTurnView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -92,6 +93,8 @@ export interface PrologueStreamState {
   reasoning_index?: number;
   /** The SDK is continuing an answer the output limit cut off: its thinking must not close that answer. */
   continuing?: true;
+  /** The Run's own step list as the runtime last replaced it. */
+  todo?: AgentTodoItem[];
 }
 
 export function emptyPrologueStreamState(): PrologueStreamState {
@@ -122,6 +125,8 @@ export function emptyPrologueStreamState(): PrologueStreamState {
 export function prologuePhaseOf(state: PrologueControlState): AgentRunPhase {
   return state === "pausing" ? "running" : state;
 }
+
+const clip = (value: string) => value.length <= 200 ? value : `${value.slice(0, 200)}…`;
 
 function target(input: Record<string, unknown> | undefined): string {
   if (!input) return "";
@@ -319,7 +324,8 @@ export function applyPrologueEvent(
       state.activity.push({
         call_id: call.id,
         name: call.name,
-        target: target(call.input),
+        // A question to the person is named by what it asks.
+        target: call.name === "ask-user" && typeof call.input?.why === "string" ? clip(call.input.why) : target(call.input),
         state: "started",
         summary: call.name,
         at,
@@ -462,6 +468,31 @@ export function applyPrologueEvent(
       state.stop_reason = tripped.failed === true
         ? `护栏 ${tripped.rail} 自身出错，已按绊停处理`
         : `被护栏 ${tripped.rail} 拦下：${tripped.why}`;
+      return true;
+    }
+
+    // The Run replaced its own step list (update-todo): the latest list stands as a whole, as the runtime keeps it.
+    case "todo-changed": {
+      const items = (event as unknown as { items?: ReadonlyArray<{ id?: unknown; text?: unknown; state?: unknown }> }).items ?? [];
+      const states = new Set<AgentTodoItem["state"]>(["pending", "in-progress", "done", "abandoned"]);
+      state.todo = items.flatMap(item => typeof item.id === "string" && typeof item.text === "string" && states.has(item.state as AgentTodoItem["state"])
+        ? [{ id: item.id, text: item.text, state: item.state as AgentTodoItem["state"] }] : []);
+      return true;
+    }
+
+    // The runtime's circuit breaker stopped a round that kept failing the same way (it settles the run as stopped and
+    // sends nothing more): the round has ended, and says why, instead of waiting for a close that never comes.
+    case "circuit-tripped": {
+      const tripped = event as unknown as { reason?: string; count?: number; why?: string };
+      closeStreaming(state);
+      closeUnappliedSteers(state);
+      state.phase = "stopped";
+      const count = tripped.count ?? "几";
+      const what = tripped.reason === "repeated-calls" ? `同一个调用连续重复了 ${count} 次，没有进展`
+        : tripped.reason === "repeated-text" ? `同样的话连续重复了 ${count} 次`
+        : tripped.reason === "repeated-errors" ? `连续 ${count} 次调用都没有成功`
+        : `连续 ${count} 次调用都没有成功${tripped.why ? `（${tripped.why}）` : ""}`;
+      state.stop_reason = `${what}，这一轮先停在这里；已完成的保留，可以说明怎么调整后继续`;
       return true;
     }
 

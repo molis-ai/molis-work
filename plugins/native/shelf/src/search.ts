@@ -1,4 +1,4 @@
-import { bindSearchEntriesHandler, defineSearchEntriesAction, searchRevisionOf, searchText, type ActionHandlerBinding, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchRevisionOf, searchText, subjectContext, type ActionDefinition, type ActionHandlerBinding, type ActionSubjectContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
 
 /**
@@ -10,6 +10,21 @@ export const shelfSearchEntriesAction = defineSearchEntriesAction("shelf.search.
   [{ kind: "shelf_item", title: "置物架材料", surface: "shelf" }], "置物架", ["shelf:read"], "home");
 export const shelfClipboardSearchEntriesAction = defineSearchEntriesAction("shelf.clipboard.search.entries",
   [{ kind: "shelf_clip", title: "剪贴板", surface: "shelf" }], "剪贴板", ["shelf:read"], "home", ["user"]);
+
+/**
+ * One Shelf material by the shared subject protocol: where it is, its name and the text the shelf already shows. It
+ * reaches as far as `shelf.items.read` (no plugins); a copy deleted from the shelf answers `shelf.not_found`.
+ */
+const reader = defineSubjectContextAction("shelf.subject.read", "shelf_item", "置物架材料", ["shelf:read"], "home");
+export const shelfSubjectAction: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = { ...reader, action: { ...reader.action, audiences: ["user", "workflow", "agent", "mcp"] } };
+
+export function shelfSubjectContext(snapshot: ShelfSnapshot, id: string): ActionSubjectContext {
+  const item = [...snapshot.materials, ...snapshot.results].find(entry => entry.item_id === id);
+  if (!item) throw new ActionError("shelf.not_found", "这份材料已不在 Shelf 中");
+  const content = [item.preview_text, item.failure_reason].filter(Boolean).join("\n");
+  return subjectContext({ subject: { kind: "shelf_item", id }, revision: searchRevisionOf([item.status, item.name, content]), title: item.name, content,
+    goal_ids: [], session_id: null, open: { surface: "shelf", id } });
+}
 
 export function shelfSearchEntries(snapshot: ShelfSnapshot): SearchEntry[] {
   return [...snapshot.materials, ...snapshot.results].filter(item => !item.hidden).map((item): SearchEntry => {
@@ -25,6 +40,7 @@ export function shelfClipboardSearchEntries(snapshot: ShelfSnapshot): SearchEntr
 }
 
 export function createShelfSearchHandlers(snapshot: () => ShelfSnapshot): ActionHandlerBinding[] {
-  return [bindSearchEntriesHandler(shelfSearchEntriesAction, () => shelfSearchEntries(snapshot())),
+  return [{ capability_id: shelfSubjectAction.capability_id, version: shelfSubjectAction.version, handle: (_caller, input) => shelfSubjectContext(snapshot(), (input as { subject_id: string }).subject_id) },
+    bindSearchEntriesHandler(shelfSearchEntriesAction, () => shelfSearchEntries(snapshot())),
     bindSearchEntriesHandler(shelfClipboardSearchEntriesAction, () => shelfClipboardSearchEntries(snapshot()))];
 }

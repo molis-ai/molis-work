@@ -84,6 +84,21 @@ export const PPT_STYLES = `
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--plugin-ppt, var(--focus)) 72%, var(--focus));
   }
   .ppt-card h2, .ppt-card li, .ppt-card-notes { overflow-wrap: anywhere; }
+  .ppt-placement-line { margin: 2px 0 10px; }
+  [data-ppt-empty]:not([hidden]) ~ .ppt-placement-line { display: none; }
+  .ppt-export-menu > summary { list-style: none; }
+  .ppt-present { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: #000; outline: none; cursor: pointer; }
+  .ppt-present-frame { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; }
+  /* A slide is drawn on a fixed 16:9 canvas with the type scale and scaled whole to the screen, like a picture. */
+  .ppt-present-slide { box-sizing: border-box; flex: none; width: 960px; height: 540px; padding: 48px 64px; border-left: 10px solid var(--ppt-accent, var(--accent));
+    transform: scale(var(--present-scale, 1)); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif; overflow: hidden; }
+  .ppt-present-slide h2 { margin: 0 0 24px; font-size: 30px; font-weight: 700; line-height: 1.2; }
+  .ppt-present-slide ul { margin: 0; padding-left: 1.2em; font-size: 20px; line-height: 1.6; }
+  .ppt-present-slide p { margin: 0; font-size: 20px; }
+  .ppt-present-notes { position: fixed; right: 16px; bottom: 56px; width: min(420px, calc(100vw - 32px)); max-height: 40vh; overflow: auto; padding: 12px 14px;
+    background: rgba(28, 28, 32, .92); color: #e8e8ea; border-radius: 10px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; cursor: default; }
+  .ppt-present-bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 6px 12px; border-radius: 10px; background: rgba(28, 28, 32, .8);
+    color: #c9c9cf; font-size: 12px; white-space: nowrap; pointer-events: none; }
   .ppt-card h2 { margin: 0; font-size: 17px; font-weight: 500; }
   .ppt-card ul { margin: 0; padding-left: 16px; }
   .ppt-card-empty { margin: 0; font-size: 13px; font-weight: 400; color: var(--muted); }
@@ -113,4 +128,9 @@ export const PPT_STYLES = `
     .ppt-slide-row > button:first-child, .ppt-card, .ppt-swatch { transition: none; }
   }
   body.immersive-workbench .plugin-stage-workspace > .ppt-workspace { flex: 1; min-height: 0; }
+
+  .ppt-outline-dialog .ppt-outline-text { min-height: 200px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; line-height: 1.6; }
+  .ppt-outline-modes { margin: 12px 0 8px; }
+  .ppt-outline-dialog [data-ppt-outline-ai-reason] { margin: 0 0 8px; }
+  .ppt-outline-dialog .form-error { color: var(--red); font-size: 12px; margin: 8px 0 0; }
 `;

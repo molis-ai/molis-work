@@ -12,6 +12,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindAssistantSettings?.(root);
     globalThis.molisWorkBindMemorySettings?.(root);
+    globalThis.molisWorkBindAgentDiagnostics?.(root);
     globalThis.molisWorkBindProjectIdentity?.(root);
     globalThis.molisWorkBindProjectGuidance?.(root);
     globalThis.molisWorkBindProjectRules?.(root);

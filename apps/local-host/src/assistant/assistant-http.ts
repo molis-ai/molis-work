@@ -160,6 +160,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
           ...(view.action.undo && view.operation === "command" ? { reversible: true, confirm_always: confirm.has(actionKey({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })) } : {}),
         })) } };
       }
+      // The runtime's assembly and the latest rounds with their exact identities (developer diagnostics).
+      if (method === "GET" && parts.length === 1 && parts[0] === "diagnostics") return { status: 200, body: await service.diagnostics() };
       // What each plugin here contributes for the Assistant, and exactly what is missing (developer diagnostics).
       if (method === "GET" && parts.length === 1 && parts[0] === "contributions") {
         const reference = ports.projectRef;

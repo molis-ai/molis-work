@@ -11,6 +11,7 @@ import { renderConnectorsSettings } from "./settings-connectors.js";
 import { renderPromptSettings } from "./settings-prompts.js";
 import { renderAssistantSettings } from "./settings-assistant.js";
 import { renderMemorySettings } from "./settings-memory.js";
+import { renderAgentDiagnostics } from "./settings-agent-diagnostics.js";
 import { createCapabilitiesRenderer } from "./capabilities.js";
 import { renderMcpAccess } from "./mcp-access.js";
 import { renderFunctionsWorkbench } from "./functions/ui.js";
@@ -197,6 +198,7 @@ function renderDiagnosticsSettings(view: MolisWorkSettingsView): string {
     <section class="settings-section" aria-label="${L("提示词与角色登记")}">
       ${settingRow(L("提示词与角色登记"), L("查看每个来源登记了什么、哪些没有生效。"), `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="/settings/prompts#diagnostics">${L("开发者诊断")}</a>`)}
     </section>
+    ${renderAgentDiagnostics({ L })}
     <section class="settings-section" aria-labelledby="launcher-title"><h2 id="launcher-title">${L("启动入口")}</h2>${launchers}</section>
     <section class="settings-section settings-project-maintenance" aria-labelledby="web-service-title">
       <h2 id="web-service-title">${L("Web 常驻服务")}</h2>

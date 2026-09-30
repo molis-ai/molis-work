@@ -211,7 +211,7 @@ Shared controls, palette and icons are the `mw-*` HTML Slot primitives in `@moli
 | `mw-*` primitives | `packages/design-system/src/styles/primitives.ts` and `src/primitives/*` |
 | Final expression layer: desk, sheet, bottom bar geometry, depth, motion, moments | `packages/design-system/src/styles/craft-finish.ts` (`CRAFT_FINISH_STYLES`, last on every page) |
 | Ways out and back: cover chip close, bar trays | `apps/workbench/src/styles/navigation-flow.ts` (`NAVIGATION_FLOW_STYLES`, right after the final layer on the workbench and settings pages) |
-| Navigation behaviour: history, covers, the bar's second press, kept page state | `apps/workbench/src/scripts/client/tab-workspace.ts`, `tab-workspace-ops.ts`; the rules in [specs/page-interaction-flow](specs/page-interaction-flow/spec.md) |
+| Navigation behaviour: history, covers, the bar's second press, kept page state | `apps/workbench/src/scripts/client/tab-workspace.ts`, `tab-workspace-ops.ts`; the rules in [specs/archive/page-interaction-flow](specs/archive/page-interaction-flow/spec.md) |
 | The one list of global settings categories | `apps/workbench/src/settings-sections.ts` |
 | Onboarding window | `apps/workbench/src/styles/context-onboarding.ts`, `src/context-onboarding-renderer.ts`, `src/scripts/context-onboarding.ts` |
 | Component board | `/__ui/catalog` (sections below) and `/__ui/catalog/bar` (the real bottom bar) |

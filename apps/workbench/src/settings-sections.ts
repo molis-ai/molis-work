@@ -3,7 +3,7 @@ import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 
 /**
  * The one list of global settings categories. The independent settings page and the settings cover in the
- * workbench both draw from it, so a category never exists in one and not the other (specs/page-interaction-flow).
+ * workbench both draw from it, so a category never exists in one and not the other (specs/archive/page-interaction-flow).
  *
  * Host pages carry a fixed order and a group. A plugin's settings page is placed by the `order` its Manifest
  * gives the view: it joins the group of the host page it follows, or 插件 after all of them. Nothing here names

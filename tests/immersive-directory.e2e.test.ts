@@ -63,17 +63,19 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.ok(await evaluate("(()=>{const create=document.querySelector('[data-goal-stage-chrome] [data-open-create]'),filter=document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger]'),board=document.querySelector('[data-goal-stage-chrome] [data-board-switch]'),shell=document.querySelector('[data-goal-canvas-shell]');if(!create||!filter||!board||!shell)return false;const c=create.getBoundingClientRect(),f=filter.getBoundingClientRect(),b=board.getBoundingClientRect(),s=shell.getBoundingClientRect();return c.left-s.left<40 && f.left-s.left<200 && b.left>=f.right && b.left-f.right<16 && Math.abs(b.top-f.top)<8 && s.right-b.right>80 && Math.abs(c.top-s.top)<28 && Math.abs(f.top-s.top)<28;})()"), "New Goal, filter, and icon view switch sit together in the stage top-left");
   assert.ok(await evaluate("(()=>{const search=document.querySelector('[data-workspace-chrome] [data-global-search-open]'),settings=document.querySelector('.titlebar-chrome .navigator-project-settings'),toggle=document.querySelector('.titlebar-chrome [data-directory-toggle]');return search.closest('.navigator-project-primary') && settings?.closest('.navigator-project-menu-popover') && getComputedStyle(toggle).display==='none';})()"), "Project settings live in the project menu; desktop hides directory collapse even on plugins without a directory");
   const create = await evaluate<{ bg: string; color: string; radius: string; icon: string; border: string }>("(()=>{const button=document.querySelector('[data-open-create]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,border:s.borderTopColor};})()");
-  // Soft Workbench toolbar (DESIGN.md → Buttons; spec → 实现中定下的口径): a quiet ink-4% wash with no outline,
-  // ink text and glyph, 8px control corners — replacing the old white fill with a grey outline.
-  assert.equal(create.bg, "color(srgb 0.160784 0.164706 0.172549 / 0.04)", "New Goal uses the quiet control wash");
-  assert.equal(create.color, "rgb(41, 42, 44)");
-  assert.equal(create.icon, "rgb(41, 42, 44)");
+  // New Goal is the Goals page's one graphite button, like every list page's first create action
+  // (DESIGN.md → Plugin stage; specs/plugin-e2e-review/spec.md §4 X5, kept by the user after #108):
+  // graphite --action fill, --action-ink text and glyph, 8px control corners, no outline.
+  assert.equal(create.bg, "rgb(41, 42, 44)", "New Goal is the graphite primary action");
+  assert.equal(create.color, "rgb(255, 255, 255)");
+  assert.equal(create.icon, create.color);
   assert.equal(create.radius, "8px");
   assert.equal(create.border, "rgba(0, 0, 0, 0)", "New Goal has no outline");
   const filter = await evaluate<{ bg: string; color: string; radius: string; icon: string; height: number; width: number; border: string }>("(()=>{const button=document.querySelector('[data-tree-filter-trigger]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,height:Math.round(button.getBoundingClientRect().height),width:Math.round(button.getBoundingClientRect().width),border:s.borderTopColor};})()");
-  assert.equal(filter.bg, create.bg, "Filter matches New Goal fill");
-  assert.equal(filter.color, create.color);
-  assert.equal(filter.icon, create.icon);
+  // The filter stays a quiet toolbar control: the ink-4% wash, ink text and glyph, same corners, no outline.
+  assert.equal(filter.bg, "color(srgb 0.160784 0.164706 0.172549 / 0.04)", "Filter keeps the quiet control wash");
+  assert.equal(filter.color, "rgb(41, 42, 44)");
+  assert.equal(filter.icon, "rgb(41, 42, 44)");
   assert.equal(filter.radius, create.radius);
   assert.equal(filter.border, create.border);
   // Standard density controls are 32px (DESIGN.md → Density); compact keeps 28px.

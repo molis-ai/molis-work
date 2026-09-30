@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { LINGGUANG_CONVERSATION } from "./prompts.js";
-import { ActionError, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, FRAGMENT_ANY_OBJECT, bindObjectCopyHandler, bindObjectMoveHandler, defineFragmentOffersAction, defineObjectCopyAction, defineObjectMoveAction, type FragmentActionOffer, type FragmentOfferChoice, type FragmentOffersInput, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangConversationState, LingguangStore } from "./store.js";
 import { createLingguangSearchHandlers, lingguangSearchActions, revisionOf } from "./search.js";
@@ -25,6 +25,15 @@ function define<I, O>(name: string, title: string, description: string, operatio
 }
 const undoable = <I, O>(definition: ActionDefinition<I, O>, undo: NonNullable<ActionDefinition["action"]["undo"]>): ActionDefinition<I, O> =>
   ({ ...definition, action: { ...definition.action, undo } });
+/**
+ * Noting part of anything down (specs/contextual-interaction §10 P2): a word, a passage or several, from any object,
+ * becomes a spark that waits in 灵光. It writes, so it is offered as a prepared card the person confirms.
+ */
+export const LINGGUANG_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
+  { offer_id: "capture", title: "记下灵光", intent: "capture", apply: "record", hint: "把这个想法记到灵光，稍后再处理",
+    action: { capability_id: "lingguang.create", version: 1 }, granularities: ["word", "range", "block", "blocks"] },
+];
+
 export const lingguangActions = {
   list: define<Record<string, never>, { sparks: LingguangSpark[] }>("list", "灵光列表", "读取当前项目尚未丢弃的全部灵光", "query", object({}), object({ sparks: { type: "array", items: spark } }), read),
   get: define<{ id: string }, { spark: LingguangSpark }>("get", "读取灵光", "读取当前项目的一条灵光，包括已丢弃记录", "query", object({ id }), object({ spark }), read),
@@ -43,7 +52,20 @@ export const lingguangActions = {
   subject: lingguangSearchActions.subject,
   move: defineObjectMoveAction("lingguang.placement.move", ["lingguang_spark"], "灵光", [...read, ...write]),
   copy: defineObjectCopyAction("lingguang.placement.copy", ["lingguang_spark"], "灵光", [...read, ...write]),
+  fragmentOffers: defineFragmentOffersAction("lingguang.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以记下", read, LINGGUANG_FRAGMENT_CHOICES),
 };
+/** The complete `lingguang.create` input for a fragment; pure. The same request id saves it once. */
+export function prepareLingguangFragmentOffers(input: FragmentOffersInput): FragmentActionOffer[] {
+  const text = input.fragment.targets.map(target => target.text.trim()).filter(Boolean).join("\n\n");
+  if (!text) return [];
+  const first = text.split("\n")[0]!.trim();
+  const title = first.length > 40 ? first.slice(0, 39) + "…" : first;
+  const from = input.fragment.object.title ? `\n\n出自：${input.fragment.object.title}` : "";
+  const body = (text + from).slice(0, 8000);
+  return [{ offer_id: "capture", title: "记下灵光", action: { capability_id: "lingguang.create", version: 1 },
+    input: { title, body, request_id: input.request_id.slice(0, 160) }, summary: `在灵光里记下一条：「${title}」`, editable: ["title", "body"] }];
+}
+
 export const LINGGUANG_ACTIONS: readonly ActionDefinition[] = Object.values(lingguangActions);
 export const LINGGUANG_ACTION_PERMISSIONS = [...new Set(LINGGUANG_ACTIONS.flatMap(definition => definition.action.permissions))];
 export interface LingguangActionPorts {
@@ -71,6 +93,7 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
     })),
     bind(lingguangActions.list, (_, caller) => ports.withStore(store => ({ sparks: store.list(project(caller)) }))),
     bind(lingguangActions.get, (input, caller) => ports.withStore(store => ({ spark: store.get(input.id, project(caller)) }))),
+    bind(lingguangActions.fragmentOffers, input => ({ offers: prepareLingguangFragmentOffers(input) })),
     bind(lingguangActions.create, (input, caller) => ports.withStore(store => ({ spark: store.create({ ...input, project_id: project(caller) }) }))),
     bind(lingguangActions.update, (input, caller) => ports.withStore(store => ({ spark: store.update(input.id, input, project(caller)) }))),
     bind(lingguangActions.discard, (input, caller) => ports.withStore(store => { store.discard(input.ids, project(caller)); return { ok: true }; })),

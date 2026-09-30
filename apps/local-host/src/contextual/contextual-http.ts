@@ -129,7 +129,8 @@ async function prepare(focus: SurfaceFocus, key: string, requestId: string, call
     throw new ContextualRequestError(409, "contextual.not_offered", `${candidate.provider_title} 没有为这段内容准备「${candidate.title}」`);
   }
   return { key, offer_id: candidate.offer_id, title: candidate.title, intent: candidate.intent, apply: candidate.apply,
-    action: candidate.action, provider_title: candidate.provider_title, input: offer.input };
+    action: candidate.action, provider_title: candidate.provider_title, input: offer.input,
+    ...(offer.summary ? { summary: offer.summary } : {}), ...(offer.editable?.length ? { editable: offer.editable } : {}), ...(offer.missing?.length ? { missing: offer.missing } : {}) };
 }
 
 class ContextualRequestError extends Error {

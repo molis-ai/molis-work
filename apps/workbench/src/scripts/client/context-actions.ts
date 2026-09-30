@@ -37,6 +37,67 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     return event.defaultPrevented ? null : assistantDetail(focus, L("请帮我处理这段内容：") + candidate.title);
   };
 
+  // Any surface that declares its object (data-assistant-context) gets a fragment context from a plain DOM selection,
+  // so a plugin without an editor needs no code of its own (spec §10 P2 ②). Editors that report their own focus
+  // (contenteditable, or data-surface-focus="own") and form fields are left to themselves.
+  (() => {
+    let timer = 0, reported = null;
+    const hash = (text) => { let h = 0x811c9dc5; for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36); };
+    const isWord = (text) => { const t = text.trim(); return Boolean(t) && !/\s/.test(t) && (/[㐀-鿿]/.test(t) ? t.length <= 8 : t.length <= 32); };
+    const roleOf = (node) => {
+      const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      const block = el && el.closest("h1, h2, h3, h4, h5, h6, li, td, th, blockquote, pre, p");
+      if (!block) return "paragraph";
+      if (/^H[1-6]$/.test(block.tagName)) return "heading";
+      if (block.tagName === "LI") return block.querySelector('input[type="checkbox"]') ? "task" : "list";
+      if (block.tagName === "TD" || block.tagName === "TH") return "table";
+      if (block.tagName === "BLOCKQUOTE") return "quote";
+      if (block.tagName === "PRE") return "code";
+      return "paragraph";
+    };
+    const headingPath = (root, node) => {
+      const stack = [];
+      root.querySelectorAll("h1, h2, h3, h4").forEach((heading) => {
+        if (!(heading.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
+        const level = Number(heading.tagName.slice(1));
+        while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+        stack.push({ level, text: heading.textContent.trim().slice(0, 120) });
+      });
+      return stack.map((item) => item.text).filter(Boolean).slice(-6);
+    };
+    const own = (node) => {
+      const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      return !el || Boolean(el.closest('[contenteditable=""], [contenteditable="true"], input, textarea, select, [data-surface-focus="own"], [data-assistant-island], [data-assistant-context-actions]'));
+    };
+    const read = () => {
+      const selection = getSelection();
+      if (!selection || selection.isCollapsed || !selection.rangeCount || own(selection.anchorNode) || own(selection.focusNode)) return null;
+      const anchor = selection.anchorNode.nodeType === 1 ? selection.anchorNode : selection.anchorNode.parentElement;
+      const root = anchor && anchor.closest("[data-assistant-context]");
+      if (!root || !root.contains(selection.focusNode)) return null;
+      let context;
+      try { context = JSON.parse(root.getAttribute("data-assistant-context") || "{}"); } catch { return null; }
+      const object = context && context.object;
+      if (!context.plugin_id || !object || typeof object.kind !== "string" || typeof object.id !== "string") return null;
+      const parts = selection.toString().split(/\n+/).map((part) => part.trim()).filter(Boolean);
+      if (!parts.length) return null;
+      const role = roleOf(selection.anchorNode);
+      const clip = (text) => text.length > 2000 ? { text: text.slice(0, 2000), truncated: true } : { text };
+      const granularity = parts.length > 1 ? "blocks" : isWord(parts[0]) ? "word" : "range";
+      const targets = parts.slice(0, 8).map((part) => ({ kind: "text_range", role: parts.length > 1 ? "paragraph" : role, ...clip(part) }));
+      const heading_path = headingPath(root, selection.getRangeAt(0).startContainer);
+      return { root, focus: { context_id: "dom:" + context.plugin_id + ":" + object.id + ":" + hash(parts.join("\n")), plugin_id: context.plugin_id,
+        activity: "selecting", granularity, object: { kind: object.kind, id: object.id, ...(object.version !== undefined ? { version: object.version } : {}), ...(object.title ? { title: String(object.title) } : {}) },
+        targets, surroundings: { heading_path }, ...(context.unsaved ? { unsaved: true } : {}) } };
+    };
+    const flush = () => {
+      const next = read();
+      if (next) { reported = next.root; next.root.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail: next.focus })); }
+      else if (reported) { const root = reported; reported = null; if (root.isConnected) root.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail: null })); }
+    };
+    document.addEventListener("selectionchange", () => { clearTimeout(timer); timer = setTimeout(flush, 120); });
+  })();
+
   if (embedded) {
     let shown = null;
     document.addEventListener("molis:surface-focus", (event) => {
@@ -265,7 +326,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
         ...(bar.shown ? { previous: bar.shown } : {}), dismissed: [...(this.dismissed.get(focus.context_id) || [])] };
     },
     report(source, focus) {
-      if (!focus) { if (this.source && this.source.pane === source.pane) this.set(null, null); return; }
+      // “Nothing in hand” only clears what that same surface put there, not what another surface reported since.
+      if (!focus) { if (this.source && this.source.pane === source.pane && (!this.source.element || !source.element || this.source.element === source.element)) this.set(null, null); return; }
       if (!focus.context_id || !focus.object || !Array.isArray(focus.targets)) return;
       this.set(focus, source);
     },
@@ -323,12 +385,36 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     if (focus && plan && plan.context_id !== focus.context_id) { if (bus.flush) bus.flush(); return; }
     if (!focus || !source || !candidate || !candidate.available) return;
     bus.recent = [candidate.title, ...bus.recent.filter((title) => title !== candidate.title)].slice(0, 3);
+    const prepared = () => post("/api/contextual/prepare", { pane_id: source.pane, focus, key: candidate.key, request_id: requestId() });
+    // What the workbench shows itself: a word looked up across the project opens in the search palette.
+    if (candidate.action.capability_id === "search.query" && host.openSearch) {
+      prepared().then((offer) => host.openSearch(offer.input && offer.input.query)).catch((error) => bar.error(error));
+      return;
+    }
+    // A write goes to the Assistant as a prepared card: the person sees what it will do, and confirms it there.
+    if (candidate.apply === "record") {
+      prepared().then((offer) => suggestCard(focus, candidate, offer)).catch((error) => bar.error(error));
+      return;
+    }
     if (source.frame) {
       source.frame.contentWindow.postMessage({ type: "workbench-context-action-chosen", context_id: focus.context_id, candidate }, location.origin);
       return;
     }
     const fallback = deliver(focus, candidate);
     if (fallback) openAssistant(fallback);
+  };
+  // The card carries the exact action and its complete input; the Assistant checks it against what it may use in that
+  // work and runs it only when the person clicks. Before the panel takes cards, the same message is a plain suggestion.
+  const suggestCard = (focus, candidate, offer) => {
+    const material = { title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) };
+    const summary = offer.summary || candidate.hint;
+    window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
+      message_id: requestId(), purpose: "suggest", source: { surface: focus.plugin_id, title: focus.object.title || "" },
+      object: focus.object, text: candidate.title + "：" + summary, materials: [material],
+      card: { title: candidate.title, summary, reference: offer.action, input: offer.input,
+        ...(offer.editable ? { editable: offer.editable } : {}), ...(offer.missing ? { missing: offer.missing } : {}),
+        source_object: focus.object, materials: [material] },
+    } }));
   };
   const askAssistant = () => {
     const focus = bus.focus, plan = bar.plan;

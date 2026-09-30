@@ -5,7 +5,7 @@ import test from "node:test";
 import { EditorState, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import {
-  defineFragmentOffersAction, inspectActionDeclarations, type ActionReference, type ActionView, type FragmentOfferChoice, type FragmentOffersInput,
+  FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, inspectActionDeclarations, type ActionReference, type ActionView, type FragmentOfferChoice, type FragmentOffersInput,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import {
@@ -14,6 +14,8 @@ import {
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { createContextualJudgmentService } from "../apps/local-host/src/contextual/judgment-service.js";
 import { handleContextualHttp } from "../apps/local-host/src/contextual/contextual-http.js";
+import { prepareSearchFragmentOffers, searchActions } from "@molis-ai/molis-work-contracts/services/search";
+import { lingguangActions, prepareLingguangFragmentOffers } from "../plugins/native/lingguang/src/actions.js";
 import { pagesSchema as s } from "../plugins/native/pages/src/schema.js";
 import {
   applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen,
@@ -345,6 +347,31 @@ test("the judgment is asked about at most sixteen candidates, the rule-ranked fi
   assert.equal(judgedCandidates(candidates, focus()).length, MAX_JUDGED_CANDIDATES);
   const questions = judgmentQuestions(candidates, focus()) as { next: { criteria: Record<string, string> } };
   assert.equal(Object.keys(questions.next.criteria).length, MAX_JUDGED_CANDIDATES);
+});
+
+// ---- P2: platform-wide offers ------------------------------------------------------------------------------------
+test("a platform provider's offers fit a fragment of any object; object-bound offers still only fit their own kinds", () => {
+  const anywhere = view(provider("system.search", "搜索"), "search.fragment.offers", {
+    ...defineFragmentOffersAction("search.fragment.offers", [FRAGMENT_ANY_OBJECT], "搜索", [], [choice("find", "understand", "search.query", { granularities: ["word"] })]).action });
+  const directoryWithSearch = [...directory(), anywhere, view(provider("system.search", "搜索"), "search.query")];
+  const inFeed = fragmentCandidates(directoryWithSearch, focus({ granularity: "word", object: { kind: "feed_item", id: "f1" } }));
+  assert.deepEqual(inFeed.map(item => item.offer_id), ["find"], "a Feed item has no Pages or Goals offers, but can be searched");
+  assert.ok(fragmentCandidates(directoryWithSearch, focus({ granularity: "word" })).some(item => item.offer_id === "explain"));
+});
+
+test("real platform offers: search looks up a selected word; 灵光 prepares a spark from any fragment, once per request", () => {
+  assert.deepEqual(inspectActionDeclarations([searchActions.fragmentOffers, lingguangActions.fragmentOffers], undefined), []);
+  const word = { request_id: "r1", fragment: { object: { kind: "feed_item", id: "f1", title: "周报" }, granularity: "word" as const, targets: [{ kind: "text_range" as const, text: " 转化率 " }] } };
+  assert.deepEqual(prepareSearchFragmentOffers(word).map(offer => offer.input), [{ query: "转化率" }]);
+  assert.deepEqual(prepareSearchFragmentOffers({ ...word, fragment: { ...word.fragment, granularity: "range" } }), [], "only a word is looked up");
+  const [spark] = prepareLingguangFragmentOffers({ request_id: "r2", fragment: { object: { kind: "pages_document", id: "d1", title: "留存分析" }, granularity: "blocks",
+    targets: [{ kind: "text_range", text: "新手引导要在第一周内让用户完成一次有价值的操作，这是留存的关键。" }, { kind: "text_range", text: "竞品普遍提供十四天试用。" }] } });
+  const input = spark!.input as { title: string; body: string; request_id: string };
+  assert.equal(input.request_id, "r2");
+  assert.ok(input.title.length <= 40 && input.title.startsWith("新手引导"));
+  assert.match(input.body, /十四天试用。\n\n出自：留存分析$/);
+  assert.deepEqual(spark!.editable, ["title", "body"]);
+  assert.match(spark!.summary!, /记下一条/);
 });
 
 // ---- P1: Host transport ------------------------------------------------------------------------------------------

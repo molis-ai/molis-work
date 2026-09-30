@@ -1,6 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition, ActionSubject } from "../platform/actions.js";
 import { ACTION_SUBJECT_SCHEMA, SEARCH_OPEN_TARGET_SCHEMA, type SearchOpenTarget } from "../platform/actions.js";
+import { FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOfferChoice, type FragmentOffersInput } from "../platform/action-fragments.js";
 
 export const servicesSearchContract = {
   contractId: "io.molis.work.service.search.v1",
@@ -93,8 +94,25 @@ const metadata = {
   audiences: ["user", "agent", "workflow", "mcp", "plugin"] as ("user" | "agent" | "workflow" | "mcp" | "plugin")[],
 };
 
+/**
+ * What search offers for a word selected anywhere (specs/contextual-interaction §10 P2): where else it appears. The
+ * workbench shows the result in its own search palette, so nothing is written and the person opens what they choose.
+ */
+export const SEARCH_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
+  { offer_id: "find", title: "在项目里查找", intent: "understand", apply: "result", hint: "在本项目与个人资料里查找这个词还出现在哪里",
+    action: { capability_id: "search.query", version: 1 }, granularities: ["word"] },
+];
+
+/** `search.query` input for a selected word; pure. */
+export function prepareSearchFragmentOffers(input: FragmentOffersInput): FragmentActionOffer[] {
+  const word = input.fragment.granularity === "word" ? (input.fragment.targets[0]?.text ?? "").trim() : "";
+  if (!word || word.length > 40) return [];
+  return [{ offer_id: "find", title: "在项目里查找", action: { capability_id: "search.query", version: 1, provider_id: SEARCH_PROVIDER_ID }, input: { query: word } }];
+}
+
 /** Registered once by the Host as `system.search`; every entry reaches them through the shared directory. */
 export const searchActions = {
+  fragmentOffers: defineFragmentOffersAction("search.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的词可以查找的地方", [SEARCH_READ_PERMISSION], SEARCH_FRAGMENT_CHOICES, "home"),
   query: { capability_id: "search.query", version: 1, operation: "query", action: { ...metadata, permissions: [SEARCH_READ_PERMISSION],
     title: "搜索内容", description: "在当前项目与个人范围里搜索已接入插件的真实内容，返回对象引用、所属插件、摘要与打开位置；只返回调用者当前可读取的来源。",
     input_schema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" }, scope,

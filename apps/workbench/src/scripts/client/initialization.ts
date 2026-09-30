@@ -142,7 +142,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
       project: { id: state.project?.project_id || state.snapshot.board.board_id, title: state.project?.display_name || state.snapshot.board.title || "" },
     });
-    (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders() });
+    (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(),
+      openSearch: (query) => globalSearchPalette?.open(document.activeElement, query) });
     globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(),
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openGoalWork: () => tabWorkspace?.openGoalWork(), closeItem: (plugin, id) => tabWorkspace?.closeItem(plugin, id), projectTitle: state.project?.display_name || "" });

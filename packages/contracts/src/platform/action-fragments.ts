@@ -9,6 +9,12 @@ import type { ActionDefinition, ActionReference } from "./actions.js";
 export const FRAGMENT_OFFERS_INPUT_TYPE = "molis.fragment-offers.input.v1";
 export const FRAGMENT_OFFERS_OUTPUT_TYPE = "molis.fragment-offers.output.v1";
 
+/**
+ * Declared in `subject_kinds` by a fragment offers query whose choices fit a fragment of any object (search it, note
+ * it down): platform-wide providers declare it instead of listing every kind. It is never an object's kind.
+ */
+export const FRAGMENT_ANY_OBJECT = "molis.any-object";
+
 /** How much of an object the person has in hand. */
 export const FRAGMENT_GRANULARITIES = ["word", "range", "block", "blocks", "objects"] as const;
 export type FragmentGranularity = (typeof FRAGMENT_GRANULARITIES)[number];
@@ -69,6 +75,12 @@ export interface FragmentActionOffer {
   readonly action: ActionReference;
   /** The complete input for `action`, prepared from the fragment. */
   readonly input: unknown;
+  /** For an offer that writes (`record`): what it will do, in the person's words, shown before they confirm. */
+  readonly summary?: string;
+  /** Top-level input fields the person may change before confirming. */
+  readonly editable?: readonly string[];
+  /** Values the fragment could not supply; the person answers these before it can run. */
+  readonly missing?: readonly { readonly field: string; readonly question: string }[];
 }
 
 /** A declared choice. The target belongs to the same provider; `granularities` narrows where it applies. */
@@ -120,6 +132,9 @@ export const FRAGMENT_OFFERS_OUTPUT_SCHEMA = {
           offer_id: id, title: { ...id, maxLength: 120 },
           action: { type: "object", properties: { capability_id: id, version: { type: "integer", minimum: 1 }, provider_id: id }, required: ["capability_id", "version"], additionalProperties: false },
           input: {},
+          summary: { type: "string", maxLength: 600 },
+          editable: { type: "array", maxItems: 20, items: id },
+          missing: { type: "array", maxItems: 10, items: { type: "object", properties: { field: id, question: { type: "string", minLength: 1, maxLength: 200 } }, required: ["field", "question"], additionalProperties: false } },
         },
         required: ["offer_id", "title", "action", "input"], additionalProperties: false,
       },
@@ -129,8 +144,8 @@ export const FRAGMENT_OFFERS_OUTPUT_SCHEMA = {
 };
 
 export function defineFragmentOffersAction(capabilityId: string, kinds: string[], title: string, permissions: string[],
-  choices: readonly FragmentOfferChoice[]): ActionDefinition<FragmentOffersInput, { offers: FragmentActionOffer[] }> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { title, description: "按选中的片段准备本插件真实动作的完整参数；不会执行这些动作。", kind: "query", scope: "project", scheduling: "concurrent",
+  choices: readonly FragmentOfferChoice[], scope: "project" | "home" = "project"): ActionDefinition<FragmentOffersInput, { offers: FragmentActionOffer[] }> {
+  return { capability_id: capabilityId, version: 1, operation: "query", action: { title, description: "按选中的片段准备本插件真实动作的完整参数；不会执行这些动作。", kind: "query", scope, scheduling: "concurrent",
     permissions, audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: kinds, fragment_offer_choices: choices,
     input_type: FRAGMENT_OFFERS_INPUT_TYPE, output_type: FRAGMENT_OFFERS_OUTPUT_TYPE, input_schema: FRAGMENT_OFFERS_INPUT_SCHEMA, output_schema: FRAGMENT_OFFERS_OUTPUT_SCHEMA } };
 }
@@ -148,7 +163,8 @@ export function fragmentOfferDeclarationProblems(key: string, action: Record<str
   const problems: string[] = [];
   const declares = metadata.input_type === FRAGMENT_OFFERS_INPUT_TYPE || metadata.output_type === FRAGMENT_OFFERS_OUTPUT_TYPE || metadata.fragment_offer_choices !== undefined;
   if (!declares) return problems;
-  if (operation !== "query" || metadata.kind !== "query" || metadata.scope !== "project" || !metadata.subject_kinds?.length
+  // A platform provider (search, say) lives at home scope and serves every project; a plugin's offers are per project.
+  if (operation !== "query" || metadata.kind !== "query" || (metadata.scope !== "project" && metadata.scope !== "home") || !metadata.subject_kinds?.length
     || metadata.input_type !== FRAGMENT_OFFERS_INPUT_TYPE || metadata.output_type !== FRAGMENT_OFFERS_OUTPUT_TYPE
     || canonical(metadata.input_schema) !== canonical(FRAGMENT_OFFERS_INPUT_SCHEMA) || canonical(metadata.output_schema) !== canonical(FRAGMENT_OFFERS_OUTPUT_SCHEMA)) {
     problems.push(`能力 ${key} 没有兑现片段动作协议 v1 的输入输出合同`);

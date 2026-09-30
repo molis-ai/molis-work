@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import {
-  FRAGMENT_INTENTS, FRAGMENT_OFFERS_INPUT_TYPE, FRAGMENT_OFFERS_OUTPUT_TYPE, actionEffect,
+  FRAGMENT_ANY_OBJECT, FRAGMENT_INTENTS, FRAGMENT_OFFERS_INPUT_TYPE, FRAGMENT_OFFERS_OUTPUT_TYPE, actionEffect,
   type ActionView, type FragmentGranularity, type FragmentIntent, type FragmentOfferChoice, type FragmentRole,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
@@ -51,7 +51,7 @@ function fits(choice: FragmentOfferChoice, focus: SurfaceFocus): boolean {
 export function fragmentCandidates(directory: readonly ActionView[], focus: SurfaceFocus): ContextualCandidate[] {
   const targets = new Map(directory.map(view => [JSON.stringify([view.provider.provider_id, view.capability_id, view.version]), view]));
   return directory.filter(view => view.action.input_type === FRAGMENT_OFFERS_INPUT_TYPE && view.action.output_type === FRAGMENT_OFFERS_OUTPUT_TYPE
-    && view.action.subject_kinds.includes(focus.object.kind)).flatMap(view => {
+    && (view.action.subject_kinds.includes(focus.object.kind) || view.action.subject_kinds.includes(FRAGMENT_ANY_OBJECT))).flatMap(view => {
     const source = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
     return (view.action.fragment_offer_choices ?? []).filter(choice => fits(choice, focus)).map(choice => {
       const action = { ...choice.action, provider_id: source.provider_id };

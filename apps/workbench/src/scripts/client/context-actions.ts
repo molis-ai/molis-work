@@ -255,6 +255,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     source: null,
     seq: 0,
     timer: 0,
+    rulesTimer: 0,
+    flush: null,
     judging: null,
     dismissed: new Map(),
     recent: [],
@@ -269,9 +271,10 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     },
     set(focus, source) {
       if (focus && this.focus && focus.context_id === this.focus.context_id && this.source && source && this.source.pane === source.pane) return;
-      const leaving = this.source;
+      const leaving = this.source, previous = this.focus;
       this.focus = focus; this.source = focus ? source : null;
       clearTimeout(this.timer);
+      clearTimeout(this.rulesTimer);
       if (this.judging) this.judging.abort();
       this.judging = null;
       const seq = ++this.seq;
@@ -280,13 +283,17 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
         bar.idle();
         return;
       }
-      bar.pending(focus);
-      post("/api/contextual/candidates", this.request(focus)).then((out) => {
+      // Every keystroke is a new context while writing: the row stays as it is (no dimming) and nothing is asked
+      // until the typing pauses. A selection is shown by rules at once and judged almost at once.
+      const writing = focus.activity === "editing";
+      if (!(writing && previous && previous.activity === "editing" && previous.object.id === focus.object.id)) bar.pending(focus);
+      const rules = () => post("/api/contextual/candidates", this.request(focus)).then((out) => {
         if (seq !== this.seq || !this.focus || out.plan.context_id !== this.focus.context_id) return;
         bar.render(out, focus, true);
       }).catch((error) => { if (seq === this.seq) bar.error(error); });
-      // Typing settles before the judgment is asked; a selection is asked almost at once.
-      this.timer = setTimeout(() => this.judge(seq, focus), focus.activity === "editing" ? 900 : 350);
+      this.flush = () => { clearTimeout(this.rulesTimer); this.flush = null; rules(); };
+      if (writing) this.rulesTimer = setTimeout(() => this.flush && this.flush(), 400); else this.flush();
+      this.timer = setTimeout(() => this.judge(seq, focus), writing ? 900 : 350);
     },
     async judge(seq, focus) {
       const controller = new AbortController();
@@ -312,7 +319,9 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
   const choose = (key) => {
     const focus = bus.focus, source = bus.source, plan = bar.plan;
     const candidate = plan && plan.candidates.find((item) => item.key === key);
-    if (!focus || !source || !candidate || !candidate.available || plan.context_id !== focus.context_id) return;
+    // Clicked while the row still showed the moment before the last keystroke: bring it up to date instead of acting.
+    if (focus && plan && plan.context_id !== focus.context_id) { if (bus.flush) bus.flush(); return; }
+    if (!focus || !source || !candidate || !candidate.available) return;
     bus.recent = [candidate.title, ...bus.recent.filter((title) => title !== candidate.title)].slice(0, 3);
     if (source.frame) {
       source.frame.contentWindow.postMessage({ type: "workbench-context-action-chosen", context_id: focus.context_id, candidate }, location.origin);

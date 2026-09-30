@@ -836,6 +836,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         ...(this.#runtime.readPendingQuestion ? { answerable: false, unavailable_reason: "正在读取原问题" } : {}),
       })),
       stop_reason: stopReason,
+      ...(record.state.todo?.length ? { todo: record.state.todo.map(item => ({ ...item })) } : {}),
       ...(stampTerminal && isEnded(phase) && record.view.ended_at === null
         ? { ended_at: record.observedEndAt ?? this.#now().toISOString() }
         : {}),

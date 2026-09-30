@@ -172,6 +172,14 @@ test("the runtime's circuit breaker ends the round as stopped, in words, instead
   assert.doesNotMatch(repeated.stop_reason ?? "", /[a-z]{4}/);
 });
 
+test("the Run's own step list is kept as the runtime last replaced it; malformed entries are left out", () => {
+  const state = emptyPrologueStreamState();
+  apply(state, { type: "todo-changed", items: [{ id: "a", text: "读取", state: "pending" }, { id: "b", text: "排序", state: "in-progress" }] } as never);
+  apply(state, { type: "todo-changed", items: [{ id: "a", text: "读取", state: "done" }, { id: "b", text: "排序", state: "in-progress" }, { id: "c", state: "pending" }, { id: "d", text: "x", state: "odd" }] } as never);
+  assert.deepEqual(state.todo, [{ id: "a", text: "读取", state: "done" }, { id: "b", text: "排序", state: "in-progress" }]);
+  assert.equal(state.unknown_frames, 0);
+});
+
 test("compaction is a phase, not an outcome", () => {
   const state = emptyPrologueStreamState();
   apply(state, { type: "compaction-started" });

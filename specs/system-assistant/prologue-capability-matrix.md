@@ -43,7 +43,7 @@
 | SDK 公开面 | Host 接入 | 助理 | Coding | 状态与证据 |
 | --- | --- | --- | --- | --- |
 | 协同方式（Coding 的讨论／规划／修改／执行／评审／协作／并行） | Coding 会话方式 | 可把工作交给 Coding 并选方式 | ✅ | ✅ §5 P4 |
-| Refine（`RefineBudget` 等） | — | 助理用委托的验收标准＋追加（最多 2 次）做核对与修正 | — | ⛔ SDK Refine 未接；真实“评审发现问题→补改→复查”循环未实测（§11 未做） |
+| Refine（`RefineBudget` 等） | — | 助理用委托的验收标准＋追加（最多 2 次）做核对与修正 | — | 🟡 SDK Refine 未接：业务工作的“评审发现问题→补改→复查”由 Host 委托实现，已用 MiniMax 实测（AC16，implementation §11），有追加上限做终止条件 |
 
 ## 6. Heartbeat、持久队列、消息与交付
 
@@ -108,7 +108,7 @@
 | 网络派出授权（`beforeNetworkDispatch`） | Host 对每次真实网络请求做可信复核（包括 MCP） | 助理的模型与 MCP 请求一样受它约束 | ✅ | ✅ SDK `network-dispatch-authority.live`；撤权场景见 §12 第二片 |
 | 原图摄取限额（整批容量、原子发布、取消不复活） | `beginIntake` 所在的同一路径 | 图片附件经此吸入 | — | ✅ SDK `resource-intake*.live`；§5 P2 图片（合包后图片测试 `assistant-attachments` 通过） |
 | `speech` | — | — | — | ⛔ 语音输入／转录未接 |
-| `surfaces`（UiControl：`surface-list/observe/act`、按 origin 的规则、截图脱敏、`attach(owner)`、`effects.remember/forget`） | Agent Host `prologue-surfaces.ts`：侧栏浏览器的驱动（local-host `browser/surface-driver.ts`，CDP）按会话挂到业务轮次；规则=观察允许、每种动作各自问、用户允许的网站 approved（上传永远问）、禁止的网站 deny；脱敏器只放行驱动遮蔽过的截图；审批卡中文、输入文字显示全文 | 业务轮次在项目有侧栏浏览器时得到三件工具（只读轮次只能看；页面被另一项工作占用时不给并说明；设置可整体关闭） | — | 🟡 已接入并有 SDK 与真 Chrome 证据（specs/side-panel §7）；SDK 补丁 `feat/molis-side-panel-surfaces`：app 模式放行、文字观察进模型、ask 时等批准、等批准时间不计入新鲜期、`forget`、输入文字作审查正文。桌面其他应用不接（specs/side-panel D02） |
+| `surfaces`（UiControl：`surface-list/observe/act`、按 origin 的规则、截图脱敏、`attach(owner)`、`effects.remember/forget`） | Agent Host `prologue-surfaces.ts`：侧栏浏览器的驱动（local-host `browser/surface-driver.ts`，CDP）按会话挂到业务轮次；规则=观察允许、每种动作各自问、用户允许的网站 approved（上传永远问）、禁止的网站 deny；脱敏器只放行驱动遮蔽过的截图；审批卡中文、输入文字显示全文；Coding 执行规则不再对界面效果与 surface-* 工具一律「问」（否则看也被拦、允许过的网站也照问） | 业务轮次在项目有侧栏浏览器时得到三件工具（只读轮次只能看；页面被另一项工作占用时不给并说明；设置可整体关闭） | — | 🟡 已接入并有 SDK 与真 Chrome 证据（specs/side-panel §7）；SDK 补丁 `feat/molis-side-panel-surfaces`：app 模式放行、文字观察进模型、ask 时等批准、等批准时间不计入新鲜期、`forget`、输入文字作审查正文、Character 绑定界面工具同样放行、空白页 scope 为 `about:blank`。真实模型（MiniMax-M3）已跑通：空白页→确认打开→确认点击（选了「这个网站以后不用问」）→答对新页标题。桌面其他应用不接（specs/side-panel D02） |
 
 ## 14. Workspace、文件、命令、检查点与回退
 
@@ -167,16 +167,17 @@
 
 ## 缺口汇总（属于目标范围、尚未接通）
 
-按对完整度的影响排序：
+2026-09-30 更新。按对完整度的影响排序：
 
-1. 记忆的 Character 维度（明确要求的个人／项目记忆、待认可的经验候选已接通）。
-2. 助理的 Skill（插件方法）与 SDK Subagent：均被 app 模式拒绝；已分别由 Host 登记的插件方法（P5 第三片）与 Host 委托子任务（P9）替代实现。
-3. 按工作的预算（每日上限已接通）。
-4. 语音（PDF 附件与图片输入已接通）。
-5. 会话分支、受控导出、跨会话搜索（后者待“系统级搜索”合入）。
-6. SDK Refine 与真实“评审—补改—复查”循环。
-7. MCP 资源／Prompt、MCP Elicitation、SDK Functions、网页检索与来源摄取。
-8. 装配与版本诊断（`capabilityReport`、`ledgerFailures`）给开发者看。
-9. Prologue 缺口：结果未知的修改只能凭执行回执或“确认没发生”收口。
+1. 助理的 Skill（插件方法）与 SDK Subagent：均被 app 模式拒绝；已分别由 Host 登记的插件方法（P5 第三片）与 Host 委托子任务（P9）替代实现并实测。
+2. 界面观察与计算机操作（`surfaces`）：本分支未接，平台侧栏分支在接（见第 12、13 节）。
+3. 语音（PDF 附件与图片输入已接通）。
+4. 会话分支、受控导出、会话目标；系统级搜索已合入（按对象检索），会话历史本身的检索未接。
+5. SDK Refine（业务工作的评审—补改—复查已由 Host 委托实现并实测，AC16）。
+6. MCP 资源／Prompt、MCP Elicitation、SDK Functions、网页检索与来源摄取。
+7. 装配与版本诊断（`capabilityReport`、`assembly`、`ledgerFailures`）给开发者看：数据在运行时里都有，缺一个开发者诊断页；设置页正由页面动线会话调整，等它合入后再加，避免冲突。
+8. Prologue 缺口：结果未知的修改只能凭执行回执或“确认没发生”收口。Host 已补“交给插件的那一刻记一笔”，停止先于发出的修改如实显示“没有执行”（e58b1e6e）；真正发出后没回执的仍是“结果未确认”。
 
-以上缺口都未标为“不适用”；标“不适用”的只有：SDK Goals（业务 Goal 归插件）、SDK Artifacts／collections／migrate（业务成果与主数据归模块）、助理的目录与命令（按设计由 Coding 承担）、heartbeats（到点执行已由持久队列承担）。
+已从缺口移出：按工作的预算（25c1c711，已实测）；记忆的 Character 维度（按推荐不另设角色专用记忆库，角色轮次受同一组开关约束，AC34 实测；记忆整体迁到平台记忆服务 feature/memory-system）。
+
+标“不适用”的只有：SDK Goals（业务 Goal 归插件）、SDK Artifacts／collections／migrate（业务成果与主数据归模块）、助理的目录与命令（按设计由 Coding 承担）、heartbeats（到点执行已由持久队列承担）。

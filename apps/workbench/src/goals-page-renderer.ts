@@ -3,9 +3,9 @@ import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionV
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperationsSlice } from "@molis-ai/molis-work-plugin-work";
 
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
-import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderAccountGlobalItems, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
+import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { PERSONAL_PLUGIN_IDS, sideEntries } from "./plugin-catalog.js";
-import { renderPersonalMenuItems, renderPluginRailAccountFooter, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
+import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
@@ -148,7 +148,6 @@ function renderMolisWorkWeb(
   const projectOperations = renderProjectOperations(view.project
     ? { project_id: view.project.project_id, display_name: view.project.display_name }
     : null, projectOperationsData);
-  const desktopAccountFooter = renderPluginRailAccountFooter(primitives);
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, view.hidden_plugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/` || "/")}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const pluginEnabled = (id: string) => enabledPlugins.includes(id);
@@ -232,7 +231,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       ${renderWorkbenchBar(primitives, {
         enabled: enabledPlugins,
         rail: renderPluginRail(primitives, enabledPlugins, "", "", view.plugin_rail),
-        accountFooter: desktopAccountFooter.replace("<!-- account-global-items -->", renderAccountGlobalItems(primitives, enabledPlugins)),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
         sideTabs: sideEntries(enabledPlugins).map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title,
           icon: (side.icon ?? "package") as PageIcon, src: `${view.route_prefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` })),

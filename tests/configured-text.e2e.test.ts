@@ -56,8 +56,8 @@ for (const width of [1440, 390]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-    await waitFor("document.querySelector('[data-assistant-island] [data-plugin-id=lingguang]')");
-    await click('[data-assistant-island] [data-plugin-id=lingguang]');
+    await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')");
+    await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
     await waitFor("document.body.dataset.desktopSurface === 'lingguang'");
     await click('[data-lingguang-capture]');
     await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'");

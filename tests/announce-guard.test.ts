@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { announcesWithoutActing, claimsButton, claimsMemoryChange, internalIdsHeld, mentionsInternalIds, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
+import { GUARDED_TOOL_NAMES, announcesWithoutActing, claimsButton, claimsMemoryChange, internalIdsHeld, mentionsInternalIds, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
 
 test("an ending that only announces the next step is recognised; results, questions and blockers are not", () => {
   // Seen from MiniMax-M3 in real Coding rounds that then ended with nothing done.
@@ -81,4 +81,15 @@ test("a reply that shows internal identifiers is recognised; titles, file names 
     assert.deepEqual(mentionsInternalIds(text, known), [], text);
   }
   assert.match(internalIdsHeld(["pages.create"]), /pages\.create/);
+});
+
+test("the guards know every tool a business round can be given, the side panel's browser and the runtime's own included", () => {
+  for (const name of ["surface-list", "surface-observe", "surface-act", "find-tools", "context-remaining", "stop-delegated-work", "change-reversible", "suggest-memory"]) {
+    assert.ok(GUARDED_TOOL_NAMES.includes(name), name);
+  }
+  assert.deepEqual(mentionsInternalIds("我用 surface-act 在侧栏里点了“提交”。"), ["surface-act"]);
+  assert.deepEqual(mentionsInternalIds("先用 surface-observe 看了一眼页面，表单已经填好。"), ["surface-observe"]);
+  assert.equal(writesToolCallAsText("[surface-act]\naction: click\n[/surface-act]"), true);
+  // Words about the browser are not identifiers.
+  assert.deepEqual(mentionsInternalIds("我在侧栏浏览器里查看了这个网页，还没有点任何按钮。"), []);
 });

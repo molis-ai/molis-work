@@ -2435,7 +2435,8 @@ export class AssistantService {
     return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character } } : {}),
       materials: round.materials.map(({ text: _text, ...rest }) => rest),
       phase: view?.phase ?? "unknown", turns: spokenTurns(view?.turns ?? []), activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
-      ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}), ended_at: view?.ended_at ?? null };
+      ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}),
+      ...(view?.todo?.length ? { steps: view.todo.map(({ id, text, state }) => ({ id, text, state })) } : {}), ended_at: view?.ended_at ?? null };
   }
 
   private publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {

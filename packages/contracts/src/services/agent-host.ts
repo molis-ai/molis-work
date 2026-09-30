@@ -796,6 +796,13 @@ export interface AgentPendingQuestion {
   unavailable_reason?: string;
 }
 
+/** One step of a Run's own list, as the runtime keeps it. */
+export interface AgentTodoItem {
+  id: string;
+  text: string;
+  state: "pending" | "in-progress" | "done" | "abandoned";
+}
+
 export interface AgentRunView {
   step_board?: AgentStepBoard;
   step_board_error?: string;
@@ -819,6 +826,8 @@ export interface AgentRunView {
   stop_reason?: string;
   /** What the Run took from memory at its start (references only), when it was given memory. */
   memory_recalled?: AgentMemoryRecallFact;
+  /** The steps this Run keeps for itself (the runtime's todo list), the latest list as a whole; absent when it keeps none. */
+  todo?: readonly AgentTodoItem[];
   started_at: string;
   ended_at: string | null;
 }

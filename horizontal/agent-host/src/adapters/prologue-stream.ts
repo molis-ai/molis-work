@@ -7,6 +7,7 @@ import type {
   AgentRunUsage,
   AgentUsageCoverage,
   AgentToolActivity,
+  AgentTodoItem,
   AgentTurnView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -94,6 +95,8 @@ export interface PrologueStreamState {
   continuing?: true;
   /** What the Run took from memory at its start (the runtime's own event: references and versions only). */
   memory_recalled?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryRecallFact;
+  /** The Run's own step list as the runtime last replaced it. */
+  todo?: AgentTodoItem[];
 }
 
 export function emptyPrologueStreamState(): PrologueStreamState {
@@ -473,6 +476,15 @@ export function applyPrologueEvent(
       state.memory_recalled = { method: recalled.method === "recall" ? "recall" : "pinned",
         injected: (recalled.injected ?? []).map(one => ({ memory_id: one.id, version: one.version })),
         omitted: (recalled.omitted ?? []).map(one => ({ memory_id: one.id, version: one.version })), unavailable: [...(recalled.unavailable ?? [])] };
+      return true;
+    }
+
+    // The Run replaced its own step list (update-todo): the latest list stands as a whole, as the runtime keeps it.
+    case "todo-changed": {
+      const items = (event as unknown as { items?: ReadonlyArray<{ id?: unknown; text?: unknown; state?: unknown }> }).items ?? [];
+      const states = new Set<AgentTodoItem["state"]>(["pending", "in-progress", "done", "abandoned"]);
+      state.todo = items.flatMap(item => typeof item.id === "string" && typeof item.text === "string" && states.has(item.state as AgentTodoItem["state"])
+        ? [{ id: item.id, text: item.text, state: item.state as AgentTodoItem["state"] }] : []);
       return true;
     }
 

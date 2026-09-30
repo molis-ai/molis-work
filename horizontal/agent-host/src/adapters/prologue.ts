@@ -837,6 +837,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       })),
       stop_reason: stopReason,
       ...(record.state.memory_recalled ? { memory_recalled: structuredClone(record.state.memory_recalled) } : {}),
+      ...(record.state.todo?.length ? { todo: record.state.todo.map(item => ({ ...item })) } : {}),
       ...(stampTerminal && isEnded(phase) && record.view.ended_at === null
         ? { ended_at: record.observedEndAt ?? this.#now().toISOString() }
         : {}),

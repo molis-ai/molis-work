@@ -113,8 +113,8 @@ test("real Host: the file tab lists and previews plugin files through the action
     assert.deepEqual(listed.map(entry => entry.title), ["周报草稿"]);
     const preview = await get(`/api/side/files/content?source=${encodeURIComponent(pages.id)}&kind=pages_document&id=${encodeURIComponent(listed[0]!.subject.id)}&media_type=text/markdown`);
     assert.equal(preview.status, 200, JSON.stringify(preview.body));
-    assert.equal(preview.body.via, "reader", "Pages declares no preview action: its subject reader supplies the text");
-    assert.match(preview.body.content.data, /完成侧栏/u);
+    assert.equal(preview.body.via, "content", "Pages previews its own Markdown");
+    assert.match(preview.body.content.data, /^# 周报草稿\n[\s\S]*- 完成侧栏/u);
 
     // A plugin nobody told the Host about: its declarations alone put its files in the panel.
     const entries = defineFileEntriesAction("newcomer.files.entries", [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);

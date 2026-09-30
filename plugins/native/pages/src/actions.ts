@@ -1,6 +1,6 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash } from "node:crypto";
-import { ActionError, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileEntriesAction, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesFolder, PagesRecord, PagesInputSnapshot, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_AI_COMMANDS, runPagesAi, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
@@ -9,7 +9,8 @@ import type { PagesStore } from "./store.js";
 import { generatePagesFromMaterials } from "./generate.js";
 import { pagesTemplateSummaries } from "./templates.js";
 import { convertImportContent } from "./import-content.js";
-import { pagesSchema } from "./schema.js";
+import { pagesSchema, nodeFromUnknown } from "./schema.js";
+import { nodesToMarkdown } from "./to-markdown.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, pattern: "\\S" };
@@ -51,6 +52,8 @@ export const pagesActions = {
   searchEntries: defineSearchEntriesAction("pages.search.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "文档", read),
   /** The side panel's file tab (specs/side-panel): documents by folder; the preview reads the same `subject` text. */
   fileEntries: defineFileEntriesAction("pages.files.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read),
+  /** The document as Markdown, the same conversion Pages uses when it hands a page to another plugin. */
+  fileContent: defineFileContentAction("pages.files.content", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read),
   /** Where a document lives (specs/work-placement): moving keeps its id; copying makes an independent document. */
   move: defineObjectMoveAction("pages.placement.move", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
   copy: defineObjectCopyAction("pages.placement.copy", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
@@ -127,6 +130,15 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
         subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档",
         folder: document.folder_id && folders.get(document.folder_id) ? [folders.get(document.folder_id)!] : [], media_type: "text/markdown",
         size: null, updated_at: document.updated_at, open: { surface: "pages", id: document.id } }));
+    })),
+    bind(pagesActions.fileContent, (input, caller) => ports.withStore(store => {
+      let document: PagesRecord;
+      try { document = store.get(input.subject.id, project(caller)); }
+      catch (error) { throw (error as { code?: string }).code === "pages.not_found" ? new ActionError("pages.not_found", "文档不存在或已删除") : error; }
+      const nodes: Array<Parameters<typeof nodesToMarkdown>[0][number]> = [];
+      nodeFromUnknown(document.body).forEach(node => { nodes.push(node); });
+      const title = document.title || "未命名文档";
+      return fileContentOf({ subject: input.subject, revision: String(document.version), title, media_type: "text/markdown", text: `# ${title}\n\n${nodesToMarkdown(nodes).trim()}\n` });
     })),
     bindObjectMoveHandler(pagesActions.move, input => ports.withStore(store => {
       const document = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);

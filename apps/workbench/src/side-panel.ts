@@ -47,7 +47,7 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
 }
 
 export const SIDE_PANEL_STYLES = String.raw`
-html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:calc(var(--side-panel-width,35vw) + 8px)}
+html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:calc(var(--side-panel-width,35vw) + 16px)}
 html body.immersive-workbench .side-panel{position:fixed;display:flex;flex-direction:column;inset:var(--desktop-titlebar-height,32px) 8px calc(var(--dock-h,48px) + 8px) auto;width:var(--side-panel-width,35vw);z-index:10;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:none;animation:none;opacity:0;transform:translateX(24px);transition:opacity var(--dur-move) var(--ease-quint),transform var(--dur-arrive) var(--ease-quint);pointer-events:none;container:side-panel/inline-size}
 html body.immersive-workbench .side-panel[hidden]{display:none}
 html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transform:none;pointer-events:auto}

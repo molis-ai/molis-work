@@ -20,8 +20,9 @@ const changed = object({ presentation: record }), identity = { id, expected_vers
 const read = ["ppt:read"], write = ["ppt:read", "ppt:write"];
 type Identity = { id: string; expected_version?: number };
 type Edit = Identity & { title?: string; description?: string; color_primary?: string; color_background?: string; color_text?: string; slides?: readonly PptSlideInput[] };
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write): ActionDefinition<I, O> {
-  return { capability_id: `ppt.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["ppt"], input_schema: input, output_schema: output, permissions } };
+function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
+  // An action that waits on a model discloses the cost and runs beside the serial queue, like Forms' AI drafting.
+  return { capability_id: `ppt.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["ppt"], input_schema: input, output_schema: output, permissions, ...(name === "outline_ai" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const pptActions = {
   list: define<Record<string, never>, { presentations: PptRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "演示稿列表", "读取当前项目的演示稿，以及当前调用方能否让模型整理大纲", "query", object({}),
@@ -41,7 +42,7 @@ export const pptActions = {
     object({ ...identity, text: { ...text, minLength: 1, maxLength: 20000 }, replace: { type: "boolean" } }, ["id", "text"]), object({ presentation: record, slide_count: { type: "integer", minimum: 1 } })),
   outlineAi: define<Identity & { text: string; replace?: boolean }, { presentation: PptRecord; slide_count: number }>("outline_ai", "AI 整理成大纲",
     "让当前文字模型把一段文字整理成幻灯片大纲，再按标题分页；模型失败、返回空或演示稿已变化时不写入", "command",
-    object({ ...identity, text: { ...text, minLength: 1, maxLength: 20000 }, replace: { type: "boolean" } }, ["id", "text"]), object({ presentation: record, slide_count: { type: "integer", minimum: 1 } }), [...write, "model:invoke"]),
+    object({ ...identity, text: { ...text, minLength: 1, maxLength: 20000 }, replace: { type: "boolean" } }, ["id", "text"]), object({ presentation: record, slide_count: { type: "integer", minimum: 1 } }), [...write, "model:invoke"], { cost: "metered" }),
   move: defineObjectMoveAction("ppt.placement.move", ["presentation"], "演示稿", write),
   copy: defineObjectCopyAction("ppt.placement.copy", ["presentation"], "演示稿", write),
   searchEntries: pptSearchActions.entries,

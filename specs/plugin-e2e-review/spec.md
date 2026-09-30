@@ -196,6 +196,7 @@
 ### 5.1 复查时发现、本次未做的
 
 - PPT 从 Pages 文档直接选材生成（现在是粘贴文字；选文档要跨插件读取，随侧栏 / 材料线做）。
+- 动态交互会话（feature/contextual-interaction）交接的三处插件侧缺口，留给后续：Feed 条目打开后没有用 `data-assistant-context` 声明当前对象；炼金术士的「方向」能被搜索列出但没有 `*.subject.read` 读取动作（个人空间列对象报「请选择项目」）；实验没有读取动作。证据在该分支 `specs/contextual-interaction/evidence/plugin-read-audit-2026-09-30.json`。
 - Goals 手机端工具条只有图标（筛选、三个视图切换）：属于 Goals 目录的既有设计，本次没动。
 - Sessions 不在本演示项目的切换器里：是该项目把它设为隐藏（`hidden_plugins`），入口机制本身正常。
 - 工作流程列表首屏 3–7 秒、Feed 首条详情慢：在本机并行截图时测得，空闲时复测要另做。

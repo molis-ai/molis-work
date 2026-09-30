@@ -255,6 +255,16 @@ export interface AssistantRound {
   turns: AgentTurnView[];
   activity: AssistantActivity[];
   awaiting_input: readonly AgentPendingQuestion[];
+  /**
+   * The step list the round keeps as it goes (the runtime's update-todo, its latest version): what the Agent means to
+   * do, shown as a checklist. It has no authority — what happened is in the activity and the objects.
+   */
+  steps?: Array<{ id: string; text: string; state: "pending" | "in-progress" | "done" | "abandoned" }>;
+  /** Which memories this round was given, and which the budget left out (the memory service's own account). */
+  memories_used?: {
+    used: Array<{ memory_id: string; scope: "personal" | "project"; text: string; origin?: string }>;
+    omitted: Array<{ memory_id: string; scope: "personal" | "project"; text: string; reason: "budget" | "limit"; origin?: string }>;
+  };
   usage?: AgentRunUsage;
   stop_reason?: string;
   ended_at: string | null;
@@ -370,6 +380,9 @@ export interface AssistantWorkView {
   undoable?: AssistantUndoable[];
   /** What this work suggests keeping, waiting for the person. */
   memory_candidates?: AssistantMemoryCandidate[];
+  /** What this work kept in memory (asked for, kept on its own, or replacing an older one), from the memory service. */
+  memory_changes?: Array<{ change_id: string; kind: "kept" | "auto_kept" | "replaced"; memory_id: string; scope: "personal" | "project"; text: string;
+    undoable: boolean; state: "active" | "undone"; at: string; project_id?: string }>;
   /** Background work this work started in plugins, and how each stands. */
   jobs?: AssistantBackgroundJob[];
   /**

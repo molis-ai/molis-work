@@ -147,31 +147,41 @@ export function renderAccountGlobalItems(primitives: ImmersiveShellPrimitives, e
 const BAR_RESIDENT_IDS = ["shelf", "lingguang"];
 
 /**
- * The bottom bar replaces the rail. Left: the Dock menu (the market, the plugin studio, which plugins stay
- * in the Dock) and the plugins chosen to stay. Centre: the resident Assistant, with the plugin switcher in
- * front of it. Right: Shelf and 灵光, the project's discussion (one click opens group and direct chat beside the
- * work), then the project as a round button whose menu holds the project and the person — switching, settings,
- * capabilities. The project's navigation lives in the switcher, so every plugin keeps its entry.
+ * The bottom bar replaces the rail. Left, where you go: the switcher — it names where you are (one chip per pane
+ * when split) and opens search and every entry of the project, with the Dock's own settings at its foot (the market,
+ * the plugin studio, which plugins stay in the Dock) — then the plugins chosen to stay. Centre: the resident Assistant, only an
+ * input. Right: Shelf and 灵光, the project's discussion (one click opens group and direct chat beside the work), then
+ * the project as a round button whose menu holds the project and the person — switching, search, settings, capabilities.
  */
 export function renderWorkbenchBar(
   primitives: ImmersiveShellPrimitives,
-  parts: { rail: string; accountFooter: string; projectChrome: string; enabled: readonly string[] },
+  parts: { rail: string; projectChrome: string; enabled: readonly string[] },
 ): string {
   const { L, icon } = primitives;
   const collapse = `<button class="dock-window-action" type="button" data-dock-collapse aria-label="${L("最小化")}" title="${L("最小化")}">${icon("chevron-down")}</button>`;
   const known = [...directoryPlugins(parts.enabled), ...islandPlugins(parts.enabled)];
   const residents = BAR_RESIDENT_IDS.map(id => known.find(plugin => plugin.id === id)).filter(plugin => plugin !== undefined)
     .map(plugin => `<button class="bar-resident" type="button" data-bar-resident="${plugin.id}" data-craft-tip="${plugin.label}" aria-label="${L("切换到插件")}：${plugin.label}">${icon(plugin.glyph)}</button>`).join("");
+  // The Dock's own settings sit at the foot of the full list, where the plugins they are about are.
+  const dockSettings = `<footer class="personal-sidebar-footer">
+          <section class="account-global-popover dock-settings" data-global-menu aria-label="${L("Dock 与插件")}">
+            ${renderAccountGlobalItems(primitives, parts.enabled)}
+            <p class="account-global-heading">${L("常驻在 Dock")}</p>
+            <div class="dock-choices" data-dock-choices role="group" aria-label="${L("常驻在 Dock")}"></div>
+          </section>
+        </footer>`;
   return `<div class="workbench-bar" data-dock aria-label="${L("底栏")}">
     <div class="bar-start">
-      ${parts.accountFooter}
+      <div class="plugin-picker" data-plugin-picker>
+        <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${L("全部插件与 Dock")}" title="${L("全部插件与 Dock")}"><span class="plugin-picker-all" aria-hidden="true">${icon("grid")}</span><span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${L("项目首页")}</span></span>${icon("chevron-up")}</button>
+        <div class="plugin-picker-popover" data-plugin-picker-popover hidden>
+          <button class="plugin-picker-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}<span>${L("搜索")}</span><kbd>⌘K</kbd></button>
+          ${parts.rail}${dockSettings}
+        </div>
+      </div>
       <div class="dock-pins" data-dock-pins role="toolbar" aria-label="${L("常驻插件")}"></div>
     </div>
-    ${renderAssistantDock(primitives, { search: true, picker: `        <div class="plugin-picker" data-plugin-picker>
-          <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${L("切换插件")}" title="${L("切换插件")}"><span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${L("项目首页")}</span></span>${icon("chevron-up")}</button>
-          <div class="plugin-picker-popover" data-plugin-picker-popover hidden>${parts.rail}</div>
-        </div>
-` })}
+    ${renderAssistantDock(primitives)}
     <div class="bar-end">
       ${residents ? `<div class="bar-residents" role="toolbar" aria-label="${L("常驻插件")}">${residents}</div>` : ""}
       <button class="bar-chat" type="button" data-dock-toggle="im" aria-expanded="false" aria-controls="dock-window-im" data-craft-tip="${L("项目讨论")}" aria-label="${L("项目讨论")}">${icon("message")}</button>

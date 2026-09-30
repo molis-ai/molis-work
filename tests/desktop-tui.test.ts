@@ -602,9 +602,10 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
       assert.match(pluginStrip, new RegExp(`data-plugin-id="${plugin}"`));
     }
     assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="sessions"/);
-    // No rail: one bar at the foot. The Dock menu and the Dock; the Assistant with the plugin switcher, which holds
-    // the project's entries; Shelf and 灵光 beside it; then the project, whose menu opens group chat and holds the person.
-    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-global-menu[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island>[\s\S]*data-plugin-picker-toggle[\s\S]*class="plugin-rail-items"[\s\S]*data-assistant-input[\s\S]*<div class="bar-end">[\s\S]*data-bar-resident="shelf"[\s\S]*data-bar-resident="lingguang"[\s\S]*class="bar-chat"[^>]*data-dock-toggle="im"[\s\S]*data-dock-window="im"[\s\S]*data-project-menu/);
+    // No rail: one bar at the foot. At its left the switcher, which holds the project's entries with the Dock's own
+    // settings at their foot, then the Dock; the Assistant is only an input; Shelf and 灵光; then the project, whose
+    // menu opens group chat and holds the person.
+    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-plugin-picker-toggle[\s\S]*class="plugin-rail-items"[\s\S]*data-global-menu[\s\S]*data-dock-choices[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island>[\s\S]*data-assistant-input[\s\S]*<div class="bar-end">[\s\S]*data-bar-resident="shelf"[\s\S]*data-bar-resident="lingguang"[\s\S]*class="bar-chat"[^>]*data-dock-toggle="im"[\s\S]*data-dock-window="im"[\s\S]*data-project-menu/);
     assert.doesNotMatch(browser, /class="plugin-stack"|class="workbench-dock"|data-navigation-labels-toggle/);
     assert.doesNotMatch(pluginStrip, /返回项目目录/);
     assert.doesNotMatch(pluginStrip, /data-plugin-section=|data-plugin-expand=/);

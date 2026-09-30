@@ -40,6 +40,18 @@ test("Alchemist unified operations preserve direction → cards → research →
   await assert.rejects(call(a.cardKeep, { id: exploration.cards[0]!.id }), { code: "IDEA_CARD_ALREADY_KEPT", details: { recovery: "打开已有 Idea 继续查看。", ideaId: id } });
   assert.equal((await call(a.cardGet, { id: exploration.cards[0]!.id })).kind, "idea_redirect");
   assert.equal((await call(a.ideaGet, { id, version: 1 })).version.content.title, "证据卡");
+  // What search lists can be read back (contextual-interaction plugin-read audit): the direction with its kept Ideas, and the Idea's current version.
+  const directionContext = await call(a.directionContext, { subject_id: direction.id });
+  assert.equal(directionContext.title, "修改后的方向");
+  assert.match(directionContext.content, /让独立创始人整理访谈中的真实证据[\s\S]*已保留的 Idea：\n- 证据卡/);
+  assert.deepEqual(directionContext.open, { surface: "alchemist", id: direction.id });
+  const ideaContext = await call(a.ideaContext, { subject_id: id });
+  assert.equal(ideaContext.title, "证据卡");
+  assert.match(ideaContext.revision, /^1:/);
+  assert.match(ideaContext.content, /第 1 版/);
+  assert.deepEqual(ideaContext.open, { surface: "alchemist", id });
+  await assert.rejects(call(a.directionContext, { subject_id: "missing" }), { code: "DIRECTION_NOT_FOUND" });
+  await assert.rejects(call(a.ideaContext, { subject_id: "missing" }), { code: "IDEA_NOT_FOUND" });
   assert.equal((await call(a.models, {})).models[0]!.id, f.model.id);
   await call(a.settingsUpdate, { modelId: f.model.id, modelPolicy: "fixed", defaultBudgets: { marketSpace: { kind: "calls", limit: 3 }, buildCost: { kind: "calls", limit: 3 } } });
   assert.equal((await call(a.settingsVerify, {})).configured, true); assert.equal((await call(a.settingsGet, {})).modelId, f.model.id);

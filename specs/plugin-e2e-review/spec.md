@@ -196,7 +196,7 @@
 ### 5.1 复查时发现、本次未做的
 
 - PPT 从 Pages 文档直接选材生成（现在是粘贴文字；选文档要跨插件读取，随侧栏 / 材料线做）。
-- 动态交互会话（feature/contextual-interaction）交接的三处插件侧缺口：~~Feed 条目打开后没有用 `data-assistant-context` 声明当前对象~~（2026-09-30 在 feature/feed-assistant-context 补上：打开条目声明 `{ kind: "feed_item", id: item_id, title, version }`，收起时去掉对象）；仍留给后续：炼金术士的「方向」能被搜索列出但没有 `*.subject.read` 读取动作（个人空间列对象报「请选择项目」）；实验没有读取动作。证据在该分支 `specs/contextual-interaction/evidence/plugin-read-audit-2026-09-30.json`。
+- 动态交互会话（feature/contextual-interaction）交接的三处插件侧缺口：~~Feed 条目打开后没有用 `data-assistant-context` 声明当前对象~~（2026-09-30 在 feature/feed-assistant-context 补上：打开条目声明 `{ kind: "feed_item", id: item_id, title, version }`，收起时去掉对象）；炼金术士「方向」与实验的读取动作也已补上（feature/alchemist-experiments-subject-read：`alchemist.direction.subject.read`、`alchemist.idea.subject.read`、`experiments.subject.read`；实验的读取与 `results` 同一边界，只给名称、状态与各模型指标）。个人空间里新建方向报「请选择项目」是有意的：炼金术士的研究、预算与来源按项目存。
 - Goals 手机端工具条只有图标（筛选、三个视图切换）：属于 Goals 目录的既有设计，本次没动。
 - Sessions 不在本演示项目的切换器里：是该项目把它设为隐藏（`hidden_plugins`），入口机制本身正常。
 - 工作流程列表首屏 3–7 秒、Feed 首条详情慢：在本机并行截图时测得，空闲时复测要另做。

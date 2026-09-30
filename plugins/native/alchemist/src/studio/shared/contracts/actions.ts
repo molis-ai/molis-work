@@ -110,6 +110,19 @@ export const alchemistOperations = {
     input: z.object({ cursor: z.string().nullable(), limit: z.number().int().min(1).max(500) }).strict(),
     output: z.object({ entries: z.array(z.object({ subject: z.object({ kind: z.string(), id: z.string() }) }).passthrough()), next_cursor: z.string().nullable(), collection_revision: z.string() }),
   },
+  /** Readers for the two kinds search lists, so a result or the open page can be read back by the Assistant and callers. */
+  directionContext: {
+    definition: defineSubjectContextAction("alchemist.direction.subject.read", "alchemist-direction", "探索方向", ["alchemist:read"]),
+    input: object({ subject_id: id }),
+    output: object({ subject: object({ kind: z.literal("alchemist-direction"), id }), revision: id, title: text, content: text, truncated: z.boolean(), goal_ids: strings, session_id: z.null(),
+      open: object({ surface: z.literal("alchemist"), id }) }),
+  },
+  ideaContext: {
+    definition: defineSubjectContextAction("alchemist.idea.subject.read", "alchemist-idea", "Idea", ["alchemist:read"]),
+    input: object({ subject_id: id }),
+    output: object({ subject: object({ kind: z.literal("alchemist-idea"), id }), revision: id, title: text, content: text, truncated: z.boolean(), goal_ids: strings, session_id: z.null(),
+      open: object({ surface: z.literal("alchemist"), id }) }),
+  },
   playbookContext: {
     definition: defineSubjectContextAction("alchemist.playbook.context", "alchemist-playbook", "已确认研究方法", ["alchemist:read"]),
     input: object({ subject_id: id }),

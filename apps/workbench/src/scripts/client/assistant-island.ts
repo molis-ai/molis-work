@@ -1,3 +1,5 @@
+import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
+
 /**
  * The resident Assistant in the bottom bar: one assistant, many works.
  *
@@ -34,6 +36,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const newButton = island.querySelector("[data-assistant-new]");
   if (!composer || !input || !send || !thread || !target) return null;
   const project = host.project && host.project.id ? host.project : null;
+  // Search opens with ⌘K (Ctrl K elsewhere); a touch screen has no key to name.
+  const searchKey = () => !document.querySelector("[data-global-search-open], [data-global-search-dialog]") || (window.matchMedia && window.matchMedia("(hover: none)").matches) ? ""
+    : /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
   const BT = String.fromCharCode(96);
   const FENCE = BT + BT + BT;
   const STATE_LABELS = { idle: "尚未开始", running: "进行中", "waiting-input": "等你回答", "waiting-review": "等你确认", paused: "已暂停",
@@ -148,6 +153,19 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }).catch(() => { characterCache.set(key, { at: Date.now(), choices: [] }); });
     return held ? held.choices : null;
   };
+  // The side panel's browser: the person took it over, or handed it back to the work whose session drives it.
+  const browserHeld = new Set();
+  const holderOf = (session) => typeof session === "string" && session
+    ? works.find((work) => work.session_id === session || (work.executor && work.executor.session_id === session)) : null;
+  document.addEventListener("molis:side-browser-control", (event) => {
+    const detail = event.detail || {}, holder = holderOf(detail.session_id);
+    if (!holder) return;
+    if (detail.action === "takeover") { browserHeld.add(holder.work_id); paintSummary(); return; }
+    if (detail.action !== "handback") return;
+    browserHeld.delete(holder.work_id); paintSummary();
+    api("/send", "POST", { work_id: holder.work_id, request_id: crypto.randomUUID(), text: L("我把浏览器交还给你了，先重新观察页面再继续") })
+      .then(() => refresh()).then(schedule).catch((error) => host.showToast?.(error.message));
+  });
   // A surface says the person changed something there that this work may show: read the work again.
   window.addEventListener("molis:assistant-surface-changed", (event) => {
     const detail = event.detail || {}, work = currentWork();
@@ -208,7 +226,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       // A new work needs no chip: where it lives and who does it are in “+”; the input says the rest.
       if (targetWrap) { targetWrap.dataset.mode = "new"; targetWrap.hidden = true; }
     }
-    input.placeholder = work ? L("补充、回答或纠正…") : newExecutor === "coding" ? L("让 Coding Agent 做点什么…") : L("让助理做点什么…");
+    input.placeholder = work ? L("补充、回答或纠正…") : newExecutor === "coding" ? L("让 Coding Agent 做点什么…")
+      : searchKey() ? L("让助理做点什么，或按 {key} 搜索").replace("{key}", searchKey()) : L("让助理做点什么…");
     // A Coding work shows the mode its next round runs in — the session's own setting, the same one its page shows.
     if (modeButton) {
       // A new work that continues an open Coding session runs in that session's own mode, shown once it is the work's.
@@ -289,20 +308,30 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const SIDE_KEY = "molis.assistant.side";
   const wide = window.matchMedia ? window.matchMedia("(min-width: 1240px)") : { matches: true, addEventListener() {} };
   let drawerOpen = false;
-  const sideOpen = () => wide.matches ? store.get(SIDE_KEY) !== "closed" : drawerOpen;
+  // The platform side panel takes the window's right edge (body[data-side-open], --side-panel-width): what is left decides.
+  const sideWidth = () => document.body.dataset.sideOpen === "true" ? parseFloat(getComputedStyle(document.body).getPropertyValue("--side-panel-width")) || 0 : 0;
+  const spacious = () => wide.matches && window.innerWidth - sideWidth() >= 1240;
+  const sideOpen = () => spacious() ? store.get(SIDE_KEY) !== "closed" : drawerOpen;
   const paintLayout = () => {
     if (!panel) return;
-    panel.dataset.layout = wide.matches ? "split" : "drawer";
+    panel.dataset.layout = spacious() ? "split" : "drawer";
     panel.dataset.side = sideOpen() ? "open" : "closed";
     sideToggle?.setAttribute("aria-expanded", String(sideOpen()));
     island.toggleAttribute("data-side-shown", !panel.hidden && sideOpen());
+    const anchor = !panel.hidden && sideWidth() ? panel.offsetParent : null;
+    if (anchor) panel.style.setProperty("--assistant-room", Math.round(window.innerWidth - sideWidth() - 12 - anchor.getBoundingClientRect().right) + "px");
+    else panel.style.removeProperty("--assistant-room");
   };
   sideToggle?.addEventListener("click", () => {
-    if (wide.matches) store.set(SIDE_KEY, sideOpen() ? "closed" : null); else drawerOpen = !drawerOpen;
+    if (spacious()) store.set(SIDE_KEY, sideOpen() ? "closed" : null); else drawerOpen = !drawerOpen;
     paintLayout();
     if (sideOpen()) side?.querySelector("button, select, summary")?.focus();
   });
   wide.addEventListener?.("change", () => { drawerOpen = false; paintLayout(); });
+  let spaciousBefore = spacious();
+  const sideChanged = () => { const now = spacious(); if (now !== spaciousBefore) { spaciousBefore = now; drawerOpen = false; } paintLayout(); };
+  if ("MutationObserver" in window) new MutationObserver(sideChanged).observe(document.body, { attributes: true, attributeFilter: ["data-side-open", "style"] });
+  window.addEventListener("resize", () => { if (sideWidth()) sideChanged(); });
 
   /* ─── Drafts: every work keeps its own unsent text ─────────────────────── */
   const saveDraft = (immediate) => {
@@ -326,50 +355,170 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (id === currentId) return;
     saveDraft(true);
     currentId = id; remember(); problem = null; view = null; pendingCharacter = undefined;
-    openTab(id); if (!wide.matches) drawerOpen = false;
+    openTab(id); if (!spacious()) drawerOpen = false;
     thread.querySelectorAll(":scope > [data-round], :scope > [data-review], :scope > .assistant-problem").forEach((node) => node.remove());
     loadDraft(); render(); paintLayout();
     if (panel) { panel.removeAttribute("data-arrive"); void panel.offsetWidth; panel.setAttribute("data-arrive", ""); }
     if (id) { await refresh(); schedule(); }
   };
 
-  /* ─── Text: the model's words as plain structure, never as markup ──────── */
+  /* ─── Showing a thing: the side panel previews it when it is there, otherwise it opens where it lives ─── */
+  // The side panel claims the request (preventDefault); unclaimed, the object opens in its own surface as before.
+  const sidePanelHere = () => document.body.hasAttribute("data-side-open");
+  const sidePreview = (target) => !document.dispatchEvent(new CustomEvent("molis:side-open", { detail: { tab: "files", target, focus: false }, cancelable: true }));
+  const showObject = (object) => {
+    if (sidePreview({ subject: object.subject, title: object.title, open: object.open })) return;
+    if (object.open && host.openItem) host.openItem(object.open.surface, object.open.id, object.title);
+  };
+
+  /* ─── Text: the model's words read as Markdown into text nodes — structure, never markup ─────────────── */
+  // Code is coloured with the Coding App's own tokenizer, carried as source: plain pieces with a kind, never HTML.
+  const codeLanguageOf = ${codeLanguage.toString()};
+  const tokensOf = ${codeTokens.toString()};
+  const LANGUAGE_NAME = { ts: "TypeScript", js: "JavaScript", json: "JSON", py: "Python", sh: "Shell", yaml: "YAML", html: "HTML", css: "CSS", go: "Go", rust: "Rust",
+    java: "Java", c: "C", sql: "SQL", diff: "Diff", markdown: "Markdown" };
+  /** A block of code: what language, how long, a copy button; long code folds after a screenful. */
+  const codeBlock = (code, hint) => {
+    const text = String(code || "").replace(/\n$/, "");
+    const guessed = /^\s*[\[{]/.test(text) && /[\]}]\s*$/.test(text) ? "json" : /^\s*\$ /.test(text) ? "sh" : /^(@@|\+\+\+|---) /m.test(text) ? "diff" : "";
+    const language = codeLanguageOf(hint || "") || guessed;
+    const lines = text.split("\n").length;
+    const figure = el("figure", "assistant-code"), head = el("figcaption", "assistant-code-head");
+    head.append(el("span", "assistant-code-lang", LANGUAGE_NAME[language] || hint || L("代码")), el("span", "assistant-code-lines", L("{n} 行").replace("{n}", String(lines))));
+    const copy = el("button", "assistant-code-copy", L("复制")); copy.type = "button";
+    copy.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(text); } catch { host.showToast?.(L("没能复制，请手动选中文字")); return; }
+      copy.textContent = L("已复制"); copy.dataset.done = "";
+      setTimeout(() => { copy.textContent = L("复制"); delete copy.dataset.done; }, 1400);
+    });
+    head.append(copy);
+    const pre = el("pre"), body = el("code");
+    const pieces = language && text.length <= 40000 ? tokensOf(text, language) : null;
+    if (pieces) body.append(...pieces.map(([kind, value]) => kind ? el("span", "tok-" + kind, value) : document.createTextNode(value)));
+    else body.textContent = text;
+    pre.append(body); figure.append(head, pre);
+    if (lines > 18) {
+      figure.setAttribute("data-folded", "");
+      const label = () => figure.hasAttribute("data-folded") ? L("展开全部 {n} 行").replace("{n}", String(lines)) : L("收起");
+      const more = el("button", "assistant-code-more", label()); more.type = "button";
+      more.addEventListener("click", () => { figure.toggleAttribute("data-folded"); more.textContent = label(); });
+      figure.append(more);
+    }
+    return figure;
+  };
+  const SAFE_LINK = /^(https?:\/\/|mailto:)/i;
+  const link = (label, href) => {
+    if (!SAFE_LINK.test(href)) return document.createTextNode(label);
+    const node = el("a", "assistant-link", label); node.href = href; node.target = "_blank"; node.rel = "noopener noreferrer";
+    return node;
+  };
+  // A name in 「…」 that this work knows (one of its objects) opens where it lives: the answer points at the thing itself.
+  const namedObject = (text) => {
+    const name = text.slice(1, -1);
+    const object = view && view.objects ? view.objects.find((one) => one.title === name && one.open) : null;
+    if (!object || !host.openItem) return document.createTextNode(text);
+    const button = el("button", "assistant-inline-object"); button.type = "button";
+    button.append(glyph(objectGlyph(object)), document.createTextNode(name));
+    button.setAttribute("aria-label", L("打开") + "：" + name);
+    button.addEventListener("click", () => showObject(object));
+    return button;
+  };
+  const INLINE = [BT + "[^" + BT + "]+" + BT, "\\*\\*[^*]+\\*\\*", "__[^_]+__", "~~[^~]+~~", "\\*[^*\\s][^*]*\\*", "(?<![\\w])_[^_\\s][^_]*_(?![\\w])",
+    "\\[[^\\]]+\\]\\([^)\\s]+\\)", "https?://[^\\s<>「」（）()，。；、]+", "「[^」]{1,80}」"].join("|");
   const inline = (parent, text) => {
-    const pattern = new RegExp("(\\*\\*[^*]+\\*\\*|" + BT + "[^" + BT + "]+" + BT + ")", "g");
+    const pattern = new RegExp(INLINE, "g");
     let last = 0, match;
     while ((match = pattern.exec(text))) {
       if (match.index > last) parent.append(document.createTextNode(text.slice(last, match.index)));
       const token = match[0];
-      parent.append(token.startsWith("**") ? el("strong", "", token.slice(2, -2)) : el("code", "", token.slice(1, -1)));
+      if (token.startsWith(BT)) parent.append(el("code", "", token.slice(1, -1)));
+      else if (token.startsWith("**") || token.startsWith("__")) { const node = el("strong"); inline(node, token.slice(2, -2)); parent.append(node); }
+      else if (token.startsWith("~~")) { const node = el("s"); inline(node, token.slice(2, -2)); parent.append(node); }
+      else if (token.startsWith("[")) { const at = token.indexOf("]("); parent.append(link(token.slice(1, at), token.slice(at + 2, -1))); }
+      else if (/^https?:/i.test(token)) parent.append(link(token, token));
+      else if (token.startsWith("「")) parent.append(namedObject(token));
+      else { const node = el("em"); inline(node, token.slice(1, -1)); parent.append(node); }
       last = match.index + token.length;
     }
     if (last < text.length) parent.append(document.createTextNode(text.slice(last)));
   };
+  const LIST_ITEM = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/;
+  /** A list, nested by indent; “[ ]” and “[x]” items read as a checklist. Returns where the list ended. */
+  const readList = (lines, start, parent) => {
+    const stack = [];
+    let index = start, lastItem = null;
+    while (index < lines.length) {
+      const line = lines[index];
+      if (!line.trim()) { if (index + 1 < lines.length && LIST_ITEM.test(lines[index + 1])) { index += 1; continue; } break; }
+      const match = LIST_ITEM.exec(line);
+      if (!match) {
+        if (lastItem && /^\s{2,}\S/.test(line)) { lastItem.append(el("br")); inline(lastItem, line.trim()); index += 1; continue; }
+        break;
+      }
+      const indent = match[1].replace(/\t/g, "  ").length, ordered = /\d/.test(match[2]);
+      while (stack.length && indent < stack[stack.length - 1].indent) stack.pop();
+      let top = stack[stack.length - 1];
+      if (!top || indent > top.indent) {
+        const list = el(ordered ? "ol" : "ul");
+        const number = Number(match[2].replace(/\D/g, ""));
+        if (ordered && number > 1) list.start = number;
+        (top && lastItem ? lastItem : parent).append(list);
+        stack.push(top = { indent, list });
+      }
+      const item = el("li"), task = /^\[( |x|X)\]\s+(.*)$/.exec(match[3]);
+      if (task) { item.className = "assistant-task" + (task[1] === " " ? "" : " is-done"); item.append(el("span", "assistant-task-box")); inline(item, task[2]); }
+      else inline(item, match[3]);
+      top.list.append(item); lastItem = item; index += 1;
+    }
+    return index;
+  };
   const rich = (text) => {
     const root = el("div", "assistant-rich");
-    const lines = String(text || "").split("\n");
-    let list = null, paragraph = null;
-    const close = () => { list = null; paragraph = null; };
-    for (let index = 0; index < lines.length; index += 1) {
+    const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+    const fencePattern = new RegExp("^\\s*(" + FENCE + "|~~~)");
+    const isFence = (line) => fencePattern.test(line);
+    const isRule = (line) => /^\s*([-*_])(\s*\1){2,}\s*$/.test(line);
+    const isTableAt = (at) => lines[at].includes("|") && at + 1 < lines.length && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(lines[at + 1]);
+    const cells = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+    const startsBlock = (at) => isFence(lines[at]) || LIST_ITEM.test(lines[at]) || /^#{1,6}\s/.test(lines[at]) || /^\s*>/.test(lines[at]) || isRule(lines[at]) || isTableAt(at);
+    let index = 0;
+    while (index < lines.length) {
       const line = lines[index];
-      if (line.trim().startsWith(FENCE)) {
-        const code = [];
+      if (!line.trim()) { index += 1; continue; }
+      if (isFence(line)) {
+        const mark = line.trim().slice(0, 3), hint = line.trim().slice(3).trim(), code = [];
         index += 1;
-        while (index < lines.length && !lines[index].trim().startsWith(FENCE)) { code.push(lines[index]); index += 1; }
-        const pre = el("pre"); pre.append(el("code", "", code.join("\n"))); root.append(pre); close(); continue;
+        while (index < lines.length && !lines[index].trim().startsWith(mark)) { code.push(lines[index]); index += 1; }
+        index += 1; root.append(codeBlock(code.join("\n"), hint)); continue;
       }
-      if (!line.trim()) { close(); continue; }
-      const heading = /^(#{1,4})\s+(.*)$/.exec(line);
-      if (heading) { const node = el("p", "assistant-rich-heading"); inline(node, heading[2]); root.append(node); close(); continue; }
-      const bullet = /^\s*(?:[-*•]|\d+[.)])\s+(.*)$/.exec(line);
-      if (bullet) {
-        const ordered = /^\s*\d/.test(line);
-        if (!list || list.tagName !== (ordered ? "OL" : "UL")) { list = el(ordered ? "ol" : "ul"); root.append(list); paragraph = null; }
-        const item = el("li"); inline(item, bullet[1]); list.append(item); continue;
+      const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+      if (heading) { const node = el(heading[1].length <= 1 ? "h3" : heading[1].length === 2 ? "h4" : "h5", "assistant-rich-heading"); inline(node, heading[2].replace(/\s+#+\s*$/, "")); root.append(node); index += 1; continue; }
+      if (isRule(line)) { root.append(el("hr")); index += 1; continue; }
+      if (/^\s*>/.test(line)) {
+        const quoted = [];
+        while (index < lines.length && /^\s*>/.test(lines[index])) { quoted.push(lines[index].replace(/^\s*>\s?/, "")); index += 1; }
+        const quote = el("blockquote"); quote.append(...rich(quoted.join("\n")).childNodes); root.append(quote); continue;
       }
-      if (!paragraph) { paragraph = el("p"); root.append(paragraph); list = null; }
-      else paragraph.append(el("br"));
-      inline(paragraph, line);
+      if (isTableAt(index)) {
+        const head = cells(line), aligns = cells(lines[index + 1]).map((cell) => cell.startsWith(":") && cell.endsWith(":") ? "center" : cell.endsWith(":") ? "right" : "");
+        index += 2;
+        const table = el("table"), thead = el("thead"), tbody = el("tbody"), headRow = el("tr");
+        const cell = (tag, value, at) => { const node = el(tag); if (aligns[at]) node.style.textAlign = aligns[at]; inline(node, value); return node; };
+        head.forEach((value, at) => headRow.append(cell("th", value, at)));
+        thead.append(headRow);
+        while (index < lines.length && lines[index].includes("|") && lines[index].trim()) { const row = el("tr"); cells(lines[index]).forEach((value, at) => row.append(cell("td", value, at))); tbody.append(row); index += 1; }
+        table.append(thead, tbody);
+        const wrap = el("div", "assistant-table"); wrap.append(table); root.append(wrap); continue;
+      }
+      if (LIST_ITEM.test(line)) { index = readList(lines, index, root); continue; }
+      // A paragraph: lines until a blank one or the start of another block.
+      const paragraph = el("p");
+      let first = true;
+      while (index < lines.length && lines[index].trim() && (first || !startsBlock(index))) {
+        if (!first) paragraph.append(el("br"));
+        inline(paragraph, lines[index]); first = false; index += 1;
+      }
+      root.append(paragraph);
     }
     return root;
   };
@@ -387,6 +536,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     "memory-keep": "记下你的要求", "memory-list": "查看记住的事", "memory-forget": "删除一条记忆", "memory-suggest": "建议记住一条",
     "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做", compact: "整理上下文" };
   const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行", unavailable: "这项能力已关闭或不再可用，没有执行" };
+  const VERB_GLYPH = { lookup: "search", "lookup-tools": "search", "file-search": "search", read: "note", "file-read": "file", "file-list": "list", change: "edit",
+    "file-change": "code", command: "terminal", "command-output": "terminal", ask: "question", todo: "list", suggest: "zap", delegate: "workflow", "delegate-check": "workflow",
+    "delegate-follow-up": "workflow", "delegate-stop": "workflow", "memory-keep": "sparkles", "memory-list": "sparkles", "memory-forget": "sparkles", "memory-suggest": "sparkles",
+    "auto-continue": "refresh", compact: "refresh" };
+  const verbGlyph = (item) => item.state === "started" ? spinner() : glyph(item.state === "failed" ? "circle-alert" : item.state === "unknown" ? "alert" : VERB_GLYPH[item.verb] || "circle");
   const activityLine = (item) => {
     const verb = L(VERBS[item.verb] || item.verb);
     const what = item.target ? " " + item.target : "";
@@ -395,9 +549,23 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (item.state === "failed") return verb + what + " — " + L(REASONS[item.reason] || "没有完成");
     return verb + what + " — " + L("结果未确认");
   };
+  /** Every card in the conversation has one shape: what kind of moment it is (and what kind of act), what it is about,
+      then what to do and a line on what happens when you do. */
+  const cardShell = (node, { icon, tone, kicker, badge, badgeTone, title }) => {
+    node.replaceChildren();
+    const head = el("div", "assistant-card-head");
+    const mark = el("span", "assistant-card-kicker" + (tone ? " is-" + tone : ""));
+    mark.append(glyph(icon), document.createTextNode(kicker));
+    head.append(mark);
+    if (badge) head.append(el("span", "assistant-card-badge" + (badgeTone ? " is-" + badgeTone : ""), badge));
+    node.append(head);
+    if (title) node.append(el("p", "assistant-card-title", title));
+    return node;
+  };
+  const cardHint = (text) => el("p", "assistant-card-hint", text);
   const renderQuestion = (card, work, round, question) => {
-    card.replaceChildren();
-    card.append(el("p", "assistant-card-title", L("助理在等你回答")), rich(question.prompt));
+    cardShell(card, { icon: "question", tone: "attention", kicker: L("等你回答") });
+    card.append(rich(question.prompt));
     const answer = async (payload, button) => {
       if (button) button.disabled = true;
       try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/answer", "POST",
@@ -410,8 +578,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       question.questions.forEach((item) => {
         const set = el("fieldset"); set.append(el("legend", "", item.prompt));
         item.options.forEach((option) => {
-          const label = el("label"); const box = el("input"); box.type = item.multiple ? "checkbox" : "radio";
-          box.name = "q" + item.index; box.value = String(option.index); label.append(box, document.createTextNode(" " + option.label)); set.append(label);
+          // Each choice is a row you tap, its box the familiar check or dot.
+          const label = el("label", "assistant-choice-row"); const box = el("input"); box.type = item.multiple ? "checkbox" : "radio";
+          box.name = "q" + item.index; box.value = String(option.index); label.append(box, el("span", "", option.label)); set.append(label);
         });
         if (item.allow_other) { const other = el("input", "mw-input"); other.name = "other" + item.index; other.placeholder = L("其他（可选）"); set.append(other); }
         form.append(set);
@@ -426,13 +595,15 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         });
         answer({ answers }, submit);
       });
-      card.append(form);
+      card.append(form, cardHint(L("回答后这一轮会接着做。")));
       return;
     }
     if (question.options && question.options.length) {
-      const row = el("div", "assistant-card-actions");
+      // Short choices sit side by side; longer ones stack as rows you can read whole.
+      const long = question.options.some((option) => String(option.label).length > 14);
+      const row = el("div", "assistant-choices" + (long ? " is-stacked" : ""));
       question.options.forEach((option) => {
-        const button = el("button", "mw-btn mw-btn--secondary mw-btn--sm", option.label); button.type = "button";
+        const button = el("button", "assistant-choice", option.label); button.type = "button";
         button.addEventListener("click", () => answer({ text: option.value || option.label }, button));
         row.append(button);
       });
@@ -440,31 +611,31 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     if (question.allows_free_text) {
       const form = el("form", "assistant-answer");
-      const field = el("input", "mw-input"); field.placeholder = L("写下回答"); field.setAttribute("aria-label", L("写下回答"));
+      const field = el("input", "mw-input"); field.placeholder = L("写下回答，按回车发送"); field.setAttribute("aria-label", L("写下回答"));
       const submit = el("button", "mw-btn mw-btn--primary mw-btn--sm", L("回答")); submit.type = "submit";
       form.append(field, submit);
       form.addEventListener("submit", (event) => { event.preventDefault(); if (field.value.trim()) answer({ text: field.value.trim() }, submit); });
       card.append(form);
     }
+    card.append(cardHint(L("回答后这一轮会接着做。")));
   };
+  /** What the held effect is, in the person's words and with its glyph: data, files, a command, an outside tool. */
+  const REVIEW_KIND = [[/command|shell|exec|terminal/i, "运行命令", "terminal"], [/file|patch|edit|write-file/i, "修改文件", "code"],
+    [/mcp|external|http|web|network/i, "调用外部工具", "external"], [/./, "修改数据", "edit"]];
   const renderReview = (card, work, review) => {
-    card.replaceChildren();
-    card.append(el("p", "assistant-card-title", L("执行前需要你确认")), el("p", "", review.summary));
+    const [, kind, kindIcon] = REVIEW_KIND.find(([pattern]) => pattern.test(String(review.kind || ""))) || REVIEW_KIND[REVIEW_KIND.length - 1];
+    cardShell(card, { icon: "shield", tone: "attention", kicker: L("执行前需要你确认"), badge: L(kind), title: review.summary });
+    card.querySelector(".assistant-card-badge")?.prepend(glyph(kindIcon));
     const plain = review.fields.filter((field) => field.label !== "完整参数" && field.label !== "能力");
+    const CODE_FIELD = { "改动": "diff", "命令": "sh", "参数": "json" };
     if (plain.length) {
       const list = el("dl", "assistant-fields");
       plain.forEach((field) => {
-        list.append(el("dt", "", L(field.label)));
-        const cell = el("dd");
-        // A diff or command reads as code: kept exact, monospaced, with added and removed lines told apart.
-        if (field.label === "改动" || field.label === "命令" || field.label === "参数") {
-          const pre = el("pre", "assistant-diff");
-          field.value.split("\n").forEach((line) => pre.append(el("span", line.startsWith("+ ") ? "is-added" : line.startsWith("- ") ? "is-removed" : "", line + "\n")));
-          cell.append(pre);
-        } else cell.textContent = field.value;
-        list.append(cell);
+        // A change, a command or parameters read as code: exact, coloured, copyable; the rest as words.
+        if (CODE_FIELD[field.label]) { const box = el("div", "assistant-field-code"); box.append(el("p", "assistant-field-label", L(field.label)), codeBlock(field.value, CODE_FIELD[field.label])); card.append(box); return; }
+        list.append(el("dt", "", L(field.label)), el("dd", "", field.value));
       });
-      card.append(list);
+      if (list.children.length) card.insertBefore(list, card.querySelector(".assistant-field-code"));
     }
     const exact = review.fields.filter((field) => field.label === "完整参数" || field.label === "能力");
     if (exact.length) {
@@ -481,16 +652,19 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const allow = el("button", "mw-btn mw-btn--primary mw-btn--sm", L("允许执行")); allow.type = "button";
     const reject = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("拒绝")); reject.type = "button";
     allow.addEventListener("click", () => decide("approve")); reject.addEventListener("click", () => decide("reject"));
-    row.append(allow, reject); card.append(row);
+    row.append(allow, reject); card.append(row, cardHint(L("允许只执行这一次；拒绝就不执行，助理会知道你拒绝了。")));
   };
-  const EFFECTS = { read: "只读取，不改数据", write: "会修改数据，可在原处修改或撤回", irreversible: "会修改数据，不可撤回" };
+  const EFFECTS = { read: ["只读取，不改数据", "eye", ""], write: ["会修改，可在原处撤回", "edit", ""], irreversible: ["会修改，不能撤回", "alert", "blocked"] };
   const CARD_STATUS = { running: "正在执行…", done: "已完成", failed: "没有完成", unknown: "结果未确认，请到原处核对，不会自动重试", stale: "已失效", dismissed: "已忽略", "needs-input": "还需要你填写" };
+  const CARD_TONE = { done: "done", failed: "blocked", unknown: "attention", stale: "attention", "needs-input": "attention" };
   const renderCard = (node, work, card) => {
-    node.replaceChildren();
-    node.dataset.status = card.status;
-    node.append(el("p", "assistant-card-title", card.title), el("p", "", card.summary),
-      el("p", "assistant-muted", card.provider + " · " + card.capability_title + " · " + L(EFFECTS[card.effect] || "")));
     const open = card.status === "ready" || card.status === "needs-input" || card.status === "failed";
+    const [effect, effectIcon, effectTone] = EFFECTS[card.effect] || ["", "zap", ""];
+    cardShell(node, { icon: card.status === "done" ? "check" : "zap", tone: CARD_TONE[card.status] || "", kicker: open ? L("可以执行") : L(CARD_STATUS[card.status] || "操作"),
+      badge: effect ? L(effect) : "", badgeTone: effectTone, title: card.title });
+    if (effect) node.querySelector(".assistant-card-badge")?.prepend(glyph(effectIcon));
+    node.dataset.status = card.status;
+    node.append(el("p", "assistant-card-summary", card.summary), el("p", "assistant-card-meta", card.provider + " · " + card.capability_title));
     const inputs = {};
     if (card.fields.length) {
       const list = el("dl", "assistant-fields");
@@ -519,12 +693,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           if (control.tagName === "TEXTAREA") control.rows = Math.min(8, field.value.split("\n").length + 1);
           inputs[field.key] = control; cell.append(control);
         } else cell.textContent = field.value;
+        if (asked) cell.classList.add("is-asked");
         list.append(cell);
       });
       node.append(list);
     }
-    if (card.outcome || CARD_STATUS[card.status]) {
-      const status = el("p", "assistant-card-status", L(CARD_STATUS[card.status] || "") + (card.outcome ? "：" + card.outcome : ""));
+    if (card.outcome || (CARD_STATUS[card.status] && !open)) {
+      const status = el("p", "assistant-card-status" + (CARD_TONE[card.status] ? " is-" + CARD_TONE[card.status] : ""), L(CARD_STATUS[card.status] || "") + (card.outcome ? "：" + card.outcome : ""));
       status.setAttribute("role", "status"); status.tabIndex = -1; node.append(status);
     }
     if (card.status === "stale") {
@@ -569,6 +744,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       catch (error) { showProblem({ message: error.message }); }
     });
     row.append(runButton, dismiss); node.append(row);
+    node.append(cardHint(card.effect === "read" ? L("点了只读取，不改任何东西。") : card.effect === "irreversible" ? L("点了就执行，不能撤回；执行前你可以改上面的内容。")
+      : L("点了就执行一次；之后可以在原处修改或撤回。")));
   };
   /* Puts children in order without moving any that already stand in place: moving a node drops the focus inside it
      (an answer being typed, a button reached by keyboard), and a running work repaints every few seconds. */
@@ -592,6 +769,24 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       (put || ((one) => parent.append(one)))(node);
     });
   };
+  const FILE_GLYPH = [[/\.(png|jpe?g|gif|webp|heic|svg)$/i, "image"], [/\.(csv|tsv|xlsx?)$/i, "database"], [/\.(md|markdown|txt|log)$/i, "note"],
+    [/\.(js|mjs|ts|tsx|py|json|ya?ml|html?|css|sh|go|rs|java|c|cpp|sql)$/i, "code"]];
+  /** One thing a message carried: its kind at a glance, its name; an object opens where it lives. */
+  const attachmentChip = (material) => {
+    const title = String(material.title || "").replace(/^(图片|方法|用|引用)：/, "");
+    const icon = material.kind === "image" ? "image" : material.kind === "method" || material.kind === "capability" ? "zap" : material.kind === "selection" || material.kind === "text" ? "text"
+      : material.object ? kindGlyph(material.object.kind + " " + (material.source ? material.source.surface : "")) : (FILE_GLYPH.find(([pattern]) => pattern.test(title.replace(/（\d+ 页）$/, ""))) || [null, "file"])[1];
+    const surface = material.source && material.source.surface && material.source.surface !== "page" ? material.source.surface : "";
+    const named = material.object && surface ? { subject: { kind: material.object.kind, id: material.object.id }, title: material.object.title || title, open: { surface, id: material.object.id } } : null;
+    // A file's own words can only be previewed in the side panel; there is nowhere else to open them.
+    const open = named && host.openItem ? () => showObject(named)
+      : material.kind === "file" && material.text && sidePanelHere() ? () => { sidePreview({ preview: { title, media_type: "text/plain", text: material.text } }); } : null;
+    const chip = el(open ? "button" : "span", "assistant-attachment" + (material.draft ? " is-draft" : ""));
+    if (open) { chip.type = "button"; chip.addEventListener("click", open); chip.setAttribute("aria-label", L("打开") + "：" + title); }
+    chip.append(glyph(icon), el("span", "assistant-attachment-name", title + (material.draft ? L("（草稿）") : "")));
+    if (MATERIAL_KIND[material.kind]) chip.title = L(MATERIAL_KIND[material.kind]);
+    return chip;
+  };
   const renderRound = (work, round) => {
     const node = keyed(thread, "data-round", round.run_id, () => el("section", "assistant-round"));
     const put = placer(node);
@@ -603,7 +798,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     const entries = [];
     round.turns.forEach((turn, index) => entries.push({ key: "t:" + turn.turn_id, order: turn.sequence ?? index, turn }));
-    round.activity.forEach((item, index) => entries.push({ key: "a:" + item.call_id, order: item.sequence ?? (1000 + index), item }));
+    const stepsShown = Boolean(round.steps && round.steps.length);
+    round.activity.forEach((item, index) => { if (!(stepsShown && item.verb === "todo")) entries.push({ key: "a:" + item.call_id, order: item.sequence ?? (1000 + index), item }); });
     entries.sort((a, b) => a.order - b.order);
     // Which Agent ran this round, when the work changed hands.
     if (round.executor === "coding") { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); setText(tag, L("由 Coding Agent 执行")); put(tag); }
@@ -611,8 +807,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     // What this round carried reads as a line under the person's own message; the side pane keeps the full list.
     let carried = null;
     if (round.materials && round.materials.length) {
-      carried = keyed(node, "data-entry", "materials", () => el("p", "assistant-materials"));
-      setText(carried, L("带上") + "：" + round.materials.map((item) => item.title + (item.draft ? L("（草稿）") : "")).join("、"));
+      carried = keyed(node, "data-entry", "materials", () => el("div", "assistant-attachments"));
+      const signature = JSON.stringify(round.materials.map((material) => [material.material_id, material.title, material.draft]));
+      if (carried.dataset.signature !== signature) { carried.dataset.signature = signature; carried.replaceChildren(...round.materials.map(attachmentChip)); }
     }
     if (!round.turns.some((turn) => turn.kind === "user")) {
       const own = keyed(node, "data-entry", "task", () => el("div", "assistant-msg assistant-msg--user"));
@@ -623,7 +820,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const placeLine = (item, into) => {
       const line = keyed(into ? into.box : node, "data-entry", "a:" + item.call_id, () => el("p", "assistant-activity"));
       line.dataset.state = item.state;
-      setText(line, activityLine(item));
+      const words = activityLine(item);
+      if (line.dataset.text !== words || line.dataset.glyph !== item.state) { line.dataset.text = words; line.dataset.glyph = item.state; line.replaceChildren(verbGlyph(item), el("span", "", words)); }
       if (item.detail) line.title = item.detail; else line.removeAttribute("title");
       (into ? into.put : put)(line);
     };
@@ -690,6 +888,21 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     });
     flush();
     if (carried) put(carried);
+    const memories = round.memories_used;
+    if (memories && ((memories.used || []).length || (memories.omitted || []).length)) {
+      const used = memories.used || [], omitted = memories.omitted || [];
+      const box = keyed(node, "data-entry", "memories", () => { const box = el("details", "assistant-steps assistant-memories"); box.append(el("summary", "assistant-steps-summary")); return box; });
+      const signature = JSON.stringify([used.map((m) => m.memory_id), omitted.map((m) => m.memory_id)]);
+      if (box.dataset.signature !== signature) {
+        box.dataset.signature = signature;
+        box.firstElementChild.textContent = L("用到 {n} 条记忆").replace("{n}", String(used.length)) + (omitted.length ? " · " + L("因为篇幅没带上 {n} 条").replace("{n}", String(omitted.length)) : "");
+        [...box.children].slice(1).forEach((child) => child.remove());
+        const line = (memory) => { const row = el("p", "assistant-activity assistant-memory"); row.append(el("span", "assistant-memory-scope", L(memory.scope === "personal" ? "个人" : "本项目")), document.createTextNode(memory.text)); if (memory.origin) row.title = memory.origin; return row; };
+        used.forEach((memory) => box.append(line(memory)));
+        if (omitted.length) { box.append(el("p", "assistant-memory-omitted", L("因为篇幅没带上"))); omitted.forEach((memory) => box.append(line(memory))); }
+      }
+      put(box);
+    }
     const status = keyed(node, "data-entry", "status", () => el("p", "assistant-round-status"));
     const phase = round.phase;
     status.dataset.phase = phase;
@@ -712,6 +925,29 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       put(card);
     });
     renderCards(node, work, ((view && view.cards) || []).filter((card) => card.run_id === round.run_id), put);
+    const last = view && view.rounds[view.rounds.length - 1] === round;
+    const made = last && view.objects ? view.objects.filter((object) => object.relation === "result" && object.open && object.state !== "missing") : [];
+    const next = last && ((round.phase === "completed" && made.length) || round.phase === "failed");
+    if (!next) node.querySelector(':scope > [data-entry="next"]')?.remove();
+    else {
+      const row = keyed(node, "data-entry", "next", () => el("div", "assistant-next-row"));
+      const signature = JSON.stringify([round.phase, made.map((object) => [object.subject.id, object.title])]);
+      if (row.dataset.signature !== signature) {
+        row.dataset.signature = signature;
+        const parts = [el("span", "assistant-next-label", L("接下来"))];
+        if (round.phase === "failed") {
+          const retry = el("button", "assistant-next-chip"); retry.type = "button"; retry.append(glyph("refresh"), el("span", "", L("用同样的话再试一次")));
+          retry.addEventListener("click", () => { input.value = round.text; typed = true; syncSend(); saveDraft(false); input.focus(); });
+          parts.push(retry);
+        } else made.slice(0, 2).forEach((object) => {
+          const chip = el("button", "assistant-next-chip"); chip.type = "button"; chip.append(glyph(objectGlyph(object)), el("span", "", L("打开") + "「" + object.title + "」"));
+          chip.addEventListener("click", () => showObject(object));
+          parts.push(chip);
+        });
+        row.replaceChildren(...parts);
+      }
+      put(row);
+    }
     return node;
   };
   /* ─── The side pane: what this work is, how it got here, what it used and what it made ─ */
@@ -789,7 +1025,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (detail) node.title = detail;
     return node;
   };
-  const openObject = (object) => object.open && host.openItem ? async () => host.openItem(object.open.surface, object.open.id, object.title) : null;
+  const openObject = (object) => object.open && host.openItem ? async () => showObject(object) : null;
   const objectCard = (object, tone, openLabel) => {
     const state = objectState(object);
     return card({ icon: objectGlyph(object), tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : object.state !== "current" ? "attention" : tone,
@@ -827,6 +1063,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const group = (label, ...children) => { const box = el("div", "assistant-group"); if (label) box.append(el("p", "assistant-block-sub", label)); box.append(...children); return box; };
   const stack = (cards) => { const box = el("div", "assistant-stack"); cards.forEach((one) => box.append(one)); return box; };
+  const progress = (done, total, label) => {
+    const meter = el("span", "assistant-progress"); const fill = el("span"); fill.style.width = Math.round(total ? done / total * 100 : 0) + "%"; meter.append(fill);
+    meter.setAttribute("role", "img"); meter.setAttribute("aria-label", label + " " + done + "/" + total);
+    return meter;
+  };
+  /** The step list the latest round keeps as it goes (the runtime's update-todo): what it means to do, not proof of what happened. */
+  const latestSteps = (work) => { const round = work && view && view.work.work_id === work.work_id ? [...view.rounds].reverse().find((one) => one.steps && one.steps.length) : null; return round ? round.steps : []; };
 
   /* 还等你处理: everything in this work that waits on the person besides the conversation's own cards, each with its button. */
   const renderAttention = (work) => {
@@ -868,7 +1111,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const scheduled = work && view.scheduled ? view.scheduled : [];
     const signature = JSON.stringify([work && work.work_id, work && work.executor, work && work.origin, parent, children,
       objects.filter((o) => o.relation === "origin" || o.relation === "session").map((o) => [o.relation, o.subject.id, o.state, o.title, o.current_revision]),
-      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome]), work && view.schedule_survives_close]);
+      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome]), work && view.schedule_survives_close, latestSteps(work), (nextStep(work) || {}).label]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
     keepFocus(node, () => {
@@ -891,11 +1134,29 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         step("code", "", L("专业会话"), card({ icon: "code", title: work.executor.title || "Coding", sub: "Coding",
           open: host.openItem ? async () => host.openItem("coding", work.executor.session_id, work.title) : null, openLabel: L("在 Coding 打开") }));
       }
+      const steps = latestSteps(work);
+      if (steps.length) {
+        // The step in hand either runs, or waits on the person: then it says what to do and takes them to it.
+        const next = nextStep(work);
+        const doneSteps = steps.filter((item) => item.state === "done").length;
+        const rows = steps.map((item) => {
+          const current = item.state === "in-progress", waiting = current && next;
+          const row = el("div", "assistant-subtask assistant-step-item" + (waiting ? " is-attention" : current ? " is-current" : "") + (item.state === "abandoned" ? " is-abandoned" : ""));
+          const mark = el("span", "assistant-subtask-mark" + (item.state === "done" ? " is-done" : waiting ? " is-attention" : ""));
+          mark.append(item.state === "done" ? glyph("check") : waiting ? glyph("status-waiting") : current ? spinner() : item.state === "abandoned" ? glyph("x") : glyph("circle"));
+          if (waiting) {
+            const name = el("button", "assistant-subtask-name", item.text); name.type = "button"; name.setAttribute("aria-label", next.label + "：" + item.text);
+            name.addEventListener("click", () => next.run());
+            row.append(mark, name, el("span", "assistant-subtask-state", next.label));
+          } else row.append(mark, el("span", "assistant-subtask-name", item.text), el("span", "assistant-subtask-state", current ? L("正在做") : item.state === "abandoned" ? L("已放弃") : ""));
+          return row;
+        });
+        step(doneSteps + "/" + steps.length, steps.some((item) => item.state === "in-progress") && next ? "attention" : doneSteps === steps.length ? "done" : "", L("步骤"), progress(doneSteps, steps.length, L("步骤")), ...rows);
+      }
       if (children.length) {
         const done = children.filter((child) => child.state === "completed" || child.taken_back).length;
         const waiting = children.some((child) => WAITING.has(child.state) && !child.taken_back);
-        const meter = el("span", "assistant-progress"); const fill = el("span"); fill.style.width = Math.round(done / children.length * 100) + "%"; meter.append(fill);
-        meter.setAttribute("role", "img"); meter.setAttribute("aria-label", L("子任务") + " " + done + "/" + children.length);
+        const meter = progress(done, children.length, L("子任务"));
         const rows = children.map((child) => {
           const row = el("div", "assistant-subtask" + (WAITING.has(child.state) && !child.taken_back ? " is-attention" : ""));
           const tone = child.taken_back ? "" : child.state === "completed" ? "done" : WAITING.has(child.state) ? "attention" : child.state === "failed" ? "blocked" : "";
@@ -922,8 +1183,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         detail: (followUp.last ? L("上次") + L(OUTCOME[followUp.last.outcome] || followUp.last.outcome) + " · " : "") + (followUp.enabled ? L(view.schedule_survives_close ? "关闭窗口后仍会执行" : "需要 Molis Work 在运行") : ""),
         actions: followUp.enabled ? [sideAction(L("取消"), followUp.label, async () => { await api("/followups/remove", "POST", { followup_id: followUp.followup_id }); await refresh(); }, true)] : [] })));
       const done = children.filter((child) => child.state === "completed" || child.taken_back).length;
-      paintBlock(node, L("路径"), "workflow", line.children.length ? line : null, children.length ? L("子任务") + " " + done + "/" + children.length : "",
-        children.some((child) => WAITING.has(child.state) && !child.taken_back));
+      const stepsDone = steps.filter((item) => item.state === "done").length;
+      paintBlock(node, L("路径"), "workflow", line.children.length ? line : null,
+        steps.length ? L("步骤") + " " + stepsDone + "/" + steps.length : children.length ? L("子任务") + " " + done + "/" + children.length : "",
+        children.some((child) => WAITING.has(child.state) && !child.taken_back) || (steps.some((item) => item.state === "in-progress") && Boolean(nextStep(work))));
     });
   };
 
@@ -942,7 +1205,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const key = material.kind + ":" + material.title;
       if (!used.some((one) => one.key === key)) used.push({ key, material, round: index + 1 });
     }));
-    const signature = JSON.stringify([work && work.work_id, items.map((item) => [item.key, item.label, item.optional, item.auto, item.note]),
+    const signature = JSON.stringify([work && work.work_id, sidePanelHere(), items.map((item) => [item.key, item.label, item.optional, item.auto, item.note, Boolean(item.thumb)]),
       objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision]), used.map((one) => one.key)]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
@@ -954,7 +1217,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const chips = el("div", "assistant-chips");
         items.forEach((item) => {
           const chip = el("span", "assistant-chip" + (item.optional ? " is-optional" : ""));
-          chip.append(glyph(item.thumb ? "image" : item.key === "selection" ? "text" : item.key === "draft" ? "edit" : item.work ? "workflow" : "file"), el("span", "assistant-chip-label", item.label));
+          const looked = item.thumb && sidePanelHere();
+          const label = el(looked ? "button" : "span", "assistant-chip-label", item.label);
+          if (looked) {
+            label.type = "button"; label.setAttribute("aria-label", L("预览") + "：" + item.label);
+            label.addEventListener("click", () => { sidePreview({ preview: { title: item.label, media_type: (/^data:([^;,]+)/.exec(item.thumb) || [])[1] || "image/png", url: item.thumb } }); });
+          }
+          chip.append(glyph(item.thumb ? "image" : item.key === "selection" ? "text" : item.key === "draft" ? "edit" : item.work ? "workflow" : "file"), label);
           if (item.work) chip.append(sideAction(L("切换过去"), item.label, async () => { await switchTo(item.work.work_id); input.focus(); }));
           // Browsing is not working on it: the person decides whether this round takes it.
           else if (item.optional) chip.append(sideAction(L("加入本轮"), item.label, async () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMaterials(); }));
@@ -983,8 +1252,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         tiles.append(box);
       });
       used.forEach((one) => {
-        const box = el("div", "assistant-tile");
-        box.append(tile(MATERIAL_GLYPH[one.material.kind] || "file", ""), el("span", "assistant-item-title", one.material.title.replace(/^(方法|用|图片|引用)：/, "")),
+        const box = el("div", "assistant-tile"), name = one.material.title.replace(/^(方法|用|图片|引用)：/, "");
+        const readable = one.material.kind === "file" && one.material.text && sidePanelHere();
+        const title = el(readable ? "button" : "span", "assistant-item-title", name);
+        if (readable) {
+          title.type = "button"; title.setAttribute("aria-label", L("预览") + "：" + name); box.classList.add("is-openable");
+          title.addEventListener("click", () => { sidePreview({ preview: { title: name, media_type: "text/plain", text: one.material.text } }); });
+        }
+        box.append(tile(MATERIAL_GLYPH[one.material.kind] || "file", ""), title,
           el("span", "assistant-item-sub", L(MATERIAL_KIND[one.material.kind] || "材料") + " · " + L("第 {n} 轮").replace("{n}", String(one.round))));
         tiles.append(box);
       });
@@ -1004,8 +1279,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const undoable = work && view.undoable ? view.undoable : [];
     const jobs = work && view.jobs ? view.jobs : [];
     const unsettled = work && view.unsettled ? view.unsettled : [];
+    const kept = work && view.memory_changes ? view.memory_changes : [];
     const signature = JSON.stringify([work && work.work_id, results.map((o) => [o.subject.id, o.state, o.title, o.current_revision]), undoable.map((u) => [u.undo_id, u.state, u.detail]),
-      jobs.map((j) => [j.job_id, j.state, j.last_state]), unsettled.map((u) => [u.change_id, u.state, u.detail])]);
+      jobs.map((j) => [j.job_id, j.state, j.last_state]), unsettled.map((u) => [u.change_id, u.state, u.detail]), kept.map((m) => [m.change_id, m.state, m.undoable, m.text])]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
     keepFocus(node, () => {
@@ -1020,13 +1296,33 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       /* A change still with its owner when the round stopped: what it finally did, never re-sent. */
       const SETTLED = { pending: "还在等它的结果，不会重新提交", completed: "停止后已完成", failed: "停止后失败", "not-run": "停止时还没开始，没有执行" };
       const stopped = unsettled.map((change) => card({ icon: change.state === "pending" ? spinner() : "clock", title: change.title, sub: L(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "") }));
+      /* Memory the work kept (asked for, or kept on its own): the memory service owns it; this is where it can be taken back. */
+      const KEPT = { kept: "", auto_kept: "自动记住", replaced: "替换了旧的一条" };
+      const remembered = kept.map((change) => {
+        const undone = change.state === "undone";
+        const actions = [];
+        if (change.undoable && !undone) actions.push(sideAction(L("撤销"), change.text, async () => {
+          const response = await fetch(host.route("/api/memory/changes/" + encodeURIComponent(change.change_id) + "/undo"), { method: "POST", headers: host.headers() });
+          if (!response.ok) { let reason = ""; try { reason = (await response.json()).error || ""; } catch { /* the status says it */ } throw new Error(reason || L("没能撤销")); }
+          await refresh();
+        }, false, "secondary", "undo"));
+        if (!undone) actions.push(sideAction(L("去设置查看"), change.text, async () => {
+          // The settings surface opens its memory section when it hears this; with nobody listening, go there.
+          const handled = !window.dispatchEvent(new CustomEvent("molis-work:open-settings-section", { detail: { section: "memory" }, cancelable: true }));
+          if (!handled) location.assign("/settings/assistant");
+        }, true));
+        // Undoing deletes the memory, its words with it: an undone card says so rather than showing what is gone.
+        return card({ icon: "sparkles", tone: undone ? "" : "suggest", title: undone ? L("已撤销（已从记忆里删掉）") : change.text, done: undone,
+          sub: [L(change.scope === "personal" ? "个人" : "本项目"), KEPT[change.kind] ? L(KEPT[change.kind]) : ""].filter(Boolean).join(" · "), actions });
+      });
       const content = el("div", "assistant-group-list");
       if (made.length) content.append(group("", stack(made)));
       if (changes.length) content.append(group(L("改动"), stack(changes)));
       if (background.length) content.append(group(L("后台任务"), stack(background)));
       if (stopped.length) content.append(group(L("停止时仍在执行"), stack(stopped)));
+      if (remembered.length) content.append(group(L("记住的事"), stack(remembered)));
       const canUndo = undoable.filter((change) => change.state === "available").length;
-      paintBlock(node, L("成果"), "package", content.children.length ? content : null, canUndo ? canUndo + " " + L("项可撤销") : String(made.length + changes.length + background.length + stopped.length), false);
+      paintBlock(node, L("成果"), "package", content.children.length ? content : null, canUndo ? canUndo + " " + L("项可撤销") : String(made.length + changes.length + background.length + stopped.length + remembered.length), false);
     });
   };
 
@@ -1066,7 +1362,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   // Raising a work's cap is done in its usage box: the side pane opens on it.
   const openUsage = () => {
-    if (wide.matches) store.set(SIDE_KEY, null); else drawerOpen = true;
+    if (spacious()) store.set(SIDE_KEY, null); else drawerOpen = true;
     paintLayout();
     const details = usageBox?.querySelector("details");
     if (details) details.open = true;
@@ -1076,6 +1372,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   /* 概况: the work's state and what it is doing now, where it belongs, who carries it, and what can be done to it now. */
   const nowLine = (work) => {
     if (!work) return L("发出第一句就开始。先在下面选谁来做、放在哪里，也可以不选。");
+    if (browserHeld.has(work.work_id)) return L("浏览器在你手上；在侧栏点“交还助理”后，助理会重新观察页面再继续");
     const rounds = view && view.work.work_id === work.work_id ? view.rounds : [];
     const last = rounds[rounds.length - 1];
     const reviews = view && view.work.work_id === work.work_id ? view.reviews : [];
@@ -1108,7 +1405,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const jumpTo = (target) => {
     const node = typeof target === "string" ? thread.querySelector(target) : target;
     if (!node) return;
-    if (!wide.matches && drawerOpen) { drawerOpen = false; paintLayout(); }
+    if (!spacious() && drawerOpen) { drawerOpen = false; paintLayout(); }
     const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     thread.scrollTo({ top: node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop - 16, behavior: still ? "auto" : "smooth" });
     node.removeAttribute("data-flash"); void node.offsetWidth; node.setAttribute("data-flash", "");
@@ -1357,7 +1654,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const shown = problem || (work && view.problem) || null;
     if (shown) {
       const box = el("div", "assistant-problem"); box.setAttribute("role", "alert");
-      box.append(el("p", "", shown.message));
+      const kicker = el("span", "assistant-card-kicker is-blocked"); kicker.append(glyph("circle-alert"), document.createTextNode(L("出了问题")));
+      box.append(kicker, el("p", "", shown.message));
       if (work && work.state === "needs-check") {
         // What the interrupted round really did, then an explicit close. Nothing is re-run.
         const check = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("查看实际发生了什么")); check.type = "button";
@@ -1787,7 +2085,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if (!files.some((file) => file.kind === "method" && file.method.method_id === row.method_id)) {
           files.push({ material_id: "method-" + crypto.randomUUID(), kind: "method", title: L("方法") + "：" + row.name, explicit: true, method: { method_id: row.method_id } });
         }
-        input.value = ""; typed = true; syncSend(); saveDraft(false); closeSlash(); paintMaterials(); input.focus();
+        input.value = slashStash || ""; slashStash = null; typed = true; syncSend(); saveDraft(false); closeSlash(); paintMaterials(); input.focus();
       });
       startersPop.append(button);
     });
@@ -1801,7 +2099,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           files.push({ material_id: "cap-" + crypto.randomUUID(), kind: "capability", title: L("用") + "：" + title, explicit: true,
             capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } });
         }
-        input.value = ""; typed = true; syncSend(); saveDraft(false); closeSlash(); paintMaterials(); input.focus();
+        input.value = slashStash || ""; slashStash = null; typed = true; syncSend(); saveDraft(false); closeSlash(); paintMaterials(); input.focus();
       });
       startersPop.append(button);
     });
@@ -1863,7 +2161,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     // With no work chosen, the works done lately are one click away too: the way back to them from the input itself.
     const recent = open && !currentId ? works.filter((work) => !work.archived && !work.delegated_by)
       .slice().sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || ""))).slice(0, 3) : [];
-    startersPop.hidden = !list.length && !recent.length;
+    // A new work also says, at the foot, where the message goes and who carries it, with the way to change that.
+    const target = open && !currentId;
+    startersPop.hidden = !list.length && !recent.length && !target;
     if (startersPop.hidden) return;
     startersPop.replaceChildren();
     if (list.length) startersPop.append(el("p", "assistant-popover-title", L("可以这样开始")));
@@ -1881,6 +2181,15 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       button.addEventListener("click", async () => { setStarters(false); await switchTo(work.work_id); setPanel(true); refresh().then(schedule); input.focus(); });
       startersPop.append(button);
     });
+    if (target) {
+      const who = newExecutor === "coding" ? "Coding Agent" : newCharacter ? newCharacter.title : L("助理");
+      const where = newExecutor === "coding" || !project ? "" : newScope === "project" ? (project.title || L("本项目")) : L("个人");
+      const row = el("button", "assistant-starter assistant-starter--target"); row.type = "button";
+      row.append(el("span", "assistant-starter-title", L("发给") + "：" + [who, L("新工作"), where].filter(Boolean).join(" · ")), el("span", "assistant-starter-state", L("更改")));
+      row.addEventListener("mousedown", (event) => event.preventDefault());
+      row.addEventListener("click", openNewWorkChoices);
+      startersPop.append(row);
+    }
   }
   input.addEventListener("focus", () => { paintMaterials(); if (!String(input.value || "").trim() && !busy) setStarters(true); });
   input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; setStarters(false); }, 0));
@@ -1891,7 +2200,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   island.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (worksNav && !worksNav.hidden) { event.preventDefault(); event.stopPropagation(); setWorks(false); worksToggle?.focus(); return; }
-    if (panel && !panel.hidden && !wide.matches && drawerOpen) { event.preventDefault(); event.stopPropagation(); drawerOpen = false; paintLayout(); sideToggle?.focus(); return; }
+    if (panel && !panel.hidden && !spacious() && drawerOpen) { event.preventDefault(); event.stopPropagation(); drawerOpen = false; paintLayout(); sideToggle?.focus(); return; }
     if (morePop && !morePop.hidden) { event.preventDefault(); event.stopPropagation(); setMore(false); attach?.focus(); return; }
     if (materialsList && !materialsList.hidden) { event.preventDefault(); event.stopPropagation(); setMaterials(false); materialsButton?.focus(); return; }
     if (startersPop && !startersPop.hidden) { event.preventDefault(); event.stopPropagation(); setStarters(false); }
@@ -1945,17 +2254,28 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     row.addEventListener("click", run);
     return row;
   };
+  /** Starts “@” or “/” in the input as if typed; words already there wait aside while “/” picks, and come back after. */
+  let slashStash = null;
+  const insertTrigger = (mark) => {
+    const value = String(input.value || "");
+    if (mark === "/") { if (value.trim() && !value.startsWith("/")) slashStash = value; input.value = "/"; }
+    else input.value = value + (value && !/\s$/.test(value) ? " " : "") + mark;
+    input.focus(); input.setSelectionRange(input.value.length, input.value.length);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
   const paintMore = () => {
     if (!morePop) return;
-    const work = currentWork();
-    const rows = [moreItem(L("添加文件…"), L("文本、PDF 或图片"), () => { setMore(false); fileInput?.click(); })];
-    if (!work && codingHere()) rows.push(moreItem(L("由谁来做"), L((EXECUTORS.find((one) => one.id === newExecutor) || EXECUTORS[0]).label), () => { setMore(false); setExecutors(true); }));
-    if (characterAllowed()) { const chosen = chosenCharacter(); rows.push(moreItem(L("由哪个角色负责"), chosen ? chosen.title : L("助理自己"), () => { setMore(false); void setCharacters(true); })); }
-    if (modeButton && !modeButton.hidden) rows.push(moreItem(L("下一轮的方式"), modeLabel ? modeLabel.textContent.replace(/^[^：]*：/, "") : "", () => { setMore(false); setModes(true); }));
-    if (!work && project) rows.push(moreItem(L("新工作放在"), newScope === "project" ? (project.title || L("本项目")) : L("个人"), () => {
-      newScope = newScope === "project" ? "personal" : "project"; paintTarget(); paintSummary(); paintMore(); morePop.lastElementChild?.focus();
-    }));
+    const rows = [moreItem(L("添加文件或图片…"), L("也可以拖入、粘贴"), () => { setMore(false); fileInput?.click(); }),
+      moreItem(L("引用项目里的内容"), "@", () => { setMore(false); insertTrigger("@"); }),
+      moreItem(L("用一个能力或方法"), "/", () => { setMore(false); insertTrigger("/"); })];
     morePop.replaceChildren(...rows);
+  };
+  // Who carries a new work and where it lives are chosen in its tab's side pane: the old “+” rows point there.
+  const openNewWorkChoices = () => {
+    setStarters(false); setMore(false); setPanel(true);
+    if (spacious()) store.set(SIDE_KEY, null); else drawerOpen = true;
+    paintLayout(); paintSummary();
+    requestAnimationFrame(() => metaEl?.querySelector("button, select")?.focus());
   };
   function setMore(open) {
     if (!morePop) return;
@@ -2117,7 +2437,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   input.addEventListener("keydown", (event) => {
     // In the “/” list: down moves into it, Enter takes the first match; a “/…” is never sent as words.
     if (slashOpen() && event.key === "ArrowDown") { event.preventDefault(); startersPop.querySelector("button")?.focus(); return; }
-    if (slashOpen() && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeSlash(); return; }
+    if (slashOpen() && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeSlash(); if (slashStash !== null) { input.value = slashStash; slashStash = null; syncSend(); } return; }
     // In the “@” list the same way: down moves into it, Enter takes the first hit, Escape leaves the words as typed.
     if (mentionOpen() && event.key === "ArrowDown") { event.preventDefault(); startersPop.querySelector("button")?.focus(); return; }
     if (mentionOpen() && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeMention(); return; }
@@ -2248,7 +2568,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (Number.isFinite(at) && Date.now() - at > RESTING_MS) void switchTo(null);
   };
   // Opening the panel shows the conversation first; a narrow panel's drawer waits to be asked for.
-  if (panel && "MutationObserver" in window) new MutationObserver(() => { if (!panel.hidden && !wide.matches) drawerOpen = false; paintLayout(); if (panel.hidden) { setWorks(false); restIfStale(); } else paintTabs(); }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+  if (panel && "MutationObserver" in window) new MutationObserver(() => { if (!panel.hidden && !spacious()) drawerOpen = false; paintLayout(); if (panel.hidden) { setWorks(false); restIfStale(); } else paintTabs(); }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   // The list of works is a dropdown under the tabs: a click anywhere else in the panel puts it away.
   panel?.addEventListener("pointerdown", (event) => {
     if (worksNav && !worksNav.hidden && event.target instanceof Element && !worksNav.contains(event.target) && !worksToggle?.contains(event.target)) setWorks(false);

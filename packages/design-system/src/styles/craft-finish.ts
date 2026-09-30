@@ -389,20 +389,10 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .bar-composer .assistant-composer-input { flex: 1; min-width: 0; font-size: 13px; }
   ${SHELL} .bar-composer .assistant-composer-input::placeholder { color: var(--muted); }
   /* Search opens from the same line: a quiet glyph with its shortcut, the one mouse entry to ⌘K. */
-  ${SHELL} .bar-composer-search {
-    display: inline-flex; flex: none; align-items: center; gap: 4px; height: 32px; padding: 0 8px; border: 0; border-radius: 8px;
-    background: transparent; color: var(--ink-soft); font: inherit; font-size: 11px; cursor: pointer;
-    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
-  }
-  ${SHELL} .bar-composer-search svg { width: 16px; height: 16px; }
-  ${SHELL} .bar-composer-search kbd { padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line-strong); font: inherit; font-size: 11px; line-height: 16px; color: var(--muted); }
-  ${SHELL} .bar-composer-search:hover { background: var(--nav-hover); color: var(--ink); }
-  ${SHELL} .bar-composer-search:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
   /* Send: graphite when there is something to send, a quiet wash while the line is empty. */
   ${SHELL} .bar-composer [data-assistant-send] { flex: none; width: 34px; height: 34px; min-height: 34px; padding: 0; border-radius: 10px; }
   ${SHELL} .bar-composer [data-assistant-send]:disabled { background: var(--rail); color: var(--muted); border-color: transparent; opacity: 1; }
   ${SHELL} .bar-composer [data-assistant-send] svg { width: 16px; height: 16px; }
-  @media (max-width: 900px) { ${SHELL} .bar-composer-search kbd { display: none; } }
   ${SHELL} .plugin-picker { position: relative; flex: none; min-width: 0; max-width: 46%; padding-right: 8px; }
   ${SHELL} .plugin-picker::after { content: ""; position: absolute; right: 0; top: 50%; width: 1px; height: 18px; margin-top: -8px; background: var(--line); pointer-events: none; }
   ${SHELL} .plugin-picker-trigger {
@@ -444,18 +434,38 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] > span { color: var(--ink); font-weight: 500; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] svg { color: var(--ink); }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item:not([aria-current]):hover { background: var(--nav-hover); }
+  /* The switcher at the bar's left: where you are, and every entry; the Dock's own settings at the foot of its list. */
+  ${SHELL} .bar-start .plugin-picker { flex: none; max-width: 60%; }
+  ${SHELL} .plugin-picker-all { display: none; }
+  ${SHELL} .plugin-picker-all svg { width: 20px; height: 20px; stroke-width: 1.6; }
+  ${SHELL} .bar-start .plugin-picker-trigger { height: var(--dock-btn, 38px); position: relative; }
+  ${SHELL} .plugin-picker:has([data-market-update-count]:not([hidden])) > .plugin-picker-trigger::after {
+    content: ""; position: absolute; top: 7px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .dock-settings { position: static; z-index: auto; display: grid; width: auto; max-height: none; overflow: visible; margin: 8px -8px -8px;
+    padding: 6px 8px 8px; border-radius: 0; background: transparent; box-shadow: inset 0 1px 0 var(--line); animation: none; }
+  /* Search heads the list: finding a place is part of going there (⌘K opens it from anywhere). */
+  html ${SHELL} .workbench-bar .plugin-picker-search { display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; margin: 0 0 6px; padding: 0 10px; border: 0; border-radius: 9px;
+    background: var(--wash); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
+  html ${SHELL} .workbench-bar .plugin-picker-search:hover { background: var(--nav-hover); color: var(--ink); }
+  html ${SHELL} .workbench-bar .plugin-picker-search:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  html ${SHELL} .workbench-bar .plugin-picker-search svg { flex: none; width: 15px; height: 15px; }
+  html ${SHELL} .workbench-bar .plugin-picker-search > span { flex: 1; text-align: left; }
+  html ${SHELL} .workbench-bar .plugin-picker-search kbd { padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line-strong); font: inherit; font-size: 11px; line-height: 16px; }
+  @media (hover: none) { html ${SHELL} .workbench-bar .plugin-picker-search kbd { display: none; } }
   /* Its answers open above the bar and stay until closed: one tab per open work, the work's side pane on the left
      (what it is, how it got here, what it used, what it made) and the conversation on the right, right above the input. */
   ${ASSIST} .assistant-panel {
     --assistant-side-w: 272px;
-    position: absolute; z-index: 50; left: -40px; right: -40px; bottom: calc(100% + 8px); display: flex; flex-direction: column; overflow: hidden;
+    /* --assistant-room: space left before the platform side panel, set only while it is open. */
+    position: absolute; z-index: 50; left: -40px; right: calc(-1 * min(40px, var(--assistant-room, 40px))); bottom: calc(100% + 8px); display: flex; flex-direction: column; overflow: hidden;
     height: min(620px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h, 76px) - 32px));
     border-radius: 16px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise var(--dur-move) var(--ease-quint) both;
   }
   ${ASSIST} .assistant-panel[hidden] { display: none; }
   /* A wide window keeps the conversation over the input and opens the side pane to its left. */
   @media (min-width: 1240px) {
-    ${ASSIST} .assistant-panel[data-layout="split"][data-side="open"] { left: calc(-1 * var(--assistant-side-w) - 24px); right: -24px; }
+    ${ASSIST} .assistant-panel[data-layout="split"][data-side="open"] { left: calc(-1 * var(--assistant-side-w) - 24px); right: calc(-1 * min(24px, var(--assistant-room, 24px))); }
   }
   /* The tab strip: the open works, a new one, then all works, the side pane and minimise. */
   ${ASSIST} .assistant-tabbar { flex: none; display: flex; align-items: flex-end; gap: 4px; height: 42px; padding: 6px 6px 0 8px; background: var(--desk); box-shadow: inset 0 -1px 0 var(--line); }
@@ -676,6 +686,16 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-subtask-state { flex: none; color: var(--muted); font-size: 11px; }
   ${ASSIST} .assistant-subtask.is-attention .assistant-subtask-state { color: var(--tone-attention, #b7791f); }
   ${ASSIST} .assistant-subtask .assistant-side-action { position: relative; z-index: 1; }
+  /* 步骤: a checklist on the path; the step in hand reads stronger, one set aside is struck through. */
+  ${ASSIST} span.assistant-subtask-name { cursor: default; }
+  ${ASSIST} .assistant-step-item:not(.is-attention):hover { background: transparent; }
+  ${ASSIST} .assistant-step-item.is-current .assistant-subtask-name { font-weight: 500; }
+  ${ASSIST} .assistant-step-item.is-abandoned .assistant-subtask-name { color: var(--muted); text-decoration: line-through; }
+  ${ASSIST} .assistant-step-item .assistant-subtask-mark.is-done + .assistant-subtask-name { color: var(--ink-soft); }
+  /* The memories an answer was given, folded under it like its steps. */
+  ${ASSIST} .assistant-memory { display: flex; align-items: baseline; gap: 6px; }
+  ${ASSIST} .assistant-memory-scope { flex: none; padding: 0 5px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 11px; line-height: 17px; }
+  ${ASSIST} .assistant-memory-omitted { margin: 6px 0 0 12px; color: var(--faint); font-size: 11px; }
   ${ASSIST} .assistant-subtask:is(:hover, :focus-within) .assistant-side-action.is-quiet { opacity: 1; }
   /* 材料: the next Send's things in a zone files can be dropped on; what was used, as tiles two to a row. */
   ${ASSIST} .assistant-drop { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px dashed var(--line-strong); border-radius: 10px;
@@ -687,6 +707,8 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-chip.is-optional { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
   ${ASSIST} .assistant-chip .assistant-glyph-icon svg { width: 13px; height: 13px; }
   ${ASSIST} .assistant-chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} button.assistant-chip-label { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: start; cursor: pointer; }
+  ${ASSIST} button.assistant-chip-label:hover { text-decoration: underline; text-underline-offset: 2px; }
   ${ASSIST} .assistant-drop-hint { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
   ${ASSIST} .assistant-drop-hint > span:not(.assistant-glyph-icon) { flex: 1; min-width: 0; }
   ${ASSIST} .assistant-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
@@ -695,6 +717,106 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-tile > :is(.assistant-item-title, .assistant-item-sub) { max-width: 100%; }
   ${ASSIST} .assistant-tile.is-openable:hover { background: var(--nav-hover); }
   ${ASSIST} .assistant-tile.is-attention { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 38%, var(--line)); }
+  /* The conversation reads like a document: headings, lists (nested, checklists), tables, quotes, rules and links from
+     Markdown, code with its language, length, colours and a copy button. Nothing a model wrote becomes markup. */
+  ${ASSIST} .assistant-rich :is(h3, h4, h5) { margin: 14px 0 6px; color: var(--ink); line-height: 1.4; }
+  ${ASSIST} .assistant-rich > :first-child { margin-top: 0; }
+  ${ASSIST} .assistant-rich h3 { font-size: 15px; font-weight: 600; }
+  ${ASSIST} .assistant-rich h4 { font-size: 13px; font-weight: 600; }
+  ${ASSIST} .assistant-rich h5 { font-size: 13px; font-weight: 500; color: var(--ink-soft); }
+  ${ASSIST} .assistant-rich :is(ul, ol) :is(ul, ol) { margin: 2px 0 2px; }
+  ${ASSIST} .assistant-rich li + li { margin-top: 2px; }
+  ${ASSIST} .assistant-rich li::marker { color: var(--muted); }
+  ${ASSIST} .assistant-rich .assistant-task { position: relative; list-style: none; margin-left: -18px; padding-left: 20px; }
+  ${ASSIST} .assistant-task-box { position: absolute; left: 0; top: 0.36em; width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+  ${ASSIST} .assistant-task.is-done { color: var(--muted); }
+  ${ASSIST} .assistant-task.is-done .assistant-task-box { background: var(--tone-done, #3a8f5c); box-shadow: none; }
+  ${ASSIST} .assistant-task.is-done .assistant-task-box::after { content: ""; position: absolute; left: 4px; top: 1.5px; width: 3px; height: 6px; border: solid var(--paper); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+  ${ASSIST} .assistant-task > ul, ${ASSIST} .assistant-task > ol { color: var(--ink); }
+  ${ASSIST} .assistant-rich blockquote { margin: 0 0 8px; padding: 6px 12px; border-radius: 8px; background: var(--wash); color: var(--ink-soft); }
+  ${ASSIST} .assistant-rich blockquote > :last-child { margin-bottom: 0; }
+  ${ASSIST} .assistant-rich hr { height: 1px; margin: 12px 0; border: 0; background: var(--line); }
+  ${ASSIST} .assistant-rich s { color: var(--muted); }
+  ${ASSIST} .assistant-link { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset: 2px; overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-link:hover { text-decoration-color: currentColor; }
+  ${ASSIST} .assistant-inline-object { display: inline-flex; align-items: center; gap: 4px; margin: 0 1px; padding: 0 6px; border: 0; border-radius: 6px; background: var(--wash); color: var(--ink); font: inherit;
+    line-height: 1.5; vertical-align: baseline; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} .assistant-inline-object:hover { background: var(--nav-active); }
+  ${ASSIST} .assistant-inline-object:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
+  ${ASSIST} .assistant-inline-object svg { width: 13px; height: 13px; color: var(--muted); }
+  ${ASSIST} .assistant-table { max-width: 100%; margin: 0 0 10px; overflow-x: auto; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); }
+  ${ASSIST} .assistant-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  ${ASSIST} .assistant-table :is(th, td) { padding: 6px 10px; text-align: left; vertical-align: top; box-shadow: inset 0 -1px 0 var(--line); }
+  ${ASSIST} .assistant-table th { background: var(--wash); color: var(--ink); font-weight: 600; white-space: nowrap; }
+  ${ASSIST} .assistant-table tr:last-child td { box-shadow: none; }
+  ${ASSIST} .assistant-code { position: relative; margin: 0 0 10px; overflow: hidden; border-radius: 10px; box-shadow: 0 0 0 1px var(--line); background: var(--wash); }
+  ${ASSIST} .assistant-code-head { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 6px 0 12px; box-shadow: inset 0 -1px 0 var(--line); color: var(--muted); font-size: 11px; }
+  ${ASSIST} .assistant-code-lang { color: var(--ink-soft); font-weight: 500; }
+  ${ASSIST} .assistant-code-lines { margin-right: auto; }
+  ${ASSIST} .assistant-code-copy, ${ASSIST} .assistant-code-more { height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
+    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  ${ASSIST} :is(.assistant-code-copy, .assistant-code-more):hover { background: var(--nav-hover); color: var(--ink); }
+  ${ASSIST} .assistant-code-copy[data-done] { color: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-rich .assistant-code pre, ${ASSIST} .assistant-code pre { margin: 0; padding: 10px 12px; border-radius: 0; background: transparent; overflow: auto; font-size: 12px; line-height: 1.55; }
+  ${ASSIST} .assistant-code[data-folded] pre { max-height: 300px; overflow: hidden; }
+  ${ASSIST} .assistant-code-more { display: block; width: 100%; height: 28px; border-radius: 0; box-shadow: inset 0 1px 0 var(--line); }
+  /* Cards: one shape for every moment that asks something of you — a kicker saying what kind, a badge saying what act,
+     the title, the body, the buttons, and a line on what happens when you press them. */
+  ${ASSIST} .assistant-card { gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--paper); }
+  ${ASSIST} .assistant-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  ${ASSIST} .assistant-card-kicker { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 500; }
+  ${ASSIST} .assistant-card-kicker .assistant-glyph-icon svg { width: 14px; height: 14px; }
+  ${ASSIST} .assistant-card-kicker.is-attention { color: var(--tone-attention, #b7791f); }
+  ${ASSIST} .assistant-card-kicker.is-done { color: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-card-kicker.is-blocked { color: var(--tone-blocked, var(--danger)); }
+  ${ASSIST} .assistant-card-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 0 8px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); font-size: 11px; line-height: 20px; white-space: nowrap; }
+  ${ASSIST} .assistant-card-badge .assistant-glyph-icon svg { width: 12px; height: 12px; }
+  ${ASSIST} .assistant-card-badge.is-blocked { background: color-mix(in srgb, var(--tone-blocked, #c53030) 12%, transparent); color: var(--tone-blocked, var(--danger)); }
+  ${ASSIST} .assistant-card .assistant-card-title { color: var(--ink); font-size: 13px; font-weight: 600; line-height: 1.45; }
+  ${ASSIST} .assistant-card-summary { color: var(--ink-soft); }
+  ${ASSIST} .assistant-card-meta { color: var(--muted); font-size: 11px; }
+  ${ASSIST} .assistant-card-hint { margin: -2px 0 0; color: var(--faint); font-size: 11px; }
+  ${ASSIST} .assistant-card:has(.assistant-card-kicker.is-attention) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 40%, var(--line)); }
+  ${ASSIST} .assistant-card-status.is-done { color: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-card-status.is-blocked { color: var(--tone-blocked, var(--danger)); }
+  ${ASSIST} .assistant-card-status.is-attention { color: var(--tone-attention, #b7791f); }
+  ${ASSIST} .assistant-fields dd.is-asked :is(input, select, textarea) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 45%, var(--line)); }
+  ${ASSIST} .assistant-field-label { margin: 0 0 4px; color: var(--muted); font-size: 11px; }
+  ${ASSIST} .assistant-field-code .assistant-code { margin: 0; }
+  ${ASSIST} .assistant-choices { display: flex; flex-wrap: wrap; gap: 6px; }
+  ${ASSIST} .assistant-choices.is-stacked { flex-direction: column; }
+  ${ASSIST} .assistant-choice { min-height: 32px; padding: 6px 12px; border: 0; border-radius: 9px; background: var(--wash); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+    box-shadow: inset 0 0 0 1px var(--line); transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  ${ASSIST} .assistant-choice:hover:not(:disabled) { background: var(--nav-active); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  ${ASSIST} .assistant-choice:active:not(:disabled) { transform: scale(.98); }
+  ${ASSIST} .assistant-choice:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
+  ${ASSIST} .assistant-choice-row { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 8px; border-radius: 8px; cursor: pointer; }
+  ${ASSIST} .assistant-choice-row:hover { background: var(--nav-hover); }
+  ${ASSIST} .assistant-choice-row:has(input:checked) { background: var(--nav-active); }
+  ${ASSIST} .assistant-problem .assistant-card-kicker { margin-bottom: -2px; }
+  /* What a message carried: chips with their kind; an object opens where it lives. */
+  ${ASSIST} .assistant-attachments { align-self: flex-end; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 85%; margin-top: -4px; }
+  ${ASSIST} .assistant-attachment { display: inline-flex; align-items: center; gap: 5px; max-width: 220px; height: 24px; padding: 0 8px; border: 0; border-radius: 7px; background: var(--wash); color: var(--ink-soft); font: inherit; font-size: 11px; }
+  ${ASSIST} button.assistant-attachment { cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} button.assistant-attachment:hover { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} .assistant-attachment .assistant-glyph-icon svg { width: 13px; height: 13px; }
+  ${ASSIST} .assistant-attachment-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-attachment.is-draft { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 40%, transparent); }
+  /* Each step of the process with the glyph of what it did; one still running turns. */
+  ${ASSIST} .assistant-activity { display: flex; align-items: center; gap: 6px; }
+  ${ASSIST} .assistant-activity .assistant-glyph-icon svg { width: 13px; height: 13px; }
+  ${ASSIST} .assistant-activity .assistant-spinner { width: 11px; height: 11px; }
+  ${ASSIST} .assistant-activity[data-state="unknown"] { color: var(--tone-attention, #b7791f); }
+  /* After the last round: what to do next, pointed at directly. */
+  ${ASSIST} .assistant-next-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
+  ${ASSIST} .assistant-next-label { color: var(--faint); font-size: 11px; }
+  ${ASSIST} .assistant-next-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 28px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--paper); color: var(--ink); font: inherit; font-size: 12px;
+    box-shadow: 0 0 0 1px var(--line-strong); cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  ${ASSIST} .assistant-next-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-next-chip:hover { background: var(--nav-hover); }
+  ${ASSIST} .assistant-next-chip:active { transform: scale(.97); }
+  ${ASSIST} .assistant-next-chip:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
+  ${ASSIST} .assistant-next-chip .assistant-glyph-icon svg { width: 14px; height: 14px; color: var(--muted); }
   /* Pressing gives a little everywhere in the panel, the same 130ms spring as the bar. */
   ${ASSIST} :is(.assistant-side-action, .assistant-segment, .assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-control, .assistant-start, .assistant-copy, .assistant-tab-close):active:not(:disabled) { transform: scale(.94); }
   ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-tab-close, .assistant-tab-main) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
@@ -745,7 +867,6 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-round-time { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   ${ASSIST} .assistant-round-time::before, ${ASSIST} .assistant-round-time::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   /* What a round carried reads as a line under the person's own message. */
-  ${ASSIST} :is(.assistant-msg--user, .assistant-msg-more) + .assistant-materials { align-self: flex-end; max-width: 85%; margin-top: -4px; font-size: 11px; text-align: right; }
   /* The conversation: the person's words on the right, the assistant's answer as text, what it did as quiet lines. */
   ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
   ${ASSIST} .assistant-empty { color: var(--muted); }
@@ -925,13 +1046,10 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .bar-composer .assistant-target { min-width: 56px; max-width: 96px; }
     ${SHELL} .bar-composer .assistant-executor { max-width: 72px; }
     ${SHELL} .bar-composer .assistant-composer-input { min-width: 96px; }
-    ${SHELL} .bar-composer .bar-composer-search kbd { display: none; }
   }
   @media (max-width: 860px) and (min-width: 601px) {
     ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
     ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
-    ${SHELL} .bar-composer .plugin-picker { flex: none; max-width: 96px; }
-    ${SHELL} .bar-composer .plugin-picker-trigger { max-width: 96px; }
   }
   /* ⌘K search opens from the same place: one entry for finding and for asking. */
   @media (min-width: 601px) {
@@ -1048,21 +1166,14 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
     ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
     ${SHELL} .bar-composer { gap: 4px; }
-    ${SHELL} .bar-composer .plugin-picker { flex: none; max-width: 80px; }
-    ${SHELL} .bar-composer .plugin-picker-current > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    ${SHELL} .bar-composer .bar-composer-search { flex: none; gap: 0; padding: 0 6px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 40px; min-width: 40px; }
     /* While typing the input takes the column; focusing a chip keeps that chip on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention, .bar-composer-search) { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention) { display: none; }
   }
   /* A crowded composer at any width takes the same steps, as far as the island measures it needs (data-fit): the chips
      present — a work, its materials, what needs a look, who does it — would otherwise leave the input no room at all. */
   ${SHELL} .bar-composer[data-fit] { gap: 4px; }
-  ${SHELL} .bar-composer[data-fit] .bar-composer-search { gap: 0; padding: 0 6px; }
-  ${SHELL} .bar-composer[data-fit] .bar-composer-search kbd { display: none; }
   ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) .bar-composer:is([data-fit="folded"], [data-fit="narrow"]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
-  ${SHELL} .bar-composer[data-fit="narrow"] .plugin-picker { flex: none; max-width: 80px; }
-  ${SHELL} .bar-composer[data-fit="narrow"] .plugin-picker-current > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* With the panel open the choosers are back; the ones nobody changed give up their width before the input does. */
   ${SHELL} .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) { flex: 0 1 auto; min-width: 0; }
   ${SHELL} .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -1093,7 +1204,6 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -4px; }
     html ${SHELL} .workbench-bar :is(.bar-start, .bar-end) { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { font-size: 16px; }
-    ${SHELL} .bar-composer-search { width: 40px; min-width: 40px; height: 40px; padding: 0; justify-content: center; }
     ${SHELL} .plugin-picker-trigger { max-width: 132px; }
     html ${SHELL} .immersive-workspace > .tree-pane,
     html ${SHELL} .immersive-sidebar-scrim:not([hidden]) { bottom: var(--dock-h); }
@@ -1113,6 +1223,11 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
     ${ASSIST} .assistant-target { max-width: 30%; }
+    ${SHELL} .bar-start .plugin-picker { max-width: none; padding-right: 4px; }
+    ${SHELL} .bar-start .plugin-picker-trigger { padding: 0 8px; }
+    /* On a phone the Dock beside it already shows where you are: the switcher is the door to all plugins. */
+    ${SHELL} .bar-start .plugin-picker-current, ${SHELL} .bar-start .plugin-picker-trigger > svg:last-child { display: none; }
+    ${SHELL} .bar-start .plugin-picker-all { display: inline-grid; place-items: center; color: var(--ink-soft); }
     /* On a phone the panel spans the screen: the side pane covers the whole conversation when opened; tabs scroll. */
     ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side { width: 100%; box-shadow: none; }
     /* Only the current tab shows by name; the others are one tap away in 全部工作, where their marks are too. */
@@ -1122,21 +1237,14 @@ const CRAFT_BASE_STYLES = `
     /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
-    ${SHELL} .bar-composer .plugin-picker { flex: none; max-width: 88px; }
-    ${SHELL} .bar-composer .plugin-picker-trigger { max-width: 88px; padding: 0 8px; }
-    ${SHELL} .bar-composer .plugin-picker-trigger > svg:last-child { display: none; }
-    ${SHELL} .bar-composer .plugin-picker-current { min-width: 0; overflow: hidden; }
-    ${SHELL} .bar-composer .plugin-picker-current > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     ${ASSIST} .assistant-executor { flex: 0 1 auto; min-width: 28px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
     ${ASSIST} .assistant-executor > svg { display: none; }
     /* One chooser beside the input: the Character appears while the panel is open (to choose) or once chosen (then it
        replaces the executor, which a Character implies); search steps aside while the panel is open. */
     ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
     ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
-    ${SHELL} [data-assistant-island]:has(.assistant-panel:not([hidden])) .bar-composer .bar-composer-search { display: none; }
-    ${SHELL} .bar-composer:has(.assistant-attention:not([hidden])) .bar-composer-search { display: none; }
     /* Only while typing: focusing the switcher or a chip must keep it on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention, .bar-composer-search) { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention) { display: none; }
     body.project-index-page .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: 68px; width: auto; height: min(70dvh, 560px); }
   }
 

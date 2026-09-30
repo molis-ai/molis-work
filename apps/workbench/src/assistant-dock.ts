@@ -2,15 +2,15 @@ import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 
 /** The glyphs the side pane draws for kinds of things and states, rendered once from the shared icon set. */
 const ASSISTANT_GLYPHS: readonly MolisWorkIcon[] = ["file", "note", "image", "zap", "check", "circle", "clock", "flag", "undo", "edit", "alert", "circle-alert", "sparkles", "package",
-  "code", "idea", "inbox", "target", "database", "workflow", "upload", "bell", "paperclip", "text", "status-waiting"];
+  "code", "idea", "inbox", "target", "database", "workflow", "upload", "bell", "paperclip", "text", "status-waiting", "x",
+  "question", "shield", "terminal", "external", "eye", "search", "list", "refresh"];
 
 /**
- * The resident Assistant: its panel of works and the composer. The workbench puts the plugin switcher in front of the
- * input; the project list, which has no plugins, leaves it out and works in personal scope.
+ * The resident Assistant: its panel of works and the composer, which at rest is only the input, “+” and send. Where to
+ * go lives at the bar's left and search in the project menu (and ⌘K); the project list uses the same composer.
  */
-export function renderAssistantDock(primitives: { L(value: string): string; icon(name: MolisWorkIcon): string }, options: { picker?: string; search?: boolean } = {}): string {
+export function renderAssistantDock(primitives: { L(value: string): string; icon(name: MolisWorkIcon): string }): string {
   const { L, icon } = primitives;
-  const picker = options.picker ?? "";
   return `<div class="bar-center" data-assistant-island>
       <section class="assistant-panel" data-assistant-panel aria-label="${L("助理")}" hidden>
         <template data-assistant-glyphs>${ASSISTANT_GLYPHS.map((name) => `<span data-glyph="${name}">${icon(name)}</span>`).join("")}</template>
@@ -61,18 +61,18 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
       <div class="assistant-popover" data-assistant-starters role="group" aria-label="${L("可以这样开始")}" hidden></div>
       <div class="assistant-offer" data-assistant-offer role="status" aria-live="polite" hidden></div>
       <div class="assistant-popover assistant-notices" id="assistant-notices" data-assistant-notices role="group" aria-label="${L("需要你看看")}" hidden></div>
-      <div class="assistant-popover assistant-more" id="assistant-more" data-assistant-more role="group" aria-label="${L("添加与选项")}" hidden></div>
+      <div class="assistant-popover assistant-more" id="assistant-more" data-assistant-more role="group" aria-label="${L("添加")}" hidden></div>
       <form class="assistant-composer bar-composer" id="assistant-composer" data-assistant-composer aria-label="Molis Work Assistant">
-${picker}        <span class="assistant-target" data-assistant-target-wrap><button class="assistant-target-main" type="button" data-assistant-target title="${L("下一次发送给哪项工作")}"><span data-assistant-target-label>${L("新工作")}</span></button><button class="assistant-target-clear" type="button" data-assistant-target-clear aria-label="${L("改为开始新工作")}" title="${L("改为开始新工作")}" hidden>${icon("x")}</button></span>
+        <span class="assistant-target" data-assistant-target-wrap><button class="assistant-target-main" type="button" data-assistant-target title="${L("下一次发送给哪项工作")}"><span data-assistant-target-label>${L("新工作")}</span></button><button class="assistant-target-clear" type="button" data-assistant-target-clear aria-label="${L("改为开始新工作")}" title="${L("改为开始新工作")}" hidden>${icon("x")}</button></span>
         <button class="assistant-materials-button" type="button" data-assistant-materials aria-expanded="false" aria-controls="assistant-materials" title="${L("本次发送带上的材料")}" hidden>${icon("file")}<span class="assistant-materials-label" data-assistant-materials-label></span><span data-assistant-materials-count></span></button>
         <button class="assistant-executor" type="button" data-assistant-executor aria-haspopup="true" aria-expanded="false" aria-controls="assistant-executors" title="${L("由谁来做")}" hidden><span data-assistant-executor-label>${L("助理")}</span>${icon("chevron-up")}</button>
         <button class="assistant-attention" type="button" data-assistant-attention aria-haspopup="true" aria-expanded="false" aria-controls="assistant-notices" title="${L("需要你看看")}" hidden>${icon("bell")}<span data-assistant-attention-count></span></button>
         <button class="assistant-executor" type="button" data-assistant-character aria-haspopup="true" aria-expanded="false" aria-controls="assistant-characters" title="${L("由哪个角色负责")}" hidden><span data-assistant-character-label>${L("助理")}</span>${icon("chevron-up")}</button>
         <button class="assistant-executor" type="button" data-assistant-mode aria-haspopup="true" aria-expanded="false" aria-controls="assistant-modes" title="${L("下一轮的方式")}" hidden><span data-assistant-mode-label></span>${icon("chevron-up")}</button>
         <input class="assistant-composer-input" data-assistant-input type="text" autocomplete="off" placeholder="${L("让助理做点什么…")}" aria-label="${L("发给助理")}">
-        <button class="bar-composer-attach" type="button" data-assistant-attach aria-haspopup="true" aria-expanded="false" aria-controls="assistant-more" aria-label="${L("添加文件与选项")}" title="${L("添加文件与选项")}">${icon("plus")}</button>
+        <button class="bar-composer-attach" type="button" data-assistant-attach aria-haspopup="true" aria-expanded="false" aria-controls="assistant-more" aria-label="${L("添加文件、引用或能力")}" title="${L("添加文件、引用或能力")}">${icon("plus")}</button>
         <input type="file" data-assistant-file multiple hidden tabindex="-1" accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,.xml,.yaml,.yml,.html,.htm,.pdf,application/pdf,text/*,image/png,image/jpeg,image/gif,image/webp">
-${options.search ? `        <button class="bar-composer-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}<kbd>⌘K</kbd></button>\n` : ""}        <button class="mw-btn mw-btn--primary mw-btn--icon-only mw-btn--sm" type="submit" data-assistant-send aria-label="${L("发送")}" title="${L("发送")}" disabled>${icon("send")}</button>
+        <button class="mw-btn mw-btn--primary mw-btn--icon-only mw-btn--sm" type="submit" data-assistant-send aria-label="${L("发送")}" title="${L("发送")}" disabled>${icon("send")}</button>
       </form>
     </div>`;
 }

@@ -2,7 +2,7 @@ import { constants, promises as fs } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { parseFilePath, type WorkspaceFileQuery, type WorkspaceFileResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { parseFilePath, WORKSPACE_BYTES_LIMIT, type WorkspaceFileQuery, type WorkspaceFileResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 const TEXT_LIMIT = 256 * 1024;
 const DIRECTORY_LIMIT = 1000;
@@ -13,7 +13,7 @@ export async function readWorkspaceFile(
   workspaces: readonly ProjectWorkspaceRef[],
 ): Promise<WorkspaceFileResult> {
   const segments = parseFilePath(query.path, query.kind === "directory");
-  if (query.kind !== "directory" && query.kind !== "text") throw new Error("文件读取方式无效");
+  if (query.kind !== "directory" && query.kind !== "text" && query.kind !== "bytes") throw new Error("文件读取方式无效");
   const workspace = workspaces.find(item => item.workspace_id === query.workspace_id && item.realpath_verified);
   if (!workspace) return { outcome: "denied" };
   const root = workspace.canonical_path;
@@ -47,9 +47,10 @@ export async function readWorkspaceFile(
     try {
       const before = await file.stat();
       if (!before.isFile()) return { outcome: "unsupported" };
-      if (before.size > TEXT_LIMIT) return { outcome: "too-large", bytes: before.size, limit: TEXT_LIMIT };
+      const limit = query.kind === "bytes" ? WORKSPACE_BYTES_LIMIT : TEXT_LIMIT;
+      if (before.size > limit) return { outcome: "too-large", bytes: before.size, limit };
       // Bounded even if the file grows after stat; no pipes, devices or unbounded readFile.
-      const bytes = Buffer.alloc(TEXT_LIMIT + 1);
+      const bytes = Buffer.alloc(Math.min(limit, before.size) + 1);
       let used = 0;
       while (used < bytes.length) {
         const read = await file.read(bytes, used, bytes.length - used, used);
@@ -60,8 +61,9 @@ export async function readWorkspaceFile(
       if (await fs.realpath(root) !== root || !inside(await fs.realpath(target)) || named.isSymbolicLink()) return { outcome: "denied" };
       if (after.ino !== named.ino || after.dev !== named.dev || before.size !== after.size
         || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) return { outcome: "changed" };
-      if (used > TEXT_LIMIT) return { outcome: "too-large", bytes: used, limit: TEXT_LIMIT };
+      if (used > limit) return { outcome: "too-large", bytes: used, limit };
       const content = bytes.subarray(0, used);
+      if (query.kind === "bytes") return { outcome: "bytes", data: content.toString("base64"), bytes: used, fingerprint: createHash("sha256").update(content).digest("hex") };
       if (content.includes(0)) return { outcome: "binary" };
       let text: string;
       try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(content); }

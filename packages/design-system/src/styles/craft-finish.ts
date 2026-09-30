@@ -823,6 +823,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-attachment .assistant-glyph-icon svg { width: 13px; height: 13px; }
   ${ASSIST} .assistant-attachment-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   ${ASSIST} .assistant-attachment.is-draft { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 40%, transparent); }
+  ${ASSIST} .assistant-attachment.is-expired { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, currentColor 50%, transparent); }
   /* Each step of the process with the glyph of what it did; one still running turns. */
   ${ASSIST} .assistant-activity { display: flex; align-items: center; gap: 6px; }
   ${ASSIST} .assistant-activity .assistant-glyph-icon svg { width: 13px; height: 13px; }
@@ -1196,19 +1197,19 @@ const CRAFT_BASE_STYLES = `
      divider with even space on both sides. */
   html ${SHELL} .workbench-bar .navigator-project-menu-popover { padding: 8px; border-radius: 14px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover > span { padding: 4px 12px 4px; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item, .navigator-personal > .personal-account) {
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item, .navigator-personal > .personal-account) {
     position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; height: 34px; min-height: 34px;
     margin: 0; padding: 0 12px; border: 0; border-radius: 8px; box-shadow: none; background: transparent;
     color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; line-height: 1; text-align: left; text-decoration: none;
   }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item) > svg:first-child {
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item) > svg:first-child {
     flex: none; width: 16px; height: 16px; margin: 0 4px; color: var(--ink-soft);
   }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item) > span:not(.personal-account-avatar):not(.personal-account-copy) {
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item) > span:not(.personal-account-avatar):not(.personal-account-copy) {
     position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: visible; white-space: nowrap;
   }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item):hover { background: var(--nav-hover); color: var(--ink); }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item):hover > svg:first-child { color: var(--ink); }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item):hover { background: var(--nav-hover); color: var(--ink); }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-personal > .account-global-item):hover > svg:first-child { color: var(--ink); }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option.is-current, .navigator-project-settings[aria-current], .navigator-personal > .account-global-item[aria-current]) { background: var(--nav-active); color: var(--ink); }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-project-option > span { gap: 12px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-project-option .project-monogram { flex: none; width: 20px; height: 20px; border-radius: 6px; font-size: 11px; box-shadow: none; }
@@ -1229,29 +1230,12 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal::before {
     content: ""; position: absolute; left: 5px; right: 5px; top: -6px; height: 1px; background: var(--line); pointer-events: none;
   }
-  ${SHELL} .navigator-project-menu-popover .navigator-project-im {
-    display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; padding: 0 12px; border: 0; border-radius: 8px;
-    background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
-  }
-  ${SHELL} .navigator-project-menu-popover .navigator-project-im:hover { background: var(--nav-hover); color: var(--ink); }
-  ${SHELL} .navigator-project-menu-popover .navigator-project-im svg { width: 16px; height: 16px; color: var(--ink-soft); }
-  /* Group chat grows from its button at the right of the bar. */
-  ${SHELL} .dock-window {
-    position: absolute; z-index: 50; right: 0; bottom: calc(100% + 10px); width: min(400px, calc(100vw - 16px)); display: flex; flex-direction: column; overflow: hidden;
-    height: min(560px, calc(100dvh - var(--desktop-titlebar-height) - var(--dock-h) - 40px));
-    border-radius: 16px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom right; animation: craft-dock-rise 250ms var(--ease-quint) both;
-  }
-  ${SHELL} .dock-window[hidden] { display: none; }
-  ${SHELL} .dock-window-head { flex: none; display: flex; align-items: center; gap: 4px; height: 44px; padding: 0 8px 0 16px; box-shadow: inset 0 -1px 0 var(--line); }
-  ${SHELL} .dock-window-head strong { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; color: var(--ink); }
   ${SHELL} .dock-window-action {
     display: inline-flex; align-items: center; gap: 8px; width: auto; height: 28px; padding: 0 8px; border: 0; border-radius: 8px;
     background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer;
   }
   ${SHELL} .dock-window-action:hover { background: var(--nav-hover); color: var(--ink); }
   ${SHELL} .dock-window-action svg { width: 14px; height: 14px; }
-  ${SHELL} .dock-window-body { flex: 1; min-height: 0; overflow: hidden; }
-  ${SHELL} .dock-window-body iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--paper); }
 
   /* A narrow Assistant column (a 640–900px window, a side-by-side layout) keeps one chooser beside a usable input, as on
      a phone: unchosen Character and executor chips fold away while the panel is closed, the plugin chip narrows. */
@@ -1312,7 +1296,7 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .bar-end :is(.immersive-show-directory, .navigator-directory-toggle):hover { background: var(--nav-hover); color: var(--ink); }
     html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; }
     html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items { grid-template-columns: minmax(0, 1fr); }
-    ${SHELL} .assistant-panel, ${SHELL} .dock-window { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; height: min(70dvh, 560px); }
+    ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; height: min(70dvh, 560px); }
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
@@ -1947,7 +1931,7 @@ const CRAFT_BASE_STYLES = `
 
 /** Under automation (headless review, e2e) the layer holds still so geometry reads settle at once. */
 const STILL_RESET = `
-  html[data-craft-still] :is(.workbench-bar > *, .immersive-plugin-stage, .dock-overflow, .dock-window, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home :is(.home-focus, .home-note, .home-erow__slot), .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *, .project-card,
+  html[data-craft-still] :is(.workbench-bar > *, .immersive-plugin-stage, .dock-overflow, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home :is(.home-focus, .home-note, .home-erow__slot), .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *, .project-card,
     dialog[open], ${DROPDOWN}, details[open] > .navigator-project-menu-popover, .toast, .mw-check, .mw-radio, [data-graph-edge] path,
     [data-craft-celebrate] .goal-status--completed, [data-craft-celebrate] .goal-status--completed svg) { animation: none !important; }
   html[data-craft-still] :is(dialog[open], .mw-check:checked, .mw-radio:checked, .plugin-rail-items .immersive-plugin-link[aria-current], [data-craft-new])::after,

@@ -441,6 +441,8 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     "write": "file-change", "run-command": "command", "command-output": "command-output", "await-commands": "command-output", "find-tools": "lookup-tools",
     // Sub-tasks handed to works of their own.
     "delegate-work": "delegate", "check-delegated-work": "delegate-check", "follow-up-delegated-work": "delegate-follow-up", "stop-delegated-work": "delegate-stop",
+    // The side panel's browser.
+    "surface-list": "browser-list", "surface-observe": "browser-look", "surface-act": "browser-act",
     // The person's memory.
     "remember": "memory-keep", "list-memories": "memory-list", "forget-memory": "memory-forget", "suggest-memory": "memory-suggest",
     // The Host let a round that only announced its next step continue; the runtime condensed a long work's context.
@@ -1729,6 +1731,22 @@ export class AssistantService {
       ...(url ? { url } : {}), ...(found.source ? { source: { ...found.source } } : {}), ...(found.object ? { object: { ...found.object } } : {}), ...(found.draft ? { draft: true } : {}) };
   }
 
+  /** A picture a work carried, read back for the side panel; gone once the app restarted (the runtime keeps no copy). */
+  async materialImage(workId: string, materialId: string): Promise<{ media_type: string; data: string }> {
+    const work = this.store.get(this.actorId, workId);
+    const found = this.store.rounds(work.work_id).flatMap(round => round.materials).find(item => item.material_id === materialId && item.kind === "image" && item.image);
+    if (!found?.image) throw new AssistantError("assistant.not_found", "这项工作里没有这张图片");
+    const gone = new AssistantError("assistant.expired", "这张图片已失效：应用重启后不再保留。需要时请重新添加这张图片。");
+    if (!this.holdsImage(found.image)) throw gone;
+    const bytes = await (await this.ports.host()).adapter(RUNTIME).documents?.readImage?.({ id: found.image.resource_id, revision: found.image.revision });
+    if (!bytes) throw gone;
+    return { media_type: found.image.media_type, data: Buffer.from(bytes).toString("base64") };
+  }
+
+  private holdsImage(image: NonNullable<AssistantMaterial["image"]>): boolean {
+    return this.images.get(image.resource_id)?.revision === image.revision;
+  }
+
   /**
    * A card a page prepared from what the person selected (a contextual action they clicked): checked exactly as a round's
    * own suggestion is, against what the Assistant may use in that work now, and shown as coming from that page. It is
@@ -1954,6 +1972,8 @@ export class AssistantService {
       ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
         .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),
       history: "session", budget: { max_turns: ROUND_TURNS, ...(left === undefined ? {} : { max_total_tokens: left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
+      // The project's side panel browser is the person's work surface: a work delegated in the background never drives it.
+      ...(work.delegated_by ? { browser: false as const } : {}),
       // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
       ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
     }, authority);
@@ -2529,7 +2549,7 @@ export class AssistantService {
 
   private roundView(round: StoredRound, view: AgentRunView | undefined, titles: CapabilityTitles | undefined): AssistantRound {
     return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character } } : {}),
-      materials: round.materials.map(({ text: _text, ...rest }) => rest),
+      materials: round.materials.map(({ text: _text, ...rest }) => rest.kind === "image" && rest.image && !this.holdsImage(rest.image) ? { ...rest, expired: true } : rest),
       phase: view?.phase ?? "unknown", turns: spokenTurns(view?.turns ?? []), activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}),
       ...(view?.todo?.length ? { steps: view.todo.map(({ id, text, state }) => ({ id, text, state })) } : {}), ended_at: view?.ended_at ?? null };

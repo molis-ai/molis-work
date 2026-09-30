@@ -45,13 +45,15 @@ import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHeader } from "./web-http.js";
-import { L } from "./web-locale.js";
+import { htmlLang, L } from "./web-locale.js";
+import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import fs from "node:fs";
 import { handleGoalsWebHttp, goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import type { SessionRuntimeResources } from "./web-session.js";
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
+import { handleSideFilesHttp } from "./side-files-http.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
@@ -158,6 +160,29 @@ export async function handleMolisWorkWebRequest(
         boardId: options.boardId,
         projectId: options.project?.project_id,
       });
+      const shownPlugins = (projectId: string) => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
+        catalog => shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId)));
+      // A plugin's side panel tab (specs/side-panel D13): the declared `side` view, served for a plugin enabled here.
+      const sideView = /^\/side\/([^/]+)\/([^/]+)$/u.exec(url.pathname);
+      if (sideView && request.method === "GET" && options.project) {
+        const projectId = options.project.project_id;
+        // The same plugins the page shows: personal ones included unless the person hid them from this project.
+        const enabled = await shownPlugins(projectId);
+        const html = workbenchRenderer.renderSideViewDocument({ projectPluginId: decodeURIComponent(sideView[1]!), viewId: decodeURIComponent(sideView[2]!),
+          projectId, routePrefix: `/projects/${encodeURIComponent(projectId)}`, enabled, controlToken });
+        if (!html) {
+          // Shown inside the panel's frame: a sentence in the panel's colours, not a JSON body.
+          response.writeHead(404, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
+          response.end(`<!doctype html><html lang="${htmlLang()}"><meta charset="utf-8"><meta name="color-scheme" content="light dark"><body style="margin:16px;font:13px/1.6 system-ui,sans-serif;color:GrayText;background:Canvas">${escapeHtml(L("这个侧栏内容已经不在了（插件可能已停用）"))}</body></html>`);
+          return;
+        }
+        response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
+        response.end(html);
+        return;
+      }
+      // The side panel's file tab: sources, entries and one preview, read through the action directory as the person.
+      if (url.pathname.startsWith("/api/side/files/") && await handleSideFilesHttp(request, response, url, { localHost, reference: hostReference,
+        shownPlugins: async () => new Set(await shownPlugins(options.project!.project_id)) })) return;
       await localHost.withProject(hostReference, async (runtime) => {
         const { store, coordinator } = runtime;
         const feedOptions = {

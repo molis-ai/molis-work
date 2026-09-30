@@ -6,6 +6,18 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const lifetime=host.mountPluginClient(directory);if(!lifetime)return null;
   let viewSignal,initialRead=true;
   const q=selector=>result.querySelector(selector), tree=directory.querySelector('[data-files-tree]');
+  const surface=directory.closest('[data-work-surface]');
+  // What is open here, for the Assistant and for "open in plugin" from elsewhere (the side panel's file tab).
+  const context=path=>{surface?.setAttribute('data-assistant-context',JSON.stringify({plugin_id:'io.molis.work.files',surface_title:'Files',
+    ...(path?{object:{kind:'workspace_file',id:workspace+':'+path.join('/'),title:path[path.length-1]||'文件'}}:{})}));};
+  // Asked to open one file ("<workspace_id>:<a/b/c>", as the side panel lists it): in the folder being browsed only.
+  let wanted=null;
+  const openWanted=()=>{
+    if(!wanted || !workspace)return;
+    const [id,...rest]=wanted.split(':'),path=rest.join(':').split('/').filter(Boolean);wanted=null;
+    if(id!==workspace || !path.length){notice('这个文件不在当前浏览的目录里');return;}
+    host.openResult();result.hidden=false;void openFile(path);
+  };
   const notice=message=>{directory.querySelector('[data-files-status]').textContent=message;};
   let opener=null,selectedPath=null;
   const refresh=directory.querySelector('[data-files-refresh]'),reload=q('[data-files-reload]');
@@ -29,7 +41,7 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
   }
   async function openFile(path){
     const ticket=++readTicket, epoch=generation, id=workspace;
-    current=null;selectedPath=path;reload.disabled=true;result.setAttribute('aria-busy','true');controls();text.hidden=true;q('[data-files-title]').textContent=path.join('/');q('[data-files-notice]').textContent='正在读取…';
+    current=null;selectedPath=path;context(path);reload.disabled=true;result.setAttribute('aria-busy','true');controls();text.hidden=true;q('[data-files-title]').textContent=path.join('/');q('[data-files-notice]').textContent='正在读取…';
     try{
       const value=await request('/open','POST',{workspace_id:id,path});
       if(ticket!==readTicket || !active(epoch))return;
@@ -72,7 +84,8 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(!active(ticket))return;
       notice('');const state=await request('/state');
       if(!active(ticket))return;
-      if(state.position?.workspace_id===id)await openFile(state.position.path);
+      if(wanted)openWanted();
+      else if(state.position?.workspace_id===id)await openFile(state.position.path);
       if(!active(ticket))return;await companions(ticket);
     }catch(error){if(active(ticket)){clear();tree.replaceChildren();notice(error.message);}}
 
@@ -87,6 +100,7 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
     finally{if(lifetime.alive && serial===loadingTicket)resetLoading();}
   }
   lifetime.listen(reload,'click',()=>{if(selectedPath)void openFile(selectedPath);});
+  if(surface)lifetime.listen(surface,'molis-work:select-item',event=>{const id=event.detail?.itemId;if(typeof id!=='string' || !id)return;wanted=id;openWanted();});
   lifetime.listen(refresh,'click',()=>void load());
   for(const name of ['select','keyup','mouseup'])lifetime.listen(text,name,controls);
   lifetime.listen(q('[data-files-close]'),'click',()=>{result.hidden=true;result.classList.remove('is-arriving');host.closeResult();if(opener?.isConnected)opener.focus({preventScroll:true});});

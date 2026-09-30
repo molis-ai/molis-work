@@ -48,6 +48,10 @@ test("a work hands an independent part to a work of its own, waits for it, reads
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
+  // What each round asked the Host for: a delegated work never gets the person's side panel browser.
+  const starts: Array<{ task: string; browser?: false }> = [];
+  const start = host.start.bind(host);
+  host.start = (async (runtime, input, authority) => { starts.push(input as never); return start(runtime, input, authority); }) as typeof host.start;
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
     authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目" }, "web-user");
@@ -62,6 +66,8 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     assert.ok(parentTools[0]!.includes("delegate-work"), "the parent may delegate");
     assert.ok(!childTools[0]!.includes("delegate-work") && !childTools[0]!.includes("check-delegated-work"), "a delegated work does not delegate further");
     assert.deepEqual(done.rounds[0]!.activity.map(item => item.verb), ["delegate", "delegate-check"]);
+    assert.equal(starts[0]!.browser, undefined, "the person's own work may use the side panel browser");
+    assert.ok(starts.length > 1 && starts.slice(1).every(input => input.browser === false), "the delegated work starts without it");
     await service.list();
     assert.deepEqual(service.notices(null).filter(notice => notice.work_id === child.work.work_id), [], "a delegated work reports to its parent, not to the person");
 

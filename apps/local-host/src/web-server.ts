@@ -25,6 +25,13 @@ import { createLocalWebComposition, type LocalWebPlatform } from "./web-composit
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
 import { assistantServiceFor } from "./assistant/assistant-http.js";
+import { BrowserHost } from "./browser/browser-host.js";
+import { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
+import { handleBrowserHttp } from "./browser/browser-http.js";
+import { BrowserSiteDecisions, registerBrowserSurfaces } from "./browser/browser-surfaces.js";
+import { createBrowserSurfaceDriver } from "./browser/surface-driver.js";
+import { locateBrowser } from "./browser/locate.js";
+import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
@@ -96,6 +103,33 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
         catch { return null; }
       });
     });
+    // The side panel's browser (specs/side-panel): started on first use, one page per project. Its pages may never load
+    // this server itself, which hands its control token to whoever loads it.
+    let browsers: BrowserHost | null = null;
+    const browserHost = () => browsers ??= new BrowserHost({ homeDirectory: storageHome, forbiddenOrigins: () => {
+      const address = server.address();
+      const port = address && typeof address === "object" ? address.port : 0;
+      return port ? [`http://127.0.0.1:${port}`, `http://localhost:${port}`, `http://[::1]:${port}`] : [];
+    } });
+    // The Assistant may look at and act on a project's page through Prologue (specs/side-panel P5): one driver per page,
+    // found by the board its round works on; sites the person allowed or blocked are kept beside the browser profile.
+    const sites = new BrowserSiteDecisions(storageHome);
+    const drivers = new Map<string, HostSurfaceDriver>();
+    const unregisterSurfaces = registerBrowserSurfaces(localHost, {
+      siteDecisions: () => sites.list(),
+      driverFor: async boardId => {
+        // The person can turn the Assistant's use of the browser off altogether; rounds then get no browser tools.
+        if (!sites.assistantEnabled || !locateBrowser()) return null;
+        const projectId = fixture && boardId === fixture.boardId ? fixture.boardId
+          : await platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().find(project => project.board_id === boardId)?.project_id ?? null);
+        if (!projectId) return null;
+        let driver = drivers.get(projectId);
+        if (!driver) drivers.set(projectId, driver = createBrowserSurfaceDriver(browserHost().page(projectId), origin => sites.blocked(origin)));
+        return driver;
+      },
+    });
+    const projectExists = async (projectId: string) => (fixture && projectId === fixture.boardId)
+      || await platform.withCatalog({ homeDirectory: storageHome }, catalog => { try { catalog.getProject(projectId); return true; } catch { return false; } });
     const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
@@ -129,6 +163,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
               pathname => resolveWebRequest(serverOptions,pathname,composition.withCatalog))) return;
           }
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
+          if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
           if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, platform.withCatalog)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
@@ -160,9 +195,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
         sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
       }
     }));
-    // SSE is an active HTTP response, so stop its streams before close waits.
+    // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
+    // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
     const closeServer = server.close.bind(server);
-    server.close = (callback) => { im.stop(); return closeServer(callback); };
+    server.close = (callback) => { im.stop(); void browsers?.close(); return closeServer(callback); };
+    attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     pty.host = attachMolisWorkPtySocket(server, controlToken, {
       onData(panelId, sessionId, data) {
         void sessionResources
@@ -217,6 +254,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       clearInterval(assistantTimer);
       clearInterval(reminderTimer);
       im.close();
+      void browsers?.close();
+      unregisterSurfaces();
       void closeExperiments(storageHome);
       clearInterval(schedulerTimer);
       feedSchedulers.clear();

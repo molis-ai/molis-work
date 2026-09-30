@@ -2,6 +2,7 @@ import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
 import { DIRECT_WORK_SURFACE_IDS, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
 import { renderAssistantDock } from "./assistant-dock.js";
+import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
 
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
@@ -150,16 +151,15 @@ const BAR_RESIDENT_IDS = ["shelf", "lingguang"];
  * The bottom bar replaces the rail. Left, where you go: the switcher — it names where you are (one chip per pane
  * when split) and opens search and every entry of the project, with the Dock's own settings at its foot (the market,
  * the plugin studio, which plugins stay in the Dock) — then the plugins chosen to stay; the two sit in one tray.
- * Centre: the resident Assistant, only an input. Right: Shelf and 灵光 with the project's discussion (one click opens
- * group and direct chat beside the work) in one tray, then the project as a round button whose menu holds the project
- * and the person — switching, search, settings, capabilities.
+ * Centre: the resident Assistant, only an input. Right: Shelf and 灵光 with the side panel's button (the project's
+ * discussion, the browser and files beside the work, specs/side-panel) in one tray, then the project as a round button
+ * whose menu holds the project and the person — switching, search, settings, capabilities.
  */
 export function renderWorkbenchBar(
   primitives: ImmersiveShellPrimitives,
-  parts: { rail: string; projectChrome: string; enabled: readonly string[] },
+  parts: { rail: string; projectChrome: string; enabled: readonly string[]; sideTabs?: readonly SidePanelPluginTab[] },
 ): string {
   const { L, icon } = primitives;
-  const collapse = `<button class="dock-window-action" type="button" data-dock-collapse aria-label="${L("最小化")}" title="${L("最小化")}">${icon("chevron-down")}</button>`;
   const known = [...directoryPlugins(parts.enabled), ...islandPlugins(parts.enabled)];
   const residents = BAR_RESIDENT_IDS.map(id => known.find(plugin => plugin.id === id)).filter(plugin => plugin !== undefined)
     .map(plugin => `<button class="bar-resident" type="button" data-bar-resident="${plugin.id}" data-craft-tip="${plugin.label}" aria-label="${L("切换到插件")}：${plugin.label}">${icon(plugin.glyph)}</button>`).join("");
@@ -184,11 +184,8 @@ export function renderWorkbenchBar(
     </div>
     ${renderAssistantDock(primitives)}
     <div class="bar-end">
-      <div class="bar-residents" role="toolbar" aria-label="${L("常驻插件")}">${residents}<button class="bar-chat" type="button" data-dock-toggle="im" aria-expanded="false" aria-controls="dock-window-im" data-craft-tip="${L("项目讨论")}" aria-label="${L("项目讨论")}">${icon("message")}</button></div>
-      <section class="dock-window dock-window--end" id="dock-window-im" role="region" aria-label="${L("群聊")}" data-dock-window="im" hidden>
-        <header class="dock-window-head"><strong>${L("项目讨论")}</strong>${collapse}</header>
-        <div class="dock-window-body"><iframe title="${L("群聊与 Thread")}" data-dock-frame="im"></iframe></div>
-      </section>
+      <div class="bar-residents" role="toolbar" aria-label="${L("常驻插件")}">${residents}<button class="bar-chat" type="button" data-dock-toggle="im" data-side-toggle aria-expanded="false" aria-controls="dock-window-im" data-craft-tip="${L("侧栏：讨论、浏览器与文件")}" aria-label="${L("侧栏：讨论、浏览器与文件")}">${icon("sidebar")}</button></div>
+      ${renderSidePanel(primitives, parts.sideTabs ?? [])}
       ${parts.projectChrome}
     </div>
   </div>`;
@@ -269,8 +266,11 @@ export function renderGlobalSearchOverlay({ L, icon }: ImmersiveShellPrimitives)
   </dialog>`;
 }
 
-export function renderPluginMarket({ L, icon }: ImmersiveShellPrimitives): string {
-  const rows = pluginMarketCards().map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"><div class="plugin-market-icon">${icon(plugin.glyph as MolisWorkIcon)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p><small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
+export function renderPluginMarket({ L, icon, escapeHtml }: ImmersiveShellPrimitives): string {
+  // Sites a Plugin says it uses in the side panel browser are read before it is added (specs/side-panel D16).
+  const sites = (plugin: { sites: readonly string[] }) => plugin.sites.length
+    ? `<small class="plugin-market-sites" data-market-sites>${L("会在侧栏浏览器里使用")}：${plugin.sites.map(site => escapeHtml(site)).join("、")}</small>` : "";
+  const rows = pluginMarketCards().map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"><div class="plugin-market-icon">${icon(plugin.glyph as MolisWorkIcon)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
   return `<div class="plugin-market-body">
     <header class="plugin-market-heading"><div><h1>${L("插件")}</h1><p>${L("给这个项目添加插件，或打开已经在用的。")}</p></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${L("添加到")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>
     <label class="plugin-market-search mw-input-group">${icon("search")}<input class="mw-input" type="search" data-market-search placeholder="${L("搜索插件")}" aria-label="${L("搜索插件")}" autocomplete="off"></label>

@@ -289,11 +289,11 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const detail = objectsFocus() || surfaceFocus();
     if ((detail ? detail.context_id : null) === (focusShown ? focusShown.context_id : null)) return;
     focusShown = detail;
-    workbench.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail }));
+    workbench.dispatchEvent?.(new CustomEvent("molis:surface-focus", { bubbles: true, detail }));
   };
   // The person chose one of this document's actions in the bar: run it on the range they had in hand when it was
   // ranked, through the writing popup, so the result is a candidate they accept before anything is written.
-  window.addEventListener("molis:assistant-context-action-chosen", (event) => {
+  window.addEventListener?.("molis:assistant-context-action-chosen", (event) => {
     const chosen = event.detail;
     if (!chosen || chosen.plugin_id !== "io.molis.work.pages" || !focusShown || !focusNow || chosen.context_id !== focusShown.context_id) return;
     if (focusShown.granularity === "objects") return;
@@ -331,12 +331,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   // A row's only label is its state: a fixed version exists, or one is still being saved.
+  // Only a row that has one gets the cell; a row with no fixed version shows just its title and date.
   const fixedCell = (record) => {
+    if (!record.publication_pending && !(record.artifact_version > 0)) return null;
     const node = document.createElement("span");
-    node.className = "mw-status mw-status--plain feed-entry-status";
-    if (record.publication_pending) { node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
-    else if (record.artifact_version > 0) { node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
-    else node.setAttribute("aria-hidden", "true");
+    node.className = "mw-status mw-status--plain feed-entry-status " + (record.publication_pending ? "mw-status--attention" : "mw-status--done");
+    node.textContent = record.publication_pending ? L("固定版本未存完") : L("固定版本") + " v" + record.artifact_version;
     return node;
   };
   const renderRow = (record) => {
@@ -367,7 +367,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     meta.textContent = formatTime(record.updated_at);
     row.append(leading, meta);
     const fixed = fixedCell(record);
-    if (!fixed.hasAttribute("aria-hidden")) row.append(fixed);
+    if (fixed) row.append(fixed);
     const actions = document.createElement("span");
     actions.className = "pages-row-actions";
     if (folders.length) {

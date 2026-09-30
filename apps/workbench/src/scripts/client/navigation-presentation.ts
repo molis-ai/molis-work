@@ -73,7 +73,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   // What the work area shows: the current plugin, or one per pane when it is split, the focused pane first in weight.
   const shown = () => {
     const panes = [...document.querySelectorAll('.tab-workspace-panes > [data-tab-pane]')];
-    const railCurrent = rail().find((node) => node.hasAttribute('aria-current'))?.dataset.pluginId || 'home';
+    const railCurrent = host.shownPlugin?.() || rail().find((node) => node.hasAttribute('aria-current'))?.dataset.pluginId || 'home';
     if (panes.length < 2) return [{ plugin: railCurrent, focused: true }];
     return panes.map((pane) => {
       const mark = pane.querySelector('.tab-strip [aria-current], .tab-strip .tab-view-chip');
@@ -86,6 +86,24 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     paintQueued = true;
     requestAnimationFrame(() => {
       paintQueued = false;
+      // A cover (settings, the market, capabilities) is what the person looks at: the switcher names it and no
+      // Dock entry claims to be current underneath it.
+      const cover = document.querySelector('[data-tab-workspace]')?.dataset.exclusive;
+      if (cover) {
+        const source = document.querySelector('[data-cover-chip]');
+        const chip = document.createElement('span');
+        chip.className = 'plugin-picker-chip is-focused is-cover';
+        const glyph = source?.querySelector('svg')?.cloneNode(true);
+        if (glyph) chip.append(glyph);
+        const name = document.createElement('span');
+        name.textContent = source?.querySelector(':scope > span')?.textContent || '';
+        chip.append(name);
+        current.replaceChildren(chip);
+        current.parentElement?.classList.remove('is-split');
+        dock.querySelectorAll('[data-dock-pin][aria-current], [data-bar-resident][aria-current]').forEach((button) => button.removeAttribute('aria-current'));
+        more?.classList.remove('has-current');
+        return;
+      }
       const entries = shown();
       current.replaceChildren(...entries.map((entry) => {
         const chip = document.createElement('span');
@@ -245,6 +263,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     event.preventDefault();
     openCapabilities(capabilitiesLink.href);
   });
+  if (capabilitiesLink) host.registerCover?.('capabilities', () => openCapabilities(capabilitiesFrame?.getAttribute('src') || capabilitiesLink.href));
   // A reload that restores the cover restores what it shows.
   const coverRoot = document.querySelector('[data-tab-workspace]');
   const restoreCover = () => { if (coverRoot?.dataset.exclusive === 'capabilities' && !capabilitiesFrame?.getAttribute('src')) loadCapabilities(capabilitiesLink?.href); };
@@ -271,7 +290,14 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (target.closest('[data-plugin-picker-toggle]')) { setPicker(pickerPopover?.hidden !== false); return; }
     if (target.closest('[data-dock-more]')) { setOverflow(overflow?.hidden !== false); return; }
     const pin = target.closest('[data-dock-pin], [data-bar-resident]');
-    if (pin) { setOverflow(false); railItem(pin.dataset.dockPin || pin.dataset.barResident)?.click(); return; }
+    if (pin) {
+      setOverflow(false);
+      const id = pin.dataset.dockPin || pin.dataset.barResident;
+      // Pressed again while its plugin is showing, an entry of the bar puts back what was there before it.
+      if (host.leavePlugin?.(id)) return;
+      railItem(id)?.click();
+      return;
+    }
     // Choosing a plugin in the switcher (or the market or studio at its foot) closes it; 全部插件 and the Dock choices keep it open.
     if (pickerPopover && !pickerPopover.hidden && target.closest('.plugin-rail-items [data-plugin-id], .plugin-rail-items a.plugin-rail-item, .dock-settings .account-global-item')) requestAnimationFrame(() => setPicker(false));
   });
@@ -304,7 +330,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (inside) { event.preventDefault(); setWindow(inside.dataset.dockWindow, false); return; }
     if (panel && !panel.hidden && active?.nodeType === 1 && active.closest('[data-assistant-island]')) { event.preventDefault(); setPanel(false); }
   });
-  new MutationObserver(paintCurrent).observe(document.querySelector('.tab-workspace') || document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-current', 'class'] });
+  new MutationObserver(paintCurrent).observe(document.querySelector('.tab-workspace') || document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-current', 'class', 'data-exclusive'] });
   new MutationObserver(paintCurrent).observe(dock.querySelector('.plugin-rail-items') || dock, { subtree: true, attributes: true, attributeFilter: ['aria-current'] });
   paintPins();
 }`;

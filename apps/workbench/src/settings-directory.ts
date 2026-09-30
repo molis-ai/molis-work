@@ -1,7 +1,7 @@
 import { renderDirectoryPanel, renderDirectoryRow, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { renderAppearanceSettingsDocument } from "./settings-appearance.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldProject } from "./project-settings-folds.js";
-import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
+import { groupedGlobalSettingsSections } from "./settings-sections.js";
 
 export interface SettingsDirectoryPrimitives {
   L(text: string): string;
@@ -9,24 +9,6 @@ export interface SettingsDirectoryPrimitives {
   icon(name: MolisWorkIcon): string;
   htmlLang(): string;
   withDesktopQuery?(path: string): string;
-}
-
-const SETTINGS_SECTIONS = [
-  { id: "appearance", label: "界面与语言", icon: "sun" },
-  { id: "models", label: "模型设置", icon: "key" },
-  { id: "runtimes", label: "AI 与执行工具", icon: "terminal" },
-  { id: "diagnostics", label: "诊断", icon: "bug" },
-] as const satisfies readonly { id: string; label: string; icon: MolisWorkIcon }[];
-
-function globalSettingsSections(enabled?: readonly string[], hidden?: readonly string[]): readonly { id: string; label: string; icon: MolisWorkIcon }[] {
-  return [
-    ...SETTINGS_SECTIONS,
-    ...listPluginSettingsNavItems(enabled, hidden).map((item) => ({
-      id: item.section_id,
-      label: item.label,
-      icon: item.icon,
-    })),
-  ];
 }
 
 const PROJECT_SETTINGS_SECTIONS = [
@@ -70,25 +52,27 @@ export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives)
 
 function renderSettingsNav(
   primitives: SettingsDirectoryPrimitives,
-  sections: readonly { id: string; label: string; icon: MolisWorkIcon }[],
+  groups: readonly { group: string; sections: readonly { id: string; label: string; icon: MolisWorkIcon; kind?: string }[] }[],
   preset: string,
   label: string,
   pluginId: string,
 ): string {
-  const { L } = primitives;
+  const { L, escapeHtml } = primitives;
+  // Group labels only when there is more than one group (project settings are one short list).
+  const labelled = groups.length > 1;
   return renderDirectoryPanel({
     pluginId,
     listLabel: L(label),
     listRole: "none",
     listClassName: "settings-directory-nav",
     listAttrs: { "data-settings-directory-nav": true },
-    body: sections.map((section) => renderDirectoryRow({
+    body: groups.map(({ group, sections }) => `${labelled ? `<p class="settings-directory-group" aria-hidden="true">${escapeHtml(L(group))}</p>` : ""}${sections.map((section) => renderDirectoryRow({
       title: L(section.label),
       icon: section.icon,
       density: "compact",
       current: section.id === preset,
-      attrs: { "data-settings-section": section.id },
-    })).join(""),
+      attrs: { "data-settings-section": section.id, ...(section.kind === "cover" ? { "data-settings-cover": section.id } : {}) },
+    })).join("")}`).join(""),
   });
 }
 
@@ -97,7 +81,7 @@ export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrim
   return `<section class="plugin-section is-expanded" data-plugin-section="settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${L("设置")}</span></div>
     <div class="plugin-section-body">
-      ${renderSettingsNav(primitives, globalSettingsSections(enabled, hidden), "appearance", "系统设置", "settings")}
+      ${renderSettingsNav(primitives, groupedGlobalSettingsSections(enabled, hidden), "appearance", "系统设置", "settings")}
     </div>
   </section>`;
 }
@@ -107,7 +91,7 @@ export function renderProjectSettingsDirectorySection(primitives: SettingsDirect
   return `<section class="plugin-section is-expanded" data-plugin-section="project-settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${L("项目设置")}</span></div>
     <div class="plugin-section-body">
-      ${renderSettingsNav(primitives, PROJECT_SETTINGS_SECTIONS, "general", "项目设置", "project-settings")}
+      ${renderSettingsNav(primitives, [{ group: "", sections: PROJECT_SETTINGS_SECTIONS }], "general", "项目设置", "project-settings")}
     </div>
   </section>`;
 }

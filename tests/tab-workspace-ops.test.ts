@@ -361,3 +361,49 @@ test("opening beside puts a second item of the same plugin in a pane to the righ
   assert.equal(ops.focused(state).viewPlugin, "coding");
   assert.equal(ops.activeTab(state), null);
 });
+
+// specs/archive/page-interaction-flow: the location chip always names the plugin of what the pane shows.
+test("activating an item tab moves the location chip to that tab's plugin", () => {
+  const state = ops.create();
+  const inbox = ops.openItem(state, "inbox", "entry-1", "来源故障");
+  ops.openPlugin(state, "feed");
+  assert.equal(ops.focused(state).viewPlugin, "feed");
+  ops.activate(state, state.focusedPaneId, inbox.id);
+  assert.equal(ops.focused(state).viewPlugin, "inbox");
+  assert.equal(ops.shownPlugin(ops.focused(state)), "inbox");
+  // A restored pane whose chip went stale is corrected on normalisation.
+  ops.focused(state).viewPlugin = "feed";
+  ops.normalizeLayout(state);
+  assert.equal(ops.focused(state).viewPlugin, "inbox");
+});
+
+test("closing the item tab being read shows its own plugin's page, not the page shown before it", () => {
+  const state = ops.create();
+  const inbox = ops.openItem(state, "inbox", "entry-1", "来源故障");
+  ops.openPlugin(state, "feed");
+  ops.activate(state, state.focusedPaneId, inbox.id);
+  ops.closeTab(state, state.focusedPaneId, inbox.id);
+  assert.equal(ops.activeTab(state), null);
+  assert.equal(ops.focused(state).viewPlugin, "inbox");
+});
+
+test("choosing a tab steps out of a cover, and entering the project does too", () => {
+  const state = ops.create();
+  const home = ops.activeTab(state);
+  ops.openPlugin(state, "shelf");
+  ops.setExclusive(state, "settings");
+  ops.activate(state, state.focusedPaneId, home.id);
+  assert.equal(state.exclusive, null);
+  ops.openPlugin(state, "shelf");
+  ops.setExclusive(state, "project-settings");
+  ops.landAtProjectRoot(state);
+  assert.equal(state.exclusive, null);
+  assert.equal(ops.activeTab(state)?.kind, "home");
+});
+
+test("shownPlugin names home for the home tab and the plugin for its page", () => {
+  const state = ops.create();
+  assert.equal(ops.shownPlugin(ops.focused(state)), "home");
+  ops.openPlugin(state, "lingguang");
+  assert.equal(ops.shownPlugin(ops.focused(state)), "lingguang");
+});

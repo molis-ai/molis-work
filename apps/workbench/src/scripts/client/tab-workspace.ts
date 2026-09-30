@@ -38,7 +38,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
-  if (!root || !panesEl || !pool) return { apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; } };
+  if (!root || !panesEl || !pool) return { apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
+    leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_COLOR = ${JSON.stringify(Object.fromEntries(MW_PLUGINS.map((plugin) => [plugin.id, `var(--plugin-${plugin.id})`])))};
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())};
   const PLUGIN_TAB_TITLES = ${JSON.stringify({ home: "项目首页", ...pluginTabTitles() })};
@@ -152,8 +153,13 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     apply();
     persist();
   };
+  // A plugin whose page lives in settings (it marks the page it renders here) is not a place a pane can show.
+  const settingsPageOf = (plugin) => plugin && !embedded && !Object.hasOwn(PLUGIN_TAB_ICON, plugin) && document.querySelector('[data-settings-page="' + CSS.escape(plugin) + '"]') ? plugin : "";
   const rewriteRetiredTabs = () => {
     for (const pane of state.panes || []) {
+      if (settingsPageOf(pane.viewPlugin)) { pane.viewPlugin = null; if (!pane.activeTabId) pane.activeTabId = pane.tabs.find((tab) => tab.kind === "home")?.id || null; }
+      pane.tabs = (pane.tabs || []).filter((tab) => !settingsPageOf(tab.plugin));
+      if (pane.activeTabId && !pane.tabs.some((tab) => tab.id === pane.activeTabId)) pane.activeTabId = pane.tabs[0]?.id || null;
       // Only obsolete view state is removed. Rules live in the system editor;
       // saved public links are redirected by the Host with their record ID.
       if (pane.viewPlugin === "functions" || pane.tabs?.some(tab => tab.plugin === "functions" && tab.id === pane.activeTabId)) {
@@ -225,8 +231,13 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     lastSelection.set(surface, { itemId, at: now });
     surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId } }));
   };
+  // Collapses the shell makes itself (showing a page for the first time, returning from a tab, the location chip) are
+  // not the person closing a record: the record watcher below lets them pass, and the callers keep history themselves.
+  const shellCollapse = new Set();
   const applyPluginDefault = (plugin) => {
     if (!plugin) return;
+    shellCollapse.add(plugin);
+    queueMicrotask(() => shellCollapse.delete(plugin));
     selectItem(topLevelSurface(plugin), null);
     if (plugin === "goals") {
       document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", L("收起 Goal，返回关系画布"));
@@ -245,6 +256,32 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         object: { kind: "goal", id: goalId, ...(title ? { title } : {}) }, goal: { id: goalId, title: title || "" } }));
       else node.removeAttribute("data-assistant-context");
     });
+  };
+  /* The record opened on a plugin's own page (a note, a document, a form) is remembered per plugin on this device,
+     so a reload reopens it. Going back to the list forgets it. Feed keeps its own reading state. */
+  const RECORDS_KEY = "molis-work-plugin-records:" + (getProjectId() || "board");
+  let openRecords = {};
+  if (!embedded) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(RECORDS_KEY) || "{}");
+      if (saved && typeof saved === "object" && !Array.isArray(saved)) openRecords = Object.fromEntries(Object.entries(saved).filter(([, id]) => typeof id === "string" && id));
+    } catch {}
+  }
+  const saveRecords = () => { if (!embedded) try { localStorage.setItem(RECORDS_KEY, JSON.stringify(openRecords)); } catch {} };
+  const forgetRecord = (plugin) => {
+    if (!plugin || !openRecords[plugin]) return false;
+    delete openRecords[plugin];
+    saveRecords();
+    return true;
+  };
+  const resetPluginPage = (plugin) => {
+    if (!plugin) return;
+    // A reopen still waiting for the list must not undo the person's choice of the list.
+    cancelRecordJump?.();
+    const had = forgetRecord(plugin);
+    applyPluginDefault(plugin);
+    surfaceShows.set(plugin, "page");
+    if (had) notePlace();
   };
   const applyTabContent = (tab, keepFrame) => {
     if (!tab) return;
@@ -305,6 +342,27 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (node.parentElement !== body) body.append(node);
     node.hidden = false;
   };
+  /* What each plugin's surface last showed: its own page ("page") or one of its tabs ("tab:<id>"). Returning to the
+     same thing keeps it as it was, down to where it was scrolled. */
+  const surfaceShows = new Map();
+  const scrollMemory = new WeakMap();
+  const rememberScroll = (node) => {
+    const offsets = [];
+    for (const element of [node, ...node.querySelectorAll("*")]) {
+      if (element.scrollTop > 0 || element.scrollLeft > 0) offsets.push([element, element.scrollTop, element.scrollLeft]);
+    }
+    if (offsets.length) scrollMemory.set(node, offsets); else scrollMemory.delete(node);
+  };
+  const restoreScroll = (node) => {
+    const offsets = scrollMemory.get(node);
+    if (!offsets) return;
+    scrollMemory.delete(node);
+    requestAnimationFrame(() => offsets.forEach(([element, top, left]) => {
+      if (!node.contains(element)) return;
+      element.scrollTop = top;
+      element.scrollLeft = left;
+    }));
+  };
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
   const tabLabel = (tab) => {
     if (tab.plugin === "home") return document.body.dataset.projectId === "personal" ? L("个人首页") : L("项目首页");
@@ -313,6 +371,26 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   const tabIcon = (plugin) => PLUGIN_TAB_ICON[plugin] || "frame";
   const iconMarkup = (plugin) => '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
+  /* The entries that open a cover, wherever the bar keeps them. Pressed again while their cover is up, they close it. */
+  const COVER_OPENERS = {
+    settings: '[data-directory-open="settings"]',
+    "project-settings": '[data-directory-open="project-settings"]',
+    capabilities: "[data-capabilities-open]",
+    market: ':is([data-dock], [data-global-menu], .plugin-stack) [data-plugin-id="market"]',
+  };
+  const coverLabel = (kind) => kind === "market" ? L("插件市场") : kind === "project-settings" ? L("项目设置") : kind === "settings" ? L("设置") : kind === "capabilities" ? L("能力") : ops.pluginTitle(kind);
+  // The glyph comes from the entry that opened the cover.
+  const coverGlyph = (kind) => document.querySelector((COVER_OPENERS[kind] || '[data-plugin-id="' + CSS.escape(kind) + '"]') + " svg")?.cloneNode(true) || null;
+  const coverKindOf = (element) => Object.keys(COVER_OPENERS).find((kind) => element.closest(COVER_OPENERS[kind])) || null;
+  const markCoverOpeners = () => {
+    if (embedded) return;
+    for (const [kind, selector] of Object.entries(COVER_OPENERS)) {
+      document.querySelectorAll(selector).forEach((opener) => {
+        if (state.exclusive === kind) opener.setAttribute("aria-current", "page");
+        else if (opener.getAttribute("aria-current") === "page" && !opener.matches("[data-work-surface-open]")) opener.removeAttribute("aria-current");
+      });
+    }
+  };
   const appendTab = (parent, pane, tab) => {
     const selected = tab.id === pane.activeTabId;
     const button = document.createElement("div");
@@ -536,18 +614,21 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       fragment.prepend(chip, divider);
     }
     if (state.exclusive && !embedded && (strip.hasAttribute("data-titlebar-tabs") || pane.id === state.focusedPaneId)) {
-      // Market and settings cover the panes; say so where the tabs are.
+      // Market and settings cover the panes; say so where the tabs are, with the way out beside the name.
       const cover = document.createElement("span");
       cover.className = "tab-view-chip is-exclusive"; cover.setAttribute("aria-current", "page");
-      // The glyph comes from the entry that opened the cover, wherever the shell keeps it.
-      const source = state.exclusive === "market" ? ':is([data-global-menu], .plugin-stack) [data-plugin-id="market"] svg'
-        : state.exclusive === "project-settings" ? ".navigator-project-settings svg"
-        : state.exclusive === "capabilities" ? "[data-capabilities-open] svg" : ".personal-settings svg";
-      const glyph = document.querySelector(source);
-      if (glyph) cover.append(glyph.cloneNode(true));
+      cover.dataset.coverChip = state.exclusive;
+      const glyph = coverGlyph(state.exclusive);
+      if (glyph) cover.append(glyph);
       const label = document.createElement("span");
-      label.textContent = state.exclusive === "market" ? L("插件市场") : state.exclusive === "project-settings" ? L("项目设置") : state.exclusive === "settings" ? L("设置") : state.exclusive === "capabilities" ? L("能力") : ops.pluginTitle(state.exclusive);
+      label.textContent = coverLabel(state.exclusive);
       cover.append(label);
+      const close = document.createElement("button");
+      close.type = "button"; close.className = "tab-view-chip-close"; close.dataset.coverClose = "";
+      close.title = L("关闭") + " · " + coverLabel(state.exclusive) + " (Esc)";
+      close.setAttribute("aria-label", L("关闭") + " " + coverLabel(state.exclusive));
+      close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
+      cover.append(close);
       const divider = document.createElement("span"); divider.className = "tab-view-divider"; divider.setAttribute("aria-hidden", "true");
       fragment.prepend(cover, divider);
     }
@@ -572,7 +653,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         fragment.append(spacer);
       }
       const add = document.createElement("button"); add.type = "button"; add.className = "tab-add-button"; add.dataset.tabAdd = pane.id;
-      add.setAttribute("aria-label", L("打开标签")); add.title = L("打开标签"); add.setAttribute("aria-haspopup", "menu");
+      add.setAttribute("aria-label", L("打开插件")); add.title = L("打开插件"); add.setAttribute("aria-haspopup", "menu");
       add.innerHTML = '<svg aria-hidden="true"><use href="#icon-plus"></use></svg>'; fragment.append(add);
       const split = document.createElement("button");
       split.type = "button"; split.className = "tab-split-button"; split.dataset.tabSplit = pane.id;
@@ -646,22 +727,45 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   let applying = false;
   let applyQueued = false;
   let historyLock = false;
+  /* Where each pane has been: plugin pages ("plugin:<id>"), tabs (their id) and the covers opened over it
+     ("cover:<kind>"). Kept for this browser session, so a reload keeps the way back. */
+  const HISTORY_KEY = "molis-work-tab-history:" + (getProjectId() || "board");
+  const HISTORY_LIMIT = 60;
   const tabHistory = new Map();
+  if (!embedded) {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(HISTORY_KEY) || "null");
+      if (saved && typeof saved === "object") for (const [paneId, entry] of Object.entries(saved)) {
+        const stack = Array.isArray(entry?.stack) ? entry.stack.filter((id) => typeof id === "string").slice(-HISTORY_LIMIT) : [];
+        if (stack.length) tabHistory.set(paneId, { stack, index: Math.max(-1, Math.min(Number(entry.index) || 0, stack.length - 1)) });
+      }
+    } catch {}
+  }
+  const persistHistory = () => {
+    if (embedded) return;
+    try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(Object.fromEntries([...tabHistory].filter(([paneId]) => state.panes.some((pane) => pane.id === paneId))))); } catch {}
+  };
   const paneHistory = (paneId) => {
     let entry = tabHistory.get(paneId);
     if (!entry) { entry = { stack: [], index: -1 }; tabHistory.set(paneId, entry); }
     return entry;
   };
-  const historyId = (pane) => pane?.activeTabId || (pane?.viewPlugin ? "plugin:" + pane.viewPlugin : null);
+  // A plugin's page is a place, and so is a record opened on it ("plugin:<id>|<record>"): Back from a note is its list.
+  const placeId = (pane) => pane?.activeTabId || (pane?.viewPlugin ? "plugin:" + pane.viewPlugin + (openRecords[pane.viewPlugin] ? "|" + openRecords[pane.viewPlugin] : "") : null);
+  // Where inside a cover the person is (a settings category, the page it loaded), so Back walks those too.
+  let coverPlace = "";
+  const historyId = (pane) => state.exclusive ? "cover:" + state.exclusive + (coverPlace ? "|" + coverPlace : "") : placeId(pane);
+  const coverOf = (id) => String(id).startsWith("cover:") ? String(id).slice("cover:".length).split("|")[0] : "";
+  const keptPlace = (pane, id) => String(id).startsWith("plugin:") || String(id).startsWith("cover:") || pane.tabs.some((tab) => tab.id === id);
+  const pluginOfPlace = (pane, id) => String(id).startsWith("plugin:") ? String(id).slice("plugin:".length).split("|")[0]
+    : String(id).startsWith("cover:") ? null : pane.tabs.find((tab) => tab.id === id)?.plugin || null;
   const pruneHistory = (pane) => {
     const entry = paneHistory(pane.id);
-    const live = new Set(pane.tabs.map((tab) => tab.id));
     const next = [];
     let index = -1;
     for (let i = 0; i < entry.stack.length; i++) {
       const id = entry.stack[i];
-      const keep = live.has(id) || String(id).startsWith("plugin:");
-      if (!keep || next[next.length - 1] === id) continue;
+      if (!keptPlace(pane, id) || next[next.length - 1] === id) continue;
       next.push(id);
       if (i <= entry.index) index = next.length - 1;
     }
@@ -673,14 +777,16 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (!id) return;
     pruneHistory(pane);
     const entry = paneHistory(pane.id);
-    if (historyLock) {
-      const found = entry.stack.indexOf(id);
-      if (found >= 0) entry.index = found;
-      return;
-    }
     if (entry.stack[entry.index] === id) return;
+    if (historyLock) {
+      // A step through history already moved the index; settle on the matching entry nearest to it.
+      let found = -1;
+      entry.stack.forEach((candidate, index) => { if (candidate === id && (found < 0 || Math.abs(index - entry.index) < Math.abs(found - entry.index))) found = index; });
+      if (found >= 0) { entry.index = found; return; }
+    }
     entry.stack = entry.stack.slice(0, Math.max(entry.index, -1) + 1);
     if (entry.stack.at(-1) !== id) entry.stack.push(id);
+    if (entry.stack.length > HISTORY_LIMIT) entry.stack.splice(0, entry.stack.length - HISTORY_LIMIT);
     entry.index = entry.stack.length - 1;
   };
   const syncHistoryButtons = () => {
@@ -688,34 +794,151 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const forward = document.querySelector("[data-workspace-history=forward]");
     if (!back || !forward) return;
     const pane = ops.focused(state);
-    if (!pane || state.exclusive) { back.disabled = true; forward.disabled = true; return; }
+    if (!pane) { back.disabled = true; forward.disabled = true; return; }
     pruneHistory(pane);
     const entry = paneHistory(pane.id);
-    back.disabled = entry.index <= 0;
+    // A cover can always be stepped out of, even when nothing was visited before it.
+    back.disabled = entry.index <= 0 && !state.exclusive;
     forward.disabled = entry.index < 0 || entry.index >= entry.stack.length - 1;
+  };
+  /* Covers (settings, project settings, market, capabilities) are opened by their owners, who register how;
+     history and the bar reopen them the same way. */
+  const coverOpeners = new Map();
+  const registerCover = (kind, open) => { if (kind && typeof open === "function") coverOpeners.set(kind, open); };
+  const openCover = (kind, place = "") => {
+    const open = coverOpeners.get(kind);
+    if (open) { open(place); return; }
+    setDirectory(kind === "settings" || kind === "project-settings" ? kind : "root", false, false);
+    setExclusive(kind);
+  };
+  // A cover's own directory (settings categories) gives the column back to what the pane shows.
+  const leaveCoverDirectory = () => {
+    const directory = document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory;
+    if (directory === "settings" || directory === "project-settings") setDirectory("root", true, false);
+  };
+  const visitPlace = (pane, id) => {
+    historyLock = true;
+    try {
+      if (String(id).startsWith("cover:")) {
+        const [kind, ...rest] = String(id).slice("cover:".length).split("|");
+        coverPlace = rest.join("|");
+        openCover(kind, coverPlace);
+        return;
+      }
+      if (state.exclusive) { ops.setExclusive(state, null); leaveCoverDirectory(); }
+      state.focusedPaneId = pane.id;
+      if (String(id).startsWith("plugin:")) {
+        const [plugin, ...rest] = String(id).slice("plugin:".length).split("|");
+        const record = rest.join("|");
+        const shown = openRecords[plugin] || "";
+        const firstShow = !surfaceShows.has(plugin);
+        // Say what the page will show before showing it, so history settles on this entry and not its neighbour.
+        if (record) openRecords[plugin] = record; else delete openRecords[plugin];
+        saveRecords();
+        pane.viewPlugin = plugin;
+        pane.activeTabId = null;
+        apply();
+        persist();
+        // A page shown for the first time reopens its record on its own; otherwise put the page where the entry says.
+        if (!firstShow) {
+          const open = topLevelSurface(plugin)?.dataset.expanded === "true";
+          if (record && (shown !== record || !open)) jumpToRecord(plugin, record, true);
+          else if (!record && open) { applyPluginDefault(plugin); surfaceShows.set(plugin, "page"); }
+        }
+      } else activate(pane.id, id);
+    } finally {
+      historyLock = false;
+      persistHistory();
+    }
   };
   const goHistory = (delta) => {
     const pane = ops.focused(state);
-    if (!pane || state.exclusive) return;
+    if (!pane) return false;
     pruneHistory(pane);
     const entry = paneHistory(pane.id);
-    const live = new Set(pane.tabs.map((tab) => tab.id));
-    let i = entry.index + delta;
-    while (i >= 0 && i < entry.stack.length && !live.has(entry.stack[i]) && !String(entry.stack[i]).startsWith("plugin:")) i += delta;
-    if (i < 0 || i >= entry.stack.length) return;
+    const i = entry.index + delta;
+    if (i < 0 || i >= entry.stack.length) {
+      // Back out of a cover that was restored with nothing before it.
+      if (delta < 0 && state.exclusive) return closeCover();
+      return false;
+    }
     entry.index = i;
-    historyLock = true;
+    visitPlace(pane, entry.stack[i]);
+    return true;
+  };
+  /** Close the cover over the panes; they show exactly what they showed. Counts as a step back when it is one. */
+  const closeCover = () => {
+    if (!state.exclusive || embedded) return false;
+    const pane = ops.focused(state);
+    const entry = pane ? paneHistory(pane.id) : null;
+    const stepBack = Boolean(entry && coverOf(entry.stack[entry.index]) === state.exclusive && entry.index > 0 && entry.stack[entry.index - 1] === placeId(pane));
+    if (stepBack) entry.index -= 1;
+    historyLock = stepBack;
     try {
-      const id = entry.stack[i];
-      if (String(id).startsWith("plugin:")) {
-        pane.viewPlugin = id.slice("plugin:".length);
-        pane.activeTabId = null;
-        state.focusedPaneId = pane.id;
+      ops.setExclusive(state, null);
+      leaveCoverDirectory();
+      apply();
+      persist();
+    } finally {
+      historyLock = false;
+      persistHistory();
+    }
+    return true;
+  };
+  /**
+   * The bar's second press: a pane showing this plugin (its page or one of its tabs) goes back to where it was
+   * before the plugin — the latest earlier place in its history that belongs to something else — or to the
+   * project's home when there is none. Covers in between are skipped: they lay over the pane, not in it.
+   */
+  const leavePlugin = (plugin) => {
+    if (embedded || state.exclusive || !plugin || plugin === "home") return false;
+    const pane = ops.focused(state);
+    if (!pane || ops.shownPlugin(pane) !== plugin) return false;
+    pruneHistory(pane);
+    const entry = paneHistory(pane.id);
+    for (let i = entry.index - 1; i >= 0; i -= 1) {
+      const owner = pluginOfPlace(pane, entry.stack[i]);
+      if (!owner || owner === plugin) continue;
+      entry.index = i;
+      visitPlace(pane, entry.stack[i]);
+      return true;
+    }
+    ops.openPlugin(state, "home");
+    apply();
+    persist();
+    return true;
+  };
+  /** Closing the tab being looked at returns to where the pane was before it, when that place is still there. */
+  const closeTabBack = (paneId, tabId) => {
+    const pane = state.panes.find((candidate) => candidate.id === paneId);
+    let back = null;
+    if (pane && pane.activeTabId === tabId && !state.exclusive) {
+      pruneHistory(pane);
+      const entry = paneHistory(pane.id);
+      for (let i = entry.index - 1; i >= 0; i -= 1) {
+        const id = entry.stack[i];
+        if (id === tabId || String(id).startsWith("cover:")) continue;
+        if (String(id).startsWith("plugin:") || pane.tabs.some((tab) => tab.id === id)) { back = { index: i, id }; break; }
+      }
+    }
+    ops.closeTab(state, paneId, tabId);
+    const after = state.panes.find((candidate) => candidate.id === paneId);
+    if (back && after && (String(back.id).startsWith("plugin:") || after.tabs.some((tab) => tab.id === back.id))) {
+      paneHistory(after.id).index = back.index;
+      historyLock = true;
+      try {
+        if (String(back.id).startsWith("plugin:")) { after.viewPlugin = pluginOfPlace(after, back.id); after.activeTabId = null; }
+        else ops.activate(state, after.id, back.id);
         apply();
         persist();
-      } else activate(pane.id, id);
+      } finally {
+        historyLock = false;
+        persistHistory();
+      }
+      return;
     }
-    finally { historyLock = false; }
+    apply();
+    persist();
   };
   const KEPT_PANE_FRAMES = 4;
   const paneFrameKey = (pane) => {
@@ -730,6 +953,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     try {
     if (state.exclusive) {
       root.dataset.exclusive = state.exclusive;
+      if (!embedded) document.title = coverLabel(state.exclusive) + " · Molis Work";
       if (titlebarStrip) {
         // The strip stays readable under a cover: it names the cover and keeps the way back.
         const chromeTabs = !embedded && state.panes.length < 2;
@@ -765,6 +989,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       exclusiveEl.hidden = true;
       [...exclusiveEl.children].forEach((child) => pool.append(child));
     }
+    // However the cover went away (a tab, the Dock, history), its category column goes with it.
+    leaveCoverDirectory();
     ops.normalizeLayout(state);
     root.toggleAttribute("data-split", state.panes.length > 1);
     const chromeTabs = !embedded && state.panes.length < 2;
@@ -794,9 +1020,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       }
       document.title = ops.pluginTitle(focusedView) + " · Molis Work";
     }
-    collectMounted().forEach((node) => {
-      if (node.parentElement !== pool) pool.append(node);
-    });
+    // Surfaces stay where they are while they keep showing: moving a node out and back drops its scroll and focus.
+    // Only what no pane shows any more goes back to the pool, after the loop below.
+    const mountedNow = new Set();
 
     panesEl.querySelectorAll("[data-tab-pane]").forEach((node) => {
       if (!state.panes.some((pane) => pane.id === node.dataset.tabPane)) node.remove();
@@ -865,11 +1091,33 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       } else {
         const node = tab ? rootForTab(tab) : (viewPlugin ? topLevelSurface(viewPlugin) : null);
         if (node) {
+          const returning = node.parentElement === pool;
           mount(pane, node);
-          if (tab) applyTabContent(tab, keepFrame);
-          else applyPluginDefault(viewPlugin);
+          mountedNow.add(node);
+          if (tab) {
+            applyTabContent(tab, keepFrame);
+            if (returning && surfaceShows.get(tab.plugin) === "tab:" + tab.id) restoreScroll(node);
+            surfaceShows.set(tab.plugin, "tab:" + tab.id);
+          } else {
+            // A plugin page keeps what was open in it. It goes back to its list only after showing one of its tabs,
+            // whose item is not the page's, or when asked to (the location chip, the plugin's own back).
+            const shown = surfaceShows.get(viewPlugin);
+            surfaceShows.set(viewPlugin, "page");
+            if (shown === "page") { if (returning) restoreScroll(node); }
+            else {
+              applyPluginDefault(viewPlugin);
+              // First showing since the page loaded: reopen what was open before the reload.
+              // A walk through history decides the record itself; otherwise returning from a tab shows the list.
+              if (shown === undefined) reopenRecord(viewPlugin); else if (!historyLock) forgetRecord(viewPlugin);
+            }
+          }
         }
       }
+    });
+    collectMounted().forEach((node) => {
+      if (mountedNow.has(node) || node.parentElement === pool) return;
+      rememberScroll(node);
+      pool.append(node);
     });
     const treeSignature = JSON.stringify(state.layout.tree, (key, value) => key === "ratio" ? undefined : value);
     if (panesEl.dataset.treeSignature !== treeSignature) {
@@ -892,7 +1140,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     } finally {
       applying = false;
       rememberTab(ops.focused(state));
+      announcePlace();
+      persistHistory();
       syncHistoryButtons();
+      markCoverOpeners();
       if (applyQueued) {
         applyQueued = false;
         apply();
@@ -937,16 +1188,18 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (event.key === "Enter" || event.key === " ") target = tab;
     if (event.key === "Delete") {
       event.preventDefault();
-      ops.closeTab(state, paneId, tab.dataset.tabId);
-      apply(); persist(); focusActiveTab();
+      closeTabBack(paneId, tab.dataset.tabId);
+      focusActiveTab();
     } else if (target) {
       event.preventDefault();
       activate(paneId, target.dataset.tabId);
       focusActiveTab();
     }
   };
+  const openSettingsPage = (plugin) => document.dispatchEvent(new CustomEvent("molis-work:open-settings-section", { detail: { section: plugin } }));
   const openPlugin = (plugin) => {
     if (embedded) { notifyParent("workbench-pane-open", { plugin }); return; }
+    if (settingsPageOf(plugin)) { openSettingsPage(plugin); return; }
     state.focusedPaneId = ops.focused(state).id;
     ops.openPlugin(state, plugin);
     apply();
@@ -960,11 +1213,38 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (!spec || typeof itemId !== 'string' || !itemId) return;
     if (embedded) { notifyParent('workbench-pane-open', { plugin, recordId: itemId }); return; }
     cancelRecordJump?.();
+    if (settingsPageOf(plugin)) {
+      // The record sits on the plugin's settings page: open it there once it is listed.
+      const page = document.querySelector('[data-settings-page="' + CSS.escape(plugin) + '"]');
+      openSettingsPage(plugin);
+      let tries = 0;
+      const pick = () => {
+        const row = [...page.querySelectorAll(spec[1])].find((el) => el.dataset[spec[2]] === itemId);
+        if (row) { row.click(); row.scrollIntoView({ block: 'nearest', behavior: 'instant' }); return; }
+        if ((tries += 1) < 50 && state.exclusive === "settings") setTimeout(pick, 100);
+      };
+      setTimeout(pick, 0);
+      return;
+    }
     openPlugin(plugin);
+    jumpToRecord(plugin, itemId, false);
+  };
+  // After a reload the plugin's page reopens the record that was open in it, quietly: a record that is gone is forgotten.
+  const reopenRecord = (plugin) => {
+    const itemId = openRecords[plugin];
+    if (!itemId || embedded || plugin === "feed" || state.panes.length > 1) return;
+    if (topLevelSurface(plugin)?.dataset.expanded === "true") return;
+    setTimeout(() => jumpToRecord(plugin, itemId, true), 0);
+  };
+  // Wait for the plugin to list the record, then choose it the way a person would.
+  const jumpToRecord = (plugin, itemId, quiet) => {
+    const spec = SEARCH_ROWS.find(([id]) => id === plugin);
+    if (!spec) return;
+    cancelRecordJump?.();
     const pane = ops.focused(state), key = paneFrameKey(pane);
     const frame = key && panesEl.querySelector('iframe[data-pane-tab="' + CSS.escape(key) + '"]');
     const current = () => !state.exclusive && ops.focused(state) === pane && pane.viewPlugin === plugin && !pane.activeTabId && (!frame || (frame.isConnected && !frame.hidden && frame.dataset.paneOwner === pane.id));
-    let observer = null, timer = null, asked = null, done = false;
+    let observer = null, timer = null, asked = null, done = false, clicks = 0, lastClick = 0;
     const finish = () => { done = true; observer?.disconnect(); clearTimeout(timer); clearTimeout(asked); frame?.removeEventListener('load', watch); if (cancelRecordJump === finish) cancelRecordJump = null; };
     const surfaceIn = (doc) => doc?.querySelector('[data-work-surface="' + plugin + '"]') || null;
     // The plugin says it has the record open (its current object), however it got there.
@@ -981,7 +1261,16 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       if (showsIt(doc)) { finish(); return; }
       const row = [...doc.querySelectorAll(spec[1])].find(el => el.dataset[spec[2]] === itemId);
       if (!row) return;
-      finish(); row.click(); row.scrollIntoView({block:'nearest', behavior:'instant'});
+      // A row the server drew can be there before the plugin has read its records, and a click then does nothing.
+      // A plugin that says its page is still closed gets the click again once it is ready; others get one click.
+      const shell = row.closest('[data-work-surface]');
+      const stillClosed = () => shell?.getAttribute('data-expanded') === 'false';
+      if (clicks && !stillClosed()) { finish(); return; }
+      if (clicks >= 3 || Date.now() - lastClick < 400) return;
+      clicks += 1; lastClick = Date.now();
+      row.click(); row.scrollIntoView({block:'nearest', behavior:'instant'});
+      if (!shell?.hasAttribute('data-expanded')) { finish(); return; }
+      setTimeout(check, 450);
     };
     const watch = () => {
       observer?.disconnect();
@@ -991,10 +1280,57 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     };
     cancelRecordJump = finish;
     // Not among the rows shown now (another view or filter): a plugin that opens records by id is asked directly.
-    asked = setTimeout(() => { if (!done) surfaceIn(frame ? frame.contentDocument : document)?.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId } })); }, 1500);
-    timer = setTimeout(() => { const stillCurrent = current(); const opened = showsIt(frame ? frame.contentDocument : document); finish(); if (stillCurrent && !opened) showToast?.(L('未能打开这条内容，请重试或从列表中选择。'), true); }, 10000);
+    asked = setTimeout(() => { if (!done && current()) surfaceIn(frame ? frame.contentDocument : document)?.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId } })); }, 1500);
+    timer = setTimeout(() => {
+      const stillCurrent = current(); const opened = showsIt(frame ? frame.contentDocument : document); finish();
+      if (opened) return;
+      if (quiet) forgetRecord(plugin);
+      else if (stillCurrent) showToast?.(L('未能打开这条内容，请重试或从列表中选择。'), true);
+    }, quiet ? 8000 : 10000);
     frame?.addEventListener('load', watch); watch();
   };
+  // Remember the record chosen on a plugin's own page (not inside one of its tabs).
+  document.addEventListener("click", (event) => {
+    if (embedded) return;
+    const target = event.target?.nodeType === 1 ? event.target : null;
+    const surface = target?.closest("[data-work-surface]");
+    if (!surface) return;
+    const plugin = ops.pluginOfSurface(surface.dataset.workSurface);
+    const spec = plugin !== "feed" && SEARCH_ROWS.find(([id]) => id === plugin);
+    const row = spec ? target.closest(spec[1]) : null;
+    const itemId = row && surface.contains(row) ? row.dataset[spec[2]] : "";
+    const pane = ops.focused(state);
+    if (!itemId || !pane || state.exclusive || pane.activeTabId || pane.viewPlugin !== plugin || openRecords[plugin] === itemId) return;
+    if (event.isTrusted) cancelRecordJump?.();
+    openRecords[plugin] = itemId;
+    saveRecords();
+    notePlace();
+  }, true);
+  // A plugin closing its own detail (its back chevron) is back at the list: nothing to reopen.
+  if (!embedded) new MutationObserver((records) => {
+    for (const record of records) {
+      const surface = record.target;
+      if (surface?.nodeType !== 1 || !surface.matches("[data-work-surface]")) continue;
+      const plugin = ops.pluginOfSurface(surface.dataset.workSurface);
+      if (surface.getAttribute("data-expanded") === "true") {
+        // A record opened without its row being clicked (a note just created): the row the plugin marks as chosen names it.
+        const spec = plugin !== "feed" && SEARCH_ROWS.find(([id]) => id === plugin);
+        if (spec) setTimeout(() => {
+          const pane = ops.focused(state);
+          if (!pane || state.exclusive || pane.activeTabId || pane.viewPlugin !== plugin || historyLock) return;
+          const row = [...surface.querySelectorAll(spec[1])].find((node) => node.matches('.is-selected, [aria-selected="true"], [aria-current="page"], [aria-current="true"]'));
+          const itemId = row?.dataset[spec[2]];
+          if (!itemId || openRecords[plugin] === itemId) return;
+          openRecords[plugin] = itemId;
+          saveRecords();
+          notePlace();
+        }, 0);
+        continue;
+      }
+      if (surface.getAttribute("data-expanded") !== "false" || shellCollapse.has(plugin)) continue;
+      if (forgetRecord(plugin)) notePlace();
+    }
+  }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-expanded"] });
   const openItem = (plugin, itemId, title, goalView) => {
     if (embedded) { notifyParent("workbench-pane-open", { plugin, itemId, title: titleForItem(plugin, itemId, title), goalView }); return; }
     const tab = ops.openItem(state, plugin, itemId, titleForItem(plugin, itemId, title));
@@ -1018,6 +1354,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     let closed = false;
     state.panes.forEach((pane) => pane.tabs.filter((tab) => tab.plugin === plugin && tab.kind === "item" && tab.itemId === itemId).map((tab) => tab.id)
       .forEach((id) => { ops.closeTab(state, pane.id, id); closed = true; }));
+    // Nor does its plugin's page reopen it after a reload.
+    if (openRecords[plugin] === itemId) forgetRecord(plugin);
     if (closed) { apply(); persist(); }
   };
   const openGoalWork = () => {
@@ -1031,7 +1369,43 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     setFeedAddOpen?.(true);
     setMobileView("document");
   };
+  /* Whoever reads the page's situation (selection, context) learns when the place changes, in the same words history
+     uses: "plugin:<id>", a tab id, or "cover:<kind>[|<page>]". */
+  let announcedPlace = { paneId: "", place: "" };
+  const announcePlace = () => {
+    if (embedded) return;
+    const pane = ops.focused(state);
+    const next = { paneId: pane?.id || "", place: pane ? historyId(pane) || "" : "" };
+    if (next.paneId === announcedPlace.paneId && next.place === announcedPlace.place) return;
+    const previous = announcedPlace;
+    announcedPlace = next;
+    document.dispatchEvent(new CustomEvent("molis-work:place-changed", { detail: { ...next, previous } }));
+  };
+  /** The page itself moved (a record opened or closed on it): one step of history, outside any history walk. */
+  const notePlace = () => {
+    const pane = ops.focused(state);
+    if (embedded || !pane || state.exclusive || historyLock || applying) return;
+    rememberTab(pane);
+    persistHistory();
+    syncHistoryButtons();
+    announcePlace();
+  };
+  /** A cover says where inside it the person went; the first place replaces the bare entry the cover opened with. */
+  const noteCover = (kind, place) => {
+    if (embedded || state.exclusive !== kind || coverPlace === (place || "")) return;
+    coverPlace = place || "";
+    if (historyLock) return;
+    const pane = ops.focused(state);
+    if (!pane) return;
+    const entry = paneHistory(pane.id);
+    if (entry.stack[entry.index] === "cover:" + kind) entry.stack[entry.index] = historyId(pane);
+    else rememberTab(pane);
+    persistHistory();
+    syncHistoryButtons();
+    announcePlace();
+  };
   const setExclusive = (surface) => {
+    if (surface !== state.exclusive && !historyLock) coverPlace = "";
     ops.setExclusive(state, surface);
     apply();
     persist();
@@ -1064,7 +1438,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const pane = state.panes.find(candidate => candidate.id === paneId); if (!pane) return;
     const tab = pane.tabs.find(candidate => candidate.id === (tabId || pane.activeTabId));
     tabMenuAnchor = anchor; tabMenu.replaceChildren();
-    tabMenu.setAttribute("aria-label", L(tabId ? "标签操作" : "打开标签"));
+    tabMenu.setAttribute("aria-label", L(tabId ? "标签操作" : "打开插件"));
     const add = (label, icon, key, action) => {
       const button = document.createElement("button"); button.type = "button"; button.className = "mw-menu__item"; button.setAttribute("role", "menuitem"); button.dataset.tabMenuAction = key;
       button.innerHTML = '<svg aria-hidden="true"><use href="#icon-' + icon + '"></use></svg><span></span>';
@@ -1089,7 +1463,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         });
         if (tab.groupId) add(L("从分组移除"), "x", "ungroup-tab", () => ops.removeTabFromGroup(state, paneId, tab.id));
       }
-      add(L("关闭标签"), "x", "close", () => ops.closeTab(state, paneId, tab.id));
+      add(L("关闭标签"), "x", "close", () => closeTabBack(paneId, tab.id));
     }
     if (layoutMenu.matches(":popover-open")) layoutMenu.hidePopover();
     const rect = anchor.getBoundingClientRect(); tabMenu.showPopover();
@@ -1193,12 +1567,16 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (split) {
       openLayoutMenu(paneId, split); return true;
     }
+    if (event.target.closest("[data-cover-close]")) {
+      event.preventDefault();
+      closeCover();
+      focusActiveTab();
+      return true;
+    }
     const close = event.target.closest("[data-tab-close]");
     if (close) {
       event.preventDefault();
-      ops.closeTab(state, paneId, close.dataset.tabClose);
-      apply();
-      persist();
+      closeTabBack(paneId, close.dataset.tabClose);
       focusActiveTab();
       return true;
     }
@@ -1215,7 +1593,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const viewChip = event.target.closest("[data-tab-view]");
     if (viewChip) {
       const pane = state.panes.find((candidate) => candidate.id === paneId);
-      if (!pane || (!pane.activeTabId && state.focusedPaneId === paneId && !state.exclusive)) return true;
+      if (!pane) return true;
+      // Already on the plugin's page: the chip is its name, and pressing it goes back to the page's list.
+      if (!pane.activeTabId && state.focusedPaneId === paneId && !state.exclusive) { resetPluginPage(pane.viewPlugin); return true; }
       state.focusedPaneId = paneId;
       const railButton = document.querySelector(':is(.plugin-stack, [data-dock]) [data-plugin-id="' + CSS.escape(viewChip.dataset.tabView) + '"]');
       if (railButton) railButton.click();
@@ -1267,6 +1647,52 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (button.dataset.workspaceHistory === "back") goHistory(-1);
     if (button.dataset.workspaceHistory === "forward") goHistory(1);
   });
+  /* The way back from the keyboard and the mouse: ⌘[ / ⌘] (Alt+← / Alt+→ elsewhere) and the side buttons walk the
+     same history as the titlebar arrows. A pane in a frame hands the step to the window. */
+  const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+  const editable = (node) => node?.nodeType === 1 && Boolean(node.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], .xterm, [data-tui-pane]'));
+  const historyStep = (event) => {
+    if (event.defaultPrevented || event.repeat) return 0;
+    if (MAC && event.metaKey && !event.altKey && !event.ctrlKey && (event.key === "[" || event.key === "]")) return event.key === "[" ? -1 : 1;
+    if (event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey && (event.key === "ArrowLeft" || event.key === "ArrowRight") && !editable(event.target)) return event.key === "ArrowLeft" ? -1 : 1;
+    return 0;
+  };
+  const stepHistory = (delta) => { if (embedded) notifyParent("workbench-pane-history", { delta }); else goHistory(delta); };
+  document.addEventListener("keydown", (event) => {
+    const delta = historyStep(event);
+    if (!delta || document.querySelector("dialog[open]")) return;
+    event.preventDefault();
+    stepHistory(delta);
+  });
+  // The side buttons would otherwise take the browser away from the workbench.
+  const sideButton = (event) => event.button === 3 || event.button === 4;
+  window.addEventListener("mousedown", (event) => { if (sideButton(event)) event.preventDefault(); });
+  window.addEventListener("mouseup", (event) => {
+    if (!sideButton(event)) return;
+    event.preventDefault();
+    stepHistory(event.button === 3 ? -1 : 1);
+  });
+  /* Esc steps out of a cover, unless something smaller is open in it (a field being typed in, a menu, a dialog):
+     those take the Esc first. */
+  let escapeHadLayer = false;
+  const openLayer = () => Boolean(document.querySelector("dialog[open], :popover-open, details[open][data-project-menu], details[open][data-global-menu], [data-plugin-picker-popover]:not([hidden]), [data-dock-overflow]:not([hidden]), [data-assistant-panel]:not([hidden])"));
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") escapeHadLayer = openLayer(); }, true);
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || embedded || !state.exclusive || escapeHadLayer || event.defaultPrevented || editable(event.target)) return;
+    event.preventDefault();
+    closeCover();
+  });
+  /* The entry that opened a cover closes it when chosen again, and the menu it sits in closes with it. */
+  window.addEventListener("click", (event) => {
+    if (embedded || !state.exclusive || event.target?.nodeType !== 1) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    const kind = coverKindOf(event.target);
+    if (!kind || kind !== state.exclusive) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.target.closest("details[open]")?.removeAttribute("open");
+    closeCover();
+  }, true);
   panesEl.addEventListener("keydown", (event) => {
     const sash = event.target.closest("[data-tab-sash]");
     if (sash) {
@@ -1523,11 +1949,14 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       apply();
       return;
     }
-    if (!["workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-goal-view"].includes(event.data?.type)) return;
+    if (!["workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-goal-view", "workbench-pane-history"].includes(event.data?.type)) return;
     const frame = [...panesEl.querySelectorAll("iframe")].find((node) => node.contentWindow === event.source);
     const pane = state.panes.find((candidate) => candidate.id === frame?.dataset.paneOwner);
     if (!pane) return;
-    if (event.data.type === "workbench-pane-goal-view") {
+    if (event.data.type === "workbench-pane-history") {
+      if (state.focusedPaneId !== pane.id) { state.focusedPaneId = pane.id; apply(); persist(); }
+      if (event.data.delta === -1 || event.data.delta === 1) goHistory(event.data.delta);
+    } else if (event.data.type === "workbench-pane-goal-view") {
       const tab = pane.tabs.find(tab => tab.id === frame.dataset.paneTab);
       if (tab?.plugin === "goals" && tab.kind === "item") {
         if (event.data.view === "work") tab.goalView = "work"; else delete tab.goalView;
@@ -1593,5 +2022,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (event.data?.type === "workbench-feed-add") setFeedAddOpen?.(true);
   });
   if (embedded && paneParams.has("paneFeedTask")) requestAnimationFrame(() => setFeedTask?.(paneParams.get("paneFeedTask"), false));
-  return { apply, openPlugin, openPluginRecord, openItem, openBeside, openGoalWork, closeItem, addFeedTask, setExclusive, restore, landAtProjectRoot, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
+  return { apply, openPlugin, openPluginRecord, openItem, openBeside, openGoalWork, closeItem, addFeedTask, setExclusive, restore, landAtProjectRoot,
+    leavePlugin, closeCover, openCover, registerCover, noteCover, goHistory,
+    shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
+    exclusive: () => state.exclusive, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
 }`;

@@ -1,5 +1,6 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { GATEWAY_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
+import { createPrologueSurfaces, surfaceRules, SURFACE_GUIDANCE, type PrologueSurfacePorts, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, MEMORY_CLAIM_HELD, MEMORY_OFF_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, writesToolCallAsText } from "./announce-guard.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
@@ -89,6 +90,11 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   documentParsers?: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentParser[];
   /** Host-owned surface; absence keeps all writes unavailable. */
   reviewQueue?: AgentReviewQueue;
+  /**
+   * The side panel's browser pages (specs/side-panel): attached to a business round in their project, looked at and
+   * driven only through Prologue's interface control. Absent: no round gets the surface tools.
+   */
+  surfaces?: PrologueSurfacePorts;
   /** App identity Prologue records against this Runtime's work. */
   app: { readonly appId: string; readonly appVersion: string };
   /** Where the Node host keeps its own storage. A Host fact, never surfaced to Plugins. */
@@ -170,9 +176,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     if (!run) throw new Error(`没有处理「${task.work.kind}」的执行者`);
     await run(scheduledView(task));
   };
+  // Bound after the runtime exists; the redactor it is given below reaches it only when a screenshot is taken.
+  let surfaceHost: PrologueSurfaces | undefined;
   const runtime = await createRuntime({
     app: options.app,
     host,
+    // Screenshots leave only after the driver covered password, card and one-time-code fields (spec D10).
+    ...(options.surfaces ? { surfaces: { screenshots: "redact" as const,
+      redactScreenshot: (bytes: Uint8Array) => surfaceHost ? surfaceHost.redact(bytes) : Promise.reject(new Error("界面控制尚未就绪")) } } : {}),
     preset: "local-agent",
     onQueuedWork: runScheduled,
     ...(options.documentParsers?.length ? { slots: { "document-parser": { implementation: "molis-host-document-parsers", version: "1.0.0", impl: options.documentParsers } } } : {}),
@@ -189,10 +200,25 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // A change through the business gateway always stops for the person's review of its exact input; its reads do not.
       { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.change } },
       // A reversible change the person lets run without asking: the gateway itself refuses any other change on this tool.
-      { source: "runtime" as const, effect: "allow" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.direct } }] } : {}),
+      { source: "runtime" as const, effect: "allow" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.direct } },
+      // The side panel's browser: looking is allowed, every action asks, the person's standing site decisions apply.
+      ...(options.surfaces ? surfaceRules(options.surfaces.siteDecisions()) : [])] } : {}),
     require: ["secrets", "network", "clock", "workspace.read", "storage"],
   });
 
+  const readResourceText = async (ref: ExactRef<"resource">): Promise<string> => {
+    const handle = runtime.resources.inspect(ref);
+    if (!handle || handle.byteLength > 1024 * 1024) throw new Error("要输入的文字不可读取");
+    const bytes = new Uint8Array(handle.byteLength);
+    let offset = 0;
+    while (offset < bytes.byteLength) {
+      const chunk = await runtime.resources.readChunk(ref, offset, Math.min(64 * 1024, bytes.byteLength - offset));
+      if (!chunk.bytes.byteLength) break;
+      bytes.set(chunk.bytes, offset); offset += chunk.bytes.byteLength;
+    }
+    return new TextDecoder().decode(bytes.subarray(0, offset));
+  };
+  surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, readResourceText) : undefined;
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
     withDispatchGuard: (guard, operation) => {
       const inherited = dispatchGuards.getStore();
@@ -318,6 +344,15 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           ];
           return { kind: "tool-operation", tool: subject.name, summary: subject.name === "dispatch-subagent" ? (attempt.subagent_roots?.length ? "分派独立目录子任务；修改仍需审查，结果仍需核对" : "分派只读子任务；结果仍需核对") : "向原子任务补充要求",
             fields: [...readable, { label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
+        }
+        // An action on the side panel's browser: the card says on which site, what, and — for a file — which one.
+        if (subject.what === "surface") {
+          reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
+          const verbs: Record<string, string> = { pointer: "点击页面", key: "按键", text: "输入文字", navigate: "打开网址", wait: "等待页面", upload: "向网站上传本机文件", download: "把文件存到本机" };
+          const detail = effect.proposal.summary.replace(/^On this \w+: /u, "").replace(/\.$/u, "");
+          return { kind: "tool-operation", tool: "surface-act", summary: `在 ${subject.scope} ${verbs[subject.action] ?? subject.action}`,
+            fields: [{ label: "网站", value: subject.scope }, { label: "动作", value: verbs[subject.action] ?? subject.action }, { label: "详情", value: detail },
+              ...(subject.action === "upload" ? [{ label: "注意", value: "上传会把这个文件发送给该网站，确认前请核对文件" }] : [])] };
         }
         // Stopping a background command has no review resource of its own: the card names the command it stops.
         if (subject.what === "tool" && subject.name === "command-stop") {
@@ -1112,7 +1147,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           ...handed.flatMap(one => one.nodes.map(node => `- 任务图 ${one.board}：${node.id}「${node.title.slice(0, 60)}」（${node.state}）`)),
           "用 board-read / board-report（board 写上面的任务图编号）处理这些步骤；做完后在交接信上答复对方。"].join("\n"), "coding-handed-steps"), as: "original" });
       }
-      const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
+      // The project's side panel browser, for this session only: its tools join the round and the round is told how to use them.
+      const surfaceTools = business && surfaceHost ? await surfaceHost.attach(session, index.owner.board_id, input.session_id).catch(() => [] as readonly string[]) : [];
+      const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods, ...(surfaceTools.length ? [SURFACE_GUIDANCE] : []),
         ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), (none || business ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
       if (!none && !business) {
         await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
@@ -1127,7 +1164,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         if (at < 0 || !adopted[at]) throw new Error("MCP 工具已变化，请重新选择");
         mcpTools.push(adopted[at]!);
       }
-      const tools = [...input.character.tools.map(prologueToolName), ...mcpTools, ...(actionTools?.names ?? [])];
+      const tools = [...input.character.tools.map(prologueToolName), ...mcpTools, ...(actionTools?.names ?? []), ...surfaceTools];
       const runTools = [...new Set([...tools, ...[...childRoles.values()].flatMap(role => role.host_tools.map(prologueToolName))])];
       const created = runtime.characters.create({
         // This is a projection of the frozen role, not a user-managed Character.
@@ -1378,7 +1415,10 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: answer.answers }, now);
       }
     },
-  }), { inference, createBuilderAgent, gitReviews, async assertDirectoriesIdle(paths: readonly string[]) {
+  }), { inference, createBuilderAgent, gitReviews,
+    /** The person's standing site decisions for the side panel's browser, applied to the running runtime. */
+    surfaces: surfaceHost ? { decide: (decision: Parameters<PrologueSurfaces["decide"]>[0]) => surfaceHost!.decide(decision) } : undefined,
+    async assertDirectoriesIdle(paths: readonly string[]) {
     const open = await runtime.listOpenWork();
     if (open.unavailable.length) throw new Error("未能查清未结束执行，暂不能整合工作区");
     for (const item of open.items) {

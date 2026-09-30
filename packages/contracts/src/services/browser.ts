@@ -74,6 +74,8 @@ export type BrowserModifiers = number; // CDP bit mask: Alt=1, Ctrl=2, Meta=4, S
 
 export type BrowserClientMessage =
   | { readonly type: "auth"; readonly token: string }
+  /** Hear this project's page state without starting the browser (the panel opens itself when the Assistant acts). */
+  | { readonly type: "watch"; readonly project_id: string }
   | { readonly type: "attach"; readonly project_id: string; readonly viewport: BrowserViewport }
   | { readonly type: "visible"; readonly visible: boolean }
   | { readonly type: "resize"; readonly viewport: BrowserViewport }
@@ -94,7 +96,10 @@ export type BrowserClientMessage =
   | { readonly type: "copy" }
   | { readonly type: "dialog"; readonly id: string; readonly accept: boolean; readonly prompt_text?: string }
   | { readonly type: "file-chooser-cancel"; readonly id: string }
-  | { readonly type: "popup-close" };
+  | { readonly type: "popup-close" }
+  /** The person takes the page over from the Assistant, or hands it back. */
+  | { readonly type: "takeover" }
+  | { readonly type: "handback" };
 
 export interface BrowserViewport { readonly width: number; readonly height: number; readonly dpr: number }
 

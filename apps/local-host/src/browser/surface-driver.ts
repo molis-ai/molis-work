@@ -73,8 +73,14 @@ const KEYS: Record<string, { key: string; code: string; keyCode: number; text?: 
 };
 const MODIFIERS: Record<string, number> = { alt: 1, option: 1, control: 2, ctrl: 2, meta: 4, cmd: 4, command: 4, shift: 8 };
 
+const MODIFIER_KEYS: Record<string, { key: string; code: string; keyCode: number }> = {
+  alt: { key: "Alt", code: "AltLeft", keyCode: 18 }, option: { key: "Alt", code: "AltLeft", keyCode: 18 }, control: { key: "Control", code: "ControlLeft", keyCode: 17 },
+  ctrl: { key: "Control", code: "ControlLeft", keyCode: 17 }, meta: { key: "Meta", code: "MetaLeft", keyCode: 91 }, cmd: { key: "Meta", code: "MetaLeft", keyCode: 91 },
+  command: { key: "Meta", code: "MetaLeft", keyCode: 91 }, shift: { key: "Shift", code: "ShiftLeft", keyCode: 16 },
+};
+
 function keyOf(name: string): { key: string; code: string; keyCode: number; text?: string } {
-  const known = KEYS[name.toLowerCase()];
+  const known = KEYS[name.toLowerCase()] ?? MODIFIER_KEYS[name.toLowerCase()];
   if (known) return known;
   if (/^[a-z]$/iu.test(name)) return { key: name, code: `Key${name.toUpperCase()}`, keyCode: name.toUpperCase().charCodeAt(0), text: name };
   if (/^\d$/u.test(name)) return { key: name, code: `Digit${name}`, keyCode: name.charCodeAt(0), text: name };
@@ -83,7 +89,7 @@ function keyOf(name: string): { key: string; code: string; keyCode: number; text
 }
 
 /** Uploads come from a path Prologue has already checked against its floor table (never `.ssh` and the like). */
-export function createBrowserSurfaceDriver(page: BrowserPage): HostSurfaceDriver {
+export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: string) => boolean = () => false): HostSurfaceDriver {
   const producedScreens: string[] = [];
   let idle: ReturnType<typeof setTimeout> | undefined;
   const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
@@ -119,6 +125,11 @@ export function createBrowserSurfaceDriver(page: BrowserPage): HostSurfaceDriver
     },
     async observe(kind: HostSurfaceObservationKind) {
       await page.ensure();
+      // A site the person blocked is not even looked at, from the moment they said so (Prologue's own deny rule joins
+      // when the runtime next starts).
+      if (blocked(page.snapshot().origin)) throw new BrowserError("page.load_failed", "用户禁止助理查看或操作这个网站。");
+      // Looking is the Assistant using the page too: the panel shows it (and opens itself) before any action.
+      if (page.controlMode !== "taken-over") mark(null, `正在查看 ${origin()}`, null);
       if (kind === "screenshot") {
         const session = await page.session();
         await session.send("Runtime.evaluate", { expression: MASK_ON });
@@ -157,6 +168,7 @@ export function createBrowserSurfaceDriver(page: BrowserPage): HostSurfaceDriver
     },
     async perform(action: HostSurfaceAction, context) {
       const sessionId = context.session_id;
+      if (blocked(page.snapshot().origin)) throw new BrowserError("page.load_failed", "用户禁止助理查看或操作这个网站。");
       const session = await page.session();
       const send = (method: string, params: Record<string, unknown>) => session.send(method, params);
       switch (action.what) {
@@ -172,15 +184,16 @@ export function createBrowserSurfaceDriver(page: BrowserPage): HostSurfaceDriver
           return;
         }
         case "key": {
-          mark(sessionId, `在 ${origin()} 按下 ${action.keys.join("、")}`, null);
-          for (const combo of action.keys) {
-            const parts = combo.split("+").map(part => part.trim()).filter(Boolean);
-            const modifiers = parts.slice(0, -1).reduce((mask, part) => mask | (MODIFIERS[part.toLowerCase()] ?? 0), 0);
-            const key = keyOf(parts.at(-1) ?? "");
-            const text = modifiers & (2 | 4) ? undefined : key.text;
-            await send("Input.dispatchKeyEvent", { type: text ? "keyDown" : "rawKeyDown", key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode, modifiers, ...(text ? { text } : {}) });
-            await send("Input.dispatchKeyEvent", { type: "keyUp", key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode, modifiers });
-          }
+          // The keys are pressed together (["Control", "a"]); "Control+a" in one entry means the same.
+          const parts = action.keys.flatMap(entry => entry.split("+")).map(part => part.trim()).filter(Boolean);
+          const modifiers = parts.reduce((mask, part) => mask | (MODIFIERS[part.toLowerCase()] ?? 0), 0);
+          const main = parts.filter(part => MODIFIERS[part.toLowerCase()] === undefined);
+          if (main.length > 1) throw new BrowserError("page.load_failed", "一次只能按一个键（可以加 Ctrl、Shift 等修饰键）；按顺序按几个键请分几次做。");
+          mark(sessionId, `在 ${origin()} 按下 ${parts.join(" + ")}`, null);
+          const key = main.length ? keyOf(main[0]!) : keyOf(parts.at(-1) ?? "");
+          const text = modifiers & (2 | 4) ? undefined : key.text;
+          await send("Input.dispatchKeyEvent", { type: text ? "keyDown" : "rawKeyDown", key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode, modifiers, ...(text ? { text } : {}) });
+          await send("Input.dispatchKeyEvent", { type: "keyUp", key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode, modifiers });
           await settle();
           return;
         }

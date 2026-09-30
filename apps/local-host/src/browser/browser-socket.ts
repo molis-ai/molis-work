@@ -73,6 +73,13 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
           if (message.type !== "auth" || !tokenMatches(controlToken, message.token)) { send(ws, { type: "error", message: "本地浏览器通道校验失败" }); ws.close(); return; }
           authed = true; send(ws, { type: "ready" }); return;
         }
+        if (message.type === "watch") {
+          if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: "项目不存在" }); return; }
+          if (page) return;
+          page = browsers().page(message.project_id);
+          detach = page.watch(listener);
+          return;
+        }
         if (message.type === "attach") {
           if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: "项目不存在" }); return; }
           detach?.();
@@ -90,6 +97,8 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
           case "stop": await page.stop(); return;
           case "restart": await browsers().restart(); return;
           case "popup-close": await page.closePopup(); return;
+          case "takeover": page.setControl({ mode: "taken-over", work_id: page.snapshot().control.work_id, activity: null }); await options.onTakeover?.(page); return;
+          case "handback": if (page.controlMode === "taken-over") page.setControl({ mode: "person", work_id: null, activity: null }); return;
           case "mouse": case "key": case "text": case "compose":
             if (message.type === "mouse" && message.event === "move" && page.controlMode === "assistant") return;
             await takeoverFirst(page); await page.input(message); return;
@@ -104,7 +113,10 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
     });
   });
 
+  // The person reaching into a page the Assistant is using takes it over first: from then on the driver refuses.
   const takeoverFirst = async (page: BrowserPage) => {
-    if (page.controlMode === "assistant") await options.onTakeover?.(page);
+    if (page.controlMode !== "assistant") return;
+    page.setControl({ mode: "taken-over", work_id: page.snapshot().control.work_id, activity: null });
+    await options.onTakeover?.(page);
   };
 }

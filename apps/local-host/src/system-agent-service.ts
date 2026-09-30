@@ -10,6 +10,7 @@ import type { ModelProviderStore } from "./model-provider-store.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
+import { browserSurfacesFor } from "./browser/browser-surfaces.js";
 
 const owners = new WeakMap<MolisWorkLocalHost, { withCatalog?: LocalWebCatalogRunner; home: string; release?: () => void }>();
 type WorkspacePorts = Pick<AgentHostCompositionOptions, "workspacesFor"> & Partial<Pick<AgentHostCompositionOptions, "workspaceFor">>;
@@ -43,6 +44,11 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         : workspaces.workspaceFor?.(projectId) ?? null,
       prologue: {
         storageRoot: path.join(storageHome, "agent-runtime"),
+        // The side panel's browser, when the server that owns it registered one for this Host (specs/side-panel P5).
+        surfaces: {
+          driverFor: owner => browserSurfacesFor(localHost)?.driverFor(owner) ?? null,
+          siteDecisions: () => browserSurfacesFor(localHost)?.siteDecisions() ?? [],
+        },
         resolveMcpConnection: connectors.resolveMcpConnection,
         subscribeMcpConnections: connectors.subscribeMcpConnections,
         modelConfiguration: selection => models(store => prologueModelConfiguration(store?.resolveConfiguration(selection) ?? null)),

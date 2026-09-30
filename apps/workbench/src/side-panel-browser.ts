@@ -16,8 +16,10 @@ export function renderSideBrowser({ L, icon }: SidePanelPrimitives): string {
           <span class="side-browser-lock" data-browser-lock hidden aria-hidden="true">${icon("lock")}</span>
           <input type="text" inputmode="url" data-browser-address placeholder="${L("输入网址或搜索")}" aria-label="${L("网址")}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
         </label>
-        ${tool("give", L("把这一页交给助理"), "sparkles")}
+        ${tool("sites", L("助理在网站上的权限"), "shield", ' aria-haspopup="true" aria-expanded="false"')}${tool("give", L("把这一页交给助理"), "sparkles")}
       </form>
+      <div class="side-browser-sites" data-browser-sites hidden role="dialog" aria-label="${L("助理在网站上的权限")}"></div>
+      <div class="side-browser-approval" data-browser-approval hidden role="alertdialog" aria-live="assertive" aria-label="${L("助理请你确认")}"></div>
       <div class="side-browser-strip" data-browser-strip hidden></div>
       <div class="side-browser-view" data-browser-view role="application" aria-roledescription="${L("网页画面")}" aria-label="${L("网页画面")}">
         <canvas data-browser-canvas aria-hidden="true"></canvas>
@@ -77,6 +79,17 @@ export const SIDE_BROWSER_STYLES = String.raw`
 .side-browser-control[hidden]{display:none}
 .side-browser-control p{flex:1;min-width:0;margin:0;line-height:1.5}
 .side-browser-control[data-mode=assistant]{background:color-mix(in srgb,var(--accent) 8%,var(--paper))}
+.side-browser-approval,.side-browser-sites{display:grid;gap:8px;flex:none;padding:12px;border-bottom:1px solid var(--line);font-size:13px;line-height:1.6}
+.side-browser-approval{background:color-mix(in srgb,var(--accent) 7%,var(--paper))}
+.side-browser-approval[hidden],.side-browser-sites[hidden]{display:none}
+.side-browser-approval h2,.side-browser-sites h2{margin:0;font-size:13px;font-weight:600}
+.side-browser-approval p,.side-browser-sites p{margin:0;overflow-wrap:anywhere}
+.side-browser-approval dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;margin:0;font-size:12px}
+.side-browser-approval dt{color:var(--muted)}.side-browser-approval dd{margin:0;overflow-wrap:anywhere}
+.side-browser-actions-row{display:flex;flex-wrap:wrap;gap:8px}
+.side-browser-sites ul{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.side-browser-sites li{display:flex;align-items:center;gap:8px;font-size:12px}
+.side-browser-sites li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .side-browser-live{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);margin:0}
 @media(prefers-reduced-motion:reduce){.side-browser-marker{transition:none}}
 `;
@@ -93,7 +106,9 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   const control=$('[data-browser-control]'),live=$('[data-browser-live]'),marker=$('[data-browser-marker]'),fileInput=$('[data-browser-file]');
   const esc=(value)=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
   const ctx=canvas.getContext('2d');
-  let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,selection='',announced='',queuedAddress='';
+  let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,selection='',announced='',queuedAddress='',attached=false,lastMode='person',lastWork=null,reviewTimer=null,reviewing=null;
+  const routePrefix=document.body.dataset.routePrefix||('/projects/'+encodeURIComponent(projectId));
+  const approval=$('[data-browser-approval]'),sitesBox=$('[data-browser-sites]');
   const sendRaw=(message)=>{if(socket&&socket.readyState===1&&ready)socket.send(JSON.stringify(message));};
   const viewport=()=>{const rect=view.getBoundingClientRect();return {width:Math.max(240,Math.floor(rect.width)),height:Math.max(200,Math.floor(rect.height)),dpr:Math.min(2,Math.max(1,devicePixelRatio||1))};};
   const visible=()=>shown&&panelOpen&&document.visibilityState==='visible';
@@ -106,13 +121,15 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     socket.addEventListener('message',event=>{
       if(event.data instanceof ArrayBuffer){pending=event.data;if(!drawing)draw();return;}
       let message;try{message=JSON.parse(event.data);}catch{return;}
-      if(message.type==='ready'){ready=true;retry=0;sendRaw({type:'attach',project_id:projectId,viewport:viewport()});sendRaw({type:'visible',visible:visible()});if(queuedAddress){sendRaw({type:'navigate',input:queuedAddress});queuedAddress='';}return;}
-      if(message.type==='state'){state=message.state;render();return;}
+      if(message.type==='ready'){ready=true;retry=0;attached=false;if(shown)attach();else sendRaw({type:'watch',project_id:projectId});return;}
+      if(message.type==='state'){state=message.state;render();follow();return;}
       if(message.type==='copied'){selection=message.text||'';return;}
       if(message.type==='error')say(message.message,true);
     });
-    socket.addEventListener('close',()=>{socket=null;ready=false;if(!shown)return;retryTimer=setTimeout(connect,Math.min(8000,500*2**retry++));});
+    socket.addEventListener('close',()=>{socket=null;ready=false;attached=false;retryTimer=setTimeout(connect,Math.min(15000,500*2**retry++));});
   };
+  // Listening starts with the workbench; the browser itself starts only when the tab is first shown.
+  const attach=()=>{if(attached||!ready)return;attached=true;sendRaw({type:'attach',project_id:projectId,viewport:viewport()});sendRaw({type:'visible',visible:visible()});if(queuedAddress){sendRaw({type:'navigate',input:queuedAddress});queuedAddress='';}};
   const draw=async()=>{
     drawing=true;
     while(pending){
@@ -185,6 +202,57 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       control.innerHTML='<p>'+esc(L('你已接手，助理暂停中。'))+'</p>'+button('handback',L('交还助理'),'primary');
     }else{control.hidden=true;control.innerHTML='';marker.hidden=true;}
   };
+  // When the Assistant starts using this project's page, the panel opens on it (once per piece of work), without focus.
+  const follow=()=>{
+    const mode=state.control?.mode||'person',work=state.control?.work_id||null;
+    if(mode==='assistant'&&(lastMode!=='assistant'||work!==lastWork)&&!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser'}}));
+    if(mode==='assistant')lastWork=work;
+    lastMode=mode;
+    if(mode==='assistant'&&!reviewTimer)pollReviews();
+  };
+  const pollReviews=async()=>{
+    clearTimeout(reviewTimer);reviewTimer=null;
+    let rows=[];
+    try{
+      const response=await fetch(routePrefix+'/api/agent/reviews?status=pending',{headers:{accept:'application/json'}});
+      const result=await response.json();
+      rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(!row.receipt||row.receipt.status==='pending'));
+    }catch{}
+    renderApproval(rows[0]||null);
+    if(rows.length||state?.control?.mode==='assistant')reviewTimer=setTimeout(pollReviews,1500);
+  };
+  const renderApproval=(row)=>{
+    if(!row){approval.hidden=true;approval.innerHTML='';reviewing=null;return;}
+    if(reviewing===row.request.review_id)return;
+    reviewing=row.request.review_id;
+    const doc=row.request.document||{},fields=doc.fields||[],site=(fields.find(field=>field.label==='网站')||{}).value||state?.origin||'';
+    const upload=/上传/.test(doc.summary||'');
+    approval.innerHTML='<h2>'+esc(L('助理请你确认'))+'</h2><p>'+esc(doc.summary||L('助理想在这个页面上操作'))+'</p><dl>'+fields.filter(field=>field.label!=='网站').map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('')+'</dl><div class="side-browser-actions-row">'+button('approve-once',L('允许这一次'),'primary')+(upload?'':button('approve-site',L('这个网站以后不用问'),'secondary'))+button('reject',L('不允许'),'ghost')+'</div>';
+    approval.dataset.site=site;approval.hidden=false;
+    if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser'}}));
+    say(L('助理请你确认：{what}',{what:doc.summary||''}),true);
+  };
+  const decide=async(decision)=>{
+    const id=reviewing;if(!id)return;
+    const response=await fetch(routePrefix+'/api/agent/reviews/decide',{method:'POST',headers:{...molisWorkControlHeaders(),'content-type':'application/json'},body:JSON.stringify({review_id:id,decision})});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)say(result.error||L('确认没有提交'),true);
+    approval.hidden=true;reviewing=null;void pollReviews();
+  };
+  const sitesUrl='/api/browser/sites';
+  const renderSites=async()=>{
+    let rows=[];try{rows=(await (await fetch(sitesUrl,{headers:{accept:'application/json'}})).json()).sites||[];}catch{}
+    const here=state?.origin||'',mine=rows.find(row=>row.scope===here);
+    const label=(row)=>row.decision==='allow'?L('不用问就可以操作'):L('禁止查看和操作');
+    sitesBox.innerHTML='<h2>'+esc(L('助理在网站上的权限'))+'</h2>'+(here?'<p>'+esc(here)+' · '+esc(mine?label(mine):L('每次操作前都会问你'))+'</p><div class="side-browser-actions-row">'+(mine?.decision!=='allow'?button('site-allow',L('不用问就可以操作')):'')+(mine?.decision!=='block'?button('site-block',L('禁止助理使用这个网站')):'')+(mine?button('site-forget',L('恢复为每次都问'),'ghost'):'')+'</div>':'<p>'+esc(L('打开一个网站后可以在这里设置。'))+'</p>')
+      +(rows.filter(row=>row.scope!==here).length?'<ul>'+rows.filter(row=>row.scope!==here).map(row=>'<li><span>'+esc(row.scope)+' · '+esc(label(row))+'</span><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-browser-action="site-forget" data-scope="'+esc(row.scope)+'">'+esc(L('撤销'))+'</button></li>').join('')+'</ul>':'')
+      +'<p class="side-browser-cover-copy">'+esc(L('上传文件永远要先问你。'))+'</p>';
+  };
+  const setSite=async(scope,decision)=>{
+    const response=await fetch(sitesUrl,{method:'POST',headers:{...molisWorkControlHeaders(),'content-type':'application/json'},body:JSON.stringify({scope,decision})});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.error||L('没有保存'));
+  };
   const post=async(path,body)=>{
     const response=await fetch('/projects/'+encodeURIComponent(projectId)+'/api/browser/'+path,{method:'POST',headers:{...molisWorkControlHeaders(),'content-type':'application/json'},body:JSON.stringify(body||{})});
     const result=await response.json().catch(()=>({}));
@@ -208,7 +276,12 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(action==='file-pick'){fileInput.dataset.chooser=sheet.dataset.id;fileInput.value='';fileInput.click();return;}
     if(action==='download-dismiss'){seenDownloads.add(sheet.dataset.id);renderSheet();return;}
     if(action==='give'){document.dispatchEvent(new CustomEvent('molis:side-browser-give'));return;}
-    if(action==='takeover'||action==='handback'){document.dispatchEvent(new CustomEvent('molis:side-browser-control',{detail:{action,project_id:projectId}}));return;}
+    if(action==='takeover'||action==='handback'){sendRaw({type:action});document.dispatchEvent(new CustomEvent('molis:side-browser-control',{detail:{action,project_id:projectId,session_id:state?.control?.work_id||null}}));if(action==='handback')say(L('已交还给助理。助理会先重新查看页面再继续。'));return;}
+    if(action==='approve-once'){await decide('approve');return;}
+    if(action==='reject'){await decide('reject');return;}
+    if(action==='approve-site'){try{await setSite(approval.dataset.site,'allow');}catch(error){say(error.message,true);}await decide('approve');return;}
+    if(action==='sites'){const open=sitesBox.hidden;sitesBox.hidden=!open;target.setAttribute('aria-expanded',String(open));if(open)await renderSites();return;}
+    if(action==='site-allow'||action==='site-block'||action==='site-forget'){try{await setSite(target.dataset.scope||state?.origin||'',action.slice(5));await renderSites();}catch(error){say(error.message,true);}return;}
   });
   fileInput.addEventListener('change',async()=>{
     const files=[...fileInput.files||[]];if(!files.length)return;
@@ -267,10 +340,11 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(ready&&view.clientWidth)sendRaw({type:'resize',viewport:viewport()});if(state)renderControl();},120);}).observe(view);
   const syncVisible=()=>sendRaw({type:'visible',visible:visible()});
   document.addEventListener('visibilitychange',syncVisible);
+  connect();
   document.addEventListener('molis:side-shown',event=>{
     panelOpen=event.detail?.open!==false;
     const now=event.detail?.tab==='browser'&&panelOpen;
-    if(now&&!shown){shown=true;connect();}else shown=now&&shown;
+    if(now&&!shown){shown=true;connect();attach();}else shown=now&&shown;
     if(now&&event.detail?.target?.url){if(ready)sendRaw({type:'navigate',input:event.detail.target.url});else queuedAddress=event.detail.target.url;}
     syncVisible();
   });

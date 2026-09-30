@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readNativePluginJsonBody, writeNativePluginJsonResponse } from "../native-plugin-http.js";
 import { BrowserError, type BrowserHost } from "./browser-host.js";
+import type { BrowserSiteDecisions } from "./browser-surfaces.js";
 
 /**
  * The browser's HTTP side (spec §3.2): files the person picks for a page's file chooser, finished downloads, and the
@@ -12,12 +13,30 @@ import { BrowserError, type BrowserHost } from "./browser-host.js";
 export interface BrowserHttpPorts {
   readonly browsers: () => BrowserHost;
   readonly projectExists: (projectId: string) => boolean | Promise<boolean>;
+  /** The person's standing decisions about sites, and how a running runtime hears a change. */
+  readonly sites?: BrowserSiteDecisions;
+  readonly decideSite?: (decision: { scope: string; decision: "allow" | "block" | "forget" }) => void;
 }
 
 const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
 const ROUTE = /^\/projects\/([^/]+)\/api\/browser\/(upload|capture|downloads\/([A-Za-z0-9-]{8,80}))$/u;
 
 export async function handleBrowserHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: BrowserHttpPorts): Promise<boolean> {
+  if (url.pathname === "/api/browser/sites" && ports.sites) {
+    // Sites the Assistant may use without asking, or never; read and changed only by the local person.
+    if (request.method === "GET") { writeNativePluginJsonResponse(response, { status: 200, body: { sites: ports.sites.list() } }); return true; }
+    if (request.method === "POST") {
+      try {
+        const body = await readNativePluginJsonBody(request, 10_000);
+        const decision = body.decision === "allow" || body.decision === "block" || body.decision === "forget" ? body.decision : null;
+        if (!decision || typeof body.scope !== "string") throw new Error("请说明是哪个网站、怎样处理");
+        const sites = ports.sites.set(body.scope, decision);
+        ports.decideSite?.({ scope: body.scope, decision });
+        writeNativePluginJsonResponse(response, { status: 200, body: { sites } });
+      } catch (error) { writeNativePluginJsonResponse(response, { status: 400, body: { error: error instanceof Error ? error.message : String(error) } }); }
+      return true;
+    }
+  }
   const match = ROUTE.exec(url.pathname);
   if (!match) return false;
   const projectId = decodeURIComponent(match[1]!);

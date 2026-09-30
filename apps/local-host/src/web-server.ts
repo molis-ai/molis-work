@@ -28,6 +28,10 @@ import { assistantServiceFor } from "./assistant/assistant-http.js";
 import { BrowserHost } from "./browser/browser-host.js";
 import { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
 import { handleBrowserHttp } from "./browser/browser-http.js";
+import { BrowserSiteDecisions, registerBrowserSurfaces } from "./browser/browser-surfaces.js";
+import { createBrowserSurfaceDriver } from "./browser/surface-driver.js";
+import { locateBrowser } from "./browser/locate.js";
+import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
@@ -107,6 +111,22 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       const port = address && typeof address === "object" ? address.port : 0;
       return port ? [`http://127.0.0.1:${port}`, `http://localhost:${port}`, `http://[::1]:${port}`] : [];
     } });
+    // The Assistant may look at and act on a project's page through Prologue (specs/side-panel P5): one driver per page,
+    // found by the board its round works on; sites the person allowed or blocked are kept beside the browser profile.
+    const sites = new BrowserSiteDecisions(storageHome);
+    const drivers = new Map<string, HostSurfaceDriver>();
+    const unregisterSurfaces = registerBrowserSurfaces(localHost, {
+      siteDecisions: () => sites.list(),
+      driverFor: async boardId => {
+        if (!locateBrowser()) return null;
+        const projectId = fixture && boardId === fixture.boardId ? fixture.boardId
+          : await platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().find(project => project.board_id === boardId)?.project_id ?? null);
+        if (!projectId) return null;
+        let driver = drivers.get(projectId);
+        if (!driver) drivers.set(projectId, driver = createBrowserSurfaceDriver(browserHost().page(projectId), origin => sites.blocked(origin)));
+        return driver;
+      },
+    });
     const projectExists = async (projectId: string) => (fixture && projectId === fixture.boardId)
       || await platform.withCatalog({ homeDirectory: storageHome }, catalog => { try { catalog.getProject(projectId); return true; } catch { return false; } });
     const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, async () => {
@@ -142,7 +162,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
               pathname => resolveWebRequest(serverOptions,pathname,composition.withCatalog))) return;
           }
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
-          if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists })) return;
+          if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
           if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, platform.withCatalog)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
@@ -233,6 +253,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       clearInterval(reminderTimer);
       im.close();
       void browsers?.close();
+      unregisterSurfaces();
       void closeExperiments(storageHome);
       clearInterval(schedulerTimer);
       feedSchedulers.clear();

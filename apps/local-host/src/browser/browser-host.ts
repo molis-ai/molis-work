@@ -292,6 +292,16 @@ export class BrowserPage {
     return () => { this.listeners.delete(listener); void this.refreshScreencast(); };
   }
 
+  /**
+   * Hear the page's state without starting anything: the panel listens from the moment the workbench loads, so it can
+   * open itself when the Assistant starts looking at or using the page.
+   */
+  watch(listener: BrowserListener): () => void {
+    if (!this.listeners.has(listener)) this.listeners.set(listener, { visible: false });
+    listener.state(this.snapshot());
+    return () => { this.listeners.delete(listener); void this.refreshScreencast(); };
+  }
+
   setVisible(listener: BrowserListener, visible: boolean): void {
     const held = this.listeners.get(listener);
     if (!held || held.visible === visible) return;

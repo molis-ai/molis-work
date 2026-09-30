@@ -58,6 +58,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);
     // Memory lives in this runtime: the platform memory is registered with it (specs/memory-system §5.2).
     const memory = registerMemoryHost({ localHost, homeDirectory: storageHome, agentHost: service.agentHost, ready: () => service.ready, started: () => service.started,
+      projects: async () => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().map(project => project.project_id)) : [],
       projectTitle: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) : null });
     owner.release = () => { unbind(); unbindBuilder(); };
     const dispose = service.dispose.bind(service);

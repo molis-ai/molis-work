@@ -8,7 +8,7 @@ import type { PrologueInferenceClient } from "../inference.js";
 import { prologueActionTools, agentActionToolName } from "./prologue-action-tools.js";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { BUILT_IN_ADAPTERS, DEFAULT_CONTEXT_WINDOW_TOKENS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
+import { BUILT_IN_ADAPTERS, DEFAULT_CONTEXT_WINDOW_TOKENS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, redactText, screenInbound, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 /** Start refusals the runtime raises before it creates a run: validation and context packing. */
 // Codes the runtime raises before it creates a run: nothing ran, so the attempt is a settled refusal.
@@ -858,6 +858,22 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           const atMs = (await runtime.readClock()).wallTimeMs;
           return runtime.memory.recall({ scope: input.scope, owner: input.owner, ...(input.keywords ? { keywords: input.keywords } : {}), ...(input.text !== undefined ? { text: input.text } : {}),
             ...(input.kinds ? { kinds: input.kinds } : {}), atMs, ...(input.limit ? { limit: input.limit } : {}) }).hits.map(hit => ({ entry: view(hit.entry), score: hit.score })); },
+        screen: async text => {
+          const screened = screenInbound(text);
+          return { hold: screened.verdict === "hold", reasons: screened.reasons.map(reason => reason.rule), redacted: redactText(text) };
+        },
+        previewScope: async (scope, owner) => {
+          await ready(scope, owner);
+          const preview = runtime.memory.previewScope({ scope, owner });
+          return { count: preview.count, fingerprint: preview.fingerprint, memory_ids: preview.entries.map(entry => entry.ref.id) };
+        },
+        clearScope: async input => {
+          await ready(input.scope, input.owner);
+          // Refused (nothing removed) when the scope changed since the preview; then every one is purged, not only tombstoned.
+          const removed = await runtime.memory.removeScope({ scope: input.scope, owner: input.owner, fingerprint: input.fingerprint });
+          for (const ref of removed) await runtime.memory.purge(ref);
+          return removed.map(ref => ref.id);
+        },
         candidates: {
           propose: async input => { await ready(input.scope, input.owner); return candidateView(await runtime.memoryCandidates.propose({ scope: input.scope, owner: input.owner, text: input.text, origin: input.origin,
             ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdk(input.meta) } : {}) })); },

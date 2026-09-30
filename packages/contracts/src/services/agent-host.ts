@@ -1250,6 +1250,15 @@ export interface AgentMemoryCapability {
   recall(input: { scope: AgentMemoryEntry["scope"]; owner: string; keywords?: string[]; text?: string; kinds?: string[]; limit?: number }): Promise<Array<{ entry: AgentMemoryEntry; score: number }>>;
   /** The runtime's persistent, scoped candidate box: accept (the person) and promote (a Host policy) write through the one entry. */
   candidates?: AgentMemoryCandidateCapability;
+  /**
+   * Prologue's own screening of text about to become memory: `hold` when it reads like instructions to the model
+   * (`screenInbound`), and the text with credentials and absolute paths taken out (`redactText`).
+   */
+  screen?(text: string): Promise<{ hold: boolean; reasons: string[]; redacted: string }>;
+  /** Clearing a whole scope, step one: how many, and the fingerprint the confirmation must bring back. */
+  previewScope?(scope: AgentMemoryEntry["scope"], owner: string): Promise<{ count: number; fingerprint: string; memory_ids: string[] }>;
+  /** Step two: refused when anything changed since the preview; otherwise every entry is purged. */
+  clearScope?(input: { scope: AgentMemoryEntry["scope"]; owner: string; fingerprint: string }): Promise<string[]>;
 }
 
 export interface AgentMemoryCandidateCapability {

@@ -64,3 +64,13 @@ const INSTRUCTION_SHAPES: readonly RegExp[] = [
 export function looksLikeInstruction(text: string): string | null {
   return INSTRUCTION_SHAPES.some(shape => shape.test(text)) ? "这段话像是在给 AI 下指令（例如要求忽略规则或跳过确认），不能自动记住，需要你看过再决定" : null;
 }
+
+/** How much two texts overlap by character pairs (0–1): enough to call two memories the same thing said twice. */
+export function similarity(left: string, right: string): number {
+  const pairs = (text: string) => { const chars = [...normalized(text)]; return new Set(chars.length < 2 ? chars : chars.slice(0, -1).map((char, index) => char + chars[index + 1])); };
+  const a = pairs(left), b = pairs(right);
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  for (const item of a) if (b.has(item)) shared += 1;
+  return shared / (a.size + b.size - shared);
+}

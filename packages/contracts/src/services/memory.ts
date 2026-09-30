@@ -212,7 +212,8 @@ export interface MemoryRecallResponse {
   state: "ok" | "off";
   reason: string | null;
   items: MemoryRecalled[];
-  omitted: Array<{ memory_id: string; scope: MemoryScope; reason: "budget" | "limit" }>;
+  /** `conflict`: it contradicts another one recalled here that wins (newer, and the person's own words over automatic ones). */
+  omitted: Array<{ memory_id: string; scope: MemoryScope; reason: "budget" | "limit" | "conflict" }>;
   /** How it was recalled, as it really happened. `keyword-cjk`: keywords plus two-character pieces of Chinese text. */
   method: "keyword-cjk" | "keyword" | "vector";
   /** Recorded use; the same id appears in each memory's 最近用于. */
@@ -267,6 +268,8 @@ export interface MemoryWriteRequest {
   applies?: MemoryApplies;
   /** The person's own words asking for it. Required when an agent writes. */
   said?: string;
+  /** An object it rests on: when that object is deleted or no longer readable, the memory pauses (spec §6.4). */
+  rests_on?: { kind: string; id: string };
   expires_at?: string | null;
   /** A memory this one corrects: the old version stays in its history. */
   replaces?: string;
@@ -304,6 +307,32 @@ export interface MemoryChangeResult {
 export interface MemoryHistoryResponse { memory_id: string; revisions: MemoryRevision[] }
 
 export interface MemoryCandidateDecision { candidate_id: string; text?: string }
+
+/* ---- upkeep: pairs for the person, and the report of one pass (spec §6.4) ---- */
+
+/** Two memories that say the same thing, or contradict each other: the person chooses. Upkeep never picks for them. */
+export interface MemoryPair {
+  pair_id: string;
+  kind: "duplicate" | "conflict";
+  scope: MemoryScope;
+  project_id: string | null;
+  a: { memory_id: string; text: string; source: MemorySource };
+  b: { memory_id: string; text: string; source: MemorySource };
+  why: string;
+  created_at: string;
+}
+
+export interface MemoryUpkeepReport {
+  at: string;
+  expired: number;
+  unused: number;
+  merged: number;
+  paused: number;
+  resumed: number;
+  pairs: number;
+  /** Whether the model was asked to find duplicates and conflicts this pass (only when a scope changed). */
+  tidied: boolean;
+}
 
 /* ---- export / import / clear ---- */
 
@@ -400,7 +429,7 @@ export const memoryActions = {
       scopes: { type: "array", maxItems: 2, items: scopeSchema }, kinds: { type: "array", maxItems: 4, items: kindSchema },
       limit: { type: "integer", minimum: 1, maximum: 20 }, budget_chars: { type: "integer", minimum: 100, maximum: 4000 }, used_for: { type: "string", maxLength: 80 } }, additionalProperties: false },
     output_schema: { type: "object", properties: { state: { enum: ["ok", "off"] }, reason: nullableText, items: { type: "array", items: recalledSchema },
-      omitted: { type: "array", items: { type: "object", properties: { memory_id: text, scope: scopeSchema, reason: { enum: ["budget", "limit"] } }, required: ["memory_id", "scope", "reason"], additionalProperties: false } },
+      omitted: { type: "array", items: { type: "object", properties: { memory_id: text, scope: scopeSchema, reason: { enum: ["budget", "limit", "conflict"] } }, required: ["memory_id", "scope", "reason"], additionalProperties: false } },
       method: { enum: ["keyword-cjk", "keyword", "vector"] }, receipt_id: text }, required: ["state", "reason", "items", "omitted", "method", "receipt_id"], additionalProperties: false } } } as ActionDefinition<MemoryRecallRequest, MemoryRecallResponse>,
   list: { capability_id: "memory.list", version: 1, operation: "query", action: { ...reads, audiences: ["user", "agent"] as ("user" | "agent")[], permissions: [MEMORY_READ_PERMISSION],
     title: "列出记住的事", description: "列出个人记忆与当前项目的记忆（正文、类别、来源、适用情境、状态与最近使用），可按范围、类别、来源、状态筛选。用于回答“你记住了我什么”。",
@@ -412,7 +441,8 @@ export const memoryActions = {
   write: { capability_id: "memory.write", version: 1, operation: "command", action: { ...writes, audiences: ["user", "agent"] as ("user" | "agent")[], permissions: [MEMORY_WRITE_PERMISSION], plugin: false as const,
     title: "记住一件事", description: "按用户的明确要求记住一条偏好、约定、背景或经验（个人或当前项目）。经写入门：形似秘密的不写，像指令的文字只作为待认可的建议；与已有的冲突时新的明确要求替换旧的。Agent 调用时必须在 said 里附上用户原话。",
     input_schema: { type: "object", properties: { scope: scopeSchema, text: memoryText, kind: kindSchema, applies: appliesSchema, said: { type: "string", maxLength: 400 },
-      expires_at: nullableText, replaces: memoryId }, required: ["scope", "text"], additionalProperties: false },
+      expires_at: nullableText, replaces: memoryId, rests_on: { type: "object", properties: { kind: { type: "string", minLength: 1, maxLength: 200 }, id: { type: "string", minLength: 1, maxLength: 200 } },
+        required: ["kind", "id"], additionalProperties: false } }, required: ["scope", "text"], additionalProperties: false },
     output_schema: { type: "object", properties: { outcome: { enum: ["written", "replaced", "duplicate", "candidate", "refused"] }, reason: text, applies_text: text,
       memory: { anyOf: [{ type: "null" }, itemSchema] }, candidate: { anyOf: [{ type: "null" }, candidateSchema] }, change_id: nullableText },
       required: ["outcome", "reason", "applies_text", "memory", "candidate", "change_id"], additionalProperties: false } } } as ActionDefinition<MemoryWriteRequest, MemoryWriteResult>,
@@ -465,6 +495,19 @@ export const memoryActions = {
     output_schema: { type: "object", properties: { state: { enum: ["counted", "duplicate", "off"] }, count: { type: "integer" }, distinct: { type: "integer" }, candidate_id: nullableText,
       threshold: { type: "object", properties: { count: { type: "integer" }, distinct: { type: "integer" } }, required: ["count", "distinct"], additionalProperties: false } },
       required: ["state", "count", "distinct", "candidate_id", "threshold"], additionalProperties: false } } } as ActionDefinition<MemorySignalReport, MemorySignalResult>,
+  pairs: { capability_id: "memory.pairs.list", version: 1, operation: "query", action: { ...reads, audiences: person, permissions: [MEMORY_READ_PERMISSION],
+    title: "可能重复或冲突的记忆", description: "整理时发现的两两一对：意思相同或互相矛盾，等你选留哪条。",
+    input_schema: { type: "object", properties: { scope: { enum: ["personal", "project", "all"] } }, additionalProperties: false },
+    output_schema: { type: "object", properties: { pairs: { type: "array", items: { type: "object" } } }, required: ["pairs"], additionalProperties: false } } } as ActionDefinition<{ scope?: MemoryScope | "all" }, { pairs: MemoryPair[] }>,
+  resolvePair: { capability_id: "memory.pairs.resolve", version: 1, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_WRITE_PERMISSION],
+    title: "选择保留哪条", description: "保留一条时另一条停用（可在历史里恢复）；都保留则以后不再提这一对。",
+    input_schema: { type: "object", properties: { pair_id: memoryId, keep: { enum: ["a", "b", "both"] } }, required: ["pair_id", "keep"], additionalProperties: false },
+    output_schema: { type: "object", properties: { resolved: { type: "boolean" } }, required: ["resolved"], additionalProperties: false } } } as ActionDefinition<{ pair_id: string; keep: "a" | "b" | "both" }, { resolved: boolean }>,
+  upkeep: { capability_id: "memory.upkeep.run", version: 1, operation: "command", action: { ...writes, audiences: person, permissions: [MEMORY_CONFIGURE_PERMISSION],
+    title: "现在整理记忆", description: "立即做一次整理：到期和长期没用的停用，重复的自动记忆合并，依据不在的暂停，可能重复或冲突的交给你选。结果都进最近变动，可以撤销。",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+    output_schema: { type: "object", properties: { at: text, expired: { type: "integer" }, unused: { type: "integer" }, merged: { type: "integer" }, paused: { type: "integer" },
+      resumed: { type: "integer" }, pairs: { type: "integer" }, tidied: { type: "boolean" } }, required: ["at", "expired", "unused", "merged", "paused", "resumed", "pairs", "tidied"], additionalProperties: false } } } as ActionDefinition<Record<string, never>, MemoryUpkeepReport>,
   preview: { capability_id: "memory.scope.preview", version: 1, operation: "query", action: { ...reads, audiences: person, permissions: [MEMORY_CONFIGURE_PERMISSION],
     title: "清空前预览", description: "清空个人或当前项目的记忆之前，先看有几条；确认时带回指纹。",
     input_schema: { type: "object", properties: { scope: scopeSchema }, required: ["scope"], additionalProperties: false },
@@ -521,8 +564,9 @@ export interface MemoryMetaRecord {
   updated_at: string;
 }
 
-/** How a change is taken back: delete what was written, go back to a version, switch back on, or none. */
-export type MemoryUndoPlan = { action: "remove" } | { action: "restore"; version: number } | { action: "enable" } | { action: "disable" };
+/** How a change is taken back: delete what was written, go back to a version, switch back on (and forget an expiry), or bring back one merged away. */
+export type MemoryUndoPlan = { action: "remove" } | { action: "restore"; version: number } | { action: "enable"; clear_expiry?: boolean } | { action: "disable" }
+  | { action: "recreate"; text: string; kind: MemoryKind; source: MemorySource; basis: MemoryBasis; applies: MemoryApplies };
 
 export interface MemoryChangeRecord extends MemoryChange {
   actor_id: string;
@@ -568,6 +612,9 @@ export interface MemoryLedgerPort {
   recordUses(uses: readonly MemoryUseRecord[]): void;
   lastUse(memoryId: string): MemoryUseRecord | null;
   uses(filter: { receipt_id?: string; work_id?: string; memory_id?: string; limit?: number }): MemoryUseRecord[];
+  /** Pairs waiting for the person, and the pair keys ever raised (a pair kept both is not raised again). */
+  pairs(actorId: string): Array<MemoryPair & { owner: string; state: "pending" | "resolved" }>;
+  savePair(actorId: string, pair: MemoryPair & { owner: string; state: "pending" | "resolved" }): void;
   migration(actorId: string, source: string): { at: string; body: unknown } | null;
   markMigration(actorId: string, source: string, body: unknown, at: string): void;
   /** One unit of work: all or nothing. */

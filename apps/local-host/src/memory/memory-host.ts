@@ -24,6 +24,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_STORE_NAME, AssistantStore } from "../assistant/assistant-store.js";
 import { learnFromWork, type MemoryLearningRequest } from "./memory-learning.js";
+import { runUpkeep } from "./memory-upkeep.js";
 
 /**
  * Host wiring of the platform memory (specs/memory-system §5.2): Prologue Memory of this Home's one runtime as the
@@ -61,6 +62,8 @@ export interface MemoryHostPorts {
   ready(): Promise<void>;
   /** Settles once the runtime started because something needed it (never starts it). */
   started?(): Promise<void>;
+  /** Project ids in this Home, for upkeep over every project's memories. */
+  projects?(): Promise<string[]>;
   projectTitle?(projectId: string): Promise<string | null>;
 }
 
@@ -118,17 +121,50 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     { ...memoryActions.savePrefs, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ scope?: MemoryScope; prefs: Partial<MemoryPrefs> }>(value);
       return service.savePrefs(caller(context), request.scope, request.prefs); } },
     { ...memoryActions.signal, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.signal(caller(context), input<MemorySignalReport>(value)); } },
+    { ...memoryActions.pairs, handle: async (context, value) => { migrate(); return { pairs: await service.pairs(caller(context), input(value)) }; } },
+    { ...memoryActions.resolvePair, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ pair_id: string; keep: "a" | "b" | "both" }>(value);
+      return service.resolvePair(caller(context), request.pair_id, request.keep); } },
+    { ...memoryActions.upkeep, handle: async context => { if (context.audience !== "user") throw new ActionError("memory.forbidden", "只有本人能立即整理"); await context.beforeEffect(); return upkeepNow(); } },
+    { ...memoryActions.preview, handle: async (context, value) => { migrate(); return service.previewScope(caller(context), input<{ scope: MemoryScope }>(value).scope); } },
+    { ...memoryActions.clear, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ scope: MemoryScope; fingerprint: string }>(value);
+      return service.clearScope(caller(context), request.scope, request.fingerprint); } },
+    { ...memoryActions.export, handle: async (context, value) => { migrate(); return { package: await service.exportScope(caller(context), input<{ scope: MemoryScope }>(value).scope) }; } },
+    { ...memoryActions.import, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ scope: MemoryScope; package: unknown }>(value);
+      return service.importScope(caller(context), request.scope, request.package); } },
   ];
   // The service's own errors reach every caller as the directory's errors, with the same code and words.
   const handlers: ActionHandlerBinding[] = bindings.map(binding => ({ ...binding, handle: async (context, value) => {
     try { return await binding.handle(context, value); } catch (error) { throw asActionError(error); }
   } }));
   const dispose = ports.localHost.actionRegistry().registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: "记忆", kind: "system" },
-    definitions: [memoryActions.recall, memoryActions.list, memoryActions.write, memoryActions.change, memoryActions.history, memoryActions.candidates, memoryActions.accept,
-      memoryActions.discard, memoryActions.changes, memoryActions.undo, memoryActions.prefs, memoryActions.savePrefs, memoryActions.signal], handlers });
-  // Drawing out memories: a queued task of the runtime's own durable queue (one runner for its kind).
-  const LEARN_KIND = "memory.learn";
+    definitions: Object.values(memoryActions), handlers });
+  // Drawing out memories, and daily upkeep: tasks of the runtime's own durable queue (one runner for each kind).
+  const LEARN_KIND = "memory.learn", UPKEEP_KIND = "memory.upkeep";
   let queueAttached = false;
+  const person: MemoryCaller = { actor_id: LOCAL_PERSON, project_id: null, consumer: "ui", person: true };
+  const upkeepNow = async () => { migrate(); return runUpkeep(service, { homeDirectory: ports.homeDirectory, localHost: ports.localHost, caller: person, projects: await ports.projects?.().catch(() => []) ?? [] }); };
+  /** The runtime's queue hangs tasks on a session: upkeep has its own, made once and kept in the ledger. */
+  const upkeepSession = async (): Promise<string> => {
+    const saved = ledger.migration(LOCAL_PERSON, "upkeep-session")?.body as { session_id?: string } | undefined;
+    if (saved?.session_id) return saved.session_id;
+    const session = await ports.agentHost.adapter(RUNTIME).createSession({ board_id: MEMORY_PROVIDER_ID, plugin_id: MEMORY_PROVIDER_ID, install_id: MEMORY_PROVIDER_ID,
+      actor_id: LOCAL_PERSON, workspace: "none", role_id: "memory-upkeep", title: "记忆整理" });
+    ledger.markMigration(LOCAL_PERSON, "upkeep-session", { session_id: session.session_id }, new Date().toISOString());
+    return session.session_id;
+  };
+  /** Next upkeep: at four in the morning local time (today's when that has not passed and today's has not run yet). */
+  const scheduleUpkeep = async (after: Date) => {
+    const schedule = ports.agentHost.adapter(RUNTIME).schedule;
+    if (!schedule) return;
+    const due = new Date(after); due.setHours(4, 0, 0, 0);
+    if (due.getTime() <= after.getTime()) due.setDate(due.getDate() + 1);
+    const last = service.lastUpkeep(LOCAL_PERSON);
+    // Missed while Molis Work was not running (more than a day ago): done soon after start instead.
+    const when = !last || Date.now() - Date.parse(last.at) > 26 * 3_600_000 ? new Date(Date.now() + 60_000) : due;
+    const key = `memory-upkeep:${when.toISOString().slice(0, 10)}`;
+    if (schedule.find(key)) return;
+    await schedule.enqueue({ key, session_id: await upkeepSession(), kind: UPKEEP_KIND, payload: {}, due_at: when.toISOString(), max_attempts: 2 });
+  };
   const runLearning = async (request: MemoryLearningRequest) => {
     migrate();
     const outcome = await learnFromWork(service, ports.homeDirectory, request);
@@ -139,7 +175,9 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     const schedule = ports.agentHost.adapter(RUNTIME).schedule;
     if (!schedule) return;
     schedule.handle(LEARN_KIND, async task => { await runLearning(task.payload as unknown as MemoryLearningRequest); });
+    schedule.handle(UPKEEP_KIND, async () => { await upkeepNow(); await scheduleUpkeep(new Date()); });
     queueAttached = true;
+    void scheduleUpkeep(new Date()).catch(error => console.warn("[memory] 没有排上整理", error));
   };
   void ports.started?.().then(attachQueue).catch(() => undefined);
   const host: MemoryHost = {
@@ -167,7 +205,7 @@ export function prologueMemoryBackend(store: () => Promise<AgentMemoryCapability
   const prologueScope = (scope: MemoryScope) => scope === "personal" ? "user" as const : "project" as const;
   const view = (entry: AgentMemoryEntry) => ({ memory_id: entry.memory_id, text: entry.text, origin: entry.origin, tags: [...entry.tags], version: entry.version,
     meta: entry.meta ?? {}, ...(entry.paused ? { paused: entry.paused } : {}), created_at_ms: entry.created_at_ms ?? 0, updated_at_ms: entry.updated_at_ms ?? 0 });
-  const required = <K extends "setMeta" | "pause" | "resume">(memory: AgentMemoryCapability, name: K): NonNullable<AgentMemoryCapability[K]> => {
+  const required = <K extends "setMeta" | "pause" | "resume" | "previewScope" | "clearScope">(memory: AgentMemoryCapability, name: K): NonNullable<AgentMemoryCapability[K]> => {
     const method = memory[name];
     if (!method) throw new MemoryError("memory.off", "当前运行时的记忆不支持结构化信息与暂停");
     return method.bind(memory) as NonNullable<AgentMemoryCapability[K]>;
@@ -180,6 +218,9 @@ export function prologueMemoryBackend(store: () => Promise<AgentMemoryCapability
     pause: async input => view(await required(await store(), "pause")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id, reason: input.reason })),
     resume: async input => view(await required(await store(), "resume")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id })),
     remove: async input => { await (await store()).remove({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id }); },
+    screen: async text => { const memory = await store(); if (!memory.screen) throw new MemoryError("memory.off", "当前运行时不能筛查"); return memory.screen(text); },
+    previewScope: async (scope, owner) => required(await store(), "previewScope")(prologueScope(scope), owner),
+    clearScope: async input => required(await store(), "clearScope")({ scope: prologueScope(input.scope), owner: input.owner, fingerprint: input.fingerprint }),
     candidates: {
       propose: async input => candidateView(await (await box(store)).propose({ scope: prologueScope(input.scope), owner: input.owner, text: input.text, origin: input.origin, tags: input.tags, meta: input.meta })),
       list: async (scope, owner) => (await (await box(store)).list(prologueScope(scope), owner)).map(candidateView),
@@ -189,6 +230,7 @@ export function prologueMemoryBackend(store: () => Promise<AgentMemoryCapability
       settleInto: async input => view(await (await box(store)).settleInto({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id, memory_id: input.memory_id, by: input.by })),
       discard: async input => { await (await box(store)).discard({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id }); },
       expire: async input => { await (await box(store)).expire({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id }); },
+      purge: async input => { await (await box(store)).purge({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id }); },
     },
   };
 }
@@ -239,11 +281,12 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       // One read for a settings page: the scope's memories, switches, candidates and recent changes.
       if (method === "GET" && parts.length === 1 && parts[0] === "overview") {
         const wanted = scope(url.searchParams.get("scope")) ?? (ports.projectRef ? "project" : "personal");
-        const [list, prefs, candidates, changes] = await Promise.all([
+        const [list, prefs, candidates, changes, pairs] = await Promise.all([
           call(memoryActions.list, { scope: wanted }), call(memoryActions.prefs, { scope: wanted }),
-          call(memoryActions.candidates, { scope: wanted }), call(memoryActions.changes, { scope: wanted, limit: 30 }),
+          call(memoryActions.candidates, { scope: wanted }), call(memoryActions.changes, { scope: wanted, limit: 30 }), call(memoryActions.pairs, { scope: wanted }),
         ]);
-        return { status: 200, body: { scope: wanted, ...(list as object), ...(prefs as object), ...(candidates as object), ...(changes as object) } };
+        return { status: 200, body: { scope: wanted, ...(list as object), ...(prefs as object), ...(candidates as object), ...(changes as object), ...(pairs as object),
+          last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
       }
       if (method === "GET" && parts.length === 3 && parts[0] === "items" && parts[2] === "history") return { status: 200, body: await call(memoryActions.history, { memory_id: parts[1] }) };
       if (method !== "POST") return null;
@@ -254,6 +297,12 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       if (parts.length === 3 && parts[0] === "candidates" && parts[2] === "discard") return { status: 200, body: await call(memoryActions.discard, { candidate_id: parts[1] }) };
       if (parts.length === 3 && parts[0] === "changes" && parts[2] === "undo") return { status: 200, body: await call(memoryActions.undo, { change_id: parts[1] }) };
       if (parts.length === 1 && parts[0] === "signals") return { status: 200, body: await call(memoryActions.signal, body) };
+      if (parts.length === 1 && parts[0] === "preview") return { status: 200, body: await call(memoryActions.preview, body) };
+      if (parts.length === 3 && parts[0] === "pairs" && parts[2] === "resolve") return { status: 200, body: await call(memoryActions.resolvePair, { pair_id: parts[1], keep: body.keep }) };
+      if (parts.length === 1 && parts[0] === "upkeep") return { status: 200, body: await call(memoryActions.upkeep, {}) };
+      if (parts.length === 1 && parts[0] === "clear") return { status: 200, body: await call(memoryActions.clear, body) };
+      if (parts.length === 1 && parts[0] === "export") return { status: 200, body: await call(memoryActions.export, body) };
+      if (parts.length === 1 && parts[0] === "import") return { status: 200, body: await call(memoryActions.import, body) };
       return null;
     },
     mapError(error) {

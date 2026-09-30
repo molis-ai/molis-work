@@ -47,6 +47,9 @@ CREATE TABLE IF NOT EXISTS memory_uses (
 );
 CREATE INDEX IF NOT EXISTS memory_uses_receipt ON memory_uses(receipt_id);
 CREATE INDEX IF NOT EXISTS memory_uses_work ON memory_uses(work_id);
+CREATE TABLE IF NOT EXISTS memory_pairs (
+  pair_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS memory_migrations (
   actor_id TEXT NOT NULL, source TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, source)
 );
@@ -74,7 +77,12 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       // Recent changes stay (what happened, when), but no longer carry the deleted text.
       for (const row of db.prepare("SELECT change_id, body FROM memory_changes WHERE memory_id=?").all(memoryId)) {
         const change = JSON.parse(String(row.body)) as MemoryChangeRecord;
-        db.prepare("UPDATE memory_changes SET body=? WHERE change_id=?").run(JSON.stringify({ ...change, text: "", undoable: false }), String(row.change_id));
+        db.prepare("UPDATE memory_changes SET body=? WHERE change_id=?").run(JSON.stringify({ ...change, text: "", reason: null, undoable: false, undo: null }), String(row.change_id));
+      }
+      // A pair that named it shows no copy of it any more.
+      for (const row of db.prepare("SELECT pair_id, body FROM memory_pairs").all()) {
+        const pair = JSON.parse(String(row.body)) as { a: { memory_id: string }; b: { memory_id: string } };
+        if (pair.a.memory_id === memoryId || pair.b.memory_id === memoryId) db.prepare("DELETE FROM memory_pairs WHERE pair_id=?").run(String(row.pair_id));
       }
       // Candidates that became this memory keep no copy of it either.
       for (const row of db.prepare("SELECT candidate_id, body FROM memory_candidates").all()) {
@@ -125,6 +133,11 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       if (filter.memory_id) { where.push("memory_id=?"); values.push(filter.memory_id); }
       return db.prepare(`SELECT body FROM memory_uses ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY at DESC, rowid DESC LIMIT ${Math.max(1, Math.min(500, filter.limit ?? 100))}`)
         .all(...values).map(row => JSON.parse(String(row.body)) as MemoryUseRecord);
+    },
+    pairs: actorId => db.prepare("SELECT body FROM memory_pairs WHERE actor_id=? ORDER BY rowid").all(actorId).map(row => JSON.parse(String(row.body)) as ReturnType<MemoryLedgerPort["pairs"]>[number]),
+    savePair: (actorId, pair) => {
+      db.prepare("INSERT INTO memory_pairs(pair_id,actor_id,state,body) VALUES (?,?,?,?) ON CONFLICT(pair_id) DO UPDATE SET state=excluded.state, body=excluded.body")
+        .run(pair.pair_id, actorId, pair.state, JSON.stringify(pair));
     },
     migration: (actorId, source) => {
       const row = db.prepare("SELECT at, body FROM memory_migrations WHERE actor_id=? AND source=?").get(actorId, source);

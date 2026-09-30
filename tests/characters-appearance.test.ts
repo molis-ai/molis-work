@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { MW_PLUGINS, renderPaletteTokens, renderPluginTintBindings } from "../packages/design-system/src/palette.ts";
-import { railEntries, pluginTabGlyphs } from "../apps/workbench/src/plugin-catalog.ts";
+import { railEntries, pluginTabGlyphs, pluginMarketCards } from "../apps/workbench/src/plugin-catalog.ts";
+import { listPluginSettingsNavItems } from "../apps/workbench/src/plugin-settings-catalog.ts";
 import { renderPluginRail } from "../apps/workbench/src/immersive-shell.ts";
 
 // Soft Workbench (DESIGN.md → Plugin identity): plugins carry no identity colour on screen. Characters keeps
@@ -22,14 +23,17 @@ test("Characters navigation and work surface receive its registered theme tint",
   assert.match(bindings, /\[data-work-surface="characters"\][^{}]*\{ --plugin-tint: var\(--plugin-characters\); \}/);
 });
 
-test("Characters manifest supplies the user glyph to navigation and tabs", () => {
-  assert.deepEqual(railEntries(["characters"]), [
-    { id: "characters", surface: "characters", label: "Characters", glyph: "user" },
-  ]);
-  assert.equal(pluginTabGlyphs().characters, "user");
+// Characters is how AI is asked to work, so its page is Settings › 角色, not a navigation entry (specs/page-interaction-flow).
+test("Characters manifest places its page in settings with the user glyph, not in navigation", () => {
+  assert.deepEqual(railEntries(["characters"]), []);
+  assert.equal(pluginTabGlyphs().characters, undefined);
+  const page = listPluginSettingsNavItems(["characters"]).find((item) => item.section_id === "characters");
+  assert.deepEqual({ label: page?.label, icon: page?.icon, order: page?.order }, { label: "角色", icon: "user", order: 35 });
+  const card = pluginMarketCards().find((item) => item.id === "characters");
+  assert.deepEqual({ label: card?.label, glyph: card?.glyph }, { label: "角色", glyph: "user" });
 });
 
-test("Characters sits with the other plugins; the market and the studio live in the Dock menu", () => {
+test("Characters is not among the plugins; the market and the studio live in the Dock menu", () => {
   const primitives = {
     L: (value: string) => value,
     escapeHtml: (value: unknown) => String(value),
@@ -37,12 +41,11 @@ test("Characters sits with the other plugins; the market and the studio live in 
   };
   const account = `<footer class="personal-sidebar-footer"><button class="personal-account"></button><details data-global-menu><summary></summary><div><!-- account-global-items --><button data-plugin-id="settings"></button></div></details></footer>`;
   const island = `<div class="assistant-island" data-assistant-island><button data-plugin-id="lingguang"></button></div>`;
-  const html = renderPluginRail(primitives, ["goals", "characters", "pages", "plugin-builder", "inbox"], account, island);
+  const html = renderPluginRail(primitives, ["goals", "characters", "experiments", "pages", "plugin-builder", "inbox"], account, island);
   const items = html.slice(html.indexOf("plugin-rail-items"), html.indexOf("personal-sidebar-footer"));
   // Backbone first, then this project's plugins in groups, and the toggle that opens them all.
-  assert.match(items, /data-rail-zone="core"[^>]*data-plugin-id="home"[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*>插件<[\s\S]*创作[\s\S]*data-rail-zone="tool"[^>]*data-plugin-id="pages"[\s\S]*更多[\s\S]*data-plugin-id="characters"[\s\S]*data-rail-tools-toggle/);
-  assert.doesNotMatch(items, /data-plugin-id="(market|plugin-builder)"|__SYSTEM_CAPABILITIES__/);
-  assert.match(items, /data-work-surface-open="characters"/);
+  assert.match(items, /data-rail-zone="core"[^>]*data-plugin-id="home"[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*>插件<[\s\S]*创作[\s\S]*data-rail-zone="tool"[^>]*data-plugin-id="pages"[\s\S]*更多[\s\S]*data-plugin-id="experiments"[\s\S]*data-rail-tools-toggle/);
+  assert.doesNotMatch(items, /data-plugin-id="(market|plugin-builder|characters)"|__SYSTEM_CAPABILITIES__/);
   // The ways to extend the workbench sit in the Dock menu; capabilities moved to the project button with the person.
   const footer = html.slice(html.indexOf("personal-sidebar-footer"));
   assert.match(footer, /data-global-menu[\s\S]*data-plugin-id="market"[\s\S]*data-plugin-id="plugin-builder"[\s\S]*data-icon="wand"/);

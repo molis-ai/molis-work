@@ -152,12 +152,14 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   assert.equal(hidden.status, 200);
   assert.deepEqual(await hidden.json(), { project_id: project.project_id, plugins: ["goals"], hidden: ["characters"] });
   assert.equal((await change("DELETE", project.project_id, "characters")).status, 200);
+  // Characters' page is Settings › 角色 (specs/page-interaction-flow): hiding it removes that settings category.
   const hiddenPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
+  assert.doesNotMatch(hiddenPage, /data-settings-section="characters"/);
   assert.doesNotMatch(hiddenPage, /data-plugin-id="characters"/);
   const restored = await change("POST", project.project_id, "characters");
   assert.deepEqual(await restored.json(), { project_id: project.project_id, plugins: ["goals"], hidden: [] });
   const restoredPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
-  assert.match(restoredPage, /data-plugin-id="characters"/);
+  assert.match(restoredPage, /data-settings-section="characters"/);
   assert.deepEqual(catalog.listProjectPlugins(other.project_id), ["goals"]);
   assert.deepEqual(catalog.listHiddenPlugins(other.project_id), []);
   const db = new Database(join(homeDirectory, "projects/catalog.db"), { readonly: true });

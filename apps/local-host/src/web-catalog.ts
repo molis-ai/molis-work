@@ -44,6 +44,7 @@ import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js
 import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { EXPERIMENTS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-experiments";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
+import { CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-characters";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
@@ -275,6 +276,36 @@ export async function handleLocalCatalogWebRequest(
   const pluginSettingsSlug = url.pathname.match(/^\/settings\/([^/]+)$/)?.[1];
   const pluginSettings = pluginSettingsSlug ? findPluginSettingsNavItem(pluginSettingsSlug) : null;
   if (request.method === "GET" && pluginSettings && serverOptions.homeDirectory) {
+    // Settings › 角色 is rendered by a project's running Characters plugin: with a project it opens there, in the
+    // workbench's settings; without one the page offers the projects to open it in.
+    if (pluginSettings.contribution_id === CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID) {
+      const projects = await settingsProjects(serverOptions.homeDirectory);
+      const desktop = isDesktopShellRequest(request, url);
+      const inProject = (projectId: string) => `/projects/${encodeURIComponent(projectId)}/?settings=characters${desktop ? "&desktop=1" : ""}`;
+      const context = projects.find((project) => project.project_id === url.searchParams.get("project"));
+      if (context) {
+        response.writeHead(302, { location: inProject(context.project_id), "cache-control": "no-store" });
+        response.end();
+        return;
+      }
+      const membership = await pluginMembership(null);
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
+      response.end(renderMolisWorkSettings({
+        section: pluginSettings.section_id,
+        plugin_settings_html: renderPluginSettingsContribution(pluginSettings.contribution_id, {
+          projects: projects.map((project) => ({ project_id: project.project_id, name: project.display_name, href: inProject(project.project_id) })),
+          primitives: { escape: escapeSettingsHtml },
+        }),
+        context_project: null,
+        enabled_plugins: membership.plugins,
+        hidden_plugins: membership.hidden,
+        runtimes: [],
+        projects,
+        web_service: await webService.detect(),
+        diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length),
+      }, controlToken, desktop));
+      return;
+    }
     let plugin_settings_html = await renderCatalogPluginSettings(pluginSettings.contribution_id, localHost);
     if (!plugin_settings_html && pluginSettings.contribution_id !== CODING_SETTINGS_UI_CONTRIBUTION_ID) {
       sendJson(response, 404, { error: L("页面不存在") });

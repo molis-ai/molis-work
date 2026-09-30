@@ -33,7 +33,7 @@
 
 Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`。不能往未声明 Slot 塞 HTML。不要把内部组件实例或 Store handle 传过边界。详情里嵌别人的内容，对方必须显式开放 Slot。
 
-`settings-page` 只能挂 `workbench.settings`。来源账号、Inbox 列表仍是插件内容，不进全局设置。
+`settings-page` 只能挂 `workbench.settings`。来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。页面由项目里运行的插件渲染时（Characters），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。
 
 不是所有一等入口都是「列表点开详情」：Goals 是树、画布和 Goal 文档；Feed 是文章列 + 阅读页；判断规则编辑器在「能力」；Sessions 是会话/终端；Shelf 是置物架。抄最近的同类，不要强套 plugin-stage。
 

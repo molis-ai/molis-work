@@ -138,7 +138,7 @@ export async function charactersWorkbenchPanel(ports: CodingSurfacePorts): Promi
   const contribution = record.platform?.supervisor.contribution(CHARACTER_PLUGIN_ID);
   const views = (contribution as { views?: ReadonlyArray<{ descriptor: { contribution_id: string }; render(request: { surface: string; model: CharactersUiModel }): string }> } | null)?.views ?? [];
   const view = views.find(item => item.descriptor.contribution_id === CHARACTERS_UI_CONTRIBUTION_ID);
-  if (active?.status !== "running" || !view) return { plugin_id: "characters", panel: `<section class="desktop-work-surface" data-work-surface="characters" data-work-surface-label="Characters" hidden><div class="mw-empty" role="alert"><p>${escapeHtml(active?.message ?? "角色插件未能启动，请重新打开项目。")}</p></div></section>` };
+  if (active?.status !== "running" || !view) return { plugin_id: "characters", panel: `<section class="desktop-work-surface characters-page" data-work-surface="characters" data-work-surface-label="角色" data-settings-page="characters" hidden><div class="mw-empty" role="alert"><p>${escapeHtml(active?.message ?? "角色插件未能启动，请重新打开项目。")}</p></div></section>` };
   return { plugin_id: "characters", panel: view.render({ surface: "workbench", model: {
     route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) },
   } }) };

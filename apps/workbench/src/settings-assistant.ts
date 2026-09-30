@@ -4,8 +4,8 @@
  */
 export function renderAssistantSettings({ L, projectId }: { L(text: string): string; projectId: string | null }): string {
   return `<section class="settings-document assistant-settings" aria-labelledby="settings-title" data-assistant-settings data-project="${projectId ? projectId.replace(/[^a-zA-Z0-9_.:-]/g, "") : ""}">
-    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("助理")}</h1>
-      <p>${L("助理能用哪些能力，以及每个插件为助理提供了什么。关掉的能力只对助理生效，不影响 Coding、外部 Agent 或你自己在页面里操作。")}</p></div></header>
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("助理")}</h1></div>
+      <p>${L("助理能用哪些能力，以及每个插件为助理提供了什么。关掉的能力只对助理生效，不影响 Coding、外部 Agent 或你自己在页面里操作。")}</p></header>
     <section class="settings-section assistant-rules" aria-labelledby="assistant-rules-title" data-assistant-rules>
       <h2 id="assistant-rules-title">${L("提醒规则")}</h2>
       <p class="settings-muted">${L("助理什么时候可以提醒你。规则按写下的条件执行，不靠猜；暂时不提醒的事会留着，条件结束后再出现，过期的不补发。")}</p>
@@ -72,9 +72,10 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
 
 /** Runs on the settings page only when the section is on show. No template interpolation inside. */
 export const ASSISTANT_SETTINGS_CLIENT_SCRIPT = String.raw`
-(() => {
-  const root = document.querySelector("[data-assistant-settings]");
-  if (!root) return;
+globalThis.molisWorkBindAssistantSettings = (container = document) => {
+  const root = container.matches?.("[data-assistant-settings]") ? container : container.querySelector?.("[data-assistant-settings]");
+  if (!root || root.dataset.assistantBound) return;
+  root.dataset.assistantBound = "1";
   const L = globalThis.L || ((text) => text);
   const project = root.dataset.project || "";
   const body = root.querySelector("[data-assistant-capabilities]");
@@ -339,5 +340,6 @@ export const ASSISTANT_SETTINGS_CLIENT_SCRIPT = String.raw`
   runUsage(() => usageApi());
   if (location.hash === "#contributions") { contributions.open = true; loadContributions(); }
   load();
-})();
+};
+globalThis.molisWorkBindAssistantSettings(document);
 `;

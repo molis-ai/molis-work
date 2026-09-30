@@ -33,6 +33,7 @@ import { PLACEMENT_EN } from "./placement-en.js";
 import { ONBOARDING_EN } from "./onboarding-en.js";
 import { RENDERER_GAP_EN } from "./renderer-gap-en.js";
 import { HOME_EN } from "./home-en.js";
+import { FLOW_EN } from "./flow-en.js";
 
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
@@ -3652,3 +3653,4 @@ Object.assign(EN, {
 });
 
 Object.assign(EN, GAP_EN);
+Object.assign(EN, FLOW_EN);

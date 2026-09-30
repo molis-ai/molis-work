@@ -1,12 +1,12 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE } from "@molis-ai/molis-work-contracts/modules/characters";
-import { CHARACTERS_UI_CONTRIBUTION_ID } from "./ui.js";
+import { CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID, CHARACTERS_UI_CONTRIBUTION_ID } from "./ui.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CHARACTERS_ACTIONS } from "./actions.js";
 
 export const CHARACTERS_PROJECT_PLUGIN_ID = "characters";
 export const charactersManifest: PluginManifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: CHARACTER_PLUGIN_ID, version: "1.5.0", upgrade_compatibility: { compatible_from_versions: ["1.4.0", "1.3.0", "1.2.0", "1.1.0", "1.0.0"] }, name: "Characters", kind: "app",
+  schema_version: 2, host_api_version: 2, plugin_id: CHARACTER_PLUGIN_ID, version: "1.6.0", upgrade_compatibility: { compatible_from_versions: ["1.5.0", "1.4.0", "1.3.0", "1.2.0", "1.1.0", "1.0.0"] }, name: "Characters", kind: "app",
   publisher: { publisher_id: "molis", signature: CHARACTER_PUBLISHER_SIGNATURE },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
@@ -32,7 +32,11 @@ export const charactersManifest: PluginManifest = {
     { route_id: "characters.state", method: "POST", path: "/drafts/:id/state" },
     { route_id: "characters.publish", method: "POST", path: "/drafts/:id/publish" },
   ],
-  ui: { contributions: [CHARACTERS_UI_CONTRIBUTION_ID], views: [
-    { view_id: "directory", slot: "navigator", title: "Characters", contribution_id: CHARACTERS_UI_CONTRIBUTION_ID, icon: "user", order: 56 },
+  // A Character is how AI is asked to work: it belongs to the person, beside models and prompts in settings, not among
+  // the project's work plugins. Order 35 places it after 助理 in the settings list (settings-sections.ts).
+  // The page itself is a stage view (rendered by the project's running plugin, never a navigation entry).
+  ui: { contributions: [CHARACTERS_UI_CONTRIBUTION_ID, CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID], views: [
+    { view_id: "page", slot: "stage", title: "角色", contribution_id: CHARACTERS_UI_CONTRIBUTION_ID, icon: "user" },
+    { view_id: "settings", slot: "settings", title: "角色", contribution_id: CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID, icon: "user", order: 35 },
   ] },
 };

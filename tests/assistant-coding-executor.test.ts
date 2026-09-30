@@ -178,4 +178,7 @@ test("handing a work to Coding carries what its documents say now, read from the
   const task = coding.calls.filter(call => call.name === "runs.start").at(-1)!.input.task as string;
   assert.match(task, /相关对象的当前内容/);
   assert.match(task, /《calc average 需求》（成果，版本 2）：\n## 错误处理\n空数组抛 RangeError/);
+  // The person reads their own message for that round, not the note that travelled with it.
+  const shown = (await service.read(work.work_id)).rounds.at(-1)!.turns.find(turn => turn.kind === "user")!.text;
+  assert.equal(shown, "按文档实现");
 });

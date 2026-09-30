@@ -128,4 +128,9 @@ export const PPT_STYLES = `
     .ppt-slide-row > button:first-child, .ppt-card, .ppt-swatch { transition: none; }
   }
   body.immersive-workbench .plugin-stage-workspace > .ppt-workspace { flex: 1; min-height: 0; }
+
+  .ppt-outline-dialog .ppt-outline-text { min-height: 200px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; line-height: 1.6; }
+  .ppt-outline-modes { margin: 12px 0 8px; }
+  .ppt-outline-dialog [data-ppt-outline-ai-reason] { margin: 0 0 8px; }
+  .ppt-outline-dialog .form-error { color: var(--red); font-size: 12px; margin: 8px 0 0; }
 `;

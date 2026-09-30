@@ -622,7 +622,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(projectMenu, /navigator-project-manage[\s\S]*data-personal-menu[\s\S]*class="personal-account"[\s\S]*href="\/capabilities\/library[^"]*"[^>]*data-capabilities-open[\s\S]*data-plugin-id="settings"/);
     const railItems = pluginStrip?.match(/<div class="plugin-rail-items">[\s\S]*?<\/div>/)?.[0] ?? "";
     assert.match(railItems, /^<div class="plugin-rail-items"><button[^>]*data-plugin-id="home"/);
-    assert.match(railItems, /data-plugin-id="home"[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*data-plugin-id="feed"[\s\S]*data-plugin-id="sessions"[\s\S]*class="plugin-rail-group" data-rail-zone="tools">插件<\/p>[\s\S]*data-rail-tools-toggle/);
+    // The backbone sits under the first purpose heading, 推进 (plugin-e2e-review §3.1).
+    assert.match(railItems, /data-plugin-id="home"[\s\S]*class="plugin-rail-group" data-rail-zone="tools">推进<\/p>[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*data-plugin-id="feed"[\s\S]*data-plugin-id="sessions"[\s\S]*data-rail-tools-toggle/);
     assert.doesNotMatch(railItems, /data-plugin-id="(market|plugin-builder|settings)"/, "the market and the studio live in the Dock menu, settings under the project");
     assert.match(accountFooter, /data-global-menu[\s\S]*data-plugin-id="market"[^>]*data-work-surface-open="market"[\s\S]*data-plugin-id="plugin-builder"[\s\S]*data-dock-choices/);
     assert.doesNotMatch(railItems, /plugin-rail-rule/);

@@ -175,4 +175,8 @@ export const FORM_STYLES = `
   .form-fill-fields { display: grid; gap: 16px; }
   .form-fill-error { margin: 0; color: var(--red); min-height: 1.2em; }
   .form-fill-actions { display: flex; justify-content: space-between; gap: 8px; }
+
+  .form-add-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0 16px; }
+  .form-add-row .form-add-types { flex-wrap: wrap; }
+  .form-add-row .mw-toggle { height: 28px; min-height: 28px; padding: 0 10px; font-size: 12px; }
 `;

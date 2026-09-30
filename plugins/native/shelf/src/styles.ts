@@ -673,4 +673,14 @@ export const SHELF_STYLES = `
   @media (prefers-reduced-motion: reduce) {
     [data-shelf] *, [data-plugin-section="shelf"] * { animation: none !important; transition: none !important; }
   }
+
+  /* The one way in is named, and an empty shelf is a place to drop things. */
+  [data-shelf] .shelf-side-op--add { width: auto; padding: 0 10px 0 8px; grid-auto-flow: column; column-gap: 6px; }
+  [data-shelf] .shelf-side-op--add b { font-weight: 500; font-size: 12px; white-space: nowrap; }
+  [data-shelf] .shelf-drop-line {
+    display: flex; align-items: center; gap: 8px; margin: 4px 8px 8px 24px; padding: 14px 12px; border: 1px dashed var(--line-strong); border-radius: 8px;
+    font-size: 12px; color: var(--muted); cursor: pointer;
+  }
+  [data-shelf] .shelf-drop-line svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.6; }
+  [data-shelf] .shelf-drop-line:hover, [data-shelf] .shelf-drop-line:focus-visible { background: var(--nav-hover); color: var(--ink); }
 `;

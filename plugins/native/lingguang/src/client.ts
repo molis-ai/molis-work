@@ -59,13 +59,6 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     paint();
     if (list) list.scrollTop = top;
   };
-  const kindChip = (kind, label) => {
-    const node = document.createElement("span");
-    node.className = "mw-status plugin-stage-kind";
-    node.dataset.kind = kind;
-    node.textContent = label;
-    return node;
-  };
   const textCell = (className, text) => {
     const node = document.createElement("span");
     node.className = className;
@@ -186,10 +179,16 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     leading.append(title);
     const snippet = textCell("plugin-stage-fact", previewOf(record));
     snippet.dataset.lingguangSnippet = "true";
+    // Where the spark went (a document, a Goal, a todo) is filled in after paint from the placement ledger.
+    const fate = document.createElement("span");
+    fate.className = "mw-status mw-status--plain mw-status--done feed-entry-status";
+    fate.dataset.lingguangFate = record.id;
+    fate.textContent = fates.get(record.id) || "";
+    fate.hidden = !fate.textContent;
     row.append(
       leading,
-      kindChip("lingguang", L("灵光")),
       snippet,
+      fate,
       textCell("plugin-stage-meta", whenOf(record.created_at)),
     );
     item.append(row);
@@ -198,10 +197,34 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const renderList = () => {
     keepListScroll(() => paintList());
   };
+  const fates = new Map();
+  const fateLabel = (description) => {
+    const derived = (description.associations || []).filter((item) => item.type === "derived_into");
+    if (!derived.length) return "";
+    const target = derived[derived.length - 1].target || {};
+    if (target.kind === "goal") return L("已建 Goal");
+    const kind = target.kind === "object" ? String(target.object?.kind || "") : "";
+    if (kind.includes("todo")) return L("已转为待办");
+    if (kind.includes("page") || kind.includes("document")) return L("已转成文档");
+    return L("已转出");
+  };
+  const annotateFates = async (items) => {
+    const pending = items.filter((record) => !fates.has(record.id)).slice(0, 30);
+    await Promise.all(pending.map(async (record) => {
+      try { fates.set(record.id, fateLabel(await request("POST", "/api/placement/describe", { object: { kind: "lingguang_spark", id: record.id, project_id: record.project_id } }))); }
+      catch { fates.set(record.id, ""); }
+    }));
+    rowsEl.querySelectorAll("[data-lingguang-fate]").forEach((cell) => {
+      const label = fates.get(cell.dataset.lingguangFate) || "";
+      cell.textContent = label;
+      cell.hidden = !label;
+    });
+  };
   const paintList = () => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
     records.forEach((record) => rowsEl.append(renderRow(record)));
+    void annotateFates(records);
     syncSelectionBar();
   };
   const remember = (record) => {
@@ -369,6 +392,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const detail = event.detail || {};
     if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("lingguang_spark")) return;
     if (detail.mode === "move" && detail.from && selected && selected.id === detail.from.id) closeWorkspace();
+    fates.clear();
     void loadList().catch((error) => showNote(error.message, true));
   });
   workbench.addEventListener("click", async (event) => {
@@ -388,6 +412,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-lingguang-to-doc], [data-lingguang-to-goal]") && selected) {
         await save();
         const goal = Boolean(event.target.closest("[data-lingguang-to-goal]"));
+        fates.delete(selected.id);
         window.dispatchEvent(new CustomEvent("molis:placement-convert", { detail: { source: { kind: "lingguang_spark", id: selected.id },
           ...(goal ? { goal: true } : { station: "pages" }),
           note: goal ? L("这条灵光是它的来源；灵光本身留着，想好了可以丢掉") : L("文档里记着它来自这条灵光；灵光本身留着，想好了可以丢掉") } }));

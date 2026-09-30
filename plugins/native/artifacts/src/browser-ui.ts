@@ -8,6 +8,11 @@ const ARTIFACT_TYPE_LABELS: Record<string, string> = {
   "io.molis.work.goal.delivery": "Goal 交付",
   "io.molis.work.feed.capture": "Feed 捕获",
   "io.molis.work.document": "导入文档",
+  "io.molis.work.pages.document": "文档",
+  "io.molis.work.ppt.deck": "演示稿",
+  "io.molis.work.form.questionnaire": "问卷",
+  "io.molis.work.dataset.table": "数据表",
+  "character.definition.v1": "角色",
 };
 
 function artifactTypeFoldLabel(typeId: string, p: ArtifactBrowserUiModel["primitives"]): string {

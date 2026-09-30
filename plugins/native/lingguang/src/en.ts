@@ -1,4 +1,8 @@
 export const LINGGUANG_EN: Record<string, string> = {
+  "已转出": "Converted",
+  "已转成文档": "Now a document",
+  "已转为待办": "Now a todo",
+  "已建 Goal": "Goal created",
   "列表暂时读不到": "The list could not be read",
   "请稍后重试": "Try again in a moment",
   "重试": "Retry",

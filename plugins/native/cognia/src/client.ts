@@ -18,6 +18,12 @@ export const COGNIA_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       ? '<div class="cognia-empty"><strong>'+tx('没有符合条件的资料')+'</strong><p>'+tx('试试其他关键词，或清除筛选查看全部资料。')+'</p>'+button(L('清除筛选'),'clear-filters')+'</div>'
       : '<div class="cognia-empty"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-book"></use></svg></span><strong>'+tx('把已有的知识带进来')+'</strong><p>'+tx('导入 Markdown 目录，或添加一份材料。')+'</p>'+button(L('导入知识库'),'import')+button(L('添加材料'),'add')+'</div>');
     $('[data-cognia-selected]').textContent=L('已选')+' '+selected.size+' / 5';
+    // Search, filters and the selection tools earn their place with the first material; the model line stays,
+    // because "no text model yet" is a state the person may want to fix before importing anything.
+    const filtering = Boolean($('[data-cognia-search]').value || $('[data-cognia-domain]').value || $('[data-cognia-source]').value);
+    const bare = !state.materials.length && !filtering;
+    // Search stays (an empty library still answers a search honestly); the domain / source filters and the selection tools wait.
+    for (const selector of ['[data-cognia-domain]', '[data-cognia-source]', '.cognia-selection']) { const node = $(selector); if (node) (node.closest('.mw-select-picker') || node).hidden = bare; }
   }
   async function load() {
     const id=++seq, q=new URLSearchParams({q:$('[data-cognia-search]').value,domain_id:$('[data-cognia-domain]').value,source_id:$('[data-cognia-source]').value}); const next=await api('?'+q); if(id!==seq)return; state=next;

@@ -86,8 +86,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
 
 /**
  * Opens, sizes and switches the panel. Public, same-document interface (spec 3.1):
- * `molis:side-open` { tab, view?, target?, focus? } · `molis:side-close` · `molis:side-toggle`; the older
- * `molis:discussion-toggle` / `-close` keep working for the discussion tab. Same-origin frames post the same
+ * `molis:side-open` { tab, view?, target?, focus? } · `molis:side-close` · `molis:side-toggle`. Same-origin frames post the same
  * `{ type: "molis:side-open", ... }`. Tab owners hear `molis:side-shown` { tab, target } when their tab shows.
  */
 export const SIDE_PANEL_SCRIPT = String.raw`(() => {
@@ -104,9 +103,10 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   const read=(key)=>{try{return localStorage.getItem(key);}catch{return null;}};
   const write=(key,value)=>{try{localStorage.setItem(key,value);}catch{}};
   let open=false,closing=null,trigger=null,ratio=.35,current=null;
+  // The width a person set for the discussion before it became a tab carries over.
   const storedRatio=Number(read('molis:side-ratio')??read('molis:discussion-ratio'));if(storedRatio>=.25&&storedRatio<=.55)ratio=storedRatio;
   const size=()=>Math.min(Math.max(innerWidth*ratio,360),innerWidth*.55);
-  const paint=()=>{const width=Math.round(size());document.body.style.setProperty('--side-panel-width',width+'px');document.body.style.setProperty('--discussion-size',width+'px');divider.setAttribute('aria-valuenow',String(width));divider.setAttribute('aria-valuemin','360');divider.setAttribute('aria-valuemax',String(Math.floor(innerWidth*.55)));};
+  const paint=()=>{const width=Math.round(size());document.body.style.setProperty('--side-panel-width',width+'px');divider.setAttribute('aria-valuenow',String(width));divider.setAttribute('aria-valuemin','360');divider.setAttribute('aria-valuemax',String(Math.floor(innerWidth*.55)));};
   const imVisible=()=>frame?.contentWindow?.postMessage({type:'molis:im-visibility',visible:open&&current==='discussion',theme:document.documentElement.dataset.resolvedTheme},location.origin);
   const known=(id)=>!!id&&tabs().some(button=>button.dataset.sideTab===id);
   const load=(body)=>{
@@ -148,8 +148,6 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   document.addEventListener('molis:side-open',event=>{if(request(event.detail||{}))event.preventDefault();});
   document.addEventListener('molis:side-close',()=>setOpen(false));
   document.addEventListener('molis:side-toggle',event=>open&&!(event.detail?.tab&&event.detail.tab!==current)?setOpen(false):request(event.detail||{}));
-  document.addEventListener('molis:discussion-toggle',()=>open&&current==='discussion'?setOpen(false):request({tab:'discussion'}));
-  document.addEventListener('molis:discussion-close',()=>setOpen(false));
   panel.addEventListener('click',event=>{
     const target=event.target instanceof Element?event.target:null;if(!target)return;
     const button=target.closest('[data-side-tab]');if(button){select(button.dataset.sideTab);return;}

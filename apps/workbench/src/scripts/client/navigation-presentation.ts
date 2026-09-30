@@ -265,8 +265,6 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (!target) return;
     const toggle = target.closest('[data-dock-toggle]');
     if (toggle) { const id = toggle.dataset.dockToggle; setWindow(id, document.body.dataset.sideOpen !== 'true'); return; }
-    const collapse = target.closest('[data-dock-collapse]');
-    if (collapse) { const id = collapse.closest('[data-dock-window]')?.dataset.dockWindow; if (id) setWindow(id, false); return; }
     if (target.closest('[data-assistant-panel-close]')) { setPanel(false); return; }
     if (target.closest('[data-plugin-picker-toggle]')) { setPicker(pickerPopover?.hidden !== false); return; }
     if (target.closest('[data-dock-more]')) { setOverflow(overflow?.hidden !== false); return; }

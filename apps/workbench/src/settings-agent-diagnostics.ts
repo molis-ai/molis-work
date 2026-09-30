@@ -92,7 +92,9 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
       + (round.usage.cached_input ? " · " + L("缓存读取") + " " + round.usage.cached_input.toLocaleString() : "")));
     if (round.failures.length) {
       const failures = el("ul", "prompt-diagnostics-issues");
-      round.failures.forEach((failure) => failures.append(issue(failure.tool + (failure.target ? " · " + failure.target : "") + (failure.state === "unknown" ? " · " + L("结果未知") : "") + "：" + failure.summary)));
+      // The runtime's summary often opens with the tool's name again: shown once.
+      round.failures.forEach((failure) => failures.append(issue(failure.tool + (failure.target ? " · " + failure.target : "") + (failure.state === "unknown" ? " · " + L("结果未知") : "") + "："
+        + (failure.summary.startsWith(failure.tool + " · ") ? failure.summary.slice(failure.tool.length + 3) : failure.summary))));
       item.append(failures);
     }
     return item;

@@ -136,7 +136,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       if (event.source !== window.parent || event.origin !== location.origin || !event.data || event.data.type !== "workbench-context-action-chosen") return;
       if (!shown || !event.data.candidate || event.data.context_id !== shown.context_id) return;
       const fallback = deliver(shown, event.data.candidate);
-      if (fallback) parent.postMessage({ type: "workbench-assistant-open", detail: fallback }, location.origin);
+      if (fallback) parent.postMessage({ type: "workbench-context-action-unhandled", context_id: shown.context_id, key: event.data.candidate.key, detail: fallback }, location.origin);
     });
     window.addEventListener("pagehide", () => parent.postMessage({ type: "workbench-surface-focus", focus: null }, location.origin));
     return null;
@@ -443,8 +443,10 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       source.frame.contentWindow.postMessage({ type: "workbench-context-action-chosen", context_id: focus.context_id, candidate }, location.origin);
       return;
     }
+    // No page here takes it (several objects, or a surface without its own handler): the Assistant gets it as a
+    // prepared card too; only when even that fails does it get the words and the material.
     const fallback = deliver(focus, candidate);
-    if (fallback) openAssistant(fallback);
+    if (fallback) prepared().then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(fallback));
   };
   // The card carries the exact action and its complete input; the Assistant checks it against what it may use in that
   // work and runs it only when the person clicks. The person's click here places it (POST /api/assistant/cards) and the
@@ -466,6 +468,14 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
         message_id, purpose: "suggest", source, object: focus.object, text: candidate.title + "：" + summary, materials: [material], card } }));
     }
   };
+  // The split pane's page did not take the choice: same as here, a card, else the words and the material.
+  const unhandled = (contextId, key, detail) => {
+    const focus = bus.focus, source = bus.source, plan = bar.plan;
+    const candidate = plan && plan.candidates.find((item) => item.key === key);
+    if (!focus || !source || !candidate || focus.context_id !== contextId) { openAssistant(detail); return; }
+    post("/api/contextual/prepare", { pane_id: source.pane, focus, key, request_id: requestId() })
+      .then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(detail));
+  };
   const askAssistant = () => {
     const focus = bus.focus, plan = bar.plan;
     if (!focus || !plan || !plan.assistant) return;
@@ -485,7 +495,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     const frame = [...document.querySelectorAll("iframe[data-pane-owner]")].find((node) => node.contentWindow === event.source);
     if (!frame) return;
     if (event.data.type === "workbench-surface-focus") bus.report({ pane: frame.dataset.paneOwner || "pane", element: frame, frame }, event.data.focus || null);
-    else if (event.data.type === "workbench-assistant-open" && event.data.detail) openAssistant(event.data.detail);
+    else if (event.data.type === "workbench-context-action-unhandled" && event.data.detail) unhandled(event.data.context_id, event.data.key, event.data.detail);
   });
   // A place change, or the surface going out of sight, voids what was in hand there.
   document.addEventListener("molis-work:place-changed", () => bus.set(null, null, true));

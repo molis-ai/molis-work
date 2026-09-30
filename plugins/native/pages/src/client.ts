@@ -256,8 +256,37 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       targets: focusNow.targets, surroundings: focusNow.surroundings,
       ...(saveTimer || dirty ? { unsaved: true } : {}), ...(goal ? { goal: { id: goal.id, title: goal.title } } : {}) };
   };
+  // Several documents picked in the list (⌘ or Ctrl + click): they are in hand together, to compare or combine.
+  // Nothing is written in place for them, so the bar hands their actions to the Assistant as cards.
+  const picked = new Set();
+  const objectsFocus = () => {
+    const chosen = records.filter((record) => picked.has(record.id));
+    if (chosen.length < 2) return null;
+    return { context_id: "pages-objects:" + chosen.map((record) => record.id + "@" + record.version).sort().join(","),
+      plugin_id: "io.molis.work.pages", activity: "selecting", granularity: "objects",
+      object: { kind: "pages_document", id: chosen[0].id, version: chosen[0].version, title: chosen[0].title },
+      targets: chosen.slice(0, 8).map((record) => {
+        const text = (record.title + "\\n" + docText(record.body)).slice(0, 1500);
+        return { kind: "object", role: "object", text, ...(text.length >= 1500 ? { truncated: true } : {}),
+          ref: { kind: "pages_document", id: record.id, version: record.version, title: record.title } };
+      }) };
+  };
+  const paintPicked = () => {
+    rowsEl.querySelectorAll(".pages-doc-row[data-page-id]").forEach((row) => {
+      const on = picked.has(row.dataset.pageId);
+      row.classList.toggle("is-picked", on);
+      row.querySelector("button[data-page-id]")?.setAttribute("aria-pressed", String(on));
+    });
+  };
+  const clearPicked = () => {
+    if (!picked.size) return;
+    picked.clear();
+    paintPicked();
+    reportFocus();
+  };
+  workbench.addEventListener("keydown", (event) => { if (event.key === "Escape" && picked.size) clearPicked(); });
   const reportFocus = () => {
-    const detail = surfaceFocus();
+    const detail = objectsFocus() || surfaceFocus();
     if ((detail ? detail.context_id : null) === (focusShown ? focusShown.context_id : null)) return;
     focusShown = detail;
     workbench.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail }));
@@ -267,6 +296,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   window.addEventListener("molis:assistant-context-action-chosen", (event) => {
     const chosen = event.detail;
     if (!chosen || chosen.plugin_id !== "io.molis.work.pages" || !focusShown || !focusNow || chosen.context_id !== focusShown.context_id) return;
+    if (focusShown.granularity === "objects") return;
     if (!editor || !editor.runCommand || !["result", "replace", "insert_after"].includes(chosen.apply) || typeof chosen.prepare !== "function") return;
     event.preventDefault();
     const documentId = selected.id;
@@ -322,6 +352,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     row.className = "feed-stage-entry directory-list-row" + (selected?.id === record.id ? " is-selected" : "");
     row.dataset.pageId = record.id;
     row.setAttribute("aria-selected", String(selected?.id === record.id));
+    row.setAttribute("aria-pressed", String(picked.has(record.id)));
+    if (picked.has(record.id)) item.classList.add("is-picked");
     const leading = document.createElement("span");
     leading.className = "feed-stage-leading";
     const mark = document.createElement("span");
@@ -941,7 +973,17 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       const row = event.target.closest("button[data-page-id]");
+      if (row && (event.metaKey || event.ctrlKey)) {
+        // Picking, not opening: the open document joins the first pick, so one ⌘-click already gives two.
+        const id = row.dataset.pageId;
+        if (!picked.size && selected && selected.id !== id) picked.add(selected.id);
+        if (picked.has(id)) picked.delete(id); else picked.add(id);
+        paintPicked();
+        reportFocus();
+        return;
+      }
       if (row) {
+        clearPicked();
         const record = records.find((item) => item.id === row.dataset.pageId);
         if (record) await openDocument(record);
         return;

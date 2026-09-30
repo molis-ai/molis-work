@@ -49,7 +49,15 @@ export function preparePagesFragmentOffers(input: FragmentOffersInput, kind: str
       action: { ...choice.action, ...(providerId ? { provider_id: providerId } : {}) },
       input: choice.offer_id === "synthesize" ? synthesizeInput(input)
         : { id: fragment.object.id, ...COMMAND[choice.offer_id], text: joined.slice(0, 180_000), ...(Number.isInteger(version) && fragment.granularity !== "objects" ? { expected_version: version } : {}) },
+      // Several documents in hand have no place to write back to: the card says which ones it works on.
+      ...(fragment.granularity === "objects" ? { summary: objectsSummary(choice.offer_id, fragment.targets) } : {}),
+      ...(choice.offer_id === "synthesize" ? { editable: ["title", "instructions"] } : {}),
     }));
+}
+
+function objectsSummary(offerId: string, targets: FragmentOffersInput["fragment"]["targets"]): string {
+  const names = targets.map(target => `「${target.ref?.title ?? "无标题"}」`).join("");
+  return (offerId === "synthesize" ? `用 ${targets.length} 篇文档${names}合成一篇新文档，原文不变` : `并排比较 ${targets.length} 篇文档${names}的相同点、不同点和冲突`).slice(0, 600);
 }
 
 /** `pages.generate` input for several selected documents: their current text as snapshots, one stable request per selection. */
@@ -57,6 +65,7 @@ function synthesizeInput(input: FragmentOffersInput): unknown {
   const inputs = input.fragment.targets.filter(target => target.ref).map(target => ({
     entry_id: `pages:${target.ref!.id}`, item_id: target.ref!.id, revision: Number(target.ref!.version) || 0, title: target.ref!.title ?? "",
     body: target.text, url: null, source_label: "Pages", captured_at: new Date(0).toISOString(),
+    provenance: [{ kind: target.ref!.kind, id: target.ref!.id, version: target.ref!.version ?? null, selected_as: "context-actions" }],
   }));
   const titles = inputs.map(item => item.title).filter(Boolean);
   return { request_id: input.request_id, request_hash: input.request_id, inputs,

@@ -400,6 +400,12 @@ export const PAGES_STYLES = `
     background: var(--nav-active);
     box-shadow: none;
   }
+  /* Picked together with ⌘ / Ctrl for the context actions (compare, combine): marked apart from the open one. */
+  body.immersive-workbench [data-pages="directory"] .pages-doc-row.is-picked,
+  body.immersive-workbench [data-pages="directory"] .pages-doc-row.is-picked:has(.feed-stage-entry.is-selected) {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
   body.immersive-workbench [data-pages="directory"] .pages-doc-row .feed-stage-entry:is(.is-selected, [aria-selected="true"]),
   body.immersive-workbench [data-pages="directory"] .pages-doc-row:hover .feed-stage-entry {
     background: transparent;

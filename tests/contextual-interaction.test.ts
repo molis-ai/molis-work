@@ -9,7 +9,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import {
-  fragmentCandidates, judgedCandidates, judgmentQuestions, judgmentState, MAX_JUDGED_CANDIDATES, planContextualLayout, readContextualJudgment, ruleScores,
+  assertActionInput, fragmentCandidates, judgedCandidates, judgmentQuestions, judgmentState, MAX_JUDGED_CANDIDATES, planContextualLayout, readContextualJudgment, ruleScores,
 } from "@molis-ai/molis-work-kernel";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { createContextualJudgmentService } from "../apps/local-host/src/contextual/judgment-service.js";
@@ -382,6 +382,21 @@ test("a surface that opens one kind is named from the plugins' search sources; a
     source(goals, "goals.search.entries", [{ kind: "goal", surface: "goals" }]),
     source(other, "other.search.entries", [{ kind: "note", surface: "shared" }]), source(inbox, "inbox.more", [{ kind: "draft", surface: "shared" }])]);
   assert.deepEqual(map, { inbox: { kind: "inbox_entry", plugin_id: "io.molis.work.inbox" }, goals: { kind: "goal", plugin_id: "io.molis.work.goals" } });
+});
+
+test("every input Pages prepares passes the input contract of the action it names, for a passage and for several documents", () => {
+  const byCapability = new Map(Object.values(pagesActions).map(definition => [definition.capability_id, definition]));
+  const passage = preparePagesFragmentOffers({ request_id: "r-p", fragment: { object: { kind: "pages_document", id: "d1", version: 3, title: "计划" }, granularity: "blocks",
+    targets: [{ kind: "text_range", role: "paragraph", text: "第一段" }, { kind: "text_range", role: "paragraph", text: "第二段" }] } }, "pages_document", "io.molis.work.pages");
+  const documents = preparePagesFragmentOffers({ request_id: "r-o", fragment: { object: { kind: "pages_document", id: "d1", version: 3, title: "A" }, granularity: "objects",
+    targets: [{ kind: "object", role: "object", text: "A\n正文", ref: { kind: "pages_document", id: "d1", version: 3, title: "A" } },
+      { kind: "object", role: "object", text: "B\n正文", ref: { kind: "pages_document", id: "d2", version: 1, title: "B" } }] } }, "pages_document", "io.molis.work.pages");
+  assert.deepEqual(documents.map(offer => offer.offer_id).sort(), ["compare", "synthesize"]);
+  for (const offer of [...passage, ...documents]) {
+    const definition = byCapability.get(offer.action.capability_id)!;
+    assert.doesNotThrow(() => assertActionInput(definition.action.input_schema, offer.input), `${offer.offer_id} → ${offer.action.capability_id}`);
+  }
+  assert.match(documents.find(offer => offer.offer_id === "synthesize")!.summary!, /用 2 篇文档「A」「B」合成一篇新文档，原文不变/);
 });
 
 // ---- P3: memory ---------------------------------------------------------------------------------------------------

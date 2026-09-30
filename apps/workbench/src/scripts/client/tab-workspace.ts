@@ -1239,7 +1239,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   // Remember the record chosen on a plugin's own page (not inside one of its tabs).
   document.addEventListener("click", (event) => {
     if (embedded) return;
-    const target = event.target instanceof Element ? event.target : null;
+    const target = event.target?.nodeType === 1 ? event.target : null;
     const surface = target?.closest("[data-work-surface]");
     if (!surface) return;
     const plugin = ops.pluginOfSurface(surface.dataset.workSurface);
@@ -1257,7 +1257,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   if (!embedded) new MutationObserver((records) => {
     for (const record of records) {
       const surface = record.target;
-      if (!(surface instanceof Element) || !surface.matches("[data-work-surface]")) continue;
+      if (surface?.nodeType !== 1 || !surface.matches("[data-work-surface]")) continue;
       const plugin = ops.pluginOfSurface(surface.dataset.workSurface);
       if (surface.getAttribute("data-expanded") === "true") {
         // A record opened without its row being clicked (a note just created): the row the plugin marks as chosen names it.
@@ -1588,7 +1588,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   /* The way back from the keyboard and the mouse: ⌘[ / ⌘] (Alt+← / Alt+→ elsewhere) and the side buttons walk the
      same history as the titlebar arrows. A pane in a frame hands the step to the window. */
   const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
-  const editable = (node) => node instanceof Element && Boolean(node.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], .xterm, [data-tui-pane]'));
+  const editable = (node) => node?.nodeType === 1 && Boolean(node.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], .xterm, [data-tui-pane]'));
   const historyStep = (event) => {
     if (event.defaultPrevented || event.repeat) return 0;
     if (MAC && event.metaKey && !event.altKey && !event.ctrlKey && (event.key === "[" || event.key === "]")) return event.key === "[" ? -1 : 1;
@@ -1622,7 +1622,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   });
   /* The entry that opened a cover closes it when chosen again, and the menu it sits in closes with it. */
   window.addEventListener("click", (event) => {
-    if (embedded || !state.exclusive || !(event.target instanceof Element)) return;
+    if (embedded || !state.exclusive || event.target?.nodeType !== 1) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     const kind = coverKindOf(event.target);
     if (!kind || kind !== state.exclusive) return;

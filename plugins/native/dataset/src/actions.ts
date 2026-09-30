@@ -38,6 +38,8 @@ export const datasetActions = {
   promote: define<Identity, { dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布数据表", "把固定表内容存成 Artifact，或恢复上次中断发布；本机快照不进入发布内容", "command", object(identity, ["id"]), object({ dataset: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   searchEntries: datasetSearchActions.entries,
   subject: datasetSearchActions.subject,
+  files: datasetSearchActions.files,
+  fileContent: datasetSearchActions.fileContent,
   move: defineObjectMoveAction("dataset.placement.move", ["dataset"], "数据表", write),
   copy: defineObjectCopyAction("dataset.placement.copy", ["dataset"], "数据表", write),
 };

@@ -72,6 +72,7 @@ import {
   renderWorkbenchDocument,
   renderWorkTerminal,
 } from "./ui-composition.js";
+import { renderSideViewDocument as renderSideView, type SideViewDocumentInput } from "./side-view-document.js";
 export interface WorkbenchRendererPorts {
   locale: Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "dateTimeLocale" | "listJoin" | "localeSwitchHref" | "clientI18nScript"> & { currentLocale(): WebLocale };
   desktop: { appendDesktopQueryToLocalHrefs(html: string): string; withDesktopQuery(path: string): string; bootstrapScript: string };
@@ -485,6 +486,9 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderMolisWorkWorkbenchClientScript: (): string => renderWorkbenchClient(),
     renderMolisWorkWeb,
     renderMolisWorkRefreshFragment,
+    /** One plugin tab of the side panel, or null when that view is not declared by a plugin enabled here. */
+    renderSideViewDocument: (input: Omit<SideViewDocumentInput, "lang" | "headHtml" | "clientI18nScript" | "themeBootstrapScript" | "translate"> & { controlToken: string }): string | null =>
+      renderSideView({ ...input, lang: htmlLang(), headHtml: controlTokenMeta(input.controlToken), clientI18nScript: clientI18nScript(), themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, translate: L }),
   };
 }
 

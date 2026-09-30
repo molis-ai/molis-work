@@ -1,4 +1,4 @@
-import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchRevisionOf, searchText, subjectContext, type ActionDefinition, type ActionHandlerBinding, type ActionSubjectContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, fileContentOf, FILE_CONTENT_MAX_BYTES, searchRevisionOf, searchText, subjectContext, type ActionDefinition, type ActionHandlerBinding, type ActionSubjectContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
 
 /**
@@ -39,8 +39,36 @@ export function shelfClipboardSearchEntries(snapshot: ShelfSnapshot): SearchEntr
     title: clip.title || searchText(clip.body, 80) || "剪贴板", summary: searchText(clip.body, 4000), updated_at: clip.created_at, content: "summary", open: { surface: "shelf", id: clip.clip_id } }));
 }
 
-export function createShelfSearchHandlers(snapshot: () => ShelfSnapshot): ActionHandlerBinding[] {
+/** The side panel's file tab (specs/side-panel): what is on the shelf, originals previewed as themselves. Folders stay on the shelf. */
+const shelfFileKinds = [{ kind: "shelf_item", title: "置物架材料", surface: "shelf" }];
+export const shelfFileEntriesAction = defineFileEntriesAction("shelf.files.entries", shelfFileKinds, "置物架", ["shelf:read"], "home");
+export const shelfFileContentAction = defineFileContentAction("shelf.files.content", shelfFileKinds, "置物架", ["shelf:read"], "home");
+
+const shelfMedia = (item: ShelfSnapshot["materials"][number]) => item.kind === "markdown" ? "text/markdown" : item.kind === "text" || item.kind === "url" || item.kind === "website" ? "text/plain"
+  : /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/u.test(item.mime) ? item.mime : "application/octet-stream";
+
+export function shelfFileEntries(snapshot: ShelfSnapshot) {
+  return [...snapshot.materials, ...snapshot.results].filter(item => !item.hidden && item.kind !== "folder" && item.status !== "failed").map(item => ({
+    subject: { kind: "shelf_item", id: item.item_id }, revision: searchRevisionOf([item.status, item.name, item.origin_hash]), title: item.name,
+    folder: [item.group === "result" ? "结果" : "材料"], media_type: shelfMedia(item), size: item.size_bytes || null, updated_at: item.created_at,
+    open: { surface: "shelf", id: item.item_id } }));
+}
+
+export function createShelfSearchHandlers(snapshot: () => ShelfSnapshot, readFile?: (itemId: string) => { item: ShelfSnapshot["materials"][number]; bytes: Buffer }): ActionHandlerBinding[] {
   return [{ capability_id: shelfSubjectAction.capability_id, version: shelfSubjectAction.version, handle: (_caller, input) => shelfSubjectContext(snapshot(), (input as { subject_id: string }).subject_id) },
     bindSearchEntriesHandler(shelfSearchEntriesAction, () => shelfSearchEntries(snapshot())),
-    bindSearchEntriesHandler(shelfClipboardSearchEntriesAction, () => shelfClipboardSearchEntries(snapshot()))];
+    bindSearchEntriesHandler(shelfClipboardSearchEntriesAction, () => shelfClipboardSearchEntries(snapshot())),
+    bindFileEntriesHandler(shelfFileEntriesAction, () => shelfFileEntries(snapshot())),
+    { capability_id: shelfFileContentAction.capability_id, version: shelfFileContentAction.version, handle: (_caller, input) => {
+      const subject = (input as { subject: { kind: string; id: string } }).subject;
+      const item = [...snapshot().materials, ...snapshot().results].find(entry => entry.item_id === subject.id);
+      if (!item) throw new ActionError("shelf.not_found", "这份材料已不在 Shelf 中");
+      const media = shelfMedia(item), revision = searchRevisionOf([item.status, item.name, item.origin_hash]);
+      // Links and captured text show as text (a link in it opens in the side panel's browser); files as their bytes.
+      if (item.kind === "url" || item.kind === "website" || !readFile || item.size_bytes > FILE_CONTENT_MAX_BYTES && !media.startsWith("text/"))
+        return fileContentOf({ subject, revision, title: item.name, media_type: media.startsWith("text/") ? media : "text/plain", text: item.preview_text ?? "" });
+      const { bytes } = readFile(item.item_id);
+      return media.startsWith("text/") ? fileContentOf({ subject, revision, title: item.name, media_type: media, text: bytes.toString("utf8") })
+        : fileContentOf({ subject, revision, title: item.name, media_type: media, bytes: new Uint8Array(bytes) });
+    } }];
 }

@@ -75,6 +75,14 @@ export function parsePluginManifest(input: unknown): PluginManifest {
       throw new PluginManifestError("plugin_permission_invalid", "Plugin permission 必须唯一并说明用途及是否必需");
     }
     permissions.add(permission.permission);
+    if (permission.permission === SURFACE_BROWSER_PERMISSION) {
+      // Coarse and exact, like a site rule: a path or query would make the declaration say less than it allows.
+      if (!Array.isArray(permission.origins) || permission.origins.length === 0 || permission.origins.some(origin => !isWebOrigin(origin))) {
+        throw new PluginManifestError("plugin_permission_invalid", "surface:browser 的 origins 必须列出完整的网站来源（如 https://example.com），不带路径、查询串或片段");
+      }
+    } else if (permission.origins !== undefined) {
+      throw new PluginManifestError("plugin_permission_invalid", "只有 surface:browser 可以列出 origins");
+    }
   }
   const capabilities = record(manifest.capabilities, "capabilities");
   strings(capabilities.provides, "capabilities.provides");
@@ -395,6 +403,14 @@ function inspectPortPermissions(parsed: PluginManifest): string[] {
     }
   }
   return problems;
+}
+
+/** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/side-panel D16). */
+export const SURFACE_BROWSER_PERMISSION = "surface:browser";
+
+function isWebOrigin(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try { const url = new URL(value); return (url.protocol === "https:" || url.protocol === "http:") && url.origin === value; } catch { return false; }
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {

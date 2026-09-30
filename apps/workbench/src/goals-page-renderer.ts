@@ -4,7 +4,7 @@ import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperations
 
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
-import { PERSONAL_PLUGIN_IDS } from "./plugin-catalog.js";
+import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
@@ -144,7 +144,7 @@ function renderMolisWorkWeb(
   const initialDesktopSurface = decisionView ? "inbox" : requestedGoalId || archiveView || trashView ? "goal" : "home";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
-  const enabledPlugins = withPersonalPlugins(view.enabled_plugins ?? ["goals", "sessions", "inbox", "feed", "artifacts"], view.hidden_plugins ?? []);
+  const enabledPlugins = shownProjectPlugins(view.enabled_plugins ?? ["goals", "sessions", "inbox", "feed", "artifacts"], view.hidden_plugins ?? []);
   const projectOperations = renderProjectOperations(view.project
     ? { project_id: view.project.project_id, display_name: view.project.display_name }
     : null, projectOperationsData);
@@ -232,6 +232,8 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         enabled: enabledPlugins,
         rail: renderPluginRail(primitives, enabledPlugins, "", "", view.plugin_rail),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
+        sideTabs: sideEntries(enabledPlugins).map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title,
+          icon: (side.icon ?? "package") as PageIcon, src: `${view.route_prefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` })),
       })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">
@@ -314,14 +316,4 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   return { renderMolisWorkWeb, renderMolisWorkRefreshFragment };
 }
 
-function withPersonalPlugins(enabled: readonly string[], hidden: readonly string[] = []): string[] {
-  const excluded = new Set(hidden);
-  const next = [...enabled];
-  for (const personal of PERSONAL_PLUGIN_IDS) {
-    if (excluded.has(personal) || next.includes(personal)) continue;
-    const artifactsAt = next.indexOf("artifacts");
-    if (artifactsAt >= 0) next.splice(artifactsAt, 0, personal);
-    else next.push(personal);
-  }
-  return next;
-}
+

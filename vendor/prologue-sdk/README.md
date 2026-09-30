@@ -1,6 +1,27 @@
 # Prologue SDK 构建来源
 
-## 当前依赖：assistant-intake（2026-09-29，main 的原图摄取线 + 助理的记忆项目作用域）
+## 当前依赖：side-panel-memory（2026-09-30，平台侧栏的界面控制 + 平台记忆）
+
+`prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`，SHA-256 `942de9c594d8fc0bbb81d3b36d766761427ff51c2c4cee33aab342033c85846c`。在 assistant-intake 包的来源（prologue `c63ea1a1`）之上叠两条线，合成一个包给侧栏与记忆两边共用：
+
+- 平台记忆（记忆会话，`f80130ab`、`9773d59a`）：条目元数据与暂停、中日韩召回、固定注入的回执、按范围持久的候选；候选按 App 最终给出的出处与信息落定，或并入它更正的已有条目。
+- 侧栏的界面控制（specs/side-panel，`d7aba36b`、`3f8ffd15`、`e0a2f059`、`356ae236`、`9fc3b173`）：
+  - 界面归属会话，另一会话的界面与观察一律拒绝；
+  - App 模式在本会话挂了界面时放行 `surface-list/observe/act`，本轮工具名单和 Character 绑定两道检查用同一份名单；
+  - 文字观察以 `<untrusted-page-content>` 交给模型；
+  - `surface-act` 经闸门等人批准，等待的时间不算进观察的新鲜期；等完之后取 Runtime 时钟；
+  - `effects.forget` 收回记住的批准；
+  - 要输入的文字作为审查正文，批准的人看得见准确内容；
+  - 还没打开网站的浏览器页面，scope 为 `about:blank`。
+- 来源：prologue 分支 `feat/molis-side-panel-surfaces-on-memory`，头 `9fc3b173`。这些提交暂未推到 prologue 远端，由合并协调统一推。
+- 重建：检出 `af7375c7`，`git apply side-panel-memory.patch`。补丁只含 `packages/sdk`，应用后与 `9fc3b173` 的 `packages/sdk` 逐文件相同。然后 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`。
+- 验证：
+  - 在 `9fc3b173` 上，记忆的 memory-export / extract / persist / platform / project-scope 与界面的 app-mode-surfaces / ui-control / plugin-manifest / computer-use 测试全过；
+  - Molis 侧，换包后 `pnpm build`、`boundary:check`、`typecheck:all` 通过，tests/side-panel-* 通过；
+  - 真实模型（MiniMax-M3）跑通了侧栏浏览器的查看、确认、接手交还、上传与网站决定。
+- 包的依赖与 assistant-intake 相同，没有新增。记忆线之后复用本包，删掉自己的 memory-platform.tgz（由其用户决定）。本目录的 assistant-intake.tgz 换包后不再被依赖；按本目录约定应删除，删 vendor 文件由用户决定。
+
+## 上一依赖：assistant-intake（2026-09-29，main 的原图摄取线 + 助理的记忆项目作用域）
 
 `prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`。把两条从 `4702abe3` 分出的线合在一起：main 的 `resource-intake`（有界结果、原图摄取与资源限额，见下节）与系统级助理的记忆 `project` 作用域（`memory-project.patch`，见“历史依赖：assistant-memory”）。两者只在记忆那两个文件上相交，合并无冲突。
 

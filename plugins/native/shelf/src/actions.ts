@@ -5,7 +5,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { parseSettingsWriteBody, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
 import { shelfTextMaterial } from "./material.js";
-import { createShelfSearchHandlers, shelfClipboardSearchEntriesAction, shelfSearchEntriesAction, shelfSubjectAction } from "./search.js";
+import { createShelfSearchHandlers, shelfClipboardSearchEntriesAction, shelfFileContentAction, shelfFileEntriesAction, shelfSearchEntriesAction, shelfSubjectAction } from "./search.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, maxLength: 200 };
@@ -88,6 +88,8 @@ export const shelfActions = {
   clipToMaterial: define<{ clip_id: string }, { item: ShelfItemRecord }>("clipboard.material", "剪贴板放进 Shelf", "把一条剪贴板历史放进置物架", "command", object({ clip_id: id }), object({ item }), write, LOCAL),
   searchEntries: shelfSearchEntriesAction,
   subject: shelfSubjectAction,
+  files: shelfFileEntriesAction,
+  fileContent: shelfFileContentAction,
   clipboardSearchEntries: shelfClipboardSearchEntriesAction,
 };
 export const SHELF_ACTIONS: readonly ActionDefinition[] = Object.values(shelfActions);
@@ -183,7 +185,7 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     bind(shelfActions.clip, input => ({ clip: ports.addClipboard(input.text, { concealed: input.concealed === true, types: input.types ?? [] }) })),
     bind(shelfActions.deleteClip, input => { ports.deleteClipboard(input.clip_id); return { deleted: true as const }; }),
     bind(shelfActions.clipToMaterial, async (input, caller) => ({ item: await ports.clipboardToMaterial(input.clip_id, { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) })),
-    ...createShelfSearchHandlers(() => ports.snapshot()),
+    ...createShelfSearchHandlers(() => ports.snapshot(), itemId => ports.readFile(itemId)),
   ];
 }
 

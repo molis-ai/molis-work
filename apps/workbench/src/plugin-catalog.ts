@@ -1,7 +1,7 @@
 import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
 export { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
@@ -13,6 +13,24 @@ export interface PluginMarketCard {
   readonly glyph: string;
   readonly copy: string;
   readonly personal: boolean;
+  /** Websites the Plugin says it uses in the side panel browser (its `surface:browser` declaration), shown before adding. */
+  readonly sites: readonly string[];
+}
+
+/**
+ * The plugins a project shows: those enabled there, and the personal ones unless the person hid them from it. The page,
+ * its side panel tabs and the side panel's file sources all use this one list.
+ */
+export function shownProjectPlugins(enabled: readonly string[], hidden: readonly string[] = []): string[] {
+  const excluded = new Set(hidden);
+  const next = [...enabled];
+  for (const personal of PERSONAL_PLUGIN_IDS) {
+    if (excluded.has(personal) || next.includes(personal)) continue;
+    const artifactsAt = next.indexOf("artifacts");
+    if (artifactsAt >= 0) next.splice(artifactsAt, 0, personal);
+    else next.push(personal);
+  }
+  return next;
 }
 
 /** Enabled surfaces and their declared embedded dependencies; no installation or grant mutation. */
@@ -160,6 +178,18 @@ function placedEntries(enabled: readonly ProjectPluginId[], slot: "navigator" | 
   });
 }
 
+/** Side panel tabs the enabled plugins declare (`slot: "side"`), in Manifest order; the Host serves each one's document. */
+export function sideEntries(enabled: readonly ProjectPluginId[]): Array<UiPlacedView & { project_plugin_id: string }> {
+  const registry = new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({
+    manifest: entry.manifest,
+    enabled: enabled.includes(entry.project_plugin_id),
+  })));
+  return registry.slot("side").map((view) => ({
+    ...view,
+    project_plugin_id: BUILTIN_PLUGIN_CATALOG.find((item) => item.manifest.plugin_id === view.plugin_id)?.project_plugin_id ?? view.plugin_id,
+  }));
+}
+
 /** Settings pages for the enabled set, in Manifest order. */
 export function settingsEntries(enabled: readonly ProjectPluginId[]): UiPlacedView[] {
   const registry = new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({
@@ -186,6 +216,7 @@ export function pluginMarketCards(): readonly PluginMarketCard[] {
       glyph: nav?.icon ?? "package",
       copy: entry.summary,
       personal: entry.personal === true,
+      sites: browserSiteDeclarations(entry.manifest),
     }];
   });
 }

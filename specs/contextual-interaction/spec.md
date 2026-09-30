@@ -1,7 +1,7 @@
 # 情境驱动的动态交互：唯一 spec
 
-> 状态：进行中（2026-09-30 开工）。P0 完成（待用户试用）；P1 真实接入完成，Pages 已在真实工作台接通（§13.2），合并排在最后、直接对 main 开 PR；下一步 P2。目标与推进方式见 [goal-prompt.md](goal-prompt.md)。
-> 分支：`feature/contextual-interaction`，从 origin/main fa27207a 开出。
+> 状态：内部完整，待用户验收（2026-09-30）。P0–P4 完成：P1 已合 main（#119）；P2–P4 与“推荐只有一套”（§6.4）在 `feature/contextual-interaction-p2` 本地提交，AC-C01–C14 的工程验证与真实场景证据见 §13.0 与 §13.2–13.7。用户体验认可与读屏软件实测待用户本人；P2 按协调会话排位在记忆线之后合 main、推送开 PR（推送前问用户）。目标与推进方式见 [goal-prompt.md](goal-prompt.md)。
+> 分支：P1 `feature/contextual-interaction`（已合 main）；P2 `feature/contextual-interaction-p2`（本地）。
 > 相关线：记忆（`feature/memory-system`，会话 [9c322a]）· 底栏与助手面板（`claude/determined-stonebraker-06644e`，会话 [3c6203]）· 页面动线与状态暂存（`claude/page-interaction-flow-redesign-49fe35`，会话 [47c510]）· 系统级助理（`feature/system-assistant`，会话 [a806f0]）。
 
 ## 1. 体验目标
@@ -648,7 +648,8 @@ Pages 用一个 ProseMirror 插件的 view update 维护它；其他插件第一
   - 在“设置 → 记忆 → 添加”写一条偏好“新手引导改版、试用和收集反馈这类安排，我习惯先记成待办，不拆成行动项清单”：记成待办 0.93 升到首位，拆成行动项 0.02；该条在设置里显示“最近用于：给选中的内容排动作 · 9/30”（记忆服务的使用回执，用途文字来自本线）。
   - 在“谁可以用”里关掉“界面推荐”：回到 拆成行动项 0.53 / 记成待办 0.21 / 拆成目标步骤 0.19，这条偏好不再起作用。记忆服务只在所有范围都关掉时回“已关闭”，这里只关了个人记忆、项目记忆仍允许，所以判断回执里没有“已关闭”的提示——这是记忆服务的规则。
   - 在动作条上选“拆成行动项”：`memory.signals.report` 回 counted（次数 1、不同情境 1，门槛 3 次 / 2 处才提出建议）。记录存于 `evidence/p3-memory-real-service.json`。
-- **尚待**：以上几处修复之后的浏览器 e2e 复核（协调会话要求在 P2 轮到之前不起浏览器 e2e）；记忆线进 main 后在正式分支上把 C12 复核一次；并行 e2e 偶发的夹具清理超时继续观察。
+- **修复后的浏览器 e2e 复核**（协调会话特批的小时段，fdfcb6c8）：`contextual-interaction.e2e` 4/4、`pages-actions.e2e` 3/3，共 7/7，没有出现夹具清理超时。
+- **尚待（不属本线能单独完成的）**：记忆线进 main 后在正式分支上把 C12 复核一次；P2 合 main 后的整体构建与全量回归、推送与开 PR（按协调会话排位，推送前问用户）；读屏软件实测与用户体验认可（用户本人）。
 
 ## 14. 待定
 

@@ -68,7 +68,7 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
     <div class="plugin-stage-list" data-shelf="directory">
       <header class="shelf-side-head shelf-stage-chrome">
         <label class="shelf-search shelf-stage-search">${SHELF_GLYPH.search}<input type="search" data-shelf-search placeholder="${p.text("搜索材料")}" aria-label="${p.text("搜索材料")}" autocomplete="off"></label>
-        <span class="shelf-side-op" role="button" tabindex="0" data-shelf-pick aria-label="${p.text("添加材料")}" title="${p.text("添加材料")}">${SHELF_GLYPH.plus}</span>
+        <span class="shelf-side-op shelf-side-op--add" role="button" tabindex="0" data-shelf-pick aria-label="${p.text("添加材料")}" title="${p.text("添加材料")}">${SHELF_GLYPH.plus}<b>${p.text("添加材料")}</b></span>
         <span class="shelf-side-op" role="button" tabindex="0" data-shelf-side-more aria-label="${p.text("更多")}" title="${p.text("更多")}" aria-haspopup="menu">${SHELF_GLYPH.more}</span>
         <div class="shelf-side-menu" data-shelf-side-menu role="menu" hidden>
           <span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-receive-open>${p.text("接收项目成果")}</span>
@@ -79,7 +79,7 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
         <ul class="shelf-find" data-shelf-find hidden></ul>
       </header>
       <div class="shelf-side-scroll">
-      ${stageFold(p.text("材料"), "materials", model.materials.length, `<ul class="shelf-tree" data-shelf-list="materials">${model.materials.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("") || emptyLine(p.text("还没有材料"))}</ul>`)}
+      ${stageFold(p.text("材料"), "materials", model.materials.length, `<ul class="shelf-tree" data-shelf-list="materials">${model.materials.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("") || `<li class="shelf-empty-line shelf-drop-line" data-shelf-empty role="button" tabindex="0" data-shelf-pick>${SHELF_GLYPH.tray}<span>${p.text("拖文件到这里，或点添加材料")}</span></li>`}</ul>`)}
       ${stageFold(p.text("生成结果"), "results", model.results.length, `<ul class="shelf-tree" data-shelf-list="results">${model.results.map((item) => renderRow(item, item.item_id === model.selected_id, p)).join("") || emptyLine(p.text("还没有生成结果"))}</ul>`)}
       ${stageFold(p.text("剪贴板历史"), "clipboard", model.clipboard.length, `<p class="shelf-clip-hint" data-shelf-clip-hint ${model.clipboard.length ? "" : "hidden"}>${p.text("单击选择，双击复制为当前。⌘V 仍直接上架当前剪贴板。")}</p><ul class="shelf-tree" data-shelf-list="clipboard">${model.clipboard.map((clip) => renderClip(clip, clip.clip_id === model.current_clip_id, clip.clip_id === model.selected_id, p)).join("") || emptyLine(p.text("剪贴板是空的"))}</ul><button class="shelf-clip-more" type="button" data-shelf-clip-more hidden>${p.text("显示全部")}</button>`)}
       </div>

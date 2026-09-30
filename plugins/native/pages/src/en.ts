@@ -1,4 +1,6 @@
 export const PAGES_EN: Record<string, string> = {
+  "固定版本": "Fixed version",
+  "固定版本未存完": "Fixed version not finished",
   "助理": "Assistant",
   "带到助理（由你发送）": "Bring to the Assistant (you send it)",
   "要助理做什么？": "What should the Assistant do?",

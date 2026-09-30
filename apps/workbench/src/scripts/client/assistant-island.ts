@@ -2166,7 +2166,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const inHand = Boolean(selection && !removed.has("selection"));
       const signature = JSON.stringify([context.plugin_id, context.object || null, inHand]);
       // What is in hand changes with every selection: ask each time (the row answers from the plan it shows).
-      if (signature === this.signature && !inHand) return this.answer ? this.answer.items : undefined;
+      // Kept while the same thing stays open, but asked again after a while: a plugin switched off drops out.
+      const fresh = this.answer && Date.now() - this.answer.at < 15000;
+      if (signature === this.signature && !inHand && (fresh || !this.answer)) return this.answer ? this.answer.items : undefined;
       if (signature !== this.signature) { this.signature = signature; this.answer = null; }
       const request = this.request = crypto.randomUUID();
       clearTimeout(this.timer);
@@ -2176,8 +2178,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     },
     settle(request, objectKey, items) {
       if (request !== this.request) return;
-      const changed = JSON.stringify(this.answer) !== JSON.stringify({ object_key: objectKey, items });
-      this.answer = { object_key: objectKey, items };
+      const changed = !this.answer || JSON.stringify([this.answer.object_key, this.answer.items]) !== JSON.stringify([objectKey, items]);
+      this.answer = { object_key: objectKey, items, at: Date.now() };
       if (!changed) return;
       // Answered while being read (the row's plan is at hand): the reader shows it; otherwise repaint what is open.
       queueMicrotask(() => {

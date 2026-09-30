@@ -265,6 +265,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
         }
         button.replaceChildren(el("span", { text: candidate.title }));
         if (candidate.provider_title !== owner) button.append(el("span", { class: "context-action-kind", text: candidate.provider_title }));
+        // Read out as “action (plugin)”, not the two words run together.
+        button.setAttribute("aria-label", candidate.provider_title !== owner ? candidate.title + "（" + candidate.provider_title + "）" : candidate.title);
         button.dataset.emphasis = String(plan.emphasis === key);
         button.dataset.slot = String(slot);
         button.title = candidate.hint;
@@ -342,6 +344,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
         const note = candidate.available ? (single ? "" : candidate.provider_title) : candidate.reason || L("不可用");
         const button = el("button", candidate.available ? { type: "button", role: "menuitem" } : { type: "button", role: "menuitem", disabled: "" },
           el("span", { text: candidate.title }), note ? el("small", { text: note }) : null);
+        button.setAttribute("aria-label", note ? candidate.title + "（" + note + "）" : candidate.title);
         button.title = candidate.hint;
         button.addEventListener("click", () => { this.closeMenu(); choose(candidate.key); });
         return button;
@@ -508,6 +511,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
   const starters = {
     focus: null,
     plan: null,
+    // A plugin switched off or a grant withdrawn shows within this long; choosing checks again anyway.
+    at: 0,
     seq: 0,
     focusFor(context) {
       const object = context && context.object;
@@ -534,11 +539,11 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       if (bus.focus && inHand && inHand.context_id === bus.focus.context_id) { this.answer(requestId, bus.focus.context_id, this.items(inHand, bus.focus.plugin_id)); return; }
       const focus = this.focusFor(context);
       if (!focus || !focus.plugin_id) { this.answer(requestId, "", []); return; }
-      if (this.plan && this.focus && this.focus.context_id === focus.context_id) { this.answer(requestId, focus.context_id, this.items(this.plan, focus.plugin_id)); return; }
+      if (this.plan && this.focus && this.focus.context_id === focus.context_id && Date.now() - this.at < 15000) { this.answer(requestId, focus.context_id, this.items(this.plan, focus.plugin_id)); return; }
       const seq = ++this.seq;
       post("/api/contextual/candidates", { pane_id: "assistant-start", focus }).then((out) => {
         if (seq !== this.seq) return;
-        this.focus = focus; this.plan = out.plan;
+        this.focus = focus; this.plan = out.plan; this.at = Date.now();
         this.answer(requestId, focus.context_id, this.items(out.plan, focus.plugin_id));
       }).catch(() => { if (seq === this.seq) this.answer(requestId, focus.context_id, []); });
     },
@@ -546,7 +551,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       if (bus.focus && bus.focus.context_id === objectKey) { chooseFrom(objectKey, key); return; }
       const focus = this.focus, plan = this.plan;
       const candidate = focus && plan && focus.context_id === objectKey ? plan.candidates.find((item) => item.key === key) : null;
-      if (!candidate || !candidate.available) return;
+      // Shown a moment ago but gone or switched off since: say why instead of doing nothing.
+      if (!candidate || !candidate.available) { bar.error(new Error(candidate ? candidate.reason || L("不可用") : L("这个动作已不在当前内容的候选里"))); return; }
       bus.recent = [candidate.title, ...bus.recent.filter((title) => title !== candidate.title)].slice(0, 3);
       const prepared = () => post("/api/contextual/prepare", { pane_id: "assistant-start", focus, key, request_id: requestId() });
       if (candidate.action.capability_id === "search.query" && host.openSearch) {
@@ -595,7 +601,12 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
   setInterval(() => { if (bus.source && bus.source.element && !visible(bus.source.element)) bus.set(null, null, true); }, 800);
 
   root.addEventListener("pointerleave", () => bar.release());
-  root.addEventListener("focusin", (event) => { if (!root.contains(event.relatedTarget)) bar.returnTo = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null; });
+  // Where Escape goes back to: the element focus came from, outside the row. Focus arriving from nowhere (a menu item
+  // just removed on closing the menu) keeps the place remembered before.
+  root.addEventListener("focusin", (event) => {
+    const from = event.relatedTarget;
+    if (from instanceof HTMLElement && from.isConnected && !root.contains(from)) bar.returnTo = from;
+  });
   root.addEventListener("focusout", (event) => { if (!root.contains(event.relatedTarget)) { bar.closeMenu(); bar.release(); } });
   // A click in the row never takes the focus from the editor, so the selection stays where it is.
   root.addEventListener("mousedown", (event) => { if (event.target.closest("button")) event.preventDefault(); });

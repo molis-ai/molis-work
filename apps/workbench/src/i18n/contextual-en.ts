@@ -26,6 +26,7 @@ export const CONTEXTUAL_EN: Record<string, string> = {
   "规则排序：只看选区形状，不看含义": "Rule order: shape of the selection, not its meaning",
   "可以做：": "You can: ",
   "不可用": "Unavailable",
+  "这个动作已不在当前内容的候选里": "This action is no longer offered for what you have open",
   "推荐": "Suggested",
   "全部操作（不依赖推荐）": "All actions (independent of suggestions)",
   "理解": "Understand",

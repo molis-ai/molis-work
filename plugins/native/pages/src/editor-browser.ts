@@ -3276,6 +3276,8 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
           button.title = item.hint;
           if (item.emphasis) button.dataset.emphasis = "true";
           button.innerHTML = `<span>${escapeHtml(item.title)}</span>${item.kind ? `<small class="pages-ai-kind">${escapeHtml(item.kind)}</small>` : ""}`;
+          // Its name is the action (and whose it is); the hint stays a description.
+          button.setAttribute("aria-label", item.kind ? `${item.title}（${item.kind}）` : item.title);
           button.addEventListener("click", () => { hidePop(); options.chooseMenuAction?.(item.key); });
           return button;
         })];

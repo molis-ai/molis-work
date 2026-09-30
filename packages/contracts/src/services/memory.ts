@@ -621,8 +621,9 @@ export interface MemoryLedgerPort {
   lastUse(memoryId: string): MemoryUseRecord | null;
   uses(filter: { receipt_id?: string; work_id?: string; memory_id?: string; limit?: number }): MemoryUseRecord[];
   /** Scopes that hold memories besides the person's and the projects' (Characters), with their project and name. */
-  owners(projectId: string): Array<{ scope: MemoryScope; owner: string; title: string }>;
-  noteOwner(input: { scope: MemoryScope; owner: string; project_id: string | null; title: string }): void;
+  /** Owners that stand for something (a Character in a project): its id, as the owner is only a short storage key. */
+  owners(projectId: string): Array<{ scope: MemoryScope; owner: string; title: string; subject: string | null }>;
+  noteOwner(input: { scope: MemoryScope; owner: string; project_id: string | null; title: string; subject?: string | null }): void;
   /** Pairs waiting for the person, and the pair keys ever raised (a pair kept both is not raised again). */
   pairs(actorId: string): Array<MemoryPair & { owner: string; state: "pending" | "resolved" }>;
   savePair(actorId: string, pair: MemoryPair & { owner: string; state: "pending" | "resolved" }): void;

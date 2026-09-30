@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   MEMORY_KINDS,
   memoryAppliesText,
@@ -472,7 +472,7 @@ export class MemoryService {
     const automatic = input.source === "auto" || input.source === "plugin";
     const policy = input.approved_by.by === "policy" ? input.approved_by : { by: "policy" as const, policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION };
     const rule = input.source === "plugin" ? `插件「${caller.plugin_id ?? "?"}」记下` : MEMORY_GATE_RULE;
-    if (where.scope === "character" && caller.character) this.ports.ledger.noteOwner({ scope: "character", owner: where.owner, project_id: where.project, title: caller.character.title });
+    if (where.scope === "character" && caller.character) this.ports.ledger.noteOwner({ scope: "character", owner: where.owner, project_id: where.project, title: caller.character.title, subject: caller.character.id });
     if (target) {
       const before = target.entry.version;
       const updated = await this.ports.backend.update({ scope: input.scope, owner: where.owner, memory_id: target.entry.memory_id, text });
@@ -1294,12 +1294,16 @@ export class MemoryService {
     this.ports.ledger.forget(located.entry.memory_id);
   }
 
+  private characterEntry(located: Located): { title: string; subject: string | null } | undefined {
+    return this.ports.ledger.owners(located.project ?? "").find(owner => owner.scope === "character" && owner.owner === located.owner);
+  }
+
   private item(located: Located): MemoryItem {
     const meta = located.meta, use = this.ports.ledger.lastUse(located.entry.memory_id);
     const expired = meta.state === "active" && this.expired(meta, this.now());
     return { memory_id: located.entry.memory_id, version: located.entry.version, scope: located.scope,
-      project_id: located.scope === "project" ? located.owner : located.scope === "character" ? located.project ?? null : null, character_id: located.scope === "character" ? characterOf(located.owner) : null,
-      character_title: located.scope === "character" ? this.ports.ledger.owners(located.project ?? "").find(owner => owner.scope === "character" && owner.owner === located.owner)?.title ?? null : null,
+      project_id: located.scope === "project" ? located.owner : located.scope === "character" ? located.project ?? null : null, character_id: located.scope === "character" ? this.characterEntry(located)?.subject ?? null : null,
+      character_title: located.scope === "character" ? this.characterEntry(located)?.title ?? null : null,
       kind: meta.kind, text: located.entry.text, source: meta.source, basis: meta.basis, origin: located.entry.origin, evidence: meta.evidence, applies: meta.applies,
       state: expired ? "disabled" : meta.state, state_reason: expired ? `已于 ${meta.expires_at!.slice(0, 10)} 到期` : meta.state_reason, expires_at: meta.expires_at,
       approved_by: meta.approved_by, plugin_id: meta.plugin_id, created_at: meta.created_at, updated_at: meta.updated_at,
@@ -1361,11 +1365,13 @@ function joinedFingerprint(parts: ReadonlyArray<{ scope: MemoryScope; owner: str
 }
 
 /**
- * A Character's memories are kept per project (Prologue scope `character`, owner = project + Character): what it learned
- * in one project's work never reaches the same Character's work in another project (spec §5 isolation).
+ * A Character's memories are kept per project (Prologue scope `character`, owner = this project and this Character):
+ * what it learned in one project's work never reaches the same Character's work in another project (spec §5 isolation).
+ * The owner is a short stable key, as Prologue storage ids are bounded; the ledger keeps which Character it stands for.
  */
-export function characterOwner(projectId: string, characterId: string): string { return `${projectId}/${characterId}`; }
-function characterOf(owner: string): string { const at = owner.indexOf("/"); return at < 0 ? owner : owner.slice(at + 1); }
+export function characterOwner(projectId: string, characterId: string): string {
+  return `pc-${createHash("sha256").update(`${projectId}\n${characterId}`).digest("hex").slice(0, 40)}`;
+}
 
 /** Whether a memory applies in a situation: every limit it has must be met (spec §4.1 适用). */
 export function applies(limit: MemoryApplies, situation: MemoryRecallRequest["situation"], now: Date): boolean {

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
@@ -26,7 +26,9 @@ async function memoryHome(t: { after(fn: () => Promise<void> | void): void }) {
 
 const work = (character: { id: string; title: string } | null, project = "project-q4"): MemoryCaller => ({ actor_id: "web-user", project_id: project, consumer: "assistant",
   work: { work_id: `work-${character?.id ?? "none"}-${project}`, title: "写周报" }, character });
-const writer = { id: "character-writer", title: "写作顾问" }, analyst = { id: "character-analyst", title: "数据分析师" };
+// Real Character references look like this: a colon-separated artifact id.
+const writer = { id: "character:project-onboarding-a2b1f6ba-bd73-43db-bcb7-e32f0d25fb3d:f7a122c9-7ea4-4dc8-8353-b49da5196add", title: "写作顾问" },
+  analyst = { id: "character:project-onboarding-a2b1f6ba-bd73-43db-bcb7-e32f0d25fb3d:0b2c9d7e-1111-4a2b-9c3d-000000000002", title: "数据分析师" };
 const personIn = (project: string | null): MemoryCaller => ({ actor_id: "web-user", project_id: project, consumer: "ui", person: true });
 const texts = (items: ReadonlyArray<{ text: string }>) => items.map(item => item.text).sort();
 
@@ -52,7 +54,9 @@ test("a Character's memory is used only in work that Character carries: not by a
   // An Agent run carried by that Character is pinned the exact Prologue character-scope entry (kept per project).
   const run = await service.forRun({ ...work(writer), consumer: "agent" }, query);
   const pin = run.pinned.find(item => item.memory_id === kept.memory!.memory_id);
-  assert.deepEqual(pin, { scope: "character", owner: `project-q4/${writer.id}`, memory_id: kept.memory!.memory_id });
+  assert.deepEqual(pin, { scope: "character", owner: characterOwner("project-q4", writer.id), memory_id: kept.memory!.memory_id });
+  // A real Character reference is long: the owner stays a short key Prologue can store (at most 128 characters, one segment).
+  assert.match(characterOwner("project-onboarding-a2b1f6ba-bd73-43db-bcb7-e32f0d25fb3d", "character:project-onboarding-a2b1f6ba-bd73-43db-bcb7-e32f0d25fb3d:f7a122c9-7ea4-4dc8-8353-b49da5196add"), /^pc-[0-9a-f]{40}$/);
 
   // The person sees it in the project's memories, named with its Character; not in another project.
   const listed = (await service.list(personIn("project-q4"))).items.find(item => item.scope === "character");

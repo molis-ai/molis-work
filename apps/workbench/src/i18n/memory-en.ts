@@ -100,6 +100,7 @@ export const MEMORY_EN: Record<string, string> = {
   "升级为项目说明": "Promote to project guidance",
   "删除": "Delete",
   "删除这条记忆？": "Delete this memory?",
+  "这个角色在本项目承担的工作": "work this Character does in this project",
   "（读不到的 Goal）": "(a Goal that can no longer be read)",
   "这条后来被删除了，内容不再保留": "since deleted; its text is not kept",
   "删除后任何地方都不会再用到这条，历史版本也一起删除。": "Once deleted it is never used anywhere again, and its history goes too. ",

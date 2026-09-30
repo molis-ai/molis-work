@@ -114,7 +114,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const CHANGE = { kept: "记住", auto_kept: "自动记住", replaced: "替换", auto_replaced: "自动替换", merged: "合并", edited: "修改", restored: "回到旧版本", moved: "改范围",
       disabled: "停用", auto_disabled: "自动停用", enabled: "启用", paused: "暂停", resumed: "恢复", removed: "删除", accepted: "认可", imported: "导入", cleared: "清空" };
     const day = (iso) => { const date = new Date(iso); return isNaN(date.getTime()) ? "" : (date.getMonth() + 1) + "/" + date.getDate(); };
-    const appliesText = (applies) => {
+    const appliesText = (applies, itemScope) => {
       const parts = [];
       if (applies && applies.plugin_ids && applies.plugin_ids.length) parts.push(L("插件") + " " + applies.plugin_ids.join("、"));
       if (applies && applies.object_kinds && applies.object_kinds.length) parts.push(L("对象") + " " + applies.object_kinds.join("、"));
@@ -123,7 +123,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const title = data && data.labels && data.labels.goals ? data.labels.goals[id] : null; return title ? "「" + title + "」" : L("（读不到的 Goal）"); }).join("、"));
       if (applies && applies.task) parts.push(applies.task);
       if (applies && applies.until) parts.push(L("到") + " " + applies.until.slice(0, 10));
-      return parts.length ? parts.join(" · ") : L(scope === "project" ? "这个项目的所有工作" : "所有工作");
+      return parts.length ? parts.join(" · ") : L(itemScope === "character" ? "这个角色在本项目承担的工作" : scope === "project" ? "这个项目的所有工作" : "所有工作");
     };
     let data = null, busy = false;
     const filters = { kind: "", source: "", state: "", query: "" };
@@ -299,7 +299,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         if (item.plugin_id) meta.append(el("span", "memory-tag", L("插件") + " " + item.plugin_id));
         meta.append(el("span", "memory-tag memory-tag--" + item.source, L(SOURCE[item.source] || item.source) + " " + day(item.created_at)));
         if (item.state !== "active") meta.append(el("span", "memory-tag memory-tag--state", L(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")));
-        meta.append(el("span", "", L("适用") + "：" + appliesText(item.applies)));
+        meta.append(el("span", "", L("适用") + "：" + appliesText(item.applies, item.scope)));
         meta.append(el("span", "", item.last_used ? L("最近用于") + "：" + item.last_used.title + " · " + day(item.last_used.at) : L("还没有用过")));
         copy.append(meta);
         const origin = el("details", "memory-origin"); origin.append(el("summary", "", L("出处")), el("p", "", item.origin));

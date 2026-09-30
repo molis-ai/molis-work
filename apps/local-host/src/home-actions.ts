@@ -1,6 +1,6 @@
 import { homeTalkActions, createHomeTalkHandlers } from "./home-talk-actions.js";
 import { homeOfferActions, createHomeOfferHandlers, type HomeActionOffer } from "./home-offer-actions.js";
-import { prepareSubjectOffers } from "./contextual/contextual-service.js";
+import { callerDirectory, prepareSubjectOffers } from "./contextual/contextual-service.js";
 import { homeEventActions, createHomeEventHandlers } from "./home-event-actions.js";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -105,8 +105,7 @@ export function homeActionProvider(home: string, projectId: string, boardId: str
   // The Dock's options are the contextual service's prepared subject offers (specs/contextual-interaction §6.4.3): the
   // same offers, keys and checks the context row and the Assistant's starting points use.
   const prepareOffers = async (subject: HomeSubject, caller: ActionCallContext, request_id: string): Promise<HomeActionOffer[]> => {
-    const result = await prepareSubjectOffers({ discover: () => services.actions.discover(caller), invoke: (reference, input) => services.actions.invoke(caller, reference, input) },
-      { subject: { kind: subject.kind, id: subject.id }, request_id });
+    const result = await prepareSubjectOffers(callerDirectory(services.actions, caller), { subject: { kind: subject.kind, id: subject.id }, request_id });
     return result.offers.filter(offer => offer.availability.available && offer.recommendation_key);
   };
   const ordered = (value: unknown): unknown => Array.isArray(value) ? value.map(ordered)

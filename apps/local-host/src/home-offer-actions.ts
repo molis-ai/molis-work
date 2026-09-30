@@ -1,8 +1,7 @@
-import { isDeepStrictEqual } from "node:util";
 import { subjectOfferChoices, type SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
 import { ActionError, ACTION_REFERENCE_SCHEMA, SUBJECT_OFFER_SCHEMA, SUBJECT_OFFERS_INPUT_SCHEMA,
   type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type SubjectActionOffer, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { prepareSubjectOffers, sameReference, type PreparedSubjectOffer, type PreparedSubjectOffers } from "./contextual/contextual-service.js";
+import { callerDirectory, confirmSubjectOffer, prepareSubjectOffers, sameReference, type PreparedSubjectOffer, type PreparedSubjectOffers } from "./contextual/contextual-service.js";
 export type HomeActionOffer = PreparedSubjectOffer;
 export type HomeActionOffers = PreparedSubjectOffers;
 export interface HomeOfferExecutionInput extends SubjectOffersInput { offer: SubjectActionOffer & { source: ActionReference; recommendation_key?: string } }
@@ -24,22 +23,16 @@ export const homeOfferActions = {
     input_schema: { ...SUBJECT_OFFERS_INPUT_SCHEMA, properties: { ...SUBJECT_OFFERS_INPUT_SCHEMA.properties, offer: preparedOffer }, required: [...SUBJECT_OFFERS_INPUT_SCHEMA.required, "offer"] },
     output_schema: { type: "object", properties: { title: { type: "string" }, result: {} }, required: ["title", "result"], additionalProperties: false } } } as ActionDefinition<HomeOfferExecutionInput, { title: string; result: unknown }>,
 };
+/**
+ * `home.actions.*` keep their contracts for every caller (Dock, Agents, workflows, MCP) and are thin over the contextual
+ * service (specs/contextual-interaction §6.4.3): the same derivation, preparation and pre-run check as the context row.
+ */
 export function createHomeOfferHandlers(client: ActionClient): ActionHandlerBinding[] {
-  // Preparation lives in the contextual service, shared with the context row and the Assistant's starting points.
-  const prepare = (caller: ActionCallContext, input: SubjectOffersInput, source?: ActionReference): Promise<HomeActionOffers> =>
-    prepareSubjectOffers({ discover: () => client.discover(caller), invoke: (reference, value) => client.invoke(caller, reference, value) }, input, source);
   return [
     { ...homeOfferActions.choices, handle: async (caller, input) => ({ choices: subjectOfferChoices(await client.discover(caller), (input as { subject_kind?: string }).subject_kind) }) },
-    { ...homeOfferActions.offers, handle: (caller, input) => prepare(caller, input as SubjectOffersInput) },
+    { ...homeOfferActions.offers, handle: (caller, input): Promise<HomeActionOffers> => prepareSubjectOffers(callerDirectory(client, caller), input as SubjectOffersInput) },
     { ...homeOfferActions.execute, handle: async (caller, value) => {
-      const input = value as HomeOfferExecutionInput;
-      const current = await prepare(caller, { subject: input.subject, request_id: input.request_id }, input.offer.source);
-      const offer = current.offers.find(item => item.offer_id === input.offer.offer_id);
-      if (!offer || !sameReference(offer.action, input.offer.action) || !isDeepStrictEqual(offer.input, input.offer.input) || offer.title !== input.offer.title
-        || (input.offer.recommendation_key !== undefined && input.offer.recommendation_key !== offer.recommendation_key)) {
-        throw new ActionError("actions.offer_changed", "事项或动作参数已变化，请重新载入后选择");
-      }
-      if (!offer.availability.available) throw new ActionError(offer.availability.code, offer.availability.reason);
+      const offer = await confirmSubjectOffer(callerDirectory(client, caller), value as HomeOfferExecutionInput);
       const guarded: ActionCallContext = { ...caller, validate_authority: async reference => {
         await caller.validate_authority?.(reference);
         await caller.validate_authority?.(offer.source);

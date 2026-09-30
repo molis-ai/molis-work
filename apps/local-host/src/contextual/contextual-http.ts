@@ -9,7 +9,7 @@ import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { resolvePrologueInference } from "../prologue-inference-host.js";
 import { typeSafeConfiguration, typeSafeCredential } from "../typesafe-connection.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "../web-http.js";
-import { prepareSubjectOffers, sameReference } from "./contextual-service.js";
+import { prepareSubjectOffer, sameReference } from "./contextual-service.js";
 import { createContextualJudgmentService, type ContextualJudgmentService } from "./judgment-service.js";
 
 /**
@@ -179,9 +179,10 @@ async function prepare(focus: SurfaceFocus, key: string, requestId: string, call
   if (!candidate.available) throw new ContextualRequestError(409, "contextual.unavailable", candidate.reason ?? "这个动作现在不可用");
   // One of the object's subject offers: prepared exactly as the Home / Dock prepares it, by the query that declared it.
   if (candidate.origin === "subject") {
-    const { offers } = await prepareSubjectOffers(caller.actions, { subject: { kind: focus.object.kind, id: focus.object.id }, request_id: requestId }, candidate.source);
-    const offer = offers.find(item => item.recommendation_key === candidate.key);
-    if (!offer || !sameReference(offer.action, candidate.action)) throw new ContextualRequestError(409, "contextual.not_offered", `${candidate.provider_title} 没有为这件事项准备「${candidate.title}」`);
+    const notOffered = () => new ContextualRequestError(409, "contextual.not_offered", `${candidate.provider_title} 没有为这件事项准备「${candidate.title}」`);
+    const offer = await prepareSubjectOffer(caller.actions, { kind: focus.object.kind, id: focus.object.id }, requestId, candidate.source,
+      item => item.recommendation_key === candidate.key).catch(error => { throw error instanceof ActionError && error.code === "actions.offer_changed" ? notOffered() : error; });
+    if (!sameReference(offer.action, candidate.action)) throw notOffered();
     if (!offer.availability.available) throw new ContextualRequestError(409, "contextual.unavailable", offer.availability.reason);
     return { key, offer_id: candidate.offer_id, title: offer.title, intent: candidate.intent, apply: candidate.apply,
       action: candidate.action, provider_title: candidate.provider_title, input: offer.input, origin: "subject" as const };

@@ -1,6 +1,7 @@
+import { isDeepStrictEqual } from "node:util";
 import { assertActionInput, subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
-import { ActionError, SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE,
-  type ActionAvailability, type ActionReference, type ActionView, type SubjectActionOffer, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, type ActionAvailability, type ActionCallContext, type ActionClient,
+  type ActionReference, type ActionView, type SubjectActionOffer, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * The one place that prepares what can be done with an object (specs/contextual-interaction §6.4.3): the context row,
@@ -20,6 +21,33 @@ export interface PreparedSubjectOffer extends SubjectActionOffer { source: Actio
 export interface PreparedSubjectOffers { offers: PreparedSubjectOffer[]; issues: string[]; sources: ActionReference[] }
 
 export const sameReference = (a: ActionReference, b: ActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
+
+/** The directory as one caller sees it. */
+export const callerDirectory = (client: ActionClient, caller: ActionCallContext): ContextualDirectory =>
+  ({ discover: () => client.discover(caller), invoke: (reference, input) => client.invoke(caller, reference, input) });
+
+/**
+ * The one subject offer a choice names, prepared again by the query that declared it (`source`): the check before a
+ * chosen offer is shown for confirmation (context row, starting points) and before it runs (Home / Dock).
+ */
+export async function prepareSubjectOffer(actions: ContextualDirectory, subject: SubjectOffersInput["subject"], requestId: string, source: ActionReference,
+  names: (offer: PreparedSubjectOffer) => boolean): Promise<PreparedSubjectOffer> {
+  const { offers } = await prepareSubjectOffers(actions, { subject, request_id: requestId }, source);
+  const offer = offers.find(names);
+  if (!offer) throw new ActionError("actions.offer_changed", "事项或动作参数已变化，请重新载入后选择");
+  return offer;
+}
+
+/** Before running a chosen offer: prepared again it must be the same — action, input, title and rule key — and runnable. */
+export async function confirmSubjectOffer(actions: ContextualDirectory, input: SubjectOffersInput & { offer: SubjectActionOffer & { source: ActionReference; recommendation_key?: string } }): Promise<PreparedSubjectOffer> {
+  const offer = await prepareSubjectOffer(actions, input.subject, input.request_id, input.offer.source, item => item.offer_id === input.offer.offer_id);
+  if (!sameReference(offer.action, input.offer.action) || !isDeepStrictEqual(offer.input, input.offer.input) || offer.title !== input.offer.title
+    || (input.offer.recommendation_key !== undefined && input.offer.recommendation_key !== offer.recommendation_key)) {
+    throw new ActionError("actions.offer_changed", "事项或动作参数已变化，请重新载入后选择");
+  }
+  if (!offer.availability.available) throw new ActionError(offer.availability.code, offer.availability.reason);
+  return offer;
+}
 
 /**
  * Every provider's current offers for one object, each checked against its declaration and its action's input

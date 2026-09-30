@@ -520,6 +520,14 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-panel[data-side="closed"] .assistant-side { display: none; }
   ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side { position: absolute; z-index: 4; top: 0; bottom: 0; left: 0; width: min(var(--assistant-side-w), 100%); box-shadow: var(--lift-3); }
   ${ASSIST} .assistant-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  /* The conversation's top line, shown only while the side pane is out of sight and something needs a hand. */
+  ${ASSIST} .assistant-strip { flex: none; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 10px 6px 12px; background: var(--paper); box-shadow: inset 0 -1px 0 var(--line); }
+  ${ASSIST} .assistant-strip[hidden] { display: none; }
+  ${ASSIST} .assistant-strip[data-tone="waiting"] { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 11%, var(--paper)); }
+  ${ASSIST} .assistant-strip[data-tone="running"] { background: color-mix(in srgb, var(--tone-done, #3a8f5c) 8%, var(--paper)); }
+  ${ASSIST} .assistant-strip .assistant-state { flex: none; }
+  ${ASSIST} .assistant-strip-now { flex: 1; min-width: 0; overflow: hidden; color: var(--ink-soft); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-strip-actions { flex: none; display: flex; align-items: center; gap: 4px; }
   /* 概况: the state, what it is doing now, where it belongs, who carries it, and what can be done to it now. */
   ${ASSIST} .assistant-summary { display: flex; flex-direction: column; gap: 2px; }
   ${ASSIST} .assistant-summary-state { margin: 0; }
@@ -542,13 +550,13 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-control[data-assistant-control="resume"] { background: var(--ink); color: var(--paper); }
   ${ASSIST} .assistant-control:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   /* The work's state as a small pill: a dot that says waiting, running, done or not done. */
-  ${ASSIST} .assistant-summary .assistant-state { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px 1px 7px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); font-size: 11px; line-height: 18px; }
-  ${ASSIST} .assistant-summary .assistant-state::before { content: ""; flex: none; width: 6px; height: 6px; margin: 0; border-radius: 50%; background: var(--faint); vertical-align: 0; }
-  ${ASSIST} .assistant-summary .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 13%, transparent); color: var(--ink); }
-  ${ASSIST} .assistant-summary .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"])::before { background: var(--tone-attention, #c27c0e); }
-  ${ASSIST} .assistant-summary .assistant-state[data-state="running"]::before { width: 8px; height: 8px; box-sizing: border-box; background: none; border: 1.5px solid var(--hue-green-fill); border-right-color: transparent; animation: mw-spin 640ms var(--ease-quint) infinite; }
-  ${ASSIST} .assistant-summary .assistant-state[data-state="completed"]::before { background: var(--hue-green-fill); }
-  ${ASSIST} .assistant-summary .assistant-state:is([data-state="failed"], [data-state="stopped"])::before { background: var(--danger); }
+  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px 1px 7px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); font-size: 11px; line-height: 18px; }
+  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state::before { content: ""; flex: none; width: 6px; height: 6px; margin: 0; border-radius: 50%; background: var(--faint); vertical-align: 0; }
+  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 13%, transparent); color: var(--ink); }
+  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"])::before { background: var(--tone-attention, #c27c0e); }
+  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state[data-state="running"]::before { width: 8px; height: 8px; box-sizing: border-box; background: none; border: 1.5px solid var(--hue-green-fill); border-right-color: transparent; animation: mw-spin 640ms var(--ease-quint) infinite; }
+  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state[data-state="completed"]::before { background: var(--hue-green-fill); }
+  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state:is([data-state="failed"], [data-state="stopped"])::before { background: var(--danger); }
   ${ASSIST} .assistant-next { align-self: flex-start; margin-top: 8px; }
   ${ASSIST} .assistant-next[hidden] { display: none; }
   /* One row of equal parts, however many choices: five Coding modes fit the side pane without wrapping. */
@@ -607,7 +615,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-summary[data-tone="waiting"] { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 11%, var(--paper)); }
   ${ASSIST} .assistant-summary[data-tone="running"] { background: color-mix(in srgb, var(--tone-done, #3a8f5c) 8%, var(--paper)); }
   ${ASSIST} .assistant-summary[data-tone="failed"] { background: color-mix(in srgb, var(--tone-blocked, #c53030) 8%, var(--paper)); }
-  ${ASSIST} .assistant-summary .assistant-state { background: var(--paper); }
+  ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state { background: var(--paper); }
   ${ASSIST} .assistant-summary .assistant-next { align-self: stretch; justify-content: center; margin-top: 10px; }
   ${ASSIST} .assistant-summary .assistant-summary-meta { margin-top: 12px; padding-top: 10px; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent); }
   ${ASSIST} .assistant-glyph-icon { display: inline-grid; place-items: center; flex: none; }

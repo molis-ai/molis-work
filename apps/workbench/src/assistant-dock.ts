@@ -47,6 +47,16 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
             <section class="assistant-block assistant-block--usage" data-assistant-usage hidden></section>
           </aside>
           <div class="assistant-main">
+            <div class="assistant-strip" data-assistant-strip hidden>
+              <span class="assistant-state" data-assistant-strip-state></span>
+              <span class="assistant-strip-now" data-assistant-strip-now></span>
+              <span class="assistant-strip-actions">
+                <button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-assistant-strip-next hidden></button>
+                <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${L("暂停")}</button>
+                <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${L("继续")}</button>
+                <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button>
+              </span>
+            </div>
             <div class="assistant-thread" data-assistant-thread role="log" aria-live="polite" aria-relevant="additions">
               <div class="assistant-empty" data-assistant-empty><strong>${L("你的个人工作助理")}</strong><p>${L("说出要做的事：整理资料、起草、查询、安排后续……它会使用你已授权的能力推进，改动数据前先请你确认。")}</p><div class="assistant-empty-list" data-assistant-empty-list></div></div>
             </div>

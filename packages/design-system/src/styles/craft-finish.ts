@@ -474,9 +474,8 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} [data-mark="waiting"] .assistant-tab-mark { background: var(--tone-attention, var(--amber, #c27c0e)); }
   ${ASSIST} [data-mark="unread"] .assistant-tab-mark { background: var(--accent); }
   ${ASSIST} [data-mark="failed"] .assistant-tab-mark { background: var(--danger); }
-  ${ASSIST} [data-mark="running"] .assistant-tab-mark { width: 9px; height: 9px; box-sizing: border-box; background: none; border: 1.5px solid var(--hue-green-fill); border-right-color: transparent; animation: assistant-turn 900ms linear infinite; }
-  @keyframes assistant-turn { to { transform: rotate(360deg); } }
-  ${ASSIST} .assistant-tab-close { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; line-height: 1; cursor: pointer; opacity: 0; }
+  ${ASSIST} [data-mark="running"] .assistant-tab-mark { width: 9px; height: 9px; box-sizing: border-box; background: none; border: 1.5px solid var(--hue-green-fill); border-right-color: transparent; animation: mw-spin 640ms var(--ease-quint) infinite; }
+  ${ASSIST} .assistant-tab-close { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; line-height: 1; cursor: pointer; opacity: 0; }
   ${ASSIST} .assistant-tab:is(:hover, [data-current], :focus-within) .assistant-tab-close { opacity: 1; }
   ${ASSIST} .assistant-tab-close:hover { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action) { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
@@ -515,7 +514,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-summary { display: flex; flex-direction: column; gap: 2px; }
   ${ASSIST} .assistant-summary-state { margin: 0; }
   ${ASSIST} .assistant-summary-state:has(.assistant-state:empty) { display: none; }
-  ${ASSIST} .assistant-summary-title { margin: 0; color: var(--ink); font-size: 14px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+  ${ASSIST} .assistant-summary-title { margin: 0; color: var(--ink); font-size: 15px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
   ${ASSIST} .assistant-summary-now { margin: 2px 0 0; color: var(--ink-soft); overflow-wrap: anywhere; }
   ${ASSIST} .assistant-summary-now[hidden] { display: none; }
   ${ASSIST} .assistant-summary-meta { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 6px 10px; margin: 10px 0 0; }
@@ -537,7 +536,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-summary .assistant-state::before { content: ""; flex: none; width: 6px; height: 6px; margin: 0; border-radius: 50%; background: var(--faint); vertical-align: 0; }
   ${ASSIST} .assistant-summary .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 13%, transparent); color: var(--ink); }
   ${ASSIST} .assistant-summary .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"])::before { background: var(--tone-attention, #c27c0e); }
-  ${ASSIST} .assistant-summary .assistant-state[data-state="running"]::before { background: var(--hue-green-fill); animation: assistant-breathe 1.6s ease-in-out infinite; }
+  ${ASSIST} .assistant-summary .assistant-state[data-state="running"]::before { width: 8px; height: 8px; box-sizing: border-box; background: none; border: 1.5px solid var(--hue-green-fill); border-right-color: transparent; animation: mw-spin 640ms var(--ease-quint) infinite; }
   ${ASSIST} .assistant-summary .assistant-state[data-state="completed"]::before { background: var(--hue-green-fill); }
   ${ASSIST} .assistant-summary .assistant-state:is([data-state="failed"], [data-state="stopped"])::before { background: var(--danger); }
   ${ASSIST} .assistant-next { align-self: flex-start; margin-top: 8px; }
@@ -555,16 +554,14 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-block-head { display: flex; align-items: center; gap: 6px; width: 100%; margin: 0; padding: 12px 0 4px; border: 0; border-radius: 0; background: transparent; box-shadow: inset 0 1px 0 var(--line); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
   ${ASSIST} .assistant-block-head:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
   ${ASSIST} .assistant-block-chevron { flex: none; display: inline-grid; place-items: center; width: 12px; height: 12px; color: var(--muted); }
-  ${ASSIST} .assistant-block-chevron::before { content: "›"; font-size: 14px; line-height: 1; transform: rotate(90deg); transition: transform var(--dur-move) var(--ease-quint); }
+  ${ASSIST} .assistant-block-chevron::before { content: "›"; font-size: 13px; line-height: 1; transform: rotate(90deg); transition: transform var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-block-head[aria-expanded="false"] .assistant-block-chevron::before { transform: none; }
   ${ASSIST} .assistant-block-head:hover .assistant-block-chevron { color: var(--ink); }
   ${ASSIST} .assistant-block-note.is-attention { display: inline-flex; align-items: center; gap: 5px; color: var(--tone-attention, var(--amber, #b7791f)); }
   ${ASSIST} .assistant-block-note.is-attention::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  /* Folding eases the height; what is folded away is out of the tab order once it has closed. */
-  ${ASSIST} .assistant-block-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--dur-move) var(--ease-quint); }
-  ${ASSIST} .assistant-block[data-folded] .assistant-block-body { grid-template-rows: 0fr; }
-  ${ASSIST} .assistant-block-inner { min-height: 0; overflow: hidden; }
-  ${ASSIST} .assistant-block[data-folded] .assistant-block-inner { visibility: hidden; transition: visibility 0s var(--dur-move); }
+  /* Folding never animates height: a folded block is gone at once, and opening one lets its rows arrive. */
+  ${ASSIST} .assistant-block[data-folded] .assistant-block-body { display: none; }
+  ${ASSIST} .assistant-block[data-opening] .assistant-block-body { animation: craft-rise var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-block-title { color: var(--ink); font-size: 12px; font-weight: 600; }
   ${ASSIST} .assistant-block-note { margin-left: auto; color: var(--muted); font-size: 11px; }
   ${ASSIST} .assistant-block-sub { margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
@@ -600,7 +597,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-block--usage[hidden] { display: none; }
   ${ASSIST} .assistant-usage > summary { display: flex; align-items: center; gap: 6px; padding-top: 12px; box-shadow: inset 0 1px 0 var(--line); color: var(--muted); list-style: none; cursor: pointer; }
   ${ASSIST} .assistant-usage > summary::-webkit-details-marker { display: none; }
-  ${ASSIST} .assistant-usage > summary::before { content: "›"; display: inline-grid; place-items: center; width: 12px; font-size: 14px; line-height: 1; transition: transform var(--dur-move) var(--ease-quint); }
+  ${ASSIST} .assistant-usage > summary::before { content: "›"; display: inline-grid; place-items: center; width: 12px; font-size: 13px; line-height: 1; transition: transform var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-usage[open] > summary::before { transform: rotate(90deg); }
   ${ASSIST} .assistant-usage > summary:hover { color: var(--ink); }
   ${ASSIST} .assistant-usage > summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
@@ -620,17 +617,15 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-tab-main:active { transform: scale(.98); }
   ${ASSIST} .assistant-tab { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
   ${ASSIST} .assistant-segment { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
-  ${ASSIST} [data-mark="waiting"] .assistant-tab-mark { animation: assistant-breathe 2.4s ease-in-out infinite; }
-  @keyframes assistant-breathe { 50% { opacity: .4; } }
   /* Moving between works: the new work's content arrives; a drawer slides from its edge; the list grows from its button. */
-  ${ASSIST} .assistant-panel[data-arrive] :is(.assistant-thread, .assistant-side) { animation: assistant-arrive 220ms var(--ease-quint); }
+  ${ASSIST} .assistant-panel[data-arrive] :is(.assistant-thread, .assistant-side) { animation: assistant-arrive var(--dur-move) var(--ease-quint); }
   @keyframes assistant-arrive { from { opacity: .4; transform: translateY(4px); } to { opacity: 1; transform: none; } }
   ${ASSIST} .assistant-panel[data-layout="drawer"][data-side="open"] .assistant-side { animation: assistant-drawer var(--dur-move) var(--ease-quint); }
   @keyframes assistant-drawer { from { opacity: .6; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
-  ${ASSIST} .assistant-works:not([hidden]) { transform-origin: top right; animation: craft-drop 180ms var(--ease-quint); }
+  ${ASSIST} .assistant-works:not([hidden]) { transform-origin: top right; animation: craft-drop var(--dur-move) var(--ease-quint); }
   ${ASSIST} :is(.assistant-thread > .assistant-card, .assistant-thread > .assistant-problem, .assistant-round > .assistant-msg, .assistant-round > .assistant-card) { animation: craft-rise var(--dur-move) var(--ease-quint); }
   /* “Go to it” marks what it took you to for a moment. */
-  ${ASSIST} [data-flash] { outline: 2px solid transparent; outline-offset: 3px; animation: assistant-flash 1.4s var(--ease-quint); }
+  ${ASSIST} [data-flash] { outline: 2px solid transparent; outline-offset: 3px; animation: assistant-flash var(--dur-moment) var(--ease-quint); }
   @keyframes assistant-flash { 0%, 45% { outline-color: var(--accent); } 100% { outline-color: transparent; } }
   ${ASSIST} .assistant-attention[data-bump] { animation: assistant-bump 420ms var(--ease-spring); }
   @keyframes assistant-bump { 0% { transform: scale(.82); } 60% { transform: scale(1.08); } 100% { transform: none; } }

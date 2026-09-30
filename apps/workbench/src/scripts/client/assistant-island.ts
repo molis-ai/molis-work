@@ -796,6 +796,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (note) head.append(el("span", "assistant-block-note" + (attention ? " is-attention" : ""), note));
     head.addEventListener("click", () => {
       folded[key] = !folded[key]; if (!folded[key]) delete folded[key];
+      // Opening lets the rows arrive once; folding is immediate.
+      if (!folded[key]) { node.setAttribute("data-opening", ""); setTimeout(() => node.removeAttribute("data-opening"), 300); }
       store.set(BLOCKS_KEY, Object.keys(folded).length ? JSON.stringify(folded) : null);
       node.toggleAttribute("data-folded", Boolean(folded[key])); head.setAttribute("aria-expanded", String(!folded[key]));
     });
@@ -1016,7 +1018,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     thread.scrollTo({ top: node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop - 16, behavior: still ? "auto" : "smooth" });
     node.removeAttribute("data-flash"); void node.offsetWidth; node.setAttribute("data-flash", "");
-    setTimeout(() => node.removeAttribute("data-flash"), 1400);
+    setTimeout(() => node.removeAttribute("data-flash"), 700);
     node.querySelector("button:not([disabled]), input, select, textarea")?.focus({ preventScroll: true });
   };
   const nextStep = (work) => {

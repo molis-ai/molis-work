@@ -37,14 +37,20 @@ import {
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { completePrefs, consumerAccess, CONSUMER_LABELS, PERSONAL_PREFS_KEY, PROJECT_DEFAULT_PREFS_KEY, projectPrefsKey } from "./prefs.js";
 import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sameText } from "./text.js";
+import { fromEntryMeta, pauseReason, toEntryMeta } from "./facts.js";
+import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-/** One entry as Prologue Memory holds it. */
+/** One entry as Prologue Memory holds it, with the facts the platform keeps on it (spec §8.2 S3). */
 export interface MemoryBackendEntry {
   memory_id: string;
   text: string;
   origin: string;
   tags: string[];
   version: number;
+  meta: AgentMemoryMeta;
+  paused?: { reason: string; at_ms: number };
+  created_at_ms: number;
+  updated_at_ms: number;
 }
 
 /**
@@ -53,8 +59,13 @@ export interface MemoryBackendEntry {
  */
 export interface MemoryBackendPort {
   list(scope: MemoryScope, owner: string): Promise<MemoryBackendEntry[]>;
-  write(input: { scope: MemoryScope; owner: string; text: string; origin: string; tags: string[] }): Promise<MemoryBackendEntry>;
+  write(input: { scope: MemoryScope; owner: string; text: string; origin: string; tags: string[]; meta: AgentMemoryMeta }): Promise<MemoryBackendEntry>;
   update(input: { scope: MemoryScope; owner: string; memory_id: string; text: string }): Promise<MemoryBackendEntry>;
+  /** Replaces the facts on the entry; its text and version stay. */
+  setMeta(input: { scope: MemoryScope; owner: string; memory_id: string; meta: AgentMemoryMeta }): Promise<MemoryBackendEntry>;
+  /** Kept, never recalled (switched off, or what it rests on is gone), until resumed. */
+  pause(input: { scope: MemoryScope; owner: string; memory_id: string; reason: string }): Promise<MemoryBackendEntry>;
+  resume(input: { scope: MemoryScope; owner: string; memory_id: string }): Promise<MemoryBackendEntry>;
   remove(input: { scope: MemoryScope; owner: string; memory_id: string }): Promise<void>;
 }
 
@@ -263,6 +274,28 @@ export class MemoryService {
     return this.ports.ledger.uses({ ...filter, limit: 200 });
   }
 
+  /**
+   * A run's own facts settle its receipt (spec §8.2 S5): what the runtime left out for room, or found gone at start,
+   * was not used — 最近用于 follows what really went into the work.
+   */
+  settleUses(receiptId: string, fact: { injected: readonly string[]; omitted: readonly string[]; unavailable: readonly string[] }): void {
+    const uses = this.ports.ledger.uses({ receipt_id: receiptId, limit: 200 });
+    const changed = uses.filter(use => fact.omitted.includes(use.memory_id) || fact.unavailable.includes(use.memory_id)).map(use => ({ ...use, state: "omitted" as const }));
+    if (changed.length) this.ports.ledger.recordUses(changed);
+  }
+
+  /**
+   * The memories one Agent run is given (spec §7.2): the recall for its consumer, as exact entries for the runtime to
+   * re-read and inject as data. Null when this consumer may not use memories here or nothing applies.
+   */
+  async forRun(caller: MemoryCaller, request: MemoryRecallRequest): Promise<{ pinned: Array<{ scope: "user" | "project"; owner: string; memory_id: string }>; budget_chars: number; receipt_id: string } | null> {
+    const budget = request.budget_chars ?? 3000;
+    const recalled = await this.recall(caller, { ...request, budget_chars: budget });
+    if (recalled.state !== "ok" || !recalled.items.length) return null;
+    return { pinned: recalled.items.map(item => ({ scope: item.scope === "personal" ? "user" as const : "project" as const,
+      owner: item.scope === "personal" ? caller.actor_id : caller.project_id!, memory_id: item.memory_id })), budget_chars: budget, receipt_id: recalled.receipt_id };
+  }
+
   /* ---- writing ---- */
 
   /**
@@ -312,7 +345,7 @@ export class MemoryService {
     const same = entries.find(located => sameText(located.entry.text, text) && this.visibleTo(caller, located.meta));
     if (same) {
       // Said again: an automatic or accepted one becomes the person's own words.
-      if (EXPLICIT_SOURCES.includes(input.source) && same.meta.source === "auto") this.ports.ledger.saveMeta({ ...same.meta, source: input.source, basis: "explicit",
+      if (EXPLICIT_SOURCES.includes(input.source) && same.meta.source === "auto") await this.saveFacts(same, { ...same.meta, source: input.source, basis: "explicit",
         approved_by: input.approved_by, evidence: [...same.meta.evidence, ...input.evidence].slice(-6), updated_at: this.now().toISOString() });
       return { outcome: "duplicate", reason: same.meta.state === "disabled" ? "已经记着这一条（目前停用）" : "已经记着这一条了", applies_text: appliesText,
         memory: this.item(await this.find(caller, same.entry.memory_id)), candidate: null, change_id: null };
@@ -343,9 +376,9 @@ export class MemoryService {
         evidence: [...target.meta.evidence, ...input.evidence].slice(-6), expires_at: input.expires_at ?? target.meta.expires_at, state: "active", state_reason: null, updated_at: at };
       this.ports.ledger.transaction(() => {
         this.ensureRevision(target!, before);
-        this.ports.ledger.saveMeta(meta);
         this.ports.ledger.addRevision(updated.memory_id, { version: updated.version, text, kind: input.kind, applies: input.applies, change: "replaced", by: automatic ? "policy" : "person", at });
       });
+      await this.saveFacts({ ...target, entry: updated }, meta);
       const change = this.recordChange(caller, { kind: automatic ? "auto_replaced" : "replaced", scope: input.scope, owner: where.owner, memory_id: updated.memory_id, text,
         by: automatic ? "policy" : "person", rule: automatic ? MEMORY_GATE_RULE : null, reason: input.why ? `依据：${input.why}` : null,
         undo: automatic ? { action: "restore", version: before } : null });
@@ -353,15 +386,13 @@ export class MemoryService {
         memory: this.item({ scope: input.scope, owner: where.owner, entry: updated, meta }), candidate: null, change_id: change.change_id };
     }
     const origin = input.origin ?? await this.originFor(caller, input.scope, input.source, { said: input.said, why: input.why });
-    const entry = await this.ports.backend.write({ scope: input.scope, owner: where.owner, text, origin, tags: [input.source, input.kind] });
-    const meta: MemoryMetaRecord = { memory_id: entry.memory_id, scope: input.scope, owner: where.owner, kind: input.kind, source: input.source, basis: input.basis,
-      evidence: input.evidence.slice(-6), applies: input.applies, state: "active", state_reason: null, expires_at: input.expires_at, approved_by: input.approved_by,
-      plugin_id: caller.consumer === "plugin" ? caller.plugin_id ?? null : null, created_at: at, updated_at: at };
+    const facts = { kind: input.kind, source: input.source, basis: input.basis, evidence: input.evidence.slice(-6), applies: input.applies, expires_at: input.expires_at,
+      approved_by: input.approved_by, plugin_id: caller.consumer === "plugin" ? caller.plugin_id ?? null : null };
+    // The text and its facts go into Prologue in one write: there is never an entry without them.
+    const entry = await this.ports.backend.write({ scope: input.scope, owner: where.owner, text, origin, tags: [input.source, input.kind], meta: toEntryMeta(facts) });
+    const meta: MemoryMetaRecord = { memory_id: entry.memory_id, scope: input.scope, owner: where.owner, ...facts, state: "active", state_reason: null, created_at: at, updated_at: at };
     try {
-      this.ports.ledger.transaction(() => {
-        this.ports.ledger.saveMeta(meta);
-        this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text, kind: input.kind, applies: input.applies, change: "created", by: automatic ? "policy" : "person", at });
-      });
+      this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text, kind: input.kind, applies: input.applies, change: "created", by: automatic ? "policy" : "person", at });
     } catch (error) {
       // No half memory: without its facts the entry goes too.
       await this.ports.backend.remove({ scope: input.scope, owner: where.owner, memory_id: entry.memory_id }).catch(() => undefined);
@@ -399,13 +430,13 @@ export class MemoryService {
             this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text, kind: meta.kind, applies: meta.applies, change: "edited", by, at });
           });
         }
-        this.ports.ledger.saveMeta(meta);
+        await this.saveFacts({ scope, owner, entry }, meta, located.meta);
         const change = this.recordChange(caller, { kind: "edited", scope, owner, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: null, undo: null });
         return { memory: this.item({ scope, owner, entry, meta }), change: changeView(change) };
       }
       case "disable": case "enable": {
         const meta: MemoryMetaRecord = { ...located.meta, state: request.action === "disable" ? "disabled" : "active", state_reason: request.action === "disable" ? "你停用了" : null, updated_at: at };
-        this.ports.ledger.saveMeta(meta);
+        await this.saveFacts(located, meta, located.meta);
         const change = this.recordChange(caller, { kind: request.action === "disable" ? "disabled" : "enabled", scope, owner, memory_id: located.entry.memory_id, text: located.entry.text,
           by, rule: null, reason: null, undo: null });
         return { memory: this.item({ ...located, meta }), change: changeView(change) };
@@ -423,9 +454,9 @@ export class MemoryService {
         const meta: MemoryMetaRecord = { ...located.meta, kind: revision.kind, applies: revision.applies, updated_at: at };
         this.ports.ledger.transaction(() => {
           this.ensureRevision(located, before);
-          this.ports.ledger.saveMeta(meta);
           this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: revision.text, kind: revision.kind, applies: revision.applies, change: "restored", by, at });
         });
+        await this.saveFacts({ scope, owner, entry }, meta, located.meta);
         const change = this.recordChange(caller, { kind: "restored", scope, owner, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: `回到第 ${revision.version} 版`, undo: null });
         return { memory: this.item({ scope, owner, entry, meta }), change: changeView(change) };
       }
@@ -437,13 +468,12 @@ export class MemoryService {
         const date = this.date();
         // A personal memory travels to every project: it keeps no project's objects or work names.
         const origin = to === "personal" ? `${date} · 由项目记忆改为个人记忆` : `${date} · 由个人记忆改为项目记忆`;
-        const entry = await this.ports.backend.write({ scope: to, owner: target.owner, text: located.entry.text, origin, tags: [located.meta.source, located.meta.kind] });
-        const meta: MemoryMetaRecord = { ...located.meta, memory_id: entry.memory_id, scope: to, owner: target.owner, updated_at: at,
-          evidence: to === "personal" ? located.meta.evidence.filter(item => item.kind === "said") : located.meta.evidence };
-        this.ports.ledger.transaction(() => {
-          this.ports.ledger.saveMeta(meta);
-          this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: meta.kind, applies: meta.applies, change: "created", by, at });
-        });
+        const moved = { ...located.meta, evidence: to === "personal" ? located.meta.evidence.filter(item => item.kind === "said") : located.meta.evidence };
+        let entry = await this.ports.backend.write({ scope: to, owner: target.owner, text: located.entry.text, origin, tags: [located.meta.source, located.meta.kind], meta: toEntryMeta(moved) });
+        const meta: MemoryMetaRecord = { ...moved, memory_id: entry.memory_id, scope: to, owner: target.owner, updated_at: at };
+        // Switched off stays switched off where it moves to.
+        if (meta.state !== "active") entry = await this.ports.backend.pause({ scope: to, owner: target.owner, memory_id: entry.memory_id, reason: pauseReason(meta.state, meta.state_reason) });
+        this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: meta.kind, applies: meta.applies, change: "created", by, at });
         await this.purge(located);
         const change = this.recordChange(caller, { kind: "moved", scope: to, owner: target.owner, memory_id: entry.memory_id, text: entry.text, by, rule: null,
           reason: to === "personal" ? "改为个人记忆" : "改为项目记忆", undo: null });
@@ -657,7 +687,7 @@ export class MemoryService {
 
   private async located(caller: MemoryCaller, scope: MemoryScope, owner: string): Promise<Located[]> {
     const entries = await this.ports.backend.list(scope, owner);
-    return entries.map(entry => ({ scope, owner, entry, meta: this.metaFor(caller.actor_id, scope, owner, entry) }));
+    return Promise.all(entries.map(async entry => ({ scope, owner, entry, meta: await this.metaFor(caller.actor_id, scope, owner, entry) })));
   }
 
   private async find(caller: MemoryCaller, memoryId: string): Promise<Located> {
@@ -668,24 +698,40 @@ export class MemoryService {
     throw new MemoryError("memory.not_found", "这条记忆不在这里（可能已删除，或属于别的项目）");
   }
 
-  /** Facts of an entry written before this service (the first version): read from its tags and the old switched-off list, then kept. */
-  private metaFor(actorId: string, scope: MemoryScope, owner: string, entry: MemoryBackendEntry): MemoryMetaRecord {
-    const saved = this.ports.ledger.meta(entry.memory_id);
-    if (saved) return saved;
-    const legacy = this.ports.ledger.migration(actorId, LEGACY_SOURCE)?.body as { disabled?: string[] } | undefined;
-    const disabled = !!legacy?.disabled?.includes(entry.memory_id);
-    const source: MemorySource = entry.tags.includes("accepted-suggestion") ? "accepted" : (MEMORY_SOURCE_TAGS.find(tag => entry.tags.includes(tag)) ?? "said");
-    const kind: MemoryKind = MEMORY_KINDS.find(tag => entry.tags.includes(tag)) ?? (scope === "project" ? "convention" : "preference");
-    const said = /你说：“(.+)”$/.exec(entry.origin)?.[1];
+  /**
+   * An entry's facts, from the entry itself. One written before the facts moved onto entries gets them once: from the
+   * Host ledger where this service kept them first (M1), or, for the first version's entries, from its tags and the
+   * old switched-off list.
+   */
+  private async metaFor(actorId: string, scope: MemoryScope, owner: string, entry: MemoryBackendEntry): Promise<MemoryMetaRecord> {
+    const own = fromEntryMeta({ memory_id: entry.memory_id, scope, owner, meta: entry.meta, ...(entry.paused ? { paused: entry.paused } : {}),
+      created_at_ms: entry.created_at_ms, updated_at_ms: entry.updated_at_ms }, this.now());
+    if (own) return own;
+    let meta = this.ports.ledger.meta(entry.memory_id);
     const at = this.now().toISOString();
-    const meta: MemoryMetaRecord = { memory_id: entry.memory_id, scope, owner, kind, source, basis: source === "auto" ? "repeated" : "explicit",
-      evidence: said ? [{ kind: "said", text: said, at }] : [], applies: {}, state: disabled ? "disabled" : "active", state_reason: disabled ? "你停用了" : null,
-      expires_at: null, approved_by: { by: "person" }, plugin_id: null, created_at: at, updated_at: at };
-    this.ports.ledger.transaction(() => {
-      this.ports.ledger.saveMeta(meta);
-      if (!this.ports.ledger.revisions(entry.memory_id).length) this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind, applies: {}, change: "created", by: "person", at });
-    });
+    if (!meta) {
+      const legacy = this.ports.ledger.migration(actorId, LEGACY_SOURCE)?.body as { disabled?: string[] } | undefined;
+      const disabled = !!legacy?.disabled?.includes(entry.memory_id);
+      const source: MemorySource = entry.tags.includes("accepted-suggestion") ? "accepted" : (MEMORY_SOURCE_TAGS.find(tag => entry.tags.includes(tag)) ?? "said");
+      const kind: MemoryKind = MEMORY_KINDS.find(tag => entry.tags.includes(tag)) ?? (scope === "project" ? "convention" : "preference");
+      const said = /你说：“(.+)”$/.exec(entry.origin)?.[1];
+      meta = { memory_id: entry.memory_id, scope, owner, kind, source, basis: source === "auto" ? "repeated" : "explicit",
+        evidence: said ? [{ kind: "said", text: said, at }] : [], applies: {}, state: disabled ? "disabled" : "active", state_reason: disabled ? "你停用了" : null,
+        expires_at: null, approved_by: { by: "person" }, plugin_id: null, created_at: at, updated_at: at };
+    }
+    await this.ports.backend.setMeta({ scope, owner, memory_id: entry.memory_id, meta: toEntryMeta(meta) });
+    if (meta.state !== "active") await this.ports.backend.pause({ scope, owner, memory_id: entry.memory_id, reason: pauseReason(meta.state, meta.state_reason) });
+    if (!this.ports.ledger.revisions(entry.memory_id).length) this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: meta.kind, applies: meta.applies, change: "created", by: "person", at });
     return meta;
+  }
+
+  /** Keep changed facts on the entry: its metadata, and paused or not. */
+  private async saveFacts(located: { scope: MemoryScope; owner: string; entry: MemoryBackendEntry }, meta: MemoryMetaRecord, before?: MemoryMetaRecord): Promise<void> {
+    const where = { scope: located.scope, owner: located.owner, memory_id: located.entry.memory_id };
+    await this.ports.backend.setMeta({ ...where, meta: toEntryMeta(meta) });
+    const was = before?.state ?? (located.entry.paused ? "paused" : "active");
+    if (meta.state === "active" && was !== "active") await this.ports.backend.resume(where);
+    else if (meta.state !== "active" && (was !== meta.state || before?.state_reason !== meta.state_reason)) await this.ports.backend.pause({ ...where, reason: pauseReason(meta.state, meta.state_reason) });
   }
 
   /** History holds every version; an entry that predates the ledger gets its current version recorded before it changes. */

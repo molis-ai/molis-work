@@ -56,7 +56,7 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
 
 function prefRow(_L: (text: string) => string, key: string, title: string, description: string): string {
   return `<label class="settings-setting-row memory-pref"><span class="setting-copy"><strong>${title}</strong><span>${description}</span></span>
-    <span class="setting-value"><span class="mw-switch"><input type="checkbox" role="switch" data-memory-pref="${key}" aria-label="${title}"><span class="mw-switch__track" aria-hidden="true"></span></span></span></label>`;
+    <span class="setting-value"><span class="mw-switch"><input type="checkbox" role="switch" data-memory-pref="${key}" aria-label="${title}" disabled><span class="mw-switch__track" aria-hidden="true"></span></span></span></label>`;
 }
 
 /**
@@ -298,6 +298,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const path = box.dataset.memoryPref.split(".");
         const value = path.length === 2 ? (prefs[path[0]] || {})[path[1]] : prefs[path[0]];
         box.checked = Boolean(value);
+        box.disabled = false;
       });
     }
 

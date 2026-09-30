@@ -137,6 +137,8 @@ export interface PrologueStartInput {
   };
   compaction?: { prompt: string; above_tokens: number };
   task: string;
+  /** Memories the Host chose for this run; the runtime re-reads each and injects it as data. */
+  memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory;
   text_materials?: readonly AgentTextMaterial[];
   /** Images shown to the model in this Run (runtime resource references). */
   image_materials?: readonly AgentImageMaterial[];
@@ -600,6 +602,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       },
       ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}),
       task: request.task,
+      ...(role.memory?.pinned.length ? { memory: structuredClone(role.memory) } : {}),
       ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),
       ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
       text_materials: textMaterials,
@@ -833,6 +836,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         ...(this.#runtime.readPendingQuestion ? { answerable: false, unavailable_reason: "正在读取原问题" } : {}),
       })),
       stop_reason: stopReason,
+      ...(record.state.memory_recalled ? { memory_recalled: structuredClone(record.state.memory_recalled) } : {}),
       ...(stampTerminal && isEnded(phase) && record.view.ended_at === null
         ? { ended_at: record.observedEndAt ?? this.#now().toISOString() }
         : {}),

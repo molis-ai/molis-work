@@ -56,6 +56,17 @@ export interface MemoryHostPorts {
   projectTitle?(projectId: string): Promise<string | null>;
 }
 
+/**
+ * The memories an Agent run is given, for Agent work (Coding, plugin Agents, scheduled runs): the platform recall with
+ * this Home's person and the run's project, under the Agent consumer's switch. Null when there is no memory host yet.
+ */
+export async function memoryForAgentRun(localHost: MolisWorkLocalHost, input: { project_id: string | null; task: string; used_for: string; plugin_id?: string }) {
+  const host = memoryHostFor(localHost);
+  if (!host) return null;
+  return host.service.forRun({ actor_id: LOCAL_PERSON, project_id: input.project_id, consumer: "agent" },
+    { query: input.task.slice(0, 2000), used_for: input.used_for.slice(0, 80), ...(input.plugin_id ? { situation: { plugin_id: input.plugin_id } } : {}), limit: 12 });
+}
+
 /** Registered once per Local Host, next to the Agent service that owns the runtime. */
 export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const existing = hosts.get(ports.localHost);
@@ -119,11 +130,20 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
 /** Prologue Memory of the runtime as the memory service's store: personal memories are its `user` scope. */
 export function prologueMemoryBackend(store: () => Promise<AgentMemoryCapability>): MemoryBackendPort {
   const prologueScope = (scope: MemoryScope) => scope === "personal" ? "user" as const : "project" as const;
-  const view = (entry: AgentMemoryEntry) => ({ memory_id: entry.memory_id, text: entry.text, origin: entry.origin, tags: [...entry.tags], version: entry.version });
+  const view = (entry: AgentMemoryEntry) => ({ memory_id: entry.memory_id, text: entry.text, origin: entry.origin, tags: [...entry.tags], version: entry.version,
+    meta: entry.meta ?? {}, ...(entry.paused ? { paused: entry.paused } : {}), created_at_ms: entry.created_at_ms ?? 0, updated_at_ms: entry.updated_at_ms ?? 0 });
+  const required = <K extends "setMeta" | "pause" | "resume">(memory: AgentMemoryCapability, name: K): NonNullable<AgentMemoryCapability[K]> => {
+    const method = memory[name];
+    if (!method) throw new MemoryError("memory.off", "当前运行时的记忆不支持结构化信息与暂停");
+    return method.bind(memory) as NonNullable<AgentMemoryCapability[K]>;
+  };
   return {
     list: async (scope, owner) => (await (await store()).list(prologueScope(scope), owner)).map(view),
-    write: async input => view(await (await store()).write({ scope: prologueScope(input.scope), owner: input.owner, text: input.text, origin: input.origin, tags: input.tags })),
+    write: async input => view(await (await store()).write({ scope: prologueScope(input.scope), owner: input.owner, text: input.text, origin: input.origin, tags: input.tags, meta: input.meta })),
     update: async input => view(await (await store()).update({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id, text: input.text })),
+    setMeta: async input => view(await required(await store(), "setMeta")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id, meta: input.meta })),
+    pause: async input => view(await required(await store(), "pause")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id, reason: input.reason })),
+    resume: async input => view(await required(await store(), "resume")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id })),
     remove: async input => { await (await store()).remove({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id }); },
   };
 }

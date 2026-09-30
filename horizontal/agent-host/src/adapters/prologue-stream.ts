@@ -92,6 +92,8 @@ export interface PrologueStreamState {
   reasoning_index?: number;
   /** The SDK is continuing an answer the output limit cut off: its thinking must not close that answer. */
   continuing?: true;
+  /** What the Run took from memory at its start (the runtime's own event: references and versions only). */
+  memory_recalled?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryRecallFact;
 }
 
 export function emptyPrologueStreamState(): PrologueStreamState {
@@ -462,6 +464,15 @@ export function applyPrologueEvent(
       state.stop_reason = tripped.failed === true
         ? `护栏 ${tripped.rail} 自身出错，已按绊停处理`
         : `被护栏 ${tripped.rail} 拦下：${tripped.why}`;
+      return true;
+    }
+
+    // Which memories the runtime really injected, left out for room, or found gone at start. No text travels here.
+    case "memory-recalled": {
+      const recalled = event as unknown as { method?: string; injected?: Array<{ id: string; version: number }>; omitted?: Array<{ id: string; version: number }>; unavailable?: string[] };
+      state.memory_recalled = { method: recalled.method === "recall" ? "recall" : "pinned",
+        injected: (recalled.injected ?? []).map(one => ({ memory_id: one.id, version: one.version })),
+        omitted: (recalled.omitted ?? []).map(one => ({ memory_id: one.id, version: one.version })), unavailable: [...(recalled.unavailable ?? [])] };
       return true;
     }
 

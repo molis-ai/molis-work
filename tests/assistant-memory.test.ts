@@ -55,7 +55,8 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const round = async (text: string, project: typeof projectA | null, request: string, workId?: string) => {
     const before = requests.length;
@@ -80,7 +81,7 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
 
     // Another project sees the personal preference, never project A's convention.
     const inB = await round("总结一下本周进展", projectB, "req-memory-002");
-    assert.match(recalled(inB.first), /记住的偏好与背景[\s\S]*回答用要点列表/);
+    assert.match(recalled(inB.first), /memory-recall[\s\S]{0,400}回答用要点列表/, "the personal memory reaches the round as Prologue memory-recall data");
     assert.doesNotMatch(recalled(inB.first), /NSM/);
     assert.deepEqual((await service.memories("project-b")).map(item => item.text), ["回答用要点列表"]);
     // The panel sees what each round was given, and what the work kept (specs/memory-system §7.3, §10.3).
@@ -91,7 +92,7 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
       [["kept", "回答用要点列表", false], ["kept", "项目甲里 NSM 指北极星指标", false]]);
     // Project A's work sees both.
     const inA = await round("NSM 这周怎么样", projectA, "req-memory-003");
-    assert.match(recalled(inA.first), /\[本项目\] 项目甲里 NSM 指北极星指标/);
+    assert.match(recalled(inA.first), /memory-recall[\s\S]{0,400}项目甲里 NSM 指北极星指标/);
 
     // Switched off: kept, but not used; switched on again: used again.
     await service.changeMemory({ memory_id: kept[0]!.memory_id, action: "disable" }, "project-a");
@@ -158,7 +159,8 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const tools = (body: any) => (body.tools as Array<{ name: string }>).map(tool => tool.name);
   const lesson = { text: "项目甲的周报先写风险，再写进展", scope: "project", why: "这次和上次你都把风险挪到了最前面", applies: "写项目甲的周报时" };
@@ -226,7 +228,7 @@ test("memory switches hold the same when a Character carries the round; turning 
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
-      resolveCharacter: () => structuredClone(editor) as never }),
+      memory: (task: string) => service.memoryForRound(work, task), resolveCharacter: () => structuredClone(editor) as never }),
     characters: async () => [{ reference: { ...editor.reference }, title: editor.title, available: true }],
     projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const tools = (body: any) => (body.tools as Array<{ name: string }>).map(tool => tool.name);

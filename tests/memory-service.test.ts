@@ -259,3 +259,26 @@ test("the first version's switches, switched-off list and candidates move over o
   assert.deepEqual(memory.migrateLegacy("web-user", { prefs: { form: false }, disabled: [], candidates: [] }), { migrated: false, prefs: false, disabled: 0, candidates: 0 });
   assert.equal(memory.assistantPrefs("web-user").form, true);
 });
+
+test("facts live on the Prologue entry itself: kind, source, applies and expiry in its metadata, switched off as the entry paused; ledger-era facts move over once", { timeout: 60_000 }, async t => {
+  const env = await memoryHome(t);
+  const memory = await env.open();
+  const kept = (await memory.write(assistant(), { scope: "personal", text: "周报用要点列表", said: "以后周报都用要点列表", applies: { task: "写周报时" }, expires_at: "2099-01-01T00:00:00.000Z" })).memory!;
+  const [raw] = await env.raw().list("personal", "web-user");
+  assert.deepEqual([raw!.meta.kind, raw!.meta.source, raw!.meta.basis, raw!.meta.applies_when?.task, raw!.meta.expires_at_ms, raw!.meta.approved_by], ["preference", "said", "explicit", "写周报时", Date.parse("2099-01-01T00:00:00.000Z"), { by: "person" }]);
+  assert.equal(raw!.meta.evidence?.[0]?.text, "以后周报都用要点列表");
+  await memory.change(person(), { memory_id: kept.memory_id, action: "disable" });
+  assert.match((await env.raw().list("personal", "web-user"))[0]!.paused?.reason ?? "", /^disabled:/);
+  await memory.change(person(), { memory_id: kept.memory_id, action: "enable" });
+  assert.equal((await env.raw().list("personal", "web-user"))[0]!.paused, undefined);
+
+  // An entry from the ledger-era (facts kept by the Host, none on the entry): its facts move onto the entry on first read.
+  const old = await env.raw().write({ scope: "project", owner: "project-a", text: "发布前先跑回归", origin: "2026年9月30日 · 你在设置里添加", tags: ["manual", "convention"], meta: {} });
+  env.ledger().saveMeta({ memory_id: old.memory_id, scope: "project", owner: "project-a", kind: "experience", source: "manual", basis: "explicit", evidence: [], applies: { task: "发布前" },
+    state: "disabled", state_reason: "你停用了", expires_at: null, approved_by: { by: "person" }, plugin_id: null, created_at: "2026-09-30T00:00:00.000Z", updated_at: "2026-09-30T00:00:00.000Z" });
+  const moved = (await memory.list(person())).items.find(item => item.memory_id === old.memory_id)!;
+  assert.deepEqual([moved.kind, moved.state, moved.applies.task], ["experience", "disabled", "发布前"]);
+  const entry = (await env.raw().list("project", "project-a")).find(item => item.memory_id === old.memory_id)!;
+  assert.equal(entry.meta.kind, "experience");
+  assert.match(entry.paused?.reason ?? "", /^disabled:/);
+});

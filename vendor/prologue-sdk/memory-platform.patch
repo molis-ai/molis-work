@@ -1,0 +1,1213 @@
+diff --git a/packages/sdk/src/agent/core/start-input.ts b/packages/sdk/src/agent/core/start-input.ts
+index 748fc894..eb1a07e1 100644
+--- a/packages/sdk/src/agent/core/start-input.ts
++++ b/packages/sdk/src/agent/core/start-input.ts
+@@ -3,6 +3,7 @@ import { createPrologueError } from "../../kernel/core/index.js";
+ import type { NetworkAllowance } from "../../host/core/index.js";
+ import type { Posture, SandboxPosture } from "../../effect-policy/core/index.js";
+ import type { ResourceBinding } from "../../model/core/index.js";
++import type { MemoryScope } from "../../memory/core/index.js";
+ import {
+   assertModeAvailable,
+   resolveModeLimits,
+@@ -83,14 +84,55 @@ export interface AgentStartInput {
+   };
+   /**
+    * 记忆注不注。**只能关不能开**：档案说不读，这一次说读，那是扩权。
++   *
++   * `pinned`：App 按自己的策略（开关、适用情境、授权）挑好的几条，精确引用。Runtime 开跑时逐条重读：
++   * 删了的、墓碑的、暂停的、到期的一律不进包；其余按数据档注入、按预算裁，并在 Run 事件里记下用了哪几条、
++   * 哪几条没放下。给了它就**不再**做内置召回。
++   * `scopes`：内置召回查哪几个格子（不给就是原来的 `app` 那一格），按这一轮的话中文两字切词。
+    */
+-  readonly memory?: { readonly recall?: boolean; readonly write?: boolean };
++  readonly memory?: {
++    readonly recall?: boolean;
++    readonly write?: boolean;
++    readonly pinned?: readonly ExactRef<"memory">[];
++    readonly scopes?: readonly { readonly scope: MemoryScope; readonly owner: string }[];
++    readonly budgetChars?: number;
++  };
+   /** 这一轮跑哪几条护栏。不给就是全跑。**给了只能是子集**——关掉一条
+    * 护栏是收紧还是放松，取决于护栏本身，所以名单只做交集，点不存在的
+    * 名字直接失败。 */
+   readonly guardrailNames?: readonly string[];
+ }
+ 
++/** 记忆怎么挑，冻进这一次的事实（和指纹）。形状不对直接失败，不静默丢。 */
++function freezeMemoryChoice(memory: AgentStartInput["memory"]): {
++  readonly pinned?: readonly ExactRef<"memory">[];
++  readonly scopes?: readonly { readonly scope: MemoryScope; readonly owner: string }[];
++  readonly budgetChars?: number;
++} {
++  if (memory === undefined) return {};
++  const out: { pinned?: readonly ExactRef<"memory">[]; scopes?: readonly { scope: MemoryScope; owner: string }[]; budgetChars?: number } = {};
++  if (memory.pinned !== undefined) {
++    if (!Array.isArray(memory.pinned) || memory.pinned.length > 50 || memory.pinned.some((ref) => ref?.kind !== "memory" || typeof ref.id !== "string" || !ref.id)) {
++      throw createPrologueError("AGENT_START_INVALID", "memory.pinned takes at most 50 exact memory references.");
++    }
++    out.pinned = Object.freeze(memory.pinned.map((ref) => ({ ...ref })));
++  }
++  if (memory.scopes !== undefined) {
++    const allowed: readonly MemoryScope[] = ["user", "app", "character", "session", "project"];
++    if (!Array.isArray(memory.scopes) || memory.scopes.length > 8 || memory.scopes.some((one) => !allowed.includes(one?.scope) || typeof one.owner !== "string" || !one.owner)) {
++      throw createPrologueError("AGENT_START_INVALID", "memory.scopes takes at most 8 scope and owner pairs.");
++    }
++    out.scopes = Object.freeze(memory.scopes.map((one) => Object.freeze({ scope: one.scope, owner: one.owner })));
++  }
++  if (memory.budgetChars !== undefined) {
++    if (!Number.isSafeInteger(memory.budgetChars) || memory.budgetChars < 100 || memory.budgetChars > 20_000) {
++      throw createPrologueError("AGENT_START_INVALID", "memory.budgetChars is between 100 and 20000.");
++    }
++    out.budgetChars = memory.budgetChars;
++  }
++  return out;
++}
++
+ const SANDBOX_RANK: Readonly<Record<SandboxPosture, number>> = {
+   "read-only": 0,
+   "workspace-write": 1,
+@@ -153,8 +195,14 @@ export interface FrozenStart {
+      */
+     readonly textResources?: readonly ResourceBinding[];
+   };
+-  /** 记忆注不注。已经和档案求过交。 */
+-  readonly memory: { readonly recall: boolean; readonly write: boolean };
++  /** 记忆注不注。已经和档案求过交。怎么挑（`pinned` / `scopes` / `budgetChars`）只有给了才出现，旧开始指纹不变。 */
++  readonly memory: {
++    readonly recall: boolean;
++    readonly write: boolean;
++    readonly pinned?: readonly ExactRef<"memory">[];
++    readonly scopes?: readonly { readonly scope: MemoryScope; readonly owner: string }[];
++    readonly budgetChars?: number;
++  };
+   /** 有效护栏名单。`undefined` 表示全跑。 */
+   readonly guardrailNames: readonly string[] | undefined;
+   /**
+@@ -426,6 +474,12 @@ export function freezeStart(input: {
+     return want === false ? false : ceiling;
+   };
+ 
++  // 点名要哪几条、查哪几格，也是“读记忆”：档案不读的执行者，点名同样是扩权。
++  const memoryChoice = freezeMemoryChoice(start.memory);
++  if ((memoryChoice.pinned !== undefined || memoryChoice.scopes !== undefined) && !memoryCeiling.recall) {
++    throw createPrologueError("AGENT_START_WIDENS_ACCESS", "Start input named memories to recall, which this executor never does.");
++  }
++
+   const textResources = freezeTextResourceBindings(start.mount?.textResources);
+   const mount = Object.freeze({
+     sources: narrowNames(start.mount?.sources, available.sources ?? [], "sources") ?? [],
+@@ -446,6 +500,7 @@ export function freezeStart(input: {
+     memory: Object.freeze({
+       recall: narrowMemory(start.memory?.recall, memoryCeiling.recall, "recall"),
+       write: narrowMemory(start.memory?.write, memoryCeiling.write, "write"),
++      ...memoryChoice,
+     }),
+     guardrailNames: narrowNames(
+       start.guardrailNames,
+diff --git a/packages/sdk/src/composition/core/runtime.ts b/packages/sdk/src/composition/core/runtime.ts
+index 266584ee..036a8ba1 100644
+--- a/packages/sdk/src/composition/core/runtime.ts
++++ b/packages/sdk/src/composition/core/runtime.ts
+@@ -47,10 +47,14 @@ import {
+   type StoredEnvelope,
+ } from "../../delivery/core/index.js";
+ import {
++  createCandidateBox,
+   createExtractionInbox,
+   createMemoryStore,
++  type CandidateBox,
+   type ExtractionInbox,
++  type MemoryEntry,
+   type MemoryStore,
++  type StoredCandidate,
+   type StoredMemory,
+   type VectorBackend,
+ } from "../../memory/core/index.js";
+@@ -598,6 +602,11 @@ export interface Runtime {
+   /** 运行知识。**默认不悄悄记**——提炼默认关，接受要人点。 */
+   readonly memory: MemoryStore;
+   readonly memoryInbox: ExtractionInbox;
++  /**
++   * 待认可的记忆候选：落盘、分作用域。进库只有两条路：人接受，或 App 登记的确定性策略晋升（带版本）。
++   * **模型不能自己批准自己**——它只能经 App 提候选。
++   */
++  readonly memoryCandidates: CandidateBox;
+   /** 通用资产。未登记的类型 fail-closed。 */
+   readonly artifacts: ArtifactRegistry;
+   /** 资料来源。搜索只认就绪版本，引用撤掉之后出网前失败。 */
+@@ -2589,6 +2598,8 @@ export async function createRuntime(
+   });
+   const memory = createMemoryStore({
+     newId: domainId,
++    // 时刻走 Host 的时钟 Port：到期判断和时间戳都能在测试里拨。
++    now: async () => (await input.host.readClock()).wallTimeMs,
+     ...(input.vectorRecall === undefined ? {} : { vector: input.vectorRecall }),
+     /*
+      * 记忆落盘。**存法和 Goal / 任务图同一份合同**——作用域进 key、
+@@ -2602,6 +2613,13 @@ export async function createRuntime(
+     // **默认关。** 悄悄记是这一块点名要挡的事。
+     enabled: runtimeConfig.memory.extraction,
+   });
++  const memoryCandidates = createCandidateBox({
++    memory,
++    newId: domainId,
++    now: async () => (await input.host.readClock()).wallTimeMs,
++    // 候选落盘：**另一张表**，存法同记忆那一张。
++    store: createRegistryStore<StoredCandidate>({ store, kind: "memory-candidates" }),
++  });
+   const artifacts = createArtifactRegistry({
+     newId: domainId,
+     // 资产登记表落盘。**存法和上面几张表同一份合同。**
+@@ -3054,6 +3072,9 @@ export async function createRuntime(
+       return memory;
+     },
+ 
++    get memoryCandidates() {
++      return memoryCandidates;
++    },
+     get memoryInbox() {
+       return memoryInbox;
+     },
+@@ -4563,7 +4584,8 @@ export async function createRuntime(
+        * 两样都**按数据进包**，一视同仁——一段召回的记忆和一段检索出来
+        * 的文档都改不了指令，也改不了权限。
+        */
+-      const { recalled, mounted: searched } = gatherMaterial({
++      const { recalled, mounted: searched, memoryChoice } = gatherMaterial({
++        nowMs: (await runtime.readClock()).wallTimeMs,
+         frozen,
+         memory,
+         sources,
+@@ -4693,6 +4715,8 @@ export async function createRuntime(
+       };
+ 
+       const assembledContext = await packFor(character);
++      // 记下这一跑实际用了哪几条记忆：窗口放不下而被丢掉的，算“没放下”。
++      const memoryUsed = memoryChoice === undefined ? undefined : settleMemoryChoice(memoryChoice, assembledContext.pack.omitted);
+ 
+       /*
+        * 打好的包分两段。
+@@ -5379,6 +5403,8 @@ export async function createRuntime(
+         currentRunId = ctx.runRef.id;
+         emitToRun = ctx.emit;
+         flushRunProgress = ctx.flushProgress;
++        // 开跑第一件事：说清这一跑带着哪几条记忆（只有引用和版本）。
++        if (memoryUsed !== undefined) ctx.emit({ type: "memory-recalled", ...memoryUsed });
+         parentIntent.isCancelled = () => ctx.isCancelled();
+         parentIntent.onCancel = (listener) => ctx.onCancelRequest(listener);
+         const stopParentChildren = ctx.onCancelRequest(() => {
+@@ -6107,6 +6133,7 @@ async function gatherPersona(input: {
+ 
+ function gatherMaterial(input: {
+   readonly frozen: ReturnType<typeof freezeStart>;
++  readonly nowMs: number;
+   readonly memory: MemoryStore;
+   readonly sources: SourceRegistry;
+   readonly artifacts: ArtifactRegistry;
+@@ -6115,6 +6142,8 @@ function gatherMaterial(input: {
+ }): {
+   readonly recalled: readonly { readonly text: string; readonly origin: string }[];
+   readonly mounted: readonly { readonly text: string; readonly origin: string }[];
++  /** App 点名或按格子召回时：注入了哪几条、哪几条没放下、哪几条不可用。旧的 `app` 默认召回没有这一项。 */
++  readonly memoryChoice?: MemoryChoice;
+ } {
+   /*
+    * **只有档案说要读才读。** 默认不读——一个默认就把过去的东西塞进
+@@ -6123,7 +6152,12 @@ function gatherMaterial(input: {
+    * **冻住的那个说了算**：档案说读、这一次说不读，就不读；反过来
+    * （档案不读、这一次要读）在冻的时候就已经失败了。
+    */
+-  const recalled = input.frozen.memory.recall
++  const chosen = input.frozen.memory.recall && (input.frozen.memory.pinned !== undefined || input.frozen.memory.scopes !== undefined)
++    ? chooseMemory(input)
++    : undefined;
++  const recalled = chosen !== undefined
++    ? chosen.items
++    : input.frozen.memory.recall
+     ? input.memory.toContextItems(
+         input.memory.recall({
+           scope: "app",
+@@ -6160,7 +6194,88 @@ function gatherMaterial(input: {
+     }),
+   ];
+ 
+-  return { recalled, mounted };
++  return { recalled, mounted, ...(chosen === undefined ? {} : { memoryChoice: chosen.choice }) };
++}
++
++/** 一次开跑挑中的记忆。只有引用和版本。 */
++interface MemoryChoice {
++  readonly method: "pinned" | "recall";
++  readonly segmentation: "given" | "cjk-bigram";
++  readonly injected: readonly { readonly id: string; readonly version: number }[];
++  readonly omitted: readonly { readonly id: string; readonly version: number }[];
++  readonly unavailable: readonly string[];
++}
++
++/** 召回条目在包里的出处尾巴：从包里认回是哪一条、哪一版，不靠比正文。 */
++const MEMORY_ORIGIN_TAG = /\s\[memory:([^@\]\s]+)@v(\d+)\]$/;
++
++/**
++ * App 点名的几条（`pinned`），或按几个格子自己召回（`scopes`，中文按两字切）。
++ *
++ * **点名的也要重读**：App 挑的那一刻和开跑这一刻之间，那条可能刚被删、被暂停或到期了——
++ * 这时它不进包，记在 `unavailable` 里，而不是照着 App 手里的旧副本注入。
++ */
++function chooseMemory(input: {
++  readonly frozen: ReturnType<typeof freezeStart>;
++  readonly memory: MemoryStore;
++  readonly appId: string;
++  readonly messages: readonly ModelMessage[];
++  /** 开跑这一刻（走时钟 Port 读的）：到期的不注入。 */
++  readonly nowMs: number;
++}): { readonly items: readonly { readonly text: string; readonly origin: string }[]; readonly choice: MemoryChoice } {
++  const budget = input.frozen.memory.budgetChars ?? 2000;
++  const now = input.nowMs;
++  const unavailable: string[] = [];
++  let entries: MemoryEntry[] = [];
++  let segmentation: MemoryChoice["segmentation"] = "given";
++  if (input.frozen.memory.pinned !== undefined) {
++    for (const ref of input.frozen.memory.pinned) {
++      const entry = input.memory.get(ref);
++      if (entry === undefined || entry.paused !== undefined || (entry.meta.expiresAtMs !== undefined && entry.meta.expiresAtMs <= now)) unavailable.push(ref.id);
++      else entries.push(entry);
++    }
++  } else {
++    const text = input.messages.map((message) => message.text).join(" ");
++    const hits = (input.frozen.memory.scopes ?? []).flatMap((one) => input.memory.recall({ scope: one.scope, owner: one.owner, text, limit: 12, atMs: input.nowMs }).hits);
++    entries = [...hits].sort((a, b) => b.score - a.score).map((hit) => hit.entry);
++    segmentation = "cjk-bigram";
++  }
++  const items: { text: string; origin: string }[] = [];
++  const injected: { id: string; version: number }[] = [];
++  const omitted: { id: string; version: number }[] = [];
++  let used = 0;
++  for (const entry of entries) {
++    // 预算不够就裁。**裁掉 ≠ 删持久**，而且如实记下裁了哪几条。
++    if (used + entry.text.length > budget) {
++      omitted.push({ id: entry.ref.id, version: entry.version });
++      continue;
++    }
++    used += entry.text.length;
++    injected.push({ id: entry.ref.id, version: entry.version });
++    items.push({ text: entry.text, origin: `${entry.origin} [memory:${entry.ref.id}@v${entry.version}]` });
++  }
++  return {
++    items,
++    choice: {
++      method: input.frozen.memory.pinned !== undefined ? "pinned" : "recall",
++      segmentation,
++      injected: Object.freeze(injected),
++      omitted: Object.freeze(omitted),
++      unavailable: Object.freeze(unavailable),
++    },
++  };
++}
++
++/** 包打好之后：因窗口放不下被丢掉的召回条目，从“注入”挪到“没放下”。 */
++function settleMemoryChoice(choice: MemoryChoice, packOmitted: readonly { readonly source: string; readonly origin: string }[]): MemoryChoice {
++  const dropped = new Set(packOmitted.filter((item) => item.source === "memory-recall")
++    .map((item) => MEMORY_ORIGIN_TAG.exec(item.origin)?.[1]).filter((id): id is string => id !== undefined));
++  if (dropped.size === 0) return choice;
++  return {
++    ...choice,
++    injected: Object.freeze(choice.injected.filter((one) => !dropped.has(one.id))),
++    omitted: Object.freeze([...choice.omitted, ...choice.injected.filter((one) => dropped.has(one.id))]),
++  };
+ }
+ 
+ /**
+diff --git a/packages/sdk/src/index.ts b/packages/sdk/src/index.ts
+index a6225443..5b690431 100644
+--- a/packages/sdk/src/index.ts
++++ b/packages/sdk/src/index.ts
+@@ -762,12 +762,18 @@ export type {
+   CharacterState,
+   FrozenCharacter,
+ } from "./character/api/index.js";
+-export { createExtractionInbox, createMemoryStore } from "./memory/api/index.js";
++export { assertMemoryMeta, createCandidateBox, createExtractionInbox, createMemoryStore, MEMORY_META_LIMITS, memoryKeywords } from "./memory/api/index.js";
+ export type {
++  CandidateBox,
++  CandidateRowStore,
+   ExtractionInbox,
++  MemoryApproval,
+   MemoryCandidate,
+   MemoryEntry,
+   MemoryInput,
++  MemoryMeta,
++  ScopedCandidate,
++  StoredCandidate,
+   MemoryScope,
+   MemoryStore,
+   RecallHit,
+diff --git a/packages/sdk/src/kernel/core/error.ts b/packages/sdk/src/kernel/core/error.ts
+index bf4e3187..1dd7ab27 100644
+--- a/packages/sdk/src/kernel/core/error.ts
++++ b/packages/sdk/src/kernel/core/error.ts
+@@ -269,6 +269,8 @@ export type PrologueErrorCode =
+   | "MEMORY_NOT_FOUND"
+   /** 预览之后范围里的东西变了。**整批不删**，让人重看一次。 */
+   | "MEMORY_SCOPE_CHANGED"
++  /** 条目的结构化信息不合形状或超界。**整条不写**，不修剪。 */
++  | "MEMORY_META_INVALID"
+   /** 导出超界。**整份不导**，不静默截断。 */
+   | "MEMORY_EXPORT_TOO_LARGE"
+   /** 包的版本不认识，或包坏了。**拒绝，不半导入。** */
+@@ -589,6 +591,7 @@ const CODES: ReadonlySet<string> = new Set([
+   "CHARACTER_BINDING_UNAVAILABLE",
+   "MEMORY_NOT_FOUND",
+   "MEMORY_SCOPE_CHANGED",
++  "MEMORY_META_INVALID",
+   "MEMORY_EXPORT_TOO_LARGE",
+   "MEMORY_PACKAGE_UNREADABLE",
+   "MEMORY_SCOPE_DENIED",
+diff --git a/packages/sdk/src/memory/api/index.ts b/packages/sdk/src/memory/api/index.ts
+index e0783e2e..7bce9824 100644
+--- a/packages/sdk/src/memory/api/index.ts
++++ b/packages/sdk/src/memory/api/index.ts
+@@ -1,6 +1,16 @@
+ export {
+   createExtractionInbox,
+   createMemoryStore,
++  assertMemoryMeta,
++  memoryKeywords,
++  MEMORY_META_LIMITS,
++  type MemoryApproval,
++  type MemoryMeta,
++  createCandidateBox,
++  type CandidateBox,
++  type CandidateRowStore,
++  type ScopedCandidate,
++  type StoredCandidate,
+   type ExtractionInbox,
+   type MemoryCandidate,
+   type MemoryEntry,
+diff --git a/packages/sdk/src/memory/core/candidates.ts b/packages/sdk/src/memory/core/candidates.ts
+new file mode 100644
+index 00000000..ef40cdaa
+--- /dev/null
++++ b/packages/sdk/src/memory/core/candidates.ts
+@@ -0,0 +1,196 @@
++import { createPrologueError, mintRef, type ExactRef } from "../../kernel/core/index.js";
++import { assertMemoryMeta, type MemoryEntry, type MemoryMeta, type MemoryScope, type MemoryStore } from "./memory.js";
++
++/**
++ * 待认可的候选：**落盘、分作用域**，进库只有两条路——人接受，或 App 登记的确定性策略晋升。
++ *
++ * 为什么不是 `ExtractionInbox`：那一份只在进程内存里（重启就没了），不分作用域，接受只能由人点。
++ * App 要“人事后可撤销的自动记住”时，批准者必须是**有版本的规则**，而不是假装人点了接受——
++ * 所以晋升单独一个入口，批准者写在条目上（`meta.approvedBy`）。
++ *
++ * **不另开写入路径**：接受和晋升都经 `MemoryStore.write` 那一个入口。
++ */
++export interface ScopedCandidate {
++  readonly ref: ExactRef<"memory-candidate">;
++  readonly scope: MemoryScope;
++  readonly owner: string;
++  readonly text: string;
++  readonly origin: string;
++  readonly tags: readonly string[];
++  /** 进库时写到条目上的结构化信息（批准者除外，由这一册写）。 */
++  readonly meta: MemoryMeta;
++  readonly state: "pending" | "accepted" | "promoted" | "discarded" | "expired";
++  readonly createdAtMs: number;
++  readonly settledAtMs?: number;
++  /** 进了库的话，是哪一条。 */
++  readonly entry?: ExactRef<"memory">;
++}
++
++export interface StoredCandidate {
++  readonly id: string;
++  readonly scope: MemoryScope;
++  readonly owner: string;
++  readonly text: string;
++  readonly origin: string;
++  readonly tags: readonly string[];
++  readonly meta: MemoryMeta;
++  readonly state: ScopedCandidate["state"];
++  readonly createdAtMs: number;
++  readonly settledAtMs?: number;
++  readonly entryId?: string;
++}
++
++/** 候选怎么落盘。形状同 `MemoryRowStore`，另一张表。 */
++export interface CandidateRowStore {
++  put(input: {
++    readonly scope: { readonly kind: "owner"; readonly id: string };
++    readonly id: string;
++    readonly version: number;
++    readonly shape: number;
++    readonly value: StoredCandidate;
++  }): Promise<unknown>;
++  list(scope: { readonly kind: "owner"; readonly id: string }): Promise<readonly { readonly value: StoredCandidate }[]>;
++  purge(scope: { readonly kind: "owner"; readonly id: string }, id: string, version: number): Promise<void>;
++}
++
++export interface CandidateBox {
++  /** 把落盘的读回来。重启后先调它。 */
++  hydrate(scopes: readonly { readonly scope: MemoryScope; readonly owner: string }[]): Promise<void>;
++  /**
++   * 提一条候选。**同一格子里同一句话只算一条**（空白与大小写不计）：已有未作废的就返回那一条。
++   * 候选**不进召回**——它还不是记忆。
++   */
++  propose(input: {
++    readonly scope: MemoryScope;
++    readonly owner: string;
++    readonly text: string;
++    readonly origin: string;
++    readonly tags?: readonly string[];
++    readonly meta?: MemoryMeta;
++  }): Promise<ScopedCandidate>;
++  get(ref: ExactRef<"memory-candidate">): ScopedCandidate | undefined;
++  list(query: { readonly scope: MemoryScope; readonly owner: string }): readonly ScopedCandidate[];
++  /** 人接受（可以改写正文）。批准者记为人。 */
++  accept(ref: ExactRef<"memory-candidate">, change?: { readonly text?: string }): Promise<MemoryEntry>;
++  /**
++   * App 登记的确定性策略晋升。**不是模型**：调用方是 App 自己的规则代码，名字和版本写进条目的
++   * `meta.approvedBy`，人事后看得见“谁批准的”，也就撤得回。
++   */
++  promote(ref: ExactRef<"memory-candidate">, by: { readonly policy: string; readonly version: number }): Promise<MemoryEntry>;
++  discard(ref: ExactRef<"memory-candidate">): Promise<ScopedCandidate>;
++  /** 过了等待期：不再提，也不进库。 */
++  expire(ref: ExactRef<"memory-candidate">): Promise<ScopedCandidate>;
++  /** 物理清除（例如它变成的那条记忆被删了，候选里的原话也该走）。 */
++  purge(ref: ExactRef<"memory-candidate">): Promise<void>;
++}
++
++const SHAPE = 1;
++const ROW_VERSION = 1;
++const same = (text: string) => text.normalize("NFKC").toLowerCase().replace(/\s+/g, "");
++
++export function createCandidateBox(input: {
++  readonly memory: MemoryStore;
++  readonly newId: () => string;
++  /** 墙钟（毫秒），走 Runtime 的 Port。不给就记 0——这一册不直取系统时钟。 */
++  readonly now?: () => Promise<number>;
++  readonly store?: CandidateRowStore;
++}): CandidateBox {
++  const held = new Map<string, StoredCandidate>();
++  const clock = async (): Promise<number> => (input.now === undefined ? 0 : await input.now());
++  const encodeOwner = (text: string): string => {
++    let out = "";
++    for (const ch of text) {
++      if (ch === "_") out += "__";
++      else if (/[A-Za-z0-9.-]/.test(ch)) out += ch;
++      else for (const byte of new TextEncoder().encode(ch)) out += `_${byte.toString(16).padStart(2, "0")}`;
++    }
++    return out;
++  };
++  const scopeOf = (scope: MemoryScope, owner: string) => ({ kind: "owner" as const, id: `${scope}-${encodeOwner(owner)}` });
++  const view = (row: StoredCandidate): ScopedCandidate => Object.freeze({
++    ref: mintRef("memory-candidate", row.id), scope: row.scope, owner: row.owner, text: row.text, origin: row.origin, tags: Object.freeze([...row.tags]),
++    meta: Object.freeze({ ...row.meta }), state: row.state, createdAtMs: row.createdAtMs,
++    ...(row.settledAtMs === undefined ? {} : { settledAtMs: row.settledAtMs }),
++    ...(row.entryId === undefined ? {} : { entry: mintRef("memory", row.entryId) }),
++  });
++  // **先落盘，再进表。**
++  const save = async (row: StoredCandidate): Promise<void> => {
++    if (input.store !== undefined) await input.store.put({ scope: scopeOf(row.scope, row.owner), id: row.id, version: ROW_VERSION, shape: SHAPE, value: row });
++    held.set(row.id, row);
++  };
++  const pending = (ref: ExactRef<"memory-candidate">): StoredCandidate => {
++    const row = held.get(ref.id);
++    if (row === undefined) throw createPrologueError("MEMORY_NOT_ACCEPTED", "That memory candidate does not exist.");
++    if (row.state !== "pending") throw createPrologueError("MEMORY_NOT_ACCEPTED", `That candidate is already ${row.state}.`);
++    return row;
++  };
++  const settle = async (row: StoredCandidate, text: string, approvedBy: NonNullable<MemoryMeta["approvedBy"]>, state: "accepted" | "promoted"): Promise<MemoryEntry> => {
++    // **走同一个写入口。** 批准者由这一册写上，不从候选里读。
++    const entry = await input.memory.write({ scope: row.scope, owner: row.owner, text, origin: row.origin, tags: row.tags, meta: { ...row.meta, approvedBy } });
++    await save({ ...row, text, state, settledAtMs: await clock(), entryId: entry.ref.id });
++    return entry;
++  };
++
++  return {
++    async hydrate(scopes): Promise<void> {
++      if (input.store === undefined) return;
++      for (const one of scopes) for (const row of await input.store.list(scopeOf(one.scope, one.owner))) held.set(row.value.id, row.value);
++    },
++
++    async propose(request): Promise<ScopedCandidate> {
++      if (request.text.trim().length < 1) throw createPrologueError("MEMORY_NOT_ACCEPTED", "A memory candidate needs text.");
++      if (request.origin.trim().length < 1) throw createPrologueError("MEMORY_NOT_ACCEPTED", "A memory candidate needs an origin.");
++      const { approvedBy: _ignored, ...meta } = request.meta ?? {};
++      assertMemoryMeta(meta);
++      const existing = [...held.values()].find((row) => row.scope === request.scope && row.owner === request.owner && row.state !== "expired" && same(row.text) === same(request.text));
++      if (existing !== undefined) return view(existing);
++      const row: StoredCandidate = { id: input.newId(), scope: request.scope, owner: request.owner, text: request.text, origin: request.origin,
++        tags: [...(request.tags ?? [])], meta, state: "pending", createdAtMs: await clock() };
++      await save(row);
++      return view(row);
++    },
++
++    get(ref): ScopedCandidate | undefined {
++      const row = held.get(ref.id);
++      return row === undefined ? undefined : view(row);
++    },
++
++    list(query): readonly ScopedCandidate[] {
++      return Object.freeze([...held.values()].filter((row) => row.scope === query.scope && row.owner === query.owner).map(view));
++    },
++
++    async accept(ref, change = {}): Promise<MemoryEntry> {
++      const row = pending(ref);
++      const text = change.text?.trim() ? change.text.trim() : row.text;
++      return settle(row, text, { by: "person" }, "accepted");
++    },
++
++    async promote(ref, by): Promise<MemoryEntry> {
++      const row = pending(ref);
++      if (typeof by.policy !== "string" || !by.policy.trim() || !Number.isSafeInteger(by.version) || by.version < 1) {
++        throw createPrologueError("MEMORY_NOT_ACCEPTED", "A promotion names the App's policy and its version.");
++      }
++      return settle(row, row.text, { by: "policy", policy: by.policy, version: by.version }, "promoted");
++    },
++
++    async discard(ref): Promise<ScopedCandidate> {
++      const row = pending(ref);
++      const next: StoredCandidate = { ...row, state: "discarded", settledAtMs: await clock() };
++      await save(next);
++      return view(next);
++    },
++
++    async expire(ref): Promise<ScopedCandidate> {
++      const row = pending(ref);
++      const next: StoredCandidate = { ...row, state: "expired", settledAtMs: await clock() };
++      await save(next);
++      return view(next);
++    },
++
++    async purge(ref): Promise<void> {
++      const row = held.get(ref.id);
++      if (row !== undefined && input.store !== undefined) await input.store.purge(scopeOf(row.scope, row.owner), ref.id, ROW_VERSION);
++      held.delete(ref.id);
++    },
++  };
++}
+diff --git a/packages/sdk/src/memory/core/index.ts b/packages/sdk/src/memory/core/index.ts
+index d423e663..b83cfcd6 100644
+--- a/packages/sdk/src/memory/core/index.ts
++++ b/packages/sdk/src/memory/core/index.ts
+@@ -1,6 +1,11 @@
+ export {
+   createExtractionInbox,
+   createMemoryStore,
++  assertMemoryMeta,
++  memoryKeywords,
++  MEMORY_META_LIMITS,
++  type MemoryApproval,
++  type MemoryMeta,
+   type ExtractionInbox,
+   type MemoryCandidate,
+   type MemoryEntry,
+@@ -27,3 +32,10 @@ export {
+   type MemoryPackage,
+   type RedactionNote,
+ } from "./export.js";
++export {
++  createCandidateBox,
++  type CandidateBox,
++  type CandidateRowStore,
++  type ScopedCandidate,
++  type StoredCandidate,
++} from "./candidates.js";
+diff --git a/packages/sdk/src/memory/core/memory.ts b/packages/sdk/src/memory/core/memory.ts
+index 116945dd..2763e35a 100644
+--- a/packages/sdk/src/memory/core/memory.ts
++++ b/packages/sdk/src/memory/core/memory.ts
+@@ -15,6 +15,59 @@ import {
+  */
+ export type MemoryScope = "user" | "app" | "character" | "session" | "project";
+ 
++/**
++ * App 记在条目上的**有界**结构化信息：是什么、什么时候用、凭什么、谁批准的、什么时候到期。
++ *
++ * **它不是第二份正文**：只放短字段，整份 JSON 有上限，超了就拒绝写，不静默截断。
++ * 召回只认其中两件事——`expiresAtMs`（到期不召回）和 `kind`（按类别过滤）；
++ * 其余是 App 自己的解释，这一册原样保存、原样交还。
++ */
++export interface MemoryMeta {
++  /** App 的类别，例如 preference / convention / fact / experience。 */
++  readonly kind?: string;
++  /** App 的来源，例如 said / accepted / auto / imported / manual。 */
++  readonly source?: string;
++  readonly basis?: "explicit" | "repeated" | "inferred";
++  /** 什么时候适用。字符串数组各不超过 20 项。 */
++  readonly appliesWhen?: {
++    readonly plugins?: readonly string[];
++    readonly objectKinds?: readonly string[];
++    readonly goals?: readonly string[];
++    readonly task?: string;
++    readonly fromMs?: number;
++    readonly untilMs?: number;
++  };
++  /** 依据：原话摘录或对象引用。最多 6 条，原话不超过 200 字。 */
++  readonly evidence?: readonly {
++    readonly kind: string;
++    readonly text?: string;
++    readonly ref?: string;
++    readonly atMs?: number;
++  }[];
++  /** 到期时刻。**过了就不召回**，条目还在，由 App 决定停用还是删。 */
++  readonly expiresAtMs?: number;
++  /**
++   * 谁批准它进库的。**模型不能自己批准自己**：要么是人，要么是 App 登记过的确定性策略（带版本）。
++   * 经候选箱 `accept` / `promote` 进库的条目由候选箱写上，不从调用方读。
++   */
++  readonly approvedBy?: MemoryApproval;
++  /** 插件自己的命名空间：只有它自己能读写。 */
++  readonly namespace?: string;
++}
++
++export type MemoryApproval =
++  | { readonly by: "person" }
++  | { readonly by: "policy"; readonly policy: string; readonly version: number };
++
++/** 结构化信息的上限。**超了拒绝**——一个塞进几万字的 meta 就是第二份正文。 */
++export const MEMORY_META_LIMITS = Object.freeze({
++  maxJsonChars: 4096,
++  maxEvidence: 6,
++  maxEvidenceText: 200,
++  maxListItems: 20,
++  maxShortText: 200,
++});
++
+ export interface MemoryInput {
+   readonly scope: MemoryScope;
+   /** 作用域内的归属者。`app` 范围下是应用身份，`session` 下是那条 Session。 */
+@@ -23,6 +76,7 @@ export interface MemoryInput {
+   /** 出处。**召回时要带着**——注入的东西必须说得出从哪来。 */
+   readonly origin: string;
+   readonly tags?: readonly string[];
++  readonly meta?: MemoryMeta;
+ }
+ 
+ export interface MemoryEntry {
+@@ -35,6 +89,15 @@ export interface MemoryEntry {
+   readonly version: number;
+   /** 墓碑。**默认召回不见**，过保留窗口再物理清除。 */
+   readonly tombstoned: boolean;
++  /** 结构化信息。没有就是空对象。 */
++  readonly meta: MemoryMeta;
++  /**
++   * 暂停：条目还在、列得出来，但**不召回**。用在“人停用了”或“依据已经不在了”。
++   * 和墓碑不同：暂停能恢复，墓碑不能。
++   */
++  readonly paused?: { readonly reason: string; readonly atMs: number };
++  readonly createdAtMs: number;
++  readonly updatedAtMs: number;
+ }
+ 
+ export interface RecallQuery {
+@@ -42,6 +105,18 @@ export interface RecallQuery {
+   readonly owner: string;
+   /** 关键词。**没有向量后端时它必须仍然可用。** */
+   readonly keywords?: readonly string[];
++  /**
++   * 一段话。给了就由这一册切词：英文按词（三个字母起），中日韩文字按相邻两字——
++   * **中文没有空格**，按空格切等于一个词也切不出来。回执里写明用的是哪种切法。
++   */
++  readonly text?: string;
++  /** 只召回这几类（`meta.kind`）。 */
++  readonly kinds?: readonly string[];
++  /**
++   * 按哪个时刻判到期（毫秒）。**召回是同步的，而时钟走 Runtime 的 Port**：调用方先读一次时钟再传进来。
++   * 不传就用这一册最近一次读到的时刻。
++   */
++  readonly atMs?: number;
+   readonly limit?: number;
+ }
+ 
+@@ -61,6 +136,21 @@ export interface RecallResult {
+   readonly hits: readonly RecallHit[];
+   /** 这次召回**有没有真的用上向量**。没有就是没有。 */
+   readonly vectorised: boolean;
++  /** 关键词从哪来：调用方给的，还是这一册从 `text` 切出来的（中文按两字切）。 */
++  readonly segmentation: "given" | "cjk-bigram";
++}
++
++/**
++ * 从一段话切出召回关键词：英文、数字按词（三个字符起，小写），中日韩文字按相邻两字，单字的片段保留单字。
++ * **确定性**：同一段话永远切出同一组词。
++ */
++export function memoryKeywords(text: string): readonly string[] {
++  const latin = text.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
++  const cjk = [...text.matchAll(/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]+/g)].flatMap((run) => {
++    const chars = [...run[0]];
++    return chars.length === 1 ? [chars[0]!] : chars.slice(0, -1).map((char, index) => char + chars[index + 1]!);
++  });
++  return Object.freeze([...new Set([...latin, ...cjk])].slice(0, 60));
+ }
+ 
+ /** 可选的向量后端。**不装就退关键词，而且回执要说出来。** */
+@@ -93,7 +183,7 @@ export interface MemoryRowStore {
+   ): Promise<void>;
+ }
+ 
+-/** 落盘那一行长什么样。 */
++/** 落盘那一行长什么样。第 1 版的行没有后面四项，读回来按空值补。 */
+ export interface StoredMemory {
+   readonly id: string;
+   readonly scope: MemoryScope;
+@@ -103,6 +193,10 @@ export interface StoredMemory {
+   readonly tags: readonly string[];
+   readonly version: number;
+   readonly tombstoned: boolean;
++  readonly meta?: MemoryMeta;
++  readonly paused?: { readonly reason: string; readonly atMs: number };
++  readonly createdAtMs?: number;
++  readonly updatedAtMs?: number;
+ }
+ 
+ /** 一次按范围删除的预览。**先看见再确认。** */
+@@ -133,6 +227,11 @@ export interface MemoryStore {
+   get(ref: ExactRef<"memory">): MemoryEntry | undefined;
+   list(query: { readonly scope: MemoryScope; readonly owner: string }): readonly MemoryEntry[];
+   update(ref: ExactRef<"memory">, text: string): Promise<MemoryEntry>;
++  /** 换掉结构化信息。**不算改正文**：`version` 不变。 */
++  setMeta(ref: ExactRef<"memory">, meta: MemoryMeta): Promise<MemoryEntry>;
++  /** 暂停：还在，不召回。 */
++  pause(ref: ExactRef<"memory">, reason: string): Promise<MemoryEntry>;
++  resume(ref: ExactRef<"memory">): Promise<MemoryEntry>;
+   /** 先墓碑。**不是只在列表里藏起来**——召回也不再命中。 */
+   remove(ref: ExactRef<"memory">): Promise<MemoryEntry>;
+   /** 过保留窗口之后物理清除。**按密钥作废。** */
+@@ -173,8 +272,78 @@ interface Held {
+   entry: MemoryEntry;
+ }
+ 
++/** 结构化信息合不合形状、超没超界。**不合就拒绝写**，不修剪。 */
++export function assertMemoryMeta(meta: MemoryMeta): void {
++  const fail = (why: string): never => {
++    throw createPrologueError("MEMORY_META_INVALID", `Memory metadata is not usable: ${why}`);
++  };
++  if (meta === null || typeof meta !== "object" || Array.isArray(meta)) fail("it must be an object.");
++  const known = ["kind", "source", "basis", "appliesWhen", "evidence", "expiresAtMs", "approvedBy", "namespace"];
++  for (const key of Object.keys(meta)) if (!known.includes(key)) fail(`"${key}" is not a metadata field.`);
++  const short = (value: unknown, what: string): void => {
++    if (value !== undefined && (typeof value !== "string" || value.length > MEMORY_META_LIMITS.maxShortText)) {
++      fail(`${what} must be text of at most ${MEMORY_META_LIMITS.maxShortText} characters.`);
++    }
++  };
++  const time = (value: unknown, what: string): void => {
++    if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value))) fail(`${what} must be a time in milliseconds.`);
++  };
++  const list = (value: unknown, what: string): void => {
++    if (value === undefined) return;
++    if (!Array.isArray(value) || value.length > MEMORY_META_LIMITS.maxListItems
++      || value.some((one) => typeof one !== "string" || one.length > MEMORY_META_LIMITS.maxShortText)) {
++      fail(`${what} must be at most ${MEMORY_META_LIMITS.maxListItems} short texts.`);
++    }
++  };
++  short(meta.kind, "kind");
++  short(meta.source, "source");
++  short(meta.namespace, "namespace");
++  if (meta.basis !== undefined && !["explicit", "repeated", "inferred"].includes(meta.basis)) fail("basis must be explicit, repeated or inferred.");
++  time(meta.expiresAtMs, "expiresAtMs");
++  if (meta.appliesWhen !== undefined) {
++    const when = meta.appliesWhen;
++    if (when === null || typeof when !== "object" || Array.isArray(when)) fail("appliesWhen must be an object.");
++    for (const key of Object.keys(when)) {
++      if (!["plugins", "objectKinds", "goals", "task", "fromMs", "untilMs"].includes(key)) fail(`appliesWhen.${key} is not a field.`);
++    }
++    list(when.plugins, "appliesWhen.plugins");
++    list(when.objectKinds, "appliesWhen.objectKinds");
++    list(when.goals, "appliesWhen.goals");
++    short(when.task, "appliesWhen.task");
++    time(when.fromMs, "appliesWhen.fromMs");
++    time(when.untilMs, "appliesWhen.untilMs");
++  }
++  if (meta.evidence !== undefined) {
++    if (!Array.isArray(meta.evidence) || meta.evidence.length > MEMORY_META_LIMITS.maxEvidence) fail(`evidence must be at most ${MEMORY_META_LIMITS.maxEvidence} items.`);
++    for (const one of meta.evidence) {
++      if (one === null || typeof one !== "object" || typeof one.kind !== "string" || one.kind.length > 32) fail("each evidence item needs a short kind.");
++      if (one.text !== undefined && (typeof one.text !== "string" || one.text.length > MEMORY_META_LIMITS.maxEvidenceText)) {
++        fail(`evidence text is at most ${MEMORY_META_LIMITS.maxEvidenceText} characters.`);
++      }
++      short(one.ref, "evidence ref");
++      time(one.atMs, "evidence atMs");
++    }
++  }
++  if (meta.approvedBy !== undefined) {
++    const by = meta.approvedBy as { by?: unknown; policy?: unknown; version?: unknown };
++    if (by.by === "person") {
++      if (Object.keys(by).length !== 1) fail("approvedBy person takes no other fields.");
++    } else if (by.by === "policy") {
++      if (typeof by.policy !== "string" || !by.policy || by.policy.length > 120 || !Number.isSafeInteger(by.version) || (by.version as number) < 1) {
++        fail("approvedBy policy needs a policy name and a version.");
++      }
++    } else fail("approvedBy is a person or a policy.");
++  }
++  if (JSON.stringify(meta).length > MEMORY_META_LIMITS.maxJsonChars) fail(`it is longer than ${MEMORY_META_LIMITS.maxJsonChars} characters.`);
++}
++
+ export function createMemoryStore(input: {
+   readonly newId: () => string;
++  /**
++   * 墙钟（毫秒），走 Runtime 的 Port。时间戳用它，最近一次读到的也用来判到期。
++   * 不给就不记时刻（记 0）——**这一册不直取系统时钟**。
++   */
++  readonly now?: () => Promise<number>;
+   readonly vector?: VectorBackend;
+   /** 落盘。**不给就是不落盘**——那时它是个纯内存表，和以前一样。 */
+   readonly store?: MemoryRowStore;
+@@ -191,7 +360,13 @@ export function createMemoryStore(input: {
+   const keyed = (scope: MemoryScope, owner: string): string => `${scope}:${owner}`;
+ 
+   /** 这一版代码认的行形状。 */
+-  const SHAPE = 1;
++  const SHAPE = 2;
++  let lastSeenMs = 0;
++  const clock = async (): Promise<number> => {
++    const at = input.now === undefined ? 0 : await input.now();
++    lastSeenMs = Math.max(lastSeenMs, at);
++    return at;
++  };
+ 
+   /**
+    * 把归属者编成一个**存储放得下的段**。
+@@ -251,6 +426,10 @@ export function createMemoryStore(input: {
+         tags: [...entry.tags],
+         version: entry.version,
+         tombstoned: entry.tombstoned,
++        meta: entry.meta,
++        ...(entry.paused === undefined ? {} : { paused: entry.paused }),
++        createdAtMs: entry.createdAtMs,
++        updatedAtMs: entry.updatedAtMs,
+       },
+     });
+   };
+@@ -307,6 +486,11 @@ export function createMemoryStore(input: {
+               tags: Object.freeze([...row.value.tags]),
+               version: row.value.version,
+               tombstoned: row.value.tombstoned,
++              // 第 1 版的行没有结构化信息和时间戳：按空值补，不编造一个写入时间。
++              meta: Object.freeze({ ...(row.value.meta ?? {}) }),
++              ...(row.value.paused === undefined ? {} : { paused: row.value.paused }),
++              createdAtMs: row.value.createdAtMs ?? 0,
++              updatedAtMs: row.value.updatedAtMs ?? 0,
+             },
+           });
+         }
+@@ -324,6 +508,8 @@ export function createMemoryStore(input: {
+           "A memory entry needs an origin; recalled text must be able to say where it came from.",
+         );
+       }
++      if (request.meta !== undefined) assertMemoryMeta(request.meta);
++      const at = await clock();
+       const entry: MemoryEntry = {
+         ref: mintRef("memory", input.newId()),
+         scope: request.scope,
+@@ -333,6 +519,9 @@ export function createMemoryStore(input: {
+         tags: [...(request.tags ?? [])],
+         version: 1,
+         tombstoned: false,
++        meta: Object.freeze({ ...(request.meta ?? {}) }),
++        createdAtMs: at,
++        updatedAtMs: at,
+       };
+       // **先落盘，再进表。** 反过来一次写不下去会留下「内存里有、盘上没有」。
+       await save(entry);
+@@ -361,7 +550,7 @@ export function createMemoryStore(input: {
+       if (found === undefined || found.entry.tombstoned) {
+         throw createPrologueError("MEMORY_NOT_FOUND", "That memory entry is not available.");
+       }
+-      const next = { ...found.entry, text, version: found.entry.version + 1 };
++      const next = { ...found.entry, text, version: found.entry.version + 1, updatedAtMs: await clock() };
+       await save(next);
+       found.entry = next;
+       // **改了就失效。** 缓存继续返回旧正文是合同失败。
+@@ -369,6 +558,46 @@ export function createMemoryStore(input: {
+       return found.entry;
+     },
+ 
++    async setMeta(ref, meta): Promise<MemoryEntry> {
++      const found = held.get(ref.id);
++      if (found === undefined || found.entry.tombstoned) {
++        throw createPrologueError("MEMORY_NOT_FOUND", "That memory entry is not available.");
++      }
++      assertMemoryMeta(meta);
++      const next = { ...found.entry, meta: Object.freeze({ ...meta }), updatedAtMs: await clock() };
++      await save(next);
++      found.entry = next;
++      // 类别、到期变了，召回结果跟着变：缓存里的那条作废。
++      invalidate(ref);
++      return found.entry;
++    },
++
++    async pause(ref, reason): Promise<MemoryEntry> {
++      const found = held.get(ref.id);
++      if (found === undefined || found.entry.tombstoned) {
++        throw createPrologueError("MEMORY_NOT_FOUND", "That memory entry is not available.");
++      }
++      const at = await clock();
++      const next = { ...found.entry, paused: { reason: reason.trim().slice(0, 200) || "paused", atMs: at }, updatedAtMs: at };
++      await save(next);
++      found.entry = next;
++      // **暂停就不召回**：缓存里那条若还能命中，就等于没暂停。
++      invalidate(ref);
++      return found.entry;
++    },
++
++    async resume(ref): Promise<MemoryEntry> {
++      const found = held.get(ref.id);
++      if (found === undefined || found.entry.tombstoned) {
++        throw createPrologueError("MEMORY_NOT_FOUND", "That memory entry is not available.");
++      }
++      const { paused: _paused, ...rest } = found.entry;
++      const next: MemoryEntry = { ...rest, updatedAtMs: await clock() };
++      await save(next);
++      found.entry = next;
++      invalidate(ref);
++      return found.entry;
++    },
+     async remove(ref): Promise<MemoryEntry> {
+       const found = held.get(ref.id);
+       if (found === undefined) {
+@@ -445,15 +674,23 @@ export function createMemoryStore(input: {
+     },
+ 
+     recall(query): RecallResult {
+-      const entries = entriesFor(query.scope, query.owner);
++      const now = query.atMs ?? lastSeenMs;
++      // 暂停的、到期的、不是要的类别的：一律不召回。
++      const entries = entriesFor(query.scope, query.owner).filter((entry) =>
++        entry.paused === undefined
++        && (entry.meta.expiresAtMs === undefined || entry.meta.expiresAtMs > now)
++        && (query.kinds === undefined || (entry.meta.kind !== undefined && query.kinds.includes(entry.meta.kind))));
++      // 给了一段话、没给关键词：这一册来切（中文按两字），回执写明切法。
++      const segmented = query.keywords === undefined && query.text !== undefined;
++      const effective: RecallQuery = segmented ? { ...query, keywords: memoryKeywords(query.text!) } : query;
+       // 有向量后端就用，没有就退关键词——**而且回执如实说是哪一种**。
+-      const hits = input.vector !== undefined ? input.vector(query, entries) : keywordRecall(query, entries);
++      const hits = input.vector !== undefined ? input.vector(effective, entries) : keywordRecall(effective, entries);
+       const limited = hits.slice(0, query.limit ?? 10);
+       for (const hit of limited) {
+         // 刚用过的进工作集。
+         cache.set(hit.entry.ref.id, hit);
+       }
+-      return { hits: limited, vectorised: input.vector !== undefined };
++      return { hits: limited, vectorised: input.vector !== undefined, segmentation: segmented ? "cjk-bigram" : "given" };
+     },
+ 
+     toContextItems(result, budgetChars): readonly { text: string; origin: string }[] {
+diff --git a/packages/sdk/src/model/core/types.ts b/packages/sdk/src/model/core/types.ts
+index 083a2f5a..935dc559 100644
+--- a/packages/sdk/src/model/core/types.ts
++++ b/packages/sdk/src/model/core/types.ts
+@@ -261,6 +261,21 @@ export type ModelEvent =
+       type: "todo-changed";
+       items: readonly import("../../agent/core/todo.js").TodoItem[];
+     }>
++  /**
++   * 这一跑开跑时注入了哪几条记忆、哪几条因为篇幅没放下、哪几条点了名却已不可用（删了、暂停、到期）。
++   *
++   * **只报引用和版本，不报正文**：正文在记忆库里，删了就再也查不到——这条事件不能变成它的第二份副本。
++   */
++  | Readonly<{
++      type: "memory-recalled";
++      /** `pinned`：App 点名的那几条；`recall`：Runtime 按这一轮的话自己召回的。 */
++      method: "pinned" | "recall";
++      /** 关键词怎么来的：App 给的，还是按中文两字切出来的。 */
++      segmentation: "given" | "cjk-bigram";
++      injected: readonly { readonly id: string; readonly version: number }[];
++      omitted: readonly { readonly id: string; readonly version: number }[];
++      unavailable: readonly string[];
++    }>
+   /**
+    * 熔断：原地打转到了上限。
+    *
+diff --git a/packages/sdk/test/memory-platform.live.test.ts b/packages/sdk/test/memory-platform.live.test.ts
+new file mode 100644
+index 00000000..f831e8e1
+--- /dev/null
++++ b/packages/sdk/test/memory-platform.live.test.ts
+@@ -0,0 +1,186 @@
++import { mkdtempSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { afterEach, beforeEach, describe, expect, it } from "vitest";
++import { createNodeHost } from "../src/node.js";
++import { createRuntime, memoryKeywords, type ModelEvent, type PrologueError, type Runtime } from "../src/index.js";
++import { createMemoryHost } from "../src/testing/api/index.js";
++
++const APP = { appId: "prologue.harness", appVersion: "0.1.0" };
++const SAYS_OK = { turns: [{ frames: ['data: {"choices":[{"delta":{"content":"ok"}}]}\n', "data: [DONE]\n"] }] };
++let root: string;
++
++beforeEach(() => {
++  root = mkdtempSync(join(tmpdir(), "mem-platform-"));
++});
++afterEach(() => {
++  rmSync(root, { recursive: true, force: true });
++});
++
++const onDisk = (): Promise<Runtime> => createRuntime({ app: APP, host: createNodeHost({ storageRoot: root }), preset: "local-agent" });
++const failure = (run: () => Promise<unknown>): Promise<PrologueError> =>
++  run().then(() => { throw new Error("expected a failure"); }, (error: unknown) => error as PrologueError);
++
++describe("记忆条目的结构化信息、暂停与到期", () => {
++  it("**结构化信息随条目落盘；超界或不认识的字段整条不写；暂停与到期的不召回，恢复后又召回**", async () => {
++    const first = await onDisk();
++    const user = { scope: "user" as const, owner: "alice" };
++    const kept = await first.memory.write({ ...user, text: "周报用要点列表", origin: "你说的", meta: {
++      kind: "preference", source: "said", basis: "explicit", approvedBy: { by: "person" },
++      appliesWhen: { task: "写周报时" }, evidence: [{ kind: "said", text: "以后周报都用要点列表" }] } });
++    expect(kept.meta.kind).toBe("preference");
++    expect(kept.createdAtMs).toBeGreaterThan(0);
++    expect((await failure(() => first.memory.write({ ...user, text: "x", origin: "o", meta: { mood: "happy" } as never }))).code).toBe("MEMORY_META_INVALID");
++    expect((await failure(() => first.memory.write({ ...user, text: "x", origin: "o", meta: { evidence: [{ kind: "said", text: "长".repeat(201) }] } }))).code).toBe("MEMORY_META_INVALID");
++    expect((await failure(() => first.memory.write({ ...user, text: "x", origin: "o", meta: { approvedBy: { by: "model" } as never } }))).code).toBe("MEMORY_META_INVALID");
++    const expired = await first.memory.write({ ...user, text: "周报九月底前发给王总", origin: "你说的", meta: { kind: "fact", expiresAtMs: Date.now() - 1000 } });
++    expect(first.memory.recall({ ...user, text: "写周报" }).hits.map((hit) => hit.entry.text)).toEqual(["周报用要点列表"]);
++    expect(first.memory.list(user).map((entry) => entry.ref.id)).toContain(expired.ref.id);
++
++    await first.memory.pause(kept.ref, "用户停用了");
++    expect(first.memory.recall({ ...user, text: "写周报" }).hits).toEqual([]);
++    expect(first.memory.get(kept.ref)?.paused?.reason).toBe("用户停用了");
++    const withMeta = await first.memory.setMeta(kept.ref, { ...kept.meta, kind: "convention" });
++    expect(withMeta.version).toBe(kept.version);
++    await first.shutdown();
++
++    const second = await onDisk();
++    try {
++      await second.memory.hydrate([user]);
++      const back = second.memory.get(kept.ref)!;
++      expect(back.meta.kind).toBe("convention");
++      expect(back.paused?.reason).toBe("用户停用了");
++      await second.memory.resume(kept.ref);
++      expect(second.memory.recall({ ...user, text: "写周报", kinds: ["convention"] }).hits.map((hit) => hit.entry.text)).toEqual(["周报用要点列表"]);
++      expect(second.memory.recall({ ...user, text: "写周报", kinds: ["fact"] }).hits).toEqual([]);
++    } finally {
++      await second.shutdown();
++    }
++  });
++
++  it("**中文按两字切：一句没有空格的话也能召回，回执写明切法**", async () => {
++    const runtime = await onDisk();
++    try {
++      const project = { scope: "project" as const, owner: "p" };
++      await runtime.memory.write({ ...project, text: "北极星指标叫 NSM", origin: "o" });
++      const byText = runtime.memory.recall({ ...project, text: "这周北极星指标怎么样" });
++      expect(byText.segmentation).toBe("cjk-bigram");
++      expect(byText.hits.map((hit) => hit.entry.text)).toEqual(["北极星指标叫 NSM"]);
++      // 旧的做法（按空格切）：整句是一个词，一条也召不回。
++      expect(runtime.memory.recall({ ...project, keywords: ["这周北极星指标怎么样"] }).hits).toEqual([]);
++      expect(memoryKeywords("NSM 这周")).toEqual(["nsm", "这周"]);
++    } finally {
++      await runtime.shutdown();
++    }
++  });
++});
++
++describe("落盘的候选箱", () => {
++  it("**同一句只算一条；人接受时批准者是人，策略晋升时写明规则和版本；重启后候选还在**", async () => {
++    const first = await onDisk();
++    const project = { scope: "project" as const, owner: "p" };
++    const one = await first.memoryCandidates.propose({ ...project, text: "周报先写风险", origin: "工作「周报」", meta: { kind: "convention", basis: "repeated" } });
++    const again = await first.memoryCandidates.propose({ ...project, text: " 周报先写风险 ", origin: "另一处" });
++    expect(again.ref.id).toBe(one.ref.id);
++    // 候选不是记忆：不召回。
++    expect(first.memory.recall({ ...project, text: "写周报" }).hits).toEqual([]);
++    // 候选想自己带批准者：不算数，由候选箱写。
++    const sneaky = await first.memoryCandidates.propose({ ...project, text: "发布前先跑回归", origin: "o", meta: { approvedBy: { by: "person" } } });
++    expect(sneaky.meta.approvedBy).toBeUndefined();
++    const other = await first.memoryCandidates.propose({ ...project, text: "会议纪要当天发", origin: "o" });
++    await first.shutdown();
++
++    const second = await onDisk();
++    try {
++      await second.memoryCandidates.hydrate([project]);
++      await second.memory.hydrate([project]);
++      expect(second.memoryCandidates.list(project).map((item) => item.state)).toEqual(["pending", "pending", "pending"]);
++      const promoted = await second.memoryCandidates.promote(one.ref, { policy: "molis.write-gate", version: 1 });
++      expect(promoted.meta.approvedBy).toEqual({ by: "policy", policy: "molis.write-gate", version: 1 });
++      expect(second.memoryCandidates.get(one.ref)?.state).toBe("promoted");
++      expect(second.memoryCandidates.get(one.ref)?.entry?.id).toBe(promoted.ref.id);
++      const accepted = await second.memoryCandidates.accept(sneaky.ref, { text: "发布前先跑全量回归" });
++      expect(accepted.meta.approvedBy).toEqual({ by: "person" });
++      expect(accepted.text).toBe("发布前先跑全量回归");
++      await second.memoryCandidates.discard(other.ref);
++      expect((await failure(() => second.memoryCandidates.accept(other.ref))).code).toBe("MEMORY_NOT_ACCEPTED");
++      expect((await failure(() => second.memoryCandidates.promote(one.ref, { policy: "x", version: 1 }))).code).toBe("MEMORY_NOT_ACCEPTED");
++    } finally {
++      await second.shutdown();
++    }
++  });
++});
++
++describe("开跑时按引用注入记忆", () => {
++  async function ready() {
++    const runtime = await createRuntime({ app: APP, host: createMemoryHost({ script: SAYS_OK, files: { "a.ts": "export const a = 1;\n" } }),
++      preset: "local-agent", network: { model: true }, posture: { sandbox: "workspace-write" } });
++    const cred = await runtime.credentials.write({ label: "k", secret: { plaintext: new TextEncoder().encode("sk-x") } });
++    const grant = await runtime.workspace.authorize({ path: "/project" });
++    const character = runtime.characters.create({ id: "reader", version: 1, name: "reader", role: "reads", memoryPolicy: { recall: true, write: false } });
++    runtime.characters.publish(character.ref);
++    return { runtime, cred: cred.ref, root: grant.ref, characterRef: character.ref };
++  }
++  const events = (run: { subscribe(listener: (event: ModelEvent) => void): () => void }): Promise<ModelEvent[]> => new Promise((resolve) => {
++    const seen: ModelEvent[] = [];
++    run.subscribe((event) => { seen.push(event); if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") resolve(seen); });
++  });
++
++  it("**点名的才注入，删了、暂停的不注入；放不下的记成没放下；Run 事件只有引用和版本**", async () => {
++    const ctx = await ready();
++    const user = { scope: "user" as const, owner: "alice" };
++    const style = await ctx.runtime.memory.write({ ...user, text: "回答用要点列表", origin: "你说的" });
++    const long = await ctx.runtime.memory.write({ ...user, text: "很长的背景：" + "项目细节".repeat(80), origin: "你说的" });
++    const paused = await ctx.runtime.memory.write({ ...user, text: "已经停用的偏好", origin: "你说的" });
++    await ctx.runtime.memory.pause(paused.ref, "停用");
++    const gone = await ctx.runtime.memory.write({ ...user, text: "删掉的那条", origin: "你说的" });
++    await ctx.runtime.memory.purge(gone.ref);
++    const { pack, run } = await ctx.runtime.startAgentRun({
++      session: await ctx.runtime.sessions.create(), rootRef: ctx.root,
++      start: { protocol: "openai-compatible", endpoint: "https://api.example.com/v1/chat/completions", model: "m", credentialRef: ctx.cred, messages: [{ role: "user", text: "写周报" }] },
++      agent: { idempotencyKey: "m1", mode: "plan", characterRef: ctx.characterRef, memory: { pinned: [style.ref, long.ref, paused.ref, gone.ref], budgetChars: 200 } },
++    });
++    const seen = await events(run);
++    const recalled = pack.items.filter((item) => item.source === "memory-recall");
++    expect(recalled.map((item) => item.text)).toEqual(["回答用要点列表"]);
++    expect(recalled[0]!.origin).toBe(`你说的 [memory:${style.ref.id}@v1]`);
++    const receipt = seen.find((event) => event.type === "memory-recalled");
++    expect(receipt).toEqual({ type: "memory-recalled", method: "pinned", segmentation: "given", injected: [{ id: style.ref.id, version: 1 }],
++      omitted: [{ id: long.ref.id, version: 1 }], unavailable: [paused.ref.id, gone.ref.id] });
++    expect(JSON.stringify(receipt)).not.toContain("回答用要点列表");
++    await ctx.runtime.shutdown();
++  });
++
++  it("**按几个格子召回：个人和本项目都查，别的项目不查；中文按两字切**", async () => {
++    const ctx = await ready();
++    await ctx.runtime.memory.write({ scope: "user", owner: "alice", text: "周报用要点列表", origin: "个人" });
++    await ctx.runtime.memory.write({ scope: "project", owner: "p1", text: "周报先写风险", origin: "项目一" });
++    await ctx.runtime.memory.write({ scope: "project", owner: "p2", text: "周报用表格", origin: "项目二" });
++    const { pack, run } = await ctx.runtime.startAgentRun({
++      session: await ctx.runtime.sessions.create(), rootRef: ctx.root,
++      start: { protocol: "openai-compatible", endpoint: "https://api.example.com/v1/chat/completions", model: "m", credentialRef: ctx.cred, messages: [{ role: "user", text: "帮我写这周的周报" }] },
++      agent: { idempotencyKey: "m2", mode: "plan", characterRef: ctx.characterRef, memory: { scopes: [{ scope: "user", owner: "alice" }, { scope: "project", owner: "p1" }] } },
++    });
++    const seen = await events(run);
++    expect(pack.items.filter((item) => item.source === "memory-recall").map((item) => item.text).sort()).toEqual(["周报先写风险", "周报用要点列表"]);
++    const receipt = seen.find((event) => event.type === "memory-recalled") as Extract<ModelEvent, { type: "memory-recalled" }>;
++    expect(receipt.method).toBe("recall");
++    expect(receipt.segmentation).toBe("cjk-bigram");
++    await ctx.runtime.shutdown();
++  });
++
++  it("**档案不读记忆时，点名也是扩权，直接失败**", async () => {
++    const ctx = await ready();
++    const character = ctx.runtime.characters.create({ id: "silent", version: 1, name: "silent", role: "no memory" });
++    ctx.runtime.characters.publish(character.ref);
++    const kept = await ctx.runtime.memory.write({ scope: "user", owner: "alice", text: "x", origin: "o" });
++    const session = await ctx.runtime.sessions.create();
++    const failed = await failure(() => ctx.runtime.startAgentRun({
++      session, rootRef: ctx.root,
++      start: { protocol: "openai-compatible", endpoint: "https://api.example.com/v1/chat/completions", model: "m", credentialRef: ctx.cred, messages: [{ role: "user", text: "hi" }] },
++      agent: { idempotencyKey: "m3", mode: "plan", characterRef: character.ref, memory: { pinned: [kept.ref] } },
++    }));
++    expect(failed.code).toBe("AGENT_START_WIDENS_ACCESS");
++    await ctx.runtime.shutdown();
++  });
++});

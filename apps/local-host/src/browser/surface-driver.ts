@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceObservationKind } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
-import { browserAddress, BrowserError, type BrowserPage } from "./browser-host.js";
+import { browserAddress, BrowserError, shortcutCommands, type BrowserPage } from "./browser-host.js";
 
 /**
  * The side panel page as the Assistant sees and drives it (specs/side-panel D05–D10). Prologue decides whether each
@@ -109,7 +109,7 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
     for (let waited = 0; page.snapshot().loading && waited < 10_000; waited += 200) await new Promise(resolve => setTimeout(resolve, 200));
   };
   const labelAt = async (x: number, y: number): Promise<string> => {
-    const value = await page.evaluate(`(() => { const el = document.elementFromPoint(${Math.round(x)}, ${Math.round(y)}); if (!el) return ''; const t = el.closest('a,button,input,select,textarea,label,[role]') || el; return String(t.getAttribute('aria-label') || t.innerText || t.getAttribute('placeholder') || t.getAttribute('title') || t.value || '').replace(/\\s+/g, ' ').trim().slice(0, 40); })()`).catch(() => "");
+    const value = await page.evaluate(`(() => { const el = document.elementFromPoint(${Math.round(x)}, ${Math.round(y)}); if (!el) return ''; const t = el.closest('a,button,input,select,textarea,label,[role]') || el; return String(t.getAttribute('aria-label') || (t.labels && t.labels[0] && t.labels[0].innerText) || t.innerText || t.getAttribute('placeholder') || t.getAttribute('title') || (t.type === 'password' ? '' : t.value) || t.getAttribute('name') || t.id || '').replace(/\\s+/g, ' ').trim().slice(0, 40); })()`).catch(() => "");
     return typeof value === "string" ? value : "";
   };
   const origin = () => page.snapshot().origin || "空白页";
@@ -118,20 +118,20 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
     project_id: page.projectId,
     async identity() {
       const session = await page.session();
-      return `${session.targetId}\u0000${page.snapshot().url}`;
+      return `${session.targetId}\u0000${page.snapshot().url}\u0000${page.takeoverCount}`;
     },
     async scope() {
       // A page that has not opened a site yet is Prologue's blank browser page: it can be looked at, and every step
       // from it asks, since no site rule matches it.
       return page.snapshot().origin || BLANK_SCOPE;
     },
-    async observe(kind: HostSurfaceObservationKind) {
+    async observe(kind: HostSurfaceObservationKind, context?: { readonly session_id: string | null }) {
       await page.ensure();
       // A site the person blocked is not even looked at, from the moment they said so (Prologue's own deny rule joins
       // when the runtime next starts).
       if (blocked(page.snapshot().origin)) throw new BrowserError("page.load_failed", "用户禁止助理查看或操作这个网站。");
       // Looking is the Assistant using the page too: the panel shows it (and opens itself) before any action.
-      if (page.controlMode !== "taken-over") mark(null, `正在查看 ${origin()}`, null);
+      if (page.controlMode !== "taken-over") mark(context?.session_id ?? null, `正在查看 ${origin()}`, null);
       if (!page.snapshot().origin && kind !== "screenshot") {
         return new TextEncoder().encode("侧栏浏览器现在是空白页，还没有打开任何网站。\n要打开网站：用 surface-act 的 navigate，带上这次观察，填完整网址（https://…）；用户确认后才会打开。");
       }
@@ -197,7 +197,9 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
           mark(sessionId, `在 ${origin()} 按下 ${parts.join(" + ")}`, null);
           const key = main.length ? keyOf(main[0]!) : keyOf(parts.at(-1) ?? "");
           const text = modifiers & (2 | 4) ? undefined : key.text;
-          await send("Input.dispatchKeyEvent", { type: text ? "keyDown" : "rawKeyDown", key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode, modifiers, ...(text ? { text } : {}) });
+          // The Assistant writes shortcuts the Windows way (Control+a); on macOS neither chord edits by itself.
+          const commands = process.platform === "darwin" ? shortcutCommands(key.code, modifiers, 2 | 4) : [];
+          await send("Input.dispatchKeyEvent", { type: text ? "keyDown" : "rawKeyDown", key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode, modifiers, ...(text ? { text } : {}), ...(commands.length ? { commands } : {}) });
           await send("Input.dispatchKeyEvent", { type: "keyUp", key: key.key, code: key.code, windowsVirtualKeyCode: key.keyCode, modifiers });
           await settle();
           return;

@@ -247,6 +247,7 @@ export class BrowserPage {
   private fileChooser: (BrowserPageState["file_chooser"] & { backendNodeId: number; sessionId: string }) | null = null;
   private readonly downloads = new Map<string, BrowserDownload>();
   private control: { mode: BrowserControlMode; work_id: string | null; activity: BrowserAssistantActivity | null } = { mode: "person", work_id: null, activity: null };
+  private takeovers = 0;
   private screencasting: string | null = null;
   private emitQueued = false;
   private readonly unsubscribe: Array<() => void> = [];
@@ -646,10 +647,17 @@ export class BrowserPage {
   }
 
   setControl(control: { mode: BrowserControlMode; work_id: string | null; activity: BrowserAssistantActivity | null }): void {
+    if (control.mode === "taken-over" && this.control.mode !== "taken-over") this.takeovers += 1;
     this.control = control; this.emit();
   }
 
   get controlMode(): BrowserControlMode { return this.control.mode; }
+
+  /**
+   * How many times the person has taken the page over. Part of what the Assistant saw: anything it looked at before
+   * the person reached in describes a page that may have changed under its hands, so it is not acted on afterwards.
+   */
+  get takeoverCount(): number { return this.takeovers; }
 
   copyTo(listener: BrowserListener, text: string): void { listener.copied?.(text); }
 
@@ -675,9 +683,17 @@ function clampViewport(viewport: BrowserViewport): BrowserViewport {
 
 /** macOS editing shortcuts a headless page does not map on its own. */
 function editingCommands(message: Extract<BrowserClientMessage, { type: "key" }>): string[] {
-  if (message.event !== "down" || !(message.modifiers & 4)) return [];
-  const shift = !!(message.modifiers & 8);
-  switch (message.code) {
+  return message.event === "down" ? shortcutCommands(message.code, message.modifiers, 4) : [];
+}
+
+/**
+ * The editing commands for a shortcut pressed with any modifier in `commandMask` (4 = Command, 2 = Control). On macOS
+ * a page reached through CDP maps none of them by itself, so they travel as explicit commands.
+ */
+export function shortcutCommands(code: string, modifiers: number, commandMask: number): string[] {
+  if (!(modifiers & commandMask)) return [];
+  const shift = !!(modifiers & 8);
+  switch (code) {
     case "KeyA": return ["selectAll"];
     case "KeyZ": return [shift ? "redo" : "undo"];
     case "KeyX": return ["cut"];

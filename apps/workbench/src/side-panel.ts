@@ -149,7 +149,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   document.addEventListener('molis:side-close',()=>setOpen(false));
   document.addEventListener('molis:side-toggle',event=>open&&!(event.detail?.tab&&event.detail.tab!==current)?setOpen(false):request(event.detail||{}));
   panel.addEventListener('click',event=>{
-    const target=event.target instanceof Element?event.target:null;if(!target)return;
+    const target=event.target?.nodeType===1?event.target:null;if(!target)return;
     const button=target.closest('[data-side-tab]');if(button){select(button.dataset.sideTab);return;}
     if(target.closest('[data-side-close]'))setOpen(false);
   });
@@ -210,7 +210,7 @@ export const SIDE_LINKS_SCRIPT = String.raw`(() => {
   };
   document.addEventListener('click',event=>{
     if(event.defaultPrevented||event.button!==0)return;
-    const link=event.target instanceof Element?event.target.closest('a[href]'):null;
+    const link=event.target?.nodeType===1?event.target.closest('a[href]'):null;
     if(!link||link.hasAttribute('download')||link.closest('[data-side-links=off]'))return;
     const url=external(link.getAttribute('href'));
     if(!url||(link.target!=='_blank'&&!link.closest('[data-side-links=on]')))return;

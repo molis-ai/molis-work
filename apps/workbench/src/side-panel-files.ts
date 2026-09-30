@@ -199,7 +199,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     render({title:given.title||'',media_type:given.media_type||'text/plain',encoding:'utf8',data:given.text||'',url:safeUrl(given.url),truncated:!!given.truncated},given.problem||'');
   };
   root.addEventListener('click',event=>{
-    const target=event.target instanceof Element?event.target:null;if(!target)return;
+    const target=event.target?.nodeType===1?event.target:null;if(!target)return;
     const row=target.closest('[data-side-file]');if(row){void openFile(row.dataset.source,row.dataset.kind,row.dataset.id);return;}
     const moreButton=target.closest('[data-side-files-more]');if(moreButton){void more(moreButton.dataset.sideFilesMore);return;}
     const action=target.closest('[data-side-files-action]')?.dataset.sideFilesAction;

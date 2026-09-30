@@ -84,6 +84,7 @@ export const SIDE_PANEL_EN: Record<string, string> = {
   "上传文件永远要先问你。": "Uploading a file always asks you first.",
   "没有保存": "Not saved",
   "已交还给助理。助理会先重新查看页面再继续。": "Handed back. The Assistant looks at the page again before going on.",
+  "你接手期间，这一步不会执行。交还后助理会先重新查看页面，再决定要不要做。": "While you hold the page, this step won’t run. After you hand it back, the Assistant looks at the page again before deciding.",
   "网页选段": "Selection from a page",
   "网页": "Web page",
   "来源：{url}": "Source: {url}",

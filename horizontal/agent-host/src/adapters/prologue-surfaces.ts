@@ -101,7 +101,7 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
         kind: "browser",
         identity: () => driver.identity(),
         scope: () => driver.scope(),
-        observe: kind => driver.observe(kind),
+        observe: kind => driver.observe(kind, { session_id: sessionId }),
         perform: async action => driver.perform(await hostAction(action, readText), { session_id: sessionId }),
         close: async () => { drivers.delete(driver); attached.delete(session.ref.id); },
       };

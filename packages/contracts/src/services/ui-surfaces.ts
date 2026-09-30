@@ -24,7 +24,8 @@ export interface HostSurfaceDriver {
   identity(): Promise<string>;
   /** scheme://host[:port] of the current page, what site rules match; `about:blank` while it has not opened a site. */
   scope(): Promise<string>;
-  observe(kind: HostSurfaceObservationKind): Promise<Uint8Array>;
+  /** Looks at the page; the session looking, when known, is shown as the one using the page. */
+  observe(kind: HostSurfaceObservationKind, context?: { readonly session_id: string | null }): Promise<Uint8Array>;
   /** Performs one action. Refuses while the person has taken the page over. */
   perform(action: HostSurfaceAction, context: { readonly session_id: string | null }): Promise<void>;
   close(): Promise<void>;

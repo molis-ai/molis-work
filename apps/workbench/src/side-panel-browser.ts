@@ -82,6 +82,7 @@ export const SIDE_BROWSER_STYLES = String.raw`
 .side-browser-approval,.side-browser-sites{display:grid;gap:8px;flex:none;padding:12px;border-bottom:1px solid var(--line);font-size:13px;line-height:1.6}
 .side-browser-approval{background:color-mix(in srgb,var(--accent) 7%,var(--paper))}
 .side-browser-approval[hidden],.side-browser-sites[hidden]{display:none}
+.side-browser-approval-note{margin:0;color:var(--muted)}
 .side-browser-approval h2,.side-browser-sites h2{margin:0;font-size:13px;font-weight:600}
 .side-browser-approval p,.side-browser-sites p{margin:0;overflow-wrap:anywhere}
 .side-browser-approval dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;margin:0;font-size:12px}
@@ -107,7 +108,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   const control=$('[data-browser-control]'),live=$('[data-browser-live]'),marker=$('[data-browser-marker]'),fileInput=$('[data-browser-file]');
   const esc=(value)=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
   const ctx=canvas.getContext('2d');
-  let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,selection='',announced='',queuedAddress='',attached=false,lastMode='person',lastWork=null,reviewTimer=null,reviewing=null;
+  let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,selection='',announced='',queuedAddress='',attached=false,lastMode='person',lastWork=null,reviewTimer=null,reviewing=null,reviewMode=null,reviewRow=null,polled=false;
   const routePrefix=document.body.dataset.routePrefix||('/projects/'+encodeURIComponent(projectId));
   const approval=$('[data-browser-approval]'),sitesBox=$('[data-browser-sites]');
   const sendRaw=(message)=>{if(socket&&socket.readyState===1&&ready)socket.send(JSON.stringify(message));};
@@ -208,8 +209,11 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     const mode=state.control?.mode||'person',work=state.control?.work_id||null;
     if(mode==='assistant'&&(lastMode!=='assistant'||work!==lastWork)&&!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser'}}));
     if(mode==='assistant')lastWork=work;
+    const changed=mode!==lastMode;
     lastMode=mode;
-    if(mode==='assistant'&&!reviewTimer)pollReviews();
+    // A step may already be waiting (the panel was reloaded, or the person took the page over): look once per change.
+    if(!reviewTimer&&(mode!=='person'||changed||!reviewing&&!polled)){polled=true;void pollReviews();}
+    else if(changed&&reviewRow)renderApproval(reviewRow,true);
   };
   const pollReviews=async()=>{
     clearTimeout(reviewTimer);reviewTimer=null;
@@ -220,16 +224,21 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(!row.receipt||row.receipt.status==='pending'));
     }catch{}
     renderApproval(rows[0]||null);
-    if(rows.length||state?.control?.mode==='assistant')reviewTimer=setTimeout(pollReviews,1500);
+    if(rows.length||state?.control?.mode==='assistant'||state?.control?.mode==='taken-over')reviewTimer=setTimeout(pollReviews,1500);
   };
-  const renderApproval=(row)=>{
-    if(!row){approval.hidden=true;approval.innerHTML='';reviewing=null;return;}
-    if(reviewing===row.request.review_id)return;
-    reviewing=row.request.review_id;
+  const renderApproval=(row,force=false)=>{
+    reviewRow=row;
+    if(!row){approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
+    const held=state?.control?.mode==='taken-over';
+    if(!force&&reviewing===row.request.review_id&&reviewMode===held)return;
+    reviewing=row.request.review_id;reviewMode=held;
     const doc=row.request.document||{},fields=doc.fields||[],site=(fields.find(field=>field.label==='网站')||{}).value||state?.origin||'';
     // Uploads always ask; a blank page is no site to remember.
     const upload=/上传/.test(doc.summary||''),remember=!upload&&/^https?:\/\//.test(site);
-    approval.innerHTML='<h2>'+esc(L('助理请你确认'))+'</h2><p>'+esc(doc.summary||L('助理想在这个页面上操作'))+'</p><dl>'+fields.filter(field=>field.label!=='网站').map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('')+'</dl><div class="side-browser-actions-row">'+button('approve-once',L('允许这一次'),'primary')+(remember?button('approve-site',L('这个网站以后不用问'),'secondary'):'')+button('reject',L('不允许'),'ghost')+'</div>';
+    approval.innerHTML='<h2>'+esc(L('助理请你确认'))+'</h2><p>'+esc(doc.summary||L('助理想在这个页面上操作'))+'</p><dl>'+fields.filter(field=>field.label!=='网站').map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('')+'</dl>'+(held
+      // While the person holds the page the step cannot run; after the handback the Assistant looks again first.
+      ?'<p class="side-browser-approval-note">'+esc(L('你接手期间，这一步不会执行。交还后助理会先重新查看页面，再决定要不要做。'))+'</p><div class="side-browser-actions-row">'+button('reject',L('不允许'),'ghost')+'</div>'
+      :'<div class="side-browser-actions-row">'+button('approve-once',L('允许这一次'),'primary')+(remember?button('approve-site',L('这个网站以后不用问'),'secondary'):'')+button('reject',L('不允许'),'ghost')+'</div>');
     approval.dataset.site=site;approval.hidden=false;
     if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser'}}));
     say(L('助理请你确认：{what}',{what:doc.summary||''}),true);
@@ -266,7 +275,8 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   address.addEventListener('focus',()=>address.select());
   address.addEventListener('keydown',event=>{if(event.key==='Escape'&&state){address.value=state.url||'';event.stopPropagation();event.preventDefault();focusPage();}});
   root.addEventListener('click',async event=>{
-    const target=event.target instanceof Element?event.target.closest('[data-browser-action],[data-browser-download]'):null;if(!target)return;
+    // Checked by node type, not instanceof: a node first touched from a same-origin frame carries that frame's prototype.
+    const target=event.target?.nodeType===1?event.target.closest('[data-browser-action],[data-browser-download]'):null;if(!target)return;
     if(target.matches('[data-browser-download]')){seenDownloads.add(target.dataset.browserDownload);setTimeout(()=>{if(state)renderSheet();},0);return;}
     const action=target.dataset.browserAction;
     if(action==='back'||action==='forward'){sendRaw({type:'history',delta:action==='back'?-1:1});return;}
@@ -300,7 +310,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(action==='site-allow'||action==='site-block'||action==='site-forget'){try{await setSite(target.dataset.scope||state?.origin||'',action.slice(5));await renderSites();}catch(error){say(error.message,true);}return;}
   });
   sitesBox.addEventListener('change',async event=>{
-    if(!(event.target instanceof HTMLInputElement)||!event.target.matches('[data-browser-assistant]'))return;
+    if(event.target?.nodeType!==1||!event.target.matches('input[data-browser-assistant]'))return;
     const enabled=event.target.checked;
     const response=await fetch('/api/browser/assistant',{method:'POST',headers:{...molisWorkControlHeaders(),'content-type':'application/json'},body:JSON.stringify({enabled})}).catch(()=>null);
     if(!response?.ok){event.target.checked=!enabled;say(L('没有保存'),true);return;}

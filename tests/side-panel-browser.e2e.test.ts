@@ -106,11 +106,29 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
     assert.equal(driver.masked(new Uint8Array([1, 2, 3])), false);
     assert.equal(await page.evaluate("!!document.getElementById('__molis_side_mask')"), false, "the cover is removed after the capture");
 
-    // The person takes over: from then on the driver refuses; handing back lets it act again.
+    // The approval card names a field by its label, and a password field's value never stands in for its name.
+    assert.equal(await driver.describePoint!(email.x, email.y), "邮箱");
+    const pw = await centre(page, "#pw");
+    assert.equal(await driver.describePoint!(pw.x, pw.y), "密码");
+
+    // Looking shows which work is using the page, so a takeover and its handback reach that work.
+    await driver.observe("dom", { session_id: "s1" });
+    assert.equal(state!.control.work_id, "s1");
+
+    // The person takes over: from then on the driver refuses; handing back lets it act again — on a fresh look only,
+    // since what it saw before may have changed under the person's hands.
+    const seenBefore = await driver.identity();
     page.setControl({ mode: "taken-over", work_id: "s1", activity: null });
     await assert.rejects(driver.perform({ what: "wait", ms: 10 }, { session_id: "s1" }), /用户已接手/u);
     page.setControl({ mode: "person", work_id: null, activity: null });
+    assert.notEqual(await driver.identity(), seenBefore, "an observation from before the takeover is stale afterwards");
     await driver.perform({ what: "key", keys: ["Tab"] }, { session_id: "s1" });
+
+    // A shortcut written the Windows way still edits on macOS: select the field's text and replace it.
+    await page.evaluate("document.getElementById('email').focus()");
+    await driver.perform({ what: "key", keys: ["Control", "a"] }, { session_id: "s1" });
+    await driver.perform({ what: "text", text: "you@example.com" }, { session_id: "s1" });
+    assert.equal(await page.evaluate("document.getElementById('email').value"), "you@example.com");
 
     // A window the page opens stacks over it; closing it returns to the page below.
     const popup = await centre(page, "#popup");

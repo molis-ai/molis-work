@@ -65,7 +65,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const service: AssistantService = new AssistantService(store, { host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
-      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call)),
+      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user", options.now);
   return { service, store, host, adapter, queue, notes, seen, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
@@ -256,6 +256,23 @@ test("a plugin disabled or upgraded while its change waits: the old call runs no
     const change = done.rounds[0]!.activity.find(item => item.verb === "change")!;
     assert.deepEqual([change.state, change.reason], ["failed", "unavailable"]);
     assert.equal(done.work.state, "completed");
+  } finally { await f.close(); }
+});
+
+test("a stopped round's change that was asked for but never handed over reads as not run; one that was sent stays not known", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [() => reply(undefined, "好的。")]);
+  try {
+    const sent = await f.service.send({ text: "准备一下", request_id: "req-00000081" }, { project_ref: f.project });
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed" || undefined, "completed");
+    const work = f.store.get("web-user", sent.work.work_id);
+    const began = new Date(Date.now() + 1000).toISOString();
+    const step = (call_id: string, capability_id: string) => ({ call_id, verb: "change" as const, target: "Notes · Save a note", state: "unknown" as const, capability_id });
+    const round = { run_id: "r1", text: "x", materials: [], context: null, started_at: began, phase: "stopped", turns: [], activity: [step("c1", "fixture.notes.write"), step("c2", "fixture.other.write")] } as never;
+    const service = f.service as unknown as { settleUnsent(work: unknown, rounds: unknown[]): Array<{ activity: Array<{ state: string; reason?: string }> }>; noteDispatched(work: unknown, view: unknown): void };
+    await new Promise(resolve => setTimeout(resolve, 1100));
+    service.noteDispatched(work, { capability_id: "fixture.notes.write" });
+    const [settled] = service.settleUnsent(work, [round]);
+    assert.deepEqual(settled!.activity.map(item => [item.state, item.reason ?? null]), [["unknown", null], ["failed", "interrupted"]]);
   } finally { await f.close(); }
 });
 

@@ -71,7 +71,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     host: async () => { await ports.agentReady(); return ports.agentHost; },
     authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), service.delegation(work),
-      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work), () => store.confirmAlways(WEB_ACTOR)),
+      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
+      view => service.noteDispatched(work, view)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
       // A Character published in the work's project, frozen at its exact version for the round (the Host checks it again at dispatch).
       ...(work.project_ref ? { resolveCharacter: await projectCharacters(ports, work.project_ref).then(characters => characters.resolve) } : {}) }),

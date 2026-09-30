@@ -43,7 +43,9 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   /** Remember, list and forget for the person (absent when forming memories is switched off). */
   memory?: AgentMemoryTools,
   /** Changes the person wants confirmed each time even though they could be undone (action keys). */
-  confirmAlways?: () => ReadonlySet<string>): AgentStartAuthority {
+  confirmAlways?: () => ReadonlySet<string>,
+  /** Told the moment a change is really handed to its owner (a stopped round's step that never was reads as not run). */
+  dispatched?: (view: ActionView) => void): AgentStartAuthority {
   const reference = work.project_ref;
   const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`,
     ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [], ...(signal ? { signal } : {}) });
@@ -102,6 +104,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
           unsettled?.(view, refused);
           return await refused;
         }
+        if (view && view.operation === "command") dispatched?.(view);
         const call = service().invoke(caller, action, input);
         // The round may stop while the owner is still changing things: the call goes on, and how it ends is kept for the work.
         if (view && view.operation === "command" && unsettled && signal && !signal.aborted) {

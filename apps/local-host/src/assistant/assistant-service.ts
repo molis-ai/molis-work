@@ -836,7 +836,7 @@ export class AssistantService {
     const assistant = work.session_id ? await this.assistantPart(work) : null;
     const sessionId = work.executor.kind === "coding" ? work.executor.session_id : this.linkedCodingSession(work);
     const coding = sessionId ? await this.codingPart(work, sessionId) : null;
-    const rounds = [...(assistant?.rounds ?? []), ...(coding?.rounds ?? [])].sort((a, b) => a.started_at.localeCompare(b.started_at));
+    const rounds = this.settleUnsent(work, [...(assistant?.rounds ?? []), ...(coding?.rounds ?? [])].sort((a, b) => a.started_at.localeCompare(b.started_at)));
     const latest = rounds.at(-1);
     const problem = assistant?.problem ?? coding?.problem;
     const state = coding?.unreadable && work.executor.kind === "coding" ? "needs-check"
@@ -1132,6 +1132,29 @@ export class AssistantService {
     this.store.relations.link(identity(work), "result", { kind, id, revision: revisionOf(typeof object?.version === "number" || typeof object?.version === "string" ? object.version : undefined) }, `${from} 交回`);
     this.store.raiseNotice(this.actorId, { kind: "result", work_id: work.work_id, work_title: work.title, text: `${from} 把结果交回了「${work.title}」` }, `${work.work_id}:result:${kind}:${id}:${String(object?.version ?? "")}`);
     return this.read(workId);
+  }
+
+  /**
+   * Which changes this Host really handed to their owners, per work: the runtime reports a step as asked for, not as sent,
+   * so a stop that lands in between (the checks before a call take a moment) left “not known” for something that never ran.
+   */
+  readonly #dispatched = new Map<string, Array<{ capability_id: string; at: number }>>();
+  readonly #hostStarted = Date.now();
+  noteDispatched(work: StoredWork, view: ActionView): void {
+    const list = this.#dispatched.get(work.work_id) ?? [];
+    list.push({ capability_id: view.capability_id, at: this.now().getTime() });
+    this.#dispatched.set(work.work_id, list.slice(-200));
+  }
+  private settleUnsent(work: StoredWork, rounds: AssistantRound[]): AssistantRound[] {
+    const sent = this.#dispatched.get(work.work_id) ?? [];
+    return rounds.map(round => {
+      const began = Date.parse(round.started_at);
+      // Only rounds this Host saw from their start: before that, what was sent is not known here.
+      if (round.executor === "coding" || !Number.isFinite(began) || began < this.#hostStarted || !["stopped", "cancelled", "failed"].includes(round.phase)) return round;
+      const activity = round.activity.map(item => item.verb === "change" && item.state === "unknown" && !item.reason && item.capability_id
+        && !sent.some(entry => entry.capability_id === item.capability_id && entry.at >= began) ? { ...item, state: "failed" as const, reason: "interrupted" as const } : item);
+      return { ...round, activity };
+    });
   }
 
   /**

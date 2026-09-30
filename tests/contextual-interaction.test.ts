@@ -303,6 +303,46 @@ test("Pages prepares complete writing-assistant inputs for a fragment and a gene
   assert.match(synthesize.title, /A · B/);
 });
 
+test("整篇: a whole-object choice stays reachable from any part of the object, grouped last, never ranked or judged", () => {
+  const withWhole = [...directory(), offers(pages, "pages.whole.offers", [
+    choice("summarize", "organize", "pages.ai", { granularities: ["range", "blocks", "object"] }),
+    choice("proofread", "rewrite", "pages.ai", { granularities: ["object"], apply: "replace" }),
+  ])];
+  const word = fragmentCandidates(withWhole, focus({ granularity: "word" }));
+  assert.equal(word.find(item => item.offer_id === "explain")!.scope, undefined, "a choice for what is in hand is direct");
+  assert.deepEqual(word.filter(item => item.scope === "object").map(item => item.offer_id), ["summarize", "proofread"]);
+  const range = fragmentCandidates(withWhole, focus());
+  assert.equal(range.find(item => item.offer_id === "summarize")!.scope, undefined, "declared for the range too: it acts on the range");
+  assert.equal(range.find(item => item.offer_id === "proofread")!.scope, "object");
+  const whole = fragmentCandidates(withWhole, focus({ granularity: "object", targets: [{ kind: "object", role: "object", text: "全文" }] }));
+  assert.ok(whole.every(item => item.scope === undefined), "with the whole object in hand nothing is apart");
+  assert.ok(!fragmentCandidates(withWhole, focus({ granularity: "objects" })).some(item => item.offer_id === "proofread"), "several objects have no single whole");
+
+  const plan = planContextualLayout({ focus: focus({ granularity: "word" }), candidates: word });
+  const wholes = word.filter(item => item.scope === "object").map(item => item.key);
+  assert.ok(!plan.primary.some(key => wholes.includes(key)), "acting on all of it is never the first guess");
+  assert.deepEqual(plan.more.at(-1), { intent: "whole", title: "整篇", keys: wholes }, "last group, in declared order");
+  assert.ok(!judgedCandidates(word).some(item => item.scope === "object"), "the judgment is not asked about the whole");
+});
+
+test("Pages prepares a whole-document choice from the document's own text, and only at object granularity", () => {
+  const object = { kind: "pages_document", id: "d1", version: 4, title: "计划" };
+  const read = (id: string) => id === "d1" ? "整篇正文：第一段。第二段。" : null;
+  const prepared = preparePagesFragmentOffers({ request_id: "r-w", fragment: { object, granularity: "object", targets: [{ kind: "object", role: "object", text: "截断的摘录" }] } },
+    "pages_document", "io.molis.work.pages", read);
+  const proofread = prepared.find(item => item.offer_id === "proofread")!;
+  assert.deepEqual(proofread.input, { id: "d1", command: "proofread", text: "整篇正文：第一段。第二段。", expected_version: 4 });
+  assert.ok(prepared.some(item => item.offer_id === "translate_new"));
+  assert.ok(prepared.some(item => item.offer_id === "summarize"), "passage choices that also declare the whole object are prepared for it");
+  const fallback = preparePagesFragmentOffers({ request_id: "r-w2", fragment: { object: { ...object, id: "gone" }, granularity: "object", targets: [{ kind: "object", role: "object", text: "截断的摘录" }] } },
+    "pages_document", "io.molis.work.pages", read);
+  assert.equal((fallback.find(item => item.offer_id === "proofread")!.input as { text: string }).text, "截断的摘录", "unreadable: the text in hand");
+  const passage = preparePagesFragmentOffers({ request_id: "r-p", fragment: { object, granularity: "range", targets: [{ kind: "text_range", role: "paragraph", text: "一段话" }] } },
+    "pages_document", "io.molis.work.pages", read);
+  assert.ok(!passage.some(item => item.offer_id === "proofread" || item.offer_id === "translate_new"), "a passage is not the whole document");
+  for (const offer of prepared) assertActionInput(pagesActions.ai.action.input_schema, offer.input, `${offer.offer_id} input`);
+});
+
 // ---- review fixes (2026-09-30) -----------------------------------------------------------------------------------
 test("a block selection's range ends between top-level blocks: inserting after it works", () => {
   const view = editor();

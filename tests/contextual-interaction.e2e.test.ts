@@ -31,6 +31,7 @@ for (const width of [1440, 390]) {
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
     await waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(THIRD)})`);
     assert.equal(await evaluate("document.querySelector('[data-assistant-context-actions]').dataset.state"), "idle", "nothing in hand, nothing offered");
+    await evaluate("document.addEventListener('molis:assistant-context-actions', event => { window.__contextPlan = event.detail.plan; })");
 
     const selectParagraph = (index: number) => evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
       const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, text.length);
@@ -50,6 +51,20 @@ for (const width of [1440, 390]) {
       assert.equal(row.visible, 2, "a phone row keeps two actions; the third leads 更多");
     }
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+
+    // The writing menu shows the row's own plan (spec §6.4.1): the same actions in the same order, then the same
+    // “更多” groups, the whole document's last.
+    await click('[data-mark=ai]');
+    await waitFor("document.querySelector('.pages-pop:not([hidden]) .pages-ai-actions button')");
+    const menu = await evaluate<string[]>(`[...document.querySelectorAll('.pages-pop .pages-ai-actions > *')].map(node => node.matches('.pages-ai-group') ? '#' + node.textContent.trim() : node.querySelector('span').textContent.trim())`);
+    const planned = await evaluate<string[]>(`(() => { const plan = window.__contextPlan; const title = key => plan.candidates.find(item => item.key === key).title;
+      return [...plan.primary.map(title), ...plan.more.flatMap(group => ['#' + group.title, ...group.keys.map(title)])]; })()`);
+    assert.deepEqual(menu, planned);
+    assert.deepEqual(menu.slice(menu.indexOf("#整篇") + 1), ["全文校对", "整篇翻译成新文档"], `the whole document's actions come last: ${menu.join(" / ")}`);
+    await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+    await waitFor("document.querySelector('.pages-pop').hidden");
+    await selectParagraph(1);
+    await waitFor("document.querySelector('[data-assistant-context-actions]')?.dataset.state === 'active' && document.querySelector('[data-assistant-context-actions]').dataset.pending === 'false'");
 
     // Choose through the row: the editor keeps the selection (the row never takes focus), the range freezes at once.
     const key = await evaluate<string>(`[...document.querySelectorAll('[data-assistant-context-actions] .context-action[data-key]')].find(button => button.textContent.includes('改得更简洁'))?.dataset.key || ''`);

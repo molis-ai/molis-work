@@ -175,6 +175,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     hover: new Set(),
     shown: null,
     plan: null,
+    // The last plan published for the menus that show the same actions; it outlives the row being put away.
+    published: null,
     held: null,
     clearWhenLeft: false,
     menu: null,
@@ -304,6 +306,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       if (this.menu) this.fillMenu();
       const words = plan.primary.map((key) => byKey.get(key).title).join("、");
       if (!rulesOnly && words && words !== this.announced) { this.announced = words; live.textContent = L("可以做：") + words; }
+      this.published = plan;
       document.dispatchEvent(new CustomEvent("molis:assistant-context-actions", { detail: { context_id: plan.context_id, plan } }));
       // A split pane's own menus show the same plan: send it to the pane whose surface this context is.
       if (bus.source && bus.source.frame) bus.source.frame.contentWindow?.postMessage({ type: "workbench-context-plan", plan }, location.origin);
@@ -433,8 +436,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     },
   };
 
-  const choose = (key) => {
-    const focus = bus.focus, source = bus.source, plan = bar.plan;
+  const choose = (key, plan = bar.plan) => {
+    const focus = bus.focus, source = bus.source;
     const candidate = plan && plan.candidates.find((item) => item.key === key);
     // Clicked while the row still showed the moment before the last keystroke: bring it up to date instead of acting.
     if (focus && plan && plan.context_id !== focus.context_id) { if (bus.flush) bus.flush(); return; }
@@ -511,10 +514,11 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     else if (event.data.type === "workbench-context-action-unhandled" && event.data.detail) unhandled(event.data.context_id, event.data.key, event.data.detail);
     else if (event.data.type === "workbench-context-action-choose" && bus.source && bus.source.frame === frame) chooseFrom(event.data.context_id, event.data.key);
   });
-  // A menu that shows the same plan (Pages' writing menu) chooses exactly as a click on the row does.
+  // A menu that shows the same plan (Pages' writing menu) chooses exactly as a click on the row does, also after the
+  // person put the row away for this passage.
   const chooseFrom = (contextId, key) => {
     if (!bus.focus || bus.focus.context_id !== contextId || typeof key !== "string") return;
-    choose(key);
+    choose(key, bar.plan || bar.published);
   };
   document.addEventListener("molis:assistant-context-action-choose", (event) => {
     const detail = event.detail || {};

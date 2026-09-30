@@ -37,7 +37,7 @@ for (const width of [1440, 390]) {
       assert.match(JSON.stringify(page.body), /今天讨论/);
       assert.doesNotMatch(JSON.stringify(page.body), /整理后的文稿/, "candidate requires user confirmation");
     } finally { store.close(); }
-    await evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === "确定").click()`);
+    await evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === "插到后面").click()`);
     await waitFor("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('整理后的文稿') && document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
     const saved = openPagesStore(homeDirectory);
     try { assert.match(JSON.stringify(saved.list(projectId!)[0]!.body), /整理后的文稿/); } finally { saved.close(); }

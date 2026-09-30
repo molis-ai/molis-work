@@ -323,7 +323,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const byKey = new Map(menuPlan.candidates.map((candidate) => [candidate.key, candidate]));
     const item = (key) => {
       const candidate = byKey.get(key);
-      return candidate && candidate.available ? { key, title: candidate.title, hint: candidate.hint, emphasis: menuPlan.emphasis === key } : null;
+      return candidate && candidate.available ? { key, title: candidate.title, hint: candidate.hint, emphasis: menuPlan.emphasis === key,
+        ...(candidate.source && candidate.source.provider_id !== "io.molis.work.pages" ? { kind: candidate.provider_title } : {}) } : null;
     };
     const groups = [{ title: "", items: menuPlan.primary.map(item).filter(Boolean) },
       ...menuPlan.more.map((group) => ({ title: group.title, items: group.keys.map(item).filter(Boolean) }))];

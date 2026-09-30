@@ -153,7 +153,8 @@ export interface PagesCommandPreset {
  * — the row's actions first, in its order, then the same groups as its “更多”. The menu keeps no list of its own.
  */
 export interface PagesMenuActions {
-  readonly groups: readonly { readonly title: string; readonly items: readonly { readonly key: string; readonly title: string; readonly hint: string; readonly emphasis?: boolean }[] }[];
+  /** `kind` names another plugin's action, as the row does. */
+  readonly groups: readonly { readonly title: string; readonly items: readonly { readonly key: string; readonly title: string; readonly hint: string; readonly emphasis?: boolean; readonly kind?: string }[] }[];
 }
 
 export interface PagesListItem {
@@ -3274,7 +3275,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
           button.setAttribute("role", "menuitem");
           button.title = item.hint;
           if (item.emphasis) button.dataset.emphasis = "true";
-          button.innerHTML = `<span>${escapeHtml(item.title)}</span>`;
+          button.innerHTML = `<span>${escapeHtml(item.title)}</span>${item.kind ? `<small class="pages-ai-kind">${escapeHtml(item.kind)}</small>` : ""}`;
           button.addEventListener("click", () => { hidePop(); options.chooseMenuAction?.(item.key); });
           return button;
         })];

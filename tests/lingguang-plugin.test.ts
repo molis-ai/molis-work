@@ -121,7 +121,7 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
   assert.equal(entry?.glyph, "idea");
   const market = pluginMarketCards().find((card) => card.id === "lingguang");
   assert.equal(market?.personal, true);
-  assert.equal(market?.copy, "先记下还没想清楚的想法，再决定留下或丢掉。");
+  assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
   assert.equal(lingguangManifest.ui.views?.[0]?.slot, "island");
   assert.equal(lingguangManifest.mcp_exports, undefined);

@@ -210,7 +210,7 @@ function renderGoalList(view: GoalsTreeView, selectedId: string, archiveView: bo
 function renderTreeChrome(view: GoalsTreeView): string {
   return `<header class="tree-chrome" data-tree-chrome data-directory-list-actions>
     <div class="tree-tools">
-      <button class="mw-btn mw-btn--ghost tree-create" type="button" data-open-create>${icon("plus")}<span>${L("新建 Goal")}</span></button>
+      <button class="mw-btn mw-btn--primary tree-create" type="button" data-open-create>${icon("plus")}<span>${L("新建 Goal")}</span></button>
       <div class="tree-filter-control">
         <button class="mw-btn mw-btn--ghost tree-filter-trigger" type="button" data-tree-filter-trigger aria-expanded="false" aria-controls="tree-status-filter" aria-label="${L("筛选目标")}" title="${L("筛选目标")}">${icon("filter")}<span>${L("状态")}</span></button>
       </div>

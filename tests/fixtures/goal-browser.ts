@@ -179,7 +179,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   async function waitFor(expression: string, timeoutMs = 4000): Promise<void> {
     const result = await command<{ result: { value: unknown }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression: `new Promise((resolve, reject) => {
       const deadline = Date.now() + ${timeoutMs};
-      const check = () => { if (${expression}) resolve(true); else if (Date.now() >= deadline) reject(new Error('DOM condition timeout; toast=' + document.querySelector('[data-toast]')?.textContent + '; focused=' + document.activeElement?.outerHTML.slice(0,500))); else setTimeout(check, 16); }; check();
+      const check = () => { if (${expression}) resolve(true); else if (Date.now() >= deadline) reject(new Error('DOM condition timeout: ' + ${JSON.stringify(expression.slice(0, 200))} + '; toast=' + document.querySelector('[data-toast]')?.textContent + '; focused=' + document.activeElement?.outerHTML.slice(0,300))); else setTimeout(check, 16); }; check();
     })`, awaitPromise: true, returnByValue: true }, sessionId, timeoutMs + 2_000);
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
   }

@@ -1,6 +1,6 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { DIRECT_WORK_SURFACE_IDS, islandEntries, pluginMarketCards, railEntries } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 
 export interface ImmersiveShellPrimitives {
@@ -29,7 +29,7 @@ function directoryPlugins(enabled: readonly string[]) {
 
 function pluginLink(
   { L, icon }: ImmersiveShellPrimitives,
-  plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon },
+  plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon; hint?: string },
   extraClass = "",
   suffix = "",
 ): string {
@@ -39,7 +39,9 @@ function pluginLink(
     ? ` aria-label="${plugin.label}"`
     : ` aria-label="${L("切换到插件")}：${plugin.label}"`;
   const className = extraClass ? `immersive-plugin-link ${extraClass}` : "immersive-plugin-link";
-  return `<button class="${className}" type="button" data-plugin-id="${plugin.id}"${directory} data-work-surface-open="${plugin.surface}"${feedPreset}${aria} title="${plugin.label}">${icon(plugin.glyph)}<span>${plugin.label}</span>${suffix}</button>`;
+  // One line under the name says what the person gets there (the switcher shows it; the Dock does not).
+  const hint = plugin.hint ? `<small class="plugin-rail-hint">${plugin.hint}</small>` : "";
+  return `<button class="${className}" type="button" data-plugin-id="${plugin.id}"${directory} data-work-surface-open="${plugin.surface}"${feedPreset}${aria} title="${plugin.label}">${icon(plugin.glyph)}<span>${plugin.label}</span>${hint}${suffix}</button>`;
 }
 
 function currentListPlugin(directory: string): string {
@@ -73,10 +75,19 @@ function islandPlugins(enabled: readonly string[]) {
  */
 const RAIL_CORE_ORDER = ["goals", "inbox", "feed", "sessions"];
 const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
+/**
+ * Groups read as what the person wants to do, not as kinds of software: 推进 (the backbone plus its helpers),
+ * 写与做 (things one makes), 个人 (what belongs to the person, 灵光 first), 研究, 编码. See
+ * specs/plugin-e2e-review/spec.md §3.1.
+ */
 const RAIL_TOOL_GROUPS: ReadonlyArray<readonly [label: string, ids: readonly string[]]> = [
-  ["工作", ["schedule", "workflows"]],
-  ["创作", ["pages", "form", "dataset", "ppt", "images", "artifacts"]],
+  ["推进", ["schedule", "workflows"]],
+  ["写与做", ["pages", "form", "dataset", "ppt", "images", "artifacts"]],
+  ["个人", ["todo", "jelly", "cognia", "shelf", "characters"]],
+  ["研究", ["experiments", "alchemist"]],
+  ["编码", ["coding"]],
 ];
+const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入口。";
 const RAIL_GROUPED_TOOL_IDS = new Set(RAIL_TOOL_GROUPS.flatMap(([, ids]) => ids));
 const RAIL_EXTEND_PLUGIN_IDS = new Set(["plugin-builder"]);
 
@@ -93,18 +104,21 @@ export function renderPluginRail(
 ): string {
   const { L, icon, escapeHtml } = primitives;
   const entries = directoryPlugins(enabled);
+  const hints = pluginStageSummaries();
   const zoned = (html: string, zone: string) => html.replace("<button ", `<button data-rail-zone="${zone}" `).replace("<a ", `<a data-rail-zone="${zone}" `);
-  const link = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon }, zone: string, suffix = "") =>
-    zoned(pluginLink(primitives, plugin, "plugin-rail-item", suffix), zone);
+  const link = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon; hint?: string }, zone: string, suffix = "") =>
+    zoned(pluginLink(primitives, { ...plugin, hint: plugin.hint ?? (hints[plugin.id] ? L(hints[plugin.id]) : undefined) }, "plugin-rail-item", suffix), zone);
   const subgroup = (label: string, buttons: string) => buttons ? `<p class="plugin-rail-subgroup" data-rail-zone="more">${label}</p>${buttons}` : "";
-  const home = link({ id: "home", surface: "home", label: L("项目首页"), glyph: "home" }, "core");
+  const home = link({ id: "home", surface: "home", label: L("项目首页"), glyph: "home", hint: L(RAIL_HOME_HINT) }, "core");
   const core = entries.filter(plugin => RAIL_CORE_PLUGIN_IDS.has(plugin.id))
     .sort((a, b) => RAIL_CORE_ORDER.indexOf(a.id) - RAIL_CORE_ORDER.indexOf(b.id)).map(plugin => link(plugin, "core")).join("");
-  // 灵光 is a plugin like any other: it leads the first group, which sits directly under 插件.
+  // 灵光 is a plugin like any other: it leads 个人, the group of what belongs to the person.
   const personal = islandPlugins(enabled).map(plugin => link(plugin, "tool")).join("");
   const grouped = RAIL_TOOL_GROUPS.map(([label, ids], index) => {
     const links = entries.filter(plugin => ids.includes(plugin.id)).map(plugin => link(plugin, "tool")).join("");
-    return index === 0 ? personal + links : subgroup(L(label), links);
+    // The backbone already sits under the first heading; its helpers follow without a second one.
+    if (index === 0) return links;
+    return subgroup(L(label), label === "个人" ? personal + links : links);
   }).join("");
   // Plugins the project installed at run time (built in the studio) have no directory; their name is their own.
   const own = installed.map(plugin => `<button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="tool" data-plugin-id="${escapeHtml(plugin.surface)}" data-work-surface-open="${escapeHtml(plugin.surface)}" aria-label="${L("切换到插件")}：${escapeHtml(plugin.label)}" title="${escapeHtml(plugin.label)}">${icon("package")}<span>${escapeHtml(plugin.label)}</span></button>`);
@@ -113,7 +127,7 @@ export function renderPluginRail(
   const toggle = `<button class="immersive-plugin-link plugin-rail-item plugin-rail-toggle" type="button" data-rail-tools-toggle aria-expanded="false" aria-label="${L("全部插件")}" title="${L("全部插件")}">${icon("more")}<span data-rail-toggle-label="${L("收起插件")}">${L("全部插件")}</span></button>`;
   return `<nav class="mw-sidebar mw-sidebar--rail plugin-rail immersive-plugin-strip" data-plugin-strip data-plugin-heading aria-label="${L("项目入口")}">
     ${personalIsland}
-    <div class="plugin-rail-items">${home}${core}<p class="plugin-rail-group" data-rail-zone="tools">${L("插件")}</p>${grouped}${subgroup(L("更多"), other)}${toggle}</div>
+    <div class="plugin-rail-items">${home}<p class="plugin-rail-group" data-rail-zone="tools">${L(RAIL_TOOL_GROUPS[0][0])}</p>${core}${grouped}${subgroup(L("更多"), other)}${toggle}</div>
     ${accountFooter.replace("<!-- account-global-items -->", renderAccountGlobalItems(primitives, enabled))}
   </nav>`;
 }

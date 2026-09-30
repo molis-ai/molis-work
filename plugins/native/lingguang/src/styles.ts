@@ -94,4 +94,9 @@ export const LINGGUANG_STYLES = `
 
   .lingguang-placement-line { margin: 2px 0 10px; }
   [data-lingguang-empty]:not([hidden]) ~ .lingguang-placement-line { display: none; }
+
+  /* The detail bar reads as three groups: where to keep it, how to think on, and the quiet ways out. */
+  .lingguang-bar-group { display: inline-flex; align-items: center; gap: 4px; }
+  .lingguang-bar-group + .lingguang-bar-group { margin-left: 4px; padding-left: 8px; border-left: 1px solid var(--line); }
+  .lingguang-bar-group--quiet { margin-left: auto; }
 `;

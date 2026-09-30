@@ -89,3 +89,23 @@ test("PPT fixed publication survives partial success, actor isolation, restart a
   const next=await f.bound.invoke(actions.promote,{id});assert.equal(next.artifact.version,2);
   await f.host.withProject(f.ref,runtime=>assert.deepEqual((runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id,next.artifact)!.payload as any).slides,slides));
 });
+
+test("PPT outline: pasted Markdown becomes slides locally; the model path needs a text model", async t => {
+  const f = await fixture(t);
+  const { presentation: created } = await f.bound.invoke(actions.create, {});
+  const outlined = await f.bound.invoke(actions.outline, { id: created.id, text: "# 季度回顾\n## 结果\n- 收入 +12%\n- 成本持平\n> 先讲结果\n## 计划\n- 试用两周", expected_version: created.version });
+  assert.equal(outlined.slide_count, 2);
+  // An untitled deck takes the outline's title; its one blank page is filled rather than kept.
+  assert.equal(outlined.presentation.title, "季度回顾");
+  assert.deepEqual(outlined.presentation.slides.map(slide => slide.title), ["结果", "计划"]);
+  assert.deepEqual(outlined.presentation.slides[0]!.bullets, ["收入 +12%", "成本持平"]);
+  assert.equal(outlined.presentation.slides[0]!.notes, "先讲结果");
+  const appended = await f.bound.invoke(actions.outline, { id: created.id, text: "## 风险\n- 供应", expected_version: outlined.presentation.version });
+  assert.deepEqual(appended.presentation.slides.map(slide => slide.title), ["结果", "计划", "风险"]);
+  const replaced = await f.bound.invoke(actions.outline, { id: created.id, text: "## 只剩这页\n- 一条", replace: true });
+  assert.deepEqual(replaced.presentation.slides.map(slide => slide.title), ["只剩这页"]);
+  await assert.rejects(f.bound.invoke(actions.outline, { id: created.id, text: "   " }), { code: "ppt.invalid" });
+  await assert.rejects(f.bound.invoke(actions.outline, { id: created.id, text: "## 晚了", expected_version: 1 }), { code: "ppt.conflict" });
+  await assert.rejects(f.bound.invoke(actions.outlineAi, { id: created.id, text: "整理一下" }), { code: "actions.connection_required" });
+  assert.equal((await f.bound.invoke(actions.list, {})).ai_available, false);
+});

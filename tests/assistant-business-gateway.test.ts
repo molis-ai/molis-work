@@ -713,6 +713,10 @@ test("a card a page prepared from the person's selection is checked like the Ass
     // Continuing the work, the round hears the selection.
     await f.service.send({ work_id: placed.work_id, text: "再帮我想两条类似的", request_id: "req-00000071" }, {});
     await until(async () => (await f.service.read(placed.work_id)).work.state === "completed", "round");
+    // Placed into a work that already has rounds, a page's card still belongs to no round: it came from the page.
+    const second = await f.service.offerFromPage({ message_id: "page-message-0004", source, card, work_id: placed.work_id }, { project_ref: f.project });
+    assert.equal(second.card.run_id, null);
+    assert.equal(placed.card.run_id, null);
   } finally { await f.close(); }
 });
 
@@ -727,5 +731,21 @@ test("a material a round brought can be read back with its text for a preview, a
     const material = f.service.material(sent.work.work_id, "web-1");
     assert.deepEqual([material.kind, material.title, material.text, material.url], ["text", "网页 · Example Domain", page, "https://example.com/"]);
     assert.throws(() => f.service.material(sent.work.work_id, "missing"), /没有这份材料/);
+  } finally { await f.close(); }
+});
+
+test("a reply that shows the capability id the round found is held once and rewritten in titles (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "find-capabilities", input: { query: "Notes" } }),
+    () => reply(undefined, "用 fixture.notes.count 查过了，目前没有笔记。"),
+    body => { assert.match(JSON.stringify(body), /internal identifiers \(fixture\.notes\.count\)/); return reply(undefined, "查过 Notes 里的笔记数：目前一条都没有。"); },
+  ]);
+  try {
+    const sent = await f.service.send({ text: "现在有几条笔记？", request_id: "req-00000091" }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(f.requests.length, 3, "held once");
+    const last = done.rounds.at(-1)!.turns.filter(turn => turn.kind === "assistant").at(-1)!;
+    assert.doesNotMatch(last.text, /fixture\.notes/);
+    assert.match(last.text, /一条都没有/);
   } finally { await f.close(); }
 });

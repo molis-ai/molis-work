@@ -84,13 +84,19 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         <span data-lingguang-save-status role="status" aria-live="polite"></span>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-save-retry hidden>${p.text("重试保存")}</button>
         <span data-placement-slot data-placement-saved="off"></span>
+        <span class="lingguang-bar-group" data-lingguang-keep-group>
         <button class="mw-btn mw-btn--secondary" type="button" data-lingguang-to-doc title="${p.text("做成一篇可以继续写的文档，记着它来自这条灵光；灵光本身不变")}">${p.text("转成文档")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-to-goal title="${p.text("在这个位置建一个 Goal，这条灵光作为它的来源")}">${p.text("建成 Goal")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-todo data-make-todo="lingguang" data-make-todo-subject="lingguang_spark" data-make-todo-surface="lingguang" data-make-todo-reason="${p.text("你从灵光转为待办")}">${p.text("转为待办")}</button>
+        </span>
+        <span class="lingguang-bar-group">
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-brainstorm-current>${p.text("头脑风暴")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-ask-toggle aria-expanded="false" aria-controls="lingguang-ask">${p.text("交给助理")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-dispatch-current>${p.text("复制内容")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-discard-current>${p.text("丢掉")}</button>
+        </span>
+        <span class="lingguang-bar-group lingguang-bar-group--quiet">
+        <button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-lingguang-dispatch-current aria-label="${p.text("复制内容")}" title="${p.text("复制内容")}">${icon("copy")}</button>
+        <button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-lingguang-discard-current aria-label="${p.text("丢掉")}" title="${p.text("丢掉")}">${icon("trash")}</button>
+        </span>
       </div>
       <form class="lingguang-ask" id="lingguang-ask" data-lingguang-ask hidden>
         <input class="mw-input" data-lingguang-ask-input autocomplete="off" aria-label="${p.text("要助理做什么？")}" placeholder="${p.text("要助理做什么？")}">

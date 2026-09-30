@@ -2,7 +2,7 @@ import type { ArtifactJsonValue, ArtifactReference, ArtifactVersionRecord, Artif
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, parseCharacterContent, type CharacterContent, type CharactersCommand, type CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { PluginDefinition, PluginRouteBinding, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { charactersManifest } from "./manifest.js";
-import { charactersUiContribution } from "./ui.js";
+import { charactersSettingsUiContribution, charactersUiContribution } from "./ui.js";
 import type { CharactersImportPorts } from "./imports.js";
 import { characterBrowserPreview, characterSnapshotPreview, characterFilePreview } from "./import-preview.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -157,7 +157,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       }
     } });
     const id = (request: PluginRouteRequest) => request.params.id ?? "";
-    return { kind: "app", views: [charactersUiContribution], actions: handlers, routes: [
+    return { kind: "app", views: [charactersUiContribution, charactersSettingsUiContribution], actions: handlers, routes: [
       route("characters.actions", a.actions, () => ({})),
       route("characters.discover", a.discover, request => body(request)),
       route("characters.import-file", a.importFile, request => body(request)),

@@ -22,6 +22,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const note = workbench.querySelector("[data-ppt-note]");
   const confirmDialog = workbench.querySelector("[data-ppt-confirm]");
   let records = [];
+  let aiAvailable = false, aiUnavailableReason = "";
   let selected = null;
   let currentSlideId = "";
   let saveTimer = 0;
@@ -83,9 +84,11 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       notesEl.textContent = text;
       bar.textContent = (index + 1) + " / " + slides.length + " · " + L("←/→ 翻页 · N 讲者备注 · Esc 退出");
     };
+    let watchSurface = null;
     const leave = () => {
       document.removeEventListener("keydown", key, true);
       window.removeEventListener("resize", fit);
+      watchSurface?.disconnect();
       if (document.fullscreenElement === stage) document.exitFullscreen().catch(() => {});
       stage.remove();
       currentSlideId = slides[index].id;
@@ -104,6 +107,9 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     stage.addEventListener("click", (event) => { if (event.target.closest(".ppt-present-notes")) return; index = Math.min(slides.length - 1, index + 1); draw(); });
     stage.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && stage.isConnected) leave(); });
     document.addEventListener("keydown", key, true);
+    // Switching to another plugin hides this surface; the show must not stay on top of the next one.
+    // The surface hides through an ancestor (the tab workspace pool), so visibility is what to watch.
+    watchSurface = { timer: setInterval(() => { if (!workbench.isConnected || (workbench.checkVisibility && !workbench.checkVisibility())) leave(); }, 250), disconnect() { clearInterval(this.timer); } };
     draw();
     document.body.append(stage);
     stage.focus();
@@ -142,15 +148,24 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     paint();
     if (list) list.scrollTop = top;
   };
-  const firstLine = (value) => {
+  const firstLine = (value, fallback = "") => {
     const line = String(value || "").trim().split("\\n")[0].trim();
-    return line || L("还没有说明");
+    return line || fallback;
   };
-  const kindChip = (kind, label) => {
+  const whenOf = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const sameYear = date.getFullYear() === new Date().getFullYear();
+    return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
+  };
+  // A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name.
+  const fixedCell = (record) => {
     const node = document.createElement("span");
-    node.className = "mw-status plugin-stage-kind";
-    node.dataset.kind = kind;
-    node.textContent = label;
+    node.className = "mw-status mw-status--plain feed-entry-status";
+    if (record.publication_pending) { node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
+    else if (record.artifact_version > 0) { node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
+    else node.setAttribute("aria-hidden", "true");
     return node;
   };
   const textCell = (className, text) => {
@@ -404,17 +419,6 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     keepListScroll(() => paintList());
   };
   const artifactLabel = (record) => record?.publication_pending ? L("继续保存上次固定版本") : record && record.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
-  const artifactControl = (record, key) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "creative-artifact-act";
-    button.dataset[key] = record.id;
-    const label = artifactLabel(record);
-    button.setAttribute("aria-label", label);
-    button.innerHTML = '<svg aria-hidden="true"><use href="#icon-upload"></use></svg><span></span>';
-    button.lastElementChild.textContent = label;
-    return button;
-  };
   const paintList = () => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
@@ -432,17 +436,13 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       title.title = record.title;
       title.textContent = record.title;
       leading.append(title);
-      const status = document.createElement("span");
-      status.className = "feed-entry-status";
-      status.setAttribute("aria-hidden", "true");
       row.append(
         leading,
-        kindChip("ppt", L("演示稿")),
         textCell("plugin-stage-fact", (record.slides || []).length + " " + L("页")),
-        textCell("plugin-stage-meta", firstLine(record.description)),
-        status,
+        textCell("plugin-stage-meta", firstLine(record.description, whenOf(record.updated_at))),
+        fixedCell(record),
       );
-      item.append(row, artifactControl(record, "pptArtifact"));
+      item.append(row);
       rowsEl.append(item);
     });
     const bar = workbench.querySelector("[data-ppt-artifact-bar]");
@@ -453,8 +453,81 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     const payload = await request("GET", "/api/plugins/ppt");
     if (seq !== listSeq) return;
     records = payload.presentations || [];
+    aiAvailable = payload.ai_available === true;
+    aiUnavailableReason = payload.ai_unavailable_reason || "";
+    paintOutlineModes();
     renderList();
   };
+  /* ---- Outline from text: a dialog that turns pasted text into slides, locally or through the model ---- */
+  const outlineDialog = workbench.querySelector("[data-ppt-outline-dialog]");
+  const outlineForm = workbench.querySelector("[data-ppt-outline-form]");
+  let outlineMode = "local";
+  const paintOutlineModes = () => {
+    if (!outlineDialog) return;
+    const ai = outlineDialog.querySelector('[data-ppt-outline-mode="ai"]');
+    const reason = outlineDialog.querySelector("[data-ppt-outline-ai-reason]");
+    if (ai) { ai.disabled = !aiAvailable; ai.title = aiAvailable ? "" : (aiUnavailableReason ? L(aiUnavailableReason) : L("请先配置可用的文字模型")); }
+    if (!aiAvailable && outlineMode === "ai") outlineMode = "local";
+    outlineDialog.querySelectorAll("[data-ppt-outline-mode]").forEach((button) => {
+      const on = button.dataset.pptOutlineMode === outlineMode;
+      button.classList.toggle("is-current", on);
+      button.setAttribute("aria-checked", String(on));
+    });
+    if (reason) { reason.hidden = aiAvailable; reason.textContent = aiAvailable ? "" : (aiUnavailableReason ? L(aiUnavailableReason) : L("请先配置可用的文字模型")); }
+  };
+  const showOutlineError = (text) => {
+    const box = outlineDialog?.querySelector("[data-ppt-outline-error]");
+    if (!box) return;
+    box.hidden = !text;
+    box.textContent = text || "";
+  };
+  const openOutline = () => {
+    if (!outlineDialog || !selected) return;
+    showOutlineError("");
+    const replace = outlineDialog.querySelector("[data-ppt-outline-replace]");
+    // A deck that is still one blank page is simply filled; the box only matters once there is something to keep.
+    const blank = selected.slides.length === 1 && !selected.slides[0].bullets.length && !selected.slides[0].notes;
+    if (replace) { replace.checked = false; replace.closest("label").hidden = blank; }
+    paintOutlineModes();
+    outlineDialog.showModal();
+    outlineDialog.querySelector("[data-ppt-outline-text]")?.focus();
+  };
+  const submitOutline = async () => {
+    if (!outlineDialog || !selected) return;
+    const textarea = outlineDialog.querySelector("[data-ppt-outline-text]");
+    const text = (textarea?.value || "").trim();
+    if (!text) { showOutlineError(L("收到的内容里没有可以做成幻灯片的文字")); textarea?.focus(); return; }
+    const submit = outlineDialog.querySelector("[data-ppt-outline-submit]");
+    const replace = Boolean(outlineDialog.querySelector("[data-ppt-outline-replace]")?.checked);
+    showOutlineError("");
+    submit.disabled = true;
+    const label = submit.textContent;
+    submit.textContent = outlineMode === "ai" ? L("整理中…") : label;
+    try {
+      await save();
+      const record = selected;
+      const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(record.id) + (outlineMode === "ai" ? "/outline-ai" : "/outline"),
+        { text, replace, expected_version: record.version });
+      if (!selected || selected.id !== record.id) return;
+      currentSlideId = payload.presentation.slides[replace ? 0 : Math.max(0, payload.presentation.slides.length - payload.slide_count)]?.id || currentSlideId;
+      fillEditor(payload.presentation);
+      await loadList();
+      if (textarea) textarea.value = "";
+      outlineDialog.close();
+      showNote(L("已生成 {count} 页").replace("{count}", String(payload.slide_count)), false);
+    } catch (error) {
+      showOutlineError(error.message || L("演示稿请求失败"));
+    } finally {
+      submit.disabled = false;
+      submit.textContent = label;
+    }
+  };
+  outlineDialog?.addEventListener("click", (event) => {
+    if (event.target.closest("[data-ppt-outline-close]")) { outlineDialog.close(); return; }
+    const mode = event.target.closest("[data-ppt-outline-mode]");
+    if (mode && !mode.disabled) { outlineMode = mode.dataset.pptOutlineMode; paintOutlineModes(); }
+  });
+  outlineForm?.addEventListener("submit", (event) => { event.preventDefault(); void submitOutline(); });
   const draftFromDom = () => {
     const value = liveRecord();
     return { title: value.title, description: value.description, color_primary: value.color_primary,
@@ -562,6 +635,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         await loadList();
         return;
       }
+      if (event.target.closest("[data-ppt-outline-open]") && selected) { openOutline(); return; }
       if (event.target.closest("[data-ppt-add-slide]") && selected) {
         const slides = [...slidesFromEditor(), { id: "s-" + crypto.randomUUID(), title: L("未命名一页"), bullets: [], notes: "", order: selected.slides.length + 1 }];
         selected = { ...selected, slides };

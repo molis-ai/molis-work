@@ -206,7 +206,9 @@ export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | 
 export function pluginMarketCards(): readonly PluginMarketCard[] {
   return BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
     if (!entry.summary) return [];
-    const nav = entry.manifest.ui?.views?.find((view) => view.slot === "navigator" || view.slot === "island");
+    // A plugin whose page lives in settings (角色) is named and drawn by that view.
+    const views = entry.manifest.ui?.views ?? [];
+    const nav = views.find((view) => view.slot === "navigator" || view.slot === "island") ?? views.find((view) => view.slot === "settings" && view.icon);
     return [{
       id: entry.project_plugin_id,
       runtime_id: entry.manifest.plugin_id,

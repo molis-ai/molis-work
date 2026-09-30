@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
+import { AssistantError, AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 import { pdfDocumentParser } from "../apps/local-host/src/pdf-document-parser.js";
 import { deflateSync, crc32 } from "node:zlib";
@@ -95,7 +95,8 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture", ...(vision === undefined ? {} : { vision }) }),
     resolveCredential: () => "fixture-only" });
   host.register(adapter);
-  const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
   try {
     const image = png(), bytes = image.toString("base64");
     const material = await service.readAttachment({ name: "chart.png", data: bytes });
@@ -111,6 +112,13 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
     assert.match(first, /"type":"image"/);
     assert.ok(first.includes("看不到图片内容就直接说看不到"), "the model is told not to guess");
     assert.equal((await service.read(sent.work.work_id)).rounds[0]!.materials[0]!.kind, "image");
+    // The picture can be looked at again from the work (the side panel shows it), exactly as it was brought.
+    assert.deepEqual(await service.materialImage(sent.work.work_id, material.material_id), { media_type: "image/png", data: bytes });
+    // After a restart the runtime holds no copy: the work says so, and asking for it gives the way out instead of a picture.
+    const restarted = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
+    assert.equal((await restarted.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, true);
+    assert.equal((await service.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, undefined);
+    await assert.rejects(restarted.materialImage(sent.work.work_id, material.material_id), (error: unknown) => error instanceof AssistantError && error.code === "assistant.expired" && /重新添加/.test(error.message));
 
     // The next round of the same work does not carry it again.
     await service.send({ text: "继续说说颜色的含义", request_id: "image-send-2", work_id: sent.work.work_id }, {});

@@ -57,7 +57,11 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     assert.equal((await stateOf(gitActions.state.capability_id)).available, true, "read-only Git needs no review backend");
     const foreign = { ...caller, actor_id: "runtime:foreign", audience: "mcp" as const };
     const foreignDirectory = await client.discover(foreign);
-    for (const definition of [...FILES_ACTIONS, ...GIT_ACTIONS]) {
+    // The side panel's file source is for the local person only (specs/side-panel): an external client never sees it.
+    for (const definition of [...FILES_ACTIONS, ...GIT_ACTIONS].filter(definition => !definition.action.audiences.includes("mcp"))) {
+      assert.equal(foreignDirectory.some(row => row.capability_id === definition.capability_id), false, definition.capability_id);
+    }
+    for (const definition of [...FILES_ACTIONS, ...GIT_ACTIONS].filter(definition => definition.action.audiences.includes("mcp"))) {
       const item = foreignDirectory.find(row => row.capability_id === definition.capability_id)!;
       assert.deepEqual(item.availability, { available: false, code: "actions.owner_mismatch", reason: "此入口使用本地用户的个人状态与成果；当前调用者尚未接通独立归属，不能借用该用户身份" });
     }

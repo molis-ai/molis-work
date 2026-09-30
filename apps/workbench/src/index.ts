@@ -1,5 +1,6 @@
 export { createWorkbenchDecisionCenterRenderer, type WorkbenchDecisionGroup } from "./decision-center.js";
 export { renderPluginPageWorkspace } from './plugin-page-workspace.js';
+export { renderSideViewDocument, type SideViewDocumentInput, type SideViewModel } from "./side-view-document.js";
 export { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
 export { renderWorkbenchPlanningRequest } from "./goals-planning-request.js";
 export type { WorkbenchPlanningPageOwners } from "./goals-planning-request.js";
@@ -130,7 +131,7 @@ export { createWorkbenchRenderer, type WorkbenchRendererPorts, type WorkbenchRen
 export { renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog } from "./primitive-catalog.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export type * from "./capsule-view.js";
-export { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries } from "./plugin-catalog.js";
+export { availableProjectPluginIds, shownProjectPlugins, BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries } from "./plugin-catalog.js";
 export type { BuiltinPluginEntry, PluginMarketCard, RailEntry } from "./plugin-catalog.js";
 export { pluginWorkbenchPacks } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";

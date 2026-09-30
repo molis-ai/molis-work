@@ -157,6 +157,11 @@
 - Prologue SDK（`9fc3b173`）：app-mode-surfaces（含 Character 绑定、空白页）、ui-control、plugin-manifest、computer-use，以及记忆的 5 个文件，全过。
 - 其他：assistant-delegation（子工作带 `browser:false`）、announce-guard（浏览器动作）、soft-workbench-refinement 设计门禁，全过。
 - 构建：`pnpm build`、`boundary:check`、`typecheck:all` 通过（合 main 后）。
+- 非浏览器全量（2026-09-30，合 110ef251 后）：580 个文件，3290 个用例通过。失败只有两条，都在 main 上同样失败，不是本分支引入：
+  - `plugin-global-settings` 的 Shelf 设置断言：设置页不再输出 isolation_fact，本分支没改那个页面；
+  - `pages-draft-race`：只加载 Pages 的 client.ts，本分支与 main 的 client.ts 和测试逐字相同。
+  另有 `pages-mcp` 在满负载下超时一次，单独重跑 15 秒通过。
+- 合入 main 722dcd31（含 #113、#114）后：受影响的 93 个非浏览器文件 673 通过，失败同上两条。浏览器 e2e 与基线比对等协调时段。
 
 ### 7.2 真实场景通过（预览 4292、隔离 Home、MiniMax-M3、真实网站）
 

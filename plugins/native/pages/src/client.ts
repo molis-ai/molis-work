@@ -242,7 +242,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     workbench.setAttribute("data-assistant-context", JSON.stringify(context));
   };
   // What the person has in hand here, for the bar and the Assistant (specs/contextual-interaction §4): the editor's
-  // focus around this document. A document this editor cannot show offers nothing to act on.
+  // focus around this document. A document this editor cannot show offers nothing to act on. Pages reports its own
+  // focus, so a selection elsewhere on this surface (a row of the list, say) is not read as part of the document.
+  workbench.setAttribute("data-surface-focus", "own");
   let focusNow = null;
   let focusShown = null;
   const surfaceFocus = () => {

@@ -37,9 +37,11 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 ### 侧栏标签（`side`）
 
 - 声明：`ui.views` 里写 `{ view_id, slot: "side", title, contribution_id, icon }`；contribution 的 surface 目标是 `workbench.side`（格式 `declarative-html`）。插件在项目里启用才出现，停用或卸载就撤下，不留空标签。
-- Host 在 `/projects/<id>/side/<project_plugin_id>/<view_id>` 用独立文档渲染它，侧栏用同源 iframe 装载：带设计系统、插件自己的样式与 `clientFactory`（多一个 `side: true`）。contribution 收到的 model 只有位置：`{ project_id, route_prefix, view_id }`，数据仍经插件自己的动作与路由读取。
+- Host 在 `/projects/<id>/side/<project_plugin_id>/<view_id>` 用独立文档渲染它，侧栏用同源 iframe 装载：引用工作台同一份样式表（随页面缓存，插件在舞台上怎样显示，这里就怎样显示），并运行插件的 `clientFactory`（多一个 `side: true`）。contribution 收到的 model 只有位置：`{ project_id, route_prefix, view_id }`，数据仍经插件自己的动作与路由读取。
+- 复用舞台外壳（`renderPluginStageShell`）没问题：外壳默认 `hidden`，侧栏文档作为宿主会在挂载客户端前显示它。个人插件（不按项目存的，如灵光）同样出现。
 - 位置、宽度、打开与收起归 Host：插件不能自己定位、不能改侧栏尺寸，也不能借侧栏拿到别的权限。要让侧栏切到自己的标签，页面发 `molis:side-open { tab: "plugin", view: "<project_plugin_id>/<view_id>" }`（同源 iframe 用 `postMessage` 同名消息）。
 - 只想让侧栏的“文件”标签列出你的文件，不需要 `side` 视图：声明一个文件来源即可，见 [files.md](files.md)。
+- 插件的工作要在侧栏浏览器里打开或操作某些网站，就在 `permissions` 里声明 `{ permission: "surface:browser", required, reason, origins: ["https://shop.example.com"] }`。`origins` 必须是完整来源，不带路径、查询串或片段，否则 Manifest 当场被拒；其他权限不能带 `origins`。声明会出现在插件市场的卡片上（「会在侧栏浏览器里使用：…」），`molis-work-plugin validate` 的输出里也会列出 `browser_sites`。声明只是告诉用户，不代替每一步的确认：动手仍按侧栏浏览器的规则逐步确认，上传文件永远要确认。
 - 门禁：`inspectManifest` 拒绝未知槽和未声明的 contribution；`tests/side-panel-platform.test.ts` 用一个未知插件只靠声明接入、停用后撤下。
 
 `settings-page` 只能挂 `workbench.settings`。来源账号、Inbox 列表仍是插件内容，不进全局设置。

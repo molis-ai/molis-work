@@ -34,7 +34,8 @@ import type {
   PluginMcpHandlerBinding,
 } from "./plugin-mcp.js";
 
-export { parsePluginManifest, PluginManifestError, canonicalPluginId, comparePluginVersions } from "./plugin-manifest.js";
+export { parsePluginManifest, PluginManifestError, canonicalPluginId, comparePluginVersions, SURFACE_BROWSER_PERMISSION } from "./plugin-manifest.js";
+import { SURFACE_BROWSER_PERMISSION } from "./plugin-manifest.js";
 export type { PluginArtifactClient, PluginArtifactPublishInput } from "./plugin-artifacts.js";
 export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner } from "./plugin-package.js";
 export * from "./plugin-events.js";
@@ -118,6 +119,16 @@ export interface PluginPermissionDeclaration {
   permission: string;
   required: boolean;
   reason: string;
+  /**
+   * Only with `surface:browser`: the sites the Plugin's work opens or acts on in the side panel browser, each an exact
+   * origin (`https://example.com`, no path, query or fragment). Shown to the person before the Plugin is added.
+   */
+  origins?: readonly string[];
+}
+
+/** The websites a Plugin says it uses in the side panel browser; empty when it declares none. */
+export function browserSiteDeclarations(manifest: { readonly permissions: readonly PluginPermissionDeclaration[] }): readonly string[] {
+  return manifest.permissions.find(item => item.permission === SURFACE_BROWSER_PERMISSION)?.origins ?? [];
 }
 
 export interface PluginEntrypointManifest {

@@ -1,3 +1,4 @@
+import { browserSiteDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { validatePluginManifestFile } from "./validate.js";
 import { createPluginProject } from "./create.js";
 import { packPluginProject } from "./package-files.js";
@@ -61,7 +62,9 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
       return 0;
     }
     const manifest = await validatePluginManifestFile(args[1]!);
-    output.stdout(`${JSON.stringify({ valid: true, plugin_id: manifest.plugin_id, version: manifest.version })}\n`);
+    // The websites it says it uses in the side panel browser, for the author to check what people will read.
+    const sites = browserSiteDeclarations(manifest);
+    output.stdout(`${JSON.stringify({ valid: true, plugin_id: manifest.plugin_id, version: manifest.version, ...(sites.length ? { browser_sites: sites } : {}) })}\n`);
     return 0;
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? error.code : "plugin_manifest_invalid";

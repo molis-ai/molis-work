@@ -71,7 +71,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 不要跳。用不到的块省略，不要预埋。
 
 1. 对象与时刻（上面四问）。
-2. Manifest 身份：`schema_version`（产品插件用 2）、`host_api_version`、`plugin_id`、`name`、`version`、`kind`、`publisher`、`entrypoints`、`permissions`（每条带 reason）、`requires`（每条同时写入 `capabilities.consumes`）。权限只写真会用的。
+2. Manifest 身份：`schema_version`（产品插件用 2）、`host_api_version`、`plugin_id`、`name`、`version`、`kind`、`publisher`、`entrypoints`、`permissions`（每条带 reason；要用侧栏浏览器的网站，写 `surface:browser` 并列出 `origins`，见 [ui.md](ui.md) 侧栏标签一节）、`requires`（每条同时写入 `capabilities.consumes`）。权限只写真会用的。
 3. 个人还是项目：本机创作/函数/置物架/灵光在 catalog 标 `personal`；Goals/Feed/Inbox 按项目启用。
 4. UI 槽 + contribution。槽只有 `navigator` | `stage` | `settings` | `island` | `side`。列表详情用 `renderPluginStageShell`。视觉、客户端：[ui.md](ui.md)。
 5. HTTP：第三方走 Manifest `routes`，Host 挂 `/api/plugins/<plugin_id>/`。一等 Native 由 Host 注入短名路径（`/api/feed/`、`/api/pages/`），插件包自管 route table。未声明/未接线的路径到不了插件。

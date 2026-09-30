@@ -12,6 +12,10 @@ import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { UiViewRegistry } from "@molis-ai/molis-work-ui-host";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
+import { browserSiteDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, definePlugin, fileContentOf, fileEntriesPage, FILE_CONTENT_MAX_BYTES,
 } from "../packages/plugin-sdk/src/index.js";
@@ -163,4 +167,30 @@ test("real Host: the file tab lists and previews plugin files through the action
     await host.close();
     await rm(home, { recursive: true, force: true });
   }
+});
+
+test("a Plugin names the websites it uses in the side panel browser as exact origins, and the author's check prints them", async () => {
+  const manifest = (permissions: unknown[]) => ({
+    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.sites", version: "1.0.0", name: "Sites", kind: "integration",
+    publisher: { publisher_id: "local-developer", signature: "local-development-identity" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    permissions, capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+  });
+  const sites = { permission: "surface:browser", required: false, reason: "在侧栏浏览器里打开订单页", origins: ["https://shop.example.com", "http://localhost:8080"] };
+  assert.deepEqual(browserSiteDeclarations(parsePluginManifest(manifest([sites]))), ["https://shop.example.com", "http://localhost:8080"]);
+  assert.deepEqual(browserSiteDeclarations(parsePluginManifest(manifest([]))), []);
+  const refused = (origins: unknown, permission = "surface:browser") => assert.throws(() => parsePluginManifest(manifest([{ ...sites, permission, origins }])),
+    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_permission_invalid", JSON.stringify(origins));
+  // A path, a query, a fragment or another scheme would say less than the site it allows; none, or origins on another permission, say nothing.
+  for (const origins of [["https://shop.example.com/orders"], ["https://shop.example.com/?token=x"], ["https://shop.example.com#top"], ["file:///etc"], ["shop.example.com"], [], undefined]) refused(origins);
+  refused(["https://shop.example.com"], "artifact:write");
+
+  const directory = await mkdtemp(join(tmpdir(), "side-panel-sites-"));
+  try {
+    const manifestPath = join(directory, "manifest.json");
+    writeFileSync(manifestPath, JSON.stringify(manifest([sites])));
+    const cli = fileURLToPath(new URL("../tooling/plugin-cli/bin/molis-work-plugin.mjs", import.meta.url));
+    const valid = spawnSync(process.execPath, [cli, "validate", manifestPath], { cwd: directory, encoding: "utf8" });
+    assert.equal(valid.status, 0, valid.stderr);
+    assert.deepEqual(JSON.parse(valid.stdout).browser_sites, ["https://shop.example.com", "http://localhost:8080"]);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

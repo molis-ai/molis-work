@@ -1,7 +1,7 @@
 import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
 export { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
@@ -13,6 +13,8 @@ export interface PluginMarketCard {
   readonly glyph: string;
   readonly copy: string;
   readonly personal: boolean;
+  /** Websites the Plugin says it uses in the side panel browser (its `surface:browser` declaration), shown before adding. */
+  readonly sites: readonly string[];
 }
 
 /** Enabled surfaces and their declared embedded dependencies; no installation or grant mutation. */
@@ -196,6 +198,7 @@ export function pluginMarketCards(): readonly PluginMarketCard[] {
       glyph: nav?.icon ?? "package",
       copy: entry.summary,
       personal: entry.personal === true,
+      sites: browserSiteDeclarations(entry.manifest),
     }];
   });
 }

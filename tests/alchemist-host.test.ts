@@ -4,6 +4,7 @@ import { agentDefinitionsFor } from "../apps/local-host/src/agent-definitions/ag
 import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-registrations.js";
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
 import assert from "node:assert/strict";
+import { ALCHEMIST_COPILOT } from "@molis-ai/molis-work-plugin-alchemist";
 import test from "node:test";
 import http from "node:http";
 import https from "node:https";

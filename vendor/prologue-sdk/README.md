@@ -1,6 +1,16 @@
 # Prologue SDK 构建来源
 
-## 当前依赖：原图摄取与资源限额
+## 当前依赖：assistant-intake（2026-09-29，main 的原图摄取线 + 助理的记忆项目作用域）
+
+`prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`。把两条从 `4702abe3` 分出的线合在一起：main 的 `resource-intake`（有界结果、原图摄取与资源限额，见下节）与系统级助理的记忆 `project` 作用域（`memory-project.patch`，见“历史依赖：assistant-memory”）。两者只在记忆那两个文件上相交，合并无冲突。
+
+- 源码：`~/code/prologue-assistant` 仓库的工作树分支 `feat/molis-assistant-resource-intake`，提交 `c63ea1a1`（合并 `18a1c827` 与 `ac4d1135`）。
+- 重建：检出 `af7375c7`，先应用 [resource-intake.patch](resource-intake.patch)，再应用 [memory-project.patch](memory-project.patch)；`pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`5eab31e2c4a8b2a4d4b9c2bf7ab30804800025b2df709c3cd8c85822782e95b0`。
+- 验证：记忆（含项目作用域）、app 模式、派出前拒绝、原图摄取与限额、网络派出授权 8 个文件 71 项全过，类型检查无错。
+- 本目录暂时多出两份已不被依赖的包：`resource-intake.tgz`（main 上一版当前依赖）与 `assistant-memory.tgz`（助理分支上一版）。按本目录约定应删除，删 vendor 文件由用户决定。
+
+## 上一依赖：原图摄取与资源限额（main）
 
 `prologue-sdk-0.0.0-rc.1-resource-intake.tgz` 保留此前有界结果、Assistant、网络授权等全部改动，修复原图输入所用的 Runtime → Node Host intake → ResourceStore：采用当前 App 限额、整批容量/引用原子发布、取消后不复活、在途清理和内存资源竞争容量。没有新增模型循环或业务状态。
 
@@ -19,13 +29,23 @@
 - SHA-256：`32201e9e8d3ea6bb8de7cd74b155c1e31677b4b61d9bdd431506ac88419b024f`。
 - SDK build 通过；结果收集、结构校验、函数引擎、app 模式、session-stop、网络授权与取消 10 文件 70 项通过，1 项真实 MiniMax 因无凭据跳过。包含真实 Node Host 和本地 HTTP 路径，未运行真实付费模型。源码与包仅本地提交，未发布 npm。
 
-**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-resource-intake.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
+**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖（见最上一节），以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
 
 ```bash
 git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz
 ```
 
 下文写着"保留以便回退""保留用于回溯"的地方，都按上面这条从 git 历史取。换新包时把旧的当前包一并删掉，不再在这里累积。
+
+## 历史依赖：assistant-memory（2026-09-28，在 assistant 包上补记忆的 project 作用域）
+
+`prologue-sdk-0.0.0-rc.1-assistant-memory.tgz`。在下面的 assistant 包之上只改一处：记忆作用域 `MemoryScope` 新增 `"project"`（归属者是 App 的项目标识，同一人不同项目的记忆各自隔离），并加测试 `test/memory-project-scope.live.test.ts`。
+
+- 源码：本机 `~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`，提交 `ac4d1135`（父 `4702abe3`）；增量补丁 [memory-project.patch](memory-project.patch)。
+- 重建：检出 `4702abe3` 应用 `memory-project.patch`（或直接检出 `ac4d1135`），`pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack`。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`6c356f5cda731a402c5c5db1bb233f3ea22d2881593c0f7966e50439448998ca`。
+- 核对：与 assistant 包逐文件比对，只有 `dist/memory/core/memory.d.ts` 不同（运行时 JS 相同）。SDK 记忆测试 4 个文件 51 项全过。
+- 旧的 `prologue-sdk-0.0.0-rc.1-assistant.tgz` 仍在本目录，已不被依赖；按本目录约定应删除，删 vendor 文件由用户决定。
 
 ## 历史依赖：assistant（2026-09-28，系统级个人助理 + network-dispatch）
 

@@ -44,7 +44,7 @@ for (const width of [1440, 390]) {
       const screenshot = async (state: string) => writeFile(new URL(`pages-publication-${state}-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
       await screenshot("pending");
       await click('[data-pages-artifact-bar]');
-      await waitFor("document.querySelector('[data-pages-note]').textContent.includes('已恢复上次成果') && document.querySelector('[data-pages-artifact-bar]').textContent === '再存一版'");
+      await waitFor("document.querySelector('[data-pages-note]').textContent.includes('已恢复上次成果') && document.querySelector('[data-pages-artifact-bar]').textContent === '再存一个固定版本'");
       const final = pages.get(original.id, projectId!);
       assert.equal(final.title, "后续编辑仍在文稿中"); assert.equal(final.artifact_version, 1); assert.equal(final.publication_pending, undefined);
       const artifact = project.db.prepare("SELECT payload_json FROM artifact_versions WHERE artifact_id = ? AND version = 1").get(final.artifact_id) as { payload_json: string };

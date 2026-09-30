@@ -3,10 +3,12 @@ export * from "./action-result.js";
 export * from "./action-execution.js";
 import { validActionExecutionPolicy, type ActionExecutionPolicy } from "./action-execution.js";
 import { validActionResultView, type ActionResultView } from "./action-result.js";
-import { SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN } from "./action-subjects.js";
+import { SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT } from "./action-subjects.js";
 import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_SCHEMA, type SubjectOfferChoice } from "./action-offers.js";
 import { HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_WINDOW_SCHEMA, HOME_EVENT_COLLECTION_SCHEMA } from "./home-events.js";
 export * from "./home-events.js";
+import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, DUE_REMINDER_WINDOW_SCHEMA, DUE_REMINDER_COLLECTION_SCHEMA } from "./due-reminders.js";
+export * from "./due-reminders.js";
 export * from "./action-offers.js";
 export * from "./action-usages.js";
 export * from "./action-subjects.js";
@@ -16,6 +18,8 @@ import { WORKFLOW_CONTENT_SCHEMAS } from "./workflow-content.js";
 export * from "./workflow-content.js";
 import { searchSourceDeclarationProblems, type SearchSourceDeclaration } from "./search-sources.js";
 export * from "./search-sources.js";
+import { placementDeclarationProblems } from "./placement.js";
+export * from "./placement.js";
 
 /** JSON Schema is preserved at the boundary; providers must not invent output guarantees. */
 export type ActionSchema = Readonly<Record<string, unknown>>;
@@ -125,6 +129,31 @@ export interface ActionMetadata {
    * Callers that keep relations to results (the Assistant's work) use it; undeclared, see `actionResultSubject`.
    */
   readonly result_subject?: { readonly id: string; readonly revision?: string };
+  /**
+   * A command that starts background work (a research run, a generation job): how a caller follows it to its end.
+   * `id` is the dot path to the job id in this command's output; the `status` query of the same provider takes it in
+   * its `input` field and reports the state at the dot path `state`; `done` and `failed` list the final states.
+   * The Assistant uses it to watch a job it started and tell the person when it ends (the convention for long work).
+   */
+  readonly background_job?: {
+    readonly status: { readonly capability_id: string; readonly version: number };
+    readonly id: string;
+    readonly input: string;
+    readonly state: string;
+    readonly done: readonly string[];
+    readonly failed: readonly string[];
+  };
+  /**
+   * How this change is taken back: another command of the same provider, with its input read from this command's
+   * output (a path such as "spark.id"; a one-item array wraps the value in an array, e.g. ["spark.id"]). A change that
+   * declares it may run without a confirmation when the person asked for exactly this effect (they can set it back to
+   * confirm each time), and the work then offers “撤销”. Never on an irreversible change.
+   */
+  readonly undo?: {
+    readonly capability_id: string;
+    readonly version: number;
+    readonly input: Readonly<Record<string, string | readonly [string]>>;
+  };
 }
 
 export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {
@@ -471,7 +500,7 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
           if (raw.operation !== "query" || (a.scope !== "project" && a.scope !== "home") || a.kind !== "query" || !a.subject_kinds.length
             || a.input_type !== SUBJECT_REFERENCE_TYPE || a.output_type !== SUBJECT_CONTEXT_TYPE
             || canonicalSchema(a.input_schema) !== canonicalSchema(SUBJECT_CONTEXT_INPUT_SCHEMA)
-            || ![SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN].some(schema => canonicalSchema(a.output_schema) === canonicalSchema(schema))) {
+            || ![SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN].some(schema => canonicalSchema(a.output_schema) === canonicalSchema(schema))) {
             problems.push(`能力 ${key} 没有兑现对象上下文协议 v1 的输入输出合同`);
           }
         }
@@ -503,7 +532,34 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
             problems.push(`${key} 首页事件查询必须使用完整规范合同`);
           }
         }
+        if (a.input_type === DUE_REMINDERS_INPUT_TYPE || a.output_type === DUE_REMINDERS_OUTPUT_TYPE) {
+          if (raw.operation !== "query" || a.kind !== "query" || a.scope !== "home"
+            || a.input_type !== DUE_REMINDERS_INPUT_TYPE || a.output_type !== DUE_REMINDERS_OUTPUT_TYPE
+            || canonicalSchema(a.input_schema) !== canonicalSchema(DUE_REMINDER_WINDOW_SCHEMA)
+            || canonicalSchema(a.output_schema) !== canonicalSchema(DUE_REMINDER_COLLECTION_SCHEMA)) {
+            problems.push(`${key} 到期提醒查询必须是 Home 范围、使用完整规范合同`);
+          }
+        }
+        if (a.background_job !== undefined) {
+          const job = a.background_job;
+          const path = (value: unknown) => typeof value === "string" && /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(value);
+          const states = (value: unknown) => Array.isArray(value) && value.length > 0 && value.every(item => typeof item === "string" && item.length > 0);
+          if (raw.operation !== "command" || !object(job) || !object(job.status) || !id(job.status.capability_id) || !version(job.status.version)
+            || !path(job.id) || !path(job.input) || !path(job.state) || !states(job.done) || !states(job.failed)) {
+            problems.push(`能力 ${key} 的后台任务声明必须是命令，并写明状态查询、任务标识与状态的位置和结束状态`);
+          }
+        }
+        if (a.undo !== undefined) {
+          const undo = a.undo;
+          const path = (value: unknown) => typeof value === "string" && /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(value);
+          const fields = object(undo) && object(undo.input) ? Object.entries(undo.input) : [];
+          if (raw.operation !== "command" || a.effect === "irreversible" || !object(undo) || !id(undo.capability_id) || !version(undo.version) || !fields.length
+            || fields.some(([, value]) => !(path(value) || (Array.isArray(value) && value.length === 1 && path(value[0]))))) {
+            problems.push(`能力 ${key} 的撤销声明必须是可撤回的命令，并写明同一提供方的撤销命令与其输入在本次输出里的位置`);
+          }
+        }
         problems.push(...searchSourceDeclarationProblems(key, a, raw.operation, canonicalSchema));
+        problems.push(...placementDeclarationProblems(key, a, raw.operation, canonicalSchema));
         if (a.workflow_content !== undefined) {
           const w = a.workflow_content;
           if (!object(w) || !/^[a-z][a-z0-9-]{1,40}$/.test(String(w.id)) || !text(w.title) || !text(w.icon)
@@ -601,9 +657,53 @@ export function actionFieldLabel(key: string, declared?: { title?: string; descr
   return declared?.description && declared.description.length <= 24 ? declared.description : key;
 }
 
-/** A field's value as a person reads it: rich text as its text, minutes-of-day as a time, the rest as it is. */
-export function actionFieldValue(key: string, value: unknown): string {
-  if (typeof value === "string") return value;
+/**
+ * The choices a field declares, each with the words a person reads: `oneOf`/`anyOf` entries `{ const, title }`, or an
+ * `enum` whose description names them as `value=label` (e.g. "personal=个人，project=当前项目"). Null when none.
+ */
+export function actionFieldOptions(declared?: unknown): Array<{ value: string; label: string }> | null {
+  if (!declared || typeof declared !== "object") return null;
+  const schema = declared as { enum?: unknown; oneOf?: unknown; anyOf?: unknown; description?: unknown };
+  const isNull = (item: unknown) => Boolean(item) && typeof item === "object" && (item as { type?: unknown }).type === "null";
+  const listedAll = [schema.oneOf, schema.anyOf].find(Array.isArray) as unknown[] | undefined;
+  // A nullable field wraps its choices with a null branch: read the choices inside.
+  const listed = listedAll?.filter(item => !isNull(item));
+  if (listed?.length === 1 && listed[0] && typeof listed[0] === "object" && (listed[0] as { const?: unknown }).const === undefined) return actionFieldOptions(listed[0]);
+  if (listed?.length && listed.every(item => item && typeof item === "object" && typeof (item as { const?: unknown }).const === "string")) {
+    return listed.map(item => ({ value: (item as { const: string }).const, label: typeof (item as { title?: unknown }).title === "string" ? (item as { title: string }).title : (item as { const: string }).const }));
+  }
+  if (!Array.isArray(schema.enum) || !schema.enum.length || !schema.enum.every(item => typeof item === "string")) return null;
+  const named = new Map<string, string>();
+  if (typeof schema.description === "string") for (const [, value, label] of schema.description.matchAll(/([A-Za-z0-9_.-]+)\s*=\s*([^，,；;、\n]+)/g)) named.set(value!, label!.trim());
+  return (schema.enum as string[]).map(value => ({ value, label: named.get(value) ?? value }));
+}
+
+/**
+ * How a person fills a field that is a calendar day or a moment, from its JSON Schema `format` ("date", "date-time"),
+ * through a nullable wrapper: picked rather than typed. Null for any other field.
+ */
+export function actionFieldInput(declared?: unknown): "date" | "datetime" | null {
+  if (!declared || typeof declared !== "object") return null;
+  const schema = declared as { format?: unknown; oneOf?: unknown; anyOf?: unknown };
+  if (schema.format === "date") return "date";
+  if (schema.format === "date-time") return "datetime";
+  const listed = ([schema.oneOf, schema.anyOf].find(Array.isArray) as unknown[] | undefined)
+    ?.filter(item => !(item && typeof item === "object" && (item as { type?: unknown }).type === "null"));
+  return listed?.length === 1 ? actionFieldInput(listed[0]) : null;
+}
+
+/** A moment as a person reads it, in this machine's local time. */
+const localMoment = (value: string): string | null => {
+  const at = new Date(value);
+  if (!Number.isFinite(at.getTime())) return null;
+  const two = (part: number) => String(part).padStart(2, "0");
+  return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())} ${two(at.getHours())}:${two(at.getMinutes())}`;
+};
+
+/** A field's value as a person reads it: a declared choice by its label, a moment in local time, rich text as its text, minutes-of-day as a time, the rest as it is. */
+export function actionFieldValue(key: string, value: unknown, declared?: unknown): string {
+  if (typeof value === "string" && actionFieldInput(declared) === "datetime") return localMoment(value) ?? value;
+  if (typeof value === "string") return actionFieldOptions(declared)?.find(option => option.value === value)?.label ?? value;
   if (typeof value === "number" && /_time$/.test(key) && Number.isInteger(value) && value >= 0 && value < 1440) {
     return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
   }

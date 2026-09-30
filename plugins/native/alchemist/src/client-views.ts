@@ -52,7 +52,7 @@ export const ALCHEMIST_VIEWS = String.raw`
   }
   function renderDecision(value){
     decision=value;target=null;context.panel='decision';content.innerHTML=ideaTabs('decision')+'<div class="alc-candidates">'+[['market_space','市场空间','market'],['build_cost','实现成本','cost']].map(([key,label,action])=>'<section class="alc-candidate"><h3>'+tx(label)+' '+status(value.materials[key].status)+'</h3><p>'+esc((value.materials[key].summary||'').replace(/\s+/g,' ').slice(0,170))+((value.materials[key].summary||'').length>170?'…':'')+'</p>'+button('查看研究',action)+'</section>').join('')+'</div>';
-    if(value.decision){content.innerHTML+=section(L('已决定')+' · '+L(states[value.decision.outcome]),value.decision.reason)+section('下一步或回看条件',value.decision.revisitCondition||L('未设置'));footer.innerHTML=button('查看决策列表','decisions');}
+    if(value.decision){content.innerHTML+=section(L('已决定')+' · '+L(states[value.decision.outcome]),value.decision.reason)+section('下一步或回看条件',value.decision.revisitCondition||L('未设置'));footer.innerHTML=(value.decision.outcome==='build'?button('建成 Goal','to-goal',true,'title="'+tx('在本项目建一个 Goal，这个想法和决定作为它的来源')+'"'):'')+button('查看决策列表','decisions');}
     else{content.innerHTML+=value.gate.ready?'<p class="alc-muted">'+tx('两份研究属于当前版本。根据证据和未知，选择下一步。')+'</p>':'<p class="alc-warning">'+esc(value.gate.message)+'</p>';footer.innerHTML=['build','hold','drop'].map((v,index)=>button(states[v],'decide',index===0,'data-outcome="'+v+'" '+(!value.gate.ready?'disabled':''))).join('');}
   }
   function renderPulse(bundle){

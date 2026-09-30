@@ -1,4 +1,5 @@
 import { handleSearchHttp } from "./search-http.js";
+import { handlePlacementHttp } from "./placement-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
@@ -16,6 +17,8 @@ import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
 import { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
+import { TODO_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-todo";
+import { handleTodoNativePluginHttp } from "./todo-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
@@ -88,6 +91,7 @@ export async function handleLocalCatalogWebRequest(
   }
   // Without a project, search covers personal content only; the caller's context has no project to widen it.
   if (await handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
+  if (await handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
   if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: ["functions:invoke", "functions:manage"] })),
   })) return;
@@ -148,6 +152,9 @@ export async function handleLocalCatalogWebRequest(
   })) return;
   if (serverOptions.homeDirectory && await handleJellyNativePluginHttp(request, response, url, transport =>
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS, ...transport })))) return;
+  // Without a project the person reaches personal and unplaced todos only.
+  if (serverOptions.homeDirectory && await handleTodoNativePluginHttp(request, response, url, transport =>
+    bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: TODO_ACTION_PERMISSIONS, ...transport })))) return;
   if (serverOptions.homeDirectory && await handleCogniaNativePluginHttp(request, response, url, transport =>
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS, ...transport })))) return;
   if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, {

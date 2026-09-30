@@ -7,7 +7,9 @@ export const scheduleSearchActions = {
   subject: defineSubjectContextAction("schedule.subject.read", "schedule_task", "定时任务", ["schedule:read"]),
 };
 const revisionOf = (task: ScheduleConversationTaskView) => searchRevisionOf([task.updated_at, String(task.turns.length), task.turns.at(-1)?.turn_id ?? ""]);
-const contentOf = (task: ScheduleConversationTaskView) => [task.instructions, ...task.turns.map(turn => turn.text)].filter(Boolean).join("\n\n");
+// A reader asked "when does it run" answers from the task itself: its clock and whether it is on come first.
+const whenOf = (task: ScheduleConversationTaskView) => `每天 ${task.clock_label} 运行${task.enabled ? "" : "（已停用）"}`;
+const contentOf = (task: ScheduleConversationTaskView) => [whenOf(task), task.instructions, ...task.turns.map(turn => turn.text)].filter(Boolean).join("\n\n");
 
 export function createScheduleSearchHandlers(projectId: string, tasks: () => readonly ScheduleConversationTaskView[]): ActionHandlerBinding[] {
   const scoped = (caller: ActionCallContext) => { if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "请求项目与定时任务所在项目不一致"); };

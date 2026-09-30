@@ -141,6 +141,11 @@ export interface PagesEditorMountOptions {
   pages?: () => readonly PagesListItem[];
   onOpenPage?: (id: string) => void;
   runAi?: (input: { command: string; text: string; style?: string }) => Promise<{ text: string; stub?: boolean }>;
+  /**
+   * Hands the selection to the resident Assistant: `suggest` puts it into the Assistant's input for the person to send;
+   * `delegate` is the person asking, here and now, for the Assistant to take it on with the request they typed.
+   */
+  askAssistant?: (input: { mode: "suggest" | "delegate"; request: string; selection: string }) => void;
   onCreateFromAi?: (input: { title: string; text: string }) => Promise<void>;
 }
 
@@ -175,6 +180,13 @@ function commandToggle(markName: string): Command {
     }
     return toggleInlineMark(markName)(state, dispatch);
   };
+}
+
+/** The document as Markdown, the same conversion the server uses when it hands a page to another plugin. */
+export function toMarkdown(value: unknown): string {
+  const nodes: Node[] = [];
+  nodeFromUnknown(value).forEach((child) => { nodes.push(child); });
+  return nodesToMarkdown(nodes).trim() + "\n";
 }
 
 export function toHTML(value: unknown): string {
@@ -262,6 +274,19 @@ function overlayRoot(): HTMLElement {
     ?? document.body;
 }
 
+/**
+ * Put a fixed overlay at viewport coordinates. Inside the workbench a pane can itself be the box fixed positioning is
+ * measured from (it would shift the overlay by the pane's offset onto the text it belongs above): measure where it
+ * landed and correct by the difference. The element must be shown when this runs.
+ */
+function pinAt(el: HTMLElement, left: number, top: number): void {
+  el.style.left = left + "px";
+  el.style.top = top + "px";
+  const box = el.getBoundingClientRect();
+  const dx = Math.round(box.left - left), dy = Math.round(box.top - top);
+  if (dx || dy) { el.style.left = left - dx + "px"; el.style.top = top - dy + "px"; }
+}
+
 function placeOverlay(el: HTMLElement, anchor: FloatingAnchor, mode: "below" | "above" | "beside"): void {
   const stage = el.closest("[data-pages-stage-workspace]")?.getBoundingClientRect();
   const left = Math.max(0, stage?.left ?? 0);
@@ -281,8 +306,7 @@ function placeOverlay(el: HTMLElement, anchor: FloatingAnchor, mode: "below" | "
     { width, height },
     mode,
   );
-  el.style.left = left + spot.left + "px";
-  el.style.top = top + spot.top + "px";
+  pinAt(el, left + spot.left, top + spot.top);
 }
 
 function followScroll(panel: Element, run: () => void): () => void {
@@ -1186,13 +1210,13 @@ function hoverHandlePlugin(translate: Translate | undefined, onNote: (index: num
         const top = Math.round(rect.top + 2);
         const left = Math.round(Math.min(Math.max(minLeft, minLeft + indent), maxLeft));
         const sameCaret = handle.classList.contains("is-caret") === followingCaret;
-        if (!force && placed === rowPos && handle.style.top === top + "px" && handle.style.left === left + "px" && sameCaret) return;
+        if (!force && placed === rowPos && handle.dataset.at === left + "," + top && !handle.hidden && sameCaret) return;
         gripFollowsCaret = followingCaret;
         handle.classList.toggle("has-note", Boolean(node.attrs.note));
         handle.classList.toggle("is-caret", followingCaret);
-        handle.style.top = top + "px";
-        handle.style.left = left + "px";
         handle.hidden = false;
+        pinAt(handle, left, top);
+        handle.dataset.at = left + "," + top;
         pos = rowPos;
         placed = rowPos;
       };
@@ -3211,6 +3235,37 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       button.addEventListener("click", () => { void runAiCommand(view, item.id, item.style); });
       pop.append(button);
     });
+    if (options.askAssistant) {
+      const ask = options.askAssistant;
+      const selection = () => view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n");
+      const heading = document.createElement("p");
+      heading.textContent = t(options.translate, "助理");
+      const bring = document.createElement("button");
+      bring.type = "button";
+      bring.className = "mw-menu__item";
+      bring.innerHTML = `<span>${escapeHtml(t(options.translate, "带到助理（由你发送）"))}</span>`;
+      bring.addEventListener("click", () => { ask({ mode: "suggest", request: "", selection: selection() }); hidePop(); });
+      // Handing over needs the person's own words for what to do; submitting this form is their asking.
+      const form = document.createElement("form");
+      form.className = "pages-ask-assistant";
+      const field = document.createElement("input");
+      field.className = "mw-input";
+      field.placeholder = t(options.translate, "要助理做什么？");
+      field.setAttribute("aria-label", t(options.translate, "要助理做什么？"));
+      const submit = document.createElement("button");
+      submit.type = "submit";
+      submit.className = "mw-btn mw-btn--primary mw-btn--sm";
+      submit.textContent = t(options.translate, "交给助理");
+      form.append(field, submit);
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const request = field.value.trim();
+        if (!request) { field.focus(); return; }
+        ask({ mode: "delegate", request, selection: selection() });
+        hidePop();
+      });
+      pop.append(heading, bring, form);
+    }
     placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
   };
 
@@ -3460,9 +3515,12 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     keymap({ Escape: selectEnclosingBlock }),
   ];
 
+  // While the person is still dragging out a selection the bar stays away: it would cover the text being selected.
+  // It appears once the button is released (keyboard selection shows it at once).
+  let dragSelecting = false;
   const placeToolbar = (current: EditorView) => {
     const { from, to, empty } = current.state.selection;
-    if (empty || !(current.state.selection instanceof TextSelection)) {
+    if (dragSelecting || empty || !(current.state.selection instanceof TextSelection)) {
       toolbar.hidden = true;
       return;
     }
@@ -3787,6 +3845,15 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   };
   document.addEventListener("keydown", onPopEscape, true);
   refreshToc(view, options.translate);
+  const onSelectStart = (event: PointerEvent) => { if (event.button === 0 && event.pointerType !== "touch") { dragSelecting = true; toolbar.hidden = true; } };
+  const onSelectEnd = () => {
+    if (!dragSelecting) return;
+    dragSelecting = false;
+    if (view.hasFocus()) placeToolbar(view);
+  };
+  view.dom.addEventListener("pointerdown", onSelectStart);
+  document.addEventListener("pointerup", onSelectEnd, true);
+  document.addEventListener("pointercancel", onSelectEnd, true);
   const reposition = () => {
     if (view.hasFocus()) {
       placeToolbar(view);
@@ -3805,6 +3872,9 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     window.removeEventListener("resize", reposition);
     hidePop();
     document.removeEventListener("keydown", onPopEscape, true);
+    view.dom.removeEventListener("pointerdown", onSelectStart);
+    document.removeEventListener("pointerup", onSelectEnd, true);
+    document.removeEventListener("pointercancel", onSelectEnd, true);
     pop.remove();
     linkPreview.remove();
     commentPreview.remove();
@@ -3827,6 +3897,13 @@ export function focusStart(handle: PagesEditorHandle): void {
 
 export function getDoc(handle: PagesEditorHandle): unknown {
   return handle.view.state.doc.toJSON();
+}
+
+/** Whether a stored body is one this editor can show as it is (an empty body is). */
+export function canShow(value: unknown): boolean {
+  const content = value && typeof value === "object" ? (value as { content?: unknown }).content : undefined;
+  if (!Array.isArray(content) || !content.length) return true;
+  try { pagesSchema.nodeFromJSON(value).check(); return true; } catch { return false; }
 }
 
 export function setDoc(handle: PagesEditorHandle, value: unknown): void {

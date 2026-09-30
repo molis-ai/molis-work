@@ -8,6 +8,7 @@ import { CONNECTOR_ACCOUNT_PERMISSIONS } from "./connector-account-actions.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
 import { SEARCH_PERMISSIONS } from "@molis-ai/molis-work-contracts/services/search";
+import { PLACEMENT_PERMISSIONS } from "@molis-ai/molis-work-contracts/services/placement";
 
 /**
  * What the person at this computer holds over the Host's own native plugins, read from the actions those
@@ -19,7 +20,7 @@ const NATIVE_OWNER_PERMISSIONS = [...new Set(BUILTIN_PLUGIN_CATALOG.filter(entry
 
 /** Host-owned services and the native actions a Host registers outside a manifest (Experiments, Shelf's personal store, content stores). */
 const HOST_OWNER_PERMISSIONS = [...HOME_ACTION_PERMISSIONS, ...HOME_TALK_PERMISSIONS, ...CONNECTOR_ACCOUNT_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS,
-  ...EXPERIMENTS_ACTION_PERMISSIONS, ...SHELF_ACTION_PERMISSIONS, ...WORK_ACTION_PERMISSIONS, ...SEARCH_PERMISSIONS,
+  ...EXPERIMENTS_ACTION_PERMISSIONS, ...SHELF_ACTION_PERMISSIONS, ...WORK_ACTION_PERMISSIONS, ...SEARCH_PERMISSIONS, ...PLACEMENT_PERMISSIONS,
   "functions:invoke", "functions:manage", EXTERNAL_MCP_PERMISSION, "projects:settings"];
 
 export const LOCAL_OWNER_PERMISSIONS: readonly string[] = [...new Set([...NATIVE_OWNER_PERMISSIONS, ...HOST_OWNER_PERMISSIONS])];

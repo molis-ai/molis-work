@@ -67,10 +67,11 @@ export function renderPptWorkbench(model: PptUiModel): string {
       <div class="mw-empty" data-ppt-empty>
         <span class="mw-empty__mark">${icon("presentation")}</span>
         <strong>${p.text("还没有演示稿")}</strong>
-        <p>${p.text("先建一份，再加幻灯片。预览区按页展示，可以导出 JSON。")}</p>
-        <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
+        <p>${p.text("先建一份，再加幻灯片。写好后可以直接放映，也能导出 PowerPoint 文件。")}</p>
+        <p data-placement-target></p>
         <button class="mw-btn mw-btn--primary" type="button" data-ppt-new>${icon("plus")}<span>${p.text("新建演示稿")}</span></button>
       </div>
+      <p class="ppt-placement-line" data-placement-target></p>
       <div data-ppt-rows></div>
     </div>
     <div class="plugin-stage-workspace" data-ppt-stage-workspace hidden>
@@ -78,11 +79,20 @@ export function renderPptWorkbench(model: PptUiModel): string {
         <button class="plugin-stage-back" type="button" data-ppt-back aria-label="${p.text("返回演示稿列表")}" title="${p.text("返回演示稿列表")}">${icon("chevron-right")}</button>
         <h1 data-ppt-editor-title>${p.text("演示稿")}</h1>
         <span data-ppt-editor-status></span>
-        <button class="mw-btn mw-btn--ghost" type="button" data-ppt-artifact="" data-ppt-artifact-bar>${p.text("保存成果版本")}</button>
+        <span data-placement-slot data-placement-saved="off"></span>
+        <button class="mw-btn mw-btn--primary" type="button" data-ppt-present title="${p.text("全屏放映，方向键翻页，N 显示讲者备注，Esc 退出")}">${icon("arrow")}<span>${p.text("放映")}</span></button>
+        <details class="plugin-stage-more ppt-export-menu">
+          <summary class="mw-btn mw-btn--secondary">${icon("download")}<span>${p.text("导出")}</span></summary>
+          <div class="plugin-stage-more-actions">
+        <button class="mw-btn mw-btn--ghost" type="button" data-ppt-export="pptx">${p.text("PowerPoint 文件（.pptx）")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-ppt-export="pdf">${p.text("打印或存为 PDF")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-ppt-export="json">${p.text("导出数据（JSON，不是演示文稿）")}</button>
+          </div>
+        </details>
+        <button class="mw-btn mw-btn--ghost" type="button" data-ppt-artifact="" data-ppt-artifact-bar title="${p.text("把当前内容存成不会再变的一版，放进这个位置的成果（Artifacts）")}">${p.text("存为固定版本")}</button>
         <details class="plugin-stage-more">
           <summary class="mw-btn mw-btn--ghost" aria-label="${p.text("更多操作")}">${icon("more")}<span>${p.text("更多")}</span></summary>
           <div class="plugin-stage-more-actions">
-        <button class="mw-btn mw-btn--ghost" type="button" data-ppt-export>${p.text("导出 JSON")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-reload>${p.text("重新读取")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-delete>${p.text("删除")}</button>
           </div>

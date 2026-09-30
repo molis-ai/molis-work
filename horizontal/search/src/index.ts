@@ -64,6 +64,12 @@ export interface SearchServiceOptions {
   refreshDelayMs?: number;
   /** Projects that still exist in this Home; index rows of any other project are dropped. Null while unknown. */
   knownProjects?(): Promise<readonly string[] | null>;
+  /**
+   * The project partition that is the person's own space (specs/work-placement): what is in it is personal, so the local
+   * person finds it from any project. Only a caller acting as that person (audience `user`) reaches it from elsewhere;
+   * agents, workflows and MCP clients of another project do not.
+   */
+  personalSpace?: string;
   onError?(error: unknown, where: string): void;
 }
 
@@ -172,12 +178,13 @@ export class SearchService {
     const offset = offsetOf(input.cursor, query);
     const scoped = this.scoped(access.caller, input.scope);
     const views = await access.client.discover(access.caller);
-    const all = this.entrySources(views, access.caller).filter(source => this.inScope(source, scoped) && this.matchesFilter(source, input));
+    const personal = await this.personalSpaceOf(access, scoped);
+    const all = [...this.entrySources(views, access.caller), ...personal?.sources ?? []].filter(source => this.inScope(source, scoped) && this.matchesFilter(source, input));
     const visible = all.filter(source => source.view.availability.available);
     await this.purgeDisabled(all);
-    await this.catchUp(visible, scoped, access.caller);
+    await this.catchUp(visible, scoped, access.caller, false, personal ? this.options.personalSpace : undefined);
     if (!all.length) return { status: "empty_scope", hits: [], next_cursor: null, sources: [] };
-    const readers = views.filter(view => isReader(view) && view.availability.available);
+    const readers = [...views, ...personal?.views ?? []].filter(view => isReader(view) && view.availability.available);
     const allowed = visible.map(source => ({ source_key: source.key,
       readable_kinds: [...source.kinds.keys()].filter(kind => readers.some(reader => reader.provider.provider_id === source.reference.provider_id && reader.action.subject_kinds.includes(kind))) }));
     const found = this.options.index.search({ query, sources: allowed, ...(input.kinds?.length ? { kinds: input.kinds } : {}), offset, limit });
@@ -202,7 +209,12 @@ export class SearchService {
   async open(access: SearchAccess, input: SearchOpenRequest): Promise<SearchOpenResponse> {
     const hit = decodeSearchHitId(input.hit_id);
     const hit_id = input.hit_id;
-    if (hit.project_id && hit.project_id !== access.caller.project_id) return { state: "unavailable", hit_id, reason: "这条结果属于其他项目" };
+    if (hit.project_id && hit.project_id !== access.caller.project_id) {
+      // The person's own space answers them from any project, read with their own access to it; nothing else of another project does.
+      if (hit.project_id !== this.options.personalSpace || access.caller.audience !== "user") return { state: "unavailable", hit_id, reason: "这条结果属于其他项目" };
+      try { access = (await this.owner(hit.project_id)()).access; }
+      catch (error) { return { state: "unavailable", hit_id, reason: errorText(error) }; }
+    }
     const views = await access.client.discover(access.caller);
     const candidates = [...this.entrySources(views, access.caller), ...this.querySources(views, access.caller)];
     const source = candidates.find(candidate => candidate.project_id === hit.project_id && sameReference(candidate.reference, hit));
@@ -237,17 +249,19 @@ export class SearchService {
   async status(access: SearchAccess, input: { scope?: SearchScope }): Promise<SearchStatusResponse> {
     const scoped = this.scoped(access.caller, input.scope);
     const views = await access.client.discover(access.caller);
-    return { sources: this.statuses(this.entrySources(views, access.caller).filter(source => this.inScope(source, scoped))) };
+    const personal = await this.personalSpaceOf(access, scoped);
+    return { sources: this.statuses([...this.entrySources(views, access.caller), ...personal?.sources ?? []].filter(source => this.inScope(source, scoped))) };
   }
 
   async rebuild(access: SearchAccess, input: SearchRebuildRequest): Promise<SearchRebuildResponse> {
     const scoped = this.scoped(access.caller, input.scope);
     const views = await access.client.discover(access.caller);
-    const sources = this.entrySources(views, access.caller).filter(source => this.inScope(source, scoped));
+    const personal = await this.personalSpaceOf(access, scoped);
+    const sources = [...this.entrySources(views, access.caller), ...personal?.sources ?? []].filter(source => this.inScope(source, scoped));
     let cleared = 0;
     for (const source of sources) { await this.inflight.get(source.key)?.catch(() => undefined); cleared += this.options.index.removeSource(source.key); }
     const visible = sources.filter(source => source.view.availability.available);
-    await this.catchUp(visible, scoped, access.caller, true);
+    await this.catchUp(visible, scoped, access.caller, true, personal ? this.options.personalSpace : undefined);
     return { cleared, sources: this.statuses(sources) };
   }
 
@@ -295,7 +309,19 @@ export class SearchService {
   }
 
   private inScope(source: SourceView, scoped: Scoped): boolean {
+    // The personal space is a project partition, but what is in it is the person's own.
+    if (source.project_id && source.project_id === this.options.personalSpace) return scoped.personal || scoped.project;
     return source.project_id ? scoped.project : scoped.personal;
+  }
+
+  /** The personal space seen from another project, for the local person only; null when out of scope, absent or not reachable. */
+  private async personalSpaceOf(access: SearchAccess, scoped: Scoped): Promise<{ views: readonly ActionView[]; sources: SourceView[] } | null> {
+    const space = this.options.personalSpace;
+    if (!space || !scoped.personal || access.caller.project_id === space || access.caller.audience !== "user") return null;
+    try {
+      const { access: own, views } = await this.owner(space)();
+      return { views, sources: this.entrySources(views, own.caller).filter(source => source.project_id === space) };
+    } catch { return null; }
   }
 
   private matchesFilter(source: SourceView, input: SearchQueryRequest): boolean {
@@ -367,10 +393,11 @@ export class SearchService {
   }
 
   /** Bring the caller's sources current within the query's budget; what does not finish continues in the background. */
-  private async catchUp(sources: readonly SourceView[], scoped: Scoped, caller: ActionCallContext, force = false): Promise<void> {
+  private async catchUp(sources: readonly SourceView[], scoped: Scoped, caller: ActionCallContext, force = false, alsoProject?: string): Promise<void> {
     const reconciling = [
       ...(scoped.project && caller.project_id ? [this.reconcile(caller.project_id)] : []),
       ...(scoped.personal ? [this.reconcile(null)] : []),
+      ...(alsoProject ? [this.reconcile(alsoProject)] : []),
     ].map(promise => promise.catch(error => this.options.onError?.(error, "search.reconcile")));
     const owners = new Map<string, () => Promise<Owner>>();
     const ownerFor = (projectId: string | null) => { const key = projectId ?? ""; if (!owners.has(key)) owners.set(key, this.owner(projectId)); return owners.get(key)!; };

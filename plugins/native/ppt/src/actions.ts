@@ -1,4 +1,5 @@
-import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 import type { PptRecord, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { promotePpt, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
 import type { PptStore } from "./store.js";
@@ -28,6 +29,11 @@ export const pptActions = {
   delete: define<Identity, { ok: true }>("delete", "删除演示稿", "删除当前项目演示稿，待恢复的 Artifact 发布需先完成", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   export: define<Identity, { filename: string; mime_type: "application/json"; content: string }>("export", "导出演示稿 JSON", "返回已保存演示稿的完整 JSON、文件名和 MIME 类型；不是 PPTX", "query", object(identity, ["id"]), object({ filename: text, mime_type: { const: "application/json" }, content: text })),
   promote: define<Identity, { presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "演示稿存成 Artifact", "发布固定幻灯片与配色或恢复原发布；后续编辑保留", "command", object(identity, ["id"]), object({ presentation: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  pptx: define<Identity, { filename: string; mime_type: typeof PPTX_MIME_TYPE; content_base64: string; slide_count: number }>("pptx", "导出 PowerPoint 文件",
+    "按已保存的版本生成 .pptx（每页标题、要点、讲者备注与配色），PowerPoint、Keynote、WPS 可直接打开和放映；不含图片与图表", "query", object(identity, ["id"]),
+    object({ filename: text, mime_type: { const: PPTX_MIME_TYPE }, content_base64: text, slide_count: { type: "integer", minimum: 1 } })),
+  move: defineObjectMoveAction("ppt.placement.move", ["presentation"], "演示稿", write),
+  copy: defineObjectCopyAction("ppt.placement.copy", ["presentation"], "演示稿", write),
   searchEntries: pptSearchActions.entries,
   subject: pptSearchActions.subject,
 };
@@ -53,6 +59,19 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
     })),
     bind(pptActions.promote, (input, caller) => ports.withStore(store => promotePpt(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
       () => ports.publishArtifact ? { available: true } : { available: false, code: "ppt.unavailable", reason: "当前环境不能发出 Artifact" }),
+    bind(pptActions.pptx, (input, caller) => ports.withStore(store => {
+      const presentation = store.get(input.id, project(caller));
+      if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后导出");
+      return { filename: pptxFilename(presentation.title), mime_type: PPTX_MIME_TYPE, content_base64: Buffer.from(buildPptx(presentation)).toString("base64"), slide_count: presentation.slides.length };
+    })),
+    bindObjectMoveHandler(pptActions.move, input => ports.withStore(store => {
+      const presentation = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
+      return { subject: { kind: "presentation", id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
+    })),
+    bindObjectCopyHandler(pptActions.copy, input => ports.withStore(store => {
+      const presentation = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
+      return { subject: { kind: "presentation", id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
+    })),
     ...createPptSearchHandlers(ports.withStore),
   ];
 }

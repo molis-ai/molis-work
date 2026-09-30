@@ -36,6 +36,7 @@ export const JELLY_CONTENT_CLIENT_SCRIPT = String.raw`
     selected={kind,id};dirty=false;editorVersion=0;editorRevision=record.revision||0;focusedBlock='';lastRange=null;
     root.dataset.expanded='true';workspace.hidden=false;
     $('[data-jelly-editor-heading]').textContent=L(kind==='note'?'笔记':'灵感');
+    root.setAttribute('data-assistant-context',JSON.stringify({plugin_id:'io.molis.work.jelly',surface_title:'Jelly',object:{kind:kind==='note'?'jelly_note':'jelly_inspiration',id,version:String(record.revision||0),title:record.title||''}}));
     $('[data-jelly-archive] span').textContent=L(record.archived_at?'恢复':'归档');
     $('[data-jelly-archive]').setAttribute('aria-label',L(record.archived_at?'恢复':'归档'));
     $('[data-jelly-editor-more]').hidden=false;$('[data-jelly-decompose]').hidden=Boolean(record.archived_at);

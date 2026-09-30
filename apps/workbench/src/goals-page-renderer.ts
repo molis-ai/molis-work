@@ -3,9 +3,9 @@ import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionV
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperationsSlice } from "@molis-ai/molis-work-plugin-work";
 
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
-import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderAccountGlobalItems, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
+import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { PERSONAL_PLUGIN_IDS } from "./plugin-catalog.js";
-import { renderPersonalMenuItems, renderPluginRailAccountFooter, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
+import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
@@ -86,6 +86,7 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderCogniaNativePluginSurface(surface: "directory" | "workbench"): string;
   renderJellyNativePluginSurface(surface: "directory" | "workbench"): string;
   renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderTodoNativePluginSurface(surface: "directory" | "workbench"): string;
   renderAlchemistNativePluginSurface(surface: "directory" | "workbench"): string;
   renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string;
 }
@@ -100,7 +101,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderTodoNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -147,7 +148,6 @@ function renderMolisWorkWeb(
   const projectOperations = renderProjectOperations(view.project
     ? { project_id: view.project.project_id, display_name: view.project.display_name }
     : null, projectOperationsData);
-  const desktopAccountFooter = renderPluginRailAccountFooter(primitives);
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, view.hidden_plugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/` || "/")}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const pluginEnabled = (id: string) => enabledPlugins.includes(id);
@@ -231,7 +231,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       ${renderWorkbenchBar(primitives, {
         enabled: enabledPlugins,
         rail: renderPluginRail(primitives, enabledPlugins, "", "", view.plugin_rail),
-        accountFooter: desktopAccountFooter.replace("<!-- account-global-items -->", renderAccountGlobalItems(primitives, enabledPlugins)),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
       })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
@@ -245,6 +244,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             : "",
           shelf: "",
           lingguang: "",
+          todo: "",
           alchemist: "",
           workflows: "",
           experiments: "",
@@ -279,6 +279,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderDatasetNativePluginSurface("workbench")}
             ${renderPptNativePluginSurface("workbench")}
             ${renderLingguangNativePluginSurface("workbench")}
+            ${renderTodoNativePluginSurface("workbench")}
             ${renderJellyNativePluginSurface("workbench")}
             ${renderCogniaNativePluginSurface("workbench")}
             ${renderAlchemistNativePluginSurface("workbench")}

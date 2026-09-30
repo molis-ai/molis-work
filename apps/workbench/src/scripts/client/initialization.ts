@@ -12,9 +12,11 @@ import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { NAVIGATION_PRESENTATION_SCRIPT, DOCK_SCRIPT } from "./navigation-presentation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
 import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "./background-tasks.js";
+import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "./plugin-notifications.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../connectors-settings.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
+import { PLACEMENT_FACTORY_SCRIPT } from "./placement.js";
 import { pluginWorkbenchClientBootstrap } from "../../plugin-workbench.js";
 /** AP3 Workbench client segment: initialization. */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
@@ -38,6 +40,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       saveUiState, setMobileView,
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
     });
+    // "转为待办" in other plugins shows only where Todo is on this page.
+    document.body.toggleAttribute("data-todo-available", Boolean(document.querySelector('[data-work-surface="todo"]')));
     (${NAVIGATION_PRESENTATION_SCRIPT})(L);
     (${DOCK_SCRIPT})(L, state.project?.project_id, {
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
@@ -45,6 +49,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     (${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: L, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
+    (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ translate: L, route, projectId: state.project?.project_id });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: L,
       route, headers: () => molisWorkControlHeaders(), projectId: state.project?.project_id || document.body.dataset.projectId || "",
@@ -138,6 +143,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
       project: { id: state.project?.project_id || state.snapshot.board.board_id, title: state.project?.display_name || state.snapshot.board.title || "" },
     });
+    globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(),
+      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
+      openGoalWork: () => tabWorkspace?.openGoalWork(), closeItem: (plugin, id) => tabWorkspace?.closeItem(plugin, id), projectTitle: state.project?.display_name || "" });
     ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
     requestAnimationFrame(() => {
       const entryId = new URL(location.href).searchParams.get("inbox_entry");

@@ -173,6 +173,16 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }
   const memoryKey = () => 'molis-workflows:' + host.route('/');
   const remember = () => { try { sessionStorage.setItem(memoryKey(), JSON.stringify({ workflow: state.workflow?.workflow_id || null, instance: state.instance?.instance_id || null, step: state.step })); } catch {} };
+  // The workflow on screen, for the Assistant and the placement bar: a run is shown under the workflow it belongs to.
+  const publishContext = () => {
+    const context = { plugin_id: "io.molis.work.native.workflows", surface_title: L('工作流程') };
+    const mode = root.dataset.wfMode;
+    const flow = mode === 'workflow' ? state.workflow : null;
+    const runOf = mode === 'instance' && state.instance ? { id: state.instance.workflow_id, title: state.instanceWorkflowTitle } : null;
+    if (flow) context.object = { kind: 'workflow', id: flow.workflow_id, version: String(flow.revision), title: flow.title };
+    else if (runOf?.id) context.object = { kind: 'workflow', id: runOf.id, title: runOf.title || '' };
+    root.setAttribute('data-assistant-context', JSON.stringify(context));
+  };
   const setMode = (mode) => {
     // The link editor belongs to the chain it was opened on; leaving that view closes it.
     if (pop.matches?.(':popover-open')) pop.hidePopover();
@@ -181,6 +191,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const expanded = mode !== 'list';
     root.dataset.expanded = expanded ? 'true' : 'false';
     workspace.hidden = !expanded;
+    publishContext();
   };
 
   // ---------- list ----------
@@ -297,6 +308,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   function renderWorkflow() {
     const flow = state.workflow;
     if (!flow) return;
+    publishContext();
     const current = view.querySelector('.wf-editor');
     if (current && current.dataset.id === flow.workflow_id) { patchWorkflow(current); return; }
     view.innerHTML = '<article class="wf-editor" data-id="' + esc(flow.workflow_id) + '">'

@@ -7,7 +7,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       handleGoalRelationChange(changed);
     });
     document.addEventListener("input", (event) => {
-      const changed = event.target instanceof Element ? event.target : null;
+      const changed = event.target?.nodeType === 1 ? event.target : null;
       if (!changed) return;
       const changedFactorForm = changed.closest("[data-relation-form], [data-risk-create-form], [data-risk-edit-form], [data-impact-create-form], [data-impact-edit-form], [data-policy-form]");
       if (changedFactorForm) {
@@ -261,7 +261,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     document.addEventListener("molis-work:goal-changed", closeGoalOverlay);
 
     document.addEventListener("click", async (event) => {
-      const target = event.target instanceof Element ? event.target : null;
+      const target = event.target?.nodeType === 1 ? event.target : null;
       if (!target) return;
       const humanReviewJump = target.closest("[data-human-review-jump]");
       if (humanReviewJump) {

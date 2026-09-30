@@ -16,6 +16,8 @@ import { WORKFLOW_CONTENT_SCHEMAS } from "./workflow-content.js";
 export * from "./workflow-content.js";
 import { searchSourceDeclarationProblems, type SearchSourceDeclaration } from "./search-sources.js";
 export * from "./search-sources.js";
+import { fragmentOfferDeclarationProblems, type FragmentOfferChoice } from "./action-fragments.js";
+export * from "./action-fragments.js";
 
 /** JSON Schema is preserved at the boundary; providers must not invent output guarantees. */
 export type ActionSchema = Readonly<Record<string, unknown>>;
@@ -114,6 +116,8 @@ export interface ActionMetadata {
   readonly search_source?: SearchSourceDeclaration;
   /** Optional rule choices owned by this subject-offer query; targets belong to the same provider. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
+  /** Finite choices of a fragment-offer query (specs/contextual-interaction §5.1); targets belong to the same provider. */
+  readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
   /** A trigger action needs an enabled compatible binding in this consumer scene. */
   readonly required_scene?: { readonly scene_id: string; readonly version: number };
   readonly result_scene?: ActionSceneReference;
@@ -504,6 +508,7 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
           }
         }
         problems.push(...searchSourceDeclarationProblems(key, a, raw.operation, canonicalSchema));
+        problems.push(...fragmentOfferDeclarationProblems(key, a, raw.operation, canonicalSchema));
         if (a.workflow_content !== undefined) {
           const w = a.workflow_content;
           if (!object(w) || !/^[a-z][a-z0-9-]{1,40}$/.test(String(w.id)) || !text(w.title) || !text(w.icon)

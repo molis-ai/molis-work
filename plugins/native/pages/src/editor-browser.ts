@@ -121,8 +121,10 @@ import { blockPlaceholder } from "./placeholder.js";
 import { dragRows, dropLevelRange, nodesInSpan, nudgeSpan, previewCopySpan, previewSpan, spanRoots, spanRows, type DragRow } from "./reorder.js";
 import { PAGES_TONES } from "./tone.js";
 import { emptyDoc, nodeFromUnknown, pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
+import { applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, releasePagesFrozen, resolvePagesFrozen, type PagesFocus } from "./focus.js";
 
 export { emptyDoc, pagesSchema };
+export { applyToPagesFrozen, clearPagesCompare, freezePagesFocus, readPagesFocus, releasePagesFrozen, resolvePagesFrozen, type PagesFocus, type FrozenPagesFocus } from "./focus.js";
 
 export interface PagesEditorHandle {
   readonly view: EditorView;
@@ -142,6 +144,10 @@ export interface PagesEditorMountOptions {
   onOpenPage?: (id: string) => void;
   runAi?: (input: { command: string; text: string; style?: string }) => Promise<{ text: string; stub?: boolean }>;
   onCreateFromAi?: (input: { title: string; text: string }) => Promise<void>;
+  /** What the person has in hand, whenever it changes (specs/contextual-interaction §4.1); `null` is the page as a whole. */
+  onFocus?: (focus: PagesFocus | null) => void;
+  /** Extra ProseMirror plugins from the embedding surface, added after the editor's own. */
+  plugins?: readonly Plugin[];
 }
 
 type Translate = (value: string) => string;
@@ -2987,10 +2993,13 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   pop.hidden = true;
   overlayRoot().append(pop);
 
+  // A writing request keeps its range frozen while the popup is open; closing the popup any way lets it go.
+  let popToken: string | null = null;
   const hidePop = () => {
     const restoreFocus = pop.contains(document.activeElement);
     pop.hidden = true;
     pop.replaceChildren();
+    if (popToken) { releasePagesFrozen(view, popToken); popToken = null; }
     if (restoreFocus) view.focus();
   };
 
@@ -3214,7 +3223,9 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
   };
 
-  const showCandidate = (view: EditorView, command: string, result: { text: string; stub?: boolean }, source: string) => {
+  // The candidate goes to the range the person asked about, frozen when they asked; if that text changed while the
+  // model was working, nothing is written anywhere (specs/contextual-interaction §3.4, AC-C04/C05).
+  const showCandidate = (view: EditorView, command: string, result: { text: string; stub?: boolean }, token: string | null) => {
     pop.hidden = false;
     pop.replaceChildren();
     const lead = document.createElement("p");
@@ -3224,34 +3235,55 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     area.rows = 8;
     area.value = result.text;
     pop.append(lead, area);
+    const refuse = () => {
+      lead.textContent = t(options.translate, "这段内容在等待期间被改动，没有写入。请重新选择后再试。");
+      lead.className = "pages-pop-error";
+    };
+    const dismiss = () => { if (token) releasePagesFrozen(view, token); hidePop(); };
     pop.append(actions(options.translate, () => {
-      if (command === "actions") insertActions(view, area.value);
-      else if (command === "proofread") {
+      if (command === "translate_new") {
+        void options.onCreateFromAi?.({ title: t(options.translate, "翻译"), text: area.value });
+      } else if (!token) {
+        replaceSelectionText(view, area.value);
+      } else if (command === "proofread") {
+        const at = resolvePagesFrozen(view, token);
+        if (!at?.intact) { refuse(); return; }
         const next = nodeFromUnknown({
           type: "doc",
           content: area.value.split(/\n{2,}/).map((part) => paragraphNode(part.trim()).toJSON()),
         });
+        releasePagesFrozen(view, token);
         view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, next.content));
-      } else if (command === "translate_new") {
-        void options.onCreateFromAi?.({ title: t(options.translate, "翻译"), text: area.value });
-      } else replaceSelectionText(view, area.value);
+      } else if (command === "actions") {
+        const at = resolvePagesFrozen(view, token);
+        if (!at?.intact) { refuse(); return; }
+        releasePagesFrozen(view, token);
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, at.from)));
+        insertActions(view, area.value);
+      } else if (!applyToPagesFrozen(view, token, area.value, "replace").ok) {
+        refuse();
+        return;
+      }
       hidePop();
-    }, hidePop));
+    }, dismiss));
     placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
-    void source;
   };
 
   const runAiCommand = async (view: EditorView, command: string, style?: string) => {
     if (!options.runAi) return;
+    const whole = command === "translate_new" || command === "proofread";
     const selected = view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n");
-    const text = command === "translate_new" || command === "proofread" || !selected.trim()
-      ? docPlainText(view.state.doc)
-      : selected;
+    const text = whole || !selected.trim() ? docPlainText(view.state.doc) : selected;
+    const token = command === "translate_new" ? null
+      : freezePagesFocus(view, "ai-" + Date.now().toString(36), whole || !selected.trim() ? { from: 0, to: view.state.doc.content.size } : undefined)?.token ?? null;
+    if (popToken && popToken !== token) releasePagesFrozen(view, popToken);
+    popToken = token;
     pop.innerHTML = `<p>${escapeHtml(t(options.translate, "正在处理"))}</p>`;
     try {
       const result = await options.runAi({ command, text, style });
-      showCandidate(view, command, result, text);
+      showCandidate(view, command, result, token);
     } catch (error) {
+      if (token) releasePagesFrozen(view, token);
       pop.innerHTML = `<p class="pages-pop-error">${escapeHtml(error instanceof Error ? error.message : t(options.translate, "写作失败"))}</p>`;
     }
   };
@@ -3458,6 +3490,8 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     calendarPlugin(),
     findPlugin(options.translate),
     keymap({ Escape: selectEnclosingBlock }),
+    pagesFocusPlugin({ onFocus: options.onFocus }),
+    ...(options.plugins ?? []),
   ];
 
   const placeToolbar = (current: EditorView) => {

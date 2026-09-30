@@ -236,8 +236,19 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     collapsePluginStage(plugin);
     if (plugin === "feed") setFeedTask?.(topLevelSurface(plugin)?.dataset.selectedSource || "all", false);
   };
+  // Goals are drawn by the workbench itself: name the open Goal on its frame and document, as every plugin names its
+  // object, so the Assistant and the context actions know it — and a passage selected in it belongs to that Goal.
+  const declareGoal = (goalId, fallback) => {
+    const title = goalId ? titleForItem("goals", goalId, fallback) : "";
+    document.querySelectorAll("[data-goal-frame-surface], [data-document-pane]").forEach((node) => {
+      if (goalId) node.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: "io.molis.work.goals", surface_title: "Goals",
+        object: { kind: "goal", id: goalId, ...(title ? { title } : {}) }, goal: { id: goalId, title: title || "" } }));
+      else node.removeAttribute("data-assistant-context");
+    });
+  };
   const applyTabContent = (tab, keepFrame) => {
     if (!tab) return;
+    declareGoal(tab.plugin === "goals" && tab.kind === "item" ? tab.itemId : null, tab.title);
     selectItem(topLevelSurface(tab.plugin), tab.kind === "item" ? tab.itemId : null);
     if (tab.plugin === "goals" && tab.kind === "item" && tab.itemId) {
       if (supportsGoalFrames() && tab.goalView !== "work") { applySelection?.(tab.itemId); showGoalFrame?.(tab.itemId); return; }

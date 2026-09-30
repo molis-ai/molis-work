@@ -462,8 +462,10 @@ Pages 用一个 ProseMirror 插件的 view update 维护它；其他插件第一
 - 单测 20 项；`tests/contextual-fragment-offers.test.ts` 用真实 Goals 与灵光动作：提案 4 项、同一请求重放、审批前没有新目标、进展落到正确 Goal、灵光只存一条；goals-tree、goals-actions、动作清单、灵光、搜索等 188 项相关测试通过。
 - 真实工作台（真实 Jev）：Pages 里选中“激活”→“解释 / 在项目里查找 / 翻译”，点查找打开搜索面板并搜出这篇文档；挂了 Goal 的文档里选中计划 → Jev 排出“拆成行动项 / 拆成目标步骤”，点击后卡片内容为挂在该 Goal 下的两个步骤；勾选任务 →“刚完成：上线新手引导 / 记录进展”，点击后卡片为该 Goal 当前游标上的进展。合 main（110ef251，含 #105）后实测：点“记下灵光”→ `POST /api/assistant/cards` 200，面板打开到新工作“记下灵光”，Host 的工作里有这张卡（来源 Pages「新手引导推进」、`lingguang.create`、标题和正文可改）；按卡片按钮同一接口执行后卡片为 done，搜索里出现这条灵光。**缺口（面板侧，已告知助理会话）**：页面放进来的卡不属于任何一轮对话，面板目前没有把它画出来，“1 个操作等你点 · 去处理”点了也看不到卡。
 
+- 对象声明：Goals 由工作台自己渲染，打开某个 Goal 时在 Goal 框与文档上声明它（同时声明“所属 Goal”就是它自己），在 Goal 里选中文字即出现“拆成目标步骤 / 记下灵光”，拆解挂在这个 Goal 下（真实工作台已走查）。其他插件：工作台打开条目（`molis-work:select-item`）而插件自己没有声明时，按目录里各插件搜索来源的声明（`GET /api/contextual/surfaces`：界面 → 唯一的对象类型）代为声明，标注 `named_by: "workbench"`，插件自己声明时以插件为准；当前目录得出 17 个界面（含 Inbox、Characters、Artifacts、Sessions、Workflows），Workflows 已在真实工作台验证。
+
 **未完成**
-- 核心插件的对象声明（Goals、Feed、Inbox、Characters；Artifacts、Sessions、Workflows、Jelly 复核）。
+- Feed 条目的对象声明（Feed 的搜索来源没有唯一的界面，需要 Feed 自己声明）；Characters、Inbox、Artifacts、Sessions 的真实走查（本项目没有这些条目或未启用）。
 - 各插件自己的片段动作（Feed/Inbox 转成任务、Dataset/Form 解读等）与多对象情境。
 - 读取缺口（Alchemist 方向、Experiments）交给对应插件线。
 

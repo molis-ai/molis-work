@@ -80,6 +80,14 @@ function jevEvaluator(home: string): NonNullable<Parameters<typeof createContext
 }
 
 export async function handleContextualHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: ContextualHttpPorts): Promise<boolean> {
+  // Which object kind each surface opens, from the plugins' own search-source declarations: when a surface opens an
+  // item but does not name it itself, the workbench names it. Only a surface that opens exactly one kind is listed.
+  if (url.pathname === "/api/contextual/surfaces") {
+    if (request.method !== "GET") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
+    try { sendJson(response, 200, { surfaces: surfaceKinds(await ports.actions().discover()) }); }
+    catch { sendJson(response, 500, { code: "contextual.failed", error: "暂时处理不了，请稍后重试" }); }
+    return true;
+  }
   const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare)$/u.exec(url.pathname);
   if (!match) return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
@@ -133,6 +141,28 @@ async function prepare(focus: SurfaceFocus, key: string, requestId: string, call
   return { key, offer_id: candidate.offer_id, title: candidate.title, intent: candidate.intent, apply: candidate.apply,
     action: candidate.action, provider_title: candidate.provider_title, input: offer.input,
     ...(offer.summary ? { summary: offer.summary } : {}), ...(offer.editable?.length ? { editable: offer.editable } : {}), ...(offer.missing?.length ? { missing: offer.missing } : {}) };
+}
+
+/** surface → the one kind it opens and the plugin that owns it; surfaces claimed by several kinds or plugins are left out. */
+export function surfaceKinds(directory: readonly ActionView[]): Record<string, { kind: string; plugin_id: string }> {
+  const claims = new Map<string, Set<string>>();
+  for (const view of directory) {
+    const source = (view.action as { search_source?: { kinds?: readonly { kind: string; surface?: string }[] } }).search_source;
+    const owner = view.provider.plugin_id ?? view.provider.provider_id;
+    for (const entry of source?.kinds ?? []) {
+      if (!entry.surface) continue;
+      const claim = claims.get(entry.surface) ?? new Set<string>();
+      claim.add(JSON.stringify([entry.kind, owner]));
+      claims.set(entry.surface, claim);
+    }
+  }
+  const out: Record<string, { kind: string; plugin_id: string }> = {};
+  for (const [surface, claim] of claims) {
+    if (claim.size !== 1) continue;
+    const [kind, plugin_id] = JSON.parse([...claim][0]!) as [string, string];
+    out[surface] = { kind, plugin_id };
+  }
+  return out;
 }
 
 class ContextualRequestError extends Error {

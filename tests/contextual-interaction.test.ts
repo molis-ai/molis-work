@@ -13,7 +13,7 @@ import {
 } from "@molis-ai/molis-work-kernel";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { createContextualJudgmentService } from "../apps/local-host/src/contextual/judgment-service.js";
-import { handleContextualHttp } from "../apps/local-host/src/contextual/contextual-http.js";
+import { handleContextualHttp, surfaceKinds } from "../apps/local-host/src/contextual/contextual-http.js";
 import { prepareSearchFragmentOffers, searchActions } from "@molis-ai/molis-work-contracts/services/search";
 import { lingguangActions, prepareLingguangFragmentOffers } from "../plugins/native/lingguang/src/actions.js";
 import { pagesSchema as s } from "../plugins/native/pages/src/schema.js";
@@ -372,6 +372,16 @@ test("real platform offers: search looks up a selected word; 灵光 prepares a s
   assert.match(input.body, /十四天试用。\n\n出自：留存分析$/);
   assert.deepEqual(spark!.editable, ["title", "body"]);
   assert.match(spark!.summary!, /记下一条/);
+});
+
+test("a surface that opens one kind is named from the plugins' search sources; an ambiguous surface is not", () => {
+  const source = (p: ActionView["provider"], id: string, kinds: { kind: string; surface: string }[]) =>
+    view(p, id, { search_source: { kinds: kinds.map(entry => ({ ...entry, title: entry.kind })) } } as Partial<ActionView["action"]>);
+  const inbox = provider("io.molis.work.inbox", "Inbox"), other = provider("x.other", "Other");
+  const map = surfaceKinds([source(inbox, "inbox.search.entries", [{ kind: "inbox_entry", surface: "inbox" }]),
+    source(goals, "goals.search.entries", [{ kind: "goal", surface: "goals" }]),
+    source(other, "other.search.entries", [{ kind: "note", surface: "shared" }]), source(inbox, "inbox.more", [{ kind: "draft", surface: "shared" }])]);
+  assert.deepEqual(map, { inbox: { kind: "inbox_entry", plugin_id: "io.molis.work.inbox" }, goals: { kind: "goal", plugin_id: "io.molis.work.goals" } });
 });
 
 // ---- P1: Host transport ------------------------------------------------------------------------------------------

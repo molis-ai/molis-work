@@ -88,7 +88,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       const heading_path = headingPath(root, selection.getRangeAt(0).startContainer);
       return { root, focus: { context_id: "dom:" + context.plugin_id + ":" + object.id + ":" + hash(parts.join("\n")), plugin_id: context.plugin_id,
         activity: "selecting", granularity, object: { kind: object.kind, id: object.id, ...(object.version !== undefined ? { version: object.version } : {}), ...(object.title ? { title: String(object.title) } : {}) },
-        targets, surroundings: { heading_path }, ...(context.unsaved ? { unsaved: true } : {}) } };
+        targets, surroundings: { heading_path }, ...(context.unsaved ? { unsaved: true } : {}),
+        ...(context.goal && typeof context.goal.id === "string" && context.goal.id ? { goal: { id: context.goal.id, title: String(context.goal.title || "") } } : {}) } };
     };
     const flush = () => {
       const next = read();
@@ -96,6 +97,33 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       else if (reported) { const root = reported; reported = null; if (root.isConnected) root.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail: null })); }
     };
     document.addEventListener("selectionchange", () => { clearTimeout(timer); timer = setTimeout(flush, 120); });
+  })();
+
+  // A surface opened an item (the workbench's molis-work:select-item) but did not name it: name it from what the
+  // plugins declare as their search sources (surface → kind), so its text can be acted on like any declared object.
+  (() => {
+    let surfaces = null;
+    const known = () => surfaces || (surfaces = fetch(host.route("/api/contextual/surfaces"), { headers: host.headers() })
+      .then((response) => response.ok ? response.json() : { surfaces: {} }).then((value) => value.surfaces || {}).catch(() => { surfaces = null; return {}; }));
+    const read = (node) => { try { return JSON.parse(node.getAttribute("data-assistant-context") || "null"); } catch { return null; } };
+    document.addEventListener("molis-work:select-item", (event) => {
+      const surface = event.target;
+      if (!(surface instanceof Element) || !surface.hasAttribute("data-work-surface")) return;
+      const itemId = event.detail && typeof event.detail.itemId === "string" ? event.detail.itemId : "";
+      // After the plugin's own handler, which may name the object itself.
+      setTimeout(async () => {
+        const own = read(surface);
+        if (!itemId) {
+          if (own && own.named_by === "workbench") { delete own.object; delete own.named_by; surface.setAttribute("data-assistant-context", JSON.stringify(own)); }
+          return;
+        }
+        if (own && own.object && own.named_by !== "workbench") return;
+        const entry = (await known())[surface.getAttribute("data-work-surface")];
+        if (!entry || !surface.isConnected) return;
+        surface.setAttribute("data-assistant-context", JSON.stringify({ ...(own || {}), plugin_id: (own && own.plugin_id) || entry.plugin_id,
+          object: { kind: entry.kind, id: itemId }, named_by: "workbench" }));
+      }, 250);
+    }, true);
   })();
 
   if (embedded) {

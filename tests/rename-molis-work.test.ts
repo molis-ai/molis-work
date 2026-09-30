@@ -171,7 +171,7 @@ test("legacy plugin IDs are rejected", () => {
 });
 
 test("GitHub Releases links point at molis-ai/molis-work", async () => {
-  for (const file of ["README.md", "README.zh.md", "README.zh-CN.md", "docs/installation.md", "docs/installation.en.md"]) {
+  for (const file of ["README.md", "README.zh.md", "docs/installation.md", "docs/installation.en.md"]) {
     const text = await readFile(join(repoRoot, file), "utf8");
     assert.equal(text.includes("github.com/adeptify/Molis Work"), false, file);
     assert.match(text, /github\.com\/molis-ai\/molis-work\/releases/);

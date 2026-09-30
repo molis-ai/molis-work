@@ -662,3 +662,17 @@ test("a suggestion whose fields are partly beside its input still becomes the ca
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "suggesting runs nothing");
   } finally { await f.close(); }
 });
+
+test("the steps a round keeps for itself reach the work view, the latest list as a whole", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "update-todo", input: { items: [{ text: "读取项目里的待办" }, { text: "按截止日期排序" }] } }),
+    () => reply({ name: "update-todo", input: { items: [{ text: "读取项目里的待办" }, { text: "按截止日期排序" }, { text: "把前三条告诉用户" }] } }),
+    () => reply(undefined, "排好了。")]);
+  try {
+    const sent = await f.service.send({ text: "把待办按截止日期排一下", request_id: "req-00000061" }, {});
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    const steps = done.rounds[0]!.steps!;
+    assert.deepEqual(steps.map(step => [step.text, step.state]), [["读取项目里的待办", "pending"], ["按截止日期排序", "pending"], ["把前三条告诉用户", "pending"]]);
+    assert.ok(steps.every(step => typeof step.id === "string" && step.id.length > 0));
+  } finally { await f.close(); }
+});

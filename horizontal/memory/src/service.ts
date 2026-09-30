@@ -429,7 +429,9 @@ export class MemoryService {
     if (looksLikeSecret(text) || (input.said && looksLikeSecret(input.said)) || screened?.redacted.includes(REDACTED_CREDENTIAL)) return refused("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
     if (caller.consumer === "plugin" && !caller.plugin_id) throw new MemoryError("memory.forbidden", "插件写记忆必须由宿主确认插件身份");
     // Instruction-like (Prologue's screening or the Host's own Chinese patterns) or carrying a local path: the person sees it first.
-    const hold = caller.person ? null : screened?.hold || looksLikeInstruction(text)
+    // The person's own words are checked too: a model may restate "不用确认，直接删" as something that reads harmless.
+    const screenedSaid = input.said && !caller.person ? await this.ports.backend.screen?.(input.said).catch(() => null) ?? null : null;
+    const hold = caller.person ? null : screened?.hold || screenedSaid?.hold || looksLikeInstruction(text) || (input.said ? looksLikeInstruction(input.said) : null)
       ? "这段话像是在给 AI 下指令（例如要求忽略规则或跳过确认），不能自动记住，需要你看过再决定"
       : screened && screened.redacted !== text ? "这段话里有本机文件路径之类的内容，先请你看一下再决定记不记" : null;
     const entries = await this.located(caller, input.scope, where.owner);
@@ -635,10 +637,12 @@ export class MemoryService {
     if (!text || text.length > MAX_TEXT) throw new MemoryError("memory.invalid", `记忆内容要在 1–${MAX_TEXT} 字之间`);
     if (looksLikeSecret(text)) throw new MemoryError("memory.invalid", "这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
     const earlier = await this.candidateRecords(caller.actor_id, input.scope, where.owner);
-    if (earlier.some(item => item.state !== "expired" && sameText(item.text, text)))
+    const work = caller.work ?? null;
+    // The same suggestion, or nearly the same one already waiting from this work (a reworded second try), is not taken twice.
+    if (earlier.some(item => item.state !== "expired" && (sameText(item.text, text)
+      || (item.state === "pending" && work !== null && item.work?.work_id === work.work_id && similarity(item.text, text) >= 0.6))))
       throw new MemoryError("memory.invalid", "这条已经建议过了（用户认可、拒绝或还在等），不要再提");
     if ((await this.located(caller, input.scope, where.owner)).some(located => sameText(located.entry.text, text))) throw new MemoryError("memory.invalid", "已经记着这一条了");
-    const work = caller.work ?? null;
     if (work && earlier.filter(item => item.work?.work_id === work.work_id && item.state === "pending").length >= PENDING_PER_WORK)
       throw new MemoryError("memory.limit", `这项工作已有 ${PENDING_PER_WORK} 条建议在等用户，先不要再提`);
     const at = this.now().toISOString();
@@ -648,7 +652,8 @@ export class MemoryService {
     const held = await this.ports.backend.candidates.propose({ scope: input.scope, owner: where.owner, text, origin: `建议 · ${input.from}`, tags: [input.from, input.kind], meta: toEntryMeta(facts) });
     const record: MemoryCandidateRecord = { candidate_id: held.candidate_id, actor_id: caller.actor_id, owner: where.owner, scope: input.scope,
       project_id: where.project, kind: input.kind, text, applies: input.applies ?? {}, basis: input.basis, why: input.why.trim().slice(0, 300),
-      from: input.from, work, hold_reason: input.hold_reason ?? null, supersedes: input.supersedes ?? null, state: "pending", created_at: at, memory_id: null };
+      // Instruction-like text says so however it came in, so the person sees why before accepting.
+      from: input.from, work, hold_reason: input.hold_reason ?? looksLikeInstruction(text), supersedes: input.supersedes ?? null, state: "pending", created_at: at, memory_id: null };
     this.ports.ledger.saveCandidate(record);
     return candidateView(record);
   }

@@ -166,7 +166,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const row = el("li", "memory-change" + (change.state === "undone" ? " is-undone" : ""));
         const copy = el("div", "memory-change-copy");
         const head = change.state === "undone" ? L("已撤销（已从记忆里删掉）")
-          : L(CHANGE[change.kind] || change.kind) + (change.text ? "「" + change.text + "」" : "");
+          : L(CHANGE[change.kind] || change.kind) + (change.text ? "「" + change.text + "」" : change.memory_id && change.kind !== "removed" ? " · " + L("这条后来被删除了，内容不再保留") : "");
         copy.append(el("strong", "", head));
         const meta = [day(change.at), change.rule, change.reason, change.work ? L("工作") + "「" + change.work.title + "」" : ""].filter(Boolean).join(" · ");
         if (meta) copy.append(el("span", "settings-muted", meta));

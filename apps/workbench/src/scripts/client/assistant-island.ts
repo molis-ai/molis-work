@@ -685,6 +685,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       badge: effect ? L(effect) : "", badgeTone: effectTone, title: card.title });
     if (effect) node.querySelector(".assistant-card-badge")?.prepend(glyph(effectIcon));
     node.dataset.status = card.status;
+    // A card a page prepared (not the Assistant's own suggestion) says which page, and what the selection came from.
+    if (card.from) {
+      const where = card.from.title || surfaceName(card.from.surface) || card.from.surface;
+      const origin = el("p", "assistant-card-origin");
+      origin.append(glyph("external"), document.createTextNode(L("来自「{title}」页面").replace("{title}", where)
+        + (card.source_object && card.source_object.title ? " · " + L("选中自《{title}》").replace("{title}", card.source_object.title) : "")));
+      node.append(origin);
+    }
     node.append(el("p", "assistant-card-summary", card.summary), el("p", "assistant-card-meta", card.provider + " · " + card.capability_title));
     const inputs = {};
     if (card.fields.length) {
@@ -779,6 +787,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       return child;
     };
   };
+  /** A card no round proposed: a page put it in (it names the page in from), or its round is not one of this work's. */
+  const pageCard = (card) => Boolean(card.from) || !card.run_id || !(view && view.rounds.some((round) => round.run_id === card.run_id));
   const renderCards = (parent, work, cards, put) => {
     // A card the person set aside leaves the list, like one that is gone.
     const shown = cards.filter((card) => card.status !== "dismissed");
@@ -946,7 +956,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (card.dataset.signature !== signature) { card.dataset.signature = signature; renderQuestion(card, work, round, question); }
       put(card);
     });
-    renderCards(node, work, ((view && view.cards) || []).filter((card) => card.run_id === round.run_id), put);
+    renderCards(node, work, ((view && view.cards) || []).filter((card) => card.run_id === round.run_id && !pageCard(card)), put);
     const last = view && view.rounds[view.rounds.length - 1] === round;
     const made = last && view.objects ? view.objects.filter((object) => object.relation === "result" && object.open && object.state !== "missing") : [];
     const next = last && ((round.phase === "completed" && made.length) || round.phase === "failed");
@@ -1636,6 +1646,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const paintJump = () => {
     if (!jump) return;
     const box = thread.getBoundingClientRect();
+    // A conversation not laid out (the panel still closed) has nothing above or below yet.
+    if (!box.height) { jump.hidden = true; return; }
     const pending = [...thread.querySelectorAll(PENDING)].find((node) => node.getBoundingClientRect().top > box.bottom - 24);
     if (pending) {
       jump.textContent = "↓ " + (pending.matches("[data-review]") ? L("等你确认") : pending.matches("[data-question]") ? L("等你回答") : L("有操作等你点"));
@@ -1696,7 +1708,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     [...thread.children].forEach((node) => { if (node.dataset.round && !rounds.some((round) => round.run_id === node.dataset.round)) node.remove(); });
     const put = placer(thread);
     if (empty) put(empty);
-    rounds.forEach((round) => put(renderRound(work, round)));
+    const fromPages = work ? (view.cards || []).filter((card) => card.status !== "dismissed" && pageCard(card)) : [];
+    [...thread.children].forEach((node) => { if (node.dataset.card && !fromPages.some((card) => card.card_id === node.dataset.card)) node.remove(); });
+    let placed = 0;
+    const putPageCards = (before) => {
+      while (placed < fromPages.length && (before === null || fromPages[placed].created_at < before)) { renderCards(thread, work, [fromPages[placed]], put); placed += 1; }
+    };
+    rounds.forEach((round) => { putPageCards(round.started_at); put(renderRound(work, round)); });
+    putPageCards(null);
     const reviews = work ? view.reviews : [];
     [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) card.remove(); });
     reviews.forEach((review) => {
@@ -2462,6 +2481,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   document.addEventListener("molis:assistant-open", async (event) => {
     const detail = event.detail && typeof event.detail === "object" ? event.detail : {};
     const named = typeof detail.work_id === "string" && detail.work_id ? detail.work_id : "";
+    // A work the page has just made (a card it placed) is not in the list yet: read the list once before deciding.
+    if (named && !works.some((work) => work.work_id === named)) await loadWorks();
     if (named && works.some((work) => work.work_id === named)) await switchTo(named);
     else if (detail.new === true || named) await switchTo(null);
     const source = detail.source && typeof detail.source.surface === "string" && detail.source.surface
@@ -2645,7 +2666,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (Number.isFinite(at) && Date.now() - at > RESTING_MS) void switchTo(null);
   };
   // Opening the panel shows the conversation first; a narrow panel's drawer waits to be asked for.
-  if (panel && "MutationObserver" in window) new MutationObserver(() => { if (!panel.hidden && !spacious()) drawerOpen = false; paintLayout(); if (panel.hidden) { setWorks(false); restIfStale(); } else paintTabs(); }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+  if (panel && "MutationObserver" in window) new MutationObserver(() => { if (!panel.hidden && !spacious()) drawerOpen = false; paintLayout(); if (panel.hidden) { setWorks(false); restIfStale(); } else { paintTabs(); paintJump(); } }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   // The list of works is a dropdown under the tabs: a click anywhere else in the panel puts it away.
   panel?.addEventListener("pointerdown", (event) => {
     if (worksNav && !worksNav.hidden && event.target?.nodeType === 1 && !worksNav.contains(event.target) && !worksToggle?.contains(event.target)) setWorks(false);

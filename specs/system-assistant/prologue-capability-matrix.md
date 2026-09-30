@@ -178,6 +178,6 @@
 7. 装配与版本诊断（`capabilityReport`、`assembly`、`ledgerFailures`）给开发者看：数据在运行时里都有，缺一个开发者诊断页；设置页正由页面动线会话调整，等它合入后再加，避免冲突。
 8. Prologue 缺口：结果未知的修改只能凭执行回执或“确认没发生”收口。Host 已补“交给插件的那一刻记一笔”，停止先于发出的修改如实显示“没有执行”（e58b1e6e）；真正发出后没回执的仍是“结果未确认”。
 
-已从缺口移出：按工作的预算（25c1c711，已实测）；记忆的 Character 维度（按推荐不另设角色专用记忆库，角色轮次受同一组开关约束，AC34 实测；记忆整体迁到平台记忆服务 feature/memory-system）。
+已从缺口移出：按工作的预算（25c1c711，已实测）；记忆的 Character 维度（平台记忆服务 feature/memory-system 按 Prologue `character` 作用域、“项目 × 角色”存，受所在项目的同一组开关约束，AC34 与 tests/memory-scopes.test.ts 覆盖）。
 
 标“不适用”的只有：SDK Goals（业务 Goal 归插件）、SDK Artifacts／collections／migrate（业务成果与主数据归模块）、助理的目录与命令（按设计由 Coding 承担）、heartbeats（到点执行已由持久队列承担）。

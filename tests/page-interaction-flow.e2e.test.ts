@@ -74,7 +74,7 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await waitFor(`${exclusive} === ''`);
 
   // The bar's trays: at every desktop width what folds stays inside the left tray, and neither tray runs under the composer.
-  for (const width of [601, 825, 1100, 1440]) {
+  for (const width of [601, 825, 1041, 1100, 1440]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
     await waitFor("innerWidth === " + width);
     const geometry = await evaluate<{ fold: number; start: number; centre: number; centreEnd: number; residents: number; end: number }>(`new Promise(resolve => setTimeout(() => {

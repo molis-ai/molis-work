@@ -34,13 +34,25 @@ export const NAVIGATION_FLOW_STYLES = `
   @media (min-width: 601px) and (max-height: 560px) {
     ${BAR} :is(.bar-start, .bar-residents) { padding: 3px; }
   }
-  /* The left column never gets narrower than its tray's least content — the Dock menu, 项目首页 and the +N fold —
-     so what folds stays inside the tray instead of sliding under the composer. */
+  /* The left column never gets narrower than its tray's least content — the switcher's glyph, 项目首页 and the +N
+     fold, with the tray's padding and the gaps between them — so what folds stays inside the tray instead of sliding
+     under the composer. */
   @media (min-width: 601px) {
-    ${BAR} { grid-template-columns: minmax(calc(var(--dock-btn) * 3 + 38px), 1fr) minmax(200px, 660px) minmax(max-content, 1fr); }
+    ${BAR} { grid-template-columns: minmax(calc(var(--dock-btn) * 2 + 84px), 1fr) minmax(200px, 660px) minmax(max-content, 1fr); }
   }
   @media (min-width: 601px) and (max-width: 1100px) {
-    ${BAR} { grid-template-columns: minmax(calc(var(--dock-btn) * 3 + 38px), 1fr) minmax(200px, 560px) minmax(max-content, 1fr); }
+    ${BAR} { grid-template-columns: minmax(calc(var(--dock-btn) * 2 + 84px), 1fr) minmax(200px, 560px) minmax(max-content, 1fr); }
+  }
+  /* The switcher shares the left tray with the Dock and gives way to it: 项目首页 and the +N fold always keep their
+     room, and a long place name ends in an ellipsis. Where no name fits beside them, the switcher is its glyph alone,
+     as on a phone; the location chip above the page still names where you are. */
+  @media (min-width: 601px) {
+    ${BAR} .bar-start .plugin-picker { max-width: calc(100% - var(--dock-btn) * 2 - 28px); }
+    ${BAR} .bar-start .plugin-picker-current span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  }
+  @media (min-width: 601px) and (max-width: 1040px) {
+    ${BAR} .bar-start :is(.plugin-picker-current, .plugin-picker-trigger > svg:last-child) { display: none; }
+    ${BAR} .bar-start .plugin-picker-all { display: inline-grid; place-items: center; color: var(--ink-soft); }
   }
 
   /* The switcher names a cover the way it names a plugin. */

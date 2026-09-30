@@ -240,20 +240,23 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   };
   const openGlobalSettingsFromUrl = (href) => {
     const url = new URL(href, location.origin);
-    if (url.origin !== location.origin || !url.pathname.startsWith("/settings/")) return false;
-    const section = globalSectionFromPath(url.pathname);
+    if (url.origin !== location.origin) return false;
+    // A project page draws root links under its own prefix; a global page named there is still the global page.
+    const pathname = projectPrefix && url.pathname.startsWith(projectPrefix + "/settings/") ? url.pathname.slice(projectPrefix.length) : url.pathname;
+    if (!pathname.startsWith("/settings/")) return false;
+    const section = globalSectionFromPath(pathname);
     if (!section || !globalSettings) {
       globalSettings ||= bindGlobal();
       if (!section || !globalSettings) return false;
     }
     setDirectory?.("settings", true, true);
     setExclusive?.("settings");
-    if (section === "appearance" && url.pathname === "/settings/appearance") {
+    if (section === "appearance" && pathname === "/settings/appearance") {
       void globalSettings.loadSection("appearance");
       return true;
     }
     globalSettings.caches.delete(section);
-    void globalSettings.loadSection(section, url.pathname + url.search + url.hash);
+    void globalSettings.loadSection(section, pathname + url.search + url.hash);
     return true;
   };
   document.addEventListener("molis-work:open-settings-path", (event) => {

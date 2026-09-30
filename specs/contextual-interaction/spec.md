@@ -486,6 +486,8 @@ Pages 用一个 ProseMirror 插件的 view update 维护它；其他插件第一
 
 - 对象声明：Goals 由工作台自己渲染，打开某个 Goal 时在 Goal 框与文档上声明它（同时声明“所属 Goal”就是它自己），在 Goal 里选中文字即出现“拆成目标步骤 / 记下灵光”，拆解挂在这个 Goal 下（真实工作台已走查）。其他插件：工作台打开条目（`molis-work:select-item`）而插件自己没有声明时，按目录里各插件搜索来源的声明（`GET /api/contextual/surfaces`：界面 → 唯一的对象类型）代为声明，标注 `named_by: "workbench"`，插件自己声明时以插件为准；当前目录得出 17 个界面（含 Inbox、Characters、Artifacts、Sessions、Workflows），Workflows 已在真实工作台验证。
 
+- 浏览器 e2e（协调会话排的 S11 时段）：`tests/contextual-interaction.e2e.test.ts` 4/4——P1 三个用例 + P2 一个（选中一个词 → 在项目里查找 → 搜索面板带着这个词打开；选中一段 → 更多 → 记下灵光 → `POST /api/assistant/cards` 200、面板打开到“记下灵光”；打开 Goal → 框上声明该 Goal → 选中其中文字 → 出现“拆成目标步骤”）。
+
 **未完成**
 - Feed 条目的对象声明（Feed 的搜索来源没有唯一的界面，需要 Feed 自己声明）；Characters、Inbox、Artifacts、Sessions 的真实走查（本项目没有这些条目或未启用）。
 - 各插件自己的片段动作（Feed/Inbox 转成任务、Dataset/Form 解读等）与多对象情境。

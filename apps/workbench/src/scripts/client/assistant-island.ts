@@ -563,9 +563,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const verbGlyph = (item) => item.state === "started" ? spinner() : glyph(item.state === "failed" ? "circle-alert" : item.state === "unknown" ? "alert" : VERB_GLYPH[item.verb] || "circle");
   const activityLine = (item) => {
     const verb = L(VERBS[item.verb] || item.verb);
-    const what = item.target ? " " + item.target : "";
+    const what = item.target ? (item.verb === "ask" ? "：" : " ") + item.target : "";
     if (item.state === "started") return L("正在") + verb + what;
-    if (item.state === "completed") return L("已") + verb + what;
+    // An answered question keeps what the person said, so the conversation shows the choice, not just that one was made.
+    if (item.state === "completed") return L("已") + verb + what + (item.verb === "ask" && item.answer ? " · " + L("你的回答") + "：" + item.answer : "");
     if (item.state === "failed") return verb + what + " — " + L(REASONS[item.reason] || "没有完成");
     return verb + what + " — " + L("结果未确认");
   };
@@ -1746,6 +1747,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           box.append(raise);
         }
         else if (shown.action === "打开设置") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L("打开助理设置")); link.href = "/settings/assistant"; box.append(link); }
+        // Coding's own choices (its model, its folder) are made on its page: the step is a button that goes there.
+        else if (/Coding/.test(shown.action) && codingHere()) {
+          const go = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("打开 Coding")); go.type = "button";
+          go.addEventListener("click", () => { document.querySelector('.plugin-rail-items [data-plugin-id="coding"]')?.click(); setPanel(false); });
+          box.append(el("p", "assistant-muted", L(shown.action)), go);
+        }
         else box.append(el("p", "assistant-muted", L(shown.action)));
       }
       thread.append(box);

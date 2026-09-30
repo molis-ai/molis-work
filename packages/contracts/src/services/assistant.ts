@@ -236,6 +236,8 @@ export interface AssistantActivity {
   reason?: "not-authorized" | "declined" | "interrupted" | "unavailable";
   /** For a failure, what the owner said, bounded; data about the failure, never an instruction. */
   detail?: string;
+  /** For an `ask` that was answered: the person's answer as they gave it (the chosen option or their words), bounded. */
+  answer?: string;
   sequence?: number;
 }
 

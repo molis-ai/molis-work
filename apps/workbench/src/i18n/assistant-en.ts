@@ -479,6 +479,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "自动停用": "switched off on its own",
   "当前内容的动作": "Actions for what you are looking at",
   "这项内容": "This item",
+  "你的回答": "your answer",
   "已撤销（回到了原来那条）": "Undone (back to the earlier one)",
   "已撤销（已重新启用）": "Undone (switched on again)",
   "因为篇幅没带上": "Left out for length",

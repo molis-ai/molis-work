@@ -399,6 +399,8 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     "write": "file-change", "run-command": "command", "command-output": "command-output", "await-commands": "command-output", "find-tools": "lookup-tools",
     // Sub-tasks handed to works of their own.
     "delegate-work": "delegate", "check-delegated-work": "delegate-check", "follow-up-delegated-work": "delegate-follow-up", "stop-delegated-work": "delegate-stop",
+    // The side panel's browser.
+    "surface-list": "browser-list", "surface-observe": "browser-look", "surface-act": "browser-act",
     // The person's memory.
     "remember": "memory-keep", "list-memories": "memory-list", "forget-memory": "memory-forget", "suggest-memory": "memory-suggest",
     // The Host let a round that only announced its next step continue; the runtime condensed a long work's context.
@@ -1827,6 +1829,8 @@ export class AssistantService {
       ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
         .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),
       history: "session", budget: { max_turns: ROUND_TURNS, ...(left === undefined ? {} : { max_total_tokens: left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
+      // The project's side panel browser is the person's work surface: a work delegated in the background never drives it.
+      ...(work.delegated_by ? { browser: false as const } : {}),
       // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
       ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
     }, authority);

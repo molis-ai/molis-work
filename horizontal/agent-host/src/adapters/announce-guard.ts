@@ -12,7 +12,7 @@ const SETTLED = /已(?:经)?(?:完成|修改|改好|改完|创建|新建|写入|
 
 // A whole reply that is one short line opening with the step itself (“调用…读回…，核对…”), not with what came of it.
 // Seen from MiniMax-M3: asked to read saved items back, it answered only that line and ended with nothing read.
-const PLAN_LINE = /^(?:调用|读取|读回|查看|核对|检查|打开|创建|新建|修改|更新|保存|写入|搜索|查找|查询|抽取|提取|列出|获取|整理)(?![了过完好到成])(?![^。！!]*(?:结果|如下|无误|没有问题|没问题|一致))/;
+const PLAN_LINE = /^(?:调用|读取|读回|查看|核对|检查|打开|创建|新建|修改|更新|保存|写入|搜索|查找|查询|抽取|提取|列出|获取|整理|点击|点开|输入|填写|观察|浏览|滚动)(?![了过完好到成])(?![^。！!]*(?:结果|如下|无误|没有问题|没问题|一致))/;
 
 export function announcesWithoutActing(text: string): boolean {
   const trimmed = text.trim();

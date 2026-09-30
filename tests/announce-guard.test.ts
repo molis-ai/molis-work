@@ -9,7 +9,9 @@ test("an ending that only announces the next step is recognised; results, questi
     // Seen from MiniMax-M3 in an Assistant round that then ended without following up the sub-task.
     "我把要求改成 13 字，让同一个子任务再试一次。",
     // Seen from MiniMax-M3 asked to read saved to-dos back: this one line was the whole reply, and nothing was read.
-    "调用「会议待办」的列表能力读回保存的提炼记录，核对刚才三条。", "读回刚才保存的三条待办并逐条核对。"]) {
+    "调用「会议待办」的列表能力读回保存的提炼记录，核对刚才三条。", "读回刚才保存的三条待办并逐条核对。",
+    // The same with the side panel browser: a line that only names the click or the typing, and nothing done.
+    "点击页面上的 Learn more 链接。", "输入 tomsmith 到 Username 输入框。"]) {
     assert.equal(announcesWithoutActing(text), true, text);
   }
   for (const text of ["完成。改动与结果：\n- calc.js 新增 multiply\n- npm test：exit 0，三条断言全部通过。", "calc.js 已落盘。", "要把这段替换进文档吗？",
@@ -22,6 +24,7 @@ test("an ending that only announces the next step is recognised; results, questi
     // Steps for the person to take are not the round's own next step (seen from MiniMax-M3 with memory switched off).
     "要去长期记住的话，请在「设置 · 助理 · 记忆与偏好」里打开「允许记住」，然后告诉我「记住：以后周报标题都加日期」。",
     "核对完毕，三条都在。", "检查结果：三条都在。", "读取到 3 条待办，和刚才一致。", "查看了一下，没有问题。", "保存成功。",
+    "点击了 Learn more，新页面的标题是 Example Domains。", "输入完成，Username 里现在是 tomsmith。",
     "调用「会议待办」读回的三条：\n- 小张整理用户访谈\n- 老李联系场地"]) {
     assert.equal(announcesWithoutActing(text), false, text);
   }

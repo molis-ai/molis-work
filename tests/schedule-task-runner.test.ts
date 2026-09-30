@@ -68,3 +68,19 @@ test("只有 CLI Runtime、没有 Prologue 时不退回 CLI", async () => {
   await assert.rejects(() => runner.run({ title: "汇总", instructions: "看一眼", history: [] }), /需要 Prologue/);
   assert.deepEqual(opened, []);
 });
+
+test("a scheduled run is given the memories the Host chose for it, as Agent work in its project", async () => {
+  const opened: string[] = [], asked: Array<[string, string]> = [];
+  // Stops at start: what matters is the authority the run would be started with.
+  const agentHost = new AgentHost();
+  let authority: any = null;
+  const runtime = fakeRuntime("prologue", opened);
+  agentHost.register({ ...runtime, async createSession() { return { session_id: "s", runtime_id: "prologue" } as never; } });
+  (agentHost as any).start = async (_id: string, _request: unknown, given: any) => { authority = given; throw new Error("stop:start"); };
+  const runner = createHostScheduledTaskRunner({ agentHost, boardId: "board-1", projectId: "project-1", workspaceFor: workspace,
+    memory: async (task, title) => { asked.push([task.slice(0, 10), title]); return { pinned: [{ scope: "project", owner: "project-1", memory_id: "m-1" }], budget_chars: 800, receipt_id: "r-1" }; } });
+  await assert.rejects(() => runner.run({ title: "周报汇总", instructions: "汇总本周进展", history: [] }), /stop:start/);
+  assert.ok(authority?.memory, "the run's authority carries the memory choice");
+  assert.deepEqual(await authority.memory("汇总本周进展"), { pinned: [{ scope: "project", owner: "project-1", memory_id: "m-1" }], budget_chars: 800, receipt_id: "r-1" });
+  assert.deepEqual(asked, [["汇总本周进展", "周报汇总"]]);
+});

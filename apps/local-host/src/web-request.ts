@@ -64,12 +64,12 @@ import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { handleAssistantHttp } from "./assistant/assistant-http.js";
-import { handleMemoryHttp } from "./memory/memory-host.js";
+import { handleMemoryHttp, memoryForAgentRun } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
-import { SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
+import { SCHEDULE_ACTION_PERMISSIONS, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
 import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { EXPERIMENTS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-experiments";
@@ -254,6 +254,8 @@ export async function handleMolisWorkWebRequest(
           boardId: options.boardId,
           projectId: options.project?.project_id ?? "",
           workspaceFor,
+          memory: (task, title) => memoryForAgentRun(localHost, { project_id: options.project?.project_id ?? null, task, plugin_id: SCHEDULE_PLUGIN_ID,
+            used_for: `定时任务 · ${title.replace(/\s+/g, " ").trim().slice(0, 40)}` }),
         }));
         feedSchedulers.set(options.databasePath, {
           scheduler,

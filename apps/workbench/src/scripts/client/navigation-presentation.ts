@@ -44,7 +44,7 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
 /** The bottom bar. Left: the Dock menu, 项目首页 and the plugins chosen to stay; those that do not fit fold into
  * one overflow button instead of running under the Assistant. Centre: the resident Assistant with the plugin
  * switcher in front of it — one plugin, or one per pane when the work area is split. Right: Shelf and 灵光, the
- * project's discussion (group and direct chat, beside the work), then the project with its menu. Every button opens
+ * side panel (discussion, browser and files, beside the work), then the project with its menu. Every button opens
  * its plugin through the switcher's own entry, so navigation has one path. Choices here are per-viewer conveniences. */
 export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   if (document.body.hasAttribute('data-pane-embedded') || (window.parent !== window && new URLSearchParams(location.search).has('workbenchPane'))) return;
@@ -56,7 +56,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const glyphOf = (id) => railItem(id)?.querySelector('svg')?.cloneNode(true) || null;
 
   const setWindow = (id, open) => {
-    if(id==='im')document.dispatchEvent(new CustomEvent(open?'molis:discussion-toggle':'molis:discussion-close'));
+    if(id==='im')document.dispatchEvent(new CustomEvent(open?'molis:side-open':'molis:side-close',{detail:{}}));
   };
 
   /* The switcher. */
@@ -264,7 +264,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
     const toggle = target.closest('[data-dock-toggle]');
-    if (toggle) { const id = toggle.dataset.dockToggle; setWindow(id, document.body.dataset.discussionOpen !== 'true'); return; }
+    if (toggle) { const id = toggle.dataset.dockToggle; setWindow(id, document.body.dataset.sideOpen !== 'true'); return; }
     const collapse = target.closest('[data-dock-collapse]');
     if (collapse) { const id = collapse.closest('[data-dock-window]')?.dataset.dockWindow; if (id) setWindow(id, false); return; }
     if (target.closest('[data-assistant-panel-close]')) { setPanel(false); return; }

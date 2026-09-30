@@ -160,6 +160,18 @@ function placedEntries(enabled: readonly ProjectPluginId[], slot: "navigator" | 
   });
 }
 
+/** Side panel tabs the enabled plugins declare (`slot: "side"`), in Manifest order; the Host serves each one's document. */
+export function sideEntries(enabled: readonly ProjectPluginId[]): Array<UiPlacedView & { project_plugin_id: string }> {
+  const registry = new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({
+    manifest: entry.manifest,
+    enabled: enabled.includes(entry.project_plugin_id),
+  })));
+  return registry.slot("side").map((view) => ({
+    ...view,
+    project_plugin_id: BUILTIN_PLUGIN_CATALOG.find((item) => item.manifest.plugin_id === view.plugin_id)?.project_plugin_id ?? view.plugin_id,
+  }));
+}
+
 /** Settings pages for the enabled set, in Manifest order. */
 export function settingsEntries(enabled: readonly ProjectPluginId[]): UiPlacedView[] {
   const registry = new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({

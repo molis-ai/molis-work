@@ -52,6 +52,7 @@ import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, type MolisWorkWebVie
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import type { SessionRuntimeResources } from "./web-session.js";
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
+import { handleSideFilesHttp } from "./side-files-http.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
@@ -157,6 +158,20 @@ export async function handleMolisWorkWebRequest(
         boardId: options.boardId,
         projectId: options.project?.project_id,
       });
+      // A plugin's side panel tab (specs/side-panel D13): the declared `side` view, served for a plugin enabled here.
+      const sideView = /^\/side\/([^/]+)\/([^/]+)$/u.exec(url.pathname);
+      if (sideView && request.method === "GET" && options.project) {
+        const projectId = options.project.project_id;
+        const enabled = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.listProjectPlugins(projectId));
+        const html = workbenchRenderer.renderSideViewDocument({ projectPluginId: decodeURIComponent(sideView[1]!), viewId: decodeURIComponent(sideView[2]!),
+          projectId, routePrefix: `/projects/${encodeURIComponent(projectId)}`, enabled, controlToken });
+        if (!html) { sendJson(response, 404, { error: L("这个侧栏内容已经不在了（插件可能已停用）") }); return; }
+        response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
+        response.end(html);
+        return;
+      }
+      // The side panel's file tab: sources, entries and one preview, read through the action directory as the person.
+      if (url.pathname.startsWith("/api/side/files/") && await handleSideFilesHttp(request, response, url, { localHost, reference: hostReference })) return;
       await localHost.withProject(hostReference, async (runtime) => {
         const { store, coordinator } = runtime;
         const feedOptions = {

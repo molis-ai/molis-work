@@ -1,6 +1,6 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash } from "node:crypto";
-import { ActionError, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileEntriesAction, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesFolder, PagesRecord, PagesInputSnapshot, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_AI_COMMANDS, runPagesAi, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
@@ -49,6 +49,8 @@ export const pagesActions = {
   subject: defineSubjectContextAction("pages.subject.read", PAGES_SUBJECT_KIND, "文档", read),
   /** System search: every document of the project by version; its text is read back through `subject`. */
   searchEntries: defineSearchEntriesAction("pages.search.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "文档", read),
+  /** The side panel's file tab (specs/side-panel): documents by folder; the preview reads the same `subject` text. */
+  fileEntries: defineFileEntriesAction("pages.files.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read),
   /** Where a document lives (specs/work-placement): moving keeps its id; copying makes an independent document. */
   move: defineObjectMoveAction("pages.placement.move", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
   copy: defineObjectCopyAction("pages.placement.copy", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
@@ -119,6 +121,13 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bindSearchEntriesHandler(pagesActions.searchEntries, caller => ports.withStore(store => store.list(project(caller)).map(document => ({
       subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档", summary: "",
       updated_at: document.updated_at, content: "context" as const, open: { surface: "pages", id: document.id } })))),
+    bindFileEntriesHandler(pagesActions.fileEntries, caller => ports.withStore(store => {
+      const folders = new Map(store.listFolders(project(caller)).map(folder => [folder.id, folder.title]));
+      return store.list(project(caller)).map(document => ({
+        subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档",
+        folder: document.folder_id && folders.get(document.folder_id) ? [folders.get(document.folder_id)!] : [], media_type: "text/markdown",
+        size: null, updated_at: document.updated_at, open: { surface: "pages", id: document.id } }));
+    })),
     bindObjectMoveHandler(pagesActions.move, input => ports.withStore(store => {
       const document = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
       return { subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, project_id: document.project_id, revision: String(document.version) };

@@ -4,7 +4,7 @@ import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperations
 
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderAccountGlobalItems, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
-import { PERSONAL_PLUGIN_IDS } from "./plugin-catalog.js";
+import { PERSONAL_PLUGIN_IDS, sideEntries } from "./plugin-catalog.js";
 import { renderPersonalMenuItems, renderPluginRailAccountFooter, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
@@ -234,6 +234,8 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         rail: renderPluginRail(primitives, enabledPlugins, "", "", view.plugin_rail),
         accountFooter: desktopAccountFooter.replace("<!-- account-global-items -->", renderAccountGlobalItems(primitives, enabledPlugins)),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
+        sideTabs: sideEntries(enabledPlugins).map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title,
+          icon: (side.icon ?? "package") as PageIcon, src: `${view.route_prefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` })),
       })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">

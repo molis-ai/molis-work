@@ -44,10 +44,10 @@ export const filesManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: FILES_PLUGIN_ID,
-  version: "1.4.0",
+  version: "1.5.0",
   name: "Files",
   kind: "app",
-  upgrade_compatibility: { compatible_from_versions: ["1.3.0", "1.2.0", "1.1.0"] },
+  upgrade_compatibility: { compatible_from_versions: ["1.4.0", "1.3.0", "1.2.0", "1.1.0"] },
   publisher: { publisher_id: "molis", signature: "official-files-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [

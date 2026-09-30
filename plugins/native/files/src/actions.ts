@@ -1,4 +1,4 @@
-import { bindOwnerPluginAction, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction, defineFileContentAction, defineFileEntriesAction, fileContentOf, fileEntriesPage, type ActionDefinition, type ActionHandlerBinding, type FileEntry, type FileEntriesInput, type FileSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
 import { object, id, integer, path, rootPath, workspace, fileResult, nullable, snapshot, publication } from "@molis-ai/molis-work-contracts/modules/workspace-action-schemas";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -22,7 +22,21 @@ export const filesActions = {
   open: define<FileInput, FileRead & { path: readonly string[] }>("files.open", "打开文件", "有界读取当前工作区的文本，保存阅读位置并更新文件集合输出", object({ workspace_id: id, path }), object({ workspace, result: fileResult, path })),
   capture: define<FileCaptureInput, { saved: ArtifactVersionResult; port: "before" | "after" | "selection"; snapshot: FileSnapshot }>("files.capture", "固定文件快照", "重新读取并核对已查看的指纹，保存固定全文或选区；不改写原文件", object({ workspace_id: id, path, port: { enum: ["before", "after", "selection"] }, fingerprint: id, start: integer, end: integer }, ["workspace_id", "path", "port", "fingerprint"]), object({ saved: publication, port: { enum: ["before", "after", "selection"] }, snapshot })),
 };
-export const FILES_ACTIONS = Object.values(filesActions);
+/** Workspace files in the side panel (specs/side-panel): listed through the same browsing grant, previewed as text. */
+export const WORKSPACE_FILE_KIND = "workspace_file";
+const workspaceFileKinds: FileSourceKind[] = [{ kind: WORKSPACE_FILE_KIND, title: "工作区文件", surface: "files" }];
+export const filesSideActions = {
+  entries: defineFileEntriesAction("files.side.entries", workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"]),
+  content: defineFileContentAction("files.side.content", workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"]),
+};
+export const FILES_ACTIONS = [...Object.values(filesActions), ...Object.values(filesSideActions)];
+/** A tree walk stops here: the side panel lists what a person browses, not a whole dependency cache. */
+const SIDE_MAX_FILES = 2000, SIDE_MAX_DEPTH = 8;
+const SIDE_SKIPPED = new Set(["node_modules", ".git", "dist", "build", ".next", ".cache", "target", "__pycache__", ".venv", "vendor"]);
+const MEDIA: Record<string, string> = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", json: "application/json", ts: "text/typescript", tsx: "text/typescript",
+  js: "text/javascript", mjs: "text/javascript", css: "text/css", html: "text/html", yml: "application/yaml", yaml: "application/yaml", py: "text/x-python",
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
+const mediaOf = (name: string) => MEDIA[name.split(".").pop()?.toLowerCase() ?? ""] ?? "text/plain";
 
 export function filesActionHandlers(context: PluginStartContext): ActionHandlerBinding[] {
   const services = context.services;
@@ -53,7 +67,40 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
   function readable(result: WorkspaceFileResult): asserts result is Extract<WorkspaceFileResult, { outcome: "text" }> {
     if (result.outcome !== "text") throw new Error(result.outcome === "changed" ? "文件在读取时变化，请刷新" : "文件当前不可读取，无法固定快照");
   }
+  const sideId = (workspaceId: string, path: readonly string[]) => `${workspaceId}:${path.join("/")}`;
   return [
+    bindOwnerPluginAction(context, filesSideActions.entries, async (input: FileEntriesInput, beforeWrite) => {
+      const current = await workspace(beforeWrite);
+      const files: FileEntry[] = [];
+      const walk = async (dir: readonly string[], depth: number): Promise<void> => {
+        if (files.length >= SIDE_MAX_FILES) return;
+        const { result } = await read(current.workspace_id, dir, "directory", beforeWrite);
+        if (result.outcome !== "directory") return;
+        for (const entry of result.entries) {
+          if (files.length >= SIDE_MAX_FILES) return;
+          if (entry.kind === "directory") { if (depth < SIDE_MAX_DEPTH && !SIDE_SKIPPED.has(entry.name) && !entry.name.startsWith(".")) await walk(entry.path, depth + 1); continue; }
+          if (entry.kind !== "file") continue;
+          const id = sideId(current.workspace_id, entry.path);
+          files.push({ subject: { kind: WORKSPACE_FILE_KIND, id }, revision: id, title: entry.name, folder: [current.name, ...entry.path.slice(0, -1)],
+            media_type: mediaOf(entry.name), size: null, updated_at: null, open: { surface: "files", id } });
+        }
+      };
+      await walk([], 0);
+      return fileEntriesPage(files, input);
+    }, reading),
+    bindOwnerPluginAction(context, filesSideActions.content, async (input, beforeWrite) => {
+      const current = await workspace(beforeWrite);
+      const [workspaceId, ...rest] = String(input.subject?.id ?? "").split(":");
+      if (workspaceId !== current.workspace_id) throw Object.assign(new Error("这个文件不在当前浏览目录里"), { code: "files.not_found" });
+      const path = parseFilePath(rest.join(":").split("/").filter(Boolean));
+      const { result } = await read(current.workspace_id, path, "text", beforeWrite);
+      const title = path.at(-1) ?? "文件";
+      if (result.outcome === "text") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: mediaOf(title), text: result.text });
+      if (result.outcome === "missing") throw Object.assign(new Error("文件已不存在"), { code: "files.not_found" });
+      const why = result.outcome === "too-large" ? `文件太大（${Math.round(result.bytes / 1024)} KB），侧栏只预览文本文件的前 ${Math.round(result.limit / 1024)} KB。`
+        : result.outcome === "binary" ? "这是二进制文件，侧栏只预览文本。" : result.outcome === "denied" ? "这个路径不可读取。" : "这个文件现在不能预览。";
+      return fileContentOf({ subject: input.subject, revision: "unreadable", title, media_type: "text/plain", text: why });
+    }, reading),
     bindOwnerPluginAction(context, filesActions.state, async (_input, beforeWrite) => ({ workspace: await workspace(beforeWrite), position: parseReadingPosition(services?.storage?.get(READING_POSITION_KEY)) ?? null }), browsing),
     bindOwnerPluginAction(context, filesActions.directory, async (input, beforeWrite) => {
       const path = parseFilePath(input.path, true);

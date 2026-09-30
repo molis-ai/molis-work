@@ -2,6 +2,7 @@ import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
 import { DIRECT_WORK_SURFACE_IDS, islandEntries, pluginMarketCards, railEntries } from "./plugin-catalog.js";
 import { renderAssistantDock } from "./assistant-dock.js";
+import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
 
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
@@ -135,16 +136,15 @@ const BAR_RESIDENT_IDS = ["shelf", "lingguang"];
 /**
  * The bottom bar replaces the rail. Left: the Dock menu (the market, the plugin studio, which plugins stay
  * in the Dock) and the plugins chosen to stay. Centre: the resident Assistant, with the plugin switcher in
- * front of it. Right: Shelf and 灵光, the project's discussion (one click opens group and direct chat beside the
- * work), then the project as a round button whose menu holds the project and the person — switching, settings,
+ * front of it. Right: Shelf and 灵光, the side panel (the discussion, the browser and files beside the work,
+ * specs/side-panel), then the project as a round button whose menu holds the project and the person — switching, settings,
  * capabilities. The project's navigation lives in the switcher, so every plugin keeps its entry.
  */
 export function renderWorkbenchBar(
   primitives: ImmersiveShellPrimitives,
-  parts: { rail: string; accountFooter: string; projectChrome: string; enabled: readonly string[] },
+  parts: { rail: string; accountFooter: string; projectChrome: string; enabled: readonly string[]; sideTabs?: readonly SidePanelPluginTab[] },
 ): string {
   const { L, icon } = primitives;
-  const collapse = `<button class="dock-window-action" type="button" data-dock-collapse aria-label="${L("最小化")}" title="${L("最小化")}">${icon("chevron-down")}</button>`;
   const known = [...directoryPlugins(parts.enabled), ...islandPlugins(parts.enabled)];
   const residents = BAR_RESIDENT_IDS.map(id => known.find(plugin => plugin.id === id)).filter(plugin => plugin !== undefined)
     .map(plugin => `<button class="bar-resident" type="button" data-bar-resident="${plugin.id}" data-craft-tip="${plugin.label}" aria-label="${L("切换到插件")}：${plugin.label}">${icon(plugin.glyph)}</button>`).join("");
@@ -160,11 +160,8 @@ export function renderWorkbenchBar(
 ` })}
     <div class="bar-end">
       ${residents ? `<div class="bar-residents" role="toolbar" aria-label="${L("常驻插件")}">${residents}</div>` : ""}
-      <button class="bar-chat" type="button" data-dock-toggle="im" aria-expanded="false" aria-controls="dock-window-im" data-craft-tip="${L("项目讨论")}" aria-label="${L("项目讨论")}">${icon("message")}</button>
-      <section class="dock-window dock-window--end" id="dock-window-im" role="region" aria-label="${L("群聊")}" data-dock-window="im" hidden>
-        <header class="dock-window-head"><strong>${L("项目讨论")}</strong>${collapse}</header>
-        <div class="dock-window-body"><iframe title="${L("群聊与 Thread")}" data-dock-frame="im"></iframe></div>
-      </section>
+      <button class="bar-chat" type="button" data-dock-toggle="im" data-side-toggle aria-expanded="false" aria-controls="dock-window-im" data-craft-tip="${L("侧栏：讨论、浏览器与文件")}" aria-label="${L("侧栏：讨论、浏览器与文件")}">${icon("sidebar")}</button>
+      ${renderSidePanel(primitives, parts.sideTabs ?? [])}
       ${parts.projectChrome}
     </div>
   </div>`;

@@ -30,6 +30,8 @@
 | D13 | 新增 UI 槽 `side`。插件在 `ui.views` 声明 `slot: "side"`，Host 在 `/projects/<id>/side/<plugin>/<view>` 渲染该 contribution，侧栏用同源 iframe 装载（与项目讨论同等隔离），宽度与位置归 Host | 目标第 8 条；“新区域先改壳再开槽”（`platform/ui.ts` 注释） |
 | D14 | 各标签内容常驻、隐藏不销毁；上次的标签、宽度比例按本机记住（localStorage，失败不影响使用）；收起再打开恢复原状 | 目标第 1 条：切换与收起都不丢状态 |
 | D15 | 侧栏暴露 `--side-panel-width`；不使用 `.assistant-*` 类、不动底栏中间列；动效只用 `--dur-*`（130/250/420/640）与曲线 token，不过渡布局属性以外的新属性 | 与 [3c6203] 的约定、craft-finish 设计门禁 |
+| D17 | Coding 不单开文件来源：它在项目工作目录里工作，那里的文件由 Files 的“工作区文件”列出；它每一轮改动的文件固定为变更记录（Artifact），由 Artifacts 列出 | 同一份文件不在侧栏出现两份竞争的清单 |
+| D18 | 地址栏输入不像网址时按 Bing 搜索（`https://www.bing.com/search?q=`），只打开 http/https/about:blank；侧栏浏览器永远不能加载本机 Molis Work 服务自己的地址（CDP 层按 origin 拦截） | 本机服务页面带控制令牌，能加载它就等于绕过动作授权 |
 | D16 | 插件声明会操作哪些网站：Manifest `permissions` 增加 `surface:browser`，附 `origins`；安装与市场摘要列出；声明里带路径或查询串当场拒 | 仿 Prologue `PluginPermissions.surfaces`；本期没有插件真的驱动浏览器，只落声明与展示 |
 
 ## 3. 结构与归属

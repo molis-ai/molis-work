@@ -362,7 +362,7 @@ test("opening beside puts a second item of the same plugin in a pane to the righ
   assert.equal(ops.activeTab(state), null);
 });
 
-// specs/page-interaction-flow: the location chip always names the plugin of what the pane shows.
+// specs/archive/page-interaction-flow: the location chip always names the plugin of what the pane shows.
 test("activating an item tab moves the location chip to that tab's plugin", () => {
   const state = ops.create();
   const inbox = ops.openItem(state, "inbox", "entry-1", "来源故障");

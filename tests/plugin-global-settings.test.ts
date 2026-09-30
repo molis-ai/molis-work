@@ -174,7 +174,7 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   assert.equal(findPluginSettingsNavItem("unregistered-settings"), null);
   assert.ok(listPluginSettingsNavItems(["coding"]).some(item => item.section_id === "coding-settings"));
   // The judgment service connection lives under Capabilities → Connections, not a plugin settings page.
-  // Characters' page lives in settings as 角色 (specs/page-interaction-flow), placed by its Manifest order.
+  // Characters' page lives in settings as 角色 (specs/archive/page-interaction-flow), placed by its Manifest order.
   assert.deepEqual(live.map((item) => item.section_id), ["characters", "shelf"]);
   const shelf = live.find((item) => item.section_id === "shelf");
   assert.equal(shelf?.plugin_id, "io.molis.work.shelf");
@@ -290,7 +290,7 @@ test("workbench settings directory and standalone settings list the same grouped
   assert.doesNotMatch(directory, /data-settings-section="functions"/);
   const withGoals = renderSettingsDirectorySection(directoryPrimitives, ["goals"]);
   const sectionOrder = [...withGoals.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]);
-  // One list for the cover and the independent page (specs/page-interaction-flow): host pages by group, 角色 after 助理
+  // One list for the cover and the independent page (specs/archive/page-interaction-flow): host pages by group, 角色 after 助理
   // by its Manifest order, other plugin pages last; 能力 opens its own cover.
   assert.deepEqual(sectionOrder, ["appearance", "models", "assistant", "characters", "prompts", "runtimes", "capabilities", "diagnostics", "shelf", "planning"]);
   assert.match(withGoals, /data-settings-section="capabilities"[^>]*data-settings-cover="capabilities"|data-settings-cover="capabilities"[^>]*data-settings-section="capabilities"/);

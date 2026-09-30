@@ -38,7 +38,7 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   }
   const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   const choose = (selector: string, title: string) => evaluate(`(()=>{const label=[...document.querySelectorAll(${JSON.stringify(selector)})].find(node=>node.textContent.includes(${JSON.stringify(title)}));if(!label)throw new Error('missing choice');label.querySelector('input').click();})()`);
-  // Characters' page is Settings › 角色 (specs/page-interaction-flow); other plugins open from the switcher.
+  // Characters' page is Settings › 角色 (specs/archive/page-interaction-flow); other plugins open from the switcher.
   const open = async (id: string) => {
     if (id === "characters") { await click('[data-directory-open="settings"]'); await click('[data-directory-panel=settings] [data-settings-section="characters"]'); }
     else await click(`[data-plugin-id="${id}"][data-work-surface-open]`);

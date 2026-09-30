@@ -20,7 +20,7 @@ test('Characters opens an existing project after its manifest upgrade without lo
   const installed = new PluginRuntime(repository).install({ definition: { manifest: legacy, async start() { return {}; } },
     deployment: 'local', grants: legacy.permissions.filter(p => p.required).map(p => p.permission) });
   await b.navigate(() => b.command('Page.navigate', { url: `${b.origin}/projects/${b.projectId}/` }, b.sessionId));
-  // Characters' page is Settings › 角色 (specs/page-interaction-flow).
+  // Characters' page is Settings › 角色 (specs/archive/page-interaction-flow).
   await b.click('[data-directory-open="settings"]');
   await b.click('[data-directory-panel=settings] [data-settings-section="characters"]');
   await b.waitFor("document.querySelector('[data-character-list]')?.textContent.includes('升级前的角色草稿')");

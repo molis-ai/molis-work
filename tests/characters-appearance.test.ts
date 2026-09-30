@@ -23,7 +23,7 @@ test("Characters navigation and work surface receive its registered theme tint",
   assert.match(bindings, /\[data-work-surface="characters"\][^{}]*\{ --plugin-tint: var\(--plugin-characters\); \}/);
 });
 
-// Characters is how AI is asked to work, so its page is Settings › 角色, not a navigation entry (specs/page-interaction-flow).
+// Characters is how AI is asked to work, so its page is Settings › 角色, not a navigation entry (specs/archive/page-interaction-flow).
 test("Characters manifest places its page in settings with the user glyph, not in navigation", () => {
   assert.deepEqual(railEntries(["characters"]), []);
   assert.equal(pluginTabGlyphs().characters, undefined);

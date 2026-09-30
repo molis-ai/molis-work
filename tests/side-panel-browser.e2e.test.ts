@@ -25,10 +25,10 @@ const PAGE = `<!doctype html><html><head><title>侧栏测试页</title></head><b
   <button id="alert" style="position:absolute;left:40px;top:320px;width:120px;height:40px" onclick="alert('确认一下')">提示</button>
   </main></body></html>`;
 
-function serve(): Promise<{ server: Server; origin: string }> {
+function serve(page = PAGE): Promise<{ server: Server; origin: string }> {
   const server = createServer((request, response) => {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    response.end(request.url === "/second" ? "<!doctype html><title>新窗口</title><p>第二个页面</p>" : PAGE);
+    response.end(request.url === "/second" ? "<!doctype html><title>新窗口</title><p>第二个页面</p>" : page);
   });
   return new Promise(resolve => server.listen(0, "127.0.0.1", () => {
     const address = server.address(); if (!address || typeof address === "string") throw new Error("no address");
@@ -54,7 +54,7 @@ const centre = async (page: BrowserPage, selector: string) => {
 test("the side panel browser shows and drives a real page, and the Assistant's driver acts on the same page within its bounds", { skip: !locateBrowser() && "no Chrome-family browser on this machine", timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "side-panel-browser-"));
   const site = await serve();
-  const forbidden = await serve();
+  const forbidden = await serve("<!doctype html><title>本机服务</title><p>控制令牌在这里</p>");
   const browsers = new BrowserHost({ homeDirectory: home, forbiddenOrigins: () => [forbidden.origin] });
   let state: BrowserPageState | null = null;
   let frames = 0;
@@ -127,8 +127,9 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
     assert.equal(state!.problem?.code, "page.blocked_scheme");
     await page.navigate(`${forbidden.origin}/`);
     await until(() => state, value => !!value && !value.loading, "the blocked load to settle");
-    assert.notEqual(state!.title, "侧栏测试页");
-    assert.equal(await page.evaluate("document.body.innerText.includes('订单填写')"), false, "the forbidden origin's page never loaded");
+    assert.equal(await page.evaluate("document.body.innerText.includes('控制令牌在这里')"), false, "the forbidden origin's page never loaded");
+    assert.notEqual(state!.title, "本机服务");
+    assert.equal(state!.problem?.code, "page.load_failed");
 
     // A site the person blocked is not even looked at.
     const blocking = createBrowserSurfaceDriver(page, () => true);

@@ -348,11 +348,14 @@ export class BrowserPage {
     return { targetId, sessionId };
   }
 
+  /**
+   * The local Host's own pages never load here: every request to them is paused before it leaves and failed as blocked
+   * (Fetch interception; the Network block list does not stop a top-level navigation in current Chrome).
+   */
   private async blockHostOrigins(sessionId: string): Promise<void> {
-    const blocked = this.host.forbiddenOrigins().flatMap(origin => [`${origin}/*`, origin]);
-    if (!blocked.length) return;
-    await this.connection!.send("Network.enable", {}, sessionId);
-    await this.connection!.send("Network.setBlockedURLs", { urls: blocked }, sessionId);
+    const origins = this.host.forbiddenOrigins();
+    if (!origins.length) return;
+    await this.connection!.send("Fetch.enable", { patterns: origins.map(origin => ({ urlPattern: `${origin}/*`, requestStage: "Request" })) }, sessionId);
   }
 
   private listenTo(cdp: CdpConnection): void {
@@ -368,10 +371,12 @@ export class BrowserPage {
       cdp.on("Page.frameStartedLoading", (params, sessionId) => { if (isTop(sessionId) && params.frameId === this.top?.targetId) { this.loading = true; this.emit(); } }),
       cdp.on("Page.frameStoppedLoading", (params, sessionId) => { if (isTop(sessionId) && params.frameId === this.top?.targetId) { this.loading = false; void this.readHistory(); } }),
       cdp.on("Page.frameNavigated", (params, sessionId) => {
-        const frame = params.frame as { id: string; parentId?: string; url: string; urlFragment?: string };
+        const frame = params.frame as { id: string; parentId?: string; url: string; urlFragment?: string; unreachableUrl?: string };
         if (!isTop(sessionId) || frame.parentId) return;
-        this.url = frame.url + (frame.urlFragment ?? "");
-        this.problem = null;
+        // Chrome commits its own error page for an address that could not load: the address stays what was asked for.
+        this.url = frame.unreachableUrl ?? frame.url + (frame.urlFragment ?? "");
+        this.problem = frame.unreachableUrl ? { code: "page.load_failed", message: this.host.forbiddenOrigins().includes(originOf(frame.unreachableUrl))
+          ? "这个地址不能在侧栏浏览器里打开（它是本机的 Molis Work 服务）。" : "页面没有打开，请检查地址或网络后刷新重试。" } : null;
         this.dialog = null; this.fileChooser = null;
         void this.readHistory();
       }),
@@ -386,6 +391,10 @@ export class BrowserPage {
         if (!mine(sessionId) || typeof params.backendNodeId !== "number") return;
         this.fileChooser = { id: randomUUID(), multiple: params.mode === "selectMultiple", backendNodeId: params.backendNodeId, sessionId: sessionId! };
         this.emit();
+      }),
+      cdp.on("Fetch.requestPaused", (params, sessionId) => {
+        if (!mine(sessionId)) return;
+        void cdp.send("Fetch.failRequest", { requestId: params.requestId, errorReason: "BlockedByClient" }, sessionId).catch(() => undefined);
       }),
       cdp.on("Inspector.targetCrashed", (_params, sessionId) => {
         const layer = this.stack.find(entry => entry.sessionId === sessionId);
@@ -451,8 +460,14 @@ export class BrowserPage {
   private async readHistory(): Promise<void> {
     const top = this.top;
     if (top && this.connection) {
-      const history = await this.connection.send("Page.getNavigationHistory", {}, top.sessionId).catch(() => null) as { currentIndex: number; entries: unknown[] } | null;
-      if (history) { this.canGoBack = history.currentIndex > 0; this.canGoForward = history.currentIndex < history.entries.length - 1; }
+      const history = await this.connection.send("Page.getNavigationHistory", {}, top.sessionId).catch(() => null) as { currentIndex: number; entries: Array<{ url: string; title: string }> } | null;
+      if (history) {
+        this.canGoBack = history.currentIndex > 0; this.canGoForward = history.currentIndex < history.entries.length - 1;
+        // The title as the page settled: Chrome names a loading page after its host and does not always say when the real
+        // title arrives, while the history entry has it.
+        const entry = history.entries[history.currentIndex];
+        if (entry) this.title = entry.title && entry.title !== entry.url && !entry.url.endsWith(`//${entry.title}/`) ? entry.title : this.title;
+      }
     }
     this.emit();
   }

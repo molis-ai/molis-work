@@ -561,6 +561,11 @@ const actions = {
   },
   async execute(card: Card, button: HTMLButtonElement) {
     if (card.state === "executing") return;
+    // The card was prepared from the frozen text; if that text changed, it must not run on the new text silently.
+    if (card.token && editor) {
+      const at = E.resolvePagesFrozen(editor.view, card.token);
+      if (at && !at.intact) { cards.stale(card); return; }
+    }
     card.state = "executing"; button.disabled = true; setState(card, "执行中…");
     const fields = Object.fromEntries([...card.el.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[name]")].map(input => [input.name, input.value]));
     try {

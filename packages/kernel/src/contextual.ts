@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import {
-  FRAGMENT_INTENTS, FRAGMENT_OFFERS_INPUT_TYPE, FRAGMENT_OFFERS_OUTPUT_TYPE,
+  FRAGMENT_INTENTS, FRAGMENT_OFFERS_INPUT_TYPE, FRAGMENT_OFFERS_OUTPUT_TYPE, actionEffect,
   type ActionView, type FragmentGranularity, type FragmentIntent, type FragmentOfferChoice, type FragmentRole,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
@@ -56,10 +56,15 @@ export function fragmentCandidates(directory: readonly ActionView[], focus: Surf
     return (view.action.fragment_offer_choices ?? []).filter(choice => fits(choice, focus)).map(choice => {
       const action = { ...choice.action, provider_id: source.provider_id };
       const target = targets.get(JSON.stringify([source.provider_id, action.capability_id, action.version]));
+      // What the click does must match what the target action does: only a read-only action may show a result or a
+      // preview directly; anything that writes goes through the confirmation of `record`; irreversible is never offered.
+      const effect = target ? actionEffect(target.action, target.capability_id) : "read";
+      const apply = effect === "read" ? choice.apply : "record";
       const unavailable = !view.availability.available ? view.availability.reason
         : !target ? "原执行能力尚未注册或当前授权不可访问"
-          : !target.availability.available ? target.availability.reason : undefined;
-      return { key: fragmentCandidateKey(source, choice), offer_id: choice.offer_id, title: choice.title, intent: choice.intent, apply: choice.apply,
+          : !target.availability.available ? target.availability.reason
+            : effect === "irreversible" ? "不可撤回的动作不在情境推荐里提供" : undefined;
+      return { key: fragmentCandidateKey(source, choice), offer_id: choice.offer_id, title: choice.title, intent: choice.intent, apply,
         hint: choice.hint, source, action, provider_title: view.provider.title, available: unavailable === undefined, ...(unavailable ? { reason: unavailable } : {}) };
     });
   });
@@ -147,6 +152,18 @@ const SURFACE_CRITERIA: Readonly<Record<AssistantForm, string>> = {
   compare: "给比较：选中的是两段或多份内容，适合并排比较异同",
 };
 
+/** At most this many options go to the judgment (spec §5.1); the rest stay in “更多” and “全部操作” by rule order. */
+export const MAX_JUDGED_CANDIDATES = 16;
+
+/** The available candidates the judgment is asked about: all of them, or the rule-ranked first sixteen. */
+export function judgedCandidates(candidates: readonly ContextualCandidate[], focus?: SurfaceFocus): ContextualCandidate[] {
+  const available = candidates.filter(candidate => candidate.available);
+  if (available.length <= MAX_JUDGED_CANDIDATES || !focus) return available.slice(0, MAX_JUDGED_CANDIDATES);
+  const rules = ruleScores(available, focus);
+  const order = new Map(available.map((candidate, index) => [candidate.key, index]));
+  return [...available].sort((a, b) => rules[b.key]! - rules[a.key]! || order.get(a.key)! - order.get(b.key)!).slice(0, MAX_JUDGED_CANDIDATES);
+}
+
 const ACTIVITY_HINTS: Partial<Record<SurfaceFocus["activity"], string>> = {
   editing: "他没有选中文字，而是正在写这一段：更可能需要写作上的帮助（改写、接着写、换个角度看），除非这段明显是在记录计划或进展。",
   completed: "他刚把这一步勾选为完成：更可能想记下进展，或者看接下来该推进什么。",
@@ -158,7 +175,7 @@ const ACTIVITY_HINTS: Partial<Record<SurfaceFocus["activity"], string>> = {
  * should take part in some form. The model first reads what the passage is; the layout derives intents from `next`.
  */
 export function judgmentQuestions(candidates: readonly ContextualCandidate[], focus?: SurfaceFocus): Record<string, unknown> {
-  const available = candidates.filter(candidate => candidate.available);
+  const available = judgedCandidates(candidates, focus);
   const many = (focus?.targets.length ?? 1) > 1;
   const hint = focus ? (focus.granularity === "word" ? "他只选中了一个词：更可能想弄清它的意思或查证它。" : ACTIVITY_HINTS[focus.activity] ?? "") : "";
   return {

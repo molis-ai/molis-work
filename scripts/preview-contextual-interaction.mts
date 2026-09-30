@@ -24,6 +24,7 @@ import { PAGES_STYLES } from "../plugins/native/pages/src/styles.js";
 import { preparePagesFragmentOffers } from "../plugins/native/pages/src/fragment-offers.js";
 import { createContextualJudgmentService, type ContextualEvaluation } from "../apps/local-host/src/contextual/judgment-service.js";
 import { fragmentCandidates } from "@molis-ai/molis-work-kernel";
+import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { DOCUMENTS, GOAL, MEMORY_STANDIN, PROVIDERS, sliceDirectory, type SliceDocument } from "./contextual-slice/fixture.mjs";
 import { AUTHORED_REPLAY, findReplay, type ReplayAnswer } from "./contextual-slice/replay.mjs";
 import { standinBreakdown, standinDependencies, standinEvidence, standinNext, standinPagesAi } from "./contextual-slice/standins.mjs";
@@ -54,7 +55,8 @@ const sleep = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, r
 });
 
 const RECORDED = join(root, "scripts/contextual-slice/replay-recorded.json");
-const jev = createJevEvaluator({ ...(arg("--home") ? { home: arg("--home") } : {}), ...(process.argv.includes("--record") || dev.judge === "jev" ? { recordTo: RECORDED } : {}) });
+// Recording writes prefixes of the selected text into the repository, so it happens only when asked for (--record).
+const jev = createJevEvaluator({ ...(arg("--home") ? { home: arg("--home") } : {}), ...(process.argv.includes("--record") ? { recordTo: RECORDED } : {}) });
 const recorded = (): ReplayAnswer[] => existsSync(RECORDED) ? (JSON.parse(readFileSync(RECORDED, "utf8")) as { match: string[]; activity: string; granularity: string; next: Record<string, number>; intent: Record<string, number>; surface: string | null; speak_up: number | null; confidence: number | null }[])
   .map(item => ({ match: item.match, activity: item.granularity === "objects" || item.granularity === "word" ? item.granularity : item.activity, next: item.next, intent: item.intent,
     surface: (item.surface ?? "none") as ReplayAnswer["surface"], speak_up: item.speak_up ?? 0, confidence: item.confidence ?? 0 })) : [];
@@ -95,12 +97,7 @@ function makeService() {
       return jev.evaluate({ ...input, ...(lastFocus ? { focus: lastFocus } : {}), candidates: wrapper.lastCandidates });
     } } : {}),
     recall: async () => dev.memory ? { state: "ok" as const, items: MEMORY_STANDIN } : { state: "off" as const, items: [] },
-    screen: text => {
-      const notes: string[] = [];
-      const redacted = text.replace(/\b(sk|pk|ghp|xox[abp])[-_A-Za-z0-9]{16,}\b/g, () => { notes.push("去掉了形似密钥的内容"); return "[redacted]"; });
-      if (/(忽略(前面|之前|以上)的?(所有)?(指令|要求))|ignore (all )?previous instructions/i.test(redacted)) notes.push("有像指令的文字，已作为数据处理");
-      return { text: redacted, notes };
-    },
+    screen: screenModelMaterial,
     timeoutMs: 30_000,
   });
   const wrapper = {
@@ -180,9 +177,9 @@ function execute(requestId: string, key: string, fields: Record<string, string>,
   const candidate = candidateFor(key, frozen);
   if (!candidate) throw Object.assign(new Error("这个动作已不在当前情境的候选里"), { status: 409 });
   const doc = documents.get(frozen.focus.object.id);
-  if (doc && frozen.focus.object.version !== undefined && Number(frozen.focus.object.version) !== doc.version && frozen.focus.granularity !== "objects") {
-    throw Object.assign(new Error("文档在你点下之后又被改过，这个动作是按改之前的内容准备的。请按现在的内容重新准备。"), { status: 409, code: "stale" });
-  }
+  // Whether the selected text is still what the card was prepared from is checked where it lives, in the editor
+  // (the frozen range), before this is called; an unrelated edit elsewhere in the document does not void the card.
+  void doc;
   let result: Record<string, unknown>;
   if (candidate.action.capability_id === "pages.generate") {
     const id = "doc-" + randomUUID().slice(0, 8);

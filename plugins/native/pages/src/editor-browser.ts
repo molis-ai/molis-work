@@ -2995,10 +2995,12 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
 
   // A writing request keeps its range frozen while the popup is open; closing the popup any way lets it go.
   let popToken: string | null = null;
+  let popRequest = 0;
   const hidePop = () => {
     const restoreFocus = pop.contains(document.activeElement);
     pop.hidden = true;
     pop.replaceChildren();
+    popRequest += 1;
     if (popToken) { releasePagesFrozen(view, popToken); popToken = null; }
     if (restoreFocus) view.focus();
   };
@@ -3225,7 +3227,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
 
   // The candidate goes to the range the person asked about, frozen when they asked; if that text changed while the
   // model was working, nothing is written anywhere (specs/contextual-interaction §3.4, AC-C04/C05).
-  const showCandidate = (view: EditorView, command: string, result: { text: string; stub?: boolean }, token: string | null) => {
+  const showCandidate = (view: EditorView, command: string, result: { text: string; stub?: boolean }, token: string | null, mode: "replace" | "insert_after") => {
     pop.hidden = false;
     pop.replaceChildren();
     const lead = document.createElement("p");
@@ -3260,7 +3262,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
         releasePagesFrozen(view, token);
         view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, at.from)));
         insertActions(view, area.value);
-      } else if (!applyToPagesFrozen(view, token, area.value, "replace").ok) {
+      } else if (!applyToPagesFrozen(view, token, area.value, mode).ok) {
         refuse();
         return;
       }
@@ -3273,17 +3275,26 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     if (!options.runAi) return;
     const whole = command === "translate_new" || command === "proofread";
     const selected = view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n");
-    const text = whole || !selected.trim() ? docPlainText(view.state.doc) : selected;
+    const empty = !selected.trim();
+    const text = whole || empty ? docPlainText(view.state.doc) : selected;
+    // Only proofreading rewrites the whole document. With nothing selected, the other commands read the whole
+    // document but place their result after the paragraph the caret was in, as the menu always did at the caret.
+    const tokenId = "ai-" + Date.now().toString(36);
     const token = command === "translate_new" ? null
-      : freezePagesFocus(view, "ai-" + Date.now().toString(36), whole || !selected.trim() ? { from: 0, to: view.state.doc.content.size } : undefined)?.token ?? null;
+      : (command === "proofread" ? freezePagesFocus(view, tokenId, { from: 0, to: view.state.doc.content.size }) : freezePagesFocus(view, tokenId))?.token ?? null;
+    const mode = empty && command !== "proofread" ? "insert_after" : "replace";
     if (popToken && popToken !== token) releasePagesFrozen(view, popToken);
     popToken = token;
+    const request = ++popRequest;
     pop.innerHTML = `<p>${escapeHtml(t(options.translate, "正在处理"))}</p>`;
     try {
       const result = await options.runAi({ command, text, style });
-      showCandidate(view, command, result, token);
+      // Closed or replaced while the model worked: this result is no longer wanted.
+      if (request !== popRequest) return;
+      showCandidate(view, command, result, token, mode);
     } catch (error) {
       if (token) releasePagesFrozen(view, token);
+      if (request !== popRequest) return;
       pop.innerHTML = `<p class="pages-pop-error">${escapeHtml(error instanceof Error ? error.message : t(options.translate, "写作失败"))}</p>`;
     }
   };

@@ -1,5 +1,5 @@
 import { Fragment, type Node } from "prosemirror-model";
-import { NodeSelection, Plugin, PluginKey, TextSelection, type EditorState } from "prosemirror-state";
+import { NodeSelection, Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from "prosemirror-state";
 import { Decoration, DecorationSet, type EditorView } from "prosemirror-view";
 import { pagesSchema } from "./schema.js";
 
@@ -46,14 +46,32 @@ interface FocusPluginState {
 
 const COMPLETED_WINDOW_MS = 6000;
 
-function checkedTasks(doc: Node): Map<string, { from: number; to: number }> {
-  const out = new Map<string, { from: number; to: number }>();
-  doc.descendants((node, pos) => {
-    if (node.type.name !== "task_item") return true;
-    if (node.attrs.checked) out.set(node.textContent.trim(), { from: pos + 1, to: pos + node.nodeSize - 1 });
-    return false;
-  });
-  return out;
+/**
+ * A task this transaction ticked: a task item, inside the changed ranges, checked now and unchecked at the same place
+ * before. Matching by position (mapped back through the transaction) rather than by text means renaming a task that
+ * was already checked is not a completion, and only the touched part of the document is scanned.
+ */
+function tickedTask(tr: Transaction, before: Node, after: Node): { from: number; to: number } | null {
+  const ranges: [number, number][] = [];
+  tr.mapping.maps.forEach((map, index) => map.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
+    const rest = tr.mapping.slice(index + 1);
+    ranges.push([rest.map(newStart, -1), rest.map(newEnd, 1)]);
+  }));
+  const back = tr.mapping.invert();
+  let found: { from: number; to: number } | null = null;
+  for (const [from, to] of ranges) {
+    after.nodesBetween(Math.max(0, from - 1), Math.min(after.content.size, to + 1), (node, pos) => {
+      if (found) return false;
+      if (node.type.name !== "task_item") return true;
+      if (node.attrs.checked) {
+        const previous = before.nodeAt(back.map(pos, 1));
+        if (previous?.type.name === "task_item" && !previous.attrs.checked) found = { from: pos + 1, to: pos + node.nodeSize - 1 };
+      }
+      return false;
+    });
+    if (found) break;
+  }
+  return found;
 }
 type FocusMeta = { freeze: FrozenRange } | { release: string } | { compare: { from: number; to: number } | null };
 
@@ -209,9 +227,8 @@ export function pagesFocusPlugin(options: PagesFocusPluginOptions = {}): Plugin<
           compare = compare ? { from: tr.mapping.map(compare.from, 1), to: tr.mapping.map(compare.to, -1) } : null;
           if (compare && compare.to <= compare.from) compare = null;
           completed = completed ? { ...completed, from: tr.mapping.map(completed.from, 1), to: tr.mapping.map(completed.to, -1) } : null;
-          const before = checkedTasks(oldState.doc), after = checkedTasks(newState.doc);
-          const ticked = [...after.entries()].find(([text]) => text && !before.has(text));
-          if (ticked) completed = { ...ticked[1], at: Date.now() };
+          const ticked = tickedTask(tr, oldState.doc, newState.doc);
+          if (ticked) completed = { ...ticked, at: Date.now() };
           else if (tr.getMeta("addToHistory") !== false) { lastEditAt = Date.now(); completed = null; }
         }
         if (meta && "freeze" in meta) frozen = [...frozen.filter(range => range.token !== meta.freeze.token), meta.freeze];
@@ -243,6 +260,8 @@ export function pagesFocusPlugin(options: PagesFocusPluginOptions = {}): Plugin<
       },
     },
     view(view) {
+      // Without a listener nobody needs the focus: skip reading it on every change (frozen ranges still work).
+      if (!options.onFocus) return {};
       report(view);
       return {
         update(current, previous) {
@@ -330,7 +349,8 @@ export function applyToPagesFrozen(view: EditorView, token: string, text: string
     tr = tr.replaceWith(at.from, at.to, blocks());
     from = tr.mapping.map(at.from, -1); to = tr.mapping.map(at.to, 1);
   } else {
-    const after = $to.after(1), fragment = blocks();
+    // A block selection ends between top-level blocks (depth 0): that boundary already is the place after it.
+    const after = $to.depth === 0 ? at.to : $to.after(1), fragment = blocks();
     tr = tr.insert(after, fragment);
     from = after; to = after + fragment.size;
   }

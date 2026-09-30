@@ -115,6 +115,8 @@ const TARGET_TITLES: Record<string, string> = {
   "search.query": "搜索项目资料", "assistant.works.start": "开始助理工作", "lingguang.sparks.create": "记下灵光", "context.relations.add": "建立关联",
 };
 
+const READ_ONLY_TARGETS = new Set(["pages.ai", "search.query", "goals.planning.graph.check", "goals.planning.impact"]);
+
 /** The directory the slice's Host service sees: real Pages declaration plus labelled stand-ins. */
 export function sliceDirectory(disabled: ReadonlySet<string> = new Set()): ActionView[] {
   const out: ActionView[] = [offers(PROVIDERS.pages, "pages.fragment.offers", PAGES_FRAGMENT_CHOICES)];
@@ -128,7 +130,9 @@ export function sliceDirectory(disabled: ReadonlySet<string> = new Set()): Actio
     const key = provider.provider_id + " " + choice.action.capability_id;
     if (seen.has(key)) continue;
     seen.add(key);
-    const target = view(provider, choice.action.capability_id, TARGET_TITLES[choice.action.capability_id] ?? choice.action.capability_id, "command");
+    // Declared effects as the real actions have them: reading and generating change nothing; the rest write.
+    const target = view(provider, choice.action.capability_id, TARGET_TITLES[choice.action.capability_id] ?? choice.action.capability_id, "command",
+      READ_ONLY_TARGETS.has(choice.action.capability_id) ? { effect: "read" } : {});
     out.push(disabled.has(provider.provider_id) ? { ...target, availability: { available: false, code: "actions.disabled", reason: `${provider.title} 已停用` } } : target);
   }
   return out;

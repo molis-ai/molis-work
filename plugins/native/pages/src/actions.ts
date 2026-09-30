@@ -1,6 +1,6 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash } from "node:crypto";
-import { ActionError, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, defineFragmentOffersAction, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesFolder, PagesRecord, PagesInputSnapshot, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_AI_COMMANDS, runPagesAi, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
@@ -10,6 +10,7 @@ import { generatePagesFromMaterials } from "./generate.js";
 import { pagesTemplateSummaries } from "./templates.js";
 import { convertImportContent } from "./import-content.js";
 import { pagesSchema } from "./schema.js";
+import { PAGES_FRAGMENT_CHOICES, preparePagesFragmentOffers } from "./fragment-offers.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, pattern: "\\S" };
@@ -48,6 +49,8 @@ const readOnly = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I,
 export const pagesActions = {
   /** One document's current text, version and links, by the shared subject protocol (the Assistant, Home, references). */
   subject: defineSubjectContextAction("pages.subject.read", PAGES_SUBJECT_KIND, "文档", read),
+  /** What can be done with part of a document; preparing reads and writes nothing (specs/contextual-interaction §5.1). */
+  fragmentOffers: defineFragmentOffersAction("pages.fragment.offers", [PAGES_SUBJECT_KIND], "文档片段可以做的事", read, PAGES_FRAGMENT_CHOICES),
   /** System search: every document of the project by version; its text is read back through `subject`. */
   searchEntries: defineSearchEntriesAction("pages.search.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "文档", read),
   /** Where a document lives (specs/work-placement): moving keeps its id; copying makes an independent document. */
@@ -111,6 +114,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}),
   });
   return [
+    bind(pagesActions.fragmentOffers, input => ({ offers: preparePagesFragmentOffers(input, PAGES_SUBJECT_KIND) })),
     bind(pagesActions.subject, (input, caller) => ports.withStore(store => {
       let document: PagesRecord;
       try { document = store.get(input.subject_id, project(caller)); }

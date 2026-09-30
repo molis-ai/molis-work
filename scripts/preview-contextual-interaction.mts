@@ -136,7 +136,7 @@ async function prepare(key: string, frozen: FrozenFocus, instruction?: string) {
   const base = { key, title: candidate.title, apply: candidate.apply, intent: candidate.intent, provider: candidate.provider_title, action: candidate.action };
   if (candidate.source.provider_id === PROVIDERS.pages.provider_id) {
     const fragment = { object: focus.object, granularity: focus.granularity as "range", targets: focus.targets.map(({ kind, role, text, truncated, ref }) => ({ kind, ...(role ? { role } : {}), text, ...(truncated ? { truncated } : {}), ...(ref ? { ref } : {}) })) };
-    const offer = preparePagesFragmentOffers({ fragment, request_id: frozen.token }, PROVIDERS.pages.provider_id).find(item => item.offer_id === candidate.offer_id);
+    const offer = preparePagesFragmentOffers({ fragment, request_id: frozen.token }, "pages_document", PROVIDERS.pages.provider_id).find(item => item.offer_id === candidate.offer_id);
     if (!offer) throw Object.assign(new Error("Pages 没有为这个片段准备这个动作"), { status: 409 });
     if (candidate.action.capability_id === "pages.generate") {
       const input = offer.input as { title: string; instructions: string; inputs: { title: string }[] };

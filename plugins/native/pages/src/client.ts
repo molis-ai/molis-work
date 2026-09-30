@@ -241,8 +241,45 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     workbench.setAttribute("data-assistant-context", JSON.stringify(context));
   };
+  // What the person has in hand here, for the bar and the Assistant (specs/contextual-interaction §4): the editor's
+  // focus around this document. A document this editor cannot show offers nothing to act on.
+  let focusNow = null;
+  let focusShown = null;
+  const surfaceFocus = () => {
+    if (!focusNow || !selected || unshowable) return null;
+    const goal = goals.find((item) => item.id === selected.goal_id);
+    return { context_id: "pages:" + selected.id + ":" + focusNow.local_id, plugin_id: "io.molis.work.pages",
+      activity: focusNow.activity, granularity: focusNow.granularity,
+      object: { kind: "pages_document", id: selected.id, version: selected.version, title: titleInput.value || selected.title },
+      targets: focusNow.targets, surroundings: focusNow.surroundings,
+      ...(saveTimer || dirty ? { unsaved: true } : {}), ...(goal ? { goal: { id: goal.id, title: goal.title } } : {}) };
+  };
+  const reportFocus = () => {
+    const detail = surfaceFocus();
+    if ((detail ? detail.context_id : null) === (focusShown ? focusShown.context_id : null)) return;
+    focusShown = detail;
+    workbench.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail }));
+  };
+  // The person chose one of this document's actions in the bar: run it on the range they had in hand when it was
+  // ranked, through the writing popup, so the result is a candidate they accept before anything is written.
+  window.addEventListener("molis:assistant-context-action-chosen", (event) => {
+    const chosen = event.detail;
+    if (!chosen || chosen.plugin_id !== "io.molis.work.pages" || !focusShown || !focusNow || chosen.context_id !== focusShown.context_id) return;
+    if (!editor || !editor.runCommand || !["result", "replace", "insert_after"].includes(chosen.apply) || typeof chosen.prepare !== "function") return;
+    event.preventDefault();
+    const documentId = selected.id;
+    void editor.runCommand("", undefined, { localId: focusNow.local_id, title: chosen.title,
+      mode: chosen.apply === "replace" ? "replace" : "insert_after", okLabel: chosen.apply === "replace" ? L("替换") : L("插到后面"),
+      prepare: async () => {
+        const prepared = await chosen.prepare();
+        const input = prepared && prepared.input ? prepared.input : {};
+        if (input.id !== documentId || typeof input.command !== "string") throw new Error(L("这个动作暂时准备不了，请重新选择"));
+        return { command: input.command, style: typeof input.style === "string" ? input.style : undefined, text: typeof input.text === "string" ? input.text : undefined };
+      } });
+  });
   const syncEditorChrome = () => {
     publishContext();
+    reportFocus();
     if (!selected) return;
     if (starEditor) {
       starEditor.classList.toggle("is-on", Boolean(selected.starred));
@@ -416,6 +453,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     editor = Editor.mount(editorHost, {
       doc: body,
       onChange: () => { if (!filling) queueSave(); },
+      onFocus: (focus) => { focusNow = focus; reportFocus(); },
       translate: L,
       pages: () => records.map((item) => ({ id: item.id, title: item.title })),
       onOpenPage: (id) => {
@@ -535,6 +573,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const closeEditor = () => {
     clearTimeout(saveTimer);
     selected = null;
+    reportFocus();
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
     closeMore();

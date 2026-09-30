@@ -1,7 +1,4 @@
-import {
-  defineFragmentOffersAction, type FragmentActionOffer, type FragmentOfferChoice, type FragmentOffersInput,
-} from "@molis-ai/molis-work-contracts/platform/actions";
-import { PAGES_SUBJECT_KIND } from "./actions.js";
+import type { FragmentActionOffer, FragmentOfferChoice, FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * What Pages can do with part of a document (specs/contextual-interaction §5.1). Each choice runs the existing
@@ -34,12 +31,11 @@ const COMMAND: Readonly<Record<string, { command: string; style?: string }>> = {
   compare: { command: "compare" }, merge: { command: "merge" },
 };
 
-export const pagesFragmentOffersAction = defineFragmentOffersAction("pages.fragment.offers", [PAGES_SUBJECT_KIND], "文档片段可以做的事", ["pages:read"], PAGES_FRAGMENT_CHOICES);
 
 /** Prepare every applicable choice's complete `pages.ai` input. Pure: reads nothing, writes nothing. */
-export function preparePagesFragmentOffers(input: FragmentOffersInput, providerId: string): FragmentActionOffer[] {
+export function preparePagesFragmentOffers(input: FragmentOffersInput, kind: string, providerId?: string): FragmentActionOffer[] {
   const { fragment } = input;
-  if (fragment.object.kind !== PAGES_SUBJECT_KIND) return [];
+  if (fragment.object.kind !== kind) return [];
   const roles = fragment.targets.map(target => target.role);
   const joined = fragment.targets.length > 1
     ? fragment.targets.map((target, index) => `【第 ${index + 1} 段】\n${target.text}`).join("\n\n")
@@ -50,7 +46,7 @@ export function preparePagesFragmentOffers(input: FragmentOffersInput, providerI
     && (!choice.roles || roles.some(role => role && choice.roles!.includes(role))))
     .map(choice => ({
       offer_id: choice.offer_id, title: choice.title,
-      action: { ...choice.action, provider_id: providerId },
+      action: { ...choice.action, ...(providerId ? { provider_id: providerId } : {}) },
       input: choice.offer_id === "synthesize" ? synthesizeInput(input)
         : { id: fragment.object.id, ...COMMAND[choice.offer_id], text: joined.slice(0, 180_000), ...(Number.isInteger(version) && fragment.granularity !== "objects" ? { expected_version: version } : {}) },
     }));

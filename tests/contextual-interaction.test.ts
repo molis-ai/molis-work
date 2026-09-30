@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import test from "node:test";
 import { EditorState, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import {
-  defineFragmentOffersAction, inspectActionDeclarations, type ActionView, type FragmentOfferChoice,
+  defineFragmentOffersAction, inspectActionDeclarations, type ActionReference, type ActionView, type FragmentOfferChoice, type FragmentOffersInput,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import {
@@ -11,11 +13,13 @@ import {
 } from "@molis-ai/molis-work-kernel";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { createContextualJudgmentService } from "../apps/local-host/src/contextual/judgment-service.js";
+import { handleContextualHttp } from "../apps/local-host/src/contextual/contextual-http.js";
 import { pagesSchema as s } from "../plugins/native/pages/src/schema.js";
 import {
   applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen,
 } from "../plugins/native/pages/src/focus.js";
-import { PAGES_FRAGMENT_CHOICES, pagesFragmentOffersAction, preparePagesFragmentOffers } from "../plugins/native/pages/src/fragment-offers.js";
+import { PAGES_FRAGMENT_CHOICES, preparePagesFragmentOffers } from "../plugins/native/pages/src/fragment-offers.js";
+import { pagesActions } from "../plugins/native/pages/src/actions.js";
 
 // ---- fixtures ----------------------------------------------------------------------------------------------------
 const provider = (provider_id: string, title: string) => ({ provider_id, title }) as ActionView["provider"];
@@ -52,7 +56,7 @@ const keyOf = (candidates: readonly ContextualCandidate[], offer: string) => can
 
 // ---- contract ----------------------------------------------------------------------------------------------------
 test("fragment offers: declarations are checked at registration; the real Pages declaration passes", () => {
-  assert.deepEqual(inspectActionDeclarations([pagesFragmentOffersAction], undefined), []);
+  assert.deepEqual(inspectActionDeclarations([pagesActions.fragmentOffers], undefined), []);
   const bad = defineFragmentOffersAction("x.fragment.offers", ["doc"], "x", [], [choice("a", "understand", "x.run"), choice("a", "question", "x.run")]);
   assert.match(inspectActionDeclarations([bad], undefined).join("\n"), /片段动作选项/);
   const unknownIntent = defineFragmentOffersAction("y.fragment.offers", ["doc"], "y", [], [{ ...choice("b", "understand", "y.run"), intent: "invent" as never }]);
@@ -283,14 +287,14 @@ test("insert after returns the inserted range, which a quiet freeze can later re
 
 test("Pages prepares complete writing-assistant inputs for a fragment and a generation request for several documents", () => {
   const fragment = { object: { kind: "pages_document", id: "d1", version: 7 }, granularity: "range" as const, targets: [{ kind: "text_range" as const, role: "paragraph" as const, text: "一段话" }] };
-  const prepared = preparePagesFragmentOffers({ fragment, request_id: "r1" }, "io.molis.work.pages");
+  const prepared = preparePagesFragmentOffers({ fragment, request_id: "r1" }, "pages_document", "io.molis.work.pages");
   const concise = prepared.find(item => item.offer_id === "concise")!;
   assert.deepEqual(concise.input, { id: "d1", command: "rewrite", style: "concise", text: "一段话", expected_version: 7 });
   assert.equal(concise.action.provider_id, "io.molis.work.pages");
   assert.ok(!prepared.some(item => item.offer_id === "compare"), "compare needs two or more parts");
   const objects = preparePagesFragmentOffers({ request_id: "r2", fragment: { object: { kind: "pages_document", id: "d1" }, granularity: "objects", targets: [
     { kind: "object", role: "object", text: "A 的正文", ref: { kind: "pages_document", id: "d1", version: 2, title: "A" } },
-    { kind: "object", role: "object", text: "B 的正文", ref: { kind: "pages_document", id: "d2", version: 5, title: "B" } }] } }, "io.molis.work.pages");
+    { kind: "object", role: "object", text: "B 的正文", ref: { kind: "pages_document", id: "d2", version: 5, title: "B" } }] } }, "pages_document", "io.molis.work.pages");
   const synthesize = objects.find(item => item.offer_id === "synthesize")!.input as { request_id: string; inputs: { item_id: string; revision: number }[]; title: string };
   assert.equal(synthesize.request_id, "r2");
   assert.deepEqual(synthesize.inputs.map(item => [item.item_id, item.revision]), [["d1", 2], ["d2", 5]]);
@@ -341,6 +345,57 @@ test("the judgment is asked about at most sixteen candidates, the rule-ranked fi
   assert.equal(judgedCandidates(candidates, focus()).length, MAX_JUDGED_CANDIDATES);
   const questions = judgmentQuestions(candidates, focus()) as { next: { criteria: Record<string, string> } };
   assert.equal(Object.keys(questions.next.criteria).length, MAX_JUDGED_CANDIDATES);
+});
+
+// ---- P1: Host transport ------------------------------------------------------------------------------------------
+test("host routes: rules at once, prepare returns the provider's own input for exactly this fragment; stale or unoffered refuse", async () => {
+  const views = [view(pages, "pages.fragment.offers", { ...pagesActions.fragmentOffers.action }), view(pages, "pages.ai")];
+  let prepares: (input: FragmentOffersInput) => unknown = input => ({ offers: preparePagesFragmentOffers(input, "pages_document", pages.provider_id) });
+  const invoked: ActionReference[] = [];
+  const actions = { discover: async () => views, invoke: async (reference: ActionReference, input: unknown) => { invoked.push(reference); return prepares(input as FragmentOffersInput); } };
+  const server = createServer((request, response) => {
+    void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "project-a", actions: () => actions })
+      .then(handled => { if (!handled) { response.statusCode = 404; response.end(); } });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const call = async (path: string, body: unknown) => {
+    const response = await fetch(base + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return { status: response.status, body: await response.json() as Record<string, any> };
+  };
+  try {
+    const f = focus({ plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: "d1", version: 3, title: "计划" } });
+    const rules = await call("/api/contextual/candidates", { pane_id: "main", focus: f });
+    assert.equal(rules.status, 200);
+    assert.equal(rules.body.plan.context_id, "ctx-1");
+    assert.equal(rules.body.plan.basis, "rules");
+    assert.equal(rules.body.plan.primary.length, 3);
+    const judged = await call("/api/contextual/judge", { pane_id: "main", focus: f });
+    assert.equal(judged.body.receipt.fallback, "unconfigured", "no Home here, so no judgment model: rules, and it says so");
+    const concise = (rules.body.plan.candidates as ContextualCandidate[]).find(item => item.offer_id === "concise")!;
+    const prepared = await call("/api/contextual/prepare", { pane_id: "main", focus: f, key: concise.key, request_id: "r1" });
+    assert.equal(prepared.status, 200);
+    assert.deepEqual(prepared.body.input, { id: "d1", command: "rewrite", style: "concise", text: "我们认为主因是上手困难。", expected_version: 3 });
+    assert.equal(prepared.body.apply, "replace");
+    assert.deepEqual(invoked.at(-1), concise.source, "prepared by the query that declared the choice");
+    // The same key for a word is not a candidate there: nothing is prepared for a context it was not offered in.
+    const word = await call("/api/contextual/prepare", { pane_id: "main", focus: { ...f, context_id: "ctx-2", granularity: "word" }, key: concise.key, request_id: "r2" });
+    assert.equal(word.status, 409);
+    assert.equal(word.body.code, "contextual.stale");
+    prepares = () => ({ offers: [] });
+    const unoffered = await call("/api/contextual/prepare", { pane_id: "main", focus: f, key: concise.key, request_id: "r3" });
+    assert.equal(unoffered.status, 409);
+    assert.equal(unoffered.body.code, "contextual.not_offered");
+    const invalid = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, activity: "dancing" } });
+    assert.equal(invalid.status, 400);
+    const tooMany = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, targets: Array.from({ length: 30 }, () => f.targets[0]) } });
+    assert.equal(tooMany.status, 400);
+    const long = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, targets: [{ kind: "text_range", text: "长".repeat(20_000) }] } });
+    assert.equal(long.status, 200, "an over-long part is cut, not refused");
+    assert.equal((await call("/api/contextual/cancel", { pane_id: "main" })).status, 200);
+  } finally {
+    server.close();
+  }
 });
 
 test("material is screened with Prologue's own rules before it leaves the machine", () => {

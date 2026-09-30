@@ -1005,6 +1005,73 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-context-actions { position: absolute; z-index: 54; left: 0; right: 0; bottom: calc(100% + 8px); display: flex; align-items: center; gap: 6px; min-width: 0; }
   ${ASSIST} .assistant-context-actions:is(:empty, :not([data-state="active"])) { display: none; }
   ${ASSIST} [data-assistant-island]:has(.assistant-panel:not([hidden]), .assistant-offer:not([hidden])) .assistant-context-actions { display: none; }
+  /* The row itself (specs/contextual-interaction §6.3): what the person has in hand, up to three actions, “更多”, the
+     Assistant's offer when the judgment thinks it is worth one, and what the order is based on. It never moves what the
+     pointer is on; a new context's actions arrive by fading in place. */
+  ${ASSIST} .context-actions-pill {
+    position: relative; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; height: 36px; padding: 4px; box-sizing: border-box;
+    border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--lift-2); font-size: 13px;
+  }
+  ${ASSIST} .assistant-context-actions[data-pending="true"] :is(.context-action, .context-actions-basis) { opacity: 0.45; pointer-events: none; transition: opacity var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} .context-actions-scope {
+    display: inline-flex; flex: 0 1 auto; align-items: center; gap: 2px; min-width: 0; max-width: 200px; height: 28px; padding: 0 2px 0 8px; border-radius: 8px;
+    background: var(--nav-hover); color: var(--muted); font-size: 12px; white-space: nowrap;
+  }
+  ${ASSIST} .context-actions-scope > span { overflow: hidden; text-overflow: ellipsis; }
+  ${ASSIST} .context-actions-scope > button { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--faint); cursor: pointer; }
+  ${ASSIST} .context-actions-scope > button svg { width: 12px; height: 12px; }
+  ${ASSIST} .context-actions-scope > button:hover { color: var(--ink); }
+  ${ASSIST} .context-actions-note { padding: 0 8px; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  ${ASSIST} .context-action {
+    display: inline-flex; flex: none; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent;
+    color: var(--ink); font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint);
+  }
+  ${ASSIST} .context-action:hover { background: var(--nav-hover); }
+  ${ASSIST} .context-action:active { background: var(--nav-active, var(--nav-hover)); }
+  ${ASSIST} :is(.context-action, .context-actions-scope > button, .context-actions-menu button):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .context-action[data-emphasis="true"] { background: var(--action); color: var(--action-ink); }
+  ${ASSIST} .context-action[data-emphasis="true"]:hover { background: color-mix(in srgb, var(--action) 90%, var(--paper)); }
+  ${ASSIST} .context-action[data-arriving="true"] { animation: context-action-arrive var(--dur-move) var(--ease-quint); }
+  @keyframes context-action-arrive { from { opacity: 0.35; } }
+  ${ASSIST} .context-action-kind { font-size: 11px; color: var(--muted); }
+  ${ASSIST} .context-action[data-emphasis="true"] .context-action-kind { color: inherit; opacity: 0.75; }
+  ${ASSIST} .context-actions-assistant { color: var(--accent-ink, var(--ink)); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  ${ASSIST} .context-actions-short { display: none; }
+  ${ASSIST} .context-actions-more { position: relative; display: inline-flex; flex: none; }
+  ${ASSIST} .context-actions-menu {
+    position: absolute; z-index: 2; right: 0; bottom: calc(100% + 8px); min-width: 240px; max-height: min(420px, 60vh); overflow: auto; padding: 6px;
+    border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--lift-3);
+  }
+  ${ASSIST} .context-actions-menu h4 { margin: 8px 8px 4px; font-size: 11px; font-weight: 600; color: var(--faint); }
+  ${ASSIST} .context-actions-menu h4:first-child { margin-top: 2px; }
+  ${ASSIST} .context-actions-menu button {
+    display: flex; width: 100%; align-items: baseline; justify-content: space-between; gap: 12px; padding: 6px 8px; border: 0; border-radius: 8px;
+    background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+  }
+  ${ASSIST} .context-actions-menu button:hover { background: var(--nav-hover); }
+  ${ASSIST} .context-actions-menu button small { font-size: 11px; color: var(--faint); }
+  ${ASSIST} .context-actions-menu button[disabled] { color: var(--faint); cursor: not-allowed; }
+  ${ASSIST} .context-actions-menu hr { margin: 6px 4px; border: 0; border-top: 1px solid var(--line); }
+  ${ASSIST} .context-actions-basis { display: inline-flex; flex: none; align-items: center; gap: 4px; height: 28px; padding: 0 6px 0 4px; color: var(--faint); font-size: 11px; white-space: nowrap; }
+  ${ASSIST} .context-actions-basis::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
+  ${ASSIST} .context-actions-basis[data-basis="judgment"]::before { background: var(--accent); }
+  /* While the judgment is asked, the dot becomes the Assistant's own running ring. */
+  ${ASSIST} .context-actions-basis[data-pending="true"]::before { width: 8px; height: 8px; box-sizing: border-box; background: none; border: 1.5px solid var(--faint); border-right-color: transparent; animation: mw-spin 640ms var(--ease-quint) infinite; }
+  .context-actions-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  @container assistant-bar (max-width: 520px) {
+    ${ASSIST} .context-actions-scope, ${ASSIST} .context-actions-basis > span { display: none; }
+    ${ASSIST} .context-action-kind { display: none; }
+  }
+  @media (max-width: 600px) {
+    /* A phone row keeps two actions; the third leads the “更多” menu. The highlight in the page shows the scope. */
+    ${ASSIST} .context-actions-scope, ${ASSIST} .context-actions-basis { display: none; }
+    ${ASSIST} .context-action[data-slot="2"] { display: none; }
+    ${ASSIST} .context-action { padding: 0 8px; }
+    ${ASSIST} .context-actions-long { display: none; }
+    ${ASSIST} .context-actions-short { display: inline; }
+  }
+  /* A plugin's own floating bars and menus stay inside its stage, under the bottom bar and its menus. */
+  ${SHELL} .immersive-plugin-stage { isolation: isolate; }
   /* A plugin's suggestion waits above the bar until the person puts it in the input or ignores it. */
   ${ASSIST} .assistant-offer {
     position: absolute; z-index: 55; right: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 6px; width: min(420px, 100%);

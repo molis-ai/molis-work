@@ -24,6 +24,8 @@ export interface ContextualJudgmentPorts<Caller> {
   directory(caller: Caller): Promise<readonly ActionView[]>;
   /** Multi-question judgment. Absent means no judgment model is configured. */
   evaluate?(input: { state: string; questions: Record<string, unknown>; signal: AbortSignal }): Promise<ContextualEvaluation>;
+  /** Whether `evaluate` can be asked right now (a connection is set up); false reads as “unconfigured”, not a failure. */
+  configured?(): boolean;
   /** Preferences and conventions for this context, through `memory.recall`; absent or failing is not an error. */
   recall?(focus: SurfaceFocus, caller: Caller, signal: AbortSignal): Promise<{ state: "ok" | "off"; items: readonly { kind: string; text: string }[] }>;
   /** Redact secrets and mark instruction-shaped text before anything leaves the machine. */
@@ -82,7 +84,7 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
         if (cached && JSON.stringify(cached.candidates.map(item => [item.key, item.available])) === JSON.stringify(candidates.map(item => [item.key, item.available]))) {
           return respond(request, candidates, cached.judgment, { digest: cached.digest, screened: cached.screened });
         }
-        if (!ports.evaluate) return respond(request, candidates, null, { digest: null, screened: [], fallback: "unconfigured" });
+        if (!ports.evaluate || ports.configured?.() === false) return respond(request, candidates, null, { digest: null, screened: [], fallback: "unconfigured" });
 
         let memory: readonly { kind: string; text: string }[] = [];
         const screened: string[] = [];

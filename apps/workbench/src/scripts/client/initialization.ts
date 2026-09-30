@@ -16,6 +16,7 @@ import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../connectors-settings.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
 import { PLACEMENT_FACTORY_SCRIPT } from "./placement.js";
+import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./context-actions.js";
 import { pluginWorkbenchClientBootstrap } from "../../plugin-workbench.js";
 /** AP3 Workbench client segment: initialization. */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
@@ -141,6 +142,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
       project: { id: state.project?.project_id || state.snapshot.board.board_id, title: state.project?.display_name || state.snapshot.board.title || "" },
     });
+    (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders() });
     globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(),
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openGoalWork: () => tabWorkspace?.openGoalWork(), closeItem: (plugin, id) => tabWorkspace?.closeItem(plugin, id), projectTitle: state.project?.display_name || "" });

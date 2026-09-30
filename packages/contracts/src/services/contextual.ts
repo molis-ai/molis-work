@@ -6,11 +6,32 @@ import type { FragmentApply, FragmentGranularity, FragmentIntent, FragmentTarget
  * context frozen at that moment. Everything here is a claim from the page until an owner reads the object again.
  */
 
-/** Window event a surface raises whenever its focus changes; `detail` is a `SurfaceFocus` or `null` (nothing in hand). */
+/**
+ * Raised by a surface, bubbling from its own root element, whenever its focus changes; `detail` is a `SurfaceFocus` or
+ * `null` (nothing in hand). The row watches that element: once it is out of sight, what was in hand there is void.
+ */
 export const SURFACE_FOCUS_EVENT = "molis:surface-focus";
-/** Agreed with the bar owner (spec §6.3): the Host's ranked actions for the current context, and the person's choice. */
+/** Agreed with the bar owner (spec §6.3): the Host's ranked actions for the current context (document event, `{ context_id, plan }`). */
 export const CONTEXT_ACTIONS_EVENT = "molis:assistant-context-actions";
+/**
+ * Window event, cancelable: the person chose `key` for `context_id`. The surface that owns the context takes it by
+ * calling `preventDefault()`, then `prepare()` for the provider's complete input, and shows a preview before writing.
+ * Nobody taking it means no page here can run it; the Assistant then gets the words and the material, unsent.
+ */
 export const CONTEXT_ACTION_CHOSEN_EVENT = "molis:assistant-context-action-chosen";
+
+/** `detail` of `CONTEXT_ACTION_CHOSEN_EVENT`. */
+export interface ContextActionChosen {
+  readonly plugin_id: string;
+  readonly context_id: string;
+  readonly key: string;
+  readonly offer_id: string;
+  readonly apply: FragmentApply;
+  readonly intent: FragmentIntent;
+  readonly title: string;
+  /** The provider's complete input for this offer and exactly this context; rejects when it is no longer offered. */
+  prepare(): Promise<{ readonly key: string; readonly apply: FragmentApply; readonly action: ContextualCandidate["action"]; readonly input: unknown }>;
+}
 /** Raised by the navigation owner when the focused pane's place changes; any pending judgment for that pane is void. */
 export const PLACE_CHANGED_EVENT = "molis-work:place-changed";
 

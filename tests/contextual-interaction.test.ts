@@ -462,6 +462,14 @@ test("host routes: rules at once, prepare returns the provider's own input for e
     const unoffered = await call("/api/contextual/prepare", { pane_id: "main", focus: f, key: concise.key, request_id: "r3" });
     assert.equal(unoffered.status, 409);
     assert.equal(unoffered.body.code, "contextual.not_offered");
+    // Revoked after it was shown (the writing assistant switched off, say): preparing it is refused, nothing runs.
+    views[1] = view(pages, "pages.ai", {}, false);
+    const revoked = await call("/api/contextual/prepare", { pane_id: "main", focus: { ...f, context_id: "ctx-revoked" }, key: concise.key, request_id: "r4" });
+    assert.equal(revoked.status, 409);
+    assert.equal(revoked.body.code, "contextual.unavailable");
+    const afterRevoke = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, context_id: "ctx-revoked-2" } });
+    assert.equal(afterRevoke.body.plan.primary.length, 0, "an unavailable action never takes a place in the row");
+    views[1] = view(pages, "pages.ai");
     const invalid = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, activity: "dancing" } });
     assert.equal(invalid.status, 400);
     const tooMany = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, targets: Array.from({ length: 30 }, () => f.targets[0]) } });

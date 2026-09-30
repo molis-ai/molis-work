@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { announcesWithoutActing, claimsButton, claimsMemoryChange, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
+import { announcesWithoutActing, claimsButton, claimsMemoryChange, internalIdsHeld, mentionsInternalIds, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
 
 test("an ending that only announces the next step is recognised; results, questions and blockers are not", () => {
   // Seen from MiniMax-M3 in real Coding rounds that then ended with nothing done.
@@ -62,4 +62,20 @@ test("a reply that says a button is ready is recognised; one that says none was 
   for (const text of ["没有准备按钮：这个能力现在不可用。", "我把报告写进了文档，可以在 Pages 里打开。", "要不要我给你一个按钮？"]) {
     assert.equal(claimsButton(text), false, text);
   }
+});
+
+test("a reply that shows internal identifiers is recognised; titles, file names and ordinary words are not", () => {
+  const known = new Set(["pages.create", "todo.items.create", "x", "io.molis.work.pages"]);
+  assert.deepEqual(mentionsInternalIds("用 pages.create 建好了「Q4 复盘」。", known), ["pages.create"]);
+  assert.deepEqual(mentionsInternalIds("我调用了 change-capability，已新建待办。", known), ["change-capability"]);
+  assert.deepEqual(mentionsInternalIds("文档 ID 是 3f2a9c1e-7b4d-4e2a-9f10-2c3d4e5f6a7b。", known), ["3f2a9c1e-7b4d-4e2a-9f10-2c3d4e5f6a7b"]);
+  assert.deepEqual(mentionsInternalIds("没能保存（actions.outcome_unknown），请先确认一下。", known), ["actions.outcome_unknown"]);
+  assert.deepEqual(mentionsInternalIds("Pages 插件（io.molis.work.pages）里已新建。", known), ["io.molis.work.pages"]);
+  // Titles, plugin names, file names and ordinary words that happen to share a tool's spelling are not identifiers.
+  for (const text of ["已在 Pages 里新建文档「Q4 复盘草稿」，可以在工作面板撤销。", "calc.js 已加上 JSDoc，npm test 通过。",
+    "我会记住（remember）这条偏好吗？需要你确认。", "按 x 轴排列的图表已经更新。", "pages.create.v2 是另一回事", "见 docs/ask-user-guide.md。",
+    "版本 1.2.3-beta 已发布。"]) {
+    assert.deepEqual(mentionsInternalIds(text, known), [], text);
+  }
+  assert.match(internalIdsHeld(["pages.create"]), /pages\.create/);
 });

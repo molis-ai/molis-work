@@ -197,12 +197,12 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
     script.push(() => reply({ name: "suggest-memory", input: { ...lesson, text: "项目甲的周报用表格" } }), () => reply(undefined, "好的。"));
     await service.send({ work_id: first.work.work_id, text: "这次用表格", request_id: "req-candidate-3" }, {});
     const third = await until(async () => { const v = await service.read(first.work.work_id); return v.rounds.length === 3 && v.work.state === "completed" ? v : undefined; }, "third");
-    service.discardMemoryCandidate(third.memory_candidates![0]!.candidate_id);
+    await service.discardMemoryCandidate(third.memory_candidates![0]!.candidate_id);
     script.push(() => reply({ name: "suggest-memory", input: { ...lesson, text: "项目甲的周报用表格" } }), () => reply(undefined, "好的。"));
     await service.send({ work_id: first.work.work_id, text: "再用表格", request_id: "req-candidate-4" }, {});
     await until(async () => { const v = await service.read(first.work.work_id); return v.rounds.length === 4 && v.work.state === "completed"; }, "fourth");
     assert.match(JSON.stringify(requests.at(-1)), /已经建议过了/);
-    assert.equal(service.memoryCandidates().length, 0);
+    assert.equal((await service.memoryCandidates()).length, 0);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 

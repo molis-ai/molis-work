@@ -198,10 +198,10 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "memory-prefs") return { status: 200, body: { prefs: service.saveMemoryPrefs(body as never) } };
       // What works suggest keeping: the person accepts (optionally reworded) or declines each.
-      if (method === "GET" && parts.length === 1 && parts[0] === "memory-candidates") return { status: 200, body: { candidates: service.memoryCandidates() } };
+      if (method === "GET" && parts.length === 1 && parts[0] === "memory-candidates") return { status: 200, body: { candidates: await service.memoryCandidates() } };
       if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && parts[2] === "accept")
         return { status: 200, body: { candidate: await service.acceptMemoryCandidate(parts[1]!, { ...(typeof body.text === "string" ? { text: body.text } : {}) }) } };
-      if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && parts[2] === "discard") return { status: 200, body: { candidate: service.discardMemoryCandidate(parts[1]!) } };
+      if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && parts[2] === "discard") return { status: 200, body: { candidate: await service.discardMemoryCandidate(parts[1]!) } };
       if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.rules() } };
       if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.saveRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
       if (method === "POST" && parts.length === 2 && parts[0] === "rules" && parts[1] === "remove") return { status: 200, body: { rules: service.removeRule(String(body.rule_id ?? "")) } };

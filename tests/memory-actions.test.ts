@@ -70,6 +70,8 @@ test("the Assistant's first-version tables in <Home>/assistant move into the pla
   assert.equal(prefs.prefs.consumers.assistant, false, "use_personal off moved to 助理 can use personal memories: off");
   assert.equal(prefs.prefs.learn_from_work, true);
   const { candidates } = await asPerson.invoke(memoryActions.candidates, {});
-  assert.deepEqual(candidates.map(item => [item.candidate_id, item.text, item.why, item.applies.task]), [["candidate-legacy-1", "周报用要点", "两次", "写周报时"]]);
+  // Moved into Prologue's persistent candidate box (a new id there), with what explains it kept by the Host.
+  assert.deepEqual(candidates.map(item => [item.text, item.why, item.applies.task, item.work?.title]), [["周报用要点", "两次", "写周报时", "周报"]]);
+  assert.notEqual(candidates[0]!.candidate_id, "candidate-legacy-1");
   assert.deepEqual(memoryHostFor(host)!.service.assistantPrefs("web-user"), { form: true, use_personal: false, use_project: true, learn_personal: true, learn_project: false });
 });

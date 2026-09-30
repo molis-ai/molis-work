@@ -857,7 +857,7 @@ export class AssistantService {
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     const jobs = this.store.jobs(this.actorId, work.work_id).map(({ key: _key, status: _status, input: _input, path: _path, done: _done, failed: _failed, checks: _checks, told: _told, ...view }) => view);
     const undoable = this.store.undos(this.actorId, work.work_id).slice(-10).map(({ work_id: _work, reference: _reference, input: _input, told: _told, ...view }) => view);
-    const memory_candidates = this.memoryCandidates(work.work_id);
+    const memory_candidates = await this.memoryCandidates(work.work_id);
     const { changes: memory_changes } = await this.memoryTrail(work, rounds, this.store.rounds(work.work_id), assistant?.memory ?? new Map()).catch(() => ({ changes: [] as MemoryChange[] }));
     const usage = work.executor.kind === "coding" ? null : await this.workUsage(work).catch(() => null);
     // A suggestion about an object the person has since changed or removed by hand is not offered any more.
@@ -2179,11 +2179,11 @@ export class AssistantService {
   }
 
   /** What works suggest keeping, still waiting for the person (one work's, or all). Left alone for 14 days, a suggestion goes. */
-  memoryCandidates(workId?: string): AssistantMemoryCandidate[] {
+  async memoryCandidates(workId?: string): Promise<AssistantMemoryCandidate[]> {
     const memory = this.ports.memory?.();
     if (!memory) return [];
-    return memory.candidates({ actor_id: this.actorId, project_id: null, consumer: "assistant", person: true }, { scope: "all", anywhere: true, ...(workId ? { work_id: workId } : {}) })
-      .filter(candidate => candidate.work).map(candidate => assistantCandidate(candidate));
+    return (await memory.candidates({ actor_id: this.actorId, project_id: null, consumer: "assistant", person: true }, { scope: "all", anywhere: true, ...(workId ? { work_id: workId } : {}) })
+      .catch(() => [])).filter(candidate => candidate.work).map(candidate => assistantCandidate(candidate));
   }
 
   /** The person keeps a suggestion (as it was, or as they reworded it): written like anything they asked to remember. */
@@ -2195,8 +2195,8 @@ export class AssistantService {
   }
 
   /** The person declines a suggestion: it goes, and the same one is not suggested again. */
-  discardMemoryCandidate(candidateId: string): AssistantMemoryCandidate {
-    try { return assistantCandidate(this.memory().discard(this.memoryCaller(null, null, true), candidateId).candidate); }
+  async discardMemoryCandidate(candidateId: string): Promise<AssistantMemoryCandidate> {
+    try { return assistantCandidate((await this.memory().discard(this.memoryCaller(null, null, true), candidateId)).candidate); }
     catch (error) { throw memoryAsAssistantError(error); }
   }
 
@@ -2221,7 +2221,7 @@ export class AssistantService {
       return { candidate_id: "", note: "已作为建议放在工作面板，等用户认可；在他认可前不会生效。回复里说“建议记住……，需要你认可”，不要说已经记住。" };
     };
     return {
-      ...(mayPropose ? { propose: async input => { const made = await propose(input); const latest = memory.candidates(caller, { work_id: work.work_id }).at(-1); return { ...made, candidate_id: latest?.candidate_id ?? "" }; } } : {}),
+      ...(mayPropose ? { propose: async input => { const made = await propose(input); const latest = (await memory.candidates(caller, { work_id: work.work_id })).at(-1); return { ...made, candidate_id: latest?.candidate_id ?? "" }; } } : {}),
       remember: async input => {
         if (input.scope === "project" && !projectId) throw new AssistantError("assistant.scope", "这是个人工作，没有项目；只能记为个人偏好");
         let result;

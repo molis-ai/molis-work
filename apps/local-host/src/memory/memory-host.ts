@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { homeSqlitePath, openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentMemoryCapability, AgentMemoryEntry } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
@@ -100,7 +100,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     { ...memoryActions.write, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.write(caller(context), input<MemoryWriteRequest>(value)); } },
     { ...memoryActions.change, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.change(caller(context), input<MemoryChangeRequest>(value)); } },
     { ...memoryActions.history, handle: (context, value) => guarded(() => service.history(caller(context), String(input<{ memory_id: string }>(value).memory_id))) },
-    { ...memoryActions.candidates, handle: (context, value) => guarded(() => ({ candidates: service.candidates(caller(context), input(value)) })) },
+    { ...memoryActions.candidates, handle: async (context, value) => { migrate(); return { candidates: await service.candidates(caller(context), input(value)) }; } },
     { ...memoryActions.accept, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ candidate_id: string; text?: string }>(value);
       return service.accept(caller(context), request.candidate_id, request.text !== undefined ? { text: request.text } : {}); } },
     { ...memoryActions.discard, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.discard(caller(context), input<{ candidate_id: string }>(value).candidate_id); } },
@@ -145,8 +145,25 @@ export function prologueMemoryBackend(store: () => Promise<AgentMemoryCapability
     pause: async input => view(await required(await store(), "pause")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id, reason: input.reason })),
     resume: async input => view(await required(await store(), "resume")({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id })),
     remove: async input => { await (await store()).remove({ scope: prologueScope(input.scope), owner: input.owner, memory_id: input.memory_id }); },
+    candidates: {
+      propose: async input => candidateView(await (await box(store)).propose({ scope: prologueScope(input.scope), owner: input.owner, text: input.text, origin: input.origin, tags: input.tags, meta: input.meta })),
+      list: async (scope, owner) => (await (await box(store)).list(prologueScope(scope), owner)).map(candidateView),
+      accept: async input => view(await (await box(store)).accept({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id, text: input.text, origin: input.origin, meta: input.meta })),
+      promote: async input => view(await (await box(store)).promote({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id, policy: input.policy,
+        version: input.version, origin: input.origin, meta: input.meta })),
+      settleInto: async input => view(await (await box(store)).settleInto({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id, memory_id: input.memory_id, by: input.by })),
+      discard: async input => { await (await box(store)).discard({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id }); },
+      expire: async input => { await (await box(store)).expire({ scope: prologueScope(input.scope), owner: input.owner, candidate_id: input.candidate_id }); },
+    },
   };
 }
+
+const box = async (store: () => Promise<AgentMemoryCapability>) => {
+  const candidates = (await store()).candidates;
+  if (!candidates) throw new MemoryError("memory.off", "当前运行时没有记忆候选箱");
+  return candidates;
+};
+const candidateView = (item: AgentMemoryCandidateEntry) => ({ candidate_id: item.candidate_id, text: item.text, state: item.state, ...(item.memory_id ? { memory_id: item.memory_id } : {}) });
 
 /** The first version's state in the Assistant's library, when there is one. Never creates that library. */
 function readAssistantMemory(homeDirectory: string, actorId: string): LegacyMemoryState | null {

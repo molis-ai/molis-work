@@ -67,6 +67,28 @@ export interface MemoryBackendPort {
   pause(input: { scope: MemoryScope; owner: string; memory_id: string; reason: string }): Promise<MemoryBackendEntry>;
   resume(input: { scope: MemoryScope; owner: string; memory_id: string }): Promise<MemoryBackendEntry>;
   remove(input: { scope: MemoryScope; owner: string; memory_id: string }): Promise<void>;
+  /** Prologue's persistent, scoped candidate box (spec §8.2 S4). */
+  candidates: MemoryCandidatePort;
+}
+
+export interface MemoryBackendCandidate {
+  candidate_id: string;
+  text: string;
+  state: "pending" | "accepted" | "promoted" | "discarded" | "expired";
+  memory_id?: string;
+}
+
+export interface MemoryCandidatePort {
+  propose(input: { scope: MemoryScope; owner: string; text: string; origin: string; tags: string[]; meta: AgentMemoryMeta }): Promise<MemoryBackendCandidate>;
+  list(scope: MemoryScope, owner: string): Promise<MemoryBackendCandidate[]>;
+  /** The person accepts: a new entry, the person as approver. */
+  accept(input: { scope: MemoryScope; owner: string; candidate_id: string; text: string; origin: string; meta: AgentMemoryMeta }): Promise<MemoryBackendEntry>;
+  /** The Host's write gate promotes: a new entry, the gate's policy and version as approver. */
+  promote(input: { scope: MemoryScope; owner: string; candidate_id: string; policy: string; version: number; origin: string; meta: AgentMemoryMeta }): Promise<MemoryBackendEntry>;
+  /** Settled into an existing entry the Host already updated (a correction). */
+  settleInto(input: { scope: MemoryScope; owner: string; candidate_id: string; memory_id: string; by: MemoryApproval }): Promise<MemoryBackendEntry>;
+  discard(input: { scope: MemoryScope; owner: string; candidate_id: string }): Promise<void>;
+  expire(input: { scope: MemoryScope; owner: string; candidate_id: string }): Promise<void>;
 }
 
 /** Who is asking, from the trusted Host context. Never read from input. */
@@ -206,7 +228,7 @@ export class MemoryService {
     const owners = new Set(scopes.map(where => `${where.scope}:${where.owner}`));
     const auto_this_week = this.ports.ledger.changes(caller.actor_id, 500).filter(change => change.kind === "auto_kept" && change.state === "active"
       && owners.has(`${change.scope}:${change.owner}`) && Date.parse(change.at) >= weekAgo).length;
-    const pending = this.candidates(caller, { scope: request.scope ?? "all" }).length;
+    const pending = (await this.candidates(caller, { scope: request.scope ?? "all" })).length;
     return { items, counts: { personal, project, auto_this_week, pending } };
   }
 
@@ -318,15 +340,17 @@ export class MemoryService {
    * low-risk kinds are written automatically (undoable) when 自动记住 is on; everything else waits for the person.
    */
   async offer(caller: MemoryCaller, input: { scope: MemoryScope; text: string; kind: MemoryKind; applies?: MemoryApplies; basis: MemoryBasis; why: string;
-    evidence?: MemoryEvidence[]; from: MemoryCandidate["from"]; supersedes?: string | null }): Promise<MemoryWriteResult> {
+    evidence?: MemoryEvidence[]; from: MemoryCandidate["from"]; supersedes?: string | null; candidate_id?: string }): Promise<MemoryWriteResult> {
     return this.commit(caller, { scope: input.scope, text: input.text, kind: input.kind, applies: input.applies ?? {}, expires_at: null, source: "auto", basis: input.basis,
       evidence: input.evidence ?? [], approved_by: { by: "policy", policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION }, why: input.why, from: input.from,
-      ...(input.supersedes ? { replaces: input.supersedes } : {}) });
+      ...(input.supersedes ? { replaces: input.supersedes } : {}), ...(input.candidate_id ? { candidate_id: input.candidate_id } : {}) });
   }
 
   private async commit(caller: MemoryCaller, input: {
     scope: MemoryScope; text: string; kind: MemoryKind; applies: MemoryApplies; expires_at: string | null; source: MemorySource; basis: MemoryBasis;
     evidence: MemoryEvidence[]; approved_by: MemoryApproval; replaces?: string; said?: string; why?: string; from?: MemoryCandidate["from"]; origin?: string;
+    /** The waiting candidate this settles (an automatic write of something already suggested once). */
+    candidate_id?: string;
   }): Promise<MemoryWriteResult> {
     const where = this.where(caller, input.scope);
     const projectId = input.scope === "project" ? where.owner : null;
@@ -379,6 +403,8 @@ export class MemoryService {
         this.ports.ledger.addRevision(updated.memory_id, { version: updated.version, text, kind: input.kind, applies: input.applies, change: "replaced", by: automatic ? "policy" : "person", at });
       });
       await this.saveFacts({ ...target, entry: updated }, meta);
+      // The gate's approval of a correction is recorded by Prologue's candidate box on the corrected entry itself.
+      if (automatic) await this.settleByPolicy(caller, input, where, updated, text, meta);
       const change = this.recordChange(caller, { kind: automatic ? "auto_replaced" : "replaced", scope: input.scope, owner: where.owner, memory_id: updated.memory_id, text,
         by: automatic ? "policy" : "person", rule: automatic ? MEMORY_GATE_RULE : null, reason: input.why ? `依据：${input.why}` : null,
         undo: automatic ? { action: "restore", version: before } : null });
@@ -388,8 +414,14 @@ export class MemoryService {
     const origin = input.origin ?? await this.originFor(caller, input.scope, input.source, { said: input.said, why: input.why });
     const facts = { kind: input.kind, source: input.source, basis: input.basis, evidence: input.evidence.slice(-6), applies: input.applies, expires_at: input.expires_at,
       approved_by: input.approved_by, plugin_id: caller.consumer === "plugin" ? caller.plugin_id ?? null : null };
-    // The text and its facts go into Prologue in one write: there is never an entry without them.
-    const entry = await this.ports.backend.write({ scope: input.scope, owner: where.owner, text, origin, tags: [input.source, input.kind], meta: toEntryMeta(facts) });
+    // The text and its facts go into Prologue in one write: there is never an entry without them. An automatic one goes
+    // in only as a promotion by the gate's policy (Prologue records the approver): the model never approves itself.
+    const entry = automatic
+      ? await this.ports.backend.candidates.promote({ scope: input.scope, owner: where.owner, candidate_id: input.candidate_id ?? (await this.ports.backend.candidates.propose({
+          scope: input.scope, owner: where.owner, text, origin, tags: [input.source, input.kind], meta: toEntryMeta(facts) })).candidate_id,
+        policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION, origin, meta: toEntryMeta(facts) })
+      : await this.ports.backend.write({ scope: input.scope, owner: where.owner, text, origin, tags: [input.source, input.kind], meta: toEntryMeta(facts) });
+    if (automatic && input.candidate_id) this.markCandidateKept(caller.actor_id, input.candidate_id, entry.memory_id);
     const meta: MemoryMetaRecord = { memory_id: entry.memory_id, scope: input.scope, owner: where.owner, ...facts, state: "active", state_reason: null, created_at: at, updated_at: at };
     try {
       this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text, kind: input.kind, applies: input.applies, change: "created", by: automatic ? "policy" : "person", at });
@@ -485,20 +517,26 @@ export class MemoryService {
 
   /* ---- candidates ---- */
 
-  /** Waiting candidates in the caller's scopes; `anywhere` (the person only): in every project too. */
-  candidates(caller: MemoryCaller, filter: { scope?: MemoryScope | "all"; work_id?: string; anywhere?: boolean } = {}): MemoryCandidate[] {
+  /**
+   * Waiting candidates in the caller's scopes; `anywhere` (the person only): in every project they have candidates in.
+   * Prologue's candidate box holds each candidate and its state; the Host keeps what explains it (why, from which work,
+   * why it was held back, what it would replace). Left alone for 14 days, a suggestion goes quietly: it was never in effect.
+   */
+  async candidates(caller: MemoryCaller, filter: { scope?: MemoryScope | "all"; work_id?: string; anywhere?: boolean } = {}): Promise<MemoryCandidate[]> {
     const stale = this.now().getTime() - CANDIDATE_TTL_MS;
     const anywhere = filter.anywhere === true && caller.person === true;
-    const owners = new Set(this.scopesFor(caller, filter.scope && filter.scope !== "all" ? [filter.scope] : undefined, true).map(where => `${where.scope}:${where.owner}`));
+    const owners = new Map(this.scopesFor(caller, filter.scope && filter.scope !== "all" ? [filter.scope] : undefined, true).map(where => [`${where.scope}:${where.owner}`, where]));
+    if (anywhere) for (const note of this.ports.ledger.candidates(caller.actor_id)) owners.set(`${note.scope}:${note.owner}`, { scope: note.scope, owner: note.owner });
     const out: MemoryCandidate[] = [];
-    for (const record of this.ports.ledger.candidates(caller.actor_id)) {
-      if (record.state !== "pending" || (!anywhere && !owners.has(`${record.scope}:${record.owner}`))) continue;
-      if (filter.work_id && record.work?.work_id !== filter.work_id) continue;
-      // Left alone for 14 days, a suggestion goes quietly: it was never in effect.
-      if (Date.parse(record.created_at) < stale) { this.ports.ledger.saveCandidate({ ...record, state: "expired" }); continue; }
-      out.push(candidateView(record));
+    for (const where of owners.values()) {
+      for (const record of await this.candidateRecords(caller.actor_id, where.scope, where.owner)) {
+        if (record.state !== "pending") continue;
+        if (filter.work_id && record.work?.work_id !== filter.work_id) continue;
+        if (Date.parse(record.created_at) < stale) { await this.settleCandidate(record, "expired"); continue; }
+        out.push(candidateView(record));
+      }
     }
-    return out;
+    return out.sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
   /**
@@ -506,7 +544,7 @@ export class MemoryService {
    * first version's rules hold: one suggestion of the same text ever, at most three waiting per work, never what is kept.
    */
   async propose(caller: MemoryCaller, input: { scope: MemoryScope; text: string; kind: MemoryKind; applies?: MemoryApplies; basis: MemoryBasis; why: string;
-    from: MemoryCandidate["from"]; hold_reason?: string | null; supersedes?: string | null }, options: { gate?: boolean } = {}): Promise<MemoryCandidate> {
+    from: MemoryCandidate["from"]; hold_reason?: string | null; supersedes?: string | null; evidence?: MemoryEvidence[] }, options: { gate?: boolean } = {}): Promise<MemoryCandidate> {
     const where = this.where(caller, input.scope);
     const prefs = this.prefsFor(caller.actor_id, input.scope, input.scope === "project" ? where.owner : null);
     if (!prefs.form) throw new MemoryError("memory.off", "用户关掉了“允许记住”，不要提出记忆建议");
@@ -518,46 +556,114 @@ export class MemoryService {
     const text = input.text.trim();
     if (!text || text.length > MAX_TEXT) throw new MemoryError("memory.invalid", `记忆内容要在 1–${MAX_TEXT} 字之间`);
     if (looksLikeSecret(text)) throw new MemoryError("memory.invalid", "这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
-    const earlier = this.ports.ledger.candidates(caller.actor_id);
-    if (earlier.some(item => item.state !== "expired" && item.scope === input.scope && item.owner === where.owner && sameText(item.text, text)))
+    const earlier = await this.candidateRecords(caller.actor_id, input.scope, where.owner);
+    if (earlier.some(item => item.state !== "expired" && sameText(item.text, text)))
       throw new MemoryError("memory.invalid", "这条已经建议过了（用户认可、拒绝或还在等），不要再提");
     if ((await this.located(caller, input.scope, where.owner)).some(located => sameText(located.entry.text, text))) throw new MemoryError("memory.invalid", "已经记着这一条了");
     const work = caller.work ?? null;
     if (work && earlier.filter(item => item.work?.work_id === work.work_id && item.state === "pending").length >= PENDING_PER_WORK)
       throw new MemoryError("memory.limit", `这项工作已有 ${PENDING_PER_WORK} 条建议在等用户，先不要再提`);
-    const record: MemoryCandidateRecord = { candidate_id: `candidate-${this.newId()}`, actor_id: caller.actor_id, owner: where.owner, scope: input.scope,
+    const at = this.now().toISOString();
+    const evidence = input.evidence ?? [{ kind: "work" as const, text: input.why.trim().slice(0, 200), ...(work ? { ref: { kind: "work", id: work.work_id } } : {}), at }];
+    const facts = { kind: input.kind, source: "accepted" as MemorySource, basis: input.basis, evidence, applies: input.applies ?? {}, expires_at: null, approved_by: { by: "person" } as MemoryApproval,
+      plugin_id: caller.consumer === "plugin" ? caller.plugin_id ?? null : null };
+    const held = await this.ports.backend.candidates.propose({ scope: input.scope, owner: where.owner, text, origin: `建议 · ${input.from}`, tags: [input.from, input.kind], meta: toEntryMeta(facts) });
+    const record: MemoryCandidateRecord = { candidate_id: held.candidate_id, actor_id: caller.actor_id, owner: where.owner, scope: input.scope,
       project_id: input.scope === "project" ? where.owner : null, kind: input.kind, text, applies: input.applies ?? {}, basis: input.basis, why: input.why.trim().slice(0, 300),
-      from: input.from, work, hold_reason: input.hold_reason ?? null, supersedes: input.supersedes ?? null, state: "pending", created_at: this.now().toISOString(), memory_id: null };
+      from: input.from, work, hold_reason: input.hold_reason ?? null, supersedes: input.supersedes ?? null, state: "pending", created_at: at, memory_id: null };
     this.ports.ledger.saveCandidate(record);
     return candidateView(record);
   }
 
-  /** The person keeps a suggestion (as it was, or reworded): written like anything they asked to remember. */
+  /**
+   * The person keeps a suggestion (as it was, or reworded). It goes in through Prologue's candidate box with the person
+   * as approver; one that corrects an existing memory updates that memory (its history keeps the old version).
+   */
   async accept(caller: MemoryCaller, candidateId: string, input: { text?: string } = {}): Promise<{ candidate: MemoryCandidate; memory: MemoryItem | null }> {
     this.personOnly(caller, "只有本人能认可记忆建议");
-    const record = this.ownCandidate(caller, candidateId);
+    const record = await this.ownCandidate(caller, candidateId);
     if (record.state !== "pending") throw new MemoryError("memory.invalid", record.state === "accepted" ? "这条已经记住了" : "这条建议已经不在了");
     const text = typeof input.text === "string" && input.text.trim() ? input.text.trim() : record.text;
+    if (text.length > MAX_TEXT) throw new MemoryError("memory.invalid", `记忆内容要在 ${MAX_TEXT} 字以内`);
+    if (looksLikeSecret(text)) throw new MemoryError("memory.invalid", "这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
     const holder: MemoryCaller = { ...caller, project_id: record.project_id ?? caller.project_id, work: record.work };
     const date = this.date();
     const origin = record.scope === "project" && record.work ? `你认可的建议 · 工作「${record.work.title.slice(0, 40)}」· ${date} · 依据：${record.why.slice(0, 120)}`
       : `你认可的建议 · ${date} · 依据：${record.why.slice(0, 120)}`;
-    const result = await this.commit(holder, { scope: record.scope, text, kind: record.kind, applies: record.applies, expires_at: null, source: "accepted", basis: record.basis,
-      evidence: [{ kind: "work", text: record.why.slice(0, 200), ...(record.work ? { ref: { kind: "work", id: record.work.work_id } } : {}), at: this.now().toISOString() }],
-      approved_by: { by: "person" }, origin, ...(record.supersedes ? { replaces: record.supersedes } : {}) });
-    if (result.outcome === "refused") throw new MemoryError("memory.invalid", result.reason);
-    const kept: MemoryCandidateRecord = { ...record, text, state: "accepted", memory_id: result.memory?.memory_id ?? null };
+    const at = this.now().toISOString();
+    const facts = { kind: record.kind, source: "accepted" as MemorySource, basis: record.basis,
+      evidence: [{ kind: "work" as const, text: record.why.slice(0, 200), ...(record.work ? { ref: { kind: "work", id: record.work.work_id } } : {}), at }],
+      applies: record.applies, expires_at: null, approved_by: { by: "person" } as MemoryApproval, plugin_id: null };
+    const entries = await this.located(holder, record.scope, record.owner);
+    const target = (record.supersedes ? entries.find(located => located.entry.memory_id === record.supersedes) : undefined)
+      ?? entries.find(located => sameText(located.entry.text, text));
+    let located: Located, change: MemoryChangeKind;
+    if (target) {
+      // It corrects (or repeats) one already kept: that one changes, keeping its history.
+      const before = target.entry.version;
+      const entry = sameText(target.entry.text, text) ? target.entry : await this.ports.backend.update({ scope: record.scope, owner: record.owner, memory_id: target.entry.memory_id, text });
+      const meta: MemoryMetaRecord = { ...target.meta, ...facts, evidence: [...target.meta.evidence, ...facts.evidence].slice(-6), state: "active", state_reason: null, updated_at: at };
+      if (entry.version !== before) this.ports.ledger.transaction(() => {
+        this.ensureRevision(target, before);
+        this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text, kind: meta.kind, applies: meta.applies, change: "replaced", by: "person", at });
+      });
+      await this.saveFacts({ ...target, entry }, meta, target.meta);
+      await this.ports.backend.candidates.settleInto({ scope: record.scope, owner: record.owner, candidate_id: record.candidate_id, memory_id: entry.memory_id, by: { by: "person" } });
+      located = { scope: record.scope, owner: record.owner, entry, meta };
+      change = entry.version !== before ? "replaced" : "accepted";
+    } else {
+      const entry = await this.ports.backend.candidates.accept({ scope: record.scope, owner: record.owner, candidate_id: record.candidate_id, text, origin, meta: toEntryMeta(facts) });
+      this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text, kind: record.kind, applies: record.applies, change: "created", by: "person", at });
+      located = { scope: record.scope, owner: record.owner, entry, meta: { memory_id: entry.memory_id, scope: record.scope, owner: record.owner, ...facts, state: "active", state_reason: null, created_at: at, updated_at: at } };
+      change = "accepted";
+    }
+    this.recordChange(holder, { kind: change, scope: record.scope, owner: record.owner, memory_id: located.entry.memory_id, text: located.entry.text, by: "person", rule: null,
+      reason: `依据：${record.why.slice(0, 120)}`, undo: null });
+    const kept: MemoryCandidateRecord = { ...record, text, state: "accepted", memory_id: located.entry.memory_id };
     this.ports.ledger.saveCandidate(kept);
-    return { candidate: candidateView(kept), memory: result.memory };
+    return { candidate: candidateView(kept), memory: this.item(located) };
   }
 
-  discard(caller: MemoryCaller, candidateId: string): { candidate: MemoryCandidate } {
+  async discard(caller: MemoryCaller, candidateId: string): Promise<{ candidate: MemoryCandidate }> {
     this.personOnly(caller, "只有本人能拒绝记忆建议");
-    const record = this.ownCandidate(caller, candidateId);
+    const record = await this.ownCandidate(caller, candidateId);
     if (record.state !== "pending") throw new MemoryError("memory.invalid", "这条建议已经不在了");
-    const declined: MemoryCandidateRecord = { ...record, state: "discarded" };
-    this.ports.ledger.saveCandidate(declined);
-    return { candidate: candidateView(declined) };
+    return { candidate: candidateView(await this.settleCandidate(record, "discarded")) };
+  }
+
+  /** The Host's notes joined with Prologue's candidates of one scope; notes of earlier versions are moved into the box once. */
+  private async candidateRecords(actorId: string, scope: MemoryScope, owner: string): Promise<MemoryCandidateRecord[]> {
+    const held = new Map((await this.ports.backend.candidates.list(scope, owner)).map(item => [item.candidate_id, item]));
+    const out: MemoryCandidateRecord[] = [];
+    for (const note of this.ports.ledger.candidates(actorId).filter(item => item.scope === scope && item.owner === owner)) {
+      const found = held.get(note.candidate_id);
+      // Accepted before candidates lived in Prologue: kept only as the record that it was suggested and kept.
+      if (!found && note.state === "accepted") { out.push(note); continue; }
+      if (!found) {
+        // A note from before candidates lived in Prologue: moved in once (with its state), then keyed by the box's id.
+        const moved = await this.ports.backend.candidates.propose({ scope, owner, text: note.text, origin: `建议 · ${note.from}`, tags: [note.from, note.kind],
+          meta: toEntryMeta({ kind: note.kind, source: "accepted", basis: note.basis, evidence: [], applies: note.applies, expires_at: null, approved_by: { by: "person" }, plugin_id: null }) });
+        if (note.state === "discarded") await this.ports.backend.candidates.discard({ scope, owner, candidate_id: moved.candidate_id });
+        if (note.state === "expired") await this.ports.backend.candidates.expire({ scope, owner, candidate_id: moved.candidate_id });
+        this.ports.ledger.transaction(() => {
+          this.ports.ledger.dropCandidate(note.candidate_id);
+          this.ports.ledger.saveCandidate({ ...note, candidate_id: moved.candidate_id });
+        });
+        out.push({ ...note, candidate_id: moved.candidate_id });
+        continue;
+      }
+      const state: MemoryCandidateRecord["state"] = found.state === "promoted" ? "accepted" : found.state;
+      out.push({ ...note, state, memory_id: found.memory_id ?? note.memory_id });
+    }
+    return out;
+  }
+
+  private async settleCandidate(record: MemoryCandidateRecord, state: "discarded" | "expired"): Promise<MemoryCandidateRecord> {
+    const where = { scope: record.scope, owner: record.owner, candidate_id: record.candidate_id };
+    if (state === "discarded") await this.ports.backend.candidates.discard(where); else await this.ports.backend.candidates.expire(where);
+    const next: MemoryCandidateRecord = { ...record, state };
+    this.ports.ledger.saveCandidate(next);
+    return next;
   }
 
   /* ---- recent changes ---- */
@@ -652,6 +758,21 @@ export class MemoryService {
   }
 
   /* ---- internals ---- */
+
+  /** An automatic correction: the approver (the gate's policy) is recorded by Prologue's candidate box on the entry. */
+  private async settleByPolicy(caller: MemoryCaller, input: { candidate_id?: string; kind: MemoryKind; source: MemorySource }, where: { scope: MemoryScope; owner: string },
+    entry: MemoryBackendEntry, text: string, meta: MemoryMetaRecord): Promise<void> {
+    const candidateId = input.candidate_id ?? (await this.ports.backend.candidates.propose({ scope: where.scope, owner: where.owner, text, origin: `${MEMORY_GATE_RULE} · 纠正`,
+      tags: [input.source, input.kind], meta: toEntryMeta(meta) })).candidate_id;
+    await this.ports.backend.candidates.settleInto({ scope: where.scope, owner: where.owner, candidate_id: candidateId, memory_id: entry.memory_id,
+      by: { by: "policy", policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION } });
+    if (input.candidate_id) this.markCandidateKept(caller.actor_id, input.candidate_id, entry.memory_id);
+  }
+
+  private markCandidateKept(actorId: string, candidateId: string, memoryId: string): void {
+    const note = this.ports.ledger.candidates(actorId).find(item => item.candidate_id === candidateId);
+    if (note) this.ports.ledger.saveCandidate({ ...note, state: "accepted", memory_id: memoryId });
+  }
 
   private personOnly(caller: MemoryCaller, message: string): void {
     if (!caller.person) throw new MemoryError("memory.forbidden", message);
@@ -755,8 +876,10 @@ export class MemoryService {
       last_used: use ? { at: use.at, consumer: use.consumer, title: use.title, ...(use.work_id ? { work_id: use.work_id } : {}) } : null };
   }
 
-  private ownCandidate(caller: MemoryCaller, candidateId: string): MemoryCandidateRecord {
-    const record = this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === candidateId);
+  private async ownCandidate(caller: MemoryCaller, candidateId: string): Promise<MemoryCandidateRecord> {
+    const note = this.ports.ledger.candidates(caller.actor_id).find(item => item.candidate_id === candidateId);
+    if (!note) throw new MemoryError("memory.not_found", "没有这条建议");
+    const record = (await this.candidateRecords(caller.actor_id, note.scope, note.owner)).find(item => item.candidate_id === candidateId);
     if (!record) throw new MemoryError("memory.not_found", "没有这条建议");
     return record;
   }

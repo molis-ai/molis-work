@@ -386,10 +386,10 @@ index e0783e2e..7bce9824 100644
    type MemoryEntry,
 diff --git a/packages/sdk/src/memory/core/candidates.ts b/packages/sdk/src/memory/core/candidates.ts
 new file mode 100644
-index 00000000..ef40cdaa
+index 00000000..776ac51c
 --- /dev/null
 +++ b/packages/sdk/src/memory/core/candidates.ts
-@@ -0,0 +1,196 @@
+@@ -0,0 +1,221 @@
 +import { createPrologueError, mintRef, type ExactRef } from "../../kernel/core/index.js";
 +import { assertMemoryMeta, type MemoryEntry, type MemoryMeta, type MemoryScope, type MemoryStore } from "./memory.js";
 +
@@ -462,13 +462,21 @@ index 00000000..ef40cdaa
 +  }): Promise<ScopedCandidate>;
 +  get(ref: ExactRef<"memory-candidate">): ScopedCandidate | undefined;
 +  list(query: { readonly scope: MemoryScope; readonly owner: string }): readonly ScopedCandidate[];
-+  /** 人接受（可以改写正文）。批准者记为人。 */
-+  accept(ref: ExactRef<"memory-candidate">, change?: { readonly text?: string }): Promise<MemoryEntry>;
++  /**
++   * 人接受（可以改写正文）。批准者记为人。`origin` / `meta` 让 App 写上进库那一刻的出处与信息（批准者仍由这一册写）。
++   */
++  accept(ref: ExactRef<"memory-candidate">, change?: { readonly text?: string; readonly origin?: string; readonly meta?: MemoryMeta }): Promise<MemoryEntry>;
 +  /**
 +   * App 登记的确定性策略晋升。**不是模型**：调用方是 App 自己的规则代码，名字和版本写进条目的
 +   * `meta.approvedBy`，人事后看得见“谁批准的”，也就撤得回。
 +   */
-+  promote(ref: ExactRef<"memory-candidate">, by: { readonly policy: string; readonly version: number }): Promise<MemoryEntry>;
++  promote(ref: ExactRef<"memory-candidate">, by: { readonly policy: string; readonly version: number },
++    change?: { readonly origin?: string; readonly meta?: MemoryMeta }): Promise<MemoryEntry>;
++  /**
++   * 候选并入一条**已有**的记忆：它纠正的是那一条，App 已经经 `MemoryStore.update` 改了正文（同一个写入口）。
++   * 这一册把候选记成接受或晋升，并把批准者写到那一条上。
++   */
++  settleInto(ref: ExactRef<"memory-candidate">, entry: ExactRef<"memory">, by: { readonly by: "person" } | { readonly by: "policy"; readonly policy: string; readonly version: number }): Promise<MemoryEntry>;
 +  discard(ref: ExactRef<"memory-candidate">): Promise<ScopedCandidate>;
 +  /** 过了等待期：不再提，也不进库。 */
 +  expire(ref: ExactRef<"memory-candidate">): Promise<ScopedCandidate>;
@@ -516,9 +524,11 @@ index 00000000..ef40cdaa
 +    if (row.state !== "pending") throw createPrologueError("MEMORY_NOT_ACCEPTED", `That candidate is already ${row.state}.`);
 +    return row;
 +  };
-+  const settle = async (row: StoredCandidate, text: string, approvedBy: NonNullable<MemoryMeta["approvedBy"]>, state: "accepted" | "promoted"): Promise<MemoryEntry> => {
-+    // **走同一个写入口。** 批准者由这一册写上，不从候选里读。
-+    const entry = await input.memory.write({ scope: row.scope, owner: row.owner, text, origin: row.origin, tags: row.tags, meta: { ...row.meta, approvedBy } });
++  const settle = async (row: StoredCandidate, text: string, approvedBy: NonNullable<MemoryMeta["approvedBy"]>, state: "accepted" | "promoted",
++    change: { readonly origin?: string; readonly meta?: MemoryMeta } = {}): Promise<MemoryEntry> => {
++    const { approvedBy: _ignored, ...meta } = change.meta ?? row.meta;
++    // **走同一个写入口。** 批准者由这一册写上，不从候选或调用方读。
++    const entry = await input.memory.write({ scope: row.scope, owner: row.owner, text, origin: change.origin?.trim() ? change.origin : row.origin, tags: row.tags, meta: { ...meta, approvedBy } });
 +    await save({ ...row, text, state, settledAtMs: await clock(), entryId: entry.ref.id });
 +    return entry;
 +  };
@@ -554,15 +564,30 @@ index 00000000..ef40cdaa
 +    async accept(ref, change = {}): Promise<MemoryEntry> {
 +      const row = pending(ref);
 +      const text = change.text?.trim() ? change.text.trim() : row.text;
-+      return settle(row, text, { by: "person" }, "accepted");
++      return settle(row, text, { by: "person" }, "accepted", change);
 +    },
 +
-+    async promote(ref, by): Promise<MemoryEntry> {
++    async promote(ref, by, change = {}): Promise<MemoryEntry> {
 +      const row = pending(ref);
 +      if (typeof by.policy !== "string" || !by.policy.trim() || !Number.isSafeInteger(by.version) || by.version < 1) {
 +        throw createPrologueError("MEMORY_NOT_ACCEPTED", "A promotion names the App's policy and its version.");
 +      }
-+      return settle(row, row.text, { by: "policy", policy: by.policy, version: by.version }, "promoted");
++      return settle(row, row.text, { by: "policy", policy: by.policy, version: by.version }, "promoted", change);
++    },
++
++    async settleInto(ref, entryRef, by): Promise<MemoryEntry> {
++      const row = pending(ref);
++      if (by.by === "policy" && (typeof by.policy !== "string" || !by.policy.trim() || !Number.isSafeInteger(by.version) || by.version < 1)) {
++        throw createPrologueError("MEMORY_NOT_ACCEPTED", "A promotion names the App's policy and its version.");
++      }
++      const entry = input.memory.get(entryRef);
++      if (entry === undefined || entry.scope !== row.scope || entry.owner !== row.owner) {
++        throw createPrologueError("MEMORY_NOT_ACCEPTED", "A candidate settles only into a live memory of its own scope and owner.");
++      }
++      const approvedBy = by.by === "person" ? { by: "person" as const } : { by: "policy" as const, policy: by.policy, version: by.version };
++      const updated = await input.memory.setMeta(entryRef, { ...entry.meta, approvedBy });
++      await save({ ...row, state: by.by === "person" ? "accepted" : "promoted", settledAtMs: await clock(), entryId: entry.ref.id });
++      return updated;
 +    },
 +
 +    async discard(ref): Promise<ScopedCandidate> {
@@ -1021,10 +1046,10 @@ index 083a2f5a..935dc559 100644
     *
 diff --git a/packages/sdk/test/memory-platform.live.test.ts b/packages/sdk/test/memory-platform.live.test.ts
 new file mode 100644
-index 00000000..f831e8e1
+index 00000000..0096e204
 --- /dev/null
 +++ b/packages/sdk/test/memory-platform.live.test.ts
-@@ -0,0 +1,186 @@
+@@ -0,0 +1,214 @@
 +import { mkdtempSync, rmSync } from "node:fs";
 +import { tmpdir } from "node:os";
 +import { join } from "node:path";
@@ -1209,5 +1234,33 @@ index 00000000..f831e8e1
 +    }));
 +    expect(failed.code).toBe("AGENT_START_WIDENS_ACCESS");
 +    await ctx.runtime.shutdown();
++  });
++});
++
++describe("候选进库时 App 写上出处；纠正型候选并入已有那一条", () => {
++  it("**接受与晋升可带最终出处和信息，批准者仍由候选箱写；并入已有条目时不另写一条**", async () => {
++    const runtime = await onDisk();
++    try {
++      const project = { scope: "project" as const, owner: "p" };
++      const first = await runtime.memoryCandidates.propose({ ...project, text: "周报先写风险", origin: "建议", meta: { kind: "convention" } });
++      const kept = await runtime.memoryCandidates.promote(first.ref, { policy: "molis.write-gate", version: 1 },
++        { origin: "自动记住 · 规则 v1 · 依据：两次", meta: { kind: "convention", source: "auto", basis: "repeated", approvedBy: { by: "person" } } });
++      expect(kept.origin).toBe("自动记住 · 规则 v1 · 依据：两次");
++      expect(kept.meta.approvedBy).toEqual({ by: "policy", policy: "molis.write-gate", version: 1 });
++      expect(kept.meta.source).toBe("auto");
++      const old = await runtime.memory.write({ ...project, text: "周报用表格", origin: "你说的", meta: { kind: "convention", source: "said" } });
++      const fix = await runtime.memoryCandidates.propose({ ...project, text: "周报用要点列表", origin: "建议" });
++      await runtime.memory.update(old.ref, "周报用要点列表");
++      const settled = await runtime.memoryCandidates.settleInto(fix.ref, old.ref, { by: "person" });
++      expect(settled.ref.id).toBe(old.ref.id);
++      expect(settled.meta.approvedBy).toEqual({ by: "person" });
++      expect(runtime.memoryCandidates.get(fix.ref)?.state).toBe("accepted");
++      expect(runtime.memory.list(project).length).toBe(2);
++      const other = await runtime.memoryCandidates.propose({ ...project, text: "别处的", origin: "o" });
++      const elsewhere = await runtime.memory.write({ scope: "project", owner: "q", text: "别的项目", origin: "o" });
++      expect((await failure(() => runtime.memoryCandidates.settleInto(other.ref, elsewhere.ref, { by: "person" }))).code).toBe("MEMORY_NOT_ACCEPTED");
++    } finally {
++      await runtime.shutdown();
++    }
 +  });
 +});

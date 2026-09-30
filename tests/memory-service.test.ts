@@ -88,6 +88,9 @@ test("automatic writes follow the gate table, show in recent changes with their 
   assert.equal(auto.outcome, "written");
   assert.equal(auto.memory!.source, "auto");
   assert.deepEqual(auto.memory!.approved_by, { by: "policy", policy: "memory.write-gate", version: 1 });
+  // It went in as a promotion in Prologue's candidate box: the box wrote the approver on the entry, not the Host.
+  assert.deepEqual((await env.raw().candidates.list("project", "project-a")).map(item => [item.state, item.memory_id]), [["promoted", auto.memory!.memory_id]]);
+  assert.deepEqual((await env.raw().list("project", "project-a"))[0]!.meta.approved_by, { by: "policy", policy: "memory.write-gate", version: 1 });
   assert.match(auto.memory!.origin, new RegExp(`^${MEMORY_GATE_RULE}`));
   const [change] = memory.changes(person(), { scope: "project" });
   assert.equal(change!.kind, "auto_kept");
@@ -201,14 +204,14 @@ test("moving between personal and project keeps the text and drops project prove
   for (const text of ["一", "二", "三"]) await memory.propose(assistant(), { scope: "project", text: `约定${text}`, kind: "convention", basis: "inferred", why: "两次", from: "work" });
   await assert.rejects(memory.propose(assistant(), { scope: "project", text: "约定四", kind: "convention", basis: "inferred", why: "两次", from: "work" }), /3 条建议/);
   await assert.rejects(memory.propose(assistant("project-a", { work_id: "work-2", title: "另一项" }), { scope: "project", text: "约定一", kind: "convention", basis: "inferred", why: "两次", from: "work" }), /已经建议过了/);
-  const [first] = memory.candidates(person(), { scope: "project" });
-  memory.discard(person(), first!.candidate_id);
+  const [first] = await memory.candidates(person(), { scope: "project" });
+  await memory.discard(person(), first!.candidate_id);
   await assert.rejects(memory.propose(assistant("project-a", { work_id: "work-3", title: "第三项" }), { scope: "project", text: "约定一", kind: "convention", basis: "inferred", why: "两次", from: "work" }), /已经建议过了/);
-  const accepted = await memory.accept(person(), memory.candidates(person(), { scope: "project" })[0]!.candidate_id, { text: "约定二（改写）" });
+  const accepted = await memory.accept(person(), (await memory.candidates(person(), { scope: "project" }))[0]!.candidate_id, { text: "约定二（改写）" });
   assert.equal(accepted.memory!.source, "accepted");
   assert.match(accepted.memory!.origin, /^你认可的建议 · 工作「季度复盘」/);
   now.value = new Date("2026-10-20T08:00:00.000Z");
-  assert.equal(memory.candidates(person(), { scope: "project" }).length, 0, "expired after 14 days");
+  assert.equal((await memory.candidates(person(), { scope: "project" })).length, 0, "expired after 14 days");
   // Learning from work switched off: no suggestions from work.
   memory.savePrefs(person(), "project", { learn_from_work: false });
   await assert.rejects(memory.propose(assistant(), { scope: "project", text: "约定五", kind: "convention", basis: "inferred", why: "两次", from: "work" }), /没有允许/);
@@ -228,7 +231,7 @@ test("interface signals are counted once per event; single events never form a m
   const four = await report("event-0004", "ctx-2");
   assert.ok(four.count >= SIGNAL_THRESHOLD.count && four.distinct >= SIGNAL_THRESHOLD.distinct);
   assert.ok(four.candidate_id);
-  const [candidate] = memory.candidates(person(), { scope: "personal" });
+  const [candidate] = await memory.candidates(person(), { scope: "personal" });
   assert.equal(candidate!.basis, "inferred");
   assert.equal(candidate!.from, "signal");
   assert.equal((await memory.list(person())).items.length, 0, "nothing is written from signals");
@@ -254,7 +257,7 @@ test("the first version's switches, switched-off list and candidates move over o
   assert.equal((await memory.recall(assistant(), { query: "总结" })).items.length, 0, "still not used");
   assert.deepEqual(memory.assistantPrefs("web-user"), { form: true, use_personal: true, use_project: false, learn_personal: false, learn_project: true });
   assert.equal(memory.prefs(person(), "project").prefs.consumers.assistant, false, "a project without its own switches follows the migrated default");
-  assert.deepEqual(memory.candidates(person(), { scope: "project" }).map(item => [item.candidate_id, item.text, item.applies.task, item.work?.title]), [["candidate-old-1", "旧建议", "写周报时", "旧工作"]]);
+  assert.deepEqual((await memory.candidates(person(), { scope: "project" })).map(item => [item.text, item.applies.task, item.work?.title]), [["旧建议", "写周报时", "旧工作"]], "moved into Prologue's candidate box with a new id");
   // Repeating it changes nothing.
   assert.deepEqual(memory.migrateLegacy("web-user", { prefs: { form: false }, disabled: [], candidates: [] }), { migrated: false, prefs: false, disabled: 0, candidates: 0 });
   assert.equal(memory.assistantPrefs("web-user").form, true);

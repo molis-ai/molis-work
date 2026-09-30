@@ -95,6 +95,7 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       db.prepare("INSERT INTO memory_candidates(candidate_id,actor_id,state,body) VALUES (?,?,?,?) ON CONFLICT(candidate_id) DO UPDATE SET state=excluded.state, body=excluded.body")
         .run(record.candidate_id, record.actor_id, record.state, JSON.stringify(record));
     },
+    dropCandidate: candidateId => { db.prepare("DELETE FROM memory_candidates WHERE candidate_id=?").run(candidateId); },
     changes: (actorId, limit) => db.prepare("SELECT body FROM memory_changes WHERE actor_id=? ORDER BY at DESC, rowid DESC LIMIT ?").all(actorId, limit)
       .map(row => JSON.parse(String(row.body)) as MemoryChangeRecord),
     change: changeId => parse<MemoryChangeRecord>(db.prepare("SELECT body FROM memory_changes WHERE change_id=?").get(changeId)),

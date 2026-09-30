@@ -7,12 +7,12 @@
 - **S3 条目结构化信息与暂停**：`MemoryEntry.meta`（类别、来源、依据、适用情境、证据、到期、批准者、命名空间；有界，整份 JSON ≤ 4096 字符，不认识的字段或超界整条拒写，错误码 `MEMORY_META_INVALID`）、`paused`、`createdAtMs` / `updatedAtMs`；`setMeta` / `pause` / `resume`。落盘行形状升到 2，第 1 版的行读回按空值补。
 - **S2 召回**：`recall({ text })` 由这一册切词（英文按词、中日韩按相邻两字），`kinds` 过滤，按 `atMs` 判到期，暂停与到期的不召回；回执 `segmentation` 写明切法。开跑输入 `memory.pinned`（App 选好的精确引用）/ `memory.scopes`（按格子召回）/ `memory.budgetChars`；点名而档案不读记忆即 `AGENT_START_WIDENS_ACCESS`。
 - **S5 使用回执**：点名的条目开跑时逐条重读（删了、暂停、到期的不注入），注入的 `memory-recall` 条目出处末尾带 `[memory:<id>@v<版本>]`；Run 事件 `memory-recalled` 只报引用与版本（injected / omitted / unavailable），不带正文。
-- **S4 持久候选箱**：`runtime.memoryCandidates`（`createCandidateBox`，另一张表 `memory-candidates`），分作用域、同句去重、候选不召回；`accept`（批准者：人）与 `promote({ policy, version })`（批准者：策略）都经唯一写入口并把批准者写在条目上。
+- **S4 持久候选箱**：`runtime.memoryCandidates`（`createCandidateBox`，另一张表 `memory-candidates`），分作用域、同句去重、候选不召回；`accept`（批准者：人）与 `promote({ policy, version })`（批准者：策略）都经唯一写入口并把批准者写在条目上，可带 App 进库时的出处与信息；`settleInto` 让纠正型候选并入它纠正的那一条（App 已经经 `update` 改了正文）。
 - 时钟一律走 Host 的时钟 Port（域代码不直取 `Date.now`）。
-- 源码：`~/code/prologue-assistant` 仓库的工作树 `~/code/prologue-memory`，分支 `feat/molis-memory-platform`，提交 `f80130ab`（父 `c63ea1a1`）。增量补丁 [memory-platform.patch](memory-platform.patch)（相对 `c63ea1a1`）。**尚未推送到上游**（推送要用户同意）。
+- 源码：`~/code/prologue-assistant` 仓库的工作树 `~/code/prologue-memory`，分支 `feat/molis-memory-platform`，提交 `f80130ab`、`9773d59a`（父 `c63ea1a1`）。增量补丁 [memory-platform.patch](memory-platform.patch)（相对 `c63ea1a1`）。**尚未推送到上游**（推送要用户同意）。
 - 重建：检出 `c63ea1a1` 应用 `memory-platform.patch`（或直接检出 `f80130ab`），`pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-memory-platform.tgz`。
-- 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`468964fd2166044fdd097b15108e2e6c922740f245e0acc003d20f0f42905283`。
-- 验证：新增 `test/memory-platform.live.test.ts` 6 项，连同记忆、开始覆盖、源码树规则 7 个文件 85 项全过，类型检查无错。SDK 全量 279 个文件在并发负载下有 29 项失败，逐项与 `c63ea1a1` 基线比对：多出的 4 项里“领域不直取系统时钟”已改正，其余 3 项（忽略规则、Computer Use 上传、一次性密钥许可）单独重跑通过；强杀恢复与真实浏览器一类在基线上同样失败。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`20659c3dc9f9b6b3d6061c79a5bda4e5a92013990779c51a5f26c419a7245f9c`。
+- 验证：新增 `test/memory-platform.live.test.ts` 7 项，连同记忆、开始覆盖、源码树规则 7 个文件 85 项全过，类型检查无错。SDK 全量 279 个文件在并发负载下有 29 项失败，逐项与 `c63ea1a1` 基线比对：多出的 4 项里“领域不直取系统时钟”已改正，其余 3 项（忽略规则、Computer Use 上传、一次性密钥许可）单独重跑通过；强杀恢复与真实浏览器一类在基线上同样失败。
 - 与侧栏线：它也会从 `c63ea1a1` 打补丁，两条补丁按顺序叠加，后落地的一方负责叠成一个合成包。`assistant-intake.tgz` 已不被依赖，按本目录约定应删除，删 vendor 文件由用户决定。
 
 ## 上一依赖：assistant-intake（2026-09-29，main 的原图摄取线 + 助理的记忆项目作用域）

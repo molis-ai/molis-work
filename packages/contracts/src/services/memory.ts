@@ -554,8 +554,10 @@ export interface MemoryLedgerPort {
   forget(memoryId: string): void;
   revisions(memoryId: string): MemoryRevision[];
   addRevision(memoryId: string, revision: MemoryRevision): void;
+  /** The Host's notes about candidates (why, from which work, why held back); the candidates themselves are Prologue's. */
   candidates(actorId: string): MemoryCandidateRecord[];
   saveCandidate(record: MemoryCandidateRecord): void;
+  dropCandidate(candidateId: string): void;
   changes(actorId: string, limit: number): MemoryChangeRecord[];
   change(changeId: string): MemoryChangeRecord | null;
   saveChange(record: MemoryChangeRecord): void;

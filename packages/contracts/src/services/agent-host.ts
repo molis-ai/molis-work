@@ -1255,8 +1255,13 @@ export interface AgentMemoryCapability {
 export interface AgentMemoryCandidateCapability {
   propose(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta }): Promise<AgentMemoryCandidateEntry>;
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryCandidateEntry[]>;
-  accept(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string; text?: string }): Promise<AgentMemoryEntry>;
-  promote(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string; policy: string; version: number }): Promise<AgentMemoryEntry>;
+  /** The person accepts: the entry records them as its approver. `origin` / `meta`: what the App writes on the entry now. */
+  accept(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string; text?: string; origin?: string; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
+  /** A Host policy promotes: the entry records the policy and its version as its approver. */
+  promote(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string; policy: string; version: number; origin?: string; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
+  /** The candidate corrected an existing entry, whose text the Host already updated: settle it into that entry. */
+  settleInto(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string; memory_id: string;
+    by: { by: "person" } | { by: "policy"; policy: string; version: number } }): Promise<AgentMemoryEntry>;
   discard(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string }): Promise<AgentMemoryCandidateEntry>;
   expire(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string }): Promise<AgentMemoryCandidateEntry>;
   purge(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string }): Promise<void>;

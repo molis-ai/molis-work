@@ -63,6 +63,13 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
     const page = browsers.page("p1");
     page.attach(listener, { width: 800, height: 600, dpr: 1 });
     await until(() => state?.status, status => status === "ready", "the page to start");
+
+    // Before any site: Prologue's blank browser page, which the Assistant can look at and open a site from.
+    const blank = createBrowserSurfaceDriver(page, () => false);
+    assert.equal(await blank.scope(), "about:blank");
+    assert.match(new TextDecoder().decode(await blank.observe("accessibility-tree")), /空白页[\s\S]*navigate/u);
+    await blank.close();
+
     await page.navigate(`${site.origin}/`);
     await until(() => state, value => !!value && value.title === "侧栏测试页" && !value.loading, "the test page");
     assert.equal(state!.origin, site.origin);

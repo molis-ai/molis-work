@@ -355,8 +355,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           const label = effect.proposal.summary.replace(/^On this \w+: /u, "").replace(/\.$/u, "");
           const typed = subject.action === "text" && effect.proposal.reviewRef ? await readResourceText(effect.proposal.reviewRef).catch(() => undefined) : undefined;
           const detail = surfaceHost ? await surfaceHost.describe(pending.origin?.session ?? "", subject.action, label, typed) : label;
-          return { kind: "tool-operation", tool: "surface-act", summary: `在 ${subject.scope} ${verbs[subject.action] ?? subject.action}`,
-            fields: [{ label: "网站", value: subject.scope }, { label: "动作", value: verbs[subject.action] ?? subject.action }, { label: "详情", value: detail },
+          const where = subject.scope === "about:blank" ? "空白页" : subject.scope;
+          return { kind: "tool-operation", tool: "surface-act", summary: `在 ${where} ${verbs[subject.action] ?? subject.action}`,
+            fields: [{ label: "网站", value: where }, { label: "动作", value: verbs[subject.action] ?? subject.action }, { label: "详情", value: detail },
               ...(subject.action === "upload" ? [{ label: "注意", value: "上传会把这个文件发送给该网站，确认前请核对文件" }] : [])] };
         }
         // Stopping a background command has no review resource of its own: the card names the command it stops.

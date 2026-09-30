@@ -22,7 +22,7 @@ export interface HostSurfaceDriver {
   readonly project_id: string;
   /** Opaque, exact: the current page (full address and page identity). Never shown or stored by the caller. */
   identity(): Promise<string>;
-  /** scheme://host[:port] of the current page, what site rules match. */
+  /** scheme://host[:port] of the current page, what site rules match; `about:blank` while it has not opened a site. */
   scope(): Promise<string>;
   observe(kind: HostSurfaceObservationKind): Promise<Uint8Array>;
   /** Performs one action. Refuses while the person has taken the page over. */

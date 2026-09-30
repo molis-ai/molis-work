@@ -227,8 +227,9 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(reviewing===row.request.review_id)return;
     reviewing=row.request.review_id;
     const doc=row.request.document||{},fields=doc.fields||[],site=(fields.find(field=>field.label==='网站')||{}).value||state?.origin||'';
-    const upload=/上传/.test(doc.summary||'');
-    approval.innerHTML='<h2>'+esc(L('助理请你确认'))+'</h2><p>'+esc(doc.summary||L('助理想在这个页面上操作'))+'</p><dl>'+fields.filter(field=>field.label!=='网站').map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('')+'</dl><div class="side-browser-actions-row">'+button('approve-once',L('允许这一次'),'primary')+(upload?'':button('approve-site',L('这个网站以后不用问'),'secondary'))+button('reject',L('不允许'),'ghost')+'</div>';
+    // Uploads always ask; a blank page is no site to remember.
+    const upload=/上传/.test(doc.summary||''),remember=!upload&&/^https?:\/\//.test(site);
+    approval.innerHTML='<h2>'+esc(L('助理请你确认'))+'</h2><p>'+esc(doc.summary||L('助理想在这个页面上操作'))+'</p><dl>'+fields.filter(field=>field.label!=='网站').map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('')+'</dl><div class="side-browser-actions-row">'+button('approve-once',L('允许这一次'),'primary')+(remember?button('approve-site',L('这个网站以后不用问'),'secondary'):'')+button('reject',L('不允许'),'ghost')+'</div>';
     approval.dataset.site=site;approval.hidden=false;
     if(!visible())document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser'}}));
     say(L('助理请你确认：{what}',{what:doc.summary||''}),true);

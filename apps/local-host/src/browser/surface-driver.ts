@@ -10,6 +10,8 @@ import { browserAddress, BrowserError, type BrowserPage } from "./browser-host.j
  */
 const ELEMENT_LIMIT = 300;
 const TEXT_BUDGET = 6_000;
+/** The scope a page that has not opened a site reports (Prologue's blank browser page). */
+const BLANK_SCOPE = "about:blank";
 const IDLE_RELEASE_MS = 60_000;
 
 /** Runs in the page: what can be acted on in the viewport, with centres to click, and the visible text around it. */
@@ -110,7 +112,7 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
     const value = await page.evaluate(`(() => { const el = document.elementFromPoint(${Math.round(x)}, ${Math.round(y)}); if (!el) return ''; const t = el.closest('a,button,input,select,textarea,label,[role]') || el; return String(t.getAttribute('aria-label') || t.innerText || t.getAttribute('placeholder') || t.getAttribute('title') || t.value || '').replace(/\\s+/g, ' ').trim().slice(0, 40); })()`).catch(() => "");
     return typeof value === "string" ? value : "";
   };
-  const origin = () => page.snapshot().origin || "这个页面";
+  const origin = () => page.snapshot().origin || "空白页";
   return {
     kind: "browser",
     project_id: page.projectId,
@@ -119,9 +121,9 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
       return `${session.targetId}\u0000${page.snapshot().url}`;
     },
     async scope() {
-      const state = page.snapshot();
-      if (!state.origin) throw new BrowserError("page.load_failed", "页面还没有打开任何网站");
-      return state.origin;
+      // A page that has not opened a site yet is Prologue's blank browser page: it can be looked at, and every step
+      // from it asks, since no site rule matches it.
+      return page.snapshot().origin || BLANK_SCOPE;
     },
     async observe(kind: HostSurfaceObservationKind) {
       await page.ensure();
@@ -130,6 +132,9 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
       if (blocked(page.snapshot().origin)) throw new BrowserError("page.load_failed", "用户禁止助理查看或操作这个网站。");
       // Looking is the Assistant using the page too: the panel shows it (and opens itself) before any action.
       if (page.controlMode !== "taken-over") mark(null, `正在查看 ${origin()}`, null);
+      if (!page.snapshot().origin && kind !== "screenshot") {
+        return new TextEncoder().encode("侧栏浏览器现在是空白页，还没有打开任何网站。\n要打开网站：用 surface-act 的 navigate，带上这次观察，填完整网址（https://…）；用户确认后才会打开。");
+      }
       if (kind === "screenshot") {
         const session = await page.session();
         await session.send("Runtime.evaluate", { expression: MASK_ON });

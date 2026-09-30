@@ -1603,7 +1603,7 @@ packages:
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
   '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-side-panel-surfaces.tgz':
-    resolution: {integrity: sha512-XiQ+Hw1nqFZn15dnPHtbbBWqkMzuWsCfqzFAV6wc/YnhRbjUyO+WDoEY6/PLQCemxlNtfWgKLjoqOyQcNC2uog==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-side-panel-surfaces.tgz}
+    resolution: {integrity: sha512-mNe37Si3H2EPxlWP+9F6rAPBm41DhZf6lYUMiEVCzEUv8mixFU5OKP8YavHePggPwxdmotLBKHAQsRVcucueUA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-side-panel-surfaces.tgz}
     version: 0.0.0-rc.1
 
   '@rolldown/binding-android-arm-eabi@1.2.9':

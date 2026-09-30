@@ -263,7 +263,7 @@ export interface AssistantRound {
   /** Which memories this round was given, and which the budget left out (the memory service's own account). */
   memories_used?: {
     used: Array<{ memory_id: string; scope: "personal" | "project"; text: string; origin?: string }>;
-    omitted: Array<{ memory_id: string; scope: "personal" | "project"; text: string; reason: "budget" }>;
+    omitted: Array<{ memory_id: string; scope: "personal" | "project"; text: string; reason: "budget" | "limit"; origin?: string }>;
   };
   usage?: AgentRunUsage;
   stop_reason?: string;
@@ -382,7 +382,7 @@ export interface AssistantWorkView {
   memory_candidates?: AssistantMemoryCandidate[];
   /** What this work kept in memory (asked for, kept on its own, or replacing an older one), from the memory service. */
   memory_changes?: Array<{ change_id: string; kind: "kept" | "auto_kept" | "replaced"; memory_id: string; scope: "personal" | "project"; text: string;
-    undoable: boolean; state: "active" | "undone"; at: string }>;
+    undoable: boolean; state: "active" | "undone"; at: string; project_id?: string }>;
   /** Background work this work started in plugins, and how each stands. */
   jobs?: AssistantBackgroundJob[];
   /**

@@ -163,8 +163,21 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (detail.action === "takeover") { browserHeld.add(holder.work_id); paintSummary(); return; }
     if (detail.action !== "handback") return;
     browserHeld.delete(holder.work_id); paintSummary();
-    api("/send", "POST", { work_id: holder.work_id, request_id: crypto.randomUUID(), text: L("我把浏览器交还给你了，先重新观察页面再继续") })
-      .then(() => refresh()).then(schedule).catch((error) => host.showToast?.(error.message));
+    void (async () => {
+      // The note goes to a running round as a steer, or starts the next one. A round waiting on an answer would take it
+      // as that answer, and one waiting on a check refuses it: then the panel only says the browser is back.
+      let latest = null;
+      try {
+        const seen = view && view.work.work_id === holder.work_id ? view : await api("/works/" + encodeURIComponent(holder.work_id));
+        latest = seen.rounds[seen.rounds.length - 1] || null;
+      } catch { host.showToast?.(L("浏览器已交还；告诉助理接着做时，它会重新观察页面")); return; }
+      if (latest && (latest.phase === "awaiting-input" || (latest.awaiting_input && latest.awaiting_input.length))) { host.showToast?.(L("浏览器已交还；助理还在等你回答上面的问题")); return; }
+      if (holder.state === "needs-check" || (latest && latest.phase === "reconcile-required")) { host.showToast?.(L("浏览器已交还；先核对上一步的结果，助理再接着做")); return; }
+      try {
+        await api("/send", "POST", { work_id: holder.work_id, request_id: crypto.randomUUID(), text: L("我把浏览器交还给你了，先重新观察页面再继续") });
+        await refresh(); schedule();
+      } catch (error) { host.showToast?.(error.message); }
+    })();
   });
   // A surface says the person changed something there that this work may show: read the work again.
   window.addEventListener("molis:assistant-surface-changed", (event) => {
@@ -895,11 +908,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const signature = JSON.stringify([used.map((m) => m.memory_id), omitted.map((m) => m.memory_id)]);
       if (box.dataset.signature !== signature) {
         box.dataset.signature = signature;
-        box.firstElementChild.textContent = L("用到 {n} 条记忆").replace("{n}", String(used.length)) + (omitted.length ? " · " + L("因为篇幅没带上 {n} 条").replace("{n}", String(omitted.length)) : "");
+        box.firstElementChild.textContent = L("用到 {n} 条记忆").replace("{n}", String(used.length)) + (omitted.length ? " · " + L("没带上 {n} 条").replace("{n}", String(omitted.length)) : "");
         [...box.children].slice(1).forEach((child) => child.remove());
         const line = (memory) => { const row = el("p", "assistant-activity assistant-memory"); row.append(el("span", "assistant-memory-scope", L(memory.scope === "personal" ? "个人" : "本项目")), document.createTextNode(memory.text)); if (memory.origin) row.title = memory.origin; return row; };
         used.forEach((memory) => box.append(line(memory)));
-        if (omitted.length) { box.append(el("p", "assistant-memory-omitted", L("因为篇幅没带上"))); omitted.forEach((memory) => box.append(line(memory))); }
+        // Left out for length (the budget) or for count (the limit): the memory service says which.
+        if (omitted.length) { box.append(el("p", "assistant-memory-omitted", L(omitted.every((memory) => memory.reason === "budget") ? "因为篇幅没带上" : "因为篇幅或条数上限没带上"))); omitted.forEach((memory) => box.append(line(memory))); }
       }
       put(box);
     }
@@ -1297,7 +1311,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const SETTLED = { pending: "还在等它的结果，不会重新提交", completed: "停止后已完成", failed: "停止后失败", "not-run": "停止时还没开始，没有执行" };
       const stopped = unsettled.map((change) => card({ icon: change.state === "pending" ? spinner() : "clock", title: change.title, sub: L(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "") }));
       /* Memory the work kept (asked for, or kept on its own): the memory service owns it; this is where it can be taken back. */
-      const KEPT = { kept: "", auto_kept: "自动记住", replaced: "替换了旧的一条" };
+      // The memory service names more kinds than these; one this panel does not know reads as plainly kept.
+      const KEPT = { kept: "", auto_kept: "自动记住", replaced: "替换了旧的一条", auto_replaced: "自动替换了旧的一条", merged: "和旧的一条合并", edited: "改过" };
       const remembered = kept.map((change) => {
         const undone = change.state === "undone";
         const actions = [];
@@ -1309,7 +1324,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if (!undone) actions.push(sideAction(L("去设置查看"), change.text, async () => {
           // The settings surface opens its memory section when it hears this; with nobody listening, go there.
           const handled = !window.dispatchEvent(new CustomEvent("molis-work:open-settings-section", { detail: { section: "memory" }, cancelable: true }));
-          if (!handled) location.assign("/settings/assistant");
+          const scoped = change.scope === "project" ? change.project_id || (project && project.id) : "";
+          if (!handled) location.assign(scoped ? "/projects/" + encodeURIComponent(scoped) + "/settings/memory" : "/settings/memory");
         }, true));
         // Undoing deletes the memory, its words with it: an undone card says so rather than showing what is gone.
         return card({ icon: "sparkles", tone: undone ? "" : "suggest", title: undone ? L("已撤销（已从记忆里删掉）") : change.text, done: undone,

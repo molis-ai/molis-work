@@ -1,0 +1,146 @@
+{
+  "recorded_at": "2026-09-30",
+  "model": "jev (via Prologue evaluateTypeSafe)",
+  "results": [
+    {
+      "id": "plan-breakdown",
+      "control": false,
+      "memory": "计划类的文字，我习惯直接拆成 Goal 下的步骤来跟踪，不需要行动项清单",
+      "favours": "breakdown",
+      "without": {
+        "primary": [
+          "breakdown",
+          "actions",
+          "concise"
+        ],
+        "rank": 1,
+        "p": 0.59
+      },
+      "with": {
+        "primary": [
+          "breakdown",
+          "actions",
+          "concise"
+        ],
+        "rank": 1,
+        "p": 0.99
+      },
+      "latency_ms": [
+        1151,
+        528
+      ]
+    },
+    {
+      "id": "claim-counter",
+      "control": false,
+      "memory": "看到观点类的判断，先帮我找反例和反驳，再谈怎么改写",
+      "favours": "counter",
+      "without": {
+        "primary": [
+          "counter",
+          "reader",
+          "expand"
+        ],
+        "rank": 1,
+        "p": 0.5
+      },
+      "with": {
+        "primary": [
+          "counter",
+          "concise",
+          "explain"
+        ],
+        "rank": 1,
+        "p": 1
+      },
+      "latency_ms": [
+        698,
+        519
+      ]
+    },
+    {
+      "id": "term-find",
+      "control": false,
+      "memory": "项目里的术语先查它在项目资料里怎么用，不要泛泛解释",
+      "favours": "find",
+      "without": {
+        "primary": [
+          "explain",
+          "find",
+          "translate"
+        ],
+        "rank": 2,
+        "p": 0.03
+      },
+      "with": {
+        "primary": [
+          "find",
+          "explain",
+          "translate"
+        ],
+        "rank": 1,
+        "p": 0.91
+      },
+      "latency_ms": [
+        630,
+        889
+      ]
+    },
+    {
+      "id": "weekly-capture",
+      "control": false,
+      "memory": "周报里的数据变化先记到灵光，周五统一整理成分析",
+      "favours": "capture",
+      "without": {
+        "primary": [
+          "bullets",
+          "explain",
+          "expand"
+        ],
+        "rank": 7,
+        "p": 0.03
+      },
+      "with": {
+        "primary": [
+          "capture",
+          "concise",
+          "explain"
+        ],
+        "rank": 1,
+        "p": 1
+      },
+      "latency_ms": [
+        1104,
+        557
+      ]
+    },
+    {
+      "id": "control-unrelated",
+      "control": true,
+      "memory": "界面用深色主题，字号大一点",
+      "favours": "breakdown",
+      "without": {
+        "primary": [
+          "breakdown",
+          "actions",
+          "concise"
+        ],
+        "rank": 1,
+        "p": 0.52
+      },
+      "with": {
+        "primary": [
+          "actions",
+          "breakdown",
+          "concise"
+        ],
+        "rank": 2,
+        "p": 0.49
+      },
+      "latency_ms": [
+        588,
+        585
+      ]
+    }
+  ]
+}

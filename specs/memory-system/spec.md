@@ -400,3 +400,38 @@ SDK 改动沿用现有做法：在 prologue 工作树提交，打成 vendored tg
 ## 17. 进度与证据
 
 按分期记录已做内容、工程验证、真实场景验证和用户验收，三者分开写；未实现、模拟或未验证的部分如实写明。
+
+### 17.1 M1 平台化与迁移（2026-09-30，提交 bce9f5f3、11c2b5c3、28b85d03）
+
+**已做**
+- 合同 `packages/contracts/src/services/memory.ts`：`memory.recall` / `list` / `write` / `change` / `history` / `candidates.*` / `changes.*` / `prefs.*` / `signals.report`（另定义了 `scope.preview/clear`、`export`、`import`，M4 注册）；旁表端口 `MemoryLedgerPort`。
+- 服务 `horizontal/memory`（`MemoryService`）：开关与使用方权限、写入门、召回编排、候选（同句只提一次、每项工作最多 3 条、14 天过期）、最近变动与撤销、版本历史、界面信号计数与门槛、第一版迁移。
+- 旁表 `packages/storage` 的 `openMemoryLedger`（`<Home>/memory/memory.db`，卸载 `--purge` 覆盖）。
+- Host 装配 `apps/local-host/src/memory/memory-host.ts`：随 Agent 服务注册 `system.memory` 提供方、`/api/memory/*`（页面经动作目录以本人身份调用）、启动时从 `<Home>/assistant/assistant.db` 一次性迁移。
+- 助理：记忆方法全部转调平台服务；`/api/assistant/memories|memory-prefs|memory-candidates` 保留路径、内部转发；`remember` 经写入门（加 `kind`、`replaces`，网关包 2.4.0）。
+- 设置页 `apps/workbench/src/settings-memory.ts`：全局“个人 → 记忆”、项目设置“项目记忆”（最近变动可撤销、等你认可、逐条修改/停用/历史与回到某版/改范围/删除、怎么形成、谁可以用）；项目记忆可“升级为项目说明”（打开项目说明原有确认编辑器并预填）。挂载先按旧导航结构加了最少几行，页面动线合入后按 §16 约定挪到它的分类表。
+- 工作视图 `memory_changes`、每轮 `memories_used`（面板会话已按字段渲染，提交 5825fa00…22513b2c，在它的分支上）。
+
+**工程验证**
+- `tests/memory-service.test.ts`（真实 Prologue Memory）：写入门（明确要求、秘密拒绝、像指令只进候选、重复、替换与历史、推断不能覆盖明确要求、个人工作不能写项目）；自动写入决定表与撤销后存储和旁表都没有；召回的范围隔离、类别与适用、停用与到期、使用方开关、插件类别、MCP 不读个人、预算裁剪与使用回执；删除后存储、旁表、最近变动、使用记录、重启后都不再带出；改范围不带项目出处；候选规则；界面信号门槛；第一版迁移只做一次。
+- `tests/memory-actions.test.ts`：13 个动作经共同目录注册，Agent 只看得到 list/recall/write，管理动作只有本人；从助理库迁移开关与候选。
+- `tests/assistant-memory.test.ts` 原 4 项迁到新形态后全过；默认值按 §10.1 改为“从工作里提出建议：开”（测试先显式关掉再验“关着不提供”）。
+- 设计门禁 `soft-workbench-refinement`、设置类测试通过；`plugin-global-settings` 的 Shelf 一项在基线（2e837e8f）上同样失败，与本线无关。
+
+**真实浏览器（隔离 Home，launch `memory-dev` 4296）**：个人页添加、筛选、界面信号生成的候选显示；项目页正常；1440 与 390 深色走查过一轮，修了筛选下拉被撑满、标题字号不一致、首次读取前开关显示为关。四宽度完整验收放在页面齐全后（AC-M15）。
+
+**未做 / 待定**：助理设置“记忆与偏好”改为摘要＋跳转（等页面动线合入）；工作台设置覆盖层里的绑定（`bindEmbed`，等页面动线合入）。
+
+### 17.2 M2 结构与召回统一（进行中，提交 8816bc84）
+
+**已做**
+- SDK（`~/code/prologue-memory` 分支 `feat/molis-memory-platform`，提交 `f80130ab`，未推送）：S3 条目 meta/暂停/时间；S2 中文两字召回、`kinds`、按时刻判到期、开跑 `memory.pinned/scopes/budgetChars`；S5 `memory-recalled` 事件（只有引用与版本）；S4 持久候选箱（`accept` 人 / `promote` 策略+版本）。vendored `prologue-sdk-0.0.0-rc.1-memory-platform.tgz`。
+- 平台服务把类别、来源、依据、适用、到期、批准者写在 Prologue 条目上，停用＝条目暂停；M1 旁表与第一版条目首次读取时迁入，旁表不再存这些事实（只存历史正文、变动、开关、信号、使用、迁移标记）。
+- Agent 运行统一注入：`AgentStartAuthority.memory(task)` 由 Host 按使用方开关召回 → 冻进角色 → 适配器解析成精确引用、给本轮角色开“只读记忆”上限 → 运行时重读并以 `memory-recall` 数据档注入。助理（使用方“助理”）与 Coding/插件 Agent（使用方“Agent 工作”）都走这一条；助理不再自拼材料。每轮 `memories_used` 取自运行时事件，并据此校正使用回执。
+
+**工程验证**
+- SDK `test/memory-platform.live.test.ts` 6 项与记忆、开始覆盖、源码规则共 85 项通过；SDK 全量与 `c63ea1a1` 基线比对，见 vendor README。
+- `tests/memory-agent-runs.test.ts`：Host 选的记忆原样冻进角色、召回失败不拦运行；同一条记忆对助理与 Agent 工作都召回，关掉“Agent 工作”后 Agent 运行拿不到、助理照常；停用后都拿不到。
+- `tests/memory-service.test.ts` 新增“事实在条目上、停用即暂停、旁表时期的事实迁入”；assistant-*/prologue-*/agent-host* 230 项 0 失败。
+
+**未做**：定时任务（Schedule）的 Agent 运行还没接记忆；Coding 真实运行里的召回尚未用 MiniMax 实测；召回排序仍在 Host（策略权重、适用、使用方），SDK 负责存储过滤与注入回执。

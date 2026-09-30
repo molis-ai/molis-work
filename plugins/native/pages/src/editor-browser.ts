@@ -3332,9 +3332,13 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
         releasePagesFrozen(view, token);
         view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, at.from)));
         insertActions(view, area.value);
-      } else if (!applyToPagesFrozen(view, token, area.value, mode).ok) {
-        refuse();
-        return;
+      } else {
+        const applied = applyToPagesFrozen(view, token, area.value, mode);
+        if (!applied.ok) { refuse(); return; }
+        // The caret goes to the end of what was written, with nothing selected: the format bar does not come back
+        // where the popup was, so a second click (a double click, say) cannot land on it.
+        const end = Math.min(applied.to, view.state.doc.content.size);
+        view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(end), -1)));
       }
       hidePop();
     }, dismiss, okLabel));

@@ -447,6 +447,26 @@ Pages 用一个 ProseMirror 插件的 view update 维护它；其他插件第一
 - 助手参与（`surface`）：Pages 单段场景下 Jev 没有让助理参与，与 §5.4 一致；“助理：…”入口只在代码与单测层面验证。
 - 用户试用与体验认可：待进行。
 
+### 13.3 P2 补齐插件（进行中，分支 `feature/contextual-interaction-p2`，基于 P1 0fa8129f，已合 main 110ef251）
+
+**已完成**
+- 通用选区情境（§10 P2 ②）：工作台脚本读取任何声明了 `data-assistant-context` 对象的界面里的普通 DOM 选区（词、段、多段；角色按所在元素；标题路径按页面里的标题），编辑器（`contenteditable`、`data-surface-focus="own"`）与表单字段除外，不需要插件写代码。真实工作台里 Cognia 材料正文选中后出现“记下灵光”。
+- 平台级片段动作：合同加 `FRAGMENT_ANY_OBJECT`（适用于任何对象，允许 home 范围），准备结果可带写入前说明、可改字段、缺项；片段可带对象所属的 Goal；选项可声明 `requires: ["goal"]`。
+  - 搜索 `search.fragment.offers`：“在项目里查找”（选中一个词），结果在工作台自己的搜索面板里打开（S7“查找出现处”）。
+  - 灵光 `lingguang.fragment.offers`：“记下灵光”，写入 `lingguang.create`，同一请求号只存一次，正文注明出处。
+  - Goals `goals.fragment.offers`：“拆成目标步骤”（S2）按分句或所选各段准备 `goals.tree.submit` 的完整提案（新步骤 + 挂到所属 Goal 的 `part_of`，附 narrative 与逐项说明；审批前不建目标）；“记录进展”（S5）只在勾选的任务所在内容挂了 Goal 时出现，按该 Goal 当前游标准备 `goals.progress.record`。
+- 写入类（`record`）与没有页面接下的动作：点击后准备参数，经 `POST /api/assistant/cards` 放进助理工作并打开面板（卡片上是精确能力、完整参数、可改字段、来源对象与所选文字）；接口不在时退回带 `card` 的页面消息。面板的 `molis:assistant-open` 对刚建的工作先刷新列表再切换（与助理会话已同步）。
+- 动作条：情境过期时若鼠标或焦点在条上，先保留到离开；Pages“刚完成一步”从 6 秒延长到 10 秒（走查发现：6 秒内还没移到条上就消失）。
+
+**验证**
+- 单测 20 项；`tests/contextual-fragment-offers.test.ts` 用真实 Goals 与灵光动作：提案 4 项、同一请求重放、审批前没有新目标、进展落到正确 Goal、灵光只存一条；goals-tree、goals-actions、动作清单、灵光、搜索等 188 项相关测试通过。
+- 真实工作台（真实 Jev）：Pages 里选中“激活”→“解释 / 在项目里查找 / 翻译”，点查找打开搜索面板并搜出这篇文档；挂了 Goal 的文档里选中计划 → Jev 排出“拆成行动项 / 拆成目标步骤”，点击后卡片内容为挂在该 Goal 下的两个步骤；勾选任务 →“刚完成：上线新手引导 / 记录进展”，点击后卡片为该 Goal 当前游标上的进展。合 main（110ef251，含 #105）后实测：点“记下灵光”→ `POST /api/assistant/cards` 200，面板打开到新工作“记下灵光”，Host 的工作里有这张卡（来源 Pages「新手引导推进」、`lingguang.create`、标题和正文可改）；按卡片按钮同一接口执行后卡片为 done，搜索里出现这条灵光。**缺口（面板侧，已告知助理会话）**：页面放进来的卡不属于任何一轮对话，面板目前没有把它画出来，“1 个操作等你点 · 去处理”点了也看不到卡。
+
+**未完成**
+- 核心插件的对象声明（Goals、Feed、Inbox、Characters；Artifacts、Sessions、Workflows、Jelly 复核）。
+- 各插件自己的片段动作（Feed/Inbox 转成任务、Dataset/Form 解读等）与多对象情境。
+- 读取缺口（Alchemist 方向、Experiments）交给对应插件线。
+
 ## 14. 待定
 
 - 容器是否原生支持分组：看过切片后与面板线一起定。

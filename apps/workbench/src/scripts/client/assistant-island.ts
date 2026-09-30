@@ -2446,6 +2446,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   document.addEventListener("molis:assistant-open", async (event) => {
     const detail = event.detail && typeof event.detail === "object" ? event.detail : {};
     const named = typeof detail.work_id === "string" && detail.work_id ? detail.work_id : "";
+    // A work made a moment ago (a card a page just placed) is not in the list yet: read the list before choosing.
+    if (named && !works.some((work) => work.work_id === named)) await loadWorks();
     if (named && works.some((work) => work.work_id === named)) await switchTo(named);
     else if (detail.new === true || named) await switchTo(null);
     const source = detail.source && typeof detail.source.surface === "string" && detail.source.surface

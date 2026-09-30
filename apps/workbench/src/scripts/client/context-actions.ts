@@ -16,7 +16,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
   const post = (path, body, signal) => fetch(host.route(path), { method: "POST", headers: host.headers(), body: JSON.stringify(body), signal })
     .then(async (response) => {
       const value = await response.json().catch(() => ({}));
-      if (!response.ok) throw Object.assign(new Error(value.error || L("暂时处理不了，请稍后重试")), { code: value.code });
+      if (!response.ok) throw Object.assign(new Error(value.error || L("暂时处理不了，请稍后重试")), { code: value.code, status: response.status });
       return value;
     });
   const requestId = () => (crypto.randomUUID ? crypto.randomUUID() : "cx-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
@@ -412,17 +412,24 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     if (fallback) openAssistant(fallback);
   };
   // The card carries the exact action and its complete input; the Assistant checks it against what it may use in that
-  // work and runs it only when the person clicks. Before the panel takes cards, the same message is a plain suggestion.
-  const suggestCard = (focus, candidate, offer) => {
+  // work and runs it only when the person clicks. The person's click here places it (POST /api/assistant/cards) and the
+  // panel opens on that work. Where the route is missing, the same card goes as a page message (a plain suggestion).
+  const suggestCard = async (focus, candidate, offer) => {
     const material = { title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) };
     const summary = offer.summary || candidate.hint;
-    window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
-      message_id: requestId(), purpose: "suggest", source: { surface: focus.plugin_id, title: focus.object.title || "" },
-      object: focus.object, text: candidate.title + "：" + summary, materials: [material],
-      card: { title: candidate.title, summary, reference: offer.action, input: offer.input,
-        ...(offer.editable ? { editable: offer.editable } : {}), ...(offer.missing ? { missing: offer.missing } : {}),
-        source_object: focus.object, materials: [material] },
-    } }));
+    const message_id = requestId();
+    const source = { surface: focus.plugin_id, title: focus.object.title || "" };
+    const card = { title: candidate.title, summary, reference: offer.action, input: offer.input,
+      ...(offer.editable ? { editable: offer.editable } : {}), ...(offer.missing ? { missing: offer.missing } : {}),
+      source_object: focus.object, materials: [material] };
+    try {
+      const placed = await post("/api/assistant/cards", { message_id, source, card });
+      openAssistant({ work_id: placed.work_id });
+    } catch (error) {
+      if (!(error && (error.status === 404 || error.status === 405))) throw error;
+      window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
+        message_id, purpose: "suggest", source, object: focus.object, text: candidate.title + "：" + summary, materials: [material], card } }));
+    }
   };
   const askAssistant = () => {
     const focus = bus.focus, plan = bar.plan;

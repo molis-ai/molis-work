@@ -564,6 +564,20 @@ test("a round that only announces its next step is continued once, and the perso
   } finally { await f.close(); }
 });
 
+test("a reply that says a button is ready when none was made is held once; the button then exists (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply(undefined, "按钮准备好了，等你点：\n\n- 内容：喝水"),
+    body => { assert.match(JSON.stringify(body), /no suggest-action call succeeded/); return reply({ name: "suggest-action", input: { title: "记下喝水", summary: "存一条笔记：喝水", capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "喝水" } } }); },
+    () => reply(undefined, "按钮在上面。"),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "给我一个按钮：记下喝水", request_id: "req-00000071" }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(done.cards.length, 1, "the button exists");
+    assert.equal(f.requests.length, 3, "held once, not again after the card was made");
+  } finally { await f.close(); }
+});
+
 test("the gateway takes a capability's fields put beside its identity as the input they meant, and still reviews the exact value", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", text: "flattened" } }),

@@ -46,6 +46,22 @@ export const MEMORY_CLAIM_HELD = {
 } as const;
 
 /**
+ * A reply that says a button is ready when no suggestion was made this round. Seen from MiniMax-M3: asked for a
+ * button, it listed the fields and said “按钮准备好了，等你点” without calling suggest-action — nothing to click.
+ */
+const BUTTON = /按钮|操作卡|卡片|\bbutton\b/i;
+const READY = /准备好|备好|已(?:经)?(?:给|放|生成)|在(?:上面|下面|下方|这里)|等你点|点(?:一下|击)?(?:它|按钮)?(?:就|即可)|\b(?:ready|click|press|tap)\b/i;
+const NOT_MADE = /(?:没有|没|未|无法|不能)(?:准备|给出|生成|做出|放)/;
+export function claimsButton(text: string): boolean {
+  const trimmed = text.trim();
+  return Boolean(trimmed) && trimmed.length <= 2000 && BUTTON.test(trimmed) && READY.test(trimmed) && !NOT_MADE.test(trimmed);
+}
+
+/** What the model reads when it said a button is ready but made none. */
+export const BUTTON_CLAIM_HELD =
+  "You said a button or card is ready, but no suggest-action call succeeded in this round, so the person has nothing new to click. If they asked for a button now, call suggest-action for it; if you meant one offered in an earlier round, say that it is that earlier one; otherwise say plainly that no button was made.";
+
+/**
  * A reply that writes a tool call out as text instead of making it. Seen from MiniMax-M3: asked for buttons, it
  * answered with “[suggest-action] … capability_id: pages.create …” blocks, so the person saw markup and no card.
  * Held once whatever the round's execution: nothing it wrote happened.

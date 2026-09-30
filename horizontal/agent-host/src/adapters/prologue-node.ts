@@ -1,6 +1,6 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { GATEWAY_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
-import { ANNOUNCE_HELD, MEMORY_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsMemoryChange, writesToolCallAsText } from "./announce-guard.js";
+import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, MEMORY_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, writesToolCallAsText } from "./announce-guard.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { createPrologueInference } from "./prologue-inference.js";
@@ -213,6 +213,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   // Rounds that may change things: an ending that only announces the next step is held once per run.
   /** Per session, what the round now running really kept and forgot (only for sessions given memory tools). */
   const memoryRounds = new Map<string, { keep: number; forget: number }>();
+  // Suggestions this round really made, for the same check: a reply may not say a button is ready when none was.
+  const offerRounds = new Map<string, { offered: number }>();
   const stopGuards = new Map<string, { writing: boolean; held: Set<string> }>();
   const actionControllers = new Map<string, AbortController>();
   const runRoots = new Map<string, ExactRef<"authorized-root">>();
@@ -983,12 +985,18 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const memoryDone = { keep: 0, forget: 0 };
       const memory = input.action_gateway?.client.memory;
       if (memory) memoryRounds.set(input.session_id, memoryDone); else memoryRounds.delete(input.session_id);
-      const gatewayForRun = input.action_gateway && memory ? { ...input.action_gateway, client: { ...input.action_gateway.client, memory: {
-        remember: async (value: Parameters<typeof memory.remember>[0]) => { const kept = await memory.remember(value); memoryDone.keep += 1; return kept; },
-        list: () => memory.list(),
-        forget: async (id: string) => { const result = await memory.forget(id); if (result.forgotten) memoryDone.forget += 1; return result; },
-        ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
-      } } } : input.action_gateway;
+      const offer = input.action_gateway?.client.offer;
+      const offersDone = { offered: 0 };
+      if (offer) offerRounds.set(input.session_id, offersDone); else offerRounds.delete(input.session_id);
+      const gatewayForRun = input.action_gateway && (memory || offer) ? { ...input.action_gateway, client: { ...input.action_gateway.client,
+        ...(memory ? { memory: {
+          remember: async (value: Parameters<typeof memory.remember>[0]) => { const kept = await memory.remember(value); memoryDone.keep += 1; return kept; },
+          list: () => memory.list(),
+          forget: async (id: string) => { const result = await memory.forget(id); if (result.forgotten) memoryDone.forget += 1; return result; },
+          ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
+        } } : {}),
+        ...(offer ? { offer: async (proposal: Parameters<typeof offer>[0]) => { const made = await offer(proposal); offersDone.offered += 1; return made; } } : {}),
+      } } : input.action_gateway;
       const actionTools = none ? undefined : gatewayForRun
         ? { ...prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal), scope: "gateway" }
         : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
@@ -1020,6 +1028,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           const claim = memoryRounds.has(sessionId) ? claimsMemoryChange(text) : null;
           if (claim && memoryRounds.get(sessionId)![claim] === 0) { created.held.add(run); return { kind: "deny" as const, why: MEMORY_CLAIM_HELD[claim] }; }
           if (business && writesToolCallAsText(text)) { created.held.add(run); return { kind: "deny" as const, why: WRITTEN_CALL_HELD }; }
+          if (offerRounds.get(sessionId)?.offered === 0 && claimsButton(text)) { created.held.add(run); return { kind: "deny" as const, why: BUTTON_CLAIM_HELD }; }
           if (!created.writing || !announcesWithoutActing(text)) return { kind: "allow" as const };
           created.held.add(run);
           return { kind: "deny" as const, why: ANNOUNCE_HELD };

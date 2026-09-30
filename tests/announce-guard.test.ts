@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { announcesWithoutActing, claimsMemoryChange, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
+import { announcesWithoutActing, claimsButton, claimsMemoryChange, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
 
 test("an ending that only announces the next step is recognised; results, questions and blockers are not", () => {
   // Seen from MiniMax-M3 in real Coding rounds that then ended with nothing done.
@@ -44,3 +44,12 @@ test("a reply that writes a tool call out as text is recognised; talking about c
   assert.equal(writesToolCallAsText("需要先在设置里打开“建议操作”（suggest-action）这项能力。"), false);
 });
 
+test("a reply that says a button is ready is recognised; one that says none was made, or talks of other things, is not", () => {
+  // Seen from MiniMax-M3: the fields listed and “等你点”, with no suggest-action call behind it.
+  for (const text of ["按钮准备好了，等你点：\n\n- 标题：喝水\n- 提醒时间：2026-09-29 21:05", "卡片在上面，点一下就会创建。", "The button is ready — click it to add the todo."]) {
+    assert.equal(claimsButton(text), true, text);
+  }
+  for (const text of ["没有准备按钮：这个能力现在不可用。", "我把报告写进了文档，可以在 Pages 里打开。", "要不要我给你一个按钮？"]) {
+    assert.equal(claimsButton(text), false, text);
+  }
+});

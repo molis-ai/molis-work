@@ -1,6 +1,6 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash } from "node:crypto";
-import { ActionError, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesFolder, PagesRecord, PagesInputSnapshot, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_AI_COMMANDS, runPagesAi, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
@@ -11,6 +11,7 @@ import { pagesTemplateSummaries } from "./templates.js";
 import { convertImportContent } from "./import-content.js";
 import { pagesSchema, nodeFromUnknown } from "./schema.js";
 import { nodesToMarkdown } from "./to-markdown.js";
+import { PAGES_FRAGMENT_CHOICES, preparePagesFragmentOffers } from "./fragment-offers.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, pattern: "\\S" };
@@ -45,9 +46,12 @@ function define<I, O>(name: string, title: string, description: string, operatio
     ...(scheduling ? { scheduling } : {}) } };
 }
 const withAction = <I, O>(definition: ActionDefinition<I, O>, extra: Partial<ActionDefinition["action"]>): ActionDefinition<I, O> => ({ ...definition, action: { ...definition.action, ...extra } });
+const readOnly = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> => withAction(definition, { effect: "read" });
 export const pagesActions = {
   /** One document's current text, version and links, by the shared subject protocol (the Assistant, Home, references). */
   subject: defineSubjectContextAction("pages.subject.read", PAGES_SUBJECT_KIND, "文档", read),
+  /** What can be done with part of a document; preparing reads and writes nothing (specs/contextual-interaction §5.1). */
+  fragmentOffers: defineFragmentOffersAction("pages.fragment.offers", [PAGES_SUBJECT_KIND], "文档片段可以做的事", read, PAGES_FRAGMENT_CHOICES),
   /** System search: every document of the project by version; its text is read back through `subject`. */
   searchEntries: defineSearchEntriesAction("pages.search.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "文档", read),
   /** The side panel's file tab (specs/side-panel): documents by folder; the preview reads the same `subject` text. */
@@ -83,9 +87,10 @@ export const pagesActions = {
   generation: define<{ request_id: string }, { record: PagesGenerationRecord | null }>("generations.get", "读取生成任务", "读取一个稳定请求对应的生成记录；不存在时返回空", "query", object({ request_id: requestIdentity.request_id }), object({ record: { anyOf: [generation, { type: "null" }] } }), read),
   generate: define<{ request_id: string; request_hash: string; inputs: PagesInputSnapshot[]; title: string; instructions: string }, { document: PagesRecord; replayed: boolean }>("generate", "材料生成文稿", "按调用方提供的材料快照生成文稿并保存；同一请求重试使用原快照，保留已生成后的手工编辑", "command",
     object({ ...requestIdentity, inputs: { ...array(snapshot), minItems: 1, maxItems: 20 }, title: { ...fields.title, minLength: 1, pattern: "\\S" }, instructions: { type: "string", minLength: 1, maxLength: 4000, pattern: "\\S" } }), object({ document: page, replayed: { type: "boolean" } }), [...read, ...write, "model:invoke"], { cost: "metered" }, "concurrent"),
-  ai: define<PagesAiRequest & { id: string; expected_version?: number }, PagesAiResult>("ai", "文档写作助手", "使用文字模型生成候选正文；用户确认或后续动作负责写入，缺少模型时拒绝执行", "command",
+  // Only proposes text: nothing in the document changes until the person applies it through `update`.
+  ai: readOnly(define<PagesAiRequest & { id: string; expected_version?: number }, PagesAiResult>("ai", "文档写作助手", "使用文字模型生成候选正文；用户确认或后续动作负责写入，缺少模型时拒绝执行", "command",
     object({ id, command: { enum: PAGES_AI_COMMANDS.map(command => command.id) }, text: { type: "string", minLength: 1, maxLength: 180000, pattern: "\\S" }, style: { enum: ["concise", "expand", "formal", "casual"] }, expected_version: version }, ["id", "command", "text"]),
-    object({ text, stub: { const: false }, command: text, style: text }, ["text", "stub", "command"]), [...read, "model:invoke"], { cost: "metered" }, "concurrent"),
+    object({ text, stub: { const: false }, command: text, style: text }, ["text", "stub", "command"]), [...read, "model:invoke"], { cost: "metered" }, "concurrent")),
   promote: define<{ id: string; goal_id?: string; expected_version?: number }, { document: PagesRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布文档成果", "将文档保存为 Artifact；有未完成发布时恢复原快照，后续编辑可另存一版。可提供读取时的 version 避免过期发布", "command", object({ id, goal_id: fields.goal_id, expected_version: version }, ["id"]), object({ document: page, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...read, ...write, "artifact:write"]),
   extract: define<{ id: string }, { document: PagesRecord; cards: number; created: PagesRecord[] }>("extract", "提取任务与知识", "从文档提取任务卡和知识页，一次事务保存全部结果", "command", object({ id }), object({ document: page, cards: { type: "integer", minimum: 0 }, created: array(page) }), [...read, ...write]),
 };
@@ -114,6 +119,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}),
   });
   return [
+    bind(pagesActions.fragmentOffers, input => ({ offers: preparePagesFragmentOffers(input, PAGES_SUBJECT_KIND) })),
     bind(pagesActions.subject, (input, caller) => ports.withStore(store => {
       let document: PagesRecord;
       try { document = store.get(input.subject_id, project(caller)); }

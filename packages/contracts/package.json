@@ -194,6 +194,10 @@
       "types": "./dist/services/assistant.d.ts",
       "import": "./dist/services/assistant.js"
     },
+    "./services/contextual": {
+      "types": "./dist/services/contextual.d.ts",
+      "import": "./dist/services/contextual.js"
+    },
     "./services/agent-definitions": {
       "types": "./dist/services/agent-definitions.d.ts",
       "import": "./dist/services/agent-definitions.js"

@@ -24,7 +24,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_STORE_NAME, AssistantStore } from "../assistant/assistant-store.js";
 import { learnFromWork, type MemoryLearningRequest } from "./memory-learning.js";
-import { runUpkeep } from "./memory-upkeep.js";
+import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
 
 /**
  * Host wiring of the platform memory (specs/memory-system §5.2): Prologue Memory of this Home's one runtime as the
@@ -289,12 +289,16 @@ export async function handleMemoryHttp(request: IncomingMessage, response: Serve
       // One read for a settings page: the scope's memories, switches, candidates and recent changes.
       if (method === "GET" && parts.length === 1 && parts[0] === "overview") {
         const wanted = scope(url.searchParams.get("scope")) ?? (ports.projectRef ? "project" : "personal");
+        // A project's page also holds its Characters' memories, so it lists everything the person has there and shows those.
         const [list, prefs, candidates, changes, pairs] = await Promise.all([
-          call(memoryActions.list, { scope: wanted }), call(memoryActions.prefs, { scope: wanted }),
+          call(memoryActions.list, wanted === "project" ? {} : { scope: wanted }), call(memoryActions.prefs, { scope: wanted }),
           call(memoryActions.candidates, { scope: wanted }), call(memoryActions.changes, { scope: wanted, limit: 30 }), call(memoryActions.pairs, { scope: wanted }),
         ]);
+        // Goals a memory is limited to, by name (read through the Goals plugin's own reader), so the page never shows bare ids.
+        const goalIds = ((list as { items?: Array<{ applies?: { goal_ids?: string[] } }> }).items ?? []).flatMap(item => item.applies?.goal_ids ?? []);
+        const goals = await subjectTitles(ports.localHost, ports.projectRef, "goal", goalIds).catch(() => ({}));
         return { status: 200, body: { scope: wanted, ...(list as object), ...(prefs as object), ...(candidates as object), ...(changes as object), ...(pairs as object),
-          last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
+          labels: { goals }, last_upkeep: memoryHostFor(ports.localHost)?.service.lastUpkeep(LOCAL_PERSON) ?? null } };
       }
       if (method === "GET" && parts.length === 3 && parts[0] === "items" && parts[2] === "history") return { status: 200, body: await call(memoryActions.history, { memory_id: parts[1] }) };
       if (method !== "POST") return null;

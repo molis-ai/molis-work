@@ -118,7 +118,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const parts = [];
       if (applies && applies.plugin_ids && applies.plugin_ids.length) parts.push(L("插件") + " " + applies.plugin_ids.join("、"));
       if (applies && applies.object_kinds && applies.object_kinds.length) parts.push(L("对象") + " " + applies.object_kinds.join("、"));
-      if (applies && applies.goal_ids && applies.goal_ids.length) parts.push("Goal " + applies.goal_ids.join("、"));
+      // Goals by name when their plugin can still read them; one it cannot is said so rather than shown as an id.
+      if (applies && applies.goal_ids && applies.goal_ids.length) parts.push("Goal " + applies.goal_ids.map((id) => {
+        const title = data && data.labels && data.labels.goals ? data.labels.goals[id] : null; return title ? "「" + title + "」" : L("（读不到的 Goal）"); }).join("、"));
       if (applies && applies.task) parts.push(applies.task);
       if (applies && applies.until) parts.push(L("到") + " " + applies.until.slice(0, 10));
       return parts.length ? parts.join(" · ") : L(scope === "project" ? "这个项目的所有工作" : "所有工作");
@@ -191,7 +193,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         copy.append(el("strong", "memory-text", candidate.text));
         const meta = el("div", "memory-meta");
         meta.append(el("span", "memory-tag", L(KIND[candidate.kind] || candidate.kind)));
-        meta.append(el("span", "", L("依据") + "：" + candidate.why));
+        // Held by the gate, the reason it waits is its whole basis: said once, below, not twice.
+        if (candidate.why && candidate.why !== candidate.hold_reason) meta.append(el("span", "", L("依据") + "：" + candidate.why));
         if (candidate.work) meta.append(el("span", "", L("工作") + "「" + candidate.work.title + "」"));
         copy.append(meta);
         if (candidate.hold_reason) copy.append(el("span", "memory-hold", candidate.hold_reason));

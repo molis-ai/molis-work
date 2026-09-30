@@ -7,6 +7,7 @@ import { resolveModelPrompt } from "../agent-definitions/instructions.js";
 import { hostTextGeneration, type HostTextGeneration } from "../host-complete-text.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkLocalHost } from "../project-host.js";
 
 /**
@@ -38,6 +39,24 @@ export async function runUpkeep(service: MemoryService, input: { homeDirectory: 
     } } : {}),
     objectState: ref => objectState(input.localHost, ref),
   });
+}
+
+/** The names of the objects memories are limited to (Goals, for now), read through their own plugins' readers; unreadable ones are left out. */
+export async function subjectTitles(localHost: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, kind: string, ids: readonly string[]): Promise<Record<string, string>> {
+  const unique = [...new Set(ids)].slice(0, 40);
+  if (!unique.length) return {};
+  const client = reference ? localHost.actionClient(reference) : localHost.homeActionClient();
+  const context = await localWebActionContext(localHost, reference, LOCAL_OWNER_PERMISSIONS);
+  const views: readonly ActionView[] = await Promise.resolve(client.discover(context)).catch(() => []);
+  const reader = views.find(view => isSubjectReader(view.action) && view.availability.available && view.action.subject_kinds.includes(kind));
+  if (!reader) return {};
+  const out: Record<string, string> = {};
+  for (const id of unique) {
+    const read = await Promise.resolve(client.invoke(context, { capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: id }))
+      .catch(() => null) as { title?: unknown } | null;
+    if (read && typeof read.title === "string" && read.title.trim()) out[id] = read.title.trim().slice(0, 80);
+  }
+  return out;
 }
 
 /** Whether an object a memory rests on can still be read, asked of its own plugin's reader; unknown when that cannot be told. */

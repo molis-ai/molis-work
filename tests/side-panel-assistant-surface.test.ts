@@ -34,19 +34,25 @@ function reply(tool?: { name: string; input: unknown }, text = "Done."): Respons
   return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
 }
 
-/** A page that starts blank; opening a site changes its scope, as the real driver's does. */
-function fakePage() {
-  let scope = "about:blank", visits = 0, looks = 0;
+/**
+ * A page that starts blank; opening a site changes its scope, as the real driver's does. Like the real driver it reads
+ * the person's blocks as they stand, and refuses a blocked site before looking or acting.
+ */
+function fakePage(decisions: ReadonlyArray<{ scope: string; decision: "allow" | "block" }>, start = "about:blank") {
+  let scope = start, visits = 0, looks = 0;
   const done: HostSurfaceAction[] = [];
+  const refuse = () => { if (decisions.some(row => row.scope === scope && row.decision === "block")) throw new Error("用户禁止助理查看或操作这个网站。"); };
   const driver: HostSurfaceDriver = {
     kind: "browser", project_id: "project",
     async identity() { return `${scope}#${visits}`; },
     async scope() { return scope; },
     async observe() {
+      refuse();
       looks += 1;
       return new TextEncoder().encode(scope === "about:blank" ? "侧栏浏览器现在是空白页。" : "页面：Example Domain\n[1] link「Learn more」 @(10,20)");
     },
     async perform(action) {
+      refuse();
       done.push(action);
       if (action.what === "navigate") { scope = new URL(action.url).origin; visits += 1; }
     },
@@ -61,11 +67,11 @@ const wire = (body: any) => JSON.stringify(body.messages);
 const targetOf = (body: any) => /([A-Za-z0-9_-]+) — browser/u.exec(wire(body))?.[1] ?? "";
 const observationOf = (body: any) => [...wire(body).matchAll(/observation ([A-Za-z0-9_-]+)/gu)].at(-1)?.[1] ?? "";
 
-async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, decisions: Array<{ scope: string; decision: "allow" | "block" }> = []) {
+async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, decisions: Array<{ scope: string; decision: "allow" | "block" }> = [], start?: string) {
   const home = await mkdtemp(join(tmpdir(), "molis-side-surface-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
-  const page = fakePage();
+  const page = fakePage(decisions, start);
   const requests: any[] = [];
   let turn = 0;
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
@@ -87,7 +93,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
   const send = (text: string) => service.send({ text, request_id: `req-${Math.random().toString(36).slice(2, 10)}`, context: { source: { surface: "home", title: "项目首页" }, captured_at: new Date().toISOString() } }, { project_ref: project });
   const pending = () => until(() => queue.list("board", "pending")[0], "a pending review");
-  return { service, queue, requests, page, send, pending, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, queue, requests, page, send, pending, adapter, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("from a blank page the Assistant looks, then opens a site and clicks only after the person approves each step", { timeout: 60_000 }, async t => {
@@ -155,5 +161,30 @@ test("a site the person allowed is acted on without asking; a blocked one is not
     const second = await f.send("看看这个页面");
     await until(async () => { const view = await f.service.read(second.work.work_id); return ["completed", "failed"].includes(view.work.state) ? view : undefined; }, "the second round");
     assert.equal(f.page.looks(), looksBefore, "a blocked site is not looked at");
+  } finally { await f.close(); }
+});
+
+test("a site allowed before the runtime started asks again as soon as the person takes it back", { timeout: 60_000 }, async t => {
+  const click = [
+    () => reply({ name: "surface-list", input: {} }),
+    (body: any) => reply({ name: "surface-observe", input: { target: targetOf(body), kind: "accessibility-tree" } }),
+    (body: any) => reply({ name: "surface-act", input: { observation: observationOf(body), do: "pointer", x: 10, y: 20, button: "left" } }),
+    () => reply(undefined, "点好了。"),
+  ];
+  const decisions: Array<{ scope: string; decision: "allow" | "block" }> = [{ scope: "https://example.com", decision: "allow" }];
+  const f = await fixture(t, [...click, ...click], decisions, "https://example.com");
+  try {
+    const first = await f.send("点一下 Learn more");
+    await until(async () => (await f.service.read(first.work.work_id)).work.state === "completed", "the first round");
+    assert.equal(f.queue.list("board", "pending").length, 0, "the allowed site did not ask");
+    assert.equal(f.page.done.length, 1);
+
+    // 撤销 in the side panel: the saved decision goes, and the running runtime forgets the approval with it.
+    decisions.length = 0;
+    f.adapter.surfaces!.decide({ scope: "https://example.com", decision: "forget" });
+    await f.send("再点一下");
+    const asked = await f.pending();
+    assert.match(asked.document.summary, /在 https:\/\/example\.com 点击页面/u);
+    assert.equal(f.page.done.length, 1, "nothing happens before the person answers");
   } finally { await f.close(); }
 });

@@ -203,7 +203,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // A reversible change the person lets run without asking: the gateway itself refuses any other change on this tool.
       { source: "runtime" as const, effect: "allow" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.direct } },
       // The side panel's browser: looking is allowed, every action asks, the person's standing site decisions apply.
-      ...(options.surfaces ? surfaceRules(options.surfaces.siteDecisions()) : [])] } : {}),
+      ...(options.surfaces ? surfaceRules() : [])] } : {}),
     require: ["secrets", "network", "clock", "workspace.read", "storage"],
   });
 
@@ -220,6 +220,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     return new TextDecoder().decode(bytes.subarray(0, offset));
   };
   surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, readResourceText) : undefined;
+  // Sites the person allowed earlier, as approvals the person can take back at once (not as rules fixed at start).
+  if (surfaceHost && options.reviewQueue) for (const entry of options.surfaces!.siteDecisions()) if (entry.decision === "allow") surfaceHost.decide(entry);
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
     withDispatchGuard: (guard, operation) => {
       const inherited = dispatchGuards.getStore();

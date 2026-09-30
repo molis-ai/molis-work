@@ -1000,6 +1000,11 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-msg-more { align-self: flex-end; margin-top: -8px; padding: 0 4px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
   ${ASSIST} .assistant-msg-more:hover { color: var(--ink); }
   ${ASSIST} .assistant-msg-more:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+  /* The contextual actions' bar sits right above the input; the contextual script fills it and marks it active.
+     It gives way to an open panel (the conversation is then what the person is doing) and to a waiting page suggestion. */
+  ${ASSIST} .assistant-context-actions { position: absolute; z-index: 54; left: 0; right: 0; bottom: calc(100% + 8px); display: flex; align-items: center; gap: 6px; min-width: 0; }
+  ${ASSIST} .assistant-context-actions:is(:empty, :not([data-state="active"])) { display: none; }
+  ${ASSIST} [data-assistant-island]:has(.assistant-panel:not([hidden]), .assistant-offer:not([hidden])) .assistant-context-actions { display: none; }
   /* A plugin's suggestion waits above the bar until the person puts it in the input or ignores it. */
   ${ASSIST} .assistant-offer {
     position: absolute; z-index: 55; right: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 6px; width: min(420px, 100%);

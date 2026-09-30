@@ -477,6 +477,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "和旧的一条合并": "merged with an older one",
   "改过": "edited",
   "自动停用": "switched off on its own",
+  "当前内容的动作": "Actions for what you are looking at",
   "已撤销（回到了原来那条）": "Undone (back to the earlier one)",
   "已撤销（已重新启用）": "Undone (switched on again)",
   "因为篇幅没带上": "Left out for length",

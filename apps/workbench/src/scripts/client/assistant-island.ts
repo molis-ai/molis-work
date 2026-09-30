@@ -2441,6 +2441,21 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     requestOverride = "msg-" + message.message_id;
     composer.requestSubmit(send);
   };
+  /* Another part of the page opens the panel for the person (the contextual actions' “助理：…” hint, say): the work it
+     names or a new one, with words and materials put in, nothing sent. The person reads it and sends. */
+  document.addEventListener("molis:assistant-open", async (event) => {
+    const detail = event.detail && typeof event.detail === "object" ? event.detail : {};
+    const named = typeof detail.work_id === "string" && detail.work_id ? detail.work_id : "";
+    if (named && works.some((work) => work.work_id === named)) await switchTo(named);
+    else if (detail.new === true || named) await switchTo(null);
+    const source = detail.source && typeof detail.source.surface === "string" && detail.source.surface
+      ? { surface: detail.source.surface.slice(0, 80), title: typeof detail.source.title === "string" && detail.source.title ? detail.source.title.slice(0, 80) : detail.source.surface.slice(0, 80) } : null;
+    const brought = Array.isArray(detail.materials) ? detail.materials.filter((item) => item && typeof item.title === "string" && typeof item.text === "string" && item.text).slice(0, 4) : [];
+    brought.forEach((item, index) => files.push(Object.assign({ material_id: "open-" + Date.now().toString(36) + "-" + index, kind: "text", title: item.title.slice(0, 200),
+      text: item.text.slice(0, 20000), explicit: true }, source ? { source } : {})));
+    if (typeof detail.text === "string" && detail.text.trim()) { input.value = detail.text.trim().slice(0, 8000); typed = true; saveDraft(false); }
+    syncSend(); paintMaterials(); setPanel(true); input.focus();
+  });
   window.addEventListener("molis:assistant-message", (event) => {
     const message = tidyMessage(event.detail);
     if (!message || heard.has(message.message_id)) return;

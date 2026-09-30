@@ -51,7 +51,6 @@ export interface FileContent {
 /** Side panel sources are for the person unless the owner widens them; a source never reaches beyond the owner's reads. */
 export const FILE_SOURCE_AUDIENCES: readonly ActionAudience[] = ["user"];
 
-const token = { type: "string", minLength: 1, maxLength: 64, pattern: "^[a-zA-Z0-9_-]+$" };
 const id = { type: "string", minLength: 1 };
 const nullableText = { type: ["string", "null"] };
 const mediaType = { type: "string", minLength: 3, maxLength: 200, pattern: "^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$" };

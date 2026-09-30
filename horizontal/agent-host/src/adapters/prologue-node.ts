@@ -137,7 +137,8 @@ const IMAGE_MEDIA_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"]
  */
 export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
-): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
+): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort;
+  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
   const release = options.storageRoot ? acquirePrologueStorageOwner(options.storageRoot) : () => {};
   try {
     const adapter = await initializePrologueNodeAdapter(options);

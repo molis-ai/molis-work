@@ -23,7 +23,7 @@ export function renderSideBrowser({ L, icon }: SidePanelPrimitives): string {
       <div class="side-browser-strip" data-browser-strip hidden></div>
       <div class="side-browser-view" data-browser-view role="application" aria-roledescription="${L("网页画面")}" aria-label="${L("网页画面")}">
         <canvas data-browser-canvas aria-hidden="true"></canvas>
-        <textarea class="side-browser-keys" data-browser-keys aria-label="${L("向网页输入")}" autocomplete="off" autocapitalize="off" spellcheck="false" tabindex="-1"></textarea>
+        <textarea class="side-browser-keys-textarea" data-browser-keys aria-label="${L("向网页输入")}" autocomplete="off" autocapitalize="off" spellcheck="false" tabindex="-1"></textarea>
         <span class="side-browser-marker" data-browser-marker hidden aria-hidden="true"></span>
         <div class="side-browser-cover" data-browser-cover>
           <div class="side-browser-cover-copy" data-browser-cover-copy>
@@ -60,7 +60,7 @@ export const SIDE_BROWSER_STYLES = String.raw`
 .side-browser-view{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--paper);outline:none;cursor:default}
 .side-browser-view:focus-within{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 40%,transparent)}
 .side-browser-view canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
-.side-browser-keys{position:absolute;left:0;top:0;width:1px;height:1px;padding:0;border:0;opacity:0;resize:none;overflow:hidden;font-size:16px;pointer-events:none}
+.side-browser-keys-textarea{position:absolute;left:0;top:0;width:1px;height:1px;padding:0;border:0;opacity:0;resize:none;overflow:hidden;font-size:16px;pointer-events:none}
 .side-browser-marker{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:2px solid var(--accent);background:color-mix(in srgb,var(--accent) 18%,transparent);pointer-events:none;transition:transform var(--dur-move) var(--ease-quint),opacity var(--dur-move) var(--ease-quint)}
 .side-browser-marker[hidden]{display:none}
 .side-browser-cover{position:absolute;inset:0;display:grid;place-items:center;padding:24px;background:var(--paper);color:var(--muted);font-size:13px;line-height:1.7;text-align:center}

@@ -138,6 +138,7 @@ const TODO_SURFACE_SLOTS: Readonly<Record<TodoUiSurface, UiSlotDescriptor>> = {
 const LINGGUANG_SURFACE_SLOTS: Readonly<Record<LingguangUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
+  side: WORKBENCH_UI_SLOTS.side,
 };
 
 const ALCHEMIST_SURFACE_SLOTS: Readonly<Record<AlchemistUiSurface, UiSlotDescriptor>> = {

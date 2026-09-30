@@ -56,7 +56,7 @@ export function browserAddress(input: string): { url: string } | { blocked: stri
   const hostLike = /^(localhost|\[[0-9a-f:]+\]|(\d{1,3}\.){3}\d{1,3}|([\p{L}\p{N}-]+\.)+[\p{L}]{2,})(:\d{1,5})?(\/\S*)?$/iu.test(text);
   if (hostLike) {
     const local = /^(localhost|127\.|\[::1\])/iu.test(text);
-    try { return { url: new URL(`${local ? "http" : "https"}://${text}`).href; } catch { /* fall through to search */ }
+    try { return { url: new URL(`${local ? "http" : "https"}://${text}`).href }; } catch { /* fall through to search */ }
   }
   return { url: SEARCH_URL + encodeURIComponent(text) };
 }

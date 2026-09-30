@@ -266,7 +266,7 @@ export const ONBOARDING_CLIENT_SCRIPT = `
     });
     form.addEventListener("keydown", (event) => {
       if (event.target.closest?.("[data-onboarding-intent]")) return;
-      if (event.key !== "Enter" || event.shiftKey || event.target instanceof HTMLTextAreaElement) return;
+      if (event.key !== "Enter" || event.shiftKey || event.target.tagName === "TEXTAREA") return;
       if (form.dataset.transitioning === "true") return;
       if (currentStep >= 3) return;
       event.preventDefault();

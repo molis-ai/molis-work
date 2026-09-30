@@ -1,4 +1,6 @@
 export const FORM_EN: Record<string, string> = {
+  "固定版本": "Fixed version",
+  "固定版本未存完": "Fixed version not finished",
   "列表暂时读不到": "The list could not be read",
   "请稍后重试": "Try again in a moment",
   "重试": "Retry",

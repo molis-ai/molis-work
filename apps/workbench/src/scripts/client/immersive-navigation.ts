@@ -96,7 +96,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   // 打开工作区 on a Goal's frame asks for its work area: the Goal opens in its terminal, and that is remembered as its view.
   let workRequestedAt = 0;
   document.addEventListener("click", (event) => {
-    if (!(event.target instanceof Element) || !event.target.closest("[data-frame-goal-work]")) return;
+    if (event.target?.nodeType !== 1 || !event.target.closest("[data-frame-goal-work]")) return;
     workRequestedAt = Date.now();
     if (getSelected()) setView("work", true);
   }, true);

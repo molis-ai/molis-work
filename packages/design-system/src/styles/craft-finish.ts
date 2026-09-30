@@ -183,6 +183,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} ${RAIL_LINK}:is(:hover, [aria-current], [aria-expanded="true"]) svg { color: var(--ink); }
   ${SHELL} :is(.plugin-rail-items, .assistant-island-card)[data-seg-thumb]::before { border-radius: 8px; background: var(--nav-active); }
   ${SHELL} .plugin-rail a.plugin-rail-item { text-decoration: none; color: inherit; }
+  ${SHELL} .plugin-rail-hint { display: none; }
   ${SHELL} .plugin-rail-items .immersive-plugin-link { position: relative; }
   /* The rail's own toggle lives with Back and Forward in the titlebar, where macOS keeps a sidebar button. */
   ${SHELL} .workspace-history .navigation-labels-toggle { flex: none; align-self: center; margin: 0; padding: 0; min-height: 0; }
@@ -411,7 +412,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .is-split .plugin-picker-chip.is-focused { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
   ${SHELL} .plugin-picker-trigger:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
   html ${SHELL} .workbench-bar .plugin-picker-popover {
-    position: absolute; z-index: 60; left: -8px; bottom: calc(100% + 16px); width: 280px; max-height: min(70dvh, 620px); overflow: auto; padding: 8px;
+    position: absolute; z-index: 60; left: -8px; bottom: calc(100% + 16px); width: 560px; max-height: min(80dvh, 760px); overflow: auto; padding: 8px;
     border-radius: 14px; background: var(--paper); box-shadow: var(--lift-3);
   }
   html ${SHELL} .workbench-bar .plugin-picker-popover[hidden] { display: none; }
@@ -421,13 +422,23 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items [data-rail-zone] { display: flex !important; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items p[data-rail-zone] { display: block !important; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-toggle { display: none !important; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item {
-    width: 100%; height: 34px; min-height: 34px; justify-content: flex-start; gap: 12px; padding: 0 12px; border-radius: 8px;
+  /* A launcher: two columns of entries, each a name with one line saying what the person gets there. */
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 8px; }
+  @media (min-width: 1100px) {
+    html ${SHELL} .workbench-bar .plugin-picker-popover { width: 800px; }
+    html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item > span { position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: visible; font-size: 13px; color: var(--ink); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item svg { width: 16px; height: 16px; color: var(--ink-soft); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items p[data-rail-zone] { grid-column: 1 / -1; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[data-rail-zone] {
+    display: grid !important; grid-template-columns: 16px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 12px; row-gap: 0; align-items: center; align-content: center;
+    width: 100%; height: auto; min-height: 44px; padding: 4px 12px; border-radius: 8px; text-align: left;
+  }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item > span { position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; line-height: 18px; color: var(--ink); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item .plugin-rail-hint { display: block; grid-column: 2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; line-height: 16px; color: var(--muted); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item:not(:has(.plugin-rail-hint)) { grid-template-rows: auto; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item svg { grid-row: 1 / span 2; width: 16px; height: 16px; color: var(--ink-soft); }
   html ${SHELL} .workbench-bar .plugin-picker-popover :is(.plugin-rail-group, .plugin-rail-subgroup) {
-    width: auto; height: auto; margin: 12px 0 4px; padding: 0 12px; background: none; overflow: visible; color: var(--muted); font-size: 11px; font-weight: 500; line-height: 18px;
+    width: auto; height: auto; margin: 8px 0 4px; padding: 0 12px; background: none; overflow: visible; color: var(--muted); font-size: 11px; font-weight: 500; line-height: 18px;
   }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items[data-seg-thumb]::before { display: none; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] { background: var(--nav-active); }
@@ -1233,6 +1244,7 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .bar-end :is(.immersive-show-directory, .navigator-directory-toggle) svg { width: 20px; height: 20px; stroke-width: 1.6; }
     html ${SHELL} .workbench-bar .bar-end :is(.immersive-show-directory, .navigator-directory-toggle):hover { background: var(--nav-hover); color: var(--ink); }
     html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; }
+    html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items { grid-template-columns: minmax(0, 1fr); }
     ${SHELL} .assistant-panel, ${SHELL} .dock-window { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; height: min(70dvh, 560px); }
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
@@ -1369,6 +1381,10 @@ const CRAFT_BASE_STYLES = `
     border-color: transparent; background: var(--control-fill); box-shadow: none;
   }
   ${WORKBENCH} :is(.plugin-stage-chrome, .goal-stage-chrome) .tree-create:hover { border-color: transparent; background: var(--nav-hover); box-shadow: none; }
+  /* The Goals directory's create action is that page's one graphite button, like every other list page's first create. */
+  ${WORKBENCH} .tree-chrome .tree-create { border-color: transparent; box-shadow: none; background: var(--action); color: var(--action-ink); }
+  ${WORKBENCH} .tree-chrome .tree-create svg { color: currentColor; }
+  ${WORKBENCH} .tree-chrome .tree-create:hover { background: var(--action-hover, color-mix(in srgb, var(--action) 90%, var(--action-ink))); }
   ${PAGES} .mw-btn:disabled, ${PAGES} .mw-btn[aria-disabled="true"] { box-shadow: none; background-image: none; }
 
   /* Segmented controls: the thumb settles on a spring; slots brighten on hover. */

@@ -1,4 +1,9 @@
 export const DATASET_EN: Record<string, string> = {
+  "粘贴 CSV": "Paste CSV",
+  "固定版本": "Fixed version",
+  "固定版本未存完": "Fixed version not finished",
+  "空表": "Empty table",
+  "行": "rows",
   "列表暂时读不到": "The list could not be read",
   "请稍后重试": "Try again in a moment",
   "重试": "Retry",

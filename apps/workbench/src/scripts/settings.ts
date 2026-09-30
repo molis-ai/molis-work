@@ -255,9 +255,9 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       clearTimeout(focusTimer);
       const entry = entries.find((item) => item.guidance_id === guidanceId);
       const copy = labels[mode] || labels.add;
-      returnFocus = trigger instanceof HTMLElement
+      returnFocus = trigger?.nodeType === 1
         ? trigger
-        : document.activeElement instanceof HTMLElement
+        : document.activeElement?.nodeType === 1
           ? document.activeElement
           : null;
       form.reset();

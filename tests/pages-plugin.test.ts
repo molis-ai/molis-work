@@ -554,7 +554,7 @@ test("Pages 是个人插件，不进项目启用名单", () => {
   assert.equal(entry?.glyph, "note");
   const market = pluginMarketCards().find((card) => card.id === "pages");
   assert.equal(market?.personal, true);
-  assert.equal(market?.copy, "写文档，用块和格式，保存在这台电脑。");
+  assert.equal(market?.copy, "写文档，可导出 Markdown / PDF。");
 });
 
 test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {

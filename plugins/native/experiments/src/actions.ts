@@ -1,4 +1,4 @@
-import { ActionError, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, bindSearchEntriesHandler, defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ExperimentsService } from "./service.js";
 import type { Experiment, ExperimentInput, Participant, TaskDefinition } from "./types.js";
 import { summarize } from "./metrics.js";
@@ -55,6 +55,8 @@ export const experimentsActions = {
     "query", object({}), object({ functions: { type: "array", items: { type: "object", required: ["id", "name"] } } }), [...read, "functions:manage"]),
   /** System search: experiments by name and state. Materials and answers stay in the experiment (they can be sensitive test data). */
   searchEntries: defineSearchEntriesAction("experiments.search.entries", [{ kind: "experiment", title: "实验", surface: "experiments" }], "实验", read, "home"),
+  /** Reader for what search lists. Same boundary as `results`: name, state and per-model metrics; the task text, materials and answers stay here. */
+  subjectRead: defineSubjectContextAction("experiments.subject.read", "experiment", "实验", read, "home"),
 };
 export const EXPERIMENTS_ACTIONS: readonly ActionDefinition[] = Object.values(experimentsActions);
 export const EXPERIMENTS_ACTION_PERMISSIONS = [...new Set(EXPERIMENTS_ACTIONS.flatMap(definition => definition.action.permissions))];
@@ -67,6 +69,8 @@ export interface ExperimentsActionPorts {
   /** Reads through the system judgment actions with this caller's own authority. */
   choiceFunctions(caller: ActionCallContext): Promise<ExperimentFunctionChoice[]>;
 }
+
+const STATUS_LABEL: Record<string, string> = { ready: "待运行", running: "运行中", completed: "已完成", cancelled: "已取消", interrupted: "已中断" };
 
 export function createExperimentsActionHandlers(ports: ExperimentsActionPorts): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O | Promise<O>): ActionHandlerBinding => ({
@@ -97,6 +101,20 @@ export function createExperimentsActionHandlers(ports: ExperimentsActionPorts): 
     bind(experimentsActions.deleteModel, input => { service().deleteParticipant(input.id); return { deleted: true as const }; }),
     bind(experimentsActions.selectConnection, input => { ports.selectConnection(input.connection_id); return { saved: true as const }; }),
     bind(experimentsActions.functions, async (_input, caller) => ({ functions: await ports.choiceFunctions(caller) })),
+    { ...experimentsActions.subjectRead, handle: (_caller: unknown, input: unknown) => {
+      const e = service().get((input as { subject_id: string }).subject_id);
+      const names = new Map(e.participants.map(p => [p.id, p.name]));
+      const percent = (value: number | null) => value == null ? "—" : Math.round(value * 100) + "%";
+      // A model that has not answered yet says so; an accuracy is only stated once there are valid answers to judge.
+      const rows = summarize(e).map(r => r.valid + r.failed === 0 ? `- ${names.get(r.participant_id) ?? r.participant_id}：尚未运行` :
+        `- ${names.get(r.participant_id) ?? r.participant_id}：有效 ${r.valid}/${r.total}，失败 ${r.failed}` +
+        (r.human_labeled && r.valid ? `，人工标注准确率 ${percent(r.accuracy)}（${r.correct}/${r.human_labeled}）` : "") +
+        `，耗时 ${Math.round(r.duration_ms / 1000)} 秒` + (r.reported_cost_usd != null ? `，成本 $${r.reported_cost_usd.toFixed(4)}` : ""));
+      const content = [`状态：${STATUS_LABEL[e.status] ?? e.status}`,
+        `材料 ${e.cases.length} 份（任务说明、材料与各模型的答案只在实验页里看）`, "参试模型与结果：", ...rows].join("\n");
+      return { ...subjectContext({ subject: { kind: "experiment", id: e.id }, revision: `${e.hash}:${e.status}:${e.cells.length}:${e.reviews.length}`,
+        title: e.name, content, goal_ids: [], session_id: null }), open: { surface: "experiments", id: e.id } };
+    } },
     bindSearchEntriesHandler(experimentsActions.searchEntries, () => service().list().map(row => ({ subject: { kind: "experiment", id: row.id },
       revision: `${row.hash}:${row.status}`, title: row.name, summary: ({ ready: "待运行", running: "运行中", completed: "已完成", cancelled: "已取消", interrupted: "已中断" } as Record<string, string>)[row.status] ?? row.status,
       updated_at: row.created_at, content: "summary" as const, open: { surface: "experiments", id: row.id } }))),

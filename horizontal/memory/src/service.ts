@@ -358,12 +358,14 @@ export class MemoryService {
    * The memories one Agent run is given (spec §7.2): the recall for its consumer, as exact entries for the runtime to
    * re-read and inject as data. Null when this consumer may not use memories here or nothing applies.
    */
-  async forRun(caller: MemoryCaller, request: MemoryRecallRequest): Promise<{ pinned: Array<{ scope: "user" | "project"; owner: string; memory_id: string }>; budget_chars: number; receipt_id: string } | null> {
+  async forRun(caller: MemoryCaller, request: MemoryRecallRequest): Promise<{ pinned: Array<{ scope: "user" | "project"; owner: string; memory_id: string }>; budget_chars: number; receipt_id: string;
+    omitted: Array<{ memory_id: string; reason: "budget" | "limit" | "conflict" }> } | null> {
     const budget = request.budget_chars ?? 3000;
     const recalled = await this.recall(caller, { ...request, budget_chars: budget });
     if (recalled.state !== "ok" || !recalled.items.length) return null;
     return { pinned: recalled.items.map(item => ({ scope: item.scope === "personal" ? "user" as const : "project" as const,
-      owner: item.scope === "personal" ? caller.actor_id : caller.project_id!, memory_id: item.memory_id })), budget_chars: budget, receipt_id: recalled.receipt_id };
+      owner: item.scope === "personal" ? caller.actor_id : caller.project_id!, memory_id: item.memory_id })), budget_chars: budget, receipt_id: recalled.receipt_id,
+      omitted: recalled.omitted.map(item => ({ memory_id: item.memory_id, reason: item.reason })) };
   }
 
   /* ---- writing ---- */

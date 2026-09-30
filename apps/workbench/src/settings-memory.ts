@@ -17,6 +17,11 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
       <h2 id="memory-changes-title">${L("最近变动")}</h2>
       <ul class="memory-change-list" data-memory-changes></ul>
     </section>
+    <section class="settings-section memory-pairs" aria-labelledby="memory-pairs-title" data-memory-pairs-section hidden>
+      <h2 id="memory-pairs-title">${L("可能重复或冲突")}</h2>
+      <p class="settings-muted">${L("整理时发现的两两一对。选一条保留，另一条会停用（可以随时恢复）；都保留则不再提这一对。")}</p>
+      <ul class="memory-list" data-memory-pairs></ul>
+    </section>
     <section class="settings-section memory-candidates" aria-labelledby="memory-candidates-title" data-memory-candidates-section hidden>
       <h2 id="memory-candidates-title">${L("等你认可")}</h2>
       <p class="settings-muted">${L("从工作、界面操作里提出，或写入门没有直接记住的内容。认可之前不会被使用。")}</p>
@@ -49,6 +54,17 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
       ${prefRow(L, "consumers.ui", L("界面推荐"), L("根据你正在看的内容给出的建议。"))}
       ${prefRow(L, "consumers.plugin", L("插件"), L("插件只能读到偏好和约定，不会读到背景事实。"))}
       ${prefRow(L, "consumers.mcp", L("外部 AI 客户端"), personal ? L("通过 MCP 连接的客户端。个人记忆默认不开放。") : L("通过 MCP 连接的客户端，只读。"))}
+    </section>
+    <section class="settings-section memory-data" aria-labelledby="memory-data-title">
+      <h2 id="memory-data-title">${L("整理与数据")}</h2>
+      <div class="settings-setting-row"><span class="setting-copy"><strong>${L("整理")}</strong><span data-memory-upkeep>${L("每天整理一次：到期和长期没用到的停用，重复的自动记忆合并，依据不在的暂停。")}</span></span>
+        <span class="setting-value"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-upkeep-run>${L("现在整理")}</button></span></div>
+      <div class="settings-setting-row"><span class="setting-copy"><strong>${L("导出")}</strong><span>${L("下载一个记忆包，里面的密钥和本机路径已经去掉。")}</span></span>
+        <span class="setting-value"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-export>${L("导出")}</button></span></div>
+      <div class="settings-setting-row"><span class="setting-copy"><strong>${L("导入")}</strong><span>${L("选择一个记忆包；已有的相同内容会跳过，包损坏时一条也不写入。")}</span></span>
+        <span class="setting-value"><label class="mw-btn mw-btn--secondary mw-btn--sm memory-import">${L("导入")}<input type="file" accept="application/json,.json" data-memory-import hidden></label></span></div>
+      <div class="settings-setting-row"><span class="setting-copy"><strong>${personal ? L("清空个人记忆") : L("清空这个项目的记忆")}</strong><span>${L("先告诉你会删掉几条，确认后删除；删除后任何地方都不会再用到。")}</span></span>
+        <span class="setting-value"><button class="mw-btn mw-btn--danger-outline mw-btn--sm" type="button" data-memory-clear>${L("清空…")}</button></span></div>
     </section>
     ${personal ? `<p class="settings-muted memory-rules-note">${L("交互规则（例如“写方案时别打断”）由助理按规则执行，在“助理”设置里管理。")} <a href="/settings/assistant">${L("去助理设置")}</a></p>` : ""}
   </section>`;
@@ -302,9 +318,41 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       });
     }
 
+    function paintPairs() {
+      const list = $("[data-memory-pairs]"), pairs = data.pairs || [];
+      $("[data-memory-pairs-section]").hidden = !pairs.length;
+      list.replaceChildren();
+      pairs.forEach((pair) => {
+        const row = el("li", "memory-row memory-row--pair");
+        const copy = el("div", "memory-row-copy");
+        copy.append(el("span", "memory-tag memory-tag--state", L(pair.kind === "conflict" ? "可能冲突" : "可能重复") + (pair.why ? " · " + pair.why : "")));
+        [["a", pair.a], ["b", pair.b]].forEach(([side, item]) => {
+          const line = el("div", "memory-pair-line");
+          line.append(el("strong", "memory-text", item.text), el("span", "settings-muted", L(SOURCE[item.source] || item.source)));
+          const keep = button(L("保留这条"), "mw-btn--secondary", L("保留") + "：" + item.text);
+          keep.addEventListener("click", () => run(() => api("/pairs/" + encodeURIComponent(pair.pair_id) + "/resolve", { keep: side }), "已保留，另一条已停用"));
+          line.append(keep);
+          copy.append(line);
+        });
+        const both = button(L("两条都留"), "mw-btn--ghost");
+        both.addEventListener("click", () => run(() => api("/pairs/" + encodeURIComponent(pair.pair_id) + "/resolve", { keep: "both" }), "都保留了，不会再提这一对"));
+        row.append(copy, el("div", "memory-actions"));
+        row.lastChild.append(both);
+        list.append(row);
+      });
+    }
+
+    function paintUpkeep() {
+      const box = $("[data-memory-upkeep]"), last = data.last_upkeep;
+      if (!last) return;
+      const done = [last.expired ? L("到期停用") + " " + last.expired : "", last.unused ? L("长期没用停用") + " " + last.unused : "", last.merged ? L("合并") + " " + last.merged : "",
+        last.paused ? L("依据不在暂停") + " " + last.paused : "", last.pairs ? L("交给你选") + " " + last.pairs : ""].filter(Boolean).join(" · ");
+      box.textContent = L("上次整理") + " " + day(last.at) + " " + new Date(last.at).toTimeString().slice(0, 5) + " · " + (done || L("没有需要处理的"));
+    }
+
     function paint() {
       if (!data) return;
-      paintSummary(); paintChanges(); paintCandidates(); paintItems(); paintPrefs();
+      paintSummary(); paintChanges(); paintPairs(); paintCandidates(); paintItems(); paintPrefs(); paintUpkeep();
       $("[data-memory-new]").hidden = true;
     }
 
@@ -316,6 +364,34 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const editor = itemEditor(null, (value) => api("/items", { scope, text: value.text, kind: value.kind, applies: value.applies }));
       slot.replaceChildren(editor); slot.hidden = false; editor.querySelector("textarea").focus();
     });
+    $("[data-memory-upkeep-run]").addEventListener("click", () => run(() => api("/upkeep", {}), "整理好了，结果在最近变动里"));
+    $("[data-memory-export]").addEventListener("click", () => run(async () => {
+      const body = await api("/export", { scope });
+      const blob = new Blob([JSON.stringify(body.package, null, 2)], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "molis-memory-" + scope + "-" + new Date().toISOString().slice(0, 10) + ".json";
+      document.body.append(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    }, "已导出"));
+    $("[data-memory-import]").addEventListener("change", (event) => {
+      const file = event.target.files && event.target.files[0];
+      event.target.value = "";
+      if (!file) return;
+      run(async () => {
+        let pack;
+        try { pack = JSON.parse(await file.text()); } catch { throw new Error(L("这个文件不是记忆包")); }
+        const result = await api("/import", { scope, package: pack });
+        toast(L("导入") + " " + result.written + " " + L("条") + (result.skipped ? " · " + L("跳过") + " " + result.skipped : "") + (result.refused ? " · " + L("没有导入") + " " + result.refused : ""));
+      });
+    });
+    $("[data-memory-clear]").addEventListener("click", () => run(async () => {
+      const preview = await api("/preview", { scope });
+      if (!preview.count) { toast(L("没有可以清空的记忆")); return; }
+      if (!window.confirm(L("将删除") + " " + preview.count + " " + L("条记忆，删除后任何地方都不会再用到。确定清空？"))) return;
+      const done = await api("/clear", { scope, fingerprint: preview.fingerprint });
+      toast(L("已删除") + " " + done.removed + " " + L("条"));
+    }));
     root.querySelectorAll("[data-memory-pref]").forEach((box) => box.addEventListener("change", () => {
       const path = box.dataset.memoryPref.split(".");
       const prefs = path.length === 2 ? { [path[0]]: { [path[1]]: box.checked } } : { [path[0]]: box.checked };

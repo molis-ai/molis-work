@@ -48,9 +48,15 @@ export const MEMORY_SETTINGS_STYLES = `
   .memory-settings .memory-pref-static .setting-value { font-size: 13px; }
   .memory-settings .memory-rules-note { margin-top: 16px; font-size: 12px; }
   .memory-settings .memory-empty { padding: 12px 0; font-size: 13px; }
+  .memory-settings .memory-pair-line { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 6px 0; box-shadow: 0 -1px 0 var(--line); }
+  .memory-settings .memory-pair-line:first-of-type { box-shadow: none; }
+  .memory-settings .memory-pair-line .settings-muted { font-size: 12px; white-space: nowrap; }
+  .memory-settings .memory-import { cursor: pointer; }
   @media (max-width: 600px) {
     .memory-settings .memory-row, .memory-settings .memory-change { grid-template-columns: minmax(0, 1fr); }
     .memory-settings .memory-actions { justify-content: flex-start; }
     .memory-settings .memory-menu { left: 0; right: auto; }
+    .memory-settings .memory-pair-line { grid-template-columns: minmax(0, 1fr) auto; }
+    .memory-settings .memory-pair-line .settings-muted { display: none; }
   }
 `;

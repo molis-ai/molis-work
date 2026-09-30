@@ -474,6 +474,8 @@ export class AssistantService {
   private readonly images = new Map<string, { revision: number; media_type: string }>();
   /** The recall receipt of the round a work is starting, until the round is recorded. */
   private readonly recalled = new Map<string, string>();
+  /** The memories chosen for the round a work is starting (null: none), until it starts. */
+  private readonly chosenMemory = new Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>();
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
     private readonly now = () => new Date()) {}
 
@@ -1828,6 +1830,9 @@ export class AssistantService {
     }
     const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
     const offered = await this.actionTools(authority);
+    // The memories this round is given, chosen now so the round's materials can say how many did not fit.
+    this.chosenMemory.delete(work.work_id);
+    await this.memoryForRound(work, text);
     this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
     const handle = await host.start(RUNTIME, {
       board_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
@@ -1844,6 +1849,7 @@ export class AssistantService {
     this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString(), ...(work.character ? { character: { ...work.character } } : {}),
       ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
     this.recalled.delete(work.work_id);
+    this.chosenMemory.delete(work.work_id);
     return this.result(work, "started", handle.ref.run_id);
   }
 
@@ -1927,7 +1933,14 @@ export class AssistantService {
       if (roles.length) out.push(...chunked({ ...base, title: "可委托的专业角色" }, "roles",
         ["需要专业角色处理某一部分时，在 delegate-work 的 character 里写它的 id；没有合适的就不指定。", ...roles.map(item => `- 「${item.title}」 v${item.reference.version}（id：${item.reference.artifact_id}）`)].join("\n")));
     }
-    // What the person asked to be remembered reaches the round as Prologue memory-recall data (memoryForRound), not here.
+    // What the person asked to be remembered reaches the round as Prologue memory-recall data (memoryForRound), not here;
+    // only what did not come along is said, so the round can tell the person honestly.
+    const left = this.chosenMemory.get(work.work_id)?.omitted ?? [];
+    if (left.length) {
+      const budget = left.filter(item => item.reason !== "conflict").length, conflicts = left.length - budget;
+      out.push(...chunked({ ...base, title: "没有带上的记忆" }, "memory-left",
+        `和这一轮相关的记忆里，${budget ? `有 ${budget} 条因为篇幅没有带上` : ""}${budget && conflicts ? "，" : ""}${conflicts ? `有 ${conflicts} 条和另一条互相矛盾、按用户明确说过的那条来` : ""}。用户问“用到了哪些记忆”时照实说明；需要时可以用 list-memories 查看全部。`));
+    }
     // Forming memories switched off: the round is told, so it neither claims to keep nor quietly drops what was asked.
     if (this.ports.memory?.() && !this.memoryTools(work)) out.push(...chunked({ ...base, title: "记忆设置" }, "memory-off",
       "用户关闭了“允许记住”，这一轮不能长期记住或忘掉任何事。遇到“以后…”“记住…”：在这项工作里照做，用一句话说明没有长期记下、可以在 设置 · 个人 · 记忆 打开“允许记住”。不要复述这段说明。"));
@@ -2253,14 +2266,18 @@ export class AssistantService {
    */
   /**
    * The memories this round is given (specs/memory-system §7.2): the platform recall for the Assistant, handed to the
-   * runtime as exact entries it re-reads and injects as data. Called by the Agent Host while starting the round.
+   * runtime as exact entries it re-reads and injects as data. Chosen once as the round is prepared (so its materials can
+   * say what did not fit); the Agent Host asks for the same choice while starting the round.
    */
   async memoryForRound(work: StoredWork, task: string): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null> {
+    const prepared = this.chosenMemory.get(work.work_id);
+    if (prepared !== undefined) return prepared ? { pinned: prepared.pinned, budget_chars: prepared.budget_chars, receipt_id: prepared.receipt_id } : null;
     const memory = this.ports.memory?.();
     if (!memory) return null;
     const chosen = await memory.forRun(this.memoryCaller(work, null), { query: `${task} ${work.title}`.slice(0, 2000), limit: 16, budget_chars: 3000 }).catch(() => null);
     if (chosen) this.recalled.set(work.work_id, chosen.receipt_id);
-    return chosen;
+    this.chosenMemory.set(work.work_id, chosen);
+    return chosen && { pinned: chosen.pinned, budget_chars: chosen.budget_chars, receipt_id: chosen.receipt_id };
   }
 
   /** What each round was given from memory and what did not fit, and what this work changed in memory (for the panel). */

@@ -1716,7 +1716,8 @@ export class AssistantService {
     const missing = (offer.missing ?? []).filter(item => item.field && item.question);
     if (!missing.length) assertActionInput(view.action.input_schema, offer.input);
     const at = this.now().toISOString();
-    const card: StoredCard = { card_id: `card-${randomUUID()}`, work_id: work.work_id, revision: 1, run_id: this.store.rounds(work.work_id).at(-1)?.run_id ?? null,
+    // A round's suggestion belongs to that round; a card a page placed belongs to no round (it shows as coming from that page).
+    const card: StoredCard = { card_id: `card-${randomUUID()}`, work_id: work.work_id, revision: 1, run_id: page ? null : this.store.rounds(work.work_id).at(-1)?.run_id ?? null,
       title: offer.title, summary: offer.summary, provider: view.provider.title, capability_title: view.action.title, effect: actionEffect(view.action, view.capability_id),
       reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: structuredClone(offer.input),
       input_schema: view.action.input_schema as Record<string, unknown>, editable: [...new Set(offer.editable ?? [])], missing,

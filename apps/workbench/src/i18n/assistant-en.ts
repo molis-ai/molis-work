@@ -478,6 +478,8 @@ export const ASSISTANT_EN: Record<string, string> = {
   "改过": "edited",
   "自动停用": "switched off on its own",
   "当前内容的动作": "Actions for what you are looking at",
+  "这项内容": "This item",
+  "你的回答": "your answer",
   "已撤销（回到了原来那条）": "Undone (back to the earlier one)",
   "已撤销（已重新启用）": "Undone (switched on again)",
   "因为篇幅没带上": "Left out for length",
@@ -504,4 +506,6 @@ export const ASSISTANT_EN: Record<string, string> = {
   "修改数据": "Changes data",
   "接下来": "Next",
   "操作": "Action",
+  "来自「{title}」页面": "From the {title} page",
+  "选中自《{title}》": "selected in {title}",
 };

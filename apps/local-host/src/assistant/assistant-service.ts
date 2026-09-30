@@ -7,7 +7,7 @@ import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
   type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantMemory, type AssistantMemoryCandidate, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
-  type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover, type AssistantPageCardInput, type AssistantPreparedCard,
+  type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover, type AssistantPageCardInput, type AssistantPreparedCard, type AssistantMaterialText,
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
@@ -337,6 +337,8 @@ export function spokenTurns<T extends { kind: string; text: string }>(turns: rea
 
 /** How many of a work's objects, and how much of each, travel to Coding when the work is handed over. */
 const HANDOVER_OBJECTS = 3, HANDOVER_OBJECT_CHARS = 6000;
+/** How much of a material text the person gets back to look at (what a round may give the model). */
+const MATERIAL_PREVIEW_CHARS = 20_000;
 const HANDOVER_MARK = "【这项工作从个人助理转交给你继续。";
 
 /** A page's prepared card, bounded and shaped as the contract says; anything else is refused before any check runs. */
@@ -1711,6 +1713,19 @@ export class AssistantService {
     if (subject && read && read !== "missing") card.target = { ...subject, revision: read.revision, title: read.title || subject.id };
     this.store.addCard(card);
     return { offer_id: card.card_id };
+  }
+
+  /** One material a round of this work brought, with its text (bounded), for the person to look at again. */
+  material(workId: string, materialId: string): AssistantMaterialText {
+    const work = this.store.get(this.actorId, workId);
+    const found = this.store.rounds(work.work_id).flatMap(round => round.materials).find(item => item.material_id === materialId);
+    if (!found) throw new AssistantError("assistant.not_found", "这项工作里没有这份材料");
+    const text = typeof found.text === "string" ? found.text : undefined;
+    // A page brought from the browser says where it came from on its first line.
+    const url = text?.match(/^来源：\s*(https?:\/\/\S+)/u)?.[1];
+    return { material_id: found.material_id, kind: found.kind, title: found.title,
+      ...(text !== undefined ? { text: text.slice(0, MATERIAL_PREVIEW_CHARS), ...(text.length > MATERIAL_PREVIEW_CHARS ? { truncated: true } : {}) } : {}),
+      ...(url ? { url } : {}), ...(found.source ? { source: { ...found.source } } : {}), ...(found.object ? { object: { ...found.object } } : {}), ...(found.draft ? { draft: true } : {}) };
   }
 
   /**

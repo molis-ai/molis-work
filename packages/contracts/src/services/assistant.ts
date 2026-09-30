@@ -115,6 +115,22 @@ export interface AssistantPluginMessage {
   card?: AssistantPreparedCard;
 }
 
+/**
+ * GET /api/assistant/works/:work_id/materials/:material_id — one material a round brought, with its text, for a preview.
+ * The work view leaves texts out to stay small. `url`: where it came from, when it was a web page (to open it again).
+ */
+export interface AssistantMaterialText {
+  material_id: string;
+  kind: AssistantMaterial["kind"];
+  title: string;
+  text?: string;
+  truncated?: boolean;
+  url?: string;
+  source?: AssistantSurfaceRef;
+  object?: AssistantObjectRef;
+  draft?: boolean;
+}
+
 /** An action a page prepared from what the person selected, for a card (see `AssistantPluginMessage.card`). */
 export interface AssistantPreparedCard {
   title: string;

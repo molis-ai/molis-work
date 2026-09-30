@@ -715,3 +715,17 @@ test("a card a page prepared from the person's selection is checked like the Ass
     await until(async () => (await f.service.read(placed.work_id)).work.state === "completed", "round");
   } finally { await f.close(); }
 });
+
+test("a material a round brought can be read back with its text for a preview, and a page from the browser says where it was", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [() => reply(undefined, "看过了。")]);
+  try {
+    const page = "来源：https://example.com/\n\nExample Domain\nThis domain is for use in illustrative examples.";
+    const sent = await f.service.send({ text: "总结这个网页", request_id: "req-00000081",
+      materials: [{ material_id: "web-1", kind: "text", title: "网页 · Example Domain", explicit: true, text: page }] }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "round");
+    assert.equal((done.rounds[0]!.materials[0] as { text?: string }).text, undefined, "the work view stays small");
+    const material = f.service.material(sent.work.work_id, "web-1");
+    assert.deepEqual([material.kind, material.title, material.text, material.url], ["text", "网页 · Example Domain", page, "https://example.com/"]);
+    assert.throws(() => f.service.material(sent.work.work_id, "missing"), /没有这份材料/);
+  } finally { await f.close(); }
+});

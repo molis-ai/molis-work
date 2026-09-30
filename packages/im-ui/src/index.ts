@@ -7,4 +7,3 @@ export const packageDescriptor = {
 export { renderImPage } from "./page.js";
 export { IM_STYLES } from "./styles.js";
 export { IM_CLIENT_SCRIPT } from "./client.js";
-export { renderImHostEntry, IM_HOST_STYLES, IM_HOST_SCRIPT } from "./host.js";

@@ -1,4 +1,4 @@
-import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PPT_PROJECT_PLUGIN_ID, type PptRecord } from "@molis-ai/molis-work-contracts/modules/ppt";
 import type { PptStore } from "./store.js";
 
@@ -6,6 +6,8 @@ import type { PptStore } from "./store.js";
 export const pptSearchActions = {
   entries: defineSearchEntriesAction("ppt.search.entries", [{ kind: "presentation", title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),
   subject: defineSubjectContextAction("ppt.subject.read", "presentation", "演示稿", ["ppt:read"]),
+  /** The side panel's file tab (specs/side-panel): each deck; its preview is the outline `subject` reads. */
+  files: defineFileEntriesAction("ppt.files.entries", [{ kind: "presentation", title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),
 };
 
 export function pptSearchContent(presentation: PptRecord): string {
@@ -16,6 +18,9 @@ export function pptSearchContent(presentation: PptRecord): string {
 export function createPptSearchHandlers(withStore: <T>(run: (store: PptStore) => T) => T): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   return [
+    bindFileEntriesHandler(pptSearchActions.files, caller => withStore(store => store.list(project(caller)).map(presentation => ({
+      subject: { kind: "presentation", id: presentation.id }, revision: String(presentation.version), title: presentation.title || "演示稿", folder: [],
+      media_type: "text/markdown", size: null, updated_at: presentation.updated_at, open: { surface: PPT_PROJECT_PLUGIN_ID, id: presentation.id } })))),
     bindSearchEntriesHandler(pptSearchActions.entries, caller => withStore(store => store.list(project(caller)).map(presentation => ({
       subject: { kind: "presentation", id: presentation.id }, revision: String(presentation.version), title: presentation.title, summary: searchText(presentation.description, 400),
       updated_at: presentation.updated_at, content: "context" as const, open: { surface: PPT_PROJECT_PLUGIN_ID, id: presentation.id } })))),

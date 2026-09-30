@@ -82,6 +82,22 @@
 | P8 助理文件 | 侧栏预览助理附件与成果（与 [3c6203]、助理会话对接） | PDF、图片、成果打开并跳回插件 |
 | P9 收尾 | 各宽度/深色/读屏/长内容走查、能力对照表更新、全量回归、PR | 验收清单 |
 
+## 4.1 存量接入与清理（用户 2026-09-30 补充）
+
+原话：“注意要把存量的内容都接入进来，比如 coding 里，比如助理里，以及其他可能的地方，存量代码如果有可以清理的也就清理掉。”
+
+| 存量 | 接入方式 | 状态 |
+| --- | --- | --- |
+| 各插件的外链（Feed 原文、Pages 链接、Cognia、Shelf 网址、Alchemist 证据、Artifacts 来源、Goals 附件、Git 远端…） | 平台级链接接管 `SIDE_LINKS_SCRIPT`：外站 `target=_blank` 与 `window.open` 在侧栏浏览器打开，⌘/Ctrl/Shift 仍用系统浏览器；同源、下载、`window.open("")` 不接管；窗格与插件侧栏 iframe 交给顶层侧栏 | 已写，待验证 |
+| Coding 对话里的网址（开发服务器 localhost 等） | Coding 正文按文本节点给网址加链接，经链接接管在侧栏打开 | 已写，待验证 |
+| Coding 的工作区文件 / 每轮改动 | 工作区由 Files 的“工作区文件”来源列出；每轮固定变更经 Artifacts 来源列出（D17）；Coding 的“文件”面保留（Git 提交流程依赖它） | 已写 |
+| 助理的材料、成果、待发图片 | 会话 [3c6203] 在面板里发 `molis:side-open`（插件对象或自带预览），侧栏处理即 `preventDefault`，否则原处打开 | 约定已定，对方实现 |
+| 交还浏览器后接着跑 | [3c6203] 在 island 听 `molis:side-browser-control` handback，用现有 send 发一句继续 | 约定已定，对方实现 |
+| 装着文件的插件 | 文件来源：Files、Pages、Artifacts、Images（生成的图片，原图预览）、Dataset（CSV，表格预览）、PPT（大纲）、Cognia（个人资料，按路径分文件夹）、Shelf（材料与结果，原文件预览） | 已写，待验证 |
+| 项目讨论的旧浮窗 `discussion-split.ts` | 并入侧栏后删除 | 已删 |
+| `packages/im-ui/src/host.ts`（旧侧栏/全屏宿主兼容导出，无调用方） | 删除并更新 README | 已删 |
+| craft-finish 里的 `.dock-window` 样式（只给旧群聊浮窗用） | 属会话 [3c6203] 负责的层，发清单请其删除 | 待对方 |
+
 ## 5. 验收（对应目标）
 
 | # | 验收 | 目标 |

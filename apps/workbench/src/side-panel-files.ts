@@ -68,6 +68,10 @@ export const SIDE_FILES_STYLES = String.raw`
 .side-files-body blockquote{padding-left:12px;border-left:3px solid var(--line);color:var(--ink-soft,var(--ink))}
 .side-files-body code{padding:1px 4px;border-radius:4px;background:var(--wash,var(--nav-hover));font:12px var(--font-mono,ui-monospace,monospace)}
 .side-files-body a{color:var(--accent)}
+.side-files-table{overflow:auto;border:1px solid var(--line);border-radius:8px}
+.side-files-table table{border-collapse:collapse;min-width:100%;font-size:12px}
+.side-files-table :is(th,td){padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+.side-files-table th{position:sticky;top:0;background:var(--paper);font-weight:600}
 .side-files-truncated,.side-files-problem{margin:0 0 12px;padding:8px 12px;border-radius:8px;background:var(--wash,var(--nav-hover));color:var(--ink-soft,var(--ink));font-size:12px}
 @container side-panel (min-width:720px){
  .side-files{grid-template-columns:minmax(220px,300px) minmax(0,1fr)}
@@ -149,6 +153,18 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     if(fence!==null)out.push('<pre>'+esc(fence.join('\n'))+'</pre>');closeList();
     return out.join('');
   };
+  // A CSV reads as a table (first 500 rows); quoted cells may hold commas and line breaks.
+  const table=(text)=>{
+    const rows=[];let row=[],cell='',quoted=false;
+    for(let i=0;i<text.length&&rows.length<501;i++){
+      const c=text[i];
+      if(quoted){if(c==='"'&&text[i+1]==='"'){cell+='"';i++;}else if(c==='"')quoted=false;else cell+=c;continue;}
+      if(c==='"')quoted=true;else if(c===','){row.push(cell);cell='';}else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);rows.push(row);row=[];cell='';}else cell+=c;
+    }
+    if(cell||row.length){row.push(cell);rows.push(row);}
+    const [header=[],...rest]=rows;
+    return '<div class="side-files-table"><table><thead><tr>'+header.map(value=>'<th>'+esc(value)+'</th>').join('')+'</tr></thead><tbody>'+rest.slice(0,500).map(cells=>'<tr>'+cells.map(value=>'<td>'+esc(value)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'+(rest.length>500?'<p class="side-files-truncated">'+esc(L('只显示前 500 行。'))+'</p>':'');
+  };
   const render=(file,note)=>{
     body.classList.remove('is-frame');
     const head=(note?'<p class="side-files-problem">'+esc(note)+'</p>':'')+(file.truncated?'<p class="side-files-truncated">'+esc(L('只显示了开头一部分。完整内容请在插件中打开。'))+'</p>':'');
@@ -158,7 +174,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     if(file.encoding==='base64'&&/^image\/(png|jpeg|gif|webp|avif|svg\+xml)$/.test(type)){body.innerHTML=head+'<img alt="'+esc(file.title)+'" src="data:'+type+';base64,'+file.data+'">';return;}
     if(file.encoding==='base64'&&type==='application/pdf'&&file.raw){body.classList.add('is-frame');body.innerHTML=head+'<iframe title="'+esc(file.title)+'" src="'+esc(file.raw)+'"></iframe>';return;}
     if(file.encoding==='base64'){body.innerHTML=head+'<p class="side-files-note">'+esc(L('这种文件（{type}）不能在侧栏里预览，可以在插件中打开。',{type}))+'</p>';return;}
-    body.innerHTML=head+(/markdown/.test(type)?markdown(file.data):'<pre>'+esc(file.data)+'</pre>');
+    body.innerHTML=head+(/markdown/.test(type)?markdown(file.data):type==='text/csv'?table(file.data):'<pre>'+esc(file.data)+'</pre>');
   };
   const openFile=async(sourceId,kind,id,fallback)=>{
     const source=sources.find(item=>item.id===sourceId),item=find(sourceId,kind,id)||fallback||null;
@@ -175,10 +191,12 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     }catch(error){if(current?.id===id)body.innerHTML='<p class="side-files-problem">'+esc(error.message)+'</p>';}
   };
   // A preview another surface hands over (the Assistant's attachment, a result it made): shown as given.
+  // Only same-origin paths and inline images: a preview never loads another site or a script-bearing data URL.
+  const safeUrl=(url)=>typeof url==='string'&&(/^\/(?!\/)/.test(url)||/^data:image\/(png|jpeg|gif|webp);base64,/.test(url))?url:'';
   const openGiven=(given)=>{
     current={source:'',kind:'',id:given.id||given.title||''};paint();show(true);
     title.textContent=given.title||L('文件');meta.textContent=given.meta||'';setOpen(given.open||null);body.scrollTop=0;
-    render({title:given.title||'',media_type:given.media_type||'text/plain',encoding:'utf8',data:given.text||'',url:given.url||'',truncated:!!given.truncated},given.problem||'');
+    render({title:given.title||'',media_type:given.media_type||'text/plain',encoding:'utf8',data:given.text||'',url:safeUrl(given.url),truncated:!!given.truncated},given.problem||'');
   };
   root.addEventListener('click',event=>{
     const target=event.target instanceof Element?event.target:null;if(!target)return;

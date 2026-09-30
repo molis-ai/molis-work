@@ -6,6 +6,7 @@ import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
 import { sideEntries } from "./plugin-catalog.js";
 import { createWorkbenchUiHost } from "./ui-composition.js";
 import { CONTROL_CLIENT_SCRIPT } from "./scripts/control.js";
+import { SIDE_LINKS_SCRIPT } from "./side-panel.js";
 
 /**
  * One plugin tab of the side panel (specs/side-panel D13): the Host serves the declared `side` view in its own
@@ -48,7 +49,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<style>${TYPEFACE_STYLES}\n${VISUAL_FOUNDATION_STYLES}\n${pack?.stylesheet ?? ""}\n${SIDE_VIEW_STYLES}</style>`,
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}` },
     body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root>${html}</main>
-    <script>${input.clientI18nScript}${CONTROL_CLIENT_SCRIPT}
+    <script>${input.clientI18nScript}${CONTROL_CLIENT_SCRIPT}${SIDE_LINKS_SCRIPT}
       const L = globalThis.L;
       const mountPluginClient = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
       ${client}

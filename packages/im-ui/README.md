@@ -17,7 +17,6 @@ Workspace registration: `goal-reorg-f2`。
 - `src/browser/drafts.ts`：成员/会话草稿、稳定提交版本及条件清理。
 - `src/browser/transport.ts`：同源 HTTP、SSE 与经过来源/请求标识校验的宿主连接。
 - `src/browser/types.ts`：临时客户端状态类型；领域 DTO 仍来自 contracts。
-- `src/host.ts`：历史兼容导出；旧宿主样式和脚本为空。实际入口和分屏由 Workbench 拥有。
 
 `apps/workbench/src/discussion-split.ts` 负责右下角项目菜单入口打开后的布局：工作区真实让出宽度，右侧默认 35%，拖拽/键盘可调整，≤760px 切为上工作、下讨论。关闭仅隐藏 iframe，保留当前会话。宿主与 iframe 的可见性、主题和项目接入消息核验同源及发送窗口；聊天领域事实不放在宿主。
 
@@ -45,7 +44,7 @@ node --import tsx --test --test-concurrency=1 tests/im-browser-state.test.ts tes
 
 文件上传、持久化表情/提及通知、消息修改/删除、结论流程、工作资源引用和 AI 总结尚未实现。插入成员名字只写入正文。实体设备软键盘、中文输入法组合事件、跨设备完整流程与超长历史性能未验收，不能据此宣称完整通信产品或可发布。
 
-正常工作台由 local-host 挂载 `/im`。旧群服务的隔离调试入口仍可使用 `node --import tsx scripts/preview-im.mts`；它不替代真实项目工作台的分屏验收。生产空项目不预置示例成员、消息或话题。
+正常工作台由 local-host 挂载 `/im`，Workbench 的平台侧栏把它作为“讨论”标签装载（`apps/workbench/src/side-panel.ts`，specs/side-panel）。旧群服务的隔离调试入口仍可使用 `node --import tsx scripts/preview-im.mts`；它不替代真实项目工作台的分屏验收。生产空项目不预置示例成员、消息或话题。
 
 ## 开发要求
 

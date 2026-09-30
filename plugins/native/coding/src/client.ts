@@ -527,6 +527,17 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!current || sending)return;methodChoices=structuredClone(methodSelections.get(current) || []);methodDocumentTicket++;
     q('[data-coding-method-search]').value='';q('[data-coding-method-document]').hidden=true;q('[data-coding-method-error]').textContent='';renderMethods();q('[data-coding-method-dialog]').showModal();
   };
+  // Web addresses in a turn (a dev server the round started, a page it read) are links, built from text nodes, never
+  // from model-written markup; the Workbench opens them in the side panel's browser (specs/side-panel).
+  const linkedText = (node, text) => {
+    node.replaceChildren();let at=0;const pattern=/https?:\\/\\/[^\\s<>"'\\x60）】」]+[^\\s<>"'\\x60）】」.,;:!?。，；：！？)]/g;
+    for(const match of text.matchAll(pattern)){
+      if(match.index>at)node.append(document.createTextNode(text.slice(at,match.index)));
+      const link=document.createElement('a');link.href=match[0];link.textContent=match[0];link.target='_blank';link.rel='noopener noreferrer';node.append(link);
+      at=match.index+match[0].length;
+    }
+    if(at<text.length)node.append(document.createTextNode(text.slice(at)));
+  };
   // Code reads as code: fenced blocks and diff lines are coloured from text pieces, never from model-written markup.
   const codeLanguageOf = ${codeLanguage.toString()};
   const tokensOf = ${codeTokens.toString()};
@@ -793,7 +804,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           if(!node) { node=document.createElement('article'); node.className='coding-turn'; node.dataset.turn=turn.turn_id; node.dataset.kind=turn.kind; }
           const renderKey=turn.text+'|'+(turn.steer?.state || '')+(run.frozen.role_id==='planner'?'|'+run.phase:'');
           if(renderedText.get(node)!==renderKey) {
-            if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){node.innerHTML=turn.html || ''; if(!turn.html) node.textContent=turn.text;}
+            if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){node.innerHTML=turn.html || ''; if(!turn.html) linkedText(node,turn.text);}
             // A round that started from the digest of earlier rounds shows the person's own request; the digest it carried
             // stays one click away, with the plain statement that tool output was not carried.
             const digestAt=turn.kind==='user' && turn.text.startsWith(HISTORY_DIGEST_MARKER) ? turn.text.indexOf(HISTORY_DIGEST_TASK_HEAD) : -1;

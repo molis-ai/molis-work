@@ -95,4 +95,5 @@ export const SIDE_PANEL_EN: Record<string, string> = {
   "允许助理使用侧栏浏览器": "Let the Assistant use the side panel browser",
   "助理可以使用侧栏浏览器了（每次操作前仍会问你）。": "The Assistant may use the side panel browser (it still asks before each action).",
   "助理不再使用侧栏浏览器。": "The Assistant no longer uses the side panel browser.",
+  "只显示前 500 行。": "Only the first 500 rows are shown.",
 };

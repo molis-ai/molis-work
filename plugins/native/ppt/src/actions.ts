@@ -35,6 +35,7 @@ export const pptActions = {
   move: defineObjectMoveAction("ppt.placement.move", ["presentation"], "演示稿", write),
   copy: defineObjectCopyAction("ppt.placement.copy", ["presentation"], "演示稿", write),
   searchEntries: pptSearchActions.entries,
+  files: pptSearchActions.files,
   subject: pptSearchActions.subject,
 };
 export const PPT_ACTION_PERMISSIONS = [...new Set(Object.values(pptActions).flatMap(definition => definition.action.permissions))];

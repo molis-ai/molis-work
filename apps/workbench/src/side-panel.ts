@@ -131,7 +131,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
       select(options.tab??current??read('molis:side-tab')??'discussion',options.target);
       if(options.focus===true)panel.querySelector('[data-side-tab][aria-selected="true"]')?.focus({preventScroll:true});
     }else if(was){
-      delete document.body.dataset.sideOpen;panel.inert=true;
+      document.body.dataset.sideOpen='false';panel.inert=true;
       closing=setTimeout(()=>{if(!open)panel.hidden=true;},matchMedia('(prefers-reduced-motion:reduce)').matches?0:420);
       if(panel.contains(document.activeElement)){const focusTarget=trigger?.isConnected&&trigger.getClientRects().length?trigger:document.querySelector('[data-dock-toggle="im"]');focusTarget?.focus({preventScroll:true});}
       imVisible();document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current,target:null,open:false}}));
@@ -140,9 +140,12 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   };
   const request=(detail={})=>{
     const tab=detail.tab==='plugin'&&detail.view?'plugin:'+detail.view:detail.tab;
-    setOpen(true,{tab:known(tab)?tab:undefined,target:detail.target,focus:detail.focus===true});
+    if(tab!==undefined&&!known(tab))return false;
+    setOpen(true,{tab,target:detail.target,focus:detail.focus===true});
+    return true;
   };
-  document.addEventListener('molis:side-open',event=>request(event.detail||{}));
+  // Handled requests are marked, so a caller can fall back to opening in place when no panel took it.
+  document.addEventListener('molis:side-open',event=>{if(request(event.detail||{}))event.preventDefault();});
   document.addEventListener('molis:side-close',()=>setOpen(false));
   document.addEventListener('molis:side-toggle',event=>open&&!(event.detail?.tab&&event.detail.tab!==current)?setOpen(false):request(event.detail||{}));
   document.addEventListener('molis:discussion-toggle',()=>open&&current==='discussion'?setOpen(false):request({tab:'discussion'}));
@@ -186,5 +189,44 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   divider.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();ratio=event.key==='Home'?.25:event.key==='End'?.55:Math.max(.25,Math.min(.55,ratio+(event.key==='ArrowLeft'?24:-24)/innerWidth));paint();keep();});
   divider.addEventListener('dblclick',()=>{ratio=.35;paint();keep();});
   addEventListener('resize',paint);paint();
+  // Present from the start with "true" or "false": other surfaces read it to know the panel exists.
+  document.body.dataset.sideOpen='false';
   const first=read('molis:side-tab');select(known(first)?first:'discussion');
+})();`;
+
+/**
+ * Links that leave Molis Work open in the side panel's browser (specs/side-panel, 存量接入): every plugin's
+ * `target="_blank"` link and `window.open` of a web address, without each plugin knowing about the panel. The person
+ * keeps the system browser with ⌘/Ctrl/Shift. Same-origin addresses, downloads, `javascript:`/`mailto:` and
+ * `window.open("")` (sign-in popups a page fills itself) are left alone. Runs in the workbench, in its embedded panes
+ * and in plugin side views; a frame hands the address to the panel in the window above it.
+ */
+export const SIDE_LINKS_SCRIPT = String.raw`(() => {
+  if(globalThis.__molisSideLinks)return;globalThis.__molisSideLinks=true;
+  const external=(value)=>{try{const url=new URL(String(value),location.href);return /^https?:$/.test(url.protocol)&&url.origin!==location.origin?url.href:'';}catch{return '';}};
+  const hasPanel=()=>!!document.querySelector('[data-side-panel]')&&!document.body?.hasAttribute('data-pane-embedded');
+  const open=(url)=>{
+    if(hasPanel()){const event=new CustomEvent('molis:side-open',{detail:{tab:'browser',target:{url}},cancelable:true});document.dispatchEvent(event);return event.defaultPrevented;}
+    if(window.parent!==window){try{window.parent.postMessage({type:'molis:side-open',tab:'browser',target:{url}},location.origin);return true;}catch{return false;}}
+    return false;
+  };
+  document.addEventListener('click',event=>{
+    if(event.defaultPrevented||event.button!==0)return;
+    const link=event.target instanceof Element?event.target.closest('a[href]'):null;
+    if(!link||link.hasAttribute('download')||link.closest('[data-side-links=off]'))return;
+    const url=external(link.getAttribute('href'));
+    if(!url||(link.target!=='_blank'&&!link.closest('[data-side-links=on]')))return;
+    if(event.metaKey||event.ctrlKey||event.shiftKey){
+      // The system browser, on purpose. The desktop shell has its own way out; the web keeps the browser's default.
+      if(globalThis.molisWorkOpenExternalUrl){event.preventDefault();void globalThis.molisWorkOpenExternalUrl(url);}
+      return;
+    }
+    if(open(url))event.preventDefault();
+  });
+  const nativeOpen=window.open.bind(window);
+  window.open=(value,target,features)=>{
+    const url=value?external(value):'';
+    if(url&&open(url))return null;
+    return nativeOpen(value,target,features);
+  };
 })();`;

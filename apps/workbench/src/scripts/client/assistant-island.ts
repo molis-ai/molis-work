@@ -1312,7 +1312,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const stopped = unsettled.map((change) => card({ icon: change.state === "pending" ? spinner() : "clock", title: change.title, sub: L(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "") }));
       /* Memory the work kept (asked for, or kept on its own): the memory service owns it; this is where it can be taken back. */
       // The memory service names more kinds than these; one this panel does not know reads as plainly kept.
-      const KEPT = { kept: "", auto_kept: "自动记住", replaced: "替换了旧的一条", auto_replaced: "自动替换了旧的一条", merged: "和旧的一条合并", edited: "改过" };
+      const KEPT = { kept: "", auto_kept: "自动记住", replaced: "替换了旧的一条", auto_replaced: "自动替换了旧的一条", merged: "和旧的一条合并", edited: "改过",
+        auto_disabled: "自动停用" };
+      // What undoing did depends on the kind: a memory kept on its own is deleted (its words go with it), a replacement
+      // goes back to the earlier version, a memory switched off is on again. The last two keep the words they undid.
+      const UNDONE = { auto_replaced: "已撤销（回到了原来那条）", auto_disabled: "已撤销（已重新启用）" };
       const remembered = kept.map((change) => {
         const undone = change.state === "undone";
         const actions = [];
@@ -1327,9 +1331,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           const scoped = change.scope === "project" ? change.project_id || (project && project.id) : "";
           if (!handled) location.assign(scoped ? "/projects/" + encodeURIComponent(scoped) + "/settings/memory" : "/settings/memory");
         }, true));
-        // Undoing deletes the memory, its words with it: an undone card says so rather than showing what is gone.
-        return card({ icon: "sparkles", tone: undone ? "" : "suggest", title: undone ? L("已撤销（已从记忆里删掉）") : change.text, done: undone,
-          sub: [L(change.scope === "personal" ? "个人" : "本项目"), KEPT[change.kind] ? L(KEPT[change.kind]) : ""].filter(Boolean).join(" · "), actions });
+        const scope = L(change.scope === "personal" ? "个人" : "本项目");
+        if (undone && (!UNDONE[change.kind] || !change.text)) return card({ icon: "sparkles", title: L("已撤销（已从记忆里删掉）"), done: true, sub: scope, actions });
+        return card({ icon: "sparkles", tone: undone ? "" : "suggest", title: change.text, done: undone,
+          sub: [scope, undone ? L(UNDONE[change.kind]) : KEPT[change.kind] ? L(KEPT[change.kind]) : ""].filter(Boolean).join(" · "), actions });
       });
       const content = el("div", "assistant-group-list");
       if (made.length) content.append(group("", stack(made)));

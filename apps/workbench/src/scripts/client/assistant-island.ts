@@ -25,7 +25,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const side = island.querySelector("[data-assistant-side]");
   const sideToggle = island.querySelector("[data-assistant-side-toggle]");
   const sideDot = island.querySelector("[data-assistant-side-dot]");
-  const blocks = { path: island.querySelector('[data-assistant-block="path"]'), materials: island.querySelector('[data-assistant-block="materials"]'),
+  const blocks = { attention: island.querySelector('[data-assistant-block="attention"]'), path: island.querySelector('[data-assistant-block="path"]'), materials: island.querySelector('[data-assistant-block="materials"]'),
     results: island.querySelector('[data-assistant-block="results"]') };
   const target = island.querySelector("[data-assistant-target]");
   const targetWrap = island.querySelector("[data-assistant-target-wrap]");
@@ -732,35 +732,38 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }));
   };
   const RELATION_LABEL = { origin: "起点", material: "材料", result: "成果", session: "专业会话" };
-  // Short in the row; the versions behind it are in the row's title.
+  // Short on the card; the versions behind it are in its title.
   const objectState = (object) => object.state === "changed" ? L("之后被改过") : object.state === "missing" ? L("已不存在") : object.state === "unavailable" ? L("暂时读不到")
     : object.state === "moved" ? (object.moved_to ? L("已移到") + "「" + object.moved_to.title + "」" : L("在别的项目里")) : "";
   const objectDetail = (object) => object.state === "changed" ? L("这项工作记下版本") + " " + object.recorded_revision + " · " + L("现为版本") + " " + object.current_revision
     : object.current_revision ? L("版本") + " " + object.current_revision : "";
-  /** One line of the side pane: a small tag, a name, how it stands, and what can be done to it. */
-  const sideRow = (tag, title, state, actions, tone, detail, open, openLabel) => {
-    const list = actions || [];
-    // A row with several actions, or a long state, puts them on a second line so the name stays readable.
-    const stacked = list.length > 1 || (state && state.length > 10 && list.length > 0);
-    const row = el("li", "assistant-side-row" + (tone ? " is-" + tone : "") + (stacked ? " is-stacked" : "") + (open ? " is-openable" : ""));
-    if (tag) row.append(el("span", "assistant-side-tag", tag));
-    // The name itself opens what it names: one large target instead of an “打开” beside every line.
-    if (open) {
-      const name = el("button", "assistant-side-name", title); name.type = "button";
-      name.setAttribute("aria-label", (openLabel || L("打开")) + "：" + title);
-      name.addEventListener("click", () => { void open(); });
-      row.append(name);
-    } else row.append(el("span", "assistant-side-name", title));
-    const foot = stacked ? el("span", "assistant-side-foot") : row;
-    if (state) foot.append(el("span", "assistant-side-state", state));
-    list.forEach((action) => foot.append(action));
-    if (stacked) row.append(foot);
-    if (detail) row.title = detail;
-    return row;
+  /* The side pane speaks in the page's own glyphs, rendered once into a template, so every kind of thing has a face. */
+  const glyphs = island.querySelector("[data-assistant-glyphs]");
+  const glyph = (name) => {
+    const holder = el("span", "assistant-glyph-icon"); holder.setAttribute("aria-hidden", "true");
+    const found = glyphs && glyphs.content && glyphs.content.querySelector('[data-glyph="' + name + '"]');
+    if (found && found.firstElementChild) holder.append(found.firstElementChild.cloneNode(true));
+    return holder;
   };
-  /** An action on a row. A quiet one (stop, take back, cancel) shows on hover or focus; the busy state shows while it runs. */
-  const sideAction = (label, name, run, quiet) => {
-    const button = el("button", "assistant-side-action" + (quiet ? " is-quiet" : ""), label); button.type = "button";
+  const spinner = () => el("span", "assistant-spinner");
+  /** What an object is, read from its kind or the surface it opens in. */
+  const KIND_GLYPH = [[/todo/, "check"], [/image|photo/, "image"], [/coding|code/, "code"], [/goal/, "target"], [/lingguang|idea/, "idea"],
+    [/feed|inbox|mail/, "inbox"], [/workflow|schedule/, "workflow"], [/dataset|database/, "database"], [/artifact|package/, "package"], [/page|doc|note|form|ppt/, "note"]];
+  const kindGlyph = (text) => { const key = String(text || "").toLowerCase(); const hit = KIND_GLYPH.find(([pattern]) => pattern.test(key)); return hit ? hit[1] : "file"; };
+  const objectGlyph = (object) => kindGlyph((object.subject ? object.subject.kind : "") + " " + (object.open ? object.open.surface : ""));
+  /** The plugin's own name for where an object lives, as its entry in the plugin list says it. */
+  const surfaceName = (surface) => {
+    if (!surface) return "";
+    const entry = document.querySelector('.plugin-rail-items [data-plugin-id="' + surface + '"] > span');
+    return (entry && entry.textContent.trim()) || surface;
+  };
+  /** A glyph on a small tinted square; its tone says waiting on you, done, a suggestion, or not there. */
+  const tile = (name, tone) => { const box = el("span", "assistant-glyph" + (tone ? " is-" + tone : "")); box.append(typeof name === "string" ? glyph(name) : name); return box; };
+  /** An action. Primary and secondary ones look like buttons; a quiet one (stop, take back, cancel) shows on hover or focus. */
+  const sideAction = (label, name, run, quiet, variant, icon) => {
+    const button = el("button", "assistant-side-action" + (quiet ? " is-quiet" : "") + (variant ? " is-" + variant : "")); button.type = "button";
+    if (icon) button.append(glyph(icon));
+    button.append(document.createTextNode(label));
     button.setAttribute("aria-label", label + "：" + name);
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
@@ -769,11 +772,29 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     });
     return button;
   };
-  // In 路径 the tag says how it relates (起点, 专业会话); inside 材料 and 成果 the block already says it.
-  const objectRow = (object, openLabel, tag) => {
-    const tone = object.state === "changed" || object.state === "moved" ? "warn" : object.state === "missing" || object.state === "unavailable" ? "bad" : "";
-    const open = object.open && host.openItem ? async () => host.openItem(object.open.surface, object.open.id, object.title) : null;
-    return sideRow(tag === undefined ? L(RELATION_LABEL[object.relation] || object.relation) : tag, object.title, objectState(object), [], tone, objectDetail(object), open, openLabel);
+  /** A card: its glyph, a title and one line under it, then what can be done to it. The title opens it, and the whole card is its target. */
+  const card = ({ icon, tone, title, sub, subTone, open, openLabel, actions, done, ask, detail }) => {
+    const node = el("div", "assistant-item" + (ask ? " assistant-item--ask" : "") + (done ? " is-done" : "") + (open ? " is-openable" : ""));
+    node.append(tile(icon, tone));
+    const text = el("div", "assistant-item-text");
+    if (open) {
+      const name = el("button", "assistant-item-title", title); name.type = "button";
+      name.setAttribute("aria-label", (openLabel || L("打开")) + "：" + title);
+      name.addEventListener("click", () => { void open(); });
+      text.append(name);
+    } else text.append(el("span", "assistant-item-title", title));
+    if (sub) text.append(el("span", "assistant-item-sub" + (subTone ? " is-" + subTone : ""), sub));
+    node.append(text);
+    if (actions && actions.length) { const row = el("div", "assistant-item-actions"); actions.forEach((action) => row.append(action)); node.append(row); }
+    if (detail) node.title = detail;
+    return node;
+  };
+  const openObject = (object) => object.open && host.openItem ? async () => host.openItem(object.open.surface, object.open.id, object.title) : null;
+  const objectCard = (object, tone, openLabel) => {
+    const state = objectState(object);
+    return card({ icon: objectGlyph(object), tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : object.state !== "current" ? "attention" : tone,
+      title: object.title, sub: [surfaceName(object.open && object.open.surface), state].filter(Boolean).join(" · "), subTone: state ? "attention" : "",
+      open: openObject(object), openLabel, detail: objectDetail(object) });
   };
   /** Rebuilding a block under the person's focus would drop it: the same control gets it back. */
   const keepFocus = (node, build) => {
@@ -782,38 +803,62 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     build();
     if (key) [...node.querySelectorAll("button, select, input, summary")].find((one) => (one.getAttribute("aria-label") || one.textContent) === key)?.focus();
   };
-  /** A block: a heading that folds it (remembered per viewer), then groups of rows; a block with nothing in it is not shown. */
+  /** A block: a heading with its glyph and a badge (folding it is remembered per viewer), then its content; with no content it is not shown. */
   const BLOCKS_KEY = "molis.assistant.blocks";
   const folded = (() => { try { const saved = JSON.parse(store.get(BLOCKS_KEY) || "{}"); return saved && typeof saved === "object" ? saved : {}; } catch { return {}; } })();
-  const paintBlock = (node, title, groups, note, attention) => {
-    const filled = groups.filter((group) => group.rows.length);
-    node.hidden = !filled.length;
-    if (!filled.length) { node.replaceChildren(); return; }
+  const paintBlock = (node, title, icon, content, badge, attention, fixed) => {
+    node.hidden = !content;
+    if (!content) { node.replaceChildren(); return; }
     const key = node.dataset.assistantBlock;
-    const head = el("button", "assistant-block-head"); head.type = "button";
-    head.setAttribute("aria-expanded", String(!folded[key]));
-    head.append(el("span", "assistant-block-chevron"), el("span", "assistant-block-title", title));
-    if (note) head.append(el("span", "assistant-block-note" + (attention ? " is-attention" : ""), note));
-    head.addEventListener("click", () => {
+    const head = el(fixed ? "p" : "button", "assistant-block-head" + (fixed ? " is-fixed" : ""));
+    if (!fixed) { head.type = "button"; head.setAttribute("aria-expanded", String(!folded[key])); head.append(el("span", "assistant-block-chevron")); }
+    head.append(glyph(icon), el("span", "assistant-block-title", title));
+    if (badge) head.append(el("span", "assistant-block-badge" + (attention ? " is-attention" : ""), badge));
+    if (!fixed) head.addEventListener("click", () => {
       folded[key] = !folded[key]; if (!folded[key]) delete folded[key];
-      // Opening lets the rows arrive once; folding is immediate.
+      // Opening lets the content arrive once; folding is immediate.
       if (!folded[key]) { node.setAttribute("data-opening", ""); setTimeout(() => node.removeAttribute("data-opening"), 300); }
       store.set(BLOCKS_KEY, Object.keys(folded).length ? JSON.stringify(folded) : null);
       node.toggleAttribute("data-folded", Boolean(folded[key])); head.setAttribute("aria-expanded", String(!folded[key]));
     });
-    node.toggleAttribute("data-folded", Boolean(folded[key]));
-    const body = el("div", "assistant-block-body"), inner = el("div", "assistant-block-inner");
-    filled.forEach((group) => {
-      if (group.label) inner.append(el("p", "assistant-block-sub", group.label));
-      const list = el("ul", "assistant-side-list");
-      group.rows.forEach((row) => list.append(row));
-      inner.append(list);
-    });
-    body.append(inner);
+    node.toggleAttribute("data-folded", !fixed && Boolean(folded[key]));
+    const body = el("div", "assistant-block-body"); body.append(content);
     node.replaceChildren(head, body);
   };
+  const group = (label, ...children) => { const box = el("div", "assistant-group"); if (label) box.append(el("p", "assistant-block-sub", label)); box.append(...children); return box; };
+  const stack = (cards) => { const box = el("div", "assistant-stack"); cards.forEach((one) => box.append(one)); return box; };
 
-  /* 路径: who asked for it, where it started, the professional session carrying it, its sub-tasks, what comes later. */
+  /* 还等你处理: everything in this work that waits on the person besides the conversation's own cards, each with its button. */
+  const renderAttention = (work) => {
+    const node = blocks.attention;
+    if (!node) return;
+    const objects = work && view.objects ? view.objects.filter((o) => o.state !== "current") : [];
+    const children = work && view.delegated ? view.delegated.filter((child) => WAITING.has(child.state) && !child.taken_back) : [];
+    const suggestions = work && view.memory_candidates ? view.memory_candidates : [];
+    const signature = JSON.stringify([work && work.work_id, objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision]), children.map((c) => [c.work_id, c.state, c.title]), suggestions.map((c) => c.candidate_id)]);
+    if (node.dataset.signature === signature) return;
+    node.dataset.signature = signature;
+    keepFocus(node, () => {
+      const cards = [];
+      children.forEach((child) => cards.push(card({ icon: "workflow", tone: "attention", ask: true, title: child.title,
+        sub: L("子任务") + " · " + stateLabel(child.state), actions: [sideAction(child.state === "waiting-input" ? L("去回答") : L("去看看"), child.title, async () => switchTo(child.work_id), false, "primary")] })));
+      objects.forEach((object) => {
+        const open = openObject(object);
+        cards.push(card({ icon: "alert", tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : "attention", ask: true, title: object.title,
+          sub: object.state === "changed" ? L("用过之后被改过") + " · " + objectDetail(object) : objectState(object),
+          actions: open ? [sideAction(L("打开看看"), object.title, open, false, "secondary")] : [] }));
+      });
+      suggestions.forEach((candidate) => {
+        const settle = (path) => async () => { await api("/memory-candidates/" + encodeURIComponent(candidate.candidate_id) + path, "POST", {}); await refresh(); };
+        cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: L("要记住吗") + "：" + candidate.text,
+          sub: candidate.why + " · " + L(candidate.scope === "personal" ? "个人" : "本项目"),
+          actions: [sideAction(L("记住"), candidate.text, settle("/accept"), false, "primary"), sideAction(L("不用"), candidate.text, settle("/discard"), false, "secondary")] }));
+      });
+      paintBlock(node, L("还等你处理"), "bell", cards.length ? stack(cards) : null, String(cards.length), true, true);
+    });
+  };
+
+  /* 路径: a line from who asked and where it started, through the session and the sub-tasks, to what comes later. */
   const renderPath = (work) => {
     const node = blocks.path;
     if (!node) return;
@@ -827,43 +872,64 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
     keepFocus(node, () => {
-      const start = [];
-      if (parent) start.push(sideRow(L("受托于"), parent.title, L("验收") + "：" + parent.acceptance, [], "", "", () => switchTo(parent.work_id)));
-      objects.filter((o) => o.relation === "origin").forEach((o) => start.push(objectRow(o)));
-      if (work && !objects.some((o) => o.relation === "origin") && work.origin && (work.origin.title || work.origin.surface)) start.push(sideRow(L("起点"), work.origin.title || work.origin.surface, ""));
-      objects.filter((o) => o.relation === "session").forEach((o) => start.push(objectRow(o, L("在 Coding 打开"))));
-      if (work && work.executor.kind === "coding" && work.executor.session_id && !objects.some((o) => o.relation === "session")) {
-        start.push(sideRow(L("专业会话"), work.executor.title || "Coding", "", [], "", "", host.openItem ? async () => host.openItem("coding", work.executor.session_id, work.title) : null, L("在 Coding 打开")));
+      const line = el("ol", "assistant-timeline");
+      const step = (marker, tone, label, ...content) => {
+        const item = el("li", "assistant-step");
+        const dot = el("span", "assistant-step-marker" + (tone ? " is-" + tone : ""));
+        // A marker is a glyph, or a count such as “1/2”.
+        dot.append(/^\d+\/\d+$/.test(marker) ? document.createTextNode(marker) : glyph(marker));
+        item.append(dot, el("p", "assistant-step-label", label), ...content);
+        line.append(item);
+      };
+      if (parent) step("flag", "", L("受托于"), card({ icon: "workflow", title: parent.title, sub: L("验收") + "：" + parent.acceptance, open: () => switchTo(parent.work_id) }));
+      objects.filter((o) => o.relation === "origin").forEach((o) => step("flag", "", L("起点"), objectCard(o)));
+      if (work && !objects.some((o) => o.relation === "origin") && work.origin && (work.origin.title || work.origin.surface)) {
+        step("flag", "", L("起点"), card({ icon: kindGlyph(work.origin.surface), title: work.origin.title || surfaceName(work.origin.surface), sub: surfaceName(work.origin.surface) }));
       }
-      const subtasks = children.map((child) => {
-        const actions = [];
-        /* Stop one sub-task from here, without opening it; what it already did stays. */
-        if (!child.taken_back && isLive(child.state)) actions.push(sideAction(L("停止"), child.title, async () => { await api("/works/" + encodeURIComponent(child.work_id) + "/control", "POST", { kind: "stop" }); await refresh(); }, true));
-        /* Take the part back: it stops, what it made stays, and this work finishes that part itself. */
-        if (!child.taken_back) {
-          const takeBack = sideAction(L("收回"), child.title, async () => { view = await api("/works/" + encodeURIComponent(child.work_id) + "/take-back", "POST", {}); render(); }, true);
-          takeBack.title = L("停下这个子任务，由这项工作自己接着做这一部分；它已产出的保留");
-          actions.push(takeBack);
-        }
-        return sideRow("", child.title, (child.taken_back ? L("已收回") : stateLabel(child.state)) + (child.follow_ups ? " · " + L("补改") + " " + child.follow_ups : ""), actions, WAITING.has(child.state) ? "warn" : "", "", () => switchTo(child.work_id));
-      });
+      objects.filter((o) => o.relation === "session").forEach((o) => step("code", "", L("专业会话"), objectCard(o, "", L("在 Coding 打开"))));
+      if (work && work.executor.kind === "coding" && work.executor.session_id && !objects.some((o) => o.relation === "session")) {
+        step("code", "", L("专业会话"), card({ icon: "code", title: work.executor.title || "Coding", sub: "Coding",
+          open: host.openItem ? async () => host.openItem("coding", work.executor.session_id, work.title) : null, openLabel: L("在 Coding 打开") }));
+      }
+      if (children.length) {
+        const done = children.filter((child) => child.state === "completed" || child.taken_back).length;
+        const waiting = children.some((child) => WAITING.has(child.state) && !child.taken_back);
+        const meter = el("span", "assistant-progress"); const fill = el("span"); fill.style.width = Math.round(done / children.length * 100) + "%"; meter.append(fill);
+        meter.setAttribute("role", "img"); meter.setAttribute("aria-label", L("子任务") + " " + done + "/" + children.length);
+        const rows = children.map((child) => {
+          const row = el("div", "assistant-subtask" + (WAITING.has(child.state) && !child.taken_back ? " is-attention" : ""));
+          const tone = child.taken_back ? "" : child.state === "completed" ? "done" : WAITING.has(child.state) ? "attention" : child.state === "failed" ? "blocked" : "";
+          const mark = el("span", "assistant-subtask-mark" + (tone ? " is-" + tone : ""));
+          mark.append(child.state === "running" ? spinner() : glyph(child.state === "completed" ? "check" : WAITING.has(child.state) ? "status-waiting" : child.state === "failed" ? "circle-alert" : "circle"));
+          const name = el("button", "assistant-subtask-name", child.title); name.type = "button"; name.setAttribute("aria-label", L("打开") + "：" + child.title);
+          name.addEventListener("click", () => switchTo(child.work_id));
+          row.append(mark, name, el("span", "assistant-subtask-state", (child.taken_back ? L("已收回") : stateLabel(child.state)) + (child.follow_ups ? " · " + L("补改") + " " + child.follow_ups : "")));
+          /* Stop one sub-task from here, without opening it; what it already did stays. */
+          if (!child.taken_back && isLive(child.state)) row.append(sideAction(L("停止"), child.title, async () => { await api("/works/" + encodeURIComponent(child.work_id) + "/control", "POST", { kind: "stop" }); await refresh(); }, true));
+          /* Take the part back: it stops, what it made stays, and this work finishes that part itself. */
+          if (!child.taken_back) {
+            const takeBack = sideAction(L("收回"), child.title, async () => { view = await api("/works/" + encodeURIComponent(child.work_id) + "/take-back", "POST", {}); render(); }, true);
+            takeBack.title = L("停下这个子任务，由这项工作自己接着做这一部分；它已产出的保留");
+            row.append(takeBack);
+          }
+          return row;
+        });
+        step(done + "/" + children.length, waiting ? "attention" : done === children.length ? "done" : "", L("分出去的子任务"), meter, ...rows);
+      }
       const REPEAT = { none: "一次", daily: "每天", weekly: "每周" }, OUTCOME = { started: "已开始", missed: "错过（当时没在运行）", skipped: "跳过（上一轮未结束）", failed: "没有完成" };
-      const later = scheduled.map((followUp) => {
-        const next = followUp.enabled && followUp.next_at ? L("下一次") + " " + when(followUp.next_at) : L("已结束");
-        const row = sideRow(L(REPEAT[followUp.repeat] || followUp.repeat), followUp.label, next,
-          followUp.enabled ? [sideAction(L("取消"), followUp.label, async () => { await api("/followups/remove", "POST", { followup_id: followUp.followup_id }); await refresh(); }, true)] : []);
-        row.title = (followUp.last ? L("上次") + L(OUTCOME[followUp.last.outcome] || followUp.last.outcome) + " · " : "")
-          + (followUp.enabled ? L(view.schedule_survives_close ? "关闭窗口后仍会执行" : "需要 Molis Work 在运行") : "");
-        return row;
-      });
-      const waiting = children.filter((child) => WAITING.has(child.state)).length;
-      paintBlock(node, L("路径"), [{ rows: start }, { label: L("子任务"), rows: subtasks }, { label: L("之后"), rows: later }],
-        waiting ? waiting + " " + L("个在等你") : children.length ? children.length + " " + L("个子任务") : "", waiting > 0);
+      if (scheduled.length) step("clock", "later", L("之后"), ...scheduled.map((followUp) => card({ icon: "clock", title: followUp.label,
+        sub: L(REPEAT[followUp.repeat] || followUp.repeat) + " · " + (followUp.enabled && followUp.next_at ? L("下一次") + " " + when(followUp.next_at) : L("已结束")),
+        detail: (followUp.last ? L("上次") + L(OUTCOME[followUp.last.outcome] || followUp.last.outcome) + " · " : "") + (followUp.enabled ? L(view.schedule_survives_close ? "关闭窗口后仍会执行" : "需要 Molis Work 在运行") : ""),
+        actions: followUp.enabled ? [sideAction(L("取消"), followUp.label, async () => { await api("/followups/remove", "POST", { followup_id: followUp.followup_id }); await refresh(); }, true)] : [] })));
+      const done = children.filter((child) => child.state === "completed" || child.taken_back).length;
+      paintBlock(node, L("路径"), "workflow", line.children.length ? line : null, children.length ? L("子任务") + " " + done + "/" + children.length : "",
+        children.some((child) => WAITING.has(child.state) && !child.taken_back));
     });
   };
 
-  /* 材料: what the next Send carries (named, removable), and what this work has used so far. */
+  /* 材料: a place to drop what the next Send carries, then what this work has used, as tiles. */
   const MATERIAL_KIND = { image: "图片", file: "文件", method: "方法", capability: "能力", text: "文字", selection: "选中的内容", object: "引用" };
+  const MATERIAL_GLYPH = { image: "image", file: "file", method: "zap", capability: "zap", text: "note", selection: "text", object: "file" };
   function renderMaterialsBlock() {
     const node = blocks.materials;
     if (!node) return;
@@ -881,27 +947,56 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
     keepFocus(node, () => {
-      const next = items.map((item) => {
-        if (item.work) return sideRow("", item.label, stateLabel(item.work.state), [sideAction(L("切换过去"), item.label, async () => { await switchTo(item.work.work_id); input.focus(); })]);
-        // Browsing is not working on it: the person decides whether this round takes it.
-        if (item.optional) return sideRow("", item.label, L("不会带上"), [sideAction(L("加入本轮"), item.label, async () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMaterials(); })]);
-        return sideRow("", item.label, item.note || (item.auto ? L("来自当前页面") : L("你添加的")), [sideAction("×", L("不带上") + " " + item.label, async () => { dropMaterial(item); paintMaterials(); })]);
+      // The next Send's materials sit in a place things can be dropped on; each one is named and can be left out.
+      const zone = el("div", "assistant-drop");
+      zone.append(el("p", "assistant-drop-label", L("下次发送带上")));
+      if (items.length) {
+        const chips = el("div", "assistant-chips");
+        items.forEach((item) => {
+          const chip = el("span", "assistant-chip" + (item.optional ? " is-optional" : ""));
+          chip.append(glyph(item.thumb ? "image" : item.key === "selection" ? "text" : item.key === "draft" ? "edit" : item.work ? "workflow" : "file"), el("span", "assistant-chip-label", item.label));
+          if (item.work) chip.append(sideAction(L("切换过去"), item.label, async () => { await switchTo(item.work.work_id); input.focus(); }));
+          // Browsing is not working on it: the person decides whether this round takes it.
+          else if (item.optional) chip.append(sideAction(L("加入本轮"), item.label, async () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMaterials(); }));
+          else chip.append(sideAction("×", L("不带上") + " " + item.label, async () => { dropMaterial(item); paintMaterials(); }));
+          chip.title = item.note || (item.optional ? L("与这项工作无关，不会带上") : item.auto ? L("来自当前页面") : L("你添加的"));
+          chips.append(chip);
+        });
+        zone.append(chips);
+      }
+      const hint = el("div", "assistant-drop-hint");
+      const pick = sideAction(L("添加文件"), L("下次发送带上"), async () => { fileInput?.click(); }, false, "secondary");
+      hint.append(glyph("upload"), el("span", "", L("拖到这里，或 @ 引用、/ 用能力")), pick);
+      zone.append(hint);
+      zone.addEventListener("dragover", (event) => { if (![...(event.dataTransfer?.types || [])].includes("Files")) return; event.preventDefault(); zone.dataset.dropping = "true"; });
+      zone.addEventListener("dragleave", (event) => { if (!zone.contains(event.relatedTarget)) delete zone.dataset.dropping; });
+      zone.addEventListener("drop", (event) => { delete zone.dataset.dropping; const dropped = [...(event.dataTransfer?.files || [])]; if (!dropped.length) return; event.preventDefault(); void addFiles(dropped); });
+      const tiles = el("div", "assistant-tiles");
+      objects.forEach((object) => {
+        const state = objectState(object), open = openObject(object);
+        const box = el("div", "assistant-tile" + (open ? " is-openable" : "") + (state ? " is-attention" : ""));
+        box.append(tile(objectGlyph(object), state ? "attention" : ""));
+        if (open) { const name = el("button", "assistant-item-title", object.title); name.type = "button"; name.setAttribute("aria-label", L("打开") + "：" + object.title); name.addEventListener("click", () => { void open(); }); box.append(name); }
+        else box.append(el("span", "assistant-item-title", object.title));
+        box.append(el("span", "assistant-item-sub" + (state ? " is-attention" : ""), state || surfaceName(object.open && object.open.surface) || L("材料")));
+        box.title = objectDetail(object);
+        tiles.append(box);
       });
-      const add = el("li", "assistant-side-row assistant-side-add");
-      const pick = el("button", "assistant-side-action", L("＋ 添加文件")); pick.type = "button";
-      pick.addEventListener("click", () => fileInput?.click());
-      add.append(pick, el("span", "assistant-side-state", L("也可以 @ 引用、/ 用能力")));
-      next.push(add);
-      const usedRows = objects.map((o) => objectRow(o, undefined, "")).concat(used.map((one) => sideRow(L(MATERIAL_KIND[one.material.kind] || "材料"),
-        one.material.title.replace(/^(方法|用|图片|引用)：/, ""), L("第 {n} 轮").replace("{n}", String(one.round)))));
+      used.forEach((one) => {
+        const box = el("div", "assistant-tile");
+        box.append(tile(MATERIAL_GLYPH[one.material.kind] || "file", ""), el("span", "assistant-item-title", one.material.title.replace(/^(方法|用|图片|引用)：/, "")),
+          el("span", "assistant-item-sub", L(MATERIAL_KIND[one.material.kind] || "材料") + " · " + L("第 {n} 轮").replace("{n}", String(one.round))));
+        tiles.append(box);
+      });
+      const content = el("div", "assistant-group-list");
+      content.append(zone);
+      if (tiles.children.length) content.append(group(L("用过的"), tiles));
       const changed = objects.filter((o) => o.state !== "current").length;
-      const carried = items.filter((item) => !item.optional && !item.work).length;
-      paintBlock(node, L("材料"), [{ label: L("下次发送带上"), rows: next }, { label: L("用过的"), rows: usedRows }],
-        changed ? changed + " " + L("项有变化") : carried ? L("带上") + " " + carried : "", changed > 0);
+      paintBlock(node, L("材料"), "paperclip", content, changed ? changed + " " + L("项有变化") : tiles.children.length ? String(tiles.children.length) : "", changed > 0);
     });
   }
 
-  /* 成果: what it produced or changed (and whether that can be taken back), work still running elsewhere, what it would keep. */
+  /* 成果: what it produced or changed, each a card that opens it or takes it back; work still running elsewhere after it. */
   const renderResults = (work) => {
     const node = blocks.results;
     if (!node) return;
@@ -909,30 +1004,29 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const undoable = work && view.undoable ? view.undoable : [];
     const jobs = work && view.jobs ? view.jobs : [];
     const unsettled = work && view.unsettled ? view.unsettled : [];
-    const suggestions = work && view.memory_candidates ? view.memory_candidates : [];
     const signature = JSON.stringify([work && work.work_id, results.map((o) => [o.subject.id, o.state, o.title, o.current_revision]), undoable.map((u) => [u.undo_id, u.state, u.detail]),
-      jobs.map((j) => [j.job_id, j.state, j.last_state]), unsettled.map((u) => [u.change_id, u.state, u.detail]), suggestions.map((c) => c.candidate_id)]);
+      jobs.map((j) => [j.job_id, j.state, j.last_state]), unsettled.map((u) => [u.change_id, u.state, u.detail])]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
     keepFocus(node, () => {
       const UNDO = { available: "可以撤销", undone: "已撤销", failed: "没能撤销" };
-      const undoRows = undoable.slice().reverse().map((change) => sideRow("", change.title, L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""),
-        change.state !== "undone" ? [sideAction(L("撤销"), change.title, async () => { view = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {}); render(); })] : [],
-        change.state === "failed" ? "bad" : ""));
+      const made = results.map((o) => objectCard(o, "done"));
+      const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
+        title: change.title, sub: L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
+        actions: change.state !== "undone" ? [sideAction(L("撤销"), change.title, async () => { view = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {}); render(); }, false, "secondary", "undo")] : [] }));
       const JOB = { running: "进行中", completed: "已完成", failed: "没有完成", unknown: "不再跟进，请到原处查看" };
-      const jobRows = jobs.map((job) => sideRow("", job.title, L(JOB[job.state] || job.state) + (job.last_state ? "（" + job.last_state + "）" : ""), [], job.state === "failed" ? "bad" : ""));
+      const background = jobs.map((job) => card({ icon: job.state === "running" ? spinner() : job.state === "completed" ? "check" : "circle-alert",
+        tone: job.state === "completed" ? "done" : job.state === "failed" ? "blocked" : "", title: job.title, sub: L(JOB[job.state] || job.state) + (job.last_state ? " · " + job.last_state : "") }));
       /* A change still with its owner when the round stopped: what it finally did, never re-sent. */
       const SETTLED = { pending: "还在等它的结果，不会重新提交", completed: "停止后已完成", failed: "停止后失败", "not-run": "停止时还没开始，没有执行" };
-      const unsettledRows = unsettled.map((change) => sideRow("", change.title, L(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "")));
-      /* What this work suggests keeping: nothing is kept until the person says so. */
-      const keepRows = suggestions.map((candidate) => {
-        const settle = (path) => async () => { await api("/memory-candidates/" + encodeURIComponent(candidate.candidate_id) + path, "POST", {}); await refresh(); };
-        return sideRow(L(candidate.scope === "personal" ? "个人" : "本项目"), candidate.text, "", [sideAction(L("记住"), candidate.text, settle("/accept")), sideAction(L("不用"), candidate.text, settle("/discard"))], "", L("依据") + "：" + candidate.why);
-      });
+      const stopped = unsettled.map((change) => card({ icon: change.state === "pending" ? spinner() : "clock", title: change.title, sub: L(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "") }));
+      const content = el("div", "assistant-group-list");
+      if (made.length) content.append(group("", stack(made)));
+      if (changes.length) content.append(group(L("改动"), stack(changes)));
+      if (background.length) content.append(group(L("后台任务"), stack(background)));
+      if (stopped.length) content.append(group(L("停止时仍在执行"), stack(stopped)));
       const canUndo = undoable.filter((change) => change.state === "available").length;
-      paintBlock(node, L("成果"), [{ rows: results.map((o) => objectRow(o, undefined, "")) }, { label: L("可撤销的改动"), rows: undoRows }, { label: L("后台任务"), rows: jobRows },
-        { label: L("停止时仍在执行"), rows: unsettledRows }, { label: L("建议记住（等你认可）"), rows: keepRows }],
-        suggestions.length ? suggestions.length + " " + L("条建议等你认可") : canUndo ? canUndo + " " + L("项可撤销") : "", suggestions.length > 0);
+      paintBlock(node, L("成果"), "package", content.children.length ? content : null, canUndo ? canUndo + " " + L("项可撤销") : String(made.length + changes.length + background.length + stopped.length), false);
     });
   };
 
@@ -1042,6 +1136,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     titleEl.textContent = work ? work.title : L("新工作");
     stateEl.textContent = work ? stateLabel(work.state) : "";
     stateEl.dataset.state = work ? work.state : "";
+    const summary = island.querySelector(".assistant-summary");
+    if (summary) summary.dataset.tone = !work ? "" : WAITING.has(work.state) ? "waiting" : work.state === "running" ? "running" : work.state === "failed" || work.state === "stopped" ? "failed" : "";
     const now = nowLine(work);
     if (nowEl) { nowEl.textContent = now; nowEl.hidden = !now; }
     const next = nextStep(work);
@@ -1241,7 +1337,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft });
       else works.unshift(work);
     }
-    renderPath(work); renderMaterialsBlock(); renderResults(work); renderUsage(work);
+    renderAttention(work); renderPath(work); renderMaterialsBlock(); renderResults(work); renderUsage(work);
     if (empty) empty.hidden = Boolean(currentId);
     paintEmpty();
     const rounds = work ? view.rounds : [];

@@ -1,5 +1,9 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 
+/** The glyphs the side pane draws for kinds of things and states, rendered once from the shared icon set. */
+const ASSISTANT_GLYPHS: readonly MolisWorkIcon[] = ["file", "note", "image", "zap", "check", "circle", "clock", "flag", "undo", "edit", "alert", "circle-alert", "sparkles", "package",
+  "code", "idea", "inbox", "target", "database", "workflow", "upload", "bell", "paperclip", "text", "status-waiting"];
+
 /**
  * The resident Assistant: its panel of works and the composer. The workbench puts the plugin switcher in front of the
  * input; the project list, which has no plugins, leaves it out and works in personal scope.
@@ -9,6 +13,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
   const picker = options.picker ?? "";
   return `<div class="bar-center" data-assistant-island>
       <section class="assistant-panel" data-assistant-panel aria-label="${L("助理")}" hidden>
+        <template data-assistant-glyphs>${ASSISTANT_GLYPHS.map((name) => `<span data-glyph="${name}">${icon(name)}</span>`).join("")}</template>
         <header class="assistant-tabbar">
           <div class="assistant-tabs" data-assistant-tabs role="tablist" aria-label="${L("打开的工作")}"></div>
           <button class="assistant-tab-new" type="button" data-assistant-new aria-label="${L("开始一项新工作")}" title="${L("开始一项新工作")}">${icon("plus")}</button>
@@ -35,6 +40,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
               <button class="mw-btn mw-btn--primary mw-btn--sm assistant-next" type="button" data-assistant-next hidden></button>
               <dl class="assistant-summary-meta" data-assistant-meta></dl>
             </section>
+            <section class="assistant-block assistant-block--attention" data-assistant-block="attention" aria-label="${L("还等你处理")}" hidden></section>
             <section class="assistant-block" data-assistant-block="path" aria-label="${L("路径")}" hidden></section>
             <section class="assistant-block" data-assistant-block="materials" aria-label="${L("材料")}" hidden></section>
             <section class="assistant-block" data-assistant-block="results" aria-label="${L("成果")}" hidden></section>

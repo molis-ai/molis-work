@@ -446,4 +446,11 @@ export const ASSISTANT_EN: Record<string, string> = {
   "新消息": "New messages",
   "从这一页开始": "Start from this page",
   "输入 @ 引用项目里的内容，/ 用一个能力或方法；文件和图片可以直接拖进输入框。": "Type @ to bring in project content, / to use a capability or method; drop files and images straight into the input.",
+  "去看看": "Take a look",
+  "用过之后被改过": "Changed since it was used",
+  "打开看看": "Open it",
+  "要记住吗": "Remember this",
+  "还等你处理": "Still waiting on you",
+  "分出去的子任务": "Sub-tasks handed out",
+  "拖到这里，或 @ 引用、/ 用能力": "Drop files here, or @ to bring in, / for a capability",
 };

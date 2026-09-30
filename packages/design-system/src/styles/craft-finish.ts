@@ -557,40 +557,19 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-block-chevron::before { content: "›"; font-size: 13px; line-height: 1; transform: rotate(90deg); transition: transform var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-block-head[aria-expanded="false"] .assistant-block-chevron::before { transform: none; }
   ${ASSIST} .assistant-block-head:hover .assistant-block-chevron { color: var(--ink); }
-  ${ASSIST} .assistant-block-note.is-attention { display: inline-flex; align-items: center; gap: 5px; color: var(--tone-attention, var(--amber, #b7791f)); }
-  ${ASSIST} .assistant-block-note.is-attention::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
   /* Folding never animates height: a folded block is gone at once, and opening one lets its rows arrive. */
   ${ASSIST} .assistant-block[data-folded] .assistant-block-body { display: none; }
   ${ASSIST} .assistant-block[data-opening] .assistant-block-body { animation: craft-rise var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-block-title { color: var(--ink); font-size: 12px; font-weight: 600; }
-  ${ASSIST} .assistant-block-note { margin-left: auto; color: var(--muted); font-size: 11px; }
   ${ASSIST} .assistant-block-sub { margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
-  ${ASSIST} .assistant-side-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
-  ${ASSIST} .assistant-side-row { position: relative; display: flex; align-items: center; gap: 6px; min-height: 26px; margin: 0 -4px; padding: 2px 4px; border-radius: 6px; transition: background-color var(--dur-hover) var(--ease-quint); }
-  ${ASSIST} .assistant-side-row:hover { background: var(--nav-hover); }
-  ${ASSIST} .assistant-side-row.is-openable:active { background: var(--nav-active); }
   /* The name opens what it names, and its target is the whole row; the row's own actions sit above it. */
-  ${ASSIST} button.assistant-side-name { padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
-  ${ASSIST} button.assistant-side-name::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
-  ${ASSIST} button.assistant-side-name:focus-visible { outline: none; }
-  ${ASSIST} .assistant-side-row:has(> button.assistant-side-name:focus-visible) { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-side-row :is(.assistant-side-action, .assistant-side-tag) { position: relative; z-index: 1; }
-  ${ASSIST} .assistant-side-tag { flex: none; padding: 0 5px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 11px; line-height: 17px; white-space: nowrap; }
-  ${ASSIST} .assistant-side-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
-  ${ASSIST} .assistant-side-state { flex: 0 1 auto; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font-size: 11px; }
-  ${ASSIST} .assistant-side-row.is-warn .assistant-side-state { color: var(--tone-attention, var(--amber, #b7791f)); }
-  ${ASSIST} .assistant-side-row.is-bad .assistant-side-state { color: var(--danger); }
-  ${ASSIST} .assistant-side-add .assistant-side-state { flex: 1 1 auto; max-width: none; }
-  ${ASSIST} .assistant-side-row.is-stacked { flex-wrap: wrap; row-gap: 0; padding-block: 4px; }
-  ${ASSIST} .assistant-side-foot { flex: 1 0 100%; display: flex; align-items: center; gap: 2px; min-width: 0; }
-  ${ASSIST} .assistant-side-foot .assistant-side-state { flex: 1 1 auto; max-width: none; margin-right: 4px; }
   ${ASSIST} .assistant-side-action { flex: none; height: 22px; padding: 0 6px; border: 0; border-radius: 5px; background: transparent; color: var(--accent, var(--ink)); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
   ${ASSIST} .assistant-side-action:hover:not(:disabled) { background: var(--nav-active); }
   ${ASSIST} .assistant-side-action { transition: background-color var(--dur-hover) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   ${ASSIST} .assistant-side-action[aria-busy="true"] { color: var(--muted); cursor: progress; }
   /* Stop, take back and cancel wait for the pointer or keyboard to reach the row; touch screens always show them. */
   ${ASSIST} .assistant-side-action.is-quiet { opacity: 0; }
-  ${ASSIST} .assistant-side-row:is(:hover, :focus-within) .assistant-side-action.is-quiet { opacity: 1; }
+  ${ASSIST} :is(.assistant-item, .assistant-subtask):is(:hover, :focus-within) .assistant-side-action.is-quiet { opacity: 1; }
   @media (hover: none) { ${ASSIST} .assistant-side-action.is-quiet { opacity: 1; } }
   ${ASSIST} .assistant-side-action:disabled { color: var(--muted); cursor: default; }
   ${ASSIST} .assistant-side-action:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
@@ -611,6 +590,111 @@ const CRAFT_BASE_STYLES = `
   /* With the panel open, its tab says where the next message goes; with the side pane shown, it lists what goes with it and who carries it. */
   ${ASSIST} [data-assistant-island]:has(> .assistant-panel:not([hidden])) .assistant-target { display: none; }
   ${ASSIST} [data-assistant-island][data-side-shown] :is(.assistant-materials-button, [data-assistant-executor], [data-assistant-character], [data-assistant-mode]) { display: none; }
+  /* The side pane speaks in shapes, not only lines: the overview is a card toned by the state; what waits on you are
+     cards with their buttons; the path is a line with markers; materials drop into a zone and sit as tiles; results are
+     cards you open or take back. Colour only says state: amber waits on you, green is done, copper is a suggestion. */
+  ${ASSIST} .assistant-summary { padding: 12px; border-radius: 12px; background: var(--wash); transition: background-color var(--dur-move) var(--ease-quint); }
+  ${ASSIST} .assistant-summary[data-tone="waiting"] { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 11%, var(--paper)); }
+  ${ASSIST} .assistant-summary[data-tone="running"] { background: color-mix(in srgb, var(--tone-done, #3a8f5c) 8%, var(--paper)); }
+  ${ASSIST} .assistant-summary[data-tone="failed"] { background: color-mix(in srgb, var(--tone-blocked, #c53030) 8%, var(--paper)); }
+  ${ASSIST} .assistant-summary .assistant-state { background: var(--paper); }
+  ${ASSIST} .assistant-summary .assistant-next { align-self: stretch; justify-content: center; margin-top: 10px; }
+  ${ASSIST} .assistant-summary .assistant-summary-meta { margin-top: 12px; padding-top: 10px; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent); }
+  ${ASSIST} .assistant-glyph-icon { display: inline-grid; place-items: center; flex: none; }
+  ${ASSIST} .assistant-glyph-icon svg { width: 15px; height: 15px; }
+  ${ASSIST} .assistant-glyph { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--wash); color: var(--ink-soft); }
+  ${ASSIST} .assistant-glyph.is-attention { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 15%, transparent); color: var(--tone-attention, #c27c0e); }
+  ${ASSIST} .assistant-glyph.is-done { background: color-mix(in srgb, var(--tone-done, #3a8f5c) 14%, transparent); color: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-glyph.is-suggest { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+  ${ASSIST} .assistant-glyph.is-blocked { background: color-mix(in srgb, var(--tone-blocked, #c53030) 12%, transparent); color: var(--tone-blocked, #c53030); }
+  ${ASSIST} .assistant-spinner { display: inline-block; width: 13px; height: 13px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid currentColor; border-right-color: transparent; animation: mw-spin 640ms var(--ease-quint) infinite; }
+  /* Block headings carry a glyph and a badge; the one that waits on you does not fold. */
+  ${ASSIST} .assistant-block-head .assistant-glyph-icon { color: var(--muted); }
+  ${ASSIST} .assistant-block-head.is-fixed { cursor: default; }
+  ${ASSIST} .assistant-block-head.is-fixed .assistant-glyph-icon { color: var(--tone-attention, #c27c0e); }
+  ${ASSIST} .assistant-block-badge { margin-left: auto; padding: 0 8px; border-radius: 999px; background: var(--wash); color: var(--muted); font-size: 11px; font-weight: 400; line-height: 18px; white-space: nowrap; }
+  ${ASSIST} .assistant-block-badge.is-attention { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 15%, transparent); color: var(--tone-attention, #c27c0e); }
+  ${ASSIST} .assistant-block--attention .assistant-block-head { box-shadow: none; padding-top: 2px; }
+  ${ASSIST} .assistant-block-body { padding-top: 6px; }
+  ${ASSIST} .assistant-group-list { display: flex; flex-direction: column; gap: 10px; }
+  ${ASSIST} .assistant-group > .assistant-block-sub { margin: 0 0 6px; }
+  /* Cards: glyph, title and one line; the title opens it and the whole card is its target; actions sit above that. */
+  ${ASSIST} .assistant-stack { display: flex; flex-direction: column; gap: 6px; }
+  ${ASSIST} .assistant-item { position: relative; display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+    transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} .assistant-item.is-openable:hover { background: var(--nav-hover); box-shadow: 0 0 0 1px var(--line-strong); }
+  ${ASSIST} .assistant-item.is-openable:active { background: var(--nav-active); }
+  ${ASSIST} .assistant-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  ${ASSIST} .assistant-item-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-size: 12px; font-weight: 500; line-height: 1.45; }
+  ${ASSIST} button.assistant-item-title { padding: 0; border: 0; background: transparent; font: inherit; font-size: 12px; font-weight: 500; text-align: left; cursor: pointer; }
+  ${ASSIST} button.assistant-item-title::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+  ${ASSIST} button.assistant-item-title:focus-visible { outline: none; }
+  ${ASSIST} :is(.assistant-item, .assistant-tile):has(> button.assistant-item-title:focus-visible, .assistant-item-text > button.assistant-item-title:focus-visible) { outline: var(--focus-stroke); outline-offset: 1px; }
+  ${ASSIST} .assistant-item-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
+  ${ASSIST} .assistant-item-sub.is-attention { color: var(--tone-attention, #b7791f); }
+  ${ASSIST} .assistant-item-sub.is-blocked { color: var(--tone-blocked, var(--danger)); }
+  ${ASSIST} .assistant-item-actions { position: relative; z-index: 1; flex: none; display: flex; align-items: center; gap: 4px; }
+  ${ASSIST} .assistant-item.is-done .assistant-item-title { color: var(--muted); font-weight: 400; text-decoration: line-through; }
+  ${ASSIST} .assistant-item.is-done .assistant-glyph { opacity: .6; }
+  /* A card that waits on you: its words wrap, its buttons sit under them, and its edge is amber. */
+  ${ASSIST} .assistant-item--ask { flex-wrap: wrap; align-items: flex-start; box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 38%, var(--line)); }
+  ${ASSIST} .assistant-item--ask:has(.assistant-glyph.is-suggest) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 32%, var(--line)); }
+  ${ASSIST} .assistant-item--ask :is(.assistant-item-title, .assistant-item-sub) { white-space: normal; overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-item--ask .assistant-item-actions { flex-basis: 100%; padding-left: 38px; }
+  /* Buttons on cards: primary is graphite, secondary a quiet outline, both with the shared press. */
+  ${ASSIST} .assistant-side-action { display: inline-flex; align-items: center; gap: 4px; }
+  ${ASSIST} .assistant-side-action .assistant-glyph-icon svg { width: 13px; height: 13px; }
+  ${ASSIST} .assistant-side-action:is(.is-primary, .is-secondary) { height: 26px; padding: 0 10px; border-radius: 8px; font-size: 12px; }
+  ${ASSIST} .assistant-side-action.is-primary { background: var(--ink); color: var(--paper); }
+  ${ASSIST} .assistant-side-action.is-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 86%, var(--paper)); }
+  ${ASSIST} .assistant-side-action.is-secondary { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line-strong); }
+  ${ASSIST} .assistant-side-action.is-secondary:hover:not(:disabled) { background: var(--nav-hover); }
+  /* 路径: a vertical line; each step a marker on it — a glyph, or how many sub-tasks are done. */
+  ${ASSIST} .assistant-timeline { position: relative; display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0 0 0 28px; list-style: none; }
+  ${ASSIST} .assistant-timeline::before { content: ""; position: absolute; left: 10px; top: 12px; bottom: 12px; width: 1.5px; border-radius: 1px; background: var(--line-strong); }
+  ${ASSIST} .assistant-step { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  ${ASSIST} .assistant-step-marker { position: absolute; left: -28px; top: -1px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--paper);
+    box-shadow: 0 0 0 1.5px var(--line-strong); color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  ${ASSIST} .assistant-step-marker .assistant-glyph-icon svg { width: 12px; height: 12px; }
+  ${ASSIST} .assistant-step-marker.is-attention { box-shadow: 0 0 0 1.5px var(--tone-attention, #c27c0e); color: var(--tone-attention, #c27c0e); }
+  ${ASSIST} .assistant-step-marker.is-done { background: var(--tone-done, #3a8f5c); box-shadow: none; color: var(--paper); }
+  ${ASSIST} .assistant-step-marker.is-later { box-shadow: none; outline: 1.5px dashed var(--line-strong); outline-offset: -1.5px; }
+  ${ASSIST} .assistant-step-label { margin: 2px 0 0; color: var(--muted); font-size: 11px; line-height: 18px; }
+  ${ASSIST} .assistant-progress { display: block; height: 4px; border-radius: 2px; background: var(--wash); overflow: hidden; }
+  ${ASSIST} .assistant-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-subtask { position: relative; display: flex; align-items: center; gap: 8px; min-height: 28px; margin: 0 -6px; padding: 2px 6px; border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} .assistant-subtask:hover { background: var(--nav-hover); }
+  ${ASSIST} .assistant-subtask.is-attention { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 9%, transparent); }
+  ${ASSIST} .assistant-subtask-mark { flex: none; display: inline-grid; place-items: center; width: 16px; color: var(--muted); }
+  ${ASSIST} .assistant-subtask-mark.is-done { color: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-subtask-mark.is-attention { color: var(--tone-attention, #c27c0e); }
+  ${ASSIST} .assistant-subtask-mark.is-blocked { color: var(--tone-blocked, #c53030); }
+  ${ASSIST} .assistant-subtask-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+  ${ASSIST} .assistant-subtask-name::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+  ${ASSIST} .assistant-subtask-name:focus-visible { outline: none; }
+  ${ASSIST} .assistant-subtask:has(> .assistant-subtask-name:focus-visible) { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-subtask-state { flex: none; color: var(--muted); font-size: 11px; }
+  ${ASSIST} .assistant-subtask.is-attention .assistant-subtask-state { color: var(--tone-attention, #b7791f); }
+  ${ASSIST} .assistant-subtask .assistant-side-action { position: relative; z-index: 1; }
+  ${ASSIST} .assistant-subtask:is(:hover, :focus-within) .assistant-side-action.is-quiet { opacity: 1; }
+  /* 材料: the next Send's things in a zone files can be dropped on; what was used, as tiles two to a row. */
+  ${ASSIST} .assistant-drop { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px dashed var(--line-strong); border-radius: 10px;
+    transition: border-color var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} .assistant-drop[data-dropping] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  ${ASSIST} .assistant-drop-label { margin: 0; color: var(--faint); font-size: 11px; }
+  ${ASSIST} .assistant-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  ${ASSIST} .assistant-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 26px; padding: 2px 2px 2px 8px; border-radius: 8px; background: var(--wash); color: var(--ink); font-size: 12px; }
+  ${ASSIST} .assistant-chip.is-optional { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
+  ${ASSIST} .assistant-chip .assistant-glyph-icon svg { width: 13px; height: 13px; }
+  ${ASSIST} .assistant-chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-drop-hint { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+  ${ASSIST} .assistant-drop-hint > span:not(.assistant-glyph-icon) { flex: 1; min-width: 0; }
+  ${ASSIST} .assistant-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  ${ASSIST} .assistant-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 8px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line);
+    transition: background-color var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} .assistant-tile > :is(.assistant-item-title, .assistant-item-sub) { max-width: 100%; }
+  ${ASSIST} .assistant-tile.is-openable:hover { background: var(--nav-hover); }
+  ${ASSIST} .assistant-tile.is-attention { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 38%, var(--line)); }
   /* Pressing gives a little everywhere in the panel, the same 130ms spring as the bar. */
   ${ASSIST} :is(.assistant-side-action, .assistant-segment, .assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-control, .assistant-start, .assistant-copy, .assistant-tab-close):active:not(:disabled) { transform: scale(.94); }
   ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-tab-close, .assistant-tab-main) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }

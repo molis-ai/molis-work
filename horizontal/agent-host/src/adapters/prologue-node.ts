@@ -810,6 +810,18 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
     },
     documents: {
+      readImage: async resource => {
+        const ref = { kind: "resource" as const, id: resource.id, revision: resource.revision } as ExactRef<"resource">;
+        const handle = runtime.resources.inspect(ref);
+        if (!handle || handle.byteLength > 20 * 1024 * 1024) return null;
+        const bytes = new Uint8Array(handle.byteLength);
+        for (let offset = 0; offset < bytes.byteLength;) {
+          const chunk = await runtime.resources.readChunk(ref, offset, Math.min(64 * 1024, bytes.byteLength - offset));
+          if (!chunk.bytes.byteLength) return null;
+          bytes.set(chunk.bytes, offset); offset += chunk.bytes.byteLength;
+        }
+        return bytes;
+      },
       intakeImage: async input => {
         // The runtime takes files in only from an authorized directory: a private one of the Host's, emptied at once.
         const dir = await (intakeRoot ??= (async () => {

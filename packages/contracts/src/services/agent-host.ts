@@ -1182,6 +1182,8 @@ export interface AgentDocumentCapability {
    * model. The reference holds while this runtime process lives.
    */
   intakeImage?(input: { bytes: Uint8Array; name: string }): Promise<{ resource: { id: string; revision: number }; media_type: string; byte_length: number }>;
+  /** An image taken in earlier, read back for the person to look at again; null once this runtime no longer holds it. */
+  readImage?(resource: { id: string; revision: number }): Promise<Uint8Array | null>;
 }
 
 /** Prologue Memory through the Host: each call names its scope and owner; the store keeps them apart. */

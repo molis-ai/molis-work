@@ -810,6 +810,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-attachment .assistant-glyph-icon svg { width: 13px; height: 13px; }
   ${ASSIST} .assistant-attachment-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   ${ASSIST} .assistant-attachment.is-draft { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 40%, transparent); }
+  ${ASSIST} .assistant-attachment.is-expired { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, currentColor 50%, transparent); }
   /* Each step of the process with the glyph of what it did; one still running turns. */
   ${ASSIST} .assistant-activity { display: flex; align-items: center; gap: 6px; }
   ${ASSIST} .assistant-activity .assistant-glyph-icon svg { width: 13px; height: 13px; }

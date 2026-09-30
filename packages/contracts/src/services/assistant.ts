@@ -210,6 +210,8 @@ export interface AssistantMaterial {
   method?: { method_id: string; version?: number; name?: string; plugin_title?: string };
   /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
   image?: { resource_id: string; revision: number; media_type: string; byte_length: number };
+  /** In a work's view: an image the runtime no longer holds (the app restarted); it cannot be shown or sent again. */
+  expired?: boolean;
   /** True when the person added it themselves; false when it came from the current page and they left it in. */
   explicit: boolean;
   source?: AssistantSurfaceRef;

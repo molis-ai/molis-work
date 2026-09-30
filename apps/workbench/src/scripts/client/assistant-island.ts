@@ -802,6 +802,18 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       } catch (error) { host.showToast?.(error.message, true); }
     };
   };
+  /** A picture the work carried, shown in the side panel; one the app no longer holds (it restarted) is marked, not offered. */
+  const readImage = (material, title) => {
+    const workId = view && view.work && view.work.work_id;
+    if (!workId || material.kind !== "image" || !material.material_id || material.expired || !sidePanelHere()) return null;
+    return async () => {
+      try {
+        const { image } = await api("/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id) + "/image");
+        sidePreview({ preview: { title, media_type: image.media_type, url: "data:" + image.media_type + ";base64," + image.data } });
+      } catch (error) { host.showToast?.(error.message, true); }
+    };
+  };
+  const EXPIRED_IMAGE = "应用重启后图片不再保留；需要时请重新添加这张图片";
   /** One thing a message carried: its kind at a glance, its name; an object opens where it lives. */
   const attachmentChip = (material) => {
     const title = String(material.title || "").replace(/^(图片|方法|用|引用)：/, "");
@@ -812,11 +824,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     // A file's or a page's own words can only be previewed in the side panel; there is nowhere else to open them.
     const open = named && host.openItem ? () => showObject(named)
       : material.kind === "file" && material.text && sidePanelHere() ? () => { sidePreview({ preview: { title, media_type: "text/plain", text: material.text } }); }
-      : readBack(material, title);
+      : readBack(material, title) || readImage(material, title);
     const chip = el(open ? "button" : "span", "assistant-attachment" + (material.draft ? " is-draft" : ""));
     if (open) { chip.type = "button"; chip.addEventListener("click", open); chip.setAttribute("aria-label", L("打开") + "：" + title); }
-    chip.append(glyph(icon), el("span", "assistant-attachment-name", title + (material.draft ? L("（草稿）") : "")));
+    chip.append(glyph(icon), el("span", "assistant-attachment-name", title + (material.draft ? L("（草稿）") : "") + (material.expired ? L("（已失效）") : "")));
     if (MATERIAL_KIND[material.kind]) chip.title = L(MATERIAL_KIND[material.kind]);
+    if (material.expired) { chip.classList.add("is-expired"); chip.title = L(EXPIRED_IMAGE); }
     return chip;
   };
   const renderRound = (work, round) => {
@@ -1287,14 +1300,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       used.forEach((one) => {
         const box = el("div", "assistant-tile"), name = one.material.title.replace(/^(方法|用|图片|引用)：/, "");
         const readable = one.material.kind === "file" && one.material.text && sidePanelHere()
-          ? () => { sidePreview({ preview: { title: name, media_type: "text/plain", text: one.material.text } }); } : readBack(one.material, name);
+          ? () => { sidePreview({ preview: { title: name, media_type: "text/plain", text: one.material.text } }); } : readBack(one.material, name) || readImage(one.material, name);
         const title = el(readable ? "button" : "span", "assistant-item-title", name);
         if (readable) {
           title.type = "button"; title.setAttribute("aria-label", L("预览") + "：" + name); box.classList.add("is-openable");
           title.addEventListener("click", readable);
         }
         box.append(tile(MATERIAL_GLYPH[one.material.kind] || "file", ""), title,
-          el("span", "assistant-item-sub", L(MATERIAL_KIND[one.material.kind] || "材料") + " · " + L("第 {n} 轮").replace("{n}", String(one.round))));
+          el("span", "assistant-item-sub", L(MATERIAL_KIND[one.material.kind] || "材料") + " · " + L("第 {n} 轮").replace("{n}", String(one.round))
+            + (one.material.expired ? " · " + L("已失效") : "")));
+        if (one.material.expired) box.title = L(EXPIRED_IMAGE);
         tiles.append(box);
       });
       const content = el("div", "assistant-group-list");

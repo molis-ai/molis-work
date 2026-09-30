@@ -1730,6 +1730,22 @@ export class AssistantService {
       ...(url ? { url } : {}), ...(found.source ? { source: { ...found.source } } : {}), ...(found.object ? { object: { ...found.object } } : {}), ...(found.draft ? { draft: true } : {}) };
   }
 
+  /** A picture a work carried, read back for the side panel; gone once the app restarted (the runtime keeps no copy). */
+  async materialImage(workId: string, materialId: string): Promise<{ media_type: string; data: string }> {
+    const work = this.store.get(this.actorId, workId);
+    const found = this.store.rounds(work.work_id).flatMap(round => round.materials).find(item => item.material_id === materialId && item.kind === "image" && item.image);
+    if (!found?.image) throw new AssistantError("assistant.not_found", "这项工作里没有这张图片");
+    const gone = new AssistantError("assistant.expired", "这张图片已失效：应用重启后不再保留。需要时请重新添加这张图片。");
+    if (!this.holdsImage(found.image)) throw gone;
+    const bytes = await (await this.ports.host()).adapter(RUNTIME).documents?.readImage?.({ id: found.image.resource_id, revision: found.image.revision });
+    if (!bytes) throw gone;
+    return { media_type: found.image.media_type, data: Buffer.from(bytes).toString("base64") };
+  }
+
+  private holdsImage(image: NonNullable<AssistantMaterial["image"]>): boolean {
+    return this.images.get(image.resource_id)?.revision === image.revision;
+  }
+
   /**
    * A card a page prepared from what the person selected (a contextual action they clicked): checked exactly as a round's
    * own suggestion is, against what the Assistant may use in that work now, and shown as coming from that page. It is
@@ -2532,7 +2548,7 @@ export class AssistantService {
 
   private roundView(round: StoredRound, view: AgentRunView | undefined, titles: CapabilityTitles | undefined): AssistantRound {
     return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character } } : {}),
-      materials: round.materials.map(({ text: _text, ...rest }) => rest),
+      materials: round.materials.map(({ text: _text, ...rest }) => rest.kind === "image" && rest.image && !this.holdsImage(rest.image) ? { ...rest, expired: true } : rest),
       phase: view?.phase ?? "unknown", turns: spokenTurns(view?.turns ?? []), activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}),
       ...(view?.todo?.length ? { steps: view.todo.map(({ id, text, state }) => ({ id, text, state })) } : {}), ended_at: view?.ended_at ?? null };

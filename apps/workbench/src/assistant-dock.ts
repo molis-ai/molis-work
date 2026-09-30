@@ -69,6 +69,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
       <div class="assistant-popover" id="assistant-modes" data-assistant-modes role="group" aria-label="${L("下一轮的方式")}" hidden></div>
       <div class="assistant-popover" id="assistant-characters" data-assistant-characters role="group" aria-label="${L("由哪个角色负责")}" hidden></div>
       <div class="assistant-popover" data-assistant-starters role="group" aria-label="${L("可以这样开始")}" hidden></div>
+      <div class="assistant-context-actions" data-assistant-context-actions data-state="idle" role="toolbar" aria-label="${L("当前内容的动作")}"></div>
       <div class="assistant-offer" data-assistant-offer role="status" aria-live="polite" hidden></div>
       <div class="assistant-popover assistant-notices" id="assistant-notices" data-assistant-notices role="group" aria-label="${L("需要你看看")}" hidden></div>
       <div class="assistant-popover assistant-more" id="assistant-more" data-assistant-more role="group" aria-label="${L("添加")}" hidden></div>

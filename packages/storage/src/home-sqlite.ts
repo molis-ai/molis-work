@@ -19,6 +19,7 @@ export const PERSONAL_HOME_SQLITE_STORES = [
   "connectors",
   "context-onboarding",
   "search",
+  "memory",
 ] as const;
 
 export type PersonalHomeSqliteStore = (typeof PERSONAL_HOME_SQLITE_STORES)[number];

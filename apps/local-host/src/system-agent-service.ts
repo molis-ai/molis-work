@@ -10,6 +10,7 @@ import type { ModelProviderStore } from "./model-provider-store.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
+import { registerMemoryHost } from "./memory/memory-host.js";
 
 const owners = new WeakMap<MolisWorkLocalHost, { withCatalog?: LocalWebCatalogRunner; home: string; release?: () => void }>();
 type WorkspacePorts = Pick<AgentHostCompositionOptions, "workspacesFor"> & Partial<Pick<AgentHostCompositionOptions, "workspaceFor">>;
@@ -55,9 +56,12 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     });
     const unbind = bindPrologueInference(storageHome, service.inference);
     const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);
+    // Memory lives in this runtime: the platform memory is registered with it (specs/memory-system §5.2).
+    const memory = registerMemoryHost({ localHost, homeDirectory: storageHome, agentHost: service.agentHost, ready: () => service.ready,
+      projectTitle: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) : null });
     owner.release = () => { unbind(); unbindBuilder(); };
     const dispose = service.dispose.bind(service);
-    service.dispose = () => { owner.release?.(); owners.delete(localHost); return dispose(); };
+    service.dispose = () => { owner.release?.(); owners.delete(localHost); memory.close(); return dispose(); };
     return service;
   });
 }

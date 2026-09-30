@@ -16,6 +16,7 @@ import { codingCharacterPorts } from "../characters-host.js";
 import { assistantContributions } from "./assistant-contributions.js";
 import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
 import { agentDefinitionsFor } from "../agent-definitions/agent-definitions.js";
+import { memoryHostFor } from "../memory/memory-host.js";
 import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
@@ -69,6 +70,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   };
   const service: AssistantService = new AssistantService(store, {
     host: async () => { await ports.agentReady(); return ports.agentHost; },
+    // The platform memory, registered with this Home's Agent service (the Assistant is one of its consumers).
+    memory: () => memoryHostFor(ports.localHost)?.service,
     authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), service.delegation(work),
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),

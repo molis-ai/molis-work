@@ -9,6 +9,16 @@ import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantService, recallKeywords } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
+import { prologueMemoryBackend } from "../apps/local-host/src/memory/memory-host.js";
+import { MemoryService } from "@molis-ai/molis-work-service-memory";
+import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+
+/** The platform memory over the test's own runtime (Prologue Memory) and a ledger in its Home, as the Host wires it. */
+function platformMemory(host: AgentHost, home: string, t: { after(fn: () => void): void }): MemoryService {
+  const ledger = openMemoryLedger({ homeDirectory: home });
+  t.after(() => ledger.close());
+  return new MemoryService({ backend: prologueMemoryBackend(async () => host.adapter("prologue").memory!), ledger, timeZone: "Asia/Shanghai" });
+}
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -42,10 +52,11 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
+  const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
     authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
-    projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙", timeZone: "Asia/Shanghai" }, "web-user");
+    projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const round = async (text: string, project: typeof projectA | null, request: string, workId?: string) => {
     const before = requests.length;
     const sent = await service.send({ text, request_id: request, ...(workId ? { work_id: workId } : {}) }, project ? { project_ref: project } : {});
@@ -138,14 +149,17 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-candidates-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
+  const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
     authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
-    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai" }, "web-user");
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const tools = (body: any) => (body.tools as Array<{ name: string }>).map(tool => tool.name);
   const lesson = { text: "项目甲的周报先写风险，再写进展", scope: "project", why: "这次和上次你都把风险挪到了最前面", applies: "写项目甲的周报时" };
   try {
-    // Off by default: the tool is not offered, and nothing can be suggested.
+    // The platform default is on (specs/memory-system §10.1); switched off, the tool is not offered and nothing can be suggested.
+    assert.deepEqual([service.memoryPrefs().learn_personal, service.memoryPrefs().learn_project], [true, true]);
+    service.saveMemoryPrefs({ learn_personal: false, learn_project: false });
     const first = await service.send({ text: "写周报", request_id: "req-candidate-1" }, { project_ref: project });
     await until(async () => (await service.read(first.work.work_id)).work.state === "completed", "first");
     assert.ok(!tools(requests[0]).includes("suggest-memory"), "suggesting is off until the person allows it");
@@ -199,6 +213,7 @@ test("memory switches hold the same when a Character carries the round; turning 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-character-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
+  const memory = platformMemory(host, home, t);
   const editor = { character_id: "editor", title: "严格的编辑", instructions: "你是严格的编辑：每次回答先列出三处可改进的地方。", host_tools: null,
     source: { owner_actor_id: "web-user", draft_revision: 2 }, reference: { artifact_id: "character:board-a:editor", version: 2 }, board_id: "board-a",
     content_digest: "digest-2", producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.4.0", binding_signature: "sig" }, published_at: "2026-09-28T00:00:00.000Z" };
@@ -207,7 +222,7 @@ test("memory switches hold the same when a Character carries the round; turning 
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
       resolveCharacter: () => structuredClone(editor) as never }),
     characters: async () => [{ reference: { ...editor.reference }, title: editor.title, available: true }],
-    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai" }, "web-user");
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const tools = (body: any) => (body.tools as Array<{ name: string }>).map(tool => tool.name);
   const round = async (input: { text: string; request_id: string; work_id?: string; character?: { artifact_id: string; version: number } }, rounds: number) => {
     const before = requests.length;

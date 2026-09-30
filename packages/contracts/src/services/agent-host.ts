@@ -557,10 +557,14 @@ export interface AgentDelegation {
 
 /**
  * A round's own memory tools: remember what the person explicitly asked to keep, list and forget. Absent when forming
- * memories is switched off. Never used to infer preferences from behaviour.
+ * memories is switched off everywhere the work could keep something. Never used to infer preferences from behaviour.
  */
 export interface AgentMemoryTools {
-  remember(input: { text: string; scope: "personal" | "project"; said: string }): Promise<{ memory_id: string; scope: "personal" | "project"; applies: string }>;
+  /**
+   * Kept through the platform's write gate (specs/memory-system §6.2); it throws with the reason when nothing was kept
+   * (switched off, secret-shaped, held for the person). `note` says it was already kept.
+   */
+  remember(input: { text: string; scope: "personal" | "project"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string }): Promise<{ memory_id: string; scope: "personal" | "project"; applies: string; note?: string }>;
   list(): Promise<Array<{ memory_id: string; scope: "personal" | "project"; text: string; origin: string }>>;
   forget(memoryId: string): Promise<{ forgotten: boolean }>;
   /** Suggest keeping something the person did not ask for: a candidate only, until they accept it. Absent: this round may not suggest. */

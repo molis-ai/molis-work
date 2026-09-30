@@ -320,6 +320,15 @@ export class AssistantStore {
     return Number(this.db.prepare("DELETE FROM assistant_followups WHERE actor_id=? AND followup_id=?").run(actorId, followupId).changes) > 0;
   }
 
+  /**
+   * The first version's memory state, read once by the platform memory (specs/memory-system §2.1.1): the switches as
+   * the person saved them (null when never changed), the switched-off list and every candidate. Read only.
+   */
+  legacyMemory(actorId: string): { prefs: Partial<AssistantMemoryPrefs> | null; disabled: string[]; candidates: AssistantMemoryCandidate[] } {
+    const saved = this.setting(actorId, "memory_prefs");
+    return { prefs: saved ? JSON.parse(saved) as Partial<AssistantMemoryPrefs> : null, disabled: [...this.disabledMemories(actorId)], candidates: this.memoryCandidates(actorId) };
+  }
+
   /** A plain per-person value the Assistant keeps for itself (e.g. how far it has looked for new material). */
   setting(actorId: string, key: string): string | null {
     const row = this.db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key=?").get(actorId, key);

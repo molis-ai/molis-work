@@ -64,6 +64,7 @@ import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { handleAssistantHttp } from "./assistant/assistant-http.js";
+import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
@@ -122,6 +123,8 @@ export async function handleMolisWorkWebRequest(
   if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
     && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
   if (resolved.kind === "catalog_index") {
+    // Personal memories are managed from the global settings, outside any project.
+    if (serverOptions.homeDirectory && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost })) return;
     // Personal work needs no project: the Assistant answers on the project list too, in the person's own scope.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
       localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady,
@@ -403,6 +406,8 @@ export async function handleMolisWorkWebRequest(
             },
           },
         )) return;
+        // This project's memories (and the person's own) from the project's settings and work panel.
+        if (serverOptions.homeDirectory && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost, projectRef: hostReference })) return;
         if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
           localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady, projectRef: hostReference,
           projectTitle: async projectId => projectId === options.project?.project_id ? options.project.display_name

@@ -494,3 +494,80 @@ export function memoryAppliesText(scope: MemoryScope, applies: MemoryApplies, pr
   ].filter(Boolean);
   return limits.length ? `${where}；限于${limits.join("，")}` : where;
 }
+
+/* ---- Technical ledger port: implemented by packages/storage, used only by horizontal/memory. No business meaning. ---- */
+
+/**
+ * Structured facts about one Prologue memory entry, joined by its ref id (spec §5.1, transitional until the SDK keeps
+ * entry metadata). Never a second copy of the text: the text, version and tombstone live in Prologue Memory.
+ */
+export interface MemoryMetaRecord {
+  memory_id: string;
+  scope: MemoryScope;
+  /** The person (personal) or the project (project) the entry belongs to in Prologue. */
+  owner: string;
+  kind: MemoryKind;
+  source: MemorySource;
+  basis: MemoryBasis;
+  evidence: MemoryEvidence[];
+  applies: MemoryApplies;
+  state: MemoryState;
+  state_reason: string | null;
+  expires_at: string | null;
+  approved_by: MemoryApproval;
+  plugin_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** How a change is taken back: delete what was written, go back to a version, switch back on, or none. */
+export type MemoryUndoPlan = { action: "remove" } | { action: "restore"; version: number } | { action: "enable" } | { action: "disable" };
+
+export interface MemoryChangeRecord extends MemoryChange {
+  actor_id: string;
+  owner: string;
+  undo: MemoryUndoPlan | null;
+}
+
+export interface MemoryCandidateRecord extends MemoryCandidate {
+  actor_id: string;
+  owner: string;
+}
+
+export interface MemoryUseRecord {
+  memory_id: string;
+  receipt_id: string;
+  at: string;
+  consumer: MemoryConsumer;
+  title: string;
+  work_id: string | null;
+  /** used: it went into the work; omitted: it matched but did not fit. */
+  state: "used" | "omitted";
+}
+
+export interface MemoryLedgerPort {
+  meta(memoryId: string): MemoryMetaRecord | null;
+  metas(scope: MemoryScope, owner: string): MemoryMetaRecord[];
+  saveMeta(record: MemoryMetaRecord): void;
+  /** Forget everything the ledger knows about a deleted memory: its facts, history and uses; changes keep no text. */
+  forget(memoryId: string): void;
+  revisions(memoryId: string): MemoryRevision[];
+  addRevision(memoryId: string, revision: MemoryRevision): void;
+  candidates(actorId: string): MemoryCandidateRecord[];
+  saveCandidate(record: MemoryCandidateRecord): void;
+  changes(actorId: string, limit: number): MemoryChangeRecord[];
+  change(changeId: string): MemoryChangeRecord | null;
+  saveChange(record: MemoryChangeRecord): void;
+  prefs(actorId: string, key: string): Partial<MemoryPrefs> | null;
+  savePrefs(actorId: string, key: string, prefs: MemoryPrefs): void;
+  /** Count one interface event once; `distinct` counts different occurrences under the same key. */
+  countSignal(input: { actor_id: string; key: string; event_id: string; occurrence: string; at: string }): { state: "counted" | "duplicate"; count: number; distinct: number };
+  recordUses(uses: readonly MemoryUseRecord[]): void;
+  lastUse(memoryId: string): MemoryUseRecord | null;
+  uses(filter: { receipt_id?: string; work_id?: string; memory_id?: string; limit?: number }): MemoryUseRecord[];
+  migration(actorId: string, source: string): { at: string; body: unknown } | null;
+  markMigration(actorId: string, source: string, body: unknown, at: string): void;
+  /** One unit of work: all or nothing. */
+  transaction<T>(work: () => T): T;
+  close(): void;
+}

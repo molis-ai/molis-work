@@ -197,6 +197,9 @@ importers:
       '@molis-ai/molis-work-service-listener-host':
         specifier: workspace:*
         version: link:horizontal/listener-host
+      '@molis-ai/molis-work-service-memory':
+        specifier: workspace:*
+        version: link:horizontal/memory
       '@molis-ai/molis-work-service-placement':
         specifier: workspace:*
         version: link:horizontal/placement
@@ -480,6 +483,9 @@ importers:
       '@molis-ai/molis-work-service-listener-host':
         specifier: workspace:*
         version: link:../../horizontal/listener-host
+      '@molis-ai/molis-work-service-memory':
+        specifier: workspace:*
+        version: link:../../horizontal/memory
       '@molis-ai/molis-work-service-placement':
         specifier: workspace:*
         version: link:../../horizontal/placement
@@ -675,6 +681,12 @@ importers:
         version: link:../../packages/contracts
 
   horizontal/listener-host:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+
+  horizontal/memory:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*

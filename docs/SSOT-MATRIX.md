@@ -46,7 +46,7 @@
 | `apps/desktop` | macOS 外壳、生命周期、Native Bridge | Native Bridge、Panel、Capsule 与发布工具；Tauri 配置在 apps/desktop/src-tauri | `partial` | AP4/DV4/Cutover；实际平台安装证据见验证报告 |
 | `apps/workbench` | 本地产品 UI 与页面组合 | Shell、导航、页面组合与注册 UI contribution；通用呈现边界，不拥有 Goal 完成算法；无数据库实现 | `partial` | AP3/FD4/GW5/EX4/AR3/WK3/Cutover |
 | `apps/local-host` | 本地唯一业务 composition root 和 single writer | 唯一项目数据库和业务装配；统一动作服务的宿主侧（能力目录合成、系统动作、逐客户端 MCP 授权、调用记录、跨进程动作网关）；可信身份与 Web/CLI/MCP 装配；各 Native 插件的组合适配（注入存储位置、模型、Artifact 发布等端口）；凭据与本机 IO | `partial` | AP2/Cutover；动作服务见 `specs/action-architecture/` |
-| `apps/server` | 轻量交换、Team 控制面、Team Plugin Host | 当前无正式 Server 实现 | `absent` | F2；未来独立功能 Spec |
+| `apps/server` | 轻量交换、Team 控制面、Team Plugin Host | 实验性：`server/`（身份、设备、项目访问、接续回执、事件传输、IM 领域）与 `apps/server`（本地可部署启动器）约 1,200 行已存在，所有业务读写调用现有 Action Host；没有产品入口、不随 Desktop/npm 发布，也不是正式的交换/Team 控制面 | `partial`（实验，无产品入口） | `specs/molis-work-im/spec.md`；正式 Server/Exchange 仍待独立功能 Spec |
 | `apps/cli` | 参数、协议和终端展示适配 | 协议参数、命令分发与公开应用 adapter；root bin 仅注入启动环境 | `partial` | DV1/Cutover；CLI 协议和真实进程验证 |
 | `apps/mcp` | MCP schema、audience 和 Capability 适配 | 当前连接、Goal、事件、约定、决定请求、结构与历史；插件贡献由 Host 从 Manifest 合成，不在此写死 Functions 工具；Host 注入普通调用的项目与身份；用户决定仅受保护入口可执行 | `partial` | DV1/DV2/Cutover；事件工作流收敛 |
 
@@ -64,6 +64,7 @@
 | `packages/design-system` | Token、基础组件、图标和可访问性基线 | Soft Workbench token（`palette.ts` 唯一来源）、主题、密度、字体、icon、`mw-*` 原语、终层与组件板 `/__ui/catalog`；规范见 `DESIGN.md`；旧 visual-foundation 已删除 | `partial` | AP3/Cutover；Soft Workbench 迁移（`specs/soft-workbench-rollout`）；Native 包布局待验 |
 | `packages/observability` | 结构化日志、trace、diagnostic 与安全脱敏 | 各入口零散日志 | `absent` | F2、F3、保证 Goal |
 | `packages/test-kit` | 无业务判断的公共测试工具和 fake capability | F3 boundary policy；测试中的重复 harness 待迁移 | `partial` | F2、F3；后续测试基础设施 Goal |
+| `packages/im-ui` | 群聊（IM）页面、样式与浏览器控制器 | 由 `apps/server` 的 IM 页面和 Workbench 的“项目讨论”分屏消费；不拥有消息事实 | `partial`（实验） | `specs/molis-work-im/spec.md` |
 
 `packages/contracts/modules`、`services`、`platform` 是同一个发布包的 subpath 分区，不是三个独立 npm package。
 

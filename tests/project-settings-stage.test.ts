@@ -221,7 +221,7 @@ test("switching a settings category resets the stage body to the top", () => {
   assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /body\.scrollTop = 0/);
   assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /requestAnimationFrame\(resetScroll\)/);
   // Other sections leave the stage body; a plugin's own page shown as a settings page (角色) goes back to the
-  // surface pool still bound instead of being destroyed (specs/page-interaction-flow).
+  // surface pool still bound instead of being destroyed (specs/archive/page-interaction-flow).
   assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /if \(child === node\) return;/);
   assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /if \(child\.matches\("\[data-work-surface\]"\) && pool\) \{ child\.hidden = true; pool\.append\(child\); \}\s*else child\.remove\(\);/);
   assert.doesNotMatch(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /child\.hidden = child !== node/);

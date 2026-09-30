@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-// specs/page-interaction-flow: every entry of the bar is a switch, every cover has a way out, history walks both,
+// specs/archive/page-interaction-flow: every entry of the bar is a switch, every cover has a way out, history walks both,
 // a plugin's page keeps what was open in it, and settings are one list inside the workbench.
 test("the bar toggles back, covers close four ways, and history walks covers and their pages", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);

@@ -46,7 +46,7 @@ for (const width of [1440, 390]) {
     if (await evaluate("document.body.dataset.desktopSurface") !== 'pages') {
       await click('[data-plugin-strip] [data-plugin-id=pages]');
     }
-    // The document being edited comes back by itself (specs/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
+    // The document being edited comes back by itself (specs/archive/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
     await waitFor("document.querySelector('[data-pages-title]')?.value === '项目讨论记录' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('整理后的文稿')");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
     const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });

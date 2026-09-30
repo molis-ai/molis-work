@@ -212,7 +212,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const gatewayHooks = new Set<string>();
   // Rounds that may change things: an ending that only announces the next step is held once per run.
   /** Per session, what the round now running really kept and forgot (only for sessions given memory tools). */
-  const memoryRounds = new Map<string, { keep: number; forget: number; off: boolean }>();
+  const memoryRounds = new Map<string, { keep: number; forget: number; off: boolean; spoken: string }>();
   // Suggestions this round really made, for the same check: a reply may not say a button is ready when none was.
   const offerRounds = new Map<string, { offered: number }>();
   const stopGuards = new Map<string, { writing: boolean; held: Set<string> }>();
@@ -984,7 +984,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // What this round really kept or forgot, for the stop check below: a reply may not claim what no call did.
       // A business round the person gave no memory (switched off) keeps nothing, so any claim of keeping is held too.
       const memory = input.action_gateway?.client.memory;
-      const memoryDone = { keep: 0, forget: 0, off: !memory };
+      // What the round has said so far: a claim made before the call that then failed counts as much as one at the end.
+      const memoryDone = { keep: 0, forget: 0, off: !memory, spoken: "" };
       if (input.action_gateway) memoryRounds.set(input.session_id, memoryDone); else memoryRounds.delete(input.session_id);
       const offer = input.action_gateway?.client.offer;
       const offersDone = { offered: 0 };
@@ -1026,7 +1027,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           const run = context.origin?.run, text = (context.input as { text?: unknown } | undefined)?.text;
           if (!run || typeof text !== "string" || created.held.has(run)) return { kind: "allow" as const };
           // A claim of keeping or forgetting that no call made this round is held once, whatever the round's execution.
-          const claim = memoryRounds.has(sessionId) ? claimsMemoryChange(text) : null;
+          const tracked = memoryRounds.get(sessionId);
+          const claim = tracked ? claimsMemoryChange(tracked.spoken.trim() ? tracked.spoken.slice(-1200) : text) : null;
           if (claim && memoryRounds.get(sessionId)![claim] === 0) { created.held.add(run); return { kind: "deny" as const, why: memoryRounds.get(sessionId)!.off ? MEMORY_OFF_HELD : MEMORY_CLAIM_HELD[claim] }; }
           if (business && writesToolCallAsText(text)) { created.held.add(run); return { kind: "deny" as const, why: WRITTEN_CALL_HELD }; }
           if (offerRounds.get(sessionId)?.offered === 0 && claimsButton(text)) { created.held.add(run); return { kind: "deny" as const, why: BUTTON_CLAIM_HELD }; }
@@ -1305,6 +1307,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           ref: { id: started.run.ref.id },
           subscribe: (listener: (event: PrologueEvent) => void) =>
             started.run.subscribe((event) => {
+              if (event.type === "text-delta" && typeof (event as { text?: unknown }).text === "string") memoryDone.spoken = (memoryDone.spoken + (event as { text: string }).text).slice(-4000);
               if (["completed", "failed", "cancelled"].includes(event.type)) {
                 actionController.abort(); actionControllers.delete(started.run.ref.id);
                 if (stepBoard) stepBoards.unfollow(stepBoard.ref.id);

@@ -112,13 +112,16 @@ test("contextual actions: a result the person did not accept writes nothing; an 
   await evaluate(`[...document.querySelectorAll('.context-actions-menu button')].find(button => button.textContent.includes('改得更正式')).click()`);
   await waitFor("document.querySelector('.pages-pop:not([hidden]) textarea')?.value === '候选文字'");
   // The frozen text is edited before accepting: nothing is written anywhere.
-  await evaluate(`(() => { const frozen = document.querySelector('.pages-focus-frozen'); const text = frozen.firstChild; const range = document.createRange();
+  // The person clicks into the frozen text (the editor takes focus) and types a character there.
+  await evaluate(`(() => { document.querySelector('[data-pages-editor] .ProseMirror').focus(); const frozen = document.querySelector('.pages-focus-frozen'); const text = frozen.firstChild; const range = document.createRange();
     range.setStart(text, 1); range.setEnd(text, 1); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`);
   await command("Input.insertText", { text: "改" }, sessionId);
   await evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === '替换').click()`);
   await waitFor("document.querySelector('.pages-pop .pages-pop-error')?.textContent.includes('没有写入')");
   assert.equal(await evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('候选文字')"), false);
-  // Leaving the document: the row empties.
+  // Leaving the document: the row empties. The pointer goes to the back button first, as a person's does; while it rests
+  // on the row, a lapsing context is kept until it leaves (spec §13.3).
+  await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 40, y: 120 }, sessionId);
   await evaluate(`document.querySelector('[data-pages-back]')?.click()`);
   await waitFor("document.querySelector('[data-assistant-context-actions]').dataset.state === 'idle'");
 });

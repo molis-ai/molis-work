@@ -1,0 +1,64 @@
+[
+  {
+    "match": [
+      "我们认为转化率低的主要原因，是新用户在试用期内没"
+    ],
+    "activity": "selecting",
+    "granularity": "range",
+    "next": {
+      "io.molis.work.pages:explain": 0.01,
+      "io.molis.work.pages:bullets": 0,
+      "system.search:evidence": 0.67,
+      "io.molis.work.pages:reader": 0.07,
+      "io.molis.work.pages:counter": 0.01,
+      "io.molis.work.pages:formal": 0.03,
+      "io.molis.work.pages:translate": 0,
+      "io.molis.work.pages:actions": 0,
+      "system.assistant:discuss": 0.05,
+      "io.molis.work.goals:breakdown": 0,
+      "io.molis.work.goals:dependencies": 0,
+      "io.molis.work.pages:concise": 0.01,
+      "io.molis.work.pages:expand": 0.02,
+      "io.molis.work.goals:relate": 0.13,
+      "io.molis.work.lingguang:capture": 0
+    },
+    "intent": {},
+    "surface": "none",
+    "speak_up": null,
+    "confidence": 0.64,
+    "latency_ms": 1335,
+    "model": "jev-1.13.0",
+    "recorded_at": "2026-09-30T12:12:48.397Z"
+  },
+  {
+    "match": [
+      "我们认为转化率低的主要原因，是新用户在试用期内没",
+      "竞品普遍提供 14 天试用，我们的 7 天试用期"
+    ],
+    "activity": "comparing",
+    "granularity": "blocks",
+    "next": {
+      "io.molis.work.goals:relate": 0.03,
+      "io.molis.work.pages:compare": 0.89,
+      "io.molis.work.goals:dependencies": 0.01,
+      "io.molis.work.pages:counter": 0.01,
+      "io.molis.work.pages:formal": 0,
+      "system.assistant:discuss": 0.01,
+      "io.molis.work.pages:reader": 0,
+      "io.molis.work.pages:merge": 0.04,
+      "io.molis.work.pages:concise": 0,
+      "io.molis.work.pages:bullets": 0,
+      "system.context-ledger:link": 0.01,
+      "io.molis.work.goals:breakdown": 0,
+      "io.molis.work.pages:translate": 0,
+      "io.molis.work.pages:actions": 0
+    },
+    "intent": {},
+    "surface": "compare",
+    "speak_up": null,
+    "confidence": 0.88,
+    "latency_ms": 859,
+    "model": "jev-1.13.0",
+    "recorded_at": "2026-09-30T12:12:50.124Z"
+  }
+]

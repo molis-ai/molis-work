@@ -150,6 +150,20 @@ export const PAGES_STYLES = `
     background: var(--content-select);
     border-radius: 6px;
   }
+  /* What an action was asked about stays marked while it works and while its candidate waits, wherever the caret goes
+     meanwhile; the part set aside for a comparison is marked apart from it. */
+  .pages-editor-host .ProseMirror .pages-focus-frozen {
+    background: var(--content-select);
+    border-radius: 2px;
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 55%, transparent);
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  .pages-editor-host .ProseMirror .pages-focus-compare {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-radius: 2px;
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 35%, transparent);
+  }
   body.immersive-workbench [data-pages="directory"] .feed-stage-entry:focus-visible {
     outline: none; background: var(--nav-hover);
   }

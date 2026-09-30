@@ -1,0 +1,37 @@
+{
+  "recorded_at": "2026-09-30",
+  "setup": {
+    "workbench": "real Workbench build of feature/contextual-interaction, isolated Home (copy of the audit Home), scripts/contextual-slice/p1-server.mts on 127.0.0.1:4301",
+    "judgment": "real Jev (jev-1.13.0) through Prologue evaluateTypeSafe; key read in-process from the person's own Home (consented 2026-09-30), memory only",
+    "writing_model": "stand-in (labelled 【写作替身·非真实模型】); everything else is the product path",
+    "document": "留存判断（语义对比）: heading 核心判断 + 3 paragraphs, heading 材料 + 2 paragraphs; each paragraph selected in full (granularity range)",
+    "browser": "Claude desktop browser pane, 1024 px wide; timings are from selectionchange to the row showing that state"
+  },
+  "same_shape_different_meaning": [
+    { "text": "我们认为留存下降的主因是上手困难，而不是价格太高。", "rules_ms": 599, "rules": ["改得更简洁", "解释", "展开论述"], "judged_ms": 1876, "model_ms": 1260, "jev": ["读者视角", "提出反例", "展开论述"] },
+    { "text": "下周三前完成新手引导改版，周五发给二十个老用户试用并收集反馈。", "rules_ms": 26, "rules": ["改得更简洁", "解释", "展开论述"], "judged_ms": 914, "model_ms": 551, "jev": ["拆成行动项", "读者视角", "提出反例"] },
+    { "text": "“激活”指新用户在第一周内完成至少一次有价值的操作。", "rules_ms": 26, "rules": ["改得更简洁", "解释", "展开论述"], "judged_ms": 1017, "model_ms": 657, "jev": ["解释", "读者视角", "提出反例"] },
+    { "text": "访谈中有七位用户提到第一次打开后不知道从哪里开始。", "rules_ms": 130, "rules": ["改得更简洁", "解释", "展开论述"], "judged_ms": 1480, "model_ms": 1105, "jev": ["读者视角", "提出反例", "解释"] },
+    { "text": "价格调研显示多数用户认为现价合理。", "rules_ms": 27, "rules": ["改得更简洁", "解释", "展开论述"], "judged_ms": 1535, "model_ms": 1162, "jev": ["提出反例", "读者视角", "解释"] }
+  ],
+  "loop": [
+    { "step": "drag-select part of a paragraph (22 characters)", "result": "row: 一段文字 · 留存分析 | 改得更简洁 | 解释 | 展开论述 | 更多 | 按规则" },
+    { "step": "real click on 改得更简洁", "result": "editor keeps focus; popup 改得更简洁 · 正在处理 at the frozen range; frozen range marked" },
+    { "step": "click into the heading while waiting", "result": "row goes idle (nothing in hand); frozen range stays" },
+    { "step": "candidate arrives: buttons 取消 / 替换; click 替换", "result": "only the 22 frozen characters replaced; rest of the paragraph, heading and first paragraph unchanged; saved (已保存); frozen range released" },
+    { "step": "更多 → grouped by intent (改写 / 质疑 / 组织) then 全部操作; choose 解释 (a result)", "result": "candidate with 取消 / 插到后面; 插到后面 adds a new paragraph after the frozen one, original unchanged, saved" },
+    { "step": "⌘. from the editor, → , Esc", "result": "focus moves to the first action, then the next; Esc returns to the editor with the selection intact" },
+    { "step": "375 px (mobile emulation)", "result": "row keeps two actions and 更多 right above the input; no horizontal overflow" },
+    { "step": "a Home without a text model", "result": "every Pages action is unavailable (请先配置文字模型，再使用写作助手), so the row stays quiet" }
+  ],
+  "fast_switching": {
+    "how": "six selections 200 ms apart (shorter than debounce + model), order 4,1,3,0,2,1, then 3.5 s; a MutationObserver recorded every settled row",
+    "result": "7 settled rows; the only judged row shown was for the last selection (下周三前完成新手…: 拆成行动项 / 提出反例 / 读者视角); rows judged for an earlier selection shown: 0"
+  },
+  "found_and_fixed": [
+    "a provider tag rendered as the text “null” when absent",
+    "choosing from 更多 did nothing: removing the menu blurred its focused item, whose focusout closed the menu again and threw",
+    "the frozen range had no visible mark in the real Pages stylesheet (only in the slice)",
+    "the format bar stayed over the popup when a command started from the row"
+  ]
+}

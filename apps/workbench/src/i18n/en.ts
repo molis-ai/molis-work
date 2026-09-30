@@ -30,6 +30,7 @@ import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 import { ASSISTANT_EN } from "./assistant-en.js";
 import { PLACEMENT_EN } from "./placement-en.js";
+import { CONTEXTUAL_EN } from "./contextual-en.js";
 import { SIDE_PANEL_EN } from "./side-panel-en.js";
 import { ONBOARDING_EN } from "./onboarding-en.js";
 import { RENDERER_GAP_EN } from "./renderer-gap-en.js";
@@ -41,6 +42,7 @@ import { MEMORY_EN } from "./memory-en.js";
 export const EN: Record<string, string> = {
   // Placement comes first so an existing translation of the same words wins.
   ...PLACEMENT_EN,
+  ...CONTEXTUAL_EN,
   ...SIDE_PANEL_EN,
   "保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。": "Changes apply to subsequent runs. Restart text generation if its model or connection changes while it is running.",
   "连接不可用": "Connection unavailable",

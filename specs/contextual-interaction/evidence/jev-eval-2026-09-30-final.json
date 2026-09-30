@@ -1,0 +1,1853 @@
+{
+  "summary": {
+    "variant": "a",
+    "cases": 30,
+    "answered": 30,
+    "top1": {
+      "jev": "90%",
+      "rules": "47%"
+    },
+    "top3": {
+      "jev": "100%",
+      "rules": "73%"
+    },
+    "latency_ms": {
+      "p50": 814,
+      "p95": 1458
+    },
+    "emphasis_rate": "60%",
+    "assistant_rate": "17%",
+    "same_shape_pairs": 88,
+    "rows_differ": {
+      "jev": "99%",
+      "rules": "0%"
+    }
+  },
+  "rows": [
+    {
+      "id": "opinion-main",
+      "kind": "claim",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "evidence",
+        "counter",
+        "reader",
+        "discuss"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "evidence",
+        "relate",
+        "reader"
+      ],
+      "emphasis": "evidence",
+      "assistant": null,
+      "latency": 1458,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c",
+          "confidence": 0.64,
+          "probabilities": {
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.68,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.11,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.03,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0.01,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0.02,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.09,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0.01,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0.01,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.04
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.83,
+          "probabilities": {
+            "preview": 0.01,
+            "none": 0.87,
+            "options": 0,
+            "suggest": 0.12,
+            "compare": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "opinion-trial",
+      "kind": "claim",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "evidence",
+        "counter",
+        "reader",
+        "discuss"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "evidence",
+        "relate",
+        "reader"
+      ],
+      "emphasis": "evidence",
+      "assistant": null,
+      "latency": 530,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c",
+          "confidence": 0.62,
+          "probabilities": {
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0.01,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0.02,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.1,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.03,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.01,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.01,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0.01,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.11,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.64,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.06,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.93,
+          "probabilities": {
+            "none": 0.95,
+            "suggest": 0.04,
+            "options": 0,
+            "preview": 0.01,
+            "compare": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "background-fact",
+      "kind": "fact",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "relate",
+        "explain",
+        "evidence",
+        "bullets",
+        "link"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "relate",
+        "evidence",
+        "reader"
+      ],
+      "emphasis": "relate",
+      "assistant": null,
+      "latency": 680,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa",
+          "confidence": 0.65,
+          "probabilities": {
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.68,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.02,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0.01,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.25,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0.01,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.01,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.02
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.89,
+          "probabilities": {
+            "compare": 0.01,
+            "preview": 0.01,
+            "none": 0.9,
+            "options": 0,
+            "suggest": 0.08
+          }
+        }
+      }
+    },
+    {
+      "id": "plan-two",
+      "kind": "plan",
+      "granularity": "blocks",
+      "activity": "selecting",
+      "candidates": 14,
+      "ok": [
+        "breakdown",
+        "dependencies",
+        "relate",
+        "actions"
+      ],
+      "rules": [
+        "actions",
+        "compare",
+        "relate"
+      ],
+      "jev": [
+        "actions",
+        "dependencies",
+        "relate"
+      ],
+      "emphasis": null,
+      "assistant": null,
+      "latency": 739,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89",
+          "confidence": 0.4,
+          "probabilities": {
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.8416738ad58fe9c84a281e598e4570d1c719fb642551d999f86b9dbfa1": 0,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.45,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.01,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.01,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0.07,
+            "frag.21f0ea1b45bc33c2b48a736169d6bcdfd2647f5c3159043563cd965035": 0.02,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0.31,
+            "frag.d0ceae18de3d43c83e6fdba991945a5c3a8fb1644a52fcb1f320a25487": 0,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.13
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.68,
+          "probabilities": {
+            "compare": 0.16,
+            "preview": 0.01,
+            "none": 0.75,
+            "suggest": 0.07,
+            "options": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "plan-all",
+      "kind": "plan",
+      "granularity": "blocks",
+      "activity": "selecting",
+      "candidates": 14,
+      "ok": [
+        "breakdown",
+        "dependencies",
+        "relate",
+        "actions"
+      ],
+      "rules": [
+        "actions",
+        "compare",
+        "relate"
+      ],
+      "jev": [
+        "actions",
+        "dependencies",
+        "relate"
+      ],
+      "emphasis": null,
+      "assistant": null,
+      "latency": 630,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89",
+          "confidence": 0.38,
+          "probabilities": {
+            "frag.8416738ad58fe9c84a281e598e4570d1c719fb642551d999f86b9dbfa1": 0,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.43,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.02,
+            "frag.21f0ea1b45bc33c2b48a736169d6bcdfd2647f5c3159043563cd965035": 0.02,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0.3,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.d0ceae18de3d43c83e6fdba991945a5c3a8fb1644a52fcb1f320a25487": 0,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.14,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0.09
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.81,
+          "probabilities": {
+            "options": 0.01,
+            "suggest": 0.05,
+            "preview": 0.01,
+            "none": 0.84,
+            "compare": 0.09
+          }
+        }
+      }
+    },
+    {
+      "id": "risk",
+      "kind": "risk",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "dependencies",
+        "concise",
+        "counter",
+        "reader",
+        "relate",
+        "bullets"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "dependencies",
+        "concise",
+        "bullets"
+      ],
+      "emphasis": null,
+      "assistant": null,
+      "latency": 545,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0",
+          "confidence": 0.34,
+          "probabilities": {
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.22,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.06,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.01,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.01,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0.39,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.02,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.01,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0.04,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0.01,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0.23
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.84,
+          "probabilities": {
+            "none": 0.88,
+            "suggest": 0.1,
+            "compare": 0,
+            "options": 0.01,
+            "preview": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "risk-editing",
+      "kind": "editing",
+      "granularity": "block",
+      "activity": "editing",
+      "candidates": 16,
+      "ok": [
+        "concise",
+        "reader",
+        "continue",
+        "formal",
+        "bullets"
+      ],
+      "rules": [
+        "concise",
+        "expand",
+        "formal"
+      ],
+      "jev": [
+        "concise",
+        "dependencies",
+        "continue"
+      ],
+      "emphasis": null,
+      "assistant": null,
+      "latency": 958,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c",
+          "confidence": 0.49,
+          "probabilities": {
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0.03,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.01,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.07,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0.53,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0.16,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.03,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0,
+            "frag.423f2a49d771ac2d7870505133a8bf6af7337354aaf19a814eee8ee186": 0.1,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.01,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.01,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0.05,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.64,
+          "probabilities": {
+            "suggest": 0.19,
+            "none": 0.71,
+            "options": 0.02,
+            "compare": 0.01,
+            "preview": 0.07
+          }
+        }
+      }
+    },
+    {
+      "id": "progress-note",
+      "kind": "progress",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "relate",
+        "capture",
+        "link"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "actions",
+        "relate",
+        "dependencies"
+      ],
+      "emphasis": null,
+      "assistant": null,
+      "latency": 1027,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89",
+          "confidence": 0.32,
+          "probabilities": {
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.01,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0.04,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.01,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.01,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.31,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.36,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0.01,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0.18,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.04,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0.03
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.93,
+          "probabilities": {
+            "none": 0.96,
+            "options": 0,
+            "compare": 0,
+            "suggest": 0.04,
+            "preview": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "word-conversion",
+      "kind": "term",
+      "granularity": "word",
+      "activity": "selecting",
+      "candidates": 4,
+      "ok": [
+        "explain",
+        "evidence",
+        "translate"
+      ],
+      "rules": [
+        "explain",
+        "translate",
+        "evidence"
+      ],
+      "jev": [
+        "explain",
+        "evidence",
+        "translate"
+      ],
+      "emphasis": "explain",
+      "assistant": null,
+      "latency": 617,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a",
+          "confidence": 0.54,
+          "probabilities": {
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.34,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0.66,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.71,
+          "probabilities": {
+            "suggest": 0.2,
+            "preview": 0.02,
+            "none": 0.77,
+            "compare": 0,
+            "options": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "word-ab",
+      "kind": "term",
+      "granularity": "word",
+      "activity": "selecting",
+      "candidates": 4,
+      "ok": [
+        "explain",
+        "evidence",
+        "translate"
+      ],
+      "rules": [
+        "explain",
+        "translate",
+        "evidence"
+      ],
+      "jev": [
+        "explain",
+        "evidence",
+        "translate"
+      ],
+      "emphasis": "explain",
+      "assistant": null,
+      "latency": 963,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a",
+          "confidence": 0.76,
+          "probabilities": {
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.17,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0.82,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0.01,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.88,
+          "probabilities": {
+            "none": 0.91,
+            "preview": 0.02,
+            "options": 0.02,
+            "suggest": 0.04,
+            "compare": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "done-guide",
+      "kind": "done",
+      "granularity": "block",
+      "activity": "completed",
+      "candidates": 18,
+      "ok": [
+        "progress",
+        "next"
+      ],
+      "rules": [
+        "progress",
+        "actions",
+        "next"
+      ],
+      "jev": [
+        "next",
+        "progress",
+        "actions"
+      ],
+      "emphasis": null,
+      "assistant": null,
+      "latency": 515,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.d0ee6f409dea2570df8a1fdbc0675f845093bed82c1318632b4834bb2e",
+          "confidence": 0.47,
+          "probabilities": {
+            "frag.423f2a49d771ac2d7870505133a8bf6af7337354aaf19a814eee8ee186": 0,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.01,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.d0ee6f409dea2570df8a1fdbc0675f845093bed82c1318632b4834bb2e": 0.5,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.01,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0,
+            "frag.1d5497ce67bc61bd571e34cbbf78f376044fbe873ae12066334ba40e5b": 0.47,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0.01,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.9,
+          "probabilities": {
+            "suggest": 0.07,
+            "compare": 0,
+            "preview": 0.01,
+            "options": 0,
+            "none": 0.92
+          }
+        }
+      }
+    },
+    {
+      "id": "done-trial",
+      "kind": "done",
+      "granularity": "block",
+      "activity": "completed",
+      "candidates": 18,
+      "ok": [
+        "progress",
+        "next"
+      ],
+      "rules": [
+        "progress",
+        "actions",
+        "next"
+      ],
+      "jev": [
+        "next",
+        "progress",
+        "actions"
+      ],
+      "emphasis": "next",
+      "assistant": null,
+      "latency": 611,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.d0ee6f409dea2570df8a1fdbc0675f845093bed82c1318632b4834bb2e",
+          "confidence": 0.52,
+          "probabilities": {
+            "frag.423f2a49d771ac2d7870505133a8bf6af7337354aaf19a814eee8ee186": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.01,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.d0ee6f409dea2570df8a1fdbc0675f845093bed82c1318632b4834bb2e": 0.56,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.1d5497ce67bc61bd571e34cbbf78f376044fbe873ae12066334ba40e5b": 0.42,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.01
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.9,
+          "probabilities": {
+            "none": 0.92,
+            "options": 0,
+            "suggest": 0.06,
+            "preview": 0.01,
+            "compare": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "compare-claims",
+      "kind": "compare",
+      "granularity": "blocks",
+      "activity": "comparing",
+      "candidates": 14,
+      "ok": [
+        "compare",
+        "link",
+        "merge"
+      ],
+      "rules": [
+        "actions",
+        "compare",
+        "counter"
+      ],
+      "jev": [
+        "compare",
+        "relate",
+        "merge"
+      ],
+      "emphasis": "compare",
+      "assistant": "compare",
+      "latency": 1425,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.8416738ad58fe9c84a281e598e4570d1c719fb642551d999f86b9dbfa1",
+          "confidence": 0.91,
+          "probabilities": {
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.03,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0.01,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.8416738ad58fe9c84a281e598e4570d1c719fb642551d999f86b9dbfa1": 0.93,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.d0ceae18de3d43c83e6fdba991945a5c3a8fb1644a52fcb1f320a25487": 0.01,
+            "frag.21f0ea1b45bc33c2b48a736169d6bcdfd2647f5c3159043563cd965035": 0.02,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "compare",
+          "confidence": 0.75,
+          "probabilities": {
+            "suggest": 0.01,
+            "preview": 0,
+            "none": 0.19,
+            "options": 0,
+            "compare": 0.8
+          }
+        }
+      }
+    },
+    {
+      "id": "finding-start",
+      "kind": "finding",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "relate",
+        "evidence",
+        "capture",
+        "link"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "relate",
+        "evidence",
+        "bullets"
+      ],
+      "emphasis": "relate",
+      "assistant": null,
+      "latency": 962,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa",
+          "confidence": 0.8,
+          "probabilities": {
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.01,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.83,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.1,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.01,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.03,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0.01,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.01
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.83,
+          "probabilities": {
+            "compare": 0.01,
+            "options": 0.01,
+            "none": 0.86,
+            "suggest": 0.12,
+            "preview": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "finding-price",
+      "kind": "finding",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "relate",
+        "evidence",
+        "link",
+        "capture"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "relate",
+        "evidence",
+        "expand"
+      ],
+      "emphasis": "relate",
+      "assistant": null,
+      "latency": 1106,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa",
+          "confidence": 0.69,
+          "probabilities": {
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.02,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.2,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.72,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.01,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.04,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.01
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.88,
+          "probabilities": {
+            "suggest": 0.07,
+            "none": 0.92,
+            "compare": 0.01,
+            "options": 0,
+            "preview": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "finding-team",
+      "kind": "finding",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "capture",
+        "relate",
+        "discuss",
+        "link"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "relate",
+        "evidence",
+        "expand"
+      ],
+      "emphasis": "relate",
+      "assistant": null,
+      "latency": 1029,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa",
+          "confidence": 0.67,
+          "probabilities": {
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0.01,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.01,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.7,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.02,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.03,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.02,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.18000000000000002,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.03
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.81,
+          "probabilities": {
+            "preview": 0,
+            "none": 0.85,
+            "options": 0.01,
+            "compare": 0.01,
+            "suggest": 0.13
+          }
+        }
+      }
+    },
+    {
+      "id": "quote-import",
+      "kind": "quote",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 14,
+      "ok": [
+        "relate",
+        "explain",
+        "capture",
+        "link",
+        "evidence"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "relate",
+        "evidence",
+        "bullets"
+      ],
+      "emphasis": "relate",
+      "assistant": null,
+      "latency": 878,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa",
+          "confidence": 0.64,
+          "probabilities": {
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0.01,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.04,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.01,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.67,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.01,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0.01,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.03,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.06,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.16,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.83,
+          "probabilities": {
+            "compare": 0.01,
+            "none": 0.87,
+            "suggest": 0.11,
+            "preview": 0,
+            "options": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "quote-seven",
+      "kind": "quote",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 14,
+      "ok": [
+        "relate",
+        "evidence",
+        "link",
+        "counter"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "relate",
+        "evidence",
+        "discuss"
+      ],
+      "emphasis": "relate",
+      "assistant": null,
+      "latency": 873,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa",
+          "confidence": 0.53,
+          "probabilities": {
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.02,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.01,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.17,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.08,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.01,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.08,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0.03,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0.02,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0.01,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.56
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.82,
+          "probabilities": {
+            "preview": 0,
+            "options": 0.01,
+            "compare": 0.01,
+            "suggest": 0.13,
+            "none": 0.85
+          }
+        }
+      }
+    },
+    {
+      "id": "todo-list",
+      "kind": "plan",
+      "granularity": "blocks",
+      "activity": "selecting",
+      "candidates": 14,
+      "ok": [
+        "breakdown",
+        "relate",
+        "actions",
+        "dependencies"
+      ],
+      "rules": [
+        "actions",
+        "compare",
+        "relate"
+      ],
+      "jev": [
+        "discuss",
+        "relate",
+        "actions"
+      ],
+      "emphasis": null,
+      "assistant": null,
+      "latency": 649,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9",
+          "confidence": 0.39,
+          "probabilities": {
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.01,
+            "frag.8416738ad58fe9c84a281e598e4570d1c719fb642551d999f86b9dbfa1": 0.01,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.d0ceae18de3d43c83e6fdba991945a5c3a8fb1644a52fcb1f320a25487": 0.01,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0.01,
+            "frag.21f0ea1b45bc33c2b48a736169d6bcdfd2647f5c3159043563cd965035": 0.01,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.36,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.43,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0.01,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.04,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.1,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0.01,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.42,
+          "probabilities": {
+            "preview": 0,
+            "suggest": 0.18,
+            "options": 0.06,
+            "none": 0.54,
+            "compare": 0.22
+          }
+        }
+      }
+    },
+    {
+      "id": "method",
+      "kind": "fact",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "relate",
+        "explain",
+        "bullets",
+        "link"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "relate",
+        "bullets",
+        "evidence"
+      ],
+      "emphasis": "relate",
+      "assistant": null,
+      "latency": 658,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa",
+          "confidence": 0.81,
+          "probabilities": {
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0.01,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.84,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.01,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.08,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.06,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.87,
+          "probabilities": {
+            "suggest": 0.09,
+            "compare": 0.01,
+            "none": 0.9,
+            "options": 0,
+            "preview": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "competitor-a",
+      "kind": "fact",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "relate",
+        "explain",
+        "capture",
+        "bullets",
+        "evidence",
+        "link"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "evidence",
+        "reader",
+        "formal"
+      ],
+      "emphasis": "evidence",
+      "assistant": null,
+      "latency": 852,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c",
+          "confidence": 0.61,
+          "probabilities": {
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.15000000000000002,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0.07,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.65,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.04,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0.01,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0.02,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.03,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.02,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.01
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.73,
+          "probabilities": {
+            "none": 0.78,
+            "preview": 0.01,
+            "suggest": 0.09,
+            "options": 0.01,
+            "compare": 0.11
+          }
+        }
+      }
+    },
+    {
+      "id": "competitors-three",
+      "kind": "compare",
+      "granularity": "blocks",
+      "activity": "selecting",
+      "candidates": 14,
+      "ok": [
+        "compare",
+        "bullets",
+        "link",
+        "merge"
+      ],
+      "rules": [
+        "actions",
+        "compare",
+        "counter"
+      ],
+      "jev": [
+        "compare",
+        "bullets",
+        "merge"
+      ],
+      "emphasis": "compare",
+      "assistant": "compare",
+      "latency": 958,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.8416738ad58fe9c84a281e598e4570d1c719fb642551d999f86b9dbfa1",
+          "confidence": 0.83,
+          "probabilities": {
+            "frag.21f0ea1b45bc33c2b48a736169d6bcdfd2647f5c3159043563cd965035": 0.05,
+            "frag.8416738ad58fe9c84a281e598e4570d1c719fb642551d999f86b9dbfa1": 0.86,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0.01,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.05,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.03,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.d0ceae18de3d43c83e6fdba991945a5c3a8fb1644a52fcb1f320a25487": 0,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "compare",
+          "confidence": 0.49,
+          "probabilities": {
+            "compare": 0.61,
+            "suggest": 0.01,
+            "none": 0.38,
+            "options": 0,
+            "preview": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "conclusion",
+      "kind": "claim",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "evidence",
+        "counter",
+        "relate",
+        "reader"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "evidence",
+        "reader",
+        "expand"
+      ],
+      "emphasis": null,
+      "assistant": null,
+      "latency": 1468,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c",
+          "confidence": 0.28,
+          "probabilities": {
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0.02,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0.04,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0.11,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0.01,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.33,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.14,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.01,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.05,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.02,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.27,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.69,
+          "probabilities": {
+            "compare": 0.01,
+            "none": 0.75,
+            "options": 0.01,
+            "suggest": 0.21,
+            "preview": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "competitor-c",
+      "kind": "fact",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "explain",
+        "relate",
+        "evidence",
+        "link"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "evidence",
+        "reader",
+        "formal"
+      ],
+      "emphasis": "evidence",
+      "assistant": null,
+      "latency": 580,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c",
+          "confidence": 0.54,
+          "probabilities": {
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.02,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.05,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.22,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0.01,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.03,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0.06,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0.01,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.5599999999999999,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0.02,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.02,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.7,
+          "probabilities": {
+            "preview": 0.01,
+            "suggest": 0.08,
+            "options": 0.01,
+            "none": 0.75,
+            "compare": 0.15
+          }
+        }
+      }
+    },
+    {
+      "id": "objects-plan-interviews",
+      "kind": "objects",
+      "granularity": "objects",
+      "activity": "selecting",
+      "candidates": 5,
+      "ok": [
+        "link",
+        "compare",
+        "synthesize",
+        "relate"
+      ],
+      "rules": [
+        "compare",
+        "relate",
+        "synthesize"
+      ],
+      "jev": [
+        "compare",
+        "synthesize",
+        "link"
+      ],
+      "emphasis": null,
+      "assistant": "compare",
+      "latency": 814,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.8416738ad58fe9c84a281e598e4570d1c719fb642551d999f86b9dbfa1",
+          "confidence": 0.24,
+          "probabilities": {
+            "frag.8416738ad58fe9c84a281e598e4570d1c719fb642551d999f86b9dbfa1": 0.39,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.07,
+            "frag.d0ceae18de3d43c83e6fdba991945a5c3a8fb1644a52fcb1f320a25487": 0.12,
+            "frag.6a2dd694f3a8cd73ab6e09382a4dd3baa658f4c716b2b4dcdbd95a8100": 0.37,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.05
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "compare",
+          "confidence": 0.58,
+          "probabilities": {
+            "preview": 0,
+            "none": 0.32,
+            "suggest": 0.02,
+            "compare": 0.66,
+            "options": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "objects-interviews-competitors",
+      "kind": "objects",
+      "granularity": "objects",
+      "activity": "selecting",
+      "candidates": 5,
+      "ok": [
+        "synthesize",
+        "compare",
+        "link"
+      ],
+      "rules": [
+        "compare",
+        "relate",
+        "synthesize"
+      ],
+      "jev": [
+        "compare",
+        "synthesize",
+        "discuss"
+      ],
+      "emphasis": "compare",
+      "assistant": "compare",
+      "latency": 664,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.8416738ad58fe9c84a281e598e4570d1c719fb642551d999f86b9dbfa1",
+          "confidence": 0.55,
+          "probabilities": {
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.14,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.02,
+            "frag.6a2dd694f3a8cd73ab6e09382a4dd3baa658f4c716b2b4dcdbd95a8100": 0.18,
+            "frag.8416738ad58fe9c84a281e598e4570d1c719fb642551d999f86b9dbfa1": 0.64,
+            "frag.d0ceae18de3d43c83e6fdba991945a5c3a8fb1644a52fcb1f320a25487": 0.02
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "compare",
+          "confidence": 0.61,
+          "probabilities": {
+            "options": 0.01,
+            "compare": 0.6799999999999999,
+            "preview": 0,
+            "none": 0.28,
+            "suggest": 0.03
+          }
+        }
+      }
+    },
+    {
+      "id": "objects-all",
+      "kind": "objects",
+      "granularity": "objects",
+      "activity": "selecting",
+      "candidates": 5,
+      "ok": [
+        "synthesize",
+        "compare",
+        "link"
+      ],
+      "rules": [
+        "compare",
+        "relate",
+        "synthesize"
+      ],
+      "jev": [
+        "synthesize",
+        "compare",
+        "discuss"
+      ],
+      "emphasis": null,
+      "assistant": "compare",
+      "latency": 810,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.6a2dd694f3a8cd73ab6e09382a4dd3baa658f4c716b2b4dcdbd95a8100",
+          "confidence": 0.37,
+          "probabilities": {
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.02,
+            "frag.d0ceae18de3d43c83e6fdba991945a5c3a8fb1644a52fcb1f320a25487": 0.05,
+            "frag.6a2dd694f3a8cd73ab6e09382a4dd3baa658f4c716b2b4dcdbd95a8100": 0.5,
+            "frag.8416738ad58fe9c84a281e598e4570d1c719fb642551d999f86b9dbfa1": 0.36,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.07
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "compare",
+          "confidence": 0.58,
+          "probabilities": {
+            "none": 0.32,
+            "suggest": 0.02,
+            "compare": 0.66,
+            "preview": 0,
+            "options": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "background-editing",
+      "kind": "editing",
+      "granularity": "block",
+      "activity": "editing",
+      "candidates": 16,
+      "ok": [
+        "concise",
+        "formal",
+        "continue",
+        "reader"
+      ],
+      "rules": [
+        "concise",
+        "expand",
+        "formal"
+      ],
+      "jev": [
+        "relate",
+        "continue",
+        "evidence"
+      ],
+      "emphasis": null,
+      "assistant": null,
+      "latency": 805,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa",
+          "confidence": 0.35,
+          "probabilities": {
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.4,
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.03,
+            "frag.423f2a49d771ac2d7870505133a8bf6af7337354aaf19a814eee8ee186": 0.24000000000000002,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.05,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.01,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0.05,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0.01,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.11,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0.06,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0.01,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.03
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.59,
+          "probabilities": {
+            "preview": 0.04,
+            "suggest": 0.27,
+            "options": 0.02,
+            "none": 0.66,
+            "compare": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "heading-plan",
+      "kind": "heading",
+      "granularity": "word",
+      "activity": "selecting",
+      "candidates": 4,
+      "ok": [
+        "expand",
+        "bullets",
+        "breakdown",
+        "explain"
+      ],
+      "rules": [
+        "explain",
+        "translate",
+        "evidence"
+      ],
+      "jev": [
+        "explain",
+        "evidence",
+        "capture"
+      ],
+      "emphasis": "explain",
+      "assistant": null,
+      "latency": 1055,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a",
+          "confidence": 0.65,
+          "probabilities": {
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0.74,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.25,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0.01
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.94,
+          "probabilities": {
+            "preview": 0,
+            "none": 0.96,
+            "suggest": 0.04,
+            "compare": 0,
+            "options": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "finding-price-vs-claim",
+      "kind": "fact",
+      "granularity": "range",
+      "activity": "selecting",
+      "candidates": 15,
+      "ok": [
+        "explain",
+        "relate",
+        "evidence",
+        "link"
+      ],
+      "rules": [
+        "concise",
+        "explain",
+        "expand"
+      ],
+      "jev": [
+        "evidence",
+        "reader",
+        "formal"
+      ],
+      "emphasis": null,
+      "assistant": null,
+      "latency": 545,
+      "error": "",
+      "answers": {
+        "next": {
+          "type": "choice",
+          "choice": "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c",
+          "confidence": 0.43,
+          "probabilities": {
+            "frag.6e401cc329ce8bec0cadc15e95d5ceffb26fe84c79828a6d784c8a72b0": 0,
+            "frag.c4d0e879bbc4e3b0ae7389521ae2b36132bf4baf6e502697ede14e6928": 0.04,
+            "frag.4def7424fc4bd2f5e052c9230888624f7861d00d610c648cfb9bce5acb": 0,
+            "frag.ec7d7428507ecacec8279775295d32cd8cae0b6865f7efe898abb4a752": 0,
+            "frag.ce9e6cd3aa0bd8ddfffbfa79c0725347d34022eab238f0afe164e7c72c": 0.46,
+            "frag.d5a24439452998791b8bd9380ab80869a180ab1d2f8a8d04d0b0ee5ab9": 0.04,
+            "frag.54820134d101ae1f7c479949f619d4169466fe52df30060e03dd37759a": 0.03,
+            "frag.89500c7c5521c109aaa03297bec04c7324281c7f66143f64806ed8576b": 0.06,
+            "frag.b7b97bb7e901c3a12d227d3bcc94c3671b355ebd274acfa144864f2baa": 0.02,
+            "frag.fcd3af54991702b160cae0836be5a661f1700a08e3d655f51e1bf9f74d": 0.01,
+            "frag.0303e8520bbcebdec6a51f8ffed6851e83075a72ae6031a609c93e4a88": 0.02,
+            "frag.c9fa87cf8448d0a3079c09fd85555086dd10527a2355d27322a086223c": 0.02,
+            "frag.ffca8b18e9052f0e19768e128dd854b877fc8b783a2e1141020b18c22b": 0,
+            "frag.0cf3116f6a017827d1ba678206a5bd6aae30f7ee50a4547f5252b5e3c7": 0.3,
+            "frag.b9d92e7aa0e1bb0ec94f1141dea1b0925089d28d7e9bde92f01b339e89": 0
+          }
+        },
+        "surface": {
+          "type": "choice",
+          "choice": "none",
+          "confidence": 0.74,
+          "probabilities": {
+            "none": 0.78,
+            "suggest": 0.09,
+            "options": 0.01,
+            "preview": 0.01,
+            "compare": 0.11
+          }
+        }
+      }
+    }
+  ]
+}

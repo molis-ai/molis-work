@@ -6,7 +6,33 @@ import { sendConversationMessage } from "./conversation-message.js";
 
 /** Discussion, decisions, calibration and Pulse operate on the same original Studio repositories. */
 export function createWorkspaceOperations(d: ApiDependencies) {
+  const lines = (label: string, values: readonly string[]) => values.length ? [`${label}：`, ...values.map(value => `- ${value}`)] : [];
   return {
+    // A direction reads as its description plus the Ideas kept under it, in the words the page shows.
+    directionContext: (input: AlchemistOperationInput<"directionContext">) => {
+      const direction = d.directions.get(input.subject_id);
+      if (!direction || direction.workspaceId !== d.workspaceId) throw new AlchemistOperationError("DIRECTION_NOT_FOUND", "没有找到这个方向。", 404);
+      const ideas = d.ideas.listIdeas().filter(idea => idea.directionId === direction.id)
+        .map(idea => d.ideas.getVersion(idea.id, idea.currentVersion)?.content.title || "未命名 Idea");
+      const content = [direction.description, direction.status === "archived" ? "状态：已归档" : "", ...lines("已保留的 Idea", ideas)].filter(Boolean).join("\n");
+      return { ...subjectContext({ subject: { kind: "alchemist-direction", id: direction.id }, revision: direction.updatedAt, title: direction.title,
+        content, goal_ids: [], session_id: null }), open: { surface: "alchemist", id: direction.id } };
+    },
+    // An Idea reads as its current version: who it is for, the problem, the mechanism, why it may work, and the MVP cut.
+    ideaContext: (input: AlchemistOperationInput<"ideaContext">) => {
+      const idea = d.ideas.listIdeas().find(item => item.id === input.subject_id);
+      const version = idea ? d.ideas.getVersion(idea.id, idea.currentVersion) : undefined;
+      if (!idea || !version) throw new AlchemistOperationError("IDEA_NOT_FOUND", "没有找到这个 Idea。", 404);
+      const c = version.content;
+      const content = [
+        c.highlight, c.targetUser && `目标用户：${c.targetUser}`, c.scenario && `场景：${c.scenario}`, c.coreProblem && `核心问题：${c.coreProblem}`,
+        c.coreMechanism && `核心机制：${c.coreMechanism}`, c.valueProposition && `价值主张：${c.valueProposition}`, c.whyItMayWork && `为什么可能成立：${c.whyItMayWork}`,
+        ...lines("假设", c.assumptions), ...lines("未知", c.unknowns), ...lines("MVP 包含", c.mvp.inScope), ...lines("MVP 不做", c.mvp.outOfScope),
+        `阶段：${idea.lifecycle} · 第 ${idea.currentVersion} 版`,
+      ].filter(Boolean).join("\n");
+      return { ...subjectContext({ subject: { kind: "alchemist-idea", id: idea.id }, revision: `${idea.currentVersion}:${idea.lifecycle}:${idea.updatedAt}`,
+        title: c.title || "未命名 Idea", content, goal_ids: [], session_id: null }), open: { surface: "alchemist", id: idea.id } };
+    },
     playbookContext: (input: AlchemistOperationInput<"playbookContext">) => {
       const rule = d.memory.getPlaybookRule(input.subject_id);
       if (!rule || rule.workspaceId !== d.workspaceId) throw new AlchemistOperationError("PLAYBOOK_RULE_NOT_FOUND", "没有找到这条已确认方法。", 404);

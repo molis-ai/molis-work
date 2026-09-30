@@ -1,0 +1,656 @@
+[
+  {
+    "provider": "io.molis.work.alchemist",
+    "scope": "project",
+    "created": [
+      "alchemist.directions.create"
+    ],
+    "create_failed": [
+      "alchemist.annotations.create：必填字段不是简单文本",
+      "alchemist.decisions.create：必填字段不是简单文本",
+      "alchemist.memory.taste.create：必填字段不是简单文本"
+    ],
+    "kinds": [
+      "alchemist-direction"
+    ],
+    "entries": 2,
+    "read_ok": 0,
+    "read_failed": [
+      "alchemist-direction：没有读取动作",
+      "alchemist-direction：没有读取动作"
+    ]
+  },
+  {
+    "provider": "io.molis.work.alchemist",
+    "scope": "home",
+    "created": [],
+    "create_failed": [
+      "alchemist.annotations.create：必填字段不是简单文本",
+      "alchemist.decisions.create：必填字段不是简单文本",
+      "alchemist.directions.create：请选择项目",
+      "alchemist.memory.taste.create：必填字段不是简单文本"
+    ],
+    "kinds": [],
+    "entries": 0,
+    "read_ok": 0,
+    "read_failed": [
+      "列出失败：请选择项目"
+    ]
+  },
+  {
+    "provider": "io.molis.work.artifacts",
+    "scope": "project",
+    "created": [],
+    "create_failed": [],
+    "kinds": [
+      "artifact"
+    ],
+    "entries": 2,
+    "read_ok": 1,
+    "read_failed": [
+      "artifact：不能读取其他用户的个人成果"
+    ],
+    "sample": {
+      "kind": "artifact",
+      "title": "第一次把模糊想法收成目标树",
+      "chars": 789,
+      "truncated": false
+    }
+  },
+  {
+    "provider": "io.molis.work.cognia",
+    "scope": "project",
+    "created": [
+      "cognia.domain.create",
+      "cognia.material.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "cognia_material"
+    ],
+    "entries": 1,
+    "read_ok": 1,
+    "read_failed": [],
+    "sample": {
+      "kind": "cognia_material",
+      "title": "读取审计样例",
+      "chars": 31,
+      "truncated": false,
+      "open": {
+        "surface": "cognia",
+        "id": "b3e157e2-7d5c-41d3-b7d2-ec161cb125c8"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.cognia",
+    "scope": "home",
+    "created": [
+      "cognia.domain.create",
+      "cognia.material.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "cognia_material"
+    ],
+    "entries": 2,
+    "read_ok": 2,
+    "read_failed": [],
+    "sample": {
+      "kind": "cognia_material",
+      "title": "读取审计样例",
+      "chars": 31,
+      "truncated": false,
+      "open": {
+        "surface": "cognia",
+        "id": "89ec3476-658d-48a7-9838-76682e0b96ea"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.dataset",
+    "scope": "project",
+    "created": [
+      "dataset.content.create",
+      "dataset.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "dataset"
+    ],
+    "entries": 2,
+    "read_ok": 2,
+    "read_failed": [],
+    "sample": {
+      "kind": "dataset",
+      "title": "读取审计样例",
+      "chars": 0,
+      "truncated": false,
+      "open": {
+        "surface": "dataset",
+        "id": "ad9aac0a-77c8-412d-8723-56b00ac3093e"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.experiments",
+    "scope": "project",
+    "created": [],
+    "create_failed": [
+      "experiments.create：必填字段不是简单文本"
+    ],
+    "kinds": [],
+    "entries": 0,
+    "read_ok": 0,
+    "read_failed": []
+  },
+  {
+    "provider": "io.molis.work.experiments",
+    "scope": "home",
+    "created": [],
+    "create_failed": [
+      "experiments.create：必填字段不是简单文本"
+    ],
+    "kinds": [],
+    "entries": 0,
+    "read_ok": 0,
+    "read_failed": []
+  },
+  {
+    "provider": "io.molis.work.feed",
+    "scope": "project",
+    "created": [],
+    "create_failed": [
+      "feed.rules.create：必填字段不是简单文本"
+    ],
+    "kinds": [
+      "feed_item"
+    ],
+    "entries": 13,
+    "read_ok": 5,
+    "read_failed": [],
+    "sample": {
+      "kind": "feed_item",
+      "title": "不同 Runtime 怎样读同一份项目进度",
+      "chars": 52,
+      "truncated": false
+    }
+  },
+  {
+    "provider": "io.molis.work.form",
+    "scope": "project",
+    "created": [
+      "form.content.create",
+      "form.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "form"
+    ],
+    "entries": 2,
+    "read_ok": 2,
+    "read_failed": [],
+    "sample": {
+      "kind": "form",
+      "title": "读取审计样例",
+      "chars": 0,
+      "truncated": false,
+      "open": {
+        "surface": "form",
+        "id": "81f75c59-c3c3-4e9d-994c-27c6ac3b3174"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.goals",
+    "scope": "project",
+    "created": [
+      "goals.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "goal"
+    ],
+    "entries": 18,
+    "read_ok": 5,
+    "read_failed": [],
+    "sample": {
+      "kind": "goal",
+      "title": "让第一次接入从安装走到真实推进",
+      "chars": 145,
+      "truncated": false,
+      "open": {
+        "surface": "goals",
+        "id": "ADOPTION"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.images",
+    "scope": "project",
+    "created": [],
+    "create_failed": [],
+    "kinds": [],
+    "entries": 0,
+    "read_ok": 0,
+    "read_failed": []
+  },
+  {
+    "provider": "io.molis.work.images",
+    "scope": "home",
+    "created": [],
+    "create_failed": [],
+    "kinds": [],
+    "entries": 0,
+    "read_ok": 0,
+    "read_failed": [
+      "列出失败：请选择项目"
+    ]
+  },
+  {
+    "provider": "io.molis.work.inbox",
+    "scope": "project",
+    "created": [],
+    "create_failed": [],
+    "kinds": [
+      "inbox_entry"
+    ],
+    "entries": 3,
+    "read_ok": 3,
+    "read_failed": [],
+    "sample": {
+      "kind": "inbox_entry",
+      "title": "Gmail · 产品反馈",
+      "chars": 51,
+      "truncated": false
+    }
+  },
+  {
+    "provider": "io.molis.work.jelly",
+    "scope": "project",
+    "created": [],
+    "create_failed": [
+      "jelly.category.create：必填字段不是简单文本",
+      "jelly.inspiration.create：必填字段不是简单文本",
+      "jelly.item.create：必填字段不是简单文本",
+      "jelly.note.create：必填字段不是简单文本",
+      "jelly.series.create：必填字段不是简单文本"
+    ],
+    "kinds": [
+      "jelly_note"
+    ],
+    "entries": 1,
+    "read_ok": 1,
+    "read_failed": [],
+    "sample": {
+      "kind": "jelly_note",
+      "title": "读取审计笔记",
+      "chars": 21,
+      "truncated": false,
+      "open": {
+        "surface": "jelly",
+        "id": "97970b04-5ca8-4e04-9aaf-9649e3ffd571"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.jelly",
+    "scope": "home",
+    "created": [],
+    "create_failed": [
+      "jelly.category.create：必填字段不是简单文本",
+      "jelly.inspiration.create：必填字段不是简单文本",
+      "jelly.item.create：必填字段不是简单文本",
+      "jelly.note.create：必填字段不是简单文本",
+      "jelly.series.create：必填字段不是简单文本"
+    ],
+    "kinds": [
+      "jelly_note"
+    ],
+    "entries": 1,
+    "read_ok": 1,
+    "read_failed": [],
+    "sample": {
+      "kind": "jelly_note",
+      "title": "读取审计笔记",
+      "chars": 21,
+      "truncated": false,
+      "open": {
+        "surface": "jelly",
+        "id": "97970b04-5ca8-4e04-9aaf-9649e3ffd571"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.lingguang",
+    "scope": "project",
+    "created": [
+      "lingguang.content.create",
+      "lingguang.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "lingguang_spark"
+    ],
+    "entries": 2,
+    "read_ok": 2,
+    "read_failed": [],
+    "sample": {
+      "kind": "lingguang_spark",
+      "title": "读取审计样例",
+      "chars": 0,
+      "truncated": false,
+      "open": {
+        "surface": "lingguang",
+        "id": "ea809a36-22c9-4565-8868-9da7c33f8b2a"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.native.workflows",
+    "scope": "project",
+    "created": [
+      "workflows.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "workflow"
+    ],
+    "entries": 1,
+    "read_ok": 1,
+    "read_failed": [],
+    "sample": {
+      "kind": "workflow",
+      "title": "读取审计样例",
+      "chars": 0,
+      "truncated": false,
+      "open": {
+        "surface": "workflows",
+        "id": "3d348618-5ead-4b56-9a80-8ab347f76278"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.pages",
+    "scope": "project",
+    "created": [
+      "pages.content.create",
+      "pages.create",
+      "pages.folders.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "pages_document"
+    ],
+    "entries": 2,
+    "read_ok": 2,
+    "read_failed": [],
+    "sample": {
+      "kind": "pages_document",
+      "title": "读取审计样例",
+      "chars": 0,
+      "truncated": false,
+      "open": {
+        "surface": "pages",
+        "id": "4c709e87-bef8-4468-adcd-d7bf8e6412df"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.ppt",
+    "scope": "project",
+    "created": [
+      "ppt.content.create",
+      "ppt.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "presentation"
+    ],
+    "entries": 2,
+    "read_ok": 2,
+    "read_failed": [],
+    "sample": {
+      "kind": "presentation",
+      "title": "读取审计样例",
+      "chars": 0,
+      "truncated": false,
+      "open": {
+        "surface": "ppt",
+        "id": "707b5a22-c60c-4267-a3bd-589ee0bb945c"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.schedule",
+    "scope": "project",
+    "created": [],
+    "create_failed": [
+      "schedule.tasks.create：请填写每天的时间"
+    ],
+    "kinds": [
+      "schedule_task"
+    ],
+    "entries": 1,
+    "read_ok": 1,
+    "read_failed": [],
+    "sample": {
+      "kind": "schedule_task",
+      "title": "读取审计日程",
+      "chars": 47,
+      "truncated": false,
+      "open": {
+        "surface": "schedule",
+        "id": "sct_5a51bbf0-7169-4ede-ba7b-cdd40c8ba75a"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.sessions",
+    "scope": "project",
+    "created": [],
+    "create_failed": [
+      "sessions.create：当前 Goal 不属于这个 Project，或已经不在当前 Goal Tree"
+    ],
+    "kinds": [
+      "session"
+    ],
+    "entries": 2,
+    "read_ok": 2,
+    "read_failed": [],
+    "sample": {
+      "kind": "session",
+      "title": "工作台主栏对齐",
+      "chars": 30,
+      "truncated": false
+    }
+  },
+  {
+    "provider": "io.molis.work.shelf",
+    "scope": "project",
+    "created": [],
+    "create_failed": [],
+    "kinds": [
+      "shelf_item"
+    ],
+    "entries": 1,
+    "read_ok": 1,
+    "read_failed": [],
+    "sample": {
+      "kind": "shelf_item",
+      "title": "试用示例.pdf",
+      "chars": 70,
+      "truncated": false,
+      "open": {
+        "surface": "shelf",
+        "id": "item_muo2zi5p_a18a23ab"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.shelf",
+    "scope": "home",
+    "created": [],
+    "create_failed": [],
+    "kinds": [
+      "shelf_item"
+    ],
+    "entries": 1,
+    "read_ok": 1,
+    "read_failed": [],
+    "sample": {
+      "kind": "shelf_item",
+      "title": "试用示例.pdf",
+      "chars": 70,
+      "truncated": false,
+      "open": {
+        "surface": "shelf",
+        "id": "item_muo2zi5p_a18a23ab"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.todo",
+    "scope": "project",
+    "created": [
+      "todo.items.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "todo_item"
+    ],
+    "entries": 1,
+    "read_ok": 1,
+    "read_failed": [],
+    "sample": {
+      "kind": "todo_item",
+      "title": "读取审计样例",
+      "chars": 23,
+      "truncated": false,
+      "open": {
+        "surface": "todo",
+        "id": "2c068c95-baf4-4c01-802c-3e74b71013a9"
+      }
+    }
+  },
+  {
+    "provider": "io.molis.work.todo",
+    "scope": "home",
+    "created": [
+      "todo.items.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "todo_item"
+    ],
+    "entries": 2,
+    "read_ok": 2,
+    "read_failed": [],
+    "sample": {
+      "kind": "todo_item",
+      "title": "读取审计样例",
+      "chars": 23,
+      "truncated": false,
+      "open": {
+        "surface": "todo",
+        "id": "2c068c95-baf4-4c01-802c-3e74b71013a9"
+      }
+    }
+  },
+  {
+    "provider": "plugin-install-9118333e82adbdf7214fda357f25ff2c",
+    "scope": "project",
+    "created": [
+      "characters.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "character"
+    ],
+    "entries": 1,
+    "read_ok": 1,
+    "read_failed": [],
+    "sample": {
+      "kind": "character",
+      "title": "新角色",
+      "chars": 0,
+      "truncated": false,
+      "open": {
+        "surface": "characters",
+        "id": "80741629-8f32-44de-9c33-e24572369842"
+      }
+    }
+  },
+  {
+    "provider": "plugin-install-9b090ee5406d4f5907d370339bdd8045",
+    "scope": "project",
+    "created": [
+      "coding.sessions.create"
+    ],
+    "create_failed": [],
+    "kinds": [
+      "coding_session"
+    ],
+    "entries": 1,
+    "read_ok": 1,
+    "read_failed": [],
+    "sample": {
+      "kind": "coding_session",
+      "title": "读取审计样例",
+      "chars": 7,
+      "truncated": false,
+      "open": {
+        "surface": "coding",
+        "id": "e87f776d-e53b-48a5-893b-597e86baa419"
+      }
+    }
+  },
+  {
+    "provider": "system.functions",
+    "scope": "project",
+    "created": [
+      "functions.authoring.create"
+    ],
+    "create_failed": [],
+    "kinds": [],
+    "entries": 0,
+    "read_ok": 0,
+    "read_failed": []
+  },
+  {
+    "provider": "system.functions",
+    "scope": "home",
+    "created": [
+      "functions.authoring.create"
+    ],
+    "create_failed": [],
+    "kinds": [],
+    "entries": 0,
+    "read_ok": 0,
+    "read_failed": []
+  },
+  {
+    "provider": "system.placement",
+    "scope": "project",
+    "created": [],
+    "create_failed": [
+      "placement.create：输入不符合能力合同：/station pattern, /project_id pattern"
+    ],
+    "kinds": [],
+    "entries": 0,
+    "read_ok": 0,
+    "read_failed": []
+  },
+  {
+    "provider": "system.placement",
+    "scope": "home",
+    "created": [],
+    "create_failed": [
+      "placement.create：输入不符合能力合同：/station pattern, /project_id pattern"
+    ],
+    "kinds": [],
+    "entries": 0,
+    "read_ok": 0,
+    "read_failed": []
+  }
+]

@@ -2,7 +2,7 @@
 export const CLIENT_EVENTS_ACCESSIBILITY_SCRIPT = `    });
 
     document.addEventListener("dblclick", (event) => {
-      const target = event.target instanceof Element ? event.target : null;
+      const target = event.target?.nodeType === 1 ? event.target : null;
       const goalLink = target?.closest("[data-select-goal]");
       if (!goalLink?.closest("[data-goal-stage-list]")) return;
       event.preventDefault();

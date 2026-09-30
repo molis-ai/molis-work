@@ -228,11 +228,6 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const context = { plugin_id: "io.molis.work.pages", surface_title: "Pages" };
     if (selected) {
       context.object = { kind: "pages_document", id: selected.id, version: selected.version, title: titleInput.value || selected.title };
-      context.starters = [
-        { label: L("总结这篇文档"), prompt: L("总结当前这篇文档的要点") },
-        { label: L("改写得更简洁"), prompt: L("把当前这篇文档改写得更简洁，保留原意") },
-        { label: L("列出待跟进的事"), prompt: L("从当前这篇文档里列出需要跟进的事项") },
-      ];
       if (unsaved) {
         context.unsaved = true;
         const text = docText(editor && Editor ? Editor.getDoc(editor) : selected.body);
@@ -292,15 +287,18 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     workbench.dispatchEvent?.(new CustomEvent("molis:surface-focus", { bubbles: true, detail }));
   };
   // The person chose one of this document's actions in the bar: run it on the range they had in hand when it was
-  // ranked, through the writing popup, so the result is a candidate they accept before anything is written.
+  // ranked, through the writing popup, so the result is a candidate they accept before anything is written. A
+  // whole-document action (also one of the Assistant's starting points, with nothing in hand) runs on this document
+  // when it is the one open here.
   window.addEventListener?.("molis:assistant-context-action-chosen", (event) => {
     const chosen = event.detail;
-    if (!chosen || chosen.plugin_id !== "io.molis.work.pages" || !focusShown || !focusNow || chosen.context_id !== focusShown.context_id) return;
-    if (focusShown.granularity === "objects") return;
+    if (!chosen || chosen.plugin_id !== "io.molis.work.pages") return;
+    const whole = chosen.scope === "object" && Boolean(chosen.object && selected && !unshowable && chosen.object.id === selected.id);
+    if (!whole && (!focusShown || !focusNow || chosen.context_id !== focusShown.context_id || focusShown.granularity === "objects")) return;
     if (!editor || !editor.runCommand || !["result", "replace", "insert_after"].includes(chosen.apply) || typeof chosen.prepare !== "function") return;
     event.preventDefault();
     const documentId = selected.id;
-    void editor.runCommand("", undefined, { localId: focusNow.local_id, title: chosen.title, ...(chosen.scope === "object" ? { scope: "object" } : {}),
+    void editor.runCommand("", undefined, { ...(whole ? { scope: "object" } : { localId: focusNow.local_id }), title: chosen.title,
       mode: chosen.apply === "replace" ? "replace" : "insert_after", okLabel: chosen.apply === "replace" ? L("替换") : L("插到后面"),
       prepare: async () => {
         const prepared = await chosen.prepare();

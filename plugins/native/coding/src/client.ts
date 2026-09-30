@@ -1123,8 +1123,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(!q('[data-coding-title] input')) q('[data-coding-title]').textContent=data.session.title;
       // What the person is on, for the bottom Assistant: this session, at its round count. Data about the screen only.
       root.setAttribute('data-assistant-context',JSON.stringify({plugin_id:'io.molis.work.coding',surface_title:'Coding',
-        object:{kind:'coding_session',id,title:data.session.title||'编码会话',version:String(data.run_count ?? data.runs.length)},
-        starters:[{label:'总结这个会话做到哪里',prompt:'总结这个 Coding 会话目前做到哪里、改了哪些文件、还差什么'},{label:'检查最近的改动',prompt:'检查这个会话最近一轮的改动有没有问题'}]}));
+        object:{kind:'coding_session',id,title:data.session.title||'编码会话',version:String(data.run_count ?? data.runs.length)}}));
       q('[data-coding-goal-label]').textContent=data.session.goal_id?'下一轮目标：'+(data.session.goal_title || data.session.goal_id):'下一轮未关联目标';
       retitle(id,state.sessions.find(record=>record.session_id===id)?.title,data.session.title);
       state.sessions=state.sessions.map(record=>record.session_id===id ? data.session : record);

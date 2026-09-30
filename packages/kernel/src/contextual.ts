@@ -96,6 +96,8 @@ export function intentPriors(focus: SurfaceFocus): Record<FragmentIntent, number
     case "block": bump("expand", 0.6); bump("rewrite", 0.6); break;
     case "blocks": bump("combine", 1.6); bump("organize", 0.8); break;
     case "objects": bump("combine", 2.4); bump("relate", 1); break;
+    // A whole object, nothing selected (where to start with it): take in all of it first, then question or rework it.
+    case "object": bump("organize", 1.2); bump("question", 0.4); bump("rewrite", 0.4); break;
   }
   if (roles.has("list") || roles.has("task")) { bump("organize", 1); bump("advance", 1); bump("relate", 0.6); }
   if (roles.has("heading")) { bump("organize", 0.8); bump("expand", 0.6); }

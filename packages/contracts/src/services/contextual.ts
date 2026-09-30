@@ -36,6 +36,8 @@ export interface ContextActionChosen {
   readonly title: string;
   /** `object`: it acts on the whole object, not on what is selected. */
   readonly scope?: "object";
+  /** The object the context is about; with `scope: "object"` the page that has it open may take the choice without a selection. */
+  readonly object?: SurfaceFocus["object"];
   /** The provider's complete input for this offer and exactly this context; rejects when it is no longer offered. */
   prepare(): Promise<{ readonly key: string; readonly apply: FragmentApply; readonly action: ContextualCandidate["action"]; readonly input: unknown }>;
 }

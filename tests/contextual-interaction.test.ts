@@ -325,6 +325,22 @@ test("整篇: a whole-object choice stays reachable from any part of the object,
   assert.ok(!judgedCandidates(word).some(item => item.scope === "object"), "the judgment is not asked about the whole");
 });
 
+test("where to start with a whole object (the Assistant's starting points): its object-level actions, organizing first", () => {
+  const withWhole = [...directory(), offers(pages, "pages.whole.offers", [
+    choice("summarize", "organize", "pages.ai", { granularities: ["range", "blocks", "object"] }),
+    choice("proofread", "rewrite", "pages.ai", { granularities: ["object"], apply: "replace" }),
+    choice("coach", "question", "pages.ai", { granularities: ["range", "object"] }),
+  ])];
+  const start = focus({ context_id: "start:doc:d1:3", activity: "browsing", granularity: "object", targets: [{ kind: "object", role: "object", text: "计划" }] });
+  const candidates = fragmentCandidates(withWhole, start);
+  assert.deepEqual(candidates.map(item => item.offer_id).sort(), ["coach", "proofread", "relate", "summarize"], "passage-only actions are not offered for the whole");
+  assert.ok(candidates.every(item => item.scope === undefined), "the whole is what is in hand: nothing is grouped apart");
+  const plan = planContextualLayout({ focus: start, candidates });
+  assert.equal(plan.basis, "rules");
+  assert.equal(plan.primary[0], keyOf(candidates, "summarize"));
+  assert.ok(plan.primary.indexOf(keyOf(candidates, "relate")) === -1, `relating comes after taking it in: ${plan.primary.join(",")}`);
+});
+
 test("Pages prepares a whole-document choice from the document's own text, and only at object granularity", () => {
   const object = { kind: "pages_document", id: "d1", version: 4, title: "计划" };
   const read = (id: string) => id === "d1" ? "整篇正文：第一段。第二段。" : null;

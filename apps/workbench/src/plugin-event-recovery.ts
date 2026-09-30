@@ -3,7 +3,7 @@ import { renderRadio } from "@molis-ai/molis-work-design-system";
 /** Runtime management uses the existing Workbench form and dialog components. */
 export function renderPluginEventRecovery(L: (text: string) => string): string {
   return `<section data-plugin-events hidden>
-    <div class="plugin-market-section-head"><h2>${L("待核对的插件通知")}</h2><button type="button" class="mw-btn mw-btn--ghost" data-plugin-events-refresh>${L("重新读取")}</button></div>
+    <div class="plugin-market-section-head"><h2 tabindex="-1" data-plugin-events-heading>${L("待核对的插件通知")}</h2><button type="button" class="mw-btn mw-btn--ghost" data-plugin-events-refresh>${L("重新读取")}</button></div>
     <p class="plugin-market-status" role="status" data-plugin-events-status></p>
     <div data-plugin-events-list></div>
     <details class="mw-disclosure" data-plugin-events-history hidden><summary>${L("处理记录")}</summary><div data-plugin-events-history-list></div></details>

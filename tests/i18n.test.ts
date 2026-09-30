@@ -59,6 +59,7 @@ test("every static renderer label has an English translation", () => {
     "../apps/workbench/src/inbox-projection-ui.ts",
     "../apps/workbench/src/scripts/client/navigation-inbox.ts",
     "../apps/workbench/src/scripts/client/plugin-workbench.ts",
+    "../apps/workbench/src/scripts/client/plugin-notifications.ts",
     "../apps/workbench/src/scripts/client/immersive-navigation.ts",
     "../apps/workbench/src/scripts/client/assistant-island.ts",
     "../apps/workbench/src/scripts/client/global-search.ts",

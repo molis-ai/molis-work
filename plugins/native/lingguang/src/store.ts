@@ -125,6 +125,32 @@ export class LingguangStore {
     });
   }
 
+  /**
+   * Move one spark to another partition; its id stays. A brainstorm that only discussed this spark goes with it.
+   * One shared with other sparks would lose part of its context, so that spark is copied instead.
+   */
+  relocate(id: string, from: string, to: string): LingguangSpark {
+    const target = normalizeProjectId(to);
+    return this.transaction(() => {
+      const current = this.get(id, from);
+      const talks = (this.db.prepare("SELECT id, spark_ids_json FROM conversations WHERE project_id = ?").all(normalizeProjectId(from)) as { id: string; spark_ids_json: string }[])
+        .filter(row => (JSON.parse(row.spark_ids_json) as string[]).includes(id));
+      if (talks.some(row => (JSON.parse(row.spark_ids_json) as string[]).length > 1)) {
+        throw new LingguangError("lingguang.invalid", "这条灵光和其他灵光在同一场头脑风暴里，移走会让那场对话缺了它；可以复制到别处");
+      }
+      // A move is not an edit: the spark keeps its time and revision, so work that recorded it still matches.
+      this.db.prepare("UPDATE sparks SET project_id = ? WHERE id = ? AND updated_at = ?").run(target, id, current.updated_at);
+      for (const talk of talks) this.db.prepare("UPDATE conversations SET project_id = ? WHERE id = ?").run(target, talk.id);
+      return this.get(id, target);
+    });
+  }
+
+  /** An independent copy in another partition (without its brainstorms); the same request returns the same copy. */
+  duplicate(id: string, from: string, to: string, requestId: string): LingguangSpark {
+    const source = this.get(id, from);
+    return this.create({ title: source.title, body: source.body, project_id: to, request_id: "copy:" + requestId });
+  }
+
   discard(ids: readonly string[], projectId?: string): void {
     const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
     if (!unique.length) throw new LingguangError("lingguang.invalid", "先选至少一条");

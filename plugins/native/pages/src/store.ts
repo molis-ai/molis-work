@@ -342,9 +342,67 @@ export class PagesStore {
     return row?.publication_pending_json ? JSON.parse(row.publication_pending_json) as PagesPublicationIntent : null;
   }
 
+  /**
+   * Move one document to another partition (the personal space or a project). Its id stays, so every link and
+   * reference still finds it. What only meant something in the old project is let go: its folder, its Goal (Goals
+   * belong to one project) and the numbering of fixed versions (those versions stay in the old project's results).
+   */
+  relocate(id: string, from: string, to: string): PagesRecord {
+    const target = normalizeProjectId(to);
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const current = this.get(id, from);
+      if (current.publication_pending) throw new PagesError("pages.publication_pending", "上次成果保存还没完成，请先在原位置继续保存，再移动");
+      // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
+      const result = this.db.prepare("UPDATE pages SET project_id = ?, folder_id = '', goal_id = '', artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?")
+        .run(target, id, current.version);
+      if (result.changes !== 1) throw new PagesError("pages.conflict", "文档刚被修改，请重新读取后再移动");
+      const moved = this.get(id, target);
+      this.db.exec("COMMIT");
+      return moved;
+    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+  }
+
+  /** An independent copy in another partition; the same request always returns the same copy. */
+  duplicate(id: string, from: string, to: string, requestId: string): PagesRecord {
+    const source = this.get(id, from);
+    const documents = [{ title: source.title, body: source.body }];
+    return this.importDocuments({ project_id: to, request_id: "copy:" + requestId, request_hash: "copy:" + id + ":" + source.version, documents })[0]!;
+  }
+
   delete(id: string, projectId?: string): void {
     this.get(id, projectId);
     this.db.prepare("DELETE FROM pages WHERE id = ?").run(id);
+  }
+
+  /** Keep what an edit replaced, so it can be taken back while nothing changed since; returns the change's id. */
+  keepChange(before: PagesRecord, after: PagesRecord): string {
+    const changeId = crypto.randomUUID();
+    const now = new Date();
+    this.db.prepare("DELETE FROM page_changes WHERE created_at < ?").run(new Date(now.getTime() - 14 * 24 * 3600_000).toISOString());
+    this.db.prepare("INSERT INTO page_changes(change_id, page_id, to_version, before_json, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(changeId, after.id, after.version, JSON.stringify({ title: before.title, body: before.body, folder_id: before.folder_id, starred: before.starred, goal_id: before.goal_id }), now.toISOString());
+    return changeId;
+  }
+
+  /** Take one kept edit back: the document returns to what it was before, only if no one changed it since. */
+  revertChange(changeId: string, projectId?: string): PagesRecord {
+    const row = this.db.prepare("SELECT page_id, to_version, before_json FROM page_changes WHERE change_id = ?").get(changeId) as { page_id: string; to_version: number; before_json: string } | undefined;
+    if (!row) throw new PagesError("pages.not_found", "这次修改已经撤销过，或记录已过期（保留 14 天）");
+    const current = this.get(row.page_id, projectId);
+    if (current.version !== row.to_version) throw new PagesError("pages.conflict", `《${current.title || "未命名"}》在这次修改之后又改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己改回`);
+    const before = JSON.parse(row.before_json) as Pick<PagesRecord, "title" | "body" | "folder_id" | "starred" | "goal_id">;
+    const restored = this.update(row.page_id, { ...before, expected_version: current.version }, projectId);
+    this.db.prepare("DELETE FROM page_changes WHERE change_id = ?").run(changeId);
+    return restored;
+  }
+
+  /** Take back a document just created: removed only while it is still the version it was created at, so no later edit is lost. */
+  discard(id: string, expectedVersion: number, projectId?: string): void {
+    const current = this.get(id, projectId);
+    if (current.version !== expectedVersion) throw new PagesError("pages.conflict", `《${current.title || "未命名"}》在新建之后改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己删除`);
+    const result = this.db.prepare("DELETE FROM pages WHERE id = ? AND version = ?").run(id, expectedVersion);
+    if (result.changes !== 1) throw new PagesError("pages.conflict", "文档刚被修改，没有撤销");
   }
 
   extract(id: string, projectId: string): { document: PagesRecord; cards: number; created: PagesRecord[] } {
@@ -438,6 +496,8 @@ export function openPagesStore(homeDirectory: string): PagesStore {
   ensureSqliteColumn(db, "pages", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
   ensureSqliteColumn(db, "pages", "publication_pending_json", "TEXT");
   db.exec("CREATE TABLE IF NOT EXISTS page_generations (project_id TEXT NOT NULL, request_id TEXT NOT NULL, updated_at TEXT NOT NULL, record_json TEXT NOT NULL, PRIMARY KEY(project_id, request_id))");
+  // What an edit by an agent or a workflow replaced, kept a while so the person can take that edit back (single use).
+  db.exec("CREATE TABLE IF NOT EXISTS page_changes (change_id TEXT PRIMARY KEY, page_id TEXT NOT NULL, to_version INTEGER NOT NULL, before_json TEXT NOT NULL, created_at TEXT NOT NULL)");
   db.exec("CREATE TABLE IF NOT EXISTS page_imports (project_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, document_ids_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(project_id, request_id))");
   const database = realpathSync(homeSqlitePath(homeDirectory, "pages"));
   let attempts = attemptsByDatabase.get(database);

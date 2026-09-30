@@ -1,4 +1,4 @@
-/** PPT workbench client: slides, theme colors, preview, JSON export. */
+/** PPT workbench client: slides, theme colors, preview, presenting, PowerPoint/PDF export. */
 export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const workbench = document.querySelector("[data-ppt=workbench]");
@@ -28,6 +28,112 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   let editRevision = 0;
   let savedRevision = 0;
   let savePromise = null;
+  /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
+  const placed = (detail) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
+  /** The deck on screen, for the placement bar and the Assistant: identity, version, unsaved edits. */
+  const publishContext = () => {
+    const context = { plugin_id: "io.molis.work.ppt", surface_title: "PPT" };
+    if (selected) {
+      context.object = { kind: "presentation", id: selected.id, version: selected.version, title: titleInput.value || selected.title };
+      if (editRevision > savedRevision || saveError) context.unsaved = true;
+    }
+    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+  };
+  const slideNode = (record, slide, index) => {
+    const card = document.createElement("article");
+    card.className = "ppt-present-slide";
+    card.style.background = record.color_background;
+    card.style.color = record.color_text;
+    card.style.setProperty("--ppt-accent", record.color_primary);
+    const heading = document.createElement("h2");
+    heading.textContent = slide.title || (index === 0 ? record.title : "");
+    card.append(heading);
+    if ((slide.bullets || []).length) {
+      const bullets = document.createElement("ul");
+      slide.bullets.forEach((item) => { const li = document.createElement("li"); li.textContent = item; bullets.append(li); });
+      card.append(bullets);
+    } else if (index === 0 && record.description) {
+      const lede = document.createElement("p"); lede.textContent = record.description; card.append(lede);
+    }
+    return card;
+  };
+  /** Full-screen presenting on this computer: arrows or click to move, N for speaker notes, Esc to leave. */
+  const present = (record, start) => {
+    const slides = record.slides || [];
+    if (!slides.length) return;
+    let index = Math.max(0, Math.min(slides.length - 1, start));
+    let notes = false;
+    const stage = document.createElement("div");
+    stage.className = "ppt-present";
+    stage.tabIndex = -1;
+    stage.setAttribute("role", "dialog");
+    stage.setAttribute("aria-label", L("放映") + " · " + record.title);
+    const frame = document.createElement("div"); frame.className = "ppt-present-frame";
+    const notesEl = document.createElement("aside"); notesEl.className = "ppt-present-notes";
+    const bar = document.createElement("div"); bar.className = "ppt-present-bar";
+    stage.append(frame, notesEl, bar);
+    // The slide's canvas is 960×540; the stage scales it to the largest size the screen holds.
+    const fit = () => stage.style.setProperty("--present-scale", String(Math.min(window.innerWidth / 960, window.innerHeight / 540)));
+    fit();
+    window.addEventListener("resize", fit);
+    const draw = () => {
+      frame.replaceChildren(slideNode(record, slides[index], index));
+      const text = slides[index].notes || "";
+      notesEl.hidden = !notes || !text;
+      notesEl.textContent = text;
+      bar.textContent = (index + 1) + " / " + slides.length + " · " + L("←/→ 翻页 · N 讲者备注 · Esc 退出");
+    };
+    const leave = () => {
+      document.removeEventListener("keydown", key, true);
+      window.removeEventListener("resize", fit);
+      if (document.fullscreenElement === stage) document.exitFullscreen().catch(() => {});
+      stage.remove();
+      currentSlideId = slides[index].id;
+      if (selected && selected.id === record.id) { renderSlideList(selected); fillSlideFields(currentSlide()); renderPreview(liveRecord()); }
+    };
+    const key = (event) => {
+      if (["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].includes(event.key)) index = Math.min(slides.length - 1, index + 1);
+      else if (["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].includes(event.key)) index = Math.max(0, index - 1);
+      else if (event.key === "Home") index = 0;
+      else if (event.key === "End") index = slides.length - 1;
+      else if (event.key === "n" || event.key === "N") notes = !notes;
+      else if (event.key === "Escape") { event.preventDefault(); leave(); return; }
+      else return;
+      event.preventDefault(); draw();
+    };
+    stage.addEventListener("click", (event) => { if (event.target.closest(".ppt-present-notes")) return; index = Math.min(slides.length - 1, index + 1); draw(); });
+    stage.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && stage.isConnected) leave(); });
+    document.addEventListener("keydown", key, true);
+    draw();
+    document.body.append(stage);
+    stage.focus();
+    stage.requestFullscreen?.().catch(() => {});
+  };
+  /** Every slide on its own landscape page, for the browser's print dialog (“存储为 PDF”). */
+  const printDeck = (record) => {
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
+    document.body.append(frame);
+    const doc = frame.contentDocument;
+    doc.open();
+    doc.write("<!doctype html><html><head><meta charset='utf-8'><title></title><style>@page{size:A4 landscape;margin:0}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif}.ppt-present-slide{box-sizing:border-box;width:100vw;height:100vh;padding:7vh 8vw;page-break-after:always;border-left:1.2vw solid var(--ppt-accent)}h2{font-size:5vh;margin:0 0 4vh}ul{font-size:3vh;line-height:1.6;margin:0;padding-left:1.2em}p{font-size:3vh}</style></head><body></body></html>");
+    doc.close();
+    doc.title = record.title;
+    (record.slides || []).forEach((slide, index) => doc.body.append(doc.importNode(slideNode(record, slide, index), true)));
+    setTimeout(() => {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+      placed({ verb: "printed", title: record.title });
+      setTimeout(() => frame.remove(), 1000);
+    }, 50);
+  };
+  const download = (name, blob) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url; link.download = name; link.click();
+    URL.revokeObjectURL(url);
+  };
   let saveError = null;
   let busy = false;
   let listSeq = 0;
@@ -100,7 +206,8 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     statusEl.textContent = (record.slides || []).length + " " + L("页") + " · " + state;
     const pending = workbench.querySelector("[data-ppt-publication-note]");
     pending.hidden = !record.publication_pending;
-    pending.textContent = record.publication_pending ? L("上次 Artifact 发布尚未完成。恢复使用上次固定内容，后续编辑可另存一版。") : "";
+    pending.textContent = record.publication_pending ? L("上次固定版本还没存完。恢复会使用上次的固定内容，之后的编辑可以再存一版。") : "";
+    if (selected && selected.id === record.id) publishContext();
   };
   const ask = (message, okLabel) => new Promise((resolve) => {
     if (!confirmDialog) { resolve(false); return; }
@@ -256,6 +363,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     markSelected(record.id);
     if (redraw) fillEditor(record);
     else renderPreview(liveRecord());
+    publishContext();
   };
   const fillEditor = (record) => {
     clearTimeout(saveTimer);
@@ -279,6 +387,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderSlideList(record);
     renderPreview(record);
     markSelected(record.id);
+    publishContext();
   };
   const closeEditor = () => {
     clearTimeout(saveTimer);
@@ -289,11 +398,12 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     currentSlideId = "";
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
+    publishContext();
   };
   const renderList = () => {
     keepListScroll(() => paintList());
   };
-  const artifactLabel = (record) => record?.publication_pending ? L("恢复发布") : record && record.artifact_version > 0 ? L("再存一版") : L("保存成果版本");
+  const artifactLabel = (record) => record?.publication_pending ? L("继续保存上次固定版本") : record && record.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
   const artifactControl = (record, key) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -411,6 +521,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         await loadList();
         currentSlideId = payload.presentation.slides[0]?.id || "";
         fillEditor(payload.presentation);
+        placed({ verb: "created", title: payload.presentation.title, object: { kind: "presentation", id: payload.presentation.id } });
         return;
       }
       const artifact = event.target.closest("[data-ppt-artifact]");
@@ -432,7 +543,8 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
           }
           throw error;
         }
-        showNote(L("已保存成果版本"), false);
+        placed({ verb: "versioned", title: payload.presentation.title, object: { kind: "presentation", id: payload.presentation.id },
+          note: L("第 {version} 版 · 放在这个位置的成果（Artifacts）里；继续编辑不会改变这一版", { version: payload.artifact.version }) });
         await loadList();
         if (payload.presentation && selected && selected.id === payload.presentation.id) remember(payload.presentation, false);
         return;
@@ -505,17 +617,28 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         queueSave();
         return;
       }
-      if (event.target.closest("[data-ppt-export]") && selected) {
+      if (event.target.closest("[data-ppt-present]") && selected) {
         await save();
+        const index = Math.max(0, (selected.slides || []).findIndex((slide) => slide.id === currentSlideId));
+        present(liveRecord(), index);
+        return;
+      }
+      const exportButton = event.target.closest("[data-ppt-export]");
+      if (exportButton && selected) {
+        exportButton.closest("details")?.removeAttribute("open");
+        await save();
+        const format = exportButton.dataset.pptExport || "pptx";
+        if (format === "pdf") { printDeck(liveRecord()); return; }
+        if (format === "pptx") {
+          const exported = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(selected.id) + "/pptx?expected_version=" + selected.version);
+          const bytes = Uint8Array.from(atob(exported.content_base64), (char) => char.charCodeAt(0));
+          download(exported.filename, new Blob([bytes], { type: exported.mime_type }));
+          placed({ verb: "exported", title: selected.title, file: { name: exported.filename, format: L("PowerPoint · {count} 页，含讲者备注", { count: exported.slide_count }) } });
+          return;
+        }
         const exported = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(selected.id) + "/export?expected_version=" + selected.version);
-        const blob = new Blob([exported.content], { type: exported.mime_type });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = exported.filename;
-        link.click();
-        URL.revokeObjectURL(url);
-        showNote(L("已导出"), false);
+        download(exported.filename, new Blob([exported.content], { type: exported.mime_type }));
+        placed({ verb: "exported", title: selected.title, file: { name: exported.filename, format: L("数据文件，不是演示文稿") } });
         return;
       }
       if (event.target.closest("[data-ppt-delete]") && selected) {
@@ -536,6 +659,13 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderPreview(selected);
     if (event.target === slideTitle) syncSlideLabel();
     queueSave();
+  });
+  // Moved or copied from the placement bar: this list changed; a deck moved away is no longer here to edit.
+  window.addEventListener("molis:placement-changed", (event) => {
+    const detail = event.detail || {};
+    if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("presentation")) return;
+    if (detail.mode === "move" && detail.from && selected && selected.id === detail.from.id) closeEditor();
+    void loadList().catch((error) => showNote(error.message, true));
   });
   window.addEventListener("beforeunload", (event) => {
     if (selected && (saveError || editRevision > savedRevision)) { event.preventDefault(); event.returnValue = ""; }

@@ -171,7 +171,8 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
   assert.match(html, /讲者备注/);
   assert.match(html, /class="form-prompt"/);
   assert.match(html, /class="dataset-prompt"/);
-  assert.match(html, /粘贴 CSV 会覆盖当前表/);
+  // Importing replaces the table; the button says so before anyone clicks it.
+  assert.match(html, /导入 CSV（会覆盖当前表）/);
   assert.match(html, /<div class="form-prompt">[\s\S]*data-form-ai-prompt[\s\S]*<\/label>[\s\S]*data-form-generate/);
   assert.match(html, /<div class="dataset-prompt">[\s\S]*data-dataset-ai-prompt[\s\S]*<\/label>[\s\S]*data-dataset-generate/);
   assert.doesNotMatch(html, /data-form-ai-prompt"[^>]*>\s*<button[^>]*data-form-generate/);

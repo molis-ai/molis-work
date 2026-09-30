@@ -265,4 +265,18 @@ html[data-density=compact] .ob-mini-row{padding:8px 0}
   .ob-outside-note{margin-top:12px;font-size:11px}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* Todo drafts from the same materials (kept or left for “待你确认”), and starting in the personal space instead. */
+.cx-drafts{margin:28px 0 8px;padding:20px 22px;border:1px solid var(--ob-line);border-radius:12px;background:var(--ob-surface)}
+.cx-drafts-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:6px}
+.cx-drafts-head h2{margin:0;font-size:15px;font-weight:500;color:var(--ob-ink)}
+.cx-draft{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--ob-line);cursor:pointer;scroll-margin-bottom:112px}
+html:has(.cx-review){scroll-padding-bottom:112px}
+.cx-draft .cx-check{margin-top:3px;flex:none}
+.cx-draft-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+.cx-draft-title{color:var(--ob-ink);overflow-wrap:anywhere}
+.cx-draft-kind{display:inline-block;margin-right:8px;padding:0 6px;border-radius:999px;font-size:11px;line-height:18px;color:var(--ob-muted);background:var(--ob-secondary)}
+.cx-draft small{color:var(--ob-muted);font-size:12px}
+.cx-draft-evidence{padding-left:8px;border-left:2px solid var(--ob-line)}
+.cx-personal-start{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;margin:20px 0 4px;color:var(--ob-muted)}
 `;

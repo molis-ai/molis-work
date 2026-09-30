@@ -251,7 +251,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   if (coverRoot) new MutationObserver(restoreCover).observe(coverRoot, { attributes: true, attributeFilter: ['data-exclusive'] });
   restoreCover();
 
-  const searchKey = dock.querySelector('.bar-composer-search kbd');
+  const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';
 
   /* The resident Assistant: its answer opens above the bar and stays until closed. */
@@ -272,15 +272,31 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (target.closest('[data-dock-more]')) { setOverflow(overflow?.hidden !== false); return; }
     const pin = target.closest('[data-dock-pin], [data-bar-resident]');
     if (pin) { setOverflow(false); railItem(pin.dataset.dockPin || pin.dataset.barResident)?.click(); return; }
-    // Choosing a plugin in the switcher closes it; 全部插件 only opens the rest of the list.
-    if (pickerPopover && !pickerPopover.hidden && target.closest('.plugin-rail-items [data-plugin-id], .plugin-rail-items a.plugin-rail-item')) requestAnimationFrame(() => setPicker(false));
+    // Choosing a plugin in the switcher (or the market or studio at its foot) closes it; 全部插件 and the Dock choices keep it open.
+    if (pickerPopover && !pickerPopover.hidden && target.closest('.plugin-rail-items [data-plugin-id], .plugin-rail-items a.plugin-rail-item, .dock-settings .account-global-item')) requestAnimationFrame(() => setPicker(false));
+  });
+  // Search heads the switcher's list, so the list stays behind it while it is open. Dismissed (×, Esc, ⌘K), you are back
+  // on 搜索 in the list; a chosen result opens elsewhere, so the list closes with it and focus waits on the switcher.
+  const searchDialog = document.querySelector('[data-global-search-dialog]');
+  let searchDismissed = false;
+  document.addEventListener('click', (event) => { if (event.target instanceof Element && event.target.closest('[data-global-search-close]')) searchDismissed = true; }, true);
+  document.addEventListener('keydown', (event) => {
+    if (searchDialog?.open && (event.key === 'Escape' || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k'))) searchDismissed = true;
+  }, true);
+  searchDialog?.addEventListener('close', () => {
+    const dismissed = searchDismissed; searchDismissed = false;
+    if (dismissed || !pickerPopover || pickerPopover.hidden) return;
+    setPicker(false);
+    requestAnimationFrame(() => { if (document.activeElement === document.body) pickerToggle?.focus({ preventScroll: true }); });
   });
   document.addEventListener('click', (event) => {
-    if (pickerPopover && !pickerPopover.hidden && !(event.target instanceof Element && picker?.contains(event.target))) setPicker(false);
+    const inSearch = event.target instanceof Element && event.target.closest('[data-global-search-dialog]');
+    if (pickerPopover && !pickerPopover.hidden && !inSearch && !(event.target instanceof Element && picker?.contains(event.target))) setPicker(false);
     if (overflow && !overflow.hidden && !(event.target instanceof Element && event.target.closest('[data-dock-overflow], [data-dock-more]'))) setOverflow(false);
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (event.target instanceof Element && event.target.closest('dialog[open]')) return;
     if (pickerPopover && !pickerPopover.hidden) { event.preventDefault(); setPicker(false); pickerToggle?.focus(); return; }
     if (overflow && !overflow.hidden) { event.preventDefault(); setOverflow(false); more?.focus(); return; }
     const active = document.activeElement;

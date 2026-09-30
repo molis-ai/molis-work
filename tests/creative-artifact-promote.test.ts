@@ -38,10 +38,11 @@ const primitives = {
   text: (value: string) => value,
 };
 
-test("四个创作插件的列表和顶栏都有存成 Artifact", () => {
+test("四个创作插件的列表和顶栏都有存为固定版本（放进 Artifacts）", () => {
   const pages = renderPagesWorkbench({ primitives });
   assert.match(pages, /data-pages-artifact-bar/);
-  assert.match(pages, /存成 Artifact/);
+  // Named by what the person gets: a version that no longer changes, kept in this location's Artifacts.
+  assert.match(pages, /存为固定版本/);
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-artifact/);
 
   const form = renderFormWorkbench({ primitives });

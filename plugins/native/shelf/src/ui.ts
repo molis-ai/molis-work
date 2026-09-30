@@ -95,7 +95,7 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
     </dialog>
     <dialog class="mw-dialog mw-dialog--form" data-shelf-material-dialog aria-label="${p.text("保存项目材料")}">
       <form class="mw-form mw-dialog__shell" data-shelf-material-form>
-        <header class="mw-form__header"><h2>${p.text("保存到项目材料")}</h2>${renderButton({ label: p.text("关闭"), variant: "ghost", attrs: { "data-shelf-material-close": "" } })}</header>
+        <header class="mw-form__header"><h2>${p.text("存一份固定版本到项目")}</h2>${renderButton({ label: p.text("关闭"), variant: "ghost", attrs: { "data-shelf-material-close": "" } })}</header>
         <div class="mw-form__body"><p data-shelf-material-destination></p><p>${p.text("保存下面的固定原文，之后可在 Coding 的「＋ 材料」中选择。编辑或移除 Shelf 副本不会改变已保存版本。")}</p><pre class="shelf-material-body" data-shelf-material-body></pre><p role="status" data-shelf-material-status></p></div>
         <footer class="mw-form__footer">${renderButton({ label: p.text("重新读取"), variant: "secondary", attrs: { "data-shelf-material-refresh": "" } })}${renderButton({ label: p.text("保存固定版本"), type: "submit", attrs: { "data-shelf-material-save": "", disabled: true } })}${renderButton({ label: p.text("设为材料输出"), attrs: { "data-shelf-material-output": "", hidden: true } })}</footer>
       </form>
@@ -105,7 +105,9 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
         <button class="plugin-stage-back" type="button" data-shelf-collapse aria-label="${p.text("返回材料列表")}" title="${p.text("返回材料列表")}">${icon("chevron-right")}</button>
         <span class="shelf-chrome-title" data-shelf-chrome-title></span>
         <span class="shelf-chrome-tag" data-shelf-chrome-tag></span>
-        ${renderButton({ label: p.text("保存到项目材料"), variant: "ghost", attrs: { "data-shelf-project-material": "", hidden: true } })}
+        <span data-placement-slot data-placement-scope="home" data-placement-saved="off"></span>
+        ${renderButton({ label: p.text("用于本项目"), variant: "ghost", attrs: { "data-shelf-use-in-project": "", hidden: true, title: p.text("项目首页会列出它，你在项目里能打开最新内容；它仍只在你的 Shelf 里") } })}
+        ${renderButton({ label: p.text("存一份固定版本到项目"), variant: "ghost", attrs: { "data-shelf-project-material": "", hidden: true, title: p.text("复制一份不会再变的原文到项目材料，项目里的 Coding 和助理能读取；之后改 Shelf 不影响这一份") } })}
         <a class="mw-btn mw-btn--ghost" data-shelf-original-artifact hidden>${p.text("查看原固定成果")}</a>
         <span class="shelf-paper" role="button" tabindex="0" data-shelf-edit hidden>${p.text("编辑副本")}</span>
       </header>

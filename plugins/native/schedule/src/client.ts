@@ -17,7 +17,15 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     shell.dataset.expanded = expanded ? "true" : "false";
     if (workspace) workspace.hidden = !expanded;
   };
+  // The task on screen, for the Assistant and the placement bar (a conversation task is what the Assistant can read).
+  const publishContext = (taskId) => {
+    const context = { plugin_id: "io.molis.work.schedule", surface_title: "Schedule" };
+    const detail = taskId ? [...workbench.querySelectorAll("[data-schedule-detail]")].find((item) => item.dataset.scheduleDetail === taskId) : null;
+    if (taskId) context.object = { kind: "schedule_task", id: taskId, title: detail?.querySelector("h1")?.textContent?.trim() || "" };
+    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+  };
   const collapse = () => {
+    publishContext(null);
     expand(false);
     list.querySelectorAll("[data-schedule-row]").forEach((row) => {
       row.classList.remove("is-selected");
@@ -47,6 +55,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     const empty = workbench.querySelector("[data-schedule-detail-empty]");
     if (empty) empty.hidden = true;
     expand(true);
+    publishContext(kind === "task" ? id : null);
     if (kind === "task") {
       void fetch(route("/api/schedule/tasks/" + encodeURIComponent(id) + "/open"), {
         method: "POST",

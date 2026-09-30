@@ -1,6 +1,7 @@
 import { ModelProviderStore } from "./model-provider-store.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ManagedProjectFiles } from "./managed-project-files.js";
+import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID, PERSONAL_SPACE_TITLE } from "./personal-space.js";
 import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
@@ -376,6 +377,22 @@ export class MolisWorkProjectCatalog {
     return this.projects.commands.removeWorkspaceMembership(input);
   }
   async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> { return this.projectFiles.createProject(input); }
+  /** The personal space exists once it is first used; creating it again returns the same one. */
+  async ensurePersonalSpace(actorId = "web-user"): Promise<MolisWorkProjectRecord> {
+    const existing = this.listProjects().find(isPersonalSpace);
+    if (existing) return existing;
+    try {
+      return await this.projectFiles.provisionCreatedProject({ displayName: PERSONAL_SPACE_TITLE, actorId, projectId: PERSONAL_SPACE_PROJECT_ID }, (record) => {
+        this.projects.lifecycle.register(record, "project.created", actorId);
+        return record;
+      });
+    } catch (error) {
+      // Another request made it first.
+      const made = this.listProjects().find(isPersonalSpace);
+      if (made) return made;
+      throw error;
+    }
+  }
   async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return this.demoProjects.ensureDemoProject(input); }
   async resetDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return this.demoProjects.resetDemoProject(input); }
   async removeDemoProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> { return this.demoProjects.removeDemoProject(input); }
@@ -383,9 +400,13 @@ export class MolisWorkProjectCatalog {
   listProjectDeletions(): MolisWorkProjectDeletionRecord[] {
     return this.projects.query.listProjectDeletions();
   }
-  async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> { return this.projectDeletion.deleteProject(input); }
+  async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
+    if (input.project_id === PERSONAL_SPACE_PROJECT_ID) throw new MolisWorkProjectCatalogError("catalog.personal_space", "个人空间不能删除；可以把里面的内容移到项目或逐个删除");
+    return this.projectDeletion.deleteProject(input);
+  }
 
   renameProject(projectId: string, displayName: string, actorId: string): MolisWorkProjectRecord {
+    if (projectId === PERSONAL_SPACE_PROJECT_ID) throw new MolisWorkProjectCatalogError("catalog.personal_space", "个人空间不能改名");
     return this.projects.commands.renameProject(projectId, displayName, actorId);
   }
 

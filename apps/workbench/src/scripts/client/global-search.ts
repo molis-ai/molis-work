@@ -4,6 +4,7 @@
  * are local shortcuts filtered here.
  */
 import { pluginSearchRows } from "../../plugin-workbench.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Drop repeated plugin records before the result cap, so a second copy cannot crowd out a different record.
  *  Stringified into the browser factory. Type annotations are erased before that string is sent. */
@@ -47,7 +48,11 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const takeSearchHits = ${takeSearchHits.toString()};
   // The palette lives on project (board) pages; a legacy single-board page has a project context without a catalog id.
   const hasProject = Boolean(projectId) || document.body.hasAttribute("data-board-view");
-  const scopes = hasProject ? ["all", "project", "personal"] : ["personal"];
+  // In the personal space everything is personal: “this project” would be the same thing twice.
+  const scopes = hasProject && projectId !== ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)} ? ["all", "project", "personal"] : ["personal"];
+  // A hit from another partition can only be the person's own space (search answers nothing else across projects).
+  // A legacy single-board page has no project id of its own: its hits are its own board's, opened in place.
+  const away = (hit) => Boolean(hit.project_id) && Boolean(projectId) && hit.project_id !== projectId;
   let scope = (() => { try { const saved = sessionStorage.getItem("molis-work:search-scope"); return scopes.includes(saved) ? saved : scopes[0]; } catch { return scopes[0]; } })();
   let hits = [];
   let selected = 0;
@@ -87,7 +92,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const remoteGroups = () => {
     const byPlugin = new Map();
     for (const hit of remote.hits) {
-      const label = hit.plugin_title || hit.plugin_id;
+      const label = (hit.plugin_title || hit.plugin_id) + (away(hit) ? " · " + L("个人空间") : "");
       if (!byPlugin.has(label)) byPlugin.set(label, []);
       byPlugin.get(label).push({ kind: "hit", id: hit.subject.id, title: hit.title, plugin: label, hit });
     }
@@ -255,6 +260,15 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     else openPlugin?.(surface);
     if (matchMedia("(max-width: 600px)").matches) setMobileView("document");
   };
+  // The same rule as in place, but in the object's own space: a tab for item surfaces, the plugin's list row for record surfaces.
+  const openElsewhere = (project, target, title) => {
+    const url = new URL("/projects/" + encodeURIComponent(project) + "/", location.origin);
+    url.searchParams.set("openPlugin", target.surface);
+    if (!ITEM_TABS.includes(target.surface) && RECORD_ROWS.includes(target.surface)) url.searchParams.set("openRecord", target.id);
+    else if (ITEM_TABS.includes(target.surface)) { url.searchParams.set("openItem", target.id); if (title) url.searchParams.set("openTitle", title); }
+    const desktop = new URLSearchParams(location.search).get("desktop"); if (desktop) url.searchParams.set("desktop", desktop);
+    location.assign(url.pathname + url.search);
+  };
   const activate = async (item) => {
     if (!item) return;
     if (item.kind === "plugin") {
@@ -277,6 +291,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       close();
       const target = opened.open || hit.open;
       if (!target) return;
+      if (away(hit)) { openElsewhere(hit.project_id, target, opened.title || hit.title); return; }
       requestAnimationFrame(() => {
         openTarget(target, hit.subject.kind, opened.title || hit.title);
         locate(target.surface, hit.locator?.field !== "title" ? hit.locator?.text : "");

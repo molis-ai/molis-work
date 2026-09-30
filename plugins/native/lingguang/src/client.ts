@@ -17,12 +17,31 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const note = workbench.querySelector("[data-lingguang-note]");
   const confirmDialog = workbench.querySelector("[data-lingguang-confirm]");
   const saveStatus = workbench.querySelector('[data-lingguang-save-status]');
+  const todoButton = workbench.querySelector("[data-lingguang-todo]");
+  // "转为待办" is composed by the workbench from what the button carries, so it always carries what is on screen.
+  const syncTodo = () => {
+    if (!todoButton || !selected) return;
+    todoButton.dataset.makeTodoId = selected.id;
+    todoButton.dataset.makeTodoTitle = titleInput.value.trim() || bodyInput.value.trim().split(/\\r?\\n/)[0].slice(0, 80);
+    todoButton.dataset.makeTodoExcerpt = bodyInput.value.slice(0, 2000);
+  };
   const saveRetry = workbench.querySelector('[data-lingguang-save-retry]');
+  /** The spark on screen, for the placement bar and the Assistant. */
+  const publishContext = (unsaved) => {
+    const context = { plugin_id: "io.molis.work.lingguang", surface_title: L("灵光") };
+    if (selected) {
+      context.object = { kind: "lingguang_spark", id: selected.id, version: selected.updated_at + ":" + (selected.status || "inbox"), title: titleInput.value || selected.title };
+      if (unsaved) context.unsaved = true;
+    }
+    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+  };
   const showSave = (text, failed = false) => {
     saveStatus.textContent = L(text);
     saveStatus.dataset.failed = String(failed);
     saveRetry.hidden = !failed;
+    publishContext(failed || text !== "已保存");
   };
+  const placed = (detail) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
   const contextEl = workbench.querySelector("[data-lingguang-context]");
   const messagesEl = workbench.querySelector("[data-lingguang-messages]");
   const chatForm = workbench.querySelector("[data-lingguang-chat]");
@@ -127,6 +146,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     showSave("已保存");
     titleInput.value = record.title;
     bodyInput.value = record.body || "";
+    syncTodo();
     markSelected(record.id);
   };
   const closeWorkspace = () => {
@@ -139,6 +159,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     showChat(false);
     markSelected("");
     syncSelectionBar();
+    publishContext(false);
   };
   const markSelected = (id) => {
     rowsEl.querySelectorAll("[data-lingguang-id]").forEach((row) => {
@@ -229,9 +250,11 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
   };
+  let loadingFor = null;
   const loadList = async () => {
     const seq = ++listSeq;
-    const payload = await request("GET", "/api/plugins/lingguang");
+    loadingFor = wantedId;
+    const payload = await request("GET", "/api/plugins/lingguang").finally(() => { if (seq === listSeq) loadingFor = null; });
     if (seq !== listSeq) return;
     records = payload.sparks || [];
     selectedIds = new Set([...selectedIds].filter((id) => records.some((item) => item.id === id)));
@@ -244,6 +267,13 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         markSelected(next.id);
       }
     }
+    // Whichever load fills the list settles a spark asked for by link (an overtaken load leaves it to the newer one).
+    if (wantedId && records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
+    else if (wantedId && wantedByLink) {
+      // A link from elsewhere (a todo's source, an old tab) can name one that was discarded: say so instead of opening nothing.
+      wantedId = null; wantedByLink = false;
+      showNote(L("这条灵光已丢掉或不存在"), true);
+    }
   };
   const discardIds = async (ids) => {
     if (!ids.length) return;
@@ -252,7 +282,9 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     await request("POST", "/api/plugins/lingguang/discard", { ids });
     await loadList();
   };
+  let shownMessages = [];
   const renderMessages = (messages) => {
+    shownMessages = messages || [];
     messagesEl.replaceChildren();
     (messages || []).forEach((message) => {
       const card = document.createElement("article");
@@ -277,6 +309,34 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       contextEl.append(card);
     });
   };
+  /*
+   * Handing this spark to the Assistant: the spark itself and only the last few brainstorm lines, named as such —
+   * never the whole conversation. Submitting the form is the person's asking; “只带过去” leaves Send to them.
+   */
+  const askForm = workbench.querySelector("[data-lingguang-ask]");
+  const askInput = workbench.querySelector("[data-lingguang-ask-input]");
+  const handOver = (purpose, text) => {
+    if (!selected) return;
+    const recent = shownMessages.filter((message) => message.role !== "stub").slice(-6);
+    const materials = [{ title: L("灵光") + "「" + (selected.title || L("灵光")) + "」", text: (selected.title || "") + (selected.body ? "\\n" + selected.body : "") }];
+    if (recent.length) materials.push({ title: L("头脑风暴 · 最近") + " " + recent.length + " " + L("句"), text: recent.map((message) => (message.role === "assistant" ? L("灵光") : L("我")) + "：" + message.body).join("\\n") });
+    window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
+      message_id: crypto.randomUUID(), purpose, source: { surface: "lingguang", title: L("灵光") },
+      object: { kind: "lingguang_spark", id: selected.id, title: selected.title || L("灵光"), version: selected.updated_at + ":" + (selected.status || "inbox") },
+      text, materials,
+    } }));
+    askForm.hidden = true;
+    workbench.querySelector("[data-lingguang-ask-toggle]")?.setAttribute("aria-expanded", "false");
+    askInput.value = "";
+  };
+  askForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = String(askInput.value || "").trim();
+    if (!text) { askInput.focus(); return; }
+    await save();
+    handOver("delegate", text);
+  });
+  askForm?.addEventListener("keydown", (event) => { if (event.key === "Escape") { askForm.hidden = true; workbench.querySelector("[data-lingguang-ask-toggle]")?.focus(); } });
   const openBrainstorm = async () => {
     const ids = selectedIds.size ? [...selectedIds] : (selected ? [selected.id] : []);
     if (!ids.length) throw new Error(L("先选至少一条"));
@@ -304,6 +364,13 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
 
+  // Moved or copied from the placement bar: this list changed; a spark moved away is no longer here to edit.
+  window.addEventListener("molis:placement-changed", (event) => {
+    const detail = event.detail || {};
+    if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("lingguang_spark")) return;
+    if (detail.mode === "move" && detail.from && selected && selected.id === detail.from.id) closeWorkspace();
+    void loadList().catch((error) => showNote(error.message, true));
+  });
   workbench.addEventListener("click", async (event) => {
     try {
       if (event.target.closest("[data-lingguang-save-retry]")) { await save(); return; }
@@ -315,6 +382,15 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         fillEditor(payload.spark);
         titleInput.focus();
         titleInput.select();
+        placed({ verb: "created", title: payload.spark.title, object: { kind: "lingguang_spark", id: payload.spark.id } });
+        return;
+      }
+      if (event.target.closest("[data-lingguang-to-doc], [data-lingguang-to-goal]") && selected) {
+        await save();
+        const goal = Boolean(event.target.closest("[data-lingguang-to-goal]"));
+        window.dispatchEvent(new CustomEvent("molis:placement-convert", { detail: { source: { kind: "lingguang_spark", id: selected.id },
+          ...(goal ? { goal: true } : { station: "pages" }),
+          note: goal ? L("这条灵光是它的来源；灵光本身留着，想好了可以丢掉") : L("文档里记着它来自这条灵光；灵光本身留着，想好了可以丢掉") } }));
         return;
       }
       if (event.target.closest("[data-lingguang-clear-selection]")) {
@@ -328,6 +404,18 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-lingguang-discard]")) {
         await discardIds(selectedIds.size ? [...selectedIds] : (selected ? [selected.id] : []));
+        return;
+      }
+      if (event.target.closest("[data-lingguang-ask-toggle]")) {
+        const open = askForm.hidden;
+        askForm.hidden = !open;
+        workbench.querySelector("[data-lingguang-ask-toggle]")?.setAttribute("aria-expanded", String(open));
+        if (open) askInput.focus();
+        return;
+      }
+      if (event.target.closest("[data-lingguang-ask-bring]")) {
+        await save();
+        handOver("suggest", "");
         return;
       }
       if (event.target.closest("[data-lingguang-brainstorm], [data-lingguang-brainstorm-current]")) {
@@ -368,7 +456,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   });
   workspace.addEventListener("input", (event) => {
-    if (event.target.closest("[data-lingguang-title], [data-lingguang-body]")) queueSave();
+    if (event.target.closest("[data-lingguang-title], [data-lingguang-body]")) { syncTodo(); queueSave(); }
   });
   chatForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -402,10 +490,11 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   // A tab or a workflow step can ask for one spark; it opens as soon as the list knows it.
   const paneParams = new URLSearchParams(location.search);
   let wantedId = paneParams.get("panePlugin") === "lingguang" ? paneParams.get("paneItem") : null;
+  let wantedByLink = false;
   const openWanted = async () => {
     const record = wantedId && records.find((item) => item.id === wantedId);
     if (!record) return;
-    wantedId = null;
+    wantedId = null; wantedByLink = false;
     if (selected?.id === record.id) return;
     if (selected) await save();
     selectedIds = new Set([record.id]);
@@ -413,10 +502,15 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderList();
   };
   workbench.addEventListener("molis-work:select-item", (event) => {
-    wantedId = event.detail?.itemId || null;
-    if (!wantedId) return;
+    // The plugin shown without an item (the workbench also says so while a page loads): nothing new to open, and a
+    // spark asked for by link that is still loading is not cancelled by it.
+    const itemId = event.detail?.itemId || null;
+    if (!itemId) return;
+    wantedId = itemId;
+    wantedByLink = true;
     if (records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
-    else void loadList().catch((error) => { listFailed(error); throw error; }).then(openWanted).catch((error) => showNote(error.message, true));
+    // The workbench may name the same spark several times while the page settles: one load for it is enough.
+    else if (loadingFor !== itemId) void loadList().catch((error) => { listFailed(error); throw error; }).then(openWanted).catch((error) => showNote(error.message, true));
   });
   // A list that cannot be read says so where the list is, with a way to try again (the note lives in the editor).
   const listFailed = (error) => {

@@ -233,6 +233,8 @@ const allowsNull = (declared: unknown): boolean => {
   if (schema.type === "null" || Array.isArray(schema.type) && schema.type.includes("null")) return true;
   return ([schema.oneOf, schema.anyOf].find(Array.isArray) as unknown[] | undefined)?.some(allowsNull) ?? false;
 };
+/** Words that count days from the day they were said. */
+const RELATIVE_DAYS = /今天|明天|后天|今晚|今早|明早|明晚|今日|明日|本周|这周|下周|周末|昨天|大后天/;
 const plainObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value) && (value as { type?: unknown }).type !== "doc";
 
 export function cardView(card: StoredCard): AssistantCard {
@@ -853,8 +855,9 @@ export class AssistantService {
     const memory_candidates = this.memoryCandidates(work.work_id);
     const usage = work.executor.kind === "coding" ? null : await this.workUsage(work).catch(() => null);
     // A suggestion about an object the person has since changed or removed by hand is not offered any more.
-    for (const card of this.store.cards(work.work_id).filter(item => item.target && (item.status === "ready" || item.status === "needs-input"))) {
-      const moved = await this.targetMoved(work, card);
+    // A suggestion whose moment has passed, or about an object changed by hand since, is not offered any more.
+    for (const card of this.store.cards(work.work_id).filter(item => item.status === "ready" || item.status === "needs-input")) {
+      const moved = this.outdated(card, card.input, false) ?? (card.target ? await this.targetMoved(work, card) : null);
       if (moved) { try { this.store.updateCard(card, card.revision, { status: "stale", outcome: moved }); } catch { /* Clicked meanwhile: that click decides. */ } }
     }
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
@@ -1166,12 +1169,16 @@ export class AssistantService {
   }
 
   private async scheduleJobCheck(job: StoredJob, work: StoredWork): Promise<void> {
+    // The work as stored now: a new work's session is made after its first round's authority captured the work, so the
+    // copy the change came through has none (seen live: a job started in a new work was never looked at again).
+    let current: StoredWork;
+    try { current = this.store.get(this.actorId, work.work_id); } catch { return; }
     const schedule = await this.schedule().catch(() => null);
-    if (!schedule || !work.session_id) return;
+    if (!schedule || !current.session_id) return;
     this.#jobRunnerFor(schedule);
     // 15 s, then doubling, at most every 5 minutes.
     const delay = Math.min(300_000, 15_000 * 2 ** Math.min(job.checks, 5));
-    await schedule.enqueue({ key: `${job.key}-${job.checks}`, session_id: work.session_id, kind: JOB_KIND, payload: { key: job.key }, due_at: new Date(this.now().getTime() + delay).toISOString(), max_attempts: 1 });
+    await schedule.enqueue({ key: `${job.key}-${job.checks}`, session_id: current.session_id, kind: JOB_KIND, payload: { key: job.key }, due_at: new Date(this.now().getTime() + delay).toISOString(), max_attempts: 1 });
   }
 
   #detachJobs: (() => void) | null = null;
@@ -1262,6 +1269,13 @@ export class AssistantService {
     // The session that carries the work is shown once, as the session, even when the work also started from it.
     const relations = all.filter(row => !(row.relation === "origin" && all.some(other => other.relation === "session" && other.object.kind === row.object.kind && other.object.id === row.object.id)));
     if (!relations.length) return [];
+    // An object no reader can read keeps the name its page gave it when a round started there, not its identifier.
+    const named = new Map<string, string>();
+    for (const round of this.store.rounds(work.work_id)) {
+      const object = round.context?.object;
+      if (object?.title) named.set(`${object.kind}:${object.id}`, object.title);
+    }
+    const nameOf = (object: { kind: string; id: string }) => named.get(`${object.kind}:${object.id}`) || object.id;
     let actions: PersonActions | null = null;
     let readers: readonly ActionView[] = [];
     try { actions = await this.ports.scopeActions?.(work) ?? null; readers = actions ? (await actions.discover()).filter(view => isSubjectReader(view.action)) : []; }
@@ -1269,15 +1283,15 @@ export class AssistantService {
     return Promise.all(relations.slice(-40).map(async relation => {
       const base = { relation: relation.relation, subject: { kind: relation.object.kind, id: relation.object.id }, recorded_revision: relation.object.revision, recorded_at: relation.recorded_at };
       const reader = readers.find(view => view.action.subject_kinds.includes(relation.object.kind) && view.availability.available);
-      if (!actions || !reader) return { ...base, title: relation.object.id, current_revision: null, state: "unavailable" as const };
+      if (!actions || !reader) return { ...base, title: nameOf(relation.object), current_revision: null, state: "unavailable" as const };
       try {
         const context = await actions.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: relation.object.id }) as ActionSubjectContext;
         if (belongsElsewhere(work, context)) {
           const moved = await this.whereNow(work, actions, relation.object);
-          return { ...base, title: moved?.title ?? context.title ?? relation.object.id, current_revision: null, state: "moved" as const, ...(moved ? { moved_to: moved.to } : {}) };
+          return { ...base, title: moved?.title ?? context.title ?? nameOf(relation.object), current_revision: null, state: "moved" as const, ...(moved ? { moved_to: moved.to } : {}) };
         }
         const changed = relation.object.revision !== null && context.revision !== relation.object.revision;
-        return { ...base, title: context.title || relation.object.id, current_revision: context.revision, state: changed ? "changed" as const : "current" as const,
+        return { ...base, title: context.title || nameOf(relation.object), current_revision: context.revision, state: changed ? "changed" as const : "current" as const,
           ...(context.open ? { open: context.open } : {}) };
       } catch (error) {
         const code = (error as { code?: string }).code ?? "";
@@ -1285,9 +1299,9 @@ export class AssistantService {
           // Not here any more may mean moved: the placement service says where, and the work names it without reading it.
           const moved = await this.whereNow(work, actions, relation.object);
           if (moved) return { ...base, title: moved.title, current_revision: null, state: "moved" as const, moved_to: moved.to };
-          return { ...base, title: relation.object.id, current_revision: null, state: "missing" as const };
+          return { ...base, title: nameOf(relation.object), current_revision: null, state: "missing" as const };
         }
-        return { ...base, title: relation.object.id, current_revision: null, state: "unavailable" as const };
+        return { ...base, title: nameOf(relation.object), current_revision: null, state: "unavailable" as const };
       }
     }));
   }
@@ -1323,6 +1337,26 @@ export class AssistantService {
   }
 
   /** Why a card no longer fits its object (changed or removed since it was suggested), or null while it still does. */
+  /**
+   * A suggestion about a moment that has passed, or a day that has (it was still ahead when suggested), is not run as it
+   * stands; nor is one prepared on an earlier day whose words count days from then (“明天”). The target never drifts:
+   * the person asks for a fresh one for today.
+   */
+  private outdated(card: StoredCard, input: unknown, edited: boolean): string | null {
+    const zone = this.ports.timeZone;
+    const day = (at: Date) => new Intl.DateTimeFormat("en-CA", { ...(zone ? { timeZone: zone } : {}), year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
+    const now = this.now(), today = day(now), prepared = day(new Date(card.created_at));
+    const properties = (card.input_schema.properties ?? {}) as SchemaProperties;
+    for (const [key, value] of Object.entries(plainObject(input) ? input : {})) {
+      if (typeof value !== "string" || !value) continue;
+      const kind = actionFieldInput(properties[key]);
+      if (kind === "datetime" && Date.parse(value) < now.getTime()) return `卡里的时间（${actionFieldValue(key, value, properties[key])}）已经过去，这张建议没有执行；需要时让助理按现在重新准备`;
+      if (kind === "date" && value < today && value >= prepared) return `卡里的日期（${value}）已经过去，这张建议没有执行；需要时让助理按今天重新准备`;
+    }
+    if (!edited && prepared !== today && RELATIVE_DAYS.test(`${card.title} ${card.summary}`)) return `这张建议是 ${prepared} 准备的，里面说的“今天、明天”按那天算，没有执行；需要时让助理按今天重新准备`;
+    return null;
+  }
+
   private async targetMoved(work: StoredWork, card: StoredCard): Promise<string | null> {
     if (!card.target) return null;
     const now = await this.readSubject(work, card.target);
@@ -1601,7 +1635,8 @@ export class AssistantService {
         } else (prepared as Record<string, unknown>)[key] = value;
       }
     }
-    const moved = await this.targetMoved(work, card);
+    // The dates the person set on the card count; days spoken of relative to another day do not decide once they did.
+    const moved = this.outdated(card, prepared, Object.keys(values).length > 0) ?? await this.targetMoved(work, card);
     if (moved) return cardView(this.store.updateCard(card, card.revision, { status: "stale", outcome: moved }));
     const stillMissing = card.missing.filter(item => { const value = (prepared as Record<string, unknown> | null)?.[item.field]; return value === undefined || value === null || value === ""; });
     if (stillMissing.length) throw new AssistantError("assistant.invalid", `还需要填写：${stillMissing.map(item => item.question).join("；")}`);

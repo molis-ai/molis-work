@@ -94,6 +94,14 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       invoke: async (action, input, signal) => {
         const caller = await context(validate, signal);
         const view = offered.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
+        // Stopped before it was sent (working out the person's grants takes a moment): it never reaches its owner, and
+        // the work says it did not run rather than leaving it “not known” (seen live on a reversible Todo change).
+        if (signal?.aborted && view && view.operation === "command") {
+          const refused = Promise.reject(new ActionError("actions.cancelled", "这一轮停止时它还没有发出，没有执行"));
+          refused.catch(() => undefined);
+          unsettled?.(view, refused);
+          return await refused;
+        }
         const call = service().invoke(caller, action, input);
         // The round may stop while the owner is still changing things: the call goes on, and how it ends is kept for the work.
         if (view && view.operation === "command" && unsettled && signal && !signal.aborted) {

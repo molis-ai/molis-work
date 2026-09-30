@@ -38,7 +38,7 @@ const count: ActionDefinition = { capability_id: "fixture.notes.count", version:
   title: "Count notes", description: "How many notes there are", kind: "query", scope: "project", audiences: ["agent"],
   permissions: ["notes:read"], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
 
-async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, options: { model?: boolean } = {}) {
+async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, options: { model?: boolean; now?: () => Date } = {}) {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-"));
   const notes = new DatabaseSync(":memory:");
   notes.exec("CREATE TABLE notes (body TEXT NOT NULL, project TEXT NOT NULL, actor TEXT NOT NULL, audit TEXT)");
@@ -66,7 +66,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call)),
-    projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
+    projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user", options.now);
   return { service, store, host, adapter, queue, notes, seen, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
@@ -259,6 +259,35 @@ test("a plugin disabled or upgraded while its change waits: the old call runs no
   } finally { await f.close(); }
 });
 
+test("an object no reader can read keeps the name its page gave it, not its identifier", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [() => reply(undefined, "这个方向刚建好。")]);
+  try {
+    const sent = await f.service.send({ text: "这个方向做到哪一步了？", request_id: "req-00000061",
+      context: { source: { surface: "alchemist", title: "炼金术士" }, object: { kind: "alchemist-direction", id: "direction_d1", title: "给独立开发者的发票整理工具" }, captured_at: new Date().toISOString() } }, { project_ref: f.project });
+    const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completed");
+    const origin = view.objects.find(object => object.relation === "origin");
+    assert.deepEqual([origin?.title, origin?.state], ["给独立开发者的发票整理工具", "unavailable"]);
+  } finally { await f.close(); }
+});
+
+test("a change the stop reaches before it is sent never runs, and the work says it did not run", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [() => reply(undefined, "好的。")]);
+  try {
+    const sent = await f.service.send({ text: "准备一下", request_id: "req-00000041" }, { project_ref: f.project });
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed" || undefined, "completed");
+    const work = f.store.get("web-user", sent.work.work_id);
+    const tracked: Array<[string, Promise<unknown>]> = [];
+    const authority = assistantAuthority(f.local, work, () => new Set(), undefined, undefined, undefined, (view, call) => { tracked.push([view.capability_id, call]); f.service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call); });
+    const client = await authority.actions!("prologue");
+    const stopped = new AbortController(); stopped.abort();
+    await assert.rejects(client.invoke({ capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" }, { text: "late" }, stopped.signal), { code: "actions.cancelled" });
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "nothing reached the owner");
+    assert.deepEqual(tracked.map(([id]) => id), ["fixture.notes.write"]);
+    const settled = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.unsettled?.[0]?.state === "not-run" ? v : undefined; }, "not run");
+    assert.equal(settled.unsettled![0]!.title, "Notes · Save a note");
+  } finally { await f.close(); }
+});
+
 test("a change stopped while its owner is still running: shown as not known, then as what the owner did; the next round is told and nothing is re-sent", { timeout: 60_000 }, async t => {
   const slow: ActionDefinition = { ...write, capability_id: "fixture.slow.write", action: { ...write.action, title: "Save slowly" } };
   let finish!: () => void, entered!: () => void;
@@ -391,6 +420,8 @@ test("background work a round or a card starts is followed through the plugin's 
     let view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.jobs?.length ? v : undefined; }, "job followed");
     assert.deepEqual(view.jobs!.map(job => [job.title, job.job_id, job.state]), [["Research · Start research", "job-1", "running"]]);
     const [job] = f.store.jobs("web-user", sent.work.work_id);
+    // The work was new when the job started: its first look is on the queue all the same.
+    assert.ok(f.host.adapter("prologue").schedule?.find(`${job!.key}-0`), "the first look at the job is queued");
     assert.equal((await f.service.checkJob(job!.key))!.state, "running", "still running: looked again later");
     state = "completed";
     assert.equal((await f.service.checkJob(job!.key))!.state, "completed");
@@ -487,6 +518,35 @@ test("a moment on a card is picked, not typed: the field says so, the exact inst
     const shown = ran.fields.find(field => field.key === "remind_at");
     assert.equal(shown?.raw, "2026-10-01T01:00:00.000Z");
     assert.match(shown?.value ?? "", /^2026-(09-30|10-01) \d{2}:00$/, "and reads back in local time");
+  } finally { await f.close(); }
+});
+
+test("a suggestion whose moment has passed, or that counted days from another day, is not run as it stands (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
+  let clock = Date.parse("2026-10-01T09:00:00+08:00");
+  const suggest = (title: string, summary: string, input: unknown) => () => reply({ name: "suggest-action", input: { title, summary, capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input } });
+  const f = await fixture(t, [
+    suggest("记下并十点提醒", "存一条笔记，今天上午十点提醒", { text: "给财务回邮件", remind_at: "2026-10-01T10:00:00+08:00" }),
+    suggest("明天整理周报", "存一条笔记：明天整理周报", { text: "整理周报" }),
+    () => reply(undefined, "两个按钮在上面。"),
+  ], { now: () => new Date(clock) });
+  try {
+    const sent = await f.service.send({ text: "给我两个按钮", request_id: "req-00000051" }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length === 2 ? v : undefined; }, "cards");
+    assert.deepEqual(done.cards.map(card => card.status), ["ready", "ready"]);
+    // Eleven o'clock the same day: the reminder's moment has passed; the card about “明天” still stands.
+    clock = Date.parse("2026-10-01T11:00:00+08:00");
+    let view = await f.service.read(sent.work.work_id);
+    assert.equal(view.cards[0]!.status, "stale");
+    assert.match(view.cards[0]!.outcome ?? "", /已经过去/);
+    assert.equal(view.cards[1]!.status, "ready");
+    // The next day, “明天” meant another day: that card is not run as it stands either.
+    clock = Date.parse("2026-10-02T09:00:00+08:00");
+    view = await f.service.read(sent.work.work_id);
+    assert.equal(view.cards[1]!.status, "stale");
+    assert.match(view.cards[1]!.outcome ?? "", /2026-10-01 准备的/);
+    const clicked = await f.service.runCard(sent.work.work_id, view.cards[1]!.card_id, { revision: view.cards[1]!.revision });
+    assert.equal(clicked.status, "stale");
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "neither ran");
   } finally { await f.close(); }
 });
 

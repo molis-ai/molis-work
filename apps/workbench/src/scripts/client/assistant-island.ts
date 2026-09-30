@@ -468,7 +468,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         redo.disabled = true;
         try {
           await api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(),
-            text: L("建议「") + card.title + L("」没有执行：数据在建议之后变化了。请读取最新状态，重新准备这一项的操作卡。") });
+            text: L("建议「") + card.title + L("」没有执行：") + (card.outcome || L("数据在建议之后变化了")) + L("。请读取最新状态，按现在的情况重新准备这一项的操作卡。") });
           await refresh(); schedule();
         } catch (error) { showProblem({ message: error.message }); redo.disabled = false; }
       });

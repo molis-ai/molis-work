@@ -32,6 +32,9 @@
 | D15 | 侧栏暴露 `--side-panel-width`；不使用 `.assistant-*` 类、不动底栏中间列；动效只用 `--dur-*`（130/250/420/640）与曲线 token，不过渡布局属性以外的新属性 | 与 [3c6203] 的约定、craft-finish 设计门禁 |
 | D17 | Coding 不单开文件来源：它在项目工作目录里工作，那里的文件由 Files 的“工作区文件”列出；它每一轮改动的文件固定为变更记录（Artifact），由 Artifacts 列出 | 同一份文件不在侧栏出现两份竞争的清单 |
 | D18 | 地址栏输入不像网址时按 Bing 搜索（`https://www.bing.com/search?q=`），只打开 http/https/about:blank；侧栏浏览器永远不能加载本机 Molis Work 服务自己的地址（CDP 层按 origin 拦截） | 本机服务页面带控制令牌，能加载它就等于绕过动作授权 |
+| D19 | 本期插件扩展面向官方与手写插件（native/app）：Manifest 声明 `side` 视图与文件来源动作即接入，Host 不写专属逻辑；插件创作台生成的插件暂不能声明（与搜索来源同一限制，后续） | 生成插件的动作由 operations 派生，不含协议型动作 |
+| D20 | “交给助理”把用户看到的页面（选段或可读正文，≤20000 字，带地址与时间）作为本轮材料，经现有资源通道进入；不另用 Prologue `source` 摄取 | `ingestWebPage` 匿名重抓，内容与登录后看到的不同；app 模式无检索资料源的工具，登记不产生可用引用。对照表如实记为未接 |
+| D21 | 助理使用侧栏浏览器有总开关，默认开（每个动作本来都要问）；存 `<home>/browser/sites.json`；只读轮次只能看；一页一个工作，被占用时明确告知；委托出去的子工作由助理服务在启动请求带 `browser:false` | 助理会话复查意见 |
 | D16 | 插件声明会操作哪些网站：Manifest `permissions` 增加 `surface:browser`，附 `origins`；安装与市场摘要列出；声明里带路径或查询串当场拒 | 仿 Prologue `PluginPermissions.surfaces`；本期没有插件真的驱动浏览器，只落声明与展示 |
 
 ## 3. 结构与归属

@@ -1,4 +1,4 @@
-import { ActionError, PERSONAL_SPACE_PROJECT_ID, assertDueReminderWindow, bindHomeObjectMoveHandler, defineDueRemindersAction, defineObjectMoveAction, withActionEffect, withinDueReminderWindow, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, FRAGMENT_ANY_OBJECT, PERSONAL_SPACE_PROJECT_ID, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOfferChoice, type FragmentOffersInput, assertDueReminderWindow, bindHomeObjectMoveHandler, defineDueRemindersAction, defineObjectMoveAction, withActionEffect, withinDueReminderWindow, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoChange, type TodoItem, type TodoPlacement, type TodoStatus, type TodoView } from "@molis-ai/molis-work-contracts/modules/todo";
 import { isTodoDate, localDate } from "./dates.js";
 import { todoCallerProject } from "./caller.js";
@@ -94,6 +94,12 @@ const resultSubject = { id: "item.id", revision: "item.revision" };
 /** How a change is taken back: the revert command, fed from this change's own output (D08: runs when asked, then 撤销). */
 const undoChange = { capability_id: "todo.changes.revert", version: 1, input: { change_id: "change_id" } };
 
+/** A thing to do, noted from anything the person selected: a write, so it is offered as a card they confirm. */
+export const TODO_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
+  { offer_id: "todo", title: "记成待办", intent: "advance", apply: "record", hint: "把选中的一件要做的事记成待办，并记下它出自哪里",
+    action: { capability_id: "todo.items.create", version: 1 }, granularities: ["range", "block"] },
+];
+
 export const todoActions = {
   list: define<ListInput, TodoListResult>("items.list", "列出待办", "按视图读取待办：today 今天要做、waiting 在等别人、unscheduled 没安排、upcoming 7 天内截止、all 全部进行中、closed 已完成或已取消。在项目里调用时范围是个人、暂未归类和这个项目的待办", "query",
     object({ view, query: { ...text, maxLength: 200 }, placement, archived: { type: "boolean" }, all_projects: { type: "boolean" }, today: date }, []),
@@ -131,8 +137,26 @@ export const todoActions = {
   homeEvents: todoHomeEventsAction,
   searchEntries: todoSearchActions.entries,
   subject: todoSearchActions.subject,
+  fragmentOffers: defineFragmentOffersAction("todo.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以记成待办", [...TODO_READ], TODO_FRAGMENT_CHOICES, "home"),
 };
 export const TODO_ACTIONS: readonly ActionDefinition[] = [...Object.values(todoActions), ...Object.values(todoOrganizeActions)];
+
+/**
+ * The complete `todo.items.create` input for a fragment of anything (specs/contextual-interaction §10 P2); pure. The
+ * todo remembers where it came from (the object and the words), and the same request creates it once.
+ */
+export function prepareTodoFragmentOffers(input: FragmentOffersInput): FragmentActionOffer[] {
+  const text = input.fragment.targets.map(target => target.text.trim()).filter(Boolean).join("\n");
+  if (!text) return [];
+  const first = (text.split(/[。！？\n]/u)[0] ?? text).trim() || text;
+  const title = first.length > 80 ? first.slice(0, 79) + "…" : first;
+  const { object } = input.fragment;
+  return [{ offer_id: "todo", title: "记成待办", action: { capability_id: "todo.items.create", version: 1 }, input: {
+    title, ...(text !== title ? { notes: text.slice(0, 10_000) } : {}), request_id: input.request_id.slice(0, 160),
+    sources: [{ kind: "material", title: (object.title || "选中的内容").slice(0, 200), excerpt: text.slice(0, 2000), reason: "从选中的内容记成待办",
+      subject: { kind: object.kind, id: object.id }, open: null }] },
+    summary: `记一条待办：「${title}」（记下它出自${object.title ? `「${object.title}」` : "选中的内容"}）`, editable: ["title", "notes", "due_date"] }];
+}
 export const TODO_ACTION_PERMISSIONS = [...new Set(TODO_ACTIONS.flatMap(definition => definition.action.permissions))];
 
 export interface TodoActionPorts {
@@ -178,6 +202,7 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
       return { item: entry, flags: todoFlags(entry, today()), history: store.history(input.id, access),
         backlinks: store.backlinks(input.id, access).map(({ item: other, link: back }) => ({ item_id: other.id, title: other.title, relation: back.relation })) };
     })),
+    bind(todoActions.fragmentOffers, input => ({ offers: prepareTodoFragmentOffers(input) })),
     bind(todoActions.create, (input, caller) => ports.withStore(store => store.create(input, todoAccess(caller)))),
     bind(todoActions.update, (input, caller) => ports.withStore(store => {
       const { id: target, expected_revision, ...patch } = input;

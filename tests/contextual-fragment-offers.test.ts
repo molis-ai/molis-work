@@ -34,7 +34,7 @@ test("Goals and 灵光 fragment offers: prepared inputs run through the real act
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const caller: ActionCallContext = { actor_id: "web-user", actor_kind: "user", project_id: project.project_id, audience: "user",
-    permissions: ["goals:read", "goals:write", "lingguang:read", "lingguang:write"] };
+    permissions: ["goals:read", "goals:write", "lingguang:read", "lingguang:write", "todo:read", "todo:write"] };
   const client = host.actionClient(ref);
   const bound = bindActionClient(client, () => caller);
   const invoke = <O>(reference: { capability_id: string; version: number; provider_id?: string }, input: unknown) => client.invoke(caller, reference, input) as Promise<O>;
@@ -85,6 +85,17 @@ test("Goals and 灵光 fragment offers: prepared inputs run through the real act
     await invoke(spark.action, spark.input);
     const { sparks } = await bound.invoke(lingguangActions.list as ActionDefinition<Record<string, never>, { sparks: { body: string }[] }>, {});
     assert.equal(sparks.filter(item => item.body.includes("出自：留存计划")).length, 1);
+
+    // 记成待办: one todo per request, remembering the object it came from.
+    const todoOffer = candidates.find(item => item.offer_id === "todo");
+    assert.equal(todoOffer?.apply, "record");
+    const todoReady = await invoke<{ offers: FragmentActionOffer[] }>(todoOffer!.source, fragment({}, "req-todo"));
+    const todo = todoReady.offers[0]!;
+    assert.equal((todo.input as { title: string }).title, "下周三前完成新手引导改版，周五发给二十个老用户试用并收集反馈");
+    const made = await invoke<{ item: { id: string; title: string; sources: { kind: string; subject: { kind: string; id: string } | null }[] } }>(todo.action, todo.input);
+    const again2 = await invoke<{ item: { id: string }; replayed: boolean }>(todo.action, todo.input);
+    assert.equal(again2.item.id, made.item.id, "the same request creates it once");
+    assert.deepEqual(made.item.sources.map(source => [source.kind, source.subject?.kind, source.subject?.id]), [["material", "pages_document", "doc-1"]]);
   } finally {
     await host.close();
     await rm(home, { recursive: true, force: true });

@@ -475,6 +475,7 @@ Pages 用一个 ProseMirror 插件的 view update 维护它；其他插件第一
 - 平台级片段动作：合同加 `FRAGMENT_ANY_OBJECT`（适用于任何对象，允许 home 范围），准备结果可带写入前说明、可改字段、缺项；片段可带对象所属的 Goal；选项可声明 `requires: ["goal"]`。
   - 搜索 `search.fragment.offers`：“在项目里查找”（选中一个词），结果在工作台自己的搜索面板里打开（S7“查找出现处”）。
   - 灵光 `lingguang.fragment.offers`：“记下灵光”，写入 `lingguang.create`，同一请求号只存一次，正文注明出处。
+  - Todo `todo.fragment.offers`（home 范围）：“记成待办”，写入 `todo.items.create`，待办记下来源（对象引用与摘录），同一请求号只建一条（集成测试）。
   - Goals `goals.fragment.offers`：“拆成目标步骤”（S2）按分句或所选各段准备 `goals.tree.submit` 的完整提案（新步骤 + 挂到所属 Goal 的 `part_of`，附 narrative 与逐项说明；审批前不建目标）；“记录进展”（S5）只在勾选的任务所在内容挂了 Goal 时出现，按该 Goal 当前游标准备 `goals.progress.record`。
 - 写入类（`record`）与没有页面接下的动作：点击后准备参数，经 `POST /api/assistant/cards` 放进助理工作并打开面板（卡片上是精确能力、完整参数、可改字段、来源对象与所选文字）；接口不在时退回带 `card` 的页面消息。面板的 `molis:assistant-open` 对刚建的工作先刷新列表再切换（与助理会话已同步）。
 - 动作条：情境过期时若鼠标或焦点在条上，先保留到离开；Pages“刚完成一步”从 6 秒延长到 10 秒（走查发现：6 秒内还没移到条上就消失）。

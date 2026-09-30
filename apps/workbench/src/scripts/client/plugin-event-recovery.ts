@@ -3,7 +3,7 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
   const lifetime=host.mountPluginClient(root); if(!lifetime)return {scope:()=>{}};
   const q=selector=>root.querySelector(selector), dialog=q('[data-plugin-event-dialog]'), form=q('[data-plugin-event-form]');
   const status=q('[data-plugin-events-status]'), error=q('[data-plugin-event-error]');
-  let rows=[], selected=null, fresh=false, busy=false, viewSignal, reading=0;
+  let rows=[], selected=null, fresh=false, busy=false, viewSignal, reading=0, revealUntil=0;
   const key=row=>JSON.stringify([row.cursor.subscriber_plugin_id,row.cursor.subscriber_install_id,row.cursor.subscriber_generation,row.cursor.source_plugin_id,row.cursor.event_type_id,row.cursor.type_version]);
   const message=text=>{error.textContent=text;error.hidden=!text;};
   const node=(tag,text,className)=>{const item=document.createElement(tag);item.textContent=text;if(className)item.className=className;return item;};
@@ -32,6 +32,12 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
     q('[data-plugin-events-history-list]').replaceChildren(...history.map(record=>node('p',
       new Date(record.resolved_at).toLocaleString()+' · '+record.actor_id+' · '+L(record.decision==='skip'?'已跳过':'已请求重试')+' · '+record.event_id+' · '+record.reason)));
   };
+  // The title bar bell asks for this list; bring it into view once the read the bell waited for has settled.
+  const reveal=()=>{
+    if(Date.now()>revealUntil)return;revealUntil=0;
+    root.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+    q('[data-plugin-events-heading]').focus({preventScroll:true});
+  };
   const load=async(reselect=false)=>{
     if(busy||!lifetime.visible)return;
     const epoch=++reading, oldKey=selected&&key(selected), signal=viewSignal;fresh=false;sync();status.textContent=L('正在读取插件通知…');status.classList.add('mw-loading');
@@ -42,7 +48,8 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
       rows=body.pending||[];paint(body.history||[]);status.classList.remove('mw-loading');status.textContent=rows.length?L('有通知需要核对，其他插件可继续使用。'):L('没有待核对的通知。');
       if(reselect&&oldKey){selected=rows.find(row=>key(row)===oldKey)||null;form.elements.decision.forEach(item=>{item.checked=false;});message('');describe();}
       fresh=true;sync();
-    }catch(cause){if(epoch===reading&&!signal?.aborted&&lifetime.alive){status.classList.remove('mw-loading');status.textContent=cause.message; if(dialog.open)message(cause.message);fresh=false;sync();}}
+      document.dispatchEvent(new CustomEvent('molis-work:plugin-events',{detail:{pending:rows.length}}));reveal();
+    }catch(cause){if(epoch===reading&&!signal?.aborted&&lifetime.alive){status.classList.remove('mw-loading');status.textContent=cause.message; if(dialog.open)message(cause.message);fresh=false;sync();reveal();}}
   };
   lifetime.whenVisible(signal=>{viewSignal=signal;void load();return()=>{reading++;fresh=false;if(dialog.open)dialog.close();};});
   lifetime.listen(root,'click',event=>{
@@ -51,6 +58,7 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
     if(event.target.closest('[data-plugin-event-cancel]')&&!busy){dialog.close();return;}
     if(event.target.closest('[data-plugin-events-refresh], [data-plugin-event-reload]'))void load(dialog.open);
   });
+  lifetime.listen(document,'molis-work:plugin-events-reveal',()=>{revealUntil=Date.now()+10000;if(lifetime.visible)void load();});
   lifetime.listen(dialog,'cancel',event=>{if(busy)event.preventDefault();});
   lifetime.listen(form,'submit',async event=>{
     event.preventDefault();if(busy||!fresh||!selected?.can_recover||!form.reportValidity())return;

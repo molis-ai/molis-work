@@ -289,6 +289,14 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .immersive-titlebar .background-tasks-button svg { width: 14px; height: 14px; }
   body.immersive-workbench .immersive-titlebar .background-tasks-button[data-background-tasks-waiting="true"] { color: var(--ink); }
   body.immersive-workbench .immersive-titlebar .background-tasks-button[data-background-tasks-waiting="true"]::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent, currentColor); }
+  /* The bell shows only while a plugin notification waits on the person, so it always carries the waiting mark. */
+  body.immersive-workbench .immersive-titlebar .plugin-notifications-button { order: 5; flex: none; margin-left: auto; gap: 4px; height: var(--desktop-titlebar-control-height); padding: 0 8px; color: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+  body.immersive-workbench .immersive-titlebar .background-tasks-button:not([hidden]) ~ .plugin-notifications-button { margin-left: 0; }
+  body.immersive-workbench .immersive-titlebar .plugin-notifications-button svg { width: 14px; height: 14px; }
+  body.immersive-workbench .immersive-titlebar .plugin-notifications-button::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent, currentColor); }
+  @media (max-width: 760px), (pointer: coarse) { body.immersive-workbench .immersive-titlebar .plugin-notifications-button { min-width: 44px; height: 44px; justify-content: center; } }
+  /* On a phone the tabs take their own row; the bell stays on the first row with the history buttons instead of adding a third. */
+  @media (max-width: 600px) { body.immersive-workbench .immersive-titlebar :is(.plugin-notifications-button, .background-tasks-button:not([hidden]) ~ .plugin-notifications-button) { order: 1; margin-left: auto; } }
   ${BACKGROUND_TASKS_MENU_STYLES}
   body.immersive-workbench .immersive-titlebar [data-titlebar-tabs]:not([hidden]) ~ .desktop-titlebar-drag { flex: 0 0 0; min-width: 0; width: 0; overflow: hidden; }
   html[data-native-desktop="true"] body.immersive-workbench .immersive-titlebar,

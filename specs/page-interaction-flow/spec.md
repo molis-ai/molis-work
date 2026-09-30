@@ -1,6 +1,6 @@
 # 页面动线与导航模型全量修复
 
-状态：实现完成、全量回归已对照基线，待用户验收；未提交（2026-09-30）。工作树 `.claude/worktrees/page-interaction-flow-redesign-49fe35`，分支 `claude/page-interaction-flow-redesign-49fe35`（从 main fa27207a）。
+状态：实现完成，已合 main 50767600 与 #110（e5ab8a24）并复核，待开 PR 与用户验收（2026-09-30）。工作树 `.claude/worktrees/page-interaction-flow-redesign-49fe35`，分支 `claude/page-interaction-flow-redesign-49fe35`（从 main fa27207a）。
 
 ## 背景
 
@@ -110,6 +110,8 @@
 | Inbox 条目详情 | linear-density 把标题压到 15px、内边距压窄，与 DESIGN「20–22px」冲突 | 删掉这几条覆盖，回到阅读规则 |
 | Goals 列表 | 走查时以为单击不打开 | 核实为截图滞后，单击即打开，无需改 |
 | 底栏托盘（用户回报「重合了」） | ≤1100px 时第一栏最小只有 120px，放不下「Dock 菜单 + 首页 + +N」，+N 伸出托盘、压到输入框下（加托盘前同样溢出，只是没有底色看不出） | 桌面宽度下第一栏下限 = 三个按钮 + 托盘内边距与间距（`calc(var(--dock-btn) * 3 + 38px)`）；e2e 在 601 / 825 / 1100 / 1440 量「+N 在托盘内、托盘不压输入框、输入框不压右托盘、底栏不出窗口」 |
+| 合 main 后切换器进左托盘 | main（#98 底栏第二期）把切换器挪进左托盘、最多占 60%，601–1100px 时 Dock 只剩 40px，+N 又伸出托盘 | 切换器总给「项目首页」与 +N 留位（`max-width: calc(100% - var(--dock-btn) * 2 - 28px)`）、名字省略，≤1040px 只留图标；左列下限改为 `calc(var(--dock-btn) * 2 + 84px)`；e2e 加 1041px |
+| 项目页里的全局设置链接 | 项目页给根路径链接加项目前缀，Cognia「打开模型设置」成了 `/projects/<id>/settings/models`，设置拦截不认、整页 404（main 同样） | 前缀下的全局设置页也按全局页在覆盖层打开（`openGlobalSettingsFromUrl`）；产品旅程 e2e 由此跑通 |
 | 项目设置 › 工作目录 | e2e `settings serve complete category pages` 在夹具里等不到内容 | 基线 fa27207a 同样失败，预览里正常；既有问题，未改 |
 
 ## 验证记录
@@ -124,6 +126,13 @@
 - 定向构建、`pnpm boundary:check`、`tsc --noEmit`（tsconfig 与 sdk）通过。
 - 目视：1440 / 1024 / 825 / 601 / 390 与深色（截图在会话 scratchpad，未入库）。
 - 第二轮（记录进历史，2026-09-30 晚）：灵光里「笔记 B → 上一步 → 笔记 A → 上一步 → 列表 → 上一步 → Goals，下一步 → 列表 → 笔记 A」实测通过，e2e 加了同样的步骤。刷新后重开时，服务端先画出的列表行可能在插件读完数据前被点到而无效：对仍报告收起（`data-expanded="false"`）的插件，准备好后再点，最多 3 次；安静重开的等待从 4 秒放到 8 秒。四个插件 e2e 改为断言刷新后记录自己回来。单测、tsc、页面脚本语法检查通过；浏览器 e2e 在负载 23–28 时成片超时（「Navigation did not finish」），Form 1440 档完整通过；其余等协调会话排的安静时段复核。
+
+- 合 main 后复核（2026-09-30，时段 S12，整体 `pnpm build`、`boundary:check`、`tsc` 通过后）：受影响的 24 个浏览器文件 52 例，首轮 48 过 4 挂，逐项——
+  - 本线合并引入、已修：切换器进左托盘后 601–1100px 时 +N 伸出托盘（见逐页记录「合 main 后切换器进左托盘」），复跑通过。
+  - 本线范围内、main 同样有的缺陷、已修：项目页里 Cognia「打开模型设置」整页 404（见逐页记录「项目页里的全局设置链接」）；产品旅程 e2e 由此整条跑通（基线 pr102 在更早一步就挂）。
+  - 非本线：`immersive-directory`「New Goal uses the quiet control wash」由 #108 把新建 Goal 改成主按钮引起，测试断言未更新；本线 diff 未碰该按钮。
+  - 基线同样不稳定：`project-user-journey`（本线复跑三次挂在三个不同步骤，基线 pr102 复跑两次两种宽度都挂）。
+  - 相关单测 104/105，唯一失败为基线就有的 Shelf 设置 Grok 文案。
 
 ## 验证
 

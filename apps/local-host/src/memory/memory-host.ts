@@ -168,8 +168,14 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   };
   const runLearning = async (request: MemoryLearningRequest) => {
     migrate();
-    const outcome = await learnFromWork(service, ports.homeDirectory, request);
-    if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn", JSON.stringify(outcome));
+    try {
+      const outcome = await learnFromWork(service, ports.homeDirectory, request);
+      if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn", JSON.stringify(outcome));
+    } catch (error) {
+      // Nothing was written (the gate commits only whole proposals); the queue may try once more.
+      console.warn("[memory] 提炼没有完成", error instanceof Error ? error.message : String(error));
+      throw error;
+    }
   };
   const attachQueue = () => {
     if (queueAttached) return;
@@ -186,14 +192,15 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     caller,
     learnLater: async request => {
       const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6);
-      if (!service.worthLearning(request.caller, said)) return;
+      if (!service.worthLearning(request.caller, said)) { if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn skipped", request.key); return; }
       await ports.ready();
       attachQueue();
       const schedule = ports.agentHost.adapter(RUNTIME).schedule;
       const payload = { caller: request.caller, said } as unknown as Record<string, unknown>;
       // Without the durable queue (or a session to hang it on) it runs now; a failure leaves nothing half written.
       if (!schedule || !request.session_id) { void runLearning({ caller: request.caller, said }).catch(error => console.warn("[memory] 提炼没有完成", error)); return; }
-      await schedule.enqueue({ key: `memory-learn:${request.key}`, session_id: request.session_id, kind: LEARN_KIND, payload, due_at: new Date().toISOString(), max_attempts: 2 });
+      const queued = await schedule.enqueue({ key: `memory-learn:${request.key}`, session_id: request.session_id, kind: LEARN_KIND, payload, due_at: new Date().toISOString(), max_attempts: 2 });
+      if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn queued", queued.key, queued.state, queued.due_at);
     },
     close: () => { dispose(); ledger.close(); hosts.delete(ports.localHost); },
   };

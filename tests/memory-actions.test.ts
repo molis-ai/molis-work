@@ -10,6 +10,7 @@ import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 import { memoryHostFor } from "../apps/local-host/src/memory/memory-host.js";
 import { ASSISTANT_STORE_NAME, AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/src/local-owner-permissions.js";
+import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 
 const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
 const agent: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };
@@ -50,6 +51,11 @@ test("memory is one system.memory provider in the shared directory: the person m
   const removed = await asPerson.invoke(memoryActions.change, { memory_id: kept.memory!.memory_id, action: "remove" });
   assert.equal(removed.memory, null);
   assert.equal((await asPerson.invoke(memoryActions.list, {})).items.length, 0);
+  // The Assistant keeps and reads memories only through its own tools, under its own switches: its gateway never offers these.
+  const assistant = assistantAuthority(host, { work_id: "work-1", session_id: null, project_ref: null } as never, () => new Set());
+  const gateway = await (await assistant.actions!("prologue")).discover();
+  assert.ok(gateway.length > 0);
+  assert.equal(gateway.some(view => view.provider.provider_id === MEMORY_PROVIDER_ID), false);
   // Interface signals report as the person.
   const signal = await asPerson.invoke(memoryActions.signal, { event_id: "evt-00000001", signal: "accepted", subject: { capability_id: "pages.polish", label: "润色" } });
   assert.equal(signal.state, "counted");

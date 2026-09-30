@@ -115,3 +115,20 @@ test("the drawing-out sends the registered instruction and the person's words, r
   assert.equal((await learnFromWork(service, home, { caller: inWork("work-3", "x"), said: ["帮我读一下这份材料"] }, reply({ candidates: [] }))).ran, false);
   assert.equal(sent.length, before);
 });
+
+test("a personal wish learned in a project's works never names those works: not in the suggestion, the memory's provenance or the recent change", { timeout: 60_000 }, async t => {
+  const { service } = await memoryHome(t);
+  const unit = { text: "汇报里的金额统一用万元做单位", kind: "preference" as const, scope: "personal" as const, basis: "explicit" as const };
+  await service.learnFromWork(inWork("work-1", "差旅费用 机票 18600 元"), { said: ["我习惯汇报里的金额都用万元做单位"], proposals: [{ ...unit, quote: "我习惯汇报里的金额都用万元做单位" }] });
+  const [waiting] = await service.candidates(person, { scope: "personal" });
+  assert.doesNotMatch(waiting!.why, /差旅费用|18600/);
+  const second = await service.learnFromWork(inWork("work-2", "内容预算 视频制作 275000 元"), { said: ["金额还是用万元，我一直这么要求"],
+    proposals: [{ ...unit, quote: "金额还是用万元", same_as: waiting!.candidate_id }] });
+  assert.deepEqual(second.map(item => item.outcome), ["written"]);
+  const [kept] = (await service.list(person, { scope: "personal" })).items;
+  assert.equal(kept!.scope, "personal");
+  assert.match(kept!.origin, /两项不同的工作/);
+  assert.doesNotMatch(kept!.origin, /差旅费用|内容预算|18600|275000/);
+  const [change] = service.changes(person, { scope: "personal" });
+  assert.doesNotMatch(change!.reason ?? "", /差旅费用|内容预算/);
+});

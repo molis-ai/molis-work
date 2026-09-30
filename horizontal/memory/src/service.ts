@@ -840,16 +840,18 @@ export class MemoryService {
       const at = this.now().toISOString();
       const evidence: MemoryEvidence[] = verified ? [{ kind: "said", text: quote, ...(work ? { ref: { kind: "work", id: work.work_id } } : {}), at }] : [];
       const supersedes = proposal.supersedes && (await this.located(caller, scope, where.owner)).some(located => located.entry.memory_id === proposal.supersedes) ? proposal.supersedes : null;
+      // A personal memory travels to every project, so what explains it never names a project's works (spec §11).
+      const named = scope !== "personal";
       if (earlier && basis === "explicit") {
         const works = [earlier.work?.title, work?.title].filter(Boolean).map(title => `「${title}」`).join("和");
         const result = await this.offer({ ...caller, work }, { scope, text: earlier.text, kind: earlier.kind, applies: earlier.applies, basis: "repeated",
-          why: `你在工作${works}里都这样要求`, evidence: [...evidence], from: "extraction", supersedes: earlier.supersedes ?? supersedes, candidate_id: earlier.candidate_id });
+          why: named ? `你在工作${works}里都这样要求` : "你在两项不同的工作里都这样要求", evidence: [...evidence], from: "extraction", supersedes: earlier.supersedes ?? supersedes, candidate_id: earlier.candidate_id });
         out.push({ text: earlier.text, outcome: result.outcome, reason: result.reason, candidate_id: result.candidate?.candidate_id ?? earlier.candidate_id, memory_id: result.memory?.memory_id ?? null });
         continue;
       }
       try {
         const candidate = await this.propose({ ...caller, work }, { scope, text, kind: proposal.kind, applies, basis, from: "extraction", supersedes, evidence: evidence.length ? evidence : undefined,
-          why: verified ? `你在工作${work ? `「${work.title}」` : ""}里说：“${quote}”` : `从工作${work ? `「${work.title}」` : ""}里推断`,
+          why: verified ? `你在${named && work ? `工作「${work.title}」` : "一项工作"}里说：“${quote}”` : `从${named && work ? `工作「${work.title}」` : "一项工作"}里推断`,
           hold_reason: basis === "explicit"
             ? "只在一项工作里出现过：在另一项工作里再这样要求会自动记住，也可以现在就认可"
             : "只是推断出来的，需要你认可才会生效" });

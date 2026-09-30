@@ -99,7 +99,8 @@ export const MEMORY_EN: Record<string, string> = {
   "历史版本": "History",
   "升级为项目说明": "Promote to project guidance",
   "删除": "Delete",
-  "删除后任何地方都不会再用到这条，历史版本也一起删除。确定删除？": "Once deleted it is never used anywhere again, and its history goes too. Delete it?",
+  "删除这条记忆？": "Delete this memory?",
+  "删除后任何地方都不会再用到这条，历史版本也一起删除。": "Once deleted it is never used anywhere again, and its history goes too. ",
   "替换": "Replaced",
   "自动替换": "Replaced automatically",
   "合并": "Merged",
@@ -155,5 +156,7 @@ export const MEMORY_EN: Record<string, string> = {
   "没有导入": "not imported",
   "没有可以清空的记忆": "No memories to clear",
   "将删除": "This deletes",
-  "条记忆，删除后任何地方都不会再用到。确定清空？": "memories; once deleted they are never used anywhere again. Clear them?",
+  "清空这些记忆？": "Clear these memories?",
+  "确定清空": "Clear",
+  "条记忆，删除后任何地方都不会再用到。": "memories; once deleted they are never used anywhere again.",
 };

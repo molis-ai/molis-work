@@ -91,6 +91,23 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const $ = (selector) => root.querySelector(selector);
     const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined && text !== null) node.textContent = text; return node; };
     const button = (text, variant, label) => { const node = el("button", "mw-btn " + (variant || "mw-btn--ghost") + " mw-btn--sm", text); node.type = "button"; if (label) node.setAttribute("aria-label", label); return node; };
+    // A step that cannot be undone asks first, in the catalog's alert dialog (never the browser's own prompt).
+    const ask = (title, description, yesLabel) => new Promise((resolve) => {
+      const dialog = el("dialog", "mw-dialog mw-dialog--alert memory-confirm"); dialog.dataset.slot = "alert-dialog";
+      const titleId = "memory-confirm-" + Date.now().toString(36); dialog.setAttribute("aria-labelledby", titleId);
+      const form = el("form", "mw-form mw-dialog__shell"); form.method = "dialog";
+      const header = el("header", "mw-form__header"), heading = el("div"), h2 = el("h2", "", title); h2.id = titleId;
+      heading.append(h2, el("p", "", description)); header.append(heading);
+      const footer = el("footer", "mw-form__footer"), cancel = el("button", "mw-btn mw-btn--secondary mw-btn--md", L("取消")), yes = el("button", "mw-btn mw-btn--danger mw-btn--md", yesLabel);
+      cancel.type = "button"; yes.type = "button"; yes.dataset.memoryConfirmYes = "";
+      footer.append(cancel, yes); form.append(header, footer); dialog.append(form);
+      let answer = false;
+      cancel.addEventListener("click", () => dialog.close());
+      yes.addEventListener("click", () => { answer = true; dialog.close(); });
+      dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+      dialog.addEventListener("close", () => { dialog.remove(); resolve(answer); });
+      root.append(dialog); dialog.showModal(); cancel.focus();
+    });
     const KIND = { preference: "偏好", convention: "约定", fact: "背景事实", experience: "经验" };
     const SOURCE = { said: "你说的", accepted: "你认可的", auto: "自动记住", manual: "手动添加", imported: "导入", plugin: "插件记下" };
     const STATE = { active: "生效", disabled: "停用", paused: "暂停" };
@@ -304,7 +321,9 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
           const target = "/projects/" + encodeURIComponent(project) + "/settings/guidance?draft=" + encodeURIComponent(item.text);
           window.location.assign(target);
         });
-        menuItem(L("删除"), () => { if (window.confirm(L("删除后任何地方都不会再用到这条，历史版本也一起删除。确定删除？"))) run(() => api("/change", { memory_id: item.memory_id, action: "remove" }), "已删除"); }, true);
+        menuItem(L("删除"), async () => {
+          if (await ask(L("删除这条记忆？"), L("删除后任何地方都不会再用到这条，历史版本也一起删除。") + "「" + item.text + "」", L("删除"))) run(() => api("/change", { memory_id: item.memory_id, action: "remove" }), "已删除");
+        }, true);
         more.append(summary, menu);
         actions.append(edit, toggle, more);
         row.append(copy, actions);
@@ -392,7 +411,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     $("[data-memory-clear]").addEventListener("click", () => run(async () => {
       const preview = await api("/preview", { scope });
       if (!preview.count) { toast(L("没有可以清空的记忆")); return; }
-      if (!window.confirm(L("将删除") + " " + preview.count + " " + L("条记忆，删除后任何地方都不会再用到。确定清空？"))) return;
+      if (!await ask(L("清空这些记忆？"), L("将删除") + " " + preview.count + " " + L("条记忆，删除后任何地方都不会再用到。"), L("确定清空"))) return;
       const done = await api("/clear", { scope, fingerprint: preview.fingerprint });
       toast(L("已删除") + " " + done.removed + " " + L("条"));
     }));

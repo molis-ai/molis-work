@@ -164,6 +164,19 @@ test("real Host: the file tab lists and previews plugin files through the action
     assert.equal(gone.status, 404);
     assert.match(gone.headers.get("content-type") ?? "", /text\/html/u);
     assert.match(await gone.text(), /侧栏内容已经不在了/u);
+
+    // Hidden from this project, a plugin leaves the side panel as it leaves the page: no tab, no files; shown again, back.
+    const membership = (hide: boolean) => withCatalog({ homeDirectory: home }, catalog => {
+      for (const plugin_id of ["pages", "lingguang"]) hide ? catalog.removeProjectPlugin({ project_id: a.project_id, plugin_id, actor_id: "owner" })
+        : catalog.addProjectPlugin({ project_id: a.project_id, plugin_id, actor_id: "owner" });
+    });
+    await membership(true);
+    const hiddenSources = (await get("/api/side/files/sources")).body.sources as typeof sources;
+    assert.ok(!hiddenSources.some(source => source.plugin_id === pages.plugin_id), "a hidden plugin lists no files");
+    assert.equal((await fetch(`${origin}/projects/${a.project_id}/side/lingguang/side`)).status, 404);
+    await membership(false);
+    assert.ok(((await get("/api/side/files/sources")).body.sources as typeof sources).some(source => source.plugin_id === pages.plugin_id));
+    assert.equal((await fetch(`${origin}/projects/${a.project_id}/side/lingguang/side`)).status, 200);
     void randomUUID;
   } finally {
     await new Promise<void>(resolve => server.listening ? server.close(() => resolve()) : resolve());

@@ -49,7 +49,7 @@ import { htmlLang, L } from "./web-locale.js";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import fs from "node:fs";
 import { handleGoalsWebHttp, goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import type { SessionRuntimeResources } from "./web-session.js";
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
@@ -159,12 +159,14 @@ export async function handleMolisWorkWebRequest(
         boardId: options.boardId,
         projectId: options.project?.project_id,
       });
+      const shownPlugins = (projectId: string) => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
+        catalog => shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId)));
       // A plugin's side panel tab (specs/side-panel D13): the declared `side` view, served for a plugin enabled here.
       const sideView = /^\/side\/([^/]+)\/([^/]+)$/u.exec(url.pathname);
       if (sideView && request.method === "GET" && options.project) {
         const projectId = options.project.project_id;
-        // The same plugins the page lists, personal ones included (they are on without being stored per project).
-        const enabled = [...availableProjectPluginIds(await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.listProjectPlugins(projectId)))];
+        // The same plugins the page shows: personal ones included unless the person hid them from this project.
+        const enabled = await shownPlugins(projectId);
         const html = workbenchRenderer.renderSideViewDocument({ projectPluginId: decodeURIComponent(sideView[1]!), viewId: decodeURIComponent(sideView[2]!),
           projectId, routePrefix: `/projects/${encodeURIComponent(projectId)}`, enabled, controlToken });
         if (!html) {
@@ -178,7 +180,8 @@ export async function handleMolisWorkWebRequest(
         return;
       }
       // The side panel's file tab: sources, entries and one preview, read through the action directory as the person.
-      if (url.pathname.startsWith("/api/side/files/") && await handleSideFilesHttp(request, response, url, { localHost, reference: hostReference })) return;
+      if (url.pathname.startsWith("/api/side/files/") && await handleSideFilesHttp(request, response, url, { localHost, reference: hostReference,
+        shownPlugins: async () => new Set(await shownPlugins(options.project!.project_id)) })) return;
       await localHost.withProject(hostReference, async (runtime) => {
         const { store, coordinator } = runtime;
         const feedOptions = {

@@ -17,6 +17,22 @@ export interface PluginMarketCard {
   readonly sites: readonly string[];
 }
 
+/**
+ * The plugins a project shows: those enabled there, and the personal ones unless the person hid them from it. The page,
+ * its side panel tabs and the side panel's file sources all use this one list.
+ */
+export function shownProjectPlugins(enabled: readonly string[], hidden: readonly string[] = []): string[] {
+  const excluded = new Set(hidden);
+  const next = [...enabled];
+  for (const personal of PERSONAL_PLUGIN_IDS) {
+    if (excluded.has(personal) || next.includes(personal)) continue;
+    const artifactsAt = next.indexOf("artifacts");
+    if (artifactsAt >= 0) next.splice(artifactsAt, 0, personal);
+    else next.push(personal);
+  }
+  return next;
+}
+
 /** Enabled surfaces and their declared embedded dependencies; no installation or grant mutation. */
 export function availableProjectPluginIds(
   enabled: readonly string[], catalog: readonly BuiltinPluginEntry[] = BUILTIN_PLUGIN_CATALOG,

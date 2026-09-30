@@ -8,6 +8,7 @@ import { writeNativePluginJsonResponse } from "./native-plugin-http.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
 /**
  * The side panel's file tab (specs/side-panel P3): the file sources plugins declare in this project, their entries,
@@ -17,6 +18,8 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 export interface SideFilesPorts {
   readonly localHost: MolisWorkLocalHost;
   readonly reference: LocalHostProjectReference;
+  /** The built-in plugins this project shows (project ids): a hidden one's files are not listed, like its page. */
+  readonly shownPlugins?: () => Promise<ReadonlySet<string>>;
 }
 
 const referenceOf = (view: ActionView) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
@@ -34,7 +37,13 @@ export async function handleSideFilesHttp(request: IncomingMessage, response: Se
     const caller = await localWebActionContext(ports.localHost, ports.reference, LOCAL_OWNER_PERMISSIONS);
     const client = ports.localHost.actionClient(ports.reference);
     const views = await client.discover(caller);
-    const sources = views.filter(view => isFileEntriesSource(view.action) && view.action.file_source?.kinds.length && view.availability.available);
+    const shown = await ports.shownPlugins?.();
+    // A built-in plugin the project does not show lists nothing here; a plugin installed from outside the catalog follows its own state.
+    const hiddenHere = (view: ActionView) => {
+      const builtin = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === (view.provider.plugin_id ?? view.provider.provider_id));
+      return !!shown && !!builtin && !shown.has(builtin.project_plugin_id);
+    };
+    const sources = views.filter(view => isFileEntriesSource(view.action) && view.action.file_source?.kinds.length && view.availability.available && !hiddenHere(view));
     if (route === "sources") {
       json(200, { sources: sources.map(view => ({
         id: sourceId(view), plugin_id: view.provider.plugin_id ?? view.provider.provider_id, title: view.action.title,

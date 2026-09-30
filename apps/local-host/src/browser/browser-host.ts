@@ -131,8 +131,10 @@ export class BrowserHost {
     const running = this.current ?? await this.running?.catch(() => null) ?? null;
     this.running = null; this.current = null;
     if (!running) return;
+    // Asked to quit, the browser first writes its cookies and site data (so sign-ins last); a signal can cut that short.
+    await Promise.race([running.cdp.send("Browser.close").catch(() => undefined), delay(1_000)]);
     running.cdp.close();
-    await terminate(running.child);
+    await terminate(running.child, 5_000);
   }
 
   private async launch(): Promise<Running> {
@@ -140,7 +142,7 @@ export class BrowserHost {
     if (!located) throw new BrowserError("browser.not_found", "没有找到可用的浏览器。请安装 Google Chrome（或 Chromium、Microsoft Edge），然后重试。");
     this.engine = located.name;
     for (const dir of [this.profile, this.downloadDir, this.uploadDir]) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    this.stopLeftover();
+    await this.stopLeftover();
     const child = spawn(located.path, [
       `--user-data-dir=${this.profile}`,
       "--remote-debugging-port=0",
@@ -204,15 +206,28 @@ export class BrowserHost {
   private get pidFile(): string { return path.join(path.dirname(this.profile), "browser.pid"); }
 
   /** A browser left from an earlier Host that did not shut down holds the profile; stop it if it is really ours. */
-  private stopLeftover(): void {
+  private async stopLeftover(): Promise<void> {
     if (process.platform === "win32") return;
     let pid = 0;
     try { pid = Number(fs.readFileSync(this.pidFile, "utf8")); } catch { return; }
     if (!Number.isInteger(pid) || pid <= 1) return;
     try {
       const command = execFileSync("ps", ["-o", "command=", "-p", String(pid)], { encoding: "utf8" });
-      if (command.includes(`--user-data-dir=${this.profile}`)) process.kill(pid, "SIGTERM");
-    } catch { /* not running */ }
+      if (!command.includes(`--user-data-dir=${this.profile}`)) return;
+    } catch { return; /* not running */ }
+    // It still holds the person's recent sign-ins in memory: ask it to quit through its own DevTools endpoint, so it
+    // writes them, and start the next one only once it is gone (two browsers on one profile lose data).
+    try {
+      const [port, target] = fs.readFileSync(path.join(this.profile, "DevToolsActivePort"), "utf8").split("\n");
+      const cdp = await CdpConnection.open(`ws://127.0.0.1:${Number(port)}${String(target ?? "").trim()}`);
+      await Promise.race([cdp.send("Browser.close").catch(() => undefined), delay(1_000)]);
+      cdp.close();
+    } catch { /* fall back to signals */ }
+    if (await exited(pid, 5_000)) return;
+    try { process.kill(pid, "SIGTERM"); } catch { return; }
+    if (await exited(pid, 3_000)) return;
+    try { process.kill(pid, "SIGKILL"); } catch { /* gone */ }
+    await exited(pid, 1_000);
   }
 
   private route(params: CdpParams, apply: (page: BrowserPage, info: { targetId: string; url: string; title: string }) => void): void {
@@ -222,13 +237,27 @@ export class BrowserHost {
   }
 }
 
-async function terminate(child: ChildProcess): Promise<void> {
+/** Waits `graceMs` for a browser already asked to quit, then signals it: SIGTERM, and SIGKILL after 3 s. */
+async function terminate(child: ChildProcess, graceMs = 0): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return;
-  const exited = new Promise<void>(resolve => child.once("exit", () => resolve()));
+  const gone = new Promise<void>(resolve => child.once("exit", () => resolve()));
+  if (graceMs > 0 && await Promise.race([gone.then(() => true), delay(graceMs).then(() => false)])) return;
+  if (child.exitCode !== null || child.signalCode !== null) return;
   child.kill("SIGTERM");
   const timer = setTimeout(() => child.kill("SIGKILL"), 3_000);
-  await exited;
+  await gone;
   clearTimeout(timer);
+}
+
+const delay = (ms: number) => new Promise<void>(resolve => { const timer = setTimeout(resolve, ms); timer.unref?.(); });
+
+/** Whether a process that is not our child has gone within `ms`. */
+async function exited(pid: number, ms: number): Promise<boolean> {
+  for (const until = Date.now() + ms; ;) {
+    try { process.kill(pid, 0); } catch { return true; }
+    if (Date.now() > until) return false;
+    await delay(100);
+  }
 }
 
 interface Layer { readonly targetId: string; readonly sessionId: string }

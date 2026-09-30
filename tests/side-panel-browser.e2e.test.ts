@@ -178,3 +178,44 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
     await rm(home, { recursive: true, force: true });
   }
 });
+
+test("sign-ins last: a site's cookies survive the browser closing, and a browser left behind by a Host that stopped", { skip: !locateBrowser() && "no Chrome-family browser on this machine", timeout: 120_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "side-panel-cookies-"));
+  const site = createServer((request, response) => {
+    const set = /^\/set\/(\w+)$/u.exec(request.url ?? "");
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", ...(set ? { "set-cookie": `${set[1]}=kept; Max-Age=86400; Path=/` } : {}) });
+    response.end(`<!doctype html><title>cookies</title><p id="c">${request.headers.cookie ?? ""}</p>`);
+  });
+  await new Promise<void>(resolve => site.listen(0, "127.0.0.1", resolve));
+  const address = site.address(); if (!address || typeof address === "string") throw new Error("no address");
+  const origin = `http://127.0.0.1:${address.port}`;
+  const open = async (host: BrowserHost) => {
+    let state: BrowserPageState | null = null;
+    const page = host.page("p1");
+    page.attach({ state: next => { state = next; }, frame: () => {} }, { width: 800, height: 600, dpr: 1 });
+    await until(() => state?.status, status => status === "ready", "the page to start");
+    return { page, visit: async (path: string) => { await page.navigate(`${origin}${path}`); await until(() => state, value => !!value && value.url === `${origin}${path}` && !value.loading, path); } };
+  };
+  const hosts: BrowserHost[] = [];
+  try {
+    // Closed the ordinary way: the browser is asked to quit and writes what it holds.
+    const first = new BrowserHost({ homeDirectory: home }); hosts.push(first);
+    await (await open(first)).visit("/set/closed");
+    await first.close();
+    const second = new BrowserHost({ homeDirectory: home }); hosts.push(second);
+    const reopened = await open(second);
+    await reopened.visit("/echo");
+    assert.match(String(await reopened.page.evaluate("document.getElementById('c').textContent")), /closed=kept/u);
+
+    // A Host that stopped without closing leaves its browser running; the next one asks it to quit before starting.
+    await reopened.visit("/set/left");
+    const third = new BrowserHost({ homeDirectory: home }); hosts.push(third);
+    const after = await open(third);
+    await after.visit("/echo");
+    assert.match(String(await after.page.evaluate("document.getElementById('c').textContent")), /left=kept/u);
+  } finally {
+    for (const host of hosts.reverse()) await host.close().catch(() => undefined);
+    site.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});

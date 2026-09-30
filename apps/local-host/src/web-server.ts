@@ -195,9 +195,10 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
         sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
       }
     }));
-    // SSE is an active HTTP response, so stop its streams before close waits.
+    // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
+    // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
     const closeServer = server.close.bind(server);
-    server.close = (callback) => { im.stop(); return closeServer(callback); };
+    server.close = (callback) => { im.stop(); void browsers?.close(); return closeServer(callback); };
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     pty.host = attachMolisWorkPtySocket(server, controlToken, {
       onData(panelId, sessionId, data) {

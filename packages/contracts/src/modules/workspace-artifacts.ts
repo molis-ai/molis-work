@@ -6,11 +6,16 @@ import type { ActionMetadata } from "../platform/actions.js";
 export interface WorkspaceFileQuery {
   workspace_id: string;
   path: readonly string[];
-  kind: "directory" | "text";
+  /** `bytes` reads a file as it is (an image, a PDF) for a preview, up to `WORKSPACE_BYTES_LIMIT`; plugins only. */
+  kind: "directory" | "text" | "bytes";
 }
+/** The most a `bytes` read returns: the side panel's preview limit. */
+export const WORKSPACE_BYTES_LIMIT = 8 * 1024 * 1024;
 export type WorkspaceFileResult =
   | { outcome: "directory"; entries: readonly { name: string; path: readonly string[]; kind: "file" | "directory" | "other" }[]; truncated: boolean }
   | { outcome: "text"; text: string; fingerprint: string; mode?: GitFileMode }
+  /** The file's bytes, base64. */
+  | { outcome: "bytes"; data: string; bytes: number; fingerprint: string }
   | { outcome: "too-large"; bytes: number; limit: number }
   | { outcome: "binary" | "unsupported" | "missing" | "denied" | "changed" };
 

@@ -29,6 +29,8 @@ export const imagesActions={
   image:define<{id:string;image_id:string},{base64:string;mime_type:string;filename:string}>("images.read","读取生成图片","返回任务中实际图片字节的 Base64、MIME 和文件名；不是厂商 URL","query","project",object({id,image_id:id}),object({base64:text,mime_type:mime,filename:text}),["images:read"]),
   searchEntries:imagesSearchActions.entries,
   subject:imagesSearchActions.subject,
+  files:imagesSearchActions.files,
+  fileContent:imagesSearchActions.fileContent,
 };
 export const IMAGES_ACTION_PERMISSIONS=[...new Set(Object.values(imagesActions).flatMap(d=>d.action.permissions))];
 export interface ImagesActionPorts { service():ImagesService; authConnections():ConnectorConnectionView[]; validateConnection(input:Omit<ImageConnectionInput,"api_key">):void }

@@ -26,6 +26,7 @@ export const lingguangManifest: PluginManifest = {
     contributions: [LINGGUANG_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "island", slot: "island", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
+      { view_id: "side", slot: "side", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
     ],
   },
 };

@@ -13,6 +13,8 @@ export type { SubjectOffersInput, SubjectActionOffer, SubjectOfferChoice } from 
 export { defineHomeEventsAction, withinHomeEventWindow, assertHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 /** System search: list what your plugin can find (by version), read it through your subject reader, or search on demand. */
 export { defineSearchEntriesAction, defineSearchQueryAction, bindSearchEntriesHandler, searchEntriesPage, searchText, searchRevisionOf, SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineFileEntriesAction, defineFileContentAction, bindFileEntriesHandler, fileEntriesPage, fileContentOf, FILE_SOURCE_AUDIENCES, FILE_CONTENT_MAX_BYTES } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { FileEntry, FileContent, FileSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntry, SearchEntriesInput, SearchEntriesPage, SearchQueryInput, SearchQueryHit, SearchQueryResult, SearchOpenTarget, SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEventWindow, HomeEvent, HomeEventCollection, HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionSubject, ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";

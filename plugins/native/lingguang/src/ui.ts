@@ -7,7 +7,7 @@ import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system
 
 export const LINGGUANG_UI_CONTRIBUTION_ID = "io.molis.work.lingguang.ui.v1";
 
-export type LingguangUiSurface = "directory" | "workbench";
+export type LingguangUiSurface = "directory" | "workbench" | "side";
 
 export interface LingguangUiPrimitives {
   escape(value: unknown): string;
@@ -27,6 +27,8 @@ export const lingguangUiDescriptor: UiContributionDescriptor = {
   surfaces: [
     { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
+    // The same stage as a side panel tab: jot an idea down beside whatever else is open (specs/side-panel).
+    { surface_id: "side", target_slot_id: "workbench.side", format: "declarative-html" },
   ],
   slots: [],
 };
@@ -38,6 +40,7 @@ export const lingguangUiContribution: UiContribution<LingguangUiModel> = {
       case "directory":
         return "";
       case "workbench":
+      case "side":
         return renderLingguangWorkbench(request.model);
       default:
         throw new Error(`Lingguang UI surface ${(request as UiRenderRequest).surface} 不存在`);

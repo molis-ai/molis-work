@@ -1,4 +1,4 @@
-import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactConsumerType, ArtifactReference, ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
@@ -28,6 +28,8 @@ function define<I, O>(name: string, title: string, description: string, operatio
 }
 /** System search: the newest available version of each Artifact, by title and the text inside its payload. */
 const searchEntries = defineSearchEntriesAction("artifacts.search.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
+/** The side panel's file tab (specs/side-panel): the newest available version of each Artifact; previews read `subject`. */
+const fileEntries = defineFileEntriesAction("artifacts.files.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
 function payloadText(value: unknown, out: string[] = [], budget = { left: 4000 }): string[] {
   if (budget.left <= 0 || value == null) return out;
   if (typeof value === "string") { const text = searchText(value, budget.left); if (text) { out.push(text); budget.left -= text.length; } }
@@ -38,6 +40,7 @@ function payloadText(value: unknown, out: string[] = [], budget = { left: 4000 }
 export const artifactsActions = {
   subject,
   searchEntries,
+  fileEntries,
   browser: define<{ reference?: ArtifactReference | null; supported_types?: ArtifactConsumerType[] }, ArtifactBrowserView>("browse", "浏览项目成果", "读取当前项目全部成果版本及指定的固定版本；保留原生产方、正文和可用状态", "query",
     object({ reference: nullable(reference), supported_types: consumerTypes }, []), browser),
   read: define<{ reference: ArtifactReference; supported_types?: ArtifactConsumerType[] }, Omit<ArtifactBrowserView, "versions">>("read", "读取固定成果版本", "按准确身份和版本读取成果及兼容性，不自动替换成最新版本", "query",
@@ -95,6 +98,17 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
       return [...latest.values()].map((record): SearchEntry => ({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
         revision: `${record.version}:${record.content_digest}`, title: artifactDisplayTitle(record), summary: payloadText(record.payload).join("\n").slice(0, 4000),
         updated_at: record.created_at, content: "summary", open: { surface: "artifacts", id: artifactVersionPath(record) } }));
+    }),
+    bindFileEntriesHandler(artifactsActions.fileEntries, () => {
+      const latest = new Map<string, ArtifactVersionRecord>();
+      for (const record of ports.artifacts.query.listArtifacts(ports.boardId)) {
+        if (record.lifecycle_state !== "active" || record.availability !== "available") continue;
+        const current = latest.get(record.artifact_id);
+        if (!current || record.version > current.version) latest.set(record.artifact_id, record);
+      }
+      return [...latest.values()].map(record => ({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
+        revision: `${record.version}:${record.content_digest}`, title: artifactDisplayTitle(record), folder: [record.artifact_type_id],
+        media_type: "text/markdown", size: record.size_bytes ?? null, updated_at: record.created_at, open: { surface: "artifacts", id: artifactVersionPath(record) } }));
     }),
     bind(artifactsActions.browser, input => readArtifactBrowser(ports.artifacts.query, ports.boardId, input.reference ?? null, input.supported_types)),
     bind(artifactsActions.read, input => readArtifactSelection(ports.artifacts.query, ports.boardId, input.reference, input.supported_types)),

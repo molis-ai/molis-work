@@ -44,6 +44,7 @@ export const cogniaActions = {
   archiveDraft: define<{ id: string }, { deleted: true }>("draft.archive", "归档审阅草稿", "移出待审阅列表，保留已采纳资料的来源引用", "command", s.object({ id: s.id }), s.deleted),
   searchEntries: cogniaSearchActions.entries,
   subject: cogniaSearchActions.subject,
+  files: cogniaSearchActions.files,
 };
 export const COGNIA_ACTIONS: readonly ActionDefinition[] = Object.values(cogniaActions);
 export const COGNIA_ACTION_PERMISSIONS = [...new Set(COGNIA_ACTIONS.flatMap(definition => definition.action.permissions))];

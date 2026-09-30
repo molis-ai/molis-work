@@ -365,6 +365,13 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
       && start.right<=composer.left && composer.right<=residents.left && residents.right<=project.left
       && project.right<=innerWidth && project.bottom<=innerHeight && project.width>=39;
   })()`), "the bar reads Dock · Assistant · Shelf/灵光 · project, left to right, none covering another");
+  // At rest the bar is the input: no chip for a new work, no chooser nobody changed; files and choices are behind “+”.
+  assert.ok(await evaluate(`(()=>{const hidden=(sel)=>!document.querySelector(sel)?.getClientRects().length;
+    return hidden('[data-assistant-target-wrap]') && hidden('[data-assistant-executor]') && hidden('[data-assistant-character]');})()`), "a new work shows no work chip and no default chooser");
+  await click("[data-assistant-attach]");
+  await waitFor("!document.querySelector('[data-assistant-more]').hidden && /添加文件/.test(document.querySelector('[data-assistant-more]').textContent)");
+  await evaluate("document.querySelector('[data-assistant-more] button').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await waitFor("document.querySelector('[data-assistant-more]').hidden");
   // However many chips stand beside it, the input keeps room to type: a long work, its materials, what needs a look.
   const crowd = `(()=>{
     for (const [chip, count] of [['[data-assistant-attention]', '23'], ['[data-assistant-materials]', '1']]) { const button = document.querySelector(chip); button.hidden = false; button.querySelector('span').textContent = count; }

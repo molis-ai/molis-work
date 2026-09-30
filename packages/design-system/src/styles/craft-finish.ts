@@ -489,6 +489,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-objects summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
   ${ASSIST} .assistant-objects-items { list-style: none; margin: 4px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow: auto; }
   ${ASSIST} .assistant-object { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 4px; border-radius: 6px; }
+  ${ASSIST} .assistant-object--undo { grid-template-columns: minmax(0, 1fr) auto auto; }
   ${ASSIST} .assistant-object-relation { font-size: 11px; color: var(--muted); padding: 0 4px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); white-space: nowrap; }
   ${ASSIST} .assistant-object-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
   ${ASSIST} .assistant-object-state { font-size: 11px; color: var(--faint); white-space: nowrap; }
@@ -603,6 +604,46 @@ const CRAFT_BASE_STYLES = `
     max-height: 50dvh; overflow: auto; padding: 8px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); font-size: 13px;
   }
   ${ASSIST} .assistant-popover[hidden] { display: none; }
+  /* One “+” beside the input: adding files and every choice about the next work, each with its current value. */
+  ${ASSIST} .assistant-more { left: auto; right: 0; width: min(300px, 100%); gap: 2px; }
+  ${ASSIST} .assistant-more-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 32px; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+  ${ASSIST} .assistant-more-item:hover { background: var(--nav-hover); }
+  ${ASSIST} .assistant-more-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-more-value { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+  /* What this message carries, named — the page's own object first — rather than counted. */
+  ${ASSIST} .assistant-materials-button { flex: 0 1 auto; min-width: 0; max-width: 188px; }
+  ${ASSIST} .assistant-materials-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-materials-button [data-assistant-materials-count]:empty { display: none; }
+  ${ASSIST} .assistant-materials-button[data-optional] { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
+  /* A phone, or a crowded bar, keeps the pill's mark and count; its name is in its list and its label. */
+  @media (max-width: 600px) { ${ASSIST} .assistant-materials-label { display: none; } }
+  ${SHELL} .bar-composer[data-fit="narrow"] .assistant-materials-label { display: none; }
+  /* News alone is a quiet bell; a number means something waits for the person. */
+  ${ASSIST} .assistant-attention[data-quiet] { background: transparent; color: var(--muted); }
+  /* The work's own menu: where it belongs, who carries it, handing over, usage. */
+  ${ASSIST} .assistant-work-menu { position: absolute; z-index: 5; top: 44px; right: 8px; display: flex; flex-direction: column; gap: 2px; width: min(260px, calc(100% - 16px)); padding: 6px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); }
+  ${ASSIST} .assistant-work-menu[hidden] { display: none; }
+  ${ASSIST} .assistant-work-menu .assistant-work-scope { flex: none; max-width: none; margin: 0; padding: 4px 8px; border-radius: 0; box-shadow: none; color: var(--muted); font-size: 12px; white-space: normal; }
+  ${ASSIST} .assistant-menu-item { min-height: 32px; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+  ${ASSIST} .assistant-menu-item[hidden] { display: none; }
+  ${ASSIST} .assistant-menu-item:hover:not(:disabled) { background: var(--nav-hover); }
+  ${ASSIST} .assistant-menu-item:disabled { color: var(--muted); cursor: default; }
+  ${ASSIST} .assistant-menu-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  /* The steps between two messages: one quiet line that opens to each step. */
+  ${ASSIST} .assistant-steps { margin: 0; font-size: 12px; color: var(--muted); }
+  ${ASSIST} .assistant-steps > summary { width: fit-content; margin-left: -4px; padding: 2px 4px; border-radius: 6px; list-style: none; cursor: pointer; }
+  ${ASSIST} .assistant-steps > summary::-webkit-details-marker { display: none; }
+  ${ASSIST} .assistant-steps > summary::before { content: "›"; display: inline-block; width: 12px; transition: transform var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} .assistant-steps[open] > summary::before { transform: rotate(90deg); }
+  ${ASSIST} .assistant-steps > summary:hover { background: var(--nav-hover); color: var(--ink-soft); }
+  ${ASSIST} .assistant-steps > summary:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-steps[data-state="failed"] > summary { color: var(--danger); }
+  ${ASSIST} .assistant-steps > .assistant-activity { padding: 2px 0 0 12px; }
+  /* A long message of the person's folds after six lines. */
+  ${ASSIST} .assistant-msg--user[data-folded] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
+  ${ASSIST} .assistant-msg-more { align-self: flex-end; margin-top: -8px; padding: 0 4px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+  ${ASSIST} .assistant-msg-more:hover { color: var(--ink); }
+  ${ASSIST} .assistant-msg-more:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
   /* A plugin's suggestion waits above the bar until the person puts it in the input or ignores it. */
   ${ASSIST} .assistant-offer {
     position: absolute; z-index: 55; right: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 6px; width: min(420px, 100%);
@@ -640,6 +681,9 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-material-remove:hover { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} .assistant-starter { width: 100%; padding: 8px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer; }
   ${ASSIST} .assistant-starter:hover { background: var(--nav-hover); color: var(--ink); }
+  ${ASSIST} .assistant-starter--work { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+  ${ASSIST} .assistant-starter-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-starter-state { color: var(--muted); font-size: 12px; white-space: nowrap; }
   ${ASSIST} :is(.assistant-starter, .assistant-material-remove):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-exact summary { cursor: pointer; font-size: 12px; color: var(--muted); }
   ${ASSIST} .assistant-exact pre { margin: 4px 0 0; max-height: 200px; overflow: auto; padding: 8px 12px; border-radius: 8px; background: var(--wash); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }

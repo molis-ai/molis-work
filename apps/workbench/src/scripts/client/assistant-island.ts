@@ -183,14 +183,15 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       targetLabel.textContent = (isLive(work.state) ? L("补充到") : L("继续")) + "：" + work.title;
       target.title = L("下一次发送进入这项工作；点 × 改为开始新工作");
       if (targetClear) targetClear.hidden = false;
-      if (targetWrap) targetWrap.dataset.mode = "work";
+      if (targetWrap) { targetWrap.dataset.mode = "work"; targetWrap.hidden = false; }
     } else {
       targetLabel.textContent = L("新工作") + " · " + (newScope === "project" && project ? (project.title || L("本项目")) : L("个人"));
       target.title = project ? L("点击切换：新工作属于本项目，或属于你个人（不需要项目）") : L("新工作属于你个人");
       if (targetClear) targetClear.hidden = true;
-      if (targetWrap) targetWrap.dataset.mode = "new";
+      // A new work needs no chip: where it lives and who does it are in “+”; the input says the rest.
+      if (targetWrap) { targetWrap.dataset.mode = "new"; targetWrap.hidden = true; }
     }
-    input.placeholder = work ? L("补充要求、回答或纠正…") : newExecutor === "coding" ? L("让 Coding Agent 做点什么…") : L("让助理做点什么…");
+    input.placeholder = work ? L("补充、回答或纠正…") : newExecutor === "coding" ? L("让 Coding Agent 做点什么…") : L("让助理做点什么…");
     // A Coding work shows the mode its next round runs in — the session's own setting, the same one its page shows.
     if (modeButton) {
       // A new work that continues an open Coding session runs in that session's own mode, shown once it is the work's.
@@ -204,7 +205,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     if (characterButton) {
       const allowed = characterAllowed(), chosen = chosenCharacter();
-      characterButton.hidden = !allowed;
+      // Shown only once changed from the Assistant itself; choosing is in “+”.
+      characterButton.hidden = !allowed || !chosen;
       characterButton.toggleAttribute("data-chosen", Boolean(allowed && chosen));
       if (allowed && characterLabel) {
         characterLabel.textContent = L("角色") + "：" + (chosen ? chosen.title : L("助理"));
@@ -213,7 +215,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     // Who carries the next new work: chosen before sending; an existing work keeps its own.
     if (executorButton) {
-      executorButton.hidden = Boolean(work) || !codingHere();
+      executorButton.hidden = Boolean(work) || !codingHere() || newExecutor === "assistant";
       if (!codingHere() && newExecutor !== "assistant") newExecutor = "assistant";
       executorButton.toggleAttribute("data-chosen", newExecutor !== "assistant");
       if (executorLabel) executorLabel.textContent = L((EXECUTORS.find((one) => one.id === newExecutor) || EXECUTORS[0]).label)
@@ -259,7 +261,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const switchTo = async (id) => {
     if (id === currentId) return;
     saveDraft(true);
-    currentId = id; remember(); problem = null; view = null; pendingCharacter = undefined;
+    currentId = id; remember(); problem = null; view = null; pendingCharacter = undefined; usageShown = false;
     thread.querySelectorAll(":scope > [data-round], :scope > [data-review], :scope > .assistant-problem").forEach((node) => node.remove());
     loadDraft(); render();
     if (id) { await refresh(); schedule(); }
@@ -526,8 +528,34 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const own = keyed(node, "data-entry", "task", () => el("div", "assistant-msg assistant-msg--user"));
       setText(own, round.text);
     } else node.querySelector(':scope > [data-entry="task"]')?.remove();
+    const placeLine = (parent, item) => {
+      const line = keyed(parent, "data-entry", "a:" + item.call_id, () => el("p", "assistant-activity"));
+      line.dataset.state = item.state;
+      setText(line, activityLine(item));
+      if (item.detail) line.title = item.detail; else line.removeAttribute("title");
+      parent.append(line);
+    };
+    // The steps between two messages read as one quiet line — what it is doing now, or how many steps it took and any
+    // that did not finish — and open to each step. A single step stays a line of its own.
+    let run = [];
+    const flush = () => {
+      if (run.length === 1) placeLine(node, run[0]);
+      else if (run.length > 1) {
+        const first = "a:" + run[0].call_id;
+        [...node.children].forEach((child) => { if (child.getAttribute("data-entry") === first) child.remove(); });
+        const box = keyed(node, "data-entry", "g:" + run[0].call_id, () => { const box = el("details", "assistant-steps"); box.append(el("summary", "assistant-steps-summary")); return box; });
+        const live = [...run].reverse().find((item) => item.state === "started");
+        const unfinished = run.filter((item) => item.state === "failed" || item.state === "unknown").length;
+        box.dataset.state = live ? "started" : unfinished ? "failed" : "completed";
+        setText(box.firstElementChild, live ? activityLine(live) : L("过程") + " · " + run.length + " " + L("步") + (unfinished ? " · " + unfinished + " " + L("步没有完成") : ""));
+        run.forEach((item) => placeLine(box, item));
+        node.append(box);
+      }
+      run = [];
+    };
     entries.forEach((entry) => {
       if (entry.turn) {
+        flush();
         const turn = entry.turn;
         const kind = turn.kind === "user" ? "user" : turn.kind === "assistant" ? "assistant" : "note";
         const bubble = keyed(node, "data-entry", entry.key, () => el("div", "assistant-msg assistant-msg--" + kind));
@@ -536,14 +564,24 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           if (kind === "assistant") bubble.replaceChildren(rich(turn.text)); else bubble.textContent = turn.text;
         }
         node.append(bubble);
-      } else {
-        const line = keyed(node, "data-entry", entry.key, () => el("p", "assistant-activity"));
-        line.dataset.state = entry.item.state;
-        setText(line, activityLine(entry.item));
-        if (entry.item.detail) line.title = entry.item.detail; else line.removeAttribute("title");
-        node.append(line);
-      }
+        // A long message of the person's folds after a few lines; the whole of it is one click away.
+        if (kind === "user" && (turn.text.length > 240 || turn.text.split("\n").length > 6)) {
+          if (!bubble.hasAttribute("data-unfolded")) bubble.setAttribute("data-folded", "");
+          const more = keyed(node, "data-entry", "fold:" + turn.turn_id, () => {
+            const button = el("button", "assistant-msg-more"); button.type = "button";
+            button.addEventListener("click", () => {
+              const folded = bubble.hasAttribute("data-folded");
+              bubble.toggleAttribute("data-folded", !folded); bubble.toggleAttribute("data-unfolded", folded);
+              button.textContent = folded ? L("收起") : L("展开全文");
+            });
+            return button;
+          });
+          if (!more.textContent) more.textContent = bubble.hasAttribute("data-folded") ? L("展开全文") : L("收起");
+          node.append(more);
+        }
+      } else run.push(entry.item);
     });
+    flush();
     if (round.materials && round.materials.length) {
       const chips = keyed(node, "data-entry", "materials", () => el("p", "assistant-materials"));
       setText(chips, L("带上的材料") + "：" + round.materials.map((item) => item.title + (item.draft ? L("（草稿）") : "")).join("、"));
@@ -569,12 +607,33 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     });
     renderCards(node, work, ((view && view.cards) || []).filter((card) => card.run_id === round.run_id));
   };
+  const workMore = island.querySelector("[data-assistant-work-more]");
+  const workMenu = island.querySelector("[data-assistant-work-menu]");
+  const usageToggle = island.querySelector("[data-assistant-usage-toggle]");
+  // Usage is there when asked for (or when the work's cap is reached), not above every conversation.
+  let usageShown = false;
+  function setWorkMenu(open) {
+    if (!workMenu) return;
+    workMenu.hidden = !open;
+    workMore?.setAttribute("aria-expanded", String(open));
+    if (open) workMenu.querySelector("button:not([hidden])")?.focus();
+  }
+  workMore?.addEventListener("click", () => setWorkMenu(Boolean(workMenu && workMenu.hidden)));
+  workMenu?.addEventListener("click", (event) => { if (event.target instanceof Element && event.target.closest("button")) setTimeout(() => setWorkMenu(false), 0); });
+  usageToggle?.addEventListener("click", () => {
+    usageShown = !usageShown;
+    if (usageBox) usageBox.dataset.signature = "";
+    render();
+    if (usageShown) usageBox?.querySelector("summary")?.focus();
+  });
   const paintHead = () => {
     const work = view && view.work.work_id === currentId ? view.work : currentWork();
     titleEl.textContent = work ? work.title : L("新工作");
     stateEl.textContent = work ? stateLabel(work.state) : "";
     stateEl.dataset.state = work ? work.state : "";
-    scopeEl.textContent = work ? scopeLabel(work.scope, work.scope_title) : (newScope === "project" && project ? (project.title || L("本项目")) : L("个人"));
+    scopeEl.textContent = L("属于") + "：" + (work ? scopeLabel(work.scope, work.scope_title) : (newScope === "project" && project ? (project.title || L("本项目")) : L("个人")));
+    if (workMore) workMore.hidden = !work;
+    if (usageToggle) usageToggle.textContent = usageShown ? L("收起用量") : L("用量与上限");
     // Which Agent carries this work, and the way into its own professional page.
     if (openExecutor) {
       const coding = work && work.executor && work.executor.kind === "coding";
@@ -661,14 +720,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const renderUsage = (work) => {
     if (!usageBox) return;
     const usage = work && view && view.usage ? view.usage : null;
-    const signature = JSON.stringify([work && work.work_id, usage]);
+    const signature = JSON.stringify([work && work.work_id, usage, usageShown]);
     if (usageBox.dataset.signature === signature) return;
     const wasOpen = usageBox.querySelector("details")?.open;
     usageBox.dataset.signature = signature;
-    usageBox.hidden = !usage;
+    const over = Boolean(usage && usage.budget_tokens !== null && usage.tokens >= usage.budget_tokens);
+    usageBox.hidden = !usage || !(usageShown || over);
     if (!usage) { usageBox.replaceChildren(); return; }
     const number = (value) => Number(value).toLocaleString("en-US");
-    const over = usage.budget_tokens !== null && usage.tokens >= usage.budget_tokens;
     const details = el("details", "assistant-objects-list");
     details.open = wasOpen === undefined ? over : wasOpen;
     details.append(el("summary", "", L("用量") + " · " + number(usage.tokens) + " tokens" + (usage.budget_tokens !== null ? " / " + L("上限") + " " + number(usage.budget_tokens) : "") + (over ? " · " + L("已到上限") : "")));
@@ -693,6 +752,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   /* The work's task board: sub-tasks it handed to works of their own, and for a delegated work, who asked for it. */
   const delegatedBox = island.querySelector("[data-assistant-delegated]");
+  let undoOpen = false;
   const renderDelegated = (work) => {
     if (!delegatedBox) return;
     const children = work && view && view.delegated ? view.delegated : [];
@@ -709,24 +769,34 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     delegatedBox.dataset.signature = signature;
     delegatedBox.hidden = !children.length && !parent && !scheduled.length && !unsettled.length && !jobs.length && !undoable.length && !suggestions.length;
     delegatedBox.replaceChildren();
-    /* Changes this work made that say how they are taken back: one click undoes it, once. */
+    /* Changes this work made that say how they are taken back: folded into one line, each one click to undo, once. */
     const UNDO = { available: "可以撤销", undone: "已撤销", failed: "没能撤销" };
-    undoable.slice().reverse().forEach((change) => {
-      const row = el("p", "assistant-object");
-      row.append(el("span", "assistant-object-relation", L("修改")), el("span", "assistant-object-title", change.title),
-        el("span", "assistant-object-state", L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : "")));
-      if (change.state !== "undone") {
-        const undo = el("button", "assistant-object-open", L("撤销")); undo.type = "button";
-        undo.setAttribute("aria-label", L("撤销") + "：" + change.title);
-        undo.addEventListener("click", async () => {
-          undo.disabled = true;
-          try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {}); render(); }
-          catch (error) { host.showToast?.(error.message); undo.disabled = false; }
-        });
-        row.append(undo);
-      }
-      delegatedBox.append(row);
-    });
+    if (undoable.length) {
+      const box = el("details", "assistant-objects-list");
+      box.open = undoOpen;
+      box.addEventListener("toggle", () => { undoOpen = box.open; });
+      const ready = undoable.filter((change) => change.state === "available").length;
+      box.append(el("summary", "", L("可撤销的修改") + " · " + ready + (ready !== undoable.length ? " / " + undoable.length : "")));
+      const list = el("div", "assistant-objects-items");
+      undoable.slice().reverse().forEach((change) => {
+        const row = el("p", "assistant-object assistant-object--undo");
+        row.append(el("span", "assistant-object-title", change.title),
+          el("span", "assistant-object-state", L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : "")));
+        if (change.state !== "undone") {
+          const undo = el("button", "assistant-object-open", L("撤销")); undo.type = "button";
+          undo.setAttribute("aria-label", L("撤销") + "：" + change.title);
+          undo.addEventListener("click", async () => {
+            undo.disabled = true;
+            try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {}); render(); }
+            catch (error) { host.showToast?.(error.message); undo.disabled = false; }
+          });
+          row.append(undo);
+        }
+        list.append(row);
+      });
+      box.append(list);
+      delegatedBox.append(box);
+    }
     /* What this work suggests keeping: nothing is kept until the person says so. */
     suggestions.forEach((candidate) => {
       const row = el("p", "assistant-object");
@@ -888,7 +958,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         // A work's own cap is raised right here, in its usage box; the daily cap lives in the Assistant's settings.
         else if (/这项工作的上限/.test(shown.action) && usageBox) {
           const raise = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); raise.type = "button";
-          raise.addEventListener("click", () => { const details = usageBox.querySelector("details"); if (details) details.open = true; usageBox.querySelector("input")?.focus(); });
+          raise.addEventListener("click", () => { usageShown = true; usageBox.dataset.signature = ""; renderUsage(view && view.work); const details = usageBox.querySelector("details"); if (details) details.open = true; usageBox.querySelector("input")?.focus(); });
           box.append(raise);
         }
         else if (shown.action === "打开设置") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L("打开助理设置")); link.href = "/settings/assistant"; box.append(link); }
@@ -1018,12 +1088,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!notices.length) noticesPop.append(el("p", "assistant-material-origin", L("现在没有需要你看的事")));
     if (focusKey) (noticesPop.querySelector('[data-notice-id="' + focusKey[0] + '"][data-notice-action="' + focusKey[1] + '"]') || noticesPop.querySelector("button"))?.focus();
   };
+  // Counted only for what needs the person (a decision, a failure, a reminder that is due); news alone is a quiet bell.
+  const URGENT = new Set(["needs-decision", "failed", "reminder"]);
   const paintAttention = () => {
-    const open = notices.filter((notice) => !notice.held).length;
+    const open = notices.filter((notice) => !notice.held);
+    const urgent = open.filter((notice) => URGENT.has(notice.kind)).length;
     if (attentionButton) {
-      attentionButton.hidden = !open;
-      if (attentionCount) attentionCount.textContent = open ? String(open) : "";
-      attentionButton.setAttribute("aria-label", L("需要你看看") + " · " + open);
+      attentionButton.hidden = !open.length;
+      attentionButton.toggleAttribute("data-quiet", !urgent);
+      if (attentionCount) attentionCount.textContent = urgent ? String(urgent) : "";
+      attentionButton.setAttribute("aria-label", urgent ? L("需要你看看") + " · " + urgent : L("有新消息") + " · " + open.length);
     }
     if (noticesPop && !noticesPop.hidden) paintNotices();
   };
@@ -1055,6 +1129,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   /* ─── What the person is looking at, and what goes with this Send ──────── */
   const materialsButton = island.querySelector("[data-assistant-materials]");
   const materialsCount = island.querySelector("[data-assistant-materials-count]");
+  const materialsLabel = island.querySelector("[data-assistant-materials-label]");
   const materialsList = island.querySelector("[data-assistant-materials-list]");
   const startersPop = island.querySelector("[data-assistant-starters]");
   const attach = island.querySelector("[data-assistant-attach]");
@@ -1151,8 +1226,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const items = materialsNow();
     const carried = items.filter((item) => !item.optional);
     materialsButton.hidden = !items.length;
-    if (materialsCount) materialsCount.textContent = String(carried.length) + (carried.length < items.length ? "+" : "");
-    materialsButton.setAttribute("aria-label", L("本次发送带上的材料") + "：" + carried.length + (carried.length < items.length ? "，" + L("另有正在看的对象未加入") : ""));
+    // Named, not counted: the first thing this message carries (what the page shows), and how many more.
+    const lead = carried[0] || items[0];
+    if (materialsLabel) materialsLabel.textContent = lead ? clip(lead.label.replace(/^正在看：/, ""), 16) : "";
+    if (materialsCount) materialsCount.textContent = carried.length > 1 ? "+" + (carried.length - 1) : "";
+    materialsButton.toggleAttribute("data-optional", !carried.length);
+    materialsButton.setAttribute("aria-label", L("本次发送带上的材料") + "：" + (carried.length ? carried.map((item) => item.label).join("、") : L("无")) + (carried.length < items.length ? "；" + L("另有正在看的对象未加入") : ""));
     if (!materialsList || materialsList.hidden) return;
     materialsList.replaceChildren(el("p", "assistant-popover-title", L("本次发送带上的材料")));
     if (!items.length) materialsList.append(el("p", "assistant-muted", L("没有材料。可以在页面上选中内容，或添加文件。")));
@@ -1315,13 +1394,25 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!startersPop) return;
     delete startersPop.dataset.mode;
     const list = open ? startersFor() : [];
-    startersPop.hidden = !list.length;
-    if (!list.length) return;
-    startersPop.replaceChildren(el("p", "assistant-popover-title", L("可以这样开始")));
+    // With no work chosen, the works done lately are one click away too: the way back to them from the input itself.
+    const recent = open && !currentId ? works.filter((work) => !work.archived && !work.delegated_by)
+      .slice().sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || ""))).slice(0, 3) : [];
+    startersPop.hidden = !list.length && !recent.length;
+    if (startersPop.hidden) return;
+    startersPop.replaceChildren();
+    if (list.length) startersPop.append(el("p", "assistant-popover-title", L("可以这样开始")));
     list.forEach((starter) => {
       const button = el("button", "assistant-starter", starter.label); button.type = "button";
       button.addEventListener("mousedown", (event) => event.preventDefault());
       button.addEventListener("click", () => { input.value = starter.prompt; typed = true; syncSend(); saveDraft(false); setStarters(false); input.focus(); });
+      startersPop.append(button);
+    });
+    if (recent.length) startersPop.append(el("p", "assistant-popover-title", L("继续最近的工作")));
+    recent.forEach((work) => {
+      const button = el("button", "assistant-starter assistant-starter--work"); button.type = "button";
+      button.append(el("span", "assistant-starter-title", work.title), el("span", "assistant-starter-state", stateLabel(work.state)));
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", async () => { setStarters(false); await switchTo(work.work_id); setPanel(true); refresh().then(schedule); input.focus(); });
       startersPop.append(button);
     });
   }
@@ -1329,10 +1420,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; setStarters(false); }, 0));
   document.addEventListener("pointerdown", (event) => {
     if (!(event.target instanceof Element) || island.contains(event.target)) return;
-    setStarters(false); if (materialsList && !materialsList.hidden) setMaterials(false); if (executorsPop && !executorsPop.hidden) setExecutors(false); if (modesPop && !modesPop.hidden) setModes(false); if (charactersPop && !charactersPop.hidden) setCharacters(false); if (noticesPop && !noticesPop.hidden) setNotices(false);
+    setStarters(false); if (morePop && !morePop.hidden) setMore(false); if (workMenu && !workMenu.hidden) setWorkMenu(false); if (materialsList && !materialsList.hidden) setMaterials(false); if (executorsPop && !executorsPop.hidden) setExecutors(false); if (modesPop && !modesPop.hidden) setModes(false); if (charactersPop && !charactersPop.hidden) setCharacters(false); if (noticesPop && !noticesPop.hidden) setNotices(false);
   });
   island.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    if (morePop && !morePop.hidden) { event.preventDefault(); event.stopPropagation(); setMore(false); attach?.focus(); return; }
+    if (workMenu && !workMenu.hidden) { event.preventDefault(); event.stopPropagation(); setWorkMenu(false); workMore?.focus(); return; }
     if (materialsList && !materialsList.hidden) { event.preventDefault(); event.stopPropagation(); setMaterials(false); materialsButton?.focus(); return; }
     if (startersPop && !startersPop.hidden) { event.preventDefault(); event.stopPropagation(); setStarters(false); }
     if (executorsPop && !executorsPop.hidden) { event.preventDefault(); event.stopPropagation(); setExecutors(false); executorButton?.focus(); }
@@ -1377,7 +1470,33 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     paintMaterials();
   }
-  attach?.addEventListener("click", () => fileInput?.click());
+  const morePop = island.querySelector("[data-assistant-more]");
+  const moreItem = (label, value, run) => {
+    const row = el("button", "assistant-more-item"); row.type = "button";
+    row.append(el("span", "assistant-more-label", label));
+    if (value) row.append(el("span", "assistant-more-value", value));
+    row.addEventListener("click", run);
+    return row;
+  };
+  const paintMore = () => {
+    if (!morePop) return;
+    const work = currentWork();
+    const rows = [moreItem(L("添加文件…"), L("文本、PDF 或图片"), () => { setMore(false); fileInput?.click(); })];
+    if (!work && codingHere()) rows.push(moreItem(L("由谁来做"), L((EXECUTORS.find((one) => one.id === newExecutor) || EXECUTORS[0]).label), () => { setMore(false); setExecutors(true); }));
+    if (characterAllowed()) { const chosen = chosenCharacter(); rows.push(moreItem(L("由哪个角色负责"), chosen ? chosen.title : L("助理自己"), () => { setMore(false); void setCharacters(true); })); }
+    if (modeButton && !modeButton.hidden) rows.push(moreItem(L("下一轮的方式"), modeLabel ? modeLabel.textContent.replace(/^[^：]*：/, "") : "", () => { setMore(false); setModes(true); }));
+    if (!work && project) rows.push(moreItem(L("新工作放在"), newScope === "project" ? (project.title || L("本项目")) : L("个人"), () => {
+      newScope = newScope === "project" ? "personal" : "project"; paintTarget(); paintHead(); paintMore(); morePop.lastElementChild?.focus();
+    }));
+    morePop.replaceChildren(...rows);
+  };
+  function setMore(open) {
+    if (!morePop) return;
+    morePop.hidden = !open;
+    attach?.setAttribute("aria-expanded", String(open));
+    if (open) { setStarters(false); paintMore(); morePop.querySelector("button")?.focus(); }
+  }
+  attach?.addEventListener("click", () => setMore(Boolean(morePop && morePop.hidden)));
   fileInput?.addEventListener("change", () => {
     const chosen = [...(fileInput.files || [])];
     fileInput.value = "";
@@ -1541,7 +1660,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (String(input.value || "").startsWith("/")) { if (slashOpen()) startersPop.querySelector("button")?.click(); return; }
     // Nothing typed: Enter opens the work the next Send goes to — the way in from the keyboard, and on a phone,
     // where the work chip steps aside while the input has focus.
-    if (!String(input.value || "").trim()) { if (currentWork()) { setPanel(true); refresh().then(schedule); } return; }
+    // With no work chosen, Enter opens the list of works.
+    if (!String(input.value || "").trim()) { if (currentWork()) { setPanel(true); refresh().then(schedule); } else if (works.length) { setPanel(true); setWorks(true); } return; }
     syncSend();
     if (!send.disabled) composer.requestSubmit(send);
   });
@@ -1651,9 +1771,29 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     fitWatchers.push(watcher);
   }
 
-  loadDraft(); render(); refit();
+  // A finished work is where the next message goes only while it is fresh: once it has rested a while (and its panel is
+  // closed, the input empty) a message starts a new work. It stays in the list, and its notices still open it.
+  const RESTING_MS = 15 * 60 * 1000;
+  const restIfStale = () => {
+    const work = currentWork();
+    if (!work || isLive(work.state) || (panel && !panel.hidden) || String(input.value || "").trim()) return;
+    const at = Date.parse(work.updated_at || "");
+    if (Number.isFinite(at) && Date.now() - at > RESTING_MS) void switchTo(null);
+  };
+  if (panel && "MutationObserver" in window) new MutationObserver(() => { if (panel.hidden) restIfStale(); }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+
+  // The pill names what the page on show would bring, so it follows the page: another object, another surface.
+  let materialsFrame = 0;
+  const repaintMaterials = () => { if (!materialsFrame) materialsFrame = requestAnimationFrame(() => { materialsFrame = 0; paintMaterials(); }); };
+  if ("MutationObserver" in window) {
+    const watcher = new MutationObserver((records) => { if (records.some((record) => !island.contains(record.target))) repaintMaterials(); });
+    watcher.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-assistant-context", "hidden"] });
+    fitWatchers.push(watcher);
+  }
+
+  loadDraft(); render(); refit(); repaintMaterials();
   // The work's own draft is known only once the list arrives; fill it then unless the person has already typed.
   // Changes already done before this page loaded are not news; only ones completing from now on are announced.
-  loadWorks().then(() => { if (!typed) loadDraft(); if (currentId) return refresh().then(schedule); }).finally(() => { announcing = true; });
-  return { isOpen: () => Boolean(panel && !panel.hidden), dispose: () => { clearTimeout(pollTimer); clearInterval(listTimer); cancelAnimationFrame(fitFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
+  loadWorks().then(() => { restIfStale(); if (!typed) loadDraft(); if (currentId) return refresh().then(schedule); }).finally(() => { announcing = true; });
+  return { isOpen: () => Boolean(panel && !panel.hidden), dispose: () => { clearTimeout(pollTimer); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
 }`;

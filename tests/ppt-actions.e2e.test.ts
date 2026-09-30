@@ -82,7 +82,8 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
     await click('[data-ppt-artifact-bar]');await idle();assert.equal(read()[0]!.publication_pending!.version,1);db.exec('DROP TRIGGER fail_ppt_ui');
   }finally{db.close();}
   await input('[data-ppt-description]','继续编辑保留');await saved();assert.equal(await evaluate("document.querySelector('[data-ppt-artifact-bar]').textContent"),'恢复发布');await screenshot('recovery');
-  await reloadPage();await open();await waitFor("document.querySelector('[data-ppt-id]')");await click('[data-ppt-id]');await idle();
+  // The presentation being edited comes back by itself (specs/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
+  await reloadPage();await open();await waitFor("document.querySelector('[data-ppt-title]')?.getClientRects().length > 0");await idle();
   await click('[data-ppt-artifact-bar]');await idle();assert.equal(read()[0]!.artifact_version,1);assert.equal(read()[0]!.publication_pending,undefined);assert.equal(read()[0]!.description,'继续编辑保留');
   const denied=await evaluate<number>(`fetch('/api/plugins/ppt?project_id=${projectId}',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({project_id:'wrong',title:'denied'})}).then(r=>r.status)`);
   assert.equal(denied,403);assert.equal(read().length,1);

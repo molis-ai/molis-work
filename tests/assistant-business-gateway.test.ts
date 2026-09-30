@@ -10,7 +10,7 @@ import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
 import { actionKey, assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
-import { prologueActionGateway, readableInput } from "../horizontal/agent-host/src/adapters/prologue-action-gateway.js";
+import { gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/src/adapters/prologue-action-gateway.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -621,6 +621,21 @@ test("a change its owner has not answered by the gateway's own deadline ends in 
     (error: any) => error.code === "actions.outcome_unknown" && /may or may not have taken effect/.test(error.message));
   assert.ok(Date.now() - started < 7_000, "well before the runtime's own limit");
   assert.equal(seen?.aborted, true, "the owner is told to stop");
+});
+
+test("plain text or twice-encoded JSON for a capability whose one required field is text is that field; a mismatch shows what arrived (seen with MiniMax-M3)", async () => {
+  const view = { capability_id: "fixture.notes.write", version: 1, operation: "command", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
+    action: write.action, availability: { available: true } } as unknown as ActionView;
+  // A generated plugin's extract action was sent its meeting notes as text four times, until the runtime stopped the round.
+  assert.deepEqual(normalizedInput(view, "周五复盘会：老李负责联系活动场地"), { text: "周五复盘会：老李负责联系活动场地" });
+  assert.deepEqual(normalizedInput(view, JSON.stringify(JSON.stringify({ text: "会后发纪要" }))), { text: "会后发纪要" });
+  assert.deepEqual(normalizedInput(view, "{\"text\":\"x\"}"), { text: "x" });
+  // Text that could mean more than one field is left as sent, and the contract says why.
+  const two = { ...view, action: { ...view.action, input_schema: { type: "object", properties: { title: { type: "string" }, body: { type: "string" } }, required: ["title", "body"] } } } as ActionView;
+  assert.equal(normalizedInput(two, "会后发纪要"), "会后发纪要");
+  const client = { discover: async () => [two], check: async (_ref: unknown, input: unknown) => { if (typeof input !== "object") throw new Error("输入不符合能力合同：/ type"); } };
+  const problem = await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: "会后发纪要" });
+  assert.match(problem ?? "", /you sent string: "会后发纪要"/);
 });
 
 test("a capability identity the round never found is answered as unknown, not as taken away", async () => {

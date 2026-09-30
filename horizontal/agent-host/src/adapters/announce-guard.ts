@@ -10,12 +10,16 @@
 const INTENT = /(?:^|[。，,；;：:！!\s（(])(?:现在(?![是有还已在的为共处约大]|\s*\*)|接下来|下面|马上|随后|然后|先|开始(?![时于日前后的是])|我(?:来|先|会|将|要|准备|这就|马上|现在|去)|我把(?![^。！!\n]*[了过]))|\b(?:I'll|I will|I'm going to|let me|now I|next,? I)\b/i;
 const SETTLED = /已(?:经)?(?:完成|修改|改好|改完|创建|新建|写入|保存|运行|执行|提交|添加|加上|删除)|完成[了。！!]|通过|成功|失败|报错|无法|不能|做不了|没有权限|未获授权|需要你|请你|请确认|你(?:希望|想|要不要|是否)|是否|\b(?:done|finished|completed|passed|failed|cannot|can't|unable)\b/i;
 
+// A whole reply that is one short line opening with the step itself (“调用…读回…，核对…”), not with what came of it.
+// Seen from MiniMax-M3: asked to read saved items back, it answered only that line and ended with nothing read.
+const PLAN_LINE = /^(?:调用|读取|读回|查看|核对|检查|打开|创建|新建|修改|更新|保存|写入|搜索|查找|查询|抽取|提取|列出|获取|整理)(?![了过完好到成])(?![^。！!]*(?:结果|如下|无误|没有问题|没问题|一致))/;
+
 export function announcesWithoutActing(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed || trimmed.length > 600) return false;
   const closing = trimmed.split(/\n+/).map(line => line.trim()).filter(Boolean).at(-1) ?? "";
   if (/[？?]\s*$/.test(closing) || SETTLED.test(closing)) return false;
-  return INTENT.test(closing);
+  return INTENT.test(closing) || (!trimmed.includes("\n") && trimmed.length <= 90 && PLAN_LINE.test(trimmed));
 }
 
 /** What the model reads when its announcement is held. */

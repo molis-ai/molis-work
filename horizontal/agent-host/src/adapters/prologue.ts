@@ -789,7 +789,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ? controlPhase === "stopped" || controlPhase === "cancelled"
         ? "已请求停止，正在收尾并保存执行记录"
         : "正在保存本轮执行记录"
-      : phase === "stopped" ? "已停止" : record.state.stop_reason;
+      // A round the runtime stopped itself (a guardrail or its circuit breaker) keeps the reason it gave; one the person stopped says so.
+      : phase === "stopped" ? (record.state.phase === "stopped" && record.state.stop_reason) || "已停止" : record.state.stop_reason;
     if (stampTerminal && isEnded(phase) && this.#runtime.saveRunTiming && !record.timingReady) {
       if (!record.timingCommit) {
         record.observedEndAt = record.view.ended_at ?? this.#now().toISOString();

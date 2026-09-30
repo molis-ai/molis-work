@@ -165,6 +165,11 @@ test("the runtime's circuit breaker ends the round as stopped, in words, instead
   assert.equal(state.phase, "stopped");
   assert.match(state.stop_reason ?? "", /连续 4 次调用都没有成功.*已完成的保留/u);
   assert.equal(state.unknown_frames, 0);
+  // The runtime's own reasons read in the person's words, not the runtime's English.
+  const repeated = emptyPrologueStreamState();
+  apply(repeated, { type: "circuit-tripped", reason: "repeated-calls", count: 4, why: "the same call was made 4 times in a row; this run stopped going in circles." } as never);
+  assert.match(repeated.stop_reason ?? "", /^同一个调用连续重复了 4 次，没有进展，这一轮先停在这里/u);
+  assert.doesNotMatch(repeated.stop_reason ?? "", /[a-z]{4}/);
 });
 
 test("compaction is a phase, not an outcome", () => {

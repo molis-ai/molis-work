@@ -472,7 +472,12 @@ export function applyPrologueEvent(
       closeStreaming(state);
       closeUnappliedSteers(state);
       state.phase = "stopped";
-      state.stop_reason = `连续 ${tripped.count ?? "几"} 次调用都没有成功，这一轮先停在这里${tripped.why ? `（${tripped.why}）` : ""}；已完成的保留，可以说明怎么调整后继续`;
+      const count = tripped.count ?? "几";
+      const what = tripped.reason === "repeated-calls" ? `同一个调用连续重复了 ${count} 次，没有进展`
+        : tripped.reason === "repeated-text" ? `同样的话连续重复了 ${count} 次`
+        : tripped.reason === "repeated-errors" ? `连续 ${count} 次调用都没有成功`
+        : `连续 ${count} 次调用都没有成功${tripped.why ? `（${tripped.why}）` : ""}`;
+      state.stop_reason = `${what}，这一轮先停在这里；已完成的保留，可以说明怎么调整后继续`;
       return true;
     }
 

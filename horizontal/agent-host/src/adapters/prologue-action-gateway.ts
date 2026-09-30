@@ -277,14 +277,29 @@ function delegationExecutors(given: Gateway["client"]["delegate"], guarded: (run
 }
 
 /**
- * The input a capability receives. Models often send it as a JSON string; a capability that does not take a string
- * gets the value it meant, and an object capability given nothing gets `{}`.
+ * The input a capability receives. Models often send it as a JSON string (sometimes encoded twice); a capability that
+ * does not take a string gets the value it meant. Plain text for an object whose one required field is text is that
+ * field's value. An object capability given nothing gets `{}`. The person still reviews exactly this before a change.
  */
 export function normalizedInput(view: ActionView, input: unknown): unknown {
   const schema = view.action.input_schema;
   let value = input;
-  if (typeof value === "string" && schema.type !== "string") { try { value = JSON.parse(value); } catch { /* left as given; the contract says why */ } }
+  for (let depth = 0; depth < 2 && typeof value === "string" && schema.type !== "string"; depth++) {
+    try { value = JSON.parse(value); } catch { break; /* left as given; the contract says why */ }
+  }
+  if (typeof value === "string" && value.trim() && schema.type === "object") {
+    const field = soleTextField(schema);
+    if (field) value = { [field]: value };
+  }
   return schema.type === "object" ? value ?? {} : value;
+}
+
+/** The one required field of an object schema, when it takes text; null when the text could mean more than one field. */
+function soleTextField(schema: Record<string, unknown>): string | null {
+  const required = Array.isArray(schema.required) ? schema.required.filter((name): name is string => typeof name === "string") : [];
+  const properties = (schema.properties && typeof schema.properties === "object" ? schema.properties : {}) as Record<string, { type?: unknown }>;
+  if (required.length !== 1) return null;
+  return properties[required[0]!]?.type === "string" ? required[0]! : null;
 }
 
 /**
@@ -310,7 +325,9 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   catch (error) {
     const sent = normalizedInput(view, parsed.input);
     const kind = sent === null ? "null" : Array.isArray(sent) ? "array" : typeof sent;
-    return `${error instanceof Error ? error.message : String(error)} (you sent ${kind}). The input must be a JSON value matching this schema: ${JSON.stringify(view.action.input_schema).slice(0, 2000)}`;
+    // What arrived, briefly, so the next attempt corrects the shape instead of repeating it.
+    const excerpt = JSON.stringify(sent)?.slice(0, 160) ?? "undefined";
+    return `${error instanceof Error ? error.message : String(error)} (you sent ${kind}: ${excerpt}). The input must be a JSON value matching this schema: ${JSON.stringify(view.action.input_schema).slice(0, 2000)}`;
   }
   return null;
 }

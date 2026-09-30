@@ -7,7 +7,9 @@ test("an ending that only announces the next step is recognised; results, questi
   for (const text of ["calc.js 状态确认。现在分别给三个函数加 JSDoc，再新建 README.md，最后跑 npm test。", "继续。先把 calc.js 改成带 JSDoc 的版本。",
     "现在同时改 calc.js（加 JSDoc）和新建 README.md。", "我来分别修改两个文件，然后跑 npm test 验证。", "Let me update the README next.",
     // Seen from MiniMax-M3 in an Assistant round that then ended without following up the sub-task.
-    "我把要求改成 13 字，让同一个子任务再试一次。"]) {
+    "我把要求改成 13 字，让同一个子任务再试一次。",
+    // Seen from MiniMax-M3 asked to read saved to-dos back: this one line was the whole reply, and nothing was read.
+    "调用「会议待办」的列表能力读回保存的提炼记录，核对刚才三条。", "读回刚才保存的三条待办并逐条核对。"]) {
     assert.equal(announcesWithoutActing(text), true, text);
   }
   for (const text of ["完成。改动与结果：\n- calc.js 新增 multiply\n- npm test：exit 0，三条断言全部通过。", "calc.js 已落盘。", "要把这段替换进文档吗？",
@@ -15,7 +17,10 @@ test("an ending that only announces the next step is recognised; results, questi
     // A plain fact that happens to start with 现在/开始 (seen from MiniMax-M3 answering a timed round).
     "现在是 **19:04**（洛杉矶时区）。", "现在有 3 个目标还没开始。", "开始时间是下周一。",
     // Something done, said with 我把: not an announcement.
-    "我把结果整理好了。", "我把三条都核对过，没有问题。"]) {
+    "我把结果整理好了。", "我把三条都核对过，没有问题。",
+    // A one-line reply that opens with the verb but reports what came of it.
+    "核对完毕，三条都在。", "检查结果：三条都在。", "读取到 3 条待办，和刚才一致。", "查看了一下，没有问题。", "保存成功。",
+    "调用「会议待办」读回的三条：\n- 小张整理用户访谈\n- 老李联系场地"]) {
     assert.equal(announcesWithoutActing(text), false, text);
   }
 });

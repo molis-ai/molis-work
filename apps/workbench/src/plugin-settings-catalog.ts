@@ -1,5 +1,6 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import { registeredIconNames, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { PERSONAL_PLUGIN_IDS, settingsEntries } from "./plugin-catalog.js";
 import { listWorkbenchUiContributions, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 
@@ -8,7 +9,9 @@ export interface PluginSettingsNavItem {
   readonly contribution_id: string;
   readonly plugin_id: string;
   readonly label: string;
-  readonly icon: "library" | "sparkles" | "settings" | "workflow" | "code" | "note" | "clipboard" | "database" | "image";
+  readonly icon: MolisWorkIcon;
+  /** Where the Manifest places the view among settings pages; host pages hold 10–90 (settings-sections.ts). */
+  readonly order?: number;
 }
 
 const PLUGIN_SETTINGS_ICONS: Readonly<Record<string, PluginSettingsNavItem["icon"]>> = {
@@ -52,9 +55,15 @@ export function listPluginSettingsNavItems(enabled?: readonly string[], hidden?:
   const placed = settingsEntries(scope);
   const allowed = new Set(placed.map((entry) => entry.contribution_id));
   const order = new Map(placed.map((entry, index) => [entry.contribution_id, index]));
+  const views = new Map(placed.map((entry) => [entry.contribution_id, entry]));
   return pluginSettingsNavItemsFrom(listWorkbenchUiContributions())
     .filter((item) => allowed.has(item.contribution_id))
-    .sort((left, right) => (order.get(left.contribution_id) ?? Number.MAX_SAFE_INTEGER) - (order.get(right.contribution_id) ?? Number.MAX_SAFE_INTEGER));
+    .sort((left, right) => (order.get(left.contribution_id) ?? Number.MAX_SAFE_INTEGER) - (order.get(right.contribution_id) ?? Number.MAX_SAFE_INTEGER))
+    .map((item) => {
+      const view = views.get(item.contribution_id);
+      const icon = view?.icon && (registeredIconNames() as string[]).includes(view.icon) ? view.icon as MolisWorkIcon : item.icon;
+      return { ...item, icon, ...(Number.isFinite(view?.order) ? { order: view!.order } : {}) };
+    });
 }
 
 export function findPluginSettingsNavItem(sectionId: string): PluginSettingsNavItem | null {
@@ -65,6 +74,10 @@ export function findPluginSettingsNavItem(sectionId: string): PluginSettingsNavI
 
 export function isHostGlobalSettingsSection(section: string): boolean {
   return section === "appearance"
+    || section === "models"
+    || section === "assistant"
+    || section === "prompts"
+    || section === "capabilities"
     || section === "runtimes"
     || section === "mcp"
     || section === "connectors"

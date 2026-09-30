@@ -1,6 +1,6 @@
 # Characters
 
-独立个人角色管理插件。拥有编辑界面、发布前的内容预览和项目发布操作；草稿与停用/删除状态由 Characters Module 的公开接口提供，固定正文、版本与来源由既有 Artifact 服务保存。调用方只得到精确版本引用，不能从浏览器请求注入正文或扩大权限。
+独立个人角色管理插件。界面位于「设置 › 角色」（manifest 1.6.0 起：工作台页面是 `stage` view、设置入口是 `settings` view，不再出现在插件切换器里；页面根标 `data-settings-page="characters"`，由设置覆盖层挂载；独立 `/settings/characters?project=<id>` 转回该项目工作台）。同一页列出系统与插件登记的角色，点开在同一覆盖层里打开它的提示词。拥有编辑界面、发布前的内容预览和项目发布操作；草稿与停用/删除状态由 Characters Module 的公开接口提供，固定正文、版本与来源由既有 Artifact 服务保存。调用方只得到精确版本引用，不能从浏览器请求注入正文或扩大权限。
 
 通过真实 Plugin Runtime 启动，Host 注入本人草稿、当前项目 Artifact、本地发现与执行端口。插件不打开数据库，不接触模型凭据；执行状态由 Agent Host / Runtime Host 和 Work Session 持有。
 
@@ -26,5 +26,5 @@
   - 调用方只得到精确版本引用；浏览器请求不能注入正文或扩大权限。
   - 检查来源更新要明确确认，保留名称、补充指令与已有发布；刷新或相同请求不重跑任务。
   - 未安装的原生 CLI 显示不可用，不假称已验证。
-- 改动后必跑：`node scripts/run-tests.mjs tests/characters-actions.test.ts tests/characters-action-client.test.ts tests/characters-publication-http.test.ts tests/characters-import-http.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/characters-actions.test.ts tests/characters-action-client.test.ts tests/characters-publication-http.test.ts tests/characters-import-http.test.ts tests/characters-appearance.test.ts tests/plugin-global-settings.test.ts`；动了页面结构再跑 `tests/page-interaction-flow.e2e.test.ts tests/agent-action-selection.e2e.test.ts tests/cross-plugin-recovery.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

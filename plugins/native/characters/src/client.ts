@@ -36,16 +36,30 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
     if (!response.ok) throw new Error(payload.error || '角色请求失败');
     return payload;
   };
+  const firstLine = text => String(text || '').split('\\n').map(line => line.trim()).find(Boolean) || '';
+  const tag = (text, tone) => { const node = document.createElement('span'); node.className = 'characters-tag' + (tone ? ' characters-tag--' + tone : ''); node.textContent = text; return node; };
+  const chevron = () => { const mark = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); mark.setAttribute('class', 'characters-row-chevron'); mark.setAttribute('aria-hidden', 'true'); const use = document.createElementNS('http://www.w3.org/2000/svg', 'use'); use.setAttribute('href', '#icon-chevron-right'); mark.append(use); return mark; };
+  // One row per Character: its name, the first line of how it works, and where it stands (state, what is published, unsaved edits).
   const renderList = () => {
     list.replaceChildren();
     const visible = records.filter(record => record.state !== 'tombstoned');
     q('empty').hidden = visible.length > 0;
     for (const record of visible) {
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'mw-btn mw-btn--ghost';
+      const item = document.createElement('div'); item.setAttribute('role', 'listitem');
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'characters-row';
       button.dataset.characterId = record.character_id; button.setAttribute('aria-current', record.character_id === selected ? 'page' : 'false');
-      const title = document.createElement('span'); title.textContent = record.title;
-      const state = document.createElement('small'); state.textContent = record.state === 'disabled' ? '已停用' : '可用';
-      button.append(title, state); button.addEventListener('click', () => { if (!busy) select(record.character_id); }); list.append(button);
+      const copy = document.createElement('span'); copy.className = 'characters-row-copy';
+      const title = document.createElement('strong'); title.textContent = record.title || '未命名角色';
+      const line = document.createElement('small'); line.textContent = firstLine(record.instructions) || '还没写做事方式';
+      copy.append(title, line);
+      const meta = document.createElement('span'); meta.className = 'characters-row-meta';
+      const latest = publications.filter(item => item.payload?.character_id === record.character_id && item.lifecycle_state === 'active').sort((a, b) => b.version - a.version)[0];
+      if (record.state === 'disabled') meta.append(tag('已停用', 'quiet'));
+      if (latest) meta.append(tag('已发布 v' + latest.version, 'done')); else meta.append(tag('未发布', 'quiet'));
+      if (record.import_snapshot) meta.append(tag('本机导入'));
+      if (drafts[record.character_id]) meta.append(tag('有未保存的修改', 'attention'));
+      button.append(copy, meta, chevron()); button.addEventListener('click', () => { if (!busy) select(record.character_id); });
+      item.append(button); list.append(item);
     }
   };
   const renderVersions = () => {
@@ -69,7 +83,9 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
     q('inherit').checked = value.host_tools === null; q('tools').value = (value.host_tools || []).join(', '); q('tools-field').hidden = q('inherit').checked;
     actionsView.render(value.action_tools);
     q('heading').textContent = record.title;
-    q('status').textContent = record.state === 'disabled' ? '已停用' : record.state === 'tombstoned' ? '已删除' : '草稿修订 ' + record.revision;
+    const published = publications.filter(item => item.payload?.character_id === record.character_id && item.lifecycle_state === 'active').sort((a, b) => b.version - a.version)[0];
+    q('status').textContent = record.state === 'disabled' ? '已停用' : record.state === 'tombstoned' ? '已删除'
+      : published ? '已发布 v' + published.version + (published.payload.source?.draft_revision === record.revision ? '' : ' · 草稿有新修改') : '草稿 · 未发布';
     q('toggle').textContent = record.state === 'disabled' ? '启用' : '停用';
     q('draft-note').textContent = local ? (record.revision !== revision ? '其他窗口已更新；你的修改仍保留。请核对后重新读取，不能直接覆盖新修订。' : '已恢复此窗口未保存的修改。') : '已保存。发布会固定这份内容，已有执行保持原版本。';
     renderVersions(); importsView?.render(record); controls();
@@ -81,7 +97,17 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
     if (record?.state !== 'active') q('preview').disabled = true;
     actionsView?.controls(busy || record?.state === 'tombstoned');
   };
-  const select = id => { selected = id; note(''); renderList(); renderEditor(); };
+  const select = (id, focus = true) => {
+    const previous = selected;
+    selected = id; note(''); renderList(); renderEditor();
+    if (!focus) return;
+    // Opening a Character lands on its heading; going back lands on the row it came from.
+    requestAnimationFrame(() => {
+      if (id) q('heading')?.focus({ preventScroll: false });
+      else if (previous) list.querySelector('[data-character-id="' + CSS.escape(previous) + '"]')?.focus();
+      root.scrollIntoView?.({ block: 'start' });
+    });
+  };
   const load = async () => { const result = await request('GET', '/drafts'); records = result.drafts; publications = result.publications; renderList(); renderEditor(); };
   const act = async action => {
     if (busy) return; busy = true; controls();
@@ -102,7 +128,7 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   form.addEventListener('input', editable);
   form.addEventListener('change', editable);
   form.addEventListener('submit', event => { event.preventDefault(); void act(save); });
-  q('new').addEventListener('click', () => void act(async () => { const result = await request('POST', '/drafts', {}); await load(); select(result.draft.character_id); }));
+  q('new').addEventListener('click', () => void act(async () => { const result = await request('POST', '/drafts', {}); await load(); select(result.draft.character_id, false); requestAnimationFrame(() => { q('title').focus(); q('title').select(); }); }));
   q('back').addEventListener('click', () => { if (!busy) select(null); });
   q('preview').addEventListener('click', () => void act(async () => {
     const record = dirty() ? await save() : current();
@@ -149,16 +175,31 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
       const roles = [...payload.roles].sort((a, b) => (a.source.kind === 'system' ? 0 : 1) - (b.source.kind === 'system' ? 0 : 1));
       box.replaceChildren();
       if (!roles.length) { box.textContent = '没有登记的系统或插件角色。'; return; }
-      // They are the Home's, not the project's; the settings page still returns to this project.
+      // They are the Home's, not the project's; the prompts page opens in the same settings, for this project.
       const parts = location.pathname.split('/'), project = parts[1] === 'projects' ? parts[2] : '';
+      const groups = new Map();
       for (const role of roles) {
-        const link = document.createElement('a'); link.className = 'characters-builtin-item';
-        link.href = section.dataset.characterBuiltinSettings + '?role=' + encodeURIComponent(role.key) + (project ? '&project=' + project : '') + (new URLSearchParams(location.search).get('desktop') === '1' ? '&desktop=1' : '');
-        const name = document.createElement('span'); name.textContent = role.name + (role.subagent ? ' · 子任务' : '');
-        const meta = document.createElement('small');
-        meta.textContent = (role.source.kind === 'system' ? '系统 · ' + role.source.title : '插件 · ' + role.source.title + (role.source.plugin_version ? ' ' + role.source.plugin_version : ''))
-          + ' · ' + (EXECUTION[role.execution] || role.execution) + (role.edited ? ' · 含你的修改' : '');
-        link.append(name, meta); box.append(link);
+        const owner = role.source.kind === 'system' ? '系统' : role.source.title + (role.source.plugin_version ? ' ' + role.source.plugin_version : '');
+        if (!groups.has(owner)) groups.set(owner, []);
+        groups.get(owner).push(role);
+      }
+      for (const [owner, members] of groups) {
+        const heading = document.createElement('p'); heading.className = 'characters-group-label'; heading.textContent = owner; box.append(heading);
+        for (const role of members) {
+          const item = document.createElement('div'); item.setAttribute('role', 'listitem');
+          const link = document.createElement('a'); link.className = 'characters-row characters-builtin-item';
+          link.href = section.dataset.characterBuiltinSettings + '?role=' + encodeURIComponent(role.key) + (project ? '&project=' + project : '') + (new URLSearchParams(location.search).get('desktop') === '1' ? '&desktop=1' : '');
+          const copy = document.createElement('span'); copy.className = 'characters-row-copy';
+          const name = document.createElement('strong'); name.textContent = role.name;
+          const line = document.createElement('small'); line.textContent = '由 ' + role.prompt_keys.length + ' 段提示词组成 · 打开可以查看和修改';
+          copy.append(name, line);
+          const meta = document.createElement('span'); meta.className = 'characters-row-meta';
+          meta.append(tag(EXECUTION[role.execution] || role.execution));
+          if (role.subagent) meta.append(tag('子任务', 'quiet'));
+          if (role.edited) meta.append(tag('含你的修改', 'attention'));
+          link.append(copy, meta, chevron());
+          item.append(link); box.append(item);
+        }
       }
     } catch (error) {
       box.textContent = '系统与插件角色暂时读不到：' + (error.message || '请稍后重试');

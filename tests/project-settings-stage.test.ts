@@ -220,7 +220,10 @@ test("settings documents use Codex title, card, and row rhythm instead of Linear
 test("switching a settings category resets the stage body to the top", () => {
   assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /body\.scrollTop = 0/);
   assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /requestAnimationFrame\(resetScroll\)/);
-  assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /if \(child !== node\) child\.remove\(\)/);
+  // Other sections leave the stage body; a plugin's own page shown as a settings page (角色) goes back to the
+  // surface pool still bound instead of being destroyed (specs/page-interaction-flow).
+  assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /if \(child === node\) return;/);
+  assert.match(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /if \(child\.matches\("\[data-work-surface\]"\) && pool\) \{ child\.hidden = true; pool\.append\(child\); \}\s*else child\.remove\(\);/);
   assert.doesNotMatch(SETTINGS_DIRECTORY_FACTORY_SCRIPT, /child\.hidden = child !== node/);
   assert.match(PROJECT_SETTINGS_PAGE_STYLES, /overflow-anchor: none/);
   assert.doesNotMatch(PROJECT_SETTINGS_PAGE_STYLES, /:has\(> \.project-rules-document:not\(\[hidden\]\)\)/);

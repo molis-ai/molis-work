@@ -1,5 +1,5 @@
-import { renderProjectMonogram } from "@molis-ai/molis-work-design-system";
-import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
+import { renderProjectMonogram, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { groupedGlobalSettingsSections } from "./settings-sections.js";
 
 export interface WebProjectNavigation {
   project_id: string;
@@ -18,7 +18,7 @@ type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "
 export interface SettingsNavigationPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "bug" | "book" | "shield" | "sun" | "terminal" | "tune" | "library" | "sparkles" | "link" | "key" | "network" | "folder" | "code" | "note" | "clipboard" | "image" | "bookmark"): string;
+  icon(name: MolisWorkIcon): string;
   withDesktopQuery(path: string): string;
 }
 export function createWorkbenchSettingsNavigation(primitives: SettingsNavigationPrimitives) {
@@ -89,19 +89,10 @@ function renderSettingsNavigation(
   return `<nav class="settings-navigation settings-navigation--codex" aria-label="${L("系统设置")}">
     <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${L("返回项目")}</a>
     <div class="settings-nav-body">
-      <div class="settings-nav-group-label">${L("本机")}</div>
-      <a href="${href("/settings/appearance")}"${current("appearance")}>${icon("sun")}${L("界面与语言")}</a>
-      <div class="settings-nav-group-label">${L("个人")}</div>
-      <a href="${href("/settings/memory")}"${current("memory")}>${icon("bookmark")}${L("记忆")}</a>
-      <div class="settings-nav-group-label">${L("工具")}</div>
-      <a href="${href("/settings/models")}"${current("models")}>${icon("key")}${L("模型设置")}</a>
-      <a href="${href("/settings/runtimes")}"${current("runtimes")}>${icon("terminal")}${L("AI 与执行工具")}</a>
-      <a href="${href("/settings/assistant")}"${current("assistant")}>${icon("user")}${L("助理")}</a>
-      <a href="${href("/settings/prompts")}"${current("prompts")}>${icon("book")}${L("Prompt 与 Character")}</a>
-      <a href="${href(`/capabilities/library${project ? `?project=${encodeURIComponent(project.project_id)}` : ""}`)}">${icon("sparkles")}${L("能力")}</a>
-      <div class="settings-nav-group-label">${L("系统")}</div>
-      <a href="${href("/settings/diagnostics")}"${current("diagnostics")}>${icon("bug")}${L("诊断")}</a>
-      ${listPluginSettingsNavItems(enabledPlugins, hiddenPlugins).map((page) => `<a href="${href(`/settings/${page.section_id}`)}"${current(page.section_id)}>${icon(page.icon)}${escapeHtml(L(page.label))}</a>`).join("")}
+      ${groupedGlobalSettingsSections(enabledPlugins, hiddenPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${L(group)}</div>
+      ${sections.map((section) => section.kind === "cover"
+        ? `<a href="${href("/capabilities/library")}">${icon(section.icon)}${L(section.label)}</a>`
+        : `<a href="${href(`/settings/${section.id}`)}"${current(section.id)}>${icon(section.icon)}${escapeHtml(L(section.label))}</a>`).join("")}`).join("")}
     </div>
   </nav>`;
 }

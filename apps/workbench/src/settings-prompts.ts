@@ -4,8 +4,8 @@
  */
 export function renderPromptSettings({ L }: { L(text: string): string }): string {
   return `<section class="settings-document prompt-settings" aria-labelledby="settings-title" data-prompt-settings>
-    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("Prompt 与 Character")}</h1>
-      <p>${L("系统和插件交给模型的全部说明文字，以及由它们组成的 Character（角色）。修改从下一轮开始生效，正在进行的一轮不受影响；每一轮的记录会写明用的是默认版还是你的版本。")}</p></div></header>
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("提示词")}</h1></div>
+      <p>${L("系统和插件交给模型的全部说明文字；角色由其中几段组成。修改从下一轮开始生效，正在进行的一轮不受影响；每一轮的记录会写明用的是默认版还是你的版本。")}</p></header>
     <p class="prompt-settings-notice" role="note">${L("改这里的文字不会改变任何权限：能读写哪些目录、能调用哪些能力、哪些操作要你确认，都由系统在代码里执行，与文字写成什么无关。")}</p>
     <div class="prompt-settings-tools">
       <div class="mw-toggle-group settings-segmented" role="group" aria-label="${L("筛选")}">
@@ -13,7 +13,7 @@ export function renderPromptSettings({ L }: { L(text: string): string }): string
         <button class="mw-toggle" type="button" data-prompt-filter="edited" aria-pressed="false">${L("已修改")}</button>
         <button class="mw-toggle" type="button" data-prompt-filter="updated" aria-pressed="false">${L("默认已更新")}</button>
       </div>
-      <input class="mw-input prompt-settings-search" type="search" data-prompt-search placeholder="${L("搜索名称、用途或正文")}" aria-label="${L("搜索 Prompt")}">
+      <input class="mw-input prompt-settings-search" type="search" data-prompt-search placeholder="${L("搜索名称、用途或正文")}" aria-label="${L("搜索提示词")}">
     </div>
     <div class="prompt-settings-body" data-prompt-body aria-live="polite"><p class="settings-muted mw-loading">${L("正在读取…")}</p></div>
     <details class="settings-section prompt-diagnostics" id="diagnostics" data-prompt-diagnostics>
@@ -25,15 +25,18 @@ export function renderPromptSettings({ L }: { L(text: string): string }): string
 
 /** Runs on the settings page only when the section is on show. No template interpolation inside. */
 export const PROMPT_SETTINGS_CLIENT_SCRIPT = String.raw`
-(() => {
-  const root = document.querySelector("[data-prompt-settings]");
-  if (!root) return;
+globalThis.molisWorkBindPromptSettings = (container = document, context = null) => {
+  const root = container.matches?.("[data-prompt-settings]") ? container : container.querySelector?.("[data-prompt-settings]");
+  if (!root || root.dataset.promptBound) return;
+  root.dataset.promptBound = "1";
+  // The settings cover passes the address it loaded; the page itself reads its own.
+  const address = context || { search: location.search, hash: location.hash };
   const L = globalThis.L || ((text) => text);
   const body = root.querySelector("[data-prompt-body]");
   const search = root.querySelector("[data-prompt-search]");
   let prompts = [], roles = [], filter = "all", open = null;
-  // A Character is made of its prompts: “?role=” (from the Characters page) shows just the ones that make it up.
-  let focusRole = new URLSearchParams(location.search).get("role");
+  // A role is made of its prompts: “?role=” (from Settings › 角色) shows just the ones that make it up.
+  let focusRole = new URLSearchParams(address.search || "").get("role");
   const focusedRole = () => focusRole ? roles.find((role) => role.key === focusRole) : undefined;
   const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
   const api = async (path, method, payload) => {
@@ -42,7 +45,7 @@ export const PROMPT_SETTINGS_CLIENT_SCRIPT = String.raw`
     if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
     return data;
   };
-  const toast = (text) => { const node = document.querySelector("[data-settings-toast]"); if (!node) return; node.textContent = text; node.classList.add("is-visible"); setTimeout(() => node.classList.remove("is-visible"), 2400); };
+  const toast = (text) => { const node = document.querySelector("[data-settings-toast]") || document.querySelector(".toast"); if (!node) return; node.textContent = text; node.classList.add("is-visible"); setTimeout(() => node.classList.remove("is-visible"), 2400); };
   const KIND = { agent: "角色组成", instruction: "模型调用指令" };
   const LAYER = { base: "产品约束", role: "角色", project: "项目", task: "任务" };
   const EXECUTION = { "read-only": "只读", "text-edit": "可改文字", "workspace-write": "可改文件、运行命令", operate: "可调用业务能力" };
@@ -140,10 +143,15 @@ export const PROMPT_SETTINGS_CLIENT_SCRIPT = String.raw`
     if (role) {
       const banner = el("div", "prompt-role-focus");
       const copy = el("div", "prompt-role-focus-copy");
-      copy.append(el("strong", "", L(role.name)), el("p", "", L("这个 Character 由下面这些 Prompt 组成，按顺序交给模型；改动从它的下一轮开始生效，可随时恢复默认。")));
+      copy.append(el("strong", "", L(role.name)), el("p", "", L("这个角色由下面这些提示词组成，按顺序交给模型；改动从它的下一轮开始生效，可随时恢复默认。")));
       banner.append(copy);
-      const all = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("显示全部")); all.type = "button";
-      all.addEventListener("click", () => { focusRole = null; const next = new URL(location.href); next.searchParams.delete("role"); history.replaceState(history.state, "", next); paint(); });
+      // The way back to where the role was chosen: Settings › 角色.
+      const back = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L("返回角色"));
+      const project = new URLSearchParams(address.search || "").get("project");
+      back.href = "/settings/characters" + (project ? "?project=" + encodeURIComponent(project) : "");
+      banner.append(back);
+      const all = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("显示全部提示词")); all.type = "button";
+      all.addEventListener("click", () => { focusRole = null; if (!context) { const next = new URL(location.href); next.searchParams.delete("role"); history.replaceState(history.state, "", next); } paint(); });
       banner.append(all);
       body.append(banner);
     }
@@ -158,13 +166,13 @@ export const PROMPT_SETTINGS_CLIENT_SCRIPT = String.raw`
           const item = el("li");
           const button = el("button", "prompt-role"); button.type = "button";
           button.setAttribute("aria-pressed", String(focusRole === role.key));
-          button.title = L("只看组成这个 Character 的 Prompt");
+          button.title = L("只看组成这个角色的提示词");
           button.append(el("strong", "", L(role.name) + (role.subagent ? " · " + L("子任务") : "")), el("span", "settings-muted", L(EXECUTION[role.execution] || role.execution) + (role.edited ? " · " + L("含你的修改") : "")));
           button.addEventListener("click", () => { focusRole = focusRole === role.key ? null : role.key; paint(); });
           item.append(button);
           list.append(item);
         });
-        section.append(el("p", "prompt-roles-label", L("Character（角色）")), list);
+        section.append(el("p", "prompt-roles-label", L("角色")), list);
       }
       const list = el("ul", "prompt-list");
       group.prompts.forEach((prompt) => list.append(promptRow(prompt)));
@@ -204,7 +212,7 @@ export const PROMPT_SETTINGS_CLIENT_SCRIPT = String.raw`
     } catch (failure) { delete diagnostics.dataset.loaded; diagnosticsBody.replaceChildren(el("p", "settings-form-error", failure.message)); }
   };
   diagnostics.addEventListener("toggle", () => { if (diagnostics.open) loadDiagnostics(); });
-  if (location.hash === "#diagnostics") { diagnostics.open = true; loadDiagnostics(); }
+  if (address.hash === "#diagnostics") { diagnostics.open = true; loadDiagnostics(); requestAnimationFrame(() => diagnostics.scrollIntoView({ block: "start" })); }
   root.querySelectorAll("[data-prompt-filter]").forEach((button) => button.addEventListener("click", () => {
     filter = button.dataset.promptFilter;
     root.querySelectorAll("[data-prompt-filter]").forEach((other) => other.setAttribute("aria-pressed", String(other === button)));
@@ -219,5 +227,6 @@ export const PROMPT_SETTINGS_CLIENT_SCRIPT = String.raw`
     paint();
   })
     .catch((failure) => { body.replaceChildren(el("p", "settings-form-error", failure.message)); });
-})();
+};
+globalThis.molisWorkBindPromptSettings(document);
 `;

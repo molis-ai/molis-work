@@ -194,8 +194,8 @@ function renderDiagnosticsSettings(view: MolisWorkSettingsView): string {
       ${settingRow(L("项目数"), L("本机已经创建的项目数量。"), `<span class="setting-number">${diagnostics.project_count}</span>`)}
       <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${L("本机路径")}</strong><span>${L("查看安装目录与发布位置。")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>Home</dt><dd>${escapeHtml(diagnostics.home_directory)}</dd></div><div><dt>Release</dt><dd>${escapeHtml(diagnostics.release_directory ?? L("未找到"))}</dd></div></dl></details>
     </section>
-    <section class="settings-section" aria-label="${L("Prompt 与 Character 登记")}">
-      ${settingRow(L("Prompt 与 Character 登记"), L("查看每个来源登记了什么、哪些没有生效。"), `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="/settings/prompts#diagnostics">${L("开发者诊断")}</a>`)}
+    <section class="settings-section" aria-label="${L("提示词与角色登记")}">
+      ${settingRow(L("提示词与角色登记"), L("查看每个来源登记了什么、哪些没有生效。"), `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="/settings/prompts#diagnostics">${L("开发者诊断")}</a>`)}
     </section>
     <section class="settings-section" aria-labelledby="launcher-title"><h2 id="launcher-title">${L("启动入口")}</h2>${launchers}</section>
     <section class="settings-section settings-project-maintenance" aria-labelledby="web-service-title">
@@ -222,7 +222,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
     : view.section === "assistant"
       ? L("助理")
     : view.section === "prompts"
-      ? L("Prompt 与 Character")
+      ? L("提示词")
     : view.section === "memory"
       ? L("记忆")
     : view.section === "mcp"

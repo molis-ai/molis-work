@@ -9,7 +9,7 @@ export { CHARACTERS_ACTIONS, charactersActions, type CharacterUpdateInput } from
 export type { CharactersPluginPorts } from "./plugin.js";
 export type { CharactersImportPorts, CharacterNativeRun } from "./imports.js";
 export { charactersManifest, CHARACTERS_PROJECT_PLUGIN_ID } from "./manifest.js";
-export { charactersUiContribution, CHARACTERS_UI_CONTRIBUTION_ID, renderCharacters } from "./ui.js";
-export type { CharactersUiModel } from "./ui.js";
+export { charactersUiContribution, CHARACTERS_UI_CONTRIBUTION_ID, renderCharacters, charactersSettingsUiContribution, charactersSettingsUiDescriptor, CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID } from "./ui.js";
+export type { CharactersUiModel, CharactersSettingsUiModel } from "./ui.js";
 export { CHARACTERS_STYLES } from "./styles.js";
 export { CHARACTERS_CLIENT_FACTORY_SCRIPT } from "./client.js";

@@ -623,6 +623,11 @@ Pages 用一个 ProseMirror 插件的 view update 维护它；其他插件第一
   - 改了什么：kernel 新增 `contextualCandidates`（片段候选；整篇情境再加上该对象的 subject offers，`origin: "subject"`，key 原样是 `offer.`，意图“推进”，点击效果按目标动作）；Host 新增 `contextual/contextual-service.ts`，subject offers 的准备（逐个提供方调用、对照声明、按目标动作的输入合同检查）从 `home-offer-actions.ts` 原样移入，`home.actions.prepare` 改为调用它；情境路由的候选、判断、信号、准备都改用 `contextualCandidates`，subject 候选经同一个准备函数、以声明它的查询准备并核对。Dock、Feed、Inbox 的判断与陈列不动。
   - 工程验证：单测新增两条（subject 候选沿用规则里的 `offer.` key、只在整篇情境出现、撤权后不可用；Host 按声明它的查询准备，动作变了或输入不合同都拒绝）。比对：同一批 18 个文件，基线 78/78 → 80/80（新增 2 条），无新增失败。e2e（时段 S18）：home-offers、feed-capture、inbox-current 全过；contextual 第 3 例断言全过、夹具清理时 Local Host 关闭超时，单独重跑 4/4 通过（清理时序偶发）。
   - 真实工作台：开场建议里，Feed 事项给出 加入 Inbox / 保存为资料 / 升格为 Goal / 忽略，Inbox 事项给出 做完了 / 忽略 / 整理成文稿（悬停说明取目标动作的说明）；在真实的 Inbox 事项“第一次把模糊想法收成目标树”上点“做完了”→ 准备 → `POST /api/assistant/cards` 200 → 面板出现“做完了”卡片（entry_id、状态 done、基于的版本 1），确认后才执行（未执行，保留数据）。
+- **第二步：Dock 切到情境服务（完成）**
+  - 改了什么：首页判断场景（`home.dock`）准备给规则的选项、记录判断时的复核、读取当前建议时的重新准备，都直接调用情境服务的 `prepareSubjectOffers`，不再绕经 `home.actions.prepare` 动作。规则仍是用户绑定的那条（经场景服务运行），绑定、历史与推荐 key 不动。
+  - 前后对照：新增 `tests/contextual-dock-parity.test.ts`，在同一批 Feed 事项（3 条）与 Inbox 事项（2 条）上断言：Dock 的准备路由与情境服务逐项给出相同的动作、推荐 key、问题与来源；这些 key 都是该对象整篇情境的情境候选；绑定的规则推荐的正是情境服务给“做完了”的 key，读取当前建议原样返回；按推荐执行只改了被选的那一条。改动前先在第一步的代码上跑过（通过），改动后再跑（通过）。
+  - 比对：同一批 18 个文件 + 对照测试，第一步 80/80 → 81/81（新增 1 条），无新增失败；e2e home-offers、feed-capture、inbox-current、contextual 7/7。
+  - 真实工作台：首页“当天的事件”展开 Inbox 事件“PR #418 请确认完成依据是否写进事件记录”，Dock 列出 做完了 / 忽略（由情境服务准备）。这个隔离 Home 没有绑定首页判断规则，推荐排序由对照测试覆盖。
 
 ## 14. 待定
 

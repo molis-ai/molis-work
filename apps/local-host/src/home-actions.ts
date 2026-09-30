@@ -1,5 +1,6 @@
 import { homeTalkActions, createHomeTalkHandlers } from "./home-talk-actions.js";
-import { homeOfferActions, createHomeOfferHandlers, type HomeActionOffer, type HomeActionOffers } from "./home-offer-actions.js";
+import { homeOfferActions, createHomeOfferHandlers, type HomeActionOffer } from "./home-offer-actions.js";
+import { prepareSubjectOffers } from "./contextual/contextual-service.js";
 import { homeEventActions, createHomeEventHandlers } from "./home-event-actions.js";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -101,8 +102,11 @@ export function homeActionProvider(home: string, projectId: string, boardId: str
     if (fn.action.subject_kinds.length && !fn.action.subject_kinds.includes(subject.kind)) throw new ActionError("actions.subject_incompatible", "所选首页判断规则不适用于此类事项");
     return fn;
   };
+  // The Dock's options are the contextual service's prepared subject offers (specs/contextual-interaction §6.4.3): the
+  // same offers, keys and checks the context row and the Assistant's starting points use.
   const prepareOffers = async (subject: HomeSubject, caller: ActionCallContext, request_id: string): Promise<HomeActionOffer[]> => {
-    const result = await services.actions.invoke(caller, homeOfferActions.offers, { subject: { kind: subject.kind, id: subject.id }, request_id }) as HomeActionOffers;
+    const result = await prepareSubjectOffers({ discover: () => services.actions.discover(caller), invoke: (reference, input) => services.actions.invoke(caller, reference, input) },
+      { subject: { kind: subject.kind, id: subject.id }, request_id });
     return result.offers.filter(offer => offer.availability.available && offer.recommendation_key);
   };
   const ordered = (value: unknown): unknown => Array.isArray(value) ? value.map(ordered)

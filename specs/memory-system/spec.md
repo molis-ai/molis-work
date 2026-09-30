@@ -520,5 +520,5 @@ SDK 改动沿用现有做法：在 prologue 工作树提交，打成 vendored tg
 - **插件读记忆、外部 MCP 读记忆**：工程验证覆盖，没有真实插件或 MCP 客户端实测。
 - **真实 Jev**：本线没有需要 Jev 判断的路径；界面推荐读记忆由动态交互线实测。
 - **全量回归与基线比对**：按合并协调会话的安排在队列末尾，且应在合入届时的 main 之后跑，尚未跑；本线已跑的是受影响测试（memory-* 26 项、assistant-memory 4 项、schedule-task-runner、prologue-stream 等）、`pnpm typecheck`、`pnpm boundary:check`、设计门禁。
-- **合成 SDK 包**：本分支仍用 `prologue-sdk-0.0.0-rc.1-memory-platform.tgz`；落地时换侧栏线的合成包 `prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`（已核对含 f80130ab、9773d59a），删旧包前先问用户。
-- **页面动线挂载**：它合入后把记忆设置挂到新的分类表、助理设置“记忆与偏好”改为摘要＋跳转。
+- **合成 SDK 包**：已换成侧栏线的合成包 `prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`（含 f80130ab、9773d59a），`memory-platform.tgz` 与 `.patch` 已删（经用户同意）；prologue 源码在远端分支 `feat/molis-memory-platform`（9773d59a）与 `feat/molis-side-panel-surfaces-on-memory`（9fc3b173）。换包后受影响测试 231/231。
+- **页面动线挂载**：已完成——“个人 → 记忆”进设置分类表，设置覆盖层可内嵌，助理设置的“记忆与偏好”改为摘要＋跳转（a68e0b95）。

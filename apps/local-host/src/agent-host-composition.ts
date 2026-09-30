@@ -75,6 +75,11 @@ export interface AgentHostComposition {
   readonly started: Promise<void>;
   /** Brings back a project's external MCP entries after a restart; called before the project's directory is read. */
   restoreExternalMcp(reference: LocalHostProjectReference): Promise<void>;
+  /**
+   * The person changed a standing decision about a site in the side panel's browser. A running runtime applies it at
+   * once; a runtime not started yet reads the saved decisions when it starts.
+   */
+  decideSurfaceSite(decision: { scope: string; decision: "allow" | "block" | "forget" }): void;
   /** Unregisters the Capabilities this composition added. */
   dispose(): Promise<void>;
 }
@@ -327,7 +332,11 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw new Error("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
   const restoreExternalMcp = (reference: LocalHostProjectReference) => disposed ? Promise.resolve()
     : externalMcp.restore(reference, async runtimeId => { await initialize(); return agentHost.adapter(runtimeId).mcpLibrary; });
-  return { agentHost, inference, createBuilderAgent, restoreExternalMcp, get ready() { return initialize(); }, started, dispose() {
+  const decideSurfaceSite = (decision: { scope: string; decision: "allow" | "block" | "forget" }) => {
+    // A block also withdraws any standing approval there; the driver refuses the site from now on.
+    prologue?.surfaces?.decide(decision.decision === "block" ? { scope: decision.scope, decision: "forget" } : decision);
+  };
+  return { agentHost, inference, createBuilderAgent, restoreExternalMcp, decideSurfaceSite, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();

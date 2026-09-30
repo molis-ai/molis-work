@@ -554,12 +554,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const VERBS = { lookup: "查找能力", read: "读取", change: "修改", suggest: "准备操作卡", ask: "向你提问", todo: "更新工作步骤", "lookup-tools": "查找工具",
     delegate: "委托子任务", "delegate-check": "查看子任务", "delegate-follow-up": "让子任务补改", "delegate-stop": "停止子任务",
     "memory-keep": "记下你的要求", "memory-list": "查看记住的事", "memory-forget": "删除一条记忆", "memory-suggest": "建议记住一条",
-    "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做", compact: "整理上下文" };
+    "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做", compact: "整理上下文",
+    "browser-list": "找到侧栏浏览器", "browser-look": "查看网页", "browser-act": "操作网页" };
   const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行", unavailable: "这项能力已关闭或不再可用，没有执行" };
   const VERB_GLYPH = { lookup: "search", "lookup-tools": "search", "file-search": "search", read: "note", "file-read": "file", "file-list": "list", change: "edit",
     "file-change": "code", command: "terminal", "command-output": "terminal", ask: "question", todo: "list", suggest: "zap", delegate: "workflow", "delegate-check": "workflow",
     "delegate-follow-up": "workflow", "delegate-stop": "workflow", "memory-keep": "sparkles", "memory-list": "sparkles", "memory-forget": "sparkles", "memory-suggest": "sparkles",
-    "auto-continue": "refresh", compact: "refresh" };
+    "auto-continue": "refresh", compact: "refresh", "browser-list": "globe", "browser-look": "globe", "browser-act": "globe" };
   const verbGlyph = (item) => item.state === "started" ? spinner() : glyph(item.state === "failed" ? "circle-alert" : item.state === "unknown" ? "alert" : VERB_GLYPH[item.verb] || "circle");
   const activityLine = (item) => {
     const verb = L(VERBS[item.verb] || item.verb);
@@ -802,6 +803,33 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const FILE_GLYPH = [[/\.(png|jpe?g|gif|webp|heic|svg)$/i, "image"], [/\.(csv|tsv|xlsx?)$/i, "database"], [/\.(md|markdown|txt|log)$/i, "note"],
     [/\.(js|mjs|ts|tsx|py|json|ya?ml|html?|css|sh|go|rs|java|c|cpp|sql)$/i, "code"]];
+  /**
+   * Words the work keeps but the view leaves out (a page handed over from the side panel's browser, a pasted text, a
+   * selection): read back when clicked and shown in the side panel as they were given, with the page they came from.
+   */
+  const readBack = (material, title) => {
+    const workId = view && view.work && view.work.work_id;
+    if (!workId || !material.material_id || !sidePanelHere() || !["text", "file", "selection"].includes(material.kind)) return null;
+    return async () => {
+      try {
+        const { material: full } = await api("/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id));
+        if (typeof full.text !== "string") { host.showToast?.(L("这份材料没有可以预览的正文")); return; }
+        sidePreview({ preview: { title, media_type: "text/plain", text: full.text, truncated: Boolean(full.truncated), ...(full.url ? { source_url: full.url } : {}) } });
+      } catch (error) { host.showToast?.(error.message, true); }
+    };
+  };
+  /** A picture the work carried, shown in the side panel; one the app no longer holds (it restarted) is marked, not offered. */
+  const readImage = (material, title) => {
+    const workId = view && view.work && view.work.work_id;
+    if (!workId || material.kind !== "image" || !material.material_id || material.expired || !sidePanelHere()) return null;
+    return async () => {
+      try {
+        const { image } = await api("/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id) + "/image");
+        sidePreview({ preview: { title, media_type: image.media_type, url: "data:" + image.media_type + ";base64," + image.data } });
+      } catch (error) { host.showToast?.(error.message, true); }
+    };
+  };
+  const EXPIRED_IMAGE = "应用重启后图片不再保留；需要时请重新添加这张图片";
   /** One thing a message carried: its kind at a glance, its name; an object opens where it lives. */
   const attachmentChip = (material) => {
     const title = String(material.title || "").replace(/^(图片|方法|用|引用)：/, "");
@@ -809,13 +837,15 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       : material.object ? kindGlyph(material.object.kind + " " + (material.source ? material.source.surface : "")) : (FILE_GLYPH.find(([pattern]) => pattern.test(title.replace(/（\d+ 页）$/, ""))) || [null, "file"])[1];
     const surface = material.source && material.source.surface && material.source.surface !== "page" ? material.source.surface : "";
     const named = material.object && surface ? { subject: { kind: material.object.kind, id: material.object.id }, title: material.object.title || title, open: { surface, id: material.object.id } } : null;
-    // A file's own words can only be previewed in the side panel; there is nowhere else to open them.
+    // A file's or a page's own words can only be previewed in the side panel; there is nowhere else to open them.
     const open = named && host.openItem ? () => showObject(named)
-      : material.kind === "file" && material.text && sidePanelHere() ? () => { sidePreview({ preview: { title, media_type: "text/plain", text: material.text } }); } : null;
+      : material.kind === "file" && material.text && sidePanelHere() ? () => { sidePreview({ preview: { title, media_type: "text/plain", text: material.text } }); }
+      : readBack(material, title) || readImage(material, title);
     const chip = el(open ? "button" : "span", "assistant-attachment" + (material.draft ? " is-draft" : ""));
     if (open) { chip.type = "button"; chip.addEventListener("click", open); chip.setAttribute("aria-label", L("打开") + "：" + title); }
-    chip.append(glyph(icon), el("span", "assistant-attachment-name", title + (material.draft ? L("（草稿）") : "")));
+    chip.append(glyph(icon), el("span", "assistant-attachment-name", title + (material.draft ? L("（草稿）") : "") + (material.expired ? L("（已失效）") : "")));
     if (MATERIAL_KIND[material.kind]) chip.title = L(MATERIAL_KIND[material.kind]);
+    if (material.expired) { chip.classList.add("is-expired"); chip.title = L(EXPIRED_IMAGE); }
     return chip;
   };
   const renderRound = (work, round) => {
@@ -1287,14 +1317,17 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       });
       used.forEach((one) => {
         const box = el("div", "assistant-tile"), name = one.material.title.replace(/^(方法|用|图片|引用)：/, "");
-        const readable = one.material.kind === "file" && one.material.text && sidePanelHere();
+        const readable = one.material.kind === "file" && one.material.text && sidePanelHere()
+          ? () => { sidePreview({ preview: { title: name, media_type: "text/plain", text: one.material.text } }); } : readBack(one.material, name) || readImage(one.material, name);
         const title = el(readable ? "button" : "span", "assistant-item-title", name);
         if (readable) {
           title.type = "button"; title.setAttribute("aria-label", L("预览") + "：" + name); box.classList.add("is-openable");
-          title.addEventListener("click", () => { sidePreview({ preview: { title: name, media_type: "text/plain", text: one.material.text } }); });
+          title.addEventListener("click", readable);
         }
         box.append(tile(MATERIAL_GLYPH[one.material.kind] || "file", ""), title,
-          el("span", "assistant-item-sub", L(MATERIAL_KIND[one.material.kind] || "材料") + " · " + L("第 {n} 轮").replace("{n}", String(one.round))));
+          el("span", "assistant-item-sub", L(MATERIAL_KIND[one.material.kind] || "材料") + " · " + L("第 {n} 轮").replace("{n}", String(one.round))
+            + (one.material.expired ? " · " + L("已失效") : "")));
+        if (one.material.expired) box.title = L(EXPIRED_IMAGE);
         tiles.append(box);
       });
       const content = el("div", "assistant-group-list");

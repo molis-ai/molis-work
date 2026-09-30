@@ -1,19 +1,25 @@
 # Prologue SDK 构建来源
 
-## 当前依赖：memory-platform（2026-09-30，平台记忆 S2–S5）
+## 当前依赖：side-panel-memory（2026-09-30，平台侧栏的界面控制 + 平台记忆）
 
-`prologue-sdk-0.0.0-rc.1-memory-platform.tgz`。在 assistant-intake（`c63ea1a1`）之上补平台记忆需要的四件事（specs/memory-system §8.2）：
+`prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`，SHA-256 `942de9c594d8fc0bbb81d3b36d766761427ff51c2c4cee33aab342033c85846c`。在 assistant-intake 包的来源（prologue `c63ea1a1`）之上叠两条线，合成一个包给侧栏与记忆两边共用：
 
-- **S3 条目结构化信息与暂停**：`MemoryEntry.meta`（类别、来源、依据、适用情境、证据、到期、批准者、命名空间；有界，整份 JSON ≤ 4096 字符，不认识的字段或超界整条拒写，错误码 `MEMORY_META_INVALID`）、`paused`、`createdAtMs` / `updatedAtMs`；`setMeta` / `pause` / `resume`。落盘行形状升到 2，第 1 版的行读回按空值补。
-- **S2 召回**：`recall({ text })` 由这一册切词（英文按词、中日韩按相邻两字），`kinds` 过滤，按 `atMs` 判到期，暂停与到期的不召回；回执 `segmentation` 写明切法。开跑输入 `memory.pinned`（App 选好的精确引用）/ `memory.scopes`（按格子召回）/ `memory.budgetChars`；点名而档案不读记忆即 `AGENT_START_WIDENS_ACCESS`。
-- **S5 使用回执**：点名的条目开跑时逐条重读（删了、暂停、到期的不注入），注入的 `memory-recall` 条目出处末尾带 `[memory:<id>@v<版本>]`；Run 事件 `memory-recalled` 只报引用与版本（injected / omitted / unavailable），不带正文。
-- **S4 持久候选箱**：`runtime.memoryCandidates`（`createCandidateBox`，另一张表 `memory-candidates`），分作用域、同句去重、候选不召回；`accept`（批准者：人）与 `promote({ policy, version })`（批准者：策略）都经唯一写入口并把批准者写在条目上，可带 App 进库时的出处与信息；`settleInto` 让纠正型候选并入它纠正的那一条（App 已经经 `update` 改了正文）。
-- 时钟一律走 Host 的时钟 Port（域代码不直取 `Date.now`）。
-- 源码：`~/code/prologue-assistant` 仓库的工作树 `~/code/prologue-memory`，分支 `feat/molis-memory-platform`，提交 `f80130ab`、`9773d59a`（父 `c63ea1a1`）。增量补丁 [memory-platform.patch](memory-platform.patch)（相对 `c63ea1a1`）。**尚未推送到上游**（推送要用户同意）。
-- 重建：检出 `c63ea1a1` 应用 `memory-platform.patch`（或直接检出 `f80130ab`），`pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-memory-platform.tgz`。
-- 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`20659c3dc9f9b6b3d6061c79a5bda4e5a92013990779c51a5f26c419a7245f9c`。
-- 验证：新增 `test/memory-platform.live.test.ts` 7 项，连同记忆、开始覆盖、源码树规则 7 个文件 85 项全过，类型检查无错。SDK 全量 279 个文件在并发负载下有 29 项失败，逐项与 `c63ea1a1` 基线比对：多出的 4 项里“领域不直取系统时钟”已改正，其余 3 项（忽略规则、Computer Use 上传、一次性密钥许可）单独重跑通过；强杀恢复与真实浏览器一类在基线上同样失败。
-- 与侧栏线：它也会从 `c63ea1a1` 打补丁，两条补丁按顺序叠加，后落地的一方负责叠成一个合成包。`assistant-intake.tgz` 已不被依赖，按本目录约定应删除，删 vendor 文件由用户决定。
+- 平台记忆（记忆会话，`f80130ab`、`9773d59a`）：条目元数据与暂停、中日韩召回、固定注入的回执、按范围持久的候选；候选按 App 最终给出的出处与信息落定，或并入它更正的已有条目。
+- 侧栏的界面控制（specs/side-panel，`d7aba36b`、`3f8ffd15`、`e0a2f059`、`356ae236`、`9fc3b173`）：
+  - 界面归属会话，另一会话的界面与观察一律拒绝；
+  - App 模式在本会话挂了界面时放行 `surface-list/observe/act`，本轮工具名单和 Character 绑定两道检查用同一份名单；
+  - 文字观察以 `<untrusted-page-content>` 交给模型；
+  - `surface-act` 经闸门等人批准，等待的时间不算进观察的新鲜期；等完之后取 Runtime 时钟；
+  - `effects.forget` 收回记住的批准；
+  - 要输入的文字作为审查正文，批准的人看得见准确内容；
+  - 还没打开网站的浏览器页面，scope 为 `about:blank`。
+- 来源：prologue 分支 `feat/molis-side-panel-surfaces-on-memory`，头 `9fc3b173`。这些提交暂未推到 prologue 远端，由合并协调统一推。
+- 重建：检出 `af7375c7`，`git apply side-panel-memory.patch`。补丁只含 `packages/sdk`，应用后与 `9fc3b173` 的 `packages/sdk` 逐文件相同。然后 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`。
+- 验证：
+  - 在 `9fc3b173` 上，记忆的 memory-export / extract / persist / platform / project-scope 与界面的 app-mode-surfaces / ui-control / plugin-manifest / computer-use 测试全过；
+  - Molis 侧，换包后 `pnpm build`、`boundary:check`、`typecheck:all` 通过，tests/side-panel-* 通过；
+  - 真实模型（MiniMax-M3）跑通了侧栏浏览器的查看、确认、接手交还、上传与网站决定。
+- 包的依赖与 assistant-intake 相同，没有新增。记忆线已改用本包，memory-platform.tgz 与 memory-platform.patch 已删除（经用户同意，2026-10-01）；源码在 prologue 远端分支 feat/molis-memory-platform（9773d59a）。本目录的 assistant-intake.tgz 换包后不再被依赖；按本目录约定应删除，删 vendor 文件由用户决定。
 
 ## 上一依赖：assistant-intake（2026-09-29，main 的原图摄取线 + 助理的记忆项目作用域）
 

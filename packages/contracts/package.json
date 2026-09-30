@@ -202,6 +202,14 @@
       "types": "./dist/services/connector-host.d.ts",
       "import": "./dist/services/connector-host.js"
     },
+    "./services/ui-surfaces": {
+      "types": "./dist/services/ui-surfaces.d.ts",
+      "import": "./dist/services/ui-surfaces.js"
+    },
+    "./services/browser": {
+      "types": "./dist/services/browser.d.ts",
+      "import": "./dist/services/browser.js"
+    },
     "./services/im": {
       "types": "./dist/services/im.d.ts",
       "import": "./dist/services/im.js"

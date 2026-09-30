@@ -45,15 +45,24 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     paint();
     if (list) list.scrollTop = top;
   };
-  const firstLine = (value) => {
+  const firstLine = (value, fallback = "") => {
     const line = String(value || "").trim().split("\\n")[0].trim();
-    return line || L("还没有说明");
+    return line || fallback;
   };
-  const kindChip = (kind, label) => {
+  const whenOf = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const sameYear = date.getFullYear() === new Date().getFullYear();
+    return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
+  };
+  // A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name.
+  const fixedCell = (record) => {
     const node = document.createElement("span");
-    node.className = "mw-status plugin-stage-kind";
-    node.dataset.kind = kind;
-    node.textContent = label;
+    node.className = "mw-status mw-status--plain feed-entry-status";
+    if (record.publication_pending) { node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
+    else if (record.artifact_version > 0) { node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
+    else node.setAttribute("aria-hidden", "true");
     return node;
   };
   const textCell = (className, text) => {
@@ -491,17 +500,6 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     keepListScroll(() => paintList());
   };
   const artifactLabel = (record) => record?.publication_pending ? L("继续保存上次固定版本") : record && record.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
-  const artifactControl = (record, key) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "creative-artifact-act";
-    button.dataset[key] = record.id;
-    const label = artifactLabel(record);
-    button.setAttribute("aria-label", label);
-    button.innerHTML = '<svg aria-hidden="true"><use href="#icon-upload"></use></svg><span></span>';
-    button.lastElementChild.textContent = label;
-    return button;
-  };
   const paintList = () => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
@@ -521,16 +519,16 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       leading.append(title);
       const published = record.status === "published";
       const status = document.createElement("span");
-      status.className = "mw-status mw-status--" + (published ? "done" : "quiet") + " feed-entry-status";
+      status.className = "mw-status mw-status--plain mw-status--" + (published ? "progress" : "quiet") + " feed-entry-status";
       status.textContent = published ? L("正在收集") : record.status === "closed" ? L("已停止收集") : L("未开始收集");
       row.append(
         leading,
-        kindChip("form", L("问卷")),
         textCell("plugin-stage-fact", (record.questions || []).length + " " + L("题")),
-        textCell("plugin-stage-meta", firstLine(record.description)),
+        textCell("plugin-stage-meta", firstLine(record.description, whenOf(record.updated_at))),
         status,
+        fixedCell(record),
       );
-      item.append(row, artifactControl(record, "formArtifact"));
+      item.append(row);
       rowsEl.append(item);
     });
     const bar = workbench.querySelector("[data-form-artifact-bar]");
@@ -682,16 +680,21 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (tabButton.dataset.formTab === "results") await loadResults();
         return;
       }
-      if (event.target.closest("[data-form-add-question]") && selected) {
+      const addQuestion = event.target.closest("[data-form-add-question]");
+      if (addQuestion && selected) {
+        // A type chip adds that type and remembers it; the plain button adds the last type used.
+        const type = addQuestion.dataset.formAddQuestion || typeSelect.value || "text";
+        if (typeSelect) typeSelect.value = type;
         const row = renderQuestion({
           id: "q-" + crypto.randomUUID(),
-          type: typeSelect.value,
+          type,
           title: "",
           required: false,
-          options: usesOptions(typeSelect.value) ? [{ label: "" }, { label: "" }] : undefined,
+          options: usesOptions(type) ? [{ label: "" }, { label: "" }] : undefined,
         });
         questionsEl.append(row);
         arrive(row);
+        row.querySelector("[data-question-title]")?.focus();
         queueSave();
         return;
       }

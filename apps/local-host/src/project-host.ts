@@ -204,7 +204,7 @@ export class MolisWorkLocalHost {
             registry.registerProvider(artifactActionProvider(runtime, options));
             for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) registry.registerProvider(provider);
             if (options.homeDirectory) registry.registerProvider(pagesActionProvider(options.homeDirectory, runtime, this.actionClient(reference), options.completeText));
-            if (options.homeDirectory) registry.registerProvider(pptActionProvider(options.homeDirectory, runtime));
+            if (options.homeDirectory) registry.registerProvider(pptActionProvider(options.homeDirectory, runtime, options.completeText));
             if (options.homeDirectory) registry.registerProvider(formActionProvider(options.homeDirectory, runtime, options.completeText));
             if (options.homeDirectory) registry.registerProvider(datasetActionProvider(options.homeDirectory, runtime, options.completeText));
             if (options.homeDirectory) registry.registerProvider(lingguangActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));

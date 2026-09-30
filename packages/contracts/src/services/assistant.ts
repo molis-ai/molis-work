@@ -1,5 +1,6 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentPendingQuestion, AgentRunPhase, AgentRunUsage, AgentTurnView } from "./agent-host.js";
+import type { MemoryChange, MemoryScope } from "./memory.js";
 
 /**
  * The system Assistant: one personal assistant, many independent pieces of work.
@@ -258,7 +259,11 @@ export interface AssistantRound {
   usage?: AgentRunUsage;
   stop_reason?: string;
   ended_at: string | null;
+  /** The memories this round was given, and the ones that matched but did not fit (specs/memory-system §7.3). Deleted ones are not listed. */
+  memories_used?: { used: AssistantRoundMemory[]; omitted: Array<AssistantRoundMemory & { reason: "budget" | "limit" }> };
 }
+
+export interface AssistantRoundMemory { memory_id: string; scope: MemoryScope; text: string; origin: string }
 
 /**
  * A suggestion the person can run with one click. It carries the exact capability and prepared input; the click is
@@ -370,6 +375,8 @@ export interface AssistantWorkView {
   undoable?: AssistantUndoable[];
   /** What this work suggests keeping, waiting for the person. */
   memory_candidates?: AssistantMemoryCandidate[];
+  /** What this work kept, replaced or forgot in the platform memory; an automatic one can be undone (`POST /api/memory/changes/<id>/undo`). */
+  memory_changes?: MemoryChange[];
   /** Background work this work started in plugins, and how each stands. */
   jobs?: AssistantBackgroundJob[];
   /**

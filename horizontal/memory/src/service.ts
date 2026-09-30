@@ -573,7 +573,7 @@ export class MemoryService {
     const counted = this.ports.ledger.countSignal({ actor_id: caller.actor_id, key, event_id: report.event_id, occurrence: report.occurrence ?? report.event_id, at: this.now().toISOString() });
     let candidate_id: string | null = null;
     if (counted.state === "counted" && counted.count >= threshold.count && counted.distinct >= threshold.distinct) {
-      const place = [situation.plugin_id, situation.object_kind].filter(Boolean).join(" · ");
+      const place = situation.label?.trim().slice(0, 40) || [situation.plugin_id, situation.object_kind].filter(Boolean).join(" · ");
       const label = report.subject.label.trim().slice(0, 80);
       const text = report.signal === "accepted" || report.signal === "rewritten"
         ? `${place ? `在 ${place} 里` : ""}常用「${label}」${report.signal === "rewritten" ? "（通常会先改一改再用）" : ""}`

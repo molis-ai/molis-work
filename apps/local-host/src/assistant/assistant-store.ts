@@ -109,6 +109,8 @@ export interface StoredRound {
   started_at: string;
   /** The work's cap in force when the round started, when there was one: a stop at its token limit is that cap. */
   work_budget?: number;
+  /** The platform memory's recall receipt for this round: what it was given and what did not fit. */
+  memory_receipt?: string;
 }
 
 /** A card as stored: the public view's facts plus the exact reference and input it runs. */

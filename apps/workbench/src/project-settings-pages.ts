@@ -8,6 +8,7 @@ import { createProjectSettingsFolds, type ProjectSettingsFoldId } from "./projec
 import { createWorkbenchGoalsPlanningRenderer } from "./ui-composition.js";
 import { CONTROL_CLIENT_SCRIPT, PROJECT_RULES_CLIENT_SCRIPT, PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
 import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./scripts/project-settings.js";
+import { MEMORY_SETTINGS_CLIENT_SCRIPT, renderMemorySettings } from "./settings-memory.js";
 
 export interface ProjectSettingsPagePorts {
   L(text: string, values?: Record<string, string | number>): string;
@@ -117,6 +118,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     </section>`;
     if (section === "general") return folds.renderGeneralPage(hubProject(view), desktopShell);
     if (section === "guidance") return renderProjectGuidanceDocument(guidance);
+    if (section === "memory") return renderMemorySettings({ L, scope: "project", projectId: view.project!.project_id });
     if (section === "rules") return renderProjectPolicyDocument(view);
     const composition = composePlanningMethodPacks(methods.filter((method) => method.scope === "project" && method.enabled));
     return planningBodyRenderer().renderProject(view, methods, composition, desktopShell);
@@ -150,7 +152,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
   <div class="toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
 </body></html>`;
   }
 

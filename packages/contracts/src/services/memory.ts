@@ -227,7 +227,8 @@ export interface MemorySignalReport {
   signal: "accepted" | "ignored" | "rewritten" | "undone";
   /** Which suggestion it was about: the offered capability and its title (not the person's content). */
   subject: { capability_id: string; label: string };
-  situation?: { plugin_id?: string; object_kind?: string };
+  /** `label`: where, in words for the person (e.g. “Pages 的选中文字”); display only. */
+  situation?: { plugin_id?: string; object_kind?: string; label?: string };
   /** A work, page visit or selection session: repeats inside one occurrence do not add to `distinct`. */
   occurrence?: string;
   /** Personal by default; `project` needs the caller's project. */
@@ -459,7 +460,7 @@ export const memoryActions = {
     input_schema: { type: "object", properties: { event_id: { type: "string", minLength: 8, maxLength: 120, pattern: "^[A-Za-z0-9_.:-]+$" },
       signal: { enum: ["accepted", "ignored", "rewritten", "undone"] },
       subject: { type: "object", properties: { capability_id: { type: "string", minLength: 1, maxLength: 200 }, label: { type: "string", minLength: 1, maxLength: 80 } }, required: ["capability_id", "label"], additionalProperties: false },
-      situation: { type: "object", properties: { plugin_id: { type: "string", maxLength: 200 }, object_kind: { type: "string", maxLength: 200 } }, additionalProperties: false },
+      situation: { type: "object", properties: { plugin_id: { type: "string", maxLength: 200 }, object_kind: { type: "string", maxLength: 200 }, label: { type: "string", maxLength: 40 } }, additionalProperties: false },
       occurrence: { type: "string", maxLength: 200 }, scope: scopeSchema }, required: ["event_id", "signal", "subject"], additionalProperties: false },
     output_schema: { type: "object", properties: { state: { enum: ["counted", "duplicate", "off"] }, count: { type: "integer" }, distinct: { type: "integer" }, candidate_id: nullableText,
       threshold: { type: "object", properties: { count: { type: "integer" }, distinct: { type: "integer" } }, required: ["count", "distinct"], additionalProperties: false } },

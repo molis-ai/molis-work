@@ -83,6 +83,12 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     assert.match(recalled(inB.first), /记住的偏好与背景[\s\S]*回答用要点列表/);
     assert.doesNotMatch(recalled(inB.first), /NSM/);
     assert.deepEqual((await service.memories("project-b")).map(item => item.text), ["回答用要点列表"]);
+    // The panel sees what each round was given, and what the work kept (specs/memory-system §7.3, §10.3).
+    const inBView = await service.read(inB.work.work_id);
+    assert.deepEqual(inBView.rounds[0]!.memories_used?.used.map(item => [item.scope, item.text]), [["personal", "回答用要点列表"]]);
+    const firstView = await service.read(first.work.work_id);
+    assert.deepEqual(firstView.memory_changes?.map(change => [change.kind, change.text, change.undoable]).sort(),
+      [["kept", "回答用要点列表", false], ["kept", "项目甲里 NSM 指北极星指标", false]]);
     // Project A's work sees both.
     const inA = await round("NSM 这周怎么样", projectA, "req-memory-003");
     assert.match(recalled(inA.first), /\[本项目\] 项目甲里 NSM 指北极星指标/);

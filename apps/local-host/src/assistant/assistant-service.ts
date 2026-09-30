@@ -18,7 +18,7 @@ import { AssistantStoreError, type AssistantStore, type StoredCard, type StoredJ
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { randomUUID } from "node:crypto";
-import type { MemoryCandidate } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryCandidate, MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import { MemoryError, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, CodingUnavailable, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
 
@@ -856,6 +856,7 @@ export class AssistantService {
     const jobs = this.store.jobs(this.actorId, work.work_id).map(({ key: _key, status: _status, input: _input, path: _path, done: _done, failed: _failed, checks: _checks, told: _told, ...view }) => view);
     const undoable = this.store.undos(this.actorId, work.work_id).slice(-10).map(({ work_id: _work, reference: _reference, input: _input, told: _told, ...view }) => view);
     const memory_candidates = this.memoryCandidates(work.work_id);
+    const { changes: memory_changes } = await this.memoryTrail(work, rounds, this.store.rounds(work.work_id)).catch(() => ({ changes: [] as MemoryChange[] }));
     const usage = work.executor.kind === "coding" ? null : await this.workUsage(work).catch(() => null);
     // A suggestion about an object the person has since changed or removed by hand is not offered any more.
     // A suggestion whose moment has passed, or about an object changed by hand since, is not offered any more.
@@ -865,7 +866,7 @@ export class AssistantService {
     }
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
-      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}), ...(memory_candidates.length ? { memory_candidates } : {}),
+      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}), ...(memory_candidates.length ? { memory_candidates } : {}), ...(memory_changes.length ? { memory_changes } : {}),
       ...(usage && (usage.rounds || usage.budget_tokens !== null) ? { usage } : {}), ...(problem ? { problem } : {}) };
   }
 
@@ -1817,11 +1818,12 @@ export class AssistantService {
     const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
     const offered = await this.actionTools(authority);
     this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
+    const recalled: { receipt?: string } = {};
     const handle = await host.start(RUNTIME, {
       board_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
       session: sessionRef(work), role_id: ASSISTANT_ROLE_ID, workspace: "business", task: text,
       action_gateway: true,
-      text_materials: await this.roundMaterials(work, materials, context, offered, text),
+      text_materials: await this.roundMaterials(work, materials, context, offered, text, recalled),
       // Pictures the person added: the runtime shows them to the model in this round (refused if the model cannot see).
       ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
         .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),
@@ -1830,7 +1832,7 @@ export class AssistantService {
       ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
     }, authority);
     this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString(), ...(work.character ? { character: { ...work.character } } : {}),
-      ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }) });
+      ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(recalled.receipt ? { memory_receipt: recalled.receipt } : {}) });
     return this.result(work, "started", handle.ref.run_id);
   }
 
@@ -1868,7 +1870,8 @@ export class AssistantService {
   }
 
   /** The round's situation and the person's materials, as marked data. Changing facts travel here, not in the role. */
-  private async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], request = ""): Promise<AgentTextMaterial[]> {
+  private async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], request = "",
+    recalled: { receipt?: string } = {}): Promise<AgentTextMaterial[]> {
     const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = this.now();
     const local = new Intl.DateTimeFormat("zh-CN", { timeZone: zone, dateStyle: "full", timeStyle: "short" }).format(now);
@@ -1916,7 +1919,8 @@ export class AssistantService {
     }
     // What the person asked to be remembered that bears on this round.
     const remembered = await this.recallFor(work, `${request} ${work.title} ${materials.map(item => item.title).join(" ")}`);
-    if (remembered) out.push(...chunked({ ...base, title: "记住的偏好与背景" }, "memory", remembered));
+    if (remembered?.receipt) recalled.receipt = remembered.receipt;
+    if (remembered?.text) out.push(...chunked({ ...base, title: "记住的偏好与背景" }, "memory", remembered.text));
     // Forming memories switched off: the round is told, so it neither claims to keep nor quietly drops what was asked.
     if (this.ports.memory?.() && !this.memoryTools(work)) out.push(...chunked({ ...base, title: "记忆设置" }, "memory-off",
       "用户关闭了“允许记住”，这一轮不能长期记住或忘掉任何事。遇到“以后…”“记住…”：在这项工作里照做，用一句话说明没有长期记下、可以在 设置 · 助理 · 记忆与偏好 打开。不要复述这段说明。"));
@@ -2240,13 +2244,36 @@ export class AssistantService {
    * What the person asked to be remembered that bears on this round, from the platform recall for the Assistant
    * (switched-off, expired and inapplicable ones never): most relevant first, within a budget.
    */
-  private async recallFor(work: StoredWork, request: string): Promise<string | null> {
+  private async recallFor(work: StoredWork, request: string): Promise<{ text: string | null; receipt: string } | null> {
     const memory = this.ports.memory?.();
     if (!memory) return null;
     const recalled = await memory.recall(this.memoryCaller(work, null), { query: request, limit: 16, budget_chars: 3000 }).catch(() => null);
-    if (!recalled?.items.length) return null;
+    if (!recalled) return null;
+    if (!recalled.items.length) return { text: null, receipt: recalled.receipt_id };
     const lines = recalled.items.map(item => `- [${item.scope === "personal" ? "个人" : "本项目"}] ${item.text}（来自：${item.origin}）`);
-    return ["用户要你记住的（他本人明确要求保留的；与他本轮的话冲突时以本轮为准；不要复述给他，照着做即可）：", ...lines].join("\n");
+    return { text: ["用户要你记住的（他本人明确要求保留的；与他本轮的话冲突时以本轮为准；不要复述给他，照着做即可）：", ...lines].join("\n"), receipt: recalled.receipt_id };
+  }
+
+  /** What each round was given from memory and what did not fit, and what this work changed in memory (for the panel). */
+  private async memoryTrail(work: StoredWork, rounds: AssistantRound[], stored: readonly StoredRound[]): Promise<{ changes: MemoryChange[] }> {
+    const memory = this.ports.memory?.();
+    if (!memory) return { changes: [] };
+    const caller = this.memoryCaller(null, work.project_ref?.project_id ?? null, true);
+    const receipts = new Map(stored.filter(round => round.memory_receipt).map(round => [round.run_id, round.memory_receipt!]));
+    if (receipts.size) {
+      const items = new Map((await memory.list(caller, { scope: "all" }).catch(() => ({ items: [] as MemoryItem[] }))).items.map(item => [item.memory_id, item]));
+      for (const round of rounds) {
+        const receipt = receipts.get(round.run_id);
+        if (!receipt) continue;
+        const uses = memory.uses({ receipt_id: receipt });
+        const view = (id: string) => { const item = items.get(id); return item ? { memory_id: id, scope: item.scope, text: item.text, origin: item.origin } : null; };
+        const used = uses.filter(use => use.state === "used").map(use => view(use.memory_id)).filter((item): item is NonNullable<typeof item> => !!item);
+        const omitted = uses.filter(use => use.state === "omitted").map(use => { const item = view(use.memory_id); return item ? { ...item, reason: "budget" as const } : null; })
+          .filter((item): item is NonNullable<typeof item> => !!item);
+        if (used.length || omitted.length) round.memories_used = { used, omitted };
+      }
+    }
+    return { changes: memory.changes(caller, { scope: "all", work_id: work.work_id, limit: 20 }) };
   }
 
   delegation(parent: StoredWork): AgentDelegation | undefined {

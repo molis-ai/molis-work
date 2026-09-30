@@ -19,7 +19,7 @@ test("Experiments register at Home; only lists and result summaries leave the lo
     assert.deepEqual(mine.map(row => row.capability_id).sort(), EXPERIMENTS_ACTIONS.map(row => row.capability_id).sort());
     const external = (await client.discover({ ...user, actor_id: "runtime:x", audience: "mcp" })).filter(row => row.provider.plugin_id === "io.molis.work.experiments");
     // The search source carries only what the list already shares: each experiment's name and state.
-    assert.deepEqual(external.map(row => row.capability_id).sort(), ["experiments.list", "experiments.results", "experiments.search.entries"],
+    assert.deepEqual(external.map(row => row.capability_id).sort(), ["experiments.list", "experiments.results", "experiments.search.entries", "experiments.subject.read"],
       "participants name local executables, so configuring and running stay with the local user");
 
     const store = openFunctionsStore(home);
@@ -39,6 +39,13 @@ test("Experiments register at Home; only lists and result summaries leave the lo
     const results = await reader.invoke(a.results, { id: experiment.id });
     assert.equal(results.summary[0]?.participant_id, "jev");
     assert.doesNotMatch(JSON.stringify(results), /fixture|原始函数标准/, "summaries carry metrics, not materials or task text");
+    // What search lists can be read back (contextual-interaction plugin-read audit), inside the same boundary as the summaries.
+    const context = await reader.invoke(a.subjectRead, { subject_id: experiment.id });
+    assert.equal(context.title, "快照");
+    assert.deepEqual(context.open, { surface: "experiments", id: experiment.id });
+    assert.match(context.content, /状态：待运行/);
+    assert.match(context.content, /Jev：尚未运行/);
+    assert.doesNotMatch(context.content, /fixture|原始函数标准|jev-latest/, "the reader carries metrics, not materials, task text or model identifiers");
     await assert.rejects(reader.invoke(a.get, { id: experiment.id }), { code: "actions.forbidden" });
     await assert.rejects(reader.invoke(a.run, { id: experiment.id }), { code: "actions.forbidden" });
   } finally {

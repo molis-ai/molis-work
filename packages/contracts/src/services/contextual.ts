@@ -69,8 +69,12 @@ export interface ContextualJudgment {
   /** `jev`: the real model; `replay`: recorded answers (a labelled stand-in); `rules`: no model. */
   readonly basis: "jev" | "replay" | "rules";
   readonly next: Readonly<Record<string, number>>;
+  /** Per declared intent. Derived from `next` by each candidate's intent unless the model answered it directly. */
   readonly intent: Readonly<Record<string, number>>;
   readonly surface: AssistantForm;
+  /** Probability of the chosen `surface`; the Assistant takes part only when it is high enough. */
+  readonly surface_probability: number | null;
+  /** Kept for recorded answers from the first question set; the current set does not ask it (spec §5.4). */
   readonly speak_up: number | null;
   readonly confidence: number | null;
   readonly model?: string;

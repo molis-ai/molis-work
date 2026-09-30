@@ -1,0 +1,41 @@
+[
+  {
+    "match": [
+      "我们认为转化率低的主要原因，是新用户在试用期内没"
+    ],
+    "activity": "selecting",
+    "granularity": "range",
+    "next": {
+      "io.molis.work.pages:formal": 0.13,
+      "io.molis.work.pages:translate": 0,
+      "io.molis.work.pages:bullets": 0.02,
+      "io.molis.work.pages:reader": 0.13,
+      "io.molis.work.goals:breakdown": 0.01,
+      "io.molis.work.pages:counter": 0.01,
+      "io.molis.work.pages:explain": 0.01,
+      "io.molis.work.lingguang:capture": 0,
+      "io.molis.work.pages:actions": 0,
+      "io.molis.work.goals:dependencies": 0,
+      "io.molis.work.pages:expand": 0.06,
+      "system.assistant:discuss": 0.03,
+      "system.search:evidence": 0.3,
+      "io.molis.work.pages:concise": 0.06,
+      "io.molis.work.goals:relate": 0.24
+    },
+    "intent": {
+      "rewrite": 0.22,
+      "expand": 0.02,
+      "understand": 0.29,
+      "organize": 0.1,
+      "capture": 0.31,
+      "question": 0.01,
+      "relate": 0.05
+    },
+    "surface": "none",
+    "speak_up": 0.42,
+    "confidence": 0.24,
+    "latency_ms": 2799,
+    "model": "jev-1.13.0",
+    "recorded_at": "2026-09-30T12:02:54.134Z"
+  }
+]

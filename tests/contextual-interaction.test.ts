@@ -89,7 +89,7 @@ test("the layout follows the judgment, keeps pinned slots within one context, an
   const judgment = readContextualJudgment({ answers: {
     next: { choice: keyOf(candidates, "counter"), probabilities: { [keyOf(candidates, "counter")]: 0.62, [keyOf(candidates, "explain")]: 0.2, [keyOf(candidates, "concise")]: 0.05, "frag.invented": 0.9 }, confidence: 0.7 },
     intent: { choice: "question", probabilities: { question: 0.7, understand: 0.2, "made-up": 0.5 } },
-    surface: { choice: "options" }, speak_up: { noul: 0.8 },
+    surface: { choice: "options", probabilities: { options: 0.7, none: 0.3 } },
   } }, candidates, "jev", 420);
   assert.equal(judgment.next["frag.invented"], undefined, "the model cannot invent an action");
   assert.equal(judgment.intent["made-up"], undefined);
@@ -110,8 +110,18 @@ test("the layout follows the judgment, keeps pinned slots within one context, an
 
   const unsure = planContextualLayout({ focus: focus(), candidates, judgment: { ...judgment, confidence: 0.2 } });
   assert.equal(unsure.emphasis, null, "no emphasis when the judgment is not confident");
-  const quiet = planContextualLayout({ focus: focus(), candidates, judgment: { ...judgment, speak_up: 0.3 } });
-  assert.equal(quiet.assistant, null, "the Assistant stays quiet below the threshold");
+  const quiet = planContextualLayout({ focus: focus(), candidates, judgment: { ...judgment, surface_probability: 0.3 } });
+  assert.equal(quiet.assistant, null, "the Assistant stays quiet when the judgment is not sure it should take part");
+  const none = planContextualLayout({ focus: focus(), candidates, judgment: { ...judgment, surface: "none" } });
+  assert.equal(none.assistant, null);
+
+  // Without a direct intent answer, intents follow `next` by each candidate's declared intent.
+  const derived = readContextualJudgment({ answers: {
+    next: { probabilities: { [keyOf(candidates, "counter")]: 0.5, [keyOf(candidates, "explain")]: 0.3, [keyOf(candidates, "concise")]: 0.2 } },
+    surface: { choice: "none", probabilities: { none: 0.9 } },
+  } }, candidates, "jev", 300);
+  assert.deepEqual(derived.intent, { question: 0.5, understand: 0.3, rewrite: 0.2 });
+  assert.equal(derived.surface_probability, 0.9);
   const dismissed = planContextualLayout({ focus: focus(), candidates, judgment, dismissed: [keyOf(candidates, "counter")] });
   assert.notEqual(dismissed.primary[0], keyOf(candidates, "counter"));
 });

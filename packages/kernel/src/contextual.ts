@@ -18,8 +18,8 @@ export const CONTEXTUAL_THRESHOLDS = {
   emphasis: 0.45,
   /** …and says it is at least this confident. */
   confidence: 0.5,
-  /** The Assistant speaks up only above this. */
-  speakUp: 0.6,
+  /** The Assistant takes part only when the judgment picks a form other than `none` at least this surely. */
+  surface: 0.5,
 } as const;
 
 const INTENT_TITLES: Readonly<Record<string, string>> = Object.fromEntries(FRAGMENT_INTENTS.map(intent => [intent.id, intent.title]));
@@ -147,19 +147,33 @@ const SURFACE_CRITERIA: Readonly<Record<AssistantForm, string>> = {
   compare: "给比较：选中的是两段或多份内容，适合并排比较异同",
 };
 
-/** One request, four questions (spec §5.2). Criteria keys are the candidate keys, intent ids and forms. */
-export function judgmentQuestions(candidates: readonly ContextualCandidate[]): Record<string, unknown> {
+const ACTIVITY_HINTS: Partial<Record<SurfaceFocus["activity"], string>> = {
+  editing: "他没有选中文字，而是正在写这一段：更可能需要写作上的帮助（改写、接着写、换个角度看），除非这段明显是在记录计划或进展。",
+  completed: "他刚把这一步勾选为完成：更可能想记下进展，或者看接下来该推进什么。",
+  comparing: "他特意把两处内容放在一起：更可能想比较、建立联系或合并。",
+};
+
+/**
+ * One request, two questions (spec §5.2, settled by the §5.4 evaluation): what to do next, and whether the Assistant
+ * should take part in some form. The model first reads what the passage is; the layout derives intents from `next`.
+ */
+export function judgmentQuestions(candidates: readonly ContextualCandidate[], focus?: SurfaceFocus): Record<string, unknown> {
   const available = candidates.filter(candidate => candidate.available);
-  const intents = [...new Set(available.map(candidate => candidate.intent))];
+  const many = (focus?.targets.length ?? 1) > 1;
+  const hint = focus ? (focus.granularity === "word" ? "他只选中了一个词：更可能想弄清它的意思或查证它。" : ACTIVITY_HINTS[focus.activity] ?? "") : "";
   return {
-    next: { type: "choice", instructions: "根据材料判断：用户此刻最可能想对选中的内容做哪一件事？只从选项里选；看内容的含义和他所在的任务，不只看选区的形状。",
-      criteria: Object.fromEntries(available.map(candidate => [candidate.key, `${candidate.title}：${candidate.hint}`])) },
-    intent: { type: "choice", instructions: "用户此刻的意图属于哪一类？",
-      criteria: Object.fromEntries(intents.map(intent => [intent, INTENT_TITLES[intent] ?? intent])) },
+    next: {
+      type: "choice",
+      instructions: [
+        `用户在文档里${many ? "选中了几段内容" : "选中了一段内容"}，想对它做一件事。先看内容本身是什么：`,
+        "观点或判断（需要检验或推敲）、事实或数据（可以作为依据）、计划或步骤（需要落地跟踪）、风险、进展、用户原话、结论、术语，或者是正在写的草稿。",
+        hint,
+        "再结合所在位置和当前目标，从选项里选出他此刻最可能要做的一件事。不要只看选区的长短。",
+      ].join(""),
+      criteria: Object.fromEntries(available.map(candidate => [candidate.key, `${candidate.title}（${candidate.provider_title}）：${candidate.hint}`])),
+    },
     surface: { type: "choice", instructions: "助手应该以什么形式参与？如果用户只是在浏览、或者动作已经很明确，选 none。",
       criteria: { ...SURFACE_CRITERIA } },
-    speak_up: { type: "noul", instructions: "此刻在助手里主动给出建议，是否值得打扰用户？",
-      criteria: { true: "值得：内容里有明显值得处理的点，建议能省下用户的力气", false: "不值得：用户在专心输入或只是浏览，底栏的动作已经够用" } },
   };
 }
 
@@ -179,8 +193,21 @@ export function readContextualJudgment(body: unknown, candidates: readonly Conte
   const intents = new Set<string>(INTENT_ORDER);
   const next = record(answers.next), intent = record(answers.intent), surface = record(answers.surface), speak = record(answers.speak_up);
   const form = typeof surface.choice === "string" && (ASSISTANT_FORMS as readonly string[]).includes(surface.choice) ? surface.choice as AssistantForm : "none";
+  const nextProbabilities = probabilities(next, keys);
+  // Intents follow `next` by each candidate's declared intent unless answered directly, so the two cannot disagree.
+  let intentProbabilities = probabilities(intent, intents);
+  if (!Object.keys(intentProbabilities).length) {
+    const byKey = new Map(candidates.map(candidate => [candidate.key, candidate.intent]));
+    intentProbabilities = {};
+    for (const [key, value] of Object.entries(nextProbabilities)) {
+      const owner = byKey.get(key)!;
+      intentProbabilities[owner] = (intentProbabilities[owner] ?? 0) + value;
+    }
+  }
+  const surfaceProbabilities = probabilities(surface, new Set(ASSISTANT_FORMS));
   return {
-    basis, next: probabilities(next, keys), intent: probabilities(intent, intents), surface: form,
+    basis, next: nextProbabilities, intent: intentProbabilities, surface: form,
+    surface_probability: surfaceProbabilities[form] ?? (form === "none" ? null : 1),
     speak_up: typeof speak.noul === "number" && Number.isFinite(speak.noul) ? speak.noul : null,
     confidence: typeof next.confidence === "number" ? next.confidence : null,
     latency_ms, ...(model || typeof record(body).model === "string" ? { model: model ?? String(record(body).model) } : {}),
@@ -238,7 +265,7 @@ export function planContextualLayout(input: PlanInput): ContextualLayoutPlan {
     .map(([intent, keys]) => ({ intent, title: INTENT_TITLES[intent] ?? intent, keys }));
 
   let assistant: ContextualLayoutPlan["assistant"] = null;
-  if (judged && judged.surface !== "none" && (judged.speak_up ?? 0) >= CONTEXTUAL_THRESHOLDS.speakUp && ranked.length) {
+  if (judged && judged.surface !== "none" && (judged.surface_probability ?? 0) >= CONTEXTUAL_THRESHOLDS.surface && ranked.length) {
     const lead = byKey.get(ranked[0]!)!;
     const topIntent = (Object.entries(judged.intent).sort((a, b) => b[1] - a[1])[0]?.[0] as FragmentIntent | undefined) ?? lead.intent;
     const keys = ranked.filter(key => byKey.get(key)!.intent === topIntent).slice(0, 3);

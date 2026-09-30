@@ -105,7 +105,7 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
         const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(ports.timeoutMs ?? 30_000)]);
         let evaluation: ContextualEvaluation;
         try {
-          evaluation = await ports.evaluate({ state: cleaned.text, questions: judgmentQuestions(candidates), signal });
+          evaluation = await ports.evaluate({ state: cleaned.text, questions: judgmentQuestions(candidates, request.focus), signal });
         } catch {
           const fallback: Fallback = controller.signal.aborted ? "aborted" : signal.aborted ? "timeout" : "failed";
           return respond(request, candidates, null, { digest, screened, fallback });

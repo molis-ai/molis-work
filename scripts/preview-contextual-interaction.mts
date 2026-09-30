@@ -25,9 +25,10 @@ import { preparePagesFragmentOffers } from "../plugins/native/pages/src/fragment
 import { createContextualJudgmentService, type ContextualEvaluation } from "../apps/local-host/src/contextual/judgment-service.js";
 import { fragmentCandidates } from "@molis-ai/molis-work-kernel";
 import { DOCUMENTS, GOAL, MEMORY_STANDIN, PROVIDERS, sliceDirectory, type SliceDocument } from "./contextual-slice/fixture.mjs";
-import { AUTHORED_REPLAY, findReplay } from "./contextual-slice/replay.mjs";
+import { AUTHORED_REPLAY, findReplay, type ReplayAnswer } from "./contextual-slice/replay.mjs";
 import { standinBreakdown, standinDependencies, standinEvidence, standinNext, standinPagesAi } from "./contextual-slice/standins.mjs";
 import { SLICE_STYLES } from "./contextual-slice/styles.mjs";
+import { createJevEvaluator } from "./contextual-slice/jev.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (name: string) => { const index = process.argv.indexOf(name); return index > 0 ? process.argv[index + 1] : undefined; };
@@ -52,6 +53,12 @@ const sleep = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, r
   signal.addEventListener("abort", () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
 });
 
+const RECORDED = join(root, "scripts/contextual-slice/replay-recorded.json");
+const jev = createJevEvaluator({ ...(arg("--home") ? { home: arg("--home") } : {}), ...(process.argv.includes("--record") || dev.judge === "jev" ? { recordTo: RECORDED } : {}) });
+const recorded = (): ReplayAnswer[] => existsSync(RECORDED) ? (JSON.parse(readFileSync(RECORDED, "utf8")) as { match: string[]; activity: string; granularity: string; next: Record<string, number>; intent: Record<string, number>; surface: string | null; speak_up: number | null; confidence: number | null }[])
+  .map(item => ({ match: item.match, activity: item.granularity === "objects" || item.granularity === "word" ? item.granularity : item.activity, next: item.next, intent: item.intent,
+    surface: (item.surface ?? "none") as ReplayAnswer["surface"], speak_up: item.speak_up ?? 0, confidence: item.confidence ?? 0 })) : [];
+
 let service = makeService();
 function makeService() {
   let lastFocus: ContextualJudgeRequest["focus"] | null = null;
@@ -59,7 +66,10 @@ function makeService() {
     await sleep(dev.latency, signal);
     if (dev.fail) throw new Error("注入的判断失败");
     const focus = lastFocus!;
-    const answer = findReplay(AUTHORED_REPLAY, [focus.object.title ?? "", ...focus.targets.map(target => target.text)], focus.activity, focus.granularity);
+    const texts = [focus.object.title ?? "", ...focus.targets.map(target => target.text)];
+    // Recorded real Jev answers win over hand-written samples; the label says which one this is.
+    const real = findReplay(recorded(), texts, focus.activity, focus.granularity);
+    const answer = real ?? findReplay(AUTHORED_REPLAY, texts, focus.activity, focus.granularity);
     if (!answer) throw new Error("没有这个情境的回放样本");
     // Map `provider:offer` to this directory's judgment keys through the criteria text the question carries.
     const criteria = (questions.next as { criteria: Record<string, string> }).criteria;
@@ -71,7 +81,7 @@ function makeService() {
       if (found) next[found.key] = value;
     }
     const top = Object.entries(next).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-    return { basis: "replay", model: "回放 · 人工样本（非真实 Jev）", body: { answers: {
+    return { basis: "replay", model: real ? "回放 · 录制的真实 Jev 回答" : "回放 · 人工样本（非真实 Jev）", body: { answers: {
       next: { choice: top, probabilities: next, confidence: answer.confidence },
       intent: { choice: Object.entries(answer.intent).sort((a, b) => b[1] - a[1])[0]?.[0], probabilities: answer.intent },
       surface: { choice: answer.surface }, speak_up: { noul: answer.speak_up },
@@ -80,6 +90,10 @@ function makeService() {
   const inner = createContextualJudgmentService<string>({
     directory: async () => sliceDirectory(dev.disabled),
     ...(dev.judge === "replay" ? { evaluate: replay } : {}),
+    ...(dev.judge === "jev" && jev.configured() ? { evaluate: async (input: { state: string; questions: Record<string, unknown>; signal: AbortSignal }) => {
+      if (dev.fail) throw new Error("注入的判断失败");
+      return jev.evaluate({ ...input, ...(lastFocus ? { focus: lastFocus } : {}), candidates: wrapper.lastCandidates });
+    } } : {}),
     recall: async () => dev.memory ? { state: "ok" as const, items: MEMORY_STANDIN } : { state: "off" as const, items: [] },
     screen: text => {
       const notes: string[] = [];

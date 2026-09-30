@@ -181,7 +181,7 @@ const bus = {
       const out = await api<ContextualJudgeResponse>("POST", "/api/contextual/judge", this.request(focus), controller.signal);
       if (seq !== this.seq || out.plan.context_id !== this.current?.context_id) { this.dropped += 1; return; }
       bar.render(out, focus, false);
-      if (out.plan.assistant) cards.suggest(out.plan, focus, out.judgment?.basis ?? "rules"); else cards.dropSuggestion();
+      if (out.plan.assistant) cards.suggest(out.plan, focus, out.judgment?.model ?? (out.judgment?.basis === "jev" ? "Jev 判断" : "规则")); else cards.dropSuggestion();
     } catch (error) {
       if ((error as Error).name === "AbortError") return;
       if (seq === this.seq) bar.fallback("failed");
@@ -394,7 +394,7 @@ const cards = {
     dismiss.addEventListener("click", () => { for (const key of assistant.keys) { bus.dismiss(key); signal("ignored", byKey.get(key)!.title, plan.context_id); } this.dropSuggestion(); });
     buttons.append(dismiss);
     this.suggestion = el("article", { class: "cx-card", "data-kind": "suggestion" },
-      el("header", {}, el("strong", { text: "助理建议" }), el("small", { text: `依据：${basis === "jev" ? "Jev 判断" : basis === "replay" ? "回放样本（非真实 Jev）" : "规则"}` })),
+      el("header", {}, el("strong", { text: "助理建议" }), el("small", { text: `依据：${basis}` })),
       el("blockquote", { class: "cx-quote", text: quote + (quote.length >= 60 ? "…" : "") }), el("p", { class: "cx-text", text: line }), buttons);
     this.suggestionContext = plan.context_id;
     this.host.append(this.suggestion);
@@ -648,7 +648,7 @@ async function renderDev() {
   latency.addEventListener("change", () => void post({ latency: Number(latency.value) }));
   const toggle = (label: string, checked: boolean, run: (value: boolean) => void) => { const input = el("input", { type: "checkbox" }) as HTMLInputElement; input.checked = checked; input.addEventListener("change", () => run(input.checked)); return el("label", {}, input, ` ${label}`); };
   root.replaceChildren(
-    el("fieldset", {}, el("legend", { text: "判断来源" }), radio("replay", "回放（人工样本，非真实 Jev）"), radio("rules", "只用规则（等同判断不可用）"), radio("jev", "真实 Jev（需要配置 Key）")),
+    el("fieldset", {}, el("legend", { text: "判断来源" }), radio("jev", "真实 Jev（经 Prologue，读取你 Home 里的 Key）"), radio("replay", "回放（优先录制的真实 Jev，其次人工样本）"), radio("rules", "只用规则（等同判断不可用）")),
     el("fieldset", {}, el("legend", { text: `判断延迟：${state.latency}ms` }), latency, toggle("注入判断失败", state.fail, value => void post({ fail: value })), toggle("使用记忆（替身）", state.memory, value => void post({ memory: value }))),
     el("fieldset", {}, el("legend", { text: "停用插件（撤权）" }), ...state.providers.filter(item => item.provider_id !== "io.molis.work.pages").map(item => toggle(item.title, state.disabled.includes(item.provider_id), value => {
       const next = new Set(state.disabled); if (value) next.add(item.provider_id); else next.delete(item.provider_id); void post({ disabled: [...next] });

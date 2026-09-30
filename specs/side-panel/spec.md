@@ -1,6 +1,6 @@
 # 平台侧栏：讨论、浏览器、文件与助理操作
 
-状态：功能完成，工程与真实场景大部分通过，等全量回归时段与用户验收（2026-09-30）。目标原文见 [goal-prompt.md](goal-prompt.md)；用户授权按推荐方式持续推进，取舍记在第 2 节。分支 `feature/side-panel`，工作树 `.claude/worktrees/side-panel`，基于 `feature/system-assistant` 2e837e8f（已含 main #101，等于 #98 合入后的 main）。
+状态：已经 #118 合入 main（d38e6099）。工程与真实场景通过，浏览器全量回归对基线没有新增失败；只剩用户本人验收（2026-09-30）。目标原文见 [goal-prompt.md](goal-prompt.md)；用户授权按推荐方式持续推进，取舍记在第 2 节。分支 `feature/side-panel`，工作树 `.claude/worktrees/side-panel`，基于 `feature/system-assistant` 2e837e8f（已含 main #101，等于 #98 合入后的 main）。
 
 ## 1. 要解决的事
 
@@ -133,7 +133,7 @@
 
 ## 7. 进度与证据
 
-2026-09-30 现状：功能齐，工程与真实场景大部分通过；用户本人验收全部未开始；全量回归等合并协调给时段。分支 `feature/side-panel` 未推送，已合入 origin/main（含 #98）。
+2026-09-30 现状：经 molis-ai/molis-work#118 合入 main（d38e6099）。SDK 来源已经 molis-ai/prologue#3 合入 prologue main（89ef145f）。工程与真实场景通过，浏览器全量回归见 7.1。用户本人验收未开始，按用户决定在正式版里做。
 
 ### 7.1 工程通过（自动测试）
 
@@ -149,7 +149,7 @@
   - 接手后旧观察作废；macOS 上 Control+a 可选中；
   - 截图遮蔽且按 CSS 像素；
   - 2x 出帧（新加）；正常关闭和宿主停掉后留下的浏览器都保住登录 Cookie（新加）。
-  - 新加的两条等协调时段运行；其余已通过。
+  - 全部通过（新加的两条先在时段 S9 跑过，S14 全量里再跑一次）。
 - `tests/side-panel-assistant-surface.test.ts`（真适配器 + 助理服务）：
   - 空白页看 → 问 → 批 → 开 → 问 → 批 → 点；
   - 允许过的网站不问；离开空白页照问；禁止的网站连看都不看；
@@ -161,7 +161,16 @@
   - `plugin-global-settings` 的 Shelf 设置断言：设置页不再输出 isolation_fact，本分支没改那个页面；
   - `pages-draft-race`：只加载 Pages 的 client.ts，本分支与 main 的 client.ts 和测试逐字相同。
   另有 `pages-mcp` 在满负载下超时一次，单独重跑 15 秒通过。
-- 合入 main 722dcd31（含 #113、#114）后：受影响的 93 个非浏览器文件 673 通过，失败同上两条。浏览器 e2e 与基线比对等协调时段。
+- 合入 main 722dcd31（含 #113、#114）后：受影响的 93 个非浏览器文件 673 通过，失败同上两条。之后再合 8c73de02、42b0919c：受影响的测试全部通过；上面两条既有失败已由 #117 修好。
+- 浏览器全量（时段 S14，本分支 9e6b25a8 对照基线 42b0919c，两边都整体构建）：共 104 个文件（102 个 e2e，加 `web.test.ts`、`functions-draft-retention.test.ts`），真 Chrome，并发 1。**没有新增失败。**
+  - 全量 231 条用例里 217 通过、10 失败。当时机器上另有一次未安排的整体构建，负载 15–26。
+  - 10 个失败文件逐个单跑：6 个通过（其中 `project-user-journey` 是和基线成对再跑时两边都通过）。
+  - 剩下 4 条在基线上以同样的用例、同样的报错失败，是 main 原有的问题，已交合并协调：
+    - `plugin-event-recovery`：等插件事件列表超时；
+    - `plugin-sample`：离线 npm 缺 `molis-work-kernel`；
+    - `shelf-dropagent-parity`：`shelf.no_model`；
+    - `workbench-pane-feed`「opening a related Goal inside a pane」：等两个可见窗格 iframe 超时。
+  - 证据见 molis-ai/molis-work#118 的评论。
 
 ### 7.2 真实场景通过（预览 4292、隔离 Home、MiniMax-M3、真实网站）
 
@@ -209,12 +218,12 @@
 
 ### 7.4 已知问题与后续
 
-- 平台范围：隐藏的插件创作台框架会让页面上新渲染的节点带上它的原型，按 `instanceof Element` 判断的委托点击被静默忽略。侧栏已改按 `nodeType` 判断（D24），根因另开任务。
+- 平台范围：隐藏的插件创作台框架会让页面上新渲染的节点带上它的原型，按 `instanceof Element` 判断的委托点击被静默忽略。侧栏已改按 `nodeType` 判断（D24），根因已由 #110 修复。
 - 灵光的动作行在侧栏宽度下不换行，「复制内容」被截。属插件样式，交插件复查线。
 - 助理有时向业务网关传错输入类型、反复被拒（网关和模型那边），与侧栏无关。
 - 测试环境：预览窗格隐藏时 `document.hidden` 为真，插件的可见性生命周期不启动（Files 不读目录等）。
   验证时在页面里把 hidden 视为假；这不是产品缺陷。
 - 待办：
-  - 轮到侧栏时合最终 main，跑全量回归并逐条对基线；
-  - 推 prologue `feat/molis-side-panel-surfaces-on-memory`（协调安排由本线在开 PR 时推，推前问用户）；
-  - 新加的两条 e2e 已在协调时段 S9 跑过，2/2 通过。
+  - 用户本人验收（7.3），结果记在 7.3。
+  - 与动态交互 P1 重叠的四处，由 #119 在合入本线后的 main 上解开冲突，并补跑了 e2e（证据在 #119）。
+  - 旧的 vendored 包 `assistant-intake.tgz` 删不删，由用户决定。

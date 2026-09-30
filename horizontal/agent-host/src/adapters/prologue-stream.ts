@@ -126,6 +126,8 @@ export function prologuePhaseOf(state: PrologueControlState): AgentRunPhase {
   return state === "pausing" ? "running" : state;
 }
 
+const clip = (value: string) => value.length <= 200 ? value : `${value.slice(0, 200)}…`;
+
 function target(input: Record<string, unknown> | undefined): string {
   if (!input) return "";
   // A command is its whole argv: "npm test" says what ran, "npm" alone does not.
@@ -322,7 +324,8 @@ export function applyPrologueEvent(
       state.activity.push({
         call_id: call.id,
         name: call.name,
-        target: target(call.input),
+        // A question to the person is named by what it asks.
+        target: call.name === "ask-user" && typeof call.input?.why === "string" ? clip(call.input.why) : target(call.input),
         state: "started",
         summary: call.name,
         at,

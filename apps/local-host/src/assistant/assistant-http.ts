@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantPageCardInput, AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
@@ -128,6 +128,10 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 1 && parts[0] === "characters") {
         const work = url.searchParams.get("work") ?? undefined;
         return { status: 200, body: { characters: await service.characters(work, ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
+      }
+      // A card a page prepared from the person's selection (a contextual action they clicked); runs only when clicked.
+      if (method === "POST" && parts.length === 1 && parts[0] === "cards") {
+        return { status: 200, body: await service.offerFromPage(body as unknown as AssistantPageCardInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "send") {
         return { status: 200, body: await service.send(body as unknown as AssistantSendInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };

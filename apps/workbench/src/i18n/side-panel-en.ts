@@ -85,6 +85,8 @@ export const SIDE_PANEL_EN: Record<string, string> = {
   "没有保存": "Not saved",
   "已交还给助理。助理会先重新查看页面再继续。": "Handed back. The Assistant looks at the page again before going on.",
   "会在侧栏浏览器里使用": "Uses in the side browser",
+  "原页面": "Original page",
+  "这份材料没有可以预览的正文": "This material has no text to preview",
   "找到侧栏浏览器": "Found the side browser",
   "查看网页": "Looked at the page",
   "操作网页": "Acted on the page",

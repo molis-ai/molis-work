@@ -73,6 +73,9 @@ export const SIDE_FILES_STYLES = String.raw`
 .side-files-table :is(th,td){padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
 .side-files-table th{position:sticky;top:0;background:var(--paper);font-weight:600}
 .side-files-truncated,.side-files-problem{margin:0 0 12px;padding:8px 12px;border-radius:8px;background:var(--wash,var(--nav-hover));color:var(--ink-soft,var(--ink));font-size:12px}
+.side-files-source{margin:0 0 12px;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.side-files-link{padding:0;border:0;background:none;color:var(--accent);font:inherit;text-align:left;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.side-files-link:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:2px}
 @container side-panel (min-width:720px){
  .side-files{grid-template-columns:minmax(220px,300px) minmax(0,1fr)}
  .side-files-browse{border-right:1px solid var(--line)}
@@ -167,7 +170,9 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const render=(file,note)=>{
     body.classList.remove('is-frame');
-    const head=(note?'<p class="side-files-problem">'+esc(note)+'</p>':'')+(file.truncated?'<p class="side-files-truncated">'+esc(L('只显示了开头一部分。完整内容请在插件中打开。'))+'</p>':'');
+    // Where a handed-over page came from: the page itself opens again in the side panel's browser.
+    const source=/^https?:\/\//.test(file.source_url||'')?'<p class="side-files-source">'+esc(L('原页面'))+'：<button class="side-files-link" type="button" data-side-files-action="source" data-url="'+esc(file.source_url)+'">'+esc(file.source_url)+'</button></p>':'';
+    const head=source+(note?'<p class="side-files-problem">'+esc(note)+'</p>':'')+(file.truncated?'<p class="side-files-truncated">'+esc(L('只显示了开头一部分。完整内容请在插件中打开。'))+'</p>':'');
     const type=file.media_type||'text/plain';
     if(file.url&&type==='application/pdf'){body.classList.add('is-frame');body.innerHTML=head+'<iframe title="'+esc(file.title)+'" src="'+esc(file.url)+'"></iframe>';return;}
     if(file.url&&/^image\//.test(type)){body.innerHTML=head+'<img alt="'+esc(file.title)+'" src="'+esc(file.url)+'">';return;}
@@ -196,7 +201,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const openGiven=(given)=>{
     current={source:'',kind:'',id:given.id||given.title||''};paint();show(true);
     title.textContent=given.title||L('文件');meta.textContent=given.meta||'';setOpen(given.open||null);body.scrollTop=0;
-    render({title:given.title||'',media_type:given.media_type||'text/plain',encoding:'utf8',data:given.text||'',url:safeUrl(given.url),truncated:!!given.truncated},given.problem||'');
+    render({title:given.title||'',media_type:given.media_type||'text/plain',encoding:'utf8',data:given.text||'',url:safeUrl(given.url),truncated:!!given.truncated,source_url:given.source_url||''},given.problem||'');
   };
   root.addEventListener('click',event=>{
     const target=event.target?.nodeType===1?event.target:null;if(!target)return;
@@ -206,6 +211,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     if(action==='refresh'){void load(true);return;}
     if(action==='back'){show(false);current=null;paint();list.querySelector('[data-side-file]')?.focus();return;}
     if(action==='open'&&openButton.dataset.surface){host.openRecord?.(openButton.dataset.surface,openButton.dataset.id);return;}
+    if(action==='source'){const url=target.closest('[data-url]')?.dataset.url;if(url)document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser',target:{url},focus:true}}));return;}
   });
   root.addEventListener('keydown',event=>{if(event.key==='Escape'&&!preview.hidden&&!wide){event.preventDefault();show(false);current=null;paint();}});
   filter.addEventListener('input',paint);

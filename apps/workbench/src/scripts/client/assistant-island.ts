@@ -787,6 +787,21 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const FILE_GLYPH = [[/\.(png|jpe?g|gif|webp|heic|svg)$/i, "image"], [/\.(csv|tsv|xlsx?)$/i, "database"], [/\.(md|markdown|txt|log)$/i, "note"],
     [/\.(js|mjs|ts|tsx|py|json|ya?ml|html?|css|sh|go|rs|java|c|cpp|sql)$/i, "code"]];
+  /**
+   * Words the work keeps but the view leaves out (a page handed over from the side panel's browser, a pasted text, a
+   * selection): read back when clicked and shown in the side panel as they were given, with the page they came from.
+   */
+  const readBack = (material, title) => {
+    const workId = view && view.work && view.work.work_id;
+    if (!workId || !material.material_id || !sidePanelHere() || !["text", "file", "selection"].includes(material.kind)) return null;
+    return async () => {
+      try {
+        const { material: full } = await api("/works/" + encodeURIComponent(workId) + "/materials/" + encodeURIComponent(material.material_id));
+        if (typeof full.text !== "string") { host.showToast?.(L("这份材料没有可以预览的正文")); return; }
+        sidePreview({ preview: { title, media_type: "text/plain", text: full.text, truncated: Boolean(full.truncated), ...(full.url ? { source_url: full.url } : {}) } });
+      } catch (error) { host.showToast?.(error.message, true); }
+    };
+  };
   /** One thing a message carried: its kind at a glance, its name; an object opens where it lives. */
   const attachmentChip = (material) => {
     const title = String(material.title || "").replace(/^(图片|方法|用|引用)：/, "");
@@ -794,9 +809,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       : material.object ? kindGlyph(material.object.kind + " " + (material.source ? material.source.surface : "")) : (FILE_GLYPH.find(([pattern]) => pattern.test(title.replace(/（\d+ 页）$/, ""))) || [null, "file"])[1];
     const surface = material.source && material.source.surface && material.source.surface !== "page" ? material.source.surface : "";
     const named = material.object && surface ? { subject: { kind: material.object.kind, id: material.object.id }, title: material.object.title || title, open: { surface, id: material.object.id } } : null;
-    // A file's own words can only be previewed in the side panel; there is nowhere else to open them.
+    // A file's or a page's own words can only be previewed in the side panel; there is nowhere else to open them.
     const open = named && host.openItem ? () => showObject(named)
-      : material.kind === "file" && material.text && sidePanelHere() ? () => { sidePreview({ preview: { title, media_type: "text/plain", text: material.text } }); } : null;
+      : material.kind === "file" && material.text && sidePanelHere() ? () => { sidePreview({ preview: { title, media_type: "text/plain", text: material.text } }); }
+      : readBack(material, title);
     const chip = el(open ? "button" : "span", "assistant-attachment" + (material.draft ? " is-draft" : ""));
     if (open) { chip.type = "button"; chip.addEventListener("click", open); chip.setAttribute("aria-label", L("打开") + "：" + title); }
     chip.append(glyph(icon), el("span", "assistant-attachment-name", title + (material.draft ? L("（草稿）") : "")));
@@ -1270,11 +1286,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       });
       used.forEach((one) => {
         const box = el("div", "assistant-tile"), name = one.material.title.replace(/^(方法|用|图片|引用)：/, "");
-        const readable = one.material.kind === "file" && one.material.text && sidePanelHere();
+        const readable = one.material.kind === "file" && one.material.text && sidePanelHere()
+          ? () => { sidePreview({ preview: { title: name, media_type: "text/plain", text: one.material.text } }); } : readBack(one.material, name);
         const title = el(readable ? "button" : "span", "assistant-item-title", name);
         if (readable) {
           title.type = "button"; title.setAttribute("aria-label", L("预览") + "：" + name); box.classList.add("is-openable");
-          title.addEventListener("click", () => { sidePreview({ preview: { title: name, media_type: "text/plain", text: one.material.text } }); });
+          title.addEventListener("click", readable);
         }
         box.append(tile(MATERIAL_GLYPH[one.material.kind] || "file", ""), title,
           el("span", "assistant-item-sub", L(MATERIAL_KIND[one.material.kind] || "材料") + " · " + L("第 {n} 轮").replace("{n}", String(one.round))));

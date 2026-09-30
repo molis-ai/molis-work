@@ -18,7 +18,7 @@ Workspace registration: `goal-reorg-f2`。
 - `src/browser/transport.ts`：同源 HTTP、SSE 与经过来源/请求标识校验的宿主连接。
 - `src/browser/types.ts`：临时客户端状态类型；领域 DTO 仍来自 contracts。
 
-`apps/workbench/src/discussion-split.ts` 负责右下角项目菜单入口打开后的布局：工作区真实让出宽度，右侧默认 35%，拖拽/键盘可调整，≤760px 切为上工作、下讨论。关闭仅隐藏 iframe，保留当前会话。宿主与 iframe 的可见性、主题和项目接入消息核验同源及发送窗口；聊天领域事实不放在宿主。
+项目讨论是平台侧栏的一个标签（`apps/workbench/src/side-panel.ts`，specs/side-panel）：侧栏负责布局——工作区真实让出宽度，右侧默认 35%，拖拽/键盘可调整，≤760px 切为上工作、下侧栏。切换标签或收起侧栏仅隐藏 iframe，保留当前会话与草稿。宿主与 iframe 的可见性、主题和项目接入消息核验同源及发送窗口；聊天领域事实不放在宿主。
 
 `server/src/im` 负责成员权限、消息和话题持久化、搜索、读游标、事务回执与事件。每项目唯一主群，权限来自 `mw_access`；旧群不自动绑定或公开。本地项目首次接入由 local-host 校验既有控制凭证并读取真实项目目录，普通浏览器不能自行取得项目权限。
 

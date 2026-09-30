@@ -74,6 +74,15 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
     await until(() => state, value => !!value && value.title === "侧栏测试页" && !value.loading, "the test page");
     assert.equal(state!.origin, site.origin);
     await until(() => frames, count => count > 0, "a screencast frame");
+    // On a 2x screen the person gets sharp frames, while the page and the Assistant keep CSS pixels.
+    let frameWidth = 0;
+    listener.frame = (bytes: Buffer) => { frames += 1;
+      for (let i = 2; i < bytes.length && bytes[i] === 0xff;) { const marker = bytes[i + 1]!, length = bytes.readUInt16BE(i + 2);
+        if (marker >= 0xc0 && marker <= 0xc3) { frameWidth = bytes.readUInt16BE(i + 7); break; } i += 2 + length; } };
+    await page.resize({ width: 800, height: 600, dpr: 2 });
+    await until(() => frameWidth, width => width === 1600, "a 2x frame");
+    assert.equal(await page.evaluate("devicePixelRatio"), 2);
+    await page.resize({ width: 800, height: 600, dpr: 1 });
 
     // The person clicks and types through CDP input, as the panel sends it.
     const email = await centre(page, "#email");
@@ -102,6 +111,8 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
     // Screenshots leave only as the driver's own covered ones.
     const shot = await driver.observe("screenshot");
     assert.deepEqual([...shot.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47]);
+    const pngSize = (bytes: Uint8Array) => { const view = new DataView(bytes.buffer, bytes.byteOffset); return [view.getUint32(16), view.getUint32(20)]; };
+    assert.deepEqual(pngSize(shot), [800, 600], "the Assistant's screenshot is in the CSS pixels it clicks with");
     assert.equal(driver.masked(shot), true);
     assert.equal(driver.masked(new Uint8Array([1, 2, 3])), false);
     assert.equal(await page.evaluate("!!document.getElementById('__molis_side_mask')"), false, "the cover is removed after the capture");

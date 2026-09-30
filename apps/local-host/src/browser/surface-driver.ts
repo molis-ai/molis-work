@@ -139,7 +139,10 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
         const session = await page.session();
         await session.send("Runtime.evaluate", { expression: MASK_ON });
         try {
-          const shot = await session.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }) as { data: string };
+          // In CSS pixels, like every coordinate the Assistant reads and clicks with: a 2x image would double them.
+          const { width, height } = page.snapshot().viewport;
+          const shot = await session.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false,
+            clip: { x: 0, y: 0, width, height, scale: 1 / page.pixelRatio } }) as { data: string };
           const bytes = new Uint8Array(Buffer.from(shot.data, "base64"));
           producedScreens.push(digest(bytes));
           if (producedScreens.length > 32) producedScreens.shift();

@@ -154,6 +154,9 @@ export class BrowserHost {
       "--disable-renderer-backgrounding",
       "--disable-features=Translate,MediaRouter",
       "--window-size=1280,800",
+      // Headless screencast frames follow the process's scale, not the emulated one: without this a Retina panel gets
+      // 1x frames stretched to 2x. Each page still reports the viewer's own ratio (setDeviceMetricsOverride).
+      "--force-device-scale-factor=2",
       "about:blank",
     ], { stdio: ["ignore", "ignore", "pipe"] });
     fs.writeFileSync(this.pidFile, String(child.pid ?? ""), { mode: 0o600 });
@@ -652,6 +655,9 @@ export class BrowserPage {
   }
 
   get controlMode(): BrowserControlMode { return this.control.mode; }
+
+  /** The page's device pixel ratio as the viewer's screen set it. */
+  get pixelRatio(): number { return this.viewport.dpr; }
 
   /**
    * How many times the person has taken the page over. Part of what the Assistant saw: anything it looked at before

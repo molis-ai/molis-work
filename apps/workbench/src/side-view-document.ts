@@ -14,7 +14,13 @@ import { SIDE_LINKS_SCRIPT } from "./side-panel.js";
  * client factory, exactly as for its other views; where the tab sits and how wide it is stay the Host's.
  * The model a side contribution receives is only where it is: `{ project_id, route_prefix, view_id }`.
  */
-export interface SideViewModel { readonly project_id: string; readonly route_prefix: string; readonly view_id: string }
+export interface SideViewModel {
+  readonly project_id: string;
+  readonly route_prefix: string;
+  readonly view_id: string;
+  /** The same text primitives every other Workbench surface hands a contribution. */
+  readonly primitives: { escape(value: unknown): string; text(value: string, values?: Record<string, string | number>): string };
+}
 
 export interface SideViewDocumentInput {
   readonly projectPluginId: string;
@@ -26,6 +32,7 @@ export interface SideViewDocumentInput {
   readonly headHtml: string;
   readonly clientI18nScript: string;
   readonly themeBootstrapScript: string;
+  readonly translate: (value: string, values?: Record<string, string | number>) => string;
 }
 
 const uiHost = createWorkbenchUiHost();
@@ -36,7 +43,8 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
   const surface = uiHost.list().find(descriptor => descriptor.contribution_id === view.contribution_id)?.surfaces
     ?.find(candidate => candidate.target_slot_id === WORKBENCH_UI_SLOTS.side.slot_id);
   if (!surface) return null;
-  const model: SideViewModel = { project_id: input.projectId, route_prefix: input.routePrefix, view_id: view.view_id };
+  const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/gu, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
+  const model: SideViewModel = { project_id: input.projectId, route_prefix: input.routePrefix, view_id: view.view_id, primitives: { escape, text: input.translate } };
   const html = uiHost.mount({ slot: WORKBENCH_UI_SLOTS.side, contribution: { contribution_id: view.contribution_id, surface: surface.surface_id, model } }).html;
   const pack = BUILTIN_PLUGIN_WORKBENCH.find(entry => entry.project_plugin_id === input.projectPluginId);
   const route = JSON.stringify(input.routePrefix);

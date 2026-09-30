@@ -487,8 +487,8 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderMolisWorkWeb,
     renderMolisWorkRefreshFragment,
     /** One plugin tab of the side panel, or null when that view is not declared by a plugin enabled here. */
-    renderSideViewDocument: (input: Omit<SideViewDocumentInput, "lang" | "headHtml" | "clientI18nScript" | "themeBootstrapScript"> & { controlToken: string }): string | null =>
-      renderSideView({ ...input, lang: htmlLang(), headHtml: controlTokenMeta(input.controlToken), clientI18nScript: clientI18nScript(), themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT }),
+    renderSideViewDocument: (input: Omit<SideViewDocumentInput, "lang" | "headHtml" | "clientI18nScript" | "themeBootstrapScript" | "translate"> & { controlToken: string }): string | null =>
+      renderSideView({ ...input, lang: htmlLang(), headHtml: controlTokenMeta(input.controlToken), clientI18nScript: clientI18nScript(), themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, translate: L }),
   };
 }
 

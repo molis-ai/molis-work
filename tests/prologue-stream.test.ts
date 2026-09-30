@@ -180,6 +180,12 @@ test("the Run's own step list is kept as the runtime last replaced it; malformed
   assert.equal(state.unknown_frames, 0);
 });
 
+test("a question to the person is named by what it asks", () => {
+  const state = emptyPrologueStreamState();
+  apply(state, { type: "tool-call", call: { id: "q1", name: "ask-user", input: { why: "截止日期定在哪天？", questions: [] } } });
+  assert.equal(state.activity[0]!.target, "截止日期定在哪天？");
+});
+
 test("compaction is a phase, not an outcome", () => {
   const state = emptyPrologueStreamState();
   apply(state, { type: "compaction-started" });

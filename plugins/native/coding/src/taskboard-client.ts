@@ -5,12 +5,21 @@
  * the model said. A step's "who" is its holder on the graph: this session, the subtask it was handed to, you, or no one.
  * Clicking a row opens it; a live plan keeps its controls to reorder, skip, insert or unblock a step, and to take a
  * step on yourself, hand it back, or record your own result on it.
+ *
+ * The same tree also draws the directory column's outline (ports.outline): one compact row per task with its state
+ * mark, key, title and who is on it, no columns and no controls. It is the "find" view of the session's work; the
+ * board in the main area is where the work is changed. ports.progress receives "done/total" of the latest graph
+ * for the main area's view switch.
  */
 export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const lifetime=ports.lifetime;
   const {board,current,navigate,status,ownTask,amend,roleName}=ports;
+  const outline=ports.outline||null,progress=ports.progress||(()=>{}),onShow=ports.onShow||(()=>true);
   const list=board.querySelector('[data-coding-board-list]'),notice=board.querySelector('[data-coding-board-status]'),title=board.querySelector('[data-coding-board-title]'),meta=board.querySelector('[data-coding-board-meta]');
-  let owner='',data=null,key='',loadError='';const collapsed=new Set();
+  let owner='',data=null,key='',outlineKey='',loadError='';const collapsed=new Set();
+  // The outline's rows are redrawn whole; one listener on the list finds a row's target by its key.
+  const outlineTargets=new Map();
+  if(outline)lifetime.listen(outline,'click',event=>{const row=event.target.closest('.coding-outline-row'),target=row&&outlineTargets.get(row.dataset.boardKey);if(target)void navigate(owner,target).catch(error=>status(error.message,true));});
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
   const svg=(name)=>'<svg aria-hidden="true"><use href="#icon-'+name+'"></use></svg>';
   const clip=(text,max)=>text.length>max?text.slice(0,max-1)+'…':text;
@@ -191,19 +200,57 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     if(row.children.length&&open){const children=el('ul','coding-board-children');for(const child of row.children)children.append(renderRow(child,depth+1));item.append(children);}
     return item;
   };
-  const render=()=>{
-    if(board.hidden)return;
-    if(!data){list.replaceChildren();title.textContent='TaskBoard';meta.textContent='';notice.textContent=loadError||(owner?'正在读取…':'在左侧选一个会话，查看它的计划、步骤和子任务。');return;}
-    if(board.dataset.editing==='true'||board.dataset.busy==='true')return;
-    const next=JSON.stringify([owner,data.plan,data.taskboard_plans,(data.runs||[]).map(run=>[run.ref.run_id,run.phase,run.frozen?.character?.title]),data.subagents,data.recovery_required,data.checkpoint_busy,[...collapsed]]);
-    if(next===key)return;key=next;
-    const scroll=board.scrollTop,groups=tree();
-    title.textContent='TaskBoard';
+  // What changes the drawing: the graphs, the rounds' phases and executors, the attention items and what is folded.
+  const fingerprint=()=>JSON.stringify([owner,data.plan,data.taskboard_plans,(data.runs||[]).map(run=>[run.ref.run_id,run.phase,run.frozen?.character?.title]),data.subagents,data.recovery_required,data.checkpoint_busy,[...collapsed]]);
+  // The latest graph in one line: revision, steps done, and who the open steps wait on.
+  const summary=()=>{
     const latest=(data.taskboard_plans||[]).filter(entry=>entry.board).at(-1)?.board;
     const unfinished=latest?latest.nodes.filter(node=>!['succeeded','failed','cancelled'].includes(node.state)):[];
     const count=(kind)=>unfinished.filter(node=>node.owner?.kind===kind).length;
-    meta.textContent=[data.plan?'计划修订 '+data.plan.revision+(data.plan.confirmed?' · 已确认':' · 待确认'):'',latest?latest.nodes.filter(node=>settled(node)&&!skipped(node)).length+'/'+latest.nodes.filter(node=>!skipped(node)).length+' 步完成'+(latest.nodes.some(skipped)?' · 跳过 '+latest.nodes.filter(skipped).length+' 步':''):'',
-      count('subtask')?count('subtask')+' 步在子任务手上':'',count('person')?'你负责 '+count('person')+' 步':'',count('none')?'没人认领 '+count('none')+' 步':''].filter(Boolean).join(' · ');
+    const done=latest?latest.nodes.filter(node=>settled(node)&&!skipped(node)).length:0,total=latest?latest.nodes.filter(node=>!skipped(node)).length:0;
+    return {latest,done,total,text:[data.plan?'计划修订 '+data.plan.revision+(data.plan.confirmed?' · 已确认':' · 待确认'):'',latest?done+'/'+total+' 步完成'+(latest.nodes.some(skipped)?' · 跳过 '+latest.nodes.filter(skipped).length+' 步':''):'',
+      count('subtask')?count('subtask')+' 步在子任务手上':'',count('person')?'你负责 '+count('person')+' 步':'',count('none')?'没人认领 '+count('none')+' 步':''].filter(Boolean).join(' · ')};
+  };
+  // One compact row of the outline: state mark, key, title, children's count, and who is on it. No controls here.
+  const outlineRow=(row,depth)=>{
+    const item=el('li','coding-outline-item');item.style.setProperty('--board-depth',String(depth));
+    const node=el('button','coding-outline-row');node.type='button';node.dataset.boardKey=row.key;if(row.hint)node.title=row.hint;
+    const [label,mark,tone]=row.state,state=el('span','coding-outline-mark');state.dataset.tone=tone;state.innerHTML=tone==='progress'?'<span class="coding-board-pulse" aria-hidden="true"></span>':svg(mark||'circle');state.title=label;
+    node.append(state);if(row.label)node.append(el('span','coding-board-key',row.label));
+    node.append(el('strong','',row.title));node.setAttribute('aria-label',row.label?row.label+' '+row.title+'：'+label:row.title+'：'+label);
+    if(row.progress&&row.children.length)node.append(el('span','coding-outline-count',row.progress.done+'/'+row.progress.total));
+    if(row.executor){const avatar=el('span','coding-board-avatar'+(row.executor.none?' is-unknown':'')+(row.executor.person?' is-person':''));
+      if(row.executor.none)avatar.innerHTML=svg('user');else{avatar.textContent=Array.from(row.executor.name)[0]||'?';avatar.style.setProperty('--board-avatar-hue',String(hue(row.executor.name)));}
+      avatar.title=row.executor.none?row.executor.detail:'执行：'+row.executor.detail;node.append(avatar);}
+    outlineTargets.set(row.key,row.target);item.append(node);
+    if(row.children.length){const children=el('ul','coding-outline-children');for(const child of row.children)children.append(outlineRow(child,depth+1));item.append(children);}
+    return item;
+  };
+  const renderOutline=()=>{
+    if(!outline||outline.hidden)return;
+    const rows=outline.querySelector('[data-coding-outline-list]'),note=outline.querySelector('[data-coding-outline-status]'),brief=outline.querySelector('[data-coding-outline-meta]'),expand=outline.querySelector('[data-coding-board-expand]');
+    // No session on show (none chosen, or its tab closed): the outline says where to choose one, whatever it holds.
+    if(!data||!onShow()){rows.replaceChildren();brief.textContent='';brief.hidden=true;if(expand)expand.disabled=true;outlineKey='';
+      note.textContent=loadError||(owner&&onShow()?'正在读取…':'先在「会话」里打开一个会话，这里列出它的计划、每一步和子任务。');return;}
+    const next=fingerprint();if(next===outlineKey)return;outlineKey=next;
+    const groups=tree(),line=summary();
+    brief.textContent=line.text;brief.hidden=!line.text;if(expand)expand.disabled=false;
+    note.textContent=loadError||data.error||(groups.length?'点一行查看详情；「展开任务图」可以调整步骤。':'这个会话还没有计划或子任务。在对话里用「规划」或「协作」开始，它们会出现在这里。');
+    rows.replaceChildren();outlineTargets.clear();
+    for(const group of groups){
+      const heading=el('h2','mw-dir__heading',group.label+' ');heading.append(el('small','',group.count||String(group.items.length)));rows.append(heading);
+      const tree_=el('ul','coding-outline-tree');for(const row of group.items)tree_.append(outlineRow(row,0));rows.append(tree_);
+    }
+  };
+  const renderBoard=()=>{
+    if(board.hidden)return;
+    if(!data){list.replaceChildren();title.textContent='TaskBoard';meta.textContent='';notice.textContent=loadError||(owner?'正在读取…':'在左侧选一个会话，查看它的计划、步骤和子任务。');return;}
+    if(board.dataset.editing==='true'||board.dataset.busy==='true')return;
+    const next=fingerprint();
+    if(next===key)return;key=next;
+    const scroll=board.scrollTop,groups=tree();
+    title.textContent='TaskBoard';
+    meta.textContent=summary().text;
     notice.textContent=loadError||data.error||(groups.length?'状态来自任务图回报、子代理记录和审查，不从模型的回答推断。点一行查看详情。':'这个会话还没有计划或子任务。在对话里用「规划」或「协作」开始，它们会出现在这里。');
     list.replaceChildren();
     for(const group of groups){
@@ -216,11 +263,19 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     }
     board.scrollTop=scroll;
   };
+  const render=()=>{
+    const line=data&&!loadError?summary():null;progress(line?.latest?line.done+'/'+line.total:'');
+    renderBoard();renderOutline();
+  };
   return {
-    loading(id){if(id!==owner){owner=id;data=null;key='';loadError='';collapsed.clear();board.scrollTop=0;}render();},
-    update(id,value){if(id!==current())return;if(id!==owner){key='';collapsed.clear();board.scrollTop=0;}owner=id;data=value;loadError='';render();},
-    fail(id,message){if(id!==owner)return;loadError='任务暂不可读：'+message+'；已显示内容可能过期。';key='';render();},
+    loading(id){if(id!==owner){owner=id;data=null;key='';outlineKey='';loadError='';collapsed.clear();board.scrollTop=0;}render();},
+    update(id,value){if(id!==current())return;if(id!==owner){key='';outlineKey='';collapsed.clear();board.scrollTop=0;}owner=id;data=value;loadError='';render();},
+    fail(id,message){if(id!==owner)return;loadError='任务暂不可读：'+message+'；已显示内容可能过期。';key='';outlineKey='';render();},
     show(){board.hidden=false;key='';render();},
     hide(){board.hidden=true;},
+    showOutline(){if(!outline)return;outline.hidden=false;outlineKey='';render();},
+    hideOutline(){if(outline)outline.hidden=true;},
+    // What is on show changed (a tab closed or reopened): draw the outline again from what it holds.
+    refreshOutline(){outlineKey='';render();},
   };
 }`;

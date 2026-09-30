@@ -24,10 +24,14 @@ export const CODING_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.coding.s
 
 export type CodingUiSurface = "directory" | "workbench";
 
-/** The five navigation faces the directory column switches between. */
+/**
+ * The five navigation faces the directory column switches between. Every face changes the directory column only:
+ * the session list, the session's task outline, its Goal, the saved results, or the workspace files. The main area
+ * keeps whatever it shows; the full-width TaskBoard is a view of the main area, switched from its own header.
+ */
 export const CODING_DIRECTORY_FACES = [
   { face: "sessions", label: "会话", icon: "message" },
-  { face: "taskboard", label: "TaskBoard", icon: "grid" },
+  { face: "taskboard", label: "TaskBoard", icon: "board" },
   { face: "goals", label: "目标", icon: "target" },
   { face: "artifacts", label: "产物", icon: "package" },
   { face: "files", label: "文件", icon: "folder" },
@@ -111,10 +115,21 @@ export function renderCodingDirectory(model: CodingUiModel): string {
       body: `<nav class="coding-faces" aria-label="Coding 导航面">${faces}</nav>
       <div class="coding-query" data-coding-query hidden><label class="coding-search"><span class="mw-sr-only">搜索标题</span><input class="mw-input" data-coding-search aria-label="搜索会话标题" placeholder="搜索会话标题"></label><div class="coding-filters mw-toggle-group" role="group" aria-label="会话筛选">${filters}</div></div>
       <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div>
-    <section data-coding-artifact-directory hidden aria-label="已保存的 Coding 成果">
-      <label class="coding-search"><span>搜索成果</span><input class="mw-input" data-coding-artifact-search aria-label="搜索固定成果" placeholder="搜索固定成果"></label>
-      <button class="mw-btn mw-btn--ghost" type="button" data-coding-artifact-refresh>刷新成果</button>
-      <p data-coding-artifact-status role="status"></p><div data-coding-artifact-list></div>
+    <section class="coding-face-panel" data-coding-board-outline hidden aria-label="当前会话的任务">
+      <p class="coding-face-meta" data-coding-outline-meta hidden></p>
+      <div class="coding-outline" data-coding-outline-list></div>
+      <p class="coding-face-note" data-coding-outline-status role="status"></p>
+      ${renderButton({label:"展开任务图",icon:"maximize",variant:"ghost",disabled:true,attrs:{"data-coding-board-expand":"",title:"在主区域打开完整的任务图，可以调整步骤"}})}
+    </section>
+    <section class="coding-face-panel" data-coding-goal-face hidden aria-label="当前会话的目标">
+      <div class="coding-goal-face-current" data-coding-goal-face-current><span>先在「会话」里打开一个会话。</span></div>
+      <div class="coding-goal-face-actions">${renderButton({label:"关联目标",icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-face-open":""}})}${renderButton({label:"打开目标",icon:"external",variant:"ghost",attrs:{"data-coding-goal-face-visit":"",hidden:true}})}</div>
+      <p class="coding-face-note">关联只影响下一轮；执行报告可以记录进原目标，已开始的任务和历史成果保持原目标。</p>
+    </section>
+    <section class="coding-face-panel" data-coding-artifact-directory hidden aria-label="已保存的 Coding 成果">
+      <label class="coding-search"><span class="mw-sr-only">搜索成果</span><input class="mw-input" data-coding-artifact-search aria-label="搜索固定成果" placeholder="搜索固定成果"></label>
+      <p class="coding-face-note" data-coding-artifact-status role="status"></p><div class="coding-outline" data-coding-artifact-list></div>
+      ${renderButton({label:"刷新成果",icon:"refresh",variant:"ghost",attrs:{"data-coding-artifact-refresh":""}})}
     </section>
     ${model.companion_directory ?? ""}`,
       add:{label:"新建编码会话",attrs:{"data-coding-new":""}}
@@ -259,7 +274,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <div class="coding-dialogue mw-frame" data-slot="frame" data-coding-dialogue>
         <header class="coding-dialogue-head mw-frame__header" data-coding-dialogue-head>
           <div class="coding-identity"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-directory-back" type="button" data-coding-directory-back aria-label="返回会话列表" title="会话列表">${p.icon("chevron-left")}</button><div class="coding-identity-copy mw-frame__heading"><h2 data-coding-title>选择或新建编码会话</h2><p class="coding-workspace-chip" data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</p></div></div>
-          <div class="coding-head-actions"><span class="coding-phase" data-coding-phase hidden></span><button class="mw-btn mw-btn--ghost coding-priority-toggle" type="button" data-coding-priority aria-pressed="false" title="标成优先：和它范围重叠的会话会收到「请让出」的通知，不会被自动暂停" hidden>标为优先</button><button class="mw-btn mw-btn--ghost coding-results-toggle" type="button" data-coding-results-open aria-label="结果与审查">${p.icon("panel")}<span data-coding-results-label>结果与审查</span></button></div>
+          <div class="coding-head-actions"><div class="mw-toggle-group coding-view-switch" role="group" aria-label="主区域视图"><button class="mw-toggle is-current" type="button" data-coding-view="dialogue" aria-pressed="true">对话</button><button class="mw-toggle" type="button" data-coding-view="board" aria-pressed="false" title="这个会话的计划、每一步和子任务，可以调整">任务图<span class="coding-view-count" data-coding-view-board-count hidden></span></button></div><span class="coding-phase" data-coding-phase hidden></span><button class="mw-btn mw-btn--ghost coding-priority-toggle" type="button" data-coding-priority aria-pressed="false" title="标成优先：和它范围重叠的会话会收到「请让出」的通知，不会被自动暂停" hidden>标为优先</button><button class="mw-btn mw-btn--ghost coding-results-toggle" type="button" data-coding-results-open aria-label="结果与审查">${p.icon("panel")}<span data-coding-results-label>结果与审查</span></button></div>
         </header>
         <section class="coding-delegation-banner" data-coding-delegation-banner aria-label="来自其他会话的委派" hidden></section>
         <template data-coding-welcome-template><div class="coding-welcome" data-coding-welcome><p class="coding-welcome-kicker">${p.icon("folder")}<span data-coding-welcome-workspace>${p.escape(model.workspace_path ? model.workspace_path.split("/").filter(Boolean).at(-1) ?? model.workspace_path : "当前工作区")}</span></p><h2>这次想完成什么？</h2><p>描述目标即可，我会先读代码再动手；每一处写入和命令都会先经你审查。</p><div class="coding-starters">${[
@@ -313,6 +328,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       </div>
       <aside class="coding-tools" data-coding-tools>
         <nav class="coding-tool-tabs mw-toolbar" aria-label="${p.escape("结果与工具")}"><h3 class="coding-tools-title">结果与审查</h3>${tools}<button class="mw-btn mw-btn--ghost coding-results-close" type="button" data-coding-results-close aria-label="返回会话" title="返回会话">${p.icon("x")}</button></nav>
+        <nav class="coding-results-index" data-coding-results-index aria-label="结果分区" hidden></nav>
         ${model.companion_result ?? ""}
         <section class="coding-result" data-coding-subagents aria-label="子任务" hidden></section>
         <section class="coding-result coding-cooperation" data-coding-cooperation aria-label="协作与相关会话" hidden></section>
@@ -324,7 +340,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <button class="mw-btn" type="button" data-coding-recovery-refresh>重新核对</button>
           <p data-coding-recovery-status role="status"></p><div data-coding-recovery-list></div>
         </section>
-        <div data-coding-host-reviews hidden></div><div class="coding-result coding-facts" data-coding-result><p>任务成果与执行记录会留在这里，方便审查和继续。</p></div>
+        <div data-coding-host-reviews hidden aria-label="审查"></div><div class="coding-result coding-facts" data-coding-result aria-label="本轮概况"><p>任务成果与执行记录会留在这里，方便审查和继续。</p></div>
         <section class="coding-result coding-outcomes" data-coding-outcomes hidden aria-labelledby="coding-outcomes-title"><h3 id="coding-outcomes-title">每轮成果</h3><div data-coding-outcome-list></div></section>
         <section class="coding-change" data-coding-change-reader aria-labelledby="coding-change-title" hidden>
           <header class="coding-change-head">

@@ -133,6 +133,10 @@ export interface StoredCard {
   request_id?: string;
   /** The object the card would change, as it was when suggested; a card whose object moved on is no longer offered. */
   target?: { kind: string; id: string; revision: string; title: string };
+  /** A card a page prepared from the person's selection: which page, what the selection came from, and the selected text. */
+  from?: { surface: string; title?: string };
+  source_object?: { kind: string; id: string; version?: number | string | null; title?: string };
+  materials?: Array<{ title: string; text: string }>;
   created_at: string;
   updated_at: string;
 }

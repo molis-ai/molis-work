@@ -820,13 +820,13 @@ ${FEED_RULE_AUTHORING_SCRIPT}
     };
 
     document.addEventListener("change", (event) => {
-      const target = event.target instanceof Element ? event.target : null;
+      const target = event.target?.nodeType === 1 ? event.target : null;
       if (!target?.matches("[data-feed-source-filter], [data-feed-type-filter], [data-feed-time-filter], [data-feed-status-filter], [data-feed-sort]")) return;
       syncFeedFilterUi();
       filterFeedItems();
     }, true);
     document.addEventListener("input", (event) => {
-      const target = event.target instanceof Element ? event.target : null;
+      const target = event.target?.nodeType === 1 ? event.target : null;
       if (!target?.closest("[data-feed-search]")) return;
       noteSearchActivity();
       filterFeedItems();
@@ -841,7 +841,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         requestAnimationFrame(() => {
           if (feedFilterPanel.hidden) return;
           const selectedSource = feedFilterPanel.querySelector('[data-feed-filter-option="source"][aria-checked="true"]');
-          (selectedSource instanceof HTMLElement ? selectedSource : feedFilterPanel.querySelector("[data-feed-filter-option]"))?.focus?.({ preventScroll: true });
+          (selectedSource?.nodeType === 1 ? selectedSource : feedFilterPanel.querySelector("[data-feed-filter-option]"))?.focus?.({ preventScroll: true });
         });
       }
     };
@@ -854,7 +854,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       });
     };
     document.addEventListener("click", (event) => {
-      const button = event.target instanceof Element ? event.target.closest("[data-feed-quick]") : null;
+      const button = event.target?.nodeType === 1 ? event.target.closest("[data-feed-quick]") : null;
       if (!button) return;
       feedQuickFilter = ["unread", "saved"].includes(button.dataset.feedQuick) ? button.dataset.feedQuick : "all";
       syncFeedQuickFilter();
@@ -862,12 +862,12 @@ ${FEED_RULE_AUTHORING_SCRIPT}
     });
     // The reading bar draws its rule only once the page has scrolled under it.
     document.addEventListener("scroll", (event) => {
-      const page = event.target instanceof Element && event.target.matches(".feed-stage-item-detail") ? event.target : null;
+      const page = event.target?.nodeType === 1 && event.target.matches(".feed-stage-item-detail") ? event.target : null;
       if (page) page.toggleAttribute("data-scrolled", page.scrollTop > 4);
     }, true);
     // The source menu is a disclosure; its summary keeps the older rail-toggle hook and says whether it is open.
     document.addEventListener("toggle", (event) => {
-      const menu = event.target instanceof Element && event.target.matches("[data-feed-source-menu]") ? event.target : null;
+      const menu = event.target?.nodeType === 1 && event.target.matches("[data-feed-source-menu]") ? event.target : null;
       if (!menu) return;
       if (feedWorkbench) feedWorkbench.dataset.railOpen = String(menu.open);
       menu.querySelector("[data-feed-rail-toggle]")?.setAttribute("aria-expanded", String(menu.open));

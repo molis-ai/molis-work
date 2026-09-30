@@ -1962,7 +1962,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const removed = new Set();
   const visible = (node) => Boolean(node && node.isConnected && node.getClientRects().length && !node.closest("[hidden]"));
   const noteSurface = (target) => {
-    if (!(target instanceof Element) || island.contains(target)) return;
+    if (target?.nodeType !== 1 || island.contains(target)) return;
     const surface = target.closest("[data-assistant-context]");
     if (surface) lastSurface = surface;
   };
@@ -2254,7 +2254,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   input.addEventListener("focus", () => { paintMaterials(); if (!String(input.value || "").trim() && !busy) setStarters(true); });
   input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; setStarters(false); }, 0));
   document.addEventListener("pointerdown", (event) => {
-    if (!(event.target instanceof Element) || island.contains(event.target)) return;
+    if (event.target?.nodeType !== 1 || island.contains(event.target)) return;
     setStarters(false); if (worksNav && !worksNav.hidden) setWorks(false); if (morePop && !morePop.hidden) setMore(false); if (materialsList && !materialsList.hidden) setMaterials(false); if (executorsPop && !executorsPop.hidden) setExecutors(false); if (modesPop && !modesPop.hidden) setModes(false); if (charactersPop && !charactersPop.hidden) setCharacters(false); if (noticesPop && !noticesPop.hidden) setNotices(false);
   });
   island.addEventListener("keydown", (event) => {
@@ -2648,7 +2648,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   if (panel && "MutationObserver" in window) new MutationObserver(() => { if (!panel.hidden && !spacious()) drawerOpen = false; paintLayout(); if (panel.hidden) { setWorks(false); restIfStale(); } else paintTabs(); }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   // The list of works is a dropdown under the tabs: a click anywhere else in the panel puts it away.
   panel?.addEventListener("pointerdown", (event) => {
-    if (worksNav && !worksNav.hidden && event.target instanceof Element && !worksNav.contains(event.target) && !worksToggle?.contains(event.target)) setWorks(false);
+    if (worksNav && !worksNav.hidden && event.target?.nodeType === 1 && !worksNav.contains(event.target) && !worksToggle?.contains(event.target)) setWorks(false);
   });
 
   // The pill names what the page on show would bring, so it follows the page: another object, another surface.

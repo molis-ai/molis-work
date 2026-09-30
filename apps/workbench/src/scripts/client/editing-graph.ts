@@ -103,8 +103,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       if (!shouldMoveFocus || !visiblePane) return;
       const switchRoot = document.querySelector(".mobile-switch");
       const selectedTab = switchRoot?.querySelector("[aria-selected='true']");
-      if (selectedTab instanceof HTMLElement) selectedTab.focus();
-      else if (visiblePane instanceof HTMLElement) visiblePane.focus({ preventScroll: true });
+      if (selectedTab?.nodeType === 1) selectedTab.focus();
+      else if (visiblePane.nodeType === 1) visiblePane.focus({ preventScroll: true });
     };
 
     const setMobileView = (view) => {
@@ -258,7 +258,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     }
     document.addEventListener("click", (event) => {
       if (frameContainer?.isFrameTabActive()) return;
-      const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+      const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
       const select = target?.closest("[data-operation-select]");
       const directory = select?.closest("[data-operation-directory]");
       if (!select || !directory) return;

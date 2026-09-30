@@ -122,3 +122,47 @@ test("contextual actions: a result the person did not accept writes nothing; an 
   await evaluate(`document.querySelector('[data-pages-back]')?.click()`);
   await waitFor("document.querySelector('[data-assistant-context-actions]').dataset.state === 'idle'");
 });
+
+test("P2: a word is looked up in the search palette; a write goes to the Assistant as a card; a Goal's own text offers Goals actions", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, async () => "候选文字");
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  const setup = openPagesStore(homeDirectory);
+  const page = (() => { try { return setup.create({ project_id: projectId!, title: "术语表", body: { type: "doc", content: [paragraph("“激活”指新用户在第一周内完成至少一次有价值的操作。"), paragraph(SECOND)] } }); } finally { setup.close(); } })();
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
+  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  const select = (index: number, from: number, to?: number) => evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+    const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, ${from}); range.setEnd(text, ${to === undefined ? "text.length" : to});
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
+
+  // A word: looked up across the project, in the workbench's own search palette.
+  await select(0, 1, 3);
+  await waitFor("[...document.querySelectorAll('[data-assistant-context-actions] .context-action[data-key]')].some(button => button.textContent.includes('在项目里查找'))", 8000);
+  await evaluate(`[...document.querySelectorAll('[data-assistant-context-actions] .context-action[data-key]')].find(button => button.textContent.includes('在项目里查找')).click()`);
+  await waitFor("document.querySelector('[data-global-search-dialog]')?.open && document.querySelector('[data-global-search]')?.value === '激活'", 8000);
+  await evaluate(`document.querySelector('[data-global-search-close]')?.click()`);
+
+  // A write: prepared as a card in an Assistant work, which opens; nothing is written before the person runs it.
+  await select(1, 0);
+  await waitFor("document.querySelectorAll('[data-assistant-context-actions] .context-action[data-key]').length > 0", 8000);
+  await click("[data-assistant-context-actions] [data-more]");
+  await waitFor("[...document.querySelectorAll('.context-actions-menu button')].some(button => button.textContent.startsWith('记下灵光'))");
+  const placed = await evaluate<{ status: number; work_id?: string }>(`new Promise(resolve => { const original = window.fetch;
+    window.fetch = async (url, options) => { const response = await original(url, options); if (String(url).includes('/api/assistant/cards')) { const copy = response.clone(); resolve({ status: response.status, ...(await copy.json().catch(() => ({}))) }); } return response; };
+    [...document.querySelectorAll('.context-actions-menu button')].find(button => button.textContent.startsWith('记下灵光')).click(); })`);
+  assert.equal(placed.status, 200);
+  assert.ok(placed.work_id);
+  await waitFor("document.querySelector('[data-assistant-panel]') && !document.querySelector('[data-assistant-panel]').hidden && document.querySelector('[data-assistant-work-title]')?.textContent === '记下灵光'", 8000);
+
+  // A Goal's own text: the frame names the Goal, so what is selected in it can become steps under it.
+  const goalId = await evaluate<string>(`fetch(document.body.dataset.routePrefix + '/api/board', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(board => board.goals[0].goal.goal_id)`);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=goals&openItem=${encodeURIComponent(goalId)}` }, sessionId));
+  await waitFor(`JSON.parse(document.querySelector('[data-goal-frame-surface]')?.getAttribute('data-assistant-context') || '{}').object?.id === ${JSON.stringify(goalId)}`, 10_000);
+  await evaluate(`(() => { const frame = document.querySelector('[data-goal-frame-surface]'); const walker = document.createTreeWalker(frame, NodeFilter.SHOW_TEXT);
+    let node; while ((node = walker.nextNode())) { if (node.textContent.trim().length > 12 && !node.parentElement.closest('button, input, textarea')) break; }
+    const range = document.createRange(); range.setStart(node, 0); range.setEnd(node, node.textContent.length); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
+  await waitFor("document.querySelectorAll('[data-assistant-context-actions] .context-action[data-key]').length > 0", 10_000);
+  await click("[data-assistant-context-actions] [data-more]");
+  await waitFor("[...document.querySelectorAll('.context-actions-menu button')].some(button => button.textContent.startsWith('拆成目标步骤'))", 5000);
+});

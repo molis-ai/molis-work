@@ -65,6 +65,8 @@ export interface FragmentOffersInput {
     readonly granularity: FragmentGranularity;
     readonly targets: readonly FragmentTarget[];
     readonly heading_path?: readonly string[];
+    /** The Goal the object belongs to, when the surface knows it. */
+    readonly goal?: { readonly id: string; readonly title: string };
   };
   readonly request_id: string;
 }
@@ -94,6 +96,8 @@ export interface FragmentOfferChoice {
   readonly action: Pick<ActionReference, "capability_id" | "version">;
   readonly granularities?: readonly FragmentGranularity[];
   readonly roles?: readonly FragmentRole[];
+  /** Offered only when the surface knows this about the object: `goal`, the Goal it belongs to. */
+  readonly requires?: readonly "goal"[];
 }
 
 const id = { type: "string", minLength: 1 };
@@ -114,6 +118,7 @@ export const FRAGMENT_OFFERS_INPUT_SCHEMA = {
         granularity: { enum: [...FRAGMENT_GRANULARITIES] },
         targets: { type: "array", minItems: 1, maxItems: 8, items: TARGET_SCHEMA },
         heading_path: { type: "array", maxItems: 6, items: { type: "string", maxLength: 200 } },
+        goal: { type: "object", properties: { id, title: { type: "string", maxLength: 200 } }, required: ["id", "title"], additionalProperties: false },
       },
       required: ["object", "granularity", "targets"], additionalProperties: false,
     },
@@ -178,7 +183,8 @@ export function fragmentOfferDeclarationProblems(key: string, action: Record<str
     && typeof choice.action === "object" && choice.action !== null && typeof choice.action.capability_id === "string" && choice.action.capability_id.length > 0
     && Number.isInteger(choice.action.version) && choice.action.version >= 1 && (choice.action as { provider_id?: unknown }).provider_id === undefined
     && (choice.granularities === undefined || (Array.isArray(choice.granularities) && choice.granularities.length > 0 && choice.granularities.every(item => (FRAGMENT_GRANULARITIES as readonly string[]).includes(item))))
-    && (choice.roles === undefined || (Array.isArray(choice.roles) && choice.roles.length > 0 && choice.roles.every(item => (FRAGMENT_ROLES as readonly string[]).includes(item))));
+    && (choice.roles === undefined || (Array.isArray(choice.roles) && choice.roles.length > 0 && choice.roles.every(item => (FRAGMENT_ROLES as readonly string[]).includes(item))))
+    && (choice.requires === undefined || (Array.isArray(choice.requires) && choice.requires.length > 0 && choice.requires.every(item => item === "goal")));
   if (!Array.isArray(choices) || !choices.length || choices.some(choice => !valid(choice)) || new Set(choices.map(choice => choice.offer_id)).size !== choices.length) {
     problems.push(`能力 ${key} 的片段动作选项必须有唯一标识、名称、意图、说明及本提供方的目标动作版本`);
   }

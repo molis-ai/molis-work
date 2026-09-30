@@ -44,6 +44,7 @@ function fits(choice: FragmentOfferChoice, focus: SurfaceFocus): boolean {
     const roles = focus.targets.map(target => target.role).filter((role): role is FragmentRole => Boolean(role));
     if (!roles.some(role => choice.roles!.includes(role))) return false;
   }
+  if (choice.requires?.includes("goal") && !focus.goal) return false;
   return true;
 }
 

@@ -137,6 +137,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     shown: null,
     plan: null,
     held: null,
+    clearWhenLeft: false,
     menu: null,
     announced: "",
     returnTo: null,
@@ -190,7 +191,10 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       if (this.shown && this.shown.context_id === out.plan.context_id && this.interacting()) { this.held = draw; return; }
       draw();
     },
-    release() { const held = this.held; this.held = null; if (held && !this.interacting()) held(); },
+    release() {
+      if (this.clearWhenLeft && !this.interacting()) { bus.set(null, null); return; }
+      const held = this.held; this.held = null; if (held && !this.interacting()) held();
+    },
     draw(out, focus, rulesOnly) {
       const plan = out.plan;
       this.plan = plan;
@@ -331,7 +335,11 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       if (!focus.context_id || !focus.object || !Array.isArray(focus.targets)) return;
       this.set(focus, source);
     },
-    set(focus, source) {
+    set(focus, source, force) {
+      // The person is reaching for the row (pointer on it, or its focus) as what they had in hand lapses — a finished
+      // step's moment passing, say: keep it until they leave. A surface that went away is cleared regardless.
+      if (!focus && !force && this.focus && bar.interacting()) { bar.clearWhenLeft = true; return; }
+      bar.clearWhenLeft = false;
       if (focus && this.focus && focus.context_id === this.focus.context_id && this.source && source && this.source.pane === source.pane) return;
       const leaving = this.source, previous = this.focus;
       this.focus = focus; this.source = focus ? source : null;
@@ -438,8 +446,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     else if (event.data.type === "workbench-assistant-open" && event.data.detail) openAssistant(event.data.detail);
   });
   // A place change, or the surface going out of sight, voids what was in hand there.
-  document.addEventListener("molis-work:place-changed", () => bus.set(null, null));
-  setInterval(() => { if (bus.source && bus.source.element && !visible(bus.source.element)) bus.set(null, null); }, 800);
+  document.addEventListener("molis-work:place-changed", () => bus.set(null, null, true));
+  setInterval(() => { if (bus.source && bus.source.element && !visible(bus.source.element)) bus.set(null, null, true); }, 800);
 
   root.addEventListener("pointerleave", () => bar.release());
   root.addEventListener("focusin", (event) => { if (!root.contains(event.relatedTarget)) bar.returnTo = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null; });

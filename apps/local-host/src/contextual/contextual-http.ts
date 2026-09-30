@@ -120,8 +120,10 @@ async function prepare(focus: SurfaceFocus, key: string, requestId: string, call
   if (!candidate.available) throw new ContextualRequestError(409, "contextual.unavailable", candidate.reason ?? "这个动作现在不可用");
   const input: FragmentOffersInput = { request_id: requestId, fragment: { object: focus.object,
     granularity: focus.granularity as FragmentOffersInput["fragment"]["granularity"],
-    targets: focus.targets.map(({ kind, role, ref, text, truncated }) => ({ kind, ...(role ? { role } : {}), ...(ref ? { ref } : {}), text, ...(truncated ? { truncated } : {}) })),
-    ...(focus.surroundings?.heading_path.length ? { heading_path: focus.surroundings.heading_path } : {}) } };
+    // The fragment contract takes at most eight parts: the ones the person selected first.
+    targets: focus.targets.slice(0, 8).map(({ kind, role, ref, text, truncated }) => ({ kind, ...(role ? { role } : {}), ...(ref ? { ref } : {}), text, ...(truncated ? { truncated } : {}) })),
+    ...(focus.surroundings?.heading_path.length ? { heading_path: focus.surroundings.heading_path } : {}),
+    ...(focus.goal ? { goal: { id: focus.goal.id, title: focus.goal.title } } : {}) } };
   const { offers } = await caller.actions.invoke(candidate.source, input) as { offers: readonly FragmentActionOffer[] };
   const offer = offers.find(item => item.offer_id === candidate.offer_id);
   if (!offer || offer.action.capability_id !== candidate.action.capability_id || offer.action.version !== candidate.action.version
@@ -142,7 +144,7 @@ const ACTIVITIES: ReadonlySet<string> = new Set<SurfaceActivity>(["browsing", "s
 const GRANULARITIES: ReadonlySet<string> = new Set(["page", "object", ...FRAGMENT_GRANULARITIES]);
 const ROLES: ReadonlySet<string> = new Set(FRAGMENT_ROLES);
 const MAX_TARGETS = 24;
-const MAX_TARGET_TEXT = 8_000;
+const MAX_TARGET_TEXT = 4_000;
 
 function readString(value: unknown, field: string, max: number): string {
   if (typeof value !== "string" || !value || value.length > max) throw invalid(field);

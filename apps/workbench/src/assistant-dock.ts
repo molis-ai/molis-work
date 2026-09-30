@@ -9,31 +9,43 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
   const picker = options.picker ?? "";
   return `<div class="bar-center" data-assistant-island>
       <section class="assistant-panel" data-assistant-panel aria-label="${L("助理")}" hidden>
-        <header class="assistant-head">
-          <button class="assistant-work-switch" type="button" data-assistant-works-toggle aria-expanded="false" aria-controls="assistant-works" title="${L("切换工作")}">
-            <span class="assistant-work-title" data-assistant-work-title>${L("新工作")}</span><span class="assistant-state" data-assistant-work-state></span>${icon("chevron-down")}
-          </button>
-          <span class="assistant-head-actions">
-            <button class="dock-window-action" type="button" data-assistant-control="pause" hidden>${L("暂停")}</button>
-            <button class="dock-window-action" type="button" data-assistant-control="resume" hidden>${L("继续")}</button>
-            <button class="dock-window-action" type="button" data-assistant-control="stop" hidden>${L("停止")}</button>
-            <button class="dock-window-action" type="button" data-assistant-new title="${L("开始一项新工作")}">${icon("plus")}<span>${L("新工作")}</span></button>
-            <button class="dock-window-action" type="button" data-assistant-work-more aria-haspopup="true" aria-expanded="false" aria-controls="assistant-work-menu" aria-label="${L("这项工作的更多操作")}" title="${L("更多")}" hidden>${icon("more")}</button>
+        <header class="assistant-tabbar">
+          <div class="assistant-tabs" data-assistant-tabs role="tablist" aria-label="${L("打开的工作")}"></div>
+          <button class="assistant-tab-new" type="button" data-assistant-new aria-label="${L("开始一项新工作")}" title="${L("开始一项新工作")}">${icon("plus")}</button>
+          <span class="assistant-tabbar-actions">
+            <button class="dock-window-action" type="button" data-assistant-works-toggle aria-expanded="false" aria-controls="assistant-works" aria-label="${L("全部工作")}" title="${L("全部工作")}">${icon("list")}</button>
+            <button class="dock-window-action assistant-side-toggle" type="button" data-assistant-side-toggle aria-expanded="true" aria-controls="assistant-side" aria-label="${L("这项工作的详情")}" title="${L("这项工作的详情")}">${icon("sidebar")}<span class="assistant-side-dot" data-assistant-side-dot hidden></span></button>
             <button class="dock-window-action" type="button" data-assistant-panel-close aria-label="${L("最小化")}" title="${L("最小化")}">${icon("chevron-down")}</button>
           </span>
         </header>
-        <div class="assistant-work-menu" id="assistant-work-menu" data-assistant-work-menu role="group" aria-label="${L("这项工作")}" hidden>
-          <p class="assistant-work-scope" data-assistant-work-scope></p>
-          <button class="assistant-menu-item" type="button" data-assistant-open-executor hidden></button>
-          <button class="assistant-menu-item" type="button" data-assistant-handover hidden></button>
-          <button class="assistant-menu-item" type="button" data-assistant-usage-toggle>${L("用量与上限")}</button>
-        </div>
-        <nav class="assistant-works" id="assistant-works" data-assistant-works aria-label="${L("我的工作")}" hidden></nav>
-        <div class="assistant-objects" data-assistant-objects hidden></div>
-        <div class="assistant-objects" data-assistant-delegated hidden></div>
-        <div class="assistant-objects" data-assistant-usage hidden></div>
-        <div class="assistant-thread" data-assistant-thread role="log" aria-live="polite" aria-relevant="additions">
-          <div class="assistant-empty" data-assistant-empty><strong>${L("你的个人工作助理")}</strong><p>${L("说出要做的事：整理资料、起草、查询、安排后续……它会使用你已授权的能力推进，改动数据前先请你确认。")}</p></div>
+        <nav class="assistant-works" id="assistant-works" data-assistant-works aria-label="${L("全部工作")}" hidden></nav>
+        <div class="assistant-body">
+          <aside class="assistant-side" id="assistant-side" data-assistant-side aria-label="${L("这项工作")}">
+            <section class="assistant-summary" aria-label="${L("概况")}">
+              <div class="assistant-summary-top">
+                <p class="assistant-summary-state"><span class="assistant-state" data-assistant-work-state></span></p>
+                <span class="assistant-summary-controls">
+                  <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${L("暂停")}</button>
+                  <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${L("继续")}</button>
+                  <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button>
+                </span>
+              </div>
+              <p class="assistant-summary-title" data-assistant-work-title>${L("新工作")}</p>
+              <p class="assistant-summary-now" data-assistant-now hidden></p>
+              <button class="mw-btn mw-btn--primary mw-btn--sm assistant-next" type="button" data-assistant-next hidden></button>
+              <dl class="assistant-summary-meta" data-assistant-meta></dl>
+            </section>
+            <section class="assistant-block" data-assistant-block="path" aria-label="${L("路径")}" hidden></section>
+            <section class="assistant-block" data-assistant-block="materials" aria-label="${L("材料")}" hidden></section>
+            <section class="assistant-block" data-assistant-block="results" aria-label="${L("成果")}" hidden></section>
+            <section class="assistant-block assistant-block--usage" data-assistant-usage hidden></section>
+          </aside>
+          <div class="assistant-main">
+            <div class="assistant-thread" data-assistant-thread role="log" aria-live="polite" aria-relevant="additions">
+              <div class="assistant-empty" data-assistant-empty><strong>${L("你的个人工作助理")}</strong><p>${L("说出要做的事：整理资料、起草、查询、安排后续……它会使用你已授权的能力推进，改动数据前先请你确认。")}</p><div class="assistant-empty-list" data-assistant-empty-list></div></div>
+            </div>
+            <button class="assistant-jump" type="button" data-assistant-jump hidden></button>
+          </div>
         </div>
       </section>
       <div class="assistant-popover" id="assistant-materials" data-assistant-materials-list role="group" aria-label="${L("本次发送带上的材料")}" hidden></div>

@@ -444,34 +444,55 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] > span { color: var(--ink); font-weight: 500; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] svg { color: var(--ink); }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item:not([aria-current]):hover { background: var(--nav-hover); }
-  /* Its answers open above the bar and stay until closed. */
+  /* Its answers open above the bar and stay until closed: one tab per open work, the work's side pane on the left
+     (what it is, how it got here, what it used, what it made) and the conversation on the right, right above the input. */
   ${ASSIST} .assistant-panel {
+    --assistant-side-w: 272px;
     position: absolute; z-index: 50; left: -40px; right: -40px; bottom: calc(100% + 8px); display: flex; flex-direction: column; overflow: hidden;
-    height: min(600px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h, 76px) - 32px));
+    height: min(620px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h, 76px) - 32px));
     border-radius: 16px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise var(--dur-move) var(--ease-quint) both;
   }
   ${ASSIST} .assistant-panel[hidden] { display: none; }
-  /* Head: which work, its real state, where it belongs, and what can be done to it now. */
-  ${ASSIST} .assistant-head { flex: none; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 8px; box-shadow: inset 0 -1px 0 var(--line); }
-  ${ASSIST} .assistant-work-switch {
-    display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 55%; height: 28px; padding: 0 8px; border: 0; border-radius: 7px;
-    background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+  /* A wide window keeps the conversation over the input and opens the side pane to its left. */
+  @media (min-width: 1240px) {
+    ${ASSIST} .assistant-panel[data-layout="split"][data-side="open"] { left: calc(-1 * var(--assistant-side-w) - 24px); right: -24px; }
   }
-  ${ASSIST} .assistant-work-switch:is(:hover, [aria-expanded="true"]) { background: var(--nav-hover); }
-  ${ASSIST} .assistant-work-switch:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-work-switch > svg { flex: none; width: 12px; height: 12px; color: var(--muted); }
-  ${ASSIST} .assistant-work-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  ${ASSIST} .assistant-state { flex: none; font-size: 11px; font-weight: 400; color: var(--muted); }
-  ${ASSIST} .assistant-state:empty { display: none; }
-  ${ASSIST} .assistant-state[data-state="running"]::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 50%; background: var(--hue-green-fill); vertical-align: 1px; }
-  ${ASSIST} .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { color: var(--ink); }
-  ${ASSIST} .assistant-state[data-state="failed"] { color: var(--danger); }
-  ${ASSIST} .assistant-work-scope { flex: none; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 8px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 11px; }
-  ${ASSIST} .assistant-head-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-  ${ASSIST} .assistant-head-actions .dock-window-action[hidden] { display: none; }
-  /* The person's works, newest first. */
-  ${ASSIST} .assistant-works { flex: none; display: flex; flex-direction: column; gap: 1px; max-height: 45%; overflow: auto; padding: 8px; box-shadow: inset 0 -1px 0 var(--line); }
+  /* The tab strip: the open works, a new one, then all works, the side pane and minimise. */
+  ${ASSIST} .assistant-tabbar { flex: none; display: flex; align-items: flex-end; gap: 4px; height: 42px; padding: 6px 6px 0 8px; background: var(--desk); box-shadow: inset 0 -1px 0 var(--line); }
+  ${ASSIST} .assistant-tabs { position: relative; flex: 0 1 auto; min-width: 0; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+  ${ASSIST} .assistant-tabs::-webkit-scrollbar { display: none; }
+  ${ASSIST} .assistant-tab { position: relative; flex: 0 1 184px; width: 184px; min-width: 96px; display: flex; align-items: center; height: 34px; border-radius: 9px 9px 0 0; color: var(--muted); }
+  ${ASSIST} .assistant-tab:hover { background: var(--nav-hover); color: var(--ink-soft); }
+  ${ASSIST} .assistant-tab[data-current] { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line); clip-path: inset(-1px -1px 0 -1px); }
+  ${ASSIST} .assistant-tab-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 100%; padding: 0 4px 0 10px; border: 0; border-radius: inherit; background: transparent; color: inherit; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+  ${ASSIST} .assistant-tab-main:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-tab[data-current] .assistant-tab-main { font-weight: 500; }
+  ${ASSIST} .assistant-tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* The marks, shared by tabs and the list of works: waiting on you, running, news not yet seen, did not finish. */
+  ${ASSIST} .assistant-tab-mark { flex: none; display: none; width: 7px; height: 7px; border-radius: 50%; }
+  ${ASSIST} [data-mark] .assistant-tab-mark { display: inline-block; }
+  ${ASSIST} [data-mark="waiting"] .assistant-tab-mark { background: var(--tone-attention, var(--amber, #c27c0e)); }
+  ${ASSIST} [data-mark="unread"] .assistant-tab-mark { background: var(--accent); }
+  ${ASSIST} [data-mark="failed"] .assistant-tab-mark { background: var(--danger); }
+  ${ASSIST} [data-mark="running"] .assistant-tab-mark { width: 9px; height: 9px; box-sizing: border-box; background: none; border: 1.5px solid var(--hue-green-fill); border-right-color: transparent; animation: assistant-turn 900ms linear infinite; }
+  @keyframes assistant-turn { to { transform: rotate(360deg); } }
+  ${ASSIST} .assistant-tab-close { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; line-height: 1; cursor: pointer; opacity: 0; }
+  ${ASSIST} .assistant-tab:is(:hover, [data-current], :focus-within) .assistant-tab-close { opacity: 1; }
+  ${ASSIST} .assistant-tab-close:hover { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action) { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+  ${ASSIST} .assistant-tab-new { margin-bottom: 3px; }
+  ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action):hover { background: var(--nav-hover); color: var(--ink); }
+  ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action) svg { width: 14px; height: 14px; }
+  ${ASSIST} .assistant-tabbar-actions { flex: none; display: flex; align-items: center; gap: 2px; margin-left: auto; align-self: center; }
+  ${ASSIST} .assistant-tabbar .dock-window-action:is([aria-expanded="true"]) { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} .assistant-side-toggle { position: relative; }
+  ${ASSIST} .assistant-side-dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--tone-attention, var(--amber, #c27c0e)); }
+  ${ASSIST} .assistant-side-dot[hidden], ${ASSIST} .assistant-panel[data-side="open"] .assistant-side-dot { display: none; }
+  /* All works: a dropdown under the tabs, grouped by what waits on you, what runs, and the rest. */
+  ${ASSIST} .assistant-works { position: absolute; z-index: 6; top: 44px; right: 8px; display: flex; flex-direction: column; gap: 1px; width: min(340px, calc(100% - 16px)); max-height: min(440px, 70%); overflow: auto; padding: 6px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); }
   ${ASSIST} .assistant-works[hidden] { display: none; }
+  ${ASSIST} .assistant-works-group { margin: 8px 12px 2px; font-size: 11px; color: var(--faint); }
   ${ASSIST} .assistant-works-item {
     display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 8px 12px; border: 0; border-radius: 7px;
     background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer;
@@ -479,29 +500,173 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-works-item:hover { background: var(--nav-hover); color: var(--ink); }
   ${ASSIST} .assistant-works-item[aria-current] { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} .assistant-works-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-works-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  ${ASSIST} .assistant-works-head { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+  ${ASSIST} .assistant-works-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   ${ASSIST} .assistant-works-meta { font-size: 11px; color: var(--muted); }
   ${ASSIST} .assistant-works-new { flex-direction: row; font-size: 13px; color: var(--muted); }
-  /* What the work started from, used, produced and handed to — as the owners have them now. */
-  ${ASSIST} .assistant-objects { flex: none; padding: 4px 12px; box-shadow: inset 0 -1px 0 var(--line); font-size: 12px; }
-  ${ASSIST} .assistant-objects[hidden] { display: none; }
-  ${ASSIST} .assistant-objects summary { cursor: pointer; color: var(--muted); padding: 4px 0; border-radius: 5px; }
-  ${ASSIST} .assistant-objects summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
-  ${ASSIST} .assistant-objects-items { list-style: none; margin: 4px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow: auto; }
-  ${ASSIST} .assistant-object { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 4px; border-radius: 6px; }
-  ${ASSIST} .assistant-object--undo { grid-template-columns: minmax(0, 1fr) auto auto; }
-  ${ASSIST} .assistant-object-relation { font-size: 11px; color: var(--muted); padding: 0 4px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); white-space: nowrap; }
-  ${ASSIST} .assistant-object-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
-  ${ASSIST} .assistant-object-state { font-size: 11px; color: var(--faint); white-space: nowrap; }
-  ${ASSIST} .assistant-object--changed .assistant-object-state { color: var(--warning, #b7791f); }
-  ${ASSIST} :is(.assistant-object--missing, .assistant-object--unavailable) .assistant-object-state { color: var(--danger, #c53030); }
-  ${ASSIST} .assistant-object-open, ${ASSIST} .assistant-material-add { padding: 1px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--accent, var(--ink)); font: inherit; font-size: 12px; cursor: pointer; }
-  ${ASSIST} :is(.assistant-object-open, .assistant-material-add):hover { background: var(--nav-hover); }
-  ${ASSIST} :is(.assistant-object-open, .assistant-material-add):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  /* The body: side pane and conversation. A narrow panel lays the side pane over the conversation as a drawer. */
+  ${ASSIST} .assistant-body { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: var(--assistant-side-w) minmax(0, 1fr); }
+  ${ASSIST} .assistant-panel:is([data-side="closed"], [data-layout="drawer"]) .assistant-body { grid-template-columns: minmax(0, 1fr); }
+  ${ASSIST} .assistant-side { min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 14px; padding: 14px 12px 16px 14px; background: var(--paper); box-shadow: inset -1px 0 0 var(--line); font-size: 12px; line-height: 1.5; }
+  ${ASSIST} .assistant-panel[data-side="closed"] .assistant-side { display: none; }
+  ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side { position: absolute; z-index: 4; top: 0; bottom: 0; left: 0; width: min(var(--assistant-side-w), 100%); box-shadow: var(--lift-3); }
+  ${ASSIST} .assistant-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  /* 概况: the state, what it is doing now, where it belongs, who carries it, and what can be done to it now. */
+  ${ASSIST} .assistant-summary { display: flex; flex-direction: column; gap: 2px; }
+  ${ASSIST} .assistant-summary-state { margin: 0; }
+  ${ASSIST} .assistant-summary-state:has(.assistant-state:empty) { display: none; }
+  ${ASSIST} .assistant-summary-title { margin: 0; color: var(--ink); font-size: 14px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+  ${ASSIST} .assistant-summary-now { margin: 2px 0 0; color: var(--ink-soft); overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-summary-now[hidden] { display: none; }
+  ${ASSIST} .assistant-summary-meta { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 6px 10px; margin: 10px 0 0; }
+  ${ASSIST} .assistant-summary-meta:empty { display: none; }
+  ${ASSIST} .assistant-summary-meta dt { color: var(--muted); }
+  ${ASSIST} .assistant-summary-meta dd { margin: 0; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-summary-top { display: flex; align-items: center; gap: 8px; min-height: 22px; margin-bottom: 2px; }
+  ${ASSIST} .assistant-summary-top:not(:has(.assistant-state:not(:empty), .assistant-control:not([hidden]))) { display: none; }
+  ${ASSIST} .assistant-summary-controls { display: flex; gap: 2px; margin-left: auto; }
+  ${ASSIST} .assistant-control { height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer;
+    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  ${ASSIST} .assistant-control[hidden] { display: none; }
+  ${ASSIST} .assistant-control:hover { background: var(--nav-hover); color: var(--ink); }
+  ${ASSIST} .assistant-control--stop:hover { color: var(--danger); }
+  ${ASSIST} .assistant-control[data-assistant-control="resume"] { background: var(--ink); color: var(--paper); }
+  ${ASSIST} .assistant-control:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
+  /* The work's state as a small pill: a dot that says waiting, running, done or not done. */
+  ${ASSIST} .assistant-summary .assistant-state { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px 1px 7px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); font-size: 11px; line-height: 18px; }
+  ${ASSIST} .assistant-summary .assistant-state::before { content: ""; flex: none; width: 6px; height: 6px; margin: 0; border-radius: 50%; background: var(--faint); vertical-align: 0; }
+  ${ASSIST} .assistant-summary .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 13%, transparent); color: var(--ink); }
+  ${ASSIST} .assistant-summary .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"])::before { background: var(--tone-attention, #c27c0e); }
+  ${ASSIST} .assistant-summary .assistant-state[data-state="running"]::before { background: var(--hue-green-fill); animation: assistant-breathe 1.6s ease-in-out infinite; }
+  ${ASSIST} .assistant-summary .assistant-state[data-state="completed"]::before { background: var(--hue-green-fill); }
+  ${ASSIST} .assistant-summary .assistant-state:is([data-state="failed"], [data-state="stopped"])::before { background: var(--danger); }
+  ${ASSIST} .assistant-next { align-self: flex-start; margin-top: 8px; }
+  ${ASSIST} .assistant-next[hidden] { display: none; }
+  /* One row of equal parts, however many choices: five Coding modes fit the side pane without wrapping. */
+  ${ASSIST} .assistant-segmented { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--wash); }
+  ${ASSIST} .assistant-segment { min-width: 0; height: 24px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  ${ASSIST} .assistant-segment:hover:not(:disabled) { color: var(--ink); }
+  ${ASSIST} .assistant-segment[aria-pressed="true"] { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+  ${ASSIST} .assistant-segment:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-summary-meta .mw-select-picker { width: 100%; min-width: 0; }
+  ${ASSIST} .assistant-summary-meta :is(select.mw-select, .mw-select-picker__trigger) { width: 100%; min-width: 0; height: 28px; min-height: 28px; font-size: 12px; }
+  /* 路径 · 材料 · 成果: each a heading, small groups, and one line per thing with what can be done to it. */
+  ${ASSIST} .assistant-block[hidden] { display: none; }
+  ${ASSIST} .assistant-block-head { display: flex; align-items: center; gap: 6px; width: 100%; margin: 0; padding: 12px 0 4px; border: 0; border-radius: 0; background: transparent; box-shadow: inset 0 1px 0 var(--line); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+  ${ASSIST} .assistant-block-head:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+  ${ASSIST} .assistant-block-chevron { flex: none; display: inline-grid; place-items: center; width: 12px; height: 12px; color: var(--muted); }
+  ${ASSIST} .assistant-block-chevron::before { content: "›"; font-size: 14px; line-height: 1; transform: rotate(90deg); transition: transform var(--dur-move) var(--ease-quint); }
+  ${ASSIST} .assistant-block-head[aria-expanded="false"] .assistant-block-chevron::before { transform: none; }
+  ${ASSIST} .assistant-block-head:hover .assistant-block-chevron { color: var(--ink); }
+  ${ASSIST} .assistant-block-note.is-attention { display: inline-flex; align-items: center; gap: 5px; color: var(--tone-attention, var(--amber, #b7791f)); }
+  ${ASSIST} .assistant-block-note.is-attention::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  /* Folding eases the height; what is folded away is out of the tab order once it has closed. */
+  ${ASSIST} .assistant-block-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--dur-move) var(--ease-quint); }
+  ${ASSIST} .assistant-block[data-folded] .assistant-block-body { grid-template-rows: 0fr; }
+  ${ASSIST} .assistant-block-inner { min-height: 0; overflow: hidden; }
+  ${ASSIST} .assistant-block[data-folded] .assistant-block-inner { visibility: hidden; transition: visibility 0s var(--dur-move); }
+  ${ASSIST} .assistant-block-title { color: var(--ink); font-size: 12px; font-weight: 600; }
+  ${ASSIST} .assistant-block-note { margin-left: auto; color: var(--muted); font-size: 11px; }
+  ${ASSIST} .assistant-block-sub { margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
+  ${ASSIST} .assistant-side-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  ${ASSIST} .assistant-side-row { position: relative; display: flex; align-items: center; gap: 6px; min-height: 26px; margin: 0 -4px; padding: 2px 4px; border-radius: 6px; transition: background-color var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} .assistant-side-row:hover { background: var(--nav-hover); }
+  ${ASSIST} .assistant-side-row.is-openable:active { background: var(--nav-active); }
+  /* The name opens what it names, and its target is the whole row; the row's own actions sit above it. */
+  ${ASSIST} button.assistant-side-name { padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+  ${ASSIST} button.assistant-side-name::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+  ${ASSIST} button.assistant-side-name:focus-visible { outline: none; }
+  ${ASSIST} .assistant-side-row:has(> button.assistant-side-name:focus-visible) { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-side-row :is(.assistant-side-action, .assistant-side-tag) { position: relative; z-index: 1; }
+  ${ASSIST} .assistant-side-tag { flex: none; padding: 0 5px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 11px; line-height: 17px; white-space: nowrap; }
+  ${ASSIST} .assistant-side-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
+  ${ASSIST} .assistant-side-state { flex: 0 1 auto; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font-size: 11px; }
+  ${ASSIST} .assistant-side-row.is-warn .assistant-side-state { color: var(--tone-attention, var(--amber, #b7791f)); }
+  ${ASSIST} .assistant-side-row.is-bad .assistant-side-state { color: var(--danger); }
+  ${ASSIST} .assistant-side-add .assistant-side-state { flex: 1 1 auto; max-width: none; }
+  ${ASSIST} .assistant-side-row.is-stacked { flex-wrap: wrap; row-gap: 0; padding-block: 4px; }
+  ${ASSIST} .assistant-side-foot { flex: 1 0 100%; display: flex; align-items: center; gap: 2px; min-width: 0; }
+  ${ASSIST} .assistant-side-foot .assistant-side-state { flex: 1 1 auto; max-width: none; margin-right: 4px; }
+  ${ASSIST} .assistant-side-action { flex: none; height: 22px; padding: 0 6px; border: 0; border-radius: 5px; background: transparent; color: var(--accent, var(--ink)); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+  ${ASSIST} .assistant-side-action:hover:not(:disabled) { background: var(--nav-active); }
+  ${ASSIST} .assistant-side-action { transition: background-color var(--dur-hover) var(--ease-quint), opacity var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  ${ASSIST} .assistant-side-action[aria-busy="true"] { color: var(--muted); cursor: progress; }
+  /* Stop, take back and cancel wait for the pointer or keyboard to reach the row; touch screens always show them. */
+  ${ASSIST} .assistant-side-action.is-quiet { opacity: 0; }
+  ${ASSIST} .assistant-side-row:is(:hover, :focus-within) .assistant-side-action.is-quiet { opacity: 1; }
+  @media (hover: none) { ${ASSIST} .assistant-side-action.is-quiet { opacity: 1; } }
+  ${ASSIST} .assistant-side-action:disabled { color: var(--muted); cursor: default; }
+  ${ASSIST} .assistant-side-action:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-block--usage[hidden] { display: none; }
+  ${ASSIST} .assistant-usage > summary { display: flex; align-items: center; gap: 6px; padding-top: 12px; box-shadow: inset 0 1px 0 var(--line); color: var(--muted); list-style: none; cursor: pointer; }
+  ${ASSIST} .assistant-usage > summary::-webkit-details-marker { display: none; }
+  ${ASSIST} .assistant-usage > summary::before { content: "›"; display: inline-grid; place-items: center; width: 12px; font-size: 14px; line-height: 1; transition: transform var(--dur-move) var(--ease-quint); }
+  ${ASSIST} .assistant-usage[open] > summary::before { transform: rotate(90deg); }
+  ${ASSIST} .assistant-usage > summary:hover { color: var(--ink); }
+  ${ASSIST} .assistant-usage > summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+  ${ASSIST} .assistant-material-add { padding: 1px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--accent, var(--ink)); font: inherit; font-size: 12px; cursor: pointer; }
+  ${ASSIST} .assistant-material-add:hover { background: var(--nav-hover); }
+  ${ASSIST} .assistant-material-add:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-material--optional .assistant-material-label { color: var(--muted); }
-  ${ASSIST} .assistant-usage-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 4px 2px; }
+  ${ASSIST} .assistant-usage-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0 2px; }
   ${ASSIST} .assistant-usage-input { width: 9em; min-width: 0; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface, transparent); color: var(--ink); font: inherit; font-size: 12px; }
   ${ASSIST} .assistant-round-executor { margin: 0 0 4px; font-size: 11px; color: var(--muted); }
+  /* With the panel open, its tab says where the next message goes; with the side pane shown, it lists what goes with it and who carries it. */
+  ${ASSIST} [data-assistant-island]:has(> .assistant-panel:not([hidden])) .assistant-target { display: none; }
+  ${ASSIST} [data-assistant-island][data-side-shown] :is(.assistant-materials-button, [data-assistant-executor], [data-assistant-character], [data-assistant-mode]) { display: none; }
+  /* Pressing gives a little everywhere in the panel, the same 130ms spring as the bar. */
+  ${ASSIST} :is(.assistant-side-action, .assistant-segment, .assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-control, .assistant-start, .assistant-copy, .assistant-tab-close):active:not(:disabled) { transform: scale(.94); }
+  ${ASSIST} :is(.assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-tab-close, .assistant-tab-main) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  ${ASSIST} .assistant-tab-main:active { transform: scale(.98); }
+  ${ASSIST} .assistant-tab { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} .assistant-segment { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  ${ASSIST} [data-mark="waiting"] .assistant-tab-mark { animation: assistant-breathe 2.4s ease-in-out infinite; }
+  @keyframes assistant-breathe { 50% { opacity: .4; } }
+  /* Moving between works: the new work's content arrives; a drawer slides from its edge; the list grows from its button. */
+  ${ASSIST} .assistant-panel[data-arrive] :is(.assistant-thread, .assistant-side) { animation: assistant-arrive 220ms var(--ease-quint); }
+  @keyframes assistant-arrive { from { opacity: .4; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  ${ASSIST} .assistant-panel[data-layout="drawer"][data-side="open"] .assistant-side { animation: assistant-drawer var(--dur-move) var(--ease-quint); }
+  @keyframes assistant-drawer { from { opacity: .6; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+  ${ASSIST} .assistant-works:not([hidden]) { transform-origin: top right; animation: craft-drop 180ms var(--ease-quint); }
+  ${ASSIST} :is(.assistant-thread > .assistant-card, .assistant-thread > .assistant-problem, .assistant-round > .assistant-msg, .assistant-round > .assistant-card) { animation: craft-rise var(--dur-move) var(--ease-quint); }
+  /* “Go to it” marks what it took you to for a moment. */
+  ${ASSIST} [data-flash] { outline: 2px solid transparent; outline-offset: 3px; animation: assistant-flash 1.4s var(--ease-quint); }
+  @keyframes assistant-flash { 0%, 45% { outline-color: var(--accent); } 100% { outline-color: transparent; } }
+  ${ASSIST} .assistant-attention[data-bump] { animation: assistant-bump 420ms var(--ease-spring); }
+  @keyframes assistant-bump { 0% { transform: scale(.82); } 60% { transform: scale(1.08); } 100% { transform: none; } }
+  /* The pill at the foot of the conversation: what waits below, or news that arrived while reading above. */
+  ${ASSIST} .assistant-main { position: relative; }
+  ${ASSIST} .assistant-jump { position: absolute; z-index: 2; left: 50%; bottom: 12px; translate: -50% 0; height: 28px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--paper); box-shadow: var(--lift-2);
+    font: inherit; font-size: 12px; cursor: pointer; animation: craft-rise-from-bar var(--dur-move) var(--ease-quint); transition: transform var(--dur-press) var(--ease-spring); }
+  ${ASSIST} .assistant-jump[hidden] { display: none; }
+  ${ASSIST} .assistant-jump:active { transform: scale(.95); }
+  ${ASSIST} .assistant-jump:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+  /* A new work starts from this page's starting points or goes back to a recent work. */
+  ${ASSIST} .assistant-empty-list { display: flex; flex-direction: column; gap: 4px; max-width: 520px; margin-top: 14px; }
+  ${ASSIST} .assistant-empty-list:empty { display: none; }
+  ${ASSIST} .assistant-empty-title { margin: 10px 0 2px; color: var(--faint); font-size: 11px; }
+  ${ASSIST} .assistant-empty-title:first-child { margin-top: 0; }
+  ${ASSIST} .assistant-start { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 6px 12px; border: 0; border-radius: 10px; background: var(--wash); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+    transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); animation: craft-rise var(--dur-move) var(--ease-quint) both; }
+  ${ASSIST} .assistant-start:hover { background: var(--nav-active); }
+  ${ASSIST} .assistant-start:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-start-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-start-state { flex: none; color: var(--muted); font-size: 12px; }
+  ${ASSIST} .assistant-empty-list > :nth-child(2) { animation-delay: 30ms; } ${ASSIST} .assistant-empty-list > :nth-child(3) { animation-delay: 60ms; }
+  ${ASSIST} .assistant-empty-list > :nth-child(4) { animation-delay: 90ms; } ${ASSIST} .assistant-empty-list > :nth-child(n + 5) { animation-delay: 120ms; }
+  ${ASSIST} .assistant-empty-hint { margin: 12px 0 0; color: var(--faint); font-size: 12px; }
+  /* Copy an answer: it appears with the pointer over the round (always on touch) and says when it is done. */
+  ${ASSIST} .assistant-copy { align-self: flex-start; margin: -6px 0 0 -6px; height: 22px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
+    opacity: 0; transition: opacity var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
+  ${ASSIST} :is(.assistant-round:hover .assistant-copy, .assistant-copy:focus-visible, .assistant-copy[data-done]) { opacity: 1; }
+  ${ASSIST} .assistant-copy:hover { background: var(--nav-hover); color: var(--ink); }
+  ${ASSIST} .assistant-copy[data-done] { color: var(--hue-green-fill); }
+  @media (hover: none) { ${ASSIST} .assistant-copy { opacity: 1; } }
+  /* A later round opens with when it began. */
+  ${ASSIST} .assistant-round-time { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
+  ${ASSIST} .assistant-round-time::before, ${ASSIST} .assistant-round-time::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  /* What a round carried reads as a line under the person's own message. */
+  ${ASSIST} :is(.assistant-msg--user, .assistant-msg-more) + .assistant-materials { align-self: flex-end; max-width: 85%; margin-top: -4px; font-size: 11px; text-align: right; }
   /* The conversation: the person's words on the right, the assistant's answer as text, what it did as quiet lines. */
   ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
   ${ASSIST} .assistant-empty { color: var(--muted); }
@@ -558,11 +723,6 @@ const CRAFT_BASE_STYLES = `
   body.project-index-page .project-index-dock .assistant-composer-input { flex: 1; min-width: 0; height: 32px; padding: 0 8px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 13px; outline: none; }
   body.project-index-page .project-index-dock .assistant-composer-input::placeholder { color: var(--faint); }
   body.project-index-page .project-index-dock .assistant-panel { left: 0; right: 0; height: min(560px, calc(100dvh - 140px)); }
-  body.project-index-page .assistant-head .dock-window-action {
-    display: inline-flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
-  }
-  body.project-index-page .assistant-head .dock-window-action:hover { background: var(--nav-hover); color: var(--ink); }
-  body.project-index-page .assistant-head .dock-window-action svg { width: 14px; height: 14px; }
   /* In front of the input: where the next Send goes — a new work (and whose), or the work it continues. */
   /* The Assistant's choosers read like the plugin switcher: quiet words with a hover wash, never a row of outlined chips. */
   ${ASSIST} .assistant-target { display: inline-flex; flex: 0 1 auto; align-items: center; min-width: 0; max-width: 26%; height: 28px; border-radius: 8px; box-shadow: none; transition: background-color var(--dur-hover) var(--ease-quint); }
@@ -586,9 +746,6 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-executor svg { width: 12px; height: 12px; color: var(--muted); }
   ${ASSIST} .assistant-executor:hover { background: var(--nav-hover); color: var(--ink); }
   ${ASSIST} .assistant-executor:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-work-executor { flex: none; height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: var(--nav-hover); color: var(--ink-soft); font: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
-  ${ASSIST} .assistant-work-executor[hidden] { display: none; }
-  ${ASSIST} .assistant-work-executor:hover:not(:disabled) { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} .assistant-starter[aria-current] { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach) {
     display: inline-flex; flex: none; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border: 0; border-radius: 7px;
@@ -619,16 +776,7 @@ const CRAFT_BASE_STYLES = `
   @media (max-width: 600px) { ${ASSIST} .assistant-materials-label { display: none; } }
   ${SHELL} .bar-composer[data-fit="narrow"] .assistant-materials-label { display: none; }
   /* News alone is a quiet bell; a number means something waits for the person. */
-  ${ASSIST} .assistant-attention[data-quiet] { background: transparent; color: var(--muted); }
   /* The work's own menu: where it belongs, who carries it, handing over, usage. */
-  ${ASSIST} .assistant-work-menu { position: absolute; z-index: 5; top: 44px; right: 8px; display: flex; flex-direction: column; gap: 2px; width: min(260px, calc(100% - 16px)); padding: 6px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); }
-  ${ASSIST} .assistant-work-menu[hidden] { display: none; }
-  ${ASSIST} .assistant-work-menu .assistant-work-scope { flex: none; max-width: none; margin: 0; padding: 4px 8px; border-radius: 0; box-shadow: none; color: var(--muted); font-size: 12px; white-space: normal; }
-  ${ASSIST} .assistant-menu-item { min-height: 32px; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
-  ${ASSIST} .assistant-menu-item[hidden] { display: none; }
-  ${ASSIST} .assistant-menu-item:hover:not(:disabled) { background: var(--nav-hover); }
-  ${ASSIST} .assistant-menu-item:disabled { color: var(--muted); cursor: default; }
-  ${ASSIST} .assistant-menu-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   /* The steps between two messages: one quiet line that opens to each step. */
   ${ASSIST} .assistant-steps { margin: 0; font-size: 12px; color: var(--muted); }
   ${ASSIST} .assistant-steps > summary { width: fit-content; margin-left: -4px; padding: 2px 4px; border-radius: 6px; list-style: none; cursor: pointer; }
@@ -886,14 +1034,12 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
     ${ASSIST} .assistant-target { max-width: 30%; }
-    /* The panel's head on a phone: the work's title keeps the room; the scope chip steps aside and the head's
-       buttons show their icons only (their names stay as accessible labels). */
-    ${ASSIST} .assistant-head { gap: 4px; }
-    ${ASSIST} .assistant-work-switch { flex: 1 1 auto; min-width: 0; max-width: none; }
-    ${ASSIST} .assistant-work-scope { display: none; }
-    ${ASSIST} .assistant-work-executor { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
-    ${ASSIST} .assistant-head-actions .dock-window-action > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-    ${ASSIST} .assistant-head-actions .dock-window-action { white-space: nowrap; }
+    /* On a phone the panel spans the screen: the side pane covers the whole conversation when opened; tabs scroll. */
+    ${ASSIST} .assistant-panel[data-layout="drawer"] .assistant-side { width: 100%; box-shadow: none; }
+    /* Only the current tab shows by name; the others are one tap away in 全部工作, where their marks are too. */
+    ${ASSIST} .assistant-tab:not([data-current]) { display: none; }
+    ${ASSIST} .assistant-tabs { flex: 1 1 auto; }
+    ${ASSIST} .assistant-tab[data-current] { flex: 1 1 auto; width: auto; }
     /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
@@ -1508,6 +1654,7 @@ const CRAFT_BASE_STYLES = `
     ${PAGES} *, ${PAGES} *::before, ${PAGES} *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; transition-duration: 0s !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
     ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .tab-item, .tab-view-chip, .project-card, .home-day, [data-kanban-card], .mw-check, .mw-radio, .dock-pin, .bar-resident, .bar-chat, .account-global-trigger, .plugin-picker-trigger):is(:active, :hover) { transform: none !important; }
     ${PAGES} :is(.mw-btn, .tab-item, [data-kanban-card], .project-card, .plugin-market-body .mw-card, .plugin-market-installed-row > *):hover { transform: none !important; }
+    ${PAGES} :is(.assistant-side-action, .assistant-segment, .assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-control, .assistant-start, .assistant-copy, .assistant-tab-close, .assistant-tab-main, .assistant-jump):active { transform: none !important; }
     .craft-burst, .craft-tip { transition: none; }
     .craft-burst { display: none; }
   }
@@ -1521,6 +1668,7 @@ const STILL_RESET = `
   html[data-craft-still] :is(dialog[open], .mw-check:checked, .mw-radio:checked, .plugin-rail-items .immersive-plugin-link[aria-current], [data-craft-new])::after,
   html[data-craft-still] dialog[open]::backdrop,
   html[data-craft-still] :is(.goal-canvas-node, [data-graph-node], [data-kanban-card]) *::after { animation: none !important; }
+  html[data-craft-still] [data-assistant-island] :is(*, *::before, *::after) { animation: none !important; }
   html[data-craft-still] :is(dialog, dialog::backdrop, iframe.tab-content-frame, [data-just-opened], [data-just-opened] > *, .is-arriving, .is-arriving *) { transition: none !important; animation: none !important; }
   /* Under automation nothing eases either, so a reading taken right after a change sees the settled value. */
   html[data-craft-still] *, html[data-craft-still] *::before, html[data-craft-still] *::after { transition-duration: 0s !important; transition-delay: 0s !important; }

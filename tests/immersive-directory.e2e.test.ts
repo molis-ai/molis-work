@@ -396,6 +396,12 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   assert.equal(await evaluate("document.querySelector('[data-assistant-input]')?.value"), "hello", "a failed question stays in the input");
   assert.match(await evaluate("document.querySelector('[data-assistant-work-title]')?.textContent"), /hello/, "the work exists, named after what was asked");
   assert.ok(await evaluate(`(()=>{const p=document.querySelector('[data-assistant-panel]').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect();return p.bottom<=c.top && p.top>=0;})()`), "the panel opens above the input, inside the window");
+  // The work is a tab; a wide window shows its side pane beside the conversation, which stays right above the input.
+  assert.match(await evaluate("document.querySelector('.assistant-tab[data-current]')?.textContent || ''"), /hello/, "the new work is the current tab");
+  assert.ok(await evaluate(`(()=>{const s=document.querySelector('[data-assistant-side]').getBoundingClientRect(),m=document.querySelector('.assistant-main').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect(),p=document.querySelector('[data-assistant-panel]').getBoundingClientRect();
+    return s.width>0 && s.right<=m.left+1 && m.left<=c.left && m.right>=c.right && p.left>=0;})()`), "side pane on the left, the conversation over the input, all inside the window");
+  assert.match(await evaluate("document.querySelector('[data-assistant-meta]')?.textContent || ''"), /属于/, "the side pane says where the work belongs");
+  assert.ok(await evaluate("!document.querySelector('[data-assistant-target-wrap]').getClientRects().length"), "with the panel open its tab, not a chip, says where the next message goes");
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home", "asking leaves the work area where it was");
   // With the panel open the choosers come back; the input still keeps a place, and nothing runs under the bar's end.
   await command("Emulation.setDeviceMetricsOverride", { width: 900, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);

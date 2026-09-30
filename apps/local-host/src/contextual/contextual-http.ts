@@ -3,12 +3,13 @@ import path from "node:path";
 import { ActionError, FRAGMENT_GRANULARITIES, FRAGMENT_ROLES, type ActionReference, type ActionView, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FUNCTIONS_DEFAULT_MODEL } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { ContextualJudgeRequest, SurfaceActivity, SurfaceFocus, SurfaceFocusTarget } from "@molis-ai/molis-work-contracts/services/contextual";
-import { fragmentCandidates } from "@molis-ai/molis-work-kernel";
+import { contextualCandidates } from "@molis-ai/molis-work-kernel";
 import { TYPESAFE_SYSTEMONE_URL } from "@molis-ai/molis-work-module-functions";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { resolvePrologueInference } from "../prologue-inference-host.js";
 import { typeSafeConfiguration, typeSafeCredential } from "../typesafe-connection.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "../web-http.js";
+import { prepareSubjectOffers, sameReference } from "./contextual-service.js";
 import { createContextualJudgmentService, type ContextualJudgmentService } from "./judgment-service.js";
 
 /**
@@ -78,7 +79,7 @@ async function reportSignal(focus: SurfaceFocus, key: string, signal: string, ev
   const views = await directory(caller);
   const view = memoryAction(views, "memory.signals.report");
   if (!view) return { state: "unavailable" as const };
-  const candidate = fragmentCandidates(views, focus).find(item => item.key === key);
+  const candidate = contextualCandidates(views, focus).find(item => item.key === key);
   if (!candidate) throw new ContextualRequestError(409, "contextual.stale", "这个动作已不在当前内容的候选里");
   const surface = views.find(item => (item.provider.plugin_id ?? item.provider.provider_id) === focus.plugin_id)?.provider.title;
   const where = focus.activity === "completed" ? "刚完成的一步" : focus.activity === "editing" ? "正在写的段落" : WHERE[focus.granularity] ?? "选中的内容";
@@ -173,9 +174,18 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
  * writes nothing; the offer must still be a candidate of this context and name the same action it did when judged.
  */
 async function prepare(focus: SurfaceFocus, key: string, requestId: string, caller: Caller) {
-  const candidate = fragmentCandidates(await caller.actions.discover(), focus).find(item => item.key === key);
+  const candidate = contextualCandidates(await caller.actions.discover(), focus).find(item => item.key === key);
   if (!candidate) throw new ContextualRequestError(409, "contextual.stale", "这个动作已不在当前内容的候选里，请重新选择");
   if (!candidate.available) throw new ContextualRequestError(409, "contextual.unavailable", candidate.reason ?? "这个动作现在不可用");
+  // One of the object's subject offers: prepared exactly as the Home / Dock prepares it, by the query that declared it.
+  if (candidate.origin === "subject") {
+    const { offers } = await prepareSubjectOffers(caller.actions, { subject: { kind: focus.object.kind, id: focus.object.id }, request_id: requestId }, candidate.source);
+    const offer = offers.find(item => item.recommendation_key === candidate.key);
+    if (!offer || !sameReference(offer.action, candidate.action)) throw new ContextualRequestError(409, "contextual.not_offered", `${candidate.provider_title} 没有为这件事项准备「${candidate.title}」`);
+    if (!offer.availability.available) throw new ContextualRequestError(409, "contextual.unavailable", offer.availability.reason);
+    return { key, offer_id: candidate.offer_id, title: offer.title, intent: candidate.intent, apply: candidate.apply,
+      action: candidate.action, provider_title: candidate.provider_title, input: offer.input, origin: "subject" as const };
+  }
   // A whole-object action (整篇) is prepared for the object itself: the provider reads its own current content.
   const whole = candidate.scope === "object" || focus.granularity === "object";
   const { object } = focus;

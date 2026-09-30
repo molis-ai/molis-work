@@ -5,11 +5,11 @@ import test from "node:test";
 import { EditorState, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import {
-  FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, inspectActionDeclarations, type ActionReference, type ActionView, type FragmentOfferChoice, type FragmentOffersInput,
+  FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, defineSubjectOffersAction, inspectActionDeclarations, type ActionReference, type ActionView, type FragmentOfferChoice, type FragmentOffersInput,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import {
-  assertActionInput, fragmentCandidates, judgedCandidates, judgmentQuestions, judgmentState, MAX_JUDGED_CANDIDATES, planContextualLayout, readContextualJudgment, ruleScores,
+  assertActionInput, contextualCandidates, fragmentCandidates, judgedCandidates, subjectOfferChoiceKey, judgmentQuestions, judgmentState, MAX_JUDGED_CANDIDATES, planContextualLayout, readContextualJudgment, ruleScores,
 } from "@molis-ai/molis-work-kernel";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { createContextualJudgmentService } from "../apps/local-host/src/contextual/judgment-service.js";
@@ -548,6 +548,84 @@ test("host routes: rules at once, prepare returns the provider's own input for e
     const long = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, targets: [{ kind: "text_range", text: "长".repeat(20_000) }] } });
     assert.equal(long.status, 200, "an over-long part is cut, not refused");
     assert.equal((await call("/api/contextual/cancel", { pane_id: "main" })).status, 200);
+  } finally {
+    server.close();
+  }
+});
+
+// ---- one set of recommendations (§6.4.3): subject offers join the contextual service ------------------------------
+const feed = provider("io.molis.work.feed", "Feed");
+const FEED_CHOICES = [
+  { offer_id: "todo", title: "转为待办", action: { capability_id: "feed.items.todo", version: 1 } },
+  { offer_id: "summary", title: "看摘要", action: { capability_id: "feed.items.summary", version: 1 } },
+];
+const subjectDirectory = (available = true): ActionView[] => [
+  view(feed, "feed.subject.offers", { ...defineSubjectOffersAction("feed.subject.offers", ["feed_item"], "Feed 事项动作", [], FEED_CHOICES).action }),
+  view(feed, "feed.items.todo", { kind: "operation", subject_kinds: ["feed_item"],
+    input_schema: { type: "object", properties: { item_id: { type: "string" } }, required: ["item_id"], additionalProperties: false } } as Partial<ActionView["action"]>, available),
+  view(feed, "feed.items.summary", { kind: "query", subject_kinds: ["feed_item"] }),
+];
+const wholeItem = focus({ context_id: "start:feed_item:i1:", plugin_id: "io.molis.work.feed", activity: "browsing", granularity: "object",
+  object: { kind: "feed_item", id: "i1", title: "一条新闻" }, targets: [{ kind: "object", role: "object", text: "一条新闻" }] });
+
+test("an object's subject offers are its candidates too, under the keys the Home / Dock rules already use", () => {
+  const candidates = contextualCandidates(subjectDirectory(), wholeItem);
+  const todo = candidates.find(item => item.offer_id === "todo")!;
+  assert.equal(todo.key, subjectOfferChoiceKey({ capability_id: "feed.subject.offers", version: 1, provider_id: feed.provider_id }, FEED_CHOICES[0]!),
+    "saved rules and bindings name the same key");
+  assert.match(todo.key, /^offer\.[a-f0-9]{58}$/);
+  assert.equal(todo.origin, "subject");
+  assert.equal(todo.intent, "advance");
+  assert.equal(todo.apply, "record", "a write goes through a confirmation card");
+  assert.equal(candidates.find(item => item.offer_id === "summary")!.apply, "result", "a read shows its result");
+  assert.ok(!contextualCandidates(subjectDirectory(), focus({ object: { kind: "feed_item", id: "i1" } })).some(item => item.origin === "subject"),
+    "a selection inside the object is not the whole object");
+  assert.ok(!contextualCandidates(subjectDirectory(), { ...wholeItem, object: { kind: "doc", id: "d1" } }).some(item => item.origin === "subject"), "only offers for its own kind");
+  const revoked = contextualCandidates(subjectDirectory(false), wholeItem).find(item => item.offer_id === "todo")!;
+  assert.equal(revoked.available, false);
+  assert.match(revoked.reason!, /已停用/);
+});
+
+test("host: a subject offer is prepared by the query that declared it, checked as the Home / Dock checks it", async () => {
+  const views = subjectDirectory();
+  let offered: (subjectId: string) => unknown[] = id => [
+    { offer_id: "todo", title: "转为待办", action: { capability_id: "feed.items.todo", version: 1 }, input: { item_id: id } },
+    { offer_id: "summary", title: "看摘要", action: { capability_id: "feed.items.summary", version: 1 }, input: {} }];
+  const invoked: ActionReference[] = [];
+  const actions = { discover: async () => views, invoke: async (reference: ActionReference, input: unknown) => {
+    invoked.push(reference);
+    return { offers: offered((input as { subject: { id: string } }).subject.id) };
+  } };
+  const server = createServer((request, response) => {
+    void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "project-s", actions: () => actions })
+      .then(handled => { if (!handled) { response.statusCode = 404; response.end(); } });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const call = async (path: string, body: unknown) => {
+    const response = await fetch(base + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return { status: response.status, body: await response.json() as Record<string, any> };
+  };
+  try {
+    const rules = await call("/api/contextual/candidates", { pane_id: "assistant-start", focus: wholeItem });
+    assert.equal(rules.status, 200);
+    const todo = (rules.body.plan.candidates as ContextualCandidate[]).find(item => item.offer_id === "todo")!;
+    assert.ok(rules.body.plan.primary.includes(todo.key));
+    const prepared = await call("/api/contextual/prepare", { pane_id: "assistant-start", focus: wholeItem, key: todo.key, request_id: "r-s1" });
+    assert.equal(prepared.status, 200);
+    assert.deepEqual(prepared.body.input, { item_id: "i1" });
+    assert.equal(prepared.body.origin, "subject");
+    assert.deepEqual(prepared.body.action, { capability_id: "feed.items.todo", version: 1, provider_id: feed.provider_id });
+    assert.deepEqual(invoked.at(-1), todo.source);
+    // The query now offers something else under that id: nothing is prepared for it.
+    offered = () => [{ offer_id: "todo", title: "转为待办", action: { capability_id: "feed.items.summary", version: 1 }, input: {} }];
+    const changed = await call("/api/contextual/prepare", { pane_id: "assistant-start", focus: wholeItem, key: todo.key, request_id: "r-s2" });
+    assert.equal(changed.status, 409);
+    // An input the action's contract refuses is not offered as ready.
+    offered = () => [{ offer_id: "todo", title: "转为待办", action: { capability_id: "feed.items.todo", version: 1 }, input: { wrong: true } }];
+    const incomplete = await call("/api/contextual/prepare", { pane_id: "assistant-start", focus: wholeItem, key: todo.key, request_id: "r-s3" });
+    assert.equal(incomplete.status, 409);
+    assert.equal(incomplete.body.code, "contextual.unavailable");
   } finally {
     server.close();
   }

@@ -91,6 +91,11 @@ export interface ContextualCandidate {
   readonly reason?: string;
   /** `object`: a whole-object action (整篇) offered while only part of the object is in hand; it acts on all of it. */
   readonly scope?: "object";
+  /**
+   * Where the candidate was declared. Absent: fragment offers (`frag.` keys). `subject`: the object's subject offers,
+   * which the Home / Dock rules also choose from; their keys stay `offer.` so saved rules and bindings keep working.
+   */
+  readonly origin?: "subject";
 }
 
 export type AssistantForm = "none" | "suggest" | "options" | "preview" | "compare";

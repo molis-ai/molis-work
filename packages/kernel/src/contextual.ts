@@ -6,6 +6,7 @@ import {
 import {
   ASSISTANT_FORMS, type AssistantForm, type ContextualCandidate, type ContextualJudgment, type ContextualLayoutPlan, type SurfaceFocus,
 } from "@molis-ai/molis-work-contracts/services/contextual";
+import { subjectOfferChoices } from "./subject-offer-choices.js";
 
 /**
  * Pure logic of context-driven interaction (specs/contextual-interaction §3.4, §5): which declared actions fit what the
@@ -78,6 +79,30 @@ export function fragmentCandidates(directory: readonly ActionView[], focus: Surf
         hint: choice.hint, source, action, provider_title: view.provider.title, available: unavailable === undefined, ...(unavailable ? { reason: unavailable } : {}),
         ...(whole ? { scope: "object" as const } : {}) };
     });
+  });
+}
+
+/**
+ * Every candidate for a context from one directory snapshot (spec §6.4.3): the fragment offers that fit and, with the
+ * whole object in hand, its subject offers — the same choices the Home / Dock rules pick from, under the same keys.
+ */
+export function contextualCandidates(directory: readonly ActionView[], focus: SurfaceFocus): ContextualCandidate[] {
+  const fragments = fragmentCandidates(directory, focus);
+  return focus.granularity === "object" ? [...fragments, ...subjectCandidates(directory, focus.object.kind)] : fragments;
+}
+
+/** Subject offers declare no intent: they move the object on (推进). What a click does follows the target's effect. */
+function subjectCandidates(directory: readonly ActionView[], kind: string): ContextualCandidate[] {
+  const views = new Map(directory.map(view => [JSON.stringify([view.provider.provider_id, view.capability_id, view.version]), view]));
+  return subjectOfferChoices(directory, kind).map(choice => {
+    const action = { capability_id: choice.action.capability_id, version: choice.action.version, provider_id: choice.action.provider_id! };
+    const target = views.get(JSON.stringify([action.provider_id, action.capability_id, action.version]));
+    const effect = target ? actionEffect(target.action, target.capability_id) : "write";
+    const unavailable = !choice.availability.available ? choice.availability.reason
+      : effect === "irreversible" ? "不可撤回的动作不在情境推荐里提供" : undefined;
+    return { key: choice.key, offer_id: choice.offer_id, title: choice.title, intent: "advance" as const, apply: effect === "read" ? "result" as const : "record" as const,
+      hint: target?.action.description || choice.title, source: { capability_id: choice.source.capability_id, version: choice.source.version, provider_id: choice.source.provider_id! },
+      action, provider_title: choice.provider_title, available: unavailable === undefined, ...(unavailable ? { reason: unavailable } : {}), origin: "subject" as const };
   });
 }
 

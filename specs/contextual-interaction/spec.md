@@ -304,8 +304,14 @@ Pages 用一个 ProseMirror 插件的 view update 维护它；其他插件第一
 **合同怎么并**
 - 候选：`ContextualCandidate` 统一表示两种来源，加 `origin: "subject" | "fragment"`。粒度 `object` 的情境同时读 subject offers（原样）与声明了 `object` 粒度的 fragment offers；其他粒度只读 fragment offers。
 - key 兼容：subject offers 的候选**沿用原 key**（`subjectOfferChoiceKey`，`offer.` 前缀），fragment 的保持 `frag.`。用户已配置的判断规则、`home.dock` 场景绑定里记的都是 `offer.` key，原样可用；历史记录回显不受影响。
-- 判断：情境服务的判断端口按场景选择：动作条用 Jev 两题；Dock 用该场景已绑定的判断规则（现有 `home.dock` 绑定，不改用户配置）。陈列策略共用 `planContextualLayout`。
+- 判断：情境服务的判断端口按场景选择：动作条用 Jev 两题；Dock 用该场景已绑定的判断规则（现有 `home.dock` 绑定，不改用户配置）。动作条与开场建议共用 `planContextualLayout`；Dock 保留自己的陈列（见下方实现口径）。
 - 执行核对：`home.actions.execute` 的核对（重新准备、比对动作与输入、提供方仍可用）与 `/api/contextual/prepare` 的核对合成一个函数；`home.actions.*` 三个动作保留注册与输入输出合同（读取兼容），内部改调情境服务。
+
+**实现口径（2026-09-30 定，动手前）**
+- **合在哪一层**：候选派生、参数准备与执行前核对只有一份，放在情境服务（kernel 的 `contextualCandidates` + Host 的 `contextual-service.ts`）；动作条、开场建议、首页 / Dock 与 `home.actions.*` 都调用它。判断仍按场景各用各的：动作条用 Jev；Dock、Feed、Inbox 用用户已绑定的规则（经场景服务运行，绑定与历史不动）。
+- **subject 候选**：`origin: "subject"`，key 原样用 `subjectOfferChoiceKey`（`offer.`）。意图统一记为“推进”（subject offers 没有声明意图）；点击效果按目标动作的效果定（只读给结果，写入走确认卡片），与片段候选同一条规则。提示取目标动作的说明。
+- **Dock 的陈列保留原样**（推荐在前，其余按提供方返回的顺序，不可用的也列出并说明原因），不改用 `planContextualLayout`：Dock 列出的是一件事项的全部可用动作，其中有未在声明里列出的动作（没有推荐 key），而且顺序已是用户熟悉的；统一的是“有哪些、参数怎么准备、执行前怎么核对”。
+- **比对办法**：每一步提交前后跑同一批单测（首页 / Dock、Feed、Inbox、函数场景、情境共 18 个文件，基线 78/78），并跑 `home-offers`、`feed-capture`、`inbox-current` 的 e2e（经协调会话时段）；第二步另加前后对照测试：同一批 Feed / Inbox 事项，新旧准备函数给出的动作、推荐 key 与执行结果逐项相同。
 
 **分三步，每步单独提交，并与基线比对无新增失败**
 1. 情境服务同时读 subject offers 与 fragment offers，候选带 `origin`，行为不变（Dock 仍走旧路径；动作条对粒度 `object` 的情境能看到 subject offers 的候选）。兜底测试：`subject-offer-choices`、`home-offer-actions`、`home-dock` 相关、Feed / Inbox 推荐与执行、情境单测。
@@ -410,6 +416,7 @@ Pages 用一个 ProseMirror 插件的 view update 维护它；其他插件第一
 | 2026-09-30 | 助理开场建议从目录派生；`starters` 读取兼容但废弃；没有声明的插件用三条通用提问 | 按推荐（§6.4.2） |
 | 2026-09-30 | 开场建议由底栏控制器按整篇情境只用规则算（不为打开对象调判断），island 只显示与转发；有选区时用动作条当前方案；分屏窗格里的整篇开场建议走卡片 | 按推荐（§6.4.2 实现） |
 | 2026-09-30 | 首页 / Dock 与情境服务合一：subject offers 候选沿用 `offer.` key、fragment 保持 `frag.`；判断端口按场景选（Dock 用已绑定规则）；`home.actions.*` 合同保留、内部改调情境服务；分三步迁移 | 按推荐（§6.4.3） |
+| 2026-09-30 | 合一只合候选派生、准备与核对；Dock 的陈列（推荐在前、其余按提供方顺序、不可用也列出）保留，不改用动作条的陈列策略；subject 候选意图记为“推进”，点击效果按目标动作的效果定 | 按推荐（§6.4.3 实现口径） |
 | 2026-09-30 | 记忆合同（记忆线 [9c322a]，feature/memory-system 28b85d03，已真实可用）：`memory.recall` / `memory.signals.report`，经动作目录调用；信号的 situation 多一个可选的 `label`（≤40 字，给人看的地点名，例如“Pages 的选中文字”）。本线的用法见 §4.2 与切片的信号上报 | 记忆线 |
 
 ## 13. 进度与证据
@@ -610,7 +617,12 @@ Pages 用一个 ProseMirror 插件的 view update 维护它；其他插件第一
 - **走查中修掉的问题**：控制器的回答没有带回请求号，island 收不到、2 秒后退回通用提问 → 回答带 `request_id`。
 - **发现但不属本线**：刷新后 Pages 没有重新发布自己的 `data-assistant-context`（只有工作台代为命名的 kind、id，缺版本和标题），直到切换文档；不影响开场建议，记给 Pages 的维护者。关闭分屏后剩下的窗格仍是 iframe 时，island 读不到窗格里的页面情境（原有限制）。
 
-**【3】首页 / Dock 与情境服务合一**：未开始。
+**【3】首页 / Dock 与情境服务合一（进行中）**
+
+- **第一步：情境服务读 subject offers（完成）**
+  - 改了什么：kernel 新增 `contextualCandidates`（片段候选；整篇情境再加上该对象的 subject offers，`origin: "subject"`，key 原样是 `offer.`，意图“推进”，点击效果按目标动作）；Host 新增 `contextual/contextual-service.ts`，subject offers 的准备（逐个提供方调用、对照声明、按目标动作的输入合同检查）从 `home-offer-actions.ts` 原样移入，`home.actions.prepare` 改为调用它；情境路由的候选、判断、信号、准备都改用 `contextualCandidates`，subject 候选经同一个准备函数、以声明它的查询准备并核对。Dock、Feed、Inbox 的判断与陈列不动。
+  - 工程验证：单测新增两条（subject 候选沿用规则里的 `offer.` key、只在整篇情境出现、撤权后不可用；Host 按声明它的查询准备，动作变了或输入不合同都拒绝）。比对：同一批 18 个文件，基线 78/78 → 80/80（新增 2 条），无新增失败。e2e（时段 S18）：home-offers、feed-capture、inbox-current 全过；contextual 第 3 例断言全过、夹具清理时 Local Host 关闭超时，单独重跑 4/4 通过（清理时序偶发）。
+  - 真实工作台：开场建议里，Feed 事项给出 加入 Inbox / 保存为资料 / 升格为 Goal / 忽略，Inbox 事项给出 做完了 / 忽略 / 整理成文稿（悬停说明取目标动作的说明）；在真实的 Inbox 事项“第一次把模糊想法收成目标树”上点“做完了”→ 准备 → `POST /api/assistant/cards` 200 → 面板出现“做完了”卡片（entry_id、状态 done、基于的版本 1），确认后才执行（未执行，保留数据）。
 
 ## 14. 待定
 

@@ -15,8 +15,11 @@ export const FRAGMENT_OFFERS_OUTPUT_TYPE = "molis.fragment-offers.output.v1";
  */
 export const FRAGMENT_ANY_OBJECT = "molis.any-object";
 
-/** How much of an object the person has in hand. */
-export const FRAGMENT_GRANULARITIES = ["word", "range", "block", "blocks", "objects"] as const;
+/**
+ * How much of an object the person has in hand. `object` is the whole object (整篇): a choice declared for it is also
+ * offered, grouped apart, while the person has only part of that object in hand (specs/contextual-interaction §6.4.1).
+ */
+export const FRAGMENT_GRANULARITIES = ["word", "range", "block", "blocks", "objects", "object"] as const;
 export type FragmentGranularity = (typeof FRAGMENT_GRANULARITIES)[number];
 
 /** What a selected part is, as its surface knows it. */

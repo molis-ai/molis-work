@@ -176,10 +176,14 @@ async function prepare(focus: SurfaceFocus, key: string, requestId: string, call
   const candidate = fragmentCandidates(await caller.actions.discover(), focus).find(item => item.key === key);
   if (!candidate) throw new ContextualRequestError(409, "contextual.stale", "这个动作已不在当前内容的候选里，请重新选择");
   if (!candidate.available) throw new ContextualRequestError(409, "contextual.unavailable", candidate.reason ?? "这个动作现在不可用");
-  const input: FragmentOffersInput = { request_id: requestId, fragment: { object: focus.object,
-    granularity: focus.granularity as FragmentOffersInput["fragment"]["granularity"],
+  // A whole-object action (整篇) is prepared for the object itself: the provider reads its own current content.
+  const whole = candidate.scope === "object" || focus.granularity === "object";
+  const { object } = focus;
+  const input: FragmentOffersInput = { request_id: requestId, fragment: { object,
+    granularity: whole ? "object" : focus.granularity as FragmentOffersInput["fragment"]["granularity"],
     // The fragment contract takes at most eight parts: the ones the person selected first.
-    targets: focus.targets.slice(0, 8).map(({ kind, role, ref, text, truncated }) => ({ kind, ...(role ? { role } : {}), ...(ref ? { ref } : {}), text, ...(truncated ? { truncated } : {}) })),
+    targets: whole ? [{ kind: "object", role: "object", ref: object, text: (focus.granularity === "object" ? focus.targets[0]?.text : undefined) || object.title || object.id }]
+      : focus.targets.slice(0, 8).map(({ kind, role, ref, text, truncated }) => ({ kind, ...(role ? { role } : {}), ...(ref ? { ref } : {}), text, ...(truncated ? { truncated } : {}) })),
     ...(focus.surroundings?.heading_path.length ? { heading_path: focus.surroundings.heading_path } : {}),
     ...(focus.goal ? { goal: { id: focus.goal.id, title: focus.goal.title } } : {}) } };
   const { offers } = await caller.actions.invoke(candidate.source, input) as { offers: readonly FragmentActionOffer[] };
@@ -189,7 +193,7 @@ async function prepare(focus: SurfaceFocus, key: string, requestId: string, call
     throw new ContextualRequestError(409, "contextual.not_offered", `${candidate.provider_title} 没有为这段内容准备「${candidate.title}」`);
   }
   return { key, offer_id: candidate.offer_id, title: candidate.title, intent: candidate.intent, apply: candidate.apply,
-    action: candidate.action, provider_title: candidate.provider_title, input: offer.input,
+    action: candidate.action, provider_title: candidate.provider_title, input: offer.input, ...(whole ? { scope: "object" as const } : {}),
     ...(offer.summary ? { summary: offer.summary } : {}), ...(offer.editable?.length ? { editable: offer.editable } : {}), ...(offer.missing?.length ? { missing: offer.missing } : {}) };
 }
 

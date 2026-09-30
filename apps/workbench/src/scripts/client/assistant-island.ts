@@ -490,6 +490,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const rich = (text) => {
     const root = el("div", "assistant-rich");
     const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+    // A model sometimes drops the space after a list's dash on one line (“-30 分钟” among “- 60 分钟”): beside a real item, it is one too.
+    lines.forEach((line, at) => {
+      const loose = /^(\s*)([-•])([^\s\-•].*)$/.exec(line);
+      if (loose && [lines[at - 1], lines[at + 1]].some((near) => near !== undefined && new RegExp("^\\s*\\" + loose[2] + "\\s+\\S").test(near))) lines[at] = loose[1] + loose[2] + " " + loose[3];
+    });
     const fencePattern = new RegExp("^\\s*(" + FENCE + "|~~~)");
     const isFence = (line) => fencePattern.test(line);
     const isRule = (line) => /^\s*([-*_])(\s*\1){2,}\s*$/.test(line);
@@ -1042,10 +1047,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return node;
   };
   const openObject = (object) => object.open && host.openItem ? async () => showObject(object) : null;
+  // A thing that is gone may come back named only by its id: the person never saw that id, so it reads as “this item”.
+  const objectTitle = (object) => object.title && object.title !== object.subject.id ? object.title : L("这项内容");
   const objectCard = (object, tone, openLabel) => {
     const state = objectState(object);
     return card({ icon: objectGlyph(object), tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : object.state !== "current" ? "attention" : tone,
-      title: object.title, sub: [surfaceName(object.open && object.open.surface), state].filter(Boolean).join(" · "), subTone: state ? "attention" : "",
+      title: objectTitle(object), sub: [surfaceName(object.open && object.open.surface), state].filter(Boolean).join(" · "), subTone: state ? "attention" : "",
       open: openObject(object), openLabel, detail: objectDetail(object) });
   };
   /** Rebuilding a block under the person's focus would drop it: the same control gets it back. */
@@ -1103,7 +1110,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         sub: L("子任务") + " · " + stateLabel(child.state), actions: [sideAction(child.state === "waiting-input" ? L("去回答") : L("去看看"), child.title, async () => switchTo(child.work_id), false, "primary")] })));
       objects.forEach((object) => {
         const open = openObject(object);
-        cards.push(card({ icon: "alert", tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : "attention", ask: true, title: object.title,
+        cards.push(card({ icon: "alert", tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : "attention", ask: true, title: objectTitle(object),
           sub: object.state === "changed" ? L("用过之后被改过") + " · " + objectDetail(object) : objectState(object),
           actions: open ? [sideAction(L("打开看看"), object.title, open, false, "secondary")] : [] }));
       });
@@ -1262,7 +1269,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const box = el("div", "assistant-tile" + (open ? " is-openable" : "") + (state ? " is-attention" : ""));
         box.append(tile(objectGlyph(object), state ? "attention" : ""));
         if (open) { const name = el("button", "assistant-item-title", object.title); name.type = "button"; name.setAttribute("aria-label", L("打开") + "：" + object.title); name.addEventListener("click", () => { void open(); }); box.append(name); }
-        else box.append(el("span", "assistant-item-title", object.title));
+        else box.append(el("span", "assistant-item-title", objectTitle(object)));
         box.append(el("span", "assistant-item-sub" + (state ? " is-attention" : ""), state || surfaceName(object.open && object.open.surface) || L("材料")));
         box.title = objectDetail(object);
         tiles.append(box);
@@ -2362,7 +2369,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const current = document.querySelector("[data-plugin-picker-current]");
     const active = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]");
     const surface = (context && context.plugin_id) || (active && active.dataset.pluginId) || "home";
-    const title = (context && context.surface_title) || (current ? current.textContent.trim() : "");
+    // Split into panes, the switcher names each one: the page being worked on is the focused pane, not all of them run together.
+    const named = current ? current.querySelector(".plugin-picker-chip.is-focused") || current.querySelector(".plugin-picker-chip") || current : null;
+    const title = (context && context.surface_title) || (named ? named.textContent.trim() : "");
     const result = { source: Object.assign({ surface }, context && context.plugin_id ? { plugin_id: context.plugin_id } : {}, title ? { title } : {}), captured_at: new Date().toISOString() };
     const page = pageObject();
     if (page && page.included) result.object = page.object;

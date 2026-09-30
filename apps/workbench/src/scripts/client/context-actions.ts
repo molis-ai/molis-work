@@ -206,7 +206,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       if (!chip) {
         const close = el("button", { type: "button", "aria-label": L("收起这些建议"), title: L("收起（这段内容不再推荐）") });
         close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
-        close.addEventListener("click", () => { (this.plan ? this.plan.primary : []).forEach((key) => bus.dismiss(key)); this.idle(); });
+        close.addEventListener("click", () => { (this.plan ? this.plan.primary : []).forEach((key) => { bus.dismiss(key); bus.signal(key, "ignored"); }); this.idle(); });
         chip = el("span", { class: "context-actions-scope" }, el("span"), close);
         pill.prepend(chip);
       }
@@ -405,6 +405,12 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
         if (seq === this.seq) { const basis = root.querySelector(".context-actions-basis"); if (basis) { basis.dataset.pending = "false"; basis.firstElementChild.textContent = L("判断失败 · 按规则"); } }
       } finally { if (this.judging === controller) this.judging = null; }
     },
+    // What the person did with an offered action, for the memory to count (its capability and title, never the content).
+    // Nothing waits on it and nothing breaks without it.
+    signal(key, signal) {
+      if (!this.focus || !this.source) return;
+      post("/api/contextual/signal", { pane_id: this.source.pane, focus: this.focus, key, signal, event_id: requestId() }).catch(() => undefined);
+    },
     dismiss(key) {
       if (!this.focus) return;
       const keys = this.dismissed.get(this.focus.context_id) || new Set();
@@ -421,6 +427,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     if (focus && plan && plan.context_id !== focus.context_id) { if (bus.flush) bus.flush(); return; }
     if (!focus || !source || !candidate || !candidate.available) return;
     bus.recent = [candidate.title, ...bus.recent.filter((title) => title !== candidate.title)].slice(0, 3);
+    bus.signal(key, "accepted");
     const prepared = () => post("/api/contextual/prepare", { pane_id: source.pane, focus, key: candidate.key, request_id: requestId() });
     // What the workbench shows itself: a word looked up across the project opens in the search palette.
     if (candidate.action.capability_id === "search.query" && host.openSearch) {

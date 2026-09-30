@@ -37,22 +37,66 @@ const DIRECTORY_TTL_MS = 3_000;
 const services = new Map<string, ContextualJudgmentService<Caller>>();
 const directories = new Map<string, { at: number; views: Promise<readonly ActionView[]> }>();
 
+// A selection change asks twice (rules at once, the judgment shortly after) and may recall and report: one discovery serves all.
+const directory = (caller: Caller): Promise<readonly ActionView[]> => {
+  const cached = directories.get(caller.scope);
+  if (cached && Date.now() - cached.at < DIRECTORY_TTL_MS) return cached.views;
+  const views = caller.actions.discover();
+  directories.set(caller.scope, { at: Date.now(), views });
+  views.catch(() => { if (directories.get(caller.scope)?.views === views) directories.delete(caller.scope); });
+  return views;
+};
+
+/** The platform memory's capability when this directory has it; absent means no memory here, and nothing changes. */
+const memoryAction = (views: readonly ActionView[], capabilityId: "memory.recall" | "memory.signals.report") =>
+  views.find(view => view.capability_id === capabilityId && view.version === 1 && view.availability.available);
+
+/**
+ * Preferences and conventions for this situation, through `memory.recall` (P3): a few short items, matched by plugin,
+ * object kind and Goal, and recorded by the memory service as used for ranking these actions.
+ */
+export async function recallForJudgment(focus: SurfaceFocus, caller: Caller): Promise<{ state: "ok" | "off"; items: readonly { kind: string; text: string }[] }> {
+  const view = memoryAction(await directory(caller), "memory.recall");
+  if (!view) return { state: "ok", items: [] };
+  const query = [focus.surroundings?.heading_path.at(-1), ...focus.targets.map(target => target.text)].filter(Boolean).join(" ").slice(0, 300);
+  const out = await caller.actions.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {
+    query, situation: { plugin_id: focus.plugin_id, object_kind: focus.object.kind, ...(focus.goal ? { goal_id: focus.goal.id } : {}) },
+    limit: 6, budget_chars: 800, used_for: "给选中的内容排动作" }) as { state?: string; items?: readonly { kind?: unknown; text?: unknown }[] };
+  if (out.state === "off") return { state: "off", items: [] };
+  return { state: "ok", items: (out.items ?? []).filter(item => typeof item.text === "string" && item.text)
+    .map(item => ({ kind: typeof item.kind === "string" ? item.kind : "memory", text: String(item.text).slice(0, 300) })) };
+}
+
+const SIGNALS: ReadonlySet<string> = new Set(["accepted", "ignored", "rewritten", "undone"]);
+const WHERE: Readonly<Record<string, string>> = { word: "选中的词", range: "选中的文字", block: "这一段", blocks: "选中的几段", objects: "选中的几份内容" };
+
+/**
+ * What the person did with an offered action (P3), for the memory service to count: the capability and its title only,
+ * never the content. Nothing is reported when this directory has no memory, and a stale key is refused.
+ */
+async function reportSignal(focus: SurfaceFocus, key: string, signal: string, eventId: string, caller: Caller) {
+  const views = await directory(caller);
+  const view = memoryAction(views, "memory.signals.report");
+  if (!view) return { state: "unavailable" as const };
+  const candidate = fragmentCandidates(views, focus).find(item => item.key === key);
+  if (!candidate) throw new ContextualRequestError(409, "contextual.stale", "这个动作已不在当前内容的候选里");
+  const surface = views.find(item => (item.provider.plugin_id ?? item.provider.provider_id) === focus.plugin_id)?.provider.title;
+  const where = focus.activity === "completed" ? "刚完成的一步" : focus.activity === "editing" ? "正在写的段落" : WHERE[focus.granularity] ?? "选中的内容";
+  return caller.actions.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {
+    event_id: eventId, signal, subject: { capability_id: candidate.action.capability_id, label: candidate.title.slice(0, 40) },
+    situation: { plugin_id: focus.plugin_id, object_kind: focus.object.kind, label: `${surface ? surface + " 里" : ""}${where}`.slice(0, 40) },
+    occurrence: focus.context_id.slice(0, 120) });
+}
+
 /** One service per Home: per-pane cancellation and the judgment cache outlive a single request. */
 function serviceFor(home: string | undefined): ContextualJudgmentService<Caller> {
   const key = home ? path.resolve(home) : "";
   let service = services.get(key);
   if (service) return service;
   service = createContextualJudgmentService<Caller>({
-    // A selection change asks twice (rules at once, the judgment shortly after): one discovery serves both.
-    directory: async caller => {
-      const cached = directories.get(caller.scope);
-      if (cached && Date.now() - cached.at < DIRECTORY_TTL_MS) return cached.views;
-      const views = caller.actions.discover();
-      directories.set(caller.scope, { at: Date.now(), views });
-      views.catch(() => { if (directories.get(caller.scope)?.views === views) directories.delete(caller.scope); });
-      return views;
-    },
+    directory,
     ...(home ? { evaluate: jevEvaluator(home), configured: () => Boolean(credential(home)) } : {}),
+    recall: (focus, caller) => recallForJudgment(focus, caller),
     screen: screenModelMaterial,
   });
   services.set(key, service);
@@ -88,7 +132,7 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     catch { sendJson(response, 500, { code: "contextual.failed", error: "暂时处理不了，请稍后重试" }); }
     return true;
   }
-  const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare)$/u.exec(url.pathname);
+  const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal)$/u.exec(url.pathname);
   if (!match) return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
   const route = match[1]!;
@@ -106,6 +150,12 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
       const stop = () => { if (!response.writableFinished) aborted.abort(); };
       response.once("close", stop);
       try { sendJson(response, 200, await service.judge(judgeRequest, caller, aborted.signal)); } finally { response.off("close", stop); }
+      return true;
+    }
+    if (route === "signal") {
+      const signal = readString(body.signal, "signal", 20);
+      if (!SIGNALS.has(signal)) throw invalid("signal");
+      sendJson(response, 200, await reportSignal(judgeRequest.focus, readString(body.key, "key", 80), signal, readString(body.event_id, "event_id", 120), caller));
       return true;
     }
     sendJson(response, 200, await prepare(judgeRequest.focus, readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), caller));

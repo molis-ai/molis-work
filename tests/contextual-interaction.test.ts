@@ -13,7 +13,7 @@ import {
 } from "@molis-ai/molis-work-kernel";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { createContextualJudgmentService } from "../apps/local-host/src/contextual/judgment-service.js";
-import { handleContextualHttp, surfaceKinds } from "../apps/local-host/src/contextual/contextual-http.js";
+import { handleContextualHttp, recallForJudgment, surfaceKinds } from "../apps/local-host/src/contextual/contextual-http.js";
 import { prepareSearchFragmentOffers, searchActions } from "@molis-ai/molis-work-contracts/services/search";
 import { lingguangActions, prepareLingguangFragmentOffers } from "../plugins/native/lingguang/src/actions.js";
 import { pagesSchema as s } from "../plugins/native/pages/src/schema.js";
@@ -382,6 +382,45 @@ test("a surface that opens one kind is named from the plugins' search sources; a
     source(goals, "goals.search.entries", [{ kind: "goal", surface: "goals" }]),
     source(other, "other.search.entries", [{ kind: "note", surface: "shared" }]), source(inbox, "inbox.more", [{ kind: "draft", surface: "shared" }])]);
   assert.deepEqual(map, { inbox: { kind: "inbox_entry", plugin_id: "io.molis.work.inbox" }, goals: { kind: "goal", plugin_id: "io.molis.work.goals" } });
+});
+
+// ---- P3: memory ---------------------------------------------------------------------------------------------------
+test("memory: recalled for this situation when the directory has it; signals carry the capability and title, never the content", async () => {
+  const memory = provider("system.memory", "记忆");
+  const views = [view(pages, "pages.fragment.offers", { ...pagesActions.fragmentOffers.action }), view(pages, "pages.ai"),
+    view(memory, "memory.recall"), view(memory, "memory.signals.report")];
+  const calls: { capability_id: string; input: Record<string, any> }[] = [];
+  const actions = { discover: async () => views, invoke: async (reference: ActionReference, input: unknown) => {
+    calls.push({ capability_id: reference.capability_id, input: input as Record<string, any> });
+    if (reference.capability_id === "memory.recall") return { state: "ok", items: [{ kind: "preference", text: "周报里风险写在最前面" }, { kind: "fact", text: "" }], omitted: [], method: "keyword-cjk", receipt_id: "r" };
+    if (reference.capability_id === "memory.signals.report") return { state: "counted", count: 1, distinct: 1, candidate_id: null, threshold: { count: 3, distinct: 2 } };
+    return { offers: preparePagesFragmentOffers(input as FragmentOffersInput, "pages_document", pages.provider_id) };
+  } };
+  const f = focus({ plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: "d1", version: 3, title: "周报" }, goal: { id: "G1", title: "留存" },
+    surroundings: { heading_path: ["风险"] } });
+  const recalled = await recallForJudgment(f, { scope: "memory-a", actions });
+  assert.deepEqual(recalled, { state: "ok", items: [{ kind: "preference", text: "周报里风险写在最前面" }] });
+  const asked = calls.find(call => call.capability_id === "memory.recall")!.input;
+  assert.deepEqual(asked.situation, { plugin_id: "io.molis.work.pages", object_kind: "pages_document", goal_id: "G1" });
+  assert.ok(asked.query.startsWith("风险 我们认为") && asked.limit <= 8 && asked.budget_chars <= 1000);
+  assert.deepEqual(await recallForJudgment(f, { scope: "memory-b", actions: { ...actions, discover: async () => views.slice(0, 2) } }), { state: "ok", items: [] }, "no memory here, nothing recalled");
+
+  const server = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "memory-c", actions: () => actions }); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const call = async (body: unknown) => { const response = await fetch(base + "/api/contextual/signal", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); return { status: response.status, body: await response.json() as Record<string, any> }; };
+    const key = fragmentCandidates(views, f).find(item => item.offer_id === "concise")!.key;
+    const counted = await call({ pane_id: "main", focus: f, key, signal: "accepted", event_id: "ev-1" });
+    assert.equal(counted.status, 200);
+    const sent = calls.findLast(item => item.capability_id === "memory.signals.report")!.input;
+    assert.deepEqual(sent.subject, { capability_id: "pages.ai", label: "改得更简洁" });
+    assert.equal(sent.situation.label, "Pages 里选中的文字");
+    assert.equal(sent.event_id, "ev-1");
+    assert.doesNotMatch(JSON.stringify(sent), /我们认为主因/, "no selected content leaves in a signal");
+    assert.equal((await call({ pane_id: "main", focus: f, key, signal: "loved", event_id: "ev-2" })).status, 400);
+    assert.equal((await call({ pane_id: "main", focus: f, key: "frag.unknown", signal: "ignored", event_id: "ev-3" })).status, 409);
+  } finally { server.close(); }
 });
 
 // ---- P1: Host transport ------------------------------------------------------------------------------------------

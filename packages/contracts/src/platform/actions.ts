@@ -18,6 +18,8 @@ import { WORKFLOW_CONTENT_SCHEMAS } from "./workflow-content.js";
 export * from "./workflow-content.js";
 import { searchSourceDeclarationProblems, type SearchSourceDeclaration } from "./search-sources.js";
 export * from "./search-sources.js";
+import { fileSourceDeclarationProblems, type FileSourceDeclaration } from "./file-sources.js";
+export * from "./file-sources.js";
 import { placementDeclarationProblems } from "./placement.js";
 export * from "./placement.js";
 
@@ -116,6 +118,8 @@ export interface ActionMetadata {
   readonly workflow_content?: WorkflowContentStation;
   /** A system search source: the object kinds it lists and the Workbench surface each opens in (specs/system-search §5.1). */
   readonly search_source?: SearchSourceDeclaration;
+  /** A side panel file source: the file kinds it lists (or previews) and where each opens (specs/side-panel §3.3). */
+  readonly file_source?: FileSourceDeclaration;
   /** Optional rule choices owned by this subject-offer query; targets belong to the same provider. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
   /** A trigger action needs an enabled compatible binding in this consumer scene. */
@@ -559,6 +563,7 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
           }
         }
         problems.push(...searchSourceDeclarationProblems(key, a, raw.operation, canonicalSchema));
+        problems.push(...fileSourceDeclarationProblems(key, a, raw.operation, canonicalSchema));
         problems.push(...placementDeclarationProblems(key, a, raw.operation, canonicalSchema));
         if (a.workflow_content !== undefined) {
           const w = a.workflow_content;

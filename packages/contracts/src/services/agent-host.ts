@@ -629,6 +629,11 @@ interface AgentStartRequestFields {
   /** The session's name as the person sees it, for the project's list of work under way. */
   session_title?: string;
   /**
+   * `false`: this round gets no side panel browser even where its project has one (specs/side-panel) — e.g. a delegated
+   * work running beside its parent. Absent: a business round in a project with a browser may use it.
+   */
+  browser?: false;
+  /**
    * How earlier rounds of the session reach this one. Absent or `session` carries every earlier round verbatim, tool
    * output included. `digest` starts without that raw history: the task itself carries the caller's digest of earlier
    * rounds, which is how a long session keeps working once its history no longer fits the model's window.
@@ -1177,6 +1182,8 @@ export interface AgentDocumentCapability {
    * model. The reference holds while this runtime process lives.
    */
   intakeImage?(input: { bytes: Uint8Array; name: string }): Promise<{ resource: { id: string; revision: number }; media_type: string; byte_length: number }>;
+  /** An image taken in earlier, read back for the person to look at again; null once this runtime no longer holds it. */
+  readImage?(resource: { id: string; revision: number }): Promise<Uint8Array | null>;
 }
 
 /** Prologue Memory through the Host: each call names its scope and owner; the store keeps them apart. */

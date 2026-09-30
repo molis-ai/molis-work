@@ -235,7 +235,11 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
   const setupWithAgents = withAgents.slice(withAgents.indexOf('data-shelf-settings-pane="setup"'), withAgents.indexOf('data-shelf-settings-pane="actions"'));
   const machineWithAgents = withAgents.slice(withAgents.indexOf('data-shelf-settings-pane="machine"'), withAgents.indexOf('data-shelf-settings-pane="appearance"'));
   assert.doesNotMatch(setupWithAgents, /Grok|安装说明|data-shelf-engine/);
-  assert.match(machineWithAgents, /Grok · 未确认工作区限制，仍在副本目录跑/);
+  // Automatic actions run through the shared Prologue model (a5228fe9, docs/modules/shelf.md 人工终端); a local terminal is
+  // only opened or sent to by hand, so the line names it and makes no claim about running jobs or their isolation.
+  assert.match(machineWithAgents, /data-shelf-agent-line>Grok</);
+  assert.doesNotMatch(machineWithAgents, /未确认工作区限制|仍在副本目录跑|动作不能跑/);
+  assert.match(machineWithAgents, /仅用于主动打开终端或发送到终端，自动动作使用上方 AI 模型/);
   assert.match(machineWithAgents, /href="https:\/\/example.com\/grok"/);
   assert.match(machineWithAgents, /href="https:\/\/example.com\/gemini"/);
   assert.match(on, /⌃⌥D/);

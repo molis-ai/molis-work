@@ -1198,8 +1198,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const SEARCH_ROWS = ${JSON.stringify([...pluginSearchRows(), ["feed", "[data-feed-task-toggle]", "feedTaskToggle"], ["characters", "[data-character-id]", "characterId"]])};
   let cancelRecordJump = null;
   const openPluginRecord = (plugin, itemId) => {
-    const spec = SEARCH_ROWS.find(([id]) => id === plugin);
-    if (!spec || typeof itemId !== 'string' || !itemId) return;
+    // A plugin with no search rows is still opened, and asked for the record by id below (the side panel's files).
+    const spec = SEARCH_ROWS.find(([id]) => id === plugin) || [plugin, '[data-record-row-none]', 'none'];
+    if (typeof itemId !== 'string' || !itemId) return;
     if (embedded) { notifyParent('workbench-pane-open', { plugin, recordId: itemId }); return; }
     cancelRecordJump?.();
     if (settingsPageOf(plugin)) {

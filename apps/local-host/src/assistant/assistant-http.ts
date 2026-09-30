@@ -212,6 +212,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 2) return { status: 200, body: await service.read(workId) };
       if (method === "GET" && parts.length === 3 && parts[2] === "recovery") return { status: 200, body: await service.recovery(workId) };
       if (method === "GET" && parts.length === 4 && parts[2] === "materials") return { status: 200, body: { material: service.material(workId, parts[3]!) } };
+      if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materialImage(workId, parts[3]!) } };
       if (method !== "POST") return null;
       if (parts.length === 3 && parts[2] === "control") return { status: 200, body: await service.control(workId, body as never) };
       if (parts.length === 3 && parts[2] === "answer") return { status: 200, body: await service.answer(workId, body as never) };
@@ -233,7 +234,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
     },
     mapError(error) {
       if (error instanceof AssistantError) {
-        const status = error.code === "assistant.not_found" ? 404 : error.code === "assistant.scope" ? 403
+        const status = error.code === "assistant.not_found" ? 404 : error.code === "assistant.expired" ? 410 : error.code === "assistant.scope" ? 403
           : ["assistant.conflict", "assistant.pending_request", "assistant.busy", "assistant.stale", "assistant.state", "assistant.needs_check"].includes(error.code) ? 409 : 400;
         return { status, body: { error: error.message, code: error.code, ...(error.action ? { action: error.action } : {}), ...(error.work ? { work: error.work } : {}) } };
       }

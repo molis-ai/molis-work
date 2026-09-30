@@ -113,7 +113,7 @@ export async function readWorkspaceGit(query: WorkspaceGitQuery, workspaces: rea
         if (!diskMode) failure("unsupported", "文件权限尚未读取，不能显示完整 Git 差异");
         afterMode = trackMode ? diskMode : (index.entry?.mode as GitFileMode ?? "100644");
       }
-      else if (read.outcome !== "missing") failure(read.outcome === "directory" ? "unsupported" : read.outcome, "工作区内容不能作为完整文本差异读取：" + read.outcome);
+      else if (read.outcome !== "missing") failure(read.outcome === "directory" || read.outcome === "bytes" ? "unsupported" : read.outcome, "工作区内容不能作为完整文本差异读取：" + read.outcome);
     }
     const afterIndex = await indexEntry(root, name);
     if (!index.raw.equals(afterIndex.raw) || beforeHead !== await head(root)) failure("changed", "暂存区或分支在读取时变化，请刷新");

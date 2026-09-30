@@ -405,6 +405,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .plugin-market-list h2 { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); }
   body.immersive-workbench .plugin-market-list p { margin: 4px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
   body.immersive-workbench .plugin-market-list .plugin-market-version { display: block; margin-top: 4px; color: var(--ink); font-size: 11px; line-height: 1.3; }
+  body.immersive-workbench .plugin-market-list .plugin-market-sites { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.3; overflow-wrap: anywhere; }
   [data-plugin-events] { margin-block: 24px; color: var(--ink); }
   .plugin-event-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 12px; border-bottom: 1px solid var(--line); }
   .plugin-event-row > div { min-width: 0; overflow-wrap: anywhere; }

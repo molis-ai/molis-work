@@ -47,6 +47,16 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
             <section class="assistant-block assistant-block--usage" data-assistant-usage hidden></section>
           </aside>
           <div class="assistant-main">
+            <div class="assistant-strip" data-assistant-strip hidden>
+              <span class="assistant-state" data-assistant-strip-state></span>
+              <span class="assistant-strip-now" data-assistant-strip-now></span>
+              <span class="assistant-strip-actions">
+                <button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-assistant-strip-next hidden></button>
+                <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${L("暂停")}</button>
+                <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${L("继续")}</button>
+                <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button>
+              </span>
+            </div>
             <div class="assistant-thread" data-assistant-thread role="log" aria-live="polite" aria-relevant="additions">
               <div class="assistant-empty" data-assistant-empty><strong>${L("你的个人工作助理")}</strong><p>${L("说出要做的事：整理资料、起草、查询、安排后续……它会使用你已授权的能力推进，改动数据前先请你确认。")}</p><div class="assistant-empty-list" data-assistant-empty-list></div></div>
             </div>
@@ -59,6 +69,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
       <div class="assistant-popover" id="assistant-modes" data-assistant-modes role="group" aria-label="${L("下一轮的方式")}" hidden></div>
       <div class="assistant-popover" id="assistant-characters" data-assistant-characters role="group" aria-label="${L("由哪个角色负责")}" hidden></div>
       <div class="assistant-popover" data-assistant-starters role="group" aria-label="${L("可以这样开始")}" hidden></div>
+      <div class="assistant-context-actions" data-assistant-context-actions data-state="idle" role="toolbar" aria-label="${L("当前内容的动作")}"></div>
       <div class="assistant-offer" data-assistant-offer role="status" aria-live="polite" hidden></div>
       <div class="assistant-popover assistant-notices" id="assistant-notices" data-assistant-notices role="group" aria-label="${L("需要你看看")}" hidden></div>
       <div class="assistant-popover assistant-more" id="assistant-more" data-assistant-more role="group" aria-label="${L("添加")}" hidden></div>

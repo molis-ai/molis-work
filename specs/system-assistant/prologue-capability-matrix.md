@@ -133,8 +133,8 @@
 | --- | --- | --- | --- | --- |
 | `artifacts`（ArtifactRegistry） | — | 成果归各业务插件（Pages、Artifacts 插件等），工作只记关系 | — | ➖ 不在 SDK 另存一份业务成果 |
 | 审计 | 动作服务按 `assistant:<工作>` 记审计身份 | ✅ | ✅ | ✅ |
-| `capabilityReport/assembly/identity/state` | Host 运行时描述 | 未给用户看 | — | ⛔ 开发者诊断里未显示实际装配与版本 |
-| `ledgerFailures` | — | — | — | ⛔ 未显示 |
+| `capabilityReport/assembly/identity/state` | 适配器 `diagnostics()` | 设置 · 诊断 ·「助理与执行服务」（开发者看，不进对话） | — | ✅ `assistant-diagnostics`：装配指纹、各槽实现与版本、本机能力缺口 |
+| `ledgerFailures` | 同上 | 同上：列出重启后回放不出来的运行 | — | ✅ 同上 |
 
 ## 17. 提问、表单与 MCP Elicitation
 
@@ -175,9 +175,8 @@
 4. 会话分支、受控导出、会话目标；系统级搜索已合入（按对象检索），会话历史本身的检索未接。
 5. SDK Refine（业务工作的评审—补改—复查已由 Host 委托实现并实测，AC16）。
 6. MCP 资源／Prompt、MCP Elicitation、SDK Functions、网页检索与来源摄取。
-7. 装配与版本诊断（`capabilityReport`、`assembly`、`ledgerFailures`）给开发者看：数据在运行时里都有，缺一个开发者诊断页；设置页正由页面动线会话调整，等它合入后再加，避免冲突。
-8. Prologue 缺口：结果未知的修改只能凭执行回执或“确认没发生”收口。Host 已补“交给插件的那一刻记一笔”，停止先于发出的修改如实显示“没有执行”（e58b1e6e）；真正发出后没回执的仍是“结果未确认”。
+7. Prologue 缺口：结果未知的修改只能凭执行回执或“确认没发生”收口。Host 已补“交给插件的那一刻记一笔”，停止先于发出的修改如实显示“没有执行”（e58b1e6e）；真正发出后没回执的仍是“结果未确认”。
 
-已从缺口移出：按工作的预算（25c1c711，已实测）；记忆的 Character 维度（按推荐不另设角色专用记忆库，角色轮次受同一组开关约束，AC34 实测；记忆整体迁到平台记忆服务 feature/memory-system）。
+已从缺口移出：装配与版本诊断（2026-09-30，设置 · 诊断 ·「助理与执行服务」，见 implementation.md §2.1）；按工作的预算（25c1c711，已实测）；记忆的 Character 维度（按推荐不另设角色专用记忆库，角色轮次受同一组开关约束，AC34 实测；记忆整体迁到平台记忆服务 feature/memory-system）。
 
 标“不适用”的只有：SDK Goals（业务 Goal 归插件）、SDK Artifacts／collections／migrate（业务成果与主数据归模块）、助理的目录与命令（按设计由 Coding 承担）、heartbeats（到点执行已由持久队列承担）。

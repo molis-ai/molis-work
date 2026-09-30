@@ -1900,6 +1900,9 @@ export class AssistantService {
     // What the person asked to be remembered that bears on this round.
     const remembered = await this.recallFor(work, `${request} ${work.title} ${materials.map(item => item.title).join(" ")}`);
     if (remembered) out.push(...chunked({ ...base, title: "记住的偏好与背景" }, "memory", remembered));
+    // Forming memories switched off: the round is told, so it neither claims to keep nor quietly drops what was asked.
+    if (!this.store.memoryPrefs(this.actorId).form) out.push(...chunked({ ...base, title: "记忆设置" }, "memory-off",
+      "用户关闭了“允许记住”，这一轮不能长期记住或忘掉任何事。遇到“以后…”“记住…”：在这项工作里照做，用一句话说明没有长期记下、可以在 设置 · 助理 · 记忆与偏好 打开。不要复述这段说明。"));
     // Changes a stopped round left running, and how each ended: never to be submitted again blindly.
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     if (unsettled.length) {

@@ -377,6 +377,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "从项目的工作里提出这个项目的约定或经验（等我认可才生效）": "Suggest a project's conventions or lessons from its work (only kept when I accept)",
   "从工作里提出值得记住的个人偏好或经验（等我认可才生效）": "Suggest personal preferences or lessons from work worth keeping (only kept when I accept)",
   "助理只记你明确要它记住的（例如“以后回答都用要点列表”），或你认可的建议；不会从你的一次选择或修改里自己学。个人的在你所有工作里用；项目的只在那个项目里用。停用是保留但暂不使用；删除后不会再被想起。": "The Assistant keeps only what you explicitly ask it to remember (such as \u201cfrom now on answer in bullet lists\u201d) or suggestions you accept; it never learns from a single choice or edit of yours. Personal ones apply in all your work; a project's only in that project. Turning one off keeps it unused; deleting it means it is never recalled again.",
+  "这些设置对所有角色和委托出去的子任务同样生效，换角色不会绕过。主动提醒和新资料提示从不使用记忆，只在你让助理做事时才用。": "These settings apply the same to every role and to delegated sub-tasks; switching roles does not get around them. Reminders and new-material notices never use memory; it is used only when you ask the Assistant to do something.",
   "收回": "Take back",
   "已收回": "Taken back",
   "停下这个子任务，由这项工作自己接着做这一部分；它已产出的保留": "Stop this sub-task and finish that part in this work; what it made stays",

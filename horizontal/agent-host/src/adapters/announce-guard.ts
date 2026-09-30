@@ -8,7 +8,7 @@
  */
 // “现在是 19:04”“开始时间是…” state a fact; only “现在去…”“开始改…” announce a step.
 const INTENT = /(?:^|[。，,；;：:！!\s（(])(?:现在(?![是有还已在的为共处约大]|\s*\*)|接下来|下面|马上|随后|然后|先|开始(?![时于日前后的是])|我(?:来|先|会|将|要|准备|这就|马上|现在|去)|我把(?![^。！!\n]*[了过]))|\b(?:I'll|I will|I'm going to|let me|now I|next,? I)\b/i;
-const SETTLED = /已(?:经)?(?:完成|修改|改好|改完|创建|新建|写入|保存|运行|执行|提交|添加|加上|删除)|完成[了。！!]|通过|成功|失败|报错|无法|不能|做不了|没有权限|未获授权|需要你|请你|请确认|你(?:希望|想|要不要|是否)|是否|\b(?:done|finished|completed|passed|failed|cannot|can't|unable)\b/i;
+const SETTLED = /已(?:经)?(?:完成|修改|改好|改完|创建|新建|写入|保存|运行|执行|提交|添加|加上|删除)|完成[了。！!]|通过|成功|失败|报错|无法|不能|做不了|没有权限|未获授权|需要你|请你|请确认|请(?:在|到|去|先|点|打开)|告诉我|你(?:希望|想|要不要|是否)|是否|\b(?:done|finished|completed|passed|failed|cannot|can't|unable)\b/i;
 
 // A whole reply that is one short line opening with the step itself (“调用…读回…，核对…”), not with what came of it.
 // Seen from MiniMax-M3: asked to read saved items back, it answered only that line and ended with nothing read.
@@ -30,7 +30,7 @@ export const ANNOUNCE_HELD =
  * A reply that says something was remembered or forgotten, from a round in which no such call succeeded. Seen from
  * MiniMax-M3: it listed the memories and then answered “记下了……”, keeping nothing. Only the closing paragraph counts.
  */
-const KEPT = /已(?:经)?(?:记下|记住)|(?:记下|记住)(?:了|啦)|已(?:经)?(?:保存|存)(?:为|到|进)(?:记忆|偏好)|\b(?:I(?:'ve| have) (?:noted|saved|remembered)|noted that)\b/i;
+const KEPT = /已(?:经)?(?:记下|记住)|(?:记下|记住)(?:了|啦)|已(?:经)?(?:保存|存)(?:为|到|进)(?:记忆|偏好)|(?:记|存)(?:到|进)(?:了)?(?:项目「[^」]{1,40}」里|个人(?:偏好|记忆)|你的(?:偏好|记忆))|用\s*remember|\b(?:I(?:'ve| have) (?:noted|saved|remembered)|noted that)\b/i;
 const FORGOT = /已(?:经)?(?:删除|删掉|忘掉|忘记)|(?:删除|删掉|忘掉|忘记)(?:了|啦)|\bI(?:'ve| have) (?:forgotten|deleted|removed)\b/i;
 // Only about memory: a note written into a document (“已记下会议要点”) or a deleted page is a business change, not this.
 const ABOUT_MEMORY = /记忆|偏好|以后|生效|适用|记住的|\b(?:memory|memories|preference|from now on)\b/i;
@@ -42,6 +42,10 @@ export function claimsMemoryChange(text: string): "keep" | "forget" | null {
   if (KEPT.test(trimmed)) return "keep";
   return null;
 }
+
+/** What the model reads when it claimed a memory change in a round the person gave no memory (switched off in settings). */
+export const MEMORY_OFF_HELD =
+  "The person has switched off forming memories, so this round cannot keep or forget anything and nothing was kept. Say plainly that you did not keep it, that it still applies within this work, and that they can allow it under 设置 · 助理 · 记忆与偏好.";
 
 /** What the model reads when it claimed a memory change it did not make. */
 export const MEMORY_CLAIM_HELD = {

@@ -42,6 +42,7 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
     <section class="settings-section assistant-memory" aria-labelledby="assistant-memory-title" data-assistant-memory>
       <h2 id="assistant-memory-title">${L("记忆与偏好")}</h2>
       <p class="settings-muted">${L("助理只记你明确要它记住的（例如“以后回答都用要点列表”），或你认可的建议；不会从你的一次选择或修改里自己学。个人的在你所有工作里用；项目的只在那个项目里用。停用是保留但暂不使用；删除后不会再被想起。")}</p>
+      <p class="settings-muted">${L("这些设置对所有角色和委托出去的子任务同样生效，换角色不会绕过。主动提醒和新资料提示从不使用记忆，只在你让助理做事时才用。")}</p>
       <div class="assistant-memory-prefs">
         <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="form"> ${L("允许记住我明确要求记住的事")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="use_personal"> ${L("在工作里使用个人记忆")}</label>

@@ -19,6 +19,8 @@ test("an ending that only announces the next step is recognised; results, questi
     // Something done, said with 我把: not an announcement.
     "我把结果整理好了。", "我把三条都核对过，没有问题。",
     // A one-line reply that opens with the verb but reports what came of it.
+    // Steps for the person to take are not the round's own next step (seen from MiniMax-M3 with memory switched off).
+    "要去长期记住的话，请在「设置 · 助理 · 记忆与偏好」里打开「允许记住」，然后告诉我「记住：以后周报标题都加日期」。",
     "核对完毕，三条都在。", "检查结果：三条都在。", "读取到 3 条待办，和刚才一致。", "查看了一下，没有问题。", "保存成功。",
     "调用「会议待办」读回的三条：\n- 小张整理用户访谈\n- 老李联系场地"]) {
     assert.equal(announcesWithoutActing(text), false, text);
@@ -36,6 +38,9 @@ test("a reply that claims a memory was kept or forgotten is recognised; saying i
   // Business changes in the same words are not memory claims.
   assert.equal(claimsMemoryChange("已记下会议要点到「周会纪要」。"), null);
   assert.equal(claimsMemoryChange("已删除文档「草稿」。"), null);
+  // Seen from MiniMax-M3 with forming memories switched off: it named the tool it did not have.
+  assert.equal(claimsMemoryChange("「以后周报都用表格」是长期规则，我用 remember 记到项目「Q4 plan」里：从今以后做周报默认用表格呈现。"), "keep");
+  assert.equal(claimsMemoryChange("已把会议要点记到项目笔记里，以后可以随时查。"), null);
 });
 
 test("a reply that writes a tool call out as text is recognised; talking about capabilities in words is not", () => {

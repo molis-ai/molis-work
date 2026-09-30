@@ -183,3 +183,64 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
     assert.equal(service.memoryCandidates().length, 0);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+test("memory switches hold the same when a Character carries the round; turning off learning keeps what this work was told", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-character-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project-a", board_id: "board-a", storage_key: "memory:a" };
+  const requests: any[] = [];
+  const script: Array<(body: any) => Response> = [];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    requests.push(body);
+    return (script.shift() ?? (() => reply()))(body);
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-character-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const editor = { character_id: "editor", title: "严格的编辑", instructions: "你是严格的编辑：每次回答先列出三处可改进的地方。", host_tools: null,
+    source: { owner_actor_id: "web-user", draft_revision: 2 }, reference: { artifact_id: "character:board-a:editor", version: 2 }, board_id: "board-a",
+    content_digest: "digest-2", producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.4.0", binding_signature: "sig" }, published_at: "2026-09-28T00:00:00.000Z" };
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      resolveCharacter: () => structuredClone(editor) as never }),
+    characters: async () => [{ reference: { ...editor.reference }, title: editor.title, available: true }],
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai" }, "web-user");
+  const tools = (body: any) => (body.tools as Array<{ name: string }>).map(tool => tool.name);
+  const round = async (input: { text: string; request_id: string; work_id?: string; character?: { artifact_id: string; version: number } }, rounds: number) => {
+    const before = requests.length;
+    const sent = await service.send(input, input.work_id ? {} : { project_ref: project });
+    await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === rounds && view.work.state === "completed" && requests.length > before ? view : undefined; }, input.request_id);
+    return { work: sent.work, first: requests[before] };
+  };
+  try {
+    script.push(() => reply({ name: "remember", input: { text: "回答用要点列表", scope: "personal", said: "以后回答都用要点列表" } }), () => reply(undefined, "记下了。"));
+    await round({ text: "以后回答都用要点列表", request_id: "req-mc-1" }, 1);
+    assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["回答用要点列表"]);
+
+    // With a Character: while the switches allow it, the same memory and tools reach its round.
+    const on = await round({ text: "看看这段说明", request_id: "req-mc-2", character: { artifact_id: editor.reference.artifact_id, version: 2 } }, 1);
+    assert.match(JSON.stringify(on.first), /每次回答先列出三处可改进的地方/, "the Character carries the round");
+    assert.ok(tools(on.first).includes("remember"));
+    assert.match(JSON.stringify(on.first.messages), /回答用要点列表/);
+
+    // Switched off: choosing the Character does not get around either switch.
+    service.saveMemoryPrefs({ form: false, use_personal: false });
+    // It says it kept the rule anyway (as MiniMax-M3 did): held once, told that forming memories is off.
+    script.push(() => reply(undefined, "这是长期规则，我用 remember 记到项目「项目甲」里：以后标题都不超过十个字。"),
+      body => { assert.match(JSON.stringify(body.messages), /switched off forming memories/); return reply(undefined, "这项工作里标题都不超过十个字；没有长期记下，需要的话可以在设置里打开“允许记住”。"); });
+    const off = await round({ text: "我写方案时，标题都不超过十个字。再看一遍", request_id: "req-mc-3", work_id: on.work.work_id }, 2);
+    assert.match(JSON.stringify(off.first), /每次回答先列出三处可改进的地方/);
+    assert.ok(!tools(off.first).includes("remember") && !tools(off.first).includes("suggest-memory"), "no memory tools under the Character either");
+    assert.doesNotMatch(JSON.stringify(off.first.messages), /回答用要点列表/, "nothing personal is recalled under the Character either");
+    assert.match(JSON.stringify(off.first.messages), /关闭了“允许记住”/, "the round is told forming memories is off");
+    assert.match((await service.read(on.work.work_id)).rounds[1]!.turns.filter(turn => turn.kind === "assistant").at(-1)!.text ?? "", /没有长期记下/);
+
+    // Learning off does not make this work forget what it was told: the next round still has it.
+    const next = await round({ text: "按刚才的要求改标题", request_id: "req-mc-4", work_id: on.work.work_id }, 3);
+    assert.match(JSON.stringify(next.first.messages), /标题都不超过十个字/);
+    assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["回答用要点列表"], "kept memories stay; nothing new was kept");
+  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});

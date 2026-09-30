@@ -713,6 +713,10 @@ test("a card a page prepared from the person's selection is checked like the Ass
     // Continuing the work, the round hears the selection.
     await f.service.send({ work_id: placed.work_id, text: "再帮我想两条类似的", request_id: "req-00000071" }, {});
     await until(async () => (await f.service.read(placed.work_id)).work.state === "completed", "round");
+    // Placed into a work that already has rounds, a page's card still belongs to no round: it came from the page.
+    const second = await f.service.offerFromPage({ message_id: "page-message-0004", source, card, work_id: placed.work_id }, { project_ref: f.project });
+    assert.equal(second.card.run_id, null);
+    assert.equal(placed.card.run_id, null);
   } finally { await f.close(); }
 });
 

@@ -794,6 +794,8 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-card .assistant-card-title { color: var(--ink); font-size: 13px; font-weight: 600; line-height: 1.45; }
   ${ASSIST} .assistant-card-summary { color: var(--ink-soft); }
   ${ASSIST} .assistant-card-meta { color: var(--muted); font-size: 11px; }
+  ${ASSIST} .assistant-card-origin { display: flex; align-items: center; gap: 5px; margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+  ${ASSIST} .assistant-card-origin .assistant-glyph-icon { flex: none; }
   ${ASSIST} .assistant-card-hint { margin: -2px 0 0; color: var(--faint); font-size: 11px; }
   ${ASSIST} .assistant-card:has(.assistant-card-kicker.is-attention) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone-attention, #c27c0e) 40%, var(--line)); }
   ${ASSIST} .assistant-card-status.is-done { color: var(--tone-done, #3a8f5c); }

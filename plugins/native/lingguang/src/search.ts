@@ -7,7 +7,8 @@ export const lingguangSearchActions = {
   entries: defineSearchEntriesAction("lingguang.search.entries", [{ kind: "lingguang_spark", title: "灵光", surface: LINGGUANG_PROJECT_PLUGIN_ID }], "灵光", ["lingguang:read"]),
   subject: defineSubjectContextAction("lingguang.subject.read", "lingguang_spark", "灵光", ["lingguang:read"]),
 };
-const revisionOf = (spark: LingguangSpark) => `${spark.updated_at}:${spark.status}`;
+/** A spark's version as every reader, result and page names it: a change of text or of status is a new version. */
+export const revisionOf = (spark: LingguangSpark) => `${spark.updated_at}:${spark.status}`;
 
 export function createLingguangSearchHandlers(withStore: <T>(run: (store: LingguangStore) => T) => T): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };

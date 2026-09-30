@@ -30,7 +30,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const publishContext = (unsaved) => {
     const context = { plugin_id: "io.molis.work.lingguang", surface_title: L("灵光") };
     if (selected) {
-      context.object = { kind: "lingguang_spark", id: selected.id, version: selected.updated_at, title: titleInput.value || selected.title };
+      context.object = { kind: "lingguang_spark", id: selected.id, version: selected.updated_at + ":" + (selected.status || "inbox"), title: titleInput.value || selected.title };
       if (unsaved) context.unsaved = true;
     }
     workbench.setAttribute("data-assistant-context", JSON.stringify(context));
@@ -322,7 +322,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (recent.length) materials.push({ title: L("头脑风暴 · 最近") + " " + recent.length + " " + L("句"), text: recent.map((message) => (message.role === "assistant" ? L("灵光") : L("我")) + "：" + message.body).join("\\n") });
     window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
       message_id: crypto.randomUUID(), purpose, source: { surface: "lingguang", title: L("灵光") },
-      object: { kind: "lingguang_spark", id: selected.id, title: selected.title || L("灵光"), version: selected.updated_at },
+      object: { kind: "lingguang_spark", id: selected.id, title: selected.title || L("灵光"), version: selected.updated_at + ":" + (selected.status || "inbox") },
       text, materials,
     } }));
     askForm.hidden = true;

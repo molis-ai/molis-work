@@ -127,7 +127,7 @@ for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save order
   // Scope spoofing is rejected by the real HTTP adapter, before any business mutation.
   const denied = await evaluate<{status:number}>(`fetch('/api/plugins/dataset?project_id=${projectId}', {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({project_id:'other-project', title:'must not exist'})}).then(r=>({status:r.status}))`);
   assert.equal(denied.status, 403); assert.equal(read().length, 1);
-  // The dataset being edited comes back by itself (specs/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
+  // The dataset being edited comes back by itself (specs/archive/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
   await reloadPage(); await open(); await waitFor("document.querySelector('[data-dataset-title]')?.getClientRects().length > 0");
   await idle(); assert.equal(read()[0]!.artifact_version, 1);
   assert.equal(await evaluate("document.querySelectorAll('[data-dataset-row]').length"), 2);

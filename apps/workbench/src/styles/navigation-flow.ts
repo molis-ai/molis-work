@@ -1,5 +1,5 @@
 /**
- * Ways out and ways back (specs/page-interaction-flow). Appended right after the Soft Workbench final layer on the
+ * Ways out and ways back (specs/archive/page-interaction-flow). Appended right after the Soft Workbench final layer on the
  * workbench and settings pages, so it speaks the same tokens and wins over nothing but its own selectors.
  */
 const WORKBENCH = "body.immersive-workbench";

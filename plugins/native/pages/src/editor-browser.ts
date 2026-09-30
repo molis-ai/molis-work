@@ -121,12 +121,29 @@ import { blockPlaceholder } from "./placeholder.js";
 import { dragRows, dropLevelRange, nodesInSpan, nudgeSpan, previewCopySpan, previewSpan, spanRoots, spanRows, type DragRow } from "./reorder.js";
 import { PAGES_TONES } from "./tone.js";
 import { emptyDoc, nodeFromUnknown, pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
+import { applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen, type PagesFocus } from "./focus.js";
 
 export { emptyDoc, pagesSchema };
+export { applyToPagesFrozen, clearPagesCompare, freezePagesFocus, readPagesFocus, releasePagesFrozen, resolvePagesFrozen, type PagesFocus, type FrozenPagesFocus } from "./focus.js";
 
 export interface PagesEditorHandle {
   readonly view: EditorView;
   readonly toolbar: HTMLElement;
+  /** Run a writing command on the current selection from outside the editor (the context bar); see `PagesCommandPreset`. */
+  readonly runCommand?: (command: string, style: string | undefined, preset?: PagesCommandPreset) => Promise<void>;
+}
+
+/**
+ * A command started from outside the editor. The selection is frozen at once; `prepare` then supplies the exact
+ * command from the offer the Host prepared, and the result is placed by `mode` after the person accepts it.
+ */
+export interface PagesCommandPreset {
+  readonly mode?: "replace" | "insert_after";
+  readonly prepare?: () => Promise<{ command: string; style?: string; text?: string }>;
+  readonly title?: string;
+  readonly okLabel?: string;
+  /** The focus the bar's actions were ranked for; the command runs on its range, and not at all once it changed. */
+  readonly localId?: string;
 }
 
 export interface PagesListItem {
@@ -147,6 +164,10 @@ export interface PagesEditorMountOptions {
    */
   askAssistant?: (input: { mode: "suggest" | "delegate"; request: string; selection: string }) => void;
   onCreateFromAi?: (input: { title: string; text: string }) => Promise<void>;
+  /** What the person has in hand, whenever it changes (specs/contextual-interaction §4.1); `null` is the page as a whole. */
+  onFocus?: (focus: PagesFocus | null) => void;
+  /** Extra ProseMirror plugins from the embedding surface, added after the editor's own. */
+  plugins?: readonly Plugin[];
 }
 
 type Translate = (value: string) => string;
@@ -2433,7 +2454,7 @@ function field(translate: Translate | undefined, label: string, value: string, t
   return { label: wrap, input };
 }
 
-function actions(translate: Translate | undefined, ok: () => void, cancel: () => void): HTMLElement {
+function actions(translate: Translate | undefined, ok: () => void, cancel: () => void, okLabel = "确定"): HTMLElement {
   const row = document.createElement("div");
   row.className = "pages-pop-actions";
   const dismiss = document.createElement("button");
@@ -2444,7 +2465,7 @@ function actions(translate: Translate | undefined, ok: () => void, cancel: () =>
   const save = document.createElement("button");
   save.type = "button";
   save.className = "mw-btn mw-btn--primary";
-  save.textContent = t(translate, "确定");
+  save.textContent = t(translate, okLabel);
   save.addEventListener("click", ok);
   row.append(dismiss, save);
   return row;
@@ -3011,10 +3032,15 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   pop.hidden = true;
   overlayRoot().append(pop);
 
+  // A writing request keeps its range frozen while the popup is open; closing the popup any way lets it go.
+  let popToken: string | null = null;
+  let popRequest = 0;
   const hidePop = () => {
     const restoreFocus = pop.contains(document.activeElement);
     pop.hidden = true;
     pop.replaceChildren();
+    popRequest += 1;
+    if (popToken) { releasePagesFrozen(view, popToken); popToken = null; }
     if (restoreFocus) view.focus();
   };
 
@@ -3269,7 +3295,9 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
   };
 
-  const showCandidate = (view: EditorView, command: string, result: { text: string; stub?: boolean }, source: string) => {
+  // The candidate goes to the range the person asked about, frozen when they asked; if that text changed while the
+  // model was working, nothing is written anywhere (specs/contextual-interaction §3.4, AC-C04/C05).
+  const showCandidate = (view: EditorView, command: string, result: { text: string; stub?: boolean }, token: string | null, mode: "replace" | "insert_after", okLabel?: string) => {
     pop.hidden = false;
     pop.replaceChildren();
     const lead = document.createElement("p");
@@ -3279,34 +3307,90 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     area.rows = 8;
     area.value = result.text;
     pop.append(lead, area);
+    const refuse = () => {
+      lead.textContent = t(options.translate, "这段内容在等待期间被改动，没有写入。请重新选择后再试。");
+      lead.className = "pages-pop-error";
+    };
+    const dismiss = () => { if (token) releasePagesFrozen(view, token); hidePop(); };
     pop.append(actions(options.translate, () => {
-      if (command === "actions") insertActions(view, area.value);
-      else if (command === "proofread") {
+      if (command === "translate_new") {
+        void options.onCreateFromAi?.({ title: t(options.translate, "翻译"), text: area.value });
+      } else if (!token) {
+        replaceSelectionText(view, area.value);
+      } else if (command === "proofread") {
+        const at = resolvePagesFrozen(view, token);
+        if (!at?.intact) { refuse(); return; }
         const next = nodeFromUnknown({
           type: "doc",
           content: area.value.split(/\n{2,}/).map((part) => paragraphNode(part.trim()).toJSON()),
         });
+        releasePagesFrozen(view, token);
         view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, next.content));
-      } else if (command === "translate_new") {
-        void options.onCreateFromAi?.({ title: t(options.translate, "翻译"), text: area.value });
-      } else replaceSelectionText(view, area.value);
+      } else if (command === "actions") {
+        const at = resolvePagesFrozen(view, token);
+        if (!at?.intact) { refuse(); return; }
+        releasePagesFrozen(view, token);
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, at.from)));
+        insertActions(view, area.value);
+      } else if (!applyToPagesFrozen(view, token, area.value, mode).ok) {
+        refuse();
+        return;
+      }
       hidePop();
-    }, hidePop));
-    placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
-    void source;
+    }, dismiss, okLabel));
+    placeOverlay(pop, view.coordsAtPos((token ? resolvePagesFrozen(view, token)?.from : undefined) ?? view.state.selection.from), "below");
   };
 
-  const runAiCommand = async (view: EditorView, command: string, style?: string) => {
+  const runAiCommand = async (view: EditorView, command: string, style?: string, preset?: PagesCommandPreset) => {
     if (!options.runAi) return;
-    const selected = view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n");
-    const text = command === "translate_new" || command === "proofread" || !selected.trim()
-      ? docPlainText(view.state.doc)
-      : selected;
-    pop.innerHTML = `<p>${escapeHtml(t(options.translate, "正在处理"))}</p>`;
+    // From the bar: the range is what the reported focus covered, and only while that is still the focus.
+    let range: { from: number; to: number } | undefined;
+    if (preset?.localId !== undefined) {
+      const focus = readPagesFocus(view.state);
+      if (!focus || focus.local_id !== preset.localId) {
+        if (popToken) releasePagesFrozen(view, popToken);
+        popToken = null;
+        popRequest += 1;
+        pop.innerHTML = `<p class="pages-pop-error">${escapeHtml(t(options.translate, "选中的内容已经变了，请重新选择后再试。"))}</p>`;
+        pop.hidden = false;
+        placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
+        return;
+      }
+      // A comparison acts on the part selected last; the part set aside stays as it is.
+      const parts = focus.activity === "comparing" ? focus.targets.slice(-1) : focus.targets;
+      range = { from: Math.min(...parts.map(part => Math.min(part.anchor, part.head))), to: Math.max(...parts.map(part => Math.max(part.anchor, part.head))) };
+    }
+    const whole = command === "translate_new" || command === "proofread";
+    const selected = range ? view.state.doc.textBetween(range.from, range.to, "\n") : view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n");
+    const empty = !selected.trim();
+    const text = whole || empty ? docPlainText(view.state.doc) : selected;
+    // Only proofreading rewrites the whole document. With nothing selected, the other commands read the whole
+    // document but place their result after the paragraph the caret was in, as the menu always did at the caret.
+    const tokenId = "ai-" + Date.now().toString(36);
+    const token = command === "translate_new" ? null
+      : (command === "proofread" ? freezePagesFocus(view, tokenId, { from: 0, to: view.state.doc.content.size }) : freezePagesFocus(view, tokenId, range))?.token ?? null;
+    const mode = preset?.mode ?? (empty && command !== "proofread" ? "insert_after" : "replace");
+    if (popToken && popToken !== token) releasePagesFrozen(view, popToken);
+    popToken = token;
+    const request = ++popRequest;
+    pop.innerHTML = `<p>${escapeHtml((preset?.title ? preset.title + " · " : "") + t(options.translate, "正在处理"))}</p>`;
+    if (preset) {
+      // Started from outside the editor (the context bar): the popup opens at the frozen range, in place of the format bar.
+      toolbar.hidden = true;
+      pop.hidden = false;
+      placeOverlay(pop, view.coordsAtPos(range?.from ?? view.state.selection.from), "below");
+    }
     try {
-      const result = await options.runAi({ command, text, style });
-      showCandidate(view, command, result, text);
+      // The exact command may come from the offer the Host prepared for this very selection.
+      const actual: { command: string; style?: string; text?: string } = preset?.prepare ? await preset.prepare() : { command, style };
+      if (request !== popRequest) return;
+      const result = await options.runAi({ command: actual.command, text: actual.text ?? text, style: actual.style });
+      // Closed or replaced while the model worked: this result is no longer wanted.
+      if (request !== popRequest) return;
+      showCandidate(view, actual.command, result, token, mode, preset?.okLabel);
     } catch (error) {
+      if (token) releasePagesFrozen(view, token);
+      if (request !== popRequest) return;
       pop.innerHTML = `<p class="pages-pop-error">${escapeHtml(error instanceof Error ? error.message : t(options.translate, "写作失败"))}</p>`;
     }
   };
@@ -3513,6 +3597,8 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     calendarPlugin(),
     findPlugin(options.translate),
     keymap({ Escape: selectEnclosingBlock }),
+    pagesFocusPlugin({ onFocus: options.onFocus }),
+    ...(options.plugins ?? []),
   ];
 
   // While the person is still dragging out a selection the bar stays away: it would cover the text being selected.
@@ -3879,7 +3965,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     linkPreview.remove();
     commentPreview.remove();
   };
-  const handle = { view, toolbar };
+  const handle: PagesEditorHandle = { view, toolbar, runCommand: (command, style, preset) => runAiCommand(view, command, style, preset) };
   const destroyToolbar = toolbar.remove.bind(toolbar);
   handle.toolbar.remove = () => {
     originalDestroy();

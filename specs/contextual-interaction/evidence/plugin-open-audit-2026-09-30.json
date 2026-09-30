@@ -1,0 +1,344 @@
+{
+  "origin": "http://127.0.0.1:4297",
+  "demo": "project-e5e37334-6c94-4c2f-94a9-d56c6455bceb",
+  "audited_at": "2026-09-30T12:41:25.192Z",
+  "opened": [
+    {
+      "provider": "io.molis.work.artifacts",
+      "kind": "artifact",
+      "open": {
+        "surface": "artifacts",
+        "id": "/artifacts/feed-capture%3Afeeditem-c8034e52-3cdd-4e82-b26b-a608b2a40e64%3Afeedoutrule-c61cd093-a67b-429c-ac60-13c2b214daed/versions/1"
+      },
+      "surface": "artifacts",
+      "frames": 0,
+      "declared": 0,
+      "object": null,
+      "selected": "",
+      "userSelect": "",
+      "editable": false,
+      "text_inputs": 0
+    },
+    {
+      "provider": "io.molis.work.cognia",
+      "kind": "cognia_material",
+      "open": {
+        "surface": "cognia",
+        "id": "89ec3476-658d-48a7-9838-76682e0b96ea"
+      },
+      "surface": "cognia",
+      "frames": 0,
+      "declared": 1,
+      "object": {
+        "kind": "cognia_material",
+        "id": "89ec3476-658d-48a7-9838-76682e0b96ea",
+        "version": 1,
+        "title": "读取审计样例"
+      },
+      "selected": "个人知识库 · 所有项目",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 0
+    },
+    {
+      "provider": "io.molis.work.dataset",
+      "kind": "dataset",
+      "open": {
+        "surface": "dataset",
+        "id": "b9494649-0e26-49b1-854f-6de46cb86fce"
+      },
+      "surface": "dataset",
+      "frames": 0,
+      "declared": 1,
+      "object": {
+        "kind": "dataset",
+        "id": "b9494649-0e26-49b1-854f-6de46cb86fce",
+        "version": 1,
+        "title": "读取审计样例"
+      },
+      "selected": "项目「Molis Wor",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 1
+    },
+    {
+      "provider": "io.molis.work.feed",
+      "kind": "feed_item",
+      "open": {
+        "surface": "feed",
+        "id": "feeditem-052a30a9-874b-429d-80f3-184d2574ab99"
+      },
+      "surface": "feed",
+      "frames": 0,
+      "declared": 0,
+      "object": null,
+      "selected": "如果每个入口各自记状态，",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 14
+    },
+    {
+      "provider": "io.molis.work.form",
+      "kind": "form",
+      "open": {
+        "surface": "form",
+        "id": "fafe5e35-8fb3-4c9c-bba2-f991786fc61d"
+      },
+      "surface": "form",
+      "frames": 0,
+      "declared": 1,
+      "object": {
+        "kind": "form",
+        "id": "fafe5e35-8fb3-4c9c-bba2-f991786fc61d",
+        "version": 1,
+        "title": "读取审计样例"
+      },
+      "selected": "项目「Molis Wor",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 0
+    },
+    {
+      "provider": "io.molis.work.goals",
+      "kind": "goal",
+      "open": {
+        "surface": "goals",
+        "id": "ADOPTION"
+      },
+      "surface": null,
+      "frames": 0,
+      "declared": 0,
+      "object": null,
+      "selected": "把这项目标需要的内容放在",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 81
+    },
+    {
+      "provider": "io.molis.work.inbox",
+      "kind": "inbox_entry",
+      "open": {
+        "surface": "inbox",
+        "id": "inboxentry-7d385486-2474-4181-aaa4-62d7f6169369"
+      },
+      "surface": "inbox",
+      "frames": 0,
+      "declared": 0,
+      "object": null,
+      "selected": "为什么进入 Inbox",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 1
+    },
+    {
+      "provider": "io.molis.work.jelly",
+      "kind": "jelly_note",
+      "open": {
+        "surface": "jelly",
+        "id": "97970b04-5ca8-4e04-9aaf-9649e3ffd571"
+      },
+      "surface": "jelly",
+      "frames": 0,
+      "declared": 0,
+      "object": null,
+      "selected": "",
+      "userSelect": "",
+      "editable": false,
+      "text_inputs": 2
+    },
+    {
+      "provider": "io.molis.work.lingguang",
+      "kind": "lingguang_spark",
+      "open": {
+        "surface": "lingguang",
+        "id": "ea809a36-22c9-4565-8868-9da7c33f8b2a"
+      },
+      "surface": "lingguang",
+      "frames": 0,
+      "declared": 1,
+      "object": {
+        "kind": "lingguang_spark",
+        "id": "ea809a36-22c9-4565-8868-9da7c33f8b2a",
+        "version": "2026-09-30T12:33:19.140Z:inbox",
+        "title": "读取审计样例"
+      },
+      "selected": "项目「Molis Wor",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 2
+    },
+    {
+      "provider": "io.molis.work.native.workflows",
+      "kind": "workflow",
+      "open": {
+        "surface": "workflows",
+        "id": "3d348618-5ead-4b56-9a80-8ab347f76278"
+      },
+      "surface": "workflows",
+      "frames": 0,
+      "declared": 0,
+      "object": null,
+      "selected": "",
+      "userSelect": "",
+      "editable": false,
+      "text_inputs": 0
+    },
+    {
+      "provider": "io.molis.work.pages",
+      "kind": "pages_document",
+      "open": {
+        "surface": "pages",
+        "id": "4c709e87-bef8-4468-adcd-d7bf8e6412df"
+      },
+      "surface": "pages",
+      "frames": 0,
+      "declared": 1,
+      "object": {
+        "kind": "pages_document",
+        "id": "4c709e87-bef8-4468-adcd-d7bf8e6412df",
+        "version": 1,
+        "title": "读取审计样例"
+      },
+      "selected": "项目「Molis Wor",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 1
+    },
+    {
+      "provider": "io.molis.work.ppt",
+      "kind": "presentation",
+      "open": {
+        "surface": "ppt",
+        "id": "707b5a22-c60c-4267-a3bd-589ee0bb945c"
+      },
+      "surface": "ppt",
+      "frames": 0,
+      "declared": 1,
+      "object": {
+        "kind": "presentation",
+        "id": "707b5a22-c60c-4267-a3bd-589ee0bb945c",
+        "version": 1,
+        "title": "读取审计样例"
+      },
+      "selected": "项目「Molis Wor",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 2
+    },
+    {
+      "provider": "io.molis.work.schedule",
+      "kind": "schedule_task",
+      "open": {
+        "surface": "schedule",
+        "id": "sct_5a51bbf0-7169-4ede-ba7b-cdd40c8ba75a"
+      },
+      "surface": "schedule",
+      "frames": 0,
+      "declared": 1,
+      "object": {
+        "kind": "schedule_task",
+        "id": "sct_5a51bbf0-7169-4ede-ba7b-cdd40c8ba75a",
+        "title": "读取审计日程"
+      },
+      "selected": "每天九点汇总前一天的试用",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 2
+    },
+    {
+      "provider": "io.molis.work.sessions",
+      "kind": "session",
+      "open": {
+        "surface": "sessions",
+        "id": "session-103ebbcf-c9ee-4984-9c13-5df695d97690"
+      },
+      "surface": "sessions",
+      "frames": 0,
+      "declared": 0,
+      "object": null,
+      "selected": "",
+      "userSelect": "none",
+      "editable": false,
+      "text_inputs": 0
+    },
+    {
+      "provider": "io.molis.work.shelf",
+      "kind": "shelf_item",
+      "open": {
+        "surface": "shelf",
+        "id": "item_muo2zi5p_a18a23ab"
+      },
+      "surface": "shelf",
+      "frames": 1,
+      "declared": 1,
+      "object": {
+        "kind": "shelf_item",
+        "id": "item_muo2zi5p_a18a23ab",
+        "version": "done:70",
+        "title": "试用示例.pdf"
+      },
+      "selected": "试用示例.pdf",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 1
+    },
+    {
+      "provider": "io.molis.work.todo",
+      "kind": "todo_item",
+      "open": {
+        "surface": "todo",
+        "id": "50e0b109-3669-497d-8870-08841c27be1b"
+      },
+      "surface": "todo",
+      "frames": 0,
+      "declared": 1,
+      "object": {
+        "kind": "todo_item",
+        "id": "50e0b109-3669-497d-8870-08841c27be1b",
+        "version": 1,
+        "title": "读取审计样例"
+      },
+      "selected": "今天没有要处理的事",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 1
+    },
+    {
+      "provider": "plugin-install-9118333e82adbdf7214fda357f25ff2c",
+      "kind": "character",
+      "open": {
+        "surface": "characters",
+        "id": "80741629-8f32-44de-9c33-e24572369842"
+      },
+      "surface": "characters",
+      "frames": 0,
+      "declared": 0,
+      "object": null,
+      "selected": "个人角色库 · 编辑后可",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 2
+    },
+    {
+      "provider": "plugin-install-9b090ee5406d4f5907d370339bdd8045",
+      "kind": "coding_session",
+      "open": {
+        "surface": "coding",
+        "id": "e87f776d-e53b-48a5-893b-597e86baa419"
+      },
+      "surface": "coding",
+      "frames": 0,
+      "declared": 1,
+      "object": {
+        "kind": "coding_session",
+        "id": "e87f776d-e53b-48a5-893b-597e86baa419",
+        "title": "读取审计样例",
+        "version": "0"
+      },
+      "selected": "未关联 Goal",
+      "userSelect": "auto",
+      "editable": false,
+      "text_inputs": 9
+    }
+  ]
+}

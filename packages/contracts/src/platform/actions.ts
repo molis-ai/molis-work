@@ -18,6 +18,8 @@ import { WORKFLOW_CONTENT_SCHEMAS } from "./workflow-content.js";
 export * from "./workflow-content.js";
 import { searchSourceDeclarationProblems, type SearchSourceDeclaration } from "./search-sources.js";
 export * from "./search-sources.js";
+import { fragmentOfferDeclarationProblems, type FragmentOfferChoice } from "./action-fragments.js";
+export * from "./action-fragments.js";
 import { fileSourceDeclarationProblems, type FileSourceDeclaration } from "./file-sources.js";
 export * from "./file-sources.js";
 import { placementDeclarationProblems } from "./placement.js";
@@ -122,6 +124,8 @@ export interface ActionMetadata {
   readonly file_source?: FileSourceDeclaration;
   /** Optional rule choices owned by this subject-offer query; targets belong to the same provider. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
+  /** Finite choices of a fragment-offer query (specs/contextual-interaction §5.1); targets belong to the same provider. */
+  readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
   /** A trigger action needs an enabled compatible binding in this consumer scene. */
   readonly required_scene?: { readonly scene_id: string; readonly version: number };
   readonly result_scene?: ActionSceneReference;
@@ -563,6 +567,7 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
           }
         }
         problems.push(...searchSourceDeclarationProblems(key, a, raw.operation, canonicalSchema));
+        problems.push(...fragmentOfferDeclarationProblems(key, a, raw.operation, canonicalSchema));
         problems.push(...fileSourceDeclarationProblems(key, a, raw.operation, canonicalSchema));
         problems.push(...placementDeclarationProblems(key, a, raw.operation, canonicalSchema));
         if (a.workflow_content !== undefined) {

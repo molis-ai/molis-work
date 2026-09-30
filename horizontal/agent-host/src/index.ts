@@ -52,6 +52,7 @@ export type {
 } from "./capability-registration.js";
 export { PrologueAgentAdapter, PrologueAdapterError, PROLOGUE_RUNTIME_ID } from "./adapters/prologue.js";
 export { createPrologueNodeAdapter, SUBAGENT_DEFAULT_TURNS } from "./adapters/prologue-node.js";
+export { screenModelMaterial } from "./adapters/prologue-screening.js";
 export { createPluginBuilderAgent } from "./adapters/plugin-builder.js";
 export type { PluginBuilderAgentOptions, BuilderAgentRequest, BuilderAgentRecord, BuilderAgentActivity } from "./adapters/plugin-builder.js";
 export { resolveModelHostname } from "./adapters/node-model-dns.js";

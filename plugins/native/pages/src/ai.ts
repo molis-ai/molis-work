@@ -12,6 +12,9 @@ export const PAGES_AI_COMMANDS = [
   { id: "actions", label: "行动项" },
   { id: "reader", label: "读者视角" },
   { id: "coach", label: "写作教练" },
+  { id: "counter", label: "提出反例与反驳" },
+  { id: "compare", label: "比较异同（相同点、不同点、冲突）" },
+  { id: "merge", label: "合并成一段连贯的文字" },
   { id: "translate_new", label: "整篇翻译成新文档" },
   { id: "proofread", label: "全文校对" },
 ] as const;

@@ -3,7 +3,7 @@ import { feedRuleActions, feedSourceActions, createFeedCaptureTrigger } from "@m
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
-import { bindLocalWebActions } from "./local-web-actions.js";
+import { bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
 import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import { createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
@@ -69,6 +69,7 @@ import { handleAssistantHttp } from "./assistant/assistant-http.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
+import { handleContextualHttp } from "./contextual/contextual-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
 import { SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
@@ -371,6 +372,15 @@ export async function handleMolisWorkWebRequest(
         // Search reaches every plugin through the same directory and the person's own authority in this project.
         if (await handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS))) return;
         if (await handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS))) return;
+        // What the person has in hand, ranked from the same directory under their own authority (specs/contextual-interaction).
+        if (url.pathname.startsWith("/api/contextual/") && await handleContextualHttp(request, response, url, {
+          ...(serverOptions.homeDirectory ? { homeDirectory: serverOptions.homeDirectory } : {}), scope: hostReference.project_id,
+          actions: () => {
+            const client = localHost.actionClient(hostReference);
+            const context = () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
+            return { discover: async () => client.discover(await context()), invoke: async (reference, input) => client.invoke(await context(), reference, input) };
+          },
+        })) return;
         if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
           actions: bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, "inbox:write", "functions:manage"]),
         })) return;

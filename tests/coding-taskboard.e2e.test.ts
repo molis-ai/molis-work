@@ -124,3 +124,46 @@ test("TaskBoard：每一步显示负责人（本会话/子任务/你/没人认�
     assert.equal(result.mineDone, "你标记完成", "a step you finished is not reported as the model's");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+// The directory column's outline is the same tree in compact rows: state mark, key, title and who is on it, no
+// controls. It draws only while its face is on show, says what to do without a session, and its rows navigate.
+test("TaskBoard 大纲：左栏用同一棵树画紧凑的行；没有会话时说明去哪里选；点一行就是导航", { timeout: 30000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), "coding-taskboard-outline-"));
+  const browser = await ChromeHarness.start(directory);
+  if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
+  try {
+    const page = await browser.page();
+    const result = await page.evaluate<any>(`(async()=>{
+      document.body.innerHTML='<section data-coding-board hidden><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>'
+        +'<section data-coding-board-outline hidden><p data-coding-outline-meta hidden></p><div data-coding-outline-list></div><p data-coding-outline-status></p><button data-coding-board-expand disabled>展开任务图</button></section>';
+      const board=document.querySelector('[data-coding-board]'),outline=document.querySelector('[data-coding-board-outline]'),went=[],progress=[];
+      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(board),board,outline,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id==='builder'?'构建者':id,
+        navigate:async(id,target)=>{went.push(target);},amend:async()=>{},progress:text=>progress.push(text)});
+      api.showOutline();
+      const empty={status:outline.querySelector('[data-coding-outline-status]').textContent,expand:outline.querySelector('[data-coding-board-expand]').disabled};
+      const t0=Date.parse('2026-09-30T07:00:00Z');
+      const plan={revision:1,content:{title:'两步',steps:[{title:'改 a',acceptance:'a'},{title:'改 b',acceptance:'b'}],blockers:'',change_reason:''}};
+      const nodes=[{id:'step-1',state:'succeeded',reports:[{note:'改好了',at_ms:t0+1000}]},{id:'step-2',state:'running',depends_on:['step-1'],reports:[{note:'开始',at_ms:t0+2000}]}];
+      api.loading('s');
+      api.update('s',{session:{title:'会话'},plan:{...plan,confirmed:{artifact_id:'x',version:1}},
+        runs:[{ref:{run_id:'r1'},phase:'running',started_at:new Date(t0).toISOString(),frozen:{role_id:'builder',character:{title:'审慎的构建者'},directory:{canonical_path:'/w'}},task:'按计划执行'}],
+        taskboard_plans:[{run_id:'r1',revision:1,plan,board:{board_id:'b1',version:2,terminal:false,nodes},verdicts:{}}],
+        subagents:[{run_id:'r1',children:[{subagent_id:'c1',role_id:'coding-reviewer',role_name:'独立评审',task:'核对 b',state:'running',activity:[{at:new Date(t0+2500).toISOString()}],workspace_path:'/w'}]}]});
+      const rows=[...outline.querySelectorAll('.coding-outline-row')].map(node=>({depth:Number(node.parentElement.style.getPropertyValue('--board-depth')),key:node.querySelector('.coding-board-key')?.textContent||'',
+        title:node.querySelector('strong').textContent,tone:node.querySelector('.coding-outline-mark').dataset.tone,who:node.querySelector('.coding-board-avatar')?.textContent||'',controls:node.querySelectorAll('button').length}));
+      const headings=[...outline.querySelectorAll('.mw-dir__heading')].map(node=>node.textContent.replace(/\\s+/g,''));
+      outline.querySelector('[data-board-key="step-r1-step-2"]').click();
+      const boardDrawn=board.querySelectorAll('.coding-board-entry').length;
+      return {empty,rows,headings,went,progress,meta:outline.querySelector('[data-coding-outline-meta]').textContent,expand:outline.querySelector('[data-coding-board-expand]').disabled,boardDrawn};
+    })()`);
+    assert.match(result.empty.status, /先在「会话」里打开一个会话/); assert.equal(result.empty.expand, true);
+    assert.deepEqual(result.headings, ["执行1轮"]);
+    assert.deepEqual(result.rows.map((row: any) => [row.depth, row.key, row.tone]), [[0, "#1", "progress"], [1, "S1", "done"], [1, "S2", "progress"], [2, "子任务", "progress"]], "rounds, steps and subtasks nest like the board");
+    assert.equal(result.rows[1].who, "审", "who is on a step: the round's Character, as an avatar");
+    assert.ok(result.rows.every((row: any) => row.controls === 0), "the outline carries no controls; the board does");
+    assert.deepEqual(result.went, [{ kind: "step", run_id: "r1", step_id: "step-2" }]);
+    assert.deepEqual(result.progress.at(-1), "1/2", "the header switch hears the latest graph's progress");
+    assert.match(result.meta, /1\/2 步完成/); assert.equal(result.expand, false);
+    assert.equal(result.boardDrawn, 0, "a hidden board is not drawn for the outline");
+  } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
+});

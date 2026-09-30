@@ -284,3 +284,53 @@ test("memory switches hold the same when a Character carries the round; turning 
     assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["回答用要点列表", "先列问题再给改法"], "kept memories stay; nothing new was kept");
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+test("a claim of keeping made before the call that then failed is held at the end too (seen with MiniMax-M3)", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-said-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const requests: any[] = [];
+  // One model message that says it kept something, then asks to keep it where this work cannot (a personal work has no project).
+  const saidThenCalled = (): Response => {
+    const events: string[] = [];
+    const emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
+    emit("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
+    emit("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
+    emit("content_block_delta", { index: 0, delta: { type: "text_delta", text: "记下了：以后周报都用表格。" } });
+    emit("content_block_stop", { index: 0 });
+    emit("content_block_start", { index: 1, content_block: { type: "tool_use", id: "call-said", name: "remember", input: {} } });
+    emit("content_block_delta", { index: 1, delta: { type: "input_json_delta", partial_json: JSON.stringify({ text: "周报用表格", scope: "project", said: "以后周报都用表格" }) } });
+    emit("content_block_stop", { index: 1 });
+    emit("message_delta", { delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: 10 } });
+    emit("message_stop", {});
+    return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
+  };
+  const script: Array<(body: any) => Response> = [
+    saidThenCalled,
+    // The failure comes back; the model moves on without taking the claim back.
+    () => reply(undefined, "好的。"),
+    body => { assert.match(JSON.stringify(body.messages), /no remember call succeeded/); return reply(undefined, "刚才没有记下：这是个人工作，只能记为个人偏好。"); },
+  ];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    requests.push(body);
+    return (script.shift() ?? (() => reply()))(body);
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-said-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  // Memory is the platform memory service, as in the tests above: the remember tool goes through its write gate.
+  const memory = platformMemory(host, home, t);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      memory: (task: string) => service.memoryForRound(work, task) }),
+    projectTitle: async () => "项目", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  try {
+    const sent = await service.send({ text: "以后周报都用表格，记住", request_id: "req-memory-said-1" }, {});
+    const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "round");
+    assert.equal(requests.length, 3, "held once after the round would have ended with the claim standing");
+    assert.match(done.rounds[0]!.turns.filter(turn => turn.kind === "assistant").at(-1)!.text ?? "", /没有记下/);
+    assert.deepEqual(await service.memories(null), [], "nothing was kept");
+  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});

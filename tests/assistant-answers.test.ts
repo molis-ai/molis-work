@@ -8,7 +8,7 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-a
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantError, AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
+import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -76,4 +76,16 @@ test("an answer continues its own question; a rejection stays a rejection; a lat
     await assert.rejects(service.answer(other.work.work_id, { run_id: round.run_id, pending_id: question.pending_id, text: "两段" }),
       (error: unknown) => error instanceof AssistantError && error.code === "assistant.scope", "an answer from another work is refused");
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("an answered question shows what was asked and what the person answered, whether written or picked", () => {
+  const [written, picked, open] = presentActivity([
+    { call_id: "q1", name: "ask-user", target: "截止日期定在哪天？", state: "completed", summary: "ask-user", output: JSON.stringify({ kind: "text", value: "下周一" }), at: null },
+    { call_id: "q2", name: "ask-user", target: "放在哪里？", state: "completed", summary: "ask-user", at: null,
+      output: JSON.stringify({ kind: "questionnaire", picked: [{ question: 0, labels: ["本项目"], other: undefined }, { question: 1, labels: [], other: "等我回来再定" }] }) },
+    { call_id: "q3", name: "ask-user", target: "还要补充什么？", state: "started", summary: "ask-user", at: null },
+  ] as never, undefined);
+  assert.deepEqual([written!.verb, written!.target, written!.answer], ["ask", "截止日期定在哪天？", "下周一"]);
+  assert.equal(picked!.answer, "本项目；等我回来再定");
+  assert.equal(open!.answer, undefined, "not answered yet");
 });

@@ -108,6 +108,54 @@ export interface AssistantPluginMessage {
   materials?: Array<{ title: string; text: string }>;
   /** For reply (and to continue a work on delegate): the work it belongs to. */
   work_id?: string;
+  /**
+   * For suggest, after a real user gesture on the page: an action the page already prepared exactly (the capability and
+   * its full input), to be shown as a card in a work. It is checked against what the Assistant may use there now and runs
+   * only when the person clicks it; no model round starts. Without a gesture it is an ordinary suggestion.
+   */
+  card?: AssistantPreparedCard;
+}
+
+/**
+ * GET /api/assistant/works/:work_id/materials/:material_id — one material a round brought, with its text, for a preview.
+ * The work view leaves texts out to stay small. `url`: where it came from, when it was a web page (to open it again).
+ */
+export interface AssistantMaterialText {
+  material_id: string;
+  kind: AssistantMaterial["kind"];
+  title: string;
+  text?: string;
+  truncated?: boolean;
+  url?: string;
+  source?: AssistantSurfaceRef;
+  object?: AssistantObjectRef;
+  draft?: boolean;
+}
+
+/** An action a page prepared from what the person selected, for a card (see `AssistantPluginMessage.card`). */
+export interface AssistantPreparedCard {
+  title: string;
+  summary: string;
+  reference: { capability_id: string; version: number; provider_id: string };
+  input: unknown;
+  editable?: string[];
+  missing?: Array<{ field: string; question: string }>;
+  /** Where the selection came from (e.g. the Pages document and its version): the work's origin, apart from the object the action targets. */
+  source_object?: { kind: string; id: string; version?: number | string | null; title?: string };
+  /** The selected text, kept as the work's material for later rounds (at most 4, each at most 20000 characters). */
+  materials?: Array<{ title: string; text: string }>;
+}
+
+/** POST /api/assistant/cards: the card a page prepared, placed in a work (the given one, or a new one in this scope). */
+export interface AssistantPageCardInput {
+  /** The page message's id: the same message places its card once. */
+  message_id: string;
+  source: { surface: string; title?: string };
+  card: AssistantPreparedCard;
+  /** An existing work in this scope; omitted starts a new work named after the card. */
+  work_id?: string;
+  /** For a new work; defaults to the current project, or personal work outside one. */
+  scope?: AssistantScope;
 }
 
 export interface AssistantEffectDetail {
@@ -237,6 +285,8 @@ export interface AssistantActivity {
   reason?: "not-authorized" | "declined" | "interrupted" | "unavailable";
   /** For a failure, what the owner said, bounded; data about the failure, never an instruction. */
   detail?: string;
+  /** For a question to the person (`ask`) that was answered: what they answered — the options they picked or what they wrote, bounded. */
+  answer?: string;
   sequence?: number;
 }
 
@@ -294,6 +344,9 @@ export interface AssistantCard {
   status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
   /** What happened, or why not, in the owner's words. */
   outcome?: string;
+  /** A card a page prepared (not the Assistant's own suggestion): which page, and what the selection came from. */
+  from?: { surface: string; title?: string };
+  source_object?: { kind: string; id: string; version?: number | string | null; title?: string };
   created_at: string;
   updated_at: string;
 }

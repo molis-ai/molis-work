@@ -249,7 +249,8 @@ test("an object the person moved to another project is named where it went, not 
     const states = view.objects.map(object => [object.relation, object.subject.id, object.state, object.title, object.moved_to ?? null, object.open ?? null]);
     assert.deepEqual(states, [
       ["origin", "bg", "moved", "background", { title: "Other project", kind: "project" }, null],
-      ["material", "old", "missing", "old", null, null],
+      // Deleted since: named as it was last read, never by its identifier.
+      ["material", "old", "missing", "old note", null, null],
       ["material", "t1", "moved", "Ship it", { title: "Other project", kind: "project" }, null],
     ]);
 

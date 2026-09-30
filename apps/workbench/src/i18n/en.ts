@@ -599,6 +599,8 @@ export const EN: Record<string, string> = {
   " 下一步：{action}。": " Next: {action}.",
   "通知，暂不可用": "Notifications, currently unavailable",
   "通知功能即将开放": "Notifications are coming soon",
+  "插件通知": "Plugin notifications",
+  "插件通知：{count} 条待核对": "Plugin notifications: {count} to review",
   "没有附加摘要": "No additional summary",
   "Inbox Message · Goal 决定": "Inbox Message · Goal decision",
   "{kinds}，共 {count} 项等待判断。": "{kinds}; {count} items await a decision.",

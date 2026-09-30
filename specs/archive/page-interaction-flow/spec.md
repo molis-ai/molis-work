@@ -1,6 +1,6 @@
 # 页面动线与导航模型全量修复
 
-状态：实现完成，已合 main 50767600 与 #110（e5ab8a24）并复核，待开 PR 与用户验收（2026-09-30）。工作树 `.claude/worktrees/page-interaction-flow-redesign-49fe35`，分支 `claude/page-interaction-flow-redesign-49fe35`（从 main fa27207a）。
+状态：已验收（用户 2026-09-30）。经 PR #114 合入 main（722dcd31），已归档。遗留交合并协调分派：`immersive-directory` 的新建 Goal 断言需按 #108 的主按钮更新；`project-user-journey` 在基线上同样不稳定。
 
 ## 背景
 

@@ -30,7 +30,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     const id = requestId();
     const event = new CustomEvent("molis:assistant-context-action-chosen", { cancelable: true, detail: {
       plugin_id: focus.plugin_id, context_id: focus.context_id, key: candidate.key, offer_id: candidate.offer_id,
-      apply: candidate.apply, intent: candidate.intent, title: candidate.title,
+      apply: candidate.apply, intent: candidate.intent, title: candidate.title, ...(candidate.scope ? { scope: candidate.scope } : {}),
       prepare: () => post("/api/contextual/prepare", { pane_id: ownPane, focus, key: candidate.key, request_id: id }),
     } });
     window.dispatchEvent(event);
@@ -132,8 +132,19 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       shown = event.detail && typeof event.detail === "object" ? event.detail : null;
       parent.postMessage({ type: "workbench-surface-focus", focus: shown }, location.origin);
     });
+    // A menu in this pane that shows the row's plan (Pages' writing menu) chooses through the row in the top document.
+    document.addEventListener("molis:assistant-context-action-choose", (event) => {
+      const detail = event.detail || {};
+      if (shown && detail.context_id === shown.context_id && typeof detail.key === "string") parent.postMessage({ type: "workbench-context-action-choose", context_id: detail.context_id, key: detail.key }, location.origin);
+    });
     window.addEventListener("message", (event) => {
-      if (event.source !== window.parent || event.origin !== location.origin || !event.data || event.data.type !== "workbench-context-action-chosen") return;
+      if (event.source !== window.parent || event.origin !== location.origin || !event.data) return;
+      // The row's plan for this pane's context, for the menus here that show the same actions.
+      if (event.data.type === "workbench-context-plan" && event.data.plan) {
+        document.dispatchEvent(new CustomEvent("molis:assistant-context-actions", { detail: { context_id: event.data.plan.context_id, plan: event.data.plan } }));
+        return;
+      }
+      if (event.data.type !== "workbench-context-action-chosen") return;
       if (!shown || !event.data.candidate || event.data.context_id !== shown.context_id) return;
       const fallback = deliver(shown, event.data.candidate);
       if (fallback) parent.postMessage({ type: "workbench-context-action-unhandled", context_id: shown.context_id, key: event.data.candidate.key, detail: fallback }, location.origin);
@@ -294,6 +305,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
       const words = plan.primary.map((key) => byKey.get(key).title).join("、");
       if (!rulesOnly && words && words !== this.announced) { this.announced = words; live.textContent = L("可以做：") + words; }
       document.dispatchEvent(new CustomEvent("molis:assistant-context-actions", { detail: { context_id: plan.context_id, plan } }));
+      // A split pane's own menus show the same plan: send it to the pane whose surface this context is.
+      if (bus.source && bus.source.frame) bus.source.frame.contentWindow?.postMessage({ type: "workbench-context-plan", plan }, location.origin);
     },
     toggleMenu() {
       if (this.menu) { this.closeMenu(); return; }
@@ -496,6 +509,16 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     if (!frame) return;
     if (event.data.type === "workbench-surface-focus") bus.report({ pane: frame.dataset.paneOwner || "pane", element: frame, frame }, event.data.focus || null);
     else if (event.data.type === "workbench-context-action-unhandled" && event.data.detail) unhandled(event.data.context_id, event.data.key, event.data.detail);
+    else if (event.data.type === "workbench-context-action-choose" && bus.source && bus.source.frame === frame) chooseFrom(event.data.context_id, event.data.key);
+  });
+  // A menu that shows the same plan (Pages' writing menu) chooses exactly as a click on the row does.
+  const chooseFrom = (contextId, key) => {
+    if (!bus.focus || bus.focus.context_id !== contextId || typeof key !== "string") return;
+    choose(key);
+  };
+  document.addEventListener("molis:assistant-context-action-choose", (event) => {
+    const detail = event.detail || {};
+    if (bus.source && !bus.source.frame) chooseFrom(detail.context_id, detail.key);
   });
   // A place change, or the surface going out of sight, voids what was in hand there.
   document.addEventListener("molis-work:place-changed", () => bus.set(null, null, true));

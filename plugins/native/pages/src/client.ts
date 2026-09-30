@@ -300,7 +300,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!editor || !editor.runCommand || !["result", "replace", "insert_after"].includes(chosen.apply) || typeof chosen.prepare !== "function") return;
     event.preventDefault();
     const documentId = selected.id;
-    void editor.runCommand("", undefined, { localId: focusNow.local_id, title: chosen.title,
+    void editor.runCommand("", undefined, { localId: focusNow.local_id, title: chosen.title, ...(chosen.scope === "object" ? { scope: "object" } : {}),
       mode: chosen.apply === "replace" ? "replace" : "insert_after", okLabel: chosen.apply === "replace" ? L("替换") : L("插到后面"),
       prepare: async () => {
         const prepared = await chosen.prepare();
@@ -309,6 +309,30 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return { command: input.command, style: typeof input.style === "string" ? input.style : undefined, text: typeof input.text === "string" ? input.text : undefined };
       } });
   });
+  // The writing menu lists exactly what the context row shows for what is in hand (specs/contextual-interaction
+  // §6.4.1): the row publishes its plan; a choice in the menu goes back to the row like a click there.
+  let menuPlan = null;
+  const menuWatchers = new Set();
+  document.addEventListener?.("molis:assistant-context-actions", (event) => {
+    if (!event.detail || !event.detail.plan) return;
+    menuPlan = event.detail.plan;
+    [...menuWatchers].forEach((listener) => listener());
+  });
+  const menuActions = () => {
+    if (!menuPlan || !focusShown || menuPlan.context_id !== focusShown.context_id) return null;
+    const byKey = new Map(menuPlan.candidates.map((candidate) => [candidate.key, candidate]));
+    const item = (key) => {
+      const candidate = byKey.get(key);
+      return candidate && candidate.available ? { key, title: candidate.title, hint: candidate.hint, emphasis: menuPlan.emphasis === key } : null;
+    };
+    const groups = [{ title: "", items: menuPlan.primary.map(item).filter(Boolean) },
+      ...menuPlan.more.map((group) => ({ title: group.title, items: group.keys.map(item).filter(Boolean) }))];
+    return { groups: groups.filter((group) => group.items.length) };
+  };
+  const chooseMenuAction = (key) => {
+    if (!focusShown) return;
+    document.dispatchEvent?.(new CustomEvent("molis:assistant-context-action-choose", { detail: { context_id: focusShown.context_id, key } }));
+  };
   const syncEditorChrome = () => {
     publishContext();
     reportFocus();
@@ -488,6 +512,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       doc: body,
       onChange: () => { if (!filling) queueSave(); },
       onFocus: (focus) => { focusNow = focus; reportFocus(); },
+      menuActions,
+      watchMenuActions: (listener) => { menuWatchers.add(listener); return () => menuWatchers.delete(listener); },
+      chooseMenuAction,
       translate: L,
       pages: () => records.map((item) => ({ id: item.id, title: item.title })),
       onOpenPage: (id) => {

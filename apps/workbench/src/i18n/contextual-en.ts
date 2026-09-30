@@ -37,6 +37,7 @@ export const CONTEXTUAL_EN: Record<string, string> = {
   "比较与合并": "Compare and combine",
   "记录": "Capture",
   "推进": "Advance",
+  "整篇": "Whole",
   "帮我并排比较这几处内容的相同点、不同点和冲突。": "Compare these side by side: what they share, where they differ and where they conflict.",
   "这段内容可以往哪几个方向走？可以考虑：": "Which directions could this take? Consider: ",
   "帮我看看这段内容，": "Take a look at this, ",

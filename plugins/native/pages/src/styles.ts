@@ -630,6 +630,11 @@ export const PAGES_STYLES = `
   .pages-slash-item.is-on, .pages-slash-item:hover { background: var(--nav-hover); }
   .pages-slash > p, .pages-pop > p { margin: 8px 12px; font-size: 12px; color: var(--muted); }
   .pages-pop { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+  /* The writing menu lists the context row's actions: the row's own first, then the same groups as its “更多”. */
+  .pages-ai-actions { display: flex; flex-direction: column; max-height: min(360px, 50vh); overflow: auto; }
+  .pages-ai-actions > .pages-ai-group { margin: 8px 12px 2px; font-size: 11px; font-weight: 600; color: var(--faint); }
+  .pages-ai-actions > .pages-ai-waiting { margin: 8px 12px; font-size: 12px; color: var(--muted); }
+  .pages-ai-actions > .mw-menu__item[data-emphasis="true"] { font-weight: 600; }
   .pages-pop label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   .pages-pop textarea, .pages-pop input, .pages-pop select { width: 100%; }
   .pages-ask-assistant { display: flex; gap: 6px; align-items: center; }

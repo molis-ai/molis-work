@@ -144,6 +144,16 @@ export interface PagesCommandPreset {
   readonly okLabel?: string;
   /** The focus the bar's actions were ranked for; the command runs on its range, and not at all once it changed. */
   readonly localId?: string;
+  /** `object`: the command acts on the whole document (整篇), with its current text, whatever is selected. */
+  readonly scope?: "object";
+}
+
+/**
+ * What the writing menu lists: exactly the context row's plan for what is in hand (specs/contextual-interaction §6.4.1)
+ * — the row's actions first, in its order, then the same groups as its “更多”. The menu keeps no list of its own.
+ */
+export interface PagesMenuActions {
+  readonly groups: readonly { readonly title: string; readonly items: readonly { readonly key: string; readonly title: string; readonly hint: string; readonly emphasis?: boolean }[] }[];
 }
 
 export interface PagesListItem {
@@ -166,6 +176,12 @@ export interface PagesEditorMountOptions {
   onCreateFromAi?: (input: { title: string; text: string }) => Promise<void>;
   /** What the person has in hand, whenever it changes (specs/contextual-interaction §4.1); `null` is the page as a whole. */
   onFocus?: (focus: PagesFocus | null) => void;
+  /** The writing menu's actions for what is in hand; `null` while the row is still preparing them. */
+  menuActions?: () => PagesMenuActions | null;
+  /** Called whenever `menuActions` has something new, so an open menu fills in; returns a stop function. */
+  watchMenuActions?: (listener: () => void) => () => void;
+  /** A menu choice runs through the context row, exactly like a click there. */
+  chooseMenuAction?: (key: string) => void;
   /** Extra ProseMirror plugins from the embedding surface, added after the editor's own. */
   plugins?: readonly Plugin[];
 }
@@ -3234,33 +3250,43 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     pop.replaceChildren();
     const title = document.createElement("p");
     title.textContent = t(options.translate, "写作");
-    pop.append(title);
-    const commands: Array<{ id: string; label: string; style?: string }> = [
-      { id: "translate", label: "翻译" },
-      { id: "rewrite", label: "改写 · 更短", style: "concise" },
-      { id: "rewrite", label: "改写 · 更展开", style: "expand" },
-      { id: "rewrite", label: "改写 · 更正式", style: "formal" },
-      { id: "rewrite", label: "改写 · 更口语", style: "casual" },
-      { id: "expand", label: "扩写" },
-      { id: "continue", label: "续写" },
-      { id: "outline", label: "大纲" },
-      { id: "summarize", label: "总结" },
-      { id: "explain", label: "解释" },
-      { id: "bullets", label: "要点" },
-      { id: "actions", label: "行动项" },
-      { id: "reader", label: "读者视角" },
-      { id: "coach", label: "写作教练" },
-      { id: "translate_new", label: "整篇翻译成新文档" },
-      { id: "proofread", label: "全文校对" },
-    ];
-    commands.forEach((item) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "mw-menu__item";
-      button.innerHTML = `<span>${escapeHtml(t(options.translate, item.label))}</span>`;
-      button.addEventListener("click", () => { void runAiCommand(view, item.id, item.style); });
-      pop.append(button);
-    });
+    // The same actions as the context row, in its order and groups (specs/contextual-interaction §6.4.1); a choice
+    // runs through the row, which hands it back here to run on the frozen range.
+    const list = document.createElement("div");
+    list.className = "pages-ai-actions";
+    list.setAttribute("role", "menu");
+    pop.append(title, list);
+    const paint = (): boolean => {
+      const actions = options.menuActions?.() ?? null;
+      if (!actions || !actions.groups.length) {
+        const waiting = document.createElement("p");
+        waiting.className = "pages-ai-waiting";
+        waiting.textContent = t(options.translate, "正在准备可以做的事…");
+        list.replaceChildren(waiting);
+        return false;
+      }
+      list.replaceChildren(...actions.groups.flatMap((group) => {
+        const heading = group.title ? [Object.assign(document.createElement("p"), { className: "pages-ai-group", textContent: t(options.translate, group.title) })] : [];
+        return [...heading, ...group.items.map((item) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "mw-menu__item";
+          button.setAttribute("role", "menuitem");
+          button.title = item.hint;
+          if (item.emphasis) button.dataset.emphasis = "true";
+          button.innerHTML = `<span>${escapeHtml(item.title)}</span>`;
+          button.addEventListener("click", () => { hidePop(); options.chooseMenuAction?.(item.key); });
+          return button;
+        })];
+      }));
+      return true;
+    };
+    if (!paint() && options.watchMenuActions) {
+      const stop = options.watchMenuActions(() => {
+        if (pop.hidden || !pop.contains(list)) { stop(); return; }
+        if (paint()) { stop(); placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below"); }
+      });
+    }
     if (options.askAssistant) {
       const ask = options.askAssistant;
       const selection = () => view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n");
@@ -3341,7 +3367,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
         view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(end), -1)));
       }
       hidePop();
-    }, dismiss, okLabel));
+    }, dismiss, command === "translate_new" ? t(options.translate, "存为新文档") : okLabel));
     placeOverlay(pop, view.coordsAtPos((token ? resolvePagesFrozen(view, token)?.from : undefined) ?? view.state.selection.from), "below");
   };
 
@@ -3349,7 +3375,10 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     if (!options.runAi) return;
     // From the bar: the range is what the reported focus covered, and only while that is still the focus.
     let range: { from: number; to: number } | undefined;
-    if (preset?.localId !== undefined) {
+    // A whole-document action (整篇) acts on all of the current text, whatever is selected; nothing to have changed.
+    const wholeDoc = preset?.scope === "object";
+    if (wholeDoc) range = { from: 0, to: view.state.doc.content.size };
+    else if (preset?.localId !== undefined) {
       const focus = readPagesFocus(view.state);
       if (!focus || focus.local_id !== preset.localId) {
         if (popToken) releasePagesFrozen(view, popToken);
@@ -3367,7 +3396,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     const whole = command === "translate_new" || command === "proofread";
     const selected = range ? view.state.doc.textBetween(range.from, range.to, "\n") : view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n");
     const empty = !selected.trim();
-    const text = whole || empty ? docPlainText(view.state.doc) : selected;
+    const text = whole || empty || wholeDoc ? docPlainText(view.state.doc) : selected;
     // Only proofreading rewrites the whole document. With nothing selected, the other commands read the whole
     // document but place their result after the paragraph the caret was in, as the menu always did at the caret.
     const tokenId = "ai-" + Date.now().toString(36);
@@ -3388,7 +3417,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       // The exact command may come from the offer the Host prepared for this very selection.
       const actual: { command: string; style?: string; text?: string } = preset?.prepare ? await preset.prepare() : { command, style };
       if (request !== popRequest) return;
-      const result = await options.runAi({ command: actual.command, text: actual.text ?? text, style: actual.style });
+      const result = await options.runAi({ command: actual.command, text: wholeDoc ? text : actual.text ?? text, style: actual.style });
       // Closed or replaced while the model worked: this result is no longer wanted.
       if (request !== popRequest) return;
       showCandidate(view, actual.command, result, token, mode, preset?.okLabel);

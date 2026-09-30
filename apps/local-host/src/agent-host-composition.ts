@@ -391,7 +391,7 @@ async function startAuthority(
     ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.board_id, runtime.coordinator.artifacts.query, reference) } : {}),
     project_prompts: await projectPrompts(runtime, localHost),
     // The platform memory under the Agent work switch: the person's and this project's, where they apply.
-    memory: task => memoryForAgentRun(localHost, { project_id: runtime.project_id, task, plugin_id: pluginId,
+    memory: (task, context) => memoryForAgentRun(localHost, { project_id: runtime.project_id, task, plugin_id: pluginId, ...(context?.character ? { character: context.character } : {}),
       used_for: `${manifest?.name ?? pluginId} · ${task.replace(/\s+/g, " ").trim().slice(0, 40)}` }),
   };
 }

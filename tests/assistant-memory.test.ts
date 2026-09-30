@@ -254,21 +254,33 @@ test("memory switches hold the same when a Character carries the round; turning 
     assert.ok(tools(on.first).includes("remember"));
     assert.match(JSON.stringify(on.first.messages), /回答用要点列表/);
 
+    // The Character keeps something of its own: used in work it carries, never in work without it (spec M5).
+    script.push(() => reply({ name: "remember", input: { text: "先列问题再给改法", scope: "character", said: "你以后都先列问题再给改法" } }), () => reply(undefined, "记下了。"));
+    await round({ text: "你以后都先列问题再给改法", request_id: "req-mc-2b", work_id: on.work.work_id }, 2);
+    const own = (await service.memories("project-a")).find(item => item.scope === "character");
+    assert.equal(own?.text, "先列问题再给改法");
+    const withIt = await round({ text: "再看看这段问题说明", request_id: "req-mc-2c", character: { artifact_id: editor.reference.artifact_id, version: 2 } }, 1);
+    assert.match(JSON.stringify(withIt.first.messages), /先列问题再给改法/, "a new work carried by the same Character recalls it");
+    const without = await round({ text: "再看看这段问题说明", request_id: "req-mc-2d" }, 1);
+    assert.doesNotMatch(JSON.stringify(without.first.messages), /先列问题再给改法/, "work no Character carries never gets it");
+    assert.match(JSON.stringify(without.first.messages), /回答用要点列表/);
+
     // Switched off: choosing the Character does not get around either switch.
     service.saveMemoryPrefs({ form: false, use_personal: false });
     // It says it kept the rule anyway (as MiniMax-M3 did): held once, told that forming memories is off.
     script.push(() => reply(undefined, "这是长期规则，我用 remember 记到项目「项目甲」里：以后标题都不超过十个字。"),
       body => { assert.match(JSON.stringify(body.messages), /switched off forming memories/); return reply(undefined, "这项工作里标题都不超过十个字；没有长期记下，需要的话可以在设置里打开“允许记住”。"); });
-    const off = await round({ text: "我写方案时，标题都不超过十个字。再看一遍", request_id: "req-mc-3", work_id: on.work.work_id }, 2);
+    const off = await round({ text: "我写方案时，标题都不超过十个字。再看一遍", request_id: "req-mc-3", work_id: on.work.work_id }, 3);
     assert.match(JSON.stringify(off.first), /每次回答先列出三处可改进的地方/);
     assert.ok(!tools(off.first).includes("remember") && !tools(off.first).includes("suggest-memory"), "no memory tools under the Character either");
     assert.doesNotMatch(JSON.stringify(off.first.messages), /回答用要点列表/, "nothing personal is recalled under the Character either");
+    assert.match(JSON.stringify(off.first.messages), /先列问题再给改法/, "its Character memory follows the project's switch, which is still on");
     assert.match(JSON.stringify(off.first.messages), /关闭了“允许记住”/, "the round is told forming memories is off");
-    assert.match((await service.read(on.work.work_id)).rounds[1]!.turns.filter(turn => turn.kind === "assistant").at(-1)!.text ?? "", /没有长期记下/);
+    assert.match((await service.read(on.work.work_id)).rounds[2]!.turns.filter(turn => turn.kind === "assistant").at(-1)!.text ?? "", /没有长期记下/);
 
     // Learning off does not make this work forget what it was told: the next round still has it.
-    const next = await round({ text: "按刚才的要求改标题", request_id: "req-mc-4", work_id: on.work.work_id }, 3);
+    const next = await round({ text: "按刚才的要求改标题", request_id: "req-mc-4", work_id: on.work.work_id }, 4);
     assert.match(JSON.stringify(next.first.messages), /标题都不超过十个字/);
-    assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["回答用要点列表"], "kept memories stay; nothing new was kept");
+    assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["回答用要点列表", "先列问题再给改法"], "kept memories stay; nothing new was kept");
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

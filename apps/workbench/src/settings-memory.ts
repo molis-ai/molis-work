@@ -32,7 +32,7 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-memory-add>${L("添加")}</button></div>
       <div class="memory-toolbar" role="group" aria-label="${L("筛选记忆")}">
         <select class="mw-select" data-memory-filter="kind" aria-label="${L("类别")}"><option value="">${L("全部类别")}</option><option value="preference">${L("偏好")}</option><option value="convention">${L("约定")}</option><option value="fact">${L("背景事实")}</option><option value="experience">${L("经验")}</option></select>
-        <select class="mw-select" data-memory-filter="source" aria-label="${L("来源")}"><option value="">${L("全部来源")}</option><option value="said">${L("你说的")}</option><option value="accepted">${L("你认可的")}</option><option value="auto">${L("自动记住")}</option><option value="manual">${L("手动添加")}</option><option value="imported">${L("导入")}</option></select>
+        <select class="mw-select" data-memory-filter="source" aria-label="${L("来源")}"><option value="">${L("全部来源")}</option><option value="said">${L("你说的")}</option><option value="accepted">${L("你认可的")}</option><option value="auto">${L("自动记住")}</option><option value="manual">${L("手动添加")}</option><option value="imported">${L("导入")}</option><option value="plugin">${L("插件记下")}</option></select>
         <select class="mw-select" data-memory-filter="state" aria-label="${L("状态")}"><option value="">${L("全部状态")}</option><option value="active">${L("生效")}</option><option value="disabled">${L("停用")}</option><option value="paused">${L("暂停")}</option></select>
         <input class="mw-input memory-search" type="search" data-memory-filter="query" placeholder="${L("搜索记忆")}" aria-label="${L("搜索记忆")}">
       </div>
@@ -92,7 +92,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined && text !== null) node.textContent = text; return node; };
     const button = (text, variant, label) => { const node = el("button", "mw-btn " + (variant || "mw-btn--ghost") + " mw-btn--sm", text); node.type = "button"; if (label) node.setAttribute("aria-label", label); return node; };
     const KIND = { preference: "偏好", convention: "约定", fact: "背景事实", experience: "经验" };
-    const SOURCE = { said: "你说的", accepted: "你认可的", auto: "自动记住", manual: "手动添加", imported: "导入" };
+    const SOURCE = { said: "你说的", accepted: "你认可的", auto: "自动记住", manual: "手动添加", imported: "导入", plugin: "插件记下" };
     const STATE = { active: "生效", disabled: "停用", paused: "暂停" };
     const CHANGE = { kept: "记住", auto_kept: "自动记住", replaced: "替换", auto_replaced: "自动替换", merged: "合并", edited: "修改", restored: "回到旧版本", moved: "改范围",
       disabled: "停用", auto_disabled: "自动停用", enabled: "启用", paused: "暂停", resumed: "恢复", removed: "删除", accepted: "认可", imported: "导入", cleared: "清空" };
@@ -256,11 +256,13 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       const list = $("[data-memory-list]");
       list.replaceChildren();
       const query = filters.query.trim().toLowerCase();
-      const items = (data.items || []).filter((item) => item.scope === scope)
+      // A project's page also holds the memories of the Characters working in it: each labelled with its Character.
+      const mine = (item) => item.scope === scope || (scope === "project" && item.scope === "character");
+      const items = (data.items || []).filter(mine)
         .filter((item) => (!filters.kind || item.kind === filters.kind) && (!filters.source || item.source === filters.source) && (!filters.state || item.state === filters.state)
           && (!query || item.text.toLowerCase().includes(query)));
       if (!items.length) {
-        const empty = (data.items || []).some((item) => item.scope === scope);
+        const empty = (data.items || []).some(mine);
         list.append(el("li", "memory-empty settings-muted", empty ? L("没有符合筛选的记忆") : scope === "project"
           ? L("这个项目还没有记忆：在项目的工作里说“记住……”，或点“添加”。") : L("还没有记住任何事：在对话里说“以后……”或“记住……”，或点“添加”。")));
         return;
@@ -272,6 +274,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         copy.append(el("strong", "memory-text", item.text));
         const meta = el("div", "memory-meta");
         meta.append(el("span", "memory-tag", L(KIND[item.kind] || item.kind)));
+        if (item.scope === "character") meta.append(el("span", "memory-tag memory-tag--character", L("角色") + "「" + (item.character_title || item.character_id) + "」"));
+        if (item.plugin_id) meta.append(el("span", "memory-tag", L("插件") + " " + item.plugin_id));
         meta.append(el("span", "memory-tag memory-tag--" + item.source, L(SOURCE[item.source] || item.source) + " " + day(item.created_at)));
         if (item.state !== "active") meta.append(el("span", "memory-tag memory-tag--state", L(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")));
         meta.append(el("span", "", L("适用") + "：" + appliesText(item.applies)));
@@ -291,7 +295,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const summary = el("summary", "mw-btn mw-btn--ghost mw-btn--sm", "⋯"); summary.setAttribute("aria-label", L("更多操作") + "：" + item.text);
         const menu = el("div", "memory-menu mw-menu");
         const menuItem = (text, handler, danger) => { const node = el("button", "mw-menu__item" + (danger ? " mw-menu__item--danger" : ""), text); node.type = "button"; node.addEventListener("click", () => { more.open = false; handler(); }); menu.append(node); };
-        menuItem(L(item.scope === "project" ? "改为个人记忆" : "改为项目记忆"), () => {
+        if (item.scope !== "character" && !item.plugin_id) menuItem(L(item.scope === "project" ? "改为个人记忆" : "改为项目记忆"), () => {
           if (item.scope === "personal" && !project) { fail(new Error(L("在项目的设置里才能改为那个项目的记忆"))); return; }
           run(() => api("/change", { memory_id: item.memory_id, action: "move", to: item.scope === "project" ? "personal" : "project" }), "已改范围");
         });

@@ -491,7 +491,7 @@ export interface AssistantUsage {
 /** Something the person asked the Assistant to keep: personal (all their work) or one project's. */
 export interface AssistantMemory {
   memory_id: string;
-  scope: "personal" | "project";
+  scope: "personal" | "project" | "character";
   /** For a project memory: which project. */
   project_id?: string;
   text: string;
@@ -534,7 +534,7 @@ export interface AssistantMemoryCandidate {
   candidate_id: string;
   work_id: string;
   work_title: string;
-  scope: "personal" | "project";
+  scope: "personal" | "project" | "character";
   project_id?: string;
   text: string;
   /** What in the work it rests on. */

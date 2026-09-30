@@ -252,7 +252,7 @@ export const ASSISTANT_SETTINGS_CLIENT_SCRIPT = String.raw`
       const item = el("li", "prompt-row" + (memory.disabled ? " is-disabled" : ""));
       const head = el("div", "prompt-row-head"), copy = el("div", "prompt-row-copy");
       const text = el("strong", "", memory.text);
-      copy.append(text, el("span", "settings-muted", L(memory.scope === "personal" ? "个人" : "本项目") + " · " + memory.origin + (memory.disabled ? " · " + L("已停用") : "")));
+      copy.append(text, el("span", "settings-muted", L(memory.scope === "personal" ? "个人" : memory.scope === "character" ? "角色" : "本项目") + " · " + memory.origin + (memory.disabled ? " · " + L("已停用") : "")));
       const edit = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("修改")); edit.type = "button";
       edit.addEventListener("click", () => {
         const next = window.prompt(L("修改这条记忆"), memory.text);
@@ -297,7 +297,7 @@ export const ASSISTANT_SETTINGS_CLIENT_SCRIPT = String.raw`
     const list = el("ul", "prompt-list");
     candidates.forEach((candidate) => {
       const item = el("li", "prompt-row"), head = el("div", "prompt-row-head"), copy = el("div", "prompt-row-copy");
-      copy.append(el("strong", "", candidate.text), el("span", "settings-muted", L(candidate.scope === "personal" ? "个人" : "项目") + " · " + L("适用") + "：" + candidate.applies + " · " + L("依据") + "：" + candidate.why + " · " + L("来自工作") + "「" + candidate.work_title + "」"));
+      copy.append(el("strong", "", candidate.text), el("span", "settings-muted", L(candidate.scope === "personal" ? "个人" : candidate.scope === "character" ? "角色" : "项目") + " · " + L("适用") + "：" + candidate.applies + " · " + L("依据") + "：" + candidate.why + " · " + L("来自工作") + "「" + candidate.work_title + "」"));
       const keep = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("记住")); keep.type = "button";
       keep.setAttribute("aria-label", L("记住") + "：" + candidate.text);
       const drop = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("不用")); drop.type = "button";

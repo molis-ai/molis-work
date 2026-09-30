@@ -564,8 +564,8 @@ export interface AgentMemoryTools {
    * Kept through the platform's write gate (specs/memory-system §6.2); it throws with the reason when nothing was kept
    * (switched off, secret-shaped, held for the person). `note` says it was already kept.
    */
-  remember(input: { text: string; scope: "personal" | "project"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string }): Promise<{ memory_id: string; scope: "personal" | "project"; applies: string; note?: string }>;
-  list(): Promise<Array<{ memory_id: string; scope: "personal" | "project"; text: string; origin: string }>>;
+  remember(input: { text: string; scope: "personal" | "project" | "character"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string }): Promise<{ memory_id: string; scope: "personal" | "project" | "character"; applies: string; note?: string }>;
+  list(): Promise<Array<{ memory_id: string; scope: "personal" | "project" | "character"; text: string; origin: string }>>;
   forget(memoryId: string): Promise<{ forgotten: boolean }>;
   /** Suggest keeping something the person did not ask for: a candidate only, until they accept it. Absent: this round may not suggest. */
   propose?(input: { text: string; scope: "personal" | "project"; why: string; applies: string }): Promise<{ candidate_id: string; note: string }>;
@@ -1199,7 +1199,7 @@ export interface AgentMemoryCandidateEntry {
 }
 
 /** A memory the Host chose for one run, by the Prologue scope and owner it lives in. */
-export interface AgentPinnedMemory { scope: "user" | "project"; owner: string; memory_id: string }
+export interface AgentPinnedMemory { scope: "user" | "project" | "character"; owner: string; memory_id: string }
 
 /** What the Host recalled for a run: the Runtime re-reads each at start and injects it as data (specs/memory-system §7.2). */
 export interface AgentRecalledMemory {

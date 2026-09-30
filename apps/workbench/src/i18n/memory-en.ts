@@ -24,6 +24,7 @@ export const MEMORY_EN: Record<string, string> = {
   "你说的": "You said",
   "你认可的": "You accepted",
   "自动记住": "Kept automatically",
+  "插件记下": "Kept by a plugin",
   "手动添加": "Added by you",
   "导入": "Imported",
   "状态": "State",

@@ -111,6 +111,8 @@ export interface MemoryCaller {
   work?: { work_id: string; title: string } | null;
   /** The person acting directly (settings, the panel's buttons) rather than a model on their behalf. */
   person?: boolean;
+  /** The Character carrying this work, when one does: its own memories are used, and only by it. */
+  character?: { id: string; title: string } | null;
 }
 
 /** One thing a work's drawing-out proposes (the model's output shape). Nothing here is trusted: the gate checks it all. */
@@ -177,11 +179,11 @@ const MAX_TEXT = 400;
 const LEGACY_SOURCE = "assistant-p8";
 const EXPLICIT_SOURCES: readonly MemorySource[] = ["said", "manual", "accepted", "imported"];
 const KIND_WEIGHT: Record<MemoryKind, number> = { preference: 1, convention: 1, experience: 0.85, fact: 0.75 };
-const SOURCE_WEIGHT: Record<MemorySource, number> = { said: 1, manual: 1, accepted: 0.95, imported: 0.9, auto: 0.85 };
+const SOURCE_WEIGHT: Record<MemorySource, number> = { said: 1, manual: 1, accepted: 0.95, imported: 0.9, auto: 0.85, plugin: 0.8 };
 /** How much a memory counts even when no keyword of the request is in it: ways of working apply to most work. */
 const STANDING: Record<MemoryKind, number> = { preference: 0.45, convention: 0.45, experience: 0.15, fact: 0.05 };
 
-interface Located { scope: MemoryScope; owner: string; entry: MemoryBackendEntry; meta: MemoryMetaRecord }
+interface Located { scope: MemoryScope; owner: string; entry: MemoryBackendEntry; meta: MemoryMetaRecord; /** The project a Character's memory belongs to. */ project?: string | null }
 
 export class MemoryService {
   private readonly now: () => Date;
@@ -248,7 +250,7 @@ export class MemoryService {
     let personal = 0, project = 0;
     for (const where of scopes) {
       if (!caller.person) {
-        const access = consumerAccess(this.prefsFor(caller.actor_id, where.scope, where.scope === "project" ? where.owner : null), caller.consumer, caller.plugin_id);
+        const access = consumerAccess(this.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id);
         if (!access.allowed) continue;
       }
       for (const located of await this.located(caller, where.scope, where.owner)) {
@@ -290,8 +292,8 @@ export class MemoryService {
     const offScopes: string[] = [];
     const ranked: Array<{ located: Located; score: number }> = [];
     for (const where of scopes) {
-      const access = consumerAccess(this.prefsFor(caller.actor_id, where.scope, where.scope === "project" ? where.owner : null), caller.consumer, caller.plugin_id);
-      if (!access.allowed) { offScopes.push(where.scope === "personal" ? "个人记忆" : "项目记忆"); continue; }
+      const access = consumerAccess(this.prefsAt(caller.actor_id, where), caller.consumer, caller.plugin_id);
+      if (!access.allowed) { offScopes.push(where.scope === "personal" ? "个人记忆" : where.scope === "character" ? "角色记忆" : "项目记忆"); continue; }
       for (const located of await this.located(caller, where.scope, where.owner)) {
         const meta = located.meta;
         if (meta.state !== "active" || this.expired(meta, now) || !this.visibleTo(caller, meta)) continue;
@@ -358,13 +360,13 @@ export class MemoryService {
    * The memories one Agent run is given (spec §7.2): the recall for its consumer, as exact entries for the runtime to
    * re-read and inject as data. Null when this consumer may not use memories here or nothing applies.
    */
-  async forRun(caller: MemoryCaller, request: MemoryRecallRequest): Promise<{ pinned: Array<{ scope: "user" | "project"; owner: string; memory_id: string }>; budget_chars: number; receipt_id: string;
+  async forRun(caller: MemoryCaller, request: MemoryRecallRequest): Promise<{ pinned: Array<{ scope: "user" | "project" | "character"; owner: string; memory_id: string }>; budget_chars: number; receipt_id: string;
     omitted: Array<{ memory_id: string; reason: "budget" | "limit" | "conflict" }> } | null> {
     const budget = request.budget_chars ?? 3000;
     const recalled = await this.recall(caller, { ...request, budget_chars: budget });
     if (recalled.state !== "ok" || !recalled.items.length) return null;
-    return { pinned: recalled.items.map(item => ({ scope: item.scope === "personal" ? "user" as const : "project" as const,
-      owner: item.scope === "personal" ? caller.actor_id : caller.project_id!, memory_id: item.memory_id })), budget_chars: budget, receipt_id: recalled.receipt_id,
+    return { pinned: recalled.items.map(item => ({ scope: item.scope === "personal" ? "user" as const : item.scope === "character" ? "character" as const : "project" as const,
+      owner: this.where(caller, item.scope).owner, memory_id: item.memory_id })), budget_chars: budget, receipt_id: recalled.receipt_id,
       omitted: recalled.omitted.map(item => ({ memory_id: item.memory_id, reason: item.reason })) };
   }
 
@@ -376,6 +378,15 @@ export class MemoryService {
    */
   async write(caller: MemoryCaller, request: MemoryWriteRequest): Promise<MemoryWriteResult> {
     const said = typeof request.said === "string" ? request.said.trim() : "";
+    // A plugin keeps things in its own namespace under the grant the person gave it at install; nobody else reads them.
+    if (caller.consumer === "plugin") {
+      if (!caller.plugin_id) throw new MemoryError("memory.forbidden", "插件写记忆必须由宿主确认插件身份");
+      const prefs = this.prefsAt(caller.actor_id, this.where(caller, request.scope));
+      const rule = prefs.plugins[caller.plugin_id];
+      if (!prefs.consumers.plugin || rule?.allowed === false) throw new MemoryError("memory.forbidden", "用户没有允许这个插件使用记忆");
+      return this.commit(caller, { scope: request.scope, text: request.text, kind: request.kind ?? "preference", applies: request.applies ?? {}, expires_at: request.expires_at ?? null,
+        source: "plugin", basis: "explicit", evidence: [], approved_by: { by: "policy", policy: `plugin:${caller.plugin_id}`, version: 1 } });
+    }
     if (!caller.person && !said) throw new MemoryError("memory.invalid", "记住一件事要附上用户的原话（said）；用户没有明确要求时，用建议（等用户认可）而不是直接记");
     return this.commit(caller, {
       scope: request.scope, text: request.text, kind: request.kind ?? (request.scope === "project" ? "convention" : "preference"), applies: request.applies ?? {}, expires_at: request.expires_at ?? null,
@@ -405,8 +416,8 @@ export class MemoryService {
     candidate_id?: string;
   }): Promise<MemoryWriteResult> {
     const where = this.where(caller, input.scope);
-    const projectId = input.scope === "project" ? where.owner : null;
-    const prefs = this.prefsFor(caller.actor_id, input.scope, projectId);
+    const projectId = where.project;
+    const prefs = this.prefsAt(caller.actor_id, where);
     const appliesText = memoryAppliesText(input.scope, input.applies, projectId ? await this.projectTitle(projectId) : null);
     const refused = (reason: string): MemoryWriteResult => ({ outcome: "refused", reason, applies_text: appliesText, memory: null, candidate: null, change_id: null });
     const text = input.text.trim();
@@ -455,7 +466,11 @@ export class MemoryService {
       if (!prefs.auto) return asCandidate("你关掉了“自动记住”，所以先请你认可");
     }
     const at = this.now().toISOString();
-    const automatic = input.source === "auto";
+    // Approved by a policy rather than the person: the write gate's (automatic) or a plugin's install-time grant (its own namespace).
+    const automatic = input.source === "auto" || input.source === "plugin";
+    const policy = input.approved_by.by === "policy" ? input.approved_by : { by: "policy" as const, policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION };
+    const rule = input.source === "plugin" ? `插件「${caller.plugin_id ?? "?"}」记下` : MEMORY_GATE_RULE;
+    if (where.scope === "character" && caller.character) this.ports.ledger.noteOwner({ scope: "character", owner: where.owner, project_id: where.project, title: caller.character.title });
     if (target) {
       const before = target.entry.version;
       const updated = await this.ports.backend.update({ scope: input.scope, owner: where.owner, memory_id: target.entry.memory_id, text });
@@ -467,12 +482,12 @@ export class MemoryService {
       });
       await this.saveFacts({ ...target, entry: updated }, meta);
       // The gate's approval of a correction is recorded by Prologue's candidate box on the corrected entry itself.
-      if (automatic) await this.settleByPolicy(caller, input, where, updated, text, meta);
+      if (automatic) await this.settleByPolicy(caller, { ...input, policy }, where, updated, text, meta);
       const change = this.recordChange(caller, { kind: automatic ? "auto_replaced" : "replaced", scope: input.scope, owner: where.owner, memory_id: updated.memory_id, text,
-        by: automatic ? "policy" : "person", rule: automatic ? MEMORY_GATE_RULE : null, reason: input.why ? `依据：${input.why}` : null,
+        by: automatic ? "policy" : "person", rule: automatic ? rule : null, reason: input.why ? `依据：${input.why}` : null,
         undo: automatic ? { action: "restore", version: before } : null });
       return { outcome: "replaced", reason: "已替换旧的那条，旧版本保留在历史里", applies_text: appliesText,
-        memory: this.item({ scope: input.scope, owner: where.owner, entry: updated, meta }), candidate: null, change_id: change.change_id };
+        memory: this.item({ scope: input.scope, owner: where.owner, project: where.project, entry: updated, meta }), candidate: null, change_id: change.change_id };
     }
     const origin = input.origin ?? await this.originFor(caller, input.scope, input.source, { said: input.said, why: input.why });
     const facts = { kind: input.kind, source: input.source, basis: input.basis, evidence: input.evidence.slice(-6), applies: input.applies, expires_at: input.expires_at,
@@ -482,7 +497,7 @@ export class MemoryService {
     const entry = automatic
       ? await this.ports.backend.candidates.promote({ scope: input.scope, owner: where.owner, candidate_id: input.candidate_id ?? (await this.ports.backend.candidates.propose({
           scope: input.scope, owner: where.owner, text, origin, tags: [input.source, input.kind], meta: toEntryMeta(facts) })).candidate_id,
-        policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION, origin, meta: toEntryMeta(facts) })
+        policy: policy.policy, version: policy.version, origin, meta: toEntryMeta(facts) })
       : await this.ports.backend.write({ scope: input.scope, owner: where.owner, text, origin, tags: [input.source, input.kind], meta: toEntryMeta(facts) });
     if (automatic && input.candidate_id) this.markCandidateKept(caller.actor_id, input.candidate_id, entry.memory_id);
     const meta: MemoryMetaRecord = { memory_id: entry.memory_id, scope: input.scope, owner: where.owner, ...facts, state: "active", state_reason: null, created_at: at, updated_at: at };
@@ -495,16 +510,16 @@ export class MemoryService {
     }
     const kind: MemoryChangeKind = automatic ? "auto_kept" : input.source === "accepted" ? "accepted" : input.source === "imported" ? "imported" : "kept";
     const change = this.recordChange(caller, { kind, scope: input.scope, owner: where.owner, memory_id: entry.memory_id, text, by: automatic ? "policy" : "person",
-      rule: automatic ? MEMORY_GATE_RULE : null, reason: input.why ? `依据：${input.why}` : input.said ? `你说：“${input.said.slice(0, 80)}”` : null,
+      rule: automatic ? rule : null, reason: input.why ? `依据：${input.why}` : input.said ? `你说：“${input.said.slice(0, 80)}”` : null,
       undo: automatic ? { action: "remove" } : null });
-    return { outcome: "written", reason: automatic ? `自动记住（${MEMORY_GATE_RULE}），可以撤销` : "已记住", applies_text: appliesText,
-      memory: this.item({ scope: input.scope, owner: where.owner, entry, meta }), candidate: null, change_id: change.change_id };
+    return { outcome: "written", reason: automatic ? `${input.source === "plugin" ? rule : `自动记住（${rule}）`}，可以撤销` : "已记住", applies_text: appliesText,
+      memory: this.item({ scope: input.scope, owner: where.owner, project: where.project, entry, meta }), candidate: null, change_id: change.change_id };
   }
 
   /** Change, switch off, restore, move or delete one memory (spec §6.5). */
   async change(caller: MemoryCaller, request: MemoryChangeRequest): Promise<MemoryChangeResult> {
     const located = await this.find(caller, String(request.memory_id ?? ""));
-    const { scope, owner } = located;
+    const { scope, owner, project } = located;
     const at = this.now().toISOString();
     // The Assistant forgets or changes one only when the person asked it to: either way it is the person's change.
     const by = "person" as const;
@@ -527,7 +542,7 @@ export class MemoryService {
         }
         await this.saveFacts({ scope, owner, entry }, meta, located.meta);
         const change = this.recordChange(caller, { kind: "edited", scope, owner, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: null, undo: null });
-        return { memory: this.item({ scope, owner, entry, meta }), change: changeView(change) };
+        return { memory: this.item({ scope, owner, project, entry, meta }), change: changeView(change) };
       }
       case "disable": case "enable": {
         const meta: MemoryMetaRecord = { ...located.meta, state: request.action === "disable" ? "disabled" : "active", state_reason: request.action === "disable" ? "你停用了" : null, updated_at: at };
@@ -553,7 +568,7 @@ export class MemoryService {
         });
         await this.saveFacts({ scope, owner, entry }, meta, located.meta);
         const change = this.recordChange(caller, { kind: "restored", scope, owner, memory_id: entry.memory_id, text: entry.text, by, rule: null, reason: `回到第 ${revision.version} 版`, undo: null });
-        return { memory: this.item({ scope, owner, entry, meta }), change: changeView(change) };
+        return { memory: this.item({ scope, owner, project, entry, meta }), change: changeView(change) };
       }
       case "move": {
         const to = request.to;
@@ -589,7 +604,7 @@ export class MemoryService {
     const stale = this.now().getTime() - CANDIDATE_TTL_MS;
     const anywhere = filter.anywhere === true && caller.person === true;
     const owners = new Map(this.scopesFor(caller, filter.scope && filter.scope !== "all" ? [filter.scope] : undefined, true).map(where => [`${where.scope}:${where.owner}`, where]));
-    if (anywhere) for (const note of this.ports.ledger.candidates(caller.actor_id)) owners.set(`${note.scope}:${note.owner}`, { scope: note.scope, owner: note.owner });
+    if (anywhere) for (const note of this.ports.ledger.candidates(caller.actor_id)) owners.set(`${note.scope}:${note.owner}`, { scope: note.scope, owner: note.owner, project: note.project_id });
     const out: MemoryCandidate[] = [];
     for (const where of owners.values()) {
       for (const record of await this.candidateRecords(caller.actor_id, where.scope, where.owner)) {
@@ -609,7 +624,7 @@ export class MemoryService {
   async propose(caller: MemoryCaller, input: { scope: MemoryScope; text: string; kind: MemoryKind; applies?: MemoryApplies; basis: MemoryBasis; why: string;
     from: MemoryCandidate["from"]; hold_reason?: string | null; supersedes?: string | null; evidence?: MemoryEvidence[] }, options: { gate?: boolean } = {}): Promise<MemoryCandidate> {
     const where = this.where(caller, input.scope);
-    const prefs = this.prefsFor(caller.actor_id, input.scope, input.scope === "project" ? where.owner : null);
+    const prefs = this.prefsAt(caller.actor_id, where);
     if (!prefs.form) throw new MemoryError("memory.off", "用户关掉了“允许记住”，不要提出记忆建议");
     if (!options.gate) {
       if ((input.from === "work" || input.from === "extraction") && !prefs.learn_from_work)
@@ -632,7 +647,7 @@ export class MemoryService {
       plugin_id: caller.consumer === "plugin" ? caller.plugin_id ?? null : null };
     const held = await this.ports.backend.candidates.propose({ scope: input.scope, owner: where.owner, text, origin: `建议 · ${input.from}`, tags: [input.from, input.kind], meta: toEntryMeta(facts) });
     const record: MemoryCandidateRecord = { candidate_id: held.candidate_id, actor_id: caller.actor_id, owner: where.owner, scope: input.scope,
-      project_id: input.scope === "project" ? where.owner : null, kind: input.kind, text, applies: input.applies ?? {}, basis: input.basis, why: input.why.trim().slice(0, 300),
+      project_id: where.project, kind: input.kind, text, applies: input.applies ?? {}, basis: input.basis, why: input.why.trim().slice(0, 300),
       from: input.from, work, hold_reason: input.hold_reason ?? null, supersedes: input.supersedes ?? null, state: "pending", created_at: at, memory_id: null };
     this.ports.ledger.saveCandidate(record);
     return candidateView(record);
@@ -777,7 +792,7 @@ export class MemoryService {
     const latest = said.at(-1) ?? "";
     if (!latest.trim() || said.some(text => DO_NOT_REMEMBER.test(text))) return false;
     const scopes = this.scopesFor(caller, undefined, true);
-    const allowed = scopes.some(where => { const prefs = this.prefsFor(caller.actor_id, where.scope, where.scope === "project" ? where.owner : null); return prefs.form && prefs.learn_from_work; });
+    const allowed = scopes.some(where => { const prefs = this.prefsAt(caller.actor_id, where); return prefs.form && prefs.learn_from_work; });
     return allowed && STANDING_WISH.test(latest);
   }
 
@@ -808,7 +823,7 @@ export class MemoryService {
       if (!text || text.length > MAX_TEXT || !MEMORY_KINDS.includes(proposal.kind)) { skip("提议不合形状"); continue; }
       const scope: MemoryScope = proposal.scope === "project" && caller.project_id ? "project" : "personal";
       const where = this.where(caller, scope);
-      const prefs = this.prefsFor(caller.actor_id, scope, scope === "project" ? where.owner : null);
+      const prefs = this.prefsAt(caller.actor_id, where);
       if (!prefs.form || !prefs.learn_from_work) { skip("这个范围没有允许从工作里学习"); continue; }
       // Only what is really in the person's own words counts as theirs; anything else is an inference.
       const quote = String(proposal.quote ?? "").trim().slice(0, 200);
@@ -852,7 +867,7 @@ export class MemoryService {
   async signal(caller: MemoryCaller, report: MemorySignalReport): Promise<MemorySignalResult> {
     const scope = report.scope ?? "personal";
     const where = this.where(caller, scope);
-    const prefs = this.prefsFor(caller.actor_id, scope, scope === "project" ? where.owner : null);
+    const prefs = this.prefsAt(caller.actor_id, where);
     const threshold = { ...SIGNAL_THRESHOLD };
     if (!prefs.form || !prefs.learn_from_ui) return { state: "off", count: 0, distinct: 0, candidate_id: null, threshold };
     const situation = report.situation ?? {};
@@ -887,9 +902,12 @@ export class MemoryService {
   }): Promise<MemoryUpkeepReport> {
     const now = this.now(), at = now.toISOString(), day = 86_400_000;
     const report: MemoryUpkeepReport = { at, expired: 0, unused: 0, merged: 0, paused: 0, resumed: 0, pairs: 0, tidied: false };
-    const scopes: Array<{ scope: MemoryScope; owner: string }> = [{ scope: "personal", owner: caller.actor_id }, ...[...new Set(options.projects)].map(id => ({ scope: "project" as const, owner: id }))];
+    // The person's, each project's, and each project's Characters' (kept per project).
+    const scopes: Array<{ scope: MemoryScope; owner: string; project: string | null }> = [{ scope: "personal", owner: caller.actor_id, project: null },
+      ...[...new Set(options.projects)].flatMap(id => [{ scope: "project" as const, owner: id, project: id },
+        ...this.ports.ledger.owners(id).filter(owner => owner.scope === "character").map(owner => ({ scope: "character" as const, owner: owner.owner, project: id }))])];
     for (const where of scopes) {
-      const holder: MemoryCaller = { ...caller, project_id: where.scope === "project" ? where.owner : caller.project_id, person: true };
+      const holder: MemoryCaller = { ...caller, project_id: where.project ?? caller.project_id, person: true };
       let located = await this.located(holder, where.scope, where.owner);
       if (!located.length) continue;
       const turnOff = async (one: Located, state: "disabled" | "paused", reason: string, kind: MemoryChangeKind, undo: MemoryUndoPlan) => {
@@ -905,7 +923,7 @@ export class MemoryService {
         // What it rests on: an object deleted or no longer readable pauses it; back again, it resumes.
         const object = one.meta.evidence.find(item => item.kind === "object" && item.ref)?.ref;
         if (object && options.objectState) {
-          const state = await options.objectState({ kind: object.kind, id: object.id, project_id: object.project_id ?? (where.scope === "project" ? where.owner : null) }).catch(() => "unknown" as const);
+          const state = await options.objectState({ kind: object.kind, id: object.id, project_id: object.project_id ?? where.project }).catch(() => "unknown" as const);
           if (state === "missing" && one.meta.state === "active") { await turnOff(one, "paused", `依据已不存在（${object.kind} ${object.id}）`, "paused", { action: "enable" }); report.paused += 1; }
           else if (state === "ok" && one.meta.state === "paused" && (one.meta.state_reason ?? "").startsWith("依据已不存在")) {
             const meta: MemoryMetaRecord = { ...one.meta, state: "active", state_reason: null, updated_at: at };
@@ -921,7 +939,7 @@ export class MemoryService {
         const key = pairKey(a.entry.memory_id, b.entry.memory_id, kind);
         if (pairsRaised.has(key)) return;
         pairsRaised.add(key);
-        this.ports.ledger.savePair(caller.actor_id, { pair_id: `pair-${this.newId()}`, kind, scope: where.scope, project_id: where.scope === "project" ? where.owner : null, owner: where.owner,
+        this.ports.ledger.savePair(caller.actor_id, { pair_id: `pair-${this.newId()}`, kind, scope: where.scope, project_id: where.project, owner: where.owner,
           a: { memory_id: a.entry.memory_id, text: a.entry.text, source: a.meta.source }, b: { memory_id: b.entry.memory_id, text: b.entry.text, source: b.meta.source }, why, created_at: at, state: "pending" });
         report.pairs += 1;
       };
@@ -1011,28 +1029,42 @@ export class MemoryService {
   async previewScope(caller: MemoryCaller, scope: MemoryScope): Promise<{ scope: MemoryScope; project_id: string | null; count: number; fingerprint: string }> {
     this.personOnly(caller, "只有本人能清空记忆");
     const where = this.where(caller, scope);
-    if (!this.ports.backend.previewScope) throw new MemoryError("memory.off", "当前运行时的记忆不支持按范围清空");
-    const preview = await this.ports.backend.previewScope(scope, where.owner);
-    return { scope, project_id: scope === "project" ? where.owner : null, count: preview.count, fingerprint: preview.fingerprint };
+    const parts = await this.clearPreviews(caller, scope);
+    return { scope, project_id: scope === "project" ? where.owner : null, count: parts.reduce((sum, part) => sum + part.count, 0), fingerprint: joinedFingerprint(parts) };
   }
 
   /**
    * Step two: exactly what was previewed goes — anything written since makes Prologue refuse and nothing is removed.
-   * Everything the ledger knew about them goes too.
+   * Everything the ledger knew about them goes too. A project's page holds its Characters' memories, so clearing the
+   * project clears those as well (each Prologue scope checked against its own preview).
    */
   async clearScope(caller: MemoryCaller, scope: MemoryScope, fingerprint: string): Promise<{ removed: number }> {
     this.personOnly(caller, "只有本人能清空记忆");
     const where = this.where(caller, scope);
-    if (!this.ports.backend.clearScope) throw new MemoryError("memory.off", "当前运行时的记忆不支持按范围清空");
-    let removed: string[];
-    try { removed = await this.ports.backend.clearScope({ scope, owner: where.owner, fingerprint }); }
-    catch (error) {
-      if (String((error as { code?: string }).code ?? (error as Error).message).includes("MEMORY_SCOPE_CHANGED")) throw new MemoryError("memory.conflict", "预览之后又有记忆变动，没有删除任何一条；请重新预览后再确认");
-      throw error;
+    const parts = await this.clearPreviews(caller, scope);
+    const changed = () => new MemoryError("memory.conflict", "预览之后又有记忆变动，没有删除任何一条；请重新预览后再确认");
+    if (joinedFingerprint(parts) !== fingerprint) throw changed();
+    const removed: string[] = [];
+    for (const part of parts) {
+      try { removed.push(...await this.ports.backend.clearScope!({ scope: part.scope, owner: part.owner, fingerprint: part.fingerprint })); }
+      catch (error) {
+        if (String((error as { code?: string }).code ?? (error as Error).message).includes("MEMORY_SCOPE_CHANGED")) { if (!removed.length) throw changed(); break; }
+        throw error;
+      }
     }
     for (const id of removed) this.ports.ledger.forget(id);
     this.recordChange(caller, { kind: "cleared", scope, owner: where.owner, memory_id: null, text: "", by: "person", rule: null, reason: `清空了 ${removed.length} 条`, undo: null });
     return { removed: removed.length };
+  }
+
+  private async clearPreviews(caller: MemoryCaller, scope: MemoryScope): Promise<Array<{ scope: MemoryScope; owner: string; count: number; fingerprint: string }>> {
+    if (!this.ports.backend.previewScope || !this.ports.backend.clearScope) throw new MemoryError("memory.off", "当前运行时的记忆不支持按范围清空");
+    const where = this.where(caller, scope);
+    const targets = [{ scope, owner: where.owner }, ...(scope === "project"
+      ? this.ports.ledger.owners(where.owner).filter(owner => owner.scope === "character").map(owner => ({ scope: "character" as const, owner: owner.owner })) : [])];
+    const parts = [];
+    for (const target of targets) parts.push({ ...target, ...await this.ports.backend.previewScope(target.scope, target.owner) });
+    return parts;
   }
 
   /**
@@ -1127,12 +1159,12 @@ export class MemoryService {
   /* ---- internals ---- */
 
   /** An automatic correction: the approver (the gate's policy) is recorded by Prologue's candidate box on the entry. */
-  private async settleByPolicy(caller: MemoryCaller, input: { candidate_id?: string; kind: MemoryKind; source: MemorySource }, where: { scope: MemoryScope; owner: string },
+  private async settleByPolicy(caller: MemoryCaller, input: { candidate_id?: string; kind: MemoryKind; source: MemorySource; policy: { policy: string; version: number } }, where: { scope: MemoryScope; owner: string },
     entry: MemoryBackendEntry, text: string, meta: MemoryMetaRecord): Promise<void> {
     const candidateId = input.candidate_id ?? (await this.ports.backend.candidates.propose({ scope: where.scope, owner: where.owner, text, origin: `${MEMORY_GATE_RULE} · 纠正`,
       tags: [input.source, input.kind], meta: toEntryMeta(meta) })).candidate_id;
     await this.ports.backend.candidates.settleInto({ scope: where.scope, owner: where.owner, candidate_id: candidateId, memory_id: entry.memory_id,
-      by: { by: "policy", policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION } });
+      by: { by: "policy", policy: input.policy.policy, version: input.policy.version } });
     if (input.candidate_id) this.markCandidateKept(caller.actor_id, input.candidate_id, entry.memory_id);
   }
 
@@ -1146,19 +1178,36 @@ export class MemoryService {
   }
 
   /** The Prologue owner of a scope for this caller: the person, or the caller's own project. */
-  private where(caller: MemoryCaller, scope: MemoryScope): { scope: MemoryScope; owner: string } {
-    if (scope === "personal") return { scope, owner: caller.actor_id };
-    if (scope !== "project") throw new MemoryError("memory.invalid", "记忆范围只能是个人或项目");
+  /** The Prologue owner of a scope for this caller, and the project whose switches govern it. */
+  private where(caller: MemoryCaller, scope: MemoryScope): { scope: MemoryScope; owner: string; project: string | null } {
+    if (scope === "personal") return { scope, owner: caller.actor_id, project: null };
+    if (scope === "character") {
+      if (!caller.character) throw new MemoryError("memory.scope", "这一轮不是由某个角色承担的，没有角色记忆");
+      if (!caller.project_id) throw new MemoryError("memory.scope", "角色记忆属于某个项目里的角色；这里没有项目");
+      return { scope, owner: characterOwner(caller.project_id, caller.character.id), project: caller.project_id };
+    }
+    if (scope !== "project") throw new MemoryError("memory.invalid", "记忆范围只能是个人、项目或角色");
     if (!caller.project_id) throw new MemoryError("memory.scope", "这是个人工作，没有项目；只能用个人记忆");
-    return { scope, owner: caller.project_id };
+    return { scope, owner: caller.project_id, project: caller.project_id };
+  }
+
+  /** A scope's switches: the person's own, or the project's (a Character's memories follow its project's). */
+  private prefsAt(actorId: string, where: { scope: MemoryScope; owner: string; project?: string | null }): MemoryPrefs {
+    return where.scope === "personal" ? this.prefsFor(actorId, "personal", null) : this.prefsFor(actorId, "project", where.scope === "project" ? where.owner : where.project ?? null);
   }
 
   /** Personal always; the caller's project when it has one. A person's scopes for listings include the project too. */
-  private scopesFor(caller: MemoryCaller, requested?: readonly MemoryScope[], lenient = false): Array<{ scope: MemoryScope; owner: string }> {
-    const wanted = requested?.length ? requested : (["personal", "project"] as MemoryScope[]);
-    const out: Array<{ scope: MemoryScope; owner: string }> = [];
+  private scopesFor(caller: MemoryCaller, requested?: readonly MemoryScope[], lenient = false): Array<{ scope: MemoryScope; owner: string; project: string | null }> {
+    const wanted = requested?.length ? requested : (["personal", "project", "character"] as MemoryScope[]);
+    const out: Array<{ scope: MemoryScope; owner: string; project: string | null }> = [];
     for (const scope of new Set(wanted)) {
       if (scope === "project" && !caller.project_id) { if (lenient || !requested?.length) continue; throw new MemoryError("memory.scope", "这里没有项目，只能用个人记忆"); }
+      if (scope === "character" && !caller.character) {
+        // The person in a project's settings sees every Character's memories there; a work sees only its own Character's.
+        if (caller.person && caller.project_id) { for (const owner of this.ports.ledger.owners(caller.project_id).filter(item => item.scope === "character")) out.push({ scope: "character", owner: owner.owner, project: caller.project_id }); continue; }
+        if (lenient || !requested?.length) continue;
+        throw new MemoryError("memory.scope", "这一轮不是由某个角色承担的，没有角色记忆");
+      }
       out.push(this.where(caller, scope));
     }
     return out;
@@ -1175,7 +1224,8 @@ export class MemoryService {
 
   private async located(caller: MemoryCaller, scope: MemoryScope, owner: string): Promise<Located[]> {
     const entries = await this.ports.backend.list(scope, owner);
-    return Promise.all(entries.map(async entry => ({ scope, owner, entry, meta: await this.metaFor(caller.actor_id, scope, owner, entry) })));
+    const project = scope === "project" ? owner : scope === "character" ? caller.project_id : null;
+    return Promise.all(entries.map(async entry => ({ scope, owner, entry, project, meta: await this.metaFor(caller.actor_id, scope, owner, entry) })));
   }
 
   private async find(caller: MemoryCaller, memoryId: string): Promise<Located> {
@@ -1240,7 +1290,9 @@ export class MemoryService {
   private item(located: Located): MemoryItem {
     const meta = located.meta, use = this.ports.ledger.lastUse(located.entry.memory_id);
     const expired = meta.state === "active" && this.expired(meta, this.now());
-    return { memory_id: located.entry.memory_id, version: located.entry.version, scope: located.scope, project_id: located.scope === "project" ? located.owner : null,
+    return { memory_id: located.entry.memory_id, version: located.entry.version, scope: located.scope,
+      project_id: located.scope === "project" ? located.owner : located.scope === "character" ? located.project ?? null : null, character_id: located.scope === "character" ? characterOf(located.owner) : null,
+      character_title: located.scope === "character" ? this.ports.ledger.owners(located.project ?? "").find(owner => owner.scope === "character" && owner.owner === located.owner)?.title ?? null : null,
       kind: meta.kind, text: located.entry.text, source: meta.source, basis: meta.basis, origin: located.entry.origin, evidence: meta.evidence, applies: meta.applies,
       state: expired ? "disabled" : meta.state, state_reason: expired ? `已于 ${meta.expires_at!.slice(0, 10)} 到期` : meta.state_reason, expires_at: meta.expires_at,
       approved_by: meta.approved_by, plugin_id: meta.plugin_id, created_at: meta.created_at, updated_at: meta.updated_at,
@@ -1281,18 +1333,32 @@ export class MemoryService {
 
   /** Provenance in words. A personal memory's names no work of a project, only the person's own words. */
   private async originFor(caller: MemoryCaller, scope: MemoryScope, source: MemorySource, input: { said?: string; why?: string }): Promise<string> {
-    const date = this.date(), work = scope === "project" && caller.work ? `工作「${caller.work.title.slice(0, 40)}」· ` : "";
+    const date = this.date(), work = scope !== "personal" && caller.work ? `工作「${caller.work.title.slice(0, 40)}」· ` : "";
     switch (source) {
       case "said": return `${work}${date} · 你说：“${(input.said ?? "").slice(0, 120)}”`;
       case "manual": return `${date} · 你在设置里添加`;
       case "imported": return `${date} · 导入`;
       case "auto": return `${MEMORY_GATE_RULE} · ${work}${date} · 依据：${(input.why ?? "").slice(0, 120)}`;
       case "accepted": return `你认可的建议 · ${work}${date} · 依据：${(input.why ?? "").slice(0, 120)}`;
+      case "plugin": return `插件「${caller.plugin_id ?? "?"}」记下 · ${date}`;
     }
   }
 }
 
 const MEMORY_SOURCE_TAGS: readonly MemorySource[] = ["said", "manual", "accepted", "imported", "auto"];
+
+/** One fingerprint for what a clear will remove across its Prologue scopes (a single scope keeps Prologue's own). */
+function joinedFingerprint(parts: ReadonlyArray<{ scope: MemoryScope; owner: string; count: number; fingerprint: string }>): string {
+  const counted = parts.filter((part, index) => index === 0 || part.count > 0);
+  return counted.length === 1 ? counted[0]!.fingerprint : counted.map(part => `${part.scope}:${part.owner}=${part.fingerprint}`).join("|");
+}
+
+/**
+ * A Character's memories are kept per project (Prologue scope `character`, owner = project + Character): what it learned
+ * in one project's work never reaches the same Character's work in another project (spec §5 isolation).
+ */
+export function characterOwner(projectId: string, characterId: string): string { return `${projectId}/${characterId}`; }
+function characterOf(owner: string): string { const at = owner.indexOf("/"); return at < 0 ? owner : owner.slice(at + 1); }
 
 /** Whether a memory applies in a situation: every limit it has must be met (spec §4.1 适用). */
 export function applies(limit: MemoryApplies, situation: MemoryRecallRequest["situation"], now: Date): boolean {

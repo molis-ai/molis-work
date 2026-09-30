@@ -47,6 +47,9 @@ CREATE TABLE IF NOT EXISTS memory_uses (
 );
 CREATE INDEX IF NOT EXISTS memory_uses_receipt ON memory_uses(receipt_id);
 CREATE INDEX IF NOT EXISTS memory_uses_work ON memory_uses(work_id);
+CREATE TABLE IF NOT EXISTS memory_owners (
+  scope TEXT NOT NULL, owner TEXT NOT NULL, project_id TEXT, title TEXT NOT NULL, PRIMARY KEY (scope, owner)
+);
 CREATE TABLE IF NOT EXISTS memory_pairs (
   pair_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL
 );
@@ -133,6 +136,12 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       if (filter.memory_id) { where.push("memory_id=?"); values.push(filter.memory_id); }
       return db.prepare(`SELECT body FROM memory_uses ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY at DESC, rowid DESC LIMIT ${Math.max(1, Math.min(500, filter.limit ?? 100))}`)
         .all(...values).map(row => JSON.parse(String(row.body)) as MemoryUseRecord);
+    },
+    owners: projectId => db.prepare("SELECT scope, owner, title FROM memory_owners WHERE project_id=? ORDER BY rowid").all(projectId)
+      .map(row => ({ scope: String(row.scope) as never, owner: String(row.owner), title: String(row.title) })),
+    noteOwner: input => {
+      db.prepare("INSERT INTO memory_owners(scope,owner,project_id,title) VALUES (?,?,?,?) ON CONFLICT(scope,owner) DO UPDATE SET project_id=excluded.project_id, title=excluded.title")
+        .run(input.scope, input.owner, input.project_id, input.title);
     },
     pairs: actorId => db.prepare("SELECT body FROM memory_pairs WHERE actor_id=? ORDER BY rowid").all(actorId).map(row => JSON.parse(String(row.body)) as ReturnType<MemoryLedgerPort["pairs"]>[number]),
     savePair: (actorId, pair) => {

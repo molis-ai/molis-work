@@ -1832,7 +1832,7 @@ export class AssistantService {
     const offered = await this.actionTools(authority);
     // The memories this round is given, chosen now so the round's materials can say how many did not fit.
     this.chosenMemory.delete(work.work_id);
-    await this.memoryForRound(work, text);
+    await this.memoryForRound(work, text, context);
     this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
     const handle = await host.start(RUNTIME, {
       board_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
@@ -2168,7 +2168,9 @@ export class AssistantService {
   /** The Assistant acting for the person in one work (or the person themselves, for the settings and the panel). */
   private memoryCaller(work: StoredWork | null, projectId: string | null, person = false): MemoryCaller {
     return { actor_id: this.actorId, project_id: work ? work.project_ref?.project_id ?? null : projectId, consumer: "assistant",
-      ...(work ? { work: { work_id: work.work_id, title: work.title } } : {}), ...(person ? { person: true } : {}) };
+      ...(work ? { work: { work_id: work.work_id, title: work.title } } : {}), ...(person ? { person: true } : {}),
+      // The Character carrying this work: its own memories come along, and only in its work.
+      ...(work?.character && work.project_ref ? { character: { id: work.character.artifact_id, title: work.character.title } } : {}) };
   }
 
   /** The person's memories: personal ones, and — given a project — that project's. Disabled ones are listed as such. */
@@ -2243,6 +2245,7 @@ export class AssistantService {
       ...(mayPropose ? { propose: async input => { const made = await propose(input); const latest = (await memory.candidates(caller, { work_id: work.work_id })).at(-1); return { ...made, candidate_id: latest?.candidate_id ?? "" }; } } : {}),
       remember: async input => {
         if (input.scope === "project" && !projectId) throw new AssistantError("assistant.scope", "这是个人工作，没有项目；只能记为个人偏好");
+        if (input.scope === "character" && !caller.character) throw new AssistantError("assistant.scope", "这一轮不是由某个角色承担的，不能记为角色记忆");
         let result;
         try { result = await memory.write(caller, { scope: input.scope, text: input.text, said: input.said, ...(input.kind ? { kind: input.kind } : {}), ...(input.replaces ? { replaces: input.replaces } : {}) }); }
         catch (error) { throw memoryAsAssistantError(error); }
@@ -2269,12 +2272,16 @@ export class AssistantService {
    * runtime as exact entries it re-reads and injects as data. Chosen once as the round is prepared (so its materials can
    * say what did not fit); the Agent Host asks for the same choice while starting the round.
    */
-  async memoryForRound(work: StoredWork, task: string): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null> {
+  async memoryForRound(work: StoredWork, task: string, context: AssistantContextSnapshot | null = null): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null> {
     const prepared = this.chosenMemory.get(work.work_id);
     if (prepared !== undefined) return prepared ? { pinned: prepared.pinned, budget_chars: prepared.budget_chars, receipt_id: prepared.receipt_id } : null;
     const memory = this.ports.memory?.();
     if (!memory) return null;
-    const chosen = await memory.forRun(this.memoryCaller(work, null), { query: `${task} ${work.title}`.slice(0, 2000), limit: 16, budget_chars: 3000 }).catch(() => null);
+    // Where the person is (plugin, object kind, Goal) decides which limited memories apply; the page's claim only narrows.
+    const situation = context ? { ...(context.source.plugin_id ? { plugin_id: context.source.plugin_id } : {}), ...(context.object ? { object_kind: context.object.kind } : {}),
+      ...(context.object?.kind === "goal" ? { goal_id: context.object.id } : {}) } : {};
+    const chosen = await memory.forRun(this.memoryCaller(work, null), { query: `${task} ${work.title}`.slice(0, 2000), limit: 16, budget_chars: 3000,
+      ...(Object.keys(situation).length ? { situation } : {}) }).catch(() => null);
     if (chosen) this.recalled.set(work.work_id, chosen.receipt_id);
     this.chosenMemory.set(work.work_id, chosen);
     return chosen && { pinned: chosen.pinned, budget_chars: chosen.budget_chars, receipt_id: chosen.receipt_id };

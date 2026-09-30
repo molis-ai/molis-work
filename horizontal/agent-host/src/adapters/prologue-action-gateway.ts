@@ -26,8 +26,8 @@ function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: (arg
   const text = (value: unknown, field: string, max: number) => { if (typeof value !== "string" || !value.trim() || value.length > max) throw new ActionError("actions.reference_invalid", `"${field}" must be 1–${max} characters.`); return value.trim(); };
   return {
     [MEMORY_TOOLS.remember]: guarded(async args => {
-      const scope = args.scope === "project" ? "project" : args.scope === "personal" ? "personal" : null;
-      if (!scope) throw new ActionError("actions.reference_invalid", "\"scope\" must be personal or project.");
+      const scope = args.scope === "project" ? "project" : args.scope === "personal" ? "personal" : args.scope === "character" ? "character" : null;
+      if (!scope) throw new ActionError("actions.reference_invalid", "\"scope\" must be personal, project or character.");
       const kind = args.kind === undefined ? undefined : ["preference", "convention", "fact", "experience"].includes(String(args.kind)) ? args.kind as "preference" | "convention" | "fact" | "experience" : null;
       if (kind === null) throw new ActionError("actions.reference_invalid", "\"kind\" must be preference, convention, fact or experience.");
       return JSON.stringify(await available().remember({ text: text(args.text, "text", 400), scope, said: text(args.said, "said", 400),
@@ -226,7 +226,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     tool(MEMORY_TOOLS.remember, "Keep something the person explicitly asked you to remember for later work (\"以后…\", \"记住…\", \"下次别…\"): a preference, a convention, a fact about their work. Never store something only because it happened once, and never credentials or secrets. scope: personal (all their work) or project (only this project). When it corrects something already kept, pass that memory's id as replaces (the old version stays in its history). Tell them in your reply what you kept and where it applies; if the result says it was not kept, say so instead.",
       { type: "object", additionalProperties: false, required: ["text", "scope", "said"], properties: {
         text: { type: "string", description: "What to remember, one short self-contained sentence in the person's language." },
-        scope: { type: "string", enum: ["personal", "project"], description: "personal: all their work; project: only this project's work." },
+        scope: { type: "string", enum: ["personal", "project", "character"], description: "personal: all their work; project: only this project's work; character: only work the Character carrying this round does (only when one does)." },
         said: { type: "string", description: "The person's own words asking you to remember it." },
         kind: { type: "string", enum: ["preference", "convention", "fact", "experience"], description: "preference: how they like things done; convention: a project's agreed way; fact: background about their work; experience: a lesson from how work went. Default: preference (personal) or convention (project)." },
         replaces: { type: "string", description: "The id (from list-memories) of an earlier memory this one corrects." },
@@ -248,7 +248,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   const all = tools.map(one => one.registration.name);
   const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (name !== GATEWAY_TOOLS.direct || (gateway.operate && gateway.client.direct)) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
     && (!(Object.values(MEMORY_TOOLS) as string[]).includes(name) || gateway.client.memory) && (name !== MEMORY_TOOLS.propose || gateway.client.memory?.propose));
-  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+  const pack: ScenarioPack = { id: PACK_ID, version: "2.4.1", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names, known };

@@ -23,6 +23,8 @@ Molis Work：本地优先的工作台，Goals 是权威真相源，插件经统�
 - 等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后 `beforeEffect()` 再按读取时的版本提交。被取消、撤权、停用的调用不再写任何记录。
 - 结果合同读取兼容、写入严格：回显已存历史的 schema 接受历史取值。
 - 可信身份（actor、项目、安装）从调用上下文来，不从输入读；密钥只给引用。
+- 新的内置插件只走 Plugin Runtime 装配（`apps/local-host/src/project-plugins.ts` 的监督器条目）：不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往 `apps/workbench/src/builtin-plugins.ts` 加构建期条目。现存的旧路径插件名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`，只许减少。
+- `vendor/prologue-sdk/` 只放当前使用的 Prologue 包（最多再加一份在途分支的）；换新包时删掉旧包，旧包从 Git 历史取。
 
 ## 构建与测试
 

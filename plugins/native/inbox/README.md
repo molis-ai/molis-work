@@ -27,6 +27,8 @@ Host 在项目运行时注册本插件声明的动作和 `inbox.next` 消费场�
 
 不依赖 Feed / Goals 插件实现。关联对象标题由 Host 解析后传入。完成 / 忽略只改 Attention 状态，不删除原 Feed Item、Goal 或来源。
 
+详情里的“转为待办”只是带数据的按钮（`data-make-todo`），由 Workbench 调 Todo 组合；页面上没有 Todo 时不显示。转为待办不改事项状态，处理事项也不会完成那件待办。
+
 “判断下一步”依赖当前项目的真实场景绑定。`prepare` 从事项引用读取内容，`consume` 核对事项和内容未变化后保存建议；建议不会自动完成或忽略事项。兼容性来自注册能力的输入输出合同，其他插件的判断也可以绑定。关闭判断保留引用，旧 Functions 绑定仍从原存储行读取。`inbox.judgment.read` 返回共同目录中的判断与实际绑定摘要，网页不再根据静态系统函数列表猜测名称或可运行状态。`inbox.judgment.recommendations` 校验当前绑定、提供方、版本、权限和事项原文，只返回当前仍有效的结果；停用、撤权或原文变化会撤回当前建议，原历史保留。新增记录在原历史的 `scene_provenance` 保存这些依据，旧记录缺少依据时仅用于历史查阅。
 
 Feed 创建 Attention 时，通过注入的 `createInboxJudgmentTrigger` 使用同一份绑定。正式 Web 组合根已向 Feed HTTP、来源和连接器同步、定时调度、工作流交接传入该端口。未绑定、停用或失效时不启动自动判断；供应商失败与上下文超限保存为 needs_review，已入箱材料不因此被删除或误报入箱失败。

@@ -79,6 +79,13 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }
     return payload;
   };
+  // Files are named after what was asked for, not the stored image id; several images from one prompt are numbered.
+  const fileNameOf = (job, item) => {
+    const ext = (/\.[a-z0-9]{2,5}$/i.exec(item.filename || '') || ['.png'])[0];
+    const base = String(job.prompt || '').replace(/[\\/:*?"<>|\s]+/g, ' ').trim().slice(0, 40) || L('图片');
+    const index = (job.images || []).findIndex((entry) => entry.id === item.id);
+    return base + ((job.images || []).length > 1 && index >= 0 ? ' ' + (index + 1) : '') + ext;
+  };
   const imageUrl = (job, image, download = false) => host.route('/api/images/jobs/' + encodeURIComponent(job.id) + '/images/' + encodeURIComponent(image.id)) + (download ? '?download=1' : '');
   const dateLabel = (value) => {
     const date = new Date(value);
@@ -150,8 +157,15 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const expand = () => {
     root.dataset.expanded = 'true'; $('[data-images-workspace]').hidden = false;
   };
+  /** The generation record on screen, for the placement bar and the Assistant. */
+  const publishContext = (job) => {
+    const value = { plugin_id: 'io.molis.work.images', surface_title: L('图片') };
+    if (job) value.object = { kind: 'image_job', id: job.id, version: job.status + ':' + (job.images || []).length, title: job.prompt.slice(0, 80) };
+    root.setAttribute('data-assistant-context', JSON.stringify(value));
+  };
   const showCompose = (focus = false) => {
     selectedId = ''; resultSignature = ''; result.hidden = true; compose.hidden = false;
+    publishContext(null);
     $('[data-images-title]').textContent = L('新建图片');
     expand(); paintList(); saveDraft(); syncGenerate();
     if (focus) prompt.focus();
@@ -160,6 +174,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (!job || selectedId !== job.id) return;
     compose.hidden = true; result.hidden = false;
     $('[data-images-title]').textContent = L('生成结果');
+    publishContext(job);
     const signature = JSON.stringify([job, cancelling]);
     if (resultSignature === signature) return;
     resultSignature = signature; result.replaceChildren();
@@ -194,8 +209,23 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       }, { once: true });
       const caption = document.createElement('figcaption');
       const download = text('a', L('下载图片'), 'mw-btn mw-btn--secondary');
-      download.href = imageUrl(job, item, true); download.download = item.filename;
-      caption.append(text('span', Math.max(1, Math.round(item.byte_length / 1024)) + ' KB'), download);
+      download.href = imageUrl(job, item, true) + '&name=' + encodeURIComponent(fileNameOf(job, item)); download.download = fileNameOf(job, item);
+      // Keep a generated image as a personal material: from Shelf it can be used in a project or handed to other work.
+      const keep = text('button', L('放进 Shelf'), 'mw-btn mw-btn--ghost'); keep.type = 'button';
+      keep.title = L('复制一份到你的 Shelf（个人空间），之后可以用于项目；这里的生成记录不变');
+      keep.addEventListener('click', async () => {
+        keep.disabled = true;
+        try {
+          const response = await fetch(imageUrl(job, item, true), { cache: 'no-store' });
+          if (!response.ok) throw new Error(L('图片暂时无法读取，请刷新记录后重试。'));
+          const bytes = new Uint8Array(await response.arrayBuffer());
+          let binary = ''; for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(index, index + 0x8000));
+          window.dispatchEvent(new CustomEvent('molis:shelf-admit', { detail: { filename: fileNameOf(job, item), mime: item.mime_type || response.headers.get('content-type') || 'image/png', bytes_base64: btoa(binary),
+            source: L('图片') + ' · ' + job.prompt.slice(0, 40) } }));
+        } catch (error) { say(error.message || L('放进 Shelf 失败'), true); }
+        finally { setTimeout(() => { keep.disabled = false; }, 1200); }
+      });
+      caption.append(text('span', Math.max(1, Math.round(item.byte_length / 1024)) + ' KB'), download, keep);
       figure.append(img, caption); result.append(figure);
     }
     result.append(text('p', job.prompt, 'images-result-prompt'));

@@ -22,7 +22,7 @@ export async function handleImagesNativePluginHttp(
       response.writeHead(result.status, {
         "content-type": result.image.mime,
         "content-length": String(result.image.bytes.byteLength),
-        "content-disposition": `${url.searchParams.get("download") === "1" ? "attachment" : "inline"}; filename="${result.image.filename}"`,
+        "content-disposition": imageDisposition(url.searchParams.get("download") === "1", result.image.filename, url.searchParams.get("name")),
         "cache-control": "no-store", "x-content-type-options": "nosniff",
       });
       response.end(result.image.bytes);
@@ -49,4 +49,13 @@ async function readBody(request: IncomingMessage): Promise<Record<string, unknow
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
     return value as Record<string, unknown>;
   } catch { throw new ImagesError("images.invalid", "请求必须是 JSON 对象", 400); }
+}
+
+/** A download may carry the name people read (the prompt); the stored file name stays the fallback for older clients. */
+function imageDisposition(download: boolean, stored: string, requested: string | null): string {
+  const extension = /\.[a-z0-9]{2,5}$/i.exec(stored)?.[0] ?? "";
+  const name = (requested ?? "").replace(/[\u0000-\u001f\u007f"\\/:*?<>|]+/gu, " ").trim().slice(0, 80);
+  const readable = name ? (name.toLowerCase().endsWith(extension.toLowerCase()) ? name : name + extension) : "";
+  const disposition = `${download ? "attachment" : "inline"}; filename="${stored}"`;
+  return readable ? `${disposition}; filename*=UTF-8''${encodeURIComponent(readable).replace(/['()*]/g, char => "%" + char.charCodeAt(0).toString(16).toUpperCase())}` : disposition;
 }

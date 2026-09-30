@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -177,4 +178,18 @@ test("a reply waiting on the model does not hold the project's other operations 
     const state = await reply;
     assert.equal(state.messages.at(-1)?.body, "模型的回应");
   }, async () => { entered.resolve(); await release.promise; return "模型的回应"; });
+});
+
+test("a spark reads back by the shared subject protocol: what it says now, its revision and where to open it", async () => {
+  await fixture(async ({ bound }) => {
+    const { spark } = await bound.invoke(actions.create, { title: "周会改到周三", body: "下午两点，线上" });
+    const context = await bound.invoke(actions.subject, { subject_id: spark.id });
+    assert.deepEqual([context.subject, context.title, context.content, context.revision, context.open], [{ kind: "lingguang_spark", id: spark.id }, "周会改到周三", "下午两点，线上", `${spark.updated_at}:inbox`, { surface: "lingguang", id: spark.id }]);
+    const edited = await bound.invoke(actions.update, { id: spark.id, body: "下午三点" });
+    assert.equal((await bound.invoke(actions.subject, { subject_id: spark.id })).revision, `${edited.spark.updated_at}:inbox`, "an edit shows as a new revision");
+  });
+  // The page names the spark it shows by the same revision, or a work started there reads as changed at once.
+  const client = readFileSync(new URL("../plugins/native/lingguang/src/client.ts", import.meta.url), "utf8");
+  assert.equal(client.split('version: selected.updated_at + ":" + (selected.status || "inbox")').length - 1, 2);
+  assert.equal(client.split("version: selected.updated_at").length - 1, 2, "no other place names it by its time alone");
 });

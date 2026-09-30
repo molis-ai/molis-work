@@ -18,6 +18,7 @@ export { PAGES_NATIVE_PLUGIN_ROUTES, PagesPluginRouteTable } from "./routes.js";
 export type { PagesPluginRouteHandler, PagesPluginRouteRequest, PagesPluginRouteResponse } from "./routes.js";
 export { createPagesRouteHandlers, pagesRouteErrorResponse } from "./route-handlers.js";
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "./manifest.js";
+export { pagesMethods } from "./methods.js";
 export { PAGES_MCP_EXPORTS, runPagesMcpTool } from "./mcp.js";
 export { openPagesStore, PagesStore } from "./store.js";
 export type { PagesImportDocumentsInput } from "./store.js";

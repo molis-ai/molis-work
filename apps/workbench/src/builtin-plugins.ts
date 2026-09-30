@@ -18,11 +18,12 @@ import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "@mo
 import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "@molis-ai/molis-work-plugin-schedule";
 import { SHELF_INSTRUCTIONS, SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "@molis-ai/molis-work-plugin-shelf";
 import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest } from "@molis-ai/molis-work-plugin-characters";
-import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, runPagesMcpTool } from "@molis-ai/molis-work-plugin-pages";
+import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, runPagesMcpTool } from "@molis-ai/molis-work-plugin-pages";
 import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, runFormMcpTool } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_INSTRUCTIONS, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, runDatasetMcpTool } from "@molis-ai/molis-work-plugin-dataset";
 import { PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution, runPptMcpTool } from "@molis-ai/molis-work-plugin-ppt";
 import { LINGGUANG_INSTRUCTIONS, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution } from "@molis-ai/molis-work-plugin-lingguang";
+import { TODO_INSTRUCTIONS, TODO_PROJECT_PLUGIN_ID, todoManifest, todoMethods, todoPrompts, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution } from "@molis-ai/molis-work-plugin-todo";
 import { ALCHEMIST_PROJECT_PLUGIN_ID, ALCHEMIST_INSTRUCTIONS, alchemistManifest, ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistUiContribution } from "@molis-ai/molis-work-plugin-alchemist";
 import { WORKFLOWS_INSTRUCTIONS, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution } from "@molis-ai/molis-work-plugin-workflows";
 import { WORK_PROJECT_PLUGIN_ID, workManifest, workTerminalUiContribution, workUiContribution } from "@molis-ai/molis-work-plugin-work";
@@ -52,6 +53,8 @@ export interface BuiltinPluginEntry {
   /** Fixed model-call instructions, exported by this plugin and registered by the Host. */
   readonly instructions?: readonly InstructionPrompt[];
   readonly agent?: { readonly prompts: readonly AgentPromptText[]; readonly skills?: readonly AgentSkillDefinition[] };
+  /** Bodies of the Manifest's `methods` (offered to other Agents for business work); the package ships them. */
+  readonly methods?: readonly AgentSkillDefinition[];
   readonly workbench?: BuiltinPluginWorkbench;
   /** Historical MCP spellings only; new public functions use Manifest.actions. No Host I/O or credentials. */
   readonly legacyMcp?: (actions: BoundActionClient, request: PluginMcpHandleRequest) => Promise<string>;
@@ -133,7 +136,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: goalsManifest,
     summary: "确定目标，推进工作，留下结果。",
     workbench: {
-      order: 18,
+      order: 19,
       contributions: [
       goalsPolicyUiContribution,
       goalsProposalUiContribution,
@@ -157,7 +160,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: workManifest,
     summary: "回到你的会话，继续正在做的事。",
     workbench: {
-      order: 16,
+      order: 17,
       contributions: [workUiContribution, workTerminalUiContribution],
     },
   },
@@ -222,6 +225,22 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
+    project_plugin_id: TODO_PROJECT_PLUGIN_ID,
+    manifest: todoManifest,
+    instructions: TODO_INSTRUCTIONS,
+    personal: true,
+    summary: "记下要推进的事，分清今天做、在等谁和还没安排的。",
+    agent: { prompts: todoPrompts },
+    methods: todoMethods,
+    workbench: {
+      order: 14,
+      contributions: [todoUiContribution],
+      stylesheet: TODO_STYLES,
+      clientFactory: TODO_CLIENT_FACTORY_SCRIPT,
+      searchRow: { selector: "[data-todo-id]", idDataset: "todoId" },
+    },
+  },
+  {
     project_plugin_id: CHARACTERS_PROJECT_PLUGIN_ID,
     manifest: charactersManifest,
     personal: true,
@@ -231,6 +250,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     project_plugin_id: PAGES_PROJECT_PLUGIN_ID,
     manifest: pagesManifest,
     instructions: PAGES_INSTRUCTIONS,
+    methods: pagesMethods,
     personal: true,
     summary: "写文档，用块和格式，保存在这台电脑。",
     workbench: {
@@ -293,7 +313,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     personal: true,
     summary: "写下方向，炼成可比较的卡，再决定做不做。",
     workbench: {
-      order: 14,
+      order: 15,
       contributions: [alchemistUiContribution],
       stylesheet: ALCHEMIST_STYLES,
       clientFactory: ALCHEMIST_CLIENT_FACTORY_SCRIPT,
@@ -307,7 +327,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     personal: true,
     summary: "把已有插件按顺序串成一件可以做完的事。",
     workbench: {
-      order: 15,
+      order: 16,
       contributions: [workflowsUiContribution],
       stylesheet: WORKFLOWS_STYLES,
       clientFactory: WORKFLOWS_CLIENT_FACTORY_SCRIPT,
@@ -318,7 +338,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: artifactsManifest,
     summary: "打开项目成果，查看保留下来的版本。",
     workbench: {
-      order: 17,
+      order: 18,
       contributions: [artifactReferenceUiContribution, artifactBrowserUiContribution],
     },
   },
@@ -329,7 +349,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     summary: "围绕代码讨论、执行和审查，保留连续的任务记录。",
     agent: { prompts: codingPrompts, skills: codingMethods },
     workbench: {
-      order: 19,
+      order: 20,
       contributions: [codingSettingsContribution],
     },
   },

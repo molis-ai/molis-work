@@ -8,7 +8,7 @@ export interface GoalsDocumentReadPorts {
   snapshot(boardId: string): BoardSnapshot;
   events(boardId: string): GoalsDecisionEvent[];
   goals: Pick<GoalReadApplication, "listLegacyCoverage" | "listPolicyHistory" | "listGoalRiskLinks" | "getResolvedGoalPolicy" | "listTrashedGoals">;
-  inputs: Pick<GoalInputBindingsApi, "list">;
+  inputs: Pick<GoalInputBindingsApi, "list" | "register" | "deactivate">;
   projectGoalLifecycle(snapshot: Parameters<typeof projectGoalLifecycle>[0], goalId: string): ReturnType<typeof projectGoalLifecycle>;
   eventWork: Pick<GoalEventApplication, "readState">;
 }

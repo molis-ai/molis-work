@@ -12,10 +12,13 @@ import { prepareContextDocuments } from "./context-onboarding-documents.js";
 import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
 import { completeMolisWorkOnboarding } from "./onboarding.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import { todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 
 export interface ContextOnboardingPorts {
   withCatalog: LocalWebCatalogRunner;
   actions?: (home: string, projectId: string) => Promise<BoundActionClient>;
+  /** The person's own (Home) actions, for todo drafts made before the project exists. */
+  homeActions?: (home: string, signal: AbortSignal) => BoundActionClient;
   model?: (home: string) => Promise<CogniaAiPorts>;
   readSource?: typeof readContextSource;
 }
@@ -110,7 +113,10 @@ async function organize(home: string, journey: ContextJourney, ports: ContextOnb
     validateContextBudget(unique);
     const ai = await contextModel(home, ports); journey.model = ai.runtimeLabel ?? null; save();
     if (!ai.completeText) { journey.needs_model = true; throw new Error(ai.unavailableReason ?? "材料已保存。请在设置中连接文字模型，再回来继续整理。"); }
+    // Todo drafts come from the same materials, beside the overview; a failure there never stops the overview.
+    const drafts = draftTodos(home, journey, unique, ports, save);
     const raw = await summarizeContext(unique, ai, journey, save);
+    await drafts;
     journey.summary = parseContextSummary(raw, unique); journey.phase = "review"; journey.error = null; save();
   } catch (error) {
     journey.phase = "failed"; journey.error = error instanceof Error ? error.message.slice(0, 600) : "整理失败，材料已保留"; save();
@@ -181,6 +187,21 @@ export function parseContextSummary(raw: string, references: ContextReference[])
   if (!labels.length || labels.some(label => !references.some(r => r.label === label))) throw new Error("摘要缺少有效来源，未采用模型结果。请重新整理。");
   return { title: parts[1]!.trim(), body, references };
 }
+async function draftTodos(home: string, journey: ContextJourney, references: ContextReference[], ports: ContextOnboardingPorts, save: () => unknown): Promise<void> {
+  if (!ports.homeActions) return;
+  if (journey.todo?.status === "ready" && journey.todo.batch) return;
+  journey.todo = { status: "pending", batch_id: null, batch: null, error: null }; save();
+  try {
+    const actions = ports.homeActions(home, AbortSignal.timeout(20 * 60_000));
+    // The journey id makes a retried pass return the same drafts instead of organizing twice.
+    const { batch } = await actions.invoke(todoOrganizeActions.extract, { title: "开始使用时整理的待办", origin: "onboarding", request_id: "onboarding:" + journey.id,
+      materials: references.slice(0, 50).map(ref => ({ title: ref.title, text: ref.body })) });
+    journey.todo = { status: "ready", batch_id: batch.batch_id, batch, error: null };
+  } catch (error) {
+    journey.todo = { status: "failed", batch_id: null, batch: null, error: error instanceof Error ? error.message.slice(0, 300) : "待办草稿没整理成" };
+  }
+  save();
+}
 function pageBody(text: string): PagesBody {
   const nodes = blocksFromMarkdown(text);
   return { type: "doc", content: nodes ? nodes.map(n => n.toJSON()) : [{ type: "paragraph", content: [{ type: "text", text }] }] } as PagesBody;
@@ -198,7 +219,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
   if (!title || title.length > 120 || body.length > 100_000) throw new Error("请输入 1–120 字的项目名称，摘要最多 100,000 字符");
   // Persist the accepted text before creating anything. A retry cannot overwrite
   // edits made later in Pages or change the adopted material set.
-  journey.adoption ??= { title, body, blank: input.blank === true }; journey.phase = "adopting"; journey.error = null;
+  const todoSelected = Array.isArray(input.todo_selected) ? input.todo_selected.filter((value): value is string => typeof value === "string").slice(0, 80) : [];
+  journey.adoption ??= { title, body, blank: input.blank === true, todo_selected: todoSelected }; journey.phase = "adopting"; journey.error = null;
   withContextJourneys(home, store => store.save(journey));
   const job = Promise.resolve().then(async () => {
     try {
@@ -232,12 +254,25 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
           journey.artifact_references.push({ artifact_id: artifact.artifact_id, version: artifact.version });
         }
       }
+      await adoptTodoDrafts(journey, actions);
       completeMolisWorkOnboarding(home, journey.project_id); journey.phase = "complete"; journey.error = null;
     } catch (error) { journey.phase = "failed"; journey.error = error instanceof Error ? error.message : "项目保存未完成，请重试"; }
     withContextJourneys(home, store => store.save(journey));
   }).finally(() => running.delete(key(home, id)));
   running.set(key(home, id), job); await job;
   return readContextJourney(home, id);
+}
+
+/** The drafts the person kept become the new project's todos; the rest stay in Todo's “待你确认”. Safe to repeat. */
+async function adoptTodoDrafts(journey: ContextJourney, actions: BoundActionClient): Promise<void> {
+  const selected = new Set(journey.adoption?.todo_selected ?? []);
+  if (!journey.todo?.batch_id || !selected.size || journey.todo.added) return;
+  const { batch } = await actions.invoke(todoOrganizeActions.get, { id: journey.todo.batch_id });
+  const relation = { same: "merge", update: "update", conflict: "update", maybe_done: "complete", reopen: "reopen" } as const;
+  const decisions = batch.candidates.filter(candidate => selected.has(candidate.candidate_id) && !candidate.decision)
+    .map(candidate => ({ candidate_id: candidate.candidate_id, action: candidate.existing ? relation[candidate.existing.relation] : "add" as const }));
+  const applied = decisions.length ? await actions.invoke(todoOrganizeActions.apply, { id: batch.batch_id, expected_revision: batch.revision, decisions }) : null;
+  journey.todo = { ...journey.todo, batch: applied?.batch ?? batch, added: (applied?.results ?? []).flatMap(result => result.item_id ? [result.item_id] : []) };
 }
 
 function validateContextBudget(references: ContextReference[]): void {

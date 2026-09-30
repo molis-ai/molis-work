@@ -8,6 +8,7 @@ import {
   SCHEDULE_NATIVE_PLUGIN_ROUTES,
   SCHEDULE_UI_CONTRIBUTION_ID,
   SchedulePluginRouteTable,
+  createScheduleActionHandlers,
   createScheduleRouteHandlers,
   scheduleUiContribution,
   type ScheduleConversationTaskView,
@@ -187,6 +188,20 @@ test("Schedule HTTP 能列出任务并暂停", async () => {
   assert.equal((paused?.body as { job: ScheduleJobRecord }).job.enabled, false);
   assert.ok(SCHEDULE_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "schedule.task.update"));
   assert.ok(SCHEDULE_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "schedule.task.archive"));
+});
+
+test("读一条定时任务：先说每天几点跑、是否已停用，再是说明与每次回报", async () => {
+  const unused = () => { throw new Error("unused"); };
+  const task: ScheduleConversationTaskView = { task_id: "sct-1", title: "每天早上汇总 Inbox 未读", instructions: "把未读按来源归类", hour: 9, minute: 0,
+    notify_important: true, enabled: false, archived: false, unread: false, job_id: null, last_run_at: null, last_error: null,
+    created_at: "2026-09-29T00:00:00.000Z", updated_at: "2026-09-29T00:00:00.000Z", turns: [], clock_label: "09:00", next_due_at: null };
+  const handlers = createScheduleActionHandlers("schedule-project", { listJobs: () => [], setEnabled: unused, listTasks: () => [task], recoverReminder: unused,
+    createTask: unused, updateTask: unused, archiveTask: unused, setTaskEnabled: unused, openTask: unused });
+  const read = handlers.find(row => row.capability_id === "schedule.subject.read");
+  assert.ok(read);
+  const context = await read.handle({ actor_id: "test", project_id: "schedule-project", audience: "agent", permissions: [], beforeEffect: async () => {} },
+    { subject_kind: "schedule_task", subject_id: "sct-1" }) as { content: string };
+  assert.equal(context.content, "每天 09:00 运行（已停用）\n\n把未读按来源归类");
 });
 
 test("启用 Schedule 后导航出现且没有第二列目录", () => {

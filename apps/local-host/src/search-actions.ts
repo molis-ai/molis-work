@@ -3,6 +3,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import { SEARCH_PROVIDER_ID, searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchRebuildRequest, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
 import { SearchService, type SearchAccess } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
+import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 
 /**
  * Host wiring for the system search (specs/system-search §6): the index lives in this Home, indexing reads with the local
@@ -20,6 +21,8 @@ export interface SearchHostPorts {
   ownerContext(reference: LocalHostProjectReference | undefined): Promise<ActionCallContext>;
   /** Project ids still in this Home's catalog; null until the catalog is configured. */
   knownProjects(): Promise<readonly string[] | null>;
+  /** Open the personal space when it exists (never creates it), so the person finds its content from any project. */
+  openPersonalSpace?(): Promise<LocalHostProjectReference | undefined>;
   onError?(error: unknown, where: string): void;
 }
 
@@ -45,11 +48,12 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     index,
     indexer: async projectId => {
       if (!projectId) return { client: ports.homeClient(), caller: await ports.ownerContext(undefined) };
-      const reference = ports.project(projectId);
+      const reference = ports.project(projectId) ?? (projectId === PERSONAL_SPACE_PROJECT_ID ? await ports.openPersonalSpace?.() : undefined);
       if (!reference) throw new ActionError("search.project_closed", "项目未打开，稍后在该项目里搜索时再更新");
       return { client: ports.projectClient(reference), caller: await ports.ownerContext(reference) };
     },
     knownProjects: () => ports.knownProjects(),
+    personalSpace: PERSONAL_SPACE_PROJECT_ID,
     ...(ports.onError ? { onError: ports.onError } : {}),
   });
   const access = (caller: ActionCallContext): SearchAccess => ({ client: clientFor(caller), caller });

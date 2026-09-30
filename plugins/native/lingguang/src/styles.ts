@@ -68,6 +68,7 @@ export const LINGGUANG_STYLES = `
     max-width: min(420px, calc(100% - 32px)); text-align: center;
   }
   .lingguang-note.is-error { background: var(--red); color: var(--paper); }
+  .lingguang-note .mw-btn--link { color: inherit; text-decoration: underline; min-height: 0; padding: 0; }
   dialog.mw-dialog.creative-confirm { width: min(360px, calc(100vw - 32px)); }
   .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 16px; }
   .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
@@ -90,4 +91,7 @@ export const LINGGUANG_STYLES = `
     .lingguang-selection-bar .mw-btn, .lingguang-chat-form .mw-btn,
     .plugin-stage-detail-bar .mw-btn { min-height: 44px; }
   }
+
+  .lingguang-placement-line { margin: 2px 0 10px; }
+  [data-lingguang-empty]:not([hidden]) ~ .lingguang-placement-line { display: none; }
 `;

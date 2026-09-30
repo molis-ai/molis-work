@@ -63,3 +63,36 @@ for (const width of [1440, 390]) {
     try { assert.equal(final.list(projectId!)[0]!.title, "另一窗口的新标题"); } finally { final.close(); }
   });
 }
+
+test("the open page never saves over what it cannot show or has not seen: changed elsewhere, it redraws; unreadable, it stays read-only", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  const paragraph = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
+  // Seen with MiniMax-M3 before writes were checked: another editor's node names, stored as they were.
+  const foreign = { type: "doc" as const, content: [{ type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "原来的要点" }] }] }] }] };
+  const setup = openPagesStore(homeDirectory);
+  const [shown, unreadable] = (() => { try { return [setup.create({ project_id: projectId!, title: "别处会改的文档", body: paragraph("第一版正文") }), setup.create({ project_id: projectId!, title: "结构不对的文档", body: foreign })]; } finally { setup.close(); } })();
+  const open = async (id: string) => {
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${id}` }, sessionId));
+    await waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')`);
+  };
+  await open(shown.id);
+  await waitFor("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('第一版正文')");
+  // Another window saves a new version; coming back to this one shows it instead of keeping the old text under it.
+  const other = openPagesStore(homeDirectory);
+  try { other.update(shown.id, { body: paragraph("另一个窗口的第二版"), expected_version: shown.version }, projectId!); } finally { other.close(); }
+  await evaluate("window.dispatchEvent(new Event('focus'))");
+  await waitFor("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('另一个窗口的第二版')");
+  // A body the editor cannot show opens read-only with a note, and nothing is saved over it.
+  await open(unreadable.id);
+  await waitFor("/显示不了/.test(document.querySelector('[data-pages=workbench]').textContent) && document.querySelector('[data-pages-editor] .ProseMirror').getAttribute('contenteditable') === 'false'");
+  await new Promise(resolve => setTimeout(resolve, 1200));
+  const after = openPagesStore(homeDirectory);
+  try {
+    const stored = after.get(unreadable.id, projectId!);
+    assert.equal(stored.version, unreadable.version, "never saved");
+    assert.match(JSON.stringify(stored.body), /原来的要点/);
+  } finally { after.close(); }
+});

@@ -79,12 +79,13 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <span class="mw-empty__mark">${icon("note")}</span>
         <strong>${p.text("还没有文档")}</strong>
         <p>${p.text("先建一篇，在纸面上写。刷新之后还在。")}</p>
-        <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
+        <p data-placement-target></p>
         <div class="mw-empty__actions">
           <button class="mw-btn mw-btn--ghost" type="button" data-pages-templates>${icon("library")}<span>${p.text("从模板新建")}</span></button>
           <button class="mw-btn mw-btn--ghost" type="button" data-pages-import>${icon("upload")}<span>${p.text("导入已有文档")}</span></button>
         </div>
       </div>
+      <p class="pages-placement-line" data-placement-target></p>
       <p class="pages-search-empty" data-pages-search-empty hidden>${p.text("没有匹配的文档")}</p>
       <div data-pages-rows></div>
     </div>
@@ -93,8 +94,9 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <button class="plugin-stage-back" type="button" data-pages-back aria-label="${p.text("返回文档列表")}" title="${p.text("返回文档列表")}">${icon("chevron-right")}</button>
         <h1 data-pages-editor-title>${p.text("文档")}</h1>
         <span data-pages-editor-status></span>
+        <span data-placement-slot data-placement-saved="off"></span>
         <div class="pages-editor-tools">
-          <button class="mw-btn mw-btn--ghost" type="button" data-pages-promote data-pages-artifact-bar>${p.text("存成 Artifact")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-pages-promote data-pages-artifact-bar title="${p.text("把当前内容存成不会再变的一版，放进这个位置的成果（Artifacts）")}">${p.text("存为固定版本")}</button>
           <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-star-editor aria-label="${p.text("收藏")}" title="${p.text("收藏")}">${icon("star")}</button>
           <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-more aria-expanded="false" aria-haspopup="true" aria-label="${p.text("更多")}" title="${p.text("更多")}">${icon("more")}</button>
           <div class="mw-menu pages-more-menu" data-pages-more-menu hidden>
@@ -103,8 +105,11 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
             </label>
             <hr>
             <button class="mw-menu__item" type="button" data-pages-extract>${icon("sparkles")}${p.text("抽取")}</button>
-            <button class="mw-menu__item" type="button" data-pages-promote>${icon("upload")}${p.text("存成 Artifact")}</button>
-            <button class="mw-menu__item" type="button" data-pages-export>${icon("download")}${p.text("导出 HTML")}</button>
+            <button class="mw-menu__item" type="button" data-pages-promote>${icon("upload")}${p.text("存为固定版本")}</button>
+            <hr>
+            <button class="mw-menu__item" type="button" data-pages-export="md">${icon("download")}${p.text("导出 Markdown")}</button>
+            <button class="mw-menu__item" type="button" data-pages-export="html">${icon("download")}${p.text("导出网页（HTML）")}</button>
+            <button class="mw-menu__item" type="button" data-pages-print>${icon("download")}${p.text("打印或存为 PDF")}</button>
             <hr>
             <button class="mw-menu__item mw-menu__item--danger" type="button" data-pages-delete>${icon("trash")}${p.text("删除")}</button>
           </div>

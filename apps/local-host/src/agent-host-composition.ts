@@ -1,4 +1,5 @@
 import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
+import { pdfDocumentParser } from "./pdf-document-parser.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
@@ -67,7 +68,10 @@ export interface AgentHostComposition {
   readonly inference: PrologueInferenceClient;
   createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
+  /** Starts the runtime when it has not started yet. */
   readonly ready: Promise<void>;
+  /** Settles once the runtime has started because something needed it; waiting on it never starts the runtime. */
+  readonly started: Promise<void>;
   /** Brings back a project's external MCP entries after a restart; called before the project's directory is read. */
   restoreExternalMcp(reference: LocalHostProjectReference): Promise<void>;
   /** Unregisters the Capabilities this composition added. */
@@ -101,15 +105,19 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
 
   let prologue: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
   let ready: Promise<void> | undefined;
+  let markStarted!: () => void;
+  const started = new Promise<void>(resolve => { markStarted = resolve; });
   let disposed = false;
   let disposal: Promise<void> | undefined;
   const initialize = (): Promise<void> => {
     if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
     return ready ??= (options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
       ...options.prologue,
+      // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
+      documentParsers: [pdfDocumentParser],
       reviewQueue: agentHost.reviews,
       app: { appId: "io.molis.work", appVersion: "0.0.0" },
-    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); }))
+    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); markStarted(); }))
       .catch(error => { ready = undefined; throw error; });
   };
   // Connected external MCP tools join the project directory; they follow every list, save and connection change.
@@ -318,7 +326,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw new Error("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
   const restoreExternalMcp = (reference: LocalHostProjectReference) => disposed ? Promise.resolve()
     : externalMcp.restore(reference, async runtimeId => { await initialize(); return agentHost.adapter(runtimeId).mcpLibrary; });
-  return { agentHost, inference, createBuilderAgent, restoreExternalMcp, get ready() { return initialize(); }, dispose() {
+  return { agentHost, inference, createBuilderAgent, restoreExternalMcp, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();

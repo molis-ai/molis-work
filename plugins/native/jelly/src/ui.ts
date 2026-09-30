@@ -81,7 +81,7 @@ export function renderJellyWorkbench(model: JellyUiModel): string {
     <div class="plugin-stage-workspace jelly-detail" data-jelly-stage-workspace hidden>
       <div class="plugin-stage-detail-bar">
         <button type="button" class="plugin-stage-back" data-jelly-back aria-label="${t("返回列表")}" title="${t("返回列表")}">${icon("chevron-right")}</button>
-        <h1 data-jelly-editor-heading>${t("笔记")}</h1><span class="jelly-save-status" data-jelly-save-status></span>
+        <h1 data-jelly-editor-heading>${t("笔记")}</h1><span class="jelly-save-status" data-jelly-save-status></span><span data-placement-slot data-placement-scope="home" data-placement-saved="off"></span>
         ${button("拆成任务", "data-jelly-decompose", "sparkles")}
         ${button("归档", "data-jelly-archive", "archive")}
         ${button("更多", 'data-jelly-editor-more aria-expanded="false"', "more")}

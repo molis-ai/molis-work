@@ -7,6 +7,7 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/form";
 import { FORM_UI_CONTRIBUTION_ID } from "./ui.js";
 import { formActions, FORM_ACTION_PERMISSIONS } from "./actions.js";
+import { formContentActions } from "./content-actions.js";
 import { FORM_MCP_EXPORTS } from "./mcp.js";
 
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID };
@@ -25,7 +26,7 @@ export const formManifest: PluginManifest = {
     { permission: "artifact:write", required: true, reason: "把问卷存成 Artifact" },
     ...FORM_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: permission !== "model:invoke", reason: "问卷动作读取、编辑、填写或显式模型调用" })),
   ],
-  actions: Object.values(formActions),
+  actions: [...Object.values(formActions), ...Object.values(formContentActions)],
   capabilities: { provides: [], consumes: [] },
   artifacts: {
     produces: [{ artifact_type_id: FORM_ARTIFACT_TYPE_ID, schema_version: FORM_ARTIFACT_SCHEMA_VERSION }],

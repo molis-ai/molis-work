@@ -32,7 +32,7 @@ export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWork
   return packs.flatMap((pack) => {
     const lines: string[] = [];
     if (pack.clientFactory) {
-      lines.push(`(${pack.clientFactory})({ mountPluginClient, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "", feedApi, route });`);
+      lines.push(`(${pack.clientFactory})({ mountPluginClient, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "", projectTitle: () => state.project?.display_name || "", feedApi, route });`);
     }
     if (pack.settingsClient) lines.push(pack.settingsClient);
     return lines;

@@ -58,7 +58,7 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     assert.ok(first.sources.some(source => source.plugin_id === "io.molis.work.goals" && source.state === "ready"));
     assert.deepEqual(ids(await search(refA, "OKR")), ["io.molis.work.form:form"]);
     assert.deepEqual(ids(await search(refA, "满意")), ["io.molis.work.form:form"]);
-    assert.deepEqual(ids(await search(refA, "两字")), ["io.molis.work.lingguang:spark"]);
+    assert.deepEqual(ids(await search(refA, "两字")), ["io.molis.work.lingguang:lingguang_spark"]);
     assert.deepEqual(ids(await search(refA, "系统级搜索")), ["io.molis.work.goals:goal"]);
     assert.deepEqual(ids(await search(refA, "法务", { scope: "personal" })), [], "project content is not personal content");
     assert.deepEqual(ids(await search(refB, "预算")).length, 1);

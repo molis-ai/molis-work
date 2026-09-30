@@ -8,6 +8,8 @@ export type ProjectMonogramHue = (typeof MONOGRAM_HUES)[number];
 
 export function projectMonogram(name: string, id: string): { initial: string; hue: ProjectMonogramHue } {
   const first = Array.from(name.trim())[0] ?? "·";
+  // The personal space is not one more project colour: it keeps a neutral mark of its own.
+  if (id === "personal") return { initial: first.toLocaleUpperCase(), hue: "slate" };
   let hash = 0;
   for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return { initial: first.toLocaleUpperCase(), hue: MONOGRAM_HUES[hash % MONOGRAM_HUES.length] };

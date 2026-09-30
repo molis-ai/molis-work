@@ -168,6 +168,38 @@ test("replay maps user stop intent only after an actual SDK cancellation, never 
 });
 
 
+test("a round the runtime's circuit breaker stopped keeps its reason after replay", async () => {
+  const ref = { run_id: "tripped-run", session_id: "tripped-session" };
+  const runtime: PrologueRuntimePort = {
+    sessions: { create: async () => { throw new Error("unused"); }, restore: async () => ({ title: "熔断", owner, runs: [{
+      ref, task: "保存会议待办", started_at: "2026-09-30T00:00:00Z",
+      frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: "/tmp/original", realpath_verified: true } },
+      events: [{ type: "text-delta", text: "调用插件" }, { type: "circuit-tripped", reason: "repeated-calls", count: 4, why: "the same call was made 4 times in a row; this run stopped going in circles." } as never],
+    }] }) },
+    startAgentRun: async () => { throw new Error("no replay execution"); }, shutdown: async () => {},
+  };
+  const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
+  const view = await adapter.readSession({ session_id: ref.session_id, runtime_id: "prologue" });
+  assert.equal(view.latest_run?.phase, "stopped");
+  assert.match(view.latest_run?.stop_reason ?? "", /同一个调用连续重复了 4 次.*可以说明怎么调整后继续/);
+});
+
+test("a replayed round keeps the step list it last had", async () => {
+  const ref = { run_id: "todo-run", session_id: "todo-session" };
+  const runtime: PrologueRuntimePort = {
+    sessions: { create: async () => { throw new Error("unused"); }, restore: async () => ({ title: "步骤", owner, runs: [{
+      ref, task: "排序待办", started_at: "2026-09-30T00:00:00Z",
+      frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: "/tmp/original", realpath_verified: true } },
+      events: [{ type: "todo-changed", items: [{ id: "a", text: "读取", state: "pending" }] } as never,
+        { type: "todo-changed", items: [{ id: "a", text: "读取", state: "done" }, { id: "b", text: "排序", state: "pending" }] } as never, { type: "text-delta", text: "好" }, { type: "completed" }],
+    }] }) },
+    startAgentRun: async () => { throw new Error("no replay execution"); }, shutdown: async () => {},
+  };
+  const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
+  const view = await adapter.readSession({ session_id: ref.session_id, runtime_id: "prologue" });
+  assert.deepEqual(view.latest_run?.todo, [{ id: "a", text: "读取", state: "done" }, { id: "b", text: "排序", state: "pending" }]);
+});
+
 test("packed SDK: a late stop on an ended live handle preserves later attempts across restart", { timeout: 30_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "molis-sdk-late-stop-"));
   const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.late-stop-test", appVersion: "0.1.0" }, storageRoot: join(root, "runtime"), modelConfiguration: async () => model, resolveCredential: () => "fixture-not-a-real-provider-key" });

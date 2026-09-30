@@ -40,6 +40,10 @@ export const FORM_NATIVE_PLUGIN_ROUTES = [
   route("form.generate-ai", "POST", /^\/api\/form\/([^/]+)\/generate-ai-question$/u, ["id"]),
   route("form.submit", "POST", /^\/api\/form\/([^/]+)\/submit$/u, ["id"]),
   route("form.results", "GET", /^\/api\/form\/([^/]+)\/results$/u, ["id"]),
+  route("form.close", "POST", /^\/api\/form\/([^/]+)\/close$/u, ["id"]),
+  route("form.answers.import", "POST", /^\/api\/form\/([^/]+)\/answers$/u, ["id"]),
+  route("form.csv", "GET", /^\/api\/form\/([^/]+)\/results\.csv$/u, ["id"]),
+  route("form.fillpage", "GET", /^\/api\/form\/([^/]+)\/fill-page$/u, ["id"]),
 ] as const satisfies readonly FormPluginRouteDefinition[];
 
 export class FormPluginRouteTable {

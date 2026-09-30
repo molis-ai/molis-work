@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Molis Work · 放在哪里切片</title>
+<style>
+:root {
+  color-scheme: light;
+  --page:#f3f4f5; --paper:#ffffff; --ink:#222326; --ink-soft:#3c3f44; --muted:#6b6f76; --faint:#737882;
+  --line:#e2e4e7; --line-strong:#d0d6e0; --hover:color-mix(in srgb, #222326 6%, transparent); --active:color-mix(in srgb, #222326 10%, transparent);
+  --blue:#5e6ad2; --blue-soft:#eef0fb; --green:#2d7a5a; --green-soft:#e8f4ee; --amber:#8a5c18; --amber-soft:#f8f0e2; --red:#b03d45; --red-soft:#fbecec;
+  --shadow:0 8px 28px rgba(26,38,52,.12);
+  --font:"Inter Variable", Inter, "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --control-h:32px; --radius:8px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  color-scheme: dark;
+  --page:#0f1011; --paper:#161718; --ink:#f7f8f8; --ink-soft:#d0d1d3; --muted:#8a8f98; --faint:#737880;
+  --line:#23252a; --line-strong:#2e3036; --hover:color-mix(in srgb, #f7f8f8 8%, transparent); --active:color-mix(in srgb, #f7f8f8 12%, transparent);
+  --blue:#8b93f1; --blue-soft:#23264a; --green:#6bc49a; --green-soft:#173026; --amber:#d4a15c; --amber-soft:#342a1c; --red:#ee858c; --red-soft:#3a2024;
+  --shadow:0 4px 10px rgba(0,0,0,.5), 0 20px 48px rgba(0,0,0,.46);
+} }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page:#0f1011; --paper:#161718; --ink:#f7f8f8; --ink-soft:#d0d1d3; --muted:#8a8f98; --faint:#737880;
+  --line:#23252a; --line-strong:#2e3036; --hover:color-mix(in srgb, #f7f8f8 8%, transparent); --active:color-mix(in srgb, #f7f8f8 12%, transparent);
+  --blue:#8b93f1; --blue-soft:#23264a; --green:#6bc49a; --green-soft:#173026; --amber:#d4a15c; --amber-soft:#342a1c; --red:#ee858c; --red-soft:#3a2024;
+  --shadow:0 4px 10px rgba(0,0,0,.5), 0 20px 48px rgba(0,0,0,.46);
+}
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; }
+body { background:var(--page); color:var(--ink); font:13px/1.5 var(--font); -webkit-font-smoothing:antialiased; }
+button, input, textarea, select { font:inherit; color:inherit; }
+.app { display:grid; grid-template-rows:36px 1fr 56px; height:100vh; }
+.tabs { display:flex; align-items:center; gap:6px; padding:0 10px; border-bottom:1px solid var(--line); }
+.tab { display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 10px; border-radius:6px; color:var(--muted); background:none; border:0; cursor:pointer; }
+.tab[aria-current="true"] { background:var(--active); color:var(--ink); }
+.stage { position:relative; overflow:auto; background:var(--paper); margin:0 8px; border-radius:10px; border:1px solid var(--line); }
+.dock { display:flex; align-items:center; gap:8px; padding:0 12px; }
+.dock .spacer { flex:1; }
+.dock-bar { display:flex; align-items:center; gap:6px; height:38px; padding:0 6px 0 10px; border:1px solid var(--line-strong); border-radius:10px; background:var(--paper); min-width:520px; color:var(--muted); }
+.dock-bar input { flex:1; border:0; background:transparent; outline:none; }
+.icon-btn { width:32px; height:32px; display:inline-grid; place-items:center; border-radius:8px; border:0; background:transparent; color:var(--muted); cursor:pointer; }
+.icon-btn:hover, .tab:hover { background:var(--hover); color:var(--ink); }
+.where-circle { width:32px; height:32px; border-radius:50%; display:grid; place-items:center; background:var(--blue); color:#fff; font-weight:600; border:0; cursor:pointer; }
+.where-circle.personal { background:var(--ink-soft); color:var(--paper); }
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:var(--control-h); padding:0 12px; border-radius:var(--radius); border:1px solid var(--line-strong); background:var(--paper); color:var(--ink); cursor:pointer; white-space:nowrap; }
+.btn:hover { background:var(--hover); }
+.btn--primary { background:var(--ink); color:var(--paper); border-color:var(--ink); }
+.btn--primary:hover { background:var(--ink-soft); }
+.btn--ghost { border-color:transparent; background:transparent; }
+.btn--sm { height:28px; padding:0 10px; }
+.btn--danger { color:var(--red); }
+.muted { color:var(--muted); } .faint { color:var(--faint); }
+.chip { display:inline-flex; align-items:center; gap:4px; height:22px; padding:0 8px; border-radius:11px; background:var(--active); color:var(--ink-soft); font-size:12px; }
+.chip--personal { background:var(--active); }
+.chip--project { background:var(--blue-soft); color:var(--blue); }
+.chip--warn { background:var(--amber-soft); color:var(--amber); }
+.chip--gone { background:var(--red-soft); color:var(--red); }
+.chip--ok { background:var(--green-soft); color:var(--green); }
+h1 { font-size:22px; font-weight:600; margin:0 0 4px; letter-spacing:-.01em; }
+h2 { font-size:15px; font-weight:600; margin:0; }
+h3 { font-size:12px; font-weight:600; color:var(--muted); margin:18px 0 8px; text-transform:none; }
+.pad { padding:28px 36px; max-width:1080px; }
+.list { display:flex; flex-direction:column; border-top:1px solid var(--line); }
+.row { display:grid; grid-template-columns:1fr auto; align-items:center; gap:12px; padding:10px 8px; border-bottom:1px solid var(--line); cursor:pointer; }
+.row:hover { background:var(--hover); }
+.row strong { font-weight:500; }
+.row small { display:block; color:var(--muted); }
+.card { border:1px solid var(--line); border-radius:10px; padding:16px; background:var(--paper); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px; }
+.card--space { border-color:var(--line-strong); background:linear-gradient(0deg, var(--paper), var(--paper)); }
+.card .kicker { font-size:12px; color:var(--muted); margin-bottom:6px; }
+.toolbar { display:flex; align-items:center; gap:8px; padding:10px 16px; border-bottom:1px solid var(--line); }
+.toolbar .grow { flex:1; }
+.target { font-size:12px; color:var(--muted); }
+.target b { color:var(--ink-soft); font-weight:500; }
+/* placement bar */
+.placement { display:inline-flex; align-items:center; gap:0; height:26px; border:1px solid var(--line); border-radius:13px; padding:0 4px; background:var(--paper); cursor:pointer; font-size:12px; }
+.placement:hover { border-color:var(--line-strong); background:var(--hover); }
+.placement > span { padding:0 6px; display:inline-flex; align-items:center; gap:4px; }
+.placement > span + span { border-left:1px solid var(--line); }
+.placement .loc { color:var(--ink); font-weight:500; }
+.placement .dot { width:6px; height:6px; border-radius:50%; background:var(--green); display:inline-block; }
+.placement .dot.unsaved { background:var(--amber); }
+.editor { padding:28px 64px; max-width:860px; }
+.editor .title { font-size:26px; font-weight:600; border:0; outline:0; background:transparent; width:100%; padding:0; margin:0 0 12px; }
+.editor p, .editor li { font-size:14px; line-height:1.75; color:var(--ink-soft); }
+.popover { position:absolute; z-index:40; width:380px; background:var(--paper); border:1px solid var(--line-strong); border-radius:12px; box-shadow:var(--shadow); padding:14px; }
+.popover dl { display:grid; grid-template-columns:72px 1fr; gap:6px 10px; margin:0 0 10px; }
+.popover dt { color:var(--muted); }
+.popover dd { margin:0; }
+.popover .assoc { display:flex; flex-direction:column; gap:4px; margin:4px 0 10px; }
+.popover .assoc div { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:var(--page); }
+.popover .actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+dialog { border:1px solid var(--line-strong); border-radius:14px; padding:0; background:var(--paper); color:var(--ink); box-shadow:var(--shadow); width:min(520px, calc(100vw - 32px)); }
+dialog::backdrop { background:rgba(0,0,0,.35); }
+.dialog-head { padding:18px 20px 8px; }
+.dialog-body { padding:4px 20px 12px; }
+.dialog-foot { display:flex; justify-content:flex-end; gap:8px; padding:12px 20px 18px; }
+.choice { display:grid; grid-template-columns:18px 1fr; gap:10px; padding:12px; border:1px solid var(--line); border-radius:10px; margin-bottom:8px; cursor:pointer; }
+.choice:has(input:checked) { border-color:var(--blue); background:var(--blue-soft); }
+.choice strong { display:block; font-weight:500; margin-bottom:2px; }
+.choice small { color:var(--muted); display:block; }
+.choice .rec { color:var(--blue); font-size:12px; margin-left:6px; }
+.select-row { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 12px; }
+.select-row button[aria-pressed="true"] { border-color:var(--blue); background:var(--blue-soft); color:var(--blue); }
+.toast-region { position:fixed; left:50%; bottom:68px; transform:translateX(-50%); display:flex; flex-direction:column; gap:8px; z-index:60; }
+.toast { display:flex; align-items:center; gap:12px; min-width:520px; max-width:760px; padding:10px 10px 10px 14px; border-radius:12px; background:var(--paper); border:1px solid var(--line-strong); box-shadow:var(--shadow); }
+.toast .what { flex:1; }
+.toast .what strong { font-weight:500; }
+.toast .what small { display:block; color:var(--muted); }
+.slide-grid { display:grid; grid-template-columns:200px 1fr; height:calc(100% - 49px); }
+.slide-list { border-right:1px solid var(--line); overflow:auto; padding:10px; display:flex; flex-direction:column; gap:8px; }
+.thumb { aspect-ratio:16/9; border:1px solid var(--line); border-radius:6px; padding:8px; font-size:10px; cursor:pointer; background:var(--page); overflow:hidden; }
+.thumb[aria-current="true"] { border-color:var(--blue); }
+.thumb b { display:block; font-size:11px; margin-bottom:2px; }
+.slide-view { padding:24px; display:grid; place-items:center; background:var(--page); }
+.slide { aspect-ratio:16/9; width:min(100%, 760px); border-radius:8px; padding:6% 7%; background:#fcfcfb; color:#292a2e; box-shadow:var(--shadow); position:relative; }
+.slide h4 { font-size:28px; margin:0 0 18px; color:#292a2e; }
+.slide ul { margin:0; padding-left:1.1em; font-size:17px; line-height:1.6; }
+.slide .accent { position:absolute; left:0; top:0; bottom:0; width:6px; background:#5e6ad2; border-radius:8px 0 0 8px; }
+.present { position:fixed; inset:0; z-index:80; background:#000; display:grid; place-items:center; }
+.present .slide { width:min(96vw, calc(96vh * 16 / 9)); box-shadow:none; border-radius:0; }
+.present .slide h4 { font-size:44px; } .present .slide ul { font-size:26px; }
+.present .bar { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); display:flex; gap:8px; align-items:center; color:#bbb; font-size:12px; background:rgba(40,40,44,.8); padding:6px 10px; border-radius:10px; }
+.present .notes { position:fixed; right:16px; bottom:60px; width:360px; background:rgba(40,40,44,.92); color:#ddd; border-radius:10px; padding:12px; font-size:13px; }
+.menu { position:absolute; z-index:45; background:var(--paper); border:1px solid var(--line-strong); border-radius:10px; box-shadow:var(--shadow); padding:4px; min-width:240px; }
+.menu button { display:flex; flex-direction:column; align-items:flex-start; width:100%; padding:7px 10px; border:0; background:transparent; border-radius:6px; cursor:pointer; text-align:left; }
+.menu button:hover { background:var(--hover); }
+.menu button small { color:var(--muted); }
+.form-q { border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+.bars { display:flex; flex-direction:column; gap:4px; margin-top:6px; }
+.bars div { display:grid; grid-template-columns:120px 1fr 40px; gap:8px; align-items:center; font-size:12px; }
+.bars i { display:block; height:8px; border-radius:4px; background:var(--blue); }
+.fill { position:fixed; inset:0; z-index:80; background:var(--page); overflow:auto; }
+.fill .sheet { max-width:620px; margin:40px auto; background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:28px; }
+.fill label { display:block; margin:14px 0 6px; font-weight:500; }
+.fill .opts { display:flex; flex-direction:column; gap:6px; }
+.fill input[type=text], .fill textarea { width:100%; border:1px solid var(--line-strong); border-radius:8px; padding:8px 10px; background:var(--paper); }
+.split { display:grid; grid-template-columns:1fr 320px; gap:0; height:100%; }
+.side { border-left:1px solid var(--line); padding:20px; overflow:auto; }
+.slice-nav { position:fixed; top:44px; right:14px; z-index:70; width:220px; background:var(--paper); border:1px dashed var(--line-strong); border-radius:10px; padding:8px; font-size:12px; opacity:.96; }
+.slice-nav summary { cursor:pointer; color:var(--muted); }
+.slice-nav ol { margin:6px 0 0; padding-left:18px; }
+.slice-nav button { border:0; background:none; padding:2px 0; color:var(--ink-soft); cursor:pointer; text-align:left; }
+.slice-nav button:hover { color:var(--blue); }
+.notice { display:flex; gap:10px; align-items:center; padding:10px 12px; border-radius:10px; background:var(--amber-soft); color:var(--amber); margin-bottom:14px; }
+.gone { opacity:.75; }
+.empty { padding:40px 0; }
+.kbd { font-size:11px; border:1px solid var(--line-strong); border-bottom-width:2px; border-radius:4px; padding:0 4px; }
+@media (max-width: 760px) {
+  .dock-bar { min-width:0; flex:1; }
+  .toast { min-width:0; width:calc(100vw - 24px); flex-wrap:wrap; }
+  .pad { padding:18px 16px; }
+  .editor { padding:18px 16px; }
+  .split, .slide-grid { grid-template-columns:1fr; }
+  .side, .slide-list { display:none; }
+  .slice-nav { display:none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .toast { animation:rise .22s cubic-bezier(.16,1,.3,1); }
+  @keyframes rise { from { transform:translateY(8px); opacity:0; } }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="tabs" id="tabs"></header>
+  <main class="stage" id="stage"></main>
+  <footer class="dock" id="dock"></footer>
+</div>
+<div class="toast-region" id="toasts" role="status" aria-live="polite"></div>
+<dialog id="dialog"></dialog>
+<details class="slice-nav" open>
+  <summary>切片路径（评审用，不是产品界面）</summary>
+  <ol id="paths"></ol>
+</details>
+<script>
+/* ---------- Data: realistic content for the slice ---------- */
+const PROJECTS = { q4: { id:"q4", title:"Q4 新版发布", glyph:"Q" }, interview: { id:"interview", title:"客户访谈计划", glyph:"客" } };
+const PERSONAL = { id:"personal", title:"个人空间", glyph:"我" };
+const state = {
+  where: "root", fresh: false, plugin: "home", open: null, unsaved: false,
+  objects: {
+    "doc-checklist": { kind:"pages", title:"上线前检查清单", loc:"personal", used:[], goals:[], body:["回滚预案写清楚：谁决定、几分钟内能回滚。","客服话术更新到 v3，覆盖价格变化。","灰度 5% → 30% → 100%，每段观察 2 小时。"], state:"ok" },
+    "shelf-pricing": { kind:"shelf", title:"竞品定价表.xlsx", loc:"home", used:["q4","interview"], goals:[], state:"ok", note:"Shelf 副本 · 42 KB" },
+    "shelf-quotes": { kind:"shelf", title:"用户访谈原话.md", loc:"home", used:["q4"], goals:["goal-review"], state:"ok", note:"Shelf 副本 · 9 KB" },
+    "deck-review": { kind:"ppt", title:"Q4 发布评审", loc:"q4", used:[], goals:["goal-review"], state:"ok", version:7, artifact:null },
+    "form-beta": { kind:"form", title:"Beta 用户满意度", loc:"q4", used:[], goals:[], state:"ok", collecting:false, responses:23 },
+    "spark-demo": { kind:"spark", title:"把发布说明做成可点的演示", loc:"q4", used:[], goals:[], state:"ok", body:"评审会上直接点着讲，比念 PDF 好。可以先用 PPT 做 6 页。" },
+  },
+  goals: { "goal-review": { title:"完成 Q4 发布评审材料", project:"q4" } },
+};
+const SLIDES = [
+  { title:"Q4 新版发布评审", bullets:["范围：计费重构、团队空间 Beta、移动端改版","今天要决定：是否 10 月 20 日开始灰度"], notes:"开场 1 分钟，先说结论：建议按计划灰度。" },
+  { title:"做成了什么", bullets:["计费重构上线预发，账单对账差异 0","团队空间 Beta 覆盖 41 个试用团队","移动端首屏加载 2.8s → 1.6s"], notes:"数字都来自 9/25 周报。" },
+  { title:"Beta 反馈", bullets:["23 份满意度问卷，平均 4.2 / 5","最常见诉求：权限分级、导出 PDF","两位客户愿意做案例"], notes:"问卷结果在「Beta 用户满意度」。" },
+  { title:"风险与应对", bullets:["价格变化引起投诉 → 客服话术 v3","灰度期间账单异常 → 5 分钟内回滚"], notes:"回滚预案见《上线前检查清单》。" },
+  { title:"灰度计划", bullets:["10/20 5% · 10/22 30% · 10/27 100%","每段观察 2 小时，指标：支付成功率、工单量"], notes:"" },
+  { title:"需要大家决定", bullets:["同意 10/20 开始灰度？","法务能否在 10/18 前确认新条款？"], notes:"留 10 分钟讨论。" },
+];
+const QUESTIONS = [
+  { title:"整体满意度", type:"rating", dist:{"5 分":9,"4 分":10,"3 分":3,"2 分":1,"1 分":0} },
+  { title:"最常用的功能", type:"single", dist:{"团队空间":11,"账单与发票":6,"移动端":4,"其他":2} },
+  { title:"最希望改进的地方", type:"text", samples:["权限能分到项目级","导出 PDF 时保留格式","移动端能审批"] },
+];
+
+/* ---------- Helpers ---------- */
+const $ = (sel, root=document) => root.querySelector(sel);
+const esc = v => String(v).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const locName = loc => loc === "personal" || loc === "home" ? "个人空间" : "项目「" + PROJECTS[loc].title + "」";
+const accessName = loc => loc === "personal" || loc === "home" ? "只有你" : "项目内可见";
+const here = () => state.where === "personal" ? "personal" : state.where;
+const pluginTitle = { home:"首页", pages:"Pages", ppt:"PPT", form:"问卷", shelf:"Shelf", goals:"Goals", spark:"灵光", artifacts:"Artifacts" };
+function toast(html, actions=[], ms=9000) {
+  const node = document.createElement("div"); node.className = "toast";
+  node.innerHTML = `<div class="what">${html}</div>`;
+  actions.forEach(([label, run, primary]) => { const b = document.createElement("button"); b.className = "btn btn--sm " + (primary ? "btn--primary" : ""); b.textContent = label; b.onclick = () => { node.remove(); run(); }; node.append(b); });
+  const x = document.createElement("button"); x.className = "icon-btn"; x.setAttribute("aria-label", "关闭提示"); x.textContent = "×"; x.onclick = () => node.remove(); node.append(x);
+  $("#toasts").append(node); setTimeout(() => node.remove(), ms);
+}
+function go(patch) { Object.assign(state, patch); closePopovers(); render(); }
+function closePopovers() { document.querySelectorAll(".popover,.menu").forEach(n => n.remove()); }
+document.addEventListener("click", e => { if (!e.target.closest(".popover,.menu,[data-pop]")) closePopovers(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closePopovers(); });
+
+/* ---------- Shell ---------- */
+function renderShell() {
+  const inSpace = state.where !== "root" && state.where !== "onboarding";
+  $("#tabs").innerHTML = inSpace
+    ? `<button class="tab" aria-current="${state.plugin==='home'}" onclick="go({plugin:'home',open:null})">${state.where==='personal'?'个人首页':'项目首页'}</button>
+       ${state.plugin!=='home'?`<button class="tab" aria-current="true">${pluginTitle[state.plugin]}${state.open?' · '+esc(state.objects[state.open]?.title||state.goals[state.open]?.title||''):''}</button>`:''}`
+    : `<span class="muted" style="padding:0 6px">Molis Work</span>`;
+  const plugins = state.where === "personal" ? ["pages","ppt","form","spark","shelf"] : ["goals","pages","ppt","form","spark","shelf","artifacts"];
+  $("#dock").innerHTML = inSpace ? `
+    ${plugins.map(p => `<button class="icon-btn" title="${pluginTitle[p]}" aria-label="${pluginTitle[p]}" onclick="go({plugin:'${p}',open:null})">${{goals:"◎",pages:"▤",ppt:"▭",form:"☑",spark:"✦",shelf:"▥",artifacts:"◫"}[p]}</button>`).join("")}
+    <span class="spacer"></span>
+    <div class="dock-bar"><span class="chip">${state.where==='personal'?'个人':'本项目'}</span><input placeholder="让助理做点什么…" aria-label="发给助理"/><span class="kbd">⌘K</span></div>
+    <span class="spacer"></span>
+    <button class="where-circle ${state.where==='personal'?'personal':''}" data-pop title="切换位置" onclick="whereMenu(event)">${state.where==='personal'?PERSONAL.glyph:PROJECTS[state.where].glyph}</button>`
+    : `<span class="spacer"></span><div class="dock-bar"><span class="chip">个人</span><input placeholder="让助理做点什么…" aria-label="发给助理"/></div><span class="spacer"></span>`;
+}
+function whereMenu(e) {
+  closePopovers(); const m = document.createElement("div"); m.className = "menu";
+  const rect = e.currentTarget.getBoundingClientRect(); m.style.right = (innerWidth - rect.right) + "px"; m.style.bottom = (innerHeight - rect.top + 8) + "px"; m.style.position = "fixed";
+  m.innerHTML = `<button onclick="go({where:'personal',plugin:'home',open:null})"><span>个人空间</span><small>不属于任何项目 · 只有你</small></button>
+    ${Object.values(PROJECTS).map(p => `<button onclick="go({where:'${p.id}',plugin:'home',open:null})"><span>${esc(p.title)}</span><small>项目</small></button>`).join("")}
+    <button onclick="go({where:'root',plugin:'home',open:null})"><span>全部项目与个人空间</span><small>回到选择页</small></button>`;
+  document.body.append(m);
+}
+
+/* ---------- Placement bar & panel ---------- */
+function placementBar(id) {
+  const o = state.objects[id]; const loc = o.loc;
+  const assoc = o.used.length + o.goals.length;
+  return `<button class="placement" data-pop onclick="placementPanel(event,'${id}')" aria-label="位置与关联：${locName(loc)}，${accessName(loc)}，关联 ${assoc} 项">
+    <span class="loc">${loc==='home'||loc==='personal'?'◌':'▣'} ${esc(locName(loc))}</span>
+    <span class="muted">${accessName(loc)}${o.used.includes(here())&&(loc==='home'||loc==='personal')?' · 已用于本项目':''}</span>
+    ${assoc?`<span class="muted">关联 ${assoc}</span>`:''}
+    <span class="muted"><i class="dot ${state.unsaved&&state.open===id?'unsaved':''}"></i>${state.unsaved&&state.open===id?'尚未保存':'已保存'}</span>
+  </button>`;
+}
+function placementPanel(e, id) {
+  e.stopPropagation(); closePopovers();
+  const o = state.objects[id]; const p = document.createElement("div"); p.className = "popover";
+  const r = e.currentTarget.getBoundingClientRect(); p.style.position = "fixed"; p.style.left = Math.min(r.left, innerWidth - 400) + "px"; p.style.top = (r.bottom + 8) + "px";
+  const personal = o.loc === "home" || o.loc === "personal";
+  const movable = o.kind !== "shelf";
+  p.innerHTML = `<h2 style="margin-bottom:10px">${esc(o.title)}</h2>
+    <dl><dt>存放位置</dt><dd>${esc(locName(o.loc))}</dd>
+    <dt>谁能看到</dt><dd>${personal ? "只有你。项目里的助理、Runtime、工作流读不到正文，除非你把一份固定版本存到项目。" : "这个项目里的助理、Runtime、工作流和已授权的客户端。"}</dd></dl>
+    <h3 style="margin-top:0">关联的工作</h3>
+    <div class="assoc">${[...o.used.map(pid => `<div><span>用于 项目「${esc(PROJECTS[pid].title)}」</span><button class="btn btn--ghost btn--sm" onclick="unlink('${id}','${pid}')">移除关联</button></div>`),
+      ...o.goals.map(g => `<div><span>Goal「${esc(state.goals[g].title)}」</span><button class="btn btn--ghost btn--sm" onclick="openGoal('${g}')">打开</button></div>`)].join("") || `<small class="muted">还没有。放着也没关系，之后再整理。</small>`}</div>
+    <div class="actions">
+      ${personal ? `<button class="btn btn--sm" onclick="useInProject('${id}')">用于项目…</button>` : `<button class="btn btn--sm" onclick="linkGoal('${id}')">关联到 Goal…</button>`}
+      ${movable ? `<button class="btn btn--sm" onclick="moveTo('${id}')">移到…</button>` : `<button class="btn btn--sm" disabled title="Shelf 的材料只放在个人空间">不能移动</button>`}
+      ${movable ? `<button class="btn btn--sm" onclick="copyTo('${id}')">复制到…</button>` : ``}
+      ${personal && o.kind!=='shelf' ? `<button class="btn btn--sm" onclick="linkGoal('${id}')">关联到 Goal…</button>` : ``}
+    </div>`;
+  document.body.append(p);
+}
+function unlink(id, pid) {
+  const o = state.objects[id]; o.used = o.used.filter(x => x !== pid); closePopovers(); render();
+  toast(`<strong>已移除关联</strong><small>《${esc(o.title)}》不再出现在 项目「${esc(PROJECTS[pid].title)}」的关联资料里。文档本身和固定版本都不变。</small>`, [["撤销", () => { o.used.push(pid); render(); }]]);
+}
+
+/* ---------- Dialogs ---------- */
+function openDialog(html) { const d = $("#dialog"); d.innerHTML = html; d.showModal(); }
+function closeDialog() { $("#dialog").close(); }
+function useInProject(id) {
+  closePopovers(); const o = state.objects[id];
+  const target = state.where !== "personal" && state.where !== "root" ? state.where : "q4";
+  openDialog(`<form method="dialog" onsubmit="event.preventDefault(); confirmUse('${id}')">
+    <div class="dialog-head"><h2>把《${esc(o.title)}》用于项目</h2><p class="muted">它仍然放在个人空间，只是和项目建立关联。</p></div>
+    <div class="dialog-body">
+      <div class="select-row" role="group" aria-label="选择项目">${Object.values(PROJECTS).map(p => `<button type="button" class="btn btn--sm" aria-pressed="${p.id===target}" onclick="this.parentNode.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed','false'));this.setAttribute('aria-pressed','true');this.closest('form').dataset.project='${p.id}'">${esc(p.title)}</button>`).join("")}</div>
+      <label class="choice"><input type="radio" name="how" value="link" checked /><span><strong>关联到项目<span class="rec">推荐</span></strong><small>项目首页的“关联资料”会列出它，你在项目里能直接打开，看到的总是最新内容。项目里的助理和 Runtime 读不到正文。</small></span></label>
+      <label class="choice"><input type="radio" name="how" value="snapshot" /><span><strong>另存一份固定版本到项目</strong><small>项目成果里多一份第 1 版，项目里的助理、Coding 可以读取。之后你改原件，这一版不变；需要时可以再存一版。</small></span></label>
+    </div>
+    <div class="dialog-foot"><button type="button" class="btn" onclick="closeDialog()">取消</button><button class="btn btn--primary">确定</button></div></form>`);
+  $("#dialog form").dataset.project = target;
+}
+function confirmUse(id) {
+  const form = $("#dialog form"); const pid = form.dataset.project; const how = form.how.value; closeDialog();
+  const o = state.objects[id];
+  if (how === "link") { if (!o.used.includes(pid)) o.used.push(pid); render();
+    toast(`<strong>已用于 项目「${esc(PROJECTS[pid].title)}」</strong><small>《${esc(o.title)}》仍在个人空间 · 项目首页“关联资料”可以打开</small>`, [["去项目看看", () => go({ where:pid, plugin:"home", open:null }), true]]);
+  } else { render();
+    toast(`<strong>已存一份固定版本到 项目「${esc(PROJECTS[pid].title)}」</strong><small>项目成果 · 《${esc(o.title)}》第 1 版 · 原件仍在个人空间，互不影响</small>`, [["打开这一版", () => go({ where:pid, plugin:"artifacts", open:null }), true]]);
+  }
+}
+function moveTo(id) {
+  closePopovers(); const o = state.objects[id];
+  const options = [["personal", "个人空间"], ...Object.values(PROJECTS).map(p => [p.id, "项目「" + p.title + "」"])].filter(([k]) => k !== o.loc);
+  const hasLinks = o.used.length + o.goals.length;
+  openDialog(`<form onsubmit="event.preventDefault(); confirmMove('${id}')">
+    <div class="dialog-head"><h2>移动《${esc(o.title)}》</h2><p class="muted">移动只改存放位置，还是同一份内容；关联和引用都继续有效。</p></div>
+    <div class="dialog-body">
+      ${options.map(([k, label], i) => `<label class="choice"><input type="radio" name="to" value="${k}" ${i===0?'checked':''} /><span><strong>${esc(label)}</strong><small>${k==='personal' ? "移到个人空间后，这个项目里的助理、Runtime 和工作流将读不到它。" : "移到项目后，这个项目里的助理、Runtime 和工作流能读取它。"}</small></span></label>`).join("")}
+      ${hasLinks ? `<p class="muted">它现在有 ${hasLinks} 项关联，移动后都保留。</p>` : ""}
+    </div>
+    <div class="dialog-foot"><button type="button" class="btn" onclick="closeDialog()">取消</button><button class="btn btn--primary">移动</button></div></form>`);
+}
+function confirmMove(id) {
+  const to = $("#dialog form").to.value; closeDialog(); const o = state.objects[id]; const from = o.loc; o.loc = to; o.movedFrom = from; render();
+  toast(`<strong>已移到 ${esc(locName(to))}</strong><small>《${esc(o.title)}》 · 原位置的入口会提示它已移走</small>`, [["在新位置打开", () => go({ where: to, plugin: o.kind === 'pages' ? 'pages' : o.kind, open: id }), true], ["撤销", () => { o.loc = from; delete o.movedFrom; render(); }]]);
+}
+function copyTo(id) {
+  closePopovers(); const o = state.objects[id];
+  openDialog(`<form onsubmit="event.preventDefault(); confirmCopy('${id}')">
+    <div class="dialog-head"><h2>复制《${esc(o.title)}》</h2><p class="muted">得到一份新的、独立的内容；之后改哪一份都不影响另一份。</p></div>
+    <div class="dialog-body">${[["personal","个人空间"], ...Object.values(PROJECTS).map(p => [p.id, "项目「" + p.title + "」"])].map(([k, label], i) => `<label class="choice"><input type="radio" name="to" value="${k}" ${k===o.loc?'':(i===0?'checked':'')} /><span><strong>${esc(label)}</strong><small>新的一份会写上“复制自 ${esc(locName(o.loc))}《${esc(o.title)}》”。</small></span></label>`).join("")}</div>
+    <div class="dialog-foot"><button type="button" class="btn" onclick="closeDialog()">取消</button><button class="btn btn--primary">复制</button></div></form>`);
+}
+function confirmCopy(id) {
+  const to = $("#dialog form").to.value || "q4"; closeDialog(); const o = state.objects[id];
+  const nid = id + "-copy"; state.objects[nid] = { ...structuredClone(o), title: o.title + "（副本）", loc: to, used: [], goals: [], copiedFrom: id }; render();
+  toast(`<strong>已复制到 ${esc(locName(to))}</strong><small>《${esc(o.title)}（副本）》 · 复制自 ${esc(locName(o.loc))}</small>`, [["打开副本", () => go({ where: to, plugin: o.kind, open: nid }), true]]);
+}
+function linkGoal(id) {
+  closePopovers(); const o = state.objects[id];
+  openDialog(`<form onsubmit="event.preventDefault(); const g=this.goal.value; state.objects['${id}'].goals.includes(g)||state.objects['${id}'].goals.push(g); closeDialog(); render(); toast('<strong>已关联到 Goal「'+esc(state.goals[g].title)+'」</strong><small>Goal 的“绑定资料”里能打开它；它的存放位置不变</small>', [['打开 Goal', () => openGoal(g), true]])">
+    <div class="dialog-head"><h2>关联到 Goal</h2><p class="muted">Goal 会在“绑定资料”里记下它；不会移动或复制。</p></div>
+    <div class="dialog-body"><label class="choice"><input type="radio" name="goal" value="goal-review" checked /><span><strong>完成 Q4 发布评审材料</strong><small>项目「Q4 新版发布」 · 进行中</small></span></label></div>
+    <div class="dialog-foot"><button type="button" class="btn" onclick="closeDialog()">取消</button><button class="btn btn--primary">关联</button></div></form>`);
+}
+
+/* ---------- Scenes ---------- */
+function sceneRoot() {
+  return `<div class="pad">
+    <p class="muted">晚上好</p><h1>从哪里开始</h1><p class="muted">没想好放哪里，就先放个人空间；之后随时可以用到项目里。</p>
+    <h3>个人空间</h3>
+    <div class="cards"><div class="card card--space"><div class="kicker">只有你 · 不属于任何项目</div><h2>个人空间</h2>
+      <p class="muted">3 篇文档 · 2 份 Shelf 材料 · 1 条灵光</p><button class="btn btn--primary btn--sm" onclick="go({where:'personal',plugin:'home'})">打开个人空间</button></div></div>
+    <h3>项目</h3>
+    <div class="cards">${Object.values(PROJECTS).map(p => `<div class="card"><div class="kicker">项目</div><h2>${esc(p.title)}</h2><p class="muted">${p.id==='q4'?'7 个 Goal · 最近 2 小时前':'3 个 Goal · 昨天'}</p><button class="btn btn--sm" onclick="go({where:'${p.id}',plugin:'home'})">打开项目</button></div>`).join("")}
+      <div class="card"><div class="kicker">&nbsp;</div><h2>新建项目</h2><p class="muted">和别人一起推进的一件事</p><button class="btn btn--sm">新建项目</button></div></div>
+  </div>`;
+}
+function sceneOnboarding() {
+  return `<div class="pad" style="max-width:560px;margin:60px auto"><h1>从你正在做的事开始</h1><p class="muted">带上文件、网页和工作往来，Molis 帮你整理背景、进展与下一步。</p>
+    <div class="card" style="margin-top:20px"><p>已选 0 个来源</p><div style="display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn" onclick="go({where:'personal',plugin:'home',fresh:true}); toast('<strong>已进入个人空间</strong><small>在这里做的东西只有你能看到。想和别人一起推进时，再建项目。</small>')">空白开始</button>
+    <button class="btn btn--primary">继续，准备访问权限</button></div>
+    <small class="muted">“空白开始”直接进入个人空间，不需要先建项目。</small></div></div>`;
+}
+function spaceHome() {
+  const loc = here(); const inPersonal = loc === "personal";
+  const related = Object.entries(state.objects).filter(([, o]) => !inPersonal && o.used.includes(loc));
+  const gone = inPersonal ? [] : [{ title:"会议录音转写.m4a", when:"9/24 用于本项目", state:"gone" }];
+  const mine = Object.entries(state.objects).filter(([, o]) => o.loc === loc);
+  const moved = Object.entries(state.objects).filter(([, o]) => o.movedFrom === loc);
+  return `<div class="split"><div class="pad">
+    <p class="muted">${inPersonal ? "个人空间 · 只有你" : "项目"}</p><h1>${inPersonal ? "个人空间" : esc(PROJECTS[loc].title)}</h1>
+    <p class="muted">${inPersonal ? "不属于任何项目的资料和工作都在这里。" : "今天接到 4 件事"}</p>
+    ${inPersonal ? "" : `<h3>关联资料 · 来自个人空间，只有你能打开</h3><div class="list">
+      ${related.map(([id, o]) => `<div class="row" onclick="openObject('${id}')"><div><strong>${esc(o.title)}</strong><small>${o.kind==='shelf'?'Shelf 材料':'文档'} · 个人空间</small></div><span class="chip chip--personal">只有你</span></div>`).join("")}
+      ${gone.map(g => `<div class="row gone"><div><strong>${esc(g.title)}</strong><small>${g.when} · 原对象已从 Shelf 删除</small></div><span style="display:flex;gap:6px;align-items:center"><span class="chip chip--gone">原对象已删除</span><button class="btn btn--ghost btn--sm" onclick="event.stopPropagation(); this.closest('.row').remove(); toast('<strong>已清理这条关联</strong><small>只去掉了关系记录</small>')">清理</button></span></div>`).join("")}
+      ${related.length + gone.length ? "" : `<div class="row"><small class="muted">还没有从个人空间用到这里的资料。</small></div>`}</div>`}
+    <h3>最近放在这里</h3><div class="list">
+      ${mine.map(([id, o]) => `<div class="row" onclick="openObject('${id}')"><div><strong>${esc(o.title)}</strong><small>${{pages:'文档',ppt:'演示稿',form:'问卷',spark:'灵光',shelf:'Shelf 材料'}[o.kind]}${o.copiedFrom ? ' · 复制自 ' + esc(locName(state.objects[o.copiedFrom].loc)) : ''}</small></div><span class="chip ${loc==='personal'?'chip--personal':'chip--project'}">${esc(locName(loc))}</span></div>`).join("")}
+      ${moved.map(([id, o]) => `<div class="row gone" onclick="openObject('${id}')"><div><strong>${esc(o.title)}</strong><small>已移到 ${esc(locName(o.loc))}</small></div><span class="chip chip--warn">已移走</span></div>`).join("")}
+    </div></div>
+    <aside class="side"><h2>Goal</h2>${inPersonal ? `<p class="muted">个人空间没有 Goal 也可以工作。</p>` : `<div class="list" style="margin-top:10px"><div class="row" onclick="openGoal('goal-review')"><div><strong>完成 Q4 发布评审材料</strong><small>进行中 · 绑定资料 ${Object.values(state.objects).filter(o => o.goals.includes('goal-review')).length}</small></div></div></div>`}</aside></div>`;
+}
+function openObject(id) { const o = state.objects[id]; const view = o.kind === "shelf" ? "shelf" : o.kind; if (o.loc !== "home" && o.loc !== here()) {
+    toast(`<strong>《${esc(o.title)}》放在 ${esc(locName(o.loc))}</strong><small>在它所在的位置打开，编辑的是同一份内容</small>`, [["在 " + locName(o.loc) + " 打开", () => go({ where: o.loc, plugin: view, open: id }), true]]); return; }
+  go({ plugin: view, open: id }); }
+function openGoal(g) { closePopovers(); go({ where: state.goals[g].project, plugin: "goals", open: g }); }
+function scenePages() {
+  const loc = here();
+  if (!state.open) {
+    const docs = Object.entries(state.objects).filter(([, o]) => o.kind === "pages" && o.loc === loc);
+    return `<div class="toolbar"><button class="btn btn--sm btn--primary" onclick="newDoc()">新建文档</button><button class="btn btn--sm">导入</button><span class="grow"></span><span class="target">新建内容存到 <b>${esc(locName(loc))}</b></span></div>
+      <div class="pad">${docs.length ? `<div class="list">${docs.map(([id, o]) => `<div class="row" onclick="go({open:'${id}'})"><div><strong>${esc(o.title)}</strong><small>${o.copiedFrom ? '复制自 ' + esc(locName(state.objects[o.copiedFrom].loc)) + ' · ' : ''}刚刚修改</small></div>${o.used.length?`<span class="chip">用于 ${o.used.length} 个项目</span>`:''}</div>`).join("")}</div>` : `<div class="empty"><h2>还没有文档</h2><p class="muted">新建的文档会存到${esc(locName(loc))}${loc==='personal'?'，只有你能看到':''}。</p></div>`}</div>`;
+  }
+  const o = state.objects[state.open];
+  if (o.loc !== loc && o.loc !== "home") return movedNotice(o);
+  return `<div class="toolbar">${placementBar(state.open)}<span class="grow"></span><button class="btn btn--sm btn--ghost" data-pop onclick="exportMenu(event,'pages')">导出</button><button class="btn btn--sm" onclick="saveVersion('${state.open}')">存为项目成果版本</button></div>
+    <div class="editor">${o.copiedFrom ? `<p class="muted">复制自 ${esc(locName(state.objects[o.copiedFrom].loc))}《${esc(state.objects[o.copiedFrom].title)}》</p>` : ""}<input class="title" value="${esc(o.title)}" oninput="state.unsaved=true; state.objects['${state.open}'].title=this.value; clearTimeout(window.__t); window.__t=setTimeout(()=>{state.unsaved=false; render();},900); renderBarOnly()" aria-label="标题"/>
+    <ul>${(o.body || ["（空白文档，直接写）"]).map(b => `<li>${esc(b)}</li>`).join("")}</ul></div>`;
+}
+function renderBarOnly() { const bar = $(".placement"); if (bar && state.open) bar.outerHTML = placementBar(state.open); }
+function movedNotice(o) { return `<div class="pad"><div class="notice">这份内容已移到 ${esc(locName(o.loc))}，这里只留下指路。</div><button class="btn btn--primary" onclick="go({where:'${o.loc}'})">去 ${esc(locName(o.loc))} 打开</button></div>`; }
+function newDoc() {
+  const id = "doc-" + Math.random().toString(36).slice(2, 7); const loc = here();
+  state.objects[id] = { kind:"pages", title:"未命名文档", loc, used:[], goals:[], state:"ok", body:["（空白文档，直接写）"] };
+  go({ open: id });
+  toast(`<strong>已新建文档，存到 ${esc(locName(loc))}</strong><small>${loc==='personal' ? '只有你能看到 · 之后可以用于项目或移到项目' : '项目内可见'}</small>`, loc === "personal" ? [["用于项目…", () => useInProject(id)], ["移到…", () => moveTo(id)]] : [["移到个人空间", () => { state.objects[id].loc = "personal"; render(); }]]);
+}
+function saveVersion(id) {
+  const o = state.objects[id]; if (o.loc === "personal" || o.loc === "home") { useInProject(id); return; }
+  o.version = (o.version || 0) + 1; o.artifact = (o.artifact || 0) + 1;
+  toast(`<strong>已存为项目成果 · 第 ${o.artifact} 版</strong><small>项目「${esc(PROJECTS[o.loc].title)}」的 Artifacts 里能打开；你继续编辑不会改变这一版</small>`, [["打开这一版", () => go({ plugin:"artifacts", open:null }), true]]);
+}
+function exportMenu(e, kind) {
+  e.stopPropagation(); closePopovers(); const m = document.createElement("div"); m.className = "menu"; const r = e.currentTarget.getBoundingClientRect();
+  m.style.position = "fixed"; m.style.left = Math.min(r.left, innerWidth - 260) + "px"; m.style.top = (r.bottom + 6) + "px";
+  const items = kind === "ppt"
+    ? [["PowerPoint 文件（.pptx）", "PowerPoint、Keynote、WPS 能直接打开和放映", "pptx"], ["打印或存为 PDF", "每页一张幻灯片", "pdf"], ["导出数据（JSON）", "给开发或备份用，不是演示文稿", "json"]]
+    : kind === "form" ? [["填写页文件（.html）", "发给别人在自己的浏览器里填，填完会生成答卷文件发回给你", "fill"], ["答卷表格（.csv）", "Excel、Numbers 可以打开", "csv"]]
+    : [["Markdown（.md）", "其他写作工具都能打开", "md"], ["网页（.html）", "保留格式", "html"], ["打印或存为 PDF", "", "pdf"]];
+  m.innerHTML = items.map(([t, s, k]) => `<button onclick="doExport('${kind}','${k}')"><span>${t}</span><small>${s}</small></button>`).join("");
+  document.body.append(m);
+}
+function doExport(kind, k) {
+  closePopovers(); const o = state.objects[state.open];
+  if (k === "pdf") { toast(`<strong>已打开打印</strong><small>在打印窗口里选“存储为 PDF”</small>`); return; }
+  if (k === "fill") { toast(`<strong>已导出填写页 · Beta 用户满意度.html</strong><small>在浏览器的下载位置。发给对方；对方填完会得到一个答卷文件，发回给你后在“结果”里导入</small>`, [["导入答卷…", () => importAnswers(), true]]); return; }
+  const ext = { pptx:"pptx", json:"json", csv:"csv", md:"md", html:"html" }[k];
+  toast(`<strong>已导出 ${esc(o.title)}.${ext}</strong><small>${k==='json' ? '这是数据文件，不是演示文稿' : '文件在浏览器的下载位置'}${k==='pptx' ? ' · 6 页，含讲者备注' : ''}</small>`);
+}
+function scenePpt() {
+  const loc = here();
+  if (!state.open) return `<div class="toolbar"><button class="btn btn--sm btn--primary">新建演示稿</button><span class="grow"></span><span class="target">新建内容存到 <b>${esc(locName(loc))}</b></span></div>
+    <div class="pad"><div class="list">${Object.entries(state.objects).filter(([, o]) => o.kind === "ppt" && o.loc === loc).map(([id, o]) => `<div class="row" onclick="go({open:'${id}'})"><div><strong>${esc(o.title)}</strong><small>6 页 · 第 ${o.version} 次保存</small></div>${o.goals.length?'<span class="chip">关联 Goal</span>':''}</div>`).join("") || `<div class="empty"><h2>还没有演示稿</h2><p class="muted">写好后可以直接放映，也能导出 PowerPoint 文件。</p></div>`}</div></div>`;
+  const cur = state.slide || 0; const s = SLIDES[cur];
+  return `<div class="toolbar">${placementBar(state.open)}<span class="grow"></span>
+    <button class="btn btn--sm btn--primary" onclick="present()">▶ 放映</button><button class="btn btn--sm" data-pop onclick="exportMenu(event,'ppt')">导出</button><button class="btn btn--sm btn--ghost" onclick="saveVersion('${state.open}')">存为项目成果版本</button></div>
+    <div class="slide-grid"><div class="slide-list">${SLIDES.map((x, i) => `<div class="thumb" aria-current="${i===cur}" onclick="state.slide=${i}; render()"><b>${i+1}. ${esc(x.title)}</b>${esc(x.bullets[0])}</div>`).join("")}</div>
+    <div class="slide-view"><div class="slide"><div class="accent"></div><h4>${esc(s.title)}</h4><ul>${s.bullets.map(b => `<li>${esc(b)}</li>`).join("")}</ul></div></div></div>`;
+}
+function present() {
+  let i = state.slide || 0; let notes = true; const node = document.createElement("div"); node.className = "present"; node.tabIndex = -1;
+  const draw = () => { const s = SLIDES[i]; node.innerHTML = `<div class="slide"><div class="accent"></div><h4>${esc(s.title)}</h4><ul>${s.bullets.map(b => `<li>${esc(b)}</li>`).join("")}</ul></div>
+    ${notes && s.notes ? `<div class="notes"><b>讲者备注</b><br>${esc(s.notes)}</div>` : ""}
+    <div class="bar">${i+1} / ${SLIDES.length} · <span class="kbd">←</span><span class="kbd">→</span> 翻页 · <span class="kbd">N</span> 备注 · <span class="kbd">Esc</span> 退出</div>`; };
+  const key = e => { if (e.key === "ArrowRight" || e.key === " ") i = Math.min(SLIDES.length - 1, i + 1); else if (e.key === "ArrowLeft") i = Math.max(0, i - 1); else if (e.key.toLowerCase() === "n") notes = !notes; else if (e.key === "Escape") { close(); return; } draw(); };
+  const close = () => { document.removeEventListener("keydown", key); node.remove(); state.slide = i; render(); };
+  node.onclick = e => { if (!e.target.closest(".notes,.bar")) { i = Math.min(SLIDES.length - 1, i + 1); draw(); } };
+  document.addEventListener("keydown", key); draw(); document.body.append(node); node.focus();
+}
+function sceneForm() {
+  const loc = here();
+  if (!state.open) return `<div class="toolbar"><button class="btn btn--sm btn--primary">新建问卷</button><span class="grow"></span><span class="target">新建内容存到 <b>${esc(locName(loc))}</b></span></div>
+    <div class="pad"><div class="list">${Object.entries(state.objects).filter(([, o]) => o.kind === "form" && o.loc === loc).map(([id, o]) => `<div class="row" onclick="go({open:'${id}'})"><div><strong>${esc(o.title)}</strong><small>${o.responses} 份答卷</small></div><span class="chip ${o.collecting?'chip--ok':''}">${o.collecting?'正在收集':'未开始收集'}</span></div>`).join("") || `<div class="empty"><h2>还没有问卷</h2></div>`}</div></div>`;
+  const o = state.objects[state.open];
+  return `<div class="toolbar">${placementBar(state.open)}<span class="grow"></span>
+    ${o.collecting ? `<span class="chip chip--ok">正在这台电脑上收集</span><button class="btn btn--sm btn--primary" onclick="fillMode()">打开填写页</button><button class="btn btn--sm" onclick="state.objects['${state.open}'].collecting=false; render(); toast('<strong>已停止收集</strong><small>已有 '+state.objects['${state.open}'].responses+' 份答卷保留；填写页会显示“已停止收集”</small>')">停止收集</button>`
+      : `<button class="btn btn--sm btn--primary" onclick="state.objects['${state.open}'].collecting=true; render(); toast('<strong>开始收集答卷</strong><small>可以在这台电脑上打开填写页让别人填，或导出填写页文件发给对方。不会生成外网链接。</small>', [['打开填写页', fillMode, true]])">开始收集</button>`}
+    <button class="btn btn--sm" data-pop onclick="exportMenu(event,'form')">导出</button></div>
+    <div class="split"><div class="pad"><h2>结果 · ${o.responses} 份答卷</h2><p class="muted">最近一份：刚刚 · 来自填写页</p>
+      ${QUESTIONS.map(q => `<div class="form-q"><strong>${esc(q.title)}</strong>${q.dist ? `<div class="bars">${Object.entries(q.dist).map(([k, v]) => `<div><span>${esc(k)}</span><i style="width:${Math.round(v / o.responses * 100)}%"></i><span class="muted">${v}</span></div>`).join("")}</div>` : `<ul>${q.samples.map(s => `<li class="muted">${esc(s)}</li>`).join("")}</ul><small class="faint">共 18 条文字回答</small>`}</div>`).join("")}
+      <div style="display:flex;gap:8px"><button class="btn btn--sm" onclick="doExport('form','csv')">导出 CSV</button><button class="btn btn--sm" onclick="toDataset()">存成数据表</button><button class="btn btn--sm btn--ghost" onclick="importAnswers()">导入答卷文件…</button></div>
+    </div><aside class="side"><h2>题目</h2>${QUESTIONS.map((q, i) => `<p>${i+1}. ${esc(q.title)} <span class="faint">${{rating:'评分',single:'单选',text:'填空'}[q.type]}</span></p>`).join("")}</aside></div>`;
+}
+function fillMode() {
+  const o = state.objects[state.open]; const node = document.createElement("div"); node.className = "fill";
+  node.innerHTML = `<div class="sheet"><p class="muted">Beta 用户满意度 · 在这台电脑上填写</p><h1>感谢试用 Q4 新版</h1><p class="muted">大约 1 分钟。你的回答只保存在发起人的电脑上。</p>
+    <form><label>整体满意度</label><div class="opts">${[5,4,3,2,1].map(v => `<label><input type="radio" name="r" value="${v}" ${v===4?'checked':''}/> ${v} 分</label>`).join("")}</div>
+    <label>最常用的功能</label><div class="opts">${["团队空间","账单与发票","移动端","其他"].map((v, i) => `<label><input type="radio" name="f" ${i===0?'checked':''}/> ${v}</label>`).join("")}</div>
+    <label>最希望改进的地方</label><textarea rows="3">希望能按项目设置权限</textarea>
+    <div style="display:flex;justify-content:space-between;margin-top:18px"><button type="button" class="btn" data-close>退出填写页</button><button class="btn btn--primary">提交</button></div></form></div>`;
+  node.querySelector("form").onsubmit = e => { e.preventDefault(); o.responses += 1; QUESTIONS[0].dist["4 分"] += 1; QUESTIONS[1].dist["团队空间"] += 1;
+    node.querySelector(".sheet").innerHTML = `<h1>已提交，谢谢</h1><p class="muted">这是第 ${o.responses} 份答卷。可以把电脑交给下一位。</p><div style="display:flex;gap:8px"><button class="btn btn--primary" data-again>下一位填写</button><button class="btn" data-close>退出填写页</button></div>`;
+    node.querySelector("[data-again]").onclick = () => { node.remove(); fillMode(); }; node.querySelector("[data-close]").onclick = () => { node.remove(); render(); }; };
+  node.querySelector("[data-close]").onclick = () => { node.remove(); render(); };
+  document.body.append(node);
+}
+function importAnswers() {
+  openDialog(`<form onsubmit="event.preventDefault(); closeDialog(); const o=state.objects['form-beta']; o.responses+=2; render(); toast('<strong>已导入 2 份答卷</strong><small>1 份与已有答卷相同，已跳过 · 现在共 '+o.responses+' 份</small>')">
+    <div class="dialog-head"><h2>导入答卷文件</h2><p class="muted">选择对方发回的答卷文件（可多选）。同一份答卷重复导入只算一次；和当前问卷对不上的会列出原因，不会写入。</p></div>
+    <div class="dialog-body"><div class="card"><strong>已选 3 个文件</strong><small class="muted" style="display:block">王敏.molis-answer.json · 陈卓.molis-answer.json · 王敏(1).molis-answer.json</small></div></div>
+    <div class="dialog-foot"><button type="button" class="btn" onclick="closeDialog()">取消</button><button class="btn btn--primary">导入</button></div></form>`);
+}
+function toDataset() {
+  const o = state.objects[state.open];
+  toast(`<strong>已存成数据表《${esc(o.title)} · 答卷》</strong><small>存到 ${esc(locName(o.loc))} · ${o.responses} 行 × 4 列 · 来自问卷《${esc(o.title)}》；之后的新答卷不会自动加入</small>`, [["打开数据表", () => {}, true]]);
+}
+function sceneShelf() {
+  const items = Object.entries(state.objects).filter(([, o]) => o.kind === "shelf");
+  const sel = state.open && state.objects[state.open]?.kind === "shelf" ? state.open : null;
+  return `<div class="toolbar"><span class="target">Shelf 的材料都放在 <b>个人空间</b> · 只有你</span><span class="grow"></span>${sel ? placementBar(sel) : ""}</div>
+    <div class="split"><div class="pad"><div class="list">${items.map(([id, o]) => `<div class="row" onclick="go({open:'${id}'})" ${o.state==='gone'?'style="opacity:.6"':''}><div><strong>${esc(o.title)}</strong><small>${esc(o.note || '')}${o.used.length ? ' · 用于 ' + o.used.map(p => '「' + esc(PROJECTS[p].title) + '」').join('、') : ''}</small></div>
+      ${here() !== 'personal' ? (o.used.includes(here()) ? `<span class="chip chip--project">已用于本项目</span>` : `<button class="btn btn--sm" onclick="event.stopPropagation(); useInProject('${id}')">用于本项目</button>`) : ''}</div>`).join("")}</div></div>
+      <aside class="side">${sel ? `<h2>${esc(state.objects[sel].title)}</h2><p class="muted">原件不动，这里是副本。</p><button class="btn btn--sm btn--danger" onclick="deleteShelf('${sel}')">删除副本</button>` : `<p class="muted">选一份材料看看它用在哪里。</p>`}</aside></div>`;
+}
+function deleteShelf(id) {
+  const o = state.objects[id]; const uses = o.used.length + o.goals.length;
+  openDialog(`<form onsubmit="event.preventDefault(); closeDialog(); const o=state.objects['${id}']; o.state='gone'; state.gone=o; delete state.objects['${id}']; go({open:null}); toast('<strong>已删除《'+esc(o.title)+'》</strong><small>用到它的 ${uses} 处会显示“原对象已删除”，可以各自清理；已存到项目的固定版本不受影响</small>')">
+    <div class="dialog-head"><h2>删除《${esc(o.title)}》？</h2></div>
+    <div class="dialog-body"><p>它现在用于 ${o.used.map(p => '项目「' + esc(PROJECTS[p].title) + '」').join('、') || '—'}${o.goals.length ? '，并关联到 Goal「' + esc(state.goals[o.goals[0]].title) + '」' : ''}。</p>
+      <p class="muted">删除后这些地方会显示“原对象已删除”，不会留下能点开却是空白的入口。已存到项目的固定版本不会被删除。</p></div>
+    <div class="dialog-foot"><button type="button" class="btn" onclick="closeDialog()">取消</button><button class="btn btn--primary">删除</button></div></form>`);
+}
+function sceneGoal() {
+  const g = state.goals[state.open || "goal-review"]; const gid = state.open || "goal-review";
+  const bound = Object.entries(state.objects).filter(([, o]) => o.goals.includes(gid));
+  return `<div class="pad"><p class="muted">Goal · 项目「${esc(PROJECTS[g.project].title)}」</p><h1>${esc(g.title)}</h1><p class="muted">评审会 10/16 · 需要演示稿、检查清单和 Beta 反馈</p>
+    <div style="display:flex;gap:8px;margin:14px 0"><button class="btn btn--sm" data-pop onclick="goalCreate(event,'${gid}')">为这个 Goal 新建…</button><button class="btn btn--sm btn--ghost" onclick="linkExisting('${gid}')">关联已有资料…</button></div>
+    <h3>绑定资料</h3><div class="list">${bound.map(([id, o]) => `<div class="row" onclick="openObject('${id}')"><div><strong>${esc(o.title)}</strong><small>${{pages:'文档',ppt:'演示稿',form:'问卷',shelf:'Shelf 材料',spark:'灵光'}[o.kind]} · ${esc(locName(o.loc))}</small></div><span class="chip ${o.loc==='home'||o.loc==='personal'?'':'chip--project'}">${o.loc==='home'||o.loc==='personal'?'只有你能打开':'项目内'}</span></div>`).join("")}
+      ${state.gone && state.gone.goals.includes(gid) ? `<div class="row gone"><div><strong>${esc(state.gone.title)}</strong><small>Shelf 材料 · 刚刚删除</small></div><span class="chip chip--gone">原对象已删除</span></div>` : ""}</div></div>`;
+}
+function goalCreate(e, gid) {
+  e.stopPropagation(); closePopovers(); const m = document.createElement("div"); m.className = "menu"; const r = e.currentTarget.getBoundingClientRect();
+  m.style.position = "fixed"; m.style.left = r.left + "px"; m.style.top = (r.bottom + 6) + "px";
+  m.innerHTML = [["pages","文档"],["ppt","演示稿"],["form","问卷"]].map(([k, t]) => `<button onclick="createForGoal('${gid}','${k}','${t}')"><span>${t}</span><small>存到 项目「Q4 新版发布」 · 关联到这个 Goal</small></button>`).join("");
+  document.body.append(m);
+}
+function createForGoal(gid, kind, label) {
+  closePopovers(); const id = kind + "-" + Math.random().toString(36).slice(2, 6); const loc = state.goals[gid].project;
+  state.objects[id] = { kind, title: "评审会" + label, loc, used: [], goals: [gid], state: "ok", body: ["（空白，直接写）"], version: 1, responses: 0 };
+  render();
+  toast(`<strong>已新建${label}《评审会${label}》</strong><small>存到 项目「${esc(PROJECTS[loc].title)}」 · 关联到 Goal「${esc(state.goals[gid].title)}」</small>`, [["打开", () => go({ plugin: kind, open: id }), true], ["移除关联", () => { state.objects[id].goals = []; render(); }]]);
+}
+function linkExisting(gid) {
+  openDialog(`<form onsubmit="event.preventDefault(); const id=this.obj.value; state.objects[id].goals.includes('${gid}')||state.objects[id].goals.push('${gid}'); closeDialog(); render(); toast('<strong>已关联《'+esc(state.objects[id].title)+'》</strong><small>它仍在 '+esc(locName(state.objects[id].loc))+'，不会复制</small>')">
+    <div class="dialog-head"><h2>关联已有资料</h2><p class="muted">从本项目和个人空间里选；不会复制或移动。</p></div>
+    <div class="dialog-body">${Object.entries(state.objects).filter(([, o]) => !o.goals.includes(gid)).map(([id, o], i) => `<label class="choice"><input type="radio" name="obj" value="${id}" ${i===0?'checked':''}/><span><strong>${esc(o.title)}</strong><small>${esc(locName(o.loc))}</small></span></label>`).join("")}</div>
+    <div class="dialog-foot"><button type="button" class="btn" onclick="closeDialog()">取消</button><button class="btn btn--primary">关联</button></div></form>`);
+}
+function sceneSpark() {
+  const loc = here(); const sparks = Object.entries(state.objects).filter(([, o]) => o.kind === "spark" && o.loc === loc);
+  const sel = state.open && state.objects[state.open]?.kind === "spark" ? state.open : sparks[0]?.[0];
+  const o = sel && state.objects[sel];
+  return `<div class="toolbar"><button class="btn btn--sm btn--primary">记下</button><span class="grow"></span><span class="target">记下的灵光存到 <b>${esc(locName(loc))}</b></span>${sel ? placementBar(sel) : ""}</div>
+    <div class="split"><div class="pad"><div class="list">${sparks.map(([id, s]) => `<div class="row" onclick="go({open:'${id}'})"><div><strong>${esc(s.title)}</strong><small>${s.convertedTo ? '已转成 ' + esc(s.convertedTo) : '还没决定'}</small></div></div>`).join("") || `<p class="muted">这里还没有灵光。</p>`}</div></div>
+    <aside class="side">${o ? `<h2>${esc(o.title)}</h2><p class="muted">${esc(o.body)}</p><h3>接下来</h3><div style="display:flex;flex-direction:column;gap:6px">
+      <button class="btn btn--sm" onclick="sparkTo('${sel}','doc')">转成文档</button><button class="btn btn--sm" onclick="sparkTo('${sel}','goal')">建成 Goal</button><button class="btn btn--sm btn--ghost">交给助理</button><button class="btn btn--sm btn--ghost">复制内容</button><button class="btn btn--sm btn--ghost">丢掉</button></div>` : ""}</aside></div>`;
+}
+function sparkTo(id, verb) {
+  const s = state.objects[id]; const loc = s.loc;
+  if (verb === "doc") { const nid = "doc-from-spark"; state.objects[nid] = { kind:"pages", title:s.title, loc, used:[], goals:[], state:"ok", body:[s.body], derivedFrom:id }; s.convertedTo = "文档《" + s.title + "》"; render();
+    toast(`<strong>已转成文档《${esc(s.title)}》</strong><small>存到 ${esc(locName(loc))} · 文档里记着“来自灵光”；灵光保留，可以之后丢掉</small>`, [["打开文档", () => go({ plugin:"pages", open:nid }), true]]); }
+  else { s.convertedTo = "Goal《" + s.title + "》"; render(); toast(`<strong>已建成 Goal「${esc(s.title)}」</strong><small>在 项目「Q4 新版发布」 · 这条灵光作为它的绑定资料</small>`, [["打开 Goal", () => {}, true]]); }
+}
+function sceneArtifacts() { return `<div class="pad"><h1>项目成果</h1><p class="muted">插件存下的固定版本。继续编辑原件不会改变这些版本。</p><div class="list">
+  <div class="row"><div><strong>Q4 发布评审 · 第 1 版</strong><small>来自 PPT《Q4 发布评审》 · 刚刚</small></div><span class="chip chip--project">项目内</span></div>
+  <div class="row"><div><strong>竞品定价表.xlsx · 第 1 版</strong><small>来自 个人空间 Shelf · 9/26</small></div><span class="chip chip--project">项目内</span></div></div></div>`; }
+
+function render() {
+  renderShell();
+  const stage = $("#stage");
+  if (state.where === "root") stage.innerHTML = sceneRoot();
+  else if (state.where === "onboarding") stage.innerHTML = sceneOnboarding();
+  else stage.innerHTML = ({ home: spaceHome, pages: scenePages, ppt: scenePpt, form: sceneForm, shelf: sceneShelf, goals: sceneGoal, spark: sceneSpark, artifacts: sceneArtifacts }[state.plugin] || spaceHome)();
+}
+
+/* ---------- Review paths ---------- */
+const PATHS = [
+  ["全新用户：空白开始进个人空间", () => go({ where:"onboarding", plugin:"home", open:null })],
+  ["个人空间新建文档（看位置条与完成提示）", () => go({ where:"personal", plugin:"pages", open:null })],
+  ["文档用于项目 → 项目首页关联资料", () => { go({ where:"personal", plugin:"pages", open:"doc-checklist" }); setTimeout(() => useInProject("doc-checklist"), 50); }],
+  ["项目首页：关联资料与已删除来源", () => go({ where:"q4", plugin:"home", open:null })],
+  ["把文档移到项目（身份不变）", () => { go({ where:"personal", plugin:"pages", open:"doc-checklist" }); setTimeout(() => moveTo("doc-checklist"), 50); }],
+  ["Shelf：用于本项目 / 删除被引用的材料", () => go({ where:"q4", plugin:"shelf", open:"shelf-quotes" })],
+  ["PPT：放映、导出 PPTX、存成果版本", () => go({ where:"q4", plugin:"ppt", open:"deck-review" })],
+  ["问卷：开始收集、填写页、结果、存成数据表", () => go({ where:"q4", plugin:"form", open:"form-beta" })],
+  ["从 Goal 新建 → 默认归属与关联", () => go({ where:"q4", plugin:"goals", open:"goal-review" })],
+  ["灵光：转成文档 / 建成 Goal", () => go({ where:"q4", plugin:"spark", open:"spark-demo" })],
+  ["回到选择页（个人空间 + 项目）", () => go({ where:"root", plugin:"home", open:null })],
+];
+$("#paths").innerHTML = PATHS.map(([t], i) => `<li><button data-path="${i}">${t}</button></li>`).join("");
+$("#paths").onclick = e => { const b = e.target.closest("[data-path]"); if (b) { closeDialog(); PATHS[+b.dataset.path][1](); } };
+render();
+</script>
+</body>
+</html>

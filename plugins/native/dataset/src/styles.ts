@@ -121,4 +121,8 @@ export const DATASET_STYLES = `
 .dataset-assist > summary { display:flex; align-items:center; gap:8px; width:fit-content; cursor:pointer; color:var(--muted); font-size:13px; min-height:32px; }
 .dataset-assist > summary svg { width:16px; height:16px; }
 .dataset-assist[open] > summary { color:var(--ink); margin-bottom:12px; }
+
+  .dataset-placement-line { margin: 2px 0 10px; }
+  [data-dataset-empty]:not([hidden]) ~ .dataset-placement-line { display: none; }
+  .dataset-import-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 `;

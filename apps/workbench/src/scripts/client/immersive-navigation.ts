@@ -162,7 +162,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       }
     }
     const surface = getSurface();
-    const labels = { home: L("项目首页"), market: L("插件市场"), "project-settings": L("项目设置"), ...PLUGIN_TAB_TITLES };
+    const labels = { home: document.body.dataset.projectId === "personal" ? L("个人首页") : L("项目首页"), market: L("插件市场"), "project-settings": L("项目设置"), ...PLUGIN_TAB_TITLES };
     const pluginTitle = document.querySelector("[data-immersive-plugin-title]");
     if (pluginTitle) {
       pluginTitle.hidden = true;

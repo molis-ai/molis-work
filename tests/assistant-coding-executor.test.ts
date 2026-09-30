@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
@@ -101,7 +102,7 @@ test("a professional Agent's own steps read as file and command work, never as b
     { call_id: "e", name: "write", target: "README.md", state: "failed", summary: "write · TOOL_INTERRUPTED", output: "TOOL_INTERRUPTED: this run was cancelled before the tool ran.", at: null },
   ], undefined, true), [
     { call_id: "d", verb: "file-change", target: "calc.js", state: "unknown" },
-    { call_id: "e", verb: "file-change", target: "README.md", state: "failed", reason: "interrupted", detail: "TOOL_INTERRUPTED: this run was cancelled before the tool ran." },
+    { call_id: "e", verb: "file-change", target: "README.md", state: "failed", reason: "interrupted", detail: "this run was cancelled before the tool ran." },
   ]);
 });
 
@@ -152,4 +153,32 @@ test("an Assistant work handed to Coding stays one work: the first Coding round 
   view = await service.handover(work.work_id, { to: "coding" });
   assert.equal((view.work.executor as { session_id: string }).session_id, sessionId);
   assert.equal(coding.calls.filter(call => call.name === "sessions.create").length, creates);
+});
+
+test("handing a work to Coding carries what its documents say now, read from their owner, since Coding cannot read them itself", async () => {
+  const coding = fakeCoding();
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const host = { adapter: () => ({ readSession: async () => ({}), read: async () => null }), reviews: { list: () => [] } };
+  const reader = defineSubjectContextAction("pages.subject.read", "pages_document", "Pages", ["pages:read"]);
+  const view = { capability_id: reader.capability_id, version: reader.version, operation: reader.operation, provider: { provider_id: "io.molis.work.pages", kind: "plugin", title: "Pages" },
+    action: reader.action, availability: { available: true } } as unknown as ActionView;
+  const pages: PersonActions = { discover: async () => [view], invoke: async (_ref, input) => {
+    assert.deepEqual(input, { subject_id: "doc-1" });
+    return { subject: { kind: "pages_document", id: "doc-1" }, revision: "2", title: "calc average 需求", content: "## 错误处理\n空数组抛 RangeError" };
+  } } as PersonActions;
+  const service = new AssistantService(store, { host: async () => host as unknown as AgentHost, authority: async () => { throw new Error("not used"); },
+    personActions: async () => coding.actions, scopeActions: async () => pages }, "web-user");
+  const project_ref = { project_id: "project", board_id: "board", storage_key: "memory:project" } as any;
+  const work = store.create({ actor_id: "web-user", title: "calc average", scope: { kind: "project", project_id: "project" }, origin: null, project_ref });
+  store.addRound(work.work_id, { run_id: "assistant-1", text: "整理成需求文档", materials: [], context: null, started_at: "2026-09-30T00:00:00.000Z" });
+  store.relations.link({ work_id: work.work_id, project_id: "project" }, "result", { kind: "pages_document", id: "doc-1", revision: "2" }, "助理产出");
+
+  await service.handover(work.work_id, { to: "coding", mode: "execute" });
+  await service.send({ work_id: work.work_id, text: "按文档实现", request_id: randomUUID() }, { project_ref });
+  const task = coding.calls.filter(call => call.name === "runs.start").at(-1)!.input.task as string;
+  assert.match(task, /相关对象的当前内容/);
+  assert.match(task, /《calc average 需求》（成果，版本 2）：\n## 错误处理\n空数组抛 RangeError/);
+  // The person reads their own message for that round, not the note that travelled with it.
+  const shown = (await service.read(work.work_id)).rounds.at(-1)!.turns.find(turn => turn.kind === "user")!.text;
+  assert.equal(shown, "按文档实现");
 });

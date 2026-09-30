@@ -41,7 +41,7 @@ import { createSessionMessages, MAX_BROADCAST } from "./prologue-messages.js";
 import { createPrologueWaits } from "./prologue-waits.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentReviewReceipt, AgentRunRef, AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { PrologueApprovalBridge, type ProloguePendingPort } from "./prologue-approvals.js";
 import type { AgentReviewQueue } from "../reviews.js";
 
@@ -1449,7 +1449,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: answer.answers }, now);
       }
     },
-  }), { inference, createBuilderAgent, gitReviews,
+  }), { inference, createBuilderAgent, gitReviews, diagnostics: () => runtimeDiagnostics(runtime),
     /** The person's standing site decisions for the side panel's browser, applied to the running runtime. */
     surfaces: surfaceHost ? { decide: (decision: Parameters<PrologueSurfaces["decide"]>[0]) => surfaceHost!.decide(decision) } : undefined,
     async assertDirectoriesIdle(paths: readonly string[]) {
@@ -1464,6 +1464,21 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         || attempt.subagent_roots?.some(root => paths.includes(root.path)))) throw new Error(`“${index.title}”仍有涉及此目录的写入执行、待审或未知结果，请先核对原任务`);
     }
   } });
+}
+
+/** The runtime's own receipts, as the developer diagnostics page shows them. */
+export function runtimeDiagnostics(runtime: Pick<import("@prologue/sdk").Runtime, "identity" | "state" | "assembly" | "capabilityReport" | "ledgerFailures">): AgentRuntimeDiagnostics {
+  const report = runtime.capabilityReport;
+  return {
+    app: { app_id: runtime.identity.app.appId, app_version: runtime.identity.app.appVersion },
+    state: runtime.state,
+    fingerprint: runtime.assembly.fingerprint,
+    slots: Object.entries(runtime.assembly.slots).map(([slot, resolved]) => ({ slot, state: resolved.state, implementation: resolved.implementation ?? null,
+      version: resolved.version ?? null, why: resolved.why ?? null, fallback: resolved.usedFallback })),
+    host: { requested: [...report.requested], effective: [...report.effective],
+      not_present: Object.entries(report.actual).filter(([, state]) => state !== "present").map(([capability, state]) => ({ capability, state })) },
+    ledger_failures: runtime.ledgerFailures.map(entry => ({ kind: entry.kind, seq: entry.seq, code: entry.code ?? null, detail: entry.detail ?? null })),
+  };
 }
 
 function validRunTiming(value: unknown): value is PrologueRunTiming {

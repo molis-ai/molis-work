@@ -31,6 +31,17 @@
 - **Prologue Runtime**：一个 Home 只有一个（`appId: io.molis.work`，`agent-host-composition.ts`）。记忆落在它的 registry-store（kind `memories`）。
 - **Alchemist 插件**内部有一套自己的研究校准记忆（`plugins/native/alchemist/src/studio/server/db/memory-repository.ts`），不对外。
 
+#### 2.1.1 第一版记忆的代码落点（助理会话 [a806f0] 2026-09-30 提供，均在 2e837e8f）
+
+- 服务 `apps/local-host/src/assistant/assistant-service.ts`：`memoryTools(work)`、`recallFor(work, request)`（每轮召回，写成“记住的偏好与背景”材料）、`memories()` / `changeMemory()` / `memoryPrefs()` / `saveMemoryPrefs()`、经验候选（`acceptMemoryCandidate` 等）；“允许记住”关掉时本轮材料写明不能长期记住（搜 `memory-off`）。
+- 存储 `assistant-store.ts`：memory prefs、disabled memories、memory candidates 三张表；记忆本体在 Prologue Memory（user / project 作用域；project 作用域是补进 SDK 的 `ac4d1135`，已在现用合成包 `c63ea1a1` 里）。
+- Agent Host：`horizontal/agent-host` 的 memory 能力，以及网关的 `remember` / `list-memories` / `forget-memory` / `suggest-memory` 工具（`prologue-action-gateway.ts`）。`prologue-node.ts` 的 `memoryRounds`：没有真实调用却声称记住或忘掉时挡回一次；记忆被关掉时同样挡回（`MEMORY_OFF_HELD`，`announce-guard.ts`）。
+- 界面：`apps/workbench/src/settings-assistant.ts` 的“记忆与偏好”一节；工作面板里的经验建议在 island 里，归面板改版会话 [3c6203]。
+- 接口：`/api/assistant/memories`、`memory-prefs`、`memory-candidates`（`assistant-http.ts`）。
+- 测试 `tests/assistant-memory.test.ts`；决定与证据见 `specs/system-assistant/implementation.md` 第 13 节、2.1（已定“不另设 Character 维度的记忆库”），§16 有 AC34 实测。
+- 迁移注意：本目标允许按规则自动写入，和第一版“只记明确要求 + 待认可建议”不同，`assistant-agent.ts` 里基础 Prompt 的记忆一节要跟着改。
+- 助理会话的承诺：从 2026-09-30 起不再改记忆相关代码，等本线来约定三件事。#98 还没合，它在跑最后一次全量回归，之后会有文档提交和面板改版的快进合并；本线要基于新提交时，它会告知提交号。
+
 ### 2.2 缺口
 
 1. **记忆只属于助理。** 开关、停用和候选都在助理库里。Coding、插件 Agent、插件创作台和 Jev 判断都用不上：现有三个场景包都声明 `memory: { scope: "session", write: "deny" }`，而 Agent 角色没有设置 `memoryPolicy`，SDK 默认召回和写入都是关。

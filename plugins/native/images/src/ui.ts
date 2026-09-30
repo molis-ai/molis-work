@@ -56,7 +56,7 @@ export function renderImagesWorkbench({ primitives: p }: ImagesUiModel): string 
         <div class="images-workspace-body">
           <form class="images-compose" data-images-compose>
             <div class="images-intro"><h2>${p.text("把想法变成图片")}</h2><p>${p.text("选择生图服务，写下画面、风格和细节。")}</p></div>
-            <div class="images-connection-empty" data-images-connection-empty hidden><p>${p.text("先连接一个生图服务。密钥加密保存在这台电脑，配置可跨项目使用。")}</p><button class="mw-btn mw-btn--secondary" type="button" data-images-connections>${p.text("连接生图服务")}</button></div>
+            <div class="images-connection-empty" data-images-connection-empty hidden><p>${p.text("先连接一个生图服务。密钥加密保存在这台电脑，配置可跨项目使用。")}</p><button class="mw-btn mw-btn--primary" type="button" data-images-connections>${p.text("连接生图服务")}</button></div>
             <p class="images-note is-error" data-images-service-unavailable role="status" hidden></p>
             <div data-images-connected hidden>
               <label class="images-field-label">${p.text("生图服务与模型")}</label>

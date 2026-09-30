@@ -135,11 +135,15 @@ export const UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT = String.raw`() => {
       },
     };
     mounts.set(root, scope);
-    for (const doc of documents) {
-      const observer = new MutationObserver(sync);
-      observer.observe(doc.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
-      own(() => observer.disconnect()); listen(doc, 'visibilitychange', sync);
-    }
+    // Parent documents belong to another realm: watch them only for 'hidden', never for children or their events.
+    // Chrome gives every observer of a mutation one shared record, wrapped in the realm of the first callback it
+    // reaches, so a parent's later observers would read added nodes built on this frame's prototypes, where
+    // 'instanceof Element' fails and delegated clicks are dropped. Removing the frame unloads this page (pagehide),
+    // and a hidden page is hidden in every frame.
+    const [local, ...parents] = documents, observer = new MutationObserver(sync);
+    observer.observe(local.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    for (const doc of parents) observer.observe(doc.documentElement, { subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    own(() => observer.disconnect()); listen(local, 'visibilitychange', sync);
     listen(window, 'pagehide', event => { if (event.persisted) { pageHidden = true; sync(); } else dispose(); });
     listen(window, 'pageshow', () => { pageHidden = false; sync(); });
     return scope;

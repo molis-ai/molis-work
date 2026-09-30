@@ -607,6 +607,8 @@ ${FEED_RULE_AUTHORING_SCRIPT}
           feedWorkbench.insertBefore(detail, feedDetailEmpty);
         }
         if (selectedFeedItem === entryId && feedDetailEmpty) feedDetailEmpty.hidden = true;
+        // The detail carries the item's revision; name it now that it is known.
+        if (selectedFeedItem === entryId) publishFeedContext(row);
       } catch (error) {
         if (isAbortError(error) || feedDetailRequest !== controller) return;
         if (selectedFeedItem !== entryId) return;
@@ -628,6 +630,24 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       }
     };
 
+    /* The message on screen, for the Assistant and the placement bar: the same feed_item id that search and feed.subject.read use.
+       Demo rows (not persisted) name no object, since nothing can be read back for them. */
+    const publishFeedContext = (row) => {
+      const shell = document.querySelector("[data-feed-stage-shell]");
+      if (!shell) return;
+      const context = { plugin_id: "io.molis.work.feed", surface_title: "Feed" };
+      const itemId = row && row.dataset.feedEntryPersisted === "true" ? (row.dataset.feedItemId || row.dataset.feedEntryId) : "";
+      if (itemId) {
+        context.object = { kind: "feed_item", id: itemId, title: row.dataset.feedEntryTitle || "" };
+        const revision = Number(document.querySelector('[data-feed-detail="' + CSS.escape(row.dataset.feedEntryId || "") + '"] [data-feed-revision]')?.dataset.feedRevision);
+        if (Number.isFinite(revision) && revision > 0) context.object.version = revision;
+      }
+      const next = JSON.stringify(context);
+      if (shell.getAttribute("data-assistant-context") !== next) shell.setAttribute("data-assistant-context", next);
+    };
+    // Before anything is opened, the surface still says which plugin it is.
+    if (!document.querySelector("[data-feed-stage-shell]")?.hasAttribute("data-assistant-context")) publishFeedContext(null);
+
     const expandFeedStage = (expanded) => {
       const shell = document.querySelector("[data-feed-stage-shell]");
       const workspace = document.querySelector("[data-feed-stage-workspace]");
@@ -644,6 +664,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       });
       document.querySelectorAll("[data-feed-entry-detail]").forEach((pane) => { pane.hidden = true; });
       if (feedDetailEmpty) feedDetailEmpty.hidden = true;
+      publishFeedContext(null);
     };
 
     const collapseFeedItemDetail = (row) => {
@@ -678,6 +699,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       });
       selectedRow.classList.add("is-open");
       expandFeedStage(true);
+      publishFeedContext(selectedRow);
       document.querySelectorAll("[data-feed-entry-detail]").forEach((pane) => {
         pane.hidden = pane.dataset.feedEntryDetail !== itemId;
       });
@@ -820,13 +842,13 @@ ${FEED_RULE_AUTHORING_SCRIPT}
     };
 
     document.addEventListener("change", (event) => {
-      const target = event.target instanceof Element ? event.target : null;
+      const target = event.target?.nodeType === 1 ? event.target : null;
       if (!target?.matches("[data-feed-source-filter], [data-feed-type-filter], [data-feed-time-filter], [data-feed-status-filter], [data-feed-sort]")) return;
       syncFeedFilterUi();
       filterFeedItems();
     }, true);
     document.addEventListener("input", (event) => {
-      const target = event.target instanceof Element ? event.target : null;
+      const target = event.target?.nodeType === 1 ? event.target : null;
       if (!target?.closest("[data-feed-search]")) return;
       noteSearchActivity();
       filterFeedItems();
@@ -841,7 +863,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         requestAnimationFrame(() => {
           if (feedFilterPanel.hidden) return;
           const selectedSource = feedFilterPanel.querySelector('[data-feed-filter-option="source"][aria-checked="true"]');
-          (selectedSource instanceof HTMLElement ? selectedSource : feedFilterPanel.querySelector("[data-feed-filter-option]"))?.focus?.({ preventScroll: true });
+          (selectedSource?.nodeType === 1 ? selectedSource : feedFilterPanel.querySelector("[data-feed-filter-option]"))?.focus?.({ preventScroll: true });
         });
       }
     };
@@ -854,7 +876,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       });
     };
     document.addEventListener("click", (event) => {
-      const button = event.target instanceof Element ? event.target.closest("[data-feed-quick]") : null;
+      const button = event.target?.nodeType === 1 ? event.target.closest("[data-feed-quick]") : null;
       if (!button) return;
       feedQuickFilter = ["unread", "saved"].includes(button.dataset.feedQuick) ? button.dataset.feedQuick : "all";
       syncFeedQuickFilter();
@@ -862,12 +884,12 @@ ${FEED_RULE_AUTHORING_SCRIPT}
     });
     // The reading bar draws its rule only once the page has scrolled under it.
     document.addEventListener("scroll", (event) => {
-      const page = event.target instanceof Element && event.target.matches(".feed-stage-item-detail") ? event.target : null;
+      const page = event.target?.nodeType === 1 && event.target.matches(".feed-stage-item-detail") ? event.target : null;
       if (page) page.toggleAttribute("data-scrolled", page.scrollTop > 4);
     }, true);
     // The source menu is a disclosure; its summary keeps the older rail-toggle hook and says whether it is open.
     document.addEventListener("toggle", (event) => {
-      const menu = event.target instanceof Element && event.target.matches("[data-feed-source-menu]") ? event.target : null;
+      const menu = event.target?.nodeType === 1 && event.target.matches("[data-feed-source-menu]") ? event.target : null;
       if (!menu) return;
       if (feedWorkbench) feedWorkbench.dataset.railOpen = String(menu.open);
       menu.querySelector("[data-feed-rail-toggle]")?.setAttribute("aria-expanded", String(menu.open));

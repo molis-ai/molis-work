@@ -17,8 +17,8 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
   const dismiss = (event) => {
     // The project menu and the account menu close once something in them is chosen, on Escape, or on a click outside.
     // The path is taken at dispatch, so a row that re-rendered under the click still counts as inside its menu.
-    const path = typeof event.composedPath === 'function' ? event.composedPath().filter((node) => node instanceof Element) : [];
-    const along = (selector) => path.some((node) => node.matches(selector)) || Boolean(event.target instanceof Element && event.target.closest(selector));
+    const path = typeof event.composedPath === 'function' ? event.composedPath().filter((node) => node.nodeType === 1) : [];
+    const along = (selector) => path.some((node) => node.matches(selector)) || Boolean(event.target?.nodeType === 1 && event.target.closest(selector));
     for (const menu of document.querySelectorAll('[data-project-menu][open], [data-global-menu][open], [data-feed-source-menu][open]')) {
       const inside = event.type !== 'keydown' && (path.includes(menu) || menu.contains(event.target));
       // Ticking a plugin for the Dock is a setting, not a destination: the menu stays for the next one.
@@ -195,7 +195,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     paintDock();
   };
   choices?.addEventListener('click', (event) => {
-    const row = event.target instanceof Element ? event.target.closest('[data-dock-choice]') : null;
+    const row = event.target?.nodeType === 1 ? event.target.closest('[data-dock-choice]') : null;
     if (!row) return;
     const order = rail().map((node) => node.dataset.pluginId);
     const next = new Set(readPins());
@@ -261,7 +261,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   composer?.addEventListener('submit', () => setPanel(true), true);
 
   dock.addEventListener('click', (event) => {
-    const target = event.target instanceof Element ? event.target : null;
+    const target = event.target?.nodeType === 1 ? event.target : null;
     if (!target) return;
     const toggle = target.closest('[data-dock-toggle]');
     if (toggle) { const id = toggle.dataset.dockToggle; setWindow(id, document.body.dataset.discussionOpen !== 'true'); return; }
@@ -279,7 +279,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   // on 搜索 in the list; a chosen result opens elsewhere, so the list closes with it and focus waits on the switcher.
   const searchDialog = document.querySelector('[data-global-search-dialog]');
   let searchDismissed = false;
-  document.addEventListener('click', (event) => { if (event.target instanceof Element && event.target.closest('[data-global-search-close]')) searchDismissed = true; }, true);
+  document.addEventListener('click', (event) => { if (event.target?.nodeType === 1 && event.target.closest('[data-global-search-close]')) searchDismissed = true; }, true);
   document.addEventListener('keydown', (event) => {
     if (searchDialog?.open && (event.key === 'Escape' || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k'))) searchDismissed = true;
   }, true);
@@ -290,19 +290,19 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     requestAnimationFrame(() => { if (document.activeElement === document.body) pickerToggle?.focus({ preventScroll: true }); });
   });
   document.addEventListener('click', (event) => {
-    const inSearch = event.target instanceof Element && event.target.closest('[data-global-search-dialog]');
-    if (pickerPopover && !pickerPopover.hidden && !inSearch && !(event.target instanceof Element && picker?.contains(event.target))) setPicker(false);
-    if (overflow && !overflow.hidden && !(event.target instanceof Element && event.target.closest('[data-dock-overflow], [data-dock-more]'))) setOverflow(false);
+    const inSearch = event.target?.nodeType === 1 && event.target.closest('[data-global-search-dialog]');
+    if (pickerPopover && !pickerPopover.hidden && !inSearch && !(event.target?.nodeType === 1 && picker?.contains(event.target))) setPicker(false);
+    if (overflow && !overflow.hidden && !(event.target?.nodeType === 1 && event.target.closest('[data-dock-overflow], [data-dock-more]'))) setOverflow(false);
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
-    if (event.target instanceof Element && event.target.closest('dialog[open]')) return;
+    if (event.target?.nodeType === 1 && event.target.closest('dialog[open]')) return;
     if (pickerPopover && !pickerPopover.hidden) { event.preventDefault(); setPicker(false); pickerToggle?.focus(); return; }
     if (overflow && !overflow.hidden) { event.preventDefault(); setOverflow(false); more?.focus(); return; }
     const active = document.activeElement;
-    const inside = active instanceof Element && active.closest('[data-dock-window]');
+    const inside = active?.nodeType === 1 && active.closest('[data-dock-window]');
     if (inside) { event.preventDefault(); setWindow(inside.dataset.dockWindow, false); return; }
-    if (panel && !panel.hidden && active instanceof Element && active.closest('[data-assistant-island]')) { event.preventDefault(); setPanel(false); }
+    if (panel && !panel.hidden && active?.nodeType === 1 && active.closest('[data-assistant-island]')) { event.preventDefault(); setPanel(false); }
   });
   new MutationObserver(paintCurrent).observe(document.querySelector('.tab-workspace') || document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-current', 'class'] });
   new MutationObserver(paintCurrent).observe(dock.querySelector('.plugin-rail-items') || dock, { subtree: true, attributes: true, attributeFilter: ['aria-current'] });

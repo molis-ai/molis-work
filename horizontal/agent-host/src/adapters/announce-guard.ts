@@ -84,3 +84,31 @@ export function writesToolCallAsText(text: string): boolean {
 export const WRITTEN_CALL_HELD =
   "Your reply wrote a tool call out as text (a [tool] block or capability_id lines), so nothing happened: the person sees that text, not a button or an action. Make the call itself now with the tool, or answer in plain words without it.";
 
+
+/**
+ * A reply that shows the person internal identifiers: a tool's name, a capability id the round found, a UUID, an error
+ * code. The instructions already forbid it (use titles and names), yet MiniMax-M3 still wrote “用 pages.create 建好了”.
+ * Only identifiers that cannot be ordinary words count: a file name such as calc.js is never one of them.
+ */
+const SPOKEN_TOOLS = TOOL_NAMES.split("|").filter(name => name.includes("-"));
+const TOOL_WORD = new RegExp(`(?<![\\w./-])(?:${SPOKEN_TOOLS.join("|")})(?![\\w/-])`);
+const UUID = /(?<![\w-])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\w-])/i;
+const ERROR_CODE = /(?<![\w.])(?:actions|agent|assistant|memory|prologue)\.[a-z]+_[a-z_]+(?![\w.])/;
+const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export function mentionsInternalIds(text: string, capabilityIds: Iterable<string> = []): string[] {
+  const found = new Set<string>();
+  for (const pattern of [TOOL_WORD, UUID, ERROR_CODE]) {
+    const match = pattern.exec(text);
+    if (match) found.add(match[0]);
+  }
+  for (const id of capabilityIds) {
+    if (id.length < 4 || !/[._-]/.test(id)) continue;
+    if (new RegExp(`(?<![\\w.-])${escape(id)}(?![\\w-]|\\.\\w)`).test(text)) found.add(id);
+  }
+  return [...found];
+}
+
+/** What the model reads when its reply showed internal identifiers. */
+export function internalIdsHeld(found: readonly string[]): string {
+  return `Your reply shows the person internal identifiers (${found.slice(0, 4).join(", ")}). Write it again naming things by their titles and names — the capability's title, the plugin, the document or project title — and leave the identifiers out. Keep one only if the person asked for that identifier itself.`;
+}

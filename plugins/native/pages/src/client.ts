@@ -330,16 +330,14 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       row.setAttribute("aria-selected", String(on));
     });
   };
-  const artifactControl = (record, key) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "creative-artifact-act";
-    button.dataset[key] = record.id;
-    const label = record.publication_pending ? L("继续保存上次固定版本") : record.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
-    button.setAttribute("aria-label", label);
-    button.innerHTML = ICON("upload") + "<span></span>";
-    button.lastElementChild.textContent = label;
-    return button;
+  // A row's only label is its state: a fixed version exists, or one is still being saved.
+  const fixedCell = (record) => {
+    const node = document.createElement("span");
+    node.className = "mw-status mw-status--plain feed-entry-status";
+    if (record.publication_pending) { node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
+    else if (record.artifact_version > 0) { node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
+    else node.setAttribute("aria-hidden", "true");
+    return node;
   };
   const renderRow = (record) => {
     const item = document.createElement("article");
@@ -368,6 +366,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     meta.className = "plugin-stage-meta";
     meta.textContent = formatTime(record.updated_at);
     row.append(leading, meta);
+    const fixed = fixedCell(record);
+    if (!fixed.hasAttribute("aria-hidden")) row.append(fixed);
     const actions = document.createElement("span");
     actions.className = "pages-row-actions";
     if (folders.length) {
@@ -389,7 +389,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     star.setAttribute("aria-label", record.starred ? L("取消收藏") : L("收藏"));
     star.innerHTML = ICON("star");
     actions.append(star);
-    item.append(row, actions, artifactControl(record, "pagesArtifact"));
+    item.append(row, actions);
     return item;
   };
   const renderFold = (key, label, items, actions) => {

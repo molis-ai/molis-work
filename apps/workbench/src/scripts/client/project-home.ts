@@ -282,7 +282,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       .filter((id) => id && id !== "home" && !seen.has(id) && seen.add(id)).slice(0, 3)
       .map((id) => {
         const source = document.querySelector('[data-plugin-picker-popover] [data-plugin-id="' + id + '"]') || document.querySelector('[data-dock-pin="' + id + '"]');
-        const name = (source?.textContent?.trim() || source?.getAttribute("title") || source?.getAttribute("aria-label") || id).replace(/^.*[：:]\s*/, "").trim();
+        // A switcher entry is a name plus one line of hint; only the name is the shortcut's title.
+        const name = (source?.querySelector("span")?.textContent?.trim() || source?.textContent?.trim() || source?.getAttribute("title") || source?.getAttribute("aria-label") || id).replace(/^.*[：:]\s*/, "").trim();
         const glyph = source?.querySelector("use")?.getAttribute("href")?.replace("#icon-", "") || "grid";
         return { id, name, glyph };
       });

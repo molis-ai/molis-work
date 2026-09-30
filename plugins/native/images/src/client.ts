@@ -101,6 +101,8 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const connection = selectedConnection();
     $('[data-images-connected]').hidden = !connectionId && !connections.length;
     $('[data-images-connection-empty]').hidden = connections.length > 0;
+    // Until a service is connected, connecting is the step; the generate row waits.
+    const submitRow = $('.images-submit-row'); if (submitRow) submitRow.hidden = !connections.length;
     $('[data-images-service-label]').textContent = connection ? connection.name + ' · ' + connection.model : L('所选生图服务不可用，请重新选择');
     const unavailable = $('[data-images-service-unavailable]');
     unavailable.hidden = !connectionId || Boolean(connection && connection.available !== false);

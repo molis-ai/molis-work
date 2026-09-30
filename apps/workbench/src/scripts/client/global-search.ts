@@ -303,7 +303,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   };
   // \`query\`: open already searching for it (a word chosen in the context actions); the person can refine it.
   const open = (trigger, query) => {
-    lastTrigger = trigger instanceof HTMLElement ? trigger : document.activeElement;
+    lastTrigger = trigger?.nodeType === 1 ? trigger : document.activeElement;
     input.value = "";
     selected = 0; explicit = false;
     notice = "";
@@ -365,7 +365,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     clearTimeout(retry); clearTimeout(debounce); requestSeq += 1;
     input.setAttribute("aria-expanded", "false");
     input.removeAttribute("aria-activedescendant");
-    if (lastTrigger instanceof HTMLElement) lastTrigger.focus();
+    if (lastTrigger?.nodeType === 1) lastTrigger.focus();
   });
   dialog.querySelector("[data-global-search-close]")?.addEventListener("click", close);
   document.addEventListener("click", (event) => {

@@ -53,6 +53,15 @@ export async function objectState(localHost: MolisWorkLocalHost, ref: { kind: st
     await client.invoke(context, { capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: ref.id });
     return "ok";
   } catch (error) {
-    return /not_found|missing|deleted|forbidden|permission/.test(String((error as { code?: string }).code ?? "")) ? "missing" : "unknown";
+    return readerOutcome(String((error as { code?: string }).code ?? ""));
   }
+}
+
+/**
+ * What a reader's refusal says about the object: gone, archived or no longer ours to read (the platform's
+ * `actions.subject_unavailable` among them) pauses what rests on it — reversibly, it resumes once readable again;
+ * anything else (a busy or failing service) tells nothing, and nothing changes.
+ */
+export function readerOutcome(code: string): "missing" | "unknown" {
+  return /not_found|missing|deleted|subject_unavailable|forbidden|permission/.test(code) ? "missing" : "unknown";
 }

@@ -8,6 +8,7 @@ import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-m
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import { prologueMemoryBackend } from "../apps/local-host/src/memory/memory-host.js";
+import { readerOutcome } from "../apps/local-host/src/memory/memory-upkeep.js";
 
 async function memoryHome(t: { after(fn: () => Promise<void> | void): void }, clock: { now: Date }) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-upkeep-"));
@@ -175,4 +176,9 @@ test("a deleted memory does not come back through upkeep, a merge record or a re
   memory = await env.open();
   assert.equal((await memory.list(person())).items.length, 0);
   assert.equal((await memory.recall(assistant(), { query: "发布 回归" })).items.length, 0);
+});
+
+test("a reader that says the object is gone, archived or not ours pauses what rests on it; a failing service changes nothing", () => {
+  for (const code of ["goals.not_found", "actions.subject_unavailable", "todo.not_found", "actions.forbidden"]) assert.equal(readerOutcome(code), "missing", code);
+  for (const code of ["actions.service_unavailable", "actions.timeout", ""]) assert.equal(readerOutcome(code), "unknown", code);
 });

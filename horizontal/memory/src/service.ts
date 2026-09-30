@@ -931,7 +931,7 @@ export class MemoryService {
         const object = one.meta.evidence.find(item => item.kind === "object" && item.ref)?.ref;
         if (object && options.objectState) {
           const state = await options.objectState({ kind: object.kind, id: object.id, project_id: object.project_id ?? where.project }).catch(() => "unknown" as const);
-          if (state === "missing" && one.meta.state === "active") { await turnOff(one, "paused", `依据已不存在（${object.kind} ${object.id}）`, "paused", { action: "enable" }); report.paused += 1; }
+          if (state === "missing" && one.meta.state === "active") { await turnOff(one, "paused", `依据已不存在或读不到了（${object.kind} ${object.id}）`, "paused", { action: "enable" }); report.paused += 1; }
           else if (state === "ok" && one.meta.state === "paused" && (one.meta.state_reason ?? "").startsWith("依据已不存在")) {
             const meta: MemoryMetaRecord = { ...one.meta, state: "active", state_reason: null, updated_at: at };
             await this.saveFacts(one, meta, one.meta);

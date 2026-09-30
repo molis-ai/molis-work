@@ -126,13 +126,14 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     let data = null, busy = false;
     const filters = { kind: "", source: "", state: "", query: "" };
     const error = $("[data-memory-error]");
-    const toast = (text) => {
+    const toast = (text, failed) => {
       const box = document.querySelector("[data-settings-toast], [data-toast]");
       if (!box) return;
-      box.textContent = text; box.classList.add("is-visible");
-      setTimeout(() => box.classList.remove("is-visible"), 2600);
+      box.textContent = text; box.classList.toggle("is-error", Boolean(failed)); box.classList.add("is-visible");
+      setTimeout(() => box.classList.remove("is-visible"), failed ? 5000 : 2600);
     };
-    const fail = (failure) => { error.textContent = failure && failure.message ? failure.message : L("没有完成，请重试"); error.hidden = false; };
+    // The reason shows at the top of the page and, since the action may be far below it, in the toast where the person is.
+    const fail = (failure) => { error.textContent = failure && failure.message ? failure.message : L("没有完成，请重试"); error.hidden = false; toast(error.textContent, true); };
     const api = async (path, payload) => {
       const response = await fetch(base + path, payload === undefined ? undefined : { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) });
       const body = await response.json().catch(() => ({}));

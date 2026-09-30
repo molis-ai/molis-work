@@ -35,7 +35,7 @@ const SIDE_MAX_FILES = 2000, SIDE_MAX_DEPTH = 8;
 const SIDE_SKIPPED = new Set(["node_modules", ".git", "dist", "build", ".next", ".cache", "target", "__pycache__", ".venv", "vendor"]);
 const MEDIA: Record<string, string> = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", json: "application/json", ts: "text/typescript", tsx: "text/typescript",
   js: "text/javascript", mjs: "text/javascript", css: "text/css", html: "text/html", yml: "application/yaml", yaml: "application/yaml", py: "text/x-python",
-  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
+  csv: "text/csv", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
 const mediaOf = (name: string) => MEDIA[name.split(".").pop()?.toLowerCase() ?? ""] ?? "text/plain";
 
 export function filesActionHandlers(context: PluginStartContext): ActionHandlerBinding[] {
@@ -57,7 +57,7 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
     if (!selected) throw new Error("请在项目设置的工作目录中选择可用浏览目录");
     return { workspace_id: selected.workspace_id, name: selected.display_name, handle: selected.workspace_id };
   };
-  async function read(id: unknown, path: readonly string[], kind: "directory" | "text", beforeWrite: () => Promise<void>) {
+  async function read(id: unknown, path: readonly string[], kind: "directory" | "text" | "bytes", beforeWrite: () => Promise<void>) {
     const current = await workspace(beforeWrite);
     if (id !== current.workspace_id || !services?.capabilities) throw new Error("工作目录已经变化，请重新选择文件");
     const result = await services.capabilities.invoke(readWorkspaceFileCapability, { workspace_id: current.workspace_id, path, kind });
@@ -93,11 +93,14 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
       const [workspaceId, ...rest] = String(input.subject?.id ?? "").split(":");
       if (workspaceId !== current.workspace_id) throw Object.assign(new Error("这个文件不在当前浏览目录里"), { code: "files.not_found" });
       const path = parseFilePath(rest.join(":").split("/").filter(Boolean));
-      const { result } = await read(current.workspace_id, path, "text", beforeWrite);
-      const title = path.at(-1) ?? "文件";
-      if (result.outcome === "text") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: mediaOf(title), text: result.text });
+      const title = path.at(-1) ?? "文件", media = mediaOf(title);
+      // Pictures and PDFs are shown as they are; everything else, SVG included, as text.
+      const whole = (media.startsWith("image/") && media !== "image/svg+xml") || media === "application/pdf";
+      const { result } = await read(current.workspace_id, path, whole ? "bytes" : "text", beforeWrite);
+      if (result.outcome === "bytes") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: media, bytes: Uint8Array.from(atob(result.data), char => char.charCodeAt(0)) });
+      if (result.outcome === "text") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: media, text: result.text });
       if (result.outcome === "missing") throw Object.assign(new Error("文件已不存在"), { code: "files.not_found" });
-      const why = result.outcome === "too-large" ? `文件太大（${Math.round(result.bytes / 1024)} KB），侧栏只预览文本文件的前 ${Math.round(result.limit / 1024)} KB。`
+      const why = result.outcome === "too-large" ? `文件太大（${Math.round(result.bytes / 1024)} KB），侧栏只预览 ${Math.round(result.limit / 1024)} KB 以内的文件。`
         : result.outcome === "binary" ? "这是二进制文件，侧栏只预览文本。" : result.outcome === "denied" ? "这个路径不可读取。" : "这个文件现在不能预览。";
       return fileContentOf({ subject: input.subject, revision: "unreadable", title, media_type: "text/plain", text: why });
     }, reading),

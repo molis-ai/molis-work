@@ -16,6 +16,9 @@ import { browserSiteDeclarations, parsePluginManifest, PluginManifestError } fro
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { mkdir, realpath, writeFile } from "node:fs/promises";
+import { readWorkspaceFile } from "../apps/local-host/dist/workspace-files.js";
+import { WORKSPACE_BYTES_LIMIT, workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import {
   bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, definePlugin, fileContentOf, fileEntriesPage, FILE_CONTENT_MAX_BYTES,
 } from "../packages/plugin-sdk/src/index.js";
@@ -193,4 +196,25 @@ test("a Plugin names the websites it uses in the side panel browser as exact ori
     assert.equal(valid.status, 0, valid.stderr);
     assert.deepEqual(JSON.parse(valid.stdout).browser_sites, ["https://shop.example.com", "http://localhost:8080"]);
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("a workspace file is read whole for a preview (plugins only), still inside the linked folder and within the limit", async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "side-panel-bytes-")));
+  try {
+    await mkdir(join(root, "docs"));
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+    await writeFile(join(root, "docs", "chart.png"), png);
+    const workspaces = [{ workspace_id: "w1", name: "w", canonical_path: root, realpath_verified: true }] as never;
+    const whole = await readWorkspaceFile({ workspace_id: "w1", path: ["docs", "chart.png"], kind: "bytes" }, workspaces);
+    assert.equal(whole.outcome, "bytes");
+    assert.deepEqual(Buffer.from((whole as { data: string }).data, "base64"), png);
+    assert.equal((await readWorkspaceFile({ workspace_id: "w1", path: ["docs", "chart.png"], kind: "text" }, workspaces)).outcome, "binary", "a text read still refuses it");
+    await writeFile(join(root, "docs", "large.pdf"), Buffer.alloc(WORKSPACE_BYTES_LIMIT + 1));
+    assert.deepEqual(await readWorkspaceFile({ workspace_id: "w1", path: ["docs", "large.pdf"], kind: "bytes" }, workspaces),
+      { outcome: "too-large", bytes: WORKSPACE_BYTES_LIMIT + 1, limit: WORKSPACE_BYTES_LIMIT });
+    assert.equal((await readWorkspaceFile({ workspace_id: "w1", path: ["..", "outside.png"], kind: "bytes" }, workspaces).catch(() => ({ outcome: "refused" }))).outcome !== "bytes", true);
+    // People, Agents and MCP clients read folders and text only: the public action does not offer whole files.
+    const kind = (workspaceReadActions.file.action.input_schema as { properties: { kind: { enum: string[] } } }).properties.kind.enum;
+    assert.deepEqual(kind, ["directory", "text"]);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

@@ -150,7 +150,7 @@ export async function attachMentions(read: ReadFile, workspaceId: string, task: 
         continue;
       }
       if (isBare) continue;
-      const why = { missing: "工作区里没有这个文件", "too-large": "文件太大，没有附上", binary: "不是文本文件", denied: "不在授权的工作区内", unsupported: "不能作为文本读取", changed: "读取时文件正在变化", directory: "这是目录，不是文件" }[result.outcome] ?? "读取失败";
+      const why = { missing: "工作区里没有这个文件", "too-large": "文件太大，没有附上", binary: "不是文本文件", denied: "不在授权的工作区内", unsupported: "不能作为文本读取", bytes: "不能作为文本读取", changed: "读取时文件正在变化", directory: "这是目录，不是文件" }[result.outcome] ?? "读取失败";
       parts.push(`### ${path}\n（没有附上：${why}。需要时请用读取工具查看。）`);
       continue;
     }

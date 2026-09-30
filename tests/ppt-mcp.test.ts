@@ -23,7 +23,7 @@ test("PPT standard MCP shares exports, concurrent edits and fixed publication ac
   };
   try{
     const writer=await connect('a'),reader=await connect('a','read'),other=await connect('b'),secondWriter=await connect('a');
-    assert.deepEqual((await writer.listTools()).tools.map(t=>t.name).filter(n=>n.startsWith('ppt.')).sort(),['list','get','create','update','delete','export','pptx','promote','search.entries','subject.read','content.list','content.read','content.receive','content.create'].map(n=>`ppt.${n}__v1`).sort());
+    assert.deepEqual((await writer.listTools()).tools.map(t=>t.name).filter(n=>n.startsWith('ppt.')).sort(),['list','get','create','update','delete','export','pptx','promote','outline','search.entries','subject.read','content.list','content.read','content.receive','content.create'].map(n=>`ppt.${n}__v1`).sort());
     let {presentation}=await call(writer,'create',{title:'MCP 演示'});const id=presentation.id;
     assert.deepEqual((await call(other,'list')).presentations,[]);
     for(const [client,name,args] of [[other,'get',{id}],[reader,'update',{id,title:'denied'}],[writer,'create',{project_id:'b'}]] as const)assert.equal((await client.callTool({name:`ppt.${name}__v1`,arguments:args})).isError,true);

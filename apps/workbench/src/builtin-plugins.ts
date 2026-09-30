@@ -17,11 +17,11 @@ import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goa
 import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "@molis-ai/molis-work-plugin-inbox";
 import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "@molis-ai/molis-work-plugin-schedule";
 import { SHELF_INSTRUCTIONS, SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "@molis-ai/molis-work-plugin-shelf";
-import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest } from "@molis-ai/molis-work-plugin-characters";
+import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest, charactersSettingsUiContribution } from "@molis-ai/molis-work-plugin-characters";
 import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, runPagesMcpTool } from "@molis-ai/molis-work-plugin-pages";
 import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, runFormMcpTool } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_INSTRUCTIONS, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, runDatasetMcpTool } from "@molis-ai/molis-work-plugin-dataset";
-import { PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution, runPptMcpTool } from "@molis-ai/molis-work-plugin-ppt";
+import { PPT_INSTRUCTIONS, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution, runPptMcpTool } from "@molis-ai/molis-work-plugin-ppt";
 import { LINGGUANG_INSTRUCTIONS, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution } from "@molis-ai/molis-work-plugin-lingguang";
 import { TODO_INSTRUCTIONS, TODO_PROJECT_PLUGIN_ID, todoManifest, todoMethods, todoPrompts, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution } from "@molis-ai/molis-work-plugin-todo";
 import { ALCHEMIST_PROJECT_PLUGIN_ID, ALCHEMIST_INSTRUCTIONS, alchemistManifest, ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistUiContribution } from "@molis-ai/molis-work-plugin-alchemist";
@@ -67,7 +67,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: cogniaManifest,
     instructions: COGNIA_INSTRUCTIONS,
     personal: true,
-    summary: "导入本地知识，保留来源，整理为可追溯的知识。",
+    summary: "导入本地知识，带来源检索问答。",
     workbench: {
       order: 0,
       contributions: [cogniaUiContribution],
@@ -94,7 +94,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     project_plugin_id: IMAGES_PROJECT_PLUGIN_ID,
     manifest: imagesManifest,
     personal: true,
-    summary: "连接生图服务，描述图片，预览并保存生成结果。",
+    summary: "连接生图服务，按描述生成图片。",
     workbench: {
       order: 2,
       contributions: [imagesUiContribution],
@@ -108,7 +108,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: jellyManifest,
     instructions: JELLY_INSTRUCTIONS,
     personal: true,
-    summary: "安排事项、写笔记、收集灵感，把想法放进每天。",
+    summary: "日历、笔记、灵感，按天安排。",
     workbench: {
       order: 3,
       contributions: [jellyUiContribution],
@@ -122,7 +122,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     project_plugin_id: "experiments",
     manifest: experimentsManifest,
     personal: true,
-    summary: "同一任务，独立比较模型的判断、耗时与成本。",
+    summary: "同一任务，比较各模型的判断与成本。",
     workbench: {
       order: 4,
       contributions: [experimentsUiContribution],
@@ -176,7 +176,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: SCHEDULE_PROJECT_PLUGIN_ID,
     manifest: scheduleManifest,
-    summary: "到点跑自己的对话任务，也叫醒其他插件的闹钟。",
+    summary: "定时跑对话任务，也替插件准时提醒。",
     agent: { prompts: schedulePrompts },
     workbench: {
       order: 7,
@@ -189,7 +189,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: FEED_PROJECT_PLUGIN_ID,
     manifest: feedManifest,
-    summary: "查看来源消息和完整流水。",
+    summary: "订阅来源，读消息，留下值得留的。",
     workbench: {
       order: 5,
       contributions: [feedUiContribution],
@@ -201,7 +201,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: shelfManifest,
     instructions: SHELF_INSTRUCTIONS,
     personal: true,
-    summary: "把文件放到置物架，处理副本，原件不动。",
+    summary: "把文件放上来处理副本，原件不动。",
     workbench: {
       order: 8,
       contributions: [shelfUiContribution, shelfSettingsUiContribution],
@@ -215,7 +215,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: lingguangManifest,
     instructions: LINGGUANG_INSTRUCTIONS,
     personal: true,
-    summary: "先记下还没想清楚的想法，再决定留下或丢掉。",
+    summary: "先记下想法，再决定留下或丢掉。",
     workbench: {
       order: 13,
       contributions: [lingguangUiContribution],
@@ -229,7 +229,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: todoManifest,
     instructions: TODO_INSTRUCTIONS,
     personal: true,
-    summary: "记下要推进的事，分清今天做、在等谁和还没安排的。",
+    summary: "记下要做的事，分清今天、在等谁。",
     agent: { prompts: todoPrompts },
     methods: todoMethods,
     workbench: {
@@ -244,7 +244,12 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     project_plugin_id: CHARACTERS_PROJECT_PLUGIN_ID,
     manifest: charactersManifest,
     personal: true,
-    summary: "编辑角色的做事方式，发布固定版本供 AI 任务选择。",
+    summary: "定义 AI 做事方式，供任务选用。",
+    // Its page is rendered by the project's running plugin and shown as Settings › 角色; this registers that page.
+    workbench: {
+      order: 14,
+      contributions: [charactersSettingsUiContribution],
+    },
   },
   {
     project_plugin_id: PAGES_PROJECT_PLUGIN_ID,
@@ -252,7 +257,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     instructions: PAGES_INSTRUCTIONS,
     methods: pagesMethods,
     personal: true,
-    summary: "写文档，用块和格式，保存在这台电脑。",
+    summary: "写文档，可导出 Markdown / PDF。",
     workbench: {
       order: 9,
       contributions: [pagesUiContribution],
@@ -267,7 +272,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: formManifest,
     instructions: FORM_INSTRUCTIONS,
     personal: true,
-    summary: "建问卷，预览填写，看结果。",
+    summary: "建问卷，收答卷，看逐题汇总。",
     workbench: {
       order: 10,
       contributions: [formUiContribution],
@@ -282,7 +287,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: datasetManifest,
     instructions: DATASET_INSTRUCTIONS,
     personal: true,
-    summary: "改表格，导入 CSV，留下版本。",
+    summary: "做表格，导入 CSV，可回到旧版。",
     workbench: {
       order: 11,
       contributions: [datasetUiContribution],
@@ -295,8 +300,9 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: PPT_PROJECT_PLUGIN_ID,
     manifest: pptManifest,
+    instructions: PPT_INSTRUCTIONS,
     personal: true,
-    summary: "写幻灯片大纲，预览并导出 JSON。",
+    summary: "写大纲，放映或导出 PowerPoint。",
     workbench: {
       order: 12,
       contributions: [pptUiContribution],
@@ -311,7 +317,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: alchemistManifest,
     instructions: ALCHEMIST_INSTRUCTIONS,
     personal: true,
-    summary: "写下方向，炼成可比较的卡，再决定做不做。",
+    summary: "写下方向，炼成可比较的卡再决定。",
     workbench: {
       order: 15,
       contributions: [alchemistUiContribution],
@@ -325,7 +331,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: workflowsManifest,
     instructions: WORKFLOWS_INSTRUCTIONS,
     personal: true,
-    summary: "把已有插件按顺序串成一件可以做完的事。",
+    summary: "把插件串成流程，一步步做完。",
     workbench: {
       order: 16,
       contributions: [workflowsUiContribution],
@@ -336,7 +342,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: ARTIFACTS_PROJECT_PLUGIN_ID,
     manifest: artifactsManifest,
-    summary: "打开项目成果，查看保留下来的版本。",
+    summary: "项目的固定成果，各版本可回看。",
     workbench: {
       order: 18,
       contributions: [artifactReferenceUiContribution, artifactBrowserUiContribution],
@@ -346,7 +352,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     project_plugin_id: CODING_PROJECT_PLUGIN_ID,
     manifest: codingManifest,
     instructions: CODING_INSTRUCTIONS,
-    summary: "围绕代码讨论、执行和审查，保留连续的任务记录。",
+    summary: "和 Agent 一起写代码，留每轮记录。",
     agent: { prompts: codingPrompts, skills: codingMethods },
     workbench: {
       order: 20,

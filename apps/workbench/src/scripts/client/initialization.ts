@@ -12,6 +12,7 @@ import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { NAVIGATION_PRESENTATION_SCRIPT, DOCK_SCRIPT } from "./navigation-presentation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
 import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "./background-tasks.js";
+import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "./plugin-notifications.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../connectors-settings.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
@@ -46,9 +47,13 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     (${DOCK_SCRIPT})(L, state.project?.project_id, {
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
       setDirectory: (...args) => setDesktopDirectory(...args),
+      leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
+      shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
+      registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
     (${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: L, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
+    (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ translate: L, route, projectId: state.project?.project_id });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: L,
       route, headers: () => molisWorkControlHeaders(), projectId: state.project?.project_id || document.body.dataset.projectId || "",
@@ -158,6 +163,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       translate: L,
       setDirectory: (...args) => setDesktopDirectory(...args),
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
+      closeCover: () => tabWorkspace?.closeCover?.(),
+      openCover: (kind) => tabWorkspace?.openCover?.(kind),
+      noteCover: (kind, place) => tabWorkspace?.noteCover?.(kind, place),
+      registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
       hideDirectory: () => immersiveNavigation?.hideDirectory(),
       projectId: state.project?.project_id || "",
     });

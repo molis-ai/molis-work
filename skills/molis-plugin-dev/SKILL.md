@@ -102,6 +102,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 底栏右侧的个人常驻入口（岛） | slot `island` | 当成普通插件条 |
 | 当前项目关联目录 / 浏览目录 | `projectSettingsCapabilities`，Manifest 按项 consumes | 读其他插件 storage、Workspace ports、传 project_id |
 | 本机偏好 | `settings-page` → `workbench.settings` | 把 Feed 账号做成全局设置 |
+| 属于人、说明 AI 怎么做事的配置页（角色、提示词一类） | `settings` view 带 `order`（宿主分类 10–90，跟随前一个宿主分类的分组）；页面由运行中的插件渲染时声明为 `stage` view，根元素标 `data-settings-page` | 放进插件切换器；在宿主里按插件名排位置 |
 | 点按钮改数据 | HTTP + 已有 Module API 或私人库 | 抢 Module 的业务表 |
 | 判断亮哪颗按钮 | 真实场景 → action_scenes → 绑定与消费 | 只声明标签，或再加 Host 去向白名单 |
 | Agent 做同一件事 | 共同 actions 目录和授权调用 | 重复 handler / 写死 tool-catalog |

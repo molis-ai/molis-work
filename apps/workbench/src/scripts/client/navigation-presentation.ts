@@ -17,8 +17,8 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
   const dismiss = (event) => {
     // The project menu and the account menu close once something in them is chosen, on Escape, or on a click outside.
     // The path is taken at dispatch, so a row that re-rendered under the click still counts as inside its menu.
-    const path = typeof event.composedPath === 'function' ? event.composedPath().filter((node) => node instanceof Element) : [];
-    const along = (selector) => path.some((node) => node.matches(selector)) || Boolean(event.target instanceof Element && event.target.closest(selector));
+    const path = typeof event.composedPath === 'function' ? event.composedPath().filter((node) => node.nodeType === 1) : [];
+    const along = (selector) => path.some((node) => node.matches(selector)) || Boolean(event.target?.nodeType === 1 && event.target.closest(selector));
     for (const menu of document.querySelectorAll('[data-project-menu][open], [data-global-menu][open], [data-feed-source-menu][open]')) {
       const inside = event.type !== 'keydown' && (path.includes(menu) || menu.contains(event.target));
       // Ticking a plugin for the Dock is a setting, not a destination: the menu stays for the next one.
@@ -73,7 +73,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   // What the work area shows: the current plugin, or one per pane when it is split, the focused pane first in weight.
   const shown = () => {
     const panes = [...document.querySelectorAll('.tab-workspace-panes > [data-tab-pane]')];
-    const railCurrent = rail().find((node) => node.hasAttribute('aria-current'))?.dataset.pluginId || 'home';
+    const railCurrent = host.shownPlugin?.() || rail().find((node) => node.hasAttribute('aria-current'))?.dataset.pluginId || 'home';
     if (panes.length < 2) return [{ plugin: railCurrent, focused: true }];
     return panes.map((pane) => {
       const mark = pane.querySelector('.tab-strip [aria-current], .tab-strip .tab-view-chip');
@@ -86,6 +86,24 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     paintQueued = true;
     requestAnimationFrame(() => {
       paintQueued = false;
+      // A cover (settings, the market, capabilities) is what the person looks at: the switcher names it and no
+      // Dock entry claims to be current underneath it.
+      const cover = document.querySelector('[data-tab-workspace]')?.dataset.exclusive;
+      if (cover) {
+        const source = document.querySelector('[data-cover-chip]');
+        const chip = document.createElement('span');
+        chip.className = 'plugin-picker-chip is-focused is-cover';
+        const glyph = source?.querySelector('svg')?.cloneNode(true);
+        if (glyph) chip.append(glyph);
+        const name = document.createElement('span');
+        name.textContent = source?.querySelector(':scope > span')?.textContent || '';
+        chip.append(name);
+        current.replaceChildren(chip);
+        current.parentElement?.classList.remove('is-split');
+        dock.querySelectorAll('[data-dock-pin][aria-current], [data-bar-resident][aria-current]').forEach((button) => button.removeAttribute('aria-current'));
+        more?.classList.remove('has-current');
+        return;
+      }
       const entries = shown();
       current.replaceChildren(...entries.map((entry) => {
         const chip = document.createElement('span');
@@ -195,7 +213,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     paintDock();
   };
   choices?.addEventListener('click', (event) => {
-    const row = event.target instanceof Element ? event.target.closest('[data-dock-choice]') : null;
+    const row = event.target?.nodeType === 1 ? event.target.closest('[data-dock-choice]') : null;
     if (!row) return;
     const order = rail().map((node) => node.dataset.pluginId);
     const next = new Set(readPins());
@@ -245,6 +263,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     event.preventDefault();
     openCapabilities(capabilitiesLink.href);
   });
+  if (capabilitiesLink) host.registerCover?.('capabilities', () => openCapabilities(capabilitiesFrame?.getAttribute('src') || capabilitiesLink.href));
   // A reload that restores the cover restores what it shows.
   const coverRoot = document.querySelector('[data-tab-workspace]');
   const restoreCover = () => { if (coverRoot?.dataset.exclusive === 'capabilities' && !capabilitiesFrame?.getAttribute('src')) loadCapabilities(capabilitiesLink?.href); };
@@ -261,7 +280,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   composer?.addEventListener('submit', () => setPanel(true), true);
 
   dock.addEventListener('click', (event) => {
-    const target = event.target instanceof Element ? event.target : null;
+    const target = event.target?.nodeType === 1 ? event.target : null;
     if (!target) return;
     const toggle = target.closest('[data-dock-toggle]');
     if (toggle) { const id = toggle.dataset.dockToggle; setWindow(id, document.body.dataset.discussionOpen !== 'true'); return; }
@@ -271,7 +290,14 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (target.closest('[data-plugin-picker-toggle]')) { setPicker(pickerPopover?.hidden !== false); return; }
     if (target.closest('[data-dock-more]')) { setOverflow(overflow?.hidden !== false); return; }
     const pin = target.closest('[data-dock-pin], [data-bar-resident]');
-    if (pin) { setOverflow(false); railItem(pin.dataset.dockPin || pin.dataset.barResident)?.click(); return; }
+    if (pin) {
+      setOverflow(false);
+      const id = pin.dataset.dockPin || pin.dataset.barResident;
+      // Pressed again while its plugin is showing, an entry of the bar puts back what was there before it.
+      if (host.leavePlugin?.(id)) return;
+      railItem(id)?.click();
+      return;
+    }
     // Choosing a plugin in the switcher (or the market or studio at its foot) closes it; 全部插件 and the Dock choices keep it open.
     if (pickerPopover && !pickerPopover.hidden && target.closest('.plugin-rail-items [data-plugin-id], .plugin-rail-items a.plugin-rail-item, .dock-settings .account-global-item')) requestAnimationFrame(() => setPicker(false));
   });
@@ -279,7 +305,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   // on 搜索 in the list; a chosen result opens elsewhere, so the list closes with it and focus waits on the switcher.
   const searchDialog = document.querySelector('[data-global-search-dialog]');
   let searchDismissed = false;
-  document.addEventListener('click', (event) => { if (event.target instanceof Element && event.target.closest('[data-global-search-close]')) searchDismissed = true; }, true);
+  document.addEventListener('click', (event) => { if (event.target?.nodeType === 1 && event.target.closest('[data-global-search-close]')) searchDismissed = true; }, true);
   document.addEventListener('keydown', (event) => {
     if (searchDialog?.open && (event.key === 'Escape' || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k'))) searchDismissed = true;
   }, true);
@@ -290,21 +316,21 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     requestAnimationFrame(() => { if (document.activeElement === document.body) pickerToggle?.focus({ preventScroll: true }); });
   });
   document.addEventListener('click', (event) => {
-    const inSearch = event.target instanceof Element && event.target.closest('[data-global-search-dialog]');
-    if (pickerPopover && !pickerPopover.hidden && !inSearch && !(event.target instanceof Element && picker?.contains(event.target))) setPicker(false);
-    if (overflow && !overflow.hidden && !(event.target instanceof Element && event.target.closest('[data-dock-overflow], [data-dock-more]'))) setOverflow(false);
+    const inSearch = event.target?.nodeType === 1 && event.target.closest('[data-global-search-dialog]');
+    if (pickerPopover && !pickerPopover.hidden && !inSearch && !(event.target?.nodeType === 1 && picker?.contains(event.target))) setPicker(false);
+    if (overflow && !overflow.hidden && !(event.target?.nodeType === 1 && event.target.closest('[data-dock-overflow], [data-dock-more]'))) setOverflow(false);
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
-    if (event.target instanceof Element && event.target.closest('dialog[open]')) return;
+    if (event.target?.nodeType === 1 && event.target.closest('dialog[open]')) return;
     if (pickerPopover && !pickerPopover.hidden) { event.preventDefault(); setPicker(false); pickerToggle?.focus(); return; }
     if (overflow && !overflow.hidden) { event.preventDefault(); setOverflow(false); more?.focus(); return; }
     const active = document.activeElement;
-    const inside = active instanceof Element && active.closest('[data-dock-window]');
+    const inside = active?.nodeType === 1 && active.closest('[data-dock-window]');
     if (inside) { event.preventDefault(); setWindow(inside.dataset.dockWindow, false); return; }
-    if (panel && !panel.hidden && active instanceof Element && active.closest('[data-assistant-island]')) { event.preventDefault(); setPanel(false); }
+    if (panel && !panel.hidden && active?.nodeType === 1 && active.closest('[data-assistant-island]')) { event.preventDefault(); setPanel(false); }
   });
-  new MutationObserver(paintCurrent).observe(document.querySelector('.tab-workspace') || document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-current', 'class'] });
+  new MutationObserver(paintCurrent).observe(document.querySelector('.tab-workspace') || document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-current', 'class', 'data-exclusive'] });
   new MutationObserver(paintCurrent).observe(dock.querySelector('.plugin-rail-items') || dock, { subtree: true, attributes: true, attributeFilter: ['aria-current'] });
   paintPins();
 }`;

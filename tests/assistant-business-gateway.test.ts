@@ -676,3 +676,76 @@ test("the steps a round keeps for itself reach the work view, the latest list as
     assert.ok(steps.every(step => typeof step.id === "string" && step.id.length > 0));
   } finally { await f.close(); }
 });
+
+test("a card a page prepared from the person's selection is checked like the Assistant's own, placed once, runs only when clicked, and the next round sees the selection", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [body => {
+    // The following round is told what the person selected on that page, as data.
+    assert.match(JSON.stringify(body.messages), /用户在页面上选中的内容[\s\S]*「Pages」页面为操作卡「记到笔记」带来的选中内容[\s\S]*会后 24 小时内发纪要/);
+    return reply(undefined, "好的。");
+  }]);
+  const card = { title: "记到笔记", summary: "把选中的一句存进项目笔记", reference: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" },
+    input: { text: "会后 24 小时内发纪要" }, editable: ["text"], source_object: { kind: "pages_document", id: "doc-7", version: 3, title: "周会纪要" },
+    materials: [{ title: "周会纪要（选中）", text: "会后 24 小时内发纪要" }] };
+  const source = { surface: "pages", title: "Pages" };
+  try {
+    const before = f.requests.length;
+    const placed = await f.service.offerFromPage({ message_id: "page-message-0001", source, card }, { project_ref: f.project });
+    assert.equal(f.requests.length, before, "no model round starts");
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "nothing runs before the click");
+    assert.deepEqual([placed.card.status, placed.card.effect, placed.card.from, placed.card.source_object?.id], ["ready", "write", source, "doc-7"]);
+    const view = await f.service.read(placed.work_id);
+    assert.equal(view.work.title, "记到笔记");
+    assert.deepEqual(view.objects.map(object => [object.relation, object.subject.kind, object.subject.id, object.recorded_revision]), [["origin", "pages_document", "doc-7", "3"]]);
+    // The same message delivered again shows the same card; nothing new is placed.
+    const again = await f.service.offerFromPage({ message_id: "page-message-0001", source, card }, { project_ref: f.project });
+    assert.deepEqual([again.work_id, again.card.card_id], [placed.work_id, placed.card.card_id]);
+    assert.equal((await f.service.read(placed.work_id)).cards.length, 1);
+    // A page cannot place what the Assistant may not do, nor an input the capability would refuse.
+    await assert.rejects(f.service.offerFromPage({ message_id: "page-message-0002", source, card: { ...card, input: { text: 42 } } }, { project_ref: f.project }));
+    f.store.setActionEnabled("web-user", actionKey(card.reference), false);
+    await assert.rejects(f.service.offerFromPage({ message_id: "page-message-0003", source, card }, { project_ref: f.project }), (error: unknown) => error instanceof AssistantError && error.code === "assistant.action_revoked");
+    f.store.setActionEnabled("web-user", actionKey(card.reference), true);
+    await assert.rejects(f.service.offerFromPage({ message_id: "x", source, card }, { project_ref: f.project }), /页面消息标识无效/);
+    // The click runs exactly what the card shows, once.
+    const ran = await f.service.runCard(placed.work_id, placed.card.card_id, { revision: placed.card.revision });
+    assert.equal(ran.status, "done");
+    assert.deepEqual(JSON.parse(JSON.stringify(f.notes.prepare("SELECT body FROM notes").all())), [{ body: "会后 24 小时内发纪要" }]);
+    // Continuing the work, the round hears the selection.
+    await f.service.send({ work_id: placed.work_id, text: "再帮我想两条类似的", request_id: "req-00000071" }, {});
+    await until(async () => (await f.service.read(placed.work_id)).work.state === "completed", "round");
+    // Placed into a work that already has rounds, a page's card still belongs to no round: it came from the page.
+    const second = await f.service.offerFromPage({ message_id: "page-message-0004", source, card, work_id: placed.work_id }, { project_ref: f.project });
+    assert.equal(second.card.run_id, null);
+    assert.equal(placed.card.run_id, null);
+  } finally { await f.close(); }
+});
+
+test("a material a round brought can be read back with its text for a preview, and a page from the browser says where it was", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [() => reply(undefined, "看过了。")]);
+  try {
+    const page = "来源：https://example.com/\n\nExample Domain\nThis domain is for use in illustrative examples.";
+    const sent = await f.service.send({ text: "总结这个网页", request_id: "req-00000081",
+      materials: [{ material_id: "web-1", kind: "text", title: "网页 · Example Domain", explicit: true, text: page }] }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "round");
+    assert.equal((done.rounds[0]!.materials[0] as { text?: string }).text, undefined, "the work view stays small");
+    const material = f.service.material(sent.work.work_id, "web-1");
+    assert.deepEqual([material.kind, material.title, material.text, material.url], ["text", "网页 · Example Domain", page, "https://example.com/"]);
+    assert.throws(() => f.service.material(sent.work.work_id, "missing"), /没有这份材料/);
+  } finally { await f.close(); }
+});
+
+test("a reply that shows the capability id the round found is held once and rewritten in titles (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "find-capabilities", input: { query: "Notes" } }),
+    () => reply(undefined, "用 fixture.notes.count 查过了，目前没有笔记。"),
+    body => { assert.match(JSON.stringify(body), /internal identifiers \(fixture\.notes\.count\)/); return reply(undefined, "查过 Notes 里的笔记数：目前一条都没有。"); },
+  ]);
+  try {
+    const sent = await f.service.send({ text: "现在有几条笔记？", request_id: "req-00000091" }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(f.requests.length, 3, "held once");
+    const last = done.rounds.at(-1)!.turns.filter(turn => turn.kind === "assistant").at(-1)!;
+    assert.doesNotMatch(last.text, /fixture\.notes/);
+    assert.match(last.text, /一条都没有/);
+  } finally { await f.close(); }
+});

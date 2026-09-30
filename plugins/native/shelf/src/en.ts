@@ -1,5 +1,6 @@
 /** Shelf application copy; Workbench supplies the request locale. */
 export const SHELF_EN: Record<string, string> = {
+  "拖文件到这里，或点添加材料": "Drop files here, or press Add material",
   "材料覆盖说明": "Material coverage",
   "AI、终端与存储": "AI, terminal and storage",
   "选择自动动作的 AI 模型、人工终端，以及材料存放位置。": "Choose the AI model, manual terminal and material storage.",

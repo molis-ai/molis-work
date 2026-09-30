@@ -104,9 +104,10 @@ export function renderFormWorkbench(model: FormUiModel): string {
           <label class="form-field">${p.text("标题")}<input class="mw-input" data-form-title autocomplete="off"></label>
           <label class="form-field">${p.text("说明")}<input class="mw-input" data-form-description autocomplete="off" placeholder="${p.text("可选")}"></label>
         </div>
-        <div class="form-toolbar">
-          <strong>${p.text("题目")}</strong>
-          <select class="mw-select" data-form-question-type>
+        <div data-form-questions></div>
+        <div class="form-add-row" data-form-add-row>
+          <button class="mw-btn mw-btn--secondary" type="button" data-form-add-question>${icon("plus")}<span>${p.text("加一题")}</span></button>
+          <select class="mw-select" data-form-question-type hidden aria-hidden="true" tabindex="-1">
             <option value="text">${p.text("填空")}</option>
             <option value="singleChoice">${p.text("单选")}</option>
             <option value="multiChoice">${p.text("多选")}</option>
@@ -114,16 +115,21 @@ export function renderFormWorkbench(model: FormUiModel): string {
             <option value="rating">${p.text("评分")}</option>
             <option value="date">${p.text("日期")}</option>
           </select>
-          <button class="mw-btn mw-btn--secondary" type="button" data-form-add-question>${p.text("加一题")}</button>
+          <div class="mw-toggle-group form-add-types" data-slot="toggle-group" role="group" aria-label="${p.text("加一题的类型")}">
+            <button class="mw-toggle" type="button" data-form-add-question="text">${p.text("填空")}</button>
+            <button class="mw-toggle" type="button" data-form-add-question="singleChoice">${p.text("单选")}</button>
+            <button class="mw-toggle" type="button" data-form-add-question="multiChoice">${p.text("多选")}</button>
+            <button class="mw-toggle" type="button" data-form-add-question="dropdown">${p.text("下拉")}</button>
+            <button class="mw-toggle" type="button" data-form-add-question="rating">${p.text("评分")}</button>
+            <button class="mw-toggle" type="button" data-form-add-question="date">${p.text("日期")}</button>
+          </div>
         </div>
-        <div data-form-questions></div>
         <div class="form-prompt">
           <label class="form-field">${p.text("题目或 AI 提示")}<input class="mw-input" data-form-ai-prompt autocomplete="off" placeholder="${p.text("例如：你最常用的工具是什么")}"></label>
           <button class="mw-btn mw-btn--ghost" type="button" data-form-generate>${p.text("按题目加题")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" data-form-generate-ai disabled>${icon("sparkles")}<span>${p.text("AI 拟题加题")}</span></button>
         </div>
         <p class="form-note" data-form-ai-reason></p>
-        <p class="form-note form-collect-help">${p.text("收集答卷不需要网络：在这台电脑上打开填写页让别人填；或导出填写页文件发给对方，对方填完得到答卷文件发回给你，在“结果”里导入。不会生成外网链接。")}</p>
       </div>
       <form class="form-workspace" data-form-pane="preview" hidden>
         <div data-form-preview></div>

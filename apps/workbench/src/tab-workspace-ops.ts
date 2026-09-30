@@ -67,11 +67,18 @@ export function createTabWorkspaceOps(titles) {
     const used = new Set(pane.tabs.map((tab) => tab.groupId).filter(Boolean));
     pane.groups = (pane.groups || []).filter((group) => used.has(group.id));
   };
+  // The location chip names the plugin of what the pane shows: an item tab's own plugin, not whichever plugin page
+  // the pane happened to show before that tab was chosen again.
+  const followActiveItem = (pane) => {
+    const active = pane.tabs.find((tab) => tab.id === pane.activeTabId);
+    if (active?.kind === "item") pane.viewPlugin = active.plugin;
+  };
   const normalizeLayout = (state) => {
     state.panes.forEach((pane) => {
       dropMotherTabs(pane);
       emptyGroups(pane);
       orderPinned(pane);
+      followActiveItem(pane);
     });
     const old = state.layout || { direction: "row", sizes: [] };
     const sizes = state.panes.map((_, index) => Number(old.sizes?.[index]) > 0 ? Number(old.sizes[index]) : 1);
@@ -122,18 +129,27 @@ export function createTabWorkspaceOps(titles) {
   const activateInPane = (pane, tab) => {
     pane.activeTabId = tab.id;
     if (tab.kind === "home") pane.viewPlugin = null;
+    else if (tab.kind === "item") pane.viewPlugin = tab.plugin;
     return tab;
   };
+  // Choosing a tab is going there: a cover over the panes steps aside.
   const activate = (state, paneId, tabId) => {
     const pane = state.panes.find((candidate) => candidate.id === paneId);
     const tab = pane?.tabs.find((candidate) => candidate.id === tabId);
     if (!pane || !tab) return state;
     state.focusedPaneId = paneId;
+    state.exclusive = null;
     activateInPane(pane, tab);
     return state;
   };
+  /** The plugin a pane shows right now: its active tab's, or the plugin page's; home when neither. */
+  const shownPlugin = (pane) => {
+    const tab = pane?.tabs.find((candidate) => candidate.id === pane.activeTabId);
+    return tab ? tab.plugin : pane?.viewPlugin || "home";
+  };
+  // Entering a project (not reloading it) starts at its home: a cover left open last time does not greet you.
   const landAtProjectRoot = (state) => {
-    if (state.exclusive) return state;
+    state.exclusive = null;
     if (state.panes.some((pane) => pane.tabs.some((tab) => tab.kind === "item"))) return state;
     if (!state.panes.some((pane) => pane.viewPlugin)) return state;
     for (const pane of state.panes) {
@@ -441,6 +457,7 @@ export function createTabWorkspaceOps(titles) {
     ensureHome,
     focused,
     activeTab,
+    shownPlugin,
     countTabs,
   };
 }

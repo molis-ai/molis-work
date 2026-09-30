@@ -12,6 +12,7 @@ export { PPT_UI_CONTRIBUTION_ID, pptUiContribution, pptUiDescriptor, renderPptWo
 export type { PptUiModel, PptUiPrimitives, PptUiSurface } from "./ui.js";
 export { PPT_STYLES } from "./styles.js";
 export { PPT_EN } from "./en.js";
+export { PPT_DRAFT_OUTLINE, PPT_INSTRUCTIONS } from "./prompts.js";
 export { PPT_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { PPT_NATIVE_PLUGIN_ROUTES, PptPluginRouteTable } from "./routes.js";
 export type { PptPluginRouteHandler, PptPluginRouteRequest, PptPluginRouteResponse } from "./routes.js";

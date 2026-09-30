@@ -506,4 +506,6 @@ export const ASSISTANT_EN: Record<string, string> = {
   "修改数据": "Changes data",
   "接下来": "Next",
   "操作": "Action",
+  "来自「{title}」页面": "From the {title} page",
+  "选中自《{title}》": "selected in {title}",
 };

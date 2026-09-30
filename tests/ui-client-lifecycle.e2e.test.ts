@@ -81,6 +81,51 @@ test("UI Host owns real browser requests, timers, observers and visible SSE acro
 
 });
 
+test("An embedded view never lends its prototypes to the page holding it: content the page renders later stays clickable", { timeout: 25_000 }, async t => {
+  const page = await chrome(t); if (!page) return;
+  const server = createServer((request, response) => {
+    response.setHeader("content-type", "text/html");
+    // Like the Plugin Builder studio: a same-origin frame on the Host lifetime that watches and handles its own view.
+    if (request.url === "/studio") {
+      response.end(`<!doctype html><main id="root"><p>studio</p></main><script>
+        const root = document.querySelector('#root'); window.running = 0;
+        window.scope = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root);
+        scope.whenVisible(() => { running++; return () => { running--; }; });
+        scope.observe(new MutationObserver(records => records.forEach(record => record.addedNodes.length)), root, { childList: true, subtree: true });
+        scope.listen(root, 'click', () => {});
+      </script>`);
+      return;
+    }
+    // The workbench's delegated handler in its strictest form: any realm-safe check passes wherever this one does.
+    response.end(`<!doctype html><section id="surface"><iframe id="studio" src="/studio"></iframe></section><main id="host"></main><script>
+      window.clicks = [];
+      document.addEventListener('click', event => { const action = event.target instanceof Element && event.target.closest('[data-action]'); if (action) clicks.push(action.dataset.action); });
+    </script>`);
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/` });
+  await page.wait("document.querySelector('#studio').contentWindow?.scope?.visible === true");
+  // Chrome shares one record among a mutation's observers, wrapped in the realm of the first one called (the oldest).
+  // Scripts the page starts after the frame mounted (the side panel, a dialog) read the nodes those records add.
+  await page.evaluate("new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => node.nodeType))).observe(document.documentElement, { childList: true, subtree: true })");
+  await page.evaluate(`document.querySelector('#host').innerHTML = '<button data-action="handback">交还</button>';
+    document.body.insertAdjacentHTML('beforeend', '<button data-action="body">直接放在 body 下</button>')`);
+  await pause(60);
+  assert.deepEqual(await page.evaluate("[...document.querySelectorAll('[data-action]')].map(node => Object.getPrototypeOf(node) === HTMLButtonElement.prototype)"), [true, true],
+    "nodes the page renders keep the page's own prototypes");
+  await page.click('[data-action="handback"]'); await page.click('[data-action="body"]');
+  assert.deepEqual(await page.evaluate("clicks"), ["handback", "body"], "delegated handlers see both clicks");
+  // The frame still shares the page's visibility and lifetime.
+  await page.evaluate("document.querySelector('#surface').hidden = true");
+  await page.wait("document.querySelector('#studio').contentWindow.running === 0");
+  await page.evaluate("document.querySelector('#surface').hidden = false");
+  await page.wait("document.querySelector('#studio').contentWindow.running === 1");
+  await page.evaluate("window.studioScope = document.querySelector('#studio').contentWindow.scope; document.querySelector('#studio').remove()");
+  assert.equal(await page.evaluate("studioScope.signal.aborted"), true, "removing the frame disposes its client");
+});
+
 test("Images uses Host lifetime: hidden views stop polling, reopening refreshes, and late detached responses cannot replace current rows", { timeout: 30_000 }, async t => {
   const page = await chrome(t); if (!page) return;
   let reads = 0, block = false, pending: ServerResponse | undefined, aborted = 0;

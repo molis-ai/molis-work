@@ -24,7 +24,7 @@ export const CHARACTER_IMPORT_CLIENT_FACTORY = String.raw`(host) => {
   };
   const count=()=>{
     q('import-confirm').disabled=pending || !candidate || !(selection.rule_paths.length+selection.skill_ids.length);
-    q('import-confirm').textContent=(editing?'更新快照':'导入 Character')+' · '+selection.rule_paths.length+' 条规则 / '+selection.skill_ids.length+' 个技能';
+    q('import-confirm').textContent=(editing?'更新快照':'导入角色')+' · '+selection.rule_paths.length+' 条规则 / '+selection.skill_ids.length+' 个技能';
   };
   const renderPreview=()=>{
     preview.replaceChildren();if(!candidate){count();return;}
@@ -67,7 +67,7 @@ export const CHARACTER_IMPORT_CLIENT_FACTORY = String.raw`(host) => {
   q('import-close').onclick=()=>{if(!pending)dialog.close();};dialog.addEventListener('cancel',e=>{if(pending)e.preventDefault();});
   q('import-confirm').onclick=async()=>{
     if(pending || !candidate)return;pending=true;count();
-    try{const result=await request('POST','/imports',{candidate_id:candidate.candidate_id,selection,...(editing?{existing:{character_id:editing.character_id,expected_revision:editing.revision}}:{})});await load();select(result.draft.character_id);dialog.close();note(result.replayed?'已导入过这个来源，打开现有 Character；你的修改保持。':'Character 已保存，规则与 Skills 可在下方查看。');}
+    try{const result=await request('POST','/imports',{candidate_id:candidate.candidate_id,selection,...(editing?{existing:{character_id:editing.character_id,expected_revision:editing.revision}}:{})});await load();select(result.draft.character_id);dialog.close();note(result.replayed?'已导入过这个来源，打开现有角色；你的修改保持。':'角色已保存，规则与 Skills 可在下方查看。');}
     catch(error){q('import-notice').textContent=error.message;}finally{pending=false;count();}
   };
   const showRun=async item=>{

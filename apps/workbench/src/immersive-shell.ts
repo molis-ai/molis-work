@@ -83,7 +83,7 @@ const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
 const RAIL_TOOL_GROUPS: ReadonlyArray<readonly [label: string, ids: readonly string[]]> = [
   ["推进", ["schedule", "workflows"]],
   ["写与做", ["pages", "form", "dataset", "ppt", "images", "artifacts"]],
-  ["个人", ["todo", "jelly", "cognia", "shelf", "characters"]],
+  ["个人", ["todo", "jelly", "cognia", "shelf"]],
   ["研究", ["experiments", "alchemist"]],
   ["编码", ["coding"]],
 ];
@@ -149,9 +149,10 @@ const BAR_RESIDENT_IDS = ["shelf", "lingguang"];
 /**
  * The bottom bar replaces the rail. Left, where you go: the switcher — it names where you are (one chip per pane
  * when split) and opens search and every entry of the project, with the Dock's own settings at its foot (the market,
- * the plugin studio, which plugins stay in the Dock) — then the plugins chosen to stay. Centre: the resident Assistant, only an
- * input. Right: Shelf and 灵光, the project's discussion (one click opens group and direct chat beside the work), then
- * the project as a round button whose menu holds the project and the person — switching, search, settings, capabilities.
+ * the plugin studio, which plugins stay in the Dock) — then the plugins chosen to stay; the two sit in one tray.
+ * Centre: the resident Assistant, only an input. Right: Shelf and 灵光 with the project's discussion (one click opens
+ * group and direct chat beside the work) in one tray, then the project as a round button whose menu holds the project
+ * and the person — switching, search, settings, capabilities.
  */
 export function renderWorkbenchBar(
   primitives: ImmersiveShellPrimitives,
@@ -183,8 +184,7 @@ export function renderWorkbenchBar(
     </div>
     ${renderAssistantDock(primitives)}
     <div class="bar-end">
-      ${residents ? `<div class="bar-residents" role="toolbar" aria-label="${L("常驻插件")}">${residents}</div>` : ""}
-      <button class="bar-chat" type="button" data-dock-toggle="im" aria-expanded="false" aria-controls="dock-window-im" data-craft-tip="${L("项目讨论")}" aria-label="${L("项目讨论")}">${icon("message")}</button>
+      <div class="bar-residents" role="toolbar" aria-label="${L("常驻插件")}">${residents}<button class="bar-chat" type="button" data-dock-toggle="im" aria-expanded="false" aria-controls="dock-window-im" data-craft-tip="${L("项目讨论")}" aria-label="${L("项目讨论")}">${icon("message")}</button></div>
       <section class="dock-window dock-window--end" id="dock-window-im" role="region" aria-label="${L("群聊")}" data-dock-window="im" hidden>
         <header class="dock-window-head"><strong>${L("项目讨论")}</strong>${collapse}</header>
         <div class="dock-window-body"><iframe title="${L("群聊与 Thread")}" data-dock-frame="im"></iframe></div>

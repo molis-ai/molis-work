@@ -174,11 +174,17 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   assert.equal(findPluginSettingsNavItem("unregistered-settings"), null);
   assert.ok(listPluginSettingsNavItems(["coding"]).some(item => item.section_id === "coding-settings"));
   // The judgment service connection lives under Capabilities → Connections, not a plugin settings page.
-  assert.deepEqual(live.map((item) => item.section_id), ["shelf"]);
-  assert.equal(live[0]?.plugin_id, "io.molis.work.shelf");
-  assert.equal(live[0]?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
-  assert.equal(live[0]?.label, "Shelf");
-  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["shelf", "planning"]);
+  // Characters' page lives in settings as 角色 (specs/page-interaction-flow), placed by its Manifest order.
+  assert.deepEqual(live.map((item) => item.section_id), ["characters", "shelf"]);
+  const shelf = live.find((item) => item.section_id === "shelf");
+  assert.equal(shelf?.plugin_id, "io.molis.work.shelf");
+  assert.equal(shelf?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
+  assert.equal(shelf?.label, "Shelf");
+  const characters = live.find((item) => item.section_id === "characters");
+  assert.equal(characters?.label, "角色");
+  assert.equal(characters?.icon, "user");
+  assert.equal(characters?.order, 35);
+  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["characters", "shelf", "planning"]);
   assert.equal(listPluginSettingsNavItems(["goals"]).find((item) => item.section_id === "planning")?.label, "Goals");
   assert.equal(live.some((item) => item.section_id === "mcp"), false);
   assert.equal(live.some((item) => item.section_id === "functions"), false);
@@ -268,7 +274,7 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
   );
 });
 
-test("workbench settings directory and standalone settings both show Shelf after the host pages", () => {
+test("workbench settings directory and standalone settings list the same grouped categories", () => {
   const directory = renderSettingsDirectorySection(directoryPrimitives);
   assert.match(directory, /data-settings-section="appearance"/);
   assert.match(directory, /data-settings-section="runtimes"/);
@@ -280,7 +286,11 @@ test("workbench settings directory and standalone settings both show Shelf after
   assert.doesNotMatch(directory, /data-settings-section="functions"/);
   const withGoals = renderSettingsDirectorySection(directoryPrimitives, ["goals"]);
   const sectionOrder = [...withGoals.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(sectionOrder, ["appearance", "models", "runtimes", "diagnostics", "shelf", "planning"]);
+  // One list for the cover and the independent page (specs/page-interaction-flow): host pages by group, 角色 after 助理
+  // by its Manifest order, other plugin pages last; 能力 opens its own cover.
+  assert.deepEqual(sectionOrder, ["appearance", "models", "assistant", "characters", "prompts", "runtimes", "capabilities", "diagnostics", "shelf", "planning"]);
+  assert.match(withGoals, /data-settings-section="capabilities"[^>]*data-settings-cover="capabilities"|data-settings-cover="capabilities"[^>]*data-settings-section="capabilities"/);
+  assert.deepEqual([...withGoals.matchAll(/class="settings-directory-group"[^>]*>([^<]+)</g)].map((match) => match[1]), ["本机", "AI", "工具与接入", "系统", "插件"]);
   assert.match(withGoals, />Goals</);
   assert.doesNotMatch(directory, /Gmail|Inbox/);
   const html = renderMolisWorkSettings({
@@ -308,6 +318,8 @@ test("workbench settings directory and standalone settings both show Shelf after
   });
   assert.match(appearance, /href="\/settings\/shelf"/);
   assert.match(appearance, /href="\/capabilities\/library"/);
+  const standaloneOrder = [...appearance.matchAll(/href="\/settings\/([a-z-]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(standaloneOrder, ["appearance", "models", "assistant", "characters", "prompts", "runtimes", "diagnostics", "shelf"]);
   assert.doesNotMatch(appearance, /href="\/settings\/connectors"/);
   assert.match(appearance, /class="settings-document appearance-document"/);
   assert.doesNotMatch(appearance, /data-settings-panel="shelf"|name="drop_wheel_enabled"|class="shelf-settings-document"/);

@@ -20,7 +20,9 @@ test('Characters opens an existing project after its manifest upgrade without lo
   const installed = new PluginRuntime(repository).install({ definition: { manifest: legacy, async start() { return {}; } },
     deployment: 'local', grants: legacy.permissions.filter(p => p.required).map(p => p.permission) });
   await b.navigate(() => b.command('Page.navigate', { url: `${b.origin}/projects/${b.projectId}/` }, b.sessionId));
-  await b.click('[data-plugin-strip] [data-plugin-id=characters]');
+  // Characters' page is Settings › 角色 (specs/page-interaction-flow).
+  await b.click('[data-directory-open="settings"]');
+  await b.click('[data-directory-panel=settings] [data-settings-section="characters"]');
   await b.waitFor("document.querySelector('[data-character-list]')?.textContent.includes('升级前的角色草稿')");
   const upgraded = repository.get(installed.install.install_id)!;
   // The current implementation declares compatibility with 1.0.0, so it runs without rewriting the installed record;

@@ -46,6 +46,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     (${DOCK_SCRIPT})(L, state.project?.project_id, {
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
       setDirectory: (...args) => setDesktopDirectory(...args),
+      leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
+      shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
+      registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
     (${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: L, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
@@ -158,6 +161,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       translate: L,
       setDirectory: (...args) => setDesktopDirectory(...args),
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
+      closeCover: () => tabWorkspace?.closeCover?.(),
+      openCover: (kind) => tabWorkspace?.openCover?.(kind),
+      noteCover: (kind, place) => tabWorkspace?.noteCover?.(kind, place),
+      registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
       hideDirectory: () => immersiveNavigation?.hideDirectory(),
       projectId: state.project?.project_id || "",
     });

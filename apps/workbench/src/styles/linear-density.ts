@@ -185,13 +185,9 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .session-stage-back { height: 26px; width: 26px; }
   body.immersive-workbench .goal-workspace-hero { padding: 8px 12px; }
   body.immersive-workbench .goal-info-popover > summary { min-height: 28px; padding: 4px 12px; }
-  body.immersive-workbench .inbox-reference-detail h1 { font-size: 15px; line-height: 1.3; }
   body.immersive-workbench .plugin-stage-detail-bar > h1 { font-size: 13px; line-height: 1.3; }
   body.immersive-workbench .inbox-reference-detail > .plugin-stage-detail-bar { min-height: 32px; }
-  body.immersive-workbench .inbox-reference-detail > .feed-detail-header { padding: 4px 16px 8px; }
   body.immersive-workbench .plugin-stage-detail-bar[data-stage-back-only] { min-height: 32px; height: 32px; padding: 4px 12px; }
-  body.immersive-workbench .inbox-reference-body { padding: 12px 16px; }
-  body.immersive-workbench .inbox-reference-footer { margin-inline: 16px; padding: 4px 0 12px; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail > header:not(.plugin-stage-detail-bar) { padding: 8px 16px; }
   body.immersive-workbench .goal-event-document .goal-header { padding: 8px 16px 8px; }
   body.immersive-workbench .goal-event-document .goal-title-heading h1 { font-size: 15px; line-height: 1.3; }

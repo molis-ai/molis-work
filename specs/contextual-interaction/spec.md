@@ -489,7 +489,7 @@ Pages 用一个 ProseMirror 插件的 view update 维护它；其他插件第一
 - 浏览器 e2e（协调会话排的 S11 时段）：`tests/contextual-interaction.e2e.test.ts` 4/4——P1 三个用例 + P2 一个（选中一个词 → 在项目里查找 → 搜索面板带着这个词打开；选中一段 → 更多 → 记下灵光 → `POST /api/assistant/cards` 200、面板打开到“记下灵光”；打开 Goal → 框上声明该 Goal → 选中其中文字 → 出现“拆成目标步骤”）。
 
 **未完成**
-- Feed 条目的对象声明（Feed 的搜索来源没有唯一的界面，需要 Feed 自己声明）；Characters、Inbox、Artifacts、Sessions 的真实走查（本项目没有这些条目或未启用）。
+- Feed 条目的对象声明：插件复查线已在 `feature/feed-assistant-context`（da838e20，待合入）里由 Feed 自己声明（`[data-feed-stage-shell]` 上 `object: {kind: "feed_item", id, title, version?}`，收起时去掉），合入后通用选区读取即对 Feed 生效，本线无需改动；Characters、Inbox、Artifacts、Sessions 的真实走查（本项目没有这些条目或未启用）。
 - 各插件自己的片段动作（Feed/Inbox 转成任务、Dataset/Form 解读等）与多对象情境。
 - 读取缺口（Alchemist 方向、Experiments）交给对应插件线。
 

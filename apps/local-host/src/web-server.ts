@@ -118,7 +118,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const unregisterSurfaces = registerBrowserSurfaces(localHost, {
       siteDecisions: () => sites.list(),
       driverFor: async boardId => {
-        if (!locateBrowser()) return null;
+        // The person can turn the Assistant's use of the browser off altogether; rounds then get no browser tools.
+        if (!sites.assistantEnabled || !locateBrowser()) return null;
         const projectId = fixture && boardId === fixture.boardId ? fixture.boardId
           : await platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().find(project => project.board_id === boardId)?.project_id ?? null);
         if (!projectId) return null;

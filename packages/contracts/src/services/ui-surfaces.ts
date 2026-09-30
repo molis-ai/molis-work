@@ -28,6 +28,10 @@ export interface HostSurfaceDriver {
   /** Performs one action. Refuses while the person has taken the page over. */
   perform(action: HostSurfaceAction, context: { readonly session_id: string | null }): Promise<void>;
   close(): Promise<void>;
+  /** The name of what sits at a point of the page now (for the person's approval card); empty when nothing readable. */
+  describePoint?(x: number, y: number): Promise<string>;
+  /** The field that has focus now: its name, and whether it takes a password, card number or one-time code. */
+  focusedField?(): Promise<{ readonly label: string; readonly sensitive: boolean }>;
   /**
    * Whether a screenshot's bytes are ones this driver produced after covering password, card and one-time-code
    * fields. The Agent Host's redactor refuses any other screenshot (spec D10).

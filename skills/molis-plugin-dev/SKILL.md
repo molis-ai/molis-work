@@ -18,6 +18,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 从需求到发布的八步、每步做完的标准 | [process.md](process.md) |
 | 能力：读、写、不可撤销，谁能调用 | [capabilities.md](capabilities.md) |
 | 让内容能被系统搜索找到、打开到 | [search.md](search.md) |
+| 让侧栏的“文件”标签列出、预览你的文件；在侧栏放自己的标签 | [files.md](files.md)、[ui.md](ui.md#侧栏标签side) |
 | 生成插件的说明书怎么设计 | [generated-design.md](generated-design.md) |
 | 生成插件的 AI 边界（创作台直接挂载） | [generated-ai.md](generated-ai.md) |
 | 生成插件的代码怎么写 | [generated-code.md](generated-code.md) |
@@ -72,7 +73,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 1. 对象与时刻（上面四问）。
 2. Manifest 身份：`schema_version`（产品插件用 2）、`host_api_version`、`plugin_id`、`name`、`version`、`kind`、`publisher`、`entrypoints`、`permissions`（每条带 reason）、`requires`（每条同时写入 `capabilities.consumes`）。权限只写真会用的。
 3. 个人还是项目：本机创作/函数/置物架/灵光在 catalog 标 `personal`；Goals/Feed/Inbox 按项目启用。
-4. UI 槽 + contribution。槽只有 `navigator` | `stage` | `settings` | `island`。列表详情用 `renderPluginStageShell`。视觉、客户端：[ui.md](ui.md)。
+4. UI 槽 + contribution。槽只有 `navigator` | `stage` | `settings` | `island` | `side`。列表详情用 `renderPluginStageShell`。视觉、客户端：[ui.md](ui.md)。
 5. HTTP：第三方走 Manifest `routes`，Host 挂 `/api/plugins/<plugin_id>/`。一等 Native 由 Host 注入短名路径（`/api/feed/`、`/api/pages/`），插件包自管 route table。未声明/未接线的路径到不了插件。
 6. 浏览器客户端：Pages 族在插件包 `CLIENT_FACTORY_SCRIPT`，Workbench pack 注入。Feed/Inbox 的点击在 `apps/workbench/src/scripts/client/navigation-*.ts`。只出静态 HTML 不够。
 7. 注册 `actions` 和实际处理器，让 UI、编排和授权 MCP 共用同一实现；旧 HTTP 路由只转发到这些动作。不要再声明已废弃的 `behaviors`。

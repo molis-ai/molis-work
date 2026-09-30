@@ -245,6 +245,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const actionControllers = new Map<string, AbortController>();
   const runRoots = new Map<string, ExactRef<"authorized-root">>();
   const activeRuns = new Map<string, { live(): boolean; steer(text: string): Promise<void> }>();
+  /** Which session each run belongs to, for "is another round using this page right now" (the side panel browser). */
+  const runSessions = new Map<string, string>();
   const reviewEffects = new Map<string, ExactRef<"effect">>();
   const deadlines = new Map<string, number>();
   type CommandEvent = Extract<ModelEvent, { type: "command-receipt" }>;
@@ -349,7 +351,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         if (subject.what === "surface") {
           reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
           const verbs: Record<string, string> = { pointer: "点击页面", key: "按键", text: "输入文字", navigate: "打开网址", wait: "等待页面", upload: "向网站上传本机文件", download: "把文件存到本机" };
-          const detail = effect.proposal.summary.replace(/^On this \w+: /u, "").replace(/\.$/u, "");
+          const label = effect.proposal.summary.replace(/^On this \w+: /u, "").replace(/\.$/u, "");
+          const typed = subject.action === "text" && effect.proposal.reviewRef ? await readResourceText(effect.proposal.reviewRef).catch(() => undefined) : undefined;
+          const detail = surfaceHost ? await surfaceHost.describe(pending.origin?.session ?? "", subject.action, label, typed) : label;
           return { kind: "tool-operation", tool: "surface-act", summary: `在 ${subject.scope} ${verbs[subject.action] ?? subject.action}`,
             fields: [{ label: "网站", value: subject.scope }, { label: "动作", value: verbs[subject.action] ?? subject.action }, { label: "详情", value: detail },
               ...(subject.action === "upload" ? [{ label: "注意", value: "上传会把这个文件发送给该网站，确认前请核对文件" }] : [])] };
@@ -1148,8 +1152,15 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           "用 board-read / board-report（board 写上面的任务图编号）处理这些步骤；做完后在交接信上答复对方。"].join("\n"), "coding-handed-steps"), as: "original" });
       }
       // The project's side panel browser, for this session only: its tools join the round and the round is told how to use them.
-      const surfaceTools = business && surfaceHost ? await surfaceHost.attach(session, index.owner.board_id, input.session_id).catch(() => [] as readonly string[]) : [];
-      const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods, ...(surfaceTools.length ? [SURFACE_GUIDANCE] : []),
+      // Read-only rounds only look; a page another live round holds is not shared, and the round is told why.
+      const surface = business && surfaceHost && input.browser !== false
+        ? await surfaceHost.attach(session, index.owner.board_id, input.session_id, { readOnly: input.provenance.frozen.execution === "read-only",
+          live: sessionRefId => [...activeRuns.entries()].some(([runId, run]) => run.live() && runSessions.get(runId) === sessionRefId) })
+          .catch((error: unknown) => ({ tools: [] as readonly string[], note: `侧栏浏览器这一轮不可用：${error instanceof Error ? error.message : String(error)}` }))
+        : { tools: [] as readonly string[], note: null };
+      const surfaceTools = surface.tools;
+      const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
+        ...(surfaceTools.length ? [SURFACE_GUIDANCE] : []), ...(surface.note ? [`## 侧栏浏览器\n${surface.note}`] : []),
         ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), (none || business ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
       if (!none && !business) {
         await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
@@ -1322,6 +1333,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       if (actionTools?.names.length) actionControllers.set(started.run.ref.id, actionController);
       let stopping: Promise<void> | undefined;
       // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
+      runSessions.set(started.run.ref.id, session.ref.id);
       activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && stopping === undefined,
         steer: text => started.control.steer({ text }) });
       if (plan && stepBoard) stepBoards.follow(stepBoard.ref, { session_id: session.ref.id, run_id: started.run.ref.id }, plan);

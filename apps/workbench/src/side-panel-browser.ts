@@ -89,6 +89,7 @@ export const SIDE_BROWSER_STYLES = String.raw`
 .side-browser-actions-row{display:flex;flex-wrap:wrap;gap:8px}
 .side-browser-sites ul{display:grid;gap:4px;margin:0;padding:0;list-style:none}
 .side-browser-sites li{display:flex;align-items:center;gap:8px;font-size:12px}
+.side-browser-toggle{display:flex;align-items:center;gap:8px;font-size:12px}
 .side-browser-sites li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .side-browser-live{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);margin:0}
 @media(prefers-reduced-motion:reduce){.side-browser-marker{transition:none}}
@@ -241,12 +242,13 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
   };
   const sitesUrl='/api/browser/sites';
   const renderSites=async()=>{
-    let rows=[];try{rows=(await (await fetch(sitesUrl,{headers:{accept:'application/json'}})).json()).sites||[];}catch{}
+    let rows=[],enabled=true;try{rows=(await (await fetch(sitesUrl,{headers:{accept:'application/json'}})).json()).sites||[];enabled=(await (await fetch('/api/browser/assistant',{headers:{accept:'application/json'}})).json()).enabled!==false;}catch{}
     const here=state?.origin||'',mine=rows.find(row=>row.scope===here);
     const label=(row)=>row.decision==='allow'?L('不用问就可以操作'):L('禁止查看和操作');
     sitesBox.innerHTML='<h2>'+esc(L('助理在网站上的权限'))+'</h2>'+(here?'<p>'+esc(here)+' · '+esc(mine?label(mine):L('每次操作前都会问你'))+'</p><div class="side-browser-actions-row">'+(mine?.decision!=='allow'?button('site-allow',L('不用问就可以操作')):'')+(mine?.decision!=='block'?button('site-block',L('禁止助理使用这个网站')):'')+(mine?button('site-forget',L('恢复为每次都问'),'ghost'):'')+'</div>':'<p>'+esc(L('打开一个网站后可以在这里设置。'))+'</p>')
       +(rows.filter(row=>row.scope!==here).length?'<ul>'+rows.filter(row=>row.scope!==here).map(row=>'<li><span>'+esc(row.scope)+' · '+esc(label(row))+'</span><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-browser-action="site-forget" data-scope="'+esc(row.scope)+'">'+esc(L('撤销'))+'</button></li>').join('')+'</ul>':'')
-      +'<p class="side-browser-cover-copy">'+esc(L('上传文件永远要先问你。'))+'</p>';
+      +'<p class="side-browser-cover-copy">'+esc(L('上传文件永远要先问你。'))+'</p>'
+      +'<label class="side-browser-toggle"><input type="checkbox" data-browser-assistant'+(enabled?' checked':'')+'> '+esc(L('允许助理使用侧栏浏览器'))+'</label>';
   };
   const setSite=async(scope,decision)=>{
     const response=await fetch(sitesUrl,{method:'POST',headers:{...molisWorkControlHeaders(),'content-type':'application/json'},body:JSON.stringify({scope,decision})});
@@ -275,13 +277,33 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(action==='file-cancel'){sendRaw({type:'file-chooser-cancel',id:sheet.dataset.id});focusPage();return;}
     if(action==='file-pick'){fileInput.dataset.chooser=sheet.dataset.id;fileInput.value='';fileInput.click();return;}
     if(action==='download-dismiss'){seenDownloads.add(sheet.dataset.id);renderSheet();return;}
-    if(action==='give'){document.dispatchEvent(new CustomEvent('molis:side-browser-give'));return;}
+    if(action==='give'){
+      // What the person sees (their selection, or the page's readable text), with where and when it came from; the
+      // Assistant offers it above the bar and the person decides what to ask (continuity.md: suggest).
+      try{
+        const capture=(await post('capture',{})).capture;
+        const at=new Date(capture.captured_at).toLocaleString();
+        const title=(capture.selection?L('网页选段'):L('网页'))+' · '+(capture.title||capture.origin);
+        const text=L('来源：{url}',{url:capture.url})+'\n'+L('取自侧栏浏览器，{at}',{at})+(capture.truncated?'\n'+L('页面较长，只取了开头'):'')+'\n\n'+capture.text;
+        window.dispatchEvent(new CustomEvent('molis:assistant-message',{detail:{message_id:crypto.randomUUID(),purpose:'suggest',source:{surface:'browser',title:L('侧栏浏览器')},
+          text:'',materials:[{title,text:text.slice(0,20000)}]}}));
+        say(L('已把这一页交给助理，在底栏上方确认后放进输入框。'));
+      }catch(error){say(error.message||L('没有取到页面内容'),true);}
+      return;
+    }
     if(action==='takeover'||action==='handback'){sendRaw({type:action});document.dispatchEvent(new CustomEvent('molis:side-browser-control',{detail:{action,project_id:projectId,session_id:state?.control?.work_id||null}}));if(action==='handback')say(L('已交还给助理。助理会先重新查看页面再继续。'));return;}
     if(action==='approve-once'){await decide('approve');return;}
     if(action==='reject'){await decide('reject');return;}
     if(action==='approve-site'){try{await setSite(approval.dataset.site,'allow');}catch(error){say(error.message,true);}await decide('approve');return;}
     if(action==='sites'){const open=sitesBox.hidden;sitesBox.hidden=!open;target.setAttribute('aria-expanded',String(open));if(open)await renderSites();return;}
     if(action==='site-allow'||action==='site-block'||action==='site-forget'){try{await setSite(target.dataset.scope||state?.origin||'',action.slice(5));await renderSites();}catch(error){say(error.message,true);}return;}
+  });
+  sitesBox.addEventListener('change',async event=>{
+    if(!(event.target instanceof HTMLInputElement)||!event.target.matches('[data-browser-assistant]'))return;
+    const enabled=event.target.checked;
+    const response=await fetch('/api/browser/assistant',{method:'POST',headers:{...molisWorkControlHeaders(),'content-type':'application/json'},body:JSON.stringify({enabled})}).catch(()=>null);
+    if(!response?.ok){event.target.checked=!enabled;say(L('没有保存'),true);return;}
+    say(enabled?L('助理可以使用侧栏浏览器了（每次操作前仍会问你）。'):L('助理不再使用侧栏浏览器。'));
   });
   fileInput.addEventListener('change',async()=>{
     const files=[...fileInput.files||[]];if(!files.length)return;

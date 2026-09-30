@@ -230,6 +230,14 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
         }
       }
     },
+    describePoint: (x: number, y: number) => labelAt(x, y),
+    async focusedField() {
+      const raw = await page.evaluate(`JSON.stringify((() => { const el = document.activeElement; if (!el || el === document.body) return { label: '', sensitive: false };
+        const label = String(el.getAttribute('aria-label') || (el.labels && el.labels[0] && el.labels[0].innerText) || el.getAttribute('placeholder') || el.getAttribute('name') || '').replace(/\\s+/g, ' ').trim().slice(0, 40);
+        return { label, sensitive: el.type === 'password' || /cc-|one-time-code/.test(el.getAttribute('autocomplete') || '') }; })())`).catch(() => "{}");
+      const parsed = JSON.parse(typeof raw === "string" ? raw : "{}") as { label?: string; sensitive?: boolean };
+      return { label: parsed.label ?? "", sensitive: parsed.sensitive === true };
+    },
     async close() { clearTimeout(idle); release(); },
     masked(bytes: Uint8Array) { return producedScreens.includes(digest(bytes)); },
   };

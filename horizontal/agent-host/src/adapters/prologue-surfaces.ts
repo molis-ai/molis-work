@@ -52,9 +52,21 @@ async function hostAction(action: UiAction, readText: (ref: ExactRef<"resource">
   }
 }
 
+export interface SurfaceAttachment {
+  /** The surface tools this round gets: all three, looking only, or none. */
+  readonly tools: readonly string[];
+  /** Why this round has less than all three, in words for the model and the person; null when nothing is missing. */
+  readonly note: string | null;
+}
+
 export interface PrologueSurfaces {
-  /** Attach the owner's page for this session (once per session); the tools to offer, or none. */
-  attach(session: { readonly ref: ExactRef<"session"> }, owner: string, sessionId: string): Promise<readonly string[]>;
+  /**
+   * Attach the owner's page for this session. A read-only round only looks; a page another live session holds is
+   * not shared (one page, one worker at a time) and the round is told so rather than silently getting nothing.
+   */
+  attach(session: { readonly ref: ExactRef<"session"> }, owner: string, sessionId: string, options: { readonly readOnly: boolean; readonly live: (sessionRefId: string) => boolean }): Promise<SurfaceAttachment>;
+  /** Chinese detail for an approval card: what exactly, with the element's own name where the page still shows it. */
+  describe(sessionRefId: string, action: string, summary: string, typed?: string): Promise<string>;
   /** The redactor Prologue calls before a screenshot may leave: only the driver's own covered screenshots pass. */
   redact(bytes: Uint8Array): Promise<Uint8Array>;
   /** The person changed a standing decision about a site. */
@@ -67,11 +79,23 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
   const attached = new Map<string, { target: ExactRef<"ui-target">; driver: HostSurfaceDriver }>();
   const drivers = new Set<HostSurfaceDriver>();
   return {
-    async attach(session, owner, sessionId) {
+    async attach(session, owner, sessionId, options) {
+      const offered = (): SurfaceAttachment => options.readOnly
+        ? { tools: SURFACE_TOOL_NAMES.filter(name => name !== "surface-act"), note: "这一轮是只读的：可以查看侧栏浏览器里的页面，不能操作。" }
+        : { tools: SURFACE_TOOL_NAMES, note: null };
       const held = attached.get(session.ref.id);
-      if (held && runtime().surfaces.get(held.target)?.open) return SURFACE_TOOL_NAMES;
+      if (held && runtime().surfaces.get(held.target)?.open) return offered();
       const driver = await ports.driverFor(owner);
-      if (!driver) return [];
+      if (!driver) return { tools: [], note: null };
+      // One page, one worker: a page another session holds while its round is still running is not shared.
+      for (const [other, entry] of attached) {
+        if (other !== session.ref.id && entry.driver === driver && runtime().surfaces.get(entry.target)?.open && options.live(other)) {
+          return { tools: [], note: "侧栏浏览器正被这个项目里的另一项工作使用，这一轮不能用它；需要的话请用户稍后再让你继续。" };
+        }
+      }
+      for (const [other, entry] of attached) {
+        if (other !== session.ref.id && entry.driver === driver) { await runtime().surfaces.close(entry.target).catch(() => undefined); attached.delete(other); }
+      }
       drivers.add(driver);
       const surface: UiSurface = {
         kind: "browser",
@@ -83,7 +107,35 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
       };
       const target = runtime().surfaces.attach(surface, { owner: session.ref });
       attached.set(session.ref.id, { target: target.ref, driver });
-      return SURFACE_TOOL_NAMES;
+      return offered();
+    },
+    async describe(sessionRefId, action, summary, typed) {
+      const driver = attached.get(sessionRefId)?.driver;
+      const point = /at (\d+),(\d+)$/u.exec(summary);
+      switch (action) {
+        case "pointer": {
+          const clicks = /\((\d+)×(\w+)\)/u.exec(summary);
+          const label = point && driver?.describePoint ? await driver.describePoint(Number(point[1]), Number(point[2])).catch(() => "") : "";
+          const verb = clicks?.[2] === "right" ? "右键点击" : Number(clicks?.[1] ?? 1) > 1 ? "双击" : "点击";
+          return label ? `${verb}「${label}」` : point ? `${verb}页面上的位置（${point[1]}, ${point[2]}）` : verb;
+        }
+        case "key": return `按下 ${summary.replace(/^press /u, "")}`;
+        case "text": {
+          // The exact text is what the person approves; only a password-like field keeps it covered (a fallback: the
+          // Assistant is told never to enter credentials).
+          const field = driver?.focusedField ? await driver.focusedField().catch(() => ({ label: "", sensitive: false })) : { label: "", sensitive: false };
+          const where = field.label ? `在「${field.label}」里输入` : "在当前输入框里输入";
+          if (typed === undefined) return `${where}文字（内容读不到，请拒绝后让助理重新说明）`;
+          if (field.sensitive) return `${where} ${[...typed].length} 个字。这是密码类输入框，内容已遮住。`;
+          const chars = [...typed];
+          return chars.length > 2000 ? `${where}：\n${chars.slice(0, 2000).join("")}\n……（共 ${chars.length} 字，只显示前 2000 字）` : `${where}：\n${typed}`;
+        }
+        case "navigate": return `打开 ${summary.replace(/^navigate to /u, "")}`;
+        case "wait": return `等待 ${summary.replace(/^wait /u, "").replace(/ms$/u, " 毫秒")}`;
+        case "upload": return `上传本机文件 /${summary.replace(/^upload /u, "")}`;
+        case "download": return `下载到 /${summary.replace(/^download to /u, "")}`;
+        default: return summary;
+      }
     },
     async redact(bytes) {
       for (const driver of drivers) if (driver.masked(bytes)) return bytes;

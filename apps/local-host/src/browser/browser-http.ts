@@ -22,6 +22,17 @@ const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
 const ROUTE = /^\/projects\/([^/]+)\/api\/browser\/(upload|capture|downloads\/([A-Za-z0-9-]{8,80}))$/u;
 
 export async function handleBrowserHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: BrowserHttpPorts): Promise<boolean> {
+  if (url.pathname === "/api/browser/assistant" && ports.sites) {
+    // Whether the Assistant may use the side panel browser at all; its next round reads this when it starts.
+    if (request.method === "GET") { writeNativePluginJsonResponse(response, { status: 200, body: { enabled: ports.sites.assistantEnabled } }); return true; }
+    if (request.method === "POST") {
+      const body = await readNativePluginJsonBody(request, 1_000).catch(() => ({} as Record<string, unknown>));
+      if (typeof body.enabled !== "boolean") { writeNativePluginJsonResponse(response, { status: 400, body: { error: "请说明开还是关" } }); return true; }
+      ports.sites.setAssistantEnabled(body.enabled);
+      writeNativePluginJsonResponse(response, { status: 200, body: { enabled: ports.sites.assistantEnabled } });
+      return true;
+    }
+  }
   if (url.pathname === "/api/browser/sites" && ports.sites) {
     // Sites the Assistant may use without asking, or never; read and changed only by the local person.
     if (request.method === "GET") { writeNativePluginJsonResponse(response, { status: 200, body: { sites: ports.sites.list() } }); return true; }

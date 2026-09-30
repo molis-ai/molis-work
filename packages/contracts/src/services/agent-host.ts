@@ -629,6 +629,11 @@ interface AgentStartRequestFields {
   /** The session's name as the person sees it, for the project's list of work under way. */
   session_title?: string;
   /**
+   * `false`: this round gets no side panel browser even where its project has one (specs/side-panel) — e.g. a delegated
+   * work running beside its parent. Absent: a business round in a project with a browser may use it.
+   */
+  browser?: false;
+  /**
    * How earlier rounds of the session reach this one. Absent or `session` carries every earlier round verbatim, tool
    * output included. `digest` starts without that raw history: the task itself carries the caller's digest of earlier
    * rounds, which is how a long session keeps working once its history no longer fits the model's window.

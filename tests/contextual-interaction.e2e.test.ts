@@ -112,7 +112,8 @@ test("contextual actions: a result the person did not accept writes nothing; an 
   await evaluate(`[...document.querySelectorAll('.context-actions-menu button')].find(button => button.textContent.includes('改得更正式')).click()`);
   await waitFor("document.querySelector('.pages-pop:not([hidden]) textarea')?.value === '候选文字'");
   // The frozen text is edited before accepting: nothing is written anywhere.
-  await evaluate(`(() => { const frozen = document.querySelector('.pages-focus-frozen'); const text = frozen.firstChild; const range = document.createRange();
+  // The person clicks into the frozen text (the editor takes focus) and types a character there.
+  await evaluate(`(() => { document.querySelector('[data-pages-editor] .ProseMirror').focus(); const frozen = document.querySelector('.pages-focus-frozen'); const text = frozen.firstChild; const range = document.createRange();
     range.setStart(text, 1); range.setEnd(text, 1); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`);
   await command("Input.insertText", { text: "改" }, sessionId);
   await evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === '替换').click()`);

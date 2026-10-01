@@ -190,6 +190,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (!rest || rest === "/general") return "general";
     if (rest === "/workspaces") return "workspaces";
     if (rest.startsWith("/guidance")) return "guidance";
+    if (rest.startsWith("/memory")) return "memory";
     if (rest.startsWith("/rules")) return "rules";
     if (rest.startsWith("/planning")) return "planning";
     return "";

@@ -427,7 +427,11 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     document.addEventListener("click", (event) => root.querySelectorAll(".memory-more[open]").forEach((menu) => { if (!menu.contains(event.target)) menu.open = false; }));
     load().catch(fail);
   };
-  globalThis.molisWorkBindMemorySettings = bind;
+  // The settings directory hands every page it embeds to every binder: only a memory page is this one's.
+  globalThis.molisWorkBindMemorySettings = (container = document) => {
+    if (container.matches?.("[data-memory-settings]")) bind(container);
+    else container.querySelectorAll?.("[data-memory-settings]").forEach(bind);
+  };
   const start = () => document.querySelectorAll("[data-memory-settings]").forEach(bind);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
 })();

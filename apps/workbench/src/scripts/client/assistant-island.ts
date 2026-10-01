@@ -1898,6 +1898,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const attentionCount = island.querySelector("[data-assistant-attention-count]");
   const noticesPop = island.querySelector("[data-assistant-notices]");
   let notices = [];
+  // Plugin notifications waiting for a decision in the market (plugin-notifications.ts reads them for this project).
+  let pluginWaiting = Number(document.body.dataset.pluginEventsPending) || 0;
   const URGENT = new Set(["needs-decision", "failed", "reminder"]);
   let lastUrgent = 0;
   const shownSurface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
@@ -1905,7 +1907,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!noticesPop) return;
     // Polling repaints only what changed, and keeps focus on the same button: a list rebuilt under the person's
     // finger or keyboard focus loses the tap or drops focus to the page.
-    const signature = JSON.stringify(notices.map((notice) => [notice.notice_id, notice.text, notice.held && notice.held.reason]));
+    const signature = JSON.stringify([pluginWaiting, notices.map((notice) => [notice.notice_id, notice.text, notice.held && notice.held.reason])]);
     if (!force && noticesPop.dataset.signature === signature) return;
     noticesPop.dataset.signature = signature;
     const focused = noticesPop.contains(document.activeElement) ? document.activeElement : null;
@@ -1945,6 +1947,18 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       item.append(actions);
       return item;
     };
+    if (pluginWaiting) {
+      // Settled only in the market's review, so this row has no "知道了": it goes when the notifications are handled.
+      const item = el("div", "assistant-notice");
+      const text = L("插件通知：{count} 条待核对").replace("{count}", String(pluginWaiting));
+      item.append(el("p", "assistant-notice-text", text));
+      const actions = el("div", "assistant-offer-actions");
+      const go = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("去核对")); go.type = "button";
+      go.dataset.noticeId = "plugin-events"; go.dataset.noticeAction = "open";
+      go.setAttribute("aria-label", L("去核对") + "：" + text);
+      go.addEventListener("click", () => { setNotices(false); document.dispatchEvent(new CustomEvent("molis-work:plugin-events-open")); });
+      actions.append(go); item.append(actions); noticesPop.append(item);
+    }
     open.forEach((notice) => noticesPop.append(row(notice)));
     if (news.length) {
       const fresh = el("details", "assistant-notices-held");
@@ -1958,14 +1972,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       held.forEach((notice) => quiet.append(row(notice)));
       noticesPop.append(quiet);
     }
-    if (!notices.length) noticesPop.append(el("p", "assistant-material-origin", L("现在没有需要你看的事")));
+    if (!notices.length && !pluginWaiting) noticesPop.append(el("p", "assistant-material-origin", L("现在没有需要你看的事")));
     if (focusKey) (noticesPop.querySelector('[data-notice-id="' + focusKey[0] + '"][data-notice-action="' + focusKey[1] + '"]') || noticesPop.querySelector("button"))?.focus();
   };
   // Only what needs the person (a decision, a failure, a reminder that is due) shows before the input; news about a work
   // is a mark on that work's tab and in the list of works, gone once it is seen.
   const paintAttention = () => {
     const open = notices.filter((notice) => !notice.held);
-    const urgent = open.filter((notice) => URGENT.has(notice.kind)).length;
+    const urgent = open.filter((notice) => URGENT.has(notice.kind)).length + pluginWaiting;
     if (attentionButton) {
       if (urgent > lastUrgent) { attentionButton.removeAttribute("data-bump"); void attentionButton.offsetWidth; attentionButton.setAttribute("data-bump", ""); }
       lastUrgent = urgent;
@@ -1996,6 +2010,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     await loadNotices();
   };
   attentionButton?.addEventListener("click", () => setNotices(noticesPop.hidden));
+  document.addEventListener("molis-work:plugin-events-waiting", (event) => { pluginWaiting = Number(event.detail?.pending) || 0; paintAttention(); });
   setInterval(() => { if (!document.hidden) void loadNotices(); }, 20000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) void loadNotices(); });
   // The rules depend on where the person is: moving to another plugin reads them again.

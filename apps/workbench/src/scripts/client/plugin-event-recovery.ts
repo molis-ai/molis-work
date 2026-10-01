@@ -32,7 +32,7 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
     q('[data-plugin-events-history-list]').replaceChildren(...history.map(record=>node('p',
       new Date(record.resolved_at).toLocaleString()+' · '+record.actor_id+' · '+L(record.decision==='skip'?'已跳过':'已请求重试')+' · '+record.event_id+' · '+record.reason)));
   };
-  // The title bar bell asks for this list; bring it into view once the read the bell waited for has settled.
+  // The dock bell asks for this list; bring it into view once the read it waited for has settled.
   const reveal=()=>{
     if(Date.now()>revealUntil)return;revealUntil=0;
     root.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});

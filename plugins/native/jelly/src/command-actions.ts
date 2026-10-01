@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { withActionEffect, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyItem, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import type { JellyStore } from "./store.js";
 import * as s from "./action-schema.js";
+import { JELLY_ITEM_SUBJECT_KIND } from "./search.js";
 
 export const JELLY_READ = ["jelly:read"];
 // Every command returns the workspace, so write permission alone cannot disclose Home data.
@@ -10,22 +12,36 @@ export function defineJellyAction<I, O>(name: string, title: string, description
   return { capability_id: `jelly.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "home", ...(scheduling ? { scheduling } : {}), audiences: ["user", "workflow", "agent", "mcp"], permissions, subject_kinds: ["jelly_workspace"], input_schema: input, output_schema: output } };
 }
 export type JellyCommandInput = { expected_revision: number; [key: string]: unknown };
-const command = (name: string, title: string, fields: Record<string, unknown>, required = Object.keys(fields)) => defineJellyAction<JellyCommandInput, { state: JellyWorkspace }>(name, title, `${title}；作用于本机 Jelly 工作区，使用最近读取的 revision，保留原撤销历史。`, "command", s.object({ ...fields, expected_revision: s.revision }, [...required, "expected_revision"]), s.stateResult);
+const commandInput = (fields: Record<string, unknown>, required: string[]) => s.object({ ...fields, expected_revision: s.revision }, [...required, "expected_revision"]);
+const describe = (title: string) => `${title}；作用于本机 Jelly 工作区，使用最近读取的 revision，保留原撤销历史。`;
+const command = (name: string, title: string, fields: Record<string, unknown>, required = Object.keys(fields)) => defineJellyAction<JellyCommandInput, { state: JellyWorkspace }>(name, title, describe(title), "command", commandInput(fields, required), s.stateResult);
+type JellyEntryKey = "item" | "series";
+export type JellyEntryOutput<K extends JellyEntryKey> = { state: JellyWorkspace } & { [P in K]: P extends "item" ? JellyItem : JellySeries };
+/**
+ * A command on one calendar entry (an item, or a repeating series as a whole) also returns that entry and names it as
+ * its result, so a caller that keeps relations to results (the Assistant's work) relates the change to the entry and
+ * reads it back by `jelly.item.subject.read`. Commands on several entries, or on the workspace, stay workspace commands.
+ */
+const entry = <K extends JellyEntryKey>(key: K, name: string, title: string, fields: Record<string, unknown>, required = Object.keys(fields)) => {
+  const definition = defineJellyAction<JellyCommandInput, JellyEntryOutput<K>>(name, title, `${describe(title)}结果附带${key === "item" ? "这条事项（item）" : "这个重复系列（series；修改此后各次时是新拆出的系列）"}。`,
+    "command", commandInput(fields, required), s.object({ state: s.workspace, [key]: s[key] }));
+  return { ...definition, action: { ...definition.action, subject_kinds: [JELLY_ITEM_SUBJECT_KIND], result_subject: { id: `${key}.id`, revision: `${key}.updated_at` } } };
+};
 const completed = { id: s.id, completed: s.boolean, completion_description: s.text };
 const occurrence = { id: s.id, original_date: s.date, scope: { enum: ["onlyThis", "thisAndFuture"] } };
 const task = { note_id: s.id, block_id: s.id };
 export const jellyCommandActions = {
-  "item.create": command("item.create", "新建日历事项", { item: s.itemInput }),
-  "item.update": command("item.update", "修改日历事项", { id: s.id, patch: s.itemPatch }),
-  "item.complete": command("item.complete", "完成或重开日历事项", completed, ["id", "completed"]),
+  "item.create": entry("item", "item.create", "新建日历事项", { item: s.itemInput }),
+  "item.update": entry("item", "item.update", "修改日历事项", { id: s.id, patch: s.itemPatch }),
+  "item.complete": entry("item", "item.complete", "完成或重开日历事项", completed, ["id", "completed"]),
   "item.delete": command("item.delete", "删除日历事项", { id: s.id }),
-  "item.move": command("item.move", "移动日历事项", { id: s.id, date: s.date }),
+  "item.move": entry("item", "item.move", "移动日历事项", { id: s.id, date: s.date }),
   "item.move_many": command("item.move_many", "批量移动日历事项", { ids: { ...s.ids, minItems: 1 }, date: s.date }),
   "item.reorder": command("item.reorder", "排列当日无时间事项", { ids: s.ids, date: s.date }),
-  "series.create": command("series.create", "新建重复事项", { series: s.seriesInput }),
-  "series.update": command("series.update", "修改重复事项实例或后续", { ...occurrence, patch: s.seriesPatch }),
+  "series.create": entry("series", "series.create", "新建重复事项", { series: s.seriesInput }),
+  "series.update": entry("series", "series.update", "修改重复事项实例或后续", { ...occurrence, patch: s.seriesPatch }),
   "series.delete": command("series.delete", "删除重复事项实例或后续", occurrence),
-  "series.complete": command("series.complete", "完成或重开重复实例", { ...completed, original_date: s.date }, ["id", "original_date", "completed"]),
+  "series.complete": entry("series", "series.complete", "完成或重开重复实例", { ...completed, original_date: s.date }, ["id", "original_date", "completed"]),
   "category.create": command("category.create", "新建 Jelly 分类", { category: s.object({ id: s.id, name: s.id, color: s.text }, ["name"]) }),
   "category.update": command("category.update", "修改 Jelly 分类", { id: s.id, patch: s.object({ name: s.id, color: s.text }, []) }),
   "category.delete": command("category.delete", "删除分类并保留内容", { id: s.id }),
@@ -49,7 +65,7 @@ export const jellyCommandActions = {
   // Restores the recurring note relation; nothing is lost.
   "relation.reset": withActionEffect(command("relation.reset", "恢复重复实例的笔记关联", { owner_id: s.id, original_date: s.date }), "write", false),
   "item.notes_to_note": command("item.notes_to_note", "将事项随记迁入笔记", { owner_id: s.id, original_date: s.nullable(s.date), mode: { enum: ["new", "append"] }, note_id: s.id }, ["owner_id", "mode"]),
-  "task.schedule": command("task.schedule", "将笔记任务排入日历", { ...task, schedule: s.schedule, category_id: s.id, priority: s.priority }, ["note_id", "block_id", "schedule"]),
+  "task.schedule": entry("item", "task.schedule", "将笔记任务排入日历", { ...task, schedule: s.schedule, category_id: s.id, priority: s.priority }, ["note_id", "block_id", "schedule"]),
   "task.complete": command("task.complete", "完成或重开笔记任务", { ...task, completed: s.boolean, completion_description: s.text }, ["note_id", "block_id", "completed"]),
   "task.unlink": command("task.unlink", "取消笔记任务的日历同步", task),
   "plan.apply": command("plan.apply", "采纳拆解计划", { plan: s.plan, selected_action_ids: s.ids, note_id: s.id }, ["plan"]),
@@ -57,8 +73,31 @@ export const jellyCommandActions = {
   "redo": command("redo", "重做 Jelly 修改", {}),
   "workspace.import": command("workspace.import", "确认导入 Jelly 备份", { source: s.importSource, confirmation_token: s.id }),
 };
+type Fields = Record<string, unknown>;
+/** Which entry each entry command touched. Ids Jelly would generate are chosen here first, so the result can name them. */
+const entries: Partial<Record<keyof typeof jellyCommandActions, { key: JellyEntryKey; prepare?: (fields: Fields) => Fields; id: (fields: Fields, state: JellyWorkspace) => unknown }>> = {
+  "item.create": { key: "item", prepare: fields => ({ ...fields, item: { id: randomUUID(), ...fields.item as Fields } }), id: fields => (fields.item as Fields).id },
+  "item.update": { key: "item", id: fields => fields.id },
+  "item.complete": { key: "item", id: fields => fields.id },
+  "item.move": { key: "item", id: fields => fields.id },
+  "task.schedule": { key: "item", id: (fields, state) => state.task_links.find(link => link.note_id === fields.note_id && link.block_id === fields.block_id)?.item_id },
+  "series.create": { key: "series", prepare: fields => ({ ...fields, series: { id: randomUUID(), ...fields.series as Fields } }), id: fields => (fields.series as Fields).id },
+  // Changing this and later occurrences splits off a new series: that new series is what changed.
+  "series.update": { key: "series", prepare: fields => fields.scope === "thisAndFuture" ? { ...fields, new_series_id: randomUUID() } : fields, id: fields => fields.new_series_id ?? fields.id },
+  "series.complete": { key: "series", id: fields => fields.id },
+};
 export function createJellyCommandHandlers(withStore: <T>(run: (store: JellyStore) => T) => T): ActionHandlerBinding[] {
   return Object.entries(jellyCommandActions).map(([type, definition]) => ({ capability_id: definition.capability_id, version: definition.version,
-    handle: (caller, raw) => { caller.signal?.throwIfAborted(); const { expected_revision, ...fields } = raw as JellyCommandInput; return withStore(store => ({ state: store.execute({ type, ...fields }, expected_revision) })); },
+    handle: (caller, raw) => {
+      caller.signal?.throwIfAborted();
+      const { expected_revision, ...input } = raw as JellyCommandInput;
+      const target = entries[type as keyof typeof jellyCommandActions], fields = target?.prepare?.(input) ?? input;
+      return withStore(store => {
+        const state = store.execute({ type, ...fields }, expected_revision);
+        if (!target) return { state };
+        const id = target.id(fields, state);
+        return { state, [target.key]: (target.key === "item" ? state.items : state.series).find(value => value.id === id) };
+      });
+    },
   }));
 }

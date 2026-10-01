@@ -25,6 +25,7 @@ Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个�
   - 素材与 AI 提案只有用户确认后才写入日历或笔记。
   - 项目访问不自动授予个人内容或模型设置权限。
   - `delete_preview` 只保存确认凭证（显式声明为写），真正删除是另一个动作。
+  - 改一条日程（事项，或重复系列整体）的命令以 `jelly_item` 声明结果（`result_subject`），输出附带改后的这一条（`item` 或 `series`），可由 `jelly.item.subject.read` 读回；作用于多条、删除或整个工作区的命令仍是 `jelly_workspace`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/jelly-actions.test.ts tests/jelly-content.test.ts tests/jelly-mcp.test.ts tests/jelly-model.test.ts tests/jelly-plugin.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

@@ -461,7 +461,42 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   /* ---- Outline from text: a dialog that turns pasted text into slides, locally or through the model ---- */
   const outlineDialog = workbench.querySelector("[data-ppt-outline-dialog]");
   const outlineForm = workbench.querySelector("[data-ppt-outline-form]");
-  let outlineMode = "local";
+  let outlineMode = "local", outlineSourceKind = "text";
+  // The other source is a Pages document: listed and read on the server through Pages' own actions, with this person's authority.
+  const paintOutlineSource = async () => {
+    if (!outlineDialog) return;
+    outlineDialog.querySelectorAll("[data-ppt-outline-source]").forEach((button) => {
+      const on = button.dataset.pptOutlineSource === outlineSourceKind;
+      button.classList.toggle("is-current", on);
+      button.setAttribute("aria-checked", String(on));
+    });
+    const pageField = outlineDialog.querySelector("[data-ppt-outline-page-field]");
+    const textField = outlineDialog.querySelector("[data-ppt-outline-text-field]");
+    const note = outlineDialog.querySelector("[data-ppt-outline-page-note]");
+    const textarea = outlineDialog.querySelector("[data-ppt-outline-text]");
+    const usePage = outlineSourceKind === "page";
+    if (textField) textField.hidden = usePage;
+    if (textarea) textarea.required = !usePage;
+    if (pageField) pageField.hidden = !usePage;
+    if (!usePage) { if (note) note.hidden = true; return; }
+    const select = outlineDialog.querySelector("[data-ppt-outline-page]");
+    if (select && select.dataset.loaded === "true") return;
+    if (note) { note.hidden = false; note.textContent = L("正在读取文档…"); }
+    try {
+      const payload = await request("GET", "/api/plugins/ppt/outline-pages");
+      const documents = payload.documents || [];
+      if (select) {
+        select.replaceChildren(...documents.map((doc) => { const option = document.createElement("option"); option.value = doc.id; option.textContent = doc.title || L("无标题"); return option; }));
+        select.dataset.loaded = "true";
+      }
+      if (note) {
+        note.hidden = documents.length > 0;
+        note.textContent = documents.length ? "" : (payload.unavailable_reason ? L(payload.unavailable_reason) : L("这个项目还没有 Pages 文档"));
+      }
+    } catch (error) {
+      if (note) { note.hidden = false; note.textContent = error.message || L("读不到 Pages 文档"); }
+    }
+  };
   const paintOutlineModes = () => {
     if (!outlineDialog) return;
     const ai = outlineDialog.querySelector('[data-ppt-outline-mode="ai"]');
@@ -489,14 +524,19 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     const blank = selected.slides.length === 1 && !selected.slides[0].bullets.length && !selected.slides[0].notes;
     if (replace) { replace.checked = false; replace.closest("label").hidden = blank; }
     paintOutlineModes();
+    const select = outlineDialog.querySelector("[data-ppt-outline-page]");
+    if (select) delete select.dataset.loaded;
+    void paintOutlineSource();
     outlineDialog.showModal();
-    outlineDialog.querySelector("[data-ppt-outline-text]")?.focus();
+    outlineDialog.querySelector(outlineSourceKind === "page" ? "[data-ppt-outline-page]" : "[data-ppt-outline-text]")?.focus();
   };
   const submitOutline = async () => {
     if (!outlineDialog || !selected) return;
     const textarea = outlineDialog.querySelector("[data-ppt-outline-text]");
     const text = (textarea?.value || "").trim();
-    if (!text) { showOutlineError(L("收到的内容里没有可以做成幻灯片的文字")); textarea?.focus(); return; }
+    const pageId = outlineSourceKind === "page" ? (outlineDialog.querySelector("[data-ppt-outline-page]")?.value || "") : "";
+    if (outlineSourceKind === "page" && !pageId) { showOutlineError(L("先选一篇文档")); return; }
+    if (outlineSourceKind === "text" && !text) { showOutlineError(L("收到的内容里没有可以做成幻灯片的文字")); textarea?.focus(); return; }
     const submit = outlineDialog.querySelector("[data-ppt-outline-submit]");
     const replace = Boolean(outlineDialog.querySelector("[data-ppt-outline-replace]")?.checked);
     showOutlineError("");
@@ -507,7 +547,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       await save();
       const record = selected;
       const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(record.id) + (outlineMode === "ai" ? "/outline-ai" : "/outline"),
-        { text, replace, expected_version: record.version });
+        { ...(pageId ? { page_id: pageId } : { text }), replace, expected_version: record.version });
       if (!selected || selected.id !== record.id) return;
       currentSlideId = payload.presentation.slides[replace ? 0 : Math.max(0, payload.presentation.slides.length - payload.slide_count)]?.id || currentSlideId;
       fillEditor(payload.presentation);
@@ -524,6 +564,8 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   outlineDialog?.addEventListener("click", (event) => {
     if (event.target.closest("[data-ppt-outline-close]")) { outlineDialog.close(); return; }
+    const sourceButton = event.target.closest("[data-ppt-outline-source]");
+    if (sourceButton) { outlineSourceKind = sourceButton.dataset.pptOutlineSource; void paintOutlineSource(); return; }
     const mode = event.target.closest("[data-ppt-outline-mode]");
     if (mode && !mode.disabled) { outlineMode = mode.dataset.pptOutlineMode; paintOutlineModes(); }
   });

@@ -8,7 +8,13 @@ const definition = (view: ActionView): ActionDefinition => ({ ...view, provider_
 
 /** The consumer understands the content protocol, never a provider's plugin ID or implementation. */
 export function createWorkflowContentPorts(actions: BoundActionClient): WorkflowContentPorts {
-  const directory = async () => (await actions.discover()).filter(view => view.action.workflow_content?.protocol === 1);
+  // These ports live for one action call (the caller's scoped authority), so the directory is read once per call, like
+  // `reachFor` does for action steps; a list of N workflows no longer re-discovers every capability for each station.
+  // Every invocation is still checked by the kernel, and a failed read is not kept.
+  let views: Promise<readonly ActionView[]> | undefined;
+  const directory = () => views ??= actions.discover()
+    .then(all => all.filter(view => view.action.workflow_content?.protocol === 1))
+    .catch(error => { views = undefined; throw error; });
   const group = (views: readonly ActionView[]) => {
     const groups = new Map<string, ActionView[]>();
     for (const view of views) groups.set(key(view), [...(groups.get(key(view)) ?? []), view]);

@@ -23,7 +23,8 @@ export const pptManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   actions: [...Object.values(pptActions), ...Object.values(pptContentActions)],
   permissions: [
-    ...PPT_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: permission !== "model:invoke", reason: permission === "model:invoke" ? "让模型把文字整理成大纲（显式调用）" : "演示稿动作" })),
+    ...PPT_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: permission !== "model:invoke" && permission !== "pages:read",
+      reason: permission === "model:invoke" ? "让模型把文字整理成大纲（显式调用）" : permission === "pages:read" ? "选一篇 Pages 文档生成大纲（经 Pages 的公开动作读取）" : "演示稿动作" })),
     { permission: "storage:private", required: true, reason: "本机演示稿库" },
     { permission: "artifact:write", required: true, reason: "把演示稿存成 Artifact" },
   ],

@@ -169,9 +169,9 @@ function renderMolisWorkWeb(
     ${renderGoalKanban(view, selected?.goal.goal_id || "", view.goals)}
     <div class="goal-stage-chrome" data-goal-stage-chrome>${goalsTreeRenderer.renderTreeChrome(view)}
     <div class="mw-toggle-group goal-board-switch" data-slot="toggle-group" data-board-switch role="group" aria-label="${L("列表")} / ${L("画布")} / ${L("看板")}">
-      <button class="mw-toggle is-current" type="button" data-board-view-tab="list" aria-pressed="true" aria-current="page" aria-label="${L("列表")}" title="${L("列表")}">${icon("rows")}</button>
-      <button class="mw-toggle" type="button" data-board-view-tab="canvas" aria-pressed="false" aria-label="${L("画布")}" title="${L("画布")}">${icon("network")}</button>
-      <button class="mw-toggle" type="button" data-board-view-tab="kanban" aria-pressed="false" aria-label="${L("看板")}" title="${L("看板")}">${icon("columns")}</button>
+      <button class="mw-toggle is-current" type="button" data-board-view-tab="list" aria-pressed="true" aria-current="page" aria-label="${L("列表")}" title="${L("列表")}">${icon("rows")}<span class="goal-board-switch-label">${L("列表")}</span></button>
+      <button class="mw-toggle" type="button" data-board-view-tab="canvas" aria-pressed="false" aria-label="${L("画布")}" title="${L("画布")}">${icon("network")}<span class="goal-board-switch-label">${L("画布")}</span></button>
+      <button class="mw-toggle" type="button" data-board-view-tab="kanban" aria-pressed="false" aria-label="${L("看板")}" title="${L("看板")}">${icon("columns")}<span class="goal-board-switch-label">${L("看板")}</span></button>
     </div>
     <button class="mw-btn mw-btn--ghost goal-work-planning-toggle" type="button" data-open-work-planning aria-pressed="false" data-craft-tip="${L("工作规划")}">${icon("workflow")}<span>${L("工作规划")}</span></button>
     <button class="mw-btn mw-btn--ghost goal-work-planning-toggle" type="button" data-open-work-rules aria-pressed="false" data-craft-tip="${L("工作规则")}">${icon("shield")}<span>${L("工作规则")}</span></button></div>

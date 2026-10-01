@@ -2191,7 +2191,9 @@ export class AssistantService {
     for (const round of this.store.rounds(work.work_id)) if (round.context?.object?.title) titles.set(round.context.object.id, round.context.object.title);
     return pending.map(review => {
       const readable = describeReview(review.document);
-      const fields = readable.fields.map(field => titles.has(field.value.trim()) ? { ...field, value: `「${titles.get(field.value.trim())}」` } : field);
+      // Also an object another work made or a page named (titles are kept per person): a delete of one is the usual case.
+      const titleOf = (value: string) => titles.get(value) ?? (/^[\w.:-]{8,200}$/.test(value) && /\d/.test(value) ? this.store.objectTitleById(this.actorId, value) : null);
+      const fields = readable.fields.map(field => { const title = field.label === "完整参数" ? null : titleOf(field.value.trim()); return title ? { ...field, value: `「${title}」` } : field; });
       return { review_id: review.review_id, kind: review.document.kind, run_id: review.run?.run_id ?? null, summary: readable.summary, fields,
         requested_at: review.requested_at, expires_at: review.expires_at };
     });

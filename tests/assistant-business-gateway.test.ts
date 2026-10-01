@@ -805,6 +805,10 @@ test("a revision or other number written as text where the contract wants the nu
   assert.deepEqual(normalizedInput(view, { id: "t1", expected_revision: "1", due_date: "2026-10-06", priority: "2.5", done: "false", code: "007",
     patch: { expected_version: "3" }, tags: ["4", "x"] }),
   { id: "t1", expected_revision: 1, due_date: "2026-10-06", priority: 2.5, done: false, code: "007", patch: { expected_version: 3 }, tags: [4, "x"] });
+  // Nothing given for an object: an empty object, which a capability taking no fields accepts.
+  const none = { ...view, action: { ...view.action, input_schema: { type: "object", properties: {}, additionalProperties: false } } } as ActionView;
+  assert.deepEqual(normalizedInput(none, ""), {});
+  assert.deepEqual(normalizedInput(none, "  "), {});
   // Not a plain number: left as sent for the contract to judge.
   assert.deepEqual(normalizedInput(view, { id: "t1", expected_revision: "v1" }), { id: "t1", expected_revision: "v1" });
   // The refusal names the place and what was there, so the next attempt fixes that value instead of blaming the transport.
@@ -827,6 +831,19 @@ test("a change held for review names the object this work knows by its title, no
     assert.ok(fields.some(field => field.value === "「周报草稿」"), JSON.stringify(fields));
     // The exact parameters stay exact.
     assert.ok(fields.some(field => field.label === "完整参数" && field.value.includes("note-7f3a")));
+  } finally { await f.close(); }
+});
+
+test("a change held for review names an object another work made by the title the Host last saw (seen: deleting a to-do)", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "8b2f0c3a-9db4-40c7-bd8e-5a1adc2d2894" } } }),
+    () => reply(undefined, "好的。"),
+  ]);
+  try {
+    f.store.setSetting("web-user", "object-title:todo_item:8b2f0c3a-9db4-40c7-bd8e-5a1adc2d2894", "约设计评审（本人）");
+    const sent = await f.service.send({ text: "删掉那条待办", request_id: "req-00000095" }, { project_ref: f.project });
+    const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    assert.ok(held.reviews[0]!.fields.some(field => field.value === "「约设计评审（本人）」"), JSON.stringify(held.reviews[0]!.fields));
   } finally { await f.close(); }
 });
 

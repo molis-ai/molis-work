@@ -287,6 +287,8 @@ export function normalizedInput(view: ActionView, input: unknown): unknown {
   for (let depth = 0; depth < 2 && typeof value === "string" && schema.type !== "string"; depth++) {
     try { value = JSON.parse(value); } catch { break; /* left as given; the contract says why */ }
   }
+  // Nothing given where the contract wants an object: an empty object (seen: `""` for a read that takes no fields).
+  if (typeof value === "string" && !value.trim() && schema.type === "object") value = {};
   if (typeof value === "string" && value.trim() && schema.type === "object") {
     const field = soleTextField(schema);
     if (field) value = { [field]: value };

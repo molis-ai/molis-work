@@ -615,7 +615,7 @@ Pages 用一个 ProseMirror 插件的 view update 维护它；其他插件第一
   - 待办页（没有打开任何一条）：新工作的空白页“从这一页开始”为三条通用提问；点“下一步可以做什么”只把问题填进输入框并聚焦，不发送。
   - 打开另一篇文档后在输入框打“/”：前四项同为 总结 / 写作教练 / 全文校对 / 列出大纲，之后是方法与能力。
 - **走查中修掉的问题**：控制器的回答没有带回请求号，island 收不到、2 秒后退回通用提问 → 回答带 `request_id`。
-- **发现但不属本线**：刷新后 Pages 没有重新发布自己的 `data-assistant-context`（只有工作台代为命名的 kind、id，缺版本和标题），直到切换文档；不影响开场建议，记给 Pages 的维护者。关闭分屏后剩下的窗格仍是 iframe 时，island 读不到窗格里的页面情境（原有限制）。
+- **走查中发现、已另行修复**：刷新后 Pages 没有重新发布自己的 `data-assistant-context`（只有工作台代为命名的 kind、id，缺版本和标题），直到切换文档。由另开的会话在 `fix/pages-reopen-own-context`（456bcf74，从 P2 切出）修复、并入 P2：两条路径——刷新时工作台的代为命名在等 `/api/contextual/surfaces` 期间读到旧值、盖掉了 Pages 刚发布的完整情境（现在等完再读一次，Pages 已自己命名就不动）；从 Pages 列表回到文档标签时 `revealEditor()` 不重新发布（现在调 `syncEditorChrome()`）。单测 `tests/pages-surface-naming.test.ts` 每个用例都只在缺对应修复时失败；`pages-actions.e2e` 加了情境断言（浏览器复核等协调时段）。并入后相关单测 158/158。关闭分屏后剩下的窗格仍是 iframe 时，island 读不到窗格里的页面情境（原有限制）。
 
 **【3】首页 / Dock 与情境服务合一（完成，2026-09-30）**
 

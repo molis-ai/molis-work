@@ -47,8 +47,9 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
 }
 
 export const SIDE_PANEL_STYLES = String.raw`
-html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:calc(var(--side-panel-width,35vw) + 16px)}
-html body.immersive-workbench .side-panel{position:fixed;display:flex;flex-direction:column;inset:var(--desktop-titlebar-height,32px) 8px calc(var(--dock-h,48px) + 8px) auto;width:var(--side-panel-width,35vw);z-index:10;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:none;animation:none;opacity:0;transform:translateX(24px);transition:opacity var(--dur-move) var(--ease-quint),transform var(--dur-arrive) var(--ease-quint);pointer-events:none;container:side-panel/inline-size}
+html body.immersive-workbench{--side-gap:8px}
+html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:calc(var(--side-panel-width,35vw) + var(--side-gap))}
+html body.immersive-workbench .side-panel{position:fixed;display:flex;flex-direction:column;inset:var(--desktop-titlebar-height,32px) var(--sheet-inset,14px) var(--dock-h,48px) auto;width:var(--side-panel-width,35vw);z-index:10;overflow:hidden;border:0;border-radius:var(--r-sheet,14px);background:var(--paper);box-shadow:var(--sheet-shadow);animation:none;opacity:0;transform:translateX(24px);transition:opacity var(--dur-move) var(--ease-quint),transform var(--dur-arrive) var(--ease-quint);pointer-events:none;container:side-panel/inline-size}
 html body.immersive-workbench .side-panel[hidden]{display:none}
 html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transform:none;pointer-events:auto}
 .side-panel-head{display:flex;align-items:center;gap:8px;flex:none;height:44px;padding:0 6px 0 8px;border-bottom:1px solid var(--line)}
@@ -68,8 +69,9 @@ html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transfo
 .side-panel-body>iframe{border:0;display:block;flex:1;width:100%;min-height:0}
 @keyframes side-panel-body-in{from{opacity:0}to{opacity:1}}
 @container side-panel (max-width:420px){.side-panel-tab span{display:none}.side-panel-tab{padding:0 8px}}
-.side-panel-divider{position:fixed;right:calc(var(--side-panel-width,35vw) + 7px);top:var(--desktop-titlebar-height,32px);bottom:calc(var(--dock-h,48px) + 8px);width:9px;z-index:11;cursor:col-resize;touch-action:none;border:0;padding:0;background:transparent}
-.side-panel-divider:after{content:"";position:absolute;top:calc(50% - 14px);left:3px;width:3px;height:28px;border-radius:4px;background:var(--line-strong,var(--line))}
+.side-panel-divider{position:fixed;right:calc(var(--side-panel-width,35vw) + var(--sheet-inset,14px) + var(--side-gap)/2 - 6px);top:var(--desktop-titlebar-height,32px);bottom:var(--dock-h,48px);width:12px;z-index:11;cursor:col-resize;touch-action:none;border:0;padding:0;background:transparent}
+.side-panel-divider:after{content:"";position:absolute;top:calc(50% - 14px);left:calc(50% - 1.5px);width:3px;height:28px;border-radius:4px;background:var(--line-strong,var(--line));opacity:0;transition:opacity var(--dur-hover) var(--ease-quint),background-color var(--dur-hover) var(--ease-quint)}
+.side-panel-divider:hover:after,.side-panel-divider:focus-visible:after,body.is-side-resizing .side-panel-divider:after{opacity:1}
 .side-panel-divider:hover:after,.side-panel-divider:focus-visible:after{background:var(--ink)}
 .side-panel-divider:focus-visible{outline:1px solid var(--ink);outline-offset:-2px}
 body:not([data-side-open=true]) .side-panel-divider{display:none}
@@ -81,7 +83,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:52dvh;transform:translateY(12px)}
  .side-panel-divider{display:none!important}
 }
-@media(prefers-reduced-motion:reduce){html body.immersive-workbench :is([data-plugin-stage],.side-panel,.side-panel-body){transition:none!important;animation:none!important}}
+@media(prefers-reduced-motion:reduce){html body.immersive-workbench :is([data-plugin-stage],.side-panel,.side-panel-body){transition:none!important;animation:none!important}.side-panel-divider:after{transition:none!important}}
 `;
 
 /**

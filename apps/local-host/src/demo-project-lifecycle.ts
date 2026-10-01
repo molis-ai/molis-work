@@ -73,6 +73,7 @@ export class DemoProjectLifecycle {
     const backupDirectory = path.join(this.projectsDirectory, `.reset-backup-${project.project_id}-${randomUUID()}`);
     let previousMoved = false;
     let resetPromoted = false;
+    let updated: MolisWorkDemoProjectResult["project"];
     try {
       await fs.mkdir(stagingDirectory, { recursive: false });
       const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
@@ -83,21 +84,24 @@ export class DemoProjectLifecycle {
       previousMoved = true;
       await fs.rename(stagingDirectory, projectDirectory);
       resetPromoted = true;
-      await fs.rm(backupDirectory, { recursive: true, force: true });
-      const updated = await this.commit(() => this.projects.lifecycle.touch(
-        project.project_id,
-        "project.demo_reset",
-        actorId,
-        { board_id: project.board_id },
-      ));
-      await this.finishDemoProject(updated.project_id, updated.database_path, actorId);
-      return { status: "reset", project: updated };
+      await this.seedDemoExtras(project.project_id, project.database_path, actorId);
+      updated = await this.commit(() => {
+        enableDemoProjectPlugins(this.projects, project.project_id, actorId);
+        return this.projects.lifecycle.touch(project.project_id, "project.demo_reset", actorId, { board_id: project.board_id });
+      });
     } catch (error) {
-      if (resetPromoted) await fs.rm(projectDirectory, { recursive: true, force: true });
-      if (previousMoved) await fs.rename(backupDirectory, projectDirectory).catch(() => undefined);
-      await fs.rm(stagingDirectory, { recursive: true, force: true });
+      try {
+        if (resetPromoted) await fs.rm(projectDirectory, { recursive: true, force: true });
+        if (previousMoved) await fs.rename(backupDirectory, projectDirectory);
+        await fs.rm(stagingDirectory, { recursive: true, force: true });
+      } catch (recoveryError) {
+        throw new AggregateError([error, recoveryError], `示例项目重置及恢复失败，请检查项目目录 ${projectDirectory} 与备份 ${backupDirectory}`);
+      }
       throw error;
     }
+    // Cleanup is after success: its failure must never roll back by deleting the official database.
+    await fs.rm(backupDirectory, { recursive: true, force: true });
+    return { status: "reset", project: updated };
   }
 
   async removeDemoProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
@@ -118,6 +122,10 @@ export class DemoProjectLifecycle {
 
   private async finishDemoProject(projectId: string, databasePath: string, actorId: string): Promise<void> {
     await this.commit(() => enableDemoProjectPlugins(this.projects, projectId, actorId));
+    await this.seedDemoExtras(projectId, databasePath, actorId);
+  }
+
+  private async seedDemoExtras(projectId: string, databasePath: string, actorId: string): Promise<void> {
     seedDemoPluginSurfaces(databasePath, this.projects.query.getProject(projectId).board_id);
     await seedDemoProjectExtras({
       projectId,

@@ -1,6 +1,7 @@
 import type { CatalogCommit } from "./catalog-commit.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { ProjectRecord as MolisWorkProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
@@ -18,19 +19,11 @@ async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjec
       if (!/^project-onboarding-[0-9a-f]{8}-[0-9a-f-]{27}$/u.test(input.project_id)) throw new Error("无效的恢复项目标识");
       const existing = this.projects.query.listProjects().find(p => p.project_id === input.project_id);
       if (existing) return existing;
-      // Recover a crash after staging was promoted but before catalog registration.
-      const databasePath = path.join(this.projectsDirectory, input.project_id, "molis-work.db");
-      const exists = await fs.stat(databasePath).then(() => true, error => { if (error.code === "ENOENT") return false; throw error; });
-      if (exists) {
-        await validateManagedBoard(databasePath, input.project_id);
-        const record = this.projects.lifecycle.prepareRecord({ project_id: input.project_id, display_name: input.display_name, projects_directory: this.projectsDirectory, data_class: "user" });
-        await this.commit(() => this.projects.lifecycle.register(record, "project.created", actorId));
-        return record;
-      }
-      // A previous incomplete staging database belongs only to this stable request.
-      await fs.rm(path.join(this.projectsDirectory, `.staging-${input.project_id}`), { recursive: true, force: true });
     }
     return this.provisionCreatedProject({ displayName: input.display_name, actorId, projectId: input.project_id }, (record) => {
+      // Another connection may have recovered the promoted database while this one waited for its write lock.
+      const existing = this.projects.query.listProjects().find(p => p.project_id === record.project_id);
+      if (existing) return existing;
       this.projects.lifecycle.register(record, "project.created", actorId);
       return record;
     });
@@ -47,8 +40,15 @@ async provisionCreatedProject<T>(
       projects_directory: this.projectsDirectory,
       data_class: "user",
     });
-    const stagingDirectory = path.join(this.projectsDirectory, `.staging-${record.project_id}`);
+    const stagingDirectory = path.join(this.projectsDirectory, `.staging-${record.project_id}-${randomUUID()}`);
     const projectDirectory = path.dirname(record.database_path);
+    if (input.projectId && await fs.stat(record.database_path).then(() => true, error => {
+      if (error.code === "ENOENT") return false;
+      throw error;
+    })) {
+      validateManagedBoard(record.database_path, record.board_id);
+      return this.commit(() => commit(record));
+    }
     let promoted = false;
     try {
       await fs.mkdir(stagingDirectory, { recursive: false });
@@ -59,12 +59,20 @@ async provisionCreatedProject<T>(
         input.actorId,
       );
       await validateManagedBoard(path.join(stagingDirectory, "molis-work.db"), record.project_id);
-      await fs.rename(stagingDirectory, projectDirectory);
-      promoted = true;
+      try {
+        await fs.rename(stagingDirectory, projectDirectory);
+        promoted = true;
+      } catch (error) {
+        if (!input.projectId || !["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+        // A competing stable request owns the promoted directory. Adopt only its validated database.
+        validateManagedBoard(record.database_path, record.board_id);
+        await fs.rm(stagingDirectory, { recursive: true, force: true });
+      }
       return await this.commit(() => commit(record));
     } catch (error) {
       await fs.rm(stagingDirectory, { recursive: true, force: true });
-      if (promoted) await fs.rm(projectDirectory, { recursive: true, force: true });
+      // Fixed identities can be adopted by a concurrent/restarted request; retain their promoted database for recovery.
+      if (promoted && !input.projectId) await fs.rm(projectDirectory, { recursive: true, force: true });
       throw error;
     }
   }

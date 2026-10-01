@@ -265,11 +265,20 @@ export class MolisWorkProjectCatalog {
         }
       }
       const catalog = db.transaction(() => {
-        if (existed) assertOwnedCatalog(storage, databasePath);
+        // The async existence check can predate another connection's initialization or migration.
+        // Re-read under the write transaction, and never initialize over an unknown nonempty database.
+        const initialized = existed || Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1").get());
+        const metadata = new LocalCatalogMetadata(db);
+        if (initialized) {
+          assertOwnedCatalog(storage, databasePath);
+          const compatibilityError = catalogSchemaCompatibilityError(metadata.version());
+          if (compatibilityError) throw compatibilityError;
+        }
         const ledger = createContextLedger(db, {
+          initializeSchema: !initialized || metadata.version() !== CATALOG_SCHEMA_VERSION,
           authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
         });
-        if (existed) migrateCatalog(storage, databasePath, ledger, platform.createPanelSchema);
+        if (initialized) migrateCatalog(storage, databasePath, ledger, platform.createPanelSchema);
         else initializeCatalog(storage, platform.createPanelSchema);
         return new MolisWorkProjectCatalog(storage, homeDirectory, ledger, platform);
       }).immediate();

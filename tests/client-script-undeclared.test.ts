@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import ts from "typescript";
 import { CLIENT_SCRIPT } from "../apps/workbench/src/browser-assets.js";
+import { BUILTIN_PLUGIN_WORKBENCH, pluginWorkbenchClientAsset } from "../apps/workbench/src/plugin-workbench.js";
 
 /**
  * The Workbench browser program is assembled from string segments, so TypeScript never sees inside it: a variable
@@ -40,4 +41,9 @@ test("the assembled Workbench browser program uses no name that nothing declares
 test("the check catches a leftover reference in a branch that rarely runs", () => {
   const leftover = `document.addEventListener("click", async () => { try { await fetch("/x"); } catch { const label = phase === "out-rule" ? "a" : "b"; console.log(label); } });`;
   assert.deepEqual([...undeclaredNames(leftover).keys()], ["phase"]);
+});
+
+test("separate plugin assets do not depend on variables inside the Workbench closure", { timeout: 120_000 }, () => {
+  const assets = BUILTIN_PLUGIN_WORKBENCH.map(pack => pluginWorkbenchClientAsset(pack.project_plugin_id) ?? "").join("\n");
+  assert.deepEqual([...undeclaredNames(assets)].filter(([name]) => !PAGE_GLOBALS.has(name)), []);
 });

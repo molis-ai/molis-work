@@ -187,10 +187,13 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       return document.querySelector('[data-directory-panel="' + directory + '"]') ? directory : "root";
     };
   const supportsGoalFrames = () => document.body.dataset.boardView === "current";
-  const topLevelSurface = (plugin) => plugin === "goals"
+  const findTopLevelSurface = (plugin) => plugin === "goals"
     ? document.querySelector("[data-goal-canvas-shell]") || document.querySelector('[data-document-pane]')
     : [...document.querySelectorAll('[data-work-surface="' + pluginSurface(plugin) + '"]')]
       .find((node) => !node.closest("[data-goal-canvas-shell]")) || null;
+  const topLevelSurface = plugin => {
+    const surface = findTopLevelSurface(plugin); host.prepareSurface?.(surface); return surface;
+  };
   const rootForTab = (tab) => supportsGoalFrames() && tab?.plugin === "goals" && tab.kind === "item" && tab.goalView !== "work"
     ? document.querySelector("[data-goal-frame-surface]") : tab ? topLevelSurface(tab.plugin) : null;
   const titleForItem = (plugin, itemId, fallback) => {

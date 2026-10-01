@@ -172,6 +172,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     }
     let toastTimer;
     let syncing = false;
+    let deferredClients = null;
     let boardLifetime = null;
     let boardVisibleSignal = null;
     let saveTimer;

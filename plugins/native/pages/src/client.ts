@@ -689,9 +689,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!selected) return;
     do { await save(); } while (selected && (saveTimer || dirty));
   };
+  // Showing the document already open here again (its item tab after the page's list, a reload's second request): the
+  // workbench took its name off the surface when it hid it, so name it again with its version and title.
   const revealEditor = () => {
     workbench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
+    syncEditorChrome();
   };
   const openDocument = async (record) => {
     if (!record) return;

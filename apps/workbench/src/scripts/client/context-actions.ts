@@ -106,20 +106,23 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     const known = () => surfaces || (surfaces = fetch(host.route("/api/contextual/surfaces"), { headers: host.headers() })
       .then((response) => response.ok ? response.json() : { surfaces: {} }).then((value) => value.surfaces || {}).catch(() => { surfaces = null; return {}; }));
     const read = (node) => { try { return JSON.parse(node.getAttribute("data-assistant-context") || "null"); } catch { return null; } };
+    const namedItself = (context) => Boolean(context && context.object && context.named_by !== "workbench");
     document.addEventListener("molis-work:select-item", (event) => {
       const surface = event.target;
       if (!(surface instanceof Element) || !surface.hasAttribute("data-work-surface")) return;
       const itemId = event.detail && typeof event.detail.itemId === "string" ? event.detail.itemId : "";
       // After the plugin's own handler, which may name the object itself.
       setTimeout(async () => {
-        const own = read(surface);
         if (!itemId) {
+          const own = read(surface);
           if (own && own.named_by === "workbench") { delete own.object; delete own.named_by; surface.setAttribute("data-assistant-context", JSON.stringify(own)); }
           return;
         }
-        if (own && own.object && own.named_by !== "workbench") return;
+        if (namedItself(read(surface))) return;
         const entry = (await known())[surface.getAttribute("data-work-surface")];
-        if (!entry || !surface.isConnected) return;
+        // Read again: a plugin still loading the item (a reload) names it while the surfaces are read, and its naming stands.
+        const own = read(surface);
+        if (!entry || !surface.isConnected || namedItself(own)) return;
         surface.setAttribute("data-assistant-context", JSON.stringify({ ...(own || {}), plugin_id: (own && own.plugin_id) || entry.plugin_id,
           object: { kind: entry.kind, id: itemId }, named_by: "workbench" }));
       }, 250);

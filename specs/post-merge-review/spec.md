@@ -479,7 +479,61 @@
 
 ## 7. 行为基线
 
-（第一步结束时填写：回归基线、能力快照、跨功能场景清单。）
+第二步每次重构后，都对照这三样：全量回归基线、能力快照、跨功能场景清单。
+
+### 7.1 回归基线
+
+- **提交**：`origin/main` 62cbc14d。本步的修复合入后会在最终 main 上重跑，结果补在这里。
+- **用例**：702 个测试文件，3570 条通过，24 条失败。逐条归类见 §6：
+  - 1 条确定性回归，由 #142 修复；
+  - 3 条测试缺陷、1 条测试时序，由 #143 修复；
+  - 3 条负载时序不稳；
+  - 其余 17 条是高负载超时。
+- **已知不稳定**：下面 3 条在负载高于约 10 时会失败。负责人是第二步，在「浏览器用例时限与负载」专项里处理：
+  - `dense-workspace.e2e`
+  - `cross-plugin-recovery.e2e` 里 Characters 升级那一条
+  - `workbench-pane-feed.e2e` 里「related Goal inside a pane」
+- **怎么跑**：
+  1. 用干净工作树：`git worktree add --detach <dir> origin/main`；
+  2. `pnpm install --frozen-lockfile --offline`；
+  3. `pnpm build`；
+  4. `node scripts/run-tests.mjs`。
+  
+  比较是否新引入时，在同一时段、同样负载下跑基线和改动两边。
+
+### 7.2 能力快照
+
+- **文件**：[capability-snapshot.tsv](capability-snapshot.tsv)，共 663 个动作。每行写明版本、提供方、类型、调度方式，以及 Home 与项目两种范围下，user、agent、workflow、plugin、mcp 五类受众各自能不能在目录里看到它。另外还记了 MCP runtime 入口默认的 12 个工具。
+- **生成方式**：[capability-snapshot.mts](capability-snapshot.mts) 在一个临时 Home 里进程内装配 Host，用演示项目调用 `inspectActions`。运行：
+
+  ```bash
+  node --import tsx specs/post-merge-review/capability-snapshot.mts <检出目录> <输出.json>
+  ```
+- **已知变化**：#144 合入后会多一个 `todo.search.project_entries`。
+
+### 7.3 界面快照
+
+同一个隔离 Home 的项目页上：
+
+- **标题栏**：前进、后退，标签，「打开插件」，「布局与分屏」，以及有任务时才出现的「后台任务」。#140 去掉了标题栏铃铛。
+- **底栏**：
+  - 左侧：Dock 菜单、项目首页、Goals；
+  - 中间：助理输入框，带材料芯片、「+」和「发送」；
+  - 右侧：Shelf、灵光、侧栏开关、项目与账号圆钮。
+- **侧栏标签**：讨论、浏览器、文件、灵光。
+- **设置分区**：
+  - 本机：界面与语言
+  - 个人：记忆
+  - AI：模型设置、助理、角色、提示词
+  - 工具与接入：AI 与执行工具、能力
+  - 系统：诊断
+  - 插件：Shelf
+- **插件切换器**：项目首页、Goals、工作流程、Pages、Forms、Dataset、PPT、Artifacts、图片、灵光、待办、Jelly、Cognia、Shelf、实验、炼金术士；末尾是插件市场和插件创作工作台。
+- **装配方式**：冻结名单见 `tests/builtin-plugin-assembly-gate.test.ts`。
+
+### 7.4 跨功能场景清单
+
+即 §5 的 9 个场景。第二步每次重构后至少重跑场景 5、6、7、8；能用真实模型时，也重跑场景 1–4。
 
 ## 8. spec 梳理
 
@@ -721,12 +775,74 @@
 
 ## 10. 未验证的范围
 
-（进行中。）
+| 范围 | 原因 | 影响的验收 | 去向 |
+| --- | --- | --- | --- |
+| 真实模型（MiniMax）在合入后的复测 | 把真实 Home 的模型配置拷进隔离 Home 被自动模式拦下。用户已选择在 4301 自己填一次 Key，等待中 | 场景 1–4；助理、面板、创作台、记忆、动态交互里需要模型回答的验收 | 用户填好后补测，结果补进 §2.2、§5 |
+| 真机中文输入法与 VoiceOver | 本机自动化环境测不了 | 助理 AC27、Todo AC-T34–36、侧栏 AC17、动态交互 C13 | BL-016，待你验收 |
+| 真实第三方账号（Gmail、GitHub 等） | 没有测试账号与应用配置 | Feed 拉取与捕捉、Onboarding 来源 | BL-060 |
+| 原生 macOS 安装包与菜单栏胶囊 | 本步没有构建原生包 | Soft Workbench SOFT-04、Shelf 原生手势 | BL-008、BL-014 |
+| 插件升级的真实候选 | 隔离 Home 里没有可升级的插件 | 场景 6 的升级部分 | 依赖 `plugin-upgrades` 等回归 |
+| 用户正在用的 Home（场景 9） | 用户决定留到第二步 | 场景 9 | 第二步「真实 Home 安全」步骤 |
+| 1024 宽度截图 | 合入后只截了 1440、390 和深色 | 界面回归 §4.6 | 补测 |
+| 首次发送面板切换（PMR-17） | 只出现一次，同一 Home 里没能再现 | PANEL-02 | 用全新 Home 复现 |
 
 ## 11. 逐需求验收清单
 
-（第一步结束时填写。）
+给用户本人看的，按「在哪里看、做什么、应该看到什么」写。系统助理一线用户已在 2026-09-30 委托验证，本人试用为可选。条目与 BACKLOG「待你验收」一一对应。
+
+| 需求 | 在哪里 | 做什么 | 应该看到 |
+| --- | --- | --- | --- |
+| 首次使用（PMR-01 修复后） | 新 Home 打开应用 | 选「空白开始」，输入项目名，用鼠标点「创建项目」 | 直接进入新项目，名字正确 |
+| 一个铃铛（#140） | 任意项目页底栏 | 制造一条待核对的插件通知（或等助理失败一次） | 只有底栏铃铛亮，列表里有「插件通知：N 条待核对」，「去核对」进插件市场 |
+| 角色只在设置（#141） | 设置 › AI › 角色；插件市场 | 打开两处 | 角色页正常；市场里没有「角色」卡 |
+| 项目页链接（#139） | 项目里的 Cognia 空态、Images、实验、Feed 添加来源 | 点「打开模型设置」「在 Connectors 管理账号」「打开 Connectors」 | 打开全局设置对应页，不是 404 |
+| 项目待办可搜（#144） | 项目里记一条「放在项目」的待办，⌘K 搜它 | 搜索 | 本项目能搜到，其他项目搜不到；个人待办在「个人」里搜到 |
+| 助理（BL-001） | 底栏 | 按 system-assistant §16 的剧本：记一下、改写选区、交给 Coding、暂停继续、提醒 | 见原 spec |
+| 面板改版（BL-002） | 底栏面板 | 标签切换、左栏四块、800 宽 | 见原 spec §8 |
+| Todo（BL-003） | 待办 | 今天视图、等别人、整理、提醒 | 见原 spec 第 10 节 |
+| 放置（BL-004） | 个人空间与项目 | 个人空间新建 → 用于项目 → 移动 | 见原 spec §11 |
+| 记忆（BL-005） | 设置 › 个人 › 记忆 | 让助理记一条偏好、撤销、停用 | 见原 spec §14 |
+| 动态交互（BL-006） | Pages 选中文字 | 底栏出动作 → 预览 → 写回 | 见原 spec §13 |
+| 搜索（BL-007） | ⌘K | 搜正文、短词、个人与项目 | 见原 spec §11 |
+| Soft Workbench（BL-008） | 全部页面 | 浏览 | 视觉一致 |
+| 其余 BL-009–BL-017 | 见 BACKLOG「待你验收」 | | |
 
 ## 12. 交给第二步的清单
 
-（进行中。）
+审查中看到、但属于结构整理或兼容清除的事项。本步不顺手重构，按第二步 prompt 的顺序处理。
+
+### 12.1 兼容逻辑（按「不留兼容」删除）
+
+| 项 | 位置 | 证据 | 为什么留给第二步 |
+| --- | --- | --- | --- |
+| 助理第一版记忆迁移、三张旧表、旧记忆 HTTP 路由转发 | `apps/local-host/src/memory/memory-host.ts`（`migrateLegacy`）、`assistant/assistant-store.ts`、`assistant-http.ts` | PMR-05 | 删除要连同真实 Home 安全步骤一起做 |
+| 旧动作入口：旧 Functions 场景与开关、六组 Native MCP 旧名、判断函数旧 MCP 名、旧函数键 HTTP 别名 | `action-architecture/migration.md` 所列位置 | BL-081 | 涉及 MCP 合同与外部客户端 |
+| 文字补全读旧凭据 `model:text:api_key` | `apps/local-host/src/host-complete-text.ts`、`web-connector-connections.ts` | BL-082 | 同上 |
+| V3 一次性导入 | CLI `importV3Capability` | BL-083 | 同上 |
+| `AssistantSurfaceContext.starters` 读取兼容 | contracts | BL-084 | 合同清理 |
+| 客户端 Goal 时代的旧路径：`/decisions`、`#decision-goal-` 跳转、`onboarding-runtime=1`、`feed-start=1`、决定回执 | `apps/workbench/src/scripts/client/initialization.ts`、`refresh-decisions.ts` | PMR-08 | 需要逐条确认无入口 |
+| 场景 9：用户正在用的 Home 在当前 main 上能否打开 | 用户的 Home | 用户决定留到第二步 | 先问用户，按真实 Home 安全步骤做 |
+
+### 12.2 结构与分层
+
+| 项 | 位置 | 证据 | 建议 |
+| --- | --- | --- | --- |
+| 19 个构建期装配的内置插件 | `tests/builtin-plugin-assembly-gate.test.ts` 冻结名单 | BL-080 | 迁到 Plugin Runtime；同时实现个人插件「移除即停用」（BL-088）与 Characters 是否收进宿主 |
+| 工作台首屏渲染全部插件的隐藏界面，并在隐藏 iframe 里加载插件创作台 | `apps/workbench`、`goals-page-renderer.ts` | PMR-07：首屏 293 KB HTML、6041 个节点，负载约 16–20 时完全加载要 6.3 秒 | 另一会话的分支 `feature/fix-project-management-freeze` 在做「插件界面按需加载」，第二步接着它做 |
+| 空闲轮询 | 客户端各脚本 | §4.5：单标签每分钟 36 个请求，其中 Board 游标 15 次，不在 Goals 面时也照轮；情境候选每 10 秒一次 | 合并轮询，按可见面订阅 |
+| 服务端渲染 HTML 时整串改写链接 | `apps/workbench/src/renderer.ts` 的 `prefixLocalLinks` | PMR-10（#139 修了症状） | 改为生成链接时带作用域，不再事后改写字符串 |
+| Home 级插件的数据分项目时的搜索来源 | 待办（#144 用两个来源解决） | PMR-16 | 在搜索合同里写明这种模式，或让 Home 来源能按条目声明项目 |
+| 147 个被三条以上需求线改过的热点文件 | §4.1 | 合并统计 | 列入热点治理与 owner 划分 |
+| 翻译键重复与覆盖 | `apps/workbench/src/i18n/en.ts` | PMR-04：38 个重复，24 个英文不同；PMR-14：全角冒号 | 删死条目，加重复键门禁 |
+| vendored SDK 积了 3 份未用 tgz，README 说法过期 | `vendor/prologue-sdk/` | PMR-06 | 删旧包要用户同意 |
+| 死脚本 | `scripts/personal-assistant-public-sources.mts` | PMR-09 | 删除 |
+| 左侧插件栏标记是否已成死代码 | `immersive-shell.ts` 的 `plugin-rail-items` | BL-086 | 核对后删除 |
+| 能力快照脚本 | [capability-snapshot.mts](capability-snapshot.mts) | §7.2 | 改成仓库内的 API 快照门禁 |
+
+### 12.3 测试与回归基础设施
+
+| 项 | 证据 | 建议 |
+| --- | --- | --- |
+| 浏览器用例的固定时限（4 秒 `waitFor`、30 秒导航）对负载敏感 | §6：17 条高负载超时，3 条负载时序不稳 | 时限按负载放宽或改为等真实条件；在 CI 子集里跑稳定的那部分 |
+| 测试依赖 `fs.watch` 收到其他进程的文件事件 | #143 修了一处 | 全仓检查同类写法 |
+| 本机全量回归 2 小时以上，并行会话一多就互相干扰 | §6 | 按文件分片、给出「受影响测试」挑选脚本 |

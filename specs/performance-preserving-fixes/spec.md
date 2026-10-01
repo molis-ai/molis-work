@@ -1,8 +1,8 @@
 # 保持数据与行为的性能修复方案
 
-状态：六项代码修复已完成，工程验收通过；原生窗口输入实操未通过，尚未达到全部“内部完整”门槛。用户已授权开工；代码与验证位于隔离工作树，本文件是唯一需求书，未替换真实应用。依据当前仓库 `62cbc14d` 与 [性能审计报告](/Users/yijunwang/code/goalboard/docs/reviews/performance-audit-2026-10-01.md)。实施前重新核对基线与其他会话的修改。
+状态：五项复查缺陷及测试追加发现的首次目录初始化竞态均已修正，定向回归、相关模块必跑集合、整体构建和依赖边界检查通过，工程修正完成。原生窗口输入实操尚未取得验证证据，原始卡死现场仍未复现，整体“内部完整”门槛继续单列。本文件是唯一需求书；改动位于隔离工作树，未替换真实应用或 Home，未推送或发布。依据当前仓库 `62cbc14d` 与 [性能审计报告](/Users/yijunwang/code/goalboard/docs/reviews/performance-audit-2026-10-01.md)。
 
-目标完成程度为“内部完整”：六项已识别开销得到处理，桌面真实关键路径、既有数据、异常恢复和代码回退均有证据。工程测试、隔离桌面实操、用户本人验收分别记录；工程及隔离浏览器验收已通过，隔离原生 IPC 实操通过，原生窗口按钮/键盘实操与用户本人验收尚未通过。此前“管理项目”卡死的现场根因仍未确认，性能修复不能直接等同于现场故障已解决。
+目标完成程度为“内部完整”：六项已识别开销得到处理，桌面真实关键路径、既有数据、异常恢复和代码回退均须有证据。工程测试、隔离桌面实操、用户本人验收分别记录；已覆盖的工程及隔离浏览器路径通过，复查发现的失败场景已补有效回归，隔离原生 IPC 实操通过，原生窗口按钮/键盘实操与用户本人验收仍未完成。此前“管理项目”卡死的现场根因仍未确认，性能修复不能直接等同于现场故障已解决。
 
 ## 无损的具体含义
 
@@ -173,9 +173,54 @@ node scripts/run-tests.mjs tests/agent-host.test.ts tests/agent-host-wiring.test
 
 探针位于本工作树 `.impeccable/qa/performance-audit/`，原生 IPC 通过记录 `/tmp/molis-performance-native-ipc-proof.log`，性能后测 `/tmp/molis-performance-after-lazy-assets.json`、`/tmp/molis-performance-after-lazy.json`、`/tmp/molis-performance-status-after.json`。探针是隔离验证材料，不加入业务状态或产品资源。
 
+## 复查结果（2026-10-01）
+
+用户要求复查后，读取六项改动及相关调用链，并在隔离 Home 注入真实锁竞争、连接重建和资源挂起。确认 P1：并发恢复同一新项目时失败调用删除另一调用已登记的数据库（新增回归）；示例重置提交超时后原库与新库均被删除（旧版已有、本轮遗漏）。确认 P2：外部 Host 复用重建 Web Server 后个人规划保存仍引用关闭的 runner；首次 warm 锁超时后仅探活无法自行恢复；插件资源一直不返回时界面持续 inert 且没有重试出口。
+
+并发误删已用两个真实 Catalog 和真实 SQLite 锁复现；示例重置、连接重建与启动恢复均与旧版对照。挂起资源在真实 Chrome 复现。详细触发条件、影响边界、修正方向、复现命令与日志见 [复查报告](/private/tmp/molis-project-management-freeze/docs/reviews/performance-fix-review-2026-10-01.md)。这些场景未被此前通过的工程集合覆盖。复查阶段未修改生产源码；随后用户授权修复，实施结果见下节。保留此前性能和回退证据，不把局部回归通过等同于全部内部验收通过。
+
+## 缺陷修正实施与验收（2026-10-01）
+
+### 五项缺陷修正与首次初始化竞态合同
+
+此次完成标准：五项已确认问题全部修正，并有生产路径的定向回归、所改包的必跑测试及整体构建/依赖边界检查。原生输入和事故现场的既有未验证项继续单列，不因代码修正冒充已完成。沿用此需求书，不建立第二份修复进度系统。
+
+定向回归另复现了旧版已有的首次目录初始化竞态：并发打开新 Home 的多个连接均读到旧的“不存在”状态，后来者重复创建 catalog_meta 而失败。此项属于同一目录准备调用链，一并修正；初始化写事务内重读已提交表/owner/schema，采用合法目录，未知/未来目录仍拒绝，普通当前版本读取仍不争写锁。原并发用例保留冷启动与并发创建断言。
+
+- 固定标识的项目创建：暂存目录每次请求独有；提升后作为可恢复资源保留，失败请求不能删除另一个调用已采用的正式数据库。在 Catalog 提交内重读正式记录，使并发恢复返回同一已登记身份；目录提升碰撞只能采用校验通过的同标识数据库，不能覆盖已有正文。验证真实锁交错、同时准备、提交超时后的再恢复和恰好一次登记事件。
+- 示例重置：备份保留到新库初始化与目录提交成功；任何此前失败恢复原数据库和原目录记录。成功后的备份清理失败不能删除已成功的正式目录。验证锁超时、后续初始化失败与成功清理失败，读取恢复后的原正文并再次正常重置。
+- 外部 Host 的 Web 连接：被借用 Host 持有目录连接直到 Host 关闭，服务重建复用有效连接，规划处理器允许当前 owner 的安全重绑定。服务关闭不提前关闭外部 Host 的目录消费者；内部 Host 仍由服务关闭。验证真实 Home 动作在服务关闭、重建后可继续保存，最终 Host 关闭释放连接，两个 Home 不混用。
+- 启动恢复：Catalog 准备遇到 SQLITE_BUSY 可独立延迟重试，合并同一准备，不重派任何业务动作；health 仍只读进程状态。确定性 schema/owner 拒绝不循环重试，关闭取消待重试。验证真实 schema 升级锁释放后的自动就绪、确定性拒绝与关闭期间无再次打开。
+- UI 资源挂起：每个资源最多等待 10 秒，然后解除等待并显示原重试入口；按 Host 生命周期释放资源、定时器和回调。重试只加载资源，迟到的旧响应不得重复挂载或清除新请求。真实 Chrome 覆盖挂起→超时→重试→原响应迟到，同时保留界面根节点及最近选择。
+
+允许修改边界：Catalog 初始化、ManagedProjectFiles / 示例生命周期、LocalHost / Web Catalog 装配与关闭、规划 runner 绑定、按需客户端及必要文档、对应测试。无需依赖或数据格式变更。锁竞争只重试未开始的准备，不调低生产锁期限，不添加第二个业务 owner。
+
+新增回归位于 `tests/project-catalog-preservation.test.ts`、`tests/web-catalog-recovery.test.ts`，扩充 `tests/personal-planning-actions.test.ts` 与 `tests/workbench-deferred-clients.e2e.test.ts`。完成 `pnpm build` 后运行这些文件及各包 README 的必跑集合，并运行 `pnpm boundary:check`；文件名若因复用现有用例调整，实施记录更新实际命令。
+
+### 已完成结果与证据
+
+| 提交 | 修正与有效回归 |
+| --- | --- |
+| `334a2417` | 请求独有的暂存目录；稳定身份的提升资源保留、校验采用、提交内收敛到正式记录，创建事件恰好一次；示例重置保留旧库到初始化与最终事务成功，插件启用与重置记录原子提交，清理失败不删除正式目录；首次并发初始化事务内重读真实 schema/owner |
+| `54eaa55d` | 外部 LocalHost 持有 Web Catalog 到 Host 关闭，传输关闭和重建期间仍可保存；规划 runner 可安全重绑定到同 Home 的新 owner，原 Home 隔离与权限门槛保持 |
+| `55ebd13b` | 仅 SQLITE_BUSY 的目录准备后台重试，合并准备、不重派失败业务回调；关闭取消重试，未知/未来 schema 不循环重试，真实迁移锁释放后无需业务请求即可健康就绪 |
+| `05c8b855` | UI 资源 10 秒有界等待，失败解除 inert/aria-busy 并可重试；Host 关闭释放等待，已超时回调不会清除新请求或重复挂载；真实 Chrome 保留原根及最近选择 |
+
+最终 `pnpm build` 和 `pnpm boundary:check` 通过（1,824 个源码文件、7,552 个 import、230 条依赖边，零错误），日志 `/tmp/molis-performance-review-fixes-build.log`、`/tmp/molis-performance-review-fixes-boundary.log`。构建仍有原有 xterm 默认导入警告，与本次修改无关，未为消除警告改变终端实现。
+
+首次定向集合 58 项中 57 通过，失败的并发用例暴露上述旧版首次初始化竞态；已确认旧版也存在，并修正生产代码，未放宽测试。随后对受影响的目录、初始化与恢复集合完整复验：28 项通过、零失败/跳过，日志 `/tmp/molis-performance-review-fixes-catalog.log`。此集合包含 `tests/project-catalog-preservation.test.ts`、`tests/project-catalog.test.ts`、`tests/catalog-read-contention.test.ts`、`tests/web-catalog-recovery.test.ts`，读取实际恢复的 Goal 正文与 snapshot，核对目录记录、插件状态、单次登记与后续可用性。
+
+Host 必跑及相关检查 53 项通过、零失败/跳过：`tests/local-host.test.ts`、`tests/local-host-actions.test.ts`、`tests/action-before-effect.test.ts`、`tests/action-model-scheduling.test.ts`、`tests/action-read-compatibility.test.ts`、`tests/installer-symlink-dependencies.test.ts`、`tests/system-search-host.test.ts`、`tests/home-backup-recovery.test.ts`、`tests/web-home-isolation.test.ts`、`tests/agent-host-wiring.test.ts`。日志 `/tmp/molis-performance-review-fixes-host.log`。
+
+Workbench 必跑及真实分屏检查 30 项通过、零失败/跳过：`tests/plugin-declarative-mounting.test.ts`、`tests/builtin-plugin-agent-texts.test.ts`、`tests/builtin-manifests-contract.test.ts`、`tests/builtin-plugin-composition.test.ts`、`tests/workbench-ui-platform.test.ts`、`tests/i18n.test.ts`、`tests/client-script-undeclared.test.ts`、`tests/workbench-tab-workspace.e2e.test.ts`。日志 `/tmp/molis-performance-review-fixes-workbench.log`。
+
+规划绑定最终 4 项通过、零失败/跳过，包含同 Home 关闭旧 runner 后重绑定、传输关闭仍可保存、重建继续保存、Host 关闭释放，以及原权限/跨 Home/MCP 集成，日志 `/tmp/molis-performance-review-fixes-planning.log`。原定向集合中的真实 Chrome 资源挂起→超时→重试→旧请求释放、最近选择与一次挂载、各插件根留存，以及 Coding→管理项目→搜索→返回同会话（普通 Web 与 desktop=1）均通过，日志 `/tmp/molis-performance-review-fixes-targeted.log`。源码最后一次改动仅在目录初始化，保留此前已核实且不受该分支影响的浏览器证据，未机械重复全部集合。测试集合存在重叠，不把数量相加。
+
+未修改数据格式、生产锁期限、凭据后端或 SDK；测试均使用隔离 Home。源码提交和文档只在本工作树保留，主检出仅同步本任务的唯一需求书，其他会话内容不改。
+
 ## 剩余验收与范围限制
 
-- **目标仍为内部完整，尚差原生窗口输入实操。** 原生慢导入中的 IPC 已通过，实际指针/键盘和新版真实桌面导航尚未通过，因此本轮只能交付六项代码实现与工程验证，不能标记全部内部验收完成。后续应在可正常操作的隔离应用窗口验证慢 IO 时的输入与 Coding 返回目录；不修改系统权限来强行绕过测试限制。
+- **五项缺陷与追加初始化竞态的工程验收通过，整体内部完整仍待原生窗口输入实操。** 原生慢导入中的 IPC 已通过，实际指针/键盘和新版真实桌面导航尚未取得验证证据，因此不能标记全部内部验收完成。后续应在可正常操作的隔离应用窗口验证慢 IO 时的输入与 Coding 返回目录；不修改系统权限来强行绕过测试限制。真实 SDK 大量历史状态读取的性能实测仍未进行，合成历史探针不能替代该项。
 - 此前管理项目卡住的事故现场没有捕获，根因仍未确认。浏览器导航通过和已消除的锁阻塞不能等同于该事故已经关闭。
 - 本轮不把所有同步 SQLite、凭据/连接设置、项目 IO 或全局 CSS 都改造成异步架构。目录普通读和列明的项目提交边界已处理；其他 owner 的同步写仍沿原合同，不宣称任意并发写或全量插件操作均无卡顿。
 - 未替换真实应用/服务、未推送或发布，用户本人验收未进行。正式切换仍须遵循前面的完整 Home 一致性备份、原恢复协议与实际授权范围。

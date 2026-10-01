@@ -49,8 +49,8 @@ export const ARRIVAL_COMPONENT_STYLES = `
   .mw-goal-track__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font-size: 12px; line-height: 16px; }
   .mw-goal-track > li[data-s="done"] .mw-goal-track__name { color: var(--muted); }
   .mw-goal-track > li[data-s="doing"] .mw-goal-track__name { color: var(--ink); font-weight: var(--weight-control, 500); }
-  .mw-goal-track.is-dense .mw-goal-track__name { visibility: hidden; }
-  .mw-goal-track.is-dense > li[data-s="doing"] .mw-goal-track__name { visibility: visible; }
+  /* A crowded track names nothing: the card above it already names the goal in play. */
+  .mw-goal-track.is-dense .mw-goal-track__name { display: none; }
 
   /* ───────── File list ───────── */
   .mw-file-group + .mw-file-group { margin-top: 20px; }

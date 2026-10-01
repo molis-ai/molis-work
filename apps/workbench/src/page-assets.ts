@@ -25,7 +25,6 @@ import {
   VISUAL_FOUNDATION_STYLES,
 } from "@molis-ai/molis-work-design-system";
 import { ARTIFACT_EMBED_STYLES, ARTIFACT_WORKBENCH_STYLES } from "./artifact-ui.js";
-import { CONTEXT_ONBOARDING_STYLES } from "./styles/context-onboarding.js";
 import {
   CLIENT_SCRIPT,
   CONTROL_CLIENT_SCRIPT,
@@ -47,6 +46,7 @@ import { DETAIL_READING_STYLES } from "./styles/detail-reading.js";
 import { GOAL_CANVAS_STYLES } from "./styles/goal-canvas.js";
 import { PLUGIN_STAGE_STYLES } from "./styles/plugin-stage.js";
 import { IMMERSIVE_DIRECTORY_STYLES } from "./styles/immersive-directory.js";
+import { ARRIVAL_STYLES } from "./styles/arrival.js";
 import { IMMERSIVE_NAVIGATION_STYLES } from "./styles/immersive-navigation.js";
 import { GLOBAL_SEARCH_CONTENT_STYLES } from "./styles/global-search-content.js";
 import { PLACEMENT_STYLES } from "./styles/placement.js";
@@ -72,14 +72,22 @@ export function renderMolisWorkWorkbenchStylesheet(): string {
   return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${VISUAL_FOUNDATION_STYLES}${TRASH_GOAL_STYLES}${PROJECT_OPERATIONS_STYLES}${ARTIFACT_EMBED_STYLES}${ARTIFACT_WORKBENCH_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${IMMERSIVE_DIRECTORY_STYLES}${PROJECT_HOME_STYLES}${GOAL_CANVAS_STYLES}${PLUGIN_STAGE_STYLES}${TAB_WORKSPACE_STYLES}${DETAIL_READING_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${SETTINGS_STYLES}${MODEL_SETTINGS_STYLES}${MEMORY_SETTINGS_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}.document-pane.is-syncing .goal-document { animation: none; }${PAGE_CHROME_OVERLAY}${LINEAR_DENSITY_STYLES}${PAGE_PRIMITIVE_TAIL}${pluginWorkbenchStyles()}${CODING_STYLES}${FILES_STYLES}${CODING_COMPANION_STYLES}${GIT_STYLES}${DIFF_STYLES}${AGENT_REVIEW_STYLES}${CHARACTERS_STYLES}${TYPEFACE_STYLES}${CRAFT_FINISH_STYLES}${NAVIGATION_FLOW_STYLES}${SIDE_PANEL_STYLES}${SIDE_BROWSER_STYLES}${SIDE_FILES_STYLES}${GLOBAL_SEARCH_CONTENT_STYLES}${PLACEMENT_STYLES}`;
 }
 
-/** Full-screen first-run and update journey: the same window and controls the pages inline. */
-export function renderMolisWorkOnboardingStylesheet(): string {
-  return CONTEXT_ONBOARDING_STYLES;
+/**
+ * The way in: the opening, Welcome, the project chooser and the new-project journey are one frame (a titlebar, a stage,
+ * the resident bar) and one sheet. The first-run and update journey and the project index are served as it.
+ */
+export function renderMolisWorkArrivalStylesheet(): string {
+  return `${STYLES}${VISUAL_FOUNDATION_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${PAGE_CHROME_OVERLAY}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${CRAFT_FINISH_STYLES}${NAVIGATION_FLOW_STYLES}${ARRIVAL_STYLES}`;
 }
 
-/** Shared project index presentation. */
+/** The first-run, new-project and update journey. Same sheet as the project index. */
+export function renderMolisWorkOnboardingStylesheet(): string {
+  return renderMolisWorkArrivalStylesheet();
+}
+
+/** The project index. Same sheet as the journey into a project. */
 export function renderMolisWorkProjectIndexStylesheet(): string {
-  return `${STYLES}${VISUAL_FOUNDATION_STYLES}${PROJECT_INDEX_STYLES}${PAGE_CHROME_OVERLAY}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${CRAFT_FINISH_STYLES}`;
+  return renderMolisWorkArrivalStylesheet();
 }
 
 /** Shared settings presentation, reused across project and global settings routes. */

@@ -6,7 +6,6 @@ export { PROJECT_INDEX_STYLES } from "./styles/project-index.js";
 export {
   CONTROL_CLIENT_SCRIPT,
   ONBOARDING_CLIENT_SCRIPT,
-  PROJECT_INDEX_CLIENT_SCRIPT,
 } from "./scripts/control.js";
 export {
   PROJECT_GUIDANCE_SETTINGS_STYLES,

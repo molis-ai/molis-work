@@ -389,11 +389,11 @@ export async function handleMolisWorkWebRequest(
         if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
           actions: bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, "inbox:write", "functions:manage"]),
         })) return;
-        if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, {
+        if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, (_input, transport) => ({
           projectId: hostReference.project_id,
           actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
-            audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS })),
-        })) return;
+            audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS, ...transport })),
+        }))) return;
         if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, {
           projectId: hostReference.project_id,
           actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,

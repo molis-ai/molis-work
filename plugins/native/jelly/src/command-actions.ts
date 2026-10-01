@@ -1,10 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { withActionEffect, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { JellyInspiration, JellyItem, JellyNote, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyItem, JellyNote, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import type { JellyStore } from "./store.js";
 import * as s from "./action-schema.js";
-import { jellyDigestNoteId } from "./content.js";
-import { JELLY_INSPIRATION_SUBJECT_KIND, JELLY_ITEM_SUBJECT_KIND, JELLY_NOTE_SUBJECT_KIND } from "./search.js";
+import { JELLY_ITEM_SUBJECT_KIND, JELLY_NOTE_SUBJECT_KIND } from "./search.js";
 
 export const JELLY_READ = ["jelly:read"];
 // Every command returns the workspace, so write permission alone cannot disclose Home data.
@@ -16,7 +15,7 @@ export type JellyCommandInput = { expected_revision: number; [key: string]: unkn
 const commandInput = (fields: Record<string, unknown>, required: string[]) => s.object({ ...fields, expected_revision: s.revision }, [...required, "expected_revision"]);
 const describe = (title: string) => `${title}；作用于本机 Jelly 工作区，使用最近读取的 revision，保留原撤销历史。`;
 const command = (name: string, title: string, fields: Record<string, unknown>, required = Object.keys(fields)) => defineJellyAction<JellyCommandInput, { state: JellyWorkspace }>(name, title, describe(title), "command", commandInput(fields, required), s.stateResult);
-type JellyEntries = { item: JellyItem; series: JellySeries; note: JellyNote; inspiration: JellyInspiration };
+type JellyEntries = { item: JellyItem; series: JellySeries; note: JellyNote };
 type JellyEntryKey = keyof JellyEntries;
 export type JellyEntryOutput<K extends JellyEntryKey> = { state: JellyWorkspace } & { [P in K]: JellyEntries[P] };
 /** Each entry's kind, where its revision is (as its reader reports it), and how a description calls it. */
@@ -24,10 +23,9 @@ const entryKinds = {
   item: { kind: JELLY_ITEM_SUBJECT_KIND, revision: "updated_at", described: "这条事项（item）" },
   series: { kind: JELLY_ITEM_SUBJECT_KIND, revision: "updated_at", described: "这个重复系列（series；修改此后各次时是新拆出的系列）" },
   note: { kind: JELLY_NOTE_SUBJECT_KIND, revision: "revision", described: "这篇笔记（note）" },
-  inspiration: { kind: JELLY_INSPIRATION_SUBJECT_KIND, revision: "updated_at", described: "这条灵感（inspiration）" },
 } satisfies Record<JellyEntryKey, unknown>;
 /**
- * A command on one entry (a calendar entry, a note or an inspiration) also returns that entry and names it as its
+ * A command on one entry (a calendar entry or a note) also returns that entry and names it as its
  * result, so a caller that keeps relations to results (the Assistant's work) relates the change to the entry and reads it
  * back by its kind's `subject.read`. Commands on several entries or on the workspace stay workspace commands, and so do
  * archiving and deletion: the readers treat an archived entry as gone, so the work would show its own result as missing.
@@ -63,14 +61,6 @@ export const jellyCommandActions = {
   "note.restore": entry("note", "note.restore", "恢复笔记", { id: s.id }),
   "note.pin": entry("note", "note.pin", "置顶或取消置顶笔记", { id: s.id, pinned: s.boolean }, ["id"]),
   "note.delete": command("note.delete", "确认永久删除已归档笔记", { id: s.id, confirmation_token: s.id }),
-  "inspiration.create": entry("inspiration", "inspiration.create", "收集灵感", s.inspirationInputFields, []),
-  "inspiration.update": entry("inspiration", "inspiration.update", "修改灵感及素材证据", { id: s.id, patch: s.object({ title: s.text, raw_text: s.text, url: s.nullable(s.text), file_name: s.nullable(s.text), category_id: s.id, material: s.nullable(s.inspirationInputFields.material), digest: s.object({ source_hash: { type: "string" }, snapshot: s.material, structured: s.structuredDigest, source_text: s.text, summary: s.text, created_at: s.text, written_note_ids: s.ids }, ["source_hash", "snapshot", "structured"]) }, []) }),
-  "inspiration.archive": command("inspiration.archive", "归档灵感", { id: s.id }),
-  "inspiration.restore": entry("inspiration", "inspiration.restore", "恢复灵感", { id: s.id }),
-  "inspiration.delete": command("inspiration.delete", "确认永久删除已归档灵感", { id: s.id, confirmation_token: s.id }),
-  // Both make or extend a note, and that note is what was asked for; the inspiration only records it.
-  "inspiration.convert": entry("note", "inspiration.convert", "将灵感转为笔记", { id: s.id }, ["id"], "转成的笔记（note；已转过时是原来那篇）"),
-  "inspiration.digest_write": entry("note", "inspiration.digest_write", "将素材摘要写入笔记", { id: s.id, note_id: s.id }, ["id"], "写入摘要的笔记（note）"),
   "relation.attach": command("relation.attach", "关联日历事项与笔记", s.relationFields, ["owner_id", "note_id"]),
   "relation.detach": command("relation.detach", "解除日历事项与笔记关联", s.relationFields, ["owner_id", "note_id"]),
   // Restores the recurring note relation; nothing is lost.
@@ -87,8 +77,7 @@ export const jellyCommandActions = {
 type Fields = Record<string, unknown>;
 type EntryTarget = { key: JellyEntryKey; prepare?: (fields: Fields) => Fields; id: (fields: Fields, state: JellyWorkspace) => unknown };
 const byId = (key: JellyEntryKey): EntryTarget => ({ key, id: fields => fields.id });
-const created = (key: "note" | "inspiration"): EntryTarget => ({ key, prepare: fields => ({ ...fields, id: randomUUID() }), id: fields => fields.id });
-const inspiration = (fields: Fields, state: JellyWorkspace) => state.inspirations.find(entry => entry.id === fields.id);
+const created = (key: "note"): EntryTarget => ({ key, prepare: fields => ({ ...fields, id: randomUUID() }), id: fields => fields.id });
 /** Which entry each entry command touched. Ids Jelly would generate are chosen here first, so the result can name them. */
 const entries: Partial<Record<keyof typeof jellyCommandActions, EntryTarget>> = {
   "item.create": { key: "item", prepare: fields => ({ ...fields, item: { id: randomUUID(), ...fields.item as Fields } }), id: fields => (fields.item as Fields).id },
@@ -105,14 +94,8 @@ const entries: Partial<Record<keyof typeof jellyCommandActions, EntryTarget>> = 
   "note.update": byId("note"),
   "note.pin": byId("note"),
   "note.restore": byId("note"),
-  "inspiration.create": created("inspiration"),
-  "inspiration.update": byId("inspiration"),
-  "inspiration.restore": byId("inspiration"),
-  // Read after the change: a note made by it is by then the inspiration's note.
-  "inspiration.convert": { key: "note", id: (fields, state) => inspiration(fields, state)?.note_id },
-  "inspiration.digest_write": { key: "note", id: (fields, state) => { const source = inspiration(fields, state); return source && jellyDigestNoteId(source, fields.note_id); } },
 };
-const pools: Record<JellyEntryKey, (state: JellyWorkspace) => readonly { id: string }[]> = { item: state => state.items, series: state => state.series, note: state => state.notes, inspiration: state => state.inspirations };
+const pools: Record<JellyEntryKey, (state: JellyWorkspace) => readonly { id: string }[]> = { item: state => state.items, series: state => state.series, note: state => state.notes };
 export function createJellyCommandHandlers(withStore: <T>(run: (store: JellyStore) => T) => T): ActionHandlerBinding[] {
   return Object.entries(jellyCommandActions).map(([type, definition]) => ({ capability_id: definition.capability_id, version: definition.version,
     handle: (caller, raw) => {

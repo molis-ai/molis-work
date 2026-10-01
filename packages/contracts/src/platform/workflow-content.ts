@@ -54,8 +54,11 @@ export interface WorkflowContentActions {
   readonly create?: ActionDefinition<{ title: string }, WorkflowItemRef>;
 }
 
-/** A plugin declares the protocol once; all consumers use these very definitions. */
-export function defineWorkflowContentActions(station: { id: string; title: string; icon: string; create?: boolean;
+/**
+ * A plugin declares the protocol once; all consumers use these very definitions. `subject_kind` names the kind of object
+ * the station's content is (what its reader reads back) when it is not the station's own id.
+ */
+export function defineWorkflowContentActions(station: { id: string; title: string; icon: string; create?: boolean; subject_kind?: string;
   read_permissions: readonly string[]; write_permissions: readonly string[] }): WorkflowContentActions {
   const define = <I, O>(role: WorkflowContentRole): ActionDefinition<I, O> => ({
     capability_id: `${station.id}.content.${role}`, version: 1,
@@ -63,7 +66,7 @@ export function defineWorkflowContentActions(station: { id: string; title: strin
     action: { title: `${station.title} · ${{ list: "可交接内容", read: "读取内容", receive: "接收内容", create: "新建空白内容" }[role]}`,
       description: `按工作流内容合同${{ list: "列出全部可选内容", read: "读取现有内容", receive: "写入交接内容", create: "创建空白内容" }[role]}`,
       kind: role === "read" || role === "list" ? "query" : "operation", scope: "project",
-      audiences: ["user", "agent", "workflow", "mcp"], subject_kinds: [station.id],
+      audiences: ["user", "agent", "workflow", "mcp"], subject_kinds: [station.subject_kind ?? station.id],
       permissions: role === "read" || role === "list" ? station.read_permissions : station.write_permissions,
       input_schema: WORKFLOW_CONTENT_SCHEMAS[role].input, output_schema: WORKFLOW_CONTENT_SCHEMAS[role].output,
       input_type: `molis.workflow.content.${role}.input.v1`, output_type: `molis.workflow.content.${role}.output.v1`,

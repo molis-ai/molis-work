@@ -68,4 +68,5 @@ export const JELLY_EN: Record<string, string> = {
   "重新拆解": "Regenerate plan", "重新拆解时保留字段": "Keep fields when regenerating", "完成要求": "Completion criteria", "时长": "Duration", "安排时间": "Scheduled time", "请输入任务标题": "Enter a task title", "全天": "All day", "新建全天事项": "New all-day item",
   "这份文件没有可重读的副本，请重新选择文件。": "No stored copy is available. Select the file again.", "新提取的正文与已关联笔记的原文不同。原始内容保留，请新建灵感接收这份新内容。": "The extracted text differs from the source linked to a note. The original is preserved. Create a new inspiration for the new content.", "文件不能超过 25 MB": "Files must be no larger than 25 MB",
   "助理刚改过 Jelly；你还有没保存的修改，保存时会提示冲突，不会覆盖。": "The Assistant just changed Jelly. Your unsaved edits are kept; saving will show the conflict instead of overwriting.", "这条内容已不存在": "This content no longer exists",
+  "正在拆解": "Breaking it down", "正在拆解…": "Breaking it down…", "关闭此窗口会停止拆解，原文不会改动。": "Closing this window stops the breakdown; the original stays as it is.",
 };

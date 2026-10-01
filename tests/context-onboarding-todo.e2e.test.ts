@@ -55,9 +55,9 @@ for (const width of [1440, 390]) test(`Onboarding ${width}px: the overview and t
   await click(".cx-draft:nth-of-type(2) [data-draft]");
   await waitFor("document.querySelector('[data-action=adopt]').textContent.includes('加入 1 项待办')");
   await navigate(() => click("[data-action=adopt]"));
-  await waitFor("location.pathname.startsWith('/projects/') && new URL(location.href).searchParams.get('openPlugin') === 'todo'");
-  if (await evaluate("document.body.dataset.desktopSurface") !== "todo") await click("[data-plugin-strip] [data-plugin-id=todo]");
-  await waitFor("document.body.dataset.desktopSurface === 'todo'");
+  // The new project opens on Todo by itself, and the link's request leaves the address once honored.
+  await waitFor("location.pathname.startsWith('/projects/') && document.body.dataset.desktopSurface === 'todo'", 15_000);
+  assert.equal(await evaluate("new URL(location.href).searchParams.has('openPlugin')"), false);
   const store = openTodoStore(homeDirectory);
   try {
     const items = store.list({ projectId: null, everything: true, actor: "user", actorId: "test" });

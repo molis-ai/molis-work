@@ -5,7 +5,10 @@ import { todoCallerProject } from "./caller.js";
 
 /** Todo's part in the system search and in object reading (the Assistant's "this todo"). */
 export const todoSearchActions = {
+  // Two sources over one store: the person's own (personal and unplaced) is indexed once for the Home; a project's todos
+  // are indexed with that project, so a project search finds them and no other project or the personal index holds them.
   entries: defineSearchEntriesAction("todo.search.entries", [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "待办", ["todo:read"], "home"),
+  projectEntries: defineSearchEntriesAction("todo.search.project_entries", [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "待办", ["todo:read"], "project"),
   subject: defineSubjectContextAction("todo.item.subject.read", TODO_SUBJECT_KIND, "待办", ["todo:read"], "home"),
 };
 
@@ -31,16 +34,22 @@ export function todoText(item: TodoItem): string {
 }
 
 const open = (id: string) => ({ surface: TODO_PROJECT_PLUGIN_ID, id });
+const entry = (item: TodoItem): SearchEntry => ({
+  subject: { kind: TODO_SUBJECT_KIND, id: item.id }, revision: String(item.revision), title: item.title,
+  summary: searchText(item.notes, 1000), updated_at: item.updated_at, content: "context", open: open(item.id),
+});
 const goals = (item: TodoItem) => item.links.filter(link => link.kind === "goal").map(link => link.subject.id);
 
 export function createTodoSearchHandlers(withStore: <T>(run: (store: TodoStore) => T) => T): ActionHandlerBinding[] {
   // Search and readers see what the caller sees: personal, unplaced, and the caller's own project.
   const access = (caller: ActionCallContext): TodoAccess => ({ projectId: todoCallerProject(caller), everything: false, actor: "other", actorId: caller.actor_id });
   return [
-    bindSearchEntriesHandler(todoSearchActions.entries, caller => withStore(store => store.list(access(caller)).map((item): SearchEntry => ({
-      subject: { kind: TODO_SUBJECT_KIND, id: item.id }, revision: String(item.revision), title: item.title,
-      summary: searchText(item.notes, 1000), updated_at: item.updated_at, content: "context", open: open(item.id),
-    })))),
+    bindSearchEntriesHandler(todoSearchActions.entries, caller => withStore(store => store.list(access(caller))
+      .filter(item => item.placement !== "project").map(entry))),
+    bindSearchEntriesHandler(todoSearchActions.projectEntries, caller => {
+      const project = todoCallerProject(caller);
+      return project ? withStore(store => store.list(access(caller)).filter(item => item.placement === "project" && item.project_id === project).map(entry)) : [];
+    }),
     { ...todoSearchActions.subject, handle: (caller, input) => withStore(store => {
       // The person reading from their own Home or personal space (the placement panel after a move) reaches every todo
       // of theirs and learns its project; anyone in a project, and any agent, workflow or client outside one, keeps the

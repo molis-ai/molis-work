@@ -9,7 +9,7 @@ import type { PrologueInferenceClient } from "../inference.js";
 import { prologueActionTools, agentActionToolName } from "./prologue-action-tools.js";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { BUILT_IN_ADAPTERS, DEFAULT_CONTEXT_WINDOW_TOKENS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
+import { BUILT_IN_ADAPTERS, DEFAULT_CONTEXT_WINDOW_TOKENS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, redactText, screenInbound, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 /** Start refusals the runtime raises before it creates a run: validation and context packing. */
 // Codes the runtime raises before it creates a run: nothing ran, so the attempt is a settled refusal.
@@ -244,6 +244,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   // Rounds that may change things: an ending that only announces the next step is held once per run.
   /** Per session, what the round now running really kept and forgot (only for sessions given memory tools). */
   const memoryRounds = new Map<string, { keep: number; forget: number; off: boolean; spoken: string }>();
+  /** The exact Prologue references of the memories the Host chose for a run (set with the memory capability below). */
+  let memoryRefs: (pinned: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentPinnedMemory[]) => Promise<import("@prologue/sdk").ExactRef<"memory">[]> = async () => [];
   // Suggestions this round really made, for the same check: a reply may not say a button is ready when none was.
   const offerRounds = new Map<string, { offered: number }>();
   const stopGuards = new Map<string, { writing: boolean; held: Map<string, Set<HeldKind>> }>();
@@ -855,12 +857,38 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     },
     memory: (() => {
       type Entry = import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryEntry;
+      type Meta = import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryMeta;
+      type Candidate = import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryCandidateEntry;
+      type SdkMeta = import("@prologue/sdk").MemoryMeta;
+      // Molis names fields in snake case; Prologue keeps its own. Nothing else is translated.
+      const toSdk = (meta: Meta): SdkMeta => ({
+        ...(meta.kind !== undefined ? { kind: meta.kind } : {}), ...(meta.source !== undefined ? { source: meta.source } : {}), ...(meta.basis !== undefined ? { basis: meta.basis } : {}),
+        ...(meta.applies_when ? { appliesWhen: { ...(meta.applies_when.plugins ? { plugins: meta.applies_when.plugins } : {}), ...(meta.applies_when.object_kinds ? { objectKinds: meta.applies_when.object_kinds } : {}),
+          ...(meta.applies_when.goals ? { goals: meta.applies_when.goals } : {}), ...(meta.applies_when.task !== undefined ? { task: meta.applies_when.task } : {}),
+          ...(meta.applies_when.from_ms !== undefined ? { fromMs: meta.applies_when.from_ms } : {}), ...(meta.applies_when.until_ms !== undefined ? { untilMs: meta.applies_when.until_ms } : {}) } } : {}),
+        ...(meta.evidence ? { evidence: meta.evidence.map(one => ({ kind: one.kind, ...(one.text !== undefined ? { text: one.text } : {}), ...(one.ref !== undefined ? { ref: one.ref } : {}), ...(one.at_ms !== undefined ? { atMs: one.at_ms } : {}) })) } : {}),
+        ...(meta.expires_at_ms !== undefined ? { expiresAtMs: meta.expires_at_ms } : {}), ...(meta.approved_by ? { approvedBy: meta.approved_by } : {}),
+        ...(meta.namespace !== undefined ? { namespace: meta.namespace } : {}),
+      });
+      const fromSdk = (meta: SdkMeta): Meta => ({
+        ...(meta.kind !== undefined ? { kind: meta.kind } : {}), ...(meta.source !== undefined ? { source: meta.source } : {}), ...(meta.basis !== undefined ? { basis: meta.basis } : {}),
+        ...(meta.appliesWhen ? { applies_when: { ...(meta.appliesWhen.plugins ? { plugins: [...meta.appliesWhen.plugins] } : {}), ...(meta.appliesWhen.objectKinds ? { object_kinds: [...meta.appliesWhen.objectKinds] } : {}),
+          ...(meta.appliesWhen.goals ? { goals: [...meta.appliesWhen.goals] } : {}), ...(meta.appliesWhen.task !== undefined ? { task: meta.appliesWhen.task } : {}),
+          ...(meta.appliesWhen.fromMs !== undefined ? { from_ms: meta.appliesWhen.fromMs } : {}), ...(meta.appliesWhen.untilMs !== undefined ? { until_ms: meta.appliesWhen.untilMs } : {}) } } : {}),
+        ...(meta.evidence ? { evidence: meta.evidence.map(one => ({ kind: one.kind, ...(one.text !== undefined ? { text: one.text } : {}), ...(one.ref !== undefined ? { ref: one.ref } : {}), ...(one.atMs !== undefined ? { at_ms: one.atMs } : {}) })) } : {}),
+        ...(meta.expiresAtMs !== undefined ? { expires_at_ms: meta.expiresAtMs } : {}), ...(meta.approvedBy ? { approved_by: { ...meta.approvedBy } } : {}),
+        ...(meta.namespace !== undefined ? { namespace: meta.namespace } : {}),
+      });
       const view = (entry: import("@prologue/sdk").MemoryEntry): Entry => ({ memory_id: entry.ref.id, scope: entry.scope as Entry["scope"], owner: entry.owner,
-        text: entry.text, origin: entry.origin, tags: [...entry.tags], version: entry.version });
+        text: entry.text, origin: entry.origin, tags: [...entry.tags], version: entry.version, meta: fromSdk(entry.meta ?? {}),
+        ...(entry.paused ? { paused: { reason: entry.paused.reason, at_ms: entry.paused.atMs } } : {}), created_at_ms: entry.createdAtMs ?? 0, updated_at_ms: entry.updatedAtMs ?? 0 });
+      const candidateView = (item: import("@prologue/sdk").ScopedCandidate): Candidate => ({ candidate_id: item.ref.id, scope: item.scope as Candidate["scope"], owner: item.owner,
+        text: item.text, origin: item.origin, tags: [...item.tags], meta: fromSdk(item.meta), state: item.state, created_at_ms: item.createdAtMs,
+        ...(item.settledAtMs !== undefined ? { settled_at_ms: item.settledAtMs } : {}), ...(item.entry ? { memory_id: item.entry.id } : {}) });
       const hydrated = new Set<string>();
       const ready = async (scope: Entry["scope"], owner: string) => {
         const key = `${scope}:${owner}`;
-        if (!hydrated.has(key)) { await runtime.memory.hydrate([{ scope, owner }]); hydrated.add(key); }
+        if (!hydrated.has(key)) { await runtime.memory.hydrate([{ scope, owner }]); await runtime.memoryCandidates.hydrate([{ scope, owner }]); hydrated.add(key); }
       };
       const find = async (scope: Entry["scope"], owner: string, id: string) => {
         await ready(scope, owner);
@@ -868,14 +896,67 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         if (!entry) throw new PrologueAdapterError("agent.capability_unavailable", "这条记忆不存在或已删除");
         return entry;
       };
-      return {
+      const candidate = async (scope: Entry["scope"], owner: string, id: string) => {
+        await ready(scope, owner);
+        const found = runtime.memoryCandidates.list({ scope, owner }).find(item => item.ref.id === id);
+        if (!found) throw new PrologueAdapterError("agent.capability_unavailable", "这条候选不存在");
+        return found.ref;
+      };
+      const capability: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryCapability = {
         list: async (scope, owner) => { await ready(scope, owner); return runtime.memory.list({ scope, owner }).map(view); },
-        write: async input => { await ready(input.scope, input.owner); return view(await runtime.memory.write({ scope: input.scope, owner: input.owner, text: input.text, origin: input.origin, ...(input.tags ? { tags: input.tags } : {}) })); },
+        write: async input => { await ready(input.scope, input.owner); return view(await runtime.memory.write({ scope: input.scope, owner: input.owner, text: input.text, origin: input.origin,
+          ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdk(input.meta) } : {}) })); },
         update: async input => view(await runtime.memory.update((await find(input.scope, input.owner, input.memory_id)).ref, input.text)),
+        setMeta: async input => view(await runtime.memory.setMeta((await find(input.scope, input.owner, input.memory_id)).ref, toSdk(input.meta))),
+        pause: async input => view(await runtime.memory.pause((await find(input.scope, input.owner, input.memory_id)).ref, input.reason)),
+        resume: async input => view(await runtime.memory.resume((await find(input.scope, input.owner, input.memory_id)).ref)),
         remove: async input => { await runtime.memory.purge((await find(input.scope, input.owner, input.memory_id)).ref); return true; },
         recall: async input => { await ready(input.scope, input.owner);
-          return runtime.memory.recall({ scope: input.scope, owner: input.owner, keywords: input.keywords, ...(input.limit ? { limit: input.limit } : {}) }).hits.map(hit => ({ entry: view(hit.entry), score: hit.score })); },
+          const atMs = (await runtime.readClock()).wallTimeMs;
+          return runtime.memory.recall({ scope: input.scope, owner: input.owner, ...(input.keywords ? { keywords: input.keywords } : {}), ...(input.text !== undefined ? { text: input.text } : {}),
+            ...(input.kinds ? { kinds: input.kinds } : {}), atMs, ...(input.limit ? { limit: input.limit } : {}) }).hits.map(hit => ({ entry: view(hit.entry), score: hit.score })); },
+        screen: async text => {
+          const screened = screenInbound(text);
+          return { hold: screened.verdict === "hold", reasons: screened.reasons.map(reason => reason.rule), redacted: redactText(text) };
+        },
+        previewScope: async (scope, owner) => {
+          await ready(scope, owner);
+          const preview = runtime.memory.previewScope({ scope, owner });
+          return { count: preview.count, fingerprint: preview.fingerprint, memory_ids: preview.entries.map(entry => entry.ref.id) };
+        },
+        clearScope: async input => {
+          await ready(input.scope, input.owner);
+          // Refused (nothing removed) when the scope changed since the preview; then every one is purged, not only tombstoned.
+          const removed = await runtime.memory.removeScope({ scope: input.scope, owner: input.owner, fingerprint: input.fingerprint });
+          for (const ref of removed) await runtime.memory.purge(ref);
+          return removed.map(ref => ref.id);
+        },
+        candidates: {
+          propose: async input => { await ready(input.scope, input.owner); return candidateView(await runtime.memoryCandidates.propose({ scope: input.scope, owner: input.owner, text: input.text, origin: input.origin,
+            ...(input.tags ? { tags: input.tags } : {}), ...(input.meta ? { meta: toSdk(input.meta) } : {}) })); },
+          list: async (scope, owner) => { await ready(scope, owner); return runtime.memoryCandidates.list({ scope, owner }).map(candidateView); },
+          accept: async input => view(await runtime.memoryCandidates.accept(await candidate(input.scope, input.owner, input.candidate_id), {
+            ...(input.text !== undefined ? { text: input.text } : {}), ...(input.origin !== undefined ? { origin: input.origin } : {}), ...(input.meta ? { meta: toSdk(input.meta) } : {}) })),
+          promote: async input => view(await runtime.memoryCandidates.promote(await candidate(input.scope, input.owner, input.candidate_id), { policy: input.policy, version: input.version },
+            { ...(input.origin !== undefined ? { origin: input.origin } : {}), ...(input.meta ? { meta: toSdk(input.meta) } : {}) })),
+          settleInto: async input => view(await runtime.memoryCandidates.settleInto(await candidate(input.scope, input.owner, input.candidate_id),
+            (await find(input.scope, input.owner, input.memory_id)).ref, input.by)),
+          discard: async input => candidateView(await runtime.memoryCandidates.discard(await candidate(input.scope, input.owner, input.candidate_id))),
+          expire: async input => candidateView(await runtime.memoryCandidates.expire(await candidate(input.scope, input.owner, input.candidate_id))),
+          purge: async input => { await runtime.memoryCandidates.purge(await candidate(input.scope, input.owner, input.candidate_id)); },
+        },
       };
+      memoryRefs = async pinned => {
+        const refs: import("@prologue/sdk").ExactRef<"memory">[] = [];
+        for (const pin of pinned) {
+          await ready(pin.scope, pin.owner);
+          const found = runtime.memory.list({ scope: pin.scope, owner: pin.owner }).find(entry => entry.ref.id === pin.memory_id);
+          // One deleted meanwhile is simply not there: the run is not given it.
+          if (found) refs.push(found.ref);
+        }
+        return refs;
+      };
+      return capability;
     })(),
     schedule: {
       claim: () => { const claim = runtime.queue.claim(); return { survives_window_close: claim.survivesWindowClose, why: claim.why }; },
@@ -1205,6 +1286,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       }
       const tools = [...input.character.tools.map(prologueToolName), ...mcpTools, ...(actionTools?.names ?? []), ...surfaceTools];
       const runTools = [...new Set([...tools, ...[...childRoles.values()].flatMap(role => role.host_tools.map(prologueToolName))])];
+      // The memories the Host chose for this run, as exact references (one deleted meanwhile is simply not given).
+      const pinnedMemory = input.memory?.pinned.length ? await memoryRefs(input.memory.pinned) : [];
       const created = runtime.characters.create({
         // This is a projection of the frozen role, not a user-managed Character.
         // A project prompt may change without changing the package role version.
@@ -1214,6 +1297,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         role: input.character.name,
         ...(instructions === undefined ? {} : { instructionsRef: instructions }),
         tools,
+        // Reads memory only when the Host chose some for this run; never writes through the runtime's own path.
+        ...(pinnedMemory.length ? { memoryPolicy: { recall: true, write: false } } : {}),
       });
       const character = runtime.characters.publish(created.ref);
 
@@ -1347,6 +1432,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           mcpConnections: [...new Set([...(input.mcp_tools ?? []),...(input.mcp_sources ?? [])].map(mcpConnectionId))],
           characterRef: character.ref,
           ...(textResources.length ? { mount: { textResources } } : {}),
+          ...(pinnedMemory.length ? { memory: { pinned: pinnedMemory, budgetChars: input.memory!.budget_chars } } : {}),
         },
       })).catch(async (error: unknown) => {
         // Refused while the context was still being packed: the runtime creates the run only after that, so nothing

@@ -36,6 +36,7 @@ export function createLocalGoalsReadHttp(ports: {
   ): Promise<boolean> {
     const open = url.pathname === "/settings/workspaces" ? "workspaces"
       : url.pathname === "/settings/guidance" ? "guidance"
+      : url.pathname === "/settings/memory" ? "memory"
       : url.pathname === "/settings/rules" ? "rules"
       : url.pathname === "/settings/planning" ? "planning"
       : url.pathname === "/settings/general" || url.pathname === "/settings" ? "general"

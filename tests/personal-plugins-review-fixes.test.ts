@@ -107,7 +107,7 @@ async function listenDispatcher(
 }
 
 test("purge 名单覆盖全部个人 home 库", () => {
-  assert.deepEqual([...PERSONAL_HOME_SQLITE_STORES], ["images", "pages", "form", "dataset", "ppt", "lingguang", "todo", "jelly", "cognia", "alchemist", "workflows", "functions", "connectors", "context-onboarding", "search"]);
+  assert.deepEqual([...PERSONAL_HOME_SQLITE_STORES], ["images", "pages", "form", "dataset", "ppt", "lingguang", "todo", "jelly", "cognia", "alchemist", "workflows", "functions", "connectors", "context-onboarding", "search", "memory"]);
 });
 
 test("uninstall --purge 会把已有的个人库目录列入删除并真正删掉", async () => {

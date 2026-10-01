@@ -143,7 +143,8 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
     ["form", "dataset", "ppt"],
   );
   const market = pluginMarketCards();
-  assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id), [...PERSONAL_PLUGIN_IDS]);
+  // Every personal plugin is in the market except 角色, whose page is Settings › 角色.
+  assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id), PERSONAL_PLUGIN_IDS.filter((id) => id !== "characters"));
   assert.equal(market.find((card) => card.id === "form")?.copy, "建问卷，收答卷，看逐题汇总。");
 });
 

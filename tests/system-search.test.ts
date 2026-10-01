@@ -22,6 +22,7 @@ import {
 import { SEARCH_PROVIDER_ID, searchActions } from "@molis-ai/molis-work-contracts/services/search";
 import { homeSqlitePath, openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { SearchService } from "@molis-ai/molis-work-service-search";
+import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, todoActions, todoManifest } from "@molis-ai/molis-work-plugin-todo";
 
 type Note = { id: string; title: string; body: string; version: number; secret?: boolean };
 interface Source {
@@ -78,7 +79,7 @@ function registerPersonal(service: ActionService, memos: Note[], onDemand: Note[
   });
 }
 
-const owner = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: ["notes:read", "memos:read", "search:read"] });
+const owner = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: ["notes:read", "memos:read", "todo:read", "search:read"] });
 
 async function fixture(t: import("node:test").TestContext, options: { freshMs?: number } = {}) {
   const home = await mkdtemp(join(tmpdir(), "system-search-"));
@@ -198,6 +199,28 @@ test("project, personal and grant scopes: nothing leaks to a caller who cannot r
   assert.equal((await f.search.open({ client: f.actions, caller: withReader }, { hit_id: hit.hit_id })).state, "ok");
   assert.equal((await f.search.open({ client: f.actions, caller: client }, { hit_id: hit.hit_id })).state, "unavailable");
   assert.equal((await f.search.open({ client: f.actions, caller: owner("b") }, { hit_id: hit.hit_id })).state, "unavailable");
+});
+
+// Todo is one Home provider over one store, with todos placed in a project, in the personal space or not yet placed.
+// A project's todos are indexed with that project and nowhere else; the person's own are indexed once for the Home.
+test("a Home plugin's project source is searched with its project: Todo's project todos stay in their project", async t => {
+  const f = await fixture(t);
+  const store = openTodoStore(f.home, () => new Date("2026-10-01T10:00:00Z"));
+  t.after(() => store.close());
+  f.actions.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
+    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ withStore: run => run(store), today: () => "2026-10-01" }) });
+  const person = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: [...TODO_ACTION_PERMISSIONS, "search:read"] });
+  const create = (project_id: string | null, title: string, placement: "project" | "personal") => f.actions.invoke(person(project_id), todoActions.create, { title, placement });
+  await create("a", "复盘付款节奏（A）", "project");
+  await create("b", "复盘付款节奏（B）", "project");
+  await create(null, "复盘付款节奏（个人）", "personal");
+  const titles = async (caller: ActionCallContext, extra: Record<string, unknown> = {}) =>
+    (await f.search.query({ client: f.actions, caller }, { query: "付款节奏", ...extra })).hits.map(hit => hit.title).sort();
+  assert.deepEqual(await titles(person("a"), { scope: "project" }), ["复盘付款节奏（A）"]);
+  assert.deepEqual(await titles(person("b"), { scope: "project" }), ["复盘付款节奏（B）"]);
+  assert.deepEqual(await titles(person("a"), { scope: "personal" }), ["复盘付款节奏（个人）"]);
+  assert.deepEqual(await titles(person("a")), ["复盘付款节奏（A）", "复盘付款节奏（个人）"], "each todo once, in its own scope");
+  assert.deepEqual(await titles(person(null)), ["复盘付款节奏（个人）"]);
 });
 
 test("summary-only content keeps its body out of the index", async t => {

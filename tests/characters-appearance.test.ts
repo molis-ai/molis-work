@@ -29,8 +29,8 @@ test("Characters manifest places its page in settings with the user glyph, not i
   assert.equal(pluginTabGlyphs().characters, undefined);
   const page = listPluginSettingsNavItems(["characters"]).find((item) => item.section_id === "characters");
   assert.deepEqual({ label: page?.label, icon: page?.icon, order: page?.order }, { label: "角色", icon: "user", order: 35 });
-  const card = pluginMarketCards().find((item) => item.id === "characters");
-  assert.deepEqual({ label: card?.label, glyph: card?.glyph }, { label: "角色", glyph: "user" });
+  // Settings › 角色 is the one place for it: the market neither lists it nor lets a project add or remove it.
+  assert.equal(pluginMarketCards().find((item) => item.id === "characters"), undefined);
 });
 
 test("Characters is not among the plugins; the market and the studio live in the Dock menu", () => {

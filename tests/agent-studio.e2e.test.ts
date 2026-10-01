@@ -43,7 +43,8 @@ test('studio: a request becomes a working, published plugin that the person can 
     await page.command('Page.enable');
     await page.command('Page.navigate', { url: origin + '/plugin-builder/studio' });
     await page.wait(`[...document.querySelectorAll('[data-as-model] option')].some(o=>o.value.startsWith('fixture'))`);
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-empty]').innerText`), /这里会出现你的插件/);
+    // The models and the canvas load separately; wait for the canvas's own empty state instead of reading it at once.
+    await page.wait(`/这里会出现你的插件/.test(document.querySelector('[data-as-empty]')?.innerText || '')`);
     assert.equal(await page.evaluate('Math.round(document.querySelector(".as-shell").getBoundingClientRect().top)'), 0, 'nothing pushes the studio down (e.g. an unstyled icon sprite)');
 
     // Choose the model the build will use, then describe the plugin.

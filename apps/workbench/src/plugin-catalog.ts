@@ -206,14 +206,16 @@ export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | 
 export function pluginMarketCards(): readonly PluginMarketCard[] {
   return BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
     if (!entry.summary) return [];
-    // A plugin whose page lives in settings (角色) is named and drawn by that view.
+    // A plugin whose page lives only in settings (角色) is part of the settings, not something a project adds or
+    // removes: it stays out of the market (decision 2026-10-01, specs/post-merge-review §9).
     const views = entry.manifest.ui?.views ?? [];
-    const nav = views.find((view) => view.slot === "navigator" || view.slot === "island") ?? views.find((view) => view.slot === "settings" && view.icon);
+    const nav = views.find((view) => view.slot === "navigator" || view.slot === "island");
+    if (!nav) return [];
     return [{
       id: entry.project_plugin_id,
       runtime_id: entry.manifest.plugin_id,
-      label: nav?.title ?? entry.manifest.name,
-      glyph: nav?.icon ?? "package",
+      label: nav.title ?? entry.manifest.name,
+      glyph: nav.icon ?? "package",
       copy: entry.summary,
       personal: entry.personal === true,
       sites: browserSiteDeclarations(entry.manifest),

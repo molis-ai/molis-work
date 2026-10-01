@@ -18,7 +18,9 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   await waitFor("Boolean(globalThis.molisWorkControlHeaders)");
   const initial = await evaluate<{ status: number }>(`fetch(${JSON.stringify(endpoint)}).then(response=>({status:response.status}))`);
   assert.equal(initial.status, 200);
-  assert.equal(await evaluate("document.querySelector('[data-plugin-notifications]').hidden"), true, "no bell while nothing waits");
+  // What waits on the person shows in the dock's one bell; nothing waits yet.
+  assert.equal(await evaluate("document.querySelector('[data-assistant-attention]').hidden"), true, "no bell while nothing waits");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-notifications]')"), null, "the title bar has no bell of its own");
   const db = new Database(databasePath), repository = new SqlitePluginEventsRepository(db);
   t.after(() => db.close());
   const installs = new SqlitePluginRuntimeRepository(db).list();
@@ -38,28 +40,33 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   const denied = await fetch(origin + endpoint + "/recover", { method: "POST", headers: { origin, "content-type": "application/json" }, body: "{}" });
   assert.equal(denied.status, 403, "Runtime management requires the local control token");
   assert.deepEqual(repository.resolutions(DEMO_BOARD_ID), []);
-  // A second project, so the market's destination can point away from this project when the bell is pressed.
+  // A second project, so the market's destination can point away from this project when the bell's row is pressed.
   const other = await evaluate<{ status: number; id: string }>(`fetch('/api/settings/projects',{method:'POST',headers:molisWorkControlHeaders(),
     body:JSON.stringify({display_name:'另一个项目',user_confirmed:true})}).then(async response=>({status:response.status,id:(await response.json()).project?.project_id}))`);
   assert.equal(other.status, 201);
 
-  // The page reads the notifications again when it becomes visible; the title bar bell then shows the waiting one.
+  // The page reads the notifications again when it becomes visible; the dock bell then counts the waiting one.
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
-  await waitFor("document.querySelector('[data-plugin-notifications]').hidden === false");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-notifications-count]').textContent"), "1");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-notifications]').getAttribute('aria-label')"), "插件通知：1 条待核对");
+  await waitFor("document.querySelector('[data-assistant-attention]').hidden === false");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-attention-count]').textContent"), "等你 1");
+  const openFromBell = async () => {
+    if (await evaluate("document.querySelector('[data-assistant-notices]').hidden")) await click('[data-assistant-attention]');
+    await waitFor("document.querySelector('[data-assistant-notices] [data-notice-id=\"plugin-events\"]')?.getClientRects().length > 0");
+    assert.match(String(await evaluate("document.querySelector('[data-assistant-notices]').textContent")), /插件通知：1 条待核对/);
+    await click('[data-assistant-notices] [data-notice-id="plugin-events"]');
+  };
   const reachable = "(() => { const list = document.querySelector('[data-plugin-events]'), box = list.getBoundingClientRect();"
     + " return !list.hidden && box.top >= 0 && box.top < innerHeight && document.activeElement === list.querySelector('[data-plugin-events-heading]')"
     + " && document.querySelector('[data-plugin-event-open]')?.getClientRects().length > 0; })()";
-  await click('[data-plugin-notifications]');
+  await openFromBell();
   await waitFor(reachable);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "market");
 
-  // The list belongs to this project; the bell brings the market's destination back to it.
+  // The list belongs to this project; the dock bell brings the market's destination back to it.
   await click('[data-market-project-trigger]');
   await click(`[data-market-project-option="${other.id}"]`);
   await waitFor("document.querySelector('[data-plugin-events]').hidden");
-  await click('[data-plugin-notifications]');
+  await openFromBell();
   await waitFor(`document.querySelector('[data-market-project]').value === ${JSON.stringify(projectId)} && ${reachable}`);
   await click('[data-plugin-event-open]');
   await waitFor("document.querySelector('[data-plugin-event-dialog]').open");
@@ -77,7 +84,7 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   assert.equal(await evaluate("document.querySelector('[data-plugin-event-form] textarea').value"), "已核对文件内容，原通知无需再次处理。");
   assert.deepEqual(repository.resolutions(DEMO_BOARD_ID), []);
 
-  // Fail the read that 重新读取 starts: arming on the click keeps the bell's own periodic read from taking the failure.
+  // Fail the read that 重新读取 starts: arming on the click keeps the notifications reader's periodic read from taking the failure.
   await evaluate(`(() => {
     const original=window.fetch;let fail=false;
     document.querySelector('[data-plugin-event-reload]').addEventListener('click',()=>{fail=true;},{once:true});
@@ -107,7 +114,7 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   }
   await click('[data-plugin-event-form] [type="submit"]');
   await waitFor("!document.querySelector('[data-plugin-event-dialog]').open && document.querySelector('[data-plugin-events-status]').textContent==='没有待核对的通知。'");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-notifications]').hidden"), true, "the list's read clears the bell at once");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-attention]').hidden"), true, "the list's read clears the bell at once");
   const history = repository.resolutions(DEMO_BOARD_ID);
   assert.equal(history.length, 1); assert.equal(history[0]!.decision, "skip");
   assert.equal(history[0]!.actor_id, "web-user"); assert.equal(history[0]!.event_id, event.event_id);

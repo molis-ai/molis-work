@@ -66,7 +66,10 @@ const READY = /准备好|备好|已(?:经)?(?:给|放|生成)|在(?:上面|下�
 const NOT_MADE = /(?:没有|没|未|无法|不能)(?:准备|给出|生成|做出|放)/;
 export function claimsButton(text: string): boolean {
   const trimmed = text.trim();
-  return Boolean(trimmed) && trimmed.length <= 2000 && BUTTON.test(trimmed) && READY.test(trimmed) && !NOT_MADE.test(trimmed);
+  if (!trimmed || trimmed.length > 2000 || NOT_MADE.test(trimmed)) return false;
+  // The button and its being ready are said in one sentence. A browser round that tells of a page's 「清除」按钮 and ends
+  // with “我停在这里了” claims no button of its own.
+  return trimmed.split(/[。！？!?\n]+/u).some(sentence => BUTTON.test(sentence) && READY.test(sentence));
 }
 
 /**

@@ -166,7 +166,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     children.forEach((child) => { if (child) node.append(child); });
     return node;
   };
-  const live = el("div", { class: "context-actions-live", "aria-live": "polite" });
+  // The shared screen-reader-only primitive: its -1px margin keeps the region from lengthening the page by a pixel.
+  const live = el("div", { class: "mw-sr-only", "data-context-actions-live": "", "aria-live": "polite" });
   document.body.append(live);
   const openAssistant = (detail) => document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail }));
   const visible = (node) => Boolean(node && node.isConnected && node.getClientRects().length && !node.closest("[hidden]"));

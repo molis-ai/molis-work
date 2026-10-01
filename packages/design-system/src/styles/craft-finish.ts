@@ -1071,7 +1071,6 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .context-actions-basis[data-basis="judgment"]::before { background: var(--accent); }
   /* While the judgment is asked, the dot becomes the Assistant's own running ring. */
   ${ASSIST} .context-actions-basis[data-pending="true"]::before { width: 8px; height: 8px; box-sizing: border-box; background: none; border: 1.5px solid var(--faint); border-right-color: transparent; animation: mw-spin 640ms var(--ease-quint) infinite; }
-  .context-actions-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   @container assistant-bar (max-width: 520px) {
     ${ASSIST} .context-actions-scope, ${ASSIST} .context-actions-basis > span { display: none; }
     ${ASSIST} .context-action-kind { display: none; }

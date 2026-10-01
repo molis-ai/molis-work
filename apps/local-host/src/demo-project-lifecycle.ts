@@ -1,3 +1,4 @@
+import type { CatalogCommit } from "./catalog-commit.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
@@ -24,6 +25,7 @@ export class DemoProjectLifecycle {
     private readonly demo: DemoProjectSeedPort,
     private readonly deletion: ManagedProjectDeletion,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">,
+    private readonly commit: CatalogCommit,
   ) {}
 
   async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> {
@@ -51,7 +53,7 @@ export class DemoProjectLifecycle {
       validateManagedBoard(stagedDatabasePath, this.demo.boardId);
       await fs.rename(stagingDirectory, projectDirectory);
       promoted = true;
-      this.projects.lifecycle.register(record, "project.demo_created", actorId);
+      await this.commit(() => this.projects.lifecycle.register(record, "project.demo_created", actorId));
     } catch (error) {
       await fs.rm(stagingDirectory, { recursive: true, force: true });
       if (promoted) await fs.rm(projectDirectory, { recursive: true, force: true });
@@ -82,12 +84,12 @@ export class DemoProjectLifecycle {
       await fs.rename(stagingDirectory, projectDirectory);
       resetPromoted = true;
       await fs.rm(backupDirectory, { recursive: true, force: true });
-      const updated = this.projects.lifecycle.touch(
+      const updated = await this.commit(() => this.projects.lifecycle.touch(
         project.project_id,
         "project.demo_reset",
         actorId,
         { board_id: project.board_id },
-      );
+      ));
       await this.finishDemoProject(updated.project_id, updated.database_path, actorId);
       return { status: "reset", project: updated };
     } catch (error) {
@@ -115,7 +117,7 @@ export class DemoProjectLifecycle {
   }
 
   private async finishDemoProject(projectId: string, databasePath: string, actorId: string): Promise<void> {
-    enableDemoProjectPlugins(this.projects, projectId, actorId);
+    await this.commit(() => enableDemoProjectPlugins(this.projects, projectId, actorId));
     seedDemoPluginSurfaces(databasePath, this.projects.query.getProject(projectId).board_id);
     await seedDemoProjectExtras({
       projectId,

@@ -1,3 +1,4 @@
+import type { CatalogCommit } from "./catalog-commit.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
@@ -10,7 +11,7 @@ import { initializeProjectDatabase, validateManagedBoard } from "./managed-proje
 export class ManagedProjectFiles {
   constructor(private readonly projects: Pick<ProjectsModule, "query" | "lifecycle">,
     private readonly projectsDirectory: string,
-    private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId">) {}
+    private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId">, private readonly commit: CatalogCommit) {}
 async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> {
     const actorId = this.validation.requiredActorId(input.actor_id);
     if (input.project_id) {
@@ -23,7 +24,7 @@ async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjec
       if (exists) {
         await validateManagedBoard(databasePath, input.project_id);
         const record = this.projects.lifecycle.prepareRecord({ project_id: input.project_id, display_name: input.display_name, projects_directory: this.projectsDirectory, data_class: "user" });
-        this.projects.lifecycle.register(record, "project.created", actorId);
+        await this.commit(() => this.projects.lifecycle.register(record, "project.created", actorId));
         return record;
       }
       // A previous incomplete staging database belongs only to this stable request.
@@ -60,7 +61,7 @@ async provisionCreatedProject<T>(
       await validateManagedBoard(path.join(stagingDirectory, "molis-work.db"), record.project_id);
       await fs.rename(stagingDirectory, projectDirectory);
       promoted = true;
-      return commit(record);
+      return await this.commit(() => commit(record));
     } catch (error) {
       await fs.rm(stagingDirectory, { recursive: true, force: true });
       if (promoted) await fs.rm(projectDirectory, { recursive: true, force: true });

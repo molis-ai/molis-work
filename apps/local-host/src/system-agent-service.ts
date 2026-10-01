@@ -35,7 +35,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
       prompts: agentDefinitionsFor(storageHome, builtinRegistrations),
       authorizeWriterDirectory: async (projectId, canonicalPath) => {
         if (!owner.withCatalog) throw new Error("项目目录授权服务尚未装配");
-        await owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.addWorkspaceProject({ canonical_path: canonicalPath, project_id: projectId, actor_id: "web-user", user_confirmed: true }));
+        await owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: canonicalPath, project_id: projectId, actor_id: "web-user", user_confirmed: true })));
       },
       workspacesFor: projectId => owner.withCatalog
         ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId))

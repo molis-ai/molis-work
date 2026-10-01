@@ -40,10 +40,10 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
       }
       try {
         const projectId = decodeURIComponent(pluginMatch[1]);
-        const membership = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
-          const plugins = catalog.addProjectPlugin({
+        const membership = await withMolisWorkProjectCatalog({ homeDirectory }, async catalog => {
+          const plugins = await catalog.commit(() => catalog.addProjectPlugin({
             project_id: projectId, plugin_id: pluginId, actor_id: "web-user",
-          });
+          }));
           return { plugins, hidden: catalog.listHiddenPlugins(projectId) };
         });
         sendJson(response, 200, { project_id: projectId, ...membership });
@@ -62,9 +62,9 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
       }
       try {
         const projectId = decodeURIComponent(pluginMatch[1]);
-        const membership = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.removeProjectPlugin({
+        const membership = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.commit(() => catalog.removeProjectPlugin({
           project_id: projectId, plugin_id: pluginId, actor_id: "web-user",
-        }));
+        })));
         sendJson(response, 200, { project_id: projectId, ...membership });
       } catch (error) {
         sendJson(response, error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_not_found" ? 404 : 400,
@@ -189,8 +189,8 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
         return true;
       }
       try {
-        await withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => {
-          const project = catalog.renameProject(decodeURIComponent(projectRenameMatch[1]), displayName, "web-user");
+        await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
+          const project = await catalog.commit(() => catalog.renameProject(decodeURIComponent(projectRenameMatch[1]), displayName, "web-user"));
           sendJson(response, 200, { project: settingsProject(project) });
         });
       } catch (error) {

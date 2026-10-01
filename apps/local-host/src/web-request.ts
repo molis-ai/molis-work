@@ -244,7 +244,7 @@ export async function handleMolisWorkWebRequest(
           ...(options.project ? { enablePlugin: async (pluginId: string) => {
             const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId && !item.personal);
             if (!entry) throw new Error('这个插件不能在项目里启用：' + pluginId);
-            await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: "web-user" }));
+            await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.commit(() => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: "web-user" })));
           } } : {}),
           ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }, controlToken)) return;
         if (await handleBuilderHttp(request, response, url, { ...codingServices, store, boardId: options.boardId,

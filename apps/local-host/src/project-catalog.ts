@@ -1,3 +1,4 @@
+import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
 import { ModelProviderStore } from "./model-provider-store.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ManagedProjectFiles } from "./managed-project-files.js";
@@ -164,6 +165,8 @@ export class MolisWorkProjectCatalog {
   readonly personalPlanningMethods: PersonalPlanningMethods;
   readonly models: ModelProviderStore;
 
+  readonly commit: CatalogCommit;
+
   private constructor(
     private readonly storage: LocalSqliteStorage,
     homeDirectory: string,
@@ -171,6 +174,7 @@ export class MolisWorkProjectCatalog {
     platform: LocalCatalogPlatform,
   ) {
     const db = storage.db;
+    this.commit = createCatalogCommit(db, () => this.assertCurrentSchema());
     this.personalPlanningMethods = new PersonalPlanningMethods(db);
     this.models = new ModelProviderStore({ db, initializeSchema: false, secrets: {
       put: (ref, value) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().put(ref, value)),
@@ -197,11 +201,11 @@ export class MolisWorkProjectCatalog {
       (code, message) => new MolisWorkProjectCatalogError(code, message),
       operation => db.transaction(operation)(),
     );
-    this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation);
+    this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.workContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.desktopPanels.deleteForProject(projectId),
-    }, contextBindingValidation);
+    }, contextBindingValidation, this.commit);
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,
       this.homeDirectory,
@@ -209,6 +213,7 @@ export class MolisWorkProjectCatalog {
       { boardId: DEMO_BOARD_ID, seed: seedDemoBoard },
       this.projectDeletion,
       contextBindingValidation,
+      this.commit,
     );
     this.desktopPanels = platform.createPanels(db, {
       errorFactory: (code, message) => new MolisWorkProjectCatalogError(code, message),

@@ -168,7 +168,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           }
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
-            const ready = Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
+            const ready = server.listening && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
             sendJson(response, ready ? 200 : 503, {
               status: ready ? "ok" : "starting", process_id: process.pid,
               service_process_id: serviceProcessId(), desktop_tui: Boolean(pty.host),

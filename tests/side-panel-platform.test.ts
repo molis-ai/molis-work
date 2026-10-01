@@ -29,7 +29,7 @@ import { browserAddress } from "../apps/local-host/dist/browser/browser-host.js"
 import { renderSidePanel } from "../apps/workbench/src/side-panel.js";
 
 /*
- * The side panel as a platform capability (specs/side-panel §3.3, D11, D13): the file source protocol, the `side`
+ * The side panel as a platform capability (specs/archive/side-panel §3.3, D11, D13): the file source protocol, the `side`
  * slot, the Host's file routes through the action directory, and a plugin nobody told the Host about joining by its
  * declarations alone and leaving when it stops.
  */

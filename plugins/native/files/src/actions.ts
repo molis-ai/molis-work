@@ -22,7 +22,7 @@ export const filesActions = {
   open: define<FileInput, FileRead & { path: readonly string[] }>("files.open", "打开文件", "有界读取当前工作区的文本，保存阅读位置并更新文件集合输出", object({ workspace_id: id, path }), object({ workspace, result: fileResult, path })),
   capture: define<FileCaptureInput, { saved: ArtifactVersionResult; port: "before" | "after" | "selection"; snapshot: FileSnapshot }>("files.capture", "固定文件快照", "重新读取并核对已查看的指纹，保存固定全文或选区；不改写原文件", object({ workspace_id: id, path, port: { enum: ["before", "after", "selection"] }, fingerprint: id, start: integer, end: integer }, ["workspace_id", "path", "port", "fingerprint"]), object({ saved: publication, port: { enum: ["before", "after", "selection"] }, snapshot })),
 };
-/** Workspace files in the side panel (specs/side-panel): listed through the same browsing grant, previewed as text. */
+/** Workspace files in the side panel (specs/archive/side-panel): listed through the same browsing grant, previewed as text. */
 export const WORKSPACE_FILE_KIND = "workspace_file";
 const workspaceFileKinds: FileSourceKind[] = [{ kind: WORKSPACE_FILE_KIND, title: "工作区文件", surface: "files" }];
 export const filesSideActions = {

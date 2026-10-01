@@ -3,7 +3,7 @@ import path from "node:path";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 
 /**
- * What the Agent Host may attach from the side panel's browser (specs/side-panel P5): one driver per project page,
+ * What the Agent Host may attach from the side panel's browser (specs/archive/side-panel P5): one driver per project page,
  * found by the board a round works on, and the person's standing decisions about sites. Registered by the web server
  * that owns the browser; a process without one (MCP, CLI) offers no browser to any round.
  */

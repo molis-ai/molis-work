@@ -12,7 +12,7 @@ import { AssistantService } from "../apps/local-host/src/assistant/assistant-ser
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 
 /*
- * The Assistant drives the side panel's browser through Molis's own wiring (specs/side-panel P5): a business round gets
+ * The Assistant drives the side panel's browser through Molis's own wiring (specs/archive/side-panel P5): a business round gets
  * the surface tools while the project's page is attached, looks without asking — also at a page that has not opened a
  * site yet — and every action stops for the person, with a card in their words, before the page is touched.
  */

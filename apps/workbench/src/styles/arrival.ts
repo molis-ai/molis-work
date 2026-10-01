@@ -28,6 +28,8 @@ export const ARRIVAL_STYLES = String.raw`
   .stage-single > .stage-sheet { height: 100%; }
   .stage-side { min-width: 0; min-height: 0; overflow: hidden; }
   .stage-sheet { position: relative; min-width: 0; min-height: 0; overflow: auto; border-radius: var(--r-sheet, 14px); background: var(--paper); box-shadow: var(--sheet-shadow); scrollbar-width: thin; }
+  /* A sheet or pane that scrolls takes the keyboard's focus when it has nothing to focus inside; its ring sits inside, where the stage's edge cannot cut it. */
+  body.arrival-page :is(.stage-sheet, .stage-side)[tabindex="0"]:focus-visible { outline-offset: -2px; }
 
   /* ───────── Titlebar ───────── */
   .arrival-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); }
@@ -265,13 +267,20 @@ export const ARRIVAL_STYLES = String.raw`
     .arrival-bg .mw-btn { padding-right: 30px; }
   }
   @media (max-width: 760px) {
-    .stage-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); padding-right: 0; }
-    .stage-split > .stage-side { max-height: 36vh; overflow: auto; }
+    .stage-split { padding-right: 0; }
     .stage-sheet { border-radius: var(--r-sheet, 14px) var(--r-sheet, 14px) 0 0; }
     .stage-single { padding: 0; }
     .mw-caption { display: none; }
     .ob-left { padding-inline: 14px; }
     .ob-right { padding-inline: 20px; }
+  }
+  /* Narrow and tall (a phone upright): the directory stacks over the sheet and is capped, so the sheet keeps most of the stage; the directory keeps room for two rows and its footnote steps aside.
+     Narrow and short (a phone on its side): the two columns stay, each scrolling on its own. */
+  @media (max-width: 560px), (max-width: 760px) and (min-height: 521px) {
+    .stage-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+    .stage-split > .stage-side { max-height: 36vh; overflow: auto; }
+    .chooser-dir { min-height: 104px; }
+    .chooser-foot { display: none; }
   }
   @media (max-width: 600px) {
     /* A phone's bar is two rows (the assistant on one, the rest on the other), the workbench's own geometry. */

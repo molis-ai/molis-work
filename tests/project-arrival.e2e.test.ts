@@ -194,6 +194,32 @@ test("Escape clears a search and brings the directory back", { timeout: 60_000 }
   await settled();
 });
 
+test("everything on the chooser can be reached with the Tab key, in the order it is read, and the way in is one Tab away from the list", { timeout: 90_000 }, async t => {
+  const chooser = await openChooser(t);
+  if (!chooser) return;
+  const { evaluate, command, sessionId, view, open, settled, projectId } = chooser;
+  await view(1440);
+  await open("/");
+  await settled();
+  const tab = async () => {
+    await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 }, sessionId);
+    return evaluate<string>(`(() => { const a = document.activeElement; if (!a || a === document.body) return ''; return a.id || a.dataset.act || a.getAttribute('aria-label') || a.className.split(' ')[0] || a.tagName; })()`);
+  };
+  // One lap: from the first stop until the way in has been reached.
+  const visited: string[] = [];
+  for (let step = 0; step < 30 && !visited.includes("enter"); step++) { const at = await tab(); if (at && visited.at(-1) !== at) visited.push(at); }
+  const at = (name: string) => visited.indexOf(name);
+  for (const name of ["chooser-q", `row-${projectId}`, "chooser-detail", "new", "enter"]) assert.ok(at(name) >= 0, `${name} can be reached: ${JSON.stringify(visited)}`);
+  assert.ok(at("chooser-q") < at(`row-${projectId}`) && at(`row-${projectId}`) < at("chooser-detail") && at("chooser-detail") < at("new") && at("new") < at("enter"),
+    `the search, the selected project, its sheet (which scrolls), then the way in: ${JSON.stringify(visited)}`);
+  assert.equal(visited.filter(name => name.startsWith("row-")).length, 1, `the list is one stop (the selected row), the arrows do the rest: ${JSON.stringify(visited)}`);
+  assert.ok(visited.some(name => /助理|assistant/i.test(name)), `the Assistant's line is reachable: ${JSON.stringify(visited)}`);
+  // Each stop shows where it is.
+  await evaluate("document.getElementById('chooser-q').focus()");
+  assert.notEqual(await evaluate("getComputedStyle(document.getElementById('chooser-q').closest('.mw-input-group')).boxShadow"), "none", "the focused search has a ring");
+});
+
 test("the personal space opens from the chooser without a project in view", { timeout: 60_000 }, async t => {
   const chooser = await openChooser(t);
   if (!chooser) return;
@@ -348,8 +374,8 @@ test("a Home with no project opens on the personal space and offers to begin the
 });
 
 const SCREENS: Array<{ name: string; width: number; height?: number }> = [
-  { name: "1920", width: 1920, height: 1080 }, { name: "1440", width: 1440 }, { name: "1024", width: 1024, height: 700 },
-  { name: "768", width: 768, height: 800 }, { name: "600", width: 600, height: 800 }, { name: "390 phone", width: 390, height: 844 }, { name: "375 phone", width: 375, height: 667 }, { name: "320 phone", width: 320, height: 568 },
+  { name: "1920", width: 1920, height: 1080 }, { name: "1440", width: 1440 }, { name: "1280", width: 1280, height: 720 }, { name: "1024", width: 1024, height: 700 },
+  { name: "900", width: 900, height: 700 }, { name: "768", width: 768, height: 800 }, { name: "600", width: 600, height: 800 }, { name: "390 phone", width: 390, height: 844 }, { name: "375 phone", width: 375, height: 667 }, { name: "320 phone", width: 320, height: 568 }, { name: "phone, sideways", width: 667, height: 375 },
 ];
 
 test("every state of the chooser lays out cleanly at every width, in light and dark: nothing overlaps, is cut off, or out of reach", { timeout: 600_000 }, async t => {

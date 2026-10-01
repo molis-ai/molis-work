@@ -25,6 +25,8 @@ export const ARRIVAL_EN: Record<string, string> = {
   "问问「{name}」的进展，或交给助理一项工作…": "Ask about “{name}”, or give the assistant a task…",
   "在个人空间里，让助理做点什么…": "Ask the assistant to do something in your personal space…",
   "助理在个人空间里工作": "The assistant works in your personal space",
+  "项目简介": "Project brief",
+  "详情": "Details",
   "{n} 项等你": "{n} waiting for you",
   "刚刚": "Just now",
   "{n} 分钟前": "{n} min ago",

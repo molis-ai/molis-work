@@ -97,7 +97,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
       : brief.renderProjectBriefLoading(personal.display_name, PERSONAL);
     const stage = `<main class="arrival-stage" id="stage"><div class="stage-split chooser" data-view="chooser" data-selected="${escapeHtml(selected)}" data-projects="${projects.length}">
       <aside class="stage-side chooser-list" id="chooser-list">${list}</aside>
-      <section class="stage-sheet chooser-detail" id="chooser-detail" aria-live="polite" data-scroll>${detail}</section>
+      <section class="stage-sheet chooser-detail" id="chooser-detail" role="region" aria-label="${L("项目简介")}" aria-live="polite" tabindex="0" data-scroll>${detail}</section>
     </div></main>`;
 
     const personalSelected = selected === PERSONAL;

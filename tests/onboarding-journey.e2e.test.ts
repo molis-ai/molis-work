@@ -178,8 +178,8 @@ test("a new person's first run: the opening, two questions, materials, a name, a
 });
 
 const SCREENS: Array<{ name: string; width: number; height?: number }> = [
-  { name: "1920", width: 1920, height: 1080 }, { name: "1440", width: 1440 }, { name: "1024", width: 1024, height: 700 },
-  { name: "768", width: 768, height: 800 }, { name: "600", width: 600, height: 800 }, { name: "390 phone", width: 390, height: 844 }, { name: "375 phone", width: 375, height: 667 }, { name: "320 phone", width: 320, height: 568 },
+  { name: "1920", width: 1920, height: 1080 }, { name: "1440", width: 1440 }, { name: "1280", width: 1280, height: 720 }, { name: "1024", width: 1024, height: 700 },
+  { name: "900", width: 900, height: 700 }, { name: "768", width: 768, height: 800 }, { name: "600", width: 600, height: 800 }, { name: "390 phone", width: 390, height: 844 }, { name: "375 phone", width: 375, height: 667 }, { name: "320 phone", width: 320, height: 568 }, { name: "phone, sideways", width: 667, height: 375 },
 ];
 
 test("the opening and the two questions lay out cleanly at every width, in light and dark", { timeout: 300_000 }, async t => {

@@ -377,6 +377,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       if (keep.length) [...app.querySelectorAll('[data-scroll]')].forEach((node, i) => { if (keep[i]) node.scrollTop = keep[i]; });
     }
     const right = app.querySelector('.ob-right'); if (right) right.classList.toggle('is-empty', Boolean(model.rightCls));
+    // A pane that scrolls and has nothing to focus inside it (a list of receipts, a preview) takes the keyboard's focus itself.
+    app.querySelectorAll('[data-scroll]').forEach(pane => { if (!pane.querySelector('a[href], button, input, select, textarea, summary, [tabindex]')) { pane.tabIndex = 0; pane.setAttribute('role', 'region'); pane.setAttribute('aria-label', L('详情')); } });
     paintBar(model.bar, true);
     app.querySelectorAll('.mw-check[data-mixed]').forEach(box => { box.indeterminate = true; });
     const content = app.firstElementChild;

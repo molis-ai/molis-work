@@ -32,9 +32,10 @@ test("the chooser is the arrival frame: titlebar, stage, and the resident bar, o
   assert.match(html, /href="\/capabilities\/library"[^>]*>[\s\S]*?能力/);
   assert.match(html, /href="\/settings\/appearance"[^>]*>[\s\S]*?设置/);
   assert.match(html, /<div class="workbench-bar arrival-bar" data-dock data-bar="chooser"/);
+  assert.match(html, /data-act="new" aria-label="新建项目"/, "a phone shows only the icon, so the link carries its name");
   assert.match(html, /data-assistant-island|assistant-composer-input/, "the bar's centre is the assistant");
   assert.match(html, /<main class="arrival-stage" id="stage"><div class="stage-split chooser" data-view="chooser"/);
-  assert.match(html, /<section class="stage-sheet chooser-detail" id="chooser-detail" aria-live="polite"/);
+  assert.match(html, /<section class="stage-sheet chooser-detail" id="chooser-detail" role="region" aria-label="项目简介" aria-live="polite" tabindex="0"/, "the sheet scrolls, so the keyboard can reach it");
   assert.doesNotMatch(html, /project-index-page|project-card|data-project-search-row|migration/);
   assert.equal(html.match(/data-tauri-drag-region/g), null, "a browser has no drag region");
 });
@@ -100,7 +101,7 @@ test("inside the desktop app every way on keeps the desktop shell", () => {
   assert.match(desktop, /<header class="arrival-titlebar" data-region="titlebar" data-tauri-drag-region="deep">/);
   assert.match(desktop, /<body class="arrival-page immersive-workbench" data-arrival="chooser" data-native-desktop="true">/);
   assert.match(desktop, /data-act="enter" href="\/projects\/local-1\/\?desktop=1"/);
-  assert.match(desktop, /data-act="new" href="\/onboarding\?mode=new-project&desktop=1"|data-act="new" href="\/onboarding\?mode=new-project&amp;desktop=1"/);
+  assert.match(desktop, /data-act="new"[^>]*href="\/onboarding\?mode=new-project(&|&amp;)desktop=1"/);
   assert.match(desktop, /data-href="\/projects\/local-2\/\?desktop=1"/);
   assert.match(desktop, /href="\/settings\/appearance\?desktop=1"/);
 });
@@ -126,6 +127,7 @@ test("the sheet keeps the desk's frame fixed while the directory and the brief s
   assert.match(css, /\.chooser-dir \{ flex: 1; min-height: 0; overflow: auto;/);
   assert.match(css, /\.stage-sheet \{[^}]*overflow: auto;/);
   assert.match(css, /\.chooser \{ --side-w: clamp\(296px, 24vw, 344px\); \}/);
-  assert.match(css, /@media \(max-width: 760px\) \{\s*\.stage-split \{ grid-template-columns: minmax\(0, 1fr\); grid-template-rows: auto minmax\(0, 1fr\);/);
+  // Stacked when narrow and tall; a phone on its side (narrow and short) keeps the two columns.
+  assert.match(css, /@media \(max-width: 560px\), \(max-width: 760px\) and \(min-height: 521px\) \{\s*\.stage-split \{ grid-template-columns: minmax\(0, 1fr\); grid-template-rows: auto minmax\(0, 1fr\);/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });

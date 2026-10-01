@@ -5,12 +5,23 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const packs = ${JSON.stringify(BUILTIN_PLUGIN_WORKBENCH.filter(pack => pack.clientFactory).map(pack => ({ id: pack.project_plugin_id, assets: pack.clientAssets ?? [] })))};
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();
+  const scope = host.scope;
   const load = url => {
+    if (scope.signal.aborted) return Promise.reject(scope.signal.reason);
     if (scripts.has(url)) return scripts.get(url);
     const waiting = new Promise((resolve, reject) => {
       const script = document.createElement('script'); script.src = url;
-      script.onload = () => resolve();
-      script.onerror = () => { script.remove(); scripts.delete(url); reject(new Error(L('无法加载界面，请重试'))); };
+      let settled = false;
+      const finish = error => {
+        if (settled) return; settled = true; scope.clearTimeout(timer);
+        scope.signal.removeEventListener('abort', abort); script.onload = null; script.onerror = null;
+        if (error) { script.remove(); scripts.delete(url); reject(error); } else resolve();
+      };
+      const abort = () => finish(scope.signal.reason);
+      const timer = scope.timeout(() => finish(new Error(L('无法加载界面，请重试'))), 10_000);
+      scope.signal.addEventListener('abort', abort, { once: true });
+      script.onload = () => finish();
+      script.onerror = () => finish(new Error(L('无法加载界面，请重试')));
       document.head.append(script);
     });
     scripts.set(url, waiting); return waiting;
@@ -27,7 +38,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
       try {
         for (const asset of pack.assets) await load(asset);
         await load('/assets/molis-work-plugins/' + encodeURIComponent(pack.id) + '.js');
-        if (!root.isConnected) return;
+        if (!root.isConnected || scope.signal.aborted) return;
         const factory = globalThis.molisWorkbenchPluginFactories?.[pack.id];
         if (!factory) throw new Error(L('无法加载界面，请重试'));
         factory({ ...host, root });
@@ -36,6 +47,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
         const selection = selections.get(root);
         if (selection) { selections.delete(root); root.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: selection })); }
       } catch (error) {
+        if (!root.isConnected || scope.signal.aborted) return;
         root.inert = false; root.removeAttribute('aria-busy'); root.dataset.uiClientState = 'failed'; mounting.delete(root);
         const notice = document.createElement('div'); notice.style.cssText = 'position:absolute;right:12px;top:12px;z-index:30';
         const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'mw-btn mw-btn--ghost';
@@ -53,7 +65,6 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const visible = () => document.querySelectorAll('[data-deferred-surface]').forEach(root => {
     if (!root.closest('[hidden]') && root.dataset.uiClientState !== 'failed') void prepare(root);
   });
-  const scope = host.scope;
   scope.observe(new MutationObserver(visible), document.body, { subtree: true, attributes: true, attributeFilter: ['hidden'], childList: true });
   visible();
   return { prepare, ready: id => prepare(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]')) };

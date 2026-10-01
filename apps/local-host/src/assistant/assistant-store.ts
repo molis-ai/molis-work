@@ -327,7 +327,7 @@ export class AssistantStore {
   }
 
   /**
-   * The first version's memory state, read once by the platform memory (specs/memory-system §2.1.1): the switches as
+   * The first version's memory state, read once by the platform memory (specs/archive/memory-system §2.1.1): the switches as
    * the person saved them (null when never changed), the switched-off list and every candidate. Read only.
    */
   legacyMemory(actorId: string): { prefs: Partial<AssistantMemoryPrefs> | null; disabled: string[]; candidates: AssistantMemoryCandidate[] } {

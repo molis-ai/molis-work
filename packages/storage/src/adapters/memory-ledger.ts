@@ -11,7 +11,7 @@ import type {
 import { openHomeSqliteDatabase } from "../home-sqlite.js";
 
 /**
- * The Host's memory ledger (specs/memory-system §5.1): structured facts about Prologue memory entries, candidates,
+ * The Host's memory ledger (specs/archive/memory-system §5.1): structured facts about Prologue memory entries, candidates,
  * recent changes, switches, interface-signal counts and uses. The text of a memory lives in Prologue Memory; the
  * ledger keeps an earlier version's text only as that entry's history, and forgets it with the entry.
  */

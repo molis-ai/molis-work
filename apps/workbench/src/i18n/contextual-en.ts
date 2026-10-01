@@ -1,4 +1,4 @@
-/** The row of actions for what the person has in hand, above the Assistant input (specs/contextual-interaction). */
+/** The row of actions for what the person has in hand, above the Assistant input (specs/archive/contextual-interaction). */
 export const CONTEXTUAL_EN: Record<string, string> = {
   "暂时处理不了，请稍后重试": "Can't do that right now. Try again shortly.",
   "选中的内容": "Selection",

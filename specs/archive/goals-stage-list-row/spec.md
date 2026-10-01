@@ -2,7 +2,7 @@
 
 状态：已实现。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件改写 `specs/goals-parallel-views/spec.md` 里「列表行拉宽露出字段」的行内排列，不改三视图切换或 Frame 合同。
+本文件改写 `specs/archive/goals-parallel-views/spec.md` 里「列表行拉宽露出字段」的行内排列，不改三视图切换或 Frame 合同。
 
 ## 背景目标
 

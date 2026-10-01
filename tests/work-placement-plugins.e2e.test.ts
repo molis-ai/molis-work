@@ -6,7 +6,7 @@ import { openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
-// specs/work-placement per plugin, through the real workbench: a Goal's materials create straight into its project and
+// specs/archive/work-placement per plugin, through the real workbench: a Goal's materials create straight into its project and
 // stay bound (AC2); a form's answers become a dataset that says where it came from; a spark turns into a document and
 // a Goal; one Shelf item is used in two projects without copies, and deleting it leaves a clear, cleanable row (AC4).
 test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversions, Shelf used in two projects then deleted", { timeout: 240_000 }, async t => {
@@ -17,7 +17,7 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const other = await catalog.createProject({ display_name: "市场活动", actor_id: "placement-test" });
   catalog.close();
   const text = JSON.stringify;
-  const output = new URL(`../${specEvidenceDirectory("specs/work-placement/verification")}/`, import.meta.url);
+  const output = new URL(`../${specEvidenceDirectory("specs/archive/work-placement/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");

@@ -1,5 +1,5 @@
 /**
- * Content and stand-ins for the context-driven interaction slice (specs/contextual-interaction §9).
+ * Content and stand-ins for the context-driven interaction slice (specs/archive/contextual-interaction §9).
  * Everything here that is not the real Pages declaration is a labelled stand-in: other providers' declarations follow
  * the fragment-offers contract they will register in P1/P2, their executions are simulated, and so is memory.
  */

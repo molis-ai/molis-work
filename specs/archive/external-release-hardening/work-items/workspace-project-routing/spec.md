@@ -1,6 +1,6 @@
 # Workspace 与项目路由
 
-> 状态说明：本 Work Item 的 workspace default 方案已被后续 `specs/session-workspace-redesign/` 取代。当前实现只保留 workspace 历史候选，每个新 Session 都明确确认 Project；以下 default 内容仅作为历史记录。
+> 状态说明：本 Work Item 的 workspace default 方案已被后续 `specs/archive/session-workspace-redesign/` 取代。当前实现只保留 workspace 历史候选，每个新 Session 都明确确认 Project；以下 default 内容仅作为历史记录。
 
 ## 目标
 

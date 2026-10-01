@@ -10,7 +10,7 @@ import { connectorProtocolSecrets } from "../apps/local-host/src/connector-proto
 import { createOAuthBroker, type BrokerEnv } from "../apps/local-host/cloudflare/worker.ts";
 
 // Independent wire contracts, transcribed from the official references in
-// specs/connector-experience/configuration-readiness.md; no production-derived expectations.
+// specs/archive/connector-experience/configuration-readiness.md; no production-derived expectations.
 interface Contract {
   id: string; authorize: string; token: string; identity: string; profile: unknown;
   basic?: boolean; json?: boolean; pkce?: boolean; noRefresh?: boolean; refresh?: string;

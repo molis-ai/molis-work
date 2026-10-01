@@ -561,7 +561,7 @@ export interface AgentDelegation {
  */
 export interface AgentMemoryTools {
   /**
-   * Kept through the platform's write gate (specs/memory-system §6.2); it throws with the reason when nothing was kept
+   * Kept through the platform's write gate (specs/archive/memory-system §6.2); it throws with the reason when nothing was kept
    * (switched off, secret-shaped, held for the person). `note` says it was already kept.
    */
   remember(input: { text: string; scope: "personal" | "project" | "character"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string }): Promise<{ memory_id: string; scope: "personal" | "project" | "character"; applies: string; note?: string }>;
@@ -1215,7 +1215,7 @@ export interface AgentMemoryCandidateEntry {
 /** A memory the Host chose for one run, by the Prologue scope and owner it lives in. */
 export interface AgentPinnedMemory { scope: "user" | "project" | "character"; owner: string; memory_id: string }
 
-/** What the Host recalled for a run: the Runtime re-reads each at start and injects it as data (specs/memory-system §7.2). */
+/** What the Host recalled for a run: the Runtime re-reads each at start and injects it as data (specs/archive/memory-system §7.2). */
 export interface AgentRecalledMemory {
   pinned: AgentPinnedMemory[];
   budget_chars: number;

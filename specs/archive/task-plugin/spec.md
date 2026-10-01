@@ -5,7 +5,7 @@
 本文件曾是这次行为变更的唯一需求书。它曾取代：
 
 - `PRODUCT.md` 里「叶子 Goal 和 Task 是同一真相节点」；
-- `specs/workbench-frame-container/spec.md` 里「Frame 不进左目录、只按 Goal 绑定、不能当插件点」；
+- `specs/archive/workbench-frame-container/spec.md` 里「Frame 不进左目录、只按 Goal 绑定、不能当插件点」；
 - 工作台里「点 Goal 目录项 = 在 Goals 组打开 Goal Frame」。
 
 Goal 关系画布、看板、记录页仍归 Goals。Session / Feed / Inbox / Artifact 领域事实不变。MCP / Goal 事件协议不动。

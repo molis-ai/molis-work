@@ -56,7 +56,7 @@ Shelf 仍贡献 `data-directory-panel="shelf"`，左边三组、右边预览。A
 
 ## 输入输出与依赖
 
-输入：现有 Feed Source/Item、Inbox Attention、Artifact 精确版本、Shelf snapshot。输出：同一套选中、详情、动作 API。依赖：Host 按 panel 有无开第二栏、Goals/Sessions 主从列宽合同。Shelf DropAgent 合同见 `specs/shelf-plugin/spec.md`（工作台 IA 以本文为准）。
+输入：现有 Feed Source/Item、Inbox Attention、Artifact 精确版本、Shelf snapshot。输出：同一套选中、详情、动作 API。依赖：Host 按 panel 有无开第二栏、Goals/Sessions 主从列宽合同。Shelf DropAgent 合同见 `specs/archive/shelf-plugin/spec.md`（工作台 IA 以本文为准）。
 
 ## 文件 / 模块边界
 

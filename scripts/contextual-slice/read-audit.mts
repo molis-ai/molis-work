@@ -1,5 +1,5 @@
 /**
- * Host-level read audit (specs/contextual-interaction §2.1): through the real action directory, can every plugin's
+ * Host-level read audit (specs/archive/contextual-interaction §2.1): through the real action directory, can every plugin's
  * objects be listed and their content read by the Host? Uses the regenerable demo project of an isolated Home (create
  * it from settings first), adds every project plugin, creates one object per plugin with its own create action where
  * the input is simple (plus a few structured ones), then lists each search source and reads entries with the

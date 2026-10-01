@@ -103,7 +103,7 @@ git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendo
 
 重建：检出 `03c6ba0b`（或在 `af7375c7` 上 `git apply dispatch-denied.patch`），执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`。
 
-核对：与 claims 包逐文件比对，520 个文件中只有 `dist/agent/core/loop.js`、`dist/host/plugin/node.js`、`dist/session/core/run.js` 三个不同，证明底子就是 claims。新增 `test/dispatch-denied.live.test.ts` 3 项（Agent 轮次与一次性调用被拒时报 `EFFECT_NOT_AUTHORIZED`、零请求、不换备选；复核中途取消仍是取消），修复前前两项失败（拿到 `MODEL_NETWORK_FAILED`）。SDK 构建通过；SDK 全量 3339 项：3319 通过、20 跳过、0 失败；`tsconfig.typecheck.json` 仍是 claims 源码就有的 2 处测试文件类型错误（`test/agent-compaction-public.test.ts` 的 `continueWhenCompactionFails`、`windowTokens`），与本改动无关、数量不变。消费方改动与验证见 [仓库防腐整理 spec](../../specs/repository-systematic-review/spec.md) F-15。未发布 npm。
+核对：与 claims 包逐文件比对，520 个文件中只有 `dist/agent/core/loop.js`、`dist/host/plugin/node.js`、`dist/session/core/run.js` 三个不同，证明底子就是 claims。新增 `test/dispatch-denied.live.test.ts` 3 项（Agent 轮次与一次性调用被拒时报 `EFFECT_NOT_AUTHORIZED`、零请求、不换备选；复核中途取消仍是取消），修复前前两项失败（拿到 `MODEL_NETWORK_FAILED`）。SDK 构建通过；SDK 全量 3339 项：3319 通过、20 跳过、0 失败；`tsconfig.typecheck.json` 仍是 claims 源码就有的 2 处测试文件类型错误（`test/agent-compaction-public.test.ts` 的 `continueWhenCompactionFails`、`windowTokens`），与本改动无关、数量不变。消费方改动与验证见 [仓库防腐整理 spec](../../specs/archive/repository-systematic-review/spec.md) F-15。未发布 npm。
 
 ## 上一依赖：claims（协同第一期，已并入上面的 dispatch-denied）
 
@@ -150,7 +150,7 @@ git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendo
 - 消费方：冻结安装、Agent Host / Local Host 类型检查通过，文字、图片、TypeSafe、Schedule、凭据与恢复共 75/75 通过；包内全部 514 个 dist 文件与 SDK 构建、实际安装逐字节一致。
 - 补充验证：SDK 全量 3321 项，3300 通过、20 跳过、1 项在 Chrome fixture 加载页面阶段失败；随后单独复跑 `computer-use.live.test.ts` 11/11 通过，未修改测试超时或生产行为。图片标准 MCP 端到端 1/1 通过，覆盖真实字节保存、跨进程重开、权限与幂等；这仍是受控图片服务，不代表商业图片服务验证。
 
-未提交或推送 SDK 源码、未发布 npm。旧包保留以便回退（2026-09-28 起从 git 历史取，见本文开头）。本轮本地/CLI 暂缓范围与真实图片服务未验证项见消费方 [spec](../../specs/bp-delivery-parallel/work-items/prologue-convergence/spec.md)。
+未提交或推送 SDK 源码、未发布 npm。旧包保留以便回退（2026-09-28 起从 git 历史取，见本文开头）。本轮本地/CLI 暂缓范围与真实图片服务未验证项见消费方 [spec](../../specs/archive/bp-delivery-parallel/work-items/prologue-convergence/spec.md)。
 
 ## 上一依赖：缓存断点
 

@@ -27,7 +27,7 @@ import { learnFromWork, type MemoryLearningRequest } from "./memory-learning.js"
 import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
 
 /**
- * Host wiring of the platform memory (specs/memory-system §5.2): Prologue Memory of this Home's one runtime as the
+ * Host wiring of the platform memory (specs/archive/memory-system §5.2): Prologue Memory of this Home's one runtime as the
  * store, the ledger in `<Home>/memory`, the `system.memory` actions in the shared directory, and `/api/memory/*` for
  * the settings pages and the work panel. The memory service itself is in horizontal/memory.
  */

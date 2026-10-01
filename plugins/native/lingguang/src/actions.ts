@@ -26,7 +26,7 @@ function define<I, O>(name: string, title: string, description: string, operatio
 const undoable = <I, O>(definition: ActionDefinition<I, O>, undo: NonNullable<ActionDefinition["action"]["undo"]>): ActionDefinition<I, O> =>
   ({ ...definition, action: { ...definition.action, undo } });
 /**
- * Noting part of anything down (specs/contextual-interaction §10 P2): a word, a passage or several, from any object,
+ * Noting part of anything down (specs/archive/contextual-interaction §10 P2): a word, a passage or several, from any object,
  * becomes a spark that waits in 灵光. It writes, so it is offered as a prepared card the person confirms.
  */
 export const LINGGUANG_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [

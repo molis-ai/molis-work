@@ -64,7 +64,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.ok(await evaluate("(()=>{const search=document.querySelector('[data-workspace-chrome] [data-global-search-open]'),settings=document.querySelector('.titlebar-chrome .navigator-project-settings'),toggle=document.querySelector('.titlebar-chrome [data-directory-toggle]');return search.closest('.navigator-project-primary') && settings?.closest('.navigator-project-menu-popover') && getComputedStyle(toggle).display==='none';})()"), "Project settings live in the project menu; desktop hides directory collapse even on plugins without a directory");
   const create = await evaluate<{ bg: string; color: string; radius: string; icon: string; border: string }>("(()=>{const button=document.querySelector('[data-open-create]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,border:s.borderTopColor};})()");
   // New Goal is the Goals page's one graphite button, like every list page's first create action
-  // (DESIGN.md → Plugin stage; specs/plugin-e2e-review/spec.md §4 X5, kept by the user after #108):
+  // (DESIGN.md → Plugin stage; specs/archive/plugin-e2e-review/spec.md §4 X5, kept by the user after #108):
   // graphite --action fill, --action-ink text and glyph, 8px control corners, no outline.
   assert.equal(create.bg, "rgb(41, 42, 44)", "New Goal is the graphite primary action");
   assert.equal(create.color, "rgb(255, 255, 255)");

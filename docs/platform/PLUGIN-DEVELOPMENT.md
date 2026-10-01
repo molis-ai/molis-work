@@ -159,7 +159,7 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 - 设置“助理”里的“插件接入诊断”会列出你的插件为助理提供了什么、缺什么（对象读取、结果关联、能力说明），按那里的提示补齐即可。
 - Native 插件新增路由或动作要递增 Manifest `version`，否则已安装项目仍按旧清单运行。
 
-Pages 与 Coding 是完整样例；需求与验收见 `specs/system-assistant/spec.md` 第 10.4 节与 AC46—AC51。
+Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assistant/spec.md` 第 10.4 节与 AC46—AC51。
 
 ## 系统搜索
 
@@ -170,11 +170,11 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/system-assistant/sp
 - 不能持久化的内容用 `defineSearchQueryAction` 按需查询。
 - 来源的受众不能比你原有的读取更宽：原来只给本机界面看的内容（例如剪贴板历史）单独声明一个来源，受众限为 `["user"]`，助理、工作流与 MCP 客户端就搜不到它。
 
-系统负责首次建立、按集合版本与条目版本增量更新、删除清理、失败保留与重试、停用/卸载清理、按调用者授权过滤和打开前核对。清单里声明的来源经 `inspectActionDeclarations` 校验规范合同。细则与判例见 [搜索接入](../../skills/molis-plugin-dev/search.md)，需求见 `specs/system-search/spec.md`。
+系统负责首次建立、按集合版本与条目版本增量更新、删除清理、失败保留与重试、停用/卸载清理、按调用者授权过滤和打开前核对。清单里声明的来源经 `inspectActionDeclarations` 校验规范合同。细则与判例见 [搜索接入](../../skills/molis-plugin-dev/search.md)，需求见 `specs/archive/system-search/spec.md`。
 
 ## 放在哪里：位置、关联与完成提示
 
-对象存在个人空间还是某个项目、和哪项工作有关、谁能读取、做完后从哪里找回，由系统放置服务统一说明。插件要做的是：为展示的对象提供 `*.subject.read`（带 `open`）；能移动、复制的对象声明放置协议（`defineObjectMoveAction` / `defineObjectCopyAction`，只对本人）；能接收内容的做成工作流内容站；页面写 `data-assistant-context` 并留 `data-placement-slot`；新建、导入、导出、存固定版本后发 `molis:placement-result`。不要在插件里自己记“用于哪个项目”“复制自哪里”，也不要把内部动作写成交付。细则见 [放在哪里](../../skills/molis-plugin-dev/placement.md)，需求见 `specs/work-placement/spec.md`。
+对象存在个人空间还是某个项目、和哪项工作有关、谁能读取、做完后从哪里找回，由系统放置服务统一说明。插件要做的是：为展示的对象提供 `*.subject.read`（带 `open`）；能移动、复制的对象声明放置协议（`defineObjectMoveAction` / `defineObjectCopyAction`，只对本人）；能接收内容的做成工作流内容站；页面写 `data-assistant-context` 并留 `data-placement-slot`；新建、导入、导出、存固定版本后发 `molis:placement-result`。不要在插件里自己记“用于哪个项目”“复制自哪里”，也不要把内部动作写成交付。细则见 [放在哪里](../../skills/molis-plugin-dev/placement.md)，需求见 `specs/archive/work-placement/spec.md`。
 
 ## 调用模型：登记的指令
 

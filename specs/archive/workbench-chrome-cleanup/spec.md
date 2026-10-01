@@ -54,7 +54,7 @@
 
 - 输入：现有 immersive 壳、tab-workspace 状态、Feed 舞台 DOM。
 - 输出：同一用户路径，少一套死客户端和左栏空壳。
-- 依赖：`specs/workbench-tab-workspace/spec.md`、`specs/archive/feed-stage-directory/spec.md`、`specs/archive/goal-kanban-view/spec.md`。
+- 依赖：`specs/archive/workbench-tab-workspace/spec.md`、`specs/archive/feed-stage-directory/spec.md`、`specs/archive/goal-kanban-view/spec.md`。
 
 ## 文件 / 模块边界
 

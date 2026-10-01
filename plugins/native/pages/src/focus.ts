@@ -4,7 +4,7 @@ import { Decoration, DecorationSet, type EditorView } from "prosemirror-view";
 import { pagesSchema } from "./schema.js";
 
 /**
- * What the person has in hand in a Pages document, and the ranges they acted on (specs/contextual-interaction §4.1).
+ * What the person has in hand in a Pages document, and the ranges they acted on (specs/archive/contextual-interaction §4.1).
  *
  * The editor reports its focus whenever it changes. When the person clicks something outside the editor — the bar, an
  * Assistant card, the writing menu — the range is *frozen*: it is mapped through every later edit and stays

@@ -34,6 +34,6 @@ After deployment, verify `/health` and `/providers`, then set the Host's `MOLIS_
 - Refresh tokens are returned as encrypted, service-bound envelopes. Host holds these as bearer credentials in its existing SecretStore and submits them for refresh. The Worker never accepts raw arbitrary refresh tokens. Refresh envelopes expire after one year and renew on successful refresh. Provider revocation/expiry still takes precedence.
 - Cancellation returns `access_denied` to the validated local callback. Invalid states receive a generic error without redirect; upstream error bodies and secrets never pass through.
 
-Provider configuration requirements: [configuration-readiness.md](../../../specs/connector-experience/configuration-readiness.md). The September 27 protocol audit fixes are not yet deployed; deploy reviewed code before enabling affected providers.
+Provider configuration requirements: [configuration-readiness.md](../../../specs/archive/connector-experience/configuration-readiness.md). The September 27 protocol audit fixes are not yet deployed; deploy reviewed code before enabling affected providers.
 
 Tests: `node scripts/run-tests.mjs tests/connector-provider-contracts.test.ts tests/connector-oauth-broker.test.ts tests/connector-api-oauth.test.ts`. Local tests verify protocol behavior using provider fixtures; deployment and actual provider grants remain separate acceptance checks.

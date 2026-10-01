@@ -17,7 +17,7 @@ const bound = object({ binding_id: text, goal_id: text, subject, title: text, st
 
 /**
  * Goals owns which materials a Goal is bound to (its input receipts). Binding a Plugin object records the owner's
- * subject; it neither copies nor moves the object, and releasing keeps the receipt as history (specs/work-placement §3.2).
+ * subject; it neither copies nor moves the object, and releasing keeps the receipt as history (specs/archive/work-placement §3.2).
  */
 export const goalsInputActions = {
   bind: goalAction<{ goal_id: string; subject: { kind: string; id: string }; title: string }, { binding: GoalBoundObject; replayed: boolean }>("goals.inputs.bind",

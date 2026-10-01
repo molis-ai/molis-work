@@ -1,5 +1,5 @@
 /**
- * Simulated results for the slice (specs/contextual-interaction §9). Every result says so in its `standin` label;
+ * Simulated results for the slice (specs/archive/contextual-interaction §9). Every result says so in its `standin` label;
  * the preview uses a real model for `pages.ai` when one is configured, and these only when none is.
  */
 import { DOCUMENTS, GOAL } from "./fixture.mjs";

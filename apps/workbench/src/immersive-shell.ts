@@ -79,7 +79,7 @@ const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
 /**
  * Groups read as what the person wants to do, not as kinds of software: 推进 (the backbone plus its helpers),
  * 写与做 (things one makes), 个人 (what belongs to the person, 灵光 first), 研究, 编码. See
- * specs/plugin-e2e-review/spec.md §3.1.
+ * specs/archive/plugin-e2e-review/spec.md §3.1.
  */
 const RAIL_TOOL_GROUPS: ReadonlyArray<readonly [label: string, ids: readonly string[]]> = [
   ["推进", ["schedule", "workflows"]],

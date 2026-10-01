@@ -48,4 +48,4 @@
 
 - 完整样例：Pages（`plugins/native/pages`：`pages.subject.read`、`result_subject`、`expected_version`、页面声明与刷新）和 Coding（`plugins/native/coding`：`coding.subject.read` 路由、页面声明、方式同步、两个入口同一会话）。
 - 测试：`tests/assistant-work-continuity.test.ts`（关系、手动修改被感知、版本前提、相关工作查询、Home 作用域声明）、`tests/assistant-coding-executor.test.ts`（两个入口、接续会话、交接与回到助理）。
-- 需求与验收：`specs/system-assistant/spec.md` 第 10.4 节、AC46—AC51。
+- 需求与验收：`specs/archive/system-assistant/spec.md` 第 10.4 节、AC46—AC51。

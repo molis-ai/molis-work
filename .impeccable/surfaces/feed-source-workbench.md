@@ -2,7 +2,7 @@
 
 - Mode: **Operate**
 - 状态：built；2026-09-24 按当前实现记录。
-- 需求：[spec](../../specs/feed-source-workbench/spec.md)。目标为内部完整，完成等级须由主任务实际验收证据裁决。
+- 需求：[spec](../../specs/archive/feed-source-workbench/spec.md)。目标为内部完整，完成等级须由主任务实际验收证据裁决。
 - 局部视觉系统：[Feed DESIGN.md](../../plugins/native/feed/DESIGN.md)；沿用全局 Linear × coss.ui 中性色与共享控件。
 
 ## 用户任务与已选方向

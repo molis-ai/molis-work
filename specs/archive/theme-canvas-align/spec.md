@@ -16,7 +16,7 @@
 
 - Onboarding `--onboarding-canvas` 与主题 `--page` 同值；深色 paper 跟主题 `--paper`。
 - 切片 page / canvas / nav-bg / rail / paper 用同一套主题场，`--onboarding-canvas` 指向 `--page`。
-- 更新 `specs/home-field-start/spec.md` 里过时的 canvas 色。
+- 更新 `specs/archive/home-field-start/spec.md` 里过时的 canvas 色。
 
 非目标：不改 Onboarding 步骤、动效、文案；不改生产首页布局；不重做 ink / accent；不 commit。
 

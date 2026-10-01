@@ -9,7 +9,7 @@ import {
 import { subjectOfferChoices } from "./subject-offer-choices.js";
 
 /**
- * Pure logic of context-driven interaction (specs/contextual-interaction §3.4, §5): which declared actions fit what the
+ * Pure logic of context-driven interaction (specs/archive/contextual-interaction §3.4, §5): which declared actions fit what the
  * person has in hand, how rules order them before any model answers, what the judgment is asked, and how its answer
  * becomes a stable layout. No I/O here; the Host service supplies the directory snapshot and the model call.
  */

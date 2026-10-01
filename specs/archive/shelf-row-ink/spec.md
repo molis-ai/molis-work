@@ -33,7 +33,7 @@ Shelf 进舞台后，未选中文件名用 DropAgent 的 `--da-muted`（`--conte
 
 - `plugins/native/shelf/src/styles.ts`
 - `tests/shelf-plugin.test.ts`、`tests/shelf-plugin.e2e.test.ts`
-- `specs/shelf-plugin/spec.md` 补一句舞台行标题例外
+- `specs/archive/shelf-plugin/spec.md` 补一句舞台行标题例外
 
 ## 验收
 

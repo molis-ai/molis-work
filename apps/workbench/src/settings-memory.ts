@@ -1,5 +1,5 @@
 /**
- * The memory settings page (specs/memory-system §10): 个人 → 记忆 in the global settings, and 项目记忆 in a project's
+ * The memory settings page (specs/archive/memory-system §10): 个人 → 记忆 in the global settings, and 项目记忆 in a project's
  * settings. Both are the same page in a different scope; everything it shows and changes goes through `/api/memory/*`,
  * which invokes the shared directory's `memory.*` actions as the person.
  */

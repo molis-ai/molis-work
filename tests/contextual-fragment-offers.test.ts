@@ -13,7 +13,7 @@ import { fragmentCandidates } from "@molis-ai/molis-work-kernel";
 import { planSteps } from "../plugins/native/goals/src/fragment-offers.js";
 
 /**
- * specs/contextual-interaction §10 P2: the platform-wide fragment offers of Goals and 灵光, through the real directory
+ * specs/archive/contextual-interaction §10 P2: the platform-wide fragment offers of Goals and 灵光, through the real directory
  * and the real actions. What a provider prepares must be exactly what its own action accepts, and running it must do
  * what the card said (a proposal that creates nothing yet; progress on the right Goal; one spark per request).
  */

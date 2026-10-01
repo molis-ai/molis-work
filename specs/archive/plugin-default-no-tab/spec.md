@@ -2,7 +2,7 @@
 
 状态：可验收。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件修正 `specs/workbench-tab-workspace/spec.md` 与 `specs/archive/additive-tabs/spec.md` 里「点插件 = 开母标签」的合同。分栏几何、item 标签、首页标签仍以那两份为准。
+本文件修正 `specs/archive/workbench-tab-workspace/spec.md` 与 `specs/archive/additive-tabs/spec.md` 里「点插件 = 开母标签」的合同。分栏几何、item 标签、首页标签仍以那两份为准。
 
 ## 背景目标
 
@@ -53,7 +53,7 @@
 
 - `apps/workbench/src/tab-workspace-ops.ts`
 - `apps/workbench/src/scripts/client/tab-workspace.ts`
-- `specs/workbench-tab-workspace/spec.md`、`specs/archive/additive-tabs/spec.md` 里与母标签打开相关的句子
+- `specs/archive/workbench-tab-workspace/spec.md`、`specs/archive/additive-tabs/spec.md` 里与母标签打开相关的句子
 - 测试：`tests/tab-workspace-ops.test.ts`、`tests/workbench-tab-workspace.e2e.test.ts` 及点母标签返回画布的 e2e
 
 ## 验收标准

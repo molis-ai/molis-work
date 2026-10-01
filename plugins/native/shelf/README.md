@@ -60,7 +60,7 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.
 ## 进一步阅读
 
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
-- [Shelf 插件需求](../../../specs/shelf-plugin/spec.md)
+- [Shelf 插件需求](../../../specs/archive/shelf-plugin/spec.md)
 
 - Status: `partial`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`

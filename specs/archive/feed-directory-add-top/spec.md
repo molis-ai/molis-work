@@ -2,7 +2,7 @@
 
 状态：已实现。完成等级目标 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件覆盖 `specs/directory-list-primitive/spec.md` 里「Feed 添加是 panel 底部槽」对 Feed 的位置约定。Sessions 新建上移见 `specs/archive/session-directory-runtime-folds/spec.md`。点「添加任务」仍走现有 `data-feed-add-toggle`。
+本文件覆盖 `specs/archive/directory-list-primitive/spec.md` 里「Feed 添加是 panel 底部槽」对 Feed 的位置约定。Sessions 新建上移见 `specs/archive/session-directory-runtime-folds/spec.md`。点「添加任务」仍走现有 `data-feed-add-toggle`。
 
 ## 背景与问题
 

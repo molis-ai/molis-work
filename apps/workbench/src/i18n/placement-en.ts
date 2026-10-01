@@ -1,4 +1,4 @@
-/** Where things live and what they are linked to: the personal space, the placement bar, dialogs and completion cards (specs/work-placement). */
+/** Where things live and what they are linked to: the personal space, the placement bar, dialogs and completion cards (specs/archive/work-placement). */
 export const PLACEMENT_EN: Record<string, string> = {
   // Personal space
   "个人空间": "Personal space",

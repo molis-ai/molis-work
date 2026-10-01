@@ -325,7 +325,7 @@ export function applyPrologueEvent(
         call_id: call.id,
         name: call.name,
         // A question to the person is named by what it asks.
-        target: call.name === "ask-user" && typeof call.input?.why === "string" ? clip(call.input.why) : target(call.input),
+        target: call.name === "ask-user" ? askedOf(call.input) ?? target(call.input) : target(call.input),
         state: "started",
         summary: call.name,
         at,
@@ -551,6 +551,18 @@ export function applyPrologueEvent(
 }
 
 /** Clear one pending from the waiting list once it has been answered. */
+/**
+ * What a question to the person reads as in the round: a questionnaire's own question (its first, and how many more),
+ * else the text it asked with. The `why` of a questionnaire is the model's reason for asking — MiniMax-M3 writes it
+ * about the person (“用户拒绝删除这条待办……”) — so it is not what the person reads as the question.
+ */
+function askedOf(input: Record<string, unknown> | undefined): string | undefined {
+  const questions = Array.isArray(input?.questions) ? input!.questions as Array<{ prompt?: unknown }> : [];
+  const first = questions.find(item => typeof item?.prompt === "string" && item.prompt.trim());
+  if (first) return clip(`${String(first.prompt).trim()}${questions.length > 1 ? `（等 ${questions.length} 个问题）` : ""}`);
+  return typeof input?.why === "string" ? clip(input.why) : undefined;
+}
+
 export function settleProloguePending(state: PrologueStreamState, pendingId: string): boolean {
   const before = state.awaiting_approval.length + state.awaiting_input.length;
   state.awaiting_approval = state.awaiting_approval

@@ -555,12 +555,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     delegate: "委托子任务", "delegate-check": "查看子任务", "delegate-follow-up": "让子任务补改", "delegate-stop": "停止子任务",
     "memory-keep": "记下你的要求", "memory-list": "查看记住的事", "memory-forget": "删除一条记忆", "memory-suggest": "建议记住一条",
     "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做", compact: "整理上下文",
-    "browser-list": "找到侧栏浏览器", "browser-look": "查看网页", "browser-act": "操作网页" };
+    "browser-list": "找到侧栏浏览器", "browser-look": "查看网页", "browser-act": "操作网页", "ended-on-promise": "收尾" };
   const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行", unavailable: "这项能力已关闭或不再可用，没有执行" };
   const VERB_GLYPH = { lookup: "search", "lookup-tools": "search", "file-search": "search", read: "note", "file-read": "file", "file-list": "list", change: "edit",
     "file-change": "code", command: "terminal", "command-output": "terminal", ask: "question", todo: "list", suggest: "zap", delegate: "workflow", "delegate-check": "workflow",
     "delegate-follow-up": "workflow", "delegate-stop": "workflow", "memory-keep": "sparkles", "memory-list": "sparkles", "memory-forget": "sparkles", "memory-suggest": "sparkles",
-    "auto-continue": "refresh", compact: "refresh", "browser-list": "globe", "browser-look": "globe", "browser-act": "globe" };
+    "auto-continue": "refresh", compact: "refresh", "browser-list": "globe", "browser-look": "globe", "browser-act": "globe", "ended-on-promise": "alert" };
   const verbGlyph = (item) => item.state === "started" ? spinner() : glyph(item.state === "failed" ? "circle-alert" : item.state === "unknown" ? "alert" : VERB_GLYPH[item.verb] || "circle");
   const activityLine = (item) => {
     const verb = L(VERBS[item.verb] || item.verb);

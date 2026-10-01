@@ -579,6 +579,25 @@ test("a round that only announces its next step is continued once, and the perso
     assert.match(second, /现在去保存这条笔记/);
     assert.match(second, /called no tool, so nothing has happened yet/);
     assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue").map(item => item.state), ["completed"]);
+    // Still only announcing after that: the round says plainly that nothing was done, instead of leaving the promise standing.
+    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "ended-on-promise").map(item => [item.state, item.target]), [["failed", "最后只说了要做什么，没有执行"]]);
+  } finally { await f.close(); }
+});
+
+test("each kind of slip is held once per round and reads as what it was: a tool name, then a bare announcement (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply(undefined, "我用 change-capability 再试一次，由你确认后落地。"),
+    body => { assert.match(JSON.stringify(body), /internal identifiers \(change-capability\)/); return reply(undefined, "我再试一次，由你确认后落地。"); },
+    body => { assert.match(JSON.stringify(body), /called no tool, so nothing has happened yet/); return reply(undefined, "我再试一次。"); },
+    () => reply(undefined, "never asked"),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "把那条待办改到下周二", request_id: "req-00000093" }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(f.requests.length, 3, "held for the tool name, then for the announcement, and not again");
+    const activity = done.rounds[0]!.activity;
+    assert.deepEqual(activity.filter(item => item.verb === "auto-continue").map(item => item.target), ["上一段写出了内部标识，已让它改用名称重写", "上一段只说了要做什么，没有实际执行"]);
+    assert.equal(activity.filter(item => item.verb === "ended-on-promise").length, 1, JSON.stringify(activity));
   } finally { await f.close(); }
 });
 
@@ -775,4 +794,62 @@ test("the developer diagnostics trace a round by its exact identities and frozen
     assert.ok(round!.failures.some(failure => failure.tool === "read-capability" && failure.state === "failed"), JSON.stringify(round!.failures));
     assert.ok(round!.usage && round!.usage.input > 0);
   } finally { await f.close(); }
+});
+
+test("a revision or other number written as text where the contract wants the number is that number; text fields stay text (seen with MiniMax-M3)", async () => {
+  const schema = { type: "object", properties: { id: { type: "string" }, expected_revision: { type: "integer" }, due_date: { type: "string" },
+    priority: { anyOf: [{ type: "number" }, { type: "null" }] }, done: { type: "boolean" }, code: { type: "string" },
+    patch: { type: "object", properties: { expected_version: { type: ["integer", "null"] } } }, tags: { type: "array", items: { type: "integer" } } }, required: ["id", "expected_revision"] };
+  const view = { capability_id: "fixture.todo.update", version: 1, operation: "command", provider: { provider_id: "fixture.todo", kind: "plugin", title: "Todo" },
+    action: { ...write.action, input_schema: schema }, availability: { available: true } } as unknown as ActionView;
+  // Every edit of a to-do and a page was refused: the model copied the revision as the text it read ("1").
+  assert.deepEqual(normalizedInput(view, { id: "t1", expected_revision: "1", due_date: "2026-10-06", priority: "2.5", done: "false", code: "007",
+    patch: { expected_version: "3" }, tags: ["4", "x"] }),
+  { id: "t1", expected_revision: 1, due_date: "2026-10-06", priority: 2.5, done: false, code: "007", patch: { expected_version: 3 }, tags: [4, "x"] });
+  // Nothing given for an object: an empty object, which a capability taking no fields accepts.
+  const none = { ...view, action: { ...view.action, input_schema: { type: "object", properties: {}, additionalProperties: false } } } as ActionView;
+  assert.deepEqual(normalizedInput(none, ""), {});
+  assert.deepEqual(normalizedInput(none, "  "), {});
+  // Not a plain number: left as sent for the contract to judge.
+  assert.deepEqual(normalizedInput(view, { id: "t1", expected_revision: "v1" }), { id: "t1", expected_revision: "v1" });
+  // The refusal names the place and what was there, so the next attempt fixes that value instead of blaming the transport.
+  const client = { discover: async () => [view], check: async () => { throw new Error("输入不符合能力合同：/expected_revision type"); } };
+  const problem = await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.todo.update", version: 1, provider_id: "fixture.todo",
+    input: { id: "t1", expected_revision: "v1" } });
+  assert.match(problem ?? "", /At \/expected_revision you sent the text "v1"\./);
+});
+
+test("a change held for review names the object this work knows by its title, not its identifier (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "note-7f3a" } } }),
+    () => reply(undefined, "改好了。"),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "改这篇笔记", request_id: "req-00000094",
+      context: { source: { surface: "notes", title: "Notes" }, object: { kind: "note", id: "note-7f3a", title: "周报草稿" }, captured_at: new Date().toISOString() } }, { project_ref: f.project });
+    const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    const fields = held.reviews[0]!.fields;
+    assert.ok(fields.some(field => field.value === "「周报草稿」"), JSON.stringify(fields));
+    // The exact parameters stay exact.
+    assert.ok(fields.some(field => field.label === "完整参数" && field.value.includes("note-7f3a")));
+  } finally { await f.close(); }
+});
+
+test("a change held for review names an object another work made by the title the Host last saw (seen: deleting a to-do)", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "8b2f0c3a-9db4-40c7-bd8e-5a1adc2d2894" } } }),
+    () => reply(undefined, "好的。"),
+  ]);
+  try {
+    f.store.setSetting("web-user", "object-title:todo_item:8b2f0c3a-9db4-40c7-bd8e-5a1adc2d2894", "约设计评审（本人）");
+    const sent = await f.service.send({ text: "删掉那条待办", request_id: "req-00000095" }, { project_ref: f.project });
+    const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    assert.ok(held.reviews[0]!.fields.some(field => field.value === "「约设计评审（本人）」"), JSON.stringify(held.reviews[0]!.fields));
+  } finally { await f.close(); }
+});
+
+test("a review names common fields in words even when the plugin gave them no title (seen: “markdown” on a Pages edit)", () => {
+  const fields = readableInput({ type: "object", properties: { markdown: { type: "string", description: "正文的 Markdown 写法（标题、列表、表格、引用、代码块都可以），由 Pages 转换成文档" }, folder_id: { type: "string" } } },
+    { markdown: "# 周报", folder_id: "f1" });
+  assert.deepEqual(fields.map(field => field.label), ["正文", "文件夹"]);
 });

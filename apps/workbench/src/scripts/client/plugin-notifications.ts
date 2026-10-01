@@ -31,7 +31,8 @@ export const PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT = `(host) => {
   document.addEventListener("molis-work:plugin-events", (event) => { epoch++; paint(Number(event.detail?.pending) || 0); });
   button.addEventListener("click", () => {
     // The market opens through its one entry in the Dock menu, as ⌘K does; the list then scrolls to the notifications.
-    document.querySelector('[data-global-menu] [data-plugin-id="market"], [data-plugin-strip] [data-plugin-id="market"]')?.click();
+    // Already in the market, that entry would take the person back out of it, so only the list is brought into view.
+    if (document.body.dataset.desktopSurface !== "market") document.querySelector('[data-global-menu] [data-plugin-id="market"], [data-plugin-strip] [data-plugin-id="market"]')?.click();
     document.dispatchEvent(new CustomEvent("molis-work:plugin-events-reveal"));
   });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) void refresh(); });

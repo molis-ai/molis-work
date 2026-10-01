@@ -30,6 +30,7 @@ export interface PptPluginRouteDefinition {
 
 export const PPT_NATIVE_PLUGIN_ROUTES = [
   route("ppt.list", "GET", /^\/api\/ppt$/u),
+  route("ppt.outline_pages", "GET", /^\/api\/ppt\/outline-pages$/u),
   route("ppt.create", "POST", /^\/api\/ppt$/u),
   route("ppt.get", "GET", /^\/api\/ppt\/([^/]+)$/u, ["id"]),
   route("ppt.update", "POST", /^\/api\/ppt\/([^/]+)$/u, ["id"]),

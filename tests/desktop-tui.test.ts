@@ -797,7 +797,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /href="#icon-rows"/);
     assert.match(desktop, /href="#icon-network"/);
     assert.match(desktop, /href="#icon-columns"/);
-    assert.doesNotMatch(desktop, /data-board-view-tab="list"[^>]*>列表</);
+    // Each view also carries its name; CSS shows it only for the view you are in (plugin-e2e-review §5.1), the icon stays first.
+    assert.match(desktop, /data-board-view-tab="list"[^>]*>\s*<svg[\s\S]*?<span class="goal-board-switch-label">列表<\/span><\/button>/);
     assert.doesNotMatch(renderMolisWorkWorkbenchStylesheet(), /\.goal-board-switch \{[^}]*right: 20px/);
     assert.match(desktop, /data-goal-stage-list/);
     assert.doesNotMatch(desktop.slice(0, desktop.indexOf("<style>")), /class="navigator-view-switch"/);

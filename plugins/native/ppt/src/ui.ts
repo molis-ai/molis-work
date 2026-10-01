@@ -132,7 +132,13 @@ export function renderPptWorkbench(model: PptUiModel): string {
       <form class="mw-form mw-dialog__shell" data-ppt-outline-form>
         <header class="mw-form__header"><div><h2 id="ppt-outline-title">${p.text("从文字生成大纲")}</h2><p>${p.text("贴一段话、要点或 Markdown：标题成为页，列表成为要点，引用成为讲者备注。")}</p></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-ppt-outline-close aria-label="${p.text("关闭")}">${icon("x")}</button></header>
         <div class="mw-form__body">
-          <label class="mw-field"><span class="mw-field__label">${p.text("文字")}</span><textarea class="mw-textarea ppt-outline-text" name="text" rows="10" required maxlength="20000" placeholder="# ${p.text("演示稿")}&#10;## ${p.text("页标题")}&#10;- ${p.text("要点")}&#10;> ${p.text("讲者备注")}" data-ppt-outline-text></textarea></label>
+          <div class="mw-toggle-group ppt-outline-sources" data-slot="toggle-group" role="radiogroup" aria-label="${p.text("大纲来自")}" data-ppt-outline-sources>
+            <button class="mw-toggle is-current" type="button" role="radio" aria-checked="true" data-ppt-outline-source="text">${p.text("粘贴文字")}</button>
+            <button class="mw-toggle" type="button" role="radio" aria-checked="false" data-ppt-outline-source="page">${icon("note")}<span>${p.text("选一篇文档")}</span></button>
+          </div>
+          <label class="mw-field" data-ppt-outline-page-field hidden><span class="mw-field__label">${p.text("Pages 文档")}</span><select class="mw-select" data-ppt-outline-page></select></label>
+          <p class="ppt-note" data-ppt-outline-page-note hidden></p>
+          <label class="mw-field" data-ppt-outline-text-field><span class="mw-field__label">${p.text("文字")}</span><textarea class="mw-textarea ppt-outline-text" name="text" rows="10" required maxlength="20000" placeholder="# ${p.text("演示稿")}&#10;## ${p.text("页标题")}&#10;- ${p.text("要点")}&#10;> ${p.text("讲者备注")}" data-ppt-outline-text></textarea></label>
           <div class="mw-toggle-group ppt-outline-modes" data-slot="toggle-group" role="radiogroup" aria-label="${p.text("生成方式")}" data-ppt-outline-modes>
             <button class="mw-toggle is-current" type="button" role="radio" aria-checked="true" data-ppt-outline-mode="local">${p.text("按标题分页")}</button>
             <button class="mw-toggle" type="button" role="radio" aria-checked="false" data-ppt-outline-mode="ai">${icon("sparkles")}<span>${p.text("让 AI 整理")}</span></button>

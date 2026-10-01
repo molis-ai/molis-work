@@ -118,3 +118,37 @@
 2. 低保真线框：[docs/design/project-arrival-flow/wireframes.html](../../docs/design/project-arrival-flow/wireframes.html)（已认可）。
 3. 高保真：11 张设计图、状态与深色、窄屏图，三段动效录屏，可交互原型（`docs/design/project-arrival-flow/prototype/`，72 项动线检查通过）。**待用户评审。**
 4. 评审通过后：补候选组件进 `packages/design-system` 与 `/__ui/catalog`；写项目简介的数据投影与「最近打开」记录；替换引导里的 `cx-*`；新建项目选择页与开场；e2e 覆盖预选、回车进入、搜索、新建、返回、草稿保留。实现前先在 `docs/SSOT-MATRIX.md` 确认 owner，并读各包 README 的「开发要求」。
+
+## 实现记录
+
+分支 `feature/project-arrival-flow`，按提交顺序：设计稿与需求书 → 设计系统到达组件 → 项目选择页 → 引导、Welcome 与开场改用到达框架（旧样式退役）→ 测试。
+
+### 落在哪里
+
+| 部分 | 位置 |
+| --- | --- |
+| 部件（字标、AI 字幕、进度短线、分段目标条、底栏上下文与状态、材料清单、项目简介、按钮上的 `↵`） | `packages/design-system/src/primitives/arrival.ts`、`styles/arrival-components.ts`、`arrival-motion-client.ts`；规格板「到达」一节每个部件一个标本 |
+| 到达框架（标题栏 · 舞台 · 常驻底栏）与一张样式表 | `apps/workbench/src/arrival/shell.ts`、`styles/arrival.ts`，路由 `/assets/molis-work-arrival.css`（选择页、引导、更新页共用，页面之间整页跳转时浏览器沿用同一份） |
+| 选择页与项目简介 | `apps/workbench/src/arrival/chooser.ts`（服务端渲染）、`chooser-client.ts`（预览、搜索、键盘、草稿）、`project-brief.ts`（简介的取舍规则与渲染） |
+| 引导、Welcome、开场、更新页 | `apps/workbench/src/context-onboarding-renderer.ts`、`scripts/context-onboarding.ts`、`onboarding-renderer.ts` |
+| 简介接口与最近打开记录 | `apps/local-host/src/project-arrival-http.ts`（`GET /api/projects/:id/brief`）、`project-arrival.ts`（`<home>/config/project-arrival.json`） |
+
+### 数据与 owner
+
+- **简介只读公开读口**，按所选项目逐个读，不批量预取：目标条与当前目标来自 Goals 目录（`goals.list`）；当前目标那一行进展来自它自己的记录（`goals.state` 的进展摘要，没有就用它为什么存在）；接下来与最近来自 Home 事项（`home.events.read`，各插件共用同一个口）；描述是采用时保存的一句话，没有就用项目长期背景里的 context 条目的第一段。读不到的部分在简介里写「暂时读不到」，不猜、不补示例数据；每个读口 8 秒内没答就当读不到，项目照样能进。
+- **最近打开**与采用时保存的一句话描述放在 `<home>/config/project-arrival.json`（原子改名写）：项目自己的页面被请求时写入（窗格、嵌入、非文档请求不算；5 秒内重开不重记）；选择页渲染时对照目录清理已不存在的项目（个人空间除外）；写失败不挡路。它只是展示记忆，不存任何项目事实，也不参与权限。
+- **描述**取采用时摘要的第一段有内容的段落（标题不算，去掉强调、链接和 [S1] 引注，最长 240 字）；空白开始没有描述，简介里如实写「还没有项目描述」。
+
+### 与设计稿的差异
+
+- **没有材料数、文档数、「助理在做」**：这几项没有公开读口（要读各插件私有存储或跨项目汇总），按「不猜」不显示；设计稿里的示例数字没有照搬。
+- **开场里也有「稍后再说」**：设计稿的开场没有它，但首次使用要能不经任何步骤离开，`#cx-exit` 也是既有测试与动线的钩子，所以开场的底栏左侧保留它。
+- **两个文档、一个框架**：`/`（选择页）和 `/onboarding`（开场、Welcome、引导、更新页）仍是两个服务端渲染的文档，用同一个外壳与同一张样式表；冷启动用 `sessionStorage` 判定，开场进度用 `molis-work:onboarding-intro`。没有改成单页应用。
+- **「在后台继续」未做**：整理由 Host 在后台读取，离开页面不会中断、回来接着看（`/api/onboarding/context` 的阶段不变）；把它登记为后台任务没有 owner，不在这次范围。
+- **选择页助理的范围**按所选项目（个人空间则个人范围），按项目各留一份草稿；占位语写明在为哪个项目说话。这是设计稿里写明、随整体设计一并获认可的行为变化（原先这一页的助理固定在个人范围）。
+- **字号**只用固定阶梯；开场的大字标按窗口宽度分档（200 / 160 / 128 / 96 / 68px）。
+- **旧的 `ONBOARDING_CLIENT_SCRIPT` 里整段多步表单代码**早已没有页面渲染它，只有更新页用到其中的「关闭」；断言它的几条 desktop-tui 检查属于上一代引导，这次没有动，留给单独清理。
+
+### 验证
+
+见本提交的测试：`tests/project-arrival-chooser.test.ts`、`project-brief.test.ts`、`project-arrival.test.ts`（单元：排序、预选、转义、桌面壳、英文无中文残留、简介规则、记录读写与容错）；`tests/project-arrival.e2e.test.ts`、`tests/onboarding-journey.e2e.test.ts`（真实浏览器：预选与回车进入、键盘、搜索与 ⌘K、个人空间、简介读不到与重试、助理按项目与草稿、60 个项目、首次使用的完整旅程与语言切换、更新页；并对每个屏、每个状态在 1920 / 1440 / 1024 / 768 / 600 / 390 / 320 宽、浅色与深色下跑版面审计 `tests/fixtures/layout-audit.ts`：页面不滚动、不横向溢出，没有互相重叠的控件 / 文字 / 图标，控件不被裁、不被盖住，没有悄悄被截断的文字，点击目标不小于 24px）；`tests/client-script-undeclared.test.ts` 与 `tests/i18n.test.ts` 把选择页、引导、动效三段浏览器脚本和整句英文词条纳入检查。

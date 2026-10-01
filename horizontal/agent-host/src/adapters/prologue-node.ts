@@ -91,7 +91,7 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   /** Host-owned surface; absence keeps all writes unavailable. */
   reviewQueue?: AgentReviewQueue;
   /**
-   * The side panel's browser pages (specs/side-panel): attached to a business round in their project, looked at and
+   * The side panel's browser pages (specs/archive/side-panel): attached to a business round in their project, looked at and
    * driven only through Prologue's interface control. Absent: no round gets the surface tools.
    */
   surfaces?: PrologueSurfacePorts;

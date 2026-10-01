@@ -5,7 +5,7 @@
 `prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`，SHA-256 `942de9c594d8fc0bbb81d3b36d766761427ff51c2c4cee33aab342033c85846c`。在 assistant-intake 包的来源（prologue `c63ea1a1`）之上叠两条线，合成一个包给侧栏与记忆两边共用：
 
 - 平台记忆（记忆会话，`f80130ab`、`9773d59a`）：条目元数据与暂停、中日韩召回、固定注入的回执、按范围持久的候选；候选按 App 最终给出的出处与信息落定，或并入它更正的已有条目。
-- 侧栏的界面控制（specs/side-panel，`d7aba36b`、`3f8ffd15`、`e0a2f059`、`356ae236`、`9fc3b173`）：
+- 侧栏的界面控制（specs/archive/side-panel，`d7aba36b`、`3f8ffd15`、`e0a2f059`、`356ae236`、`9fc3b173`）：
   - 界面归属会话，另一会话的界面与观察一律拒绝；
   - App 模式在本会话挂了界面时放行 `surface-list/observe/act`，本轮工具名单和 Character 绑定两道检查用同一份名单；
   - 文字观察以 `<untrusted-page-content>` 交给模型；
@@ -19,11 +19,11 @@
   - 在 `9fc3b173` 上，记忆的 memory-export / extract / persist / platform / project-scope 与界面的 app-mode-surfaces / ui-control / plugin-manifest / computer-use 测试全过；
   - Molis 侧，换包后 `pnpm build`、`boundary:check`、`typecheck:all` 通过，tests/side-panel-* 通过；
   - 真实模型（MiniMax-M3）跑通了侧栏浏览器的查看、确认、接手交还、上传与网站决定。
-- 包的依赖与 assistant-intake 相同，没有新增。记忆线之后复用本包，删掉自己的 memory-platform.tgz（由其用户决定）。本目录的 assistant-intake.tgz 换包后不再被依赖；按本目录约定应删除，删 vendor 文件由用户决定。
+- 包的依赖与 assistant-intake 相同，没有新增。记忆线之后复用本包，删掉自己的 memory-platform.tgz（由其用户决定）。assistant-intake.tgz 换包后不再被依赖，用户 2026-09-30 决定删除，已删掉；需要时从 Git 历史取。
 
 ## 上一依赖：assistant-intake（2026-09-29，main 的原图摄取线 + 助理的记忆项目作用域）
 
-`prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`。把两条从 `4702abe3` 分出的线合在一起：main 的 `resource-intake`（有界结果、原图摄取与资源限额，见下节）与系统级助理的记忆 `project` 作用域（`memory-project.patch`，见“历史依赖：assistant-memory”）。两者只在记忆那两个文件上相交，合并无冲突。
+`prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`（2026-09-30 已从本目录删掉，需要时从 Git 历史取，或按下面的重建步骤生成）。把两条从 `4702abe3` 分出的线合在一起：main 的 `resource-intake`（有界结果、原图摄取与资源限额，见下节）与系统级助理的记忆 `project` 作用域（`memory-project.patch`，见“历史依赖：assistant-memory”）。两者只在记忆那两个文件上相交，合并无冲突。
 
 - 源码：`~/code/prologue-assistant` 仓库的工作树分支 `feat/molis-assistant-resource-intake`，提交 `c63ea1a1`（合并 `18a1c827` 与 `ac4d1135`）。
 - 重建：检出 `af7375c7`，先应用 [resource-intake.patch](resource-intake.patch)，再应用 [memory-project.patch](memory-project.patch)；`pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`。
@@ -87,7 +87,7 @@ git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendo
 - 源码：`/Users/yijunwang/code/prologue-dispatch-denied`，分支 `feature/molis-bounded-results`，源码提交 `4b6cd9bcf772f2b73185d8858a3ab4c7c52aa962`，基线 `03c6ba0b`；增量完整保存在 [bounded-results.patch](bounded-results.patch)，包括源码、合同和测试，以及 main `21cdfbf8` 引入的网络授权增量。历史 [network-dispatch.patch](network-dispatch.patch) 相对 `af7375c7`，已包含在当前完整补丁中，不要重复应用。
 - SHA-256：`2269225bc71c3fd4fccaf4cdd5690244f6608348b79a56b73d50bbe6aef6b04a`。
 - 重建：检出 `03c6ba0b`，应用上述补丁，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz`。
-- SDK build 与结果收集/结构化/参数 38 项定向验证通过，含真实 Node Host + 本地 HTTP 模型成功、结构失败、取消和用量。全仓 `tsconfig.typecheck.json` 仍有原先两处 `agent-compaction-public.test.ts` 类型错误，未虚称通过。JSON 解码补充后 SDK build 与四文件 40 项验证通过，1 项真实 MiniMax 因无凭据跳过。消费端进度与其他验证见 [本次 spec](../../specs/platform-capability-consolidation/spec.md)。未发布 npm、未修改用户安装。
+- SDK build 与结果收集/结构化/参数 38 项定向验证通过，含真实 Node Host + 本地 HTTP 模型成功、结构失败、取消和用量。全仓 `tsconfig.typecheck.json` 仍有原先两处 `agent-compaction-public.test.ts` 类型错误，未虚称通过。JSON 解码补充后 SDK build 与四文件 40 项验证通过，1 项真实 MiniMax 因无凭据跳过。消费端进度与其他验证见 [本次 spec](../../specs/archive/platform-capability-consolidation/spec.md)。未发布 npm、未修改用户安装。
 
 合并网络授权后，同一 Node Host 对所有真实 fetch（含 MCP/重定向）执行可信 App 的 `beforeNetworkDispatch`；model-only 回调仍仅作用于模型。拒绝保持 `EFFECT_NOT_AUTHORIZED`，不改为网络错误或换模型；MCP 取消按 Host inspect 的真实派发事实处理。SDK 重新构建，8 个测试文件 75 项通过、1 项真实 MiniMax 因缺少凭据跳过，日志 `/tmp/prologue-combined-tests.log`；没有将全量测试类型检查标为通过。
 

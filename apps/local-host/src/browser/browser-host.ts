@@ -10,9 +10,9 @@ import { CdpConnection, type CdpParams } from "./cdp.js";
 import { locateBrowser, type LocatedBrowser } from "./locate.js";
 
 /**
- * The side panel's browser (specs/side-panel D03/D04): one Chrome-family process per Home, started on first use with
+ * The side panel's browser (specs/archive/side-panel D03/D04): one Chrome-family process per Home, started on first use with
  * its own profile under the Home, and one page per project. The person sees each page through its screencast and
- * drives it through CDP input; the assistant's driver (specs/side-panel P5) acts on the same page, so what it does is
+ * drives it through CDP input; the assistant's driver (specs/archive/side-panel P5) acts on the same page, so what it does is
  * what the person watches.
  */
 export interface BrowserHostOptions {

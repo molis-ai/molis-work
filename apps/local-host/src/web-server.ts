@@ -44,7 +44,9 @@ function loopbackWebOrigin(server: http.Server): string {
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   return function createMolisWorkWebServer(options: WebServerOptions = {}): http.Server {
     const storageHome = path.resolve(options.homeDirectory ?? resolveMolisWorkHome());
-    const catalogAccess = platform.openCatalog ? createWebCatalogAccess(storageHome, platform.openCatalog) : undefined;
+    const catalogAccess = platform.openCatalog ? options.localHost
+      ? options.localHost.ensureWebCatalog(storageHome, platform.openCatalog)
+      : createWebCatalogAccess(storageHome, platform.openCatalog) : undefined;
     const withCatalog = catalogAccess?.withCatalog ?? platform.withCatalog;
     const composition = createLocalWebComposition({ ...platform, withCatalog });
     const { serveWorkbenchAsset } = composition;
@@ -273,7 +275,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
       if (ownsLocalHost) void localHost.close();
-      void catalogAccess?.close();
+      if (ownsLocalHost) void catalogAccess?.close();
     });
     if (!fixture) void catalogAccess?.warm().catch(() => undefined);
     return server;

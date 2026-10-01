@@ -615,6 +615,24 @@ test("a reply that says a button is ready when none was made is held once; the b
   } finally { await f.close(); }
 });
 
+test("a reply that says something was saved when no change went through is held once; the change then happens (seen with MiniMax M3.1)", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply(undefined, "记下了：已经存到笔记里。"),
+    body => { assert.match(JSON.stringify(body), /no change succeeded in this round/); return reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "saved for real" } } }); },
+    () => reply(undefined, "已经存到笔记里。"),
+    () => reply(undefined, "never asked"),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "记一下：saved for real", request_id: "req-00000094" }, { project_ref: f.project });
+    const asked = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    await f.service.decide(sent.work.work_id, { review_id: asked.reviews[0]!.review_id, decision: "approve" });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "the note exists");
+    assert.equal(f.requests.length, 3, "held once; the same words after the change went through are not held");
+    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue").map(item => item.target), ["上一段说已经保存或建好，但这一轮没有成功的改动"]);
+  } finally { await f.close(); }
+});
+
 test("the gateway takes a capability's fields put beside its identity as the input they meant, and still reviews the exact value", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", text: "flattened" } }),

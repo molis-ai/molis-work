@@ -64,6 +64,7 @@
 | BL-089 | MiniMax M3.1 把数组参数写成 `{item: …}`（待办的 `sources`、提问工具的 `options` 都碰到过）：网关按合同拒绝，模型有时自己改对，有时连续失败到上限。可以按 schema 把 `{item: X}` 归一成数组，与已有的数字、是否归一同类 | [post-merge-review §5 场景 1](post-merge-review/spec.md) | 已知缺口 | 本步不新增兼容处理 | 无 | 中 | 未分配 |
 | BL-090 | 开发者诊断把「输入不合能力合同」的失败记成 `EFFECT_NOT_AUTHORIZED`，看不出真实原因 | [post-merge-review §5 场景 1](post-merge-review/spec.md)（`/api/assistant/diagnostics`） | 已知缺口 | 只影响开发者诊断页 | 无 | 低 | 未分配 |
 | BL-091 | 助理过程中的文字会露出内部标识（如 `todo.items.create`、`change-reversible`、分类 id `uncategorized`）；现有防护只检查最后的回复 | [post-merge-review §5 场景 1](post-merge-review/spec.md) | 已知缺口 | 需定过程文字是否也要拦 | 无 | 低 | 未分配 |
+| BL-093 | 记忆候选误提炼：一句一次性的「记一下：要把评审会的会议纪要发给全组」被提成项目范围的「以后把评审会的会议纪要发给全组」待确认候选 | [post-merge-review §5 场景 2](post-merge-review/spec.md) | 已知缺口 | 候选需要用户认可，不会直接生效；提炼规则要区分一次性事项与长期偏好 | 无 | 低 | 未分配 |
 
 ## 4. 搜索、放置与工作流
 

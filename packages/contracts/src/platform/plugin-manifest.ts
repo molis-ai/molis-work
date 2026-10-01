@@ -405,7 +405,7 @@ function inspectPortPermissions(parsed: PluginManifest): string[] {
   return problems;
 }
 
-/** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/side-panel D16). */
+/** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";
 
 function isWebOrigin(value: unknown): boolean {

@@ -54,7 +54,7 @@ export const pagesActions = {
   fragmentOffers: defineFragmentOffersAction("pages.fragment.offers", [PAGES_SUBJECT_KIND], "文档片段可以做的事", read, PAGES_FRAGMENT_CHOICES),
   /** System search: every document of the project by version; its text is read back through `subject`. */
   searchEntries: defineSearchEntriesAction("pages.search.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "文档", read),
-  /** The side panel's file tab (specs/side-panel): documents by folder; the preview reads the same `subject` text. */
+  /** The side panel's file tab (specs/archive/side-panel): documents by folder; the preview reads the same `subject` text. */
   fileEntries: defineFileEntriesAction("pages.files.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read),
   /** The document as Markdown, the same conversion Pages uses when it hands a page to another plugin. */
   fileContent: defineFileContentAction("pages.files.content", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read),
@@ -157,7 +157,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.list, (_, caller) => ports.withStore(store => ({ documents: store.list(project(caller)), folders: store.listFolders(project(caller)) }))),
     bind(pagesActions.templates, () => ({ templates: pagesTemplateSummaries() })),
     bind(pagesActions.get, (input, caller) => ports.withStore(store => ({ document: store.get(input.id, project(caller)) }))),
-    bind(pagesActions.create, (input, caller) => ports.withStore(store => ({ document: store.create({ ...written(input, caller), project_id: project(caller) }) }))),
+    bind(pagesActions.create, (input, caller) => ports.withStore(store => ({ document: store.create({ ...written(input, caller, true), project_id: project(caller) }) }))),
     bind(pagesActions.update, (input, caller) => ports.withStore(store => {
       // The person's own editing (the Pages page, autosave) needs no taking back; what an agent or workflow changed does.
       if (caller.audience === "user") return { document: store.update(input.id, written(input, caller), project(caller)), change_id: null };
@@ -214,12 +214,13 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
  * opened as an empty page, and the next keystroke there saved the empty page over it.) The person's own editor always
  * writes its own structure.
  */
-function written<T extends WrittenFields>(input: T, caller: ActionCallContext): Omit<T, "markdown"> {
+function written<T extends WrittenFields>(input: T, caller: ActionCallContext, creating = false): Omit<T, "markdown"> {
   const { markdown, ...rest } = input;
   if (markdown !== undefined) {
     if (rest.body !== undefined) throw new ActionError("pages.invalid", "markdown 与 body 只给一个");
     const converted = convertImportContent({ name: rest.title || "未命名文档", format: "markdown", content: markdown });
-    return { ...rest, ...(rest.title ? {} : { title: converted.title.slice(0, 80) }), body: converted.body };
+    // Only a new document takes its title from the Markdown; rewriting a body must not rename what the person titled.
+    return { ...rest, ...(rest.title || !creating ? {} : { title: converted.title.slice(0, 80) }), body: converted.body };
   }
   if (rest.body === undefined || caller.audience === "user" || !rest.body.content?.length) return rest;
   try { pagesSchema.nodeFromJSON(rest.body).check(); }

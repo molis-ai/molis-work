@@ -165,7 +165,7 @@ export async function handleMolisWorkWebRequest(
       });
       const shownPlugins = (projectId: string) => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
         catalog => shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId)));
-      // A plugin's side panel tab (specs/side-panel D13): the declared `side` view, served for a plugin enabled here.
+      // A plugin's side panel tab (specs/archive/side-panel D13): the declared `side` view, served for a plugin enabled here.
       const sideView = /^\/side\/([^/]+)\/([^/]+)$/u.exec(url.pathname);
       if (sideView && request.method === "GET" && options.project) {
         const projectId = options.project.project_id;

@@ -133,4 +133,7 @@ export const PPT_STYLES = `
   .ppt-outline-modes { margin: 12px 0 8px; }
   .ppt-outline-dialog [data-ppt-outline-ai-reason] { margin: 0 0 8px; }
   .ppt-outline-dialog .form-error { color: var(--red); font-size: 12px; margin: 8px 0 0; }
+
+  .ppt-outline-sources { margin: 0 0 12px; }
+  .ppt-outline-dialog [data-ppt-outline-page-note] { margin: 4px 0 8px; }
 `;

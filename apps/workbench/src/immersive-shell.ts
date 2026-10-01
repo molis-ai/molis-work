@@ -152,7 +152,7 @@ const BAR_RESIDENT_IDS = ["shelf", "lingguang"];
  * when split) and opens search and every entry of the project, with the Dock's own settings at its foot (the market,
  * the plugin studio, which plugins stay in the Dock) — then the plugins chosen to stay; the two sit in one tray.
  * Centre: the resident Assistant, only an input. Right: Shelf and 灵光 with the side panel's button (the project's
- * discussion, the browser and files beside the work, specs/side-panel) in one tray, then the project as a round button
+ * discussion, the browser and files beside the work, specs/archive/side-panel) in one tray, then the project as a round button
  * whose menu holds the project and the person — switching, search, settings, capabilities.
  */
 export function renderWorkbenchBar(
@@ -267,7 +267,7 @@ export function renderGlobalSearchOverlay({ L, icon }: ImmersiveShellPrimitives)
 }
 
 export function renderPluginMarket({ L, icon, escapeHtml }: ImmersiveShellPrimitives): string {
-  // Sites a Plugin says it uses in the side panel browser are read before it is added (specs/side-panel D16).
+  // Sites a Plugin says it uses in the side panel browser are read before it is added (specs/archive/side-panel D16).
   const sites = (plugin: { sites: readonly string[] }) => plugin.sites.length
     ? `<small class="plugin-market-sites" data-market-sites>${L("会在侧栏浏览器里使用")}：${plugin.sites.map(site => escapeHtml(site)).join("、")}</small>` : "";
   const rows = pluginMarketCards().map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"><div class="plugin-market-icon">${icon(plugin.glyph as MolisWorkIcon)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");

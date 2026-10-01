@@ -635,7 +635,7 @@ interface AgentStartRequestFields {
   /** The session's name as the person sees it, for the project's list of work under way. */
   session_title?: string;
   /**
-   * `false`: this round gets no side panel browser even where its project has one (specs/side-panel) — e.g. a delegated
+   * `false`: this round gets no side panel browser even where its project has one (specs/archive/side-panel) — e.g. a delegated
    * work running beside its parent. Absent: a business round in a project with a browser may use it.
    */
   browser?: false;

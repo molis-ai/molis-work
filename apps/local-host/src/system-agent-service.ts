@@ -45,7 +45,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         : workspaces.workspaceFor?.(projectId) ?? null,
       prologue: {
         storageRoot: path.join(storageHome, "agent-runtime"),
-        // The side panel's browser, when the server that owns it registered one for this Host (specs/side-panel P5).
+        // The side panel's browser, when the server that owns it registered one for this Host (specs/archive/side-panel P5).
         surfaces: {
           driverFor: owner => browserSurfacesFor(localHost)?.driverFor(owner) ?? null,
           siteDecisions: () => browserSurfacesFor(localHost)?.siteDecisions() ?? [],

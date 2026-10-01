@@ -292,11 +292,39 @@ export function normalizedInput(view: ActionView, input: unknown): unknown {
   for (let depth = 0; depth < 2 && typeof value === "string" && schema.type !== "string"; depth++) {
     try { value = JSON.parse(value); } catch { break; /* left as given; the contract says why */ }
   }
+  // Nothing given where the contract wants an object: an empty object (seen: `""` for a read that takes no fields).
+  if (typeof value === "string" && !value.trim() && schema.type === "object") value = {};
   if (typeof value === "string" && value.trim() && schema.type === "object") {
     const field = soleTextField(schema);
     if (field) value = { [field]: value };
   }
-  return schema.type === "object" ? value ?? {} : value;
+  return coerced(schema, schema.type === "object" ? value ?? {} : value);
+}
+
+/**
+ * A number or yes/no written as text where the contract wants the number itself: the value it plainly means. Seen from
+ * MiniMax-M3: objects' revisions reach it as text ("1"), it sends `expected_revision: "1"`, and every edit was refused.
+ * Only where the schema takes no text at that place; anything else is left for the contract to judge.
+ */
+function coerced(schema: unknown, value: unknown): unknown {
+  if (!schema || typeof schema !== "object") return value;
+  const node = schema as { type?: unknown; properties?: Record<string, unknown>; items?: unknown; anyOf?: unknown[]; oneOf?: unknown[] };
+  const branches = [node, ...(Array.isArray(node.anyOf) ? node.anyOf : []), ...(Array.isArray(node.oneOf) ? node.oneOf : [])];
+  const types = new Set(branches.flatMap(branch => { const type = (branch as { type?: unknown } | null)?.type; return Array.isArray(type) ? type : type === undefined ? [] : [type]; }));
+  if (typeof value === "string" && !types.has("string")) {
+    const text = value.trim();
+    if (types.has("integer") && /^-?\d+$/.test(text) && Number.isSafeInteger(Number(text))) return Number(text);
+    if (types.has("number") && /^-?\d+(\.\d+)?$/.test(text)) return Number(text);
+    if (types.has("boolean") && (text === "true" || text === "false")) return text === "true";
+    return value;
+  }
+  if (Array.isArray(value)) return node.items ? value.map(item => coerced(node.items, item)) : value;
+  if (value && typeof value === "object") {
+    const properties = branches.reduce<Record<string, unknown>>((all, branch) => ({ ...all, ...((branch as { properties?: Record<string, unknown> } | null)?.properties ?? {}) }), {});
+    if (!Object.keys(properties).length) return value;
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, inner]) => [key, key in properties ? coerced(properties[key], inner) : inner]));
+  }
+  return value;
 }
 
 /** The one required field of an object schema, when it takes text; null when the text could mean more than one field. */
@@ -332,7 +360,12 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
     const kind = sent === null ? "null" : Array.isArray(sent) ? "array" : typeof sent;
     // What arrived, briefly, so the next attempt corrects the shape instead of repeating it.
     const excerpt = JSON.stringify(sent)?.slice(0, 160) ?? "undefined";
-    return `${error instanceof Error ? error.message : String(error)} (you sent ${kind}: ${excerpt}). The input must be a JSON value matching this schema: ${JSON.stringify(view.action.input_schema).slice(0, 2000)}`;
+    const message = error instanceof Error ? error.message : String(error);
+    // The value at the place the contract names: the excerpt alone may stop before it, and the model then blames the transport.
+    const at = /(?:^|[\s：:])(\/[\w/-]+)/.exec(message)?.[1];
+    const found = at ? at.split("/").slice(1).reduce<unknown>((inner, key) => inner && typeof inner === "object" ? (inner as Record<string, unknown>)[key] : undefined, sent) : undefined;
+    const named = at && found !== undefined ? ` At ${at} you sent ${Array.isArray(found) ? "an array" : typeof found === "string" ? "the text" : typeof found} ${JSON.stringify(found)?.slice(0, 120)}.` : "";
+    return `${message}.${named} (you sent ${kind}: ${excerpt}). The input must be a JSON value matching this schema: ${JSON.stringify(view.action.input_schema).slice(0, 2000)}`;
   }
   return null;
 }

@@ -3,9 +3,10 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionResultSubject, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { JELLY_ACTION_PERMISSIONS, jellyActions as actions, jellyCommandActions as commands, jellyServiceActions as services, runJellyMcpTool, openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
+import { assistantContributions } from "../apps/local-host/src/assistant/assistant-contributions.js";
 import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
 const day = "2026-09-25", tomorrow = "2026-09-26";
 const slot = { start_date: day, end_date: day, start_time: 540, end_time: 570 };
@@ -73,6 +74,61 @@ test("calendar commands retain dates, instance identity, category reassignment a
   state = await command("undo"); assert.ok(state.items.some(i => i.id === id));
   state = await command("redo"); assert.ok(!state.items.some(i => i.id === id));
   assert.equal((await bound.invoke(actions.categories, {})).revision, (await read()).revision);
+});
+
+test("commands on one calendar entry name it as their result, and the Assistant can read that entry back", async t => {
+  const { bound, read, host, caller } = fixture(t);
+  const entries = ["item.create", "item.update", "item.complete", "item.move", "task.schedule", "series.create", "series.update", "series.complete"] as const;
+  for (const type of entries) {
+    assert.deepEqual(commands[type].action.subject_kinds, ["jelly_item"], type);
+    assert.ok(commands[type].action.result_subject, type);
+  }
+  // Several entries, a removal or the whole workspace: no single entry to relate the result to.
+  for (const type of ["item.move_many", "item.reorder", "item.delete", "series.delete", "undo"] as const) assert.deepEqual(commands[type].action.subject_kinds, ["jelly_workspace"], type);
+  const agent = bindActionClient(host.homeActionClient(), () => ({ ...caller, audience: "agent" }));
+  const reader = (await agent.discover()).find(view => view.capability_id === actions.itemSubject.capability_id);
+  assert.equal(reader?.availability.available, true, "the reader of jelly_item is offered to agents");
+  type Entry = { id: string; title: string; updated_at: string };
+  // What the Assistant's work keeps from a successful change, and what it then reads back from Jelly.
+  const run = async (type: (typeof entries)[number], input: Record<string, unknown>) => {
+    const full = { expected_revision: (await read()).revision, ...input };
+    const output = await bound.invoke(commands[type], full) as { state: Awaited<ReturnType<typeof read>>; item?: Entry; series?: Entry };
+    const result = actionResultSubject(commands[type].action, full, output);
+    assert.ok(result, type);
+    const context = await agent.invoke(actions.itemSubject, { subject_id: result.subject.id });
+    assert.equal(context.revision, result.revision, `${type}: the recorded revision is the one read back`);
+    return { output, result, context };
+  };
+  const created = await run("item.create", { item: { title: "Q4 预算对齐会", kind: "event", ...slot } });
+  const id = created.output.item!.id;
+  assert.deepEqual(created.result.subject, { kind: "jelly_item", id });
+  assert.ok(created.output.state.items.some(item => item.id === id));
+  assert.equal(created.context.title, "Q4 预算对齐会");
+  const given = await run("item.create", { item: { id: "chosen", title: "自带标识", start_date: day } });
+  assert.equal(given.result.subject.id, "chosen");
+  const updated = await run("item.update", { id, patch: { title: "Q4 预算对齐会（改）" } });
+  assert.equal(updated.result.subject.id, id); assert.equal(updated.context.title, "Q4 预算对齐会（改）");
+  assert.equal((await run("item.complete", { id, completed: true })).result.subject.id, id);
+  assert.equal((await run("item.move", { id, date: tomorrow })).context.content.includes(tomorrow), true);
+  const note = (await bound.invoke(commands["note.create"], { expected_revision: (await read()).revision, title: "笔记", blocks: [{ id: "task", kind: "task", text: "做检查" }] })).state.notes[0]!;
+  const scheduled = await run("task.schedule", { note_id: note.id, block_id: "task", schedule: slot });
+  assert.equal(scheduled.context.title, "做检查");
+  assert.equal((await run("task.schedule", { note_id: note.id, block_id: "task", schedule: { ...slot, start_time: 600, end_time: 630 } })).result.subject.id, scheduled.result.subject.id, "rescheduling changes the same item");
+  const series = await run("series.create", { series: { title: "每周例会", start_date: day, weekdays: [5] } });
+  const seriesId = series.output.series!.id;
+  assert.equal(series.context.title, "每周例会");
+  assert.equal((await run("series.update", { id: seriesId, original_date: day, scope: "onlyThis", patch: { title: "本次改名" } })).result.subject.id, seriesId);
+  assert.equal((await run("series.complete", { id: seriesId, original_date: day, completed: true })).result.subject.id, seriesId);
+  const later = await run("series.update", { id: seriesId, original_date: "2026-10-02", scope: "thisAndFuture", patch: { title: "此后改名" } });
+  assert.notEqual(later.result.subject.id, seriesId, "this and later occurrences become a new series");
+  assert.equal(later.context.title, "此后改名");
+  assert.ok((await read()).series.some(entry => entry.id === later.result.subject.id));
+  // The developer diagnostics count exactly these as changes the Assistant can relate and read back.
+  const jelly = assistantContributions(await host.inspectActions({ actor_id: "web-user", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [] }))
+    .find(row => row.title === "Jelly")!;
+  assert.ok(jelly.readable_kinds.includes("jelly_item"));
+  assert.equal(jelly.linked_changes, entries.length);
+  assert.match(jelly.gaps.find(gap => gap.area === "results" && gap.text.includes("jelly_workspace"))!.text, /没有读取动作/);
 });
 
 test("notes, tasks and relationships update the same objects; confirmed deletion retains scheduled items and undo restores links", async t => {

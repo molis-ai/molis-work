@@ -196,3 +196,16 @@ test("what an agent writes is what the editor can show: Markdown is converted by
     assert.match(JSON.stringify(own.document.body), /我自己改的/);
   });
 });
+
+test("rewriting a body from Markdown keeps the title the person gave; only a new document takes its title from the Markdown", async () => {
+  await fixture(async ({ bound, caller, client }) => {
+    const { document: titled } = await bound.invoke(actions.create, { title: "周会纪要" });
+    const agent = bindActionClient(client, () => ({ ...caller, actor_id: "runtime:x", audience: "agent" }));
+    for (const writer of [bound, agent]) {
+      await writer.invoke(actions.update, { id: titled.id, markdown: "## 进展\n\n- 上线灰度\n" });
+      assert.equal((await bound.invoke(actions.get, { id: titled.id })).document.title, "周会纪要");
+    }
+    const { document: fresh } = await bound.invoke(actions.create, { markdown: "# 来自 Markdown 的标题\n\n正文" });
+    assert.equal(fresh.title, "来自 Markdown 的标题");
+  });
+});

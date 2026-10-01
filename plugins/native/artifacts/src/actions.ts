@@ -28,7 +28,7 @@ function define<I, O>(name: string, title: string, description: string, operatio
 }
 /** System search: the newest available version of each Artifact, by title and the text inside its payload. */
 const searchEntries = defineSearchEntriesAction("artifacts.search.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
-/** The side panel's file tab (specs/side-panel): the newest available version of each Artifact; previews read `subject`. */
+/** The side panel's file tab (specs/archive/side-panel): the newest available version of each Artifact; previews read `subject`. */
 const fileEntries = defineFileEntriesAction("artifacts.files.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
 function payloadText(value: unknown, out: string[] = [], budget = { left: 4000 }): string[] {
   if (budget.left <= 0 || value == null) return out;

@@ -1,5 +1,5 @@
 /**
- * A browser page the Assistant may watch and act on (specs/side-panel D05–D10). The local Host implements it over the
+ * A browser page the Assistant may watch and act on (specs/archive/side-panel D05–D10). The local Host implements it over the
  * side panel's browser; the Agent Host adapts it to Prologue's `UiSurface` and attaches it to the runtime, so every
  * observation and action goes through Prologue's policy, approval, receipts and screenshot redaction.
  *

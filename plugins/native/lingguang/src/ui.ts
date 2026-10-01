@@ -27,7 +27,7 @@ export const lingguangUiDescriptor: UiContributionDescriptor = {
   surfaces: [
     { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
-    // The same stage as a side panel tab: jot an idea down beside whatever else is open (specs/side-panel).
+    // The same stage as a side panel tab: jot an idea down beside whatever else is open (specs/archive/side-panel).
     { surface_id: "side", target_slot_id: "workbench.side", format: "declarative-html" },
   ],
   slots: [],

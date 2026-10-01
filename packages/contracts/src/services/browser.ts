@@ -1,5 +1,5 @@
 /**
- * The side panel's browser (specs/side-panel §3.2). One Chrome-family browser per Home, started by the local Host
+ * The side panel's browser (specs/archive/side-panel §3.2). One Chrome-family browser per Home, started by the local Host
  * with its own profile (never the person's own browser and sign-ins); one page per project. The panel shows the
  * page's screencast and sends input back over one socket at `BROWSER_SOCKET_PATH`, authenticated like the terminal.
  *

@@ -11,7 +11,7 @@ import { locateBrowser } from "../apps/local-host/dist/browser/locate.js";
 import type { BrowserPageState } from "@molis-ai/molis-work-contracts/services/browser";
 
 /*
- * The side panel's browser on a real local Chrome (specs/side-panel P2, P5): what the person sees and drives, and what
+ * The side panel's browser on a real local Chrome (specs/archive/side-panel P2, P5): what the person sees and drives, and what
  * the Assistant's driver sees and does, on one page. Skipped when this machine has no Chrome-family browser.
  */
 

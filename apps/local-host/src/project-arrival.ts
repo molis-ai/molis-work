@@ -81,9 +81,11 @@ export function markProjectOpened(homeDirectory: string | undefined, projectId: 
   }
 }
 
-/** The first paragraph of a summary, flattened to one sentence a chooser row can carry. */
+/** The first paragraph of a summary that says something (a heading is a title, not a description), flattened to one sentence a chooser row can carry. */
 export function descriptionFromSummary(summary: string): string | null {
-  const paragraph = summary.split(/\n\s*\n/u).map(part => part.replace(/^#{1,6}\s+/gmu, "").replace(/\*\*([^*]+)\*\*/gu, "$1").replace(/\s+/gu, " ").trim()).find(part => part.length > 0);
+  const paragraph = summary.split(/\n\s*\n/u)
+    .map(part => part.split("\n").filter(line => !/^\s*#{1,6}\s/u.test(line)).join(" ").replace(/\*\*([^*]+)\*\*/gu, "$1").replace(/\s+/gu, " ").trim())
+    .find(part => part.length > 0);
   if (!paragraph) return null;
   return paragraph.length > MAX_DESCRIPTION ? `${paragraph.slice(0, MAX_DESCRIPTION - 1).trimEnd()}…` : paragraph;
 }

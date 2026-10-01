@@ -545,18 +545,6 @@ export const CALM_DESKTOP_STYLES = `  /* Calm Desktop visual replacement. The fr
   }
   .preference-option .preference-check { color: var(--ink); }
 
-  .project-index-page { background: var(--page); }
-  .project-index-panel {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-  html[data-resolved-theme="dark"] .project-index-panel { background: transparent; }
-  .project-index-heading { border: 0; }
-  .project-index-desktop-note { border: 0; background: transparent; }
-  .project-index-note { border: 0; background: transparent; }
-
   html[data-resolved-theme="dark"] .tree-node.is-selected,
   html[data-resolved-theme="dark"] .navigator-goal-row.is-selected,
   html[data-resolved-theme="dark"] .settings-navigation a[aria-current="page"] {

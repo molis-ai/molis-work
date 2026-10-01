@@ -17,6 +17,8 @@ export const ARRIVAL_STYLES = String.raw`
   :where(.arrival) :is(h1, h2, p) { margin: 0; }
   :where(.arrival) :is(ol, ul) { margin: 0; padding: 0; list-style: none; }
   .arrival :focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, 1px); }
+  /* A heading focused by the program (a new screen) is not a control; it shows no ring. */
+  .arrival [tabindex="-1"]:focus-visible { outline: none; }
   .arrival-titlebar { grid-row: 1; position: relative; display: flex; align-items: center; gap: 14px; min-width: 0; padding: 0 12px 0 20px; }
   body[data-native-desktop="true"] .arrival-titlebar { padding-left: var(--desktop-window-safe-inline-start, 88px); }
   .arrival-stage { grid-row: 2; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
@@ -173,7 +175,7 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-meters { display: grid; gap: 14px; padding: 16px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
   .ob-meter p { display: flex; justify-content: space-between; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
   .ob-meter p b { color: var(--ink); font-size: 15px; font-weight: var(--weight-title, 600); font-variant-numeric: tabular-nums; }
-  .ob-meter .mw-progress > span { background: var(--ink-soft); transition: transform var(--dur-arrive, 420ms) var(--ease-quint); }
+  .ob-meter .mw-progress > span { background: var(--ink-soft); }
   .ob-meters.is-over .mw-progress > span { background: var(--red); }
   .ob-model { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
   .ob-model__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
@@ -204,7 +206,6 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-preview { margin: -28px calc(-1 * clamp(24px, 3.4vw, 48px)) 8px; }
   .ob-preview .mw-brief { width: min(100%, 860px); padding-top: 32px; padding-bottom: 8px; }
   .ob-preview .mw-brief__cols { grid-template-columns: minmax(0, 1fr); margin-top: 24px; }
-  .ob-preview .mw-brief__sec:last-child { display: none; }
   .ob-refs { display: grid; gap: 4px; padding: 4px 0 0 16px; color: var(--muted); font-size: 12px; list-style: disc; }
   .ob-resume { display: flex; align-items: center; gap: 8px; margin: -4px 0 0; padding: 8px 12px; border-radius: var(--r-row, 10px); background: var(--accent-soft); color: var(--ink-soft); font-size: 12px; }
   .ob-resume svg { width: 14px; height: 14px; color: var(--accent); flex: none; }
@@ -219,6 +220,32 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-citations { display: grid; gap: 4px; }
   .ob-reading { display: grid; gap: 4px; }
   .cx-citation { display: inline; padding: 0 2px; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+  .ob-error-page { padding: 48px clamp(24px, 6vw, 96px); max-width: 640px; }
+  .ob-error-page h1 { font-size: 24px; font-weight: var(--weight-title, 600); line-height: 1.3; letter-spacing: -.02em; outline: none; }
+  .ob-error-page > p { margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+  .ob-error-page .mw-empty { margin: 0; padding: 0; justify-items: start; text-align: left; }
+  .cx-error { margin: 0; color: var(--red); font-size: 12px; line-height: 1.6; }
+  .cx-error:empty { display: none; }
+  .cx-hint { margin: 0; }
+  .cx-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .cx-summary { font-size: 13px; line-height: 1.9; overflow-wrap: anywhere; }
+  .cx-summary p { margin: 0 0 12px; white-space: pre-wrap; }
+  .cx-summary h3 { margin: 18px 0 6px; font-size: 15px; font-weight: var(--weight-title, 600); }
+  .cx-summary-editor { min-height: 200px; resize: vertical; line-height: 1.85; }
+  .cx-sources { display: grid; gap: 2px; }
+  .cx-reference { display: block; width: 100%; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: 12px; text-align: left; overflow-wrap: anywhere; cursor: pointer; transition: color var(--dur-hover, 130ms) var(--ease-quint); }
+  .cx-reference:hover { color: var(--accent); }
+  .cx-reference span { display: block; color: var(--accent); font-size: 11px; font-weight: var(--weight-control, 500); }
+  .cx-source-meta { color: var(--muted); font-size: 12px; }
+  .cx-issues { margin-top: 8px; }
+  .cx-draft { align-items: start; grid-template-columns: minmax(0, 1fr) auto; padding-block: 8px; }
+  .cx-draft .mw-file-row__label { align-items: flex-start; }
+  .cx-draft .mw-check { margin-top: 2px; }
+  .cx-draft-copy { display: grid; gap: 2px; min-width: 0; }
+  .cx-draft .mw-file-row__name { white-space: normal; overflow: visible; }
+  .cx-draft-meta, .cx-draft-evidence { color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+  .cx-draft-evidence { color: var(--faint); }
+  .ob-name > .ob-label + .mw-input { margin: 0; }
   .cx-dialog { width: min(560px, calc(100vw - 48px)); max-height: min(calc(100dvh - 96px), 720px); padding: 20px 24px; border: 0; border-radius: var(--r-dialog, 16px); background: var(--paper); color: var(--ink); box-shadow: var(--lift-3); }
   .cx-dialog::backdrop { background: var(--scrim); }
   .cx-source-body { max-height: 320px; overflow: auto; white-space: pre-wrap; font-size: 13px; line-height: 1.7; }
@@ -246,9 +273,16 @@ export const ARRIVAL_STYLES = String.raw`
     html body.immersive-workbench.arrival-page .arrival > .arrival-bar { grid-row: 3; }
     .arrival-titlebar { padding-left: 14px; }
     .mw-bar-context__text, .mw-btn__key { display: none; }
+    /* The three blocks never share a cell: the status on its own row, the way back and the actions below it (the actions wrap rather than run under it). */
+    html body.immersive-workbench.arrival-page .arrival-bar { grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; gap: 4px 8px; padding-block: 8px max(8px, env(safe-area-inset-bottom)); }
+    html body.immersive-workbench.arrival-page .arrival-bar .bar-center { grid-column: 1 / -1; grid-row: 1; }
+    html body.immersive-workbench.arrival-page .arrival-bar .bar-start { grid-column: 1; grid-row: 2; }
+    html body.immersive-workbench.arrival-page .arrival-bar .bar-end { grid-column: 2; grid-row: 2; justify-self: stretch; flex-wrap: wrap; justify-content: flex-end; }
+    .arrival-bar .mw-steps { display: none; }
     .arrival-bar .bar-end .mw-btn--secondary:has(svg) [data-slot="button-label"] { display: none; }
     .arrival-bar .bar-end .mw-btn--secondary:has(svg) { min-width: 38px; padding-inline: 0; }
     .arrival-bar .arrival-back [data-slot="button-label"] { display: none; }
+    .arrival-bar .arrival-back:not(:has(svg)) [data-slot="button-label"] { display: inline; }
     .mw-bar-status__text small { display: none; }
     .welcome-q { padding-inline: 28px; }
     .welcome-q h1 { font-size: 24px; }

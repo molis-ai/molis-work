@@ -10,7 +10,7 @@ import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js"
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { descriptionFromSummary, readProjectArrival } from "./project-arrival.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { L } from "./web-locale.js";
+import { currentLocale, L } from "./web-locale.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 /**
@@ -133,7 +133,8 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
     if (!match || request.method !== "GET") return false;
     let projectId: string;
     try { projectId = decodeURIComponent(match[1]!); } catch { sendJson(response, 404, { error: L("找不到这个 Molis Work 项目") }); return true; }
-    const key = `${homeDirectory ?? ""}\n${projectId}`;
+    // The sheet is worded in the request's language, so a brief read in one is not served in another.
+    const key = `${currentLocale()}\n${homeDirectory ?? ""}\n${projectId}`;
     const fresh = cache.get(key);
     if (fresh && Date.now() - fresh.at < BRIEF_TTL_MS) { sendJson(response, 200, fresh.value); return true; }
     try {

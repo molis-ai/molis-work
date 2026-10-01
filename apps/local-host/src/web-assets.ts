@@ -17,10 +17,10 @@ const NOTO_SANS_SC_FONT_PATH = fileURLToPath(
 
 export function createLocalWebAssets(ports: {
   ptyClientFilePath(): string;
-  renderer: Pick<WorkbenchRenderer, "renderMolisWorkWorkbenchStylesheet" | "renderMolisWorkWorkbenchClientScript" | "renderMolisWorkProjectIndexStylesheet" | "renderMolisWorkOnboardingStylesheet" | "renderMolisWorkSettingsStylesheet">;
+  renderer: Pick<WorkbenchRenderer, "renderMolisWorkWorkbenchStylesheet" | "renderMolisWorkWorkbenchClientScript" | "renderMolisWorkArrivalStylesheet" | "renderMolisWorkSettingsStylesheet">;
 }) {
   const { ptyClientFilePath } = ports;
-  const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkProjectIndexStylesheet, renderMolisWorkOnboardingStylesheet, renderMolisWorkSettingsStylesheet } = ports.renderer;
+  const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet } = ports.renderer;
   function servePtyClient(request: IncomingMessage, response: ServerResponse): boolean {
     const filePath = ptyClientFilePath();
     if (!fs.existsSync(filePath)) {
@@ -55,10 +55,8 @@ export function createLocalWebAssets(ports: {
       ? { body: renderMolisWorkWorkbenchStylesheet(), contentType: "text/css; charset=utf-8" }
       : pathname === "/assets/molis-work-workbench.js"
         ? { body: renderMolisWorkWorkbenchClientScript(), contentType: "text/javascript; charset=utf-8" }
-        : pathname === "/assets/molis-work-project-index.css"
-          ? { body: renderMolisWorkProjectIndexStylesheet(), contentType: "text/css; charset=utf-8" }
-          : pathname === "/assets/molis-work-onboarding.css"
-            ? { body: renderMolisWorkOnboardingStylesheet(), contentType: "text/css; charset=utf-8" }
+        : pathname === "/assets/molis-work-arrival.css"
+          ? { body: renderMolisWorkArrivalStylesheet(), contentType: "text/css; charset=utf-8" }
         : pathname === "/assets/molis-work-settings.css"
           ? { body: renderMolisWorkSettingsStylesheet(), contentType: "text/css; charset=utf-8" }
           : pathname === "/assets/molis-work-pages-editor.js"

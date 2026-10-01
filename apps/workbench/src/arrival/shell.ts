@@ -4,7 +4,7 @@ import { renderCaption, renderWordmark, type MolisWorkIcon } from "@molis-ai/mol
  * The frame every arrival screen shares: a titlebar, a stage and the resident bottom bar on the desk. A screen is
  * what goes inside the stage and the bar's three blocks; the frame itself never moves (specs/project-arrival-flow).
  */
-export interface ArrivalPrimitives {
+export interface ArrivalShellPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: MolisWorkIcon): string;
@@ -16,6 +16,10 @@ export interface ArrivalPrimitives {
   /** The theme preference, and the native window's safe insets. Runs before the first paint. */
   themeBootstrapScript: string;
   visualFoundationClientScript: string;
+}
+
+/** What the chooser needs besides the frame: dates in the person's language. */
+export interface ArrivalPrimitives extends ArrivalShellPrimitives {
   dateTimeLocale(): string;
 }
 
@@ -47,7 +51,7 @@ export interface ArrivalDocumentOptions {
   scripts: string;
 }
 
-export function createArrivalShell(p: ArrivalPrimitives) {
+export function createArrivalShell(p: ArrivalShellPrimitives) {
   const { L, escapeHtml, icon } = p;
   const href = (desktopShell: boolean, path: string) => desktopShell ? p.withDesktopQuery(path) : path;
 
@@ -83,7 +87,7 @@ export function createArrivalShell(p: ArrivalPrimitives) {
   ${p.controlTokenMeta(options.controlToken)}
   <title>${escapeHtml(options.title)}</title>
   <script>${p.themeBootstrapScript}</script>
-  <link rel="stylesheet" href="/assets/molis-work-project-index.css">
+  <link rel="stylesheet" href="/assets/molis-work-arrival.css">
 </head>
 <body class="arrival-page immersive-workbench" data-arrival="${options.screen}"${options.desktopShell ? ' data-native-desktop="true"' : ""}${options.bodyAttrs ?? ""}>
   ${p.renderIconSprite()}
@@ -98,7 +102,7 @@ export function createArrivalShell(p: ArrivalPrimitives) {
 </html>`;
   }
 
-  return { href, titlebar, bar, document, caption };
+  return { href, titlebar, bar, document, caption, wordmark: () => renderWordmark() };
 }
 
 export type ArrivalShell = ReturnType<typeof createArrivalShell>;

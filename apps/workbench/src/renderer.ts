@@ -30,8 +30,7 @@ import { createWorkbenchInboxProjectionRenderer } from "./inbox-projection-ui.js
 import { createWorkbenchScheduleProjectionRenderer } from "./schedule-projection-ui.js";
 import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
 import {
-  renderMolisWorkOnboardingStylesheet as renderOnboardingCss,
-  renderMolisWorkProjectIndexStylesheet as renderProjectIndexCss,
+  renderMolisWorkArrivalStylesheet as renderArrivalCss,
   renderMolisWorkSettingsStylesheet as renderSettingsCss,
   renderMolisWorkWorkbenchClientScript as renderWorkbenchClient,
   renderMolisWorkWorkbenchStylesheet as renderWorkbenchCss,
@@ -483,8 +482,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderMolisWorkPlanningMethodPage,
     renderMolisWorkPlanningSettings,
     renderMolisWorkWorkbenchStylesheet: (): string => renderWorkbenchCss(),
-    renderMolisWorkOnboardingStylesheet: (): string => renderOnboardingCss(),
-    renderMolisWorkProjectIndexStylesheet: (): string => renderProjectIndexCss(),
+    renderMolisWorkArrivalStylesheet: (): string => renderArrivalCss(),
     renderMolisWorkSettingsStylesheet: (): string => renderSettingsCss(),
     renderMolisWorkWorkbenchClientScript: (): string => renderWorkbenchClient(),
     renderMolisWorkWeb,

@@ -31,7 +31,6 @@ import {
   MORE_STYLES,
   PROJECT_GUIDANCE_CLIENT_SCRIPT,
   PROJECT_GUIDANCE_SETTINGS_STYLES,
-  PROJECT_INDEX_STYLES,
   PROJECT_RULES_CLIENT_SCRIPT,
   PROJECT_RULES_SETTINGS_STYLES,
   RESPONSIVE_STYLES,
@@ -73,26 +72,16 @@ export function renderMolisWorkWorkbenchStylesheet(): string {
 }
 
 /**
- * The way in: the opening, Welcome, the project chooser and the new-project journey are one frame (a titlebar, a stage,
- * the resident bar) and one sheet. The first-run and update journey and the project index are served as it.
+ * The way in: the opening, Welcome, the project chooser, the new-project journey and the update page are one frame (a
+ * titlebar, a stage, the resident bar) and one sheet, so the browser keeps it across the pages of the way in.
  */
 export function renderMolisWorkArrivalStylesheet(): string {
   return `${STYLES}${VISUAL_FOUNDATION_STYLES}${IMMERSIVE_NAVIGATION_STYLES}${PAGE_CHROME_OVERLAY}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${CRAFT_FINISH_STYLES}${NAVIGATION_FLOW_STYLES}${ARRIVAL_STYLES}`;
 }
 
-/** The first-run, new-project and update journey. Same sheet as the project index. */
-export function renderMolisWorkOnboardingStylesheet(): string {
-  return renderMolisWorkArrivalStylesheet();
-}
-
-/** The project index. Same sheet as the journey into a project. */
-export function renderMolisWorkProjectIndexStylesheet(): string {
-  return renderMolisWorkArrivalStylesheet();
-}
-
 /** Shared settings presentation, reused across project and global settings routes. */
 export function renderMolisWorkSettingsStylesheet(): string {
-  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${MODEL_SETTINGS_STYLES}${MEMORY_SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${VISUAL_FOUNDATION_STYLES}${PROJECT_INDEX_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${SURFACE_LANGUAGE_STYLES}${LINEAR_DENSITY_STYLES}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${pluginWorkbenchSettingsStyles()}${CODING_STYLES}${CHARACTERS_STYLES}${PLUGIN_STAGE_STYLES}${FUNCTIONS_STYLES}${CAPABILITIES_STYLES}${CRAFT_FINISH_STYLES}${NAVIGATION_FLOW_STYLES}`;
+  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${MODEL_SETTINGS_STYLES}${MEMORY_SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${VISUAL_FOUNDATION_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${SURFACE_LANGUAGE_STYLES}${LINEAR_DENSITY_STYLES}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${pluginWorkbenchSettingsStyles()}${CODING_STYLES}${CHARACTERS_STYLES}${PLUGIN_STAGE_STYLES}${FUNCTIONS_STYLES}${CAPABILITIES_STYLES}${CRAFT_FINISH_STYLES}${NAVIGATION_FLOW_STYLES}`;
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */

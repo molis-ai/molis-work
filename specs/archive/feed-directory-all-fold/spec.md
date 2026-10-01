@@ -2,7 +2,7 @@
 
 状态：已被 `specs/archive/feed-directory-drop-all/spec.md` 覆盖（目录不再渲染「全部」fold）。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件覆盖 `specs/feed-directory-goal-list/spec.md` 里「全部只是带计数的 compact 选中行」的约定。添加仍在顶部，见 `specs/archive/feed-directory-add-top/spec.md`。点来源行/配置合同不变。
+本文件覆盖 `specs/archive/feed-directory-goal-list/spec.md` 里「全部只是带计数的 compact 选中行」的约定。添加仍在顶部，见 `specs/archive/feed-directory-add-top/spec.md`。点来源行/配置合同不变。
 
 ## 背景与问题
 

@@ -176,7 +176,7 @@ fi
     await waitFor("document.querySelector('[data-shelf-compare-pane=source]').textContent.includes('CODE_END_SENTINEL')");
     assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-shelf-compare-pane=source]').textContent"), /MARKDOWN_END_SENTINEL/);
     await click(`[data-shelf-source="${first.item_id}"]`);
-    const evidence = specEvidenceDirectory("specs/shelf-dropagent-parity/evidence");
+    const evidence = specEvidenceDirectory("specs/archive/shelf-dropagent-parity/evidence");
     await mkdir(evidence, { recursive: true });
     // No side rail: the stage is wider at the same window, so the narrow capture uses 820px to stay under 640px of stage.
     for (const [name, theme, width] of [["browser-compare-light", "light", 1440], ["browser-compare-dark", "dark", 1440], ["browser-compare-narrow", "light", 820]] as const) {

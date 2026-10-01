@@ -377,7 +377,7 @@ export async function handleMolisWorkWebRequest(
         // Search reaches every plugin through the same directory and the person's own authority in this project.
         if (await handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS))) return;
         if (await handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS))) return;
-        // What the person has in hand, ranked from the same directory under their own authority (specs/contextual-interaction).
+        // What the person has in hand, ranked from the same directory under their own authority (specs/archive/contextual-interaction).
         if (url.pathname.startsWith("/api/contextual/") && await handleContextualHttp(request, response, url, {
           ...(serverOptions.homeDirectory ? { homeDirectory: serverOptions.homeDirectory } : {}), scope: hostReference.project_id,
           actions: () => {

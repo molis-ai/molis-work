@@ -1,5 +1,5 @@
 /**
- * Browser side of the context-driven interaction slice (specs/contextual-interaction §3, §4, §6, §7).
+ * Browser side of the context-driven interaction slice (specs/archive/contextual-interaction §3, §4, §6, §7).
  * Sections: api · documents & editor · focus adapter · context bus · action row · cards · input · debug drawer.
  * The bus, the row and the cards are the parts P1 moves into the workbench; the rest is slice scaffolding.
  */

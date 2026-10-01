@@ -236,7 +236,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     workbench.setAttribute("data-assistant-context", JSON.stringify(context));
   };
-  // What the person has in hand here, for the bar and the Assistant (specs/contextual-interaction §4): the editor's
+  // What the person has in hand here, for the bar and the Assistant (specs/archive/contextual-interaction §4): the editor's
   // focus around this document. A document this editor cannot show offers nothing to act on. Pages reports its own
   // focus, so a selection elsewhere on this surface (a row of the list, say) is not read as part of the document.
   workbench.setAttribute("data-surface-focus", "own");
@@ -307,7 +307,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return { command: input.command, style: typeof input.style === "string" ? input.style : undefined, text: typeof input.text === "string" ? input.text : undefined };
       } });
   });
-  // The writing menu lists exactly what the context row shows for what is in hand (specs/contextual-interaction
+  // The writing menu lists exactly what the context row shows for what is in hand (specs/archive/contextual-interaction
   // §6.4.1): the row publishes its plan; a choice in the menu goes back to the row like a click there.
   let menuPlan = null;
   const menuWatchers = new Set();

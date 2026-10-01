@@ -1,7 +1,7 @@
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
- * The personal space (specs/work-placement §3.1): where things go when they belong to no project. It is an ordinary
+ * The personal space (specs/archive/work-placement §3.1): where things go when they belong to no project. It is an ordinary
  * project partition with a reserved identity, so every plugin works in it unchanged; it is never listed, renamed or
  * deleted as a project, and it is kept like user data.
  */

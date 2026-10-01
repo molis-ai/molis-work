@@ -68,7 +68,7 @@ test("project settings deletion requires authorization and confirmation, closes 
   assert.equal(hub.status, 200);
   const hubPage = await hub.text();
   assert.match(hubPage, /project-preferences-page/);
-  // Planning methods are Goals plugin settings (specs/goal-planning-plugin-settings); the project hub keeps general and guidance.
+  // Planning methods are Goals plugin settings (specs/archive/goal-planning-plugin-settings); the project hub keeps general and guidance.
   assert.doesNotMatch(hubPage, /href="[^"]*\/settings\/planning"/);
   assert.match(hubPage, /href="[^"]*\/settings\/guidance"/);
   assert.doesNotMatch(hubPage, /project-settings-hub-page/);

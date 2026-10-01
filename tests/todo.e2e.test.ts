@@ -11,7 +11,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: quick entry, views, comp
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const all = () => { const store = openTodoStore(homeDirectory); try { return store.list({ projectId, everything: true, actor: "user", actorId: "test" }); } finally { store.close(); } };
   const byTitle = (title: string) => all().find(item => item.title === title);
-  const output = new URL(`../${specEvidenceDirectory("specs/todo-plugin/verification")}/`, import.meta.url);
+  const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
@@ -140,7 +140,7 @@ test("Todo reminders and the project home: a due reminder shows once, later and 
     const yesterday = new Date(now - 86_400_000);
     overdueId = store.create({ title: "逾期的方案", due_date: `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}` }, everything).item.id;
   } finally { store.close(); }
-  const output = new URL(`../${specEvidenceDirectory("specs/todo-plugin/verification")}/`, import.meta.url);
+  const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
@@ -194,7 +194,7 @@ test("Organizing results wait in Todo: the person ticks, edits, adds and ignores
   await localHost.homeActionClient().invoke({ actor_id: "assistant", project_id: null, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,
     { title: "整理：张总的邮件", materials: [{ title: "张总：新版方案", text: "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。" }] });
   assert.equal(items().length, 0, "整理不会直接新建待办");
-  const output = new URL(`../${specEvidenceDirectory("specs/todo-plugin/verification")}/`, import.meta.url);
+  const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");

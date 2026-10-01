@@ -15,7 +15,7 @@ import {BrowserFixtureRuntime,ChromeHarness,type ChromePage} from './fixtures/pl
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 // The built-in design is explicit sample content. UI playback does not represent a model run.
-// Visual reference: specs/plugin-builder/ui/design/approved-comp.png.
+// Visual reference: specs/archive/plugin-builder/ui/design/approved-comp.png.
 test('approved inspiration design supports real preview, publication and mobile use without model runs',{timeout:110000},async t=>{
  const directory=await mkdtemp(join(tmpdir(),'plugin-builder-visual-'));
  const browser=await ChromeHarness.start(directory);

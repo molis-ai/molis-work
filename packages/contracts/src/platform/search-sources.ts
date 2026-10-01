@@ -2,7 +2,7 @@ import { ActionError, type ActionAudience, type ActionDefinition, type ActionHan
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 
 /**
- * How a plugin hands its searchable objects to the system search (specs/system-search §5.1).
+ * How a plugin hands its searchable objects to the system search (specs/archive/system-search §5.1).
  * The plugin keeps its own store and rules; search only calls these declared actions with the caller's authority.
  */
 export const SEARCH_ENTRIES_INPUT_TYPE = "molis.search.entries.window.v1";

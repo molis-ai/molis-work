@@ -2,7 +2,7 @@
 
 状态：执行完成。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件是本次体验变更的唯一需求书。它覆盖 `specs/archive/session-directory-goal-row/spec.md` 和 `specs/archive/session-directory-runtime-folds/spec.md` 里「Sessions 住在第二栏目录」的合同，对齐 `specs/archive/goals-stage-chrome/spec.md` 与 `specs/goals-list-workspace-split/spec.md`。
+本文件是本次体验变更的唯一需求书。它覆盖 `specs/archive/session-directory-goal-row/spec.md` 和 `specs/archive/session-directory-runtime-folds/spec.md` 里「Sessions 住在第二栏目录」的合同，对齐 `specs/archive/goals-stage-chrome/spec.md` 与 `specs/archive/goals-list-workspace-split/spec.md`。
 
 ## 背景目标
 

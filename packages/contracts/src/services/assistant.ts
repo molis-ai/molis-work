@@ -14,7 +14,7 @@ export const servicesAssistantContract = {
   kind: "service",
   schemaVersion: 1,
   maturity: "partial",
-  ssot: "specs/system-assistant/spec.md",
+  ssot: "specs/archive/system-assistant/spec.md",
 } as const satisfies ContractDescriptor;
 
 /** The identity the Assistant's sessions are owned by. It is a system module, not an installed Plugin. */
@@ -69,7 +69,7 @@ export interface AssistantSurfaceContext {
   /** The unsaved content itself, bounded, when the surface can give it; it is a draft, never the saved version. */
   draft_text?: string;
   /**
-   * @deprecated Starting points now come from the action directory for the open object (specs/contextual-interaction
+   * @deprecated Starting points now come from the action directory for the open object (specs/archive/contextual-interaction
    * §6.4.2). Still accepted from older pages, but no longer read.
    */
   starters?: Array<{ label: string; prompt: string }>;
@@ -319,7 +319,7 @@ export interface AssistantRound {
   usage?: AgentRunUsage;
   stop_reason?: string;
   ended_at: string | null;
-  /** The memories this round was given, and the ones that matched but did not fit (specs/memory-system §7.3). Deleted ones are not listed. */
+  /** The memories this round was given, and the ones that matched but did not fit (specs/archive/memory-system §7.3). Deleted ones are not listed. */
   memories_used?: { used: AssistantRoundMemory[]; omitted: Array<AssistantRoundMemory & { reason: "budget" | "limit" }> };
 }
 

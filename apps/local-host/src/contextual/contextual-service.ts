@@ -4,7 +4,7 @@ import { ActionError, SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, typ
   type ActionReference, type ActionView, type SubjectActionOffer, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
- * The one place that prepares what can be done with an object (specs/contextual-interaction §6.4.3): the context row,
+ * The one place that prepares what can be done with an object (specs/archive/contextual-interaction §6.4.3): the context row,
  * the Assistant's starting points, the Home / Dock and `home.actions.*` all ask here. Candidates themselves are derived
  * in the kernel (`contextualCandidates`); this module turns a chosen one into a complete, checked input. Judgment is not
  * here: the row asks Jev, the Dock, Feed and Inbox run the rule the person bound.

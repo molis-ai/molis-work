@@ -2,7 +2,7 @@ import type { FragmentActionOffer, FragmentOfferChoice, FragmentOffersInput } fr
 
 /**
  * Everything Pages offers for a document, its parts and several documents: the one list both the context row and the
- * writing menu show (specs/contextual-interaction §6.4.1). Each `pages.ai` choice only proposes text; nothing is written
+ * writing menu show (specs/archive/contextual-interaction §6.4.1). Each `pages.ai` choice only proposes text; nothing is written
  * until the person accepts the preview. `object` (整篇) choices act on the whole document.
  */
 const ai = { capability_id: "pages.ai", version: 1 } as const;

@@ -142,7 +142,7 @@ export const todoActions = {
 export const TODO_ACTIONS: readonly ActionDefinition[] = [...Object.values(todoActions), ...Object.values(todoOrganizeActions)];
 
 /**
- * The complete `todo.items.create` input for a fragment of anything (specs/contextual-interaction §10 P2); pure. The
+ * The complete `todo.items.create` input for a fragment of anything (specs/archive/contextual-interaction §10 P2); pure. The
  * todo remembers where it came from (the object and the words), and the same request creates it once.
  */
 export function prepareTodoFragmentOffers(input: FragmentOffersInput): FragmentActionOffer[] {

@@ -81,7 +81,7 @@ Workbench 标签选中是另一种纯 UI 通知：Host 在当前插件根节点�
 
 Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 `request_id`、`entry_ids`、`title`、`instructions`；Host 从 Attention 解析 Feed 正文，再调用 Pages 包的 `generatePagesFromMaterials`。Pages 自己保存输入快照、生成收据和文档，同一请求不能替换要求或覆盖后续编辑。失败可恢复，生成成功不自动完成 Inbox。
 
-`POST /api/assistant/plan` 只产生规则或写作方案。Workbench 确认按钮调用既有判断规则 / Feed / Inbox 动作；不是外部 MCP，也没有第二份规则或文稿状态。真实写作模型由 `hostCompleteText` 提供；缺配置或网络失败明确报错，不能返回占位文稿。具体配置、实操与边界见 [闭环规格](../../specs/feed-inbox-pages-loop/spec.md)。
+`POST /api/assistant/plan` 只产生规则或写作方案。Workbench 确认按钮调用既有判断规则 / Feed / Inbox 动作；不是外部 MCP，也没有第二份规则或文稿状态。真实写作模型由 `hostCompleteText` 提供；缺配置或网络失败明确报错，不能返回占位文稿。具体配置、实操与边界见 [闭环规格](../../specs/archive/feed-inbox-pages-loop/spec.md)。
 
 ## app 一等（Coding 族）
 

@@ -1,5 +1,5 @@
 /**
- * Per-plugin audit for context-driven interaction (specs/contextual-interaction §2, §10 P2): in a running Molis Work
+ * Per-plugin audit for context-driven interaction (specs/archive/contextual-interaction §2, §10 P2): in a running Molis Work
  * app, open every plugin surface the way a person would and record whether its content can be read and interacted with:
  * - frame: the surface renders in the workbench document or inside an iframe (selection must then cross frames);
  * - context: the surface root declares `data-assistant-context` (plugin, object, version) before / after opening an item;

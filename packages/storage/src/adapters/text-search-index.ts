@@ -11,7 +11,7 @@ import type {
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
 
 /**
- * Local full-text index for the system search (specs/system-search §7). A technical cache: it holds only what a
+ * Local full-text index for the system search (specs/archive/system-search §7). A technical cache: it holds only what a
  * source allowed to persist, can be deleted at any time, and is rebuilt from the owners.
  *
  * FTS5 trigram cannot find two-character queries (预算, Q4), so text is split here: every CJK character alone and as

@@ -7,7 +7,7 @@ export const servicesPlacementContract = {
   kind: "service",
   schemaVersion: 1,
   maturity: "partial",
-  ssot: "specs/work-placement/spec.md",
+  ssot: "specs/archive/work-placement/spec.md",
 } as const satisfies ContractDescriptor;
 
 export const PLACEMENT_PROVIDER_ID = "system.placement";

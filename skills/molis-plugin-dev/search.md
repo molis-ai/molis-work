@@ -2,7 +2,7 @@
 
 工作台 ⌘K、个人助理、工作流和外部 MCP 客户端都用同一个系统动作 `search.query` 找内容。插件不接入搜索服务的代码，也不写索引；你只**声明一个搜索来源**，其余由系统做：首次建立索引、按版本增量更新、删除清理、失败重试、按调用者权限过滤、打开前核对。你的表、业务状态和校验规则不变。
 
-需求与合同：`specs/system-search/spec.md`；协议定义在 `@molis-ai/molis-work-contracts/platform/actions`（`platform/search-sources.ts`），SDK 同名导出。
+需求与合同：`specs/archive/system-search/spec.md`；协议定义在 `@molis-ai/molis-work-contracts/platform/actions`（`platform/search-sources.ts`），SDK 同名导出。
 
 ## 要做的三件事
 

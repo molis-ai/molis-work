@@ -13,7 +13,7 @@ import { homeActions, HOME_ACTION_PERMISSIONS } from "../apps/local-host/src/hom
 import { prepareSubjectOffers } from "../apps/local-host/src/contextual/contextual-service.js";
 
 /**
- * One set of recommendations (specs/contextual-interaction §6.4.3): on the same Feed and Inbox items, what the Home /
+ * One set of recommendations (specs/archive/contextual-interaction §6.4.3): on the same Feed and Inbox items, what the Home /
  * Dock prepares, recommends and runs is what the contextual service prepares — the same offers under the same keys —
  * and the rule's recommendation lands on those keys. Run before and after moving the Dock onto the service.
  */

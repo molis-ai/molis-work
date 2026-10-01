@@ -132,7 +132,7 @@ components:
 - 总结以正文和引用为主体；采用后保留摘要、材料与下一步。
 - 浅深主题共用结构；窄屏保留主操作、新建与项目切换。
 
-事实来源：[需求](../../../../specs/molis-work-onboarding-prototype/spec.md)、[方向契约](index.html)、[样式](style.css)、[交互](app.js)。根 PRODUCT.md 仅提供品牌和可访问性背景；本文件不更新其产品定位。浅深配色、字号和焦点等局部差异按原型实际代码记录，不反向修改根规范。
+事实来源：[需求](../../../../specs/archive/molis-work-onboarding-prototype/spec.md)、[方向契约](index.html)、[样式](style.css)、[交互](app.js)。根 PRODUCT.md 仅提供品牌和可访问性背景；本文件不更新其产品定位。浅深配色、字号和焦点等局部差异按原型实际代码记录，不反向修改根规范。
 
 当前完成等级为可交互原型：全部来源、连接、模型和项目都是演示；规则生成总结，localStorage 保存本浏览器状态，未接真实读取、模型或项目数据库。详见 [模拟边界](README.md) 与 [验证记录](review/verification.md)。独立审阅最终 `ship` 仅确认窄屏项目切换修复，不能作为生产发布或用户验收结论。
 

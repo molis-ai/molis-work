@@ -30,7 +30,7 @@ try{
   evidence.push({source:source.name,url:source.feed_url,source_id:registered.source_id,sync:run,item_count:items.length,context:context?{subject:context.subject,revision:context.revision,title:context.title,excerpt:context.content.slice(0,1600),truncated:context.truncated}:null});
  }
  const output={at:new Date().toISOString(),path:'Existing FeedSourceService → public RSS runtime → original Feed storage → original feed.subject.read',scope:'Two expressly registered public sources in isolated storage; no private accounts',builtHostRoot:root,evidence};
- const outputDir='specs/bp-delivery-parallel/work-items/personal-assistant/evidence';await mkdir(outputDir,{recursive:true});await writeFile(join(outputDir,'public-sources.json'),JSON.stringify(output,null,2)+'\n');
+ const outputDir='specs/archive/bp-delivery-parallel/work-items/personal-assistant/evidence';await mkdir(outputDir,{recursive:true});await writeFile(join(outputDir,'public-sources.json'),JSON.stringify(output,null,2)+'\n');
  console.log(JSON.stringify({at:output.at,sources:evidence.map(item=>({source:item.source,item_count:item.item_count,subject:item.context?.subject,title:item.context?.title,sync_outcome:item.sync.run?.outcome}))}));
  if(evidence.some(item=>!item.context))process.exitCode=1;
 }finally{

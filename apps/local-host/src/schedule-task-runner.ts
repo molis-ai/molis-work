@@ -20,6 +20,8 @@ export function createHostScheduledTaskRunner(options: {
   boardId: string;
   projectId: string;
   workspaceFor(projectId: string): ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
+  /** The memories the Host chooses for one scheduled run (Agent work in this project); none when not given. */
+  memory?: (task: string, title: string) => ReturnType<NonNullable<AgentStartAuthority["memory"]>>;
 }): ScheduledTaskRunner {
   return {
     async run(input, control) {
@@ -43,6 +45,7 @@ export function createHostScheduledTaskRunner(options: {
         authorizedDirectories: [workspace.canonical_path],
         prompts: declared.prompts,
         ...(control ? { beforeDispatch: () => control.beforeEffect() } : {}),
+        ...(options.memory ? { memory: (task: string) => options.memory!(task, input.title) } : {}),
       };
       const runtimeId = PROLOGUE_RUNTIME_ID;
       const adapter = options.agentHost.adapter(runtimeId);

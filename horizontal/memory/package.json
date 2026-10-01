@@ -1,0 +1,44 @@
+{
+  "name": "@molis-ai/molis-work-service-memory",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Platform memory: policy, the deterministic write gate, recall orchestration, candidates, recent changes and switches over Prologue Memory.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*"
+  },
+  "molis-work": {
+    "path": "horizontal/memory",
+    "kind": "horizontal",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/services/memory",
+    "migrationGoals": [
+      "goal-reorg-f2"
+    ],
+    "ssot": "docs/SSOT-MATRIX.md",
+    "capabilities": [
+      "memory.recall.v1",
+      "memory.manage.v1"
+    ]
+  }
+}

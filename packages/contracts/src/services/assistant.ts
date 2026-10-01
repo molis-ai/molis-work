@@ -1,5 +1,6 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentPendingQuestion, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
+import type { MemoryChange, MemoryScope } from "./memory.js";
 
 /**
  * The system Assistant: one personal assistant, many independent pieces of work.
@@ -312,15 +313,14 @@ export interface AssistantRound {
    * do, shown as a checklist. It has no authority — what happened is in the activity and the objects.
    */
   steps?: Array<{ id: string; text: string; state: "pending" | "in-progress" | "done" | "abandoned" }>;
-  /** Which memories this round was given, and which the budget left out (the memory service's own account). */
-  memories_used?: {
-    used: Array<{ memory_id: string; scope: "personal" | "project"; text: string; origin?: string }>;
-    omitted: Array<{ memory_id: string; scope: "personal" | "project"; text: string; reason: "budget" | "limit"; origin?: string }>;
-  };
   usage?: AgentRunUsage;
   stop_reason?: string;
   ended_at: string | null;
+  /** The memories this round was given, and the ones that matched but did not fit (specs/memory-system §7.3). Deleted ones are not listed. */
+  memories_used?: { used: AssistantRoundMemory[]; omitted: Array<AssistantRoundMemory & { reason: "budget" | "limit" }> };
 }
+
+export interface AssistantRoundMemory { memory_id: string; scope: MemoryScope; text: string; origin: string }
 
 /**
  * A suggestion the person can run with one click. It carries the exact capability and prepared input; the click is
@@ -435,9 +435,8 @@ export interface AssistantWorkView {
   undoable?: AssistantUndoable[];
   /** What this work suggests keeping, waiting for the person. */
   memory_candidates?: AssistantMemoryCandidate[];
-  /** What this work kept in memory (asked for, kept on its own, or replacing an older one), from the memory service. */
-  memory_changes?: Array<{ change_id: string; kind: "kept" | "auto_kept" | "replaced"; memory_id: string; scope: "personal" | "project"; text: string;
-    undoable: boolean; state: "active" | "undone"; at: string; project_id?: string }>;
+  /** What this work kept, replaced or forgot in the platform memory; an automatic one can be undone (`POST /api/memory/changes/<id>/undo`). */
+  memory_changes?: MemoryChange[];
   /** Background work this work started in plugins, and how each stands. */
   jobs?: AssistantBackgroundJob[];
   /**
@@ -552,7 +551,7 @@ export interface AssistantUsage {
 /** Something the person asked the Assistant to keep: personal (all their work) or one project's. */
 export interface AssistantMemory {
   memory_id: string;
-  scope: "personal" | "project";
+  scope: "personal" | "project" | "character";
   /** For a project memory: which project. */
   project_id?: string;
   text: string;
@@ -595,7 +594,7 @@ export interface AssistantMemoryCandidate {
   candidate_id: string;
   work_id: string;
   work_title: string;
-  scope: "personal" | "project";
+  scope: "personal" | "project" | "character";
   project_id?: string;
   text: string;
   /** What in the work it rests on. */

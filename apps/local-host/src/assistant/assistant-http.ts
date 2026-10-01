@@ -16,6 +16,7 @@ import { codingCharacterPorts } from "../characters-host.js";
 import { assistantContributions } from "./assistant-contributions.js";
 import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
 import { agentDefinitionsFor } from "../agent-definitions/agent-definitions.js";
+import { memoryHostFor } from "../memory/memory-host.js";
 import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
@@ -69,11 +70,20 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   };
   const service: AssistantService = new AssistantService(store, {
     host: async () => { await ports.agentReady(); return ports.agentHost; },
+    // The platform memory, registered with this Home's Agent service (the Assistant is one of its consumers).
+    memory: () => memoryHostFor(ports.localHost)?.service,
+    learnFromRound: ({ work, said, run_id }) => {
+      void memoryHostFor(ports.localHost)?.learnLater({ caller: { actor_id: WEB_ACTOR, project_id: work.project_ref?.project_id ?? null, consumer: "assistant",
+        work: { work_id: work.work_id, title: work.title } }, said, key: `${work.work_id}:${run_id}`, session_id: work.session_id ?? null })
+        .catch(error => console.warn("[memory] 没有排上提炼", error));
+    },
     authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), service.delegation(work),
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.noteDispatched(work, view)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
+      // The platform memory, under the Assistant's switch: re-read and injected by the runtime as data.
+      memory: task => service.memoryForRound(work, task),
       // A Character published in the work's project, frozen at its exact version for the round (the Host checks it again at dispatch).
       ...(work.project_ref ? { resolveCharacter: await projectCharacters(ports, work.project_ref).then(characters => characters.resolve) } : {}) }),
     characters: async project => (await projectCharacters(ports, project)).list().map(choice => ({ reference: { ...choice.reference }, title: choice.title, available: choice.available,
@@ -199,10 +209,10 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "memory-prefs") return { status: 200, body: { prefs: service.saveMemoryPrefs(body as never) } };
       // What works suggest keeping: the person accepts (optionally reworded) or declines each.
-      if (method === "GET" && parts.length === 1 && parts[0] === "memory-candidates") return { status: 200, body: { candidates: service.memoryCandidates() } };
+      if (method === "GET" && parts.length === 1 && parts[0] === "memory-candidates") return { status: 200, body: { candidates: await service.memoryCandidates() } };
       if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && parts[2] === "accept")
         return { status: 200, body: { candidate: await service.acceptMemoryCandidate(parts[1]!, { ...(typeof body.text === "string" ? { text: body.text } : {}) }) } };
-      if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && parts[2] === "discard") return { status: 200, body: { candidate: service.discardMemoryCandidate(parts[1]!) } };
+      if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && parts[2] === "discard") return { status: 200, body: { candidate: await service.discardMemoryCandidate(parts[1]!) } };
       if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.rules() } };
       if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.saveRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
       if (method === "POST" && parts.length === 2 && parts[0] === "rules" && parts[1] === "remove") return { status: 200, body: { rules: service.removeRule(String(body.rule_id ?? "")) } };

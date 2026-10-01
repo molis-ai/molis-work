@@ -82,5 +82,6 @@ export function isHostGlobalSettingsSection(section: string): boolean {
     || section === "mcp"
     || section === "connectors"
     || section === "projects"
-    || section === "diagnostics";
+    || section === "diagnostics"
+    || section === "memory";
 }

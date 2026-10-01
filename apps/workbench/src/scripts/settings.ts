@@ -1,5 +1,6 @@
 import { PROMPT_SETTINGS_CLIENT_SCRIPT } from "../settings-prompts.js";
 import { ASSISTANT_SETTINGS_CLIENT_SCRIPT } from "../settings-assistant.js";
+import { MEMORY_SETTINGS_CLIENT_SCRIPT } from "../settings-memory.js";
 import { AGENT_DIAGNOSTICS_CLIENT_SCRIPT } from "../settings-agent-diagnostics.js";
 import { MCP_ACCESS_CLIENT_SCRIPT } from "./mcp-access.js";
 import { CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
@@ -121,7 +122,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
   })();
 `;
 
-export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + ASSISTANT_SETTINGS_CLIENT_SCRIPT + AGENT_DIAGNOSTICS_CLIENT_SCRIPT + `
+export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + ASSISTANT_SETTINGS_CLIENT_SCRIPT + MEMORY_SETTINGS_CLIENT_SCRIPT + AGENT_DIAGNOSTICS_CLIENT_SCRIPT + `
   (() => {
     const projectManager = document.querySelector("[data-project-manager]");
     if (projectManager) {
@@ -389,6 +390,17 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       if (receipt && saved) {
         receipt.textContent = saved;
         receipt.hidden = false;
+      }
+    } catch {}
+    // Promoted from a project memory (项目记忆 → 升级为项目说明): the ordinary confirmation, with the text filled in.
+    try {
+      const draft = new URLSearchParams(location.search).get("draft");
+      if (draft && draft.trim()) {
+        openEditor("add");
+        kindInput.value = "convention";
+        contentInput.value = draft.trim().slice(0, 4000);
+        reasonInput.value = L("由项目记忆升级为项目说明");
+        history.replaceState(null, "", location.pathname);
       }
     } catch {}
     function copyReceipt(mode) {

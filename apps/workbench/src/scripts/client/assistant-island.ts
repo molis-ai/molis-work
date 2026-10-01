@@ -323,6 +323,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let drawerOpen = false;
   // The platform side panel takes the window's right edge (body[data-side-open], --side-panel-width): what is left decides.
   const sideWidth = () => document.body.dataset.sideOpen === "true" ? parseFloat(getComputedStyle(document.body).getPropertyValue("--side-panel-width")) || 0 : 0;
+  const sideInset = () => parseFloat(getComputedStyle(document.body).getPropertyValue("--sheet-inset")) || 14;
   const spacious = () => wide.matches && window.innerWidth - sideWidth() >= 1240;
   const sideOpen = () => spacious() ? store.get(SIDE_KEY) !== "closed" : drawerOpen;
   const paintLayout = () => {
@@ -333,7 +334,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     island.toggleAttribute("data-side-shown", !panel.hidden && sideOpen());
     paintStrip();
     const anchor = !panel.hidden && sideWidth() ? panel.offsetParent : null;
-    if (anchor) panel.style.setProperty("--assistant-room", Math.round(window.innerWidth - sideWidth() - 12 - anchor.getBoundingClientRect().right) + "px");
+    if (anchor) panel.style.setProperty("--assistant-room", Math.round(window.innerWidth - sideWidth() - sideInset() - 4 - anchor.getBoundingClientRect().right) + "px");
     else panel.style.removeProperty("--assistant-room");
   };
   sideToggle?.addEventListener("click", () => {
@@ -1356,7 +1357,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const made = results.map((o) => objectCard(o, "done"));
       const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
         title: change.title, sub: L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
-        actions: change.state !== "undone" ? [sideAction(L("撤销"), change.title, async () => { view = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {}); render(); }, false, "secondary", "undo")] : [] }));
+        actions: change.state !== "undone" ? [sideAction(L("撤销"), change.title, async () => {
+          view = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {});
+          // Taken back: the owner's page rereads, as it did when the change was made.
+          const taken = (view.undoable || []).find((one) => one.undo_id === change.undo_id);
+          if (taken && taken.state === "undone" && taken.capability_id) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: taken.capability_id } }));
+          render();
+        }, false, "secondary", "undo")] : [] }));
       const JOB = { running: "进行中", completed: "已完成", failed: "没有完成", unknown: "不再跟进，请到原处查看" };
       const background = jobs.map((job) => card({ icon: job.state === "running" ? spinner() : job.state === "completed" ? "check" : "circle-alert",
         tone: job.state === "completed" ? "done" : job.state === "failed" ? "blocked" : "", title: job.title, sub: L(JOB[job.state] || job.state) + (job.last_state ? " · " + job.last_state : "") }));

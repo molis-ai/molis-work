@@ -69,6 +69,24 @@ export function claimsButton(text: string): boolean {
   return Boolean(trimmed) && trimmed.length <= 2000 && BUTTON.test(trimmed) && READY.test(trimmed) && !NOT_MADE.test(trimmed);
 }
 
+/**
+ * A reply that says something was saved, created or changed in a place the person keeps things, from a round in which
+ * no change succeeded. Seen from MiniMax M3.1: asked to note an idea, it answered “记下了……已经存到 Jelly 灵感里” with no
+ * call at all, and nothing was kept. Memory claims have their own check; a pending confirmation or an offer is no claim.
+ */
+const SAVED = /已(?:经)?(?:保存|存|记(?!住)|写入|写|加入|加|添加|新建|创建|建|安排|放|排|改|更新|修改|删除|删|移)|(?:记|存|建|加|写|改|删|排|放)(?:好|下|进去|进|到)了|记下了/;
+const PLACE = /待办|日历|日程|Jelly|灵光|灵感|笔记|文档|Pages|表单|Goal|目标|资料架|Shelf|工作区|看板|\b(?:todo|calendar|note|document|page)s?\b/i;
+const NOT_SAVED = /(?:没有|没|未|还没|无法|不能|不会|没能)(?:保存|存|记|写|加|建|创建|新建|添加|改|修改|删|安排|放)|确认后|等你确认|需要你确认|请确认|要不要|是否要|可以帮你|\b(?:not|didn't|couldn't|wasn't)\b/i;
+export function claimsSavedChange(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.length > 2000 || /[？?]\s*$/.test(trimmed)) return false;
+  return SAVED.test(trimmed) && PLACE.test(trimmed) && !NOT_SAVED.test(trimmed);
+}
+
+/** What the model reads when it said something was saved or created but no change succeeded this round. */
+export const SAVED_CLAIM_HELD =
+  "You said it was saved, created or changed, but no change succeeded in this round, so nothing was kept. If the person asked for it, make the change now with the tools; if it was done in an earlier round, say that it was done earlier; otherwise say plainly that it was not done.";
+
 /** What the model reads when it said a button is ready but made none. */
 export const BUTTON_CLAIM_HELD =
   "You said a button or card is ready, but no suggest-action call succeeded in this round, so the person has nothing new to click. If they asked for a button now, call suggest-action for it; if you meant one offered in an earlier round, say that it is that earlier one; otherwise say plainly that no button was made.";

@@ -7,24 +7,20 @@ export const JELLY_MATERIAL_CLIENT_SCRIPT = String.raw`
     let failure;
     try{
       const response=await fetch((document.body.dataset.routePrefix||'')+path+'?stream=1',{method:'POST',headers:typeof molisWorkControlHeaders==='function'?molisWorkControlHeaders():{'content-type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
-      if(!(response.headers.get('content-type')||'').includes('ndjson')){const json=await response.json();if(!response.ok){const error=new Error(json.error||L('来源读取失败'));error.code=json.code;error.details=json.details;throw error;}result=json;}
+      if(!(response.headers.get('content-type')||'').includes('ndjson')){const json=await response.json();if(!response.ok){const error=new Error(json.error||L('拆解失败'));error.code=json.code;error.details=json.details;throw error;}result=json;}
       else{
         const reader=response.body.getReader();const decoder=new TextDecoder();let buffer='';
         const consume=(line)=>{if(!line.trim())return;const event=JSON.parse(line);if(event.type==='result')result=event.result;
-          if(event.type==='progress'){const stage=$('[data-jelly-extract-stage]');const progress=$('[data-jelly-extract-progress]');const labels={planning:'正在拆解'};if(stage)stage.textContent=L(labels[event.stage]||event.stage||'正在读取来源…');if(progress)progress.value=Math.max(0,Math.min(1,event.progress||0));}
-          if(event.type==='error'){const error=new Error(event.error||L('来源读取失败'));error.code=event.code;error.details=event.details;error.status=event.status;throw error;}
+          if(event.type==='progress'){const stage=$('[data-jelly-extract-stage]');const progress=$('[data-jelly-extract-progress]');if(stage)stage.textContent=L('正在拆解…');if(progress)progress.value=Math.max(0,Math.min(1,event.progress||0));}
+          if(event.type==='error'){const error=new Error(event.error||L('拆解失败'));error.code=event.code;error.details=event.details;error.status=event.status;throw error;}
         };
         for(;;){const chunk=await reader.read();if(chunk.done)break;buffer+=decoder.decode(chunk.value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop();for(const line of lines)consume(line);}buffer+=decoder.decode();if(buffer.trim())consume(buffer);
       }
-      if(!result)throw new Error(L('来源读取没有返回结果'));
+      if(!result)throw new Error(L('拆解没有返回结果'));
     }catch(error){failure=error;}
     finally{finished=true;if(genericVersion===dialogVersion)$('[data-jelly-dialog]').close();await new Promise((resolve)=>setTimeout(resolve,0));}
     if(failure){
-      if(failure.name==='AbortError'){showNote(L('读取已取消，原始内容保留'));return null;}
-      if(failure.code==='jelly.material.model_required'){
-        const size=failure.details?.approximate_bytes;const message=L('转写需要下载本机语音模型。')+(size?' '+Math.round(size/1024/1024)+' MB。':' ')+L('下载后只用于本机转写。现在下载并继续？');
-        if(await confirm('下载语音模型',message,'下载并继续')){await new Promise((resolve)=>setTimeout(resolve,0));return extractMaterial(path,{...payload,allow_model_download:true});}return null;
-      }
+      if(failure.name==='AbortError'){showNote(L('拆解已取消，原文不会改动'));return null;}
       throw failure;
     }
     return result;

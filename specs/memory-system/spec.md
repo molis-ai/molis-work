@@ -1,6 +1,6 @@
 # 平台记忆系统：综合设计
 
-> 状态：开工（2026-09-30）。分支 `feature/memory-system`，基于 `feature/system-assistant` 2e837e8f。目标与推进方式见 [goal-prompt.md](goal-prompt.md)。
+> 状态：M1–M5 已完成，工程验证和真实场景验证都记在第 17 节；全量对基线无新增失败（17.9），已对 main 开 PR、等合入（2026-10-01）；用户本人的验收待做。分支 `feature/memory-system`，基于 `feature/system-assistant` 2e837e8f。目标与推进方式见 [goal-prompt.md](goal-prompt.md)。
 > 关系：独立目标。承接[系统级助理 spec 第 12 节](../system-assistant/spec.md)的记忆要求，以及助理分支 P8 已做的第一版（[implementation.md](../system-assistant/implementation.md) 第 13 节）。动态交互目标（另一会话，分支 `feature/contextual-interaction`）通过本系统的读取动作使用记忆，并把界面行为信号交给本系统。
 
 ## 0. 一句话
@@ -429,7 +429,7 @@ SDK 改动沿用现有做法：在 prologue 工作树提交，打成 vendored tg
 
 **真实浏览器（隔离 Home，launch `memory-dev` 4296）**：个人页添加、筛选、界面信号生成的候选显示；项目页正常；1440 与 390 深色走查过一轮，修了筛选下拉被撑满、标题字号不一致、首次读取前开关显示为关。四宽度完整验收放在页面齐全后（AC-M15）。
 
-**未做 / 待定**：助理设置“记忆与偏好”改为摘要＋跳转（等页面动线合入）；工作台设置覆盖层里的绑定（`bindEmbed`，等页面动线合入）。
+**已补（页面动线合入后）**：助理设置“记忆与偏好”改为摘要＋跳转、工作台设置覆盖层里的绑定（`bindEmbed`），见 17.8 与 17.9。
 
 ### 17.2 M2 结构与召回统一（2026-09-30，提交 8816bc84；定时任务 a4240c69）
 
@@ -519,6 +519,19 @@ SDK 改动沿用现有做法：在 prologue 工作树提交，打成 vendored tg
 - **依据对象的界面入口**：记忆“依据哪个对象”只有 Agent 经 `memory.write` 的 `rests_on` 能写，设置页没有这个字段。
 - **插件读记忆、外部 MCP 读记忆**：工程验证覆盖，没有真实插件或 MCP 客户端实测。
 - **真实 Jev**：本线没有需要 Jev 判断的路径；界面推荐读记忆由动态交互线实测。
-- **全量回归与基线比对**：按合并协调会话的安排在队列末尾，且应在合入届时的 main 之后跑，尚未跑；本线已跑的是受影响测试（memory-* 26 项、assistant-memory 4 项、schedule-task-runner、prologue-stream 等）、`pnpm typecheck`、`pnpm boundary:check`、设计门禁。
+- **全量回归与基线比对**：已做，结论“对基线无新增失败”，见 17.9。
 - **合成 SDK 包**：已换成侧栏线的合成包 `prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`（含 f80130ab、9773d59a），`memory-platform.tgz` 与 `.patch` 已删（经用户同意）；prologue 源码在远端分支 `feat/molis-memory-platform`（9773d59a）与 `feat/molis-side-panel-surfaces-on-memory`（9fc3b173）。换包后受影响测试 231/231。
-- **页面动线挂载**：已完成——“个人 → 记忆”进设置分类表，设置覆盖层可内嵌，助理设置的“记忆与偏好”改为摘要＋跳转（a68e0b95）。
+- **页面动线挂载**：已完成——“个人 → 记忆”进设置分类表，设置覆盖层可内嵌，助理设置的“记忆与偏好”改为摘要＋跳转（a68e0b95）；项目齿轮的项目设置覆盖层加“记忆”，项目记忆在工作台里打开（8fc4798e）。
+
+### 17.9 全量回归与合入 main（2026-10-01，按合并协调会话的时段）
+
+**全量（本分支 0b1a2473 = main c17015e9 + 本线）**：`node scripts/run-tests.mjs`（非浏览器 + 浏览器，并发 1），3587 项：3557 通过、21 失败、2 取消、7 跳过，96 分钟。其间 21:00–21:15 机器负载被仓库外的会话推到 150–190。失败落在 19 个文件；这 19 个文件在基线（同一 c17015e9，install + 整体构建）与本分支各重跑一次，按用例名比对：
+
+- **只在本分支失败的 5 项，两处原因，已修（8fc4798e）**：
+  - 设置目录把每个嵌入页都交给所有绑定函数，记忆的绑定以前不看页面就当记忆页处理，抛错后打断了后面的项目说明、工作目录等绑定：`project-settings-standalone`、`project-home-start`、`project-workspaces-settings`、`coding-workbench` 4 项 e2e。现在和助理、诊断一样，先找 `[data-memory-settings]`，没有就返回。
+  - `page-interaction-flow` e2e 只取设置列表前 8 项，新增的“记忆”把“诊断”挤出去了。属于预期变化：改取前 9 项，期望里加 memory，诊断仍在比对之列。
+  - 修后这 7 个设置相关 e2e 与 4 个设置单测共 59 项全过；真实浏览器里个人记忆、诊断、项目说明、工作目录、项目记忆在覆盖层里都能打开，没有脚本错误。
+- **基线也失败的 6 项，与本线无关**：Shelf DropAgent parity、卡片时间选择（写死 2026-10-01T01:00Z 又用真实时钟，#124 已修）、clean developer project（打包公开 SDK）、event recovery、icon tabs、related Goal inside a pane。
+- **负载下超时、重跑通过的 12 项**：Goals 页面 9 项 e2e（46–65 秒超时）与 research repository 3 项；2 项取消随 Goals e2e 超时一起发生。
+
+**合入 main 09aaf91e（#123–#128）为 88889d4c**：唯一冲突在 `vendor/prologue-sdk/README.md`，两边各删了自己那一行，并集。按依赖顺序单包重建 16 个包，全部通过。补跑 118 个测试文件（本线、助理、设置、prologue、jelly、ppt、workflows、test:contracts、合并改到的测试），776 项：774 通过、1 跳过、1 失败。失败的是 `immersive-directory` e2e 的“状态筛选按钮文字 display 为 inline”，这条断言是 #126 新加的；基线切到 09aaf91e 后同样失败（`'block' !== 'inline'`），属于 #126，已转告协调会话。

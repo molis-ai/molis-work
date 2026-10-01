@@ -903,6 +903,10 @@ test("Web first-run onboarding can be skipped without creating a project or Runt
     });
     assert.equal(dismissed.status, 200);
 
+    // Having put the first run off, a person is not a new person again: a new project starts at the sources.
+    const again = await (await webFetch(`${origin}/onboarding?mode=new-project`)).text();
+    assert.match(again, /data-onboarding-mode="new_project"/);
+
     const projectIndex = await webFetch(`${origin}/`, { redirect: "manual" });
     assert.equal(projectIndex.status, 200);
     const page = await projectIndex.text();

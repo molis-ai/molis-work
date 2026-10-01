@@ -5,9 +5,9 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   descriptionFromSummary,
-  forgetProjectArrival,
   markProjectOpened,
   PROJECT_ARRIVAL_RELATIVE_PATH,
+  pruneProjectArrival,
   readProjectArrival,
   setProjectDescription,
 } from "../apps/local-host/src/project-arrival.js";
@@ -71,6 +71,7 @@ test("a summary becomes one sentence: its first paragraph, without headings or e
   assert.equal(descriptionFromSummary("## 项目概览\n\n**核心**：整理发布清单，\n并核对版本。\n\n第二段不要。"), "核心：整理发布清单， 并核对版本。", "a heading is a title, not the description");
   assert.equal(descriptionFromSummary("# 背景\n本项目要把发布流程梳理清楚。"), "本项目要把发布流程梳理清楚。");
   assert.equal(descriptionFromSummary("# 只有标题\n\n## 另一个标题"), null);
+  assert.equal(descriptionFromSummary("张总要求周五前发 [新版方案](/projects/p/?openPlugin=pages) ，预算等小李确认。[S1][S2]"), "张总要求周五前发 新版方案 ，预算等小李确认。", "citations and links read as their words");
   assert.equal(descriptionFromSummary("把 **发布** 流程\n梳理清楚。\n\n另一段"), "把 发布 流程 梳理清楚。");
   assert.equal(descriptionFromSummary("   \n\n  "), null);
   assert.equal(descriptionFromSummary(""), null);
@@ -79,16 +80,29 @@ test("a summary becomes one sentence: its first paragraph, without headings or e
   assert.ok(long.endsWith("…"));
 });
 
-test("a project that no longer exists leaves no memory behind, not even the preselection", () => {
+test("a project that is no longer in the catalog leaves no memory behind, not even the preselection", () => {
   withHome(home => {
     markProjectOpened(home, "a", at("2026-10-01T08:00:00Z"));
     markProjectOpened(home, "b", at("2026-10-01T09:00:00Z"));
-    forgetProjectArrival(home, "b");
-    const state = readProjectArrival(home);
-    assert.equal(state.last_project_id, null);
-    assert.deepEqual(Object.keys(state.projects), ["a"]);
-    forgetProjectArrival(home, "never-there");
-    assert.deepEqual(Object.keys(readProjectArrival(home).projects), ["a"]);
+    setProjectDescription(home, "c", "不在目录里的项目");
+    const left = pruneProjectArrival(home, new Set(["a"]));
+    assert.equal(left.last_project_id, null, "b was the last one opened and is gone");
+    assert.deepEqual(Object.keys(left.projects), ["a"]);
+    assert.deepEqual(readProjectArrival(home), left, "what the chooser reads next is what was kept");
+  });
+});
+
+test("pruning leaves memory alone when every project is there, and never touches the personal space", () => {
+  withHome(home => {
+    markProjectOpened(home, "personal", at("2026-10-01T08:00:00Z"));
+    markProjectOpened(home, "a", at("2026-10-01T09:00:00Z"));
+    const file = join(home, PROJECT_ARRIVAL_RELATIVE_PATH);
+    const before = readFileSync(file, "utf8");
+    const state = pruneProjectArrival(home, new Set(["a"]));
+    assert.equal(readFileSync(file, "utf8"), before, "nothing to drop, nothing written");
+    assert.deepEqual(Object.keys(state.projects).sort(), ["a", "personal"], "the personal space is made on first use, so it is never judged by the catalog");
+    markProjectOpened(home, "personal", at("2026-10-01T10:00:00Z"));
+    assert.equal(pruneProjectArrival(home, new Set()).last_project_id, "personal");
   });
 });
 
@@ -124,7 +138,7 @@ test("a Home that cannot be written to never stops a project from opening", () =
     writeFileSync(join(home, "config"), "in the way");
     assert.doesNotThrow(() => markProjectOpened(home, "a"));
     assert.doesNotThrow(() => setProjectDescription(home, "a", "x"));
-    assert.doesNotThrow(() => forgetProjectArrival(home, "a"));
+    assert.doesNotThrow(() => pruneProjectArrival(home, new Set()));
     assert.deepEqual(readProjectArrival(home).projects, {});
   });
 });

@@ -100,6 +100,29 @@ test("the chooser opens on the project last opened, shows its brief, and Enter g
   assert.ok(Date.now() - Date.parse(remembered.projects[projectId]!.last_opened_at) < 60_000, "stamped just now");
 });
 
+test("a returning person's first look in a session types the name in the titlebar and never stands in the way; later looks do not replay it", { timeout: 90_000 }, async t => {
+  const chooser = await openChooser(t);
+  if (!chooser) return;
+  const { evaluate, command, sessionId, waitFor, navigate, press, view, open, projectId } = chooser;
+  await view(1440);
+  // The page's motion rests under automation and reduced motion; this is about the motion itself.
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: "Object.defineProperty(navigator, 'webdriver', { get: () => false });" }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
+  const wordmark = "document.querySelector('.arrival-titlebar .mw-wordmark').dataset.state";
+  await open("/");
+  assert.equal(await evaluate(wordmark), "typing", "a new session starts with the name being typed");
+  assert.ok(await evaluate("!!document.querySelector('.arrival-titlebar [data-caption]')"), "and the caption beside it");
+  await waitFor(`${wordmark} === 'done'`, 8_000);
+  await open("/");
+  assert.equal(await evaluate(wordmark), "done", "the same session finds it already typed");
+  // Typing is never in the way: a fresh session and Enter at once goes in.
+  await evaluate("sessionStorage.clear()");
+  await open("/");
+  assert.equal(await evaluate(wordmark), "typing");
+  await navigate(() => press("Enter"));
+  assert.equal(await evaluate("location.pathname"), `/projects/${projectId}/`);
+});
+
 test("the arrow keys move through the directory and the brief and the bar follow; Enter goes in to the one in view", { timeout: 90_000 }, async t => {
   const chooser = await openChooser(t);
   if (!chooser) return;

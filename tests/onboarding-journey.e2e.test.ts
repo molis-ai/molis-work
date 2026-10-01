@@ -182,6 +182,39 @@ const SCREENS: Array<{ name: string; width: number; height?: number }> = [
   { name: "900", width: 900, height: 700 }, { name: "768", width: 768, height: 800 }, { name: "600", width: 600, height: 800 }, { name: "390 phone", width: 390, height: 844 }, { name: "375 phone", width: 375, height: 667 }, { name: "320 phone", width: 320, height: 568 }, { name: "phone, sideways", width: 667, height: 375 },
 ];
 
+/** The page's motion rests under automation and reduced motion; the tests of the motion itself say the browser is neither. */
+async function withMotion(journey: { command: (method: string, params?: Record<string, unknown>, sessionId?: string) => Promise<unknown>; sessionId: string }) {
+  await journey.command("Page.addScriptToEvaluateOnNewDocument", { source: "Object.defineProperty(navigator, 'webdriver', { get: () => false });" }, journey.sessionId);
+  await journey.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, journey.sessionId);
+  await journey.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, journey.sessionId);
+}
+
+test("the opening types its name, the way on arrives a moment after it, and a first Enter only ends the typing", { timeout: 90_000 }, async t => {
+  const journey = await openJourneyBrowser(t, "empty");
+  if (!journey) return;
+  const { go, evaluate, waitFor, press } = journey;
+  await withMotion(journey);
+  const wayOn = "getComputedStyle(document.querySelector('.arrival-bar .bar-end')).visibility";
+  // Left alone, the name types and the way on appears a few seconds in.
+  await go("/onboarding");
+  await waitFor(screen("opening"));
+  assert.equal(await evaluate("document.querySelector('.opening .mw-wordmark').dataset.state"), "typing");
+  assert.equal(await evaluate(wayOn), "hidden", "no way on while the name is being typed");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('#cx-exit')).visibility"), "visible", "but a way out is always there");
+  await waitFor(`${wayOn} === 'visible'`, 8_000);
+  assert.equal(await evaluate("document.querySelector('.arrival').dataset.screen"), "opening", "it waits to be asked");
+  // A first Enter before that ends the typing and nothing more; the second goes on.
+  await go("/onboarding");
+  await waitFor(screen("opening"));
+  await press("Enter");
+  await waitFor("document.querySelector('.opening').classList.contains('is-ready') && document.querySelector('.opening .mw-wordmark').dataset.state === 'done'");
+  assert.equal(await evaluate("document.querySelector('.arrival').dataset.screen"), "opening", "the first Enter only ended the typing");
+  await waitFor(`${wayOn} === 'visible'`);
+  await press("Enter");
+  await waitFor("document.querySelector('.welcome')?.dataset.step === 'language'", 5_000);
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('.arrival-titlebar .mw-wordmark')).visibility"), "visible", "the name has settled into the titlebar");
+});
+
 test("the opening and the two questions lay out cleanly at every width, in light and dark", { timeout: 300_000 }, async t => {
   const journey = await openJourneyBrowser(t, "empty");
   if (!journey) return;
@@ -314,6 +347,26 @@ test("in English every screen of the journey lays out cleanly too: longer words,
       await assertLayoutClean(evaluate, `${state} · ${name} · English`);
     }
   }
+});
+
+test("the new project is previewed in the sentence the chooser will use for it, and a blank start carries one line about the personal space, not a paragraph", { timeout: 60_000 }, async t => {
+  const journey = await openJourneyBrowser(t, true);
+  if (!journey) return;
+  const { view, go, seed, evaluate, waitFor } = journey;
+  await view(1440);
+  const id = seed(item => {
+    item.sources = [{ kind: "browser", selected: true, references: [reference(1)] }];
+    item.phase = "review";
+    item.summary = { title: "新版方案", body: SUMMARY, references: [reference(1)] };
+  });
+  await go(`/onboarding?mode=new-project&journey=${id}`);
+  await waitFor(obView("review"));
+  assert.equal(await evaluate("document.querySelector('.ob-preview .mw-brief__desc').textContent"), "张总要求周五前发新版方案，预算等小李确认；团建改到周四。",
+    "the first paragraph that says something: not the heading, not the [S1] mark");
+  await go("/onboarding?mode=new-project&start=blank");
+  await waitFor(`${obView("blank")} && !!document.getElementById('cx-blank-name')`);
+  assert.equal(await evaluate("document.querySelectorAll('.ob-left .ob-note').length"), 0, "no long note under the name");
+  assert.equal(await evaluate("document.querySelectorAll('.ob-left [data-action=personal]').length"), 1, "the way to the personal space is one line");
 });
 
 test("a new project begun from the chooser starts at the sources, a blank start can be named and left, and the way back is the chooser", { timeout: 90_000 }, async t => {

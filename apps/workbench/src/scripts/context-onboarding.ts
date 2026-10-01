@@ -295,7 +295,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   }
   /** The new project as it will look in the chooser: the same brief, drawn from what is being decided. */
   function briefPreview(name, summary, nextHtml, kicker) {
-    const first = String(summary || '').split(/\n\s*\n/).map(p => p.replace(/^#{1,6}\s+/gm,'').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\[S\d+\]/g,'').replace(/\s+/g,' ').trim()).find(Boolean) || '';
+    // The same sentence the chooser will show once the project exists: the first paragraph that says something (a heading is a title), as plain words.
+    const first = String(summary || '').split(/\n\s*\n/).map(p => p.split('\n').filter(line => !/^\s*#{1,6}\s/.test(line)).join(' ').replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/\s*\[S\d+\]/g,'').replace(/\x60([^\x60]+)\x60/g,'$1').replace(/\s+/g,' ').trim()).find(Boolean) || '';
     return '<div class="ob-preview" aria-label="' + esc(L('新项目的样子')) + '"><article class="mw-brief" data-slot="brief"><p class="mw-brief__kicker">' + status(L('未设目标'),'quiet','status-todo') + '<span>' + esc(kicker) + '</span></p><h1 class="mw-brief__title ob-project-name">' + esc(name) + '</h1>'
       + (first ? '<p class="mw-brief__desc">' + esc(first.length > 240 ? first.slice(0, 239) + '…' : first) + '</p>' : '<p class="mw-brief__desc is-missing">' + glyph('info') + '<span>' + L('还没有项目描述。进入项目后，在项目设置里补一句它要做什么。') + '</span></p>')
       + '<section class="mw-brief__focus is-empty"><div><h2>' + L('还没有目标') + '</h2><p>' + L('进入项目后写下第一个目标，也可以先让助理起草。') + '</p></div></section>'
@@ -326,7 +327,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const preview = briefPreview(blankName.trim() || L('新项目'), '', {title:'接下来', body:'<p class="mw-brief__quiet">' + L('目标定下来之后，要推进的事会出现在这里。') + '</p>'}, L('刚刚') + ' · ' + L(materialsOnly ? '带入已读取的资料' : '空白项目'));
     const left = question(L('给新项目一个名字'), L(materialsOnly?'已导入的资料会带入项目，摘要可以稍后整理。':'先建一个空间，资料和下一步可以慢慢补充。'))
       + '<form id="cx-blank-form" class="ob-name"><label class="ob-label" for="cx-blank-name">' + L('项目名称') + '</label><input class="mw-input ob-name__input" id="cx-blank-name" maxlength="120" required autocomplete="off" data-plain-field placeholder="' + esc(L('例如：秋季内容计划')) + '" value="' + esc(blankName) + '"><p class="cx-error ob-error" role="alert">' + esc(error) + '</p></form>'
-      + (materialsOnly ? '' : '<p class="ob-quiet">' + L('还没想好是什么项目？') + ' ' + btn({variant:'link', size:'sm', label:L('先在个人空间开始'), attrs:{'data-action':'personal', disabled:busy}}) + '</p>' + note(L('个人空间里的内容只有你能看到；之后建了项目，可以把它们移过去或用于项目。'), 'user'));
+      + (materialsOnly ? '' : '<p class="ob-quiet">' + L('还没想好是什么项目？') + ' ' + btn({variant:'link', size:'sm', label:L('先在个人空间开始'), attrs:{'data-action':'personal', disabled:busy}}) + '</p>');
     return {kind:'onboard', view:'blank', step:'来源', left, right:preview,
       bar:{start:exitButton() + steps(stepLabels().length, -1), center:barStatus({glyph:'plus', title:L(materialsOnly ? '带入已读取的资料' : '空白项目'), caption:blankName.trim() ? L('将创建「{name}」', {name:blankName.trim()}) : L('写下名字就可以开始')}),
         end:secondary(materialsOnly ? '返回' : '带入材料','back') + btn({variant:'primary', size:'lg', type:'submit', label:L(busy ? '正在创建…' : '创建项目'), key:'↵', cls:'ob-continue', disabled:busy, attrs:{form:'cx-blank-form', 'aria-keyshortcuts':'Enter'}})}};
@@ -396,16 +397,23 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function startOpening() {
     const wordmark = app.querySelector('.ob-greeting-wordmark [data-wordmark]'), titleMark = document.querySelector('.arrival-titlebar [data-wordmark]');
     if (titleMark) titleMark.style.visibility = 'hidden';
-    const handle = arrival.typeWordmark(wordmark, {pace:'ritual', delay:400, onDone:() => app.querySelector('.opening')?.classList.add('is-done')});
+    const handle = arrival.typeWordmark(wordmark, {pace:'ritual', delay:400, onDone:() => app.querySelector('.opening')?.classList.add('is-done', 'is-ready')});
     arrival.mountCaption(app.querySelector('.opening-caption [data-caption]'));
     const glow = app.querySelector('.opening-glow'); arrival.arrive(glow, [{opacity:0},{opacity:1}], {duration:1600});
     openingHandle = handle;
+    // The way on arrives a moment after the name is typed (about 2.9s), not after the caret has finished blinking.
+    clearTimeout(readyTimer); readyTimer = setTimeout(() => app.querySelector('.opening')?.classList.add('is-ready'), 2900);
   }
-  let openingHandle = null;
+  let openingHandle = null, readyTimer = 0;
+  /** Any key or click ends the typing at once, and the way on is there. */
+  function endOpeningTyping() {
+    openingHandle?.skip?.(); clearTimeout(readyTimer);
+    app.querySelector('.opening')?.classList.add('is-done', 'is-ready');
+  }
   /** The opening ends by settling its wordmark into the title bar. */
   async function leaveOpening(next) {
     const big = app.querySelector('.ob-greeting-wordmark [data-wordmark]'), small = document.querySelector('.arrival-titlebar [data-wordmark]');
-    openingHandle?.skip?.();
+    openingHandle?.skip?.(); clearTimeout(readyTimer);
     if (small) { small.style.visibility = 'visible'; small.dataset.state = 'done'; }
     if (big && small && !arrival.still()) {
       small.style.visibility = 'hidden';
@@ -621,12 +629,15 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     if (e.key !== 'Enter' || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
     const target = e.target;
     if (target !== document.body && target?.id !== 'ob-title') return;
+    // On the opening the first Enter ends the typing; the way on is there once the name has been typed.
+    const opening = introStep === 'opening' ? app.querySelector('.opening') : null;
+    if (opening && !opening.classList.contains('is-ready')) { e.preventDefault(); endOpeningTyping(); return; }
     const next = bar.querySelector('.ob-continue:not(:disabled)');
     if (next) { e.preventDefault(); next.click(); }
   });
   // Any key or click ends the opening's typing early; Enter (or the button) goes on.
-  document.addEventListener('keydown', e => { if (introStep === 'opening' && e.key !== 'Enter' && e.key !== 'Tab') { openingHandle?.skip?.(); app.querySelector('.opening')?.classList.add('is-done'); } });
-  app.addEventListener('click', e => { if (introStep === 'opening' && !e.target.closest('button')) { openingHandle?.skip?.(); app.querySelector('.opening')?.classList.add('is-done'); } });
+  document.addEventListener('keydown', e => { if (introStep === 'opening' && e.key !== 'Enter' && e.key !== 'Tab') endOpeningTyping(); });
+  app.addEventListener('click', e => { if (introStep === 'opening' && !e.target.closest('button')) endOpeningTyping(); });
 
   /* ───────── Start ───────── */
   (async()=>{try{

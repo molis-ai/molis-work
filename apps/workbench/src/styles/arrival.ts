@@ -47,6 +47,9 @@ export const ARRIVAL_STYLES = String.raw`
   .arrival-bg [data-background-tasks-count] { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; background: var(--action); color: var(--action-ink); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 17px; text-align: center; font-variant-numeric: tabular-nums; pointer-events: none; }
   .arrival-bg [data-background-tasks-count][hidden], .arrival-bg:has(.mw-btn[hidden]) [data-background-tasks-count] { display: none; }
   .arrival[data-screen="opening"] .arrival-tools { visibility: hidden; }
+  /* The way on arrives a moment after the name has been typed (any key or click ends the typing at once, and a still page has it already). */
+  .arrival[data-screen="opening"] .arrival-bar .bar-end { opacity: 0; visibility: hidden; transform: translateY(8px); }
+  .arrival[data-screen="opening"]:has(.opening.is-ready) .arrival-bar .bar-end { opacity: 1; visibility: visible; transform: none; transition: opacity var(--dur-arrive, 420ms) var(--ease-quint), transform var(--dur-arrive, 420ms) var(--ease-quint); }
   .arrival[data-screen="welcome"] .arrival-global { display: none; }
   .arrival-theme { display: none; }
   .arrival[data-screen="welcome"] .arrival-theme { display: inline-flex; }

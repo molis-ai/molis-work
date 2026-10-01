@@ -45,6 +45,7 @@
 | BL-022 | 多人协作项目里项目记忆的可见性；团队共享记忆 | [memory-system §3、§15](archive/memory-system/spec.md) | 等协作能力定型 | 低 |
 | BL-023 | Coding 会话的执行目录（项目偏好）与 Files/Git 浏览目录（项目设置）是否合成一个 | [coding-plugin/spec.md 第 0 节「仍未做到」](coding-plugin/spec.md) | 设计取舍 | 中 |
 | BL-024 | 侧栏界面控制与平台记忆的 Prologue 提交（`9fc3b173` 等）是否推到 prologue 远端 | [vendor/prologue-sdk/README.md](../vendor/prologue-sdk/README.md) | 推 Prologue 上游需要用户同意 | 低 |
+| BL-025 | 收想法有两处：「灵光」插件与 Jelly 的「灵感」（PMR-22）。哪一处是「想法」的默认去处、另一处怎么定位（例如 Jelly 灵感只收待整理的原始素材） | [post-merge-review §5 场景 1](post-merge-review/spec.md)、[post-merge-review §3 PMR-22](post-merge-review/spec.md) | 产品决定；两处都在本轮之前（09-21、09-23）加入 | 中 |
 
 ## 3. 助理、记忆与动态交互
 
@@ -60,6 +61,9 @@
 | BL-037 | 记忆：自动写入默认开，若实测误记多改为默认「先问我」；提炼成本单独记账 | [memory-system §15](archive/memory-system/spec.md) | 已知缺口 | 待实测数据 | 无 | 低 | 未分配 |
 | BL-038 | 动态交互待定：容器是否原生支持分组；渲染预算 1.5 秒与阈值 τ 用真实 Jev 延迟定；其他插件片段动作的第一批名单 | [contextual-interaction §14](archive/contextual-interaction/spec.md) | 待你决定 | 需真实数据 | 无 | 低 | 未分配 |
 | BL-039 | 动态交互：Goals、Inbox 没有对象声明；除 Pages 外的插件没有片段级动作 | [contextual-interaction §13](archive/contextual-interaction/spec.md)、[plugin-e2e-review §5.1](archive/plugin-e2e-review/spec.md) | 部分实现 | Feed、炼金术士方向与实验已补，其余未做 | 各插件 | 中 | 未分配 |
+| BL-089 | MiniMax M3.1 把数组参数写成 `{item: …}`（待办的 `sources`、提问工具的 `options` 都碰到过）：网关按合同拒绝，模型有时自己改对，有时连续失败到上限。可以按 schema 把 `{item: X}` 归一成数组，与已有的数字、是否归一同类 | [post-merge-review §5 场景 1](post-merge-review/spec.md) | 已知缺口 | 本步不新增兼容处理 | 无 | 中 | 未分配 |
+| BL-090 | 开发者诊断把「输入不合能力合同」的失败记成 `EFFECT_NOT_AUTHORIZED`，看不出真实原因 | [post-merge-review §5 场景 1](post-merge-review/spec.md)（`/api/assistant/diagnostics`） | 已知缺口 | 只影响开发者诊断页 | 无 | 低 | 未分配 |
+| BL-091 | 助理过程中的文字会露出内部标识（如 `todo.items.create`、`change-reversible`、分类 id `uncategorized`）；现有防护只检查最后的回复 | [post-merge-review §5 场景 1](post-merge-review/spec.md) | 已知缺口 | 需定过程文字是否也要拦 | 无 | 低 | 未分配 |
 
 ## 4. 搜索、放置与工作流
 
@@ -86,6 +90,7 @@
 | BL-056 | 规划方法：更多行业按单文件扩充 | [planning-method-markdown-catalog](archive/planning-method-markdown-catalog/spec.md) | 明确后续做 | 首批只为验证机制 | 无 | 低 | 未分配 |
 | BL-057 | Cognia：LLM Wiki 专有格式（当前按通用 Markdown Wiki 接入） | [cognia-plugin](archive/cognia-plugin/spec.md) | 明确后续做 | 用户未指定实现 | 无 | 低 | 未分配 |
 | BL-058 | 插件市场的上架与审核流程（市场只列本地注册表） | [plugin-platform-v2「不做」](plugin-platform-v2/spec.md) | 明确后续做 | 非本期 | 无 | 低 | 未分配 |
+| BL-092 | 从助理结果打开 Jelly 日程时，侧栏「文件」标签写「这个文件所在的插件没有向侧栏提供文件」：日程被叫成文件，Jelly 也没有给侧栏提供预览 | [post-merge-review §5 场景 1](post-merge-review/spec.md) | 已知缺口 | 「在插件中打开」可用（#146 修好后能直接打开到这条日程） | #146 | 低 | 未分配 |
 
 ## 6. 连接、来源与 Onboarding
 

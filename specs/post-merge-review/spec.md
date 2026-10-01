@@ -382,23 +382,28 @@
 
 | 编号 | 问题 | 证据 | 归类 | 处理 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| PMR-01 | 首次使用或新建项目时选「空白开始」，输入名字后用鼠标点「创建项目」，名字被清空，Host 返回 400，项目建不出来 | 隔离 Home 实测（4302）；`change` 处理没有排除 `#cx-blank-name`，先存来源选择再整页重绘；新用例修复前失败 | 产品缺陷，2026-09-26 起即有，不是合并引入 | 跳过项目名的 `change`，重绘保留名字；新增 `tests/context-onboarding-blank.e2e.test.ts` | 修复中 [#138](https://github.com/molis-ai/molis-work/pull/138) |
-| PMR-02 | 两个铃铛：标题栏「插件通知」（`immersive-shell.ts` 的 `data-plugin-notifications`，待核对的插件事件）与底栏「需要你看看」（`assistant-dock.ts` 的 `data-assistant-attention`，助理提醒、失败、到期提醒） | 代码与界面快照 | 用户可见重复 | 产品语义，需用户定唯一入口 | 待决 |
-| PMR-03 | Characters 两处入口：设置「AI › 角色」页，同时插件市场里仍有「角色」插件卡，可添加、移除 | 隔离 Home 实测：设置目录与市场卡片 | 用户可见重复 | 产品语义，需用户定 | 待决 |
+| PMR-01 | 首次使用或新建项目时选「空白开始」，输入名字后用鼠标点「创建项目」，名字被清空，Host 返回 400，项目建不出来 | 隔离 Home 实测（4302）；`change` 处理没有排除 `#cx-blank-name`，先存来源选择再整页重绘；新用例修复前失败 | 产品缺陷，2026-09-26 起即有，不是合并引入 | 跳过项目名的 `change`，重绘保留名字；新增 `tests/context-onboarding-blank.e2e.test.ts` | 已修 [#138](https://github.com/molis-ai/molis-work/pull/138)（70eee25f） |
+| PMR-02 | 两个铃铛：标题栏「插件通知」（`immersive-shell.ts` 的 `data-plugin-notifications`，待核对的插件事件）与底栏「需要你看看」（`assistant-dock.ts` 的 `data-assistant-attention`，助理提醒、失败、到期提醒） | 代码与界面快照 | 用户可见重复 | 用户定：合成底栏一个铃铛；标题栏铃铛去掉，待核对的插件通知并入「需要你看看」 | 修复中 [#140](https://github.com/molis-ai/molis-work/pull/140) |
+| PMR-03 | Characters 两处入口：设置「AI › 角色」页，同时插件市场里仍有「角色」插件卡，可添加、移除 | 隔离 Home 实测：设置目录与市场卡片 | 用户可见重复 | 用户定：只留设置里的角色页；市场不再出现没有导航视图的插件卡 | 修复中 [#141](https://github.com/molis-ai/molis-work/pull/141) |
 | PMR-04 | `apps/workbench/src/i18n/en.ts` 有 38 个翻译键在后面的 `Object.assign` 里重复出现，其中 24 个英文不同，后写的静默覆盖先写的（如「已完成」Done/Completed，「执行中」Executing/In progress） | 静态扫描 | 合并后的翻译键冲突；现行英文就是后写的值 | 删掉被覆盖的死条目、加重复键门禁，行为不变 | 交第二步 |
 | PMR-05 | 平台记忆在首次调用时把助理第一版记忆（`assistant.db` 三张表）迁进来（`memory-host.ts` 的 `migrateLegacy`），助理旧 HTTP 记忆路由保留路径转发 | 代码 | 兼容逻辑；用户只看到一套记忆 | 按「不留兼容」删迁移、旧表与转发 | 交第二步 |
 | PMR-06 | `vendor/prologue-sdk/` 有 4 份 tgz，只有 `side-panel-memory.tgz` 被依赖；README 里「两份包」的说明已过期（`feature/personal-work-assistant` 已不存在） | `horizontal/agent-host/package.json`、`pnpm-lock.yaml`、README | 卫生；删 vendored 文件要用户同意 | 按 prompt 留给第二步 | 交第二步 |
 | PMR-07 | 工作台首屏把全部插件的隐藏界面一次渲染进页面（Feed 筛选、Jelly 日历、Cognia、炼金术士、角色、Sessions、Schedule 等） | 界面快照：按钮 200+ 个，绝大多数不可见 | 性能与结构 | 先在 §4.5 量页面体量，结构改动交第二步 | 核实中 |
 | PMR-08 | 客户端仍有 Goal 时代的旧路径：`initialization.ts` 的 `/decisions`、`#decision-goal-` 跳转、`onboarding-runtime=1`、`feed-start=1`、决定回执，以及每 4 秒的 Board 游标轮询 | 代码 | 兼容或死代码 | 第二步清点后删除 | 交第二步 |
 | PMR-09 | `scripts/personal-assistant-public-sources.mts` 服务于已删除的个人助理切片 | 代码与引用 | 死脚本 | 第二步删除 | 交第二步 |
-| PMR-10 | 项目页里插件指向全局页面的链接被加上项目前缀，打开是 404：Cognia「打开模型设置」、Images 与实验「在 Connectors 管理账号」、Feed「打开 Connectors」（GitHub、Gmail）、角色「管理内置 Agent 授权」，共 6 个 | 隔离 Home 实测：项目页全部带项目前缀的站内链接逐个请求；根因是 `apps/workbench/src/renderer.ts` 的 `prefixLocalLinks` 给所有 `href="/…"` 加前缀，只排除 `/locale`、`/projects/` | 产品缺陷；规则自 2026-09-08 起，各插件后来陆续加了全局链接 | 加前缀时跳过 `/settings`、`/capabilities`；新增 `tests/project-page-links.test.ts`：项目页每个站内链接都能打开，修复前失败 | 修复中 [#139](https://github.com/molis-ai/molis-work/pull/139) |
+| PMR-10 | 项目页里插件指向全局页面的链接被加上项目前缀，打开是 404：Cognia「打开模型设置」、Images 与实验「在 Connectors 管理账号」、Feed「打开 Connectors」（GitHub、Gmail）、角色「管理内置 Agent 授权」，共 6 个 | 隔离 Home 实测：项目页全部带项目前缀的站内链接逐个请求；根因是 `apps/workbench/src/renderer.ts` 的 `prefixLocalLinks` 给所有 `href="/…"` 加前缀，只排除 `/locale`、`/projects/` | 产品缺陷；规则自 2026-09-08 起，各插件后来陆续加了全局链接 | 加前缀时跳过 `/settings`、`/capabilities`；新增 `tests/project-page-links.test.ts`：项目页每个站内链接都能打开，修复前失败 | 已修 [#139](https://github.com/molis-ai/molis-work/pull/139)（de3fcefb） |
 | PMR-11 | Onboarding 页面中英混排（如 “Choose a source”） | `work-placement` §13 记录；实测 `/onboarding?mode=new-project` 在中文与英文界面下都没有混排 | 已不成立 | 无 | 已关闭 |
 | PMR-12 | 助理面板约 800px 宽时，「继续/停止」只在抽屉里，抽屉开着又盖住确认卡 | `system-assistant/implementation.md` §16 记录，转给了面板会话 | 待核实 | 实测 | 核实中 |
 | PMR-13 | 灵光动作行在侧栏宽度下不换行，「复制内容」被截 | `side-panel` §7.4；实测侧栏 504px 宽时动作行为「转成文档 · 建成 Goal · 头脑风暴 · 交给助理」加复制、删除两个图标，没有截断 | 已不成立（插件复查线改成了图标） | 无 | 已关闭 |
 | PMR-14 | 英文界面底栏的材料芯片写成 “Viewing：合入后验收”，用了中文全角冒号 | 隔离 Home 英文界面实测 | 文案小瑕疵 | 随第二步 i18n 门禁一起改 | 交第二步 |
 | PMR-15 | 个人插件在项目里「移除」只是隐藏界面：移除 Pages 后侧栏视图撤下，但项目内搜索仍命中 Pages 文档，助理在该项目里仍可调用 Pages 动作 | 隔离 Home 实测；`availableProjectPluginIds` 总把全部个人插件算作可用；`plugin-market-remove` 需求写明「自带插件只隐藏、不删数据、不改成按项目安装」 | 产品语义与场景 6 的期望冲突 | 用户定：移除即在该项目停用；第二步统一装配时实现（BL-088） | 已定，交第二步 |
-| PMR-16 | 放在项目里的待办在任何范围都搜不到；个人待办正常 | 隔离 Home 实测；待办搜索来源只登记了 Home 范围，搜索服务用不带项目的身份列条目 | 跨线合并缺陷（待办 #98 × 搜索 #96） | 新增项目范围来源 `todo.search.project_entries`；Home 来源显式排除项目待办；用例修复前失败 | 修复中 [#144](https://github.com/molis-ai/molis-work/pull/144) |
-| PMR-17 | 首次在空 Home 给助理发第一句话，第一次回车只打开面板、没有发送；第二次回车建了工作，但面板停在「新工作」标签 | 隔离 Home（4302）首次操作时出现；同一 Home 之后用键盘发送 1 秒内即切到新工作，没能再现 | 待复现 | 用全新 Home 再试；复现则修 | 核实中 |
+| PMR-16 | 放在项目里的待办在任何范围都搜不到；个人待办正常 | 隔离 Home 实测；待办搜索来源只登记了 Home 范围，搜索服务用不带项目的身份列条目 | 跨线合并缺陷（待办 #98 × 搜索 #96） | 新增项目范围来源 `todo.search.project_entries`；Home 来源显式排除项目待办；用例修复前失败 | 已修 [#144](https://github.com/molis-ai/molis-work/pull/144)（a1c0a50c） |
+| PMR-17 | 首次在空 Home 给助理发第一句话，第一次回车只打开面板、没有发送；第二次回车建了工作，但面板停在「新工作」标签 | 隔离 Home（4302）首次操作时出现。之后在 4302 用键盘发送、在另一个全新 Home（4301）配好真实模型后第一次发送，都在 1 秒内建好工作并切过去，没能再现 | 推断为首次加载时的时机，未能再现 | 不改；第二步重跑场景 1 时留意 | 已关闭（未复现） |
+| PMR-18 | 助理把日程记进 Jelly、把想法存成 Jelly 灵感都成功了，回复写「打开 Jelly 即可看到」，但打开 Jelly 看不到，要整页刷新；从助理结果点「打开」、侧栏「在插件中打开」、⌘K 搜到的 Jelly 日程都只停在 Jelly 首屏 | 隔离 Home（4301）真实模型实测；Jelly 客户端没有监听 `molis:assistant-effect`，也不处理 `molis-work:select-item`（Todo、Pages、Coding 都接了）；新用例在基线上失败 | 插件没接齐平台约定；助理线让它变成主路径上的问题 | Jelly 监听两条事件：重读工作区并打开对象；日程编辑框打开时声明当前对象；新增 `tests/jelly-outside-changes.e2e.test.ts` | 修复中 [#146](https://github.com/molis-ai/molis-work/pull/146) |
+| PMR-19 | 助理偶尔只在聊天里说「已经存到 Jelly 灵感里」，实际没有发起任何调用，Jelly 里没有这条 | 4301 真实模型（MiniMax M3.1-Flash-Preview）：同类请求 2 次里 1 次。这一轮给了写入工具，模型只输出 33 个 token。Agent Host 已有的防护只拦「声称记住了记忆」「声称按钮已备好」「把调用写成文字」「只说下一步」，不拦「声称已存到某插件」 | 模型行为；平台防护有缺口，违反 system-assistant「不能只在聊天中声称已保存」 | 加一条同类防护：本轮没有成功的改动、却声称已保存或已新建时，挡一次让模型继续（多一次模型调用） | 待决 |
+| PMR-20 | 新建项目时采纳了待办，结束后应从待办开始，却停在项目首页，`openPlugin=todo` 一直留在地址栏 | 4301 真实模型实测；`restore` 不处理只带插件的 `openPlugin`，进入项目时又回到首页；原用例有一次兜底点击把它盖住了 | 产品缺陷，自 09-28 Onboarding 带待办起就有，不是合并引入 | 只带插件的 `openPlugin` 打开该插件并从地址去掉，这次加载不再回首页；用例去掉兜底点击，修复前两个宽度都失败 | 修复中 [#145](https://github.com/molis-ai/molis-work/pull/145) |
+| PMR-21 | 在工作面板撤销助理新建的待办后，工作显示「已撤销」，但待办页仍列着、详情也还开着，要等待办一分钟一次的轮询 | 4301 真实模型实测；面板撤销时不发 `molis:assistant-effect`；新用例在基线上失败 | 跨线缺陷（助理面板 × 插件页面） | 撤销视图带上撤回所用的能力，撤销成功后发事件，所属页面按已有约定重读；新增 `tests/assistant-undo-refresh.e2e.test.ts` | 修复中 [#148](https://github.com/molis-ai/molis-work/pull/148) |
+| PMR-22 | 收想法有两处：「灵光」插件（底栏常驻、首页「记下一点灵感」）和 Jelly 的「灵感」。助理接到「记一下，突然想到的……」时，两次都选了 Jelly 灵感，查找过程中也搜到了灵光 | 4301 真实模型实测；灵光 09-21 随 #80 加入，Jelly 09-23 加入，都在本轮范围之前 | 用户可见的语义重叠，不是本轮合并引入 | 定哪一处是「想法」的默认去处、另一处怎么定位，属于产品决定；本步不改，列入 BACKLOG 待你决定 | 交 BACKLOG |
 
 ## 4. 合并缺陷与用户可见重复
 
@@ -438,7 +443,7 @@
 
 | # | 场景 | 结果 | 证据与发现 |
 | --- | --- | --- | --- |
-| 1 | 全新安装、无模型 → 配置模型 → 助理第一轮 → 「记一下」→ 撤销 | 部分走通，模型之后的步骤未做 | 首次使用到建项目：发现并修了 PMR-01（#138）。无模型时发送：工作建成「尚未开始」，面板写「还没有配置可用的模型…输入已保留」，给出「打开模型设置」。首次发送的面板切换待复现（PMR-17）。配模型及之后的步骤需要真实模型 |
+| 1 | 全新安装、无模型 → 配置模型 → 助理第一轮 → 「记一下」→ 撤销 | 通过（有 4 处修复与 1 项待决） | 无模型部分在 4302：发现并修了 PMR-01（#138）；无模型时发送，工作建成「尚未开始」，并给出「打开模型设置」；PMR-17 未能复现。有模型部分在 4301（MiniMax M3.1-Flash-Preview，用户自己在模型设置里填的）：①新建项目时整理资料：摘要带 [S1] 引用，拟出 5 条待办，采纳 4 条，其中「等小李确认预算」正确标为等待他人；结束后没有打开待办，修了 PMR-20（#145）。②「记一下：明天下午三点和小李对一下预算」→ 等确认后记进 Jelly 日历，10/2 15:00–16:00，日期正确；打开 Jelly 看不到，修了 PMR-18（#146）；在 Jelly 撤销后，回到同一项工作问「还在吗」，助理重读后答「不在了」，也没有擅自重建（AC31）。③「记一下：要把发布评审的反馈整理成一份改进清单」→ 不用确认，直接记成项目待办；在工作面板撤销后，工作显示「已撤销」，成果显示「已不存在」；待办页没有跟着变，修了 PMR-21（#148）。④「记一下，突然想到的……」→ 一次谎称已存到 Jelly 灵感（PMR-19，待决）；一次查找后经确认存进 Jelly 灵感（PMR-22）。经确认写入的改动，工作面板不提供撤销，符合「只在能力支持时出现」。⑤模型两次把数组参数写成 `{item: …}`：网关按合同拒绝并给出 schema，模型去掉可选字段后完成；另一次提问工具连续 5 次失败，按设计停下，已完成的部分保留，并说明怎么继续 |
 | 2 | Pages 选中文字 → 情境动作 → 预览写回 → 侧栏文件 → 记忆可见可撤 | 未做 | 需要真实模型（Jev 判断与写作） |
 | 3 | Feed 新资料 → Inbox → 转待办 → 放置到项目 → 首页相关资料 → 搜索打开 | 部分 | 待办放置与搜索这一段发现 PMR-16（#144）；Feed 取数需要外部来源，未做 |
 | 4 | Coding 委派与助理交接 → 侧栏浏览器 → 审批 → 停止与撤权 | 未做 | 需要真实模型 |

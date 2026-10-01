@@ -11,7 +11,7 @@ import { DELEGATION_TOOLS, GATEWAY_TOOLS, MEMORY_TOOLS } from "./prologue-action
  */
 // “现在是 19:04”“开始时间是…” state a fact; only “现在去…”“开始改…” announce a step. “我再试一次”“我重新提交” too (seen with
 // MiniMax-M3 after a refused edit: it ended on “我用 … 再试一次，由你确认后落地” with nothing sent and nothing to confirm).
-const INTENT = /(?:^|[。，,；;：:！!\s（(])(?:现在(?![是有还已在的为共处约大]|\s*\*)|接下来|下面|马上|随后|然后|先|开始(?![时于日前后的是])|我(?:来|先|会|将|要|准备|这就|马上|现在|去|再|重新|改用|直接)|我把(?![^。！!\n]*[了过]))|(?<![你您]|可以|可|请)再(?:试|提交|发送|调用)一[次遍下]|\b(?:I'll|I will|I'm going to|let me|now I|next,? I)\b/i;
+const INTENT = /(?:^|[。，,；;：:！!\s（(])(?:现在(?![是有还已在的为共处约大]|\s*\*)|接下来|下面|马上|随后|然后|先|开始(?![时于日前后的是])|我(?:来|先|会|将|要|准备|这就|马上|现在|去|再|重新|改用|直接)|我把(?![^。！!\n]*[了过])|我用(?=[^。！!\n：:]*?(?:删|改|建|写入|加上|调用|提交|发送|撤销|撤回|更新|保存|记下|移动))(?![^。！!\n]*[了过]))|(?<![你您]|可以|可|请)再(?:试|提交|发送|调用)一[次遍下]|\b(?:I'll|I will|I'm going to|let me|now I|next,? I)\b/i;
 const SETTLED = /已(?:经)?(?:完成|修改|改好|改完|创建|新建|写入|保存|运行|执行|提交|添加|加上|删除)|完成[了。！!]|通过|成功|失败|报错|无法|不能|做不了|没有权限|未获授权|需要你|请你|请确认|请(?:在|到|去|先|点|打开)|告诉我|你(?:希望|想|要不要|是否)|是否|\b(?:done|finished|completed|passed|failed|cannot|can't|unable)\b/i;
 
 // A whole reply that is one short line opening with the step itself (“调用…读回…，核对…”), not with what came of it.

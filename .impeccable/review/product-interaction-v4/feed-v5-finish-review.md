@@ -4,7 +4,7 @@ Inputs not supplied: a separate QUALITY BAR card and a five-block/seed-bearing c
 
 ## persistence
 
-Pass for this Feed scope. PRODUCT.md, DESIGN.md and the immersive-workbench surface record exist and describe the retained neutral workbench, source-task directory, readable Feed content and separate Inbox responsibility. The latest user rejection and replacement behavior are recorded in specs/product-interaction-redesign/spec.md. No comp-led reproduction or new concept selection is asserted. The eight captures show their named states without blank or corrupt regions: desktop Light/Dark, 390×844 Light/Dark and actual 1312×936 Dark. The Light desktop reader is 1435×960 rather than exactly 1440×960; the complete desktop composition remains visible and this does not invalidate that viewport evidence.
+Pass for this Feed scope. PRODUCT.md, DESIGN.md and the immersive-workbench surface record exist and describe the retained neutral workbench, source-task directory, readable Feed content and separate Inbox responsibility. The latest user rejection and replacement behavior are recorded in specs/archive/product-interaction-redesign/spec.md. No comp-led reproduction or new concept selection is asserted. The eight captures show their named states without blank or corrupt regions: desktop Light/Dark, 390×844 Light/Dark and actual 1312×936 Dark. The Light desktop reader is 1435×960 rather than exactly 1440×960; the complete desktop composition remains visible and this does not invalidate that viewport evidence.
 
 ## fidelity
 

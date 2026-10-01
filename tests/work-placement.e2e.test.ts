@@ -4,14 +4,14 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
-// specs/work-placement AC1/AC3/AC6 through the real workbench: capture with no project, use it in a project without
+// specs/archive/work-placement AC1/AC3/AC6 through the real workbench: capture with no project, use it in a project without
 // copying, keep editing the same document, move it into the project later, and find everything again after a reload.
 for (const width of [1440, 390]) test(`placement ${width}px: capture in the personal space, use it in a project, keep editing, move it there, find it after reload`, { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, reloadPage } = browser;
   const text = JSON.stringify;
-  const output = new URL(`../${specEvidenceDirectory("specs/work-placement/verification")}/`, import.meta.url);
+  const output = new URL(`../${specEvidenceDirectory("specs/archive/work-placement/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");

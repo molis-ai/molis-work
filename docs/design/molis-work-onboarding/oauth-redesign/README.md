@@ -6,7 +6,7 @@
 - [最终实装截图](review/checklist-comp-size.png)、[窄屏](review/checklist-mobile.png)、[深色窄屏](review/checklist-mobile-dark.png)、[总结页](review/review-desktop.png)。
 - [可交互设计原型](http://127.0.0.1:4336/)：完整产品动线演示，文件、账号、模型和项目均为模拟。重启命令见 [原型 README](../prototype/README.md)。
 - [生产入口预览](http://127.0.0.1:4337/onboarding?mode=new-project)：真实实现，使用隔离测试 Home。文件和粘贴内容真实保存到本机；该 Home 未配置 Google 或文字模型。
-- [需求与实施范围](../../../../specs/molis-work-context-onboarding/spec.md)、[验证记录](verification.md)、[本切片设计规范](DESIGN.md)。
+- [需求与实施范围](../../../../specs/archive/molis-work-context-onboarding/spec.md)、[验证记录](verification.md)、[本切片设计规范](DESIGN.md)。
 
 ## 首批已经接通
 

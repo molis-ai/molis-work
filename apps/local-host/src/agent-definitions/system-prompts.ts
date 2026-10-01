@@ -38,7 +38,7 @@ export const INFORMATION_PLANNER = defineInstructionPrompt({
   ].join("\n\n"),
 });
 
-/** The platform memory draws out, when a work ends, what may be worth keeping (specs/memory-system §6.1). It only proposes. */
+/** The platform memory draws out, when a work ends, what may be worth keeping (specs/archive/memory-system §6.1). It only proposes. */
 export const MEMORY_OWNER = "system:memory";
 export const MEMORY_EXTRACT = defineInstructionPrompt({
   owner_id: MEMORY_OWNER, prompt_id: "memory.extract", version: 2, title: "从工作里提炼记忆",

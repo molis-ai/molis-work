@@ -1,6 +1,6 @@
 # Plugin Platform v2：合并 FlyLeaf 插件内核，落地 Coding App
 
-状态：进行中。本文件是这次行为变更的唯一需求书。
+状态：现行规范（2026-10-01 合入后梳理确认）。插件声明、宿主装配与插件间交换的现行规则；P0–P7 已落地（Coding 见 [coding-plugin](../coding-plugin/spec.md)）。未做事项见[统一待办清单](../BACKLOG.md)。原状态句：进行中。本文件是这次行为变更的唯一需求书。
 
 落地结果的复查见 [架构复查](architecture-review.md)；Coding 插件的界面与交互设计见
 [`specs/coding-plugin/design.md`](../coding-plugin/design.md)。

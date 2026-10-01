@@ -1,4 +1,4 @@
-/** English for the memory settings pages (specs/memory-system §10). */
+/** English for the memory settings pages (specs/archive/memory-system §10). */
 export const MEMORY_EN: Record<string, string> = {
   "记忆": "Memory",
   "项目记忆": "Project memory",

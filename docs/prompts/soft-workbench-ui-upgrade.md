@@ -19,7 +19,7 @@ node docs/design/soft-workbench/server.mjs
 - 设计说明：`docs/design/soft-workbench/DESIGN.md`
 - 样式与交互：该目录的 `style.css`、`onboarding.css`、`app.js`、`onboarding.js`
 - 原型验证：`docs/design/soft-workbench/verification.md`
-- 原型需求：`specs/soft-workbench-ui/spec.md`
+- 原型需求：`specs/archive/soft-workbench-ui/spec.md`
 
 原始参考是小红书的 Orvia Mail 新手引导视频：`https://www.xiaohongshu.com/explore/6ab91c4c000000000200c061`。已实现且获认可的本地原型是本次可操作的视觉基准；原链接无法访问时，不应阻塞已明确的升级工作。
 
@@ -127,7 +127,7 @@ node docs/design/soft-workbench/server.mjs
 ## 8. 实施顺序与工作边界
 
 1. 检查工作树、分支和已有修改，读取适用规则与当前实现。保护用户及其他任务的成果，不重置或覆盖无关改动。核对当前启动实例与构建方式，避免清理共享产物或重启服务干扰正在使用的产品。
-2. 建立正式升级的独立需求书，例如 `specs/soft-workbench-rollout/spec.md`，并在同目录维护全量页面/插件迁移清单。原型 spec 继续记录原型，不将它混作正式升级验收。写清目标、范围、功能基线、模块责任、验证与真实开放问题。
+2. 建立正式升级的独立需求书，例如 `specs/archive/soft-workbench-rollout/spec.md`，并在同目录维护全量页面/插件迁移清单。原型 spec 继续记录原型，不将它混作正式升级验收。写清目标、范围、功能基线、模块责任、验证与真实开放问题。
 3. 在正式实现中先打通字体与 token、基础控件、底部全局壳和一个完整业务切片，实际观察组件组合与真实行为。这个切片用于及时发现系统性问题；验证后继续剩余全部范围，不新增等待我确认的默认关卡。
 4. 按依赖顺序迁移所有插件与页面，包括独立样式、动态注入、弹层及生成插件。每完成一组就核对清单与回归，不能单凭全局 token 改变便认定所有页面适配成功。
 5. 完成正式 Onboarding、组件板、开发 Skill、生成链路和文档；收敛过时样式与相互覆盖规则，只清理本次替换且已确认无消费者的实现。

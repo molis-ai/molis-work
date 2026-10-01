@@ -1,6 +1,6 @@
 # 插件创作工作台
 
-> **现行路线（2026-09-26 起，[agent-built-plugins](../../../specs/plugin-builder/work-items/agent-built-plugins/spec.md)）**：插件后端代码由 Agent 编写，Local Host 做类型检查、打包并在 [plugin-sandbox](../../../packages/plugin-sandbox/README.md) 里试跑（`apps/local-host/src/plugin-builder/build-checks.ts`）后才安装；前端仍由规格板 + Jev 逐个选零件、平台渲染器渲染，插件没有自己的前端代码。下文凡写「固定解释器 v1」「发布设计数据版本」之处是被取代的旧路线，以该 spec 为准（旧路线没有存量用户，不做兼容）。
+> **现行路线（2026-09-26 起，[agent-built-plugins](../../../specs/archive/plugin-builder/work-items/agent-built-plugins/spec.md)）**：插件后端代码由 Agent 编写，Local Host 做类型检查、打包并在 [plugin-sandbox](../../../packages/plugin-sandbox/README.md) 里试跑（`apps/local-host/src/plugin-builder/build-checks.ts`）后才安装；前端仍由规格板 + Jev 逐个选零件、平台渲染器渲染，插件没有自己的前端代码。下文凡写「固定解释器 v1」「发布设计数据版本」之处是被取代的旧路线，以该 spec 为准（旧路线没有存量用户，不做兼容）。
 
 自然语言设计 → 候选 → UI 装配与功能连接 → 真实试用 → 独立插件。执行仅通过 Host 的 Prologue capabilities；安装通过 PluginPlatform，草稿与数据经 SQLite private storage CAS 持久化。
 
@@ -13,7 +13,7 @@
 - Migration: `goal-reorg-f2`
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
-- Spec: `specs/plugin-builder/work-items/prologue-runtime/spec.md`
+- Spec: `specs/archive/plugin-builder/work-items/prologue-runtime/spec.md`
 
 验证：`pnpm --filter @molis-ai/molis-work-plugin-builder build`；`node --import tsx --test tests/plugin-builder-*.test.ts`。
 
@@ -21,11 +21,11 @@
 
 不带模型的本地交互预览：`pnpm exec tsx scripts/preview-plugin-builder.mts`，打开输出地址。它使用独立临时 SQLite 项目和真实 Host 路由，不改正式项目。Prologue 真实生成仍在已配置工作区和模型的项目中执行。
 
-视觉依据为 `specs/plugin-builder/ui/design/approved-comp.png`。覆盖两条真实浏览器路径的命令：`pnpm exec tsx --test tests/plugin-builder-browser.e2e.test.ts tests/plugin-builder-visual.e2e.test.ts`。完整结果见执行需求；真实模型调用和最终用户验收尚未完成。
+视觉依据为 `specs/archive/plugin-builder/ui/design/approved-comp.png`。覆盖两条真实浏览器路径的命令：`pnpm exec tsx --test tests/plugin-builder-browser.e2e.test.ts tests/plugin-builder-visual.e2e.test.ts`。完整结果见执行需求；真实模型调用和最终用户验收尚未完成。
 
 ## 看得见的协作构建
 
-构建过程的每个动作都记录为 `BuildDocument.steps`：画布上的 UI Agent / 功能 Agent 指针、选中框、接通提示和左侧协作现场都从这里推导，状态只随真实变更推进。界面零件只来自规格板（`src/spec-board.ts`）：宿主算出合法候选，Jev 在候选中选下一个零件（单一候选或 Jev 未配置时用规格板规则，并如实标注；Jev 越界或失败时交给用户选）。功能 Agent 与装配并行，行为通过校验后逐个接通零件，预览数据接口按接通状态放行；全部接通后宿主做完整性检查才进入可试用。点画布上的零件即可“指着它”提修改，修订只重做受影响的部分。详见 `specs/plugin-builder/work-items/live-collaboration/spec.md`。
+构建过程的每个动作都记录为 `BuildDocument.steps`：画布上的 UI Agent / 功能 Agent 指针、选中框、接通提示和左侧协作现场都从这里推导，状态只随真实变更推进。界面零件只来自规格板（`src/spec-board.ts`）：宿主算出合法候选，Jev 在候选中选下一个零件（单一候选或 Jev 未配置时用规格板规则，并如实标注；Jev 越界或失败时交给用户选）。功能 Agent 与装配并行，行为通过校验后逐个接通零件，预览数据接口按接通状态放行；全部接通后宿主做完整性检查才进入可试用。点画布上的零件即可“指着它”提修改，修订只重做受影响的部分。详见 `specs/archive/plugin-builder/work-items/live-collaboration/spec.md`。
 
 带标明替身的完整流程预览：`pnpm exec tsx scripts/preview-plugin-builder.mts --fixture`（`--fixture-jev-miss N` 演示 Jev 第 N 次越界时交给用户决定）。
 
@@ -55,7 +55,7 @@
 
 G7 与截图复查使用独立验收存储，不读取或清空人的试用内容。宽窄屏结构检查发现溢出与操作遮挡；当前模型声明图片输入能力时，经 Prologue 查看画布截图，最多一轮修订、一次确认。无图片能力如实显示「功能已验证；视觉未复查」。结构故障仍阻止完成。实际截图与真实模型记录须和手写样例分开判断。
 
-实施与验收：[整页设计与视觉复查](../../../specs/plugin-builder/work-items/visual-composition/spec.md)。
+实施与验收：[整页设计与视觉复查](../../../specs/archive/plugin-builder/work-items/visual-composition/spec.md)。
 
 设计、UI 生成和截图复查共同读取 [体验与审美标准](../../../skills/molis-plugin-dev/generated-experience.md)，其中用户动线进入 journey/purpose，空间与信息取舍进入 UI summary。标准参考 Impeccable 的 Operate/Read、动效和评审原则，按 Molis 的组件目录改写，随插件规范一起发行。动效由宿主实现，不开放模型脚本；静态截图不用于断言动画、焦点或未展示状态。复查同时获得实际渲染节点、字段映射与合法候选，建议必须有具体截图证据并保持冻结合同。
 

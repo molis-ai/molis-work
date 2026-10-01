@@ -4,7 +4,7 @@
 
 原状态：方向已锁定（2026-09-15 视觉稿确认）。完成等级目标 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件是本次体验变更的唯一需求书。它补在 `specs/directory-plugin-switcher/spec.md`、`specs/inbox-feed-plugin-split/spec.md`、`specs/archive/home-directory-visual-unify/spec.md` 之上：不改目的地一层、不改 Inbox 边界、不把来源升成顶栏插件。只改 **Feed 选中后，工作发生在哪一栏、如何展开**。
+本文件是本次体验变更的唯一需求书。它补在 `specs/archive/directory-plugin-switcher/spec.md`、`specs/archive/inbox-feed-plugin-split/spec.md`、`specs/archive/home-directory-visual-unify/spec.md` 之上：不改目的地一层、不改 Inbox 边界、不把来源升成顶栏插件。只改 **Feed 选中后，工作发生在哪一栏、如何展开**。
 
 已确认视觉：左边只有目的地；右边是 Feed 目录（全部 / 各来源任务），任务展开成条目，条目在同一目录里展开详情，不切页。
 
@@ -51,7 +51,7 @@
 
 ## 方案与关键决策
 
-1. **Feed 是目的地的例外。** `specs/directory-plugin-switcher/spec.md` 的「下面只换当前选中项的列表」对 Feed 改为：下面不挂列表，列表搬到主区。Goals / Inbox / Sessions / Artifacts / 首页不变。
+1. **Feed 是目的地的例外。** `specs/archive/directory-plugin-switcher/spec.md` 的「下面只换当前选中项的列表」对 Feed 改为：下面不挂列表，列表搬到主区。Goals / Inbox / Sessions / Artifacts / 首页不变。
 2. **主区是目录，不是页面栈。** 任务 → 条目 → 详情都是同一棵树的展开。禁止 Feed 主区 `hidden` 整页切换成「列表页 / 详情页 / 来源页」。
 3. **全部是第一个任务，不是筛选芯片。** 它的子级是跨源条目。
 4. **同时只展开一个任务。** 避免全部和 GitHub 下出现两条相同 Item。条目详情同时只展开一条。

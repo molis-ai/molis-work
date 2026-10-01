@@ -118,13 +118,13 @@ export interface ActionMetadata {
   readonly input_type?: string;
   readonly output_type?: string;
   readonly workflow_content?: WorkflowContentStation;
-  /** A system search source: the object kinds it lists and the Workbench surface each opens in (specs/system-search §5.1). */
+  /** A system search source: the object kinds it lists and the Workbench surface each opens in (specs/archive/system-search §5.1). */
   readonly search_source?: SearchSourceDeclaration;
   /** A side panel file source: the file kinds it lists (or previews) and where each opens (specs/archive/side-panel §3.3). */
   readonly file_source?: FileSourceDeclaration;
   /** Optional rule choices owned by this subject-offer query; targets belong to the same provider. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
-  /** Finite choices of a fragment-offer query (specs/contextual-interaction §5.1); targets belong to the same provider. */
+  /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); targets belong to the same provider. */
   readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
   /** A trigger action needs an enabled compatible binding in this consumer scene. */
   readonly required_scene?: { readonly scene_id: string; readonly version: number };

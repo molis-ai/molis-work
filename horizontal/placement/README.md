@@ -1,6 +1,6 @@
 # 放置服务
 
-对象放在哪里（个人空间或某个项目）、谁能看到、和哪些工作有关，以及怎样移动、复制、转成别的内容。需求与语义见 [specs/work-placement/spec.md](../../specs/work-placement/spec.md)。
+对象放在哪里（个人空间或某个项目）、谁能看到、和哪些工作有关，以及怎样移动、复制、转成别的内容。需求与语义见 [specs/archive/work-placement/spec.md](../../specs/archive/work-placement/spec.md)。
 
 包名：`@molis-ai/molis-work-service-placement`。工作区内部包，通过仓库构建和 Host 装配使用。
 
@@ -45,7 +45,7 @@ pnpm --filter @molis-ai/molis-work-service-placement build
   - 删除与读不到分开：所有者报 `not_found` 才是“原对象已删除”，其余是“暂时读不到”并带原因。
   - 改变位置与访问范围的动作只对本机用户开放；助理和工作流只能读取描述。
 - 改动后必跑：`node scripts/run-tests.mjs tests/work-placement.test.ts`
-- 相关手册：[specs/work-placement/spec.md](../../specs/work-placement/spec.md)、[skills/molis-plugin-dev/placement.md](../../skills/molis-plugin-dev/placement.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+- 相关手册：[specs/archive/work-placement/spec.md](../../specs/archive/work-placement/spec.md)、[skills/molis-plugin-dev/placement.md](../../skills/molis-plugin-dev/placement.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
 

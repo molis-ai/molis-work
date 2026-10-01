@@ -2,7 +2,7 @@
 
 状态：已落地。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件是这次视觉对齐的唯一需求书。壳模型仍以 `specs/archive/settings-directory-panel/spec.md` 为准。项目设置卡片节奏以 `specs/settings-codex-surface/spec.md` 为准。
+本文件是这次视觉对齐的唯一需求书。壳模型仍以 `specs/archive/settings-directory-panel/spec.md` 为准。项目设置卡片节奏以 `specs/archive/settings-codex-surface/spec.md` 为准。
 
 ## 背景与目标
 
@@ -57,7 +57,7 @@
 
 - `apps/workbench/src/settings-renderer.ts`、`styles/project-settings-page.ts`、`i18n/en.ts`
 - `packages/design-system/src/styles/primitives.ts`
-- `specs/settings-codex-surface/spec.md`
+- `specs/archive/settings-codex-surface/spec.md`
 - 测试：`tests/project-settings-stage.test.ts`
 
 ## 验收标准

@@ -1,5 +1,5 @@
 # Feed content redesign: independent full review
-User rejected the prior Feed body: “现在这个 feed 里的内容区的列表和展开，以及展开里的信息质感也很差，很违和，重新做一下”. This extends the active whole-product request, whose requirements remain specs/product-interaction-redesign/spec.md and inventory.md. Use this latest request over the old review's retained Feed conclusion.
+User rejected the prior Feed body: “现在这个 feed 里的内容区的列表和展开，以及展开里的信息质感也很差，很违和，重新做一下”. This extends the active whole-product request, whose requirements remain specs/archive/product-interaction-redesign/spec.md and inventory.md. Use this latest request over the old review's retained Feed conclusion.
 
 Read PRODUCT.md, DESIGN.md, .impeccable/surfaces/immersive-workbench.md for Operate direction. No new approved comp; Coss neutral dense workbench direction is retained. Quality bar: readable scan hierarchy and coherent inline reading, body is primary, avoid duplicating title/summary/source panels, explicit readable read/destination states, clear purposeful actions, natural expand/collapse, desktop and 390 work, no pretend persistence for demo. Preserve actual source filtering, keyboard navigation, read marking, failures/retry and Feed domain boundaries.
 

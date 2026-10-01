@@ -1,5 +1,5 @@
 /**
- * Where things are (specs/work-placement §4, §7.3): the placement bar beside an open object, its panel (location, who can
+ * Where things are (specs/archive/work-placement §4, §7.3): the placement bar beside an open object, its panel (location, who can
  * see it, linked work; use in a project, move, copy), the “存到…” labels on create entries, and the completion card a
  * plugin asks for when it made, imported, converted or exported something. Everything is read from the placement service;
  * a plugin only declares its current object (`data-assistant-context`) and leaves a `data-placement-slot`.

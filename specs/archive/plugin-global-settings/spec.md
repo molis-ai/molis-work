@@ -2,7 +2,7 @@
 
 状态：**等级 3 已完成**（设置列表能打开插件自己的设置页，第一页是 Shelf，轮盘开关能保存并回读）。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件是这次宿主能力的唯一需求书。Shelf 设置里有哪些栏目、轮盘怎么关，仍以 [`specs/shelf-plugin/spec.md`](../../shelf-plugin/spec.md) 为准。全局设置壳仍以 [`specs/archive/settings-directory-panel/spec.md`](../settings-directory-panel/spec.md) 为准。
+本文件是这次宿主能力的唯一需求书。Shelf 设置里有哪些栏目、轮盘怎么关，仍以 [`specs/archive/shelf-plugin/spec.md`](../shelf-plugin/spec.md) 为准。全局设置壳仍以 [`specs/archive/settings-directory-panel/spec.md`](../settings-directory-panel/spec.md) 为准。
 
 ## 背景与目标
 
@@ -137,4 +137,4 @@ node --import tsx --test --test-concurrency=1 \
 
 - 假设插件本机设置都是本机个人数据，不是项目设置。
 - 假设目录行文案用插件名（Shelf），不另起「插件设置」总页。
-- 开放：Shelf 右边正文完全跟 DropAgent 设置表面，还是外框走 Codex、内部栏目仍是 DropAgent 语义。默认跟 `specs/shelf-plugin/spec.md`：设置页是 Shelf 表面，目录行仍是 Molis 设置分类行。
+- 开放：Shelf 右边正文完全跟 DropAgent 设置表面，还是外框走 Codex、内部栏目仍是 DropAgent 语义。默认跟 `specs/archive/shelf-plugin/spec.md`：设置页是 Shelf 表面，目录行仍是 Molis 设置分类行。

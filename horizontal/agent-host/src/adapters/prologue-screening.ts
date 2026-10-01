@@ -1,7 +1,7 @@
 import { redactText, screenInbound } from "@prologue/sdk";
 
 /**
- * Screen material before it leaves the machine for a model (specs/contextual-interaction §4.2): secret-shaped text and
+ * Screen material before it leaves the machine for a model (specs/archive/contextual-interaction §4.2): secret-shaped text and
  * absolute paths are redacted with Prologue's own rules; instruction-shaped wording is reported, and stays data.
  * The notes go into receipts; the text itself is not kept.
  */

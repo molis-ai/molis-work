@@ -1019,7 +1019,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-context-actions { position: absolute; z-index: 54; left: 0; right: 0; bottom: calc(100% + 8px); display: flex; align-items: center; gap: 6px; min-width: 0; }
   ${ASSIST} .assistant-context-actions:is(:empty, :not([data-state="active"])) { display: none; }
   ${ASSIST} [data-assistant-island]:has(.assistant-panel:not([hidden]), .assistant-offer:not([hidden])) .assistant-context-actions { display: none; }
-  /* The row itself (specs/contextual-interaction §6.3): what the person has in hand, up to three actions, “更多”, the
+  /* The row itself (specs/archive/contextual-interaction §6.3): what the person has in hand, up to three actions, “更多”, the
      Assistant's offer when the judgment thinks it is worth one, and what the order is based on. It never moves what the
      pointer is on; a new context's actions arrive by fading in place. */
   ${ASSIST} .context-actions-pill {
@@ -1071,7 +1071,6 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .context-actions-basis[data-basis="judgment"]::before { background: var(--accent); }
   /* While the judgment is asked, the dot becomes the Assistant's own running ring. */
   ${ASSIST} .context-actions-basis[data-pending="true"]::before { width: 8px; height: 8px; box-sizing: border-box; background: none; border: 1.5px solid var(--faint); border-right-color: transparent; animation: mw-spin 640ms var(--ease-quint) infinite; }
-  .context-actions-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   @container assistant-bar (max-width: 520px) {
     ${ASSIST} .context-actions-scope, ${ASSIST} .context-actions-basis > span { display: none; }
     ${ASSIST} .context-action-kind { display: none; }

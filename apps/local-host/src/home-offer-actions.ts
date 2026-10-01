@@ -25,7 +25,7 @@ export const homeOfferActions = {
 };
 /**
  * `home.actions.*` keep their contracts for every caller (Dock, Agents, workflows, MCP) and are thin over the contextual
- * service (specs/contextual-interaction §6.4.3): the same derivation, preparation and pre-run check as the context row.
+ * service (specs/archive/contextual-interaction §6.4.3): the same derivation, preparation and pre-run check as the context row.
  */
 export function createHomeOfferHandlers(client: ActionClient): ActionHandlerBinding[] {
   return [

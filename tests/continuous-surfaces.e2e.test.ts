@@ -117,7 +117,7 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
     await evaluate("localStorage.setItem('molis-work:theme','light');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'light'}))");
     await openPlugin('feed');await capture('feed');
     await click('[data-feed-add-toggle]');
-    // Adding a source opens in the Feed work surface beside its source rail (specs/feed-source-workbench), not as a centred modal.
+    // Adding a source opens in the Feed work surface beside its source rail (specs/archive/feed-source-workbench), not as a centred modal.
     await waitFor("!document.querySelector('[data-feed-sources-dialog]').hidden");
     const setup=await evaluate<any>("(()=>{const p=document.querySelector('[data-feed-sources-dialog]').getBoundingClientRect(),rail=document.querySelector('[data-feed-source-rail]'),r=rail&&rail.getClientRects().length?rail.getBoundingClientRect():null;return {left:p.left,right:p.right,top:p.top,bottom:p.bottom,w:p.width,railRight:r?r.right:null}})()");
     assert.ok(setup.top>=0&&setup.bottom<=height&&setup.right<=width+1&&setup.w>0,'setup stays inside the viewport: '+JSON.stringify(setup));

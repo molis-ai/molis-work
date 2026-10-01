@@ -4,9 +4,9 @@ import path from "node:path";
 import test from "node:test";
 
 const prototypePath = path.resolve(
-  "specs/goal-momentum-hifi-slice/artifacts/prototype.html",
+  "specs/archive/goal-momentum-hifi-slice/artifacts/prototype.html",
 );
-const specPath = path.resolve("specs/goal-momentum-hifi-slice/spec.md");
+const specPath = path.resolve("specs/archive/goal-momentum-hifi-slice/spec.md");
 
 function readPrototype(): string {
   return fs.readFileSync(prototypePath, "utf8");

@@ -50,7 +50,7 @@ function ledgerDatabase(db: DatabaseSync): ContextLedgerDatabase {
 }
 
 /**
- * Host wiring for the placement service (specs/work-placement §7.2): its relations live in this Home's own database,
+ * Host wiring for the placement service (specs/archive/work-placement §7.2): its relations live in this Home's own database,
  * every object is read back from its owner in its own partition with the local person's authority, and the service
  * reaches plugins only through the shared directory. Nothing about any plugin is known here.
  */

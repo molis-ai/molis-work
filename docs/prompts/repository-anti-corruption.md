@@ -22,7 +22,7 @@
 1. **任务要求**：`docs/prompts/repository-systematic-review.md` 全文。15 节全部适用，交付与完成标准以它的第 15 节为准。要点见附录 B。
 2. **问题输入**：上一轮《Molis Work 代码与架构防腐体检报告》`docs/prompts/code-health-report-2026-09-30.md`。包括问题 R-01～R-14、插件平台与 C 端就绪判断、第 5 节的防腐顺序、第 7 节的在途线风险、第 8 节的复查记录和第 9 节的第一轨进展。要点见附录 A。
 3. **第一步的交付**：`specs/post-merge-review/spec.md` 里的需求清单、验收清单、行为基线、spec 梳理表和交给第二步的清单，以及统一待做清单 `specs/BACKLOG.md`。
-4. **更早一轮整理**：`specs/repository-systematic-review/spec.md`（F-01～F-35、D-01～D-05）。已闭环的不重做，只核对有没有回退；当时选择"短期维持"的项（例如 D-04 端口默认连线）重新判断是否到了该做的时候。
+4. **更早一轮整理**：`specs/archive/repository-systematic-review/spec.md`（F-01～F-35、D-01～D-05）。已闭环的不重做，只核对有没有回退；当时选择"短期维持"的项（例如 D-04 端口默认连线）重新判断是否到了该做的时候。
 
 附录 A、B 是这两份的要点摘录；与原文不一致时以原文为准。
 
@@ -113,7 +113,7 @@ Manifest `methods`、撤销声明、到期提醒、后台任务回报、放置�
 
 ## 5. 交付
 
-建立一份总 spec `specs/repository-anti-corruption/spec.md`，链接上一轮的 `specs/repository-systematic-review/spec.md`，不重复它的内容。按整理要求第 15 节交付，并包括：
+建立一份总 spec `specs/repository-anti-corruption/spec.md`，链接上一轮的 `specs/archive/repository-systematic-review/spec.md`，不重复它的内容。按整理要求第 15 节交付，并包括：
 
 1. 功能、插件和模块清单及审查深度；
 2. 按严重程度列出的问题、证据、根因与处理结果；

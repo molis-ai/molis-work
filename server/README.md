@@ -82,7 +82,7 @@ node --import tsx --test tests/cross-device-client.test.ts tests/cross-device-la
 node --import tsx server/tooling/continuity-demo.mts /tmp/molis-continuity-isolated-qa
 ```
 
-QA 工具只创建显式隔离目录和实际业务对象；`lose-next-response` 文件只由该工具读取，用于在真实进展已提交后丢弃响应。该故障入口不存在于产品 HTTP。验证状态与交接见 `specs/bp-delivery-parallel/work-items/cross-device-team/verification.md`。
+QA 工具只创建显式隔离目录和实际业务对象；`lose-next-response` 文件只由该工具读取，用于在真实进展已提交后丢弃响应。该故障入口不存在于产品 HTTP。验证状态与交接见 `specs/archive/bp-delivery-parallel/work-items/cross-device-team/verification.md`。
 
 ## 开发要求
 

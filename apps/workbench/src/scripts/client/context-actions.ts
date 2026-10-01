@@ -1,5 +1,5 @@
 /**
- * What can be done with what the person has in hand (specs/contextual-interaction §3, §4, §6.3): the row of actions
+ * What can be done with what the person has in hand (specs/archive/contextual-interaction §3, §4, §6.3): the row of actions
  * right above the Assistant input.
  *
  * A surface raises `molis:surface-focus` whenever its focus changes. The Host ranks the actions the directory offers
@@ -166,7 +166,8 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
     children.forEach((child) => { if (child) node.append(child); });
     return node;
   };
-  const live = el("div", { class: "context-actions-live", "aria-live": "polite" });
+  // The shared screen-reader-only primitive: its -1px margin keeps the region from lengthening the page by a pixel.
+  const live = el("div", { class: "mw-sr-only", "data-context-actions-live": "", "aria-live": "polite" });
   document.body.append(live);
   const openAssistant = (detail) => document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail }));
   const visible = (node) => Boolean(node && node.isConnected && node.getClientRects().length && !node.closest("[hidden]"));

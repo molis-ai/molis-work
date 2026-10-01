@@ -65,7 +65,7 @@ export interface SearchServiceOptions {
   /** Projects that still exist in this Home; index rows of any other project are dropped. Null while unknown. */
   knownProjects?(): Promise<readonly string[] | null>;
   /**
-   * The project partition that is the person's own space (specs/work-placement): what is in it is personal, so the local
+   * The project partition that is the person's own space (specs/archive/work-placement): what is in it is personal, so the local
    * person finds it from any project. Only a caller acting as that person (audience `user`) reaches it from elsewhere;
    * agents, workflows and MCP clients of another project do not.
    */
@@ -119,7 +119,7 @@ function offsetOf(cursor: string | null | undefined, query: string): number {
 }
 
 /**
- * The system search (specs/system-search): discovers sources through the shared action directory, keeps the index
+ * The system search (specs/archive/system-search): discovers sources through the shared action directory, keeps the index
  * current against each owner's own versions, and answers queries with only what the caller may read.
  * It never reads a plugin's store; everything goes through the plugin's declared actions.
  */

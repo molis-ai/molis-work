@@ -2,7 +2,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 
 /**
- * How a plugin lets the system move or copy one of its objects between locations (specs/work-placement §7.1).
+ * How a plugin lets the system move or copy one of its objects between locations (specs/archive/work-placement §7.1).
  * A location is a project partition; the personal space is the reserved project `personal`. The plugin keeps its own
  * store and rules; the system only calls these declared actions, with the person's own authority, in the object's
  * current project, and records the move or copy in its own ledger.

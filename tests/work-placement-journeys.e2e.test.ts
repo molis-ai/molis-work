@@ -13,7 +13,7 @@ async function journey(t: TestContext, mode: "empty" | "seeded", name: string) {
   if (!browser) return null;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
   const text = JSON.stringify;
-  const output = new URL(`../${specEvidenceDirectory("specs/work-placement/verification")}/`, import.meta.url);
+  const output = new URL(`../${specEvidenceDirectory("specs/archive/work-placement/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const screenshot = async (step: string) => {
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");

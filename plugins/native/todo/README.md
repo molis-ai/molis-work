@@ -2,7 +2,7 @@
 
 用户需要推进的事项的正式管理位置：个人待办和项目待办，手动管理不依赖 AI。数据在 `{home}/todo/todo.db`。
 
-包名：`@molis-ai/molis-work-plugin-todo`。需求见 [specs/todo-plugin/spec.md](../../../specs/todo-plugin/spec.md)，实现与进度见 [implementation.md](../../../specs/todo-plugin/implementation.md)。
+包名：`@molis-ai/molis-work-plugin-todo`。需求见 [specs/archive/todo-plugin/spec.md](../../../specs/archive/todo-plugin/spec.md)，实现与进度见 [implementation.md](../../../specs/archive/todo-plugin/implementation.md)。
 
 所有动作由插件的 `actions.ts` 声明，`scope: "home"`，由 Host 的一个 Home 级提供方登记：没有项目时也能用。调用方在项目里时只看到个人、暂未归类和这个项目的待办；跨项目的“所有项目”只对用户本人的界面（`audience: "user"`）开放，助理、工作流和 MCP 看不到。HTTP 只转参数，身份与项目由 Host 绑定。
 

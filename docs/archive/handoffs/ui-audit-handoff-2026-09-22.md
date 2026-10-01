@@ -1,6 +1,6 @@
 # Molis Work UI 修复交接给 Grok
 
-> 归档状态（2026-09-27 复核）：#1–#8 均已修复（32dcefda 等）。文中绝对路径与端口来自另一台机器。复核记录：`specs/repository-systematic-review/spec.md` F-20。
+> 归档状态（2026-09-27 复核）：#1–#8 均已修复（32dcefda 等）。文中绝对路径与端口来自另一台机器。复核记录：`specs/archive/repository-systematic-review/spec.md` F-20。
 
 
 历史审计说明：本文路径和行号对应 2026-09-22 快照。Functions 编辑器现已迁至 `apps/workbench/src/functions`，旧插件目录不再存在；当前迁移与验证以 `specs/action-architecture/migration.md` 为准。

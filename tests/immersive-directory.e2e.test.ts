@@ -78,9 +78,11 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.equal(filter.icon, "rgb(41, 42, 44)");
   assert.equal(filter.radius, create.radius);
   assert.equal(filter.border, create.border);
-  // Standard density controls are 32px (DESIGN.md → Density); compact keeps 28px.
+  // Standard density controls are 32px tall (DESIGN.md → Density); compact keeps 28px. With room, the filter is named
+  // (「状态」) instead of being a bare icon (plugin-e2e-review §5.1), so it is wider than a square icon button.
   assert.equal(filter.height, 32);
-  assert.equal(filter.width, 32);
+  assert.ok(filter.width > 32, "the status filter shows its name on a wide stage");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-tree-filter-trigger] > span')).display"), "inline");
   assert.ok(await evaluate("(()=>{const shell=document.querySelector('[data-goal-canvas-shell]'),list=document.querySelector('[data-goal-stage-list]'),chrome=document.querySelector('[data-goal-stage-chrome]');if(!shell||!list||!chrome)return false;const s=shell.getBoundingClientRect(),l=list.getBoundingClientRect();return Math.abs(s.top-l.top)<2 && getComputedStyle(shell).backgroundColor===getComputedStyle(list).backgroundColor && getComputedStyle(chrome).backgroundColor==='rgba(0, 0, 0, 0)';})()"), "List paper fills the stage top; chrome has no toolbar strip");
   await evaluate("document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger]')?.click()");
   await waitFor("document.querySelector('[data-goal-stage-chrome] [data-tree-filter]') && !document.querySelector('[data-goal-stage-chrome] [data-tree-filter]').hidden");

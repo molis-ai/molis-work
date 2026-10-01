@@ -35,6 +35,23 @@ fi
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  // The shelf's own actions are enabled only while the Home has a usable model. Nothing here runs one from the page
+  // (arranging and saving an action never start a recipe; the combine below uses the injected port), so a configured
+  // model with no server behind it is enough.
+  const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
+  const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
+  const priorSecretBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
+  process.env.MOLIS_WORK_SECRET_BACKEND = "file";
+  t.after(() => {
+    if (priorSecretBackend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND;
+    else process.env.MOLIS_WORK_SECRET_BACKEND = priorSecretBackend;
+    resetSecretStoreCache();
+  });
+  await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
+    catalog.models.upsert({ provider_id: "shelf-parity", display_name: "测试模型", base_url: "http://127.0.0.1:9", api_format: "anthropic-messages",
+      models: [{ model_id: "fixture-model", enabled: true }] });
+    catalog.models.setCredential("shelf-parity", "fixture-local-model-key");
+  }));
   const shelf = openShelfStore(homeDirectory, { pathEnvironment: bin, home: homeDirectory, preferred: "claude" }, {},
     shelfTestAi(async () => ({ text: "# 合稿\n\n两份材料经过受控执行，来源可切换。\n", execution: shelfTestReceipt })));
   assert.equal(shelf.runtime().executable, join(bin, "claude"));

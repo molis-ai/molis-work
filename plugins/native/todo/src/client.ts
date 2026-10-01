@@ -190,16 +190,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const context = { plugin_id: "io.molis.work.todo", surface_title: L("待办") };
     if (selected) {
       context.object = { kind: "todo_item", id: selected.id, version: selected.revision, title: field("title").value || selected.title };
-      context.starters = [
-        { label: L("帮我推进这件事"), prompt: L("帮我推进这件待办") },
-        { label: L("拆成几步"), prompt: L("把这件待办拆成几个可以直接做的步骤") },
-      ];
       if (dirtyFields.size || saveTimer) context.unsaved = true;
-    } else {
-      context.starters = [
-        { label: L("整理材料里要做的事"), prompt: L("帮我整理这些材料里需要我做的事") },
-        { label: L("看看有没有遗漏"), prompt: L("看看最近有没有遗漏的待办") },
-      ];
     }
     workbench.setAttribute("data-assistant-context", JSON.stringify(context));
   };

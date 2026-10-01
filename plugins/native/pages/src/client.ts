@@ -228,11 +228,6 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const context = { plugin_id: "io.molis.work.pages", surface_title: "Pages" };
     if (selected) {
       context.object = { kind: "pages_document", id: selected.id, version: selected.version, title: titleInput.value || selected.title };
-      context.starters = [
-        { label: L("总结这篇文档"), prompt: L("总结当前这篇文档的要点") },
-        { label: L("改写得更简洁"), prompt: L("把当前这篇文档改写得更简洁，保留原意") },
-        { label: L("列出待跟进的事"), prompt: L("从当前这篇文档里列出需要跟进的事项") },
-      ];
       if (unsaved) {
         context.unsaved = true;
         const text = docText(editor && Editor ? Editor.getDoc(editor) : selected.body);
@@ -242,7 +237,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     workbench.setAttribute("data-assistant-context", JSON.stringify(context));
   };
   // What the person has in hand here, for the bar and the Assistant (specs/contextual-interaction §4): the editor's
-  // focus around this document. A document this editor cannot show offers nothing to act on.
+  // focus around this document. A document this editor cannot show offers nothing to act on. Pages reports its own
+  // focus, so a selection elsewhere on this surface (a row of the list, say) is not read as part of the document.
+  workbench.setAttribute("data-surface-focus", "own");
   let focusNow = null;
   let focusShown = null;
   const surfaceFocus = () => {
@@ -254,21 +251,54 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       targets: focusNow.targets, surroundings: focusNow.surroundings,
       ...(saveTimer || dirty ? { unsaved: true } : {}), ...(goal ? { goal: { id: goal.id, title: goal.title } } : {}) };
   };
+  // Several documents picked in the list (⌘ or Ctrl + click): they are in hand together, to compare or combine.
+  // Nothing is written in place for them, so the bar hands their actions to the Assistant as cards.
+  const picked = new Set();
+  const objectsFocus = () => {
+    const chosen = records.filter((record) => picked.has(record.id));
+    if (chosen.length < 2) return null;
+    return { context_id: "pages-objects:" + chosen.map((record) => record.id + "@" + record.version).sort().join(","),
+      plugin_id: "io.molis.work.pages", activity: "selecting", granularity: "objects",
+      object: { kind: "pages_document", id: chosen[0].id, version: chosen[0].version, title: chosen[0].title },
+      targets: chosen.slice(0, 8).map((record) => {
+        const text = (record.title + "\\n" + docText(record.body)).slice(0, 1500);
+        return { kind: "object", role: "object", text, ...(text.length >= 1500 ? { truncated: true } : {}),
+          ref: { kind: "pages_document", id: record.id, version: record.version, title: record.title } };
+      }) };
+  };
+  const paintPicked = () => {
+    rowsEl.querySelectorAll(".pages-doc-row[data-page-id]").forEach((row) => {
+      const on = picked.has(row.dataset.pageId);
+      row.classList.toggle("is-picked", on);
+      row.querySelector("button[data-page-id]")?.setAttribute("aria-pressed", String(on));
+    });
+  };
+  const clearPicked = () => {
+    if (!picked.size) return;
+    picked.clear();
+    paintPicked();
+    reportFocus();
+  };
+  workbench.addEventListener("keydown", (event) => { if (event.key === "Escape" && picked.size) clearPicked(); });
   const reportFocus = () => {
-    const detail = surfaceFocus();
+    const detail = objectsFocus() || surfaceFocus();
     if ((detail ? detail.context_id : null) === (focusShown ? focusShown.context_id : null)) return;
     focusShown = detail;
     workbench.dispatchEvent?.(new CustomEvent("molis:surface-focus", { bubbles: true, detail }));
   };
   // The person chose one of this document's actions in the bar: run it on the range they had in hand when it was
-  // ranked, through the writing popup, so the result is a candidate they accept before anything is written.
+  // ranked, through the writing popup, so the result is a candidate they accept before anything is written. A
+  // whole-document action (also one of the Assistant's starting points, with nothing in hand) runs on this document
+  // when it is the one open here.
   window.addEventListener?.("molis:assistant-context-action-chosen", (event) => {
     const chosen = event.detail;
-    if (!chosen || chosen.plugin_id !== "io.molis.work.pages" || !focusShown || !focusNow || chosen.context_id !== focusShown.context_id) return;
+    if (!chosen || chosen.plugin_id !== "io.molis.work.pages") return;
+    const whole = chosen.scope === "object" && Boolean(chosen.object && selected && !unshowable && chosen.object.id === selected.id);
+    if (!whole && (!focusShown || !focusNow || chosen.context_id !== focusShown.context_id || focusShown.granularity === "objects")) return;
     if (!editor || !editor.runCommand || !["result", "replace", "insert_after"].includes(chosen.apply) || typeof chosen.prepare !== "function") return;
     event.preventDefault();
     const documentId = selected.id;
-    void editor.runCommand("", undefined, { localId: focusNow.local_id, title: chosen.title,
+    void editor.runCommand("", undefined, { ...(whole ? { scope: "object" } : { localId: focusNow.local_id }), title: chosen.title,
       mode: chosen.apply === "replace" ? "replace" : "insert_after", okLabel: chosen.apply === "replace" ? L("替换") : L("插到后面"),
       prepare: async () => {
         const prepared = await chosen.prepare();
@@ -277,6 +307,31 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return { command: input.command, style: typeof input.style === "string" ? input.style : undefined, text: typeof input.text === "string" ? input.text : undefined };
       } });
   });
+  // The writing menu lists exactly what the context row shows for what is in hand (specs/contextual-interaction
+  // §6.4.1): the row publishes its plan; a choice in the menu goes back to the row like a click there.
+  let menuPlan = null;
+  const menuWatchers = new Set();
+  document.addEventListener?.("molis:assistant-context-actions", (event) => {
+    if (!event.detail || !event.detail.plan) return;
+    menuPlan = event.detail.plan;
+    [...menuWatchers].forEach((listener) => listener());
+  });
+  const menuActions = () => {
+    if (!menuPlan || !focusShown || menuPlan.context_id !== focusShown.context_id) return null;
+    const byKey = new Map(menuPlan.candidates.map((candidate) => [candidate.key, candidate]));
+    const item = (key) => {
+      const candidate = byKey.get(key);
+      return candidate && candidate.available ? { key, title: candidate.title, hint: candidate.hint, emphasis: menuPlan.emphasis === key,
+        ...(candidate.source && candidate.source.provider_id !== "io.molis.work.pages" ? { kind: candidate.provider_title } : {}) } : null;
+    };
+    const groups = [{ title: "", items: menuPlan.primary.map(item).filter(Boolean) },
+      ...menuPlan.more.map((group) => ({ title: group.title, items: group.keys.map(item).filter(Boolean) }))];
+    return { groups: groups.filter((group) => group.items.length) };
+  };
+  const chooseMenuAction = (key) => {
+    if (!focusShown) return;
+    document.dispatchEvent?.(new CustomEvent("molis:assistant-context-action-choose", { detail: { context_id: focusShown.context_id, key } }));
+  };
   const syncEditorChrome = () => {
     publishContext();
     reportFocus();
@@ -318,6 +373,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     row.className = "feed-stage-entry directory-list-row" + (selected?.id === record.id ? " is-selected" : "");
     row.dataset.pageId = record.id;
     row.setAttribute("aria-selected", String(selected?.id === record.id));
+    row.setAttribute("aria-pressed", String(picked.has(record.id)));
+    if (picked.has(record.id)) item.classList.add("is-picked");
     const leading = document.createElement("span");
     leading.className = "feed-stage-leading";
     const mark = document.createElement("span");
@@ -454,6 +511,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       doc: body,
       onChange: () => { if (!filling) queueSave(); },
       onFocus: (focus) => { focusNow = focus; reportFocus(); },
+      menuActions,
+      watchMenuActions: (listener) => { menuWatchers.add(listener); return () => menuWatchers.delete(listener); },
+      chooseMenuAction,
       translate: L,
       pages: () => records.map((item) => ({ id: item.id, title: item.title })),
       onOpenPage: (id) => {
@@ -629,9 +689,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!selected) return;
     do { await save(); } while (selected && (saveTimer || dirty));
   };
+  // Showing the document already open here again (its item tab after the page's list, a reload's second request): the
+  // workbench took its name off the surface when it hid it, so name it again with its version and title.
   const revealEditor = () => {
     workbench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
+    syncEditorChrome();
   };
   const openDocument = async (record) => {
     if (!record) return;
@@ -939,7 +1002,17 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       const row = event.target.closest("button[data-page-id]");
+      if (row && (event.metaKey || event.ctrlKey)) {
+        // Picking, not opening: the open document joins the first pick, so one ⌘-click already gives two.
+        const id = row.dataset.pageId;
+        if (!picked.size && selected && selected.id !== id) picked.add(selected.id);
+        if (picked.has(id)) picked.delete(id); else picked.add(id);
+        paintPicked();
+        reportFocus();
+        return;
+      }
       if (row) {
+        clearPicked();
         const record = records.find((item) => item.id === row.dataset.pageId);
         if (record) await openDocument(record);
         return;

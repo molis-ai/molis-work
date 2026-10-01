@@ -5,6 +5,17 @@ import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
+// What the Assistant and the context row read for the open document: Pages' own naming with its version and title,
+// not the workbench's fallback (named_by: "workbench", kind and id only).
+const namesItself = (title: string, version?: number) => `(() => {
+  const context = JSON.parse(document.querySelector('[data-pages=workbench]').getAttribute('data-assistant-context') || 'null');
+  const object = context && context.object;
+  return Boolean(object && !context.named_by && context.surface_title === 'Pages' && object.kind === 'pages_document'
+    && Number.isInteger(object.version) && ${version === undefined ? "true" : `object.version === ${version}`} && object.title === ${JSON.stringify(title)});
+})()`;
+// The workbench's fallback runs 250 ms after it opens an item and then reads the surfaces: give it time to (not) land.
+const pastFallback = () => new Promise(resolve => setTimeout(resolve, 1200));
+
 for (const width of [1440, 390]) {
   test(`Pages ${width}px: real create/edit, model candidate, restart and conflicting save`, { timeout: 90_000 }, async t => {
     const prompts: string[] = [];
@@ -37,7 +48,7 @@ for (const width of [1440, 390]) {
       assert.match(JSON.stringify(page.body), /今天讨论/);
       assert.doesNotMatch(JSON.stringify(page.body), /整理后的文稿/, "candidate requires user confirmation");
     } finally { store.close(); }
-    await evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === "确定").click()`);
+    await evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === "插到后面").click()`);
     await waitFor("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('整理后的文稿') && document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
     const saved = openPagesStore(homeDirectory);
     try { assert.match(JSON.stringify(saved.list(projectId!)[0]!.body), /整理后的文稿/); } finally { saved.close(); }
@@ -48,6 +59,10 @@ for (const width of [1440, 390]) {
     }
     // The document being edited comes back by itself (specs/archive/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
     await waitFor("document.querySelector('[data-pages-title]')?.value === '项目讨论记录' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('整理后的文稿')");
+    // And Pages names it itself again, with its version and title.
+    await waitFor(namesItself("项目讨论记录"));
+    await pastFallback();
+    assert.equal(await evaluate(namesItself("项目讨论记录")), true, "the reopened document keeps Pages' own naming");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
     const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
     await writeFile(new URL(`pages-actions-${width}.png`, output), Buffer.from((await command<{data:string}>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
@@ -66,7 +81,7 @@ for (const width of [1440, 390]) {
 test("the open page never saves over what it cannot show or has not seen: changed elsewhere, it redraws; unreadable, it stays read-only", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const paragraph = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
   // Seen with MiniMax-M3 before writes were checked: another editor's node names, stored as they were.
@@ -79,11 +94,23 @@ test("the open page never saves over what it cannot show or has not seen: change
   };
   await open(shown.id);
   await waitFor("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('第一版正文')");
+  // Opened as its tab on a fresh page, the document is named by Pages, not by the workbench's fallback.
+  await waitFor(namesItself("别处会改的文档", shown.version));
+  await pastFallback();
+  assert.equal(await evaluate(namesItself("别处会改的文档", shown.version)), true, "the workbench's fallback does not replace Pages' naming");
+  // The Pages list hides it (the workbench takes its name off); back on its tab, Pages names it again.
+  await click(".tab-view-chip[data-tab-view=pages]");
+  await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'");
+  await click(".tab-item[data-tab-kind=item][data-plugin=pages] .tab-item-trigger");
+  await waitFor(namesItself("别处会改的文档", shown.version));
+  await pastFallback();
+  assert.equal(await evaluate(namesItself("别处会改的文档", shown.version)), true, "shown again, the document keeps Pages' own naming");
   // Another window saves a new version; coming back to this one shows it instead of keeping the old text under it.
   const other = openPagesStore(homeDirectory);
-  try { other.update(shown.id, { body: paragraph("另一个窗口的第二版"), expected_version: shown.version }, projectId!); } finally { other.close(); }
+  const changed = (() => { try { return other.update(shown.id, { body: paragraph("另一个窗口的第二版"), expected_version: shown.version }, projectId!); } finally { other.close(); } })();
   await evaluate("window.dispatchEvent(new Event('focus'))");
   await waitFor("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('另一个窗口的第二版')");
+  await waitFor(namesItself("别处会改的文档", changed.version));
   // A body the editor cannot show opens read-only with a note, and nothing is saved over it.
   await open(unreadable.id);
   await waitFor("/显示不了/.test(document.querySelector('[data-pages=workbench]').textContent) && document.querySelector('[data-pages-editor] .ProseMirror').getAttribute('contenteditable') === 'false'");

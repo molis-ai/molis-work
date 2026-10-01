@@ -301,7 +301,8 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       render();
     }
   };
-  const open = (trigger) => {
+  // \`query\`: open already searching for it (a word chosen in the context actions); the person can refine it.
+  const open = (trigger, query) => {
     lastTrigger = trigger?.nodeType === 1 ? trigger : document.activeElement;
     input.value = "";
     selected = 0; explicit = false;
@@ -313,6 +314,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     input.focus();
     input.select();
     noteSearchActivity(500);
+    if (typeof query === "string" && query.trim()) { input.value = query.trim().slice(0, 200); input.dispatchEvent(new Event("input")); }
   };
   form.addEventListener("submit", (event) => {
     event.preventDefault();

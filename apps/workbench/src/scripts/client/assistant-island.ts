@@ -1699,15 +1699,18 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!emptyList || currentId) return;
     const starters = startersFor();
     const recent = works.filter((work) => !work.archived && !work.delegated_by).slice().sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || ""))).slice(0, 3);
-    const signature = JSON.stringify([starters.map((one) => one.label), recent.map((work) => [work.work_id, work.title, work.state, markOf(work)])]);
+    const signature = JSON.stringify([starters.map((one) => [one.label, one.key || "", one.kind || ""]), recent.map((work) => [work.work_id, work.title, work.state, markOf(work)])]);
     if (emptyList.dataset.signature === signature) return;
     emptyList.dataset.signature = signature;
     const parts = [];
     if (starters.length) {
       parts.push(el("p", "assistant-empty-title", L("从这一页开始")));
       starters.forEach((starter) => {
-        const button = el("button", "assistant-start", starter.label); button.type = "button";
-        button.addEventListener("click", () => { input.value = starter.prompt; typed = true; syncSend(); saveDraft(false); input.focus(); });
+        const button = el("button", "assistant-start"); button.type = "button";
+        button.append(el("span", "assistant-start-title", starter.label));
+        if (starter.kind) button.append(el("span", "assistant-start-state", starter.kind));
+        if (starter.hint) button.title = starter.hint;
+        button.addEventListener("click", () => { if (useStarter(starter)) input.focus(); });
         parts.push(button);
       });
     }
@@ -2147,17 +2150,68 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (open) { setStarters(false); paintMaterials(); materialsList.querySelector("button")?.focus(); }
   };
   materialsButton?.addEventListener("click", () => setMaterials(materialsList.hidden));
-  /* Starting points for the current content: choosing one fills the input and sends nothing. */
+  /* Starting points for what is open (specs/contextual-interaction §6.4.2): what the action directory offers for it,
+     through the context row's controller — the row's own plan while something is in hand. Choosing one of those runs
+     it as a click on the row would. With nothing offered, three plain questions that only fill the input. Pages no
+     longer list their own (their "starters" are still accepted and ignored). */
+  const plainStarters = () => [
+    { label: L("总结这一页"), prompt: L("总结这一页的要点") },
+    { label: L("列出这一页的要点"), prompt: L("把这一页的要点逐条列出来") },
+    { label: L("下一步可以做什么"), prompt: L("根据这一页，下一步可以做什么？") },
+  ];
+  const offered = {
+    signature: "", request: "", answer: null, timer: 0,
+    // Nothing (undefined) while the answer is on its way (briefly: rules only), then the items, possibly none.
+    read(context) {
+      const inHand = Boolean(selection && !removed.has("selection"));
+      const signature = JSON.stringify([context.plugin_id, context.object || null, inHand]);
+      // What is in hand changes with every selection: ask each time (the row answers from the plan it shows).
+      // Kept while the same thing stays open, but asked again after a while: a plugin switched off drops out.
+      const fresh = this.answer && Date.now() - this.answer.at < 15000;
+      if (signature === this.signature && !inHand && (fresh || !this.answer)) return this.answer ? this.answer.items : undefined;
+      if (signature !== this.signature) { this.signature = signature; this.answer = null; }
+      const request = this.request = crypto.randomUUID();
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => { if (this.request === request && !this.answer) this.settle(request, "", []); }, 2000);
+      document.dispatchEvent(new CustomEvent("molis:assistant-starters-request", { detail: { context, request_id: request } }));
+      return this.answer ? this.answer.items : undefined;
+    },
+    settle(request, objectKey, items) {
+      if (request !== this.request) return;
+      const changed = !this.answer || JSON.stringify([this.answer.object_key, this.answer.items]) !== JSON.stringify([objectKey, items]);
+      this.answer = { object_key: objectKey, items, at: Date.now() };
+      if (!changed) return;
+      // Answered while being read (the row's plan is at hand): the reader shows it; otherwise repaint what is open.
+      queueMicrotask(() => {
+        if (startersPop && !startersPop.hidden && !startersPop.dataset.mode) setStarters(true);
+        paintEmpty();
+      });
+    },
+  };
+  document.addEventListener("molis:assistant-starters", (event) => {
+    const detail = event.detail || {};
+    const items = Array.isArray(detail.items) ? detail.items.filter((item) => item && typeof item.key === "string" && typeof item.label === "string") : [];
+    offered.settle(detail.request_id, typeof detail.object_key === "string" ? detail.object_key : "", items);
+  });
   const startersFor = () => {
     const context = surfaceContext();
-    const list = [];
-    if (selection && !removed.has("selection")) {
-      list.push({ label: L("改写选中的内容"), prompt: L("改写我选中的这段内容，保持原意，更清楚") });
-      list.push({ label: L("总结选中的内容"), prompt: L("用三句话总结我选中的内容") });
-    }
-    ((context && context.starters) || []).forEach((starter) => { if (starter && starter.label && starter.prompt) list.push(starter); });
-    return list.slice(0, 5);
+    if (!context) return [];
+    const items = offered.read(context);
+    if (items === undefined) return [];
+    if (!items.length) return plainStarters();
+    const objectKey = offered.answer.object_key;
+    return items.map((item) => ({ label: item.label, hint: item.hint, kind: item.kind, key: item.key, object_key: objectKey }));
   };
+  // A plain question fills the input; an offered action runs through the row, and nothing is typed for it.
+  const useStarter = (starter) => {
+    if (starter.key) {
+      document.dispatchEvent(new CustomEvent("molis:assistant-starter-choose", { detail: { object_key: starter.object_key, key: starter.key } }));
+      return false;
+    }
+    input.value = starter.prompt; typed = true; syncSend(); saveDraft(false);
+    return true;
+  };
+  const starterLabel = (starter) => starter.label + (starter.kind ? " · " + starter.kind : "");
   /* “/”: pick a capability this work may really use now (or one of this page's starters); nothing runs by picking. */
   let capabilityRows = null;
   const loadCapabilityRows = async () => {
@@ -2183,9 +2237,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     startersPop.hidden = false;
     startersPop.replaceChildren(el("p", "assistant-popover-title", L("用一个方法或能力，或这样开始")));
     starters.forEach((starter) => {
-      const button = el("button", "assistant-starter", starter.label); button.type = "button";
+      const button = el("button", "assistant-starter", starterLabel(starter)); button.type = "button";
+      if (starter.hint) button.title = starter.hint;
       button.addEventListener("mousedown", (event) => event.preventDefault());
-      button.addEventListener("click", () => { input.value = starter.prompt; typed = true; syncSend(); saveDraft(false); closeSlash(); input.focus(); });
+      button.addEventListener("click", () => {
+        if (starter.key) { input.value = slashStash || ""; slashStash = null; syncSend(); saveDraft(false); }
+        closeSlash();
+        if (useStarter(starter)) input.focus();
+      });
       startersPop.append(button);
     });
     // A method is how to do it: chosen here, its steps go with this round only.
@@ -2280,9 +2339,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     startersPop.replaceChildren();
     if (list.length) startersPop.append(el("p", "assistant-popover-title", L("可以这样开始")));
     list.forEach((starter) => {
-      const button = el("button", "assistant-starter", starter.label); button.type = "button";
+      const button = el("button", "assistant-starter", starterLabel(starter)); button.type = "button";
+      if (starter.hint) button.title = starter.hint;
       button.addEventListener("mousedown", (event) => event.preventDefault());
-      button.addEventListener("click", () => { input.value = starter.prompt; typed = true; syncSend(); saveDraft(false); setStarters(false); input.focus(); });
+      button.addEventListener("click", () => { setStarters(false); if (useStarter(starter)) input.focus(); });
       startersPop.append(button);
     });
     if (recent.length) startersPop.append(el("p", "assistant-popover-title", L("继续最近的工作")));

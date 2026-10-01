@@ -400,6 +400,12 @@ export const PAGES_STYLES = `
     background: var(--nav-active);
     box-shadow: none;
   }
+  /* Picked together with ⌘ / Ctrl for the context actions (compare, combine): marked apart from the open one. */
+  body.immersive-workbench [data-pages="directory"] .pages-doc-row.is-picked,
+  body.immersive-workbench [data-pages="directory"] .pages-doc-row.is-picked:has(.feed-stage-entry.is-selected) {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
   body.immersive-workbench [data-pages="directory"] .pages-doc-row .feed-stage-entry:is(.is-selected, [aria-selected="true"]),
   body.immersive-workbench [data-pages="directory"] .pages-doc-row:hover .feed-stage-entry {
     background: transparent;
@@ -624,6 +630,13 @@ export const PAGES_STYLES = `
   .pages-slash-item.is-on, .pages-slash-item:hover { background: var(--nav-hover); }
   .pages-slash > p, .pages-pop > p { margin: 8px 12px; font-size: 12px; color: var(--muted); }
   .pages-pop { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+  /* The writing menu lists the context row's actions: the row's own first, then the same groups as its “更多”. */
+  /* One scroll: the whole menu scrolls in the pop, the list never shrinks into a scroll of its own. */
+  .pages-ai-actions { display: flex; flex-direction: column; flex: none; }
+  .pages-ai-actions > .pages-ai-group { margin: 8px 12px 2px; font-size: 11px; font-weight: 600; color: var(--faint); }
+  .pages-ai-actions > .pages-ai-waiting { margin: 8px 12px; font-size: 12px; color: var(--muted); }
+  .pages-ai-actions > .mw-menu__item[data-emphasis="true"] { font-weight: 600; }
+  .pages-ai-actions .pages-ai-kind { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--muted); }
   .pages-pop label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   .pages-pop textarea, .pages-pop input, .pages-pop select { width: 100%; }
   .pages-ask-assistant { display: flex; gap: 6px; align-items: center; }

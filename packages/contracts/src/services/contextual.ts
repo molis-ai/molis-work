@@ -19,6 +19,11 @@ export const CONTEXT_ACTIONS_EVENT = "molis:assistant-context-actions";
  * Nobody taking it means no page here can run it; the Assistant then gets the words and the material, unsent.
  */
 export const CONTEXT_ACTION_CHOSEN_EVENT = "molis:assistant-context-action-chosen";
+/**
+ * Document event from a surface that shows the same plan in its own menu (Pages' writing menu): `{ context_id, key }`.
+ * The row handles it exactly as a click on itself — signals, cards, and handing the choice back to the page.
+ */
+export const CONTEXT_ACTION_CHOOSE_EVENT = "molis:assistant-context-action-choose";
 
 /** `detail` of `CONTEXT_ACTION_CHOSEN_EVENT`. */
 export interface ContextActionChosen {
@@ -29,6 +34,10 @@ export interface ContextActionChosen {
   readonly apply: FragmentApply;
   readonly intent: FragmentIntent;
   readonly title: string;
+  /** `object`: it acts on the whole object, not on what is selected. */
+  readonly scope?: "object";
+  /** The object the context is about; with `scope: "object"` the page that has it open may take the choice without a selection. */
+  readonly object?: SurfaceFocus["object"];
   /** The provider's complete input for this offer and exactly this context; rejects when it is no longer offered. */
   prepare(): Promise<{ readonly key: string; readonly apply: FragmentApply; readonly action: ContextualCandidate["action"]; readonly input: unknown }>;
 }
@@ -80,6 +89,13 @@ export interface ContextualCandidate {
   readonly provider_title: string;
   readonly available: boolean;
   readonly reason?: string;
+  /** `object`: a whole-object action (整篇) offered while only part of the object is in hand; it acts on all of it. */
+  readonly scope?: "object";
+  /**
+   * Where the candidate was declared. Absent: fragment offers (`frag.` keys). `subject`: the object's subject offers,
+   * which the Home / Dock rules also choose from; their keys stay `offer.` so saved rules and bindings keep working.
+   */
+  readonly origin?: "subject";
 }
 
 export type AssistantForm = "none" | "suggest" | "options" | "preview" | "compare";
@@ -111,7 +127,8 @@ export interface ContextualLayoutPlan {
   /** One key the bar may emphasise, or none when the judgment is not sure enough. */
   readonly emphasis: string | null;
   /** The rest, grouped by declared intent, groups in the order the judgment ranks them. */
-  readonly more: readonly { readonly intent: FragmentIntent; readonly title: string; readonly keys: readonly string[] }[];
+  /** Groups by declared intent, then `whole` (整篇): the whole-object actions, last and never in `primary`. */
+  readonly more: readonly { readonly intent: FragmentIntent | "whole"; readonly title: string; readonly keys: readonly string[] }[];
   /** The Assistant takes part only when the judgment thinks it is worth it. */
   readonly assistant: null | { readonly form: Exclude<AssistantForm, "none">; readonly intent: FragmentIntent; readonly keys: readonly string[] };
   /** Every available action for this context, for “全部操作”; independent of any judgment. */

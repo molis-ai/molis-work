@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import {
-  FRAGMENT_INTENTS, FRAGMENT_OFFERS_INPUT_TYPE, FRAGMENT_OFFERS_OUTPUT_TYPE, actionEffect,
+  FRAGMENT_ANY_OBJECT, FRAGMENT_INTENTS, FRAGMENT_OFFERS_INPUT_TYPE, FRAGMENT_OFFERS_OUTPUT_TYPE, actionEffect,
   type ActionView, type FragmentGranularity, type FragmentIntent, type FragmentOfferChoice, type FragmentRole,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   ASSISTANT_FORMS, type AssistantForm, type ContextualCandidate, type ContextualJudgment, type ContextualLayoutPlan, type SurfaceFocus,
 } from "@molis-ai/molis-work-contracts/services/contextual";
+import { subjectOfferChoices } from "./subject-offer-choices.js";
 
 /**
  * Pure logic of context-driven interaction (specs/contextual-interaction §3.4, §5): which declared actions fit what the
@@ -33,27 +34,37 @@ export function fragmentCandidateKey(source: { provider_id: string; capability_i
 
 /** The granularity a declared choice is matched against; page- and object-level focus is served by subject offers. */
 function fragmentGranularity(focus: SurfaceFocus): FragmentGranularity | null {
-  return focus.granularity === "page" || focus.granularity === "object" ? null : focus.granularity;
+  return focus.granularity === "page" ? null : focus.granularity;
 }
 
-function fits(choice: FragmentOfferChoice, focus: SurfaceFocus): boolean {
+/**
+ * `direct`: the choice is for what is in hand. `whole`: it is for the whole object while only part of it is in hand
+ * (整篇, grouped apart). Several objects in hand have no single whole to act on.
+ */
+function fits(choice: FragmentOfferChoice, focus: SurfaceFocus): "direct" | "whole" | null {
   const granularity = fragmentGranularity(focus);
-  if (!granularity) return false;
-  if (choice.granularities && !choice.granularities.includes(granularity)) return false;
-  if (choice.roles) {
-    const roles = focus.targets.map(target => target.role).filter((role): role is FragmentRole => Boolean(role));
-    if (!roles.some(role => choice.roles!.includes(role))) return false;
+  if (!granularity) return null;
+  if (choice.requires?.includes("goal") && !focus.goal) return null;
+  if (!choice.granularities || choice.granularities.includes(granularity)) {
+    if (choice.roles && granularity !== "object") {
+      const roles = focus.targets.map(target => target.role).filter((role): role is FragmentRole => Boolean(role));
+      if (!roles.some(role => choice.roles!.includes(role))) return null;
+    }
+    return "direct";
   }
-  return true;
+  return choice.granularities.includes("object") && granularity !== "objects" ? "whole" : null;
 }
 
 /** Derive candidates from one authorized directory snapshot. This neither queries providers nor proves input is ready. */
 export function fragmentCandidates(directory: readonly ActionView[], focus: SurfaceFocus): ContextualCandidate[] {
   const targets = new Map(directory.map(view => [JSON.stringify([view.provider.provider_id, view.capability_id, view.version]), view]));
   return directory.filter(view => view.action.input_type === FRAGMENT_OFFERS_INPUT_TYPE && view.action.output_type === FRAGMENT_OFFERS_OUTPUT_TYPE
-    && view.action.subject_kinds.includes(focus.object.kind)).flatMap(view => {
+    && (view.action.subject_kinds.includes(focus.object.kind) || view.action.subject_kinds.includes(FRAGMENT_ANY_OBJECT))).flatMap(view => {
     const source = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
-    return (view.action.fragment_offer_choices ?? []).filter(choice => fits(choice, focus)).map(choice => {
+    return (view.action.fragment_offer_choices ?? []).flatMap(choice => {
+      const fit = fits(choice, focus);
+      return fit ? [{ choice, whole: fit === "whole" }] : [];
+    }).map(({ choice, whole }) => {
       const action = { ...choice.action, provider_id: source.provider_id };
       const target = targets.get(JSON.stringify([source.provider_id, action.capability_id, action.version]));
       // What the click does must match what the target action does: only a read-only action may show a result or a
@@ -65,8 +76,33 @@ export function fragmentCandidates(directory: readonly ActionView[], focus: Surf
           : !target.availability.available ? target.availability.reason
             : effect === "irreversible" ? "不可撤回的动作不在情境推荐里提供" : undefined;
       return { key: fragmentCandidateKey(source, choice), offer_id: choice.offer_id, title: choice.title, intent: choice.intent, apply,
-        hint: choice.hint, source, action, provider_title: view.provider.title, available: unavailable === undefined, ...(unavailable ? { reason: unavailable } : {}) };
+        hint: choice.hint, source, action, provider_title: view.provider.title, available: unavailable === undefined, ...(unavailable ? { reason: unavailable } : {}),
+        ...(whole ? { scope: "object" as const } : {}) };
     });
+  });
+}
+
+/**
+ * Every candidate for a context from one directory snapshot (spec §6.4.3): the fragment offers that fit and, with the
+ * whole object in hand, its subject offers — the same choices the Home / Dock rules pick from, under the same keys.
+ */
+export function contextualCandidates(directory: readonly ActionView[], focus: SurfaceFocus): ContextualCandidate[] {
+  const fragments = fragmentCandidates(directory, focus);
+  return focus.granularity === "object" ? [...fragments, ...subjectCandidates(directory, focus.object.kind)] : fragments;
+}
+
+/** Subject offers declare no intent: they move the object on (推进). What a click does follows the target's effect. */
+function subjectCandidates(directory: readonly ActionView[], kind: string): ContextualCandidate[] {
+  const views = new Map(directory.map(view => [JSON.stringify([view.provider.provider_id, view.capability_id, view.version]), view]));
+  return subjectOfferChoices(directory, kind).map(choice => {
+    const action = { capability_id: choice.action.capability_id, version: choice.action.version, provider_id: choice.action.provider_id! };
+    const target = views.get(JSON.stringify([action.provider_id, action.capability_id, action.version]));
+    const effect = target ? actionEffect(target.action, target.capability_id) : "write";
+    const unavailable = !choice.availability.available ? choice.availability.reason
+      : effect === "irreversible" ? "不可撤回的动作不在情境推荐里提供" : undefined;
+    return { key: choice.key, offer_id: choice.offer_id, title: choice.title, intent: "advance" as const, apply: effect === "read" ? "result" as const : "record" as const,
+      hint: target?.action.description || choice.title, source: { capability_id: choice.source.capability_id, version: choice.source.version, provider_id: choice.source.provider_id! },
+      action, provider_title: choice.provider_title, available: unavailable === undefined, ...(unavailable ? { reason: unavailable } : {}), origin: "subject" as const };
   });
 }
 
@@ -85,6 +121,8 @@ export function intentPriors(focus: SurfaceFocus): Record<FragmentIntent, number
     case "block": bump("expand", 0.6); bump("rewrite", 0.6); break;
     case "blocks": bump("combine", 1.6); bump("organize", 0.8); break;
     case "objects": bump("combine", 2.4); bump("relate", 1); break;
+    // A whole object, nothing selected (where to start with it): take in all of it first, then question or rework it.
+    case "object": bump("organize", 1.2); bump("question", 0.4); bump("rewrite", 0.4); break;
   }
   if (roles.has("list") || roles.has("task")) { bump("organize", 1); bump("advance", 1); bump("relate", 0.6); }
   if (roles.has("heading")) { bump("organize", 0.8); bump("expand", 0.6); }
@@ -157,7 +195,8 @@ export const MAX_JUDGED_CANDIDATES = 16;
 
 /** The available candidates the judgment is asked about: all of them, or the rule-ranked first sixteen. */
 export function judgedCandidates(candidates: readonly ContextualCandidate[], focus?: SurfaceFocus): ContextualCandidate[] {
-  const available = candidates.filter(candidate => candidate.available);
+  // Whole-object actions offered beside a part stay in their own group: nothing to rank them against the part.
+  const available = candidates.filter(candidate => candidate.available && candidate.scope !== "object");
   if (available.length <= MAX_JUDGED_CANDIDATES || !focus) return available.slice(0, MAX_JUDGED_CANDIDATES);
   const rules = ruleScores(available, focus);
   const order = new Map(available.map((candidate, index) => [candidate.key, index]));
@@ -245,7 +284,8 @@ export interface PlanInput {
  * always give the same layout; keys under the pointer or keyboard focus keep the slot they had.
  */
 export function planContextualLayout(input: PlanInput): ContextualLayoutPlan {
-  const available = input.candidates.filter(candidate => candidate.available);
+  const wholes = input.candidates.filter(candidate => candidate.available && candidate.scope === "object");
+  const available = input.candidates.filter(candidate => candidate.available && candidate.scope !== "object");
   const rules = ruleScores(available, input.focus);
   const judged = input.judgment && Object.keys(input.judgment.next).length ? input.judgment : null;
   const dismissed = new Set(input.dismissed ?? []);
@@ -278,8 +318,11 @@ export function planContextualLayout(input: PlanInput): ContextualLayoutPlan {
     const intent = byKey.get(key)!.intent;
     groups.set(intent, [...(groups.get(intent) ?? []), key]);
   }
-  const more = [...groups.entries()].sort((a, b) => intentScore(b[0]) - intentScore(a[0]) || INTENT_ORDER.indexOf(a[0]) - INTENT_ORDER.indexOf(b[0]))
+  const more: { intent: FragmentIntent | "whole"; title: string; keys: string[] }[] = [...groups.entries()]
+    .sort((a, b) => intentScore(b[0]) - intentScore(a[0]) || INTENT_ORDER.indexOf(a[0]) - INTENT_ORDER.indexOf(b[0]))
     .map(([intent, keys]) => ({ intent, title: INTENT_TITLES[intent] ?? intent, keys }));
+  // The whole object's own actions come last, in their declared order: acting on all of it is never the first guess.
+  if (wholes.length) more.push({ intent: "whole", title: "整篇", keys: wholes.map(candidate => candidate.key) });
 
   let assistant: ContextualLayoutPlan["assistant"] = null;
   if (judged && judged.surface !== "none" && (judged.surface_probability ?? 0) >= CONTEXTUAL_THRESHOLDS.surface && ranked.length) {

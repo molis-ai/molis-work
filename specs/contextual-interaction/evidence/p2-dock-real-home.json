@@ -1,0 +1,190 @@
+{
+  "subjects": [
+    "inboxentry-7d385486-2474-4181-aaa4-62d7f6169369",
+    "inboxentry-8184dd5f-3dd8-4c3f-b7fb-f70ac62144eb",
+    "inboxentry-fc61165d-22a3-4fcf-9995-b5f18bdaa41e"
+  ],
+  "prepared": [
+    {
+      "subject": "inboxentry-7d385486-2474-4181-aaa4-62d7f6169369",
+      "issues": [],
+      "offers": [
+        {
+          "offer_id": "inbox.done",
+          "title": "做完了",
+          "key": "offer.9ad11b2e52f9acddae0370cdb05ad218678e358b8189d896eadd6ed4d7",
+          "action": {
+            "capability_id": "inbox.entry.status",
+            "version": 1,
+            "provider_id": "io.molis.work.inbox"
+          },
+          "input": {
+            "entry_id": "inboxentry-7d385486-2474-4181-aaa4-62d7f6169369",
+            "status": "done",
+            "expected_revision": 1
+          },
+          "available": true
+        },
+        {
+          "offer_id": "inbox.dismiss",
+          "title": "忽略",
+          "key": "offer.142d11c71ad8c459929915e7e9af8d0da181866d16f02d3558a5b0d1a9",
+          "action": {
+            "capability_id": "inbox.entry.status",
+            "version": 1,
+            "provider_id": "io.molis.work.inbox"
+          },
+          "input": {
+            "entry_id": "inboxentry-7d385486-2474-4181-aaa4-62d7f6169369",
+            "status": "dismissed",
+            "expected_revision": 1
+          },
+          "available": true
+        }
+      ]
+    },
+    {
+      "subject": "inboxentry-8184dd5f-3dd8-4c3f-b7fb-f70ac62144eb",
+      "issues": [],
+      "offers": [
+        {
+          "offer_id": "inbox.done",
+          "title": "做完了",
+          "key": "offer.9ad11b2e52f9acddae0370cdb05ad218678e358b8189d896eadd6ed4d7",
+          "action": {
+            "capability_id": "inbox.entry.status",
+            "version": 1,
+            "provider_id": "io.molis.work.inbox"
+          },
+          "input": {
+            "entry_id": "inboxentry-8184dd5f-3dd8-4c3f-b7fb-f70ac62144eb",
+            "status": "done",
+            "expected_revision": 1
+          },
+          "available": true
+        },
+        {
+          "offer_id": "inbox.dismiss",
+          "title": "忽略",
+          "key": "offer.142d11c71ad8c459929915e7e9af8d0da181866d16f02d3558a5b0d1a9",
+          "action": {
+            "capability_id": "inbox.entry.status",
+            "version": 1,
+            "provider_id": "io.molis.work.inbox"
+          },
+          "input": {
+            "entry_id": "inboxentry-8184dd5f-3dd8-4c3f-b7fb-f70ac62144eb",
+            "status": "dismissed",
+            "expected_revision": 1
+          },
+          "available": true
+        }
+      ]
+    },
+    {
+      "subject": "inboxentry-fc61165d-22a3-4fcf-9995-b5f18bdaa41e",
+      "issues": [],
+      "offers": [
+        {
+          "offer_id": "inbox.done",
+          "title": "做完了",
+          "key": "offer.9ad11b2e52f9acddae0370cdb05ad218678e358b8189d896eadd6ed4d7",
+          "action": {
+            "capability_id": "inbox.entry.status",
+            "version": 1,
+            "provider_id": "io.molis.work.inbox"
+          },
+          "input": {
+            "entry_id": "inboxentry-fc61165d-22a3-4fcf-9995-b5f18bdaa41e",
+            "status": "done",
+            "expected_revision": 1
+          },
+          "available": true
+        },
+        {
+          "offer_id": "inbox.dismiss",
+          "title": "忽略",
+          "key": "offer.142d11c71ad8c459929915e7e9af8d0da181866d16f02d3558a5b0d1a9",
+          "action": {
+            "capability_id": "inbox.entry.status",
+            "version": 1,
+            "provider_id": "io.molis.work.inbox"
+          },
+          "input": {
+            "entry_id": "inboxentry-fc61165d-22a3-4fcf-9995-b5f18bdaa41e",
+            "status": "dismissed",
+            "expected_revision": 1
+          },
+          "available": true
+        },
+        {
+          "offer_id": "inbox.pages",
+          "title": "整理成文稿",
+          "key": "offer.52a07d055a18247072bea487c417029ad2cbb784628ef2a250a8e6a500",
+          "action": {
+            "capability_id": "inbox.pages.generate",
+            "version": 1,
+            "provider_id": "io.molis.work.inbox"
+          },
+          "input": {
+            "request_id": "inbox-pages:a98496e2998f4c04f516804634185d67379bab66c22dca4b4de44c1ba495df90",
+            "entry_ids": [
+              "inboxentry-fc61165d-22a3-4fcf-9995-b5f18bdaa41e"
+            ],
+            "title": "材料整理",
+            "instructions": "围绕所选材料整理一份简洁的综合工作稿，区分事实、作者自述、推断和待核查。每个主要结论标明材料编号，不把多条材料的差异抹平成共识。正文不重复标题。",
+            "expected_materials": [
+              {
+                "entry_id": "inboxentry-fc61165d-22a3-4fcf-9995-b5f18bdaa41e",
+                "item_id": "feeditem-c8034e52-3cdd-4e82-b26b-a608b2a40e64",
+                "revision": 1,
+                "content_digest": "cb5019a51640c8227d05bbe4a1c0e6f2159cfb3ee4b32d1628d2abc0c3ef1956"
+              }
+            ]
+          },
+          "available": false
+        }
+      ]
+    }
+  ],
+  "picks": [
+    {
+      "subject": "inboxentry-7d385486-2474-4181-aaa4-62d7f6169369",
+      "outcome": "ok",
+      "picked": [
+        {
+          "key": "offer.9ad11b2e52f9acddae0370cdb05ad218678e358b8189d896eadd6ed4d7",
+          "title": "做完了"
+        }
+      ],
+      "error": null
+    },
+    {
+      "subject": "inboxentry-8184dd5f-3dd8-4c3f-b7fb-f70ac62144eb",
+      "outcome": "ok",
+      "picked": [
+        {
+          "key": "offer.9ad11b2e52f9acddae0370cdb05ad218678e358b8189d896eadd6ed4d7",
+          "title": "做完了"
+        }
+      ],
+      "error": null
+    },
+    {
+      "subject": "inboxentry-fc61165d-22a3-4fcf-9995-b5f18bdaa41e",
+      "outcome": "ok",
+      "picked": [
+        {
+          "key": "offer.9ad11b2e52f9acddae0370cdb05ad218678e358b8189d896eadd6ed4d7",
+          "title": "做完了"
+        }
+      ],
+      "error": null
+    }
+  ],
+  "recommended": [
+    "inboxentry-7d385486-2474-4181-aaa4-62d7f6169369",
+    "inboxentry-8184dd5f-3dd8-4c3f-b7fb-f70ac62144eb",
+    "inboxentry-fc61165d-22a3-4fcf-9995-b5f18bdaa41e"
+  ]
+}

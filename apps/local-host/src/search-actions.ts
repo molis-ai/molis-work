@@ -1,6 +1,6 @@
-import { ActionError, type ActionCallContext, type ActionClient, type ActionHandlerBinding, type ActionProvider, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionHandlerBinding, type ActionProvider, type ActionRegistryPort, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { SEARCH_PROVIDER_ID, searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchRebuildRequest, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
+import { SEARCH_PROVIDER_ID, prepareSearchFragmentOffers, searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchRebuildRequest, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
 import { SearchService, type SearchAccess } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
@@ -58,6 +58,7 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
   });
   const access = (caller: ActionCallContext): SearchAccess => ({ client: clientFor(caller), caller });
   const handlers: ActionHandlerBinding[] = [
+    { ...searchActions.fragmentOffers, handle: (_caller, input) => ({ offers: prepareSearchFragmentOffers(input as FragmentOffersInput) }) },
     { ...searchActions.query, handle: (caller, input) => service.query(access(caller), input as SearchQueryRequest) },
     { ...searchActions.open, handle: (caller, input) => service.open(access(caller), input as SearchOpenRequest) },
     { ...searchActions.status, handle: (caller, input) => service.status(access(caller), input as { scope?: SearchScope }) },

@@ -119,7 +119,10 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}),
   });
   return [
-    bind(pagesActions.fragmentOffers, input => ({ offers: preparePagesFragmentOffers(input, PAGES_SUBJECT_KIND) })),
+    // The whole document (整篇) is prepared from its stored text; preparing never writes.
+    bind(pagesActions.fragmentOffers, (input, caller) => ({ offers: preparePagesFragmentOffers(input, PAGES_SUBJECT_KIND, undefined, id => ports.withStore(store => {
+      try { return String(actionFieldValue("body", store.get(id, project(caller)).body) ?? ""); } catch { return null; }
+    })) })),
     bind(pagesActions.subject, (input, caller) => ports.withStore(store => {
       let document: PagesRecord;
       try { document = store.get(input.subject_id, project(caller)); }

@@ -1,8 +1,9 @@
 import type { FragmentActionOffer, FragmentOfferChoice, FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
- * What Pages can do with part of a document (specs/contextual-interaction §5.1). Each choice runs the existing
- * writing assistant (`pages.ai`), which only proposes text; nothing is written until the person accepts the preview.
+ * Everything Pages offers for a document, its parts and several documents: the one list both the context row and the
+ * writing menu show (specs/contextual-interaction §6.4.1). Each `pages.ai` choice only proposes text; nothing is written
+ * until the person accepts the preview. `object` (整篇) choices act on the whole document.
  */
 const ai = { capability_id: "pages.ai", version: 1 } as const;
 const text = ["word", "range", "block"] as const;
@@ -12,44 +13,64 @@ export const PAGES_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
   { offer_id: "explain", title: "解释", intent: "understand", apply: "result", hint: "说明这个词或这段话的意思、背景和隐含前提", action: ai, granularities: [...text] },
   { offer_id: "counter", title: "提出反例", intent: "question", apply: "result", hint: "针对一个观点或判断给出反例、反驳或风险", action: ai, granularities: [...passages] },
   { offer_id: "reader", title: "读者视角", intent: "question", apply: "result", hint: "从读者角度指出不清楚、没说服力或缺依据的地方", action: ai, granularities: [...passages] },
+  { offer_id: "coach", title: "写作教练", intent: "question", apply: "result", hint: "从写作上给出具体的修改建议：结构、论证和用词", action: ai, granularities: [...passages, "object"] },
   { offer_id: "expand", title: "展开论述", intent: "expand", apply: "insert_after", hint: "把简短的观点或要点展开成完整的论述", action: ai, granularities: ["range", "block"] },
-  { offer_id: "continue", title: "接着写", intent: "expand", apply: "insert_after", hint: "顺着正在写的内容往下写一段", action: ai, granularities: ["block"] },
+  { offer_id: "continue", title: "接着写", intent: "expand", apply: "insert_after", hint: "顺着正在写的内容往下写一段", action: ai, granularities: ["range", "block"] },
   { offer_id: "actions", title: "拆成行动项", intent: "organize", apply: "insert_after", hint: "把计划、安排或决定拆成可以执行的待办步骤", action: ai, granularities: [...passages] },
-  { offer_id: "bullets", title: "提炼要点", intent: "organize", apply: "insert_after", hint: "把较长的内容压缩成几条要点", action: ai, granularities: ["range", "block", "blocks"] },
+  { offer_id: "bullets", title: "提炼要点", intent: "organize", apply: "insert_after", hint: "把较长的内容压缩成几条要点", action: ai, granularities: [...passages] },
+  { offer_id: "summarize", title: "总结", intent: "organize", apply: "insert_after", hint: "把这部分或整篇概括成几句话", action: ai, granularities: [...passages, "object"] },
+  { offer_id: "outline", title: "列出大纲", intent: "organize", apply: "insert_after", hint: "按层级列出结构提纲", action: ai, granularities: [...passages, "object"] },
   { offer_id: "concise", title: "改得更简洁", intent: "rewrite", apply: "replace", hint: "删去冗余，意思不变", action: ai, granularities: [...passages] },
+  { offer_id: "elaborate", title: "改得更展开", intent: "rewrite", apply: "replace", hint: "意思不变，写得更充分、更具体", action: ai, granularities: [...passages] },
   { offer_id: "formal", title: "改得更正式", intent: "rewrite", apply: "replace", hint: "改成适合正式文档或对外沟通的措辞", action: ai, granularities: [...passages] },
+  { offer_id: "casual", title: "改得更口语", intent: "rewrite", apply: "replace", hint: "改成自然、好读的口语表达", action: ai, granularities: [...passages] },
   { offer_id: "translate", title: "翻译", intent: "rewrite", apply: "replace", hint: "在中英文之间翻译", action: ai, granularities: [...text, "blocks"] },
   { offer_id: "compare", title: "比较异同", intent: "combine", apply: "result", hint: "并排比较两段、几段内容或几份材料的相同点、不同点和冲突", action: ai, granularities: ["blocks", "objects"] },
   { offer_id: "merge", title: "合并成一段", intent: "combine", apply: "replace", hint: "把几段内容合并成一段连贯的文字", action: ai, granularities: ["blocks"] },
   { offer_id: "synthesize", title: "合成新文档", intent: "combine", apply: "record", hint: "把几份材料提炼整合成一篇新文档，原材料不变", action: { capability_id: "pages.generate", version: 1 }, granularities: ["objects"] },
+  { offer_id: "proofread", title: "全文校对", intent: "rewrite", apply: "replace", hint: "检查整篇的错别字、语病和标点，给出改好的全文", action: ai, granularities: ["object"] },
+  { offer_id: "translate_new", title: "整篇翻译成新文档", intent: "rewrite", apply: "result", hint: "把整篇翻译成另一种语言，确认后存为新文档，原文不变", action: ai, granularities: ["object"] },
 ];
 
 const COMMAND: Readonly<Record<string, { command: string; style?: string }>> = {
-  explain: { command: "explain" }, counter: { command: "counter" }, reader: { command: "reader" }, expand: { command: "expand" },
-  continue: { command: "continue" }, actions: { command: "actions" }, bullets: { command: "bullets" },
-  concise: { command: "rewrite", style: "concise" }, formal: { command: "rewrite", style: "formal" }, translate: { command: "translate" },
-  compare: { command: "compare" }, merge: { command: "merge" },
+  explain: { command: "explain" }, counter: { command: "counter" }, reader: { command: "reader" }, coach: { command: "coach" },
+  expand: { command: "expand" }, continue: { command: "continue" }, actions: { command: "actions" }, bullets: { command: "bullets" },
+  summarize: { command: "summarize" }, outline: { command: "outline" },
+  concise: { command: "rewrite", style: "concise" }, elaborate: { command: "rewrite", style: "expand" },
+  formal: { command: "rewrite", style: "formal" }, casual: { command: "rewrite", style: "casual" }, translate: { command: "translate" },
+  compare: { command: "compare" }, merge: { command: "merge" }, proofread: { command: "proofread" }, translate_new: { command: "translate_new" },
 };
 
-
-/** Prepare every applicable choice's complete `pages.ai` input. Pure: reads nothing, writes nothing. */
-export function preparePagesFragmentOffers(input: FragmentOffersInput, kind: string, providerId?: string): FragmentActionOffer[] {
+/**
+ * Prepare every applicable choice's complete input. For the whole document (`object`), `readText` gives its current
+ * text from the provider's own store; nothing else is read, and nothing is written.
+ */
+export function preparePagesFragmentOffers(input: FragmentOffersInput, kind: string, providerId?: string, readText?: (id: string) => string | null): FragmentActionOffer[] {
   const { fragment } = input;
   if (fragment.object.kind !== kind) return [];
   const roles = fragment.targets.map(target => target.role);
-  const joined = fragment.targets.length > 1
-    ? fragment.targets.map((target, index) => `【第 ${index + 1} 段】\n${target.text}`).join("\n\n")
-    : fragment.targets[0]?.text ?? "";
+  const joined = fragment.granularity === "object" ? readText?.(fragment.object.id) ?? fragment.targets[0]?.text ?? ""
+    : fragment.targets.length > 1
+      ? fragment.targets.map((target, index) => `【第 ${index + 1} 段】\n${target.text}`).join("\n\n")
+      : fragment.targets[0]?.text ?? "";
   if (!joined.trim()) return [];
   const version = typeof fragment.object.version === "number" ? fragment.object.version : Number(fragment.object.version);
   return PAGES_FRAGMENT_CHOICES.filter(choice => (!choice.granularities || choice.granularities.includes(fragment.granularity))
-    && (!choice.roles || roles.some(role => role && choice.roles!.includes(role))))
+    && (!choice.roles || fragment.granularity === "object" || roles.some(role => role && choice.roles!.includes(role))))
     .map(choice => ({
       offer_id: choice.offer_id, title: choice.title,
       action: { ...choice.action, ...(providerId ? { provider_id: providerId } : {}) },
       input: choice.offer_id === "synthesize" ? synthesizeInput(input)
         : { id: fragment.object.id, ...COMMAND[choice.offer_id], text: joined.slice(0, 180_000), ...(Number.isInteger(version) && fragment.granularity !== "objects" ? { expected_version: version } : {}) },
+      // Several documents in hand have no place to write back to: the card says which ones it works on.
+      ...(fragment.granularity === "objects" ? { summary: objectsSummary(choice.offer_id, fragment.targets) } : {}),
+      ...(choice.offer_id === "synthesize" ? { editable: ["title", "instructions"] } : {}),
     }));
+}
+
+function objectsSummary(offerId: string, targets: FragmentOffersInput["fragment"]["targets"]): string {
+  const names = targets.map(target => `「${target.ref?.title ?? "无标题"}」`).join("");
+  return (offerId === "synthesize" ? `用 ${targets.length} 篇文档${names}合成一篇新文档，原文不变` : `并排比较 ${targets.length} 篇文档${names}的相同点、不同点和冲突`).slice(0, 600);
 }
 
 /** `pages.generate` input for several selected documents: their current text as snapshots, one stable request per selection. */
@@ -57,6 +78,7 @@ function synthesizeInput(input: FragmentOffersInput): unknown {
   const inputs = input.fragment.targets.filter(target => target.ref).map(target => ({
     entry_id: `pages:${target.ref!.id}`, item_id: target.ref!.id, revision: Number(target.ref!.version) || 0, title: target.ref!.title ?? "",
     body: target.text, url: null, source_label: "Pages", captured_at: new Date(0).toISOString(),
+    provenance: [{ kind: target.ref!.kind, id: target.ref!.id, version: target.ref!.version ?? null, selected_as: "context-actions" }],
   }));
   const titles = inputs.map(item => item.title).filter(Boolean);
   return { request_id: input.request_id, request_hash: input.request_id, inputs,

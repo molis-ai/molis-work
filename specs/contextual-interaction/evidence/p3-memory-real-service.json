@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-30",
+  "setup": "P2 d274da46 merged with feature/memory-system 52ac5c2f on a throwaway branch (deleted afterwards); real workbench via scripts/contextual-slice/p1-server.mts on an isolated Home copy; judgment by real Jev (key read in-process from the person's Home, never written).",
+  "selection": "Pages 「留存判断（语义对比）」 paragraph starting 「下周三前完成新手引导改版，周五发给二十个老用户试用并收集反馈…」, a new context each time",
+  "runs": [
+    { "memory": "none (service present, 个人记忆 0 条)", "next_top": ["拆成行动项 0.49", "拆成目标步骤 0.27", "记成待办 0.19"] },
+    { "memory": "one preference added in Settings → 记忆 → 添加: 「新手引导改版、试用和收集反馈这类安排，我习惯先记成待办，不拆成行动项清单」",
+      "next_top": ["记成待办 0.93", "记下灵光 0.02", "拆成行动项 0.02", "拆成目标步骤 0.01"],
+      "usage_receipt": "Settings shows 「最近用于：给选中的内容排动作 · 9/30」 on that entry" },
+    { "memory": "Settings → 记忆 → 谁可以用 → 界面推荐 switched off",
+      "next_top": ["拆成行动项 0.53", "记成待办 0.21", "拆成目标步骤 0.19"],
+      "note": "Recall answers state ok with the personal entry left out (project memory still allowed for 界面推荐), so no 'off' note in the receipt; the preference no longer applies." }
+  ],
+  "signal": { "action": "chose 拆成行动项 on the row (then cancelled the candidate)", "memory.signals.report": { "state": "counted", "count": 1, "distinct": 1, "threshold": { "count": 3, "distinct": 2 } } }
+}

@@ -5,15 +5,17 @@ import test from "node:test";
 import { EditorState, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import {
-  defineFragmentOffersAction, inspectActionDeclarations, type ActionReference, type ActionView, type FragmentOfferChoice, type FragmentOffersInput,
+  FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, defineSubjectOffersAction, inspectActionDeclarations, type ActionReference, type ActionView, type FragmentOfferChoice, type FragmentOffersInput,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import {
-  fragmentCandidates, judgedCandidates, judgmentQuestions, judgmentState, MAX_JUDGED_CANDIDATES, planContextualLayout, readContextualJudgment, ruleScores,
+  assertActionInput, contextualCandidates, fragmentCandidates, judgedCandidates, subjectOfferChoiceKey, judgmentQuestions, judgmentState, MAX_JUDGED_CANDIDATES, planContextualLayout, readContextualJudgment, ruleScores,
 } from "@molis-ai/molis-work-kernel";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { createContextualJudgmentService } from "../apps/local-host/src/contextual/judgment-service.js";
-import { handleContextualHttp } from "../apps/local-host/src/contextual/contextual-http.js";
+import { handleContextualHttp, recallForJudgment, surfaceKinds } from "../apps/local-host/src/contextual/contextual-http.js";
+import { prepareSearchFragmentOffers, searchActions } from "@molis-ai/molis-work-contracts/services/search";
+import { lingguangActions, prepareLingguangFragmentOffers } from "../plugins/native/lingguang/src/actions.js";
 import { pagesSchema as s } from "../plugins/native/pages/src/schema.js";
 import {
   applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen,
@@ -301,6 +303,62 @@ test("Pages prepares complete writing-assistant inputs for a fragment and a gene
   assert.match(synthesize.title, /A · B/);
 });
 
+test("整篇: a whole-object choice stays reachable from any part of the object, grouped last, never ranked or judged", () => {
+  const withWhole = [...directory(), offers(pages, "pages.whole.offers", [
+    choice("summarize", "organize", "pages.ai", { granularities: ["range", "blocks", "object"] }),
+    choice("proofread", "rewrite", "pages.ai", { granularities: ["object"], apply: "replace" }),
+  ])];
+  const word = fragmentCandidates(withWhole, focus({ granularity: "word" }));
+  assert.equal(word.find(item => item.offer_id === "explain")!.scope, undefined, "a choice for what is in hand is direct");
+  assert.deepEqual(word.filter(item => item.scope === "object").map(item => item.offer_id), ["summarize", "proofread"]);
+  const range = fragmentCandidates(withWhole, focus());
+  assert.equal(range.find(item => item.offer_id === "summarize")!.scope, undefined, "declared for the range too: it acts on the range");
+  assert.equal(range.find(item => item.offer_id === "proofread")!.scope, "object");
+  const whole = fragmentCandidates(withWhole, focus({ granularity: "object", targets: [{ kind: "object", role: "object", text: "全文" }] }));
+  assert.ok(whole.every(item => item.scope === undefined), "with the whole object in hand nothing is apart");
+  assert.ok(!fragmentCandidates(withWhole, focus({ granularity: "objects" })).some(item => item.offer_id === "proofread"), "several objects have no single whole");
+
+  const plan = planContextualLayout({ focus: focus({ granularity: "word" }), candidates: word });
+  const wholes = word.filter(item => item.scope === "object").map(item => item.key);
+  assert.ok(!plan.primary.some(key => wholes.includes(key)), "acting on all of it is never the first guess");
+  assert.deepEqual(plan.more.at(-1), { intent: "whole", title: "整篇", keys: wholes }, "last group, in declared order");
+  assert.ok(!judgedCandidates(word).some(item => item.scope === "object"), "the judgment is not asked about the whole");
+});
+
+test("where to start with a whole object (the Assistant's starting points): its object-level actions, organizing first", () => {
+  const withWhole = [...directory(), offers(pages, "pages.whole.offers", [
+    choice("summarize", "organize", "pages.ai", { granularities: ["range", "blocks", "object"] }),
+    choice("proofread", "rewrite", "pages.ai", { granularities: ["object"], apply: "replace" }),
+    choice("coach", "question", "pages.ai", { granularities: ["range", "object"] }),
+  ])];
+  const start = focus({ context_id: "start:doc:d1:3", activity: "browsing", granularity: "object", targets: [{ kind: "object", role: "object", text: "计划" }] });
+  const candidates = fragmentCandidates(withWhole, start);
+  assert.deepEqual(candidates.map(item => item.offer_id).sort(), ["coach", "proofread", "relate", "summarize"], "passage-only actions are not offered for the whole");
+  assert.ok(candidates.every(item => item.scope === undefined), "the whole is what is in hand: nothing is grouped apart");
+  const plan = planContextualLayout({ focus: start, candidates });
+  assert.equal(plan.basis, "rules");
+  assert.equal(plan.primary[0], keyOf(candidates, "summarize"));
+  assert.ok(plan.primary.indexOf(keyOf(candidates, "relate")) === -1, `relating comes after taking it in: ${plan.primary.join(",")}`);
+});
+
+test("Pages prepares a whole-document choice from the document's own text, and only at object granularity", () => {
+  const object = { kind: "pages_document", id: "d1", version: 4, title: "计划" };
+  const read = (id: string) => id === "d1" ? "整篇正文：第一段。第二段。" : null;
+  const prepared = preparePagesFragmentOffers({ request_id: "r-w", fragment: { object, granularity: "object", targets: [{ kind: "object", role: "object", text: "截断的摘录" }] } },
+    "pages_document", "io.molis.work.pages", read);
+  const proofread = prepared.find(item => item.offer_id === "proofread")!;
+  assert.deepEqual(proofread.input, { id: "d1", command: "proofread", text: "整篇正文：第一段。第二段。", expected_version: 4 });
+  assert.ok(prepared.some(item => item.offer_id === "translate_new"));
+  assert.ok(prepared.some(item => item.offer_id === "summarize"), "passage choices that also declare the whole object are prepared for it");
+  const fallback = preparePagesFragmentOffers({ request_id: "r-w2", fragment: { object: { ...object, id: "gone" }, granularity: "object", targets: [{ kind: "object", role: "object", text: "截断的摘录" }] } },
+    "pages_document", "io.molis.work.pages", read);
+  assert.equal((fallback.find(item => item.offer_id === "proofread")!.input as { text: string }).text, "截断的摘录", "unreadable: the text in hand");
+  const passage = preparePagesFragmentOffers({ request_id: "r-p", fragment: { object, granularity: "range", targets: [{ kind: "text_range", role: "paragraph", text: "一段话" }] } },
+    "pages_document", "io.molis.work.pages", read);
+  assert.ok(!passage.some(item => item.offer_id === "proofread" || item.offer_id === "translate_new"), "a passage is not the whole document");
+  for (const offer of prepared) assertActionInput(pagesActions.ai.action.input_schema, offer.input, `${offer.offer_id} input`);
+});
+
 // ---- review fixes (2026-09-30) -----------------------------------------------------------------------------------
 test("a block selection's range ends between top-level blocks: inserting after it works", () => {
   const view = editor();
@@ -347,6 +405,95 @@ test("the judgment is asked about at most sixteen candidates, the rule-ranked fi
   assert.equal(Object.keys(questions.next.criteria).length, MAX_JUDGED_CANDIDATES);
 });
 
+// ---- P2: platform-wide offers ------------------------------------------------------------------------------------
+test("a platform provider's offers fit a fragment of any object; object-bound offers still only fit their own kinds", () => {
+  const anywhere = view(provider("system.search", "搜索"), "search.fragment.offers", {
+    ...defineFragmentOffersAction("search.fragment.offers", [FRAGMENT_ANY_OBJECT], "搜索", [], [choice("find", "understand", "search.query", { granularities: ["word"] })]).action });
+  const directoryWithSearch = [...directory(), anywhere, view(provider("system.search", "搜索"), "search.query")];
+  const inFeed = fragmentCandidates(directoryWithSearch, focus({ granularity: "word", object: { kind: "feed_item", id: "f1" } }));
+  assert.deepEqual(inFeed.map(item => item.offer_id), ["find"], "a Feed item has no Pages or Goals offers, but can be searched");
+  assert.ok(fragmentCandidates(directoryWithSearch, focus({ granularity: "word" })).some(item => item.offer_id === "explain"));
+});
+
+test("real platform offers: search looks up a selected word; 灵光 prepares a spark from any fragment, once per request", () => {
+  assert.deepEqual(inspectActionDeclarations([searchActions.fragmentOffers, lingguangActions.fragmentOffers], undefined), []);
+  const word = { request_id: "r1", fragment: { object: { kind: "feed_item", id: "f1", title: "周报" }, granularity: "word" as const, targets: [{ kind: "text_range" as const, text: " 转化率 " }] } };
+  assert.deepEqual(prepareSearchFragmentOffers(word).map(offer => offer.input), [{ query: "转化率" }]);
+  assert.deepEqual(prepareSearchFragmentOffers({ ...word, fragment: { ...word.fragment, granularity: "range" } }), [], "only a word is looked up");
+  const [spark] = prepareLingguangFragmentOffers({ request_id: "r2", fragment: { object: { kind: "pages_document", id: "d1", title: "留存分析" }, granularity: "blocks",
+    targets: [{ kind: "text_range", text: "新手引导要在第一周内让用户完成一次有价值的操作，这是留存的关键。" }, { kind: "text_range", text: "竞品普遍提供十四天试用。" }] } });
+  const input = spark!.input as { title: string; body: string; request_id: string };
+  assert.equal(input.request_id, "r2");
+  assert.ok(input.title.length <= 40 && input.title.startsWith("新手引导"));
+  assert.match(input.body, /十四天试用。\n\n出自：留存分析$/);
+  assert.deepEqual(spark!.editable, ["title", "body"]);
+  assert.match(spark!.summary!, /记下一条/);
+});
+
+test("a surface that opens one kind is named from the plugins' search sources; an ambiguous surface is not", () => {
+  const source = (p: ActionView["provider"], id: string, kinds: { kind: string; surface: string }[]) =>
+    view(p, id, { search_source: { kinds: kinds.map(entry => ({ ...entry, title: entry.kind })) } } as Partial<ActionView["action"]>);
+  const inbox = provider("io.molis.work.inbox", "Inbox"), other = provider("x.other", "Other");
+  const map = surfaceKinds([source(inbox, "inbox.search.entries", [{ kind: "inbox_entry", surface: "inbox" }]),
+    source(goals, "goals.search.entries", [{ kind: "goal", surface: "goals" }]),
+    source(other, "other.search.entries", [{ kind: "note", surface: "shared" }]), source(inbox, "inbox.more", [{ kind: "draft", surface: "shared" }])]);
+  assert.deepEqual(map, { inbox: { kind: "inbox_entry", plugin_id: "io.molis.work.inbox" }, goals: { kind: "goal", plugin_id: "io.molis.work.goals" } });
+});
+
+test("every input Pages prepares passes the input contract of the action it names, for a passage and for several documents", () => {
+  const byCapability = new Map(Object.values(pagesActions).map(definition => [definition.capability_id, definition]));
+  const passage = preparePagesFragmentOffers({ request_id: "r-p", fragment: { object: { kind: "pages_document", id: "d1", version: 3, title: "计划" }, granularity: "blocks",
+    targets: [{ kind: "text_range", role: "paragraph", text: "第一段" }, { kind: "text_range", role: "paragraph", text: "第二段" }] } }, "pages_document", "io.molis.work.pages");
+  const documents = preparePagesFragmentOffers({ request_id: "r-o", fragment: { object: { kind: "pages_document", id: "d1", version: 3, title: "A" }, granularity: "objects",
+    targets: [{ kind: "object", role: "object", text: "A\n正文", ref: { kind: "pages_document", id: "d1", version: 3, title: "A" } },
+      { kind: "object", role: "object", text: "B\n正文", ref: { kind: "pages_document", id: "d2", version: 1, title: "B" } }] } }, "pages_document", "io.molis.work.pages");
+  assert.deepEqual(documents.map(offer => offer.offer_id).sort(), ["compare", "synthesize"]);
+  for (const offer of [...passage, ...documents]) {
+    const definition = byCapability.get(offer.action.capability_id)!;
+    assert.doesNotThrow(() => assertActionInput(definition.action.input_schema, offer.input), `${offer.offer_id} → ${offer.action.capability_id}`);
+  }
+  assert.match(documents.find(offer => offer.offer_id === "synthesize")!.summary!, /用 2 篇文档「A」「B」合成一篇新文档，原文不变/);
+});
+
+// ---- P3: memory ---------------------------------------------------------------------------------------------------
+test("memory: recalled for this situation when the directory has it; signals carry the capability and title, never the content", async () => {
+  const memory = provider("system.memory", "记忆");
+  const views = [view(pages, "pages.fragment.offers", { ...pagesActions.fragmentOffers.action }), view(pages, "pages.ai"),
+    view(memory, "memory.recall"), view(memory, "memory.signals.report")];
+  const calls: { capability_id: string; input: Record<string, any> }[] = [];
+  const actions = { discover: async () => views, invoke: async (reference: ActionReference, input: unknown) => {
+    calls.push({ capability_id: reference.capability_id, input: input as Record<string, any> });
+    if (reference.capability_id === "memory.recall") return { state: "ok", items: [{ kind: "preference", text: "周报里风险写在最前面" }, { kind: "fact", text: "" }], omitted: [], method: "keyword-cjk", receipt_id: "r" };
+    if (reference.capability_id === "memory.signals.report") return { state: "counted", count: 1, distinct: 1, candidate_id: null, threshold: { count: 3, distinct: 2 } };
+    return { offers: preparePagesFragmentOffers(input as FragmentOffersInput, "pages_document", pages.provider_id) };
+  } };
+  const f = focus({ plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: "d1", version: 3, title: "周报" }, goal: { id: "G1", title: "留存" },
+    surroundings: { heading_path: ["风险"] } });
+  const recalled = await recallForJudgment(f, { scope: "memory-a", actions });
+  assert.deepEqual(recalled, { state: "ok", items: [{ kind: "preference", text: "周报里风险写在最前面" }] });
+  const asked = calls.find(call => call.capability_id === "memory.recall")!.input;
+  assert.deepEqual(asked.situation, { plugin_id: "io.molis.work.pages", object_kind: "pages_document", goal_id: "G1" });
+  assert.ok(asked.query.startsWith("风险 我们认为") && asked.limit <= 8 && asked.budget_chars <= 1000);
+  assert.deepEqual(await recallForJudgment(f, { scope: "memory-b", actions: { ...actions, discover: async () => views.slice(0, 2) } }), { state: "ok", items: [] }, "no memory here, nothing recalled");
+
+  const server = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "memory-c", actions: () => actions }); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const call = async (body: unknown) => { const response = await fetch(base + "/api/contextual/signal", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); return { status: response.status, body: await response.json() as Record<string, any> }; };
+    const key = fragmentCandidates(views, f).find(item => item.offer_id === "concise")!.key;
+    const counted = await call({ pane_id: "main", focus: f, key, signal: "accepted", event_id: "ev-1" });
+    assert.equal(counted.status, 200);
+    const sent = calls.findLast(item => item.capability_id === "memory.signals.report")!.input;
+    assert.deepEqual(sent.subject, { capability_id: "pages.ai", label: "改得更简洁" });
+    assert.equal(sent.situation.label, "Pages 里选中的文字");
+    assert.equal(sent.event_id, "ev-1");
+    assert.doesNotMatch(JSON.stringify(sent), /我们认为主因/, "no selected content leaves in a signal");
+    assert.equal((await call({ pane_id: "main", focus: f, key, signal: "loved", event_id: "ev-2" })).status, 400);
+    assert.equal((await call({ pane_id: "main", focus: f, key: "frag.unknown", signal: "ignored", event_id: "ev-3" })).status, 409);
+  } finally { server.close(); }
+});
+
 // ---- P1: Host transport ------------------------------------------------------------------------------------------
 test("host routes: rules at once, prepare returns the provider's own input for exactly this fragment; stale or unoffered refuse", async () => {
   const views = [view(pages, "pages.fragment.offers", { ...pagesActions.fragmentOffers.action }), view(pages, "pages.ai")];
@@ -386,6 +533,14 @@ test("host routes: rules at once, prepare returns the provider's own input for e
     const unoffered = await call("/api/contextual/prepare", { pane_id: "main", focus: f, key: concise.key, request_id: "r3" });
     assert.equal(unoffered.status, 409);
     assert.equal(unoffered.body.code, "contextual.not_offered");
+    // Revoked after it was shown (the writing assistant switched off, say): preparing it is refused, nothing runs.
+    views[1] = view(pages, "pages.ai", {}, false);
+    const revoked = await call("/api/contextual/prepare", { pane_id: "main", focus: { ...f, context_id: "ctx-revoked" }, key: concise.key, request_id: "r4" });
+    assert.equal(revoked.status, 409);
+    assert.equal(revoked.body.code, "contextual.unavailable");
+    const afterRevoke = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, context_id: "ctx-revoked-2" } });
+    assert.equal(afterRevoke.body.plan.primary.length, 0, "an unavailable action never takes a place in the row");
+    views[1] = view(pages, "pages.ai");
     const invalid = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, activity: "dancing" } });
     assert.equal(invalid.status, 400);
     const tooMany = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, targets: Array.from({ length: 30 }, () => f.targets[0]) } });
@@ -393,6 +548,84 @@ test("host routes: rules at once, prepare returns the provider's own input for e
     const long = await call("/api/contextual/candidates", { pane_id: "main", focus: { ...f, targets: [{ kind: "text_range", text: "长".repeat(20_000) }] } });
     assert.equal(long.status, 200, "an over-long part is cut, not refused");
     assert.equal((await call("/api/contextual/cancel", { pane_id: "main" })).status, 200);
+  } finally {
+    server.close();
+  }
+});
+
+// ---- one set of recommendations (§6.4.3): subject offers join the contextual service ------------------------------
+const feed = provider("io.molis.work.feed", "Feed");
+const FEED_CHOICES = [
+  { offer_id: "todo", title: "转为待办", action: { capability_id: "feed.items.todo", version: 1 } },
+  { offer_id: "summary", title: "看摘要", action: { capability_id: "feed.items.summary", version: 1 } },
+];
+const subjectDirectory = (available = true): ActionView[] => [
+  view(feed, "feed.subject.offers", { ...defineSubjectOffersAction("feed.subject.offers", ["feed_item"], "Feed 事项动作", [], FEED_CHOICES).action }),
+  view(feed, "feed.items.todo", { kind: "operation", subject_kinds: ["feed_item"],
+    input_schema: { type: "object", properties: { item_id: { type: "string" } }, required: ["item_id"], additionalProperties: false } } as Partial<ActionView["action"]>, available),
+  view(feed, "feed.items.summary", { kind: "query", subject_kinds: ["feed_item"] }),
+];
+const wholeItem = focus({ context_id: "start:feed_item:i1:", plugin_id: "io.molis.work.feed", activity: "browsing", granularity: "object",
+  object: { kind: "feed_item", id: "i1", title: "一条新闻" }, targets: [{ kind: "object", role: "object", text: "一条新闻" }] });
+
+test("an object's subject offers are its candidates too, under the keys the Home / Dock rules already use", () => {
+  const candidates = contextualCandidates(subjectDirectory(), wholeItem);
+  const todo = candidates.find(item => item.offer_id === "todo")!;
+  assert.equal(todo.key, subjectOfferChoiceKey({ capability_id: "feed.subject.offers", version: 1, provider_id: feed.provider_id }, FEED_CHOICES[0]!),
+    "saved rules and bindings name the same key");
+  assert.match(todo.key, /^offer\.[a-f0-9]{58}$/);
+  assert.equal(todo.origin, "subject");
+  assert.equal(todo.intent, "advance");
+  assert.equal(todo.apply, "record", "a write goes through a confirmation card");
+  assert.equal(candidates.find(item => item.offer_id === "summary")!.apply, "result", "a read shows its result");
+  assert.ok(!contextualCandidates(subjectDirectory(), focus({ object: { kind: "feed_item", id: "i1" } })).some(item => item.origin === "subject"),
+    "a selection inside the object is not the whole object");
+  assert.ok(!contextualCandidates(subjectDirectory(), { ...wholeItem, object: { kind: "doc", id: "d1" } }).some(item => item.origin === "subject"), "only offers for its own kind");
+  const revoked = contextualCandidates(subjectDirectory(false), wholeItem).find(item => item.offer_id === "todo")!;
+  assert.equal(revoked.available, false);
+  assert.match(revoked.reason!, /已停用/);
+});
+
+test("host: a subject offer is prepared by the query that declared it, checked as the Home / Dock checks it", async () => {
+  const views = subjectDirectory();
+  let offered: (subjectId: string) => unknown[] = id => [
+    { offer_id: "todo", title: "转为待办", action: { capability_id: "feed.items.todo", version: 1 }, input: { item_id: id } },
+    { offer_id: "summary", title: "看摘要", action: { capability_id: "feed.items.summary", version: 1 }, input: {} }];
+  const invoked: ActionReference[] = [];
+  const actions = { discover: async () => views, invoke: async (reference: ActionReference, input: unknown) => {
+    invoked.push(reference);
+    return { offers: offered((input as { subject: { id: string } }).subject.id) };
+  } };
+  const server = createServer((request, response) => {
+    void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "project-s", actions: () => actions })
+      .then(handled => { if (!handled) { response.statusCode = 404; response.end(); } });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const call = async (path: string, body: unknown) => {
+    const response = await fetch(base + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return { status: response.status, body: await response.json() as Record<string, any> };
+  };
+  try {
+    const rules = await call("/api/contextual/candidates", { pane_id: "assistant-start", focus: wholeItem });
+    assert.equal(rules.status, 200);
+    const todo = (rules.body.plan.candidates as ContextualCandidate[]).find(item => item.offer_id === "todo")!;
+    assert.ok(rules.body.plan.primary.includes(todo.key));
+    const prepared = await call("/api/contextual/prepare", { pane_id: "assistant-start", focus: wholeItem, key: todo.key, request_id: "r-s1" });
+    assert.equal(prepared.status, 200);
+    assert.deepEqual(prepared.body.input, { item_id: "i1" });
+    assert.equal(prepared.body.origin, "subject");
+    assert.deepEqual(prepared.body.action, { capability_id: "feed.items.todo", version: 1, provider_id: feed.provider_id });
+    assert.deepEqual(invoked.at(-1), todo.source);
+    // The query now offers something else under that id: nothing is prepared for it.
+    offered = () => [{ offer_id: "todo", title: "转为待办", action: { capability_id: "feed.items.summary", version: 1 }, input: {} }];
+    const changed = await call("/api/contextual/prepare", { pane_id: "assistant-start", focus: wholeItem, key: todo.key, request_id: "r-s2" });
+    assert.equal(changed.status, 409);
+    // An input the action's contract refuses is not offered as ready.
+    offered = () => [{ offer_id: "todo", title: "转为待办", action: { capability_id: "feed.items.todo", version: 1 }, input: { wrong: true } }];
+    const incomplete = await call("/api/contextual/prepare", { pane_id: "assistant-start", focus: wholeItem, key: todo.key, request_id: "r-s3" });
+    assert.equal(incomplete.status, 409);
+    assert.equal(incomplete.body.code, "contextual.unavailable");
   } finally {
     server.close();
   }

@@ -44,7 +44,7 @@ interface FocusPluginState {
   readonly completed: { readonly from: number; readonly to: number; readonly at: number } | null;
 }
 
-const COMPLETED_WINDOW_MS = 6000;
+const COMPLETED_WINDOW_MS = 10_000;
 
 /**
  * A task this transaction ticked: a task item, inside the changed ranges, checked now and unchecked at the same place

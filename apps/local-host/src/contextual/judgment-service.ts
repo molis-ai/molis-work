@@ -3,7 +3,7 @@ import type {
   ContextualCandidate, ContextualJudgeRequest, ContextualJudgeResponse, ContextualJudgment, SurfaceFocus,
 } from "@molis-ai/molis-work-contracts/services/contextual";
 import {
-  contextualDigest, fragmentCandidates, judgmentQuestions, judgmentState, planContextualLayout, readContextualJudgment,
+  contextualDigest, contextualCandidates, judgmentQuestions, judgmentState, planContextualLayout, readContextualJudgment,
 } from "@molis-ai/molis-work-kernel";
 
 /**
@@ -67,7 +67,7 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
 
   return {
     async candidates(request, caller) {
-      const candidates = fragmentCandidates(await ports.directory(caller), request.focus);
+      const candidates = contextualCandidates(await ports.directory(caller), request.focus);
       return respond(request, candidates, null, { digest: null, screened: [], ...(candidates.some(item => item.available) ? {} : { fallback: "no_candidates" as const }) });
     },
 
@@ -78,7 +78,7 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
       const abort = () => controller.abort();
       outer?.addEventListener("abort", abort, { once: true });
       try {
-        const candidates = fragmentCandidates(await ports.directory(caller), request.focus);
+        const candidates = contextualCandidates(await ports.directory(caller), request.focus);
         if (!candidates.some(item => item.available)) return respond(request, candidates, null, { digest: null, screened: [], fallback: "no_candidates" });
         const cached = cache.get(cacheKey(request));
         if (cached && JSON.stringify(cached.candidates.map(item => [item.key, item.available])) === JSON.stringify(candidates.map(item => [item.key, item.available]))) {

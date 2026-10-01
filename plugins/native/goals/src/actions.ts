@@ -5,6 +5,8 @@ import { goalEventWorkStatuses, goalIntentSourceKinds, type CreateGoalIntentInpu
   type GoalEventStateView, type GoalEventDirectoryItem, type GoalEventHistoryPage, type GoalEventHistoryQuery, type GoalEventListPage,
   type GoalEventListQuery, type GoalEventTimelinePage, type GoalWorkEventRecord, type GoalEventProgressResult } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction as action, goalActor } from "./action-contract.js";
+import { goalsFragmentOffersAction, prepareGoalsFragmentOffers } from "./fragment-offers.js";
+import type { FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsEventActions, createGoalsEventActionHandlers, goalProgressResultSchema } from "./event-command-actions.js";
 import { goalDecisionAction, createGoalDecisionActionHandler } from "./decision-action.js";
 import { goalsPlanningActions, createGoalsPlanningActionHandlers, type GoalsPlanningActionPorts } from "./planning-actions.js";
@@ -40,6 +42,8 @@ export const goalsActions = {
   subject: defineSubjectContextAction("goals.subject.read", "goal", "目标上下文", ["goals:read"]),
   /** System search: every current Goal with the same revision its context reader reports. */
   searchEntries: defineSearchEntriesAction("goals.search.entries", [{ kind: "goal", title: "目标", surface: "goals" }], "目标", ["goals:read"]),
+  /** What part of anything the person has in hand can do for Goals (specs/contextual-interaction). */
+  fragmentOffers: goalsFragmentOffersAction,
   ...goalsBoardActions,
   ...goalsEventActions,
   inputsBind: goalsInputActions.bind,
@@ -127,6 +131,9 @@ export function createGoalsActionHandlers({ events, boardId, history, planning, 
         content: [state.intent.title, state.intent.why, state.intent.business_logic, goal.outcome, `当前工作状态：${state.work_status}`, state.progress_summary?.summary, state.progress_summary?.next_step].filter(Boolean).join("\n\n"), goal_ids: [id], session_id: null,
         open: { surface: "goals", id } });
     } },
+    { ...goalsActions.fragmentOffers, handle: (_caller, input) => ({ offers: prepareGoalsFragmentOffers(input as FragmentOffersInput, { cursor: goalId => {
+      try { return readGoal(goalId) && events.readDirectoryItem(boardId, goalId) ? events.readState(boardId, goalId).goal_event_cursor : null; } catch { return null; }
+    } }) }) },
     bindSearchEntriesHandler(goalsActions.searchEntries, () => {
       const entries: SearchEntry[] = [];
       let after: string | undefined;

@@ -23,6 +23,7 @@ import { pluginWorkbenchClientBootstrap } from "../../plugin-workbench.js";
 /** AP3 Workbench client segment: initialization. */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const mountPluginClient = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
+    boardLifetime = mountPluginClient(document.body);
 
     immersiveNavigation = (${IMMERSIVE_NAVIGATION_FACTORY_SCRIPT})({
       workspace, treePane, documentPane, getSelected: () => selected, getState: () => state,
@@ -213,9 +214,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       }
       handleGoalDialogEscape(event);
     });
-    document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) refreshBoard();
-    });
     addEventListener("resize", () => {
       const nextCompanionActive = document.body.dataset.desktopShell === "true" && matchMedia("(max-width: 760px)").matches;
       if (nextCompanionActive && !desktopCompanionActive) {
@@ -380,6 +378,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     openRequestedFeedRule();
     updateRelationPreviews();
     updateAllRelationFormPreviews();
-    setInterval(refreshBoard, 4000);
+    boardLifetime.poll(async signal => {
+      boardVisibleSignal = signal;
+      await refreshBoard(false, signal);
+    }, 4000);
+    boardLifetime.own(() => clearTimeout(deferredRefreshTimer));
   })();
 `;

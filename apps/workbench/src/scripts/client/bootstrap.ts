@@ -172,6 +172,8 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     }
     let toastTimer;
     let syncing = false;
+    let boardLifetime = null;
+    let boardVisibleSignal = null;
     let saveTimer;
     let saveUiState = () => {};
     const queueSave = () => {

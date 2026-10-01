@@ -136,6 +136,7 @@ export const todoActions = {
   move: defineObjectMoveAction("todo.placement.move", [TODO_SUBJECT_KIND], "待办", TODO_WRITE, "home"),
   homeEvents: todoHomeEventsAction,
   searchEntries: todoSearchActions.entries,
+  searchProjectEntries: todoSearchActions.projectEntries,
   subject: todoSearchActions.subject,
   fragmentOffers: defineFragmentOffersAction("todo.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以记成待办", [...TODO_READ], TODO_FRAGMENT_CHOICES, "home"),
 };

@@ -18,7 +18,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const size = bytes => bytes < 1000 ? bytes+' B' : bytes < 1000000 ? (bytes/1000).toFixed(0)+' KB' : (bytes/1000000).toFixed(1)+' MB';
   const included = s => (s.metadata?.files||[]).filter(f=>!(s.excluded||[]).some(p=>f.path===p||f.path.startsWith(p+'/')));
   const route = path => desktop ? path + (path.includes('?') ? '&' : '?') + 'desktop=1' : path;
-  let config = {}, journey = null, expanded = null, busy = false, error = '', blank = false, materialsOnly = false, editing = false, timer = 0, inputTimer = 0, authTimer = 0, opener = null;
+  let config = {}, journey = null, expanded = null, busy = false, error = '', blank = false, blankName = '', materialsOnly = false, editing = false, timer = 0, inputTimer = 0, authTimer = 0, opener = null;
   let saveQueue = Promise.resolve();
   const api = async (path, body) => {
     const response = await fetch(path, {method: body === undefined ? 'GET' : 'POST', headers: globalThis.molisWorkControlHeaders(), ...(body === undefined ? {} : {body:JSON.stringify(body)})});
@@ -107,8 +107,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       '<button class="cx-button primary" data-action="adopt" '+(busy||saving?'disabled':'')+'>'+L(saving?'正在保存…':'继续保存项目')+'</button>');
   }
   function blankForm() {
-    return frame('来源','blank', title(L('给新项目一个名字'))+'<p>'+L(materialsOnly?'已导入的资料会带入项目，摘要可以稍后整理。':'先建一个空间，资料和下一步可以慢慢补充。')+'</p><form id="cx-blank-form" class="ob-field"><label for="cx-blank-name">'+L('项目名称')+'</label><input class="cx-field" id="cx-blank-name" maxlength="120" required autocomplete="off" placeholder="'+L('例如：秋季内容计划')+'"><p class="cx-error" role="alert">'+esc(error)+'</p></form>'+(materialsOnly?'':'<p class="cx-personal-start"><span>'+L('还没想好是什么项目？')+'</span><button class="cx-button quiet" type="button" data-action="personal" '+(busy?'disabled':'')+'>'+L('先在个人空间开始')+'</button></p><p class="cx-hint">'+L('个人空间里的内容只有你能看到；之后建了项目，可以把它们移过去或用于项目。')+'</p>'),
-      projectScene(L('新项目'), L(materialsOnly?'带入已读取的资料':'空白项目'), materialsOnly ? picked().filter(s=>s.references?.length) : []),
+    return frame('来源','blank', title(L('给新项目一个名字'))+'<p>'+L(materialsOnly?'已导入的资料会带入项目，摘要可以稍后整理。':'先建一个空间，资料和下一步可以慢慢补充。')+'</p><form id="cx-blank-form" class="ob-field"><label for="cx-blank-name">'+L('项目名称')+'</label><input class="cx-field" id="cx-blank-name" maxlength="120" required autocomplete="off" placeholder="'+L('例如：秋季内容计划')+'" value="'+esc(blankName)+'"><p class="cx-error" role="alert">'+esc(error)+'</p></form>'+(materialsOnly?'':'<p class="cx-personal-start"><span>'+L('还没想好是什么项目？')+'</span><button class="cx-button quiet" type="button" data-action="personal" '+(busy?'disabled':'')+'>'+L('先在个人空间开始')+'</button></p><p class="cx-hint">'+L('个人空间里的内容只有你能看到；之后建了项目，可以把它们移过去或用于项目。')+'</p>'),
+      projectScene(blankName.trim()||L('新项目'), L(materialsOnly?'带入已读取的资料':'空白项目'), materialsOnly ? picked().filter(s=>s.references?.length) : []),
       '<button class="ob-back" type="button" data-action="back">'+L('返回')+'</button><button class="cx-button primary" type="submit" form="cx-blank-form" '+(busy?'disabled':'')+'>'+L(busy?'正在创建…':'创建项目')+' '+icon('arrow')+'</button>');
   }
   function checklist() {
@@ -327,7 +327,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   async function adopt(isBlank=false) {
     preserveEdits();await saveQueue;
     const accepted=journey.adoption;
-    const name=accepted?.title ?? (isBlank?document.getElementById('cx-blank-name').value:journey.summary.title);
+    const name=accepted?.title ?? (isBlank?(document.getElementById('cx-blank-name')?.value||blankName):journey.summary.title);
     journey=await api(endpoint('adopt'),{title:name,body:accepted?.body ?? (isBlank?'':journey.summary.body),blank:isBlank&&!materialsOnly,materials_only:materialsOnly,todo_selected:!isBlank&&todoPicked?[...todoPicked]:[]});
     blank=false;
     if(journey.phase==='complete')location.assign(projectLocation());else{error=journey.error||L('保存尚未完成，请重试');render();}
@@ -341,6 +341,9 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   });
   app.addEventListener('change',async e=>{
     const el=e.target;
+    // The new project's name is not part of the source selection: leaving the field must not save the selection
+    // and re-render the form, which would empty it before the click on "创建项目" submits.
+    if(el.id==='cx-blank-name')return;
     try {
       if(el.dataset.draft){if(el.checked)todoPicked.add(el.dataset.draft);else todoPicked.delete(el.dataset.draft);return;}
       if(el.id==='cx-project-title'||el.id==='cx-summary-editor'){preserveEdits();await saveDraft();return;}
@@ -397,7 +400,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     catch(e){error=e.message;}finally{busy=false;render();}
   });
   dialog.addEventListener('click',e=>{if(e.target.closest('[data-close]'))dialog.close();});dialog.addEventListener('close',()=>opener?.focus());
-  app.addEventListener('input', e => { if (e.target.id === 'cx-blank-name') { const name = app.querySelector('.ob-project-name'); if (name) name.textContent = e.target.value.trim() || L('新项目'); } });
+  app.addEventListener('input', e => { if (e.target.id === 'cx-blank-name') { blankName = e.target.value; const name = app.querySelector('.ob-project-name'); if (name) name.textContent = e.target.value.trim() || L('新项目'); } });
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter' || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
     const target = e.target;

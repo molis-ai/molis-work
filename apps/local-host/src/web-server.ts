@@ -124,7 +124,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           : await platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().find(project => project.board_id === boardId)?.project_id ?? null);
         if (!projectId) return null;
         let driver = drivers.get(projectId);
-        if (!driver) drivers.set(projectId, driver = createBrowserSurfaceDriver(browserHost().page(projectId), origin => sites.blocked(origin)));
+        if (!driver) drivers.set(projectId, driver = createBrowserSurfaceDriver(browserHost().page(projectId), origin => sites.blocked(origin), () => sites.assistantEnabled));
         return driver;
       },
     });

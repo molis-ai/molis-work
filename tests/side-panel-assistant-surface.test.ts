@@ -10,6 +10,8 @@ import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
+import { createBrowserSurfaceDriver } from "../apps/local-host/src/browser/surface-driver.js";
+import type { BrowserPage } from "../apps/local-host/src/browser/browser-host.js";
 
 /*
  * The Assistant drives the side panel's browser through Molis's own wiring (specs/archive/side-panel P5): a business round gets
@@ -39,7 +41,7 @@ function reply(tool?: { name: string; input: unknown }, text = "Done."): Respons
  * the person's blocks as they stand, and refuses a blocked site before looking or acting.
  */
 function fakePage(decisions: ReadonlyArray<{ scope: string; decision: "allow" | "block" }>, start = "about:blank") {
-  let scope = start, visits = 0, looks = 0;
+  let scope = start, visits = 0, looks = 0, released = 0;
   const done: HostSurfaceAction[] = [];
   const refuse = () => { if (decisions.some(row => row.scope === scope && row.decision === "block")) throw new Error("用户禁止助理查看或操作这个网站。"); };
   const driver: HostSurfaceDriver = {
@@ -56,11 +58,12 @@ function fakePage(decisions: ReadonlyArray<{ scope: string; decision: "allow" | 
       done.push(action);
       if (action.what === "navigate") { scope = new URL(action.url).origin; visits += 1; }
     },
+    async release() { released += 1; },
     async close() {},
     async describePoint() { return "Learn more"; },
     masked: () => false,
   };
-  return { driver, done, looks: () => looks };
+  return { driver, done, looks: () => looks, released: () => released };
 }
 
 const wire = (body: any) => JSON.stringify(body.messages);
@@ -187,4 +190,35 @@ test("a site allowed before the runtime started asks again as soon as the person
     assert.match(asked.document.summary, /在 https:\/\/example\.com 点击页面/u);
     assert.equal(f.page.done.length, 1, "nothing happens before the person answers");
   } finally { await f.close(); }
+});
+
+test("the page is the person's again as soon as a round is stopped or ends, not after an idle wait", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "surface-list", input: {} }),
+    body => reply({ name: "surface-observe", input: { target: targetOf(body), kind: "accessibility-tree" } }),
+    body => reply({ name: "surface-act", input: { observation: observationOf(body), do: "navigate", url: "https://example.com/" } }),
+    () => reply(undefined, "空白页上没有内容。"),
+  ]);
+  try {
+    const sent = await f.send("在侧栏浏览器打开 example.com");
+    await f.pending();
+    assert.equal(f.page.released(), 0, "while the round waits on the person the page stays the Assistant's");
+    // The person stops the round instead of answering: the side panel stops showing the Assistant on the page.
+    await f.service.control(sent.work.work_id, { kind: "stop" });
+    await until(() => f.page.released() >= 1, "the page given back after the stop");
+    assert.deepEqual(f.page.done, [], "the stopped step never ran");
+
+    const next = await f.send("现在页面上是什么？");
+    await until(async () => (await f.service.read(next.work.work_id)).work.state === "completed", "the next round");
+    await until(() => f.page.released() >= 2, "the page given back after the round ended");
+  } finally { await f.close(); }
+});
+
+test("turning the Assistant's browser off stops a round that already holds the page", async () => {
+  let on = true;
+  const page = { controlMode: "person" } as unknown as BrowserPage;
+  const driver = createBrowserSurfaceDriver(page, () => false, () => on);
+  on = false;
+  await assert.rejects(driver.observe("accessibility-tree", { session_id: "s" }), /允许助理使用侧栏浏览器/u);
+  await assert.rejects(driver.perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, { session_id: "s" }), /允许助理使用侧栏浏览器/u);
 });

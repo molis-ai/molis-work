@@ -74,6 +74,8 @@ export interface PrologueSurfaces {
   redact(bytes: Uint8Array): Promise<Uint8Array>;
   /** The person changed a standing decision about a site. */
   decide(decision: SurfaceSiteDecision | { readonly scope: string; readonly decision: "forget" }): void;
+  /** A round of this session ended or was stopped: the page it used is the person's again, not after an idle wait. */
+  release(sessionRefId: string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -149,6 +151,9 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
       for (const action of SITE_ALLOWED_ACTIONS) effects.forget({ what: "surface", scope: decision.scope, action });
       if (decision.decision === "allow") for (const rule of siteApprovals(decision.scope)) effects.remember(rule);
       // A block takes effect in the driver, which refuses to look or act on the site from the moment it is saved.
+    },
+    async release(sessionRefId) {
+      await attached.get(sessionRefId)?.driver.release?.();
     },
     async close() {
       for (const { target } of attached.values()) await runtime().surfaces.close(target).catch(() => undefined);

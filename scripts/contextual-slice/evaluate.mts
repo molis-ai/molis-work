@@ -1,5 +1,5 @@
 /**
- * Offline evaluation of the judgment (specs/contextual-interaction §5.4).
+ * Offline evaluation of the judgment (specs/archive/contextual-interaction §5.4).
  *
  *   pnpm exec tsx scripts/contextual-slice/evaluate.mts [--label name] [--limit N] [--out file.json]
  *

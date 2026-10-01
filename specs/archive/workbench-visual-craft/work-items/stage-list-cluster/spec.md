@@ -2,7 +2,7 @@
 
 状态：已实现（列对齐已纠偏）。完成等级 **3：功能可用**。不换身份、不改用户库、不提交、不宣称可发布。
 
-`depends_on`: [工作台视觉与动线打磨](../../spec.md)；列轨合同见 [plugin-list-row-align](../../../../plugin-list-row-align/spec.md)。
+`depends_on`: [工作台视觉与动线打磨](../../spec.md)；列轨合同见 [plugin-list-row-align](../../../plugin-list-row-align/spec.md)。
 
 ## 背景目标
 

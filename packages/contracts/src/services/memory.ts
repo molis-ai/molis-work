@@ -2,7 +2,7 @@ import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition } from "../platform/actions.js";
 
 /**
- * The platform memory (specs/memory-system): what the person and each project want remembered, shared by the
+ * The platform memory (specs/archive/memory-system): what the person and each project want remembered, shared by the
  * Assistant, Agent runs, plugins, interface suggestions (Jev judgments) and external AI clients through one
  * set of `memory.*` actions and one set of switches. Text, versions, deletion and isolation belong to Prologue
  * Memory; the Host Memory Service owns policy, the write gate, recall orchestration and the settings pages.
@@ -12,7 +12,7 @@ export const servicesMemoryContract = {
   kind: "service",
   schemaVersion: 1,
   maturity: "partial",
-  ssot: "specs/memory-system/spec.md",
+  ssot: "specs/archive/memory-system/spec.md",
 } as const satisfies ContractDescriptor;
 
 export const MEMORY_PROVIDER_ID = "system.memory";

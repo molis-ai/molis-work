@@ -2,7 +2,7 @@
 
 Status: `partial`
 
-Jelly 的日历、笔记、灵感工作区，使用 Molis Work 控件与舞台。个人数据独立存于 `{home}/jelly/jelly.db`；不会访问或覆盖原 Jelly 数据。功能目标与差异见 `specs/jelly-plugin/`。
+Jelly 的日历、笔记、灵感工作区，使用 Molis Work 控件与舞台。个人数据独立存于 `{home}/jelly/jelly.db`；不会访问或覆盖原 Jelly 数据。功能目标与差异见 `specs/archive/jelly-plugin/`。
 
 Contract: `@molis-ai/molis-work-contracts/platform/plugin` 与 `@molis-ai/molis-work-contracts/modules/jelly`。
 Migration Goal: `goal-reorg-f2`。

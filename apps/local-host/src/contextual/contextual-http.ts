@@ -13,7 +13,7 @@ import { prepareSubjectOffer, sameReference } from "./contextual-service.js";
 import { createContextualJudgmentService, type ContextualJudgmentService } from "./judgment-service.js";
 
 /**
- * Workbench transport for context-driven interaction (specs/contextual-interaction §4, §7). Candidates and their
+ * Workbench transport for context-driven interaction (specs/archive/contextual-interaction §4, §7). Candidates and their
  * prepared inputs come from the directory under the local person's own authority in this project; the judgment only
  * ranks them, through Jev on the Home's TypeSafe connection via Prologue. Nothing here runs a chosen action: the page
  * that owns the object runs it after the person confirms (P1), or the Assistant does through its cards (P2).

@@ -1,5 +1,7 @@
 # Molis Work 架构与包重组需求书
 
+状态：现行规范（2026-10-01 合入后梳理确认）。架构与包重组需求书，ARCHITECTURE 与 SSOT 以它为基线；Outbox 留后续（[BL-070](../BACKLOG.md)）。
+
 2026-09-06 范围澄清（用户明确确认）：**Outbox 的实现与重放验收留到后续，本期只重组现有功能。** 下文 Storage/Exchange/Materialization 中的 Outbox 设计仍保留为目标架构，不再表述为本期已有能力；本期完整保留并验证已实现的事务、幂等、失败重试与恢复。此澄清不减免旧代码清零、Huge Class治理、包边界、全产品前后端E2E及清理后复验。Molis Work对应验收条目的正式修订当前遇到澄清入口冲突，见 [验证与范围记录](assurance-validation.md)，未冒充canonical已更新。
 
 GW6 实施补齐（2026-09-06）：按已接受 `gw6-work-plan.md`，Goals 基础 schema、15/25/26/30 Goals 升级、V3 旧覆盖账 Query/导入写入已经归入 Goals；Host 保留同连接跨 owner 事务，Web/导入器使用公开 API。已完成定向前后端兼容与失败恢复检查，见 [GW6 验收](gw6-validation.md)。不新增产品功能，不缩减父项/根目标的完整 E2E、清理、再次 E2E 和架构总审要求。
@@ -1819,7 +1821,7 @@ Horizontal Service 是可重建运行机制。它可以保存 queue、cursor、l
 - 旧 `src/sessions/adapters.ts`、`src/sessions/codex-transport.ts` 与 `src/web/pty-host.ts` 只保留薄兼容出口；生产 Web composition、PTY socket 和 Session 内容服务改用新包公开 API。
 - 验收：fake Provider 的注册、能力矩阵、调用与 unsupported；Codex 请求/事件/失败恢复；PTY spawn/attach/write/resize/kill/crash/resource cleanup；无 owner 深层导入、无跨 owner Store、旧实现入口不再保留 provider/process 细节。
 
-### 21.5 `horizontal/search`（2026-09-28 增补，`specs/system-search/spec.md`）
+### 21.5 `horizontal/search`（2026-09-28 增补，`specs/archive/system-search/spec.md`）
 
 - 负责：经共同动作目录发现插件声明的搜索来源（`molis.search.entries.v1`、按需的 `molis.search.query.v1`），维护可重建的本地索引（集合版本与条目版本增量比对、删除清理、失败保留与重试、停用与卸载清理），按调用者当前授权过滤并聚合结果，打开前经原插件读取器核对。
 - 技术状态：`{home}/search/search.db`（来源版本、同步时间与错误；条目版本、允许持久化的文字、打开位置），由 `packages/storage` 的 `openTextSearchIndex` 实现；整份可删除重建。

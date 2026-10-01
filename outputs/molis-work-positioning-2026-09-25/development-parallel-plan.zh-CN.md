@@ -18,7 +18,7 @@
 | 操作体验 | Workbench、UI Host、Design System 与插件各自 UI | 手机窄屏截图不等于跨设备产品；首次使用、工作接续、权限与故障状态需要整条路径验收 |
 | Character / Prologue | Character 草稿、Artifact 固定版本、AgentHost 冻结与执行、Coding 消费 | Builder 未声明 Character 消费；Cognia/Alchemist 的 Host 适配单独创建 Prologue adapter；助理和部分工作流仍经 hostCompleteText 调模型，入口尚未统一 |
 
-重要补充：Builder 较新的工作项记录了真实 MiniMax-M3 的读书清单、库存账本两个场景，不能继续依据更早文档说“从未测过真实模型”。但两个场景不能证明任意搭建需求的成功率，其真实环境发布、图片输入和广泛质量仍有缺口。[较新验证记录](../../specs/plugin-builder/work-items/live-collaboration/spec.md)
+重要补充：Builder 较新的工作项记录了真实 MiniMax-M3 的读书清单、库存账本两个场景，不能继续依据更早文档说“从未测过真实模型”。但两个场景不能证明任意搭建需求的成功率，其真实环境发布、图片输入和广泛质量仍有缺口。[较新验证记录](../../specs/archive/plugin-builder/work-items/live-collaboration/spec.md)
 
 当前工作树有大量已有修改，不能直接从旧 HEAD 分出四条开发线并假定包含这些成果。正式启动前应由团队整理一个包含所需工作成果的共同集成基线，再创建各自分支或工作树。本轮没有提交、清理或覆盖这些修改。
 
@@ -136,4 +136,4 @@ D 制定首次进入、工作进行中、成果阅读、关键决定、失败恢
 
 四条线的终局验证可以用同一个真实任务串起来：用户在桌面用 Builder 创建专用工具，个人助理用选定 Character 调用该工具完成工作，用户在手机上查看并处理一个决定，再把选定成果交给团队成员继续。桌面离线时状态如实显示，恢复后能够继续；已经分享的内容可见，私人草稿仍然保持私人范围。每条线都有独立验收，同时共同证明 Molis Work 的工作接续价值。
 
-本文的主要源码依据包括：[本机动作网关](../../apps/local-host/src/action-gateway.ts)、[动作服务](../../packages/kernel/src/action-service.ts)、[AI 装配](../../apps/local-host/src/agent-host-composition.ts)、[Character 固定版本解析](../../apps/local-host/src/characters-host.ts)、[当前信息助理](../../apps/local-host/src/assistant-http.ts)、[生成插件解释器与 Manifest](../../plugins/native/plugin-builder/src/generated.ts)、[Builder 角色与能力范围](../../plugins/native/plugin-builder/src/roles.ts)、[AI 启动合同](../../packages/contracts/src/services/agent-host.ts)、[Server 架构边界](../../docs/system/ARCHITECTURE.md)、[动作迁移记录](../../specs/action-architecture/migration.md)。
+本文的主要源码依据包括：[本机动作网关](../../apps/local-host/src/action-gateway.ts)、[动作服务](../../packages/kernel/src/action-service.ts)、[AI 装配](../../apps/local-host/src/agent-host-composition.ts)、[Character 固定版本解析](../../apps/local-host/src/characters-host.ts)、[当前信息助理](../../apps/local-host/src/assistant/assistant-http.ts)、[生成插件解释器与 Manifest](../../plugins/native/plugin-builder/src/generated.ts)、[Builder 角色与能力范围](../../plugins/native/plugin-builder/src/roles.ts)、[AI 启动合同](../../packages/contracts/src/services/agent-host.ts)、[Server 架构边界](../../docs/system/ARCHITECTURE.md)、[动作迁移记录](../../specs/action-architecture/migration.md)。

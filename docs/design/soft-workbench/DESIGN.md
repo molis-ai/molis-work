@@ -103,7 +103,7 @@ components:
 
 # Design System: Molis Work · Soft Workbench Prototype
 
-> **Reference prototype, not the production spec.** Production adopted this language on 2026-09-28; the normative spec is the root [DESIGN.md](../../../DESIGN.md) and the rollout record is [specs/soft-workbench-rollout](../../../specs/soft-workbench-rollout/spec.md).
+> **Reference prototype, not the production spec.** Production adopted this language on 2026-09-28; the normative spec is the root [DESIGN.md](../../../DESIGN.md) and the rollout record is [specs/archive/soft-workbench-rollout](../../../specs/archive/soft-workbench-rollout/spec.md).
 
 ## Overview
 

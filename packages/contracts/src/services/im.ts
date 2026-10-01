@@ -106,5 +106,5 @@ export const servicesImContract = {
   kind: "horizontal",
   schemaVersion: 1,
   maturity: "partial",
-  ssot: "specs/molis-work-im/spec.md",
+  ssot: "specs/archive/molis-work-im/spec.md",
 } as const;

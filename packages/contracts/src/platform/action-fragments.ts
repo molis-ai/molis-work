@@ -1,7 +1,7 @@
 import type { ActionDefinition, ActionReference } from "./actions.js";
 
 /**
- * Fragment offers (specs/contextual-interaction §5.1): the subject-offers pattern applied to part of an object — a word,
+ * Fragment offers (specs/archive/contextual-interaction §5.1): the subject-offers pattern applied to part of an object — a word,
  * a range, one or several blocks, or several objects the person selected. A provider declares its finite choices
  * statically (so a judgment can only pick among declared keys) and prepares each one's complete input on request.
  * Preparing never writes; the chosen action runs only when the person clicks it.
@@ -17,7 +17,7 @@ export const FRAGMENT_ANY_OBJECT = "molis.any-object";
 
 /**
  * How much of an object the person has in hand. `object` is the whole object (整篇): a choice declared for it is also
- * offered, grouped apart, while the person has only part of that object in hand (specs/contextual-interaction §6.4.1).
+ * offered, grouped apart, while the person has only part of that object in hand (specs/archive/contextual-interaction §6.4.1).
  */
 export const FRAGMENT_GRANULARITIES = ["word", "range", "block", "blocks", "objects", "object"] as const;
 export type FragmentGranularity = (typeof FRAGMENT_GRANULARITIES)[number];

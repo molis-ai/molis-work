@@ -4,7 +4,7 @@ import type { PptRecord } from "@molis-ai/molis-work-contracts/modules/ppt";
 /**
  * A real PowerPoint file (Office Open XML) from a saved deck: one 16:9 slide per page with its title, bullets and
  * speaker notes, in the deck's colours. It opens in PowerPoint, Keynote, WPS and LibreOffice; nothing leaves this
- * computer. Only what the deck holds is written: no images, charts or master editing (specs/work-placement §9).
+ * computer. Only what the deck holds is written: no images, charts or master editing (specs/archive/work-placement §9).
  */
 export const PPTX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 

@@ -12,7 +12,7 @@ export const servicesAgentDefinitionsContract = {
   kind: "service",
   schemaVersion: 1,
   maturity: "partial",
-  ssot: "specs/system-assistant/spec.md",
+  ssot: "specs/archive/system-assistant/spec.md",
 } as const satisfies ContractDescriptor;
 
 /** Longest prompt the person may save. Long enough for any shipped prompt; short enough to stay a prompt. */

@@ -42,7 +42,7 @@ export const goalsActions = {
   subject: defineSubjectContextAction("goals.subject.read", "goal", "目标上下文", ["goals:read"]),
   /** System search: every current Goal with the same revision its context reader reports. */
   searchEntries: defineSearchEntriesAction("goals.search.entries", [{ kind: "goal", title: "目标", surface: "goals" }], "目标", ["goals:read"]),
-  /** What part of anything the person has in hand can do for Goals (specs/contextual-interaction). */
+  /** What part of anything the person has in hand can do for Goals (specs/archive/contextual-interaction). */
   fragmentOffers: goalsFragmentOffersAction,
   ...goalsBoardActions,
   ...goalsEventActions,

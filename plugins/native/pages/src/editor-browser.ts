@@ -149,7 +149,7 @@ export interface PagesCommandPreset {
 }
 
 /**
- * What the writing menu lists: exactly the context row's plan for what is in hand (specs/contextual-interaction §6.4.1)
+ * What the writing menu lists: exactly the context row's plan for what is in hand (specs/archive/contextual-interaction §6.4.1)
  * — the row's actions first, in its order, then the same groups as its “更多”. The menu keeps no list of its own.
  */
 export interface PagesMenuActions {
@@ -175,7 +175,7 @@ export interface PagesEditorMountOptions {
    */
   askAssistant?: (input: { mode: "suggest" | "delegate"; request: string; selection: string }) => void;
   onCreateFromAi?: (input: { title: string; text: string }) => Promise<void>;
-  /** What the person has in hand, whenever it changes (specs/contextual-interaction §4.1); `null` is the page as a whole. */
+  /** What the person has in hand, whenever it changes (specs/archive/contextual-interaction §4.1); `null` is the page as a whole. */
   onFocus?: (focus: PagesFocus | null) => void;
   /** The writing menu's actions for what is in hand; `null` while the row is still preparing them. */
   menuActions?: () => PagesMenuActions | null;
@@ -3251,7 +3251,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     pop.replaceChildren();
     const title = document.createElement("p");
     title.textContent = t(options.translate, "写作");
-    // The same actions as the context row, in its order and groups (specs/contextual-interaction §6.4.1); a choice
+    // The same actions as the context row, in its order and groups (specs/archive/contextual-interaction §6.4.1); a choice
     // runs through the row, which hands it back here to run on the frozen range.
     const list = document.createElement("div");
     list.className = "pages-ai-actions";
@@ -3325,7 +3325,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   };
 
   // The candidate goes to the range the person asked about, frozen when they asked; if that text changed while the
-  // model was working, nothing is written anywhere (specs/contextual-interaction §3.4, AC-C04/C05).
+  // model was working, nothing is written anywhere (specs/archive/contextual-interaction §3.4, AC-C04/C05).
   const showCandidate = (view: EditorView, command: string, result: { text: string; stub?: boolean }, token: string | null, mode: "replace" | "insert_after", okLabel?: string) => {
     pop.hidden = false;
     pop.replaceChildren();

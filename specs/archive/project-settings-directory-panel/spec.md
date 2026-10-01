@@ -2,7 +2,7 @@
 
 状态：纠偏已落地。完成等级 **3：功能可用**。隔离项目里点齿轮：目录只剩四分类，正文在右边 exclusive stage（约 920px 栏、行内 setting-row），不跳页；Goals 清 exclusive。定向测试 44 通过 / 1 跳过。标题栏标签在 exclusive 时仍会被 Goal 容器 `renderTabs` 重新显示，记 later。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件是这次入口变更的唯一需求书。它覆盖 `specs/archive/settings-directory-panel/spec.md` 里「项目设置仍走独立页」，以及 chrome 上那颗项目齿轮当前整页跳到 `/projects/{id}/settings*` 的行为。全局设置按同一壳模型，见 `specs/archive/settings-directory-panel/spec.md`。四个分类的字段、保存、审计仍以 `specs/project-settings-redesign/spec.md` 为准。
+本文件是这次入口变更的唯一需求书。它覆盖 `specs/archive/settings-directory-panel/spec.md` 里「项目设置仍走独立页」，以及 chrome 上那颗项目齿轮当前整页跳到 `/projects/{id}/settings*` 的行为。全局设置按同一壳模型，见 `specs/archive/settings-directory-panel/spec.md`。四个分类的字段、保存、审计仍以 `specs/archive/project-settings-redesign/spec.md` 为准。
 
 ## 背景与目标
 

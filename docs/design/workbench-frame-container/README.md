@@ -4,7 +4,7 @@
 
 等级 2：可交互原型。工作台主区是 Container（钉住的 Goal 画布 Tab + 各 Goal 的 Frame Tab）。Goal 画布就是现生产的目标关系图，不另做一套卡片。刷新即重置。
 
-切片只演示空间与质感。产品所有权见 `specs/workbench-frame-container/spec.md`：容器是壳，Frame 是按 Goal 的工作面，目录里的东西是可拖资产。视觉沿用 Calm Desktop。
+切片只演示空间与质感。产品所有权见 `specs/archive/workbench-frame-container/spec.md`：容器是壳，Frame 是按 Goal 的工作面，目录里的东西是可拖资产。视觉沿用 Calm Desktop。
 
 ## 这版改了什么
 

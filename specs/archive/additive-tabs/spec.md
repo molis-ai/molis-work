@@ -2,7 +2,7 @@
 
 状态：功能可用。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不发布、不安装新 App。
 
-本文件是这次标签打开规则的唯一需求书。它取代 `specs/chrome-tabs-preview-groups/spec.md` 里「单击预览、双击钉住、每栏一张预览」；手动分组、分栏几何仍以该文件和 `specs/workbench-tab-workspace/spec.md` 为准。
+本文件是这次标签打开规则的唯一需求书。它取代 `specs/archive/chrome-tabs-preview-groups/spec.md` 里「单击预览、双击钉住、每栏一张预览」；手动分组、分栏几何仍以该文件和 `specs/archive/workbench-tab-workspace/spec.md` 为准。
 
 ## 背景目标
 
@@ -48,7 +48,7 @@
 
 ## 文件 / 模块边界
 
-允许改：`tab-workspace-ops.ts`、`tab-workspace.ts` 客户端、目录打开路径、`specs/workbench-tab-workspace/spec.md` 里指向本规则的句子、本 spec 指向的测试。
+允许改：`tab-workspace-ops.ts`、`tab-workspace.ts` 客户端、目录打开路径、`specs/archive/workbench-tab-workspace/spec.md` 里指向本规则的句子、本 spec 指向的测试。
 
 不改：Goal / Session / Feed 领域写入、MCP、项目选择页。
 

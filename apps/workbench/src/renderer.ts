@@ -343,7 +343,7 @@ function renderCoverageHtml(item: WebGoalView): string {
 }
 
 /**
- * The Goal's materials (specs/work-placement §4): create straight into this Goal's project and bind, list what is bound
+ * The Goal's materials (specs/archive/work-placement §4): create straight into this Goal's project and bind, list what is bound
  * with where it lives and whether it still opens. Plugin objects are filled in by the placement client from their owners.
  */
 function renderInputBindingsHtml(item: WebGoalView): string {

@@ -1,5 +1,5 @@
 /**
- * Before/after check of the Home / Dock recommendations on a real Home (specs/contextual-interaction §6.4.3): binds the
+ * Before/after check of the Home / Dock recommendations on a real Home (specs/archive/contextual-interaction §6.4.3): binds the
  * built-in Home rule, prepares every open Inbox entry's offers and judges them with the Home's own Jev connection, then
  * prints the offers, their rule keys and the rule's picks. Run it on each build and compare the two outputs. It writes
  * judgment records into that Home, so point it at an isolated copy, never at the Home in daily use.

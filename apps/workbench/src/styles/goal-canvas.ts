@@ -408,7 +408,7 @@ export const GOAL_CANVAS_STYLES = `
     body.immersive-workbench .goal-work-planning-toggle { width: var(--control-h, 32px); min-width: var(--control-h, 32px); padding: 0; }
     body.immersive-workbench .goal-work-planning-toggle > span { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   }
-  /* The toolbar explains itself without guessing at icons (specs/plugin-e2e-review §5.1): the view you are in is named,
+  /* The toolbar explains itself without guessing at icons (specs/archive/plugin-e2e-review §5.1): the view you are in is named,
      the other two stay icons; the status filter is named when there is room; New Goal, the page's one primary action,
      keeps its words at every width. */
   body.immersive-workbench .goal-board-switch > .mw-toggle { gap: 6px; }

@@ -10,7 +10,7 @@ import { openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { projectActionAvailability } from "../apps/local-host/dist/project-action-availability.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-// specs/work-placement AC6 through the whole stack: where things are, how they relate, what was copied or moved, and a
+// specs/archive/work-placement AC6 through the whole stack: where things are, how they relate, what was copied or moved, and a
 // failed move are all still true after the Host stops and starts again on the same Home; nothing depends on the page.
 test("placement survives a restart: relations, a removed relation, a copy, a move, a failed move and collected answers", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-placement-restart-"));

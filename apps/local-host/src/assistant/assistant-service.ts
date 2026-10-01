@@ -61,7 +61,7 @@ export interface AssistantServicePorts {
   characters?(project: LocalHostProjectReference): Promise<AssistantCharacterChoice[]>;
   /** Methods Plugins offer for business work, as registered with the Host; bodies only by id and version. */
   methods?: { list(): AgentMethodView[]; read(ownerId: string, skillId: string, version?: number): AgentMethodRegistration };
-  /** The platform memory of this Home (specs/memory-system). Absent: the Assistant keeps and recalls nothing. */
+  /** The platform memory of this Home (specs/archive/memory-system). Absent: the Assistant keeps and recalls nothing. */
   memory?(): MemoryService | undefined;
   /** A round of a work finished: the platform memory may draw out what is worth keeping from the person's own words. */
   learnFromRound?(input: { work: StoredWork; said: string[]; run_id: string }): void;
@@ -2362,7 +2362,7 @@ export class AssistantService {
       image: { resource_id: taken.resource.id, revision: taken.resource.revision, media_type: taken.media_type, byte_length: taken.byte_length } };
   }
 
-  /** The platform memory (specs/memory-system): the Assistant reads and writes it like every other consumer. */
+  /** The platform memory (specs/archive/memory-system): the Assistant reads and writes it like every other consumer. */
   private memory(): MemoryService {
     const memory = this.ports.memory?.();
     if (!memory) throw new AssistantError("assistant.unsupported", "当前没有记忆服务");
@@ -2472,7 +2472,7 @@ export class AssistantService {
    * (switched-off, expired and inapplicable ones never): most relevant first, within a budget.
    */
   /**
-   * The memories this round is given (specs/memory-system §7.2): the platform recall for the Assistant, handed to the
+   * The memories this round is given (specs/archive/memory-system §7.2): the platform recall for the Assistant, handed to the
    * runtime as exact entries it re-reads and injects as data. Chosen once as the round is prepared (so its materials can
    * say what did not fit); the Agent Host asks for the same choice while starting the round.
    */

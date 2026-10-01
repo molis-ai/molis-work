@@ -4,11 +4,11 @@
 
 本文件是这次目录信息架构的唯一需求书。它取代：
 
-- `specs/directory-plugin-switcher/spec.md` 里「上面目的地、下面独占一块当前列表」；
-- `specs/workbench-tab-workspace/spec.md` 里「左边仍是目的地 + 下面换列表」；
+- `specs/archive/directory-plugin-switcher/spec.md` 里「上面目的地、下面独占一块当前列表」；
+- `specs/archive/workbench-tab-workspace/spec.md` 里「左边仍是目的地 + 下面换列表」；
 - `specs/archive/feed-stage-directory/spec.md` 里「选中 Feed 时左边不挂列表」。
 
-右边分组标签、分栏、各插件主表面与领域事实仍以 `specs/workbench-tab-workspace/spec.md` 和既有插件合同为准。本文件只改左边目录怎么挂列表。
+右边分组标签、分栏、各插件主表面与领域事实仍以 `specs/archive/workbench-tab-workspace/spec.md` 和既有插件合同为准。本文件只改左边目录怎么挂列表。
 
 ## 背景与目标
 

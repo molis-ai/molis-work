@@ -1,6 +1,6 @@
 # Chrome 式标签组底线
 
-**已被取代。** 插件自动组底线不再使用。用户手动分组的色线以 `specs/chrome-tabs-preview-groups/spec.md` 为准。
+**已被取代。** 插件自动组底线不再使用。用户手动分组的色线以 `specs/archive/chrome-tabs-preview-groups/spec.md` 为准。
 
 # Chrome 式标签组底线（历史）
 

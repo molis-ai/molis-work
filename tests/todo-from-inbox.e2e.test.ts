@@ -18,7 +18,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵
   const item = feed.ingestItem({ source, externalId: "todo-from-inbox", title: "供应商报价需要回复", summary: "报价单", body: "请本周内确认报价", occurredAt: new Date().toISOString(), attention: false }).item;
   const entry = feed.ensureInboxEntryForFeedItem(boardId, item.item_id, "manual").entry;
   const todos = () => { const todo = openTodoStore(homeDirectory); try { return todo.list({ projectId, everything: true, actor: "user", actorId: "test" }); } finally { todo.close(); } };
-  const output = new URL(`../${specEvidenceDirectory("specs/todo-plugin/verification")}/`, import.meta.url);
+  const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");

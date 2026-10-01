@@ -15,7 +15,7 @@ export interface ActionSubjectContext {
   open?: { surface: string; id: string };
   /**
    * Only for objects kept in the person's Home that belong to a project (a todo of that project): which project.
-   * Objects stored in a project partition leave it out — the partition says where they are (specs/work-placement §7.2).
+   * Objects stored in a project partition leave it out — the partition says where they are (specs/archive/work-placement §7.2).
    */
   project_id?: string | null;
 }

@@ -7,7 +7,7 @@ import {
 } from "@molis-ai/molis-work-kernel";
 
 /**
- * Host side of context-driven interaction (specs/contextual-interaction §4, §5, §8). Candidates come from the caller's
+ * Host side of context-driven interaction (specs/archive/contextual-interaction §4, §5, §8). Candidates come from the caller's
  * authorized directory snapshot; the judgment only ranks them. One judgment per pane at a time: a newer request
  * aborts the older one, and a result is only ever returned for the context it was asked about.
  */

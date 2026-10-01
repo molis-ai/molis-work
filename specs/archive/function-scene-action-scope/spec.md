@@ -46,7 +46,7 @@ Functions「用在哪」里，每个事件去向有一份可映射的动作名�
 
 - 输入：Feed 详情已有点击路径、现有 `inbox.admit` / `feed.open`、行为总表。
 - 输出：扩大后的 `feed.capture` 池、catalog / 编辑器动作库、Feed 详情按钮集合、开发规范。
-- 依赖：`specs/archive/functions-system-capability/spec.md` 的判断不自动执行；`specs/functions-independent-authoring/spec.md` 的映射、不长新按钮。
+- 依赖：`specs/archive/functions-system-capability/spec.md` 的判断不自动执行；`specs/archive/functions-independent-authoring/spec.md` 的映射、不长新按钮。
 
 ## 文件 / 模块边界
 

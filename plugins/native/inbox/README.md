@@ -68,12 +68,12 @@ node --import tsx --test tests/inbox-native-plugin.test.ts tests/inbox-plugin.te
   - 工作流交接透传原调用者；等待期间撤权后不保存结果。
   - 文稿由 Pages 保存，生成不自动完成 Inbox 事项；相关对象不可读时保留记录与提示，不伪造正文。
 - 改动后必跑：`node scripts/run-tests.mjs tests/inbox-plugin.test.ts tests/inbox-action-scenes.test.ts tests/inbox-automatic-scenes.test.ts tests/inbox-prepared-pages.test.ts tests/inbox-native-plugin.test.ts`
-- 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[specs/feed-inbox-pages-loop/spec.md](../../../specs/feed-inbox-pages-loop/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+- 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[specs/archive/feed-inbox-pages-loop/spec.md](../../../specs/archive/feed-inbox-pages-loop/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
 
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
-- [Inbox / Feed 拆插件需求](../../../specs/inbox-feed-plugin-split/spec.md)
+- [Inbox / Feed 拆插件需求](../../../specs/archive/inbox-feed-plugin-split/spec.md)
 
 - Status: `partial`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`

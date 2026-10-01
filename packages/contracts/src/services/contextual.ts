@@ -1,7 +1,7 @@
 import type { FragmentApply, FragmentGranularity, FragmentIntent, FragmentTarget } from "../platform/action-fragments.js";
 
 /**
- * Context-driven interaction (specs/contextual-interaction). A surface declares what the person has in hand; the Host
+ * Context-driven interaction (specs/archive/contextual-interaction). A surface declares what the person has in hand; the Host
  * ranks the actions the directory offers for it; the bar and the Assistant show them; a click runs one against the
  * context frozen at that moment. Everything here is a claim from the page until an owner reads the object again.
  */

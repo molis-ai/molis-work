@@ -2,7 +2,7 @@
 
 状态：完成。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件是本次体验变更的唯一需求书。它补在 `specs/archive/poetic-project-home/spec.md` 与 `specs/directory-plugin-switcher/spec.md` 之上：保留已确认的诗意首页结构和 Codex 目的地目录，只统一「下面列表 + 右边首页」的视觉语言和进出动线。
+本文件是本次体验变更的唯一需求书。它补在 `specs/archive/poetic-project-home/spec.md` 与 `specs/archive/directory-plugin-switcher/spec.md` 之上：保留已确认的诗意首页结构和 Codex 目的地目录，只统一「下面列表 + 右边首页」的视觉语言和进出动线。
 
 ## 背景与问题
 

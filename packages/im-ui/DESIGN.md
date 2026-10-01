@@ -29,7 +29,7 @@ rounded:
 
 工作保持在原处，讨论就地展开。右侧采用轻量话题标签与自然对话流，让成员短暂对齐后继续工作。表达简洁、层次清楚，不用目录、统计卡片或多条并列会话构造 dashboard。
 
-本文件仅约束项目讨论；依据为 [已确认设计与实现合同](../../specs/molis-work-im/redesign-v2/spec.md)。实际样式来源为 `src/styles.ts`，宿主布局来源为平台侧栏 `apps/workbench/src/side-panel.ts`（讨论是其中一个标签）。示意图中的左侧文档不要求改造其他工作插件。
+本文件仅约束项目讨论；依据为 [已确认设计与实现合同](../../specs/archive/molis-work-im/redesign-v2/spec.md)。实际样式来源为 `src/styles.ts`，宿主布局来源为平台侧栏 `apps/workbench/src/side-panel.ts`（讨论是其中一个标签）。示意图中的左侧文档不要求改造其他工作插件。
 
 ## Colors
 

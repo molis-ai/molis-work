@@ -2,7 +2,7 @@
 
 状态：已完成。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件改写 `specs/goals-parallel-views/spec.md` 里「目录只留 Goals 名称、新建 Goal、筛选」。列表行合同仍以 `specs/archive/goals-stage-list-row/spec.md` 为准。
+本文件改写 `specs/archive/goals-parallel-views/spec.md` 里「目录只留 Goals 名称、新建 Goal、筛选」。列表行合同仍以 `specs/archive/goals-stage-list-row/spec.md` 为准。
 
 ## 背景目标
 

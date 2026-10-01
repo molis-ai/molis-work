@@ -95,7 +95,7 @@ const metadata = {
 };
 
 /**
- * What search offers for a word selected anywhere (specs/contextual-interaction §10 P2): where else it appears. The
+ * What search offers for a word selected anywhere (specs/archive/contextual-interaction §10 P2): where else it appears. The
  * workbench shows the result in its own search palette, so nothing is written and the person opens what they choose.
  */
 export const SEARCH_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [

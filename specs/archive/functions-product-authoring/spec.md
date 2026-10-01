@@ -2,7 +2,7 @@
 
 完成等级：**3 功能可用**。不宣称可发布。
 
-编辑器里选项与去向的关系已改为三栏解耦，见 [functions-independent-authoring](../../functions-independent-authoring/spec.md)。本文件仍管来源、去向名单和行为总表。
+编辑器里选项与去向的关系已改为三栏解耦，见 [functions-independent-authoring](../functions-independent-authoring/spec.md)。本文件仍管来源、去向名单和行为总表。
 
 ## 背景目标
 
@@ -22,7 +22,7 @@
 1. 函数记录持久化 `scene_id`（去向）和 `subject_kinds`（来源）。内置三个系统函数写入对应去向与对象类型。
 2. Host 提供 `GET /api/functions/catalog`：subjects、destinations（事件去向 + Agent/MCP）、behaviors（系统 / 插件 / MCP，带 effect 与是否可摆到现场按钮）。
 3. 新建/编辑 Choice：勾选看什么；点选用在哪。每个去向用一两句话说明什么时候用、会改什么。不堆「何时 / 哪里配 / 效果」标签，不用「这道题」。
-4. 去向分两类：事件（首页、Inbox、Feed）与 Agent。选项与去向的耦合改为映射，见 [functions-independent-authoring](../../functions-independent-authoring/spec.md)。
+4. 去向分两类：事件（首页、Inbox、Feed）与 Agent。选项与去向的耦合改为映射，见 [functions-independent-authoring](../functions-independent-authoring/spec.md)。
 5. Score 不能绑 Inbox / 首页 / Feed。Choice / Noul 可以；事件去向用映射对到现场按钮。
 6. Inbox / 首页：已发布函数在「用在哪」打开或停用当前项目。Feed：未绑时说明去捕捉规则选它；已绑时列出场景名。不另做总控台。
 7. 函数页是三栏工作台：看什么 / 函数 / 用在哪。

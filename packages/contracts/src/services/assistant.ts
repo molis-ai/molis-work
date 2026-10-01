@@ -667,6 +667,8 @@ export interface AssistantUndoable {
   undone_at?: string;
   /** Why taking it back did not work, in the owner's words. */
   detail?: string;
+  /** The owner's capability that takes it back: once it has, the owner's page rereads, as after the change itself. */
+  capability_id?: string;
 }
 
 export interface AssistantUnsettledChange {

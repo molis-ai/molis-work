@@ -1676,8 +1676,7 @@ const CRAFT_BASE_STYLES = `
   /* The page owns its layout in project-home.ts; this layer adds only the arrival cascade and the press tone. */
   ${WORKBENCH} .immersive-home .home-erow:active { background: var(--nav-press); }
   /* Arrival plays once per surface (\`is-arriving\`, set on its first reveal); showing Home again does not replay it. */
-  ${WORKBENCH} .immersive-home.is-arriving :is(.home-focus, .home-note) { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
-  ${WORKBENCH} .immersive-home.is-arriving .home-note { animation-delay: 130ms; }
+  ${WORKBENCH} .immersive-home.is-arriving .home-focus { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
   /* The cascade marks arrival — the list's first load or another day — never a background refresh or a click. */
   ${WORKBENCH} .immersive-home .home-tl__rows[data-arrive] > * { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
   ${[...Array(12).keys()].map((index) => `${WORKBENCH} .immersive-home .home-tl__rows[data-arrive] > :nth-child(${index + 1}) { animation-delay: ${30 + index * 24}ms; }`).join("\n  ")}
@@ -1930,7 +1929,7 @@ const CRAFT_BASE_STYLES = `
 
 /** Under automation (headless review, e2e) the layer holds still so geometry reads settle at once. */
 const STILL_RESET = `
-  html[data-craft-still] :is(.workbench-bar > *, .immersive-plugin-stage, .dock-overflow, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home :is(.home-focus, .home-note, .home-erow__slot), .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *, .project-card,
+  html[data-craft-still] :is(.workbench-bar > *, .immersive-plugin-stage, .dock-overflow, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home :is(.home-focus, .home-erow__slot), .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *, .project-card,
     dialog[open], ${DROPDOWN}, details[open] > .navigator-project-menu-popover, .toast, .mw-check, .mw-radio, [data-graph-edge] path,
     [data-craft-celebrate] .goal-status--completed, [data-craft-celebrate] .goal-status--completed svg) { animation: none !important; }
   html[data-craft-still] :is(dialog[open], .mw-check:checked, .mw-radio:checked, .plugin-rail-items .immersive-plugin-link[aria-current], [data-craft-new])::after,

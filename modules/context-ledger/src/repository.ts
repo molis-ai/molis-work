@@ -45,7 +45,9 @@ function edge(row: Row): ContextEdge {
 }
 
 export class ContextLedgerRepository {
-  constructor(private readonly db: ContextLedgerDatabase) { createContextLedgerSchema(db); }
+  constructor(private readonly db: ContextLedgerDatabase, initializeSchema = true) {
+    if (initializeSchema) createContextLedgerSchema(db);
+  }
 
   transaction<T>(operation: () => T): T { return this.db.transaction(operation).immediate(); }
 

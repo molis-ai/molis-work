@@ -1,3 +1,4 @@
+import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
 import type { WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionView, type GoalCollectionModel } from "@molis-ai/molis-work-plugin-goals";
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperationsSlice } from "@molis-ai/molis-work-plugin-work";
@@ -10,6 +11,8 @@ import { renderRuntimePlanDialog } from "./settings-appearance.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
 export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extends GoalCollectionView<TItem> {
+  /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
+  pane_plugin?: string;
   enabled_plugins?: readonly string[];
   /** Personal plugins this project has hidden. They stay installed; the rail omits them. */
   hidden_plugins?: readonly string[];
@@ -150,6 +153,13 @@ function renderMolisWorkWeb(
     : null, projectOperationsData);
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, view.hidden_plugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/` || "/")}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
+  const deferredIds = new Set(BUILTIN_PLUGIN_WORKBENCH.filter(pack => pack.clientFactory).map(pack => pack.project_plugin_id));
+  const defer = (html: string): string => {
+    const match = html.match(/^(\s*<([a-z][a-z0-9-]*)\b[^>]*data-work-surface="([^"]+)"[^>]*>)([\s\S]*)(<\/\2>\s*)$/);
+    if (!match || !deferredIds.has(match[3]!)) return html;
+    if (view.pane_plugin && view.pane_plugin !== match[3]) return match[1]!.replace(/>$/, ' data-pane-placeholder>') + match[5];
+    return match[1]!.replace(/>$/, ' data-deferred-surface>') + '<template data-deferred-content>' + match[4] + '</template>' + match[5];
+  };
   const pluginEnabled = (id: string) => enabledPlugins.includes(id);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";
@@ -272,27 +282,27 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${frameStage}
             ${projectOperations.surfaces}
             ${renderInboxNativePluginSurface(view, "workbench")}
-            ${renderScheduleNativePluginSurface(view, "workbench")}
-            ${renderShelfNativePluginSurface("workbench")}
-            ${renderExperimentsContribution()}
-            ${renderImagesNativePluginSurface()}
-            ${renderPagesNativePluginSurface("workbench")}
-            ${renderFormNativePluginSurface("workbench")}
-            ${renderDatasetNativePluginSurface("workbench")}
-            ${renderPptNativePluginSurface("workbench")}
-            ${renderLingguangNativePluginSurface("workbench")}
-            ${renderTodoNativePluginSurface("workbench")}
-            ${renderJellyNativePluginSurface("workbench")}
-            ${renderCogniaNativePluginSurface("workbench")}
-            ${renderAlchemistNativePluginSurface("workbench")}
-            ${renderWorkflowsNativePluginSurface("workbench")}
+            ${defer(renderScheduleNativePluginSurface(view, "workbench"))}
+            ${defer(renderShelfNativePluginSurface("workbench"))}
+            ${defer(renderExperimentsContribution())}
+            ${defer(renderImagesNativePluginSurface())}
+            ${defer(renderPagesNativePluginSurface("workbench"))}
+            ${defer(renderFormNativePluginSurface("workbench"))}
+            ${defer(renderDatasetNativePluginSurface("workbench"))}
+            ${defer(renderPptNativePluginSurface("workbench"))}
+            ${defer(renderLingguangNativePluginSurface("workbench"))}
+            ${defer(renderTodoNativePluginSurface("workbench"))}
+            ${defer(renderJellyNativePluginSurface("workbench"))}
+            ${defer(renderCogniaNativePluginSurface("workbench"))}
+            ${defer(renderAlchemistNativePluginSurface("workbench"))}
+            ${defer(renderWorkflowsNativePluginSurface("workbench"))}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="Artifacts" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives)}</section>
             <section class="desktop-work-surface capabilities-surface" data-work-surface="capabilities" data-work-surface-label="${L("能力")}" hidden><iframe class="capabilities-frame" title="${L("能力")}" data-capabilities-frame></iframe></section>
             ${settingsSurfaces}
-            ${(view.plugin_stages ?? []).join("")}
+            ${(view.plugin_stages ?? []).map(defer).join("")}
           </div>
         </div>
       </div>
@@ -307,7 +317,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>
-  <script src="/assets/molis-work-pages-editor.js"></script>
   <script src="/assets/molis-work-workbench.js"></script>
   ${showTui ? '<script src="/desktop/pty-client.js"></script>' : ""}`,
   });

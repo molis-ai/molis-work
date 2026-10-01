@@ -1,3 +1,4 @@
+import { pluginWorkbenchClientAsset } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -5,6 +6,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 import type { WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
+import { currentLocale } from "./web-locale.js";
 
 const requireAsset = createRequire(import.meta.url);
 
@@ -21,6 +23,7 @@ export function createLocalWebAssets(ports: {
 }) {
   const { ptyClientFilePath } = ports;
   const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet } = ports.renderer;
+  const workbenchAssets = new Map<string, { body: string | Buffer; contentType: string; etag: string }>();
   function servePtyClient(request: IncomingMessage, response: ServerResponse): boolean {
     const filePath = ptyClientFilePath();
     if (!fs.existsSync(filePath)) {
@@ -51,7 +54,12 @@ export function createLocalWebAssets(ports: {
     pathname: string,
   ): boolean {
     if (request.method !== "GET" && request.method !== "HEAD") return false;
-    const asset = pathname === "/assets/molis-work-workbench.css"
+    const key = currentLocale() + ":" + pathname;
+    let asset = workbenchAssets.get(key);
+    if (!asset) {
+      const plugin = pathname.match(/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.js$/);
+      const client = plugin ? pluginWorkbenchClientAsset(plugin[1]!) : null;
+      const loaded = client ? { body: client, contentType: "text/javascript; charset=utf-8" } : pathname === "/assets/molis-work-workbench.css"
       ? { body: renderMolisWorkWorkbenchStylesheet(), contentType: "text/css; charset=utf-8" }
       : pathname === "/assets/molis-work-workbench.js"
         ? { body: renderMolisWorkWorkbenchClientScript(), contentType: "text/javascript; charset=utf-8" }
@@ -66,8 +74,11 @@ export function createLocalWebAssets(ports: {
           : pathname === "/assets/noto-sans-sc-400.woff2" && fs.existsSync(NOTO_SANS_SC_FONT_PATH)
             ? { body: fs.readFileSync(NOTO_SANS_SC_FONT_PATH), contentType: "font/woff2" }
         : null;
-    if (!asset) return false;
-    const etag = `"${createHash("sha256").update(asset.body).digest("base64url")}"`;
+      if (!loaded) return false;
+      asset = { ...loaded, etag: `"${createHash("sha256").update(loaded.body).digest("base64url")}"` };
+      workbenchAssets.set(key, asset);
+    }
+    const { etag } = asset;
     const headers = {
       "content-type": asset.contentType,
       "cache-control": "private, max-age=0, must-revalidate",

@@ -153,3 +153,5 @@ export {
   type ModelSettingsPrimitives,
 } from "./settings-models.js";
 export { BUILTIN_PLUGIN_AGENTS } from "./plugin-catalog.js";
+
+export { pluginWorkbenchClientAsset } from "./plugin-workbench.js";

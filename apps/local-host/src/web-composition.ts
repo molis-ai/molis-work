@@ -11,9 +11,11 @@ import { createLocalHostCapsule } from "./capsule.js";
 import { createLocalOnboardingHttp } from "./web-onboarding.js";
 import { createLocalPlanningHttp } from "./web-planning.js";
 import { createLocalGoalsReadHttp } from "./web-goals-read.js";
+import type { MolisWorkProjectCatalog, MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 
 export interface LocalWebPlatform {
   withCatalog: LocalWebCatalogRunner;
+  openCatalog?(options: MolisWorkProjectCatalogOptions): Promise<MolisWorkProjectCatalog>;
   desktopRenderer: WorkbenchRendererPorts["desktop"];
   panel: Omit<Parameters<typeof createLocalPanelHttp>[0], "withCatalog">;
   runtimeTitle(runtimeKind: string): string;

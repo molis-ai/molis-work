@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GUARDED_TOOL_NAMES, announcesWithoutActing, claimsButton, claimsMemoryChange, internalIdsHeld, mentionsInternalIds, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
+import { GUARDED_TOOL_NAMES, announcesWithoutActing, claimsButton, claimsMemoryChange, claimsSavedChange, internalIdsHeld, mentionsInternalIds, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
 
 test("an ending that only announces the next step is recognised; results, questions and blockers are not", () => {
   // Seen from MiniMax-M3 in real Coding rounds that then ended with nothing done.
@@ -49,6 +49,18 @@ test("a reply that claims a memory was kept or forgotten is recognised; saying i
   // Seen from MiniMax-M3 with forming memories switched off: it named the tool it did not have.
   assert.equal(claimsMemoryChange("「以后周报都用表格」是长期规则，我用 remember 记到项目「Q4 plan」里：从今以后做周报默认用表格呈现。"), "keep");
   assert.equal(claimsMemoryChange("已把会议要点记到项目笔记里，以后可以随时查。"), null);
+});
+
+test("a reply that says something was saved somewhere is recognised; offers, refusals and pending confirmations are not", () => {
+  // Seen from MiniMax M3.1: asked to note an idea, it answered this with no call at all.
+  for (const text of ["记下了：发布会可以用倒计时海报提前预热，作为「第四季度发布筹备后续建议」项目里的一条灵感，已经存到 Jelly 灵感里。",
+    "已记到待办：准备季度复盘，截止 10/05。", "已新建文档「Q4 复盘」。", "建好了，在日历里 10 月 2 日下午三点。"]) {
+    assert.equal(claimsSavedChange(text), true, text);
+  }
+  for (const text of ["要不要我把它记到待办？", "确认后会存到 Jelly 灵感里。", "没能保存到笔记：这个能力现在不可用。", "已提交，等你确认。",
+    "已记住你的偏好：回答用要点列表。", "下面是待办列表：\n- 准备季度复盘", "你可以在待办里找到它。", ""]) {
+    assert.equal(claimsSavedChange(text), false, text);
+  }
 });
 
 test("a reply that writes a tool call out as text is recognised; talking about capabilities in words is not", () => {

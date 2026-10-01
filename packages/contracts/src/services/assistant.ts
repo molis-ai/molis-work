@@ -514,7 +514,7 @@ export interface AssistantContribution {
   changes: number;
   /** Object kinds the Assistant can read back from their owner (a subject reader). */
   readable_kinds: string[];
-  /** Changes that say which object they produced, so a work can keep a relation to it. */
+  /** Changes that say which object they produced, of a kind that can be read back, so a work can keep a relation to it. */
   linked_changes: number;
   /** Takes part in global search. */
   searchable: boolean;

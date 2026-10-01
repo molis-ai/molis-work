@@ -13,6 +13,8 @@ export interface MwButtonOptions {
   icon?: MolisWorkIcon;
   iconOnly?: boolean;
   label: string;
+  /** The key the button names beside its label (“↵” on a step's primary action); the shortcut itself is the caller's. */
+  key?: string;
   className?: string;
   attrs?: Record<string, AttrValue>;
 }
@@ -23,6 +25,7 @@ export function renderButton(options: MwButtonOptions): string {
   const disabled = Boolean(options.disabled || options.loading);
   const label = escapeHtml(options.label);
   const leading = options.icon ? icon(options.icon) : "";
+  const key = options.key && !options.iconOnly ? `<kbd class="mw-btn__key" aria-hidden="true">${escapeHtml(options.key)}</kbd>` : "";
   const spinner = options.loading ? `<span class="mw-spinner" data-slot="button-loading-indicator" aria-hidden="true"></span>` : "";
   const text = options.iconOnly
     ? `<span class="mw-sr-only">${label}</span>`
@@ -35,5 +38,5 @@ export function renderButton(options: MwButtonOptions): string {
     options.className,
   )}" data-slot="button"${options.loading ? " data-loading" : ""}${disabled ? " disabled" : ""}${
     options.iconOnly ? ` aria-label="${label}"` : ""
-  }${renderAttrs(options.attrs)}>${spinner}${leading}${text}</button>`;
+  }${renderAttrs(options.attrs)}>${spinner}${leading}${text}${key}</button>`;
 }

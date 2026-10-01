@@ -70,4 +70,4 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
-`createExecutionLifetime` 统一进程内取消、时限和同步周期监测，经 Plugin SDK 提供给插件。取消后停止监测，异步等待后调用 `assertActive()` 再进入原事务/版本校验；`dispose()` 在 finally 中释放资源并拒绝迟到回调。它不登记任务、不保存状态、不恢复或重试。Alchemist 用于租约续期，Images 用于持久取消检查及 180 秒时限。
+`createExecutionLifetime` 统一进程内取消、时限和同步周期监测。实现放在没有依赖的 `@molis-ai/molis-work-contracts/platform/execution-lifetime`，Kernel 与 Plugin SDK 都从那里转出同一份，公开的 Plugin SDK 因此不依赖私有的 Kernel。取消后停止监测，异步等待后调用 `assertActive()` 再进入原事务/版本校验；`dispose()` 在 finally 中释放资源并拒绝迟到回调。它不登记任务、不保存状态、不恢复或重试。Alchemist 用于租约续期，Images 用于持久取消检查及 180 秒时限。

@@ -6,18 +6,19 @@ import test from "node:test";
 import { clearShelfRuntimeCache, openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
+import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
 
 test("Shelf DropAgent parity: full copies, reading, comparison, actions and client bridges", { timeout: 180_000 }, async (t) => {
   const bin = await mkdtemp(join(tmpdir(), "shelf-parity-agent-"));
   const previous = { agent: process.env.MOLIS_WORK_SHELF_AGENT, path: process.env.MOLIS_WORK_SHELF_AGENT_PATH };
-  // The only executable selected by either the HTTP host or the explicit store
-  // is this shell fixture. It writes the recipe's expected result in its workdir.
+  // The terminal on the shelf is the person's own: the only executable either the HTTP host or the explicit store
+  // selects for it is this shell fixture. Automatic recipes run through the shared Prologue model instead (a5228fe9),
+  // so the combine below gets the same injected Host port the Shelf domain tests use.
   await writeFile(join(bin, "claude"), `#!/bin/sh
 if [ "$1" = "--help" ]; then
   printf '%s\\n' 'Usage: claude [options] [prompt]' '  --print Print response and exit'
   exit 0
 fi
-printf '%s\\n' '# 合稿' '' '两份材料经过受控执行，来源可切换。' > brief.md
 `);
   await chmod(join(bin, "claude"), 0o755);
   process.env.MOLIS_WORK_SHELF_AGENT = "claude";
@@ -34,7 +35,25 @@ printf '%s\\n' '# 合稿' '' '两份材料经过受控执行，来源可切换�
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
-  const shelf = openShelfStore(homeDirectory, { pathEnvironment: bin, home: homeDirectory, preferred: "claude" });
+  // The shelf's own actions are enabled only while the Home has a usable model. Nothing here runs one from the page
+  // (arranging and saving an action never start a recipe; the combine below uses the injected port), so a configured
+  // model with no server behind it is enough.
+  const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
+  const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
+  const priorSecretBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
+  process.env.MOLIS_WORK_SECRET_BACKEND = "file";
+  t.after(() => {
+    if (priorSecretBackend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND;
+    else process.env.MOLIS_WORK_SECRET_BACKEND = priorSecretBackend;
+    resetSecretStoreCache();
+  });
+  await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
+    catalog.models.upsert({ provider_id: "shelf-parity", display_name: "测试模型", base_url: "http://127.0.0.1:9", api_format: "anthropic-messages",
+      models: [{ model_id: "fixture-model", enabled: true }] });
+    catalog.models.setCredential("shelf-parity", "fixture-local-model-key");
+  }));
+  const shelf = openShelfStore(homeDirectory, { pathEnvironment: bin, home: homeDirectory, preferred: "claude" }, {},
+    shelfTestAi(async () => ({ text: "# 合稿\n\n两份材料经过受控执行，来源可切换。\n", execution: shelfTestReceipt })));
   assert.equal(shelf.runtime().executable, join(bin, "claude"));
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);

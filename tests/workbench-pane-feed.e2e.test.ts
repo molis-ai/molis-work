@@ -132,7 +132,8 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
   await waitFor("document.querySelector('[data-goal-view]')?.dataset.goalView==='CORE'");
   await click('[data-titlebar-tabs] [data-tab-split]');
   await click('[data-layout-split=right]');
-  await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-goal-view]')?.dataset.goalView==='CORE' && f.contentDocument.querySelector('[data-goal-node-workspace]')?.hidden===false)");
+  // Each pane is a page of its own: both load the whole workbench (about five seconds here) before showing the Goal.
+  await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-goal-view]')?.dataset.goalView==='CORE' && f.contentDocument.querySelector('[data-goal-node-workspace]')?.hidden===false)", 8_000);
   const relatedId = await evaluate<string>(`(() => {
     const paneId = document.querySelector('.tab-pane.is-focused').dataset.tabPane;
     window.originalFrame = document.querySelector('iframe[data-pane-owner="'+paneId+'"]:not([hidden])');
@@ -147,7 +148,7 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
     link.click();
     return link.dataset.selectGoal;
   })()`);
-  await waitFor(`[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(f=>f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal===${JSON.stringify(relatedId)})`);
+  await waitFor(`[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(f=>f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal===${JSON.stringify(relatedId)})`, 8_000);
   await evaluate("document.querySelector('[data-tab-id=\"'+originalFrame.dataset.paneTab+'\"] .tab-item-trigger').click()");
   await waitFor("!originalFrame.hidden");
   assert.equal(await evaluate("originalFrame.contentDocument===originalDocument"), true);

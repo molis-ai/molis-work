@@ -136,13 +136,14 @@ export const todoActions = {
   move: defineObjectMoveAction("todo.placement.move", [TODO_SUBJECT_KIND], "待办", TODO_WRITE, "home"),
   homeEvents: todoHomeEventsAction,
   searchEntries: todoSearchActions.entries,
+  searchProjectEntries: todoSearchActions.projectEntries,
   subject: todoSearchActions.subject,
   fragmentOffers: defineFragmentOffersAction("todo.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以记成待办", [...TODO_READ], TODO_FRAGMENT_CHOICES, "home"),
 };
 export const TODO_ACTIONS: readonly ActionDefinition[] = [...Object.values(todoActions), ...Object.values(todoOrganizeActions)];
 
 /**
- * The complete `todo.items.create` input for a fragment of anything (specs/contextual-interaction §10 P2); pure. The
+ * The complete `todo.items.create` input for a fragment of anything (specs/archive/contextual-interaction §10 P2); pure. The
  * todo remembers where it came from (the object and the words), and the same request creates it once.
  */
 export function prepareTodoFragmentOffers(input: FragmentOffersInput): FragmentActionOffer[] {

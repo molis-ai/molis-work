@@ -5,7 +5,7 @@ export const modulesFunctionsContract = {
   kind: "module",
   schemaVersion: 1,
   maturity: "partial",
-  ssot: "specs/functions-independent-authoring/spec.md",
+  ssot: "specs/archive/functions-independent-authoring/spec.md",
 } as const satisfies ContractDescriptor;
 
 export const FUNCTIONS_EVALUATE_CAPABILITY_ID = "functions.evaluate";

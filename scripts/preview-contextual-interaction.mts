@@ -1,5 +1,5 @@
 /**
- * High-fidelity slice of context-driven interaction (specs/contextual-interaction §9).
+ * High-fidelity slice of context-driven interaction (specs/archive/contextual-interaction §9).
  *
  * Real: the Pages editor bundle and its focus plugin, the workbench stylesheet and bottom bar markup, the Pages
  * fragment-offer declaration, the kernel layout policy and the Host judgment service. Labelled stand-ins: other

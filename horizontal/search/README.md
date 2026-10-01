@@ -46,7 +46,7 @@ pnpm --filter @molis-ai/molis-work-service-search build
   - 一次同步失败不删除已有条目；删除只在完整列出之后发生。
   - 索引可以整个删掉重建，重建后结果与删前一致。
 - 改动后必跑：`node scripts/run-tests.mjs tests/system-search.test.ts`
-- 相关手册：[docs/horizontal/search.md](../../docs/horizontal/search.md)、[specs/system-search/spec.md](../../specs/system-search/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+- 相关手册：[docs/horizontal/search.md](../../docs/horizontal/search.md)、[specs/archive/system-search/spec.md](../../specs/archive/system-search/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
 

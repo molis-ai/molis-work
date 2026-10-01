@@ -1,5 +1,5 @@
 /**
- * The real Workbench on an isolated Home for checking P1 by hand (specs/contextual-interaction §10): everything is the
+ * The real Workbench on an isolated Home for checking P1 by hand (specs/archive/contextual-interaction §10): everything is the
  * product path except the writing model, which is a labelled stand-in that answers after a pause (so a selection can
  * be changed while it waits). The judgment runs on the Home's own TypeSafe connection, or falls back to rules and says so.
  *

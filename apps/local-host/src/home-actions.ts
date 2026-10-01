@@ -102,7 +102,7 @@ export function homeActionProvider(home: string, projectId: string, boardId: str
     if (fn.action.subject_kinds.length && !fn.action.subject_kinds.includes(subject.kind)) throw new ActionError("actions.subject_incompatible", "所选首页判断规则不适用于此类事项");
     return fn;
   };
-  // The Dock's options are the contextual service's prepared subject offers (specs/contextual-interaction §6.4.3): the
+  // The Dock's options are the contextual service's prepared subject offers (specs/archive/contextual-interaction §6.4.3): the
   // same offers, keys and checks the context row and the Assistant's starting points use.
   const prepareOffers = async (subject: HomeSubject, caller: ActionCallContext, request_id: string): Promise<HomeActionOffer[]> => {
     const result = await prepareSubjectOffers(callerDirectory(services.actions, caller), { subject: { kind: subject.kind, id: subject.id }, request_id });

@@ -51,7 +51,7 @@
 
 ## 文件 / 模块边界
 
-允许改：Feed Plugin `ui.ts`、Workbench `navigation-feed.ts` / `events-primary.ts`、相关样式与 i18n、本 spec 指向的测试、`DESIGN.md` 一句产品事实、`specs/frame-task-navigation/spec.md` 中过时的「高级入口」表述。
+允许改：Feed Plugin `ui.ts`、Workbench `navigation-feed.ts` / `events-primary.ts`、相关样式与 i18n、本 spec 指向的测试、`DESIGN.md` 一句产品事实、`specs/archive/frame-task-navigation/spec.md` 中过时的「高级入口」表述。
 
 不改：out-rule 存储与求值、来源同步、GitHub/Gmail 授权协议、目录其它插件。
 

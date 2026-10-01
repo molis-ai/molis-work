@@ -343,7 +343,7 @@ function renderCoverageHtml(item: WebGoalView): string {
 }
 
 /**
- * The Goal's materials (specs/work-placement §4): create straight into this Goal's project and bind, list what is bound
+ * The Goal's materials (specs/archive/work-placement §4): create straight into this Goal's project and bind, list what is bound
  * with where it lives and whether it still opens. Plugin objects are filled in by the placement client from their owners.
  */
 function renderInputBindingsHtml(item: WebGoalView): string {
@@ -438,8 +438,10 @@ const { renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGeneralSettings
 });
 
 function prefixLocalLinks(html: string, routePrefix: string, desktopShell = false): string {
+  // Global settings and the capability service live outside any project; a Plugin linking to them from the
+  // project page means the global page (project settings come in through the __PROJECT_SETTINGS__ tokens).
   const prefixed = routePrefix
-    ? html.replace(/href="\/(?!locale(?:\?|")|projects\/)/g, `href="${routePrefix}/`)
+    ? html.replace(/href="\/(?!locale(?:\?|")|projects\/|settings(?:[/?#"])|capabilities(?:[/?#"]))/g, `href="${routePrefix}/`)
     : html;
   const resolved = prefixed
     .replaceAll('href="__PROJECT_INDEX__"', 'href="/"')

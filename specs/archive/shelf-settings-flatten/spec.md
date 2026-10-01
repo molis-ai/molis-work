@@ -35,7 +35,7 @@ Shelf 挂在工作台全局设置里。工作台已经有「设置 → Shelf」�
 
 ## 文件边界
 
-允许：`specs/archive/shelf-settings-flatten/`；`specs/shelf-plugin/spec.md`；`plugins/native/shelf/src/settings-ui.ts`、`settings-client.ts`、`styles.ts`；`plugins/native/shelf/README.md`；`tests/plugin-global-settings.test.ts`；`tests/shelf-plugin.e2e.test.ts`；对照图 README。
+允许：`specs/archive/shelf-settings-flatten/`；`specs/archive/shelf-plugin/spec.md`；`plugins/native/shelf/src/settings-ui.ts`、`settings-client.ts`、`styles.ts`；`plugins/native/shelf/README.md`；`tests/plugin-global-settings.test.ts`；`tests/shelf-plugin.e2e.test.ts`；对照图 README。
 
 ## 验收
 

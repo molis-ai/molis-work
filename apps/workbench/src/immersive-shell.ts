@@ -79,7 +79,7 @@ const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
 /**
  * Groups read as what the person wants to do, not as kinds of software: 推进 (the backbone plus its helpers),
  * 写与做 (things one makes), 个人 (what belongs to the person, 灵光 first), 研究, 编码. See
- * specs/plugin-e2e-review/spec.md §3.1.
+ * specs/archive/plugin-e2e-review/spec.md §3.1.
  */
 const RAIL_TOOL_GROUPS: ReadonlyArray<readonly [label: string, ids: readonly string[]]> = [
   ["推进", ["schedule", "workflows"]],
@@ -222,7 +222,6 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
     <nav class="container-tabs" data-container-tabs aria-label="${L("工作区标签")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
     <button class="mw-btn mw-btn--ghost background-tasks-button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-background-tasks-count>0</span></button>
-    <button class="mw-btn mw-btn--ghost plugin-notifications-button" type="button" data-plugin-notifications aria-label="${L("插件通知")}" title="${L("插件通知")}" hidden>${icon("bell")}<span data-plugin-notifications-count>0</span></button>
   </header>`;
 }
 

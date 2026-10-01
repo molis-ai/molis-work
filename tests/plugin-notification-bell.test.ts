@@ -5,35 +5,30 @@ import { EN } from "@molis-ai/molis-work-app-local-host";
 import { renderImmersiveHeader } from "../apps/workbench/src/immersive-shell.js";
 import { CLIENT_SCRIPT } from "../apps/workbench/src/browser-assets.js";
 import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/plugin-notifications.js";
+import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/assistant-island.js";
 import { renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 
 const primitives = { L: (value: string) => value, escapeHtml: (value: unknown) => String(value), icon };
 
-test("the title bar keeps a hidden plugin notifications bell after background tasks", () => {
+// One place holds what needs the person: the dock's "需要你看看" bell. Plugin notifications waiting for a decision
+// join it instead of a second bell in the title bar (decision 2026-10-01, specs/post-merge-review §9).
+test("the title bar has no bell of its own", () => {
   const header = renderImmersiveHeader(primitives, false);
-  const bell = header.match(/<button[^>]*data-plugin-notifications[^>]*>[\s\S]*?<\/button>/)?.[0] ?? "";
-  assert.ok(bell, "the bell is part of the title bar");
-  assert.match(bell, /\shidden>/, "no bell until a notification waits");
-  assert.match(bell, /aria-label="插件通知"/);
-  assert.match(bell, /href="#icon-bell"/);
-  assert.match(bell, /data-plugin-notifications-count/);
-  assert.ok(header.indexOf("data-background-tasks") < header.indexOf("data-plugin-notifications"), "the bell ends the title bar");
+  assert.doesNotMatch(header, /data-plugin-notifications/);
+  assert.doesNotMatch(header, /href="#icon-bell"/);
+  assert.doesNotMatch(renderMolisWorkWorkbenchStylesheet(), /plugin-notifications-button/);
 });
 
-test("the bell is wired into the workbench, stays out of embedded panes and has English copy", () => {
-  assert.ok(CLIENT_SCRIPT.includes(PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT), "the workbench program starts the bell");
-  // Every split pane is its own page; only the window's own title bar reads the notifications.
-  assert.match(PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT, /if \(!button \|\| !projectId \|\| document\.body\.dataset\.paneEmbedded === "true"\) return;/);
-  assert.equal(EN["插件通知"], "Plugin notifications");
+test("waiting plugin notifications reach the dock bell, which opens the market on them", () => {
+  assert.ok(CLIENT_SCRIPT.includes(PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT), "the workbench program reads the notifications");
+  // Every split pane is its own page; only the window itself reads them.
+  assert.match(PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT, /if \(!projectId \|\| document\.body\.dataset\.paneEmbedded === "true"\) return;/);
+  assert.match(PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT, /molis-work:plugin-events-waiting/);
+  assert.match(PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT, /molis-work:plugin-events-open/);
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /addEventListener\("molis-work:plugin-events-waiting"/);
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new CustomEvent\("molis-work:plugin-events-open"\)/);
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /\.length \+ pluginWaiting;/, "they count as something waiting for the person");
   assert.equal(EN["插件通知：{count} 条待核对"], "Plugin notifications: {count} to review");
-});
-
-test("the bell sits at the end of the title bar with the waiting mark of background tasks", () => {
-  const css = renderMolisWorkWorkbenchStylesheet();
-  assert.match(css, /\.immersive-titlebar \.plugin-notifications-button \{[^}]*order: 5;[^}]*margin-left: auto;/);
-  assert.match(css, /\.background-tasks-button:not\(\[hidden\]\) ~ \.plugin-notifications-button \{ margin-left: 0; \}/);
-  assert.match(css, /\.immersive-titlebar \.plugin-notifications-button::after \{[^}]*border-radius: 50%;[^}]*background: var\(--accent, currentColor\);/);
-  // Phone tabs take their own row; the bell joins the history buttons rather than opening a third.
-  assert.ok(css.includes("@media (max-width: 600px) { body.immersive-workbench .immersive-titlebar :is(.plugin-notifications-button, "
-    + ".background-tasks-button:not([hidden]) ~ .plugin-notifications-button) { order: 1; margin-left: auto; } }"));
+  assert.equal(EN["去核对"], "Check it");
+  assert.equal(EN["插件通知"], undefined, "the title bar's label left with it");
 });

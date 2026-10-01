@@ -88,7 +88,7 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home "$HOME
 ## 进一步阅读
 
 - [DESIGN.md](../../DESIGN.md)：Soft Workbench 规范——色、字、密度、外壳与底栏几何、动效、引导
-- [Soft Workbench 迁移记录](../../specs/soft-workbench-rollout/spec.md)与[清单](../../specs/soft-workbench-rollout/inventory.md)
+- [Soft Workbench 迁移记录](../../specs/archive/soft-workbench-rollout/spec.md)与[清单](../../specs/archive/soft-workbench-rollout/inventory.md)
 - [UI Platform](../../docs/platform/UI-PLATFORM.md)：Workbench / UI Host / Design System 分工
 - [SSOT 索引](../../docs/SSOT-MATRIX.md)
 
@@ -96,4 +96,4 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home "$HOME
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/ui`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap3`
 
-当前行为以本包公开入口、组件板、调用方和对应测试为准。Coss 全表落地过程见 `specs/coss-primitive-library/spec.md`，Soft Workbench 迁移见 `specs/soft-workbench-rollout/`；那些是任务书，不是用法手册。
+当前行为以本包公开入口、组件板、调用方和对应测试为准。Coss 全表落地过程见 `specs/archive/coss-primitive-library/spec.md`，Soft Workbench 迁移见 `specs/archive/soft-workbench-rollout/`；那些是任务书，不是用法手册。

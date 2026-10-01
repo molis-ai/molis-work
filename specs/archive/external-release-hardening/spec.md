@@ -1,6 +1,6 @@
 # 面向外部用户的发布加固
 
-> 状态说明：本文关于 workspace default 的设计已被后续 `specs/session-workspace-redesign/` 取代。当前产品只保留 workspace 历史候选，每个新 Session 都明确确认 Project；下文相关段落仅作为历史决策记录，不应继续实现。
+> 状态说明：本文关于 workspace default 的设计已被后续 `specs/archive/session-workspace-redesign/` 取代。当前产品只保留 workspace 历史候选，每个新 Session 都明确确认 Project；下文相关段落仅作为历史决策记录，不应继续实现。
 
 ## 背景与目标
 

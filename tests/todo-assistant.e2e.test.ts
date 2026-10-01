@@ -17,7 +17,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: a todo is handed to the 
   // A draft the Assistant made and linked back, with where it opens.
   const item = store.link(made.id, { add: { kind: "outcome", subject: { kind: "pages_document", id: "doc-reply" }, title: "给王总的回电要点", outcome: "draft", open: { surface: "pages", id: "doc-reply" } } }, made.revision, scope).item;
   store.close();
-  const output = new URL(`../${specEvidenceDirectory("specs/todo-plugin/verification")}/`, import.meta.url);
+  const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const heard = async () => await evaluate<Heard[]>("window.__heard");
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "window.__heard = []; addEventListener('molis:assistant-message', event => window.__heard.push(event.detail));" }, sessionId);

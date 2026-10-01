@@ -1,9 +1,9 @@
 /**
- * Does a recalled memory change the judgment (specs/contextual-interaction AC-C12, P3)? Offline, with real Jev: the same
+ * Does a recalled memory change the judgment (specs/archive/contextual-interaction AC-C12, P3)? Offline, with real Jev: the same
  * selection is judged without and with one memory item in the judgment state, over the real fragment-offer
  * declarations of Pages, Goals, 灵光 and search. A control case carries an unrelated memory and should not move.
  *
- *   pnpm exec tsx scripts/contextual-slice/evaluate-memory.mts [--out specs/contextual-interaction/evidence/p3-memory-jev.json]
+ *   pnpm exec tsx scripts/contextual-slice/evaluate-memory.mts [--out specs/archive/contextual-interaction/evidence/p3-memory-jev.json]
  *
  * The key is read in-process from the person's own Home (consented 2026-09-30) and never printed or written.
  */

@@ -89,7 +89,7 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     assert.match(recalled(inB.first), /memory-recall[\s\S]{0,400}回答用要点列表/, "the personal memory reaches the round as Prologue memory-recall data");
     assert.doesNotMatch(recalled(inB.first), /NSM/);
     assert.deepEqual((await service.memories("project-b")).map(item => item.text), ["回答用要点列表"]);
-    // The panel sees what each round was given, and what the work kept (specs/memory-system §7.3, §10.3).
+    // The panel sees what each round was given, and what the work kept (specs/archive/memory-system §7.3, §10.3).
     const inBView = await service.read(inB.work.work_id);
     assert.deepEqual(inBView.rounds[0]!.memories_used?.used.map(item => [item.scope, item.text]), [["personal", "回答用要点列表"]]);
     const firstView = await service.read(first.work.work_id);
@@ -170,7 +170,7 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
   const tools = (body: any) => (body.tools as Array<{ name: string }>).map(tool => tool.name);
   const lesson = { text: "项目甲的周报先写风险，再写进展", scope: "project", why: "这次和上次你都把风险挪到了最前面", applies: "写项目甲的周报时" };
   try {
-    // The platform default is on (specs/memory-system §10.1); switched off, the tool is not offered and nothing can be suggested.
+    // The platform default is on (specs/archive/memory-system §10.1); switched off, the tool is not offered and nothing can be suggested.
     assert.deepEqual([service.memoryPrefs().learn_personal, service.memoryPrefs().learn_project], [true, true]);
     service.saveMemoryPrefs({ learn_personal: false, learn_project: false });
     const first = await service.send({ text: "写周报", request_id: "req-candidate-1" }, { project_ref: project });

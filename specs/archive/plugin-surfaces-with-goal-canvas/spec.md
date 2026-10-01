@@ -2,7 +2,7 @@
 
 状态：完成。完成等级：3 功能可用。修正 immersive 里 Inbox / Feed / Artifacts 点不开、Inbox 详情主信息排错、Artifact 列表露内部 id。
 
-承接 `specs/inbox-feed-plugin-split/spec.md` 浏览器走查，以及 `specs/workbench-frame-container/spec.md` 里「点目录非 Goal 在 Goal 画布上拒绝」的过宽实现。
+承接 `specs/archive/inbox-feed-plugin-split/spec.md` 浏览器走查，以及 `specs/archive/workbench-frame-container/spec.md` 里「点目录非 Goal 在 Goal 画布上拒绝」的过宽实现。
 
 ## 背景目标
 
@@ -62,7 +62,7 @@ Artifacts 浏览器用 `artifact_id` 当标题。Feed capture 的 id 是 `feed-c
 - 改：`apps/workbench/src/scripts/client/events-secondary.ts`、`documents-state.ts`、`frame-container.ts`
 - 改：`packages/design-system/src/styles/source-feed.ts`、`plugins/native/inbox/src/ui.ts`
 - 改：`plugins/native/artifacts/src/browser.ts`（标题函数）、`browser-ui.ts`
-- 改：`specs/workbench-frame-container/spec.md` 打开表
+- 改：`specs/archive/workbench-frame-container/spec.md` 打开表
 - 测：现有 immersive / Frame / artifact-browser / inbox-plugin 定向；按新语义改断言
 - 不改：`modules/artifacts`、`modules/feed`、Frame 构图 localStorage 形状
 

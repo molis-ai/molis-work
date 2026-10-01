@@ -2,7 +2,7 @@
 
 状态：已实现。完成等级 **3：功能可用**。不宣称可发布。不改用户真实库、不提交、不发布。
 
-本文件是本次体验变更的唯一需求书。它在 Goals 母标签（见 `specs/workbench-tab-workspace/spec.md`）上增加与关系画布平级的看板视图，不取代画布、Goal 工作框、item 标签或 Frame。
+本文件是本次体验变更的唯一需求书。它在 Goals 母标签（见 `specs/archive/workbench-tab-workspace/spec.md`）上增加与关系画布平级的看板视图，不取代画布、Goal 工作框、item 标签或 Frame。
 
 Goals 母标签页右上角用开关切换「画布 | 看板」。Frame 仍只在标题栏出现。主屏插件组 / item 标签仍由 tab-workspace 管。
 

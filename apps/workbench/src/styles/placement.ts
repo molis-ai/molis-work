@@ -1,4 +1,4 @@
-/** Placement bar, panel, dialogs and completion cards (specs/work-placement §4). Shared tokens only; no new visual system. */
+/** Placement bar, panel, dialogs and completion cards (specs/archive/work-placement §4). Shared tokens only; no new visual system. */
 export const PLACEMENT_STYLES = `
   /* The bar gives way in a crowded header: the location ellipsizes rather than pushing the plugin's own buttons out. */
   [data-placement-slot], .plugin-stage-detail-bar > span[data-placement-slot] { display: inline-flex; flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; }

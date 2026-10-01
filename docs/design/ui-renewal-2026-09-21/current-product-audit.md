@@ -134,7 +134,7 @@ node dist/web/server.js --home /tmp/molis-ui-renewal-preview --port 4182
 ### 主要依据
 
 - 产品与边界：`PRODUCT.md`、`docs/SSOT-MATRIX.md`、`docs/cli-and-development.md`。
-- 品味与工艺：`DESIGN.md`、`docs/design/taste.md`、`packages/design-system/README.md`、`specs/ui-craft-floor/spec.md`、`specs/product-interaction-redesign/{spec,inventory}.md`。
+- 品味与工艺：`DESIGN.md`、`docs/design/taste.md`、`packages/design-system/README.md`、`specs/ui-craft-floor/spec.md`、`specs/archive/product-interaction-redesign/{spec,inventory}.md`。
 - Goal：`plugins/native/goals/src/event-document-ui.ts`、`modules/goals/src/event-state-completion.ts`、`apps/cli/src/command-dispatch.ts`。
 - Shell/Home：`apps/workbench/src/{immersive-shell,plugin-catalog,project-home,home-flow,page-assets}.ts`、`scripts/client/project-home.ts`。
 - 插件：各 `plugins/native/*/README.md`，Inbox/Feed/Schedule/Functions/Coding 的 `src/ui.ts`，`apps/local-host/src/coding-surface.ts`，`specs/coding-plugin/spec.md`。

@@ -1,4 +1,4 @@
-/** The search palette's content results: scope switch, status line, snippets and "more" (specs/system-search §9). */
+/** The search palette's content results: scope switch, status line, snippets and "more" (specs/archive/system-search §9). */
 export const GLOBAL_SEARCH_CONTENT_STYLES = `
   .global-search-scopes { display: flex; gap: 4px; padding: 8px 12px 0; flex-wrap: wrap; }
   .global-search-scopes[hidden] { display: none; }

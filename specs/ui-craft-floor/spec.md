@@ -1,5 +1,7 @@
 # UI 工艺底线：系统控件、图标色、动效都算本切片
 
+状态：现行规范（2026-10-01 合入后梳理确认）。界面工艺底线，开发过程规则。
+
 完成等级：**规范生效**。本文件管开发过程，不宣称把现存所有违规一次清掉。
 
 ## 背景目标
@@ -44,7 +46,7 @@ UI 切片的完成条件包括工艺，不只功能：
 
 ## 文件 / 模块边界
 
-允许：本 spec、`DESIGN.md`、`docs/cli-and-development.md`、`docs/platform/UI-PLATFORM.md`、`packages/design-system/README.md`、`specs/archive/mw-select-custom-menu/spec.md`、`specs/coss-primitive-library/spec.md`。
+允许：本 spec、`DESIGN.md`、`docs/cli-and-development.md`、`docs/platform/UI-PLATFORM.md`、`packages/design-system/README.md`、`specs/archive/mw-select-custom-menu/spec.md`、`specs/archive/coss-primitive-library/spec.md`。
 
 禁止：借本规范改 Goal 事实、MCP、凭据。
 

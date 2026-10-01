@@ -34,10 +34,11 @@ function fixture(t: { after(fn: () => void): void }, now = () => new Date("2026-
 
 const titles = (result: TodoListResult) => result.items.map(item => item.title).sort();
 
-test("manifest parses, every action is home-scoped (the home page source is per project) and delete is the only irreversible one", () => {
+test("manifest parses, every action is home-scoped (the home page source and a project's search source are per project) and delete is the only irreversible one", () => {
   const manifest = parsePluginManifest(JSON.parse(JSON.stringify(todoManifest)));
   assert.equal(manifest.plugin_id, "io.molis.work.todo");
-  for (const definition of todoManifest.actions!) assert.equal(definition.action.scope, definition.capability_id === "todo.home.events" ? "project" : "home", definition.capability_id);
+  const perProject = new Set(["todo.home.events", "todo.search.project_entries"]);
+  for (const definition of todoManifest.actions!) assert.equal(definition.action.scope, perProject.has(definition.capability_id) ? "project" : "home", definition.capability_id);
   const irreversible = todoManifest.actions!.filter(definition => actionEffect(definition.action, definition.capability_id) === "irreversible").map(definition => definition.capability_id);
   assert.deepEqual(irreversible, ["todo.items.delete"]);
   assert.deepEqual(actions.create.action.result_subject, { id: "item.id", revision: "item.revision" });
@@ -200,6 +201,11 @@ test("search entries and the object reader follow the caller's scope", async t =
   assert.equal(context.project_id, null, "个人待办不属于项目");
   const inA = (await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project" })).item;
   assert.equal((await f.agentA.invoke(todoSearchActions.subject, { subject_id: inA.id })).project_id, "project-a", "项目待办说明属于哪个项目");
+  // A project's todos are searched with that project: its own source lists them, the personal source never does.
+  assert.deepEqual((await f.agentA.invoke(todoSearchActions.projectEntries, { cursor: null, limit: 50 })).entries.map(entry => entry.title), ["A 项目的事"]);
+  assert.deepEqual((await f.inB.invoke(todoSearchActions.projectEntries, { cursor: null, limit: 50 })).entries.map(entry => entry.title), ["B 项目的事"]);
+  assert.deepEqual((await f.agentA.invoke(todoSearchActions.entries, { cursor: null, limit: 50 })).entries.map(entry => entry.title), ["个人的事"]);
+  await assert.rejects(f.me.invoke(todoSearchActions.projectEntries, { cursor: null, limit: 50 }), { code: "actions.project_required" }, "没有项目时不列项目待办");
   await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: inB.id }), { code: "todo.not_found" });
   // The person at Home (the placement panel after a move) reads a project's todo and learns where it is; an agent at Home does not.
   assert.equal((await f.me.invoke(todoSearchActions.subject, { subject_id: inB.id })).project_id, "project-b");

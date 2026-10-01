@@ -48,7 +48,7 @@ const sameObject = (ref: ObjectRef, kind: string, id: string) => ref.module === 
 interface Read { state: PlacementObjectState; reason: string | null; context: ActionSubjectContext | null; plugin: { plugin_id: string; title: string } | null }
 
 /**
- * Where an object lives and what it is linked to (specs/work-placement §7.2). Object facts are always read back from
+ * Where an object lives and what it is linked to (specs/archive/work-placement §7.2). Object facts are always read back from
  * their owner through the shared directory; this service only owns the relations it records: where a moved object went,
  * which projects use a personal object, and what a copy or conversion came from.
  */

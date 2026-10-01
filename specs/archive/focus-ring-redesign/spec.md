@@ -46,7 +46,7 @@ box-shadow: none;
 
 ## 输入输出与依赖
 
-输入：既有 DOM 与 `--focus` token。输出：共享焦点配方。依赖 [interaction-texture-upgrade](../../interaction-texture-upgrade/spec.md) 的色板与层级，本 spec 替换其中「1px + 3.5px halo」决定。
+输入：既有 DOM 与 `--focus` token。输出：共享焦点配方。依赖 [interaction-texture-upgrade](../interaction-texture-upgrade/spec.md) 的色板与层级，本 spec 替换其中「1px + 3.5px halo」决定。
 
 ## 文件 / 模块边界
 
@@ -54,7 +54,7 @@ box-shadow: none;
 - `packages/design-system/src/styles/interaction-texture.ts`：字段与画布选中。
 - `packages/design-system/src/styles/micro-interactions.ts`：末层兜底，保证工作台全局是内侧环。
 - 工作台 / 设置 / 插件里仍写 `outline-offset: 2px|3px` 的焦点规则改成内侧。
-- `DESIGN.md`、本 spec；[coss-primitive-library](../../coss-primitive-library/spec.md) 里那句 halo 底线一并改。
+- `DESIGN.md`、本 spec；[coss-primitive-library](../coss-primitive-library/spec.md) 里那句 halo 底线一并改。
 
 不改 MCP、凭据、插件协议、用户数据。
 

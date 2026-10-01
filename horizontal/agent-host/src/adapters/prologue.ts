@@ -94,6 +94,10 @@ export interface PrologueModelConfiguration {
 export interface PrologueAdapterPorts {
   /** The current model configuration, or null when the user has not set one. */
   modelConfiguration(selection?: AgentStartRequest["model_selection"]): Promise<PrologueModelConfiguration | null>;
+  /** Why the Host held the run's latest ending, in the person's words (the runtime's event does not say), taken once. */
+  stopHeld?(runId: string): { target: string; summary: string } | undefined;
+  /** True when the run ended (its last words given) still only saying what it would do after its one continuation. */
+  endedOnPromise?(runId: string, sessionId: string, lastText: string): boolean;
 }
 
 export interface PrologueRunPort {
@@ -652,7 +656,18 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         initialPromptPending = false;
         if (event.text === request.task) return;
       }
-      if (!applyPrologueEvent(record.state, event, this.#now().toISOString())) return;
+      const at = this.#now().toISOString();
+      if (!applyPrologueEvent(record.state, event, at)) return;
+      // A held ending reads as what was wrong with it; one that ended still only announcing says nothing was done.
+      if (event.type === "model-response-repair" && event.reason === "stop-held") {
+        const label = this.#ports.stopHeld?.(ref.run_id), held = [...record.state.activity].reverse().find(item => item.call_id.startsWith("model-held-"));
+        if (label && held) Object.assign(held, label);
+      }
+      if (event.type === "completed" && this.#ports.endedOnPromise?.(ref.run_id, ref.session_id, [...record.state.turns].reverse().find(turn => turn.kind === "assistant")?.text ?? "")) {
+        const sequence = record.state.next_sequence++;
+        record.state.activity.push({ call_id: `model-end-${sequence}`, name: "只说未做", target: "最后只说了要做什么，没有执行", state: "failed",
+          summary: "续做一次后，这一轮的结尾仍只说明了接下来要做什么、没有调用工具：什么都没有执行", at, sequence });
+      }
       // An effect the Run is stopped on goes in front of the user before
       // anything else happens. Failing to mirror it must not look like the
       // effect was allowed, so the failure is recorded on the run instead.

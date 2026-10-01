@@ -660,6 +660,7 @@ const COMMON_FIELD_LABELS: Readonly<Record<string, string>> = {
   kind: "类型", type: "类型", status: "状态", priority: "优先级", category_id: "分类", tags: "标签", url: "链接",
   date: "日期", start_date: "开始日期", end_date: "结束日期", due_date: "截止日期", start_time: "开始时间", end_time: "结束时间", time_zone: "时区",
   starts_at: "开始", ends_at: "结束", remind_at: "提醒时间", expected_revision: "基于的版本", expected_version: "基于的版本", id: "对象", item: "内容",
+  markdown: "正文", folder_id: "文件夹", goal_id: "目标", project_id: "项目", starred: "加星标",
 };
 export function actionFieldLabel(key: string, declared?: { title?: string; description?: string }): string {
   if (declared?.title) return declared.title;

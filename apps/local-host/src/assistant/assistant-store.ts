@@ -330,6 +330,14 @@ export class AssistantStore {
     return row ? String(row.value) : null;
   }
 
+  /** The title last seen for an object with this identifier, whatever its kind (titles are kept as `object-title:<kind>:<id>`). */
+  objectTitleById(actorId: string, id: string): string | null {
+    if (!id || id.length > 200) return null;
+    const escaped = id.replace(/[\\%_]/g, character => `\\${character}`);
+    const row = this.db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key LIKE ? ESCAPE '\\' LIMIT 1").get(actorId, `object-title:%:${escaped}`);
+    return row ? String(row.value) : null;
+  }
+
   setSetting(actorId: string, key: string, value: string): void {
     this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, ?, 1, ?)
       ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);

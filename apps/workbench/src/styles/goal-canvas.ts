@@ -408,9 +408,26 @@ export const GOAL_CANVAS_STYLES = `
     body.immersive-workbench .goal-work-planning-toggle { width: var(--control-h, 32px); min-width: var(--control-h, 32px); padding: 0; }
     body.immersive-workbench .goal-work-planning-toggle > span { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   }
+  /* The toolbar explains itself without guessing at icons (specs/plugin-e2e-review §5.1): the view you are in is named,
+     the other two stay icons; the status filter is named when there is room; New Goal, the page's one primary action,
+     keeps its words at every width. */
+  body.immersive-workbench .goal-board-switch > .mw-toggle { gap: 6px; }
+  body.immersive-workbench .goal-board-switch > .mw-toggle:not([aria-pressed="true"]) > .goal-board-switch-label { display: none; }
+  body.immersive-workbench .goal-board-switch > .mw-toggle[aria-pressed="true"] { width: auto; padding: 0 10px 0 8px; grid-auto-flow: column; }
+  body.immersive-workbench .goal-board-switch-label { font-size: 12px; white-space: nowrap; }
+  @container plugin-stage (min-width: 641px) {
+    body.immersive-workbench [data-goal-stage-chrome] [data-tree-filter-trigger] { width: auto; padding: 0 10px 0 8px; gap: 6px; grid-auto-flow: column; }
+    body.immersive-workbench [data-goal-stage-chrome] [data-tree-filter-trigger] > span { display: inline; font-size: 12px; }
+  }
+  /* A phone-width stage fits one row by giving way on the secondary controls, not on New Goal's words: the view switch
+     shows its state by the pressed fill alone, and the icon-only controls narrow to 38px (still 44px tall to touch). */
   @container plugin-stage (max-width: 440px) {
-    body.immersive-workbench [data-goal-stage-chrome] .tree-create { width: var(--control-h, 32px); min-width: var(--control-h, 32px); padding: 0; justify-content: center; }
-    body.immersive-workbench [data-goal-stage-chrome] .tree-create > span { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+    body.immersive-workbench [data-goal-stage-chrome] { gap: 4px; }
+    body.immersive-workbench [data-goal-stage-chrome] .tree-create { padding: 0 10px 0 8px; gap: 4px; }
+    body.immersive-workbench [data-goal-stage-chrome] :is(.tree-chrome, .tree-tools) { gap: 4px; }
+    body.immersive-workbench .goal-board-switch > .mw-toggle[aria-pressed="true"] > .goal-board-switch-label { display: none; }
+    body.immersive-workbench .goal-board-switch > .mw-toggle[aria-pressed="true"] { padding: 0; }
+    body.immersive-workbench [data-goal-stage-chrome] :is([data-tree-filter-trigger], .goal-work-planning-toggle) { width: 38px; min-width: 38px; }
   }
   [data-goal-stage-chrome] .tree-filter-control { position: relative; z-index: 1; }
   [data-goal-stage-chrome] [data-tree-filter-trigger] { position: relative; z-index: 1; pointer-events: auto; }

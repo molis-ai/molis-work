@@ -75,6 +75,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
   const page = fakePage(decisions, start);
+  const browser = { on: true };
   const requests: any[] = [];
   let turn = 0;
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
@@ -86,7 +87,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.side-surface-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
     resolveCredential: () => "fixture-only",
-    surfaces: { driverFor: owner => owner === "board" ? page.driver : null, siteDecisions: () => decisions } });
+    surfaces: { driverFor: owner => owner === "board" && browser.on ? page.driver : null, siteDecisions: () => decisions } });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
@@ -94,9 +95,9 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
-  const send = (text: string) => service.send({ text, request_id: `req-${Math.random().toString(36).slice(2, 10)}`, context: { source: { surface: "home", title: "项目首页" }, captured_at: new Date().toISOString() } }, { project_ref: project });
+  const send = (text: string, work_id?: string) => service.send({ ...(work_id ? { work_id } : {}), text, request_id: `req-${Math.random().toString(36).slice(2, 10)}`, context: { source: { surface: "home", title: "项目首页" }, captured_at: new Date().toISOString() } }, { project_ref: project });
   const pending = () => until(() => queue.list("board", "pending")[0], "a pending review");
-  return { service, queue, requests, page, send, pending, adapter, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, queue, requests, page, browser, send, pending, adapter, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("from a blank page the Assistant looks, then opens a site and clicks only after the person approves each step", { timeout: 60_000 }, async t => {
@@ -221,4 +222,25 @@ test("turning the Assistant's browser off stops a round that already holds the p
   on = false;
   await assert.rejects(driver.observe("accessibility-tree", { session_id: "s" }), /允许助理使用侧栏浏览器/u);
   await assert.rejects(driver.perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, { session_id: "s" }), /允许助理使用侧栏浏览器/u);
+});
+
+test("a work that already holds the page gets no browser in its next round once the person turned it off", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "surface-list", input: {} }),
+    body => reply({ name: "surface-observe", input: { target: targetOf(body), kind: "accessibility-tree" } }),
+    () => reply(undefined, "看过了。"),
+    () => reply(undefined, "侧栏浏览器已经关掉，我看不了页面。"),
+  ], [], "https://example.com");
+  try {
+    const first = await f.send("看看侧栏浏览器里的页面");
+    await until(async () => (await f.service.read(first.work.work_id)).work.state === "completed", "the first round");
+    assert.equal(f.page.looks(), 1);
+    f.browser.on = false;
+    const requestsBefore = f.requests.length;
+    await f.send("再看一次", first.work.work_id);
+    await until(async () => { const view = await f.service.read(first.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "the second round");
+    const offered = f.requests[requestsBefore].tools.map((tool: any) => tool.name);
+    assert.equal(offered.some((name: string) => name.startsWith("surface-")), false, `no surface tools after the switch-off: ${offered.join(",")}`);
+    assert.equal(f.page.looks(), 1, "the page was not looked at again");
+  } finally { await f.close(); }
 });

@@ -2,9 +2,9 @@
 
 复查结论：确认 2 个 P1、3 个 P2，复查当时不能按“无损完成”交付。新增回归涉及并发恢复、连接生命周期和启动恢复；示例项目重置是旧版已有但本轮遗漏的故障，按需界面缺少资源挂起后的恢复。此前工程回归通过的记录仍有效，但没有覆盖这些路径。
 
-当前状态：用户授权后，五项问题及回归追加发现的首次目录初始化竞态均已修正；工程验收通过。下面保留修正前的触发条件与旧版对照，修正结果见末节。整体原生桌面输入验收仍缺证据，不宣称原始卡死已取得现场根因。
+当前状态：用户授权后，五项问题及首次目录初始化竞态已修正，PR 验证追加发现的热状态采样问题也已修正，Cognia 按需加载断言已同步；定向及相关模块回归通过。下面保留修正前的触发条件与旧版对照，修正结果见末节。全量非 E2E 未完成、整体原生桌面输入验收仍缺证据，不宣称原始卡死已取得现场根因。
 
-范围：复查 `62cbc14d..a6b1b29b` 的六项性能修复及相关调用链，在 `/private/tmp/molis-project-management-freeze` 执行隔离复现，并与干净的 `62cbc14d` 已构建产物对照。复查阶段未修改生产源码，后续修正仍在该隔离工作树；未替换真实应用、服务或 Home。需求与验收以 [spec](/private/tmp/molis-project-management-freeze/specs/performance-preserving-fixes/spec.md) 为准。
+范围：复查 `62cbc14d..a6b1b29b` 的六项性能修复及相关调用链，在 `/private/tmp/molis-project-management-freeze` 执行隔离复现，并与干净的 `62cbc14d` 已构建产物对照。复查阶段未修改生产源码；PR 追加修正后来恢复到 `/Users/yijunwang/code/molis-work-performance-pr` 隔离工作树，未替换真实应用、服务或 Home。以下旧路径和位置记录复查当时的触发点；需求与验收以 [spec](../../specs/performance-preserving-fixes/spec.md) 为准。
 
 ## P1：并发恢复会删除已登记的新项目数据库（新增回归）
 
@@ -96,4 +96,6 @@ NODE_ENV=test MOLIS_WORK_SECRET_BACKEND=file node --import tsx --test .impeccabl
 
 新增并发用例还暴露旧版首次 Catalog 初始化的 `table catalog_meta already exists`：多个连接先读到不存在，后来者未重读便重复初始化。已在取得初始化写事务后核对真实表、owner 与 schema，合法目录复用，未知/未来目录拒绝。保留原并发用例，修正后通过；没有新增锁系统或业务数据库格式。
 
-最终整体构建、依赖边界检查通过；目录/恢复 28、Host/权限/备份/Home 隔离 53、Workbench 30、规划重绑定 4 项均通过、零失败/跳过。这些集合有重叠，不累加为唯一用例总数。资源挂起与迟到响应、普通 Web 和 desktop=1 的 Coding→管理项目→搜索→返回真实 Chrome 路径也通过。各命令、日志及有效证据边界完整记录在 [spec 的实施结果](/private/tmp/molis-project-management-freeze/specs/performance-preserving-fixes/spec.md:200)。未安装、推送或发布。
+修正阶段整体构建、依赖边界检查通过；目录/恢复 28、Host/权限/备份/Home 隔离 53、Workbench 30、规划重绑定 4 项均通过、零失败/跳过。这些集合有重叠，不累加为唯一用例总数。资源挂起与迟到响应、普通 Web 和 desktop=1 的 Coding→管理项目→搜索→返回真实 Chrome 路径也通过。各命令及有效证据边界记录在 [spec 的实施结果](../../specs/performance-preserving-fixes/spec.md#已完成结果与证据)。已提交 [PR #150](https://github.com/molis-ai/molis-work/pull/150)，未安装或发布。
+
+PR 追加验证发现热状态在步骤图异步读取前采样 phase，会将期间已经结束的执行仍报为 running；受控用例在干净基线返回 completed、旧 PR 返回 running。已恢复在返回时读取热状态，冷投影仍保留原 owner/recovery 检查。Cognia 原 shell 全量加载断言改为检查按需资源入口与真实客户端 API，原领域界面断言保留。追加整体构建、边界检查通过；定向 25 项、Agent/Prologue 385 项通过（原条件用例 2 项跳过），真实 Chrome 5 项通过。首轮全量在发现失败后中止，修正后未完整重跑，不能称全量通过；命令、日志及限制见 [PR 验证补充](../../specs/performance-preserving-fixes/spec.md#pr-提交后的验证补充2026-10-01)。

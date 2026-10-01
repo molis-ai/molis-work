@@ -448,6 +448,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async readSessionStatus(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }> {
+    let projected: Awaited<ReturnType<NonNullable<PrologueRuntimePort["sessions"]["readStatus"]>>>;
     if (!this.#sessions.has(session.session_id) && this.#runtime.sessions.readStatus) {
       // A detail restore already under way must win over a second cold projection.
       const restoring = this.#restoring.get(session.session_id);
@@ -456,17 +457,12 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         const saved = await this.#runtime.sessions.readStatus(session.session_id);
         if (!saved) { this.#requireSession(session.session_id); throw new PrologueAdapterError("agent.session_unknown", "找不到这条会话"); }
         // A start/detail read may have completed while the SDK reads were in flight.
-        if (!this.#sessions.has(session.session_id)) return this.#sessionStatus(session, saved.owner,
-          saved.latest ? restorePrologueRun(saved.latest).state.phase : null, Boolean(saved.recovery), saved.planned);
+        if (!this.#sessions.has(session.session_id)) projected = saved;
       }
     }
-    const record = await this.#loadSession(session.session_id);
-    const latest = record.runs.at(-1);
-    const planned = [...record.runs].reverse().find(ref => this.#requireRun(ref.run_id).view.frozen.execution_plan);
-    return this.#sessionStatus(session, record.owner, latest ? this.#requireRun(latest.run_id).view.phase : null, Boolean(record.recovery), planned);
-  }
-
-  async #sessionStatus(session: AgentSessionRef, owner: AgentSessionView["owner"], phase: AgentSessionStatus["latest_phase"], recovery: boolean, planned?: AgentRunRef) {
+    const record = projected ? undefined : await this.#loadSession(session.session_id);
+    const latest = record?.runs.at(-1);
+    const planned = record ? [...record.runs].reverse().find(ref => this.#requireRun(ref.run_id).view.frozen.execution_plan) : projected?.planned;
     // Who holds the unfinished steps of the latest planned round: a directory shows what waits on the person.
     let steps: AgentSessionStatus["steps"];
     if (planned && this.#runtime.readStepBoard) {
@@ -477,8 +473,12 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         if (open.length) steps = { mine: count("person"), subtasks: count("subtask"), unowned: count("none") };
       } catch { /* an unreadable graph shows no counts, never made-up ones */ }
     }
-    return { owner: { ...owner }, status: { session_id: session.session_id, latest_phase: phase,
-      recovery, checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
+    // A live run may end while the step graph is being read; sample its phase at return.
+    const facts = record ?? projected!;
+    const phase = record ? (latest ? this.#requireRun(latest.run_id).view.phase : null)
+      : (projected!.latest ? restorePrologueRun(projected!.latest).state.phase : null);
+    return { owner: { ...facts.owner }, status: { session_id: session.session_id, latest_phase: phase,
+      recovery: Boolean(facts.recovery), checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
       ...(steps && (steps.mine || steps.subtasks || steps.unowned) ? { steps } : {}) } };
   }
 

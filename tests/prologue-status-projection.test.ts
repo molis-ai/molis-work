@@ -6,6 +6,41 @@ const owner = { board_id: "status-board", plugin_id: "io.molis.work.coding", ins
 const frozen = { role_id: "reader", role_version: 1, execution: "read-only" as const, model_id: "fixture", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null };
 const ref = { session_id: "status-session", runtime_id: "prologue" };
 
+test("warm status reads the current phase after an asynchronous step board lookup", async () => {
+  let emit: (event: PrologueEvent) => void = () => {};
+  let enter!: () => void, release!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; });
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const plan = { source: { artifact_id: "warm-plan", version: 1 }, title: "Plan", steps: [{ id: "step-1", title: "Read", acceptance: "Read the result" }] };
+  const adapter = new PrologueAgentAdapter({
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://fixture.invalid/messages", model: "fixture", credential_ref: "fixture" }),
+    runtime: {
+      sessions: { create: async () => ({ ref: { id: "warm-status" } }) },
+      readStepBoard: async () => { enter(); await held; return undefined; },
+      startAgentRun: async () => ({
+        run: { ref: { id: "warm-run" }, subscribe: listener => { emit = listener; return () => {}; }, cancel: async () => {} },
+        control: { state: "running", stop: () => {}, pause: () => {}, resume: () => {}, steer: () => {}, subscribe: () => () => {} },
+      }),
+      shutdown: async () => {},
+    },
+  });
+  try {
+    const directory = { canonical_path: "/tmp/warm-status", realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, title: "Warm status", directory });
+    await adapter.start({ ...owner, session, directory, task: "Read", role_id: "reader",
+      role: { role_id: "reader", version: 1, execution: "read-only", host_tools: ["board-read", "board-report"], prompts: [] },
+      execution_plan: plan, text_materials: [{ material_id: "plan", title: plan.title, source_artifact_id: plan.source.artifact_id, source_version: 1, text: JSON.stringify(plan) }],
+    });
+    const pending = adapter.readSessionStatus(session);
+    await entered;
+    emit({ type: "completed" });
+    release();
+    const result = await pending;
+    assert.equal(result.status.latest_phase, "completed");
+    assert.equal(result.status.recovery, false);
+  } finally { release(); await adapter.close(); }
+});
+
 for (const scenario of [
   { name: "empty", events: null, expected: null },
   { name: "complete", events: [{ type: "completed" }], expected: "completed" },

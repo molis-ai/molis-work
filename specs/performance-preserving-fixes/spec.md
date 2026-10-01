@@ -1,6 +1,6 @@
 # 保持数据与行为的性能修复方案
 
-状态：五项复查缺陷及测试追加发现的首次目录初始化竞态均已修正，定向回归、相关模块必跑集合、整体构建和依赖边界检查通过，工程修正完成。原生窗口输入实操尚未取得验证证据，原始卡死现场仍未复现，整体“内部完整”门槛继续单列。本文件是唯一需求书；改动位于隔离工作树，未替换真实应用或 Home，未推送或发布。依据当前仓库 `62cbc14d` 与 [性能审计报告](/Users/yijunwang/code/goalboard/docs/reviews/performance-audit-2026-10-01.md)。
+状态：五项复查缺陷、首次目录初始化竞态及 PR 验证追加发现的热状态采样问题已修正，Cognia 按需加载断言已同步，已提交 [PR #150](https://github.com/molis-ai/molis-work/pull/150)。合入 main `597d15d2` 并追加修正后，整体构建、依赖边界、定向 25 项、Agent/Prologue 必跑集合及真实浏览器 5 项通过。全量非 E2E、完整视觉走查和原生窗口输入验收尚未完成，原始卡死现场仍未复现，整体“内部完整”门槛继续单列。本文件是唯一需求书；改动位于隔离工作树，未替换真实应用或 Home，未发布。依据起始仓库 `62cbc14d` 与 [性能审计报告](/Users/yijunwang/code/goalboard/docs/reviews/performance-audit-2026-10-01.md)。
 
 目标完成程度为“内部完整”：六项已识别开销得到处理，桌面真实关键路径、既有数据、异常恢复和代码回退均须有证据。工程测试、隔离桌面实操、用户本人验收分别记录；已覆盖的工程及隔离浏览器路径通过，复查发现的失败场景已补有效回归，隔离原生 IPC 实操通过，原生窗口按钮/键盘实操与用户本人验收仍未完成。此前“管理项目”卡死的现场根因仍未确认，性能修复不能直接等同于现场故障已解决。
 
@@ -223,4 +223,21 @@ Workbench 必跑及真实分屏检查 30 项通过、零失败/跳过：`tests/p
 - **五项缺陷与追加初始化竞态的工程验收通过，整体内部完整仍待原生窗口输入实操。** 原生慢导入中的 IPC 已通过，实际指针/键盘和新版真实桌面导航尚未取得验证证据，因此不能标记全部内部验收完成。后续应在可正常操作的隔离应用窗口验证慢 IO 时的输入与 Coding 返回目录；不修改系统权限来强行绕过测试限制。真实 SDK 大量历史状态读取的性能实测仍未进行，合成历史探针不能替代该项。
 - 此前管理项目卡住的事故现场没有捕获，根因仍未确认。浏览器导航通过和已消除的锁阻塞不能等同于该事故已经关闭。
 - 本轮不把所有同步 SQLite、凭据/连接设置、项目 IO 或全局 CSS 都改造成异步架构。目录普通读和列明的项目提交边界已处理；其他 owner 的同步写仍沿原合同，不宣称任意并发写或全量插件操作均无卡顿。
-- 未替换真实应用/服务、未推送或发布，用户本人验收未进行。正式切换仍须遵循前面的完整 Home 一致性备份、原恢复协议与实际授权范围。
+- 未替换真实应用/服务、未发布，用户本人验收未进行。正式切换仍须遵循前面的完整 Home 一致性备份、原恢复协议与实际授权范围。
+
+## PR 提交后的验证补充（2026-10-01）
+
+用户授权推送及创建 PR，并要求完成后清理本任务后台进程。已合入 main `597d15d2`，无冲突；PR #150 已创建。首轮全量运行全部 601 个非 `.e2e.test.ts` 文件（含文件内已有的浏览器混合用例），发现 Assistant 子任务追加失败及 Cognia 的旧整体客户端断言，主动中止此轮以便先修正；中止时 1,313 通过、2 失败、358 取消、1 跳过。取消项不计为产品缺陷，此轮不作为全量通过证据。中断后原临时工作树及 /tmp 日志已不可访问，已从推送分支恢复到持久隔离工作树，后续日志保留在该树的 `.impeccable/qa/performance-audit/pr-followup/`。
+
+受控生产 Adapter 回归证明热状态过早采样：步骤图读取在等待时收到 completed，当前分支仍返回 running，干净 `62cbc14d` 返回 completed。修正保持原热路径的异步边界，在必要步骤图读取之后取当前 phase；冷状态继续只投影最新历史、保留 owner/recovery 检查。不得取消运行时或显示时间提交门槛，不通过重派控制/模型调用来掩盖失败。覆盖步骤读取和结束事件交错，并复验真实 SDK Assistant 子任务追加及 Agent/Prologue 必跑集合。
+
+Cognia 原测试要求整体 shell 中直接包含业务客户端，已与按需加载合同冲突；保留真实界面入口和领域正文断言，改验登记的客户端资产具备原 API 与挂载代码，shell 仅引用该资产；真实浏览器继续验证首开挂载及实例留存。追加修正后重新整体构建并定向复验，按实际结果记录，不将中止轮视作全绿；原生实操和未完成的全量/视觉验证继续明确披露。
+
+追加修正的最终验证：
+
+- `pnpm build`、`pnpm boundary:check` 通过，边界零错误；日志 `build.log`、`boundary.log`，既有 xterm 导入警告保留。
+- `node scripts/run-tests.mjs tests/prologue-status-projection.test.ts tests/assistant-delegation.test.ts tests/cognia-workbench.test.ts tests/prologue-recovery.test.ts`：25 项通过，零失败/取消/跳过，日志 `targeted.log`。原失败的 Assistant 子任务追加用例通过，受控步骤图/结束交错通过，显示时间提交及重启恢复门槛保留。
+- 以 `scripts/run-tests.mjs` 运行全部 50 个非 E2E `agent-*.test.ts` / `prologue-*.test.ts`：385 通过、零失败/取消、2 跳过，日志 `agent.log`。跳过项是原有官方 npm/Seatbelt 条件用例及缺少 `MINIMAX_API_KEY` 的真实模型用例；未为测试使用用户凭据。
+- `node scripts/run-tests.mjs tests/project-management-navigation.e2e.test.ts tests/workbench-deferred-clients.e2e.test.ts tests/workbench-hidden-refresh.e2e.test.ts tests/workbench-tab-workspace.e2e.test.ts`：真实 Chrome 5 项通过，零失败/取消/跳过，日志 `browser.log`。覆盖普通 Web/desktop=1 的原 Coding Session 返回、资源超时/重试/旧响应迟到、全部登记插件首开与原根留存、隐藏补读及 1440/390 分屏。
+
+上述日志保留于 `/Users/yijunwang/code/molis-work-performance-pr/.impeccable/qa/performance-audit/pr-followup/`。集合有重叠，不累加计数。全量非 E2E 中止后未完整重跑，完整浅色/深色 × 1440/1024/390 视觉走查未补齐；这两项及原生输入/事故现场、真实深 SDK 历史性能仍是验证限制，PR 如实记录。

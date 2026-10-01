@@ -34,7 +34,7 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 SDK 不包含 Runtime 或业务 Store。Manifest 解析委托 Contracts；授权的实际执行由 Host/Runtime 控制。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。作者可声明 `mcp_exports` 并向 Host 贡献工具；公开名和开关留在 Host。步骤见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 
-工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-kernel`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：只有 `@molis-ai/molis-work-contracts`。Plugin SDK 属于公共发布面，不依赖私有的 Kernel；`createExecutionLifetime` 从 contracts 的 `platform/execution-lifetime` 转出（`tests/plugin-sample.e2e.test.ts` 只用打包后的 contracts 与 SDK 离线安装，守住这一点）。其他运行依赖见 [package.json](package.json)。
 
 可从[本地 Plugin 示例](../../examples/plugin-sample/README.md)开始：示例使用 context.services 存取私人状态、发布 Artifact 并注册 UI，完整授权和开发步骤见开发指南。
 
@@ -134,7 +134,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 - 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口。
 - 不负责：Host 内部实现、自动发布的市场。
 - 公开入口：`@molis-ai/molis-work-plugin-sdk`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-kernel`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`（公共发布面，不依赖私有的 Kernel）。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 项目、用户、生产者签名与安装身份由 Host 绑定，参数不能覆盖；停止或崩溃后的旧客户端不能继续操作。
   - `ActionExecutionPolicy` 描述提供方的时限、费用与频率；在 `action.execution` 声明，由 Kernel 执行，插件内不另写同一限额。

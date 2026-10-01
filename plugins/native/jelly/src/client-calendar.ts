@@ -80,7 +80,12 @@ export const JELLY_CALENDAR_CLIENT_SCRIPT = String.raw`
     $('[data-jelly-item-error]').hidden=true;paintItemChoices();renderItemRelations();
     $$('[data-jelly-item-copy]').forEach((node)=>node.remove());if(item)$('[data-jelly-item-form] footer > div').insertAdjacentHTML('beforeend',btn('复制事项','data-jelly-item-copy','copy'));
     $('[data-jelly-item-dialog]').showModal();itemField('title').focus();if(!item)itemField('title').select();
+    // While an existing item is open, it is what this page shows: the workbench knows the record is open, and the Assistant
+    // reads that item. Closing the dialog gives the page back what it showed before.
+    if(item){if(!itemContextBefore)itemContextBefore={value:root.getAttribute('data-assistant-context')};root.setAttribute('data-assistant-context',JSON.stringify({plugin_id:'io.molis.work.jelly',surface_title:'Jelly',object:{kind:'jelly_item',id:item.series_id||item.id,version:String(item.updated_at||''),title:item.title||''}}));}
   };
+  let itemContextBefore=null;
+  $('[data-jelly-item-dialog]').addEventListener('close',()=>{const before=itemContextBefore;itemContextBefore=null;if(!before)return;if(before.value===null)root.removeAttribute('data-assistant-context');else root.setAttribute('data-assistant-context',before.value);});
   const relationDate=()=>editingItem?.series_id&&relationScope==='instance'?editingItem.original_date:null;
   const effectiveRelations=(item)=>{
     const owner=item.series_id||item.id;let relations=state.relations.filter((entry)=>entry.owner_id===owner&&entry.original_date===null);

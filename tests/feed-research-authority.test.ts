@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { watch } from "node:fs";
+import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -49,7 +49,9 @@ const fs = require('node:fs'), cp = require('node:child_process');
   catch (error) { process.exit(error.status || 1); }
 })();
 `, { mode: 0o755 });
-    const entered = Promise.withResolvers<void>(), watcher = watch(home, (_, name) => { if (name === "fetch-entered") entered.resolve(); });
+    // Polled rather than fs.watch: on macOS a watcher can miss a file another process creates, which left the test
+    // waiting until the fake fetch gave up and every case failing for the wrong reason.
+    const entered = Promise.withResolvers<void>(), watcher = setInterval(() => { if (existsSync(marker)) entered.resolve(); }, 10);
     process.env.PATH = `${bin}:${oldPath}`;
     const database = join(home, "project.sqlite"); seedDemoBoard(database);
     const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_BOARD_ID, undefined, undefined, home);
@@ -84,7 +86,7 @@ const fs = require('node:fs'), cp = require('node:child_process');
       assert.deepEqual(sources.feed.snapshot(DEMO_BOARD_ID).feed_items.filter(item => item.source_id === source.source_id), material);
     } finally {
       t.signal.removeEventListener("abort", abort);
-      await writeFile(release, ""); await host.close(); store.close(); watcher.close();
+      await writeFile(release, ""); await host.close(); store.close(); clearInterval(watcher);
       if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath;
       await rm(home, { recursive: true, force: true });
     }

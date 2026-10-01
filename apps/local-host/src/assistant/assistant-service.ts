@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegatedWork, AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -1354,6 +1355,7 @@ export class AssistantService {
   /** A command the Assistant ran for this work succeeded: keep the object it created or changed, at its new revision. */
   recordResult(work: StoredWork, view: ActionView, input: unknown, output: unknown): void {
     void this.watchJob(work, view, output).catch(() => undefined);
+    this.spendUndos(work, view, input);
     this.recordUndo(work, view, output);
     const result = actionResultSubject(view.action, input, output);
     if (!result) return;
@@ -1371,6 +1373,20 @@ export class AssistantService {
 
   private rememberedTitle(object: { kind: string; id: string }): string | null {
     return this.store.setting(this.actorId, `object-title:${object.kind}:${object.id}`);
+  }
+
+  /**
+   * A change a round just made that is exactly one of this work's offered undos (seen: asked to drop a document it made,
+   * the round discarded it itself) spends that undo: the panel no longer offers a take-back that can only fail.
+   */
+  private spendUndos(work: StoredWork, view: ActionView, input: unknown): void {
+    const given = input && typeof input === "object" && !Array.isArray(input) ? input as Record<string, unknown> : {};
+    for (const undo of this.store.undos(this.actorId, work.work_id)) {
+      if (undo.state !== "available" || undo.reference.capability_id !== view.capability_id || undo.reference.version !== view.version
+        || undo.reference.provider_id !== view.provider.provider_id) continue;
+      if (!Object.entries(undo.input).every(([field, value]) => isDeepStrictEqual(given[field], value))) continue;
+      this.store.saveUndo(this.actorId, { ...undo, state: "undone", undone_at: this.now().toISOString() });
+    }
   }
 
   /** A change that declares how it is undone leaves that undo on its work, with the exact input its output gives. */

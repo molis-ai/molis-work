@@ -14,10 +14,12 @@ test("an ending that only announces the next step is recognised; results, questi
     "点击页面上的 Learn more 链接。", "输入 tomsmith 到 Username 输入框。",
     // Seen from MiniMax-M3 after a refused edit: nothing was sent and there was nothing to confirm.
     "我用确认流程再试一次，由你确认后落地。", "我再试一次。", "我重新提交一次修改。", "再试一次：把截止日期改成下周二。",
-    "我直接给文档加一节「风险」，两条按你的措辞写。"]) {
+    "我直接给文档加一节「风险」，两条按你的措辞写。", "我用 Pages 的「撤销新建文档」删掉它。当前文档没被改过，版本还是 1，可以撤。"]) {
     assert.equal(announcesWithoutActing(text), true, text);
   }
   for (const text of ["完成。改动与结果：\n- calc.js 新增 multiply\n- npm test：exit 0，三条断言全部通过。", "calc.js 已落盘。", "要把这段替换进文档吗？",
+    // An answer that says how it is put, not a step still to take.
+    "我用三句话总结：交付按计划推进。风险在预算与评审。三项行动已分派。", "我用表格整理好了。",
     "当前没有可用的日历能力，无法创建事项。", "下面是需要留意的边界情况：\n1. 没有类型校验\n2. 浮点精度", "现在测试全部通过。", "", "I'll wait for your decision on which option to use?",
     // A plain fact that happens to start with 现在/开始 (seen from MiniMax-M3 answering a timed round).
     "现在是 **19:04**（洛杉矶时区）。", "现在有 3 个目标还没开始。", "开始时间是下周一。",

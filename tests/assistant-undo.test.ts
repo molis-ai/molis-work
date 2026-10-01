@@ -115,3 +115,18 @@ test("a change that can be undone runs when asked without a confirmation, and th
     assert.equal(notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "nothing ran before the person confirms");
   } finally { unregister(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+test("a round that makes exactly an offered undo's change spends that undo: the panel stops offering a take-back that can only fail", () => {
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service = new AssistantService(store, { host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
+  const work = store.create({ actor_id: "web-user", title: "今日要闻", scope: { kind: "personal" }, origin: null });
+  const view = (definition: ActionDefinition) => ({ ...definition, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } }) as never;
+  service.recordResult(work, view(add), { text: "周三前交方案" }, { note: { id: "note-1" } });
+  assert.deepEqual(store.undos("web-user", work.work_id).map(undo => undo.state), ["available"]);
+  // Another note removed: the offered undo stands.
+  service.recordResult(work, view(remove), { note_id: "note-9" }, { removed: true });
+  assert.deepEqual(store.undos("web-user", work.work_id).map(undo => undo.state), ["available"]);
+  // The round removed that very note itself (seen: asked to drop a document it made, it discarded the document).
+  service.recordResult(work, view(remove), { note_id: "note-1" }, { removed: true });
+  assert.deepEqual(store.undos("web-user", work.work_id).map(undo => undo.state), ["undone"]);
+});

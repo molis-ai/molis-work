@@ -6,6 +6,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { PROJECT_ARRIVAL_RELATIVE_PATH } from "../apps/local-host/src/project-arrival.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
+import { renderMolisWorkProjectIndex } from "./workbench-renderer-fixture.js";
 
 // The project chooser in a real browser (specs/project-arrival-flow): the directory on the desk, the brief on the sheet,
 // one bar below. These follow a person through it — what is preselected, what the keys do, what an empty search or an
@@ -194,6 +195,7 @@ test("search narrows the directory, ⌘K reaches it from anywhere, and nothing f
   await waitFor("document.querySelector('#chooser-detail .brief-none')");
   assert.match(await evaluate<string>("document.querySelector('#chooser-detail').textContent"), /没有叫「foot不存在的」的项目/);
   assert.equal(await evaluate("document.querySelector('.arrival-bar [data-act=enter]').getAttribute('aria-disabled')"), "true");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('.arrival-bar [data-act=enter]')).opacity"), "0.42", "and looks as unavailable as it is");
   assert.equal(await evaluate("document.querySelector('[data-chooser-none]').hidden"), false);
   await navigate(() => click("#chooser-detail [data-act=new-named]"));
   assert.equal(await evaluate("location.pathname"), "/onboarding");
@@ -241,6 +243,7 @@ test("everything on the chooser can be reached with the Tab key, in the order it
   // Each stop shows where it is.
   await evaluate("document.getElementById('chooser-q').focus()");
   assert.notEqual(await evaluate("getComputedStyle(document.getElementById('chooser-q').closest('.mw-input-group')).boxShadow"), "none", "the focused search has a ring");
+  assert.equal(await evaluate("getComputedStyle(document.getElementById('chooser-q')).boxShadow"), "none", "and the field inside it adds no second one");
 });
 
 test("the personal space opens from the chooser without a project in view", { timeout: 60_000 }, async t => {
@@ -375,6 +378,27 @@ test("sixty projects scroll inside the directory, the keys keep the selection in
   await command("Input.insertText", { text: "项目 5" }, sessionId);
   await waitFor("[...document.querySelectorAll('.chooser-dir [role=option]')].filter(row => !row.hidden).length === 10");
   await click("#chooser-q");
+});
+
+test("a project list that could not be read still opens on the personal space, with its brief, and says so beside it", { timeout: 90_000 }, async t => {
+  const chooser = await openChooser(t);
+  if (!chooser) return;
+  const { evaluate, waitFor, navigate, view, settled, command, sessionId, origin } = chooser;
+  for (const width of [1440, 390]) {
+    await view(width, 900);
+    // The page the Host sends when the catalog does not answer, shown on the real server so its sheet and scripts are the real ones.
+    await navigate(() => command("Page.navigate", { url: origin + "/health" }, sessionId));
+    const html = renderMolisWorkProjectIndex([], "goals-risk-test-control-token-0123456789", false, { now: new Date().toISOString(), last_project_id: null, opened: {}, load_error: true });
+    await evaluate(`document.open(); document.write(${JSON.stringify(html)}); document.close();`);
+    await waitFor("document.querySelector('.chooser-error') && document.querySelector('#chooser-detail .mw-brief')");
+    await settled();
+    assert.equal(await evaluate("document.querySelector('#chooser-detail .mw-brief__title').textContent"), "个人空间", "the personal space is what there is to look at");
+    assert.doesNotMatch(await evaluate<string>("document.querySelector('#chooser-detail').textContent"), /从一个真实项目开始/, "not a claim that there are no projects");
+    assert.match(await evaluate<string>("document.querySelector('.chooser-error').textContent"), /项目列表暂时读不到/);
+    assert.equal(await evaluate("!!document.querySelector('.chooser-error [data-act=reload]')"), true, "with a way to try again");
+    assert.equal(await evaluate("document.querySelector('.arrival-bar [data-act=enter] [data-slot=button-label]').textContent"), "进入个人空间");
+    await assertLayoutClean(evaluate, `the list could not be read · ${width}`);
+  }
 });
 
 test("a Home with no project opens on the personal space and offers to begin the first one", { timeout: 60_000 }, async t => {

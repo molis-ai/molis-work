@@ -296,8 +296,8 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
   arrival.arrive($('.chooser-head'), [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: base - 40 });
   arrival.arrive($('.chooser-search'), [{ opacity: 0 }, { opacity: 1 }], { duration: 420, delay: base });
   arrival.arrive(bar, [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 640, delay: cold ? 60 : 0 });
-  // With no project yet, the sheet says where to begin; otherwise the first brief arrives with its own rise.
-  if (!data.projects.length && first === PERSONAL) show(fill('nobody', {}), { animate: false });
+  // With no project yet, the sheet says where to begin; when the list could not be read that is not known, and the personal space is what is there to look at.
+  if (!data.projects.length && first === PERSONAL && !data.loadError) show(fill('nobody', {}), { animate: false });
   else loadBrief(first, { immediate: true });
 })();
 `;

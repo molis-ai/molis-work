@@ -84,6 +84,9 @@ test("a project list that could not be read says so where the list would be, and
   assert.match(html, /项目列表暂时读不到/);
   assert.deepEqual(rowIds(html), ["personal"]);
   assert.doesNotMatch(html, /项目 · 按最近打开/);
+  // The sheet must not claim there are no projects: that is not known. The page is told, so it shows the personal space instead.
+  assert.equal(JSON.parse(/<script type="application\/json" id="arrival-data">([\s\S]*?)<\/script>/.exec(html)![1]!).loadError, true);
+  assert.equal(JSON.parse(/<script type="application\/json" id="arrival-data">([\s\S]*?)<\/script>/.exec(renderMolisWorkProjectIndex([], "", false, arrival()))![1]!).loadError, false);
 });
 
 test("what a person named a project is text, never markup", () => {

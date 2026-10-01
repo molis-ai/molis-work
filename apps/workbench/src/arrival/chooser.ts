@@ -115,7 +115,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
       <template data-tpl="error">${brief.renderProjectBriefError("{name}", "{id}", "")}</template>
       <template data-tpl="none"><article class="mw-brief brief-none">${none}</article></template>
       <template data-tpl="nobody"><article class="mw-brief brief-none">${nobody}</article></template>`;
-    const data = JSON.stringify({ selected, projects: ordered.map(project => project.project_id), personalTitle: personal.display_name, firstName: last?.display_name ?? null })
+    const data = JSON.stringify({ selected, projects: ordered.map(project => project.project_id), personalTitle: personal.display_name, firstName: last?.display_name ?? null, loadError: Boolean(arrival.load_error) })
       .replaceAll("<", "\\u003c");
     const scripts = `${p.clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${p.visualFoundationClientScript}${ARRIVAL_MOTION_CLIENT_SCRIPT}
 (${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: globalThis.L, projectId: null, openItem: () => {} });

@@ -68,6 +68,8 @@ export const ARRIVAL_STYLES = String.raw`
   .arrival-bar .mw-btn--ghost.arrival-back { padding-inline: 12px 14px; color: var(--ink-soft); }
   .arrival-bar .mw-btn--ghost.arrival-back:hover:not(:disabled) { color: var(--ink); }
   .arrival-bar .bar-end .mw-btn--lg[hidden] { display: none; }
+  /* A link that cannot go (nothing matches the search) looks and acts like a disabled button. */
+  .arrival-bar .mw-btn[aria-disabled="true"] { opacity: .42; cursor: not-allowed; pointer-events: none; }
 
   /* ───────── Chooser: the directory on the desk, the brief on the sheet ───────── */
   .chooser { --side-w: clamp(296px, 24vw, 344px); }
@@ -79,6 +81,8 @@ export const ARRIVAL_STYLES = String.raw`
   .chooser-search { min-height: 36px; background: var(--paper); box-shadow: 0 0 0 1px var(--control-border); }
   .chooser-search:hover { background: var(--paper); box-shadow: 0 0 0 1px var(--control-input); }
   .chooser-search:focus-within { box-shadow: none; }
+  /* The group carries the focus ring; the field inside it adds none of its own (a second halo around the text). */
+  body.arrival-page .chooser-search .mw-input:focus-visible { box-shadow: none; border-color: transparent; outline: none; }
   .chooser-search svg { width: 16px; height: 16px; }
   .chooser-search__key { flex: none; display: inline-flex; }
   .chooser-search__key .mw-kbd { min-height: 18px; padding: 0 6px; font-size: 11px; line-height: 18px; border-radius: 5px; border: 0; background: var(--control-fill); }

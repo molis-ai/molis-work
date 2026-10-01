@@ -2,6 +2,7 @@ import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-hos
 import type { AgentActionOffer, AgentDelegation, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
+import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { ActionError, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
@@ -51,7 +52,10 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
     ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [], ...(signal ? { signal } : {}) });
   const accepted = (catalog: readonly ActionView[], caller: ActionCallContext) => {
     const off = disabled();
+    // Memory reaches the Assistant through its own remember / list / forget tools (under its switches, no extra
+    // confirmation); the directory's memory actions are for other Agents, so they are not offered here as well.
     return catalog.filter(view => view.action.audiences.includes("agent") && (!view.provider.project_id || view.provider.project_id === caller.project_id)
+      && view.provider.provider_id !== MEMORY_PROVIDER_ID
       && !off.has(actionKey({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })));
   };
   let offered: readonly ActionView[] = [];

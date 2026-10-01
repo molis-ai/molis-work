@@ -109,6 +109,8 @@ export interface StoredRound {
   started_at: string;
   /** The work's cap in force when the round started, when there was one: a stop at its token limit is that cap. */
   work_budget?: number;
+  /** The platform memory's recall receipt for this round: what it was given and what did not fit. */
+  memory_receipt?: string;
 }
 
 /** A card as stored: the public view's facts plus the exact reference and input it runs. */
@@ -322,6 +324,15 @@ export class AssistantStore {
 
   removeFollowUp(actorId: string, followupId: string): boolean {
     return Number(this.db.prepare("DELETE FROM assistant_followups WHERE actor_id=? AND followup_id=?").run(actorId, followupId).changes) > 0;
+  }
+
+  /**
+   * The first version's memory state, read once by the platform memory (specs/memory-system §2.1.1): the switches as
+   * the person saved them (null when never changed), the switched-off list and every candidate. Read only.
+   */
+  legacyMemory(actorId: string): { prefs: Partial<AssistantMemoryPrefs> | null; disabled: string[]; candidates: AssistantMemoryCandidate[] } {
+    const saved = this.setting(actorId, "memory_prefs");
+    return { prefs: saved ? JSON.parse(saved) as Partial<AssistantMemoryPrefs> : null, disabled: [...this.disabledMemories(actorId)], candidates: this.memoryCandidates(actorId) };
   }
 
   /** A plain per-person value the Assistant keeps for itself (e.g. how far it has looked for new material). */

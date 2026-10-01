@@ -238,6 +238,10 @@
       "types": "./dist/services/placement.d.ts",
       "import": "./dist/services/placement.js"
     },
+    "./services/memory": {
+      "types": "./dist/services/memory.d.ts",
+      "import": "./dist/services/memory.js"
+    },
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",
       "import": "./dist/modules/characters.js"

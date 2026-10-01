@@ -15,6 +15,7 @@ const PROJECT_SETTINGS_SECTIONS = [
   { id: "general", label: "常规", icon: "tune" },
   { id: "workspaces", label: "工作目录", icon: "folder" },
   { id: "guidance", label: "项目说明", icon: "book" },
+  { id: "memory", label: "记忆", icon: "bookmark" },
 ] as const satisfies readonly { id: string; label: string; icon: MolisWorkIcon }[];
 
 function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {

@@ -19,11 +19,11 @@
   - 在 `9fc3b173` 上，记忆的 memory-export / extract / persist / platform / project-scope 与界面的 app-mode-surfaces / ui-control / plugin-manifest / computer-use 测试全过；
   - Molis 侧，换包后 `pnpm build`、`boundary:check`、`typecheck:all` 通过，tests/side-panel-* 通过；
   - 真实模型（MiniMax-M3）跑通了侧栏浏览器的查看、确认、接手交还、上传与网站决定。
-- 包的依赖与 assistant-intake 相同，没有新增。记忆线之后复用本包，删掉自己的 memory-platform.tgz（由其用户决定）。本目录的 assistant-intake.tgz 换包后不再被依赖；按本目录约定应删除，删 vendor 文件由用户决定。
+- 包的依赖与 assistant-intake 相同，没有新增。记忆线之后复用本包，删掉自己的 memory-platform.tgz（由其用户决定）。assistant-intake.tgz 换包后不再被依赖，用户 2026-09-30 决定删除，已删掉；需要时从 Git 历史取。
 
 ## 上一依赖：assistant-intake（2026-09-29，main 的原图摄取线 + 助理的记忆项目作用域）
 
-`prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`。把两条从 `4702abe3` 分出的线合在一起：main 的 `resource-intake`（有界结果、原图摄取与资源限额，见下节）与系统级助理的记忆 `project` 作用域（`memory-project.patch`，见“历史依赖：assistant-memory”）。两者只在记忆那两个文件上相交，合并无冲突。
+`prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`（2026-09-30 已从本目录删掉，需要时从 Git 历史取，或按下面的重建步骤生成）。把两条从 `4702abe3` 分出的线合在一起：main 的 `resource-intake`（有界结果、原图摄取与资源限额，见下节）与系统级助理的记忆 `project` 作用域（`memory-project.patch`，见“历史依赖：assistant-memory”）。两者只在记忆那两个文件上相交，合并无冲突。
 
 - 源码：`~/code/prologue-assistant` 仓库的工作树分支 `feat/molis-assistant-resource-intake`，提交 `c63ea1a1`（合并 `18a1c827` 与 `ac4d1135`）。
 - 重建：检出 `af7375c7`，先应用 [resource-intake.patch](resource-intake.patch)，再应用 [memory-project.patch](memory-project.patch)；`pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`。

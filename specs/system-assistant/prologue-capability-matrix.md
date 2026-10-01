@@ -1,6 +1,6 @@
 # Prologue 能力矩阵（P12，AC28）
 
-核对日期：2026-09-28，2026-09-29 按新包补核。对象是本分支实际使用的 SDK：`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`（`c63ea1a1`，由 main 的 resource-intake 线 `18a1c827` 与助理的记忆项目作用域 `ac4d1135` 合成，见 vendor README）。相对 9-28 核对的包，公开面新增 `collectRun`、`decodeJsonOutput`，以及结构校验、网络派出授权与原图摄取限额；这些都已补进下表。
+核对日期：2026-09-28，2026-09-29 按新包补核。对象是本分支实际使用的 SDK：`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`（2026-09-30 已从 vendor 删掉，现用的是侧栏与记忆的合成包；`c63ea1a1`，由 main 的 resource-intake 线 `18a1c827` 与助理的记忆项目作用域 `ac4d1135` 合成，见 vendor README）。相对 9-28 核对的包，公开面新增 `collectRun`、`decodeJsonOutput`，以及结构校验、网络派出授权与原图摄取限额；这些都已补进下表。
 
 **核对方法**
 - SDK 公开面：`createRuntime` 返回的 `Runtime` 接口（`packages/sdk/src/composition/core/runtime.ts`）逐个成员，以及 `Session` 接口（`session/core/session.ts`）逐个方法；另查了 `LocalQueue`、`heartbeats`、`subagents` 等子面的方法。

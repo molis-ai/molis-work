@@ -31,6 +31,24 @@ const READ_TIMEOUT_MS = 8_000;
 /** Looking from project to project and back asks the same questions; one answer is good for a few seconds. */
 const BRIEF_TTL_MS = 5_000;
 const EVENT_WINDOW = { before_days: 14, after_days: 7 } as const;
+/** Reading a project opens it, which is not free: however quickly the person moves down the list, only this many are read at once. */
+const MAX_CONCURRENT_READS = 2;
+
+/** At most `max` runs at a time; the rest wait their turn in the order they came, and a failure gives its place to the next. */
+export function createReadLimiter(max: number) {
+  let active = 0;
+  const waiting: Array<() => void> = [];
+  return async function limited<T>(run: () => Promise<T>): Promise<T> {
+    if (active < max) active++;
+    else await new Promise<void>(resolve => waiting.push(resolve)); // the finisher hands its place over, so the count never passes max
+    try {
+      return await run();
+    } finally {
+      const next = waiting.shift();
+      if (next) next(); else active--;
+    }
+  };
+}
 
 async function settle<T>(read: Promise<T>): Promise<{ ok: true; value: T } | { ok: false }> {
   let timer: NodeJS.Timeout | undefined;
@@ -73,6 +91,7 @@ function tildePath(value: string): string {
 export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
   const cache = new Map<string, { at: number; value: ProjectBriefResponse }>();
   const inflight = new Map<string, Promise<ProjectBriefResponse | null>>();
+  const limited = createReadLimiter(MAX_CONCURRENT_READS);
 
   async function readBrief(homeDirectory: string | undefined, projectId: string): Promise<ProjectBriefResponse | null> {
     const found = await ports.withCatalog({ homeDirectory }, catalog => {
@@ -140,7 +159,7 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
     try {
       let pending = inflight.get(key);
       if (!pending) {
-        pending = readBrief(homeDirectory, projectId).finally(() => inflight.delete(key));
+        pending = limited(() => readBrief(homeDirectory, projectId)).finally(() => inflight.delete(key));
         inflight.set(key, pending);
       }
       const brief = await pending;

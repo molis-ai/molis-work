@@ -145,13 +145,20 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     row.dataset.current = summary.current && summary.goals_done !== summary.goals_total ? summary.current : '';
     refreshTimes();
   };
-  const loadBrief = async (id, { force = false } = {}) => {
+  const SETTLE_MS = 160;
+  const loadBrief = async (id, { force = false, immediate = false } = {}) => {
     state.controller?.abort();
     const controller = new AbortController();
     state.controller = controller;
     const cached = force ? null : readCache(id);
     if (cached && cached.html) { setBrief(cached.html, id); paintRow(cached.summary); }
     else show(fill('loading', { name: nameOf(id), id }), { animate: false });
+    // Moving down the list asks the Host for nothing until the person stops on a project (it opens the project to read it).
+    // What was read before shows at once; the first look and a retry do not wait.
+    if (!immediate && !force) {
+      await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+      if (controller.signal.aborted || state.selected !== id) return;
+    }
     try {
       const response = await fetch('/api/projects/' + encodeURIComponent(id) + '/brief', { headers: globalThis.molisWorkControlHeaders(), signal: controller.signal, cache: 'no-store' });
       const result = await response.json();
@@ -291,6 +298,6 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
   arrival.arrive(bar, [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 640, delay: cold ? 60 : 0 });
   // With no project yet, the sheet says where to begin; otherwise the first brief arrives with its own rise.
   if (!data.projects.length && first === PERSONAL) show(fill('nobody', {}), { animate: false });
-  else loadBrief(first);
+  else loadBrief(first, { immediate: true });
 })();
 `;

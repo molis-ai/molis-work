@@ -185,7 +185,7 @@
 - [shelf-row-ink](archive/shelf-row-ink/spec.md)
 - [shelf-settings-flatten](archive/shelf-settings-flatten/spec.md)
 - [shelf-stage-chrome-align](archive/shelf-stage-chrome-align/spec.md)
-- [side-panel](archive/side-panel/spec.md)：平台侧栏。用户直接接受，没有逐步走验收清单；没由用户本人实测的部分见正文 7.3、7.4。
+- [side-panel](archive/side-panel/spec.md)：平台侧栏。用户本人验收为接受，没有逐步走验收清单；没由用户本人实测的部分见正文 7.3、7.4。
 - [tab-reorder-preview](archive/tab-reorder-preview/spec.md)
 - [tab-sash-handle](archive/tab-sash-handle/spec.md)
 - [tab-split-drop-preview](archive/tab-split-drop-preview/spec.md)

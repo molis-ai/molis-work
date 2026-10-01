@@ -113,8 +113,8 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       scheduleDeferredRefresh();
     };
 
-    const refreshBoard = async (force = false) => {
-      if (syncing || document.hidden) return;
+    const refreshBoard = async (force = false, signal = boardVisibleSignal) => {
+      if (syncing || document.hidden || (boardLifetime && !boardLifetime.visible)) return;
       if (!force && searchInteractionActive()) {
         scheduleDeferredRefresh();
         return;
@@ -124,9 +124,10 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       }
       syncing = true;
       try {
-        const cursorResponse = await fetch(route("/api/board/cursor"), { cache: "no-store" });
+        const cursorResponse = await boardLifetime.fetch(route("/api/board/cursor"), { cache: "no-store", signal });
         if (!cursorResponse.ok) throw new Error("无法读取 Molis Work 游标");
         const cursorState = await cursorResponse.json();
+        boardLifetime.assertCurrent(signal);
         if (Number(cursorState.observed_event_cursor) === Number(state.snapshot.cursor)) {
           return;
         }
@@ -146,15 +147,16 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         const compactRefreshPath = route("/api/board/refresh?view=" + documentCollection +
           (refreshGoalId ? "&goal_id=" + encodeURIComponent(refreshGoalId) : ""));
         const refreshGeneration = documentReplaceGeneration;
-        let pageResponse = await fetch(decisionView ? pagePath : compactRefreshPath, { cache: "no-store" });
+        let pageResponse = await boardLifetime.fetch(decisionView ? pagePath : compactRefreshPath, { cache: "no-store", signal });
         if (!pageResponse.ok && !decisionView) {
-          pageResponse = await fetch(pagePath, { cache: "no-store" });
+          pageResponse = await boardLifetime.fetch(pagePath, { cache: "no-store", signal });
         }
         if (!pageResponse.ok && !decisionView) {
-          pageResponse = await fetch(route(collectionPath), { cache: "no-store" });
+          pageResponse = await boardLifetime.fetch(route(collectionPath), { cache: "no-store", signal });
         }
         if (!pageResponse.ok) throw new Error("无法更新 Goal 页面");
         const parsed = new DOMParser().parseFromString(await pageResponse.text(), "text/html");
+        boardLifetime.assertCurrent(signal);
         if (parsed.body.dataset.boardView !== document.body.dataset.boardView) {
           location.reload();
           return;
@@ -250,9 +252,10 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         requestAnimationFrame(() => documentPane.classList.remove("is-syncing"));
       } catch (error) {
         // A background refresh stays quiet for the person, but not for whoever has to find out why it stopped.
-        console.warn("Goal refresh failed", error);
+        if (!signal?.aborted) console.warn("Goal refresh failed", error);
       } finally {
         syncing = false;
+        if (signal?.aborted && boardLifetime.visible) queueMicrotask(() => refreshBoard());
       }
     };
 

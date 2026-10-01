@@ -49,6 +49,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         if (surface === "goal") restoreLastGoal(true);
         return false;
       }
+      void deferredClients?.prepare(nextSurface);
       const surfaceChanged = activeDesktopSurface !== surface;
       if (activeDesktopSurface && surfaceChanged) {
         desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goal" ? documentPane : activeDesktopSurface === "feed" ? feedWorkbench?.querySelector(".feed-stage-tree") : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;

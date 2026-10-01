@@ -99,12 +99,12 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
             source_kind: "onboarding",
           })).goal;
           const workspace = input.workspacePath
-            ? catalog.addWorkspaceProject({
+            ? await catalog.commit(() => catalog.addWorkspaceProject({
                 project_id: project.project_id,
-                canonical_path: input.workspacePath,
+                canonical_path: input.workspacePath!,
                 actor_id: "web-user",
                 user_confirmed: true,
-              })
+              }))
             : null;
           let journeyWarning: string | null = null;
           try {

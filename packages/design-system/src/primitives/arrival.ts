@@ -49,8 +49,8 @@ export function renderGoalTrack(options: { goals: ReadonlyArray<{ title: string;
 }
 
 /** The bar's left block while something is only being looked at: a mark, its name and what Enter does. */
-export function renderBarContext(options: { mark: string; title: string; caption: string; none?: boolean; className?: string }): string {
-  return `<div class="${cx("mw-bar-context", options.className)}" data-slot="bar-context"><span class="${cx("mw-bar-context__mark", options.none && "is-none")}">${options.mark}</span><span class="mw-bar-context__text"><strong>${escapeHtml(options.title)}</strong><small>${escapeHtml(options.caption)}</small></span></div>`;
+export function renderBarContext(options: { mark: string; title: string; caption: string; className?: string }): string {
+  return `<div class="${cx("mw-bar-context", options.className)}" data-slot="bar-context"><span class="mw-bar-context__mark">${options.mark}</span><span class="mw-bar-context__text"><strong>${escapeHtml(options.title)}</strong><small>${escapeHtml(options.caption)}</small></span></div>`;
 }
 
 /** The bar's middle block while a step is under way or waiting: what is happening, in one line and a quieter one. */

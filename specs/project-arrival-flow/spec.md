@@ -1,6 +1,6 @@
 # 打开 Molis Work：项目选择、Welcome 与新建项目
 
-状态：执行中（2026-10-01）。高保真设计与可交互原型已完成并经用户认可（「整体设计不错」），用户授权开发并在完成后推送 PR（须检查边界场景、元素重叠、组件沿用项目整体设计、动线）。设计图、动效录屏与原型见 [docs/design/project-arrival-flow/README.md](../../docs/design/project-arrival-flow/README.md)；实现记录见本文末「实现记录」。分支 `feature/project-arrival-flow`。上一轮概念稿与需求书已删除。
+状态：已实现，PR 评审中（2026-10-01）。高保真设计与可交互原型经用户认可（「整体设计不错」），用户授权开发并在完成后推送 PR（须检查边界场景、元素重叠、组件沿用项目整体设计、动线）；这些检查已写成真实浏览器里的版面审计与动线测试，见本文末「实现记录」。设计图、动效录屏与原型见 [docs/design/project-arrival-flow/README.md](../../docs/design/project-arrival-flow/README.md)；实现记录见本文末「实现记录」。分支 `feature/project-arrival-flow`。上一轮概念稿与需求书已删除。
 
 ## 要解决什么
 

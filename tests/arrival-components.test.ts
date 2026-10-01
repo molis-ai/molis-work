@@ -65,7 +65,6 @@ test("the goal track draws one segment per goal and thins its labels when crowde
 test("the bar's context and status blocks name the thing and keep the spinner the shared one", () => {
   const context = renderBarContext({ mark: "<i></i>", title: "FlyLeaf", caption: "预览中 · 回车进入" });
   assert.match(context, /<strong>FlyLeaf<\/strong><small>预览中 · 回车进入<\/small>/);
-  assert.match(renderBarContext({ mark: "", title: "无", caption: "x", none: true }), /mw-bar-context__mark is-none/);
   const busy = renderBarStatus({ spin: true, title: "正在整理", caption: "可以离开" });
   assert.match(busy, /role="status" aria-live="polite"/);
   assert.match(busy, /class="mw-spinner"/, "the loading indicator is the shared spinner, not a second one");

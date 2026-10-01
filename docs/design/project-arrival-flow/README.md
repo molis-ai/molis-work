@@ -1,6 +1,6 @@
 # 打开 Molis Work：项目选择、Welcome 与新建项目（高保真）
 
-状态：高保真设计图、可交互原型与三段动效录屏已完成，待评审。**生产代码一行未改**；原型里的项目、材料、整理结果都是标注过的示例数据，没有接入真实项目，也不读写真实 Home。需求与动线见 [specs/project-arrival-flow/spec.md](../../../specs/project-arrival-flow/spec.md)，线框见 [wireframes.html](wireframes.html)。
+状态：设计经用户认可（2026-10-01），已按它实现（见需求书末尾的「实现记录」）；本目录是当时的**参考原型**，不再改动。原型里的项目、材料、整理结果都是标注过的示例数据，没有接入真实项目，也不读写真实 Home；产品里的数字、描述、进展来自真实读口，读不到的部分如实写「读不到」。需求与动线见 [specs/project-arrival-flow/spec.md](../../../specs/project-arrival-flow/spec.md)，线框见 [wireframes.html](wireframes.html)。
 
 ## 怎么看
 

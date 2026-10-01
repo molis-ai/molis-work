@@ -193,6 +193,16 @@ export const PLUGIN_STAGE_STYLES = `
     body.immersive-workbench .plugin-stage-shell[data-expanded="true"] .plugin-stage-fact,
     body.immersive-workbench .plugin-stage-shell[data-expanded="true"] .plugin-stage-meta { display: none; }
   }
+  /* The side panel takes its width from the stage, not from the window: a wide window with the panel open can leave the
+     stage too narrow for the list beside an open record. Then the record takes the whole stage, as on a phone. */
+  @container plugin-stage (max-width: 600px) {
+    body.immersive-workbench .plugin-stage-shell[data-expanded="true"] { display: block; }
+    body.immersive-workbench .plugin-stage-shell[data-expanded="true"] .plugin-stage-chrome,
+    body.immersive-workbench .plugin-stage-shell[data-expanded="true"] .plugin-stage-list { display: none !important; }
+    body.immersive-workbench .plugin-stage-shell[data-expanded="true"] .plugin-stage-workspace {
+      position: absolute; inset: 0; display: flex; flex-direction: column; grid-column: auto; grid-row: auto;
+    }
+  }
   body.immersive-workbench .plugin-stage-workspace .feed-stage-item-detail {
     flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;
     padding: 0 24px 24px; margin: 0; border-radius: 0; background: transparent; animation: none;

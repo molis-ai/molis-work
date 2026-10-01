@@ -18,7 +18,7 @@ const ASSISTANT_BASE = `你是 Molis Work 的个人工作助理。用户可以�
 - 先分清用户是在讨论、想要方案、要你执行、在纠正上一步，还是要停止。讨论和出方案不修改任何东西。
 - 用户明确要求执行且范围清楚时，直接推进，不要再问“是否开始”。写入类工具每次调用前，系统会把准确的参数交给用户确认——那就是确认，你不需要另外征求同意。
 - 不要以“我来做”“我重新发起”“接下来我会……”这类预告结束一轮：需要做的事在同一轮里直接调用工具完成，做完再回复结果；确实做不了时说明原因。
-- 只在答案会改变结果或授权时提问；用 ask-user，给出具体选项。要用户在几个选项里选、或补一个具体的值时，一定调用 ask-user（会显示成可点的提问卡），不要在回复正文里用文字列选项让用户打字回答；一次只问真正缺的那一两个问题。已经说过的背景、约定和纠正不要让用户重复。
+- 只在答案会改变结果或授权时提问；用 ask-user，给出具体选项。要用户在几个选项里选、或补一个具体的值时，一定调用 ask-user（会显示成可点的提问卡），不要在回复正文里用文字列选项让用户打字回答；一次只问真正缺的那一两个问题。已经说过的背景、约定和纠正不要让用户重复。ask-user 的 why 会原样显示在提问卡上：写成直接对用户说的话（用“你”），不要写“用户拒绝了……”这类给自己看的说明。用户拒绝一项修改后，说明它没有执行即可，不要追问接下来怎么处理，除非下一步确实要用户决定。
 - 用户纠正或补充时，在原工作上继续，保留用户已经认可或修改过的部分，不要把用户删掉的内容加回来。“再短一点”“换成第二种”作用于最近一次有效的结果。
 
 ## 能力
@@ -52,7 +52,7 @@ const ASSISTANT_BASE = `你是 Molis Work 的个人工作助理。用户可以�
 
 ## 表达
 - 用用户使用的语言，简洁、直接。先给结论或结果，再给必要的依据和下一步。不要复述工具调用过程。
-- 不在回答里写文档 ID、项目 ID、能力标识、错误码等内部标识；用标题和名称指代对象。结果的打开入口由界面提供，你只需说清结果是什么、在哪个插件里。`;
+- 不在回答里写文档 ID、项目 ID、能力标识、工具名、字段名（如 due_date、starred）、错误码等内部标识，调用工具前后说明进度的话也一样；用标题、名称和平常的话指代对象和字段。工具没做成时，说清哪件事没做成、为什么、接下来怎么办，不说网关、schema、参数类型这些实现细节。结果的打开入口由界面提供，你只需说清结果是什么、在哪个插件里。`;
 
 /** How a long work's older history is trimmed: which original passages to keep, never a rewrite of them. */
 const ASSISTANT_COMPACTION = [
@@ -66,7 +66,7 @@ const ASSISTANT_COMPACTION = [
 ].join("\n");
 
 export const ASSISTANT_PROMPTS: AgentPromptText[] = [
-  { prompt_id: "assistant-base", version: 17, layer: "base", body: ASSISTANT_BASE },
+  { prompt_id: "assistant-base", version: 18, layer: "base", body: ASSISTANT_BASE },
   { prompt_id: "assistant-compaction", version: 1, body: ASSISTANT_COMPACTION },
 ];
 
@@ -75,7 +75,7 @@ export const ASSISTANT_PROMPTS: AgentPromptText[] = [
  * work's scope, queries directly and commands under the effect policy.
  */
 export const ASSISTANT_AGENT: AgentManifest = {
-  prompts: [{ prompt_id: "assistant-base", version: 17, layer: "base" }, { prompt_id: "assistant-compaction", version: 1 }],
+  prompts: [{ prompt_id: "assistant-base", version: 18, layer: "base" }, { prompt_id: "assistant-compaction", version: 1 }],
   // A long work keeps what it needs when its history grows past the window: the runtime picks passages, it never rewrites them.
   // The runtime counts the whole context, this round's lookups and readings included: at 16,000 almost every first round
   // (25–33k with its capability lookups) paid for a compaction it did not need.

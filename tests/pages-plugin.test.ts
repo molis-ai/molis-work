@@ -5299,6 +5299,23 @@ test("备注、评论、提及和卡能进 schema，抽取会写出任务卡和�
   assert.ok(JSON.stringify(extracted.body).includes("task_card"));
 });
 
+test("写作助手只依据原文：提示词约束事实与长度，「更短」比原文还长时不采用", async () => {
+  const original = "材料仅为一段会议纪要，记录了几项分工与时限，涉及方案修订、预算、评审会和市场部文案方向。";
+  let prompt = "";
+  const longer = await runPagesAi({ command: "rewrite", style: "concise", text: original }, async given => { prompt = JSON.stringify(given); return original + "另外，预算须在本周五前提交。"; })
+    .then(() => null, (error: { code?: string; message?: string }) => error);
+  assert.equal(longer?.code, "pages.invalid");
+  assert.match(longer?.message ?? "", /没有比原文更短/);
+  assert.match(prompt, /命令：改写 · 更短/);
+  assert.match(prompt, /不添加原文没有的事实、人名、日期、时间、数字/);
+  assert.match(prompt, /结果必须比原文短/);
+  const shorter = await runPagesAi({ command: "rewrite", style: "concise", text: original }, async () => "会议纪要记录了方案修订、预算、评审会和文案方向的分工与时限。");
+  assert.equal(shorter.text, "会议纪要记录了方案修订、预算、评审会和文案方向的分工与时限。");
+  // Other commands are not held to the length: an expansion may be longer.
+  const expanded = await runPagesAi({ command: "expand", text: "评审会定在下周三。" }, async () => "评审会定在下周三下午，届时（待补充）需要到场。");
+  assert.match(expanded.text, /（待补充）/);
+});
+
 test("AI 缺模型拒绝，配置模型返回候选，Promote 经统一动作发出 Artifact", async () => {
   await assert.rejects(runPagesAi({ command: "summarize", text: "第一句。第二句。" }), { code: "actions.connection_required" });
   await withHome(async (home) => {

@@ -11,7 +11,9 @@ test("an ending that only announces the next step is recognised; results, questi
     // Seen from MiniMax-M3 asked to read saved to-dos back: this one line was the whole reply, and nothing was read.
     "调用「会议待办」的列表能力读回保存的提炼记录，核对刚才三条。", "读回刚才保存的三条待办并逐条核对。",
     // The same with the side panel browser: a line that only names the click or the typing, and nothing done.
-    "点击页面上的 Learn more 链接。", "输入 tomsmith 到 Username 输入框。"]) {
+    "点击页面上的 Learn more 链接。", "输入 tomsmith 到 Username 输入框。",
+    // Seen from MiniMax-M3 after a refused edit: nothing was sent and there was nothing to confirm.
+    "我用确认流程再试一次，由你确认后落地。", "我再试一次。", "我重新提交一次修改。", "再试一次：把截止日期改成下周二。"]) {
     assert.equal(announcesWithoutActing(text), true, text);
   }
   for (const text of ["完成。改动与结果：\n- calc.js 新增 multiply\n- npm test：exit 0，三条断言全部通过。", "calc.js 已落盘。", "要把这段替换进文档吗？",

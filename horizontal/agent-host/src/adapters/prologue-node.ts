@@ -239,12 +239,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   /** Per session, the capabilities the round now running has seen offered (so one gone later reads as taken away). */
   const gatewayKnown = new Map<string, Set<string>>();
   const gatewayHooks = new Set<string>();
+  // Why each held ending was held, in order (the runtime's event does not say), and rounds that ended still only announcing.
+  const heldLabels = new Map<string, Array<{ target: string; summary: string }>>();
   // Rounds that may change things: an ending that only announces the next step is held once per run.
   /** Per session, what the round now running really kept and forgot (only for sessions given memory tools). */
   const memoryRounds = new Map<string, { keep: number; forget: number; off: boolean; spoken: string }>();
   // Suggestions this round really made, for the same check: a reply may not say a button is ready when none was.
   const offerRounds = new Map<string, { offered: number }>();
-  const stopGuards = new Map<string, { writing: boolean; held: Set<string> }>();
+  const stopGuards = new Map<string, { writing: boolean; held: Map<string, Set<HeldKind>> }>();
   const actionControllers = new Map<string, AbortController>();
   const runRoots = new Map<string, ExactRef<"authorized-root">>();
   const activeRuns = new Map<string, { live(): boolean; steer(text: string): Promise<void> }>();
@@ -1076,23 +1078,28 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const guard = stopGuards.get(input.session_id);
       if (guard) guard.writing = input.provenance.frozen.execution !== "read-only";
       else {
-        const sessionId = input.session_id, created = { writing: input.provenance.frozen.execution !== "read-only", held: new Set<string>() };
+        const sessionId = input.session_id, created = { writing: input.provenance.frozen.execution !== "read-only", held: new Map<string, Set<HeldKind>>() };
         stopGuards.set(sessionId, created);
         runtime.hooks.register({ id: `molis-announce-guard-${sessionId}`, event: "session-stop", forSession: sessionId, handler: async context => {
           const run = context.origin?.run, text = (context.input as { text?: unknown } | undefined)?.text;
-          if (!run || typeof text !== "string" || created.held.has(run)) return { kind: "allow" as const };
-          // A claim of keeping or forgetting that no call made this round is held once, whatever the round's execution.
+          if (!run || typeof text !== "string") return { kind: "allow" as const };
+          // Each kind of ending is held at most once per round: a second, different slip is still caught, the same one is not
+          // held again (the person chose one automatic continuation per round for an ending that only announces).
+          const held = created.held.get(run) ?? new Set<HeldKind>();
+          const hold = (kind: HeldKind, why: string) => { held.add(kind); created.held.set(run, held); heldLabels.set(run, [...(heldLabels.get(run) ?? []), HELD_LABELS[kind]]); return { kind: "deny" as const, why }; };
+          // A claim of keeping or forgetting that no call made this round is held, whatever the round's execution.
           const tracked = memoryRounds.get(sessionId);
-          const claim = tracked ? claimsMemoryChange(tracked.spoken.trim() ? tracked.spoken.slice(-1200) : text) : null;
-          if (claim && memoryRounds.get(sessionId)![claim] === 0) { created.held.add(run); return { kind: "deny" as const, why: memoryRounds.get(sessionId)!.off ? MEMORY_OFF_HELD : MEMORY_CLAIM_HELD[claim] }; }
-          if (business && writesToolCallAsText(text)) { created.held.add(run); return { kind: "deny" as const, why: WRITTEN_CALL_HELD }; }
-          if (offerRounds.get(sessionId)?.offered === 0 && claimsButton(text)) { created.held.add(run); return { kind: "deny" as const, why: BUTTON_CLAIM_HELD }; }
+          const claim = tracked && !held.has("memory") ? claimsMemoryChange(tracked.spoken.trim() ? tracked.spoken.slice(-1200) : text) : null;
+          if (claim && memoryRounds.get(sessionId)![claim] === 0) return hold("memory", memoryRounds.get(sessionId)!.off ? MEMORY_OFF_HELD : MEMORY_CLAIM_HELD[claim]);
+          if (business && !held.has("written") && writesToolCallAsText(text)) return hold("written", WRITTEN_CALL_HELD);
+          if (!held.has("button") && offerRounds.get(sessionId)?.offered === 0 && claimsButton(text)) return hold("button", BUTTON_CLAIM_HELD);
           // Tool names, capability ids this round found, UUIDs and error codes are ours, not the person's words.
-          const ids = business ? mentionsInternalIds(text, gatewayKnown.get(sessionId) ?? []) : [];
-          if (ids.length) { created.held.add(run); return { kind: "deny" as const, why: internalIdsHeld(ids) }; }
+          const ids = business && !held.has("ids") ? mentionsInternalIds(text, gatewayKnown.get(sessionId) ?? []) : [];
+          if (ids.length) return hold("ids", internalIdsHeld(ids));
           if (!created.writing || !announcesWithoutActing(text)) return { kind: "allow" as const };
-          created.held.add(run);
-          return { kind: "deny" as const, why: ANNOUNCE_HELD };
+          // Continued once and still only announcing: it ends (the round then says plainly that nothing was done, see endedOnPromise).
+          if (held.has("announce")) return { kind: "allow" as const };
+          return hold("announce", ANNOUNCE_HELD);
         } });
       }
       const bindActions = !none && (!!input.actions || !!input.action_gateway || actionToolSessions.has(input.session_id));
@@ -1432,6 +1439,13 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   return Object.assign(new PrologueAgentAdapter({
     runtime: port,
     modelConfiguration: options.modelConfiguration,
+    stopHeld: runId => { const queue = heldLabels.get(runId); const next = queue?.shift(); if (queue && !queue.length) heldLabels.delete(runId); return next; },
+    // Judged when the run ends, from its last words: the runtime stops consulting the hook after it has held twice.
+    endedOnPromise: (runId, sessionId, text) => {
+      const guard = stopGuards.get(sessionId), held = guard?.held.get(runId);
+      guard?.held.delete(runId);
+      return Boolean(guard?.writing && held?.has("announce") && announcesWithoutActing(text));
+    },
     approvals,
     async answerPending(run, answer) {
       if (!Number.isInteger(answer.pending_revision) || answer.pending_revision! < 1) {
@@ -1465,6 +1479,16 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     }
   } });
 }
+
+type HeldKind = "memory" | "written" | "button" | "ids" | "announce";
+/** How a held ending reads in the round: what was wrong with it, and that the round was let go on to correct it. */
+const HELD_LABELS: Record<HeldKind, { target: string; summary: string }> = {
+  announce: { target: "上一段只说了要做什么，没有实际执行", summary: "这一轮只说明了接下来要做什么、没有调用工具，已让它接着实际去做（每轮最多一次）" },
+  memory: { target: "上一段说记住或删掉了，但这一轮没有做到", summary: "回答说已经记住或删掉，可这一轮没有成功的记忆调用，已让它真正去做或如实更正" },
+  written: { target: "上一段把调用写成了文字，并没有执行", summary: "回答里写的是调用的文字而不是调用本身，已让它真正去调用或改用平常的话回答" },
+  button: { target: "上一段说按钮准备好了，但这一轮没有做出按钮", summary: "回答说按钮已经准备好，可这一轮没有成功准备操作卡，已让它真正去准备或如实更正" },
+  ids: { target: "上一段写出了内部标识，已让它改用名称重写", summary: "回答里出现了工具名、能力标识或编号，已让它改用标题和名称重写" },
+};
 
 /** The runtime's own receipts, as the developer diagnostics page shows them. */
 export function runtimeDiagnostics(runtime: Pick<import("@prologue/sdk").Runtime, "identity" | "state" | "assembly" | "capabilityReport" | "ledgerFailures">): AgentRuntimeDiagnostics {

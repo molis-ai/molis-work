@@ -468,7 +468,9 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     // The person's memory.
     "remember": "memory-keep", "list-memories": "memory-list", "forget-memory": "memory-forget", "suggest-memory": "memory-suggest",
     // The Host let a round that only announced its next step continue; the runtime condensed a long work's context.
-    "自动续做": "auto-continue", "上下文整理": "compact" };
+    "自动续做": "auto-continue", "上下文整理": "compact",
+    // It ended still only saying what it would do, after its one continuation: nothing was done.
+    "只说未做": "ended-on-promise" };
   return activity.flatMap(item => {
     if (item.name === "reasoning" || item.name === "context-remaining") return [];
     const verb = verbs[item.name] ?? item.name;
@@ -2178,9 +2180,19 @@ export class AssistantService {
   }
 
   private reviewsFor(host: AgentHost, work: StoredWork): AssistantPendingReview[] {
-    return host.reviews.list(ownerOf(work), "pending").filter(review => review.run?.session_id === work.session_id).map(review => {
+    const pending = host.reviews.list(ownerOf(work), "pending").filter(review => review.run?.session_id === work.session_id);
+    if (!pending.length) return [];
+    // A field that is just the identifier of an object this work knows reads as that object's name (seen: “对象 = 6d3502b1-…”).
+    const titles = new Map<string, string>();
+    for (const row of this.store.relations.forWork(identity(work))) {
+      const title = this.rememberedTitle(row.object);
+      if (title) titles.set(row.object.id, title);
+    }
+    for (const round of this.store.rounds(work.work_id)) if (round.context?.object?.title) titles.set(round.context.object.id, round.context.object.title);
+    return pending.map(review => {
       const readable = describeReview(review.document);
-      return { review_id: review.review_id, kind: review.document.kind, run_id: review.run?.run_id ?? null, summary: readable.summary, fields: readable.fields,
+      const fields = readable.fields.map(field => titles.has(field.value.trim()) ? { ...field, value: `「${titles.get(field.value.trim())}」` } : field);
+      return { review_id: review.review_id, kind: review.document.kind, run_id: review.run?.run_id ?? null, summary: readable.summary, fields,
         requested_at: review.requested_at, expires_at: review.expires_at };
     });
   }

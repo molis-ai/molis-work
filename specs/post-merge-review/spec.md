@@ -38,11 +38,56 @@
 
 ## 3. 问题表
 
-（进行中。）
+状态：已修（PR 已合入）、修复中（PR 已开）、待决（等用户拍板）、交第二步（只剩代码层清理）、核实中。
+
+| 编号 | 问题 | 证据 | 归类 | 处理 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| PMR-01 | 首次使用或新建项目时选「空白开始」，输入名字后用鼠标点「创建项目」，名字被清空，Host 返回 400，项目建不出来 | 隔离 Home 实测（4302）；`change` 处理没有排除 `#cx-blank-name`，先存来源选择再整页重绘；新用例修复前失败 | 产品缺陷，2026-09-26 起即有，不是合并引入 | 跳过项目名的 `change`，重绘保留名字；新增 `tests/context-onboarding-blank.e2e.test.ts` | 修复中 [#138](https://github.com/molis-ai/molis-work/pull/138) |
+| PMR-02 | 两个铃铛：标题栏「插件通知」（`immersive-shell.ts` 的 `data-plugin-notifications`，待核对的插件事件）与底栏「需要你看看」（`assistant-dock.ts` 的 `data-assistant-attention`，助理提醒、失败、到期提醒） | 代码与界面快照 | 用户可见重复 | 产品语义，需用户定唯一入口 | 待决 |
+| PMR-03 | Characters 两处入口：设置「AI › 角色」页，同时插件市场里仍有「角色」插件卡，可添加、移除 | 隔离 Home 实测：设置目录与市场卡片 | 用户可见重复 | 产品语义，需用户定 | 待决 |
+| PMR-04 | `apps/workbench/src/i18n/en.ts` 有 38 个翻译键在后面的 `Object.assign` 里重复出现，其中 24 个英文不同，后写的静默覆盖先写的（如「已完成」Done/Completed，「执行中」Executing/In progress） | 静态扫描 | 合并后的翻译键冲突；现行英文就是后写的值 | 删掉被覆盖的死条目、加重复键门禁，行为不变 | 交第二步 |
+| PMR-05 | 平台记忆在首次调用时把助理第一版记忆（`assistant.db` 三张表）迁进来（`memory-host.ts` 的 `migrateLegacy`），助理旧 HTTP 记忆路由保留路径转发 | 代码 | 兼容逻辑；用户只看到一套记忆 | 按「不留兼容」删迁移、旧表与转发 | 交第二步 |
+| PMR-06 | `vendor/prologue-sdk/` 有 4 份 tgz，只有 `side-panel-memory.tgz` 被依赖；README 里「两份包」的说明已过期（`feature/personal-work-assistant` 已不存在） | `horizontal/agent-host/package.json`、`pnpm-lock.yaml`、README | 卫生；删 vendored 文件要用户同意 | 按 prompt 留给第二步 | 交第二步 |
+| PMR-07 | 工作台首屏把全部插件的隐藏界面一次渲染进页面（Feed 筛选、Jelly 日历、Cognia、炼金术士、角色、Sessions、Schedule 等） | 界面快照：按钮 200+ 个，绝大多数不可见 | 性能与结构 | 先在 §4.5 量页面体量，结构改动交第二步 | 核实中 |
+| PMR-08 | 客户端仍有 Goal 时代的旧路径：`initialization.ts` 的 `/decisions`、`#decision-goal-` 跳转、`onboarding-runtime=1`、`feed-start=1`、决定回执，以及每 4 秒的 Board 游标轮询 | 代码 | 兼容或死代码 | 第二步清点后删除 | 交第二步 |
+| PMR-09 | `scripts/personal-assistant-public-sources.mts` 服务于已删除的个人助理切片 | 代码与引用 | 死脚本 | 第二步删除 | 交第二步 |
+| PMR-10 | 项目页里插件指向全局页面的链接被加上项目前缀，打开是 404：Cognia「打开模型设置」、Images 与实验「在 Connectors 管理账号」、Feed「打开 Connectors」（GitHub、Gmail）、角色「管理内置 Agent 授权」，共 6 个 | 隔离 Home 实测：项目页全部带项目前缀的站内链接逐个请求；根因是 `apps/workbench/src/renderer.ts` 的 `prefixLocalLinks` 给所有 `href="/…"` 加前缀，只排除 `/locale`、`/projects/` | 产品缺陷；规则自 2026-09-08 起，各插件后来陆续加了全局链接 | 加前缀时跳过 `/settings`、`/capabilities`；新增 `tests/project-page-links.test.ts`：项目页每个站内链接都能打开，修复前失败 | 修复中 [#139](https://github.com/molis-ai/molis-work/pull/139) |
+| PMR-11 | Onboarding 页面中英混排（如 “Choose a source”） | `work-placement` §13 记录；实测 `/onboarding?mode=new-project` 在中文与英文界面下都没有混排 | 已不成立 | 无 | 已关闭 |
+| PMR-12 | 助理面板约 800px 宽时，「继续/停止」只在抽屉里，抽屉开着又盖住确认卡 | `system-assistant/implementation.md` §16 记录，转给了面板会话 | 待核实 | 实测 | 核实中 |
+| PMR-13 | 灵光动作行在侧栏宽度下不换行，「复制内容」被截 | `side-panel` §7.4；实测侧栏 504px 宽时动作行为「转成文档 · 建成 Goal · 头脑风暴 · 交给助理」加复制、删除两个图标，没有截断 | 已不成立（插件复查线改成了图标） | 无 | 已关闭 |
+| PMR-14 | 英文界面底栏的材料芯片写成 “Viewing：合入后验收”，用了中文全角冒号 | 隔离 Home 英文界面实测 | 文案小瑕疵 | 随第二步 i18n 门禁一起改 | 交第二步 |
 
 ## 4. 合并缺陷与用户可见重复
 
-（进行中。）
+### 4.1 合并丢失与互相覆盖
+
+- **冲突标记**：全仓（除 Markdown 与锁文件）没有残留的 `<<<<<<<`、`=======`、`>>>>>>>`。
+- **热点文件**：按合并提交统计，范围内被三条及以上需求线改过的非文档文件有 147 个。前几位是 `i18n/en.ts`（9 条线）、`scripts/client/initialization.ts`（8）、`immersive-shell.ts`（8）、`skills/molis-plugin-dev/SKILL.md`（7）、`plugins/native/pages/src/actions.ts`（7）、`design-system/src/styles/craft-finish.ts`（7）。已读全文的有 `initialization.ts`；其余按问题类别做全仓检查：
+  - **DOM id**：项目页运行时检查，没有重复 id。
+  - **翻译键**：见 PMR-04。
+  - **轮询与监听**：见 §4.5。
+- **每个 PR 的测试**：全量回归覆盖全部测试文件，结果见 §6。
+
+### 4.2 用户能看到的重复
+
+| 项 | 现状（main 62cbc14d） | 结论 |
+| --- | --- | --- |
+| 通知入口 | 标题栏「插件通知」铃铛只在有待核对插件事件时出现，点了进插件市场；底栏「需要你看看」铃铛汇总助理的失败、等你、做完、到期提醒（含 Todo 等插件声明的到期提醒，`assistant-service.ts` 的 `sweepReminders`）；标题栏另有「后台任务」 | 两个铃铛并存，PMR-02 待决 |
+| 记忆 | 设置只有一套「记忆」页，读写平台记忆；助理第一版的表只在首次调用时被迁移读取 | 用户可见只有一套；迁移代码见 PMR-05 |
+| Characters | 设置「AI › 角色」与市场「角色」插件卡并存；底栏插件切换器不列 Characters | PMR-03 待决 |
+| 讨论分屏 | 侧栏有「讨论」标签；底栏不再有独立的讨论入口 | 旧入口已消失 |
+| 搜索、@、放置 | 待跨功能场景 3 核对 | 核实中 |
+| 推荐与操作、文件与预览 | 待跨功能场景 2 核对 | 核实中 |
+
+### 4.3 Prologue SDK 合成包
+
+- `horizontal/agent-host` 是唯一依赖 `@prologue/sdk` 的包，指向 `side-panel-memory.tgz`。`pnpm-lock.yaml` 里只有这一份解析；`scripts/workspace-packages.mjs` 不单独指定 SDK 包。
+- 按 `vendor/prologue-sdk/README.md`，合成包是线性叠加：
+  - 底座是 Coding 各补丁并入的 claims（`af7375c7`）；
+  - 往上依次是 dispatch-denied、bounded-results、assistant（app 模式、session-stop）、记忆 project 作用域、resource-intake；
+  - 最上面是平台记忆与侧栏界面控制。
+- 各需求线对 SDK 的改动都在当前包里；动态交互线没有改 SDK。
+- 侧栏与记忆的 prologue 提交（`9fc3b173` 等）尚未推到 prologue 远端。要不要推，按授权需要用户决定，列进 BACKLOG。
 
 ## 5. 跨功能场景
 
@@ -279,7 +324,16 @@
 
 ## 9. 决策记录与待决事项
 
-（进行中。需要用户拍板的事项一律用弹窗询问，问题与回答记在这里。）
+需要用户拍板的事项一律用弹窗询问，问题、选项与回答记在这里。按推荐直接做的常规取舍也记在这里，标「按推荐」。
+
+| 日期 | 问题 | 选项（推荐在前） | 回答 | 落实 |
+| --- | --- | --- | --- | --- |
+| 2026-10-01 | 合并哪些 PR | #137 spec 梳理；#138 空白开始建项目修复；#139 项目页全局链接修复（CI 通过后合） | 三个都合 | #137 已合（cefc6b38）；#138、#139 同步 main 后等 CI 重跑再合 |
+| 2026-10-01 | 两个铃铛保留哪个入口（PMR-02） | 合成底栏一个铃铛；保留两个但标题栏换成「插件待核对」徽标；维持现状 | 合成底栏一个铃铛 | 待办：待核对的插件事件进入「需要你看看」，点开去插件市场核对；删标题栏铃铛与它的 30 秒轮询 |
+| 2026-10-01 | Characters 怎么收（PMR-03） | 只留设置里的角色页；卡片保留只做跳转；维持现状 | 只留设置里的角色页 | 待办：市场与项目插件目录不再列 Characters，不能添加或移除；插件包实现暂留，第二步再定是否收进宿主 |
+| 2026-10-01 | 真实模型验收怎么做 | 用户在隔离 Home 填一次 Key；放行我只读拷贝真实配置；本轮不做真实模型实测 | 放行我只读拷贝真实配置 | 只复制模型目录与加密凭据到临时目录、经管道转进隔离 Home，不打印密钥；用完删除临时副本 |
+| 2026-10-01 | 归档判定口径（按推荐） | 已实现、已被取代、已作废、部分实现都归档，剩余事项进 BACKLOG；只保留现行规范与在做的 | 按推荐 | §8 |
+| 2026-10-01 | PMR-01、PMR-10 在第一步修（按推荐） | 两者都挡住主路径、改动小，属于第一步授权范围 | 按推荐 | #138、#139 |
 
 ## 10. 未验证的范围
 

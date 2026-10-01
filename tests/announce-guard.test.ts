@@ -13,7 +13,8 @@ test("an ending that only announces the next step is recognised; results, questi
     // The same with the side panel browser: a line that only names the click or the typing, and nothing done.
     "点击页面上的 Learn more 链接。", "输入 tomsmith 到 Username 输入框。",
     // Seen from MiniMax-M3 after a refused edit: nothing was sent and there was nothing to confirm.
-    "我用确认流程再试一次，由你确认后落地。", "我再试一次。", "我重新提交一次修改。", "再试一次：把截止日期改成下周二。"]) {
+    "我用确认流程再试一次，由你确认后落地。", "我再试一次。", "我重新提交一次修改。", "再试一次：把截止日期改成下周二。",
+    "我直接给文档加一节「风险」，两条按你的措辞写。"]) {
     assert.equal(announcesWithoutActing(text), true, text);
   }
   for (const text of ["完成。改动与结果：\n- calc.js 新增 multiply\n- npm test：exit 0，三条断言全部通过。", "calc.js 已落盘。", "要把这段替换进文档吗？",
@@ -81,6 +82,12 @@ test("a reply that shows internal identifiers is recognised; titles, file names 
     "我会记住（remember）这条偏好吗？需要你确认。", "按 x 轴排列的图表已经更新。", "pages.create.v2 是另一回事", "见 docs/ask-user-guide.md。",
     "版本 1.2.3-beta 已发布。"]) {
     assert.deepEqual(mentionsInternalIds(text, known), [], text);
+  }
+  // A field's own name is ours too; a file name, an address or a path that happens to use underscores is not.
+  assert.deepEqual(mentionsInternalIds("要不要我帮你把它标上 due_date？"), ["due_date"]);
+  assert.deepEqual(mentionsInternalIds("已把 expected_revision 改成 2。"), ["expected_revision"]);
+  for (const text of ["附件 q4_report.xlsx 已上传。", "见 https://example.com/a_b/c_d 。", "路径是 docs/q4_plan/readme.md。", "抄送 li_lei@example.com。", "Use `snake_case` style? 不是这个意思。"]) {
+    assert.deepEqual(mentionsInternalIds(text).filter(id => !id.includes("snake")), [], text);
   }
   assert.match(internalIdsHeld(["pages.create"]), /pages\.create/);
 });

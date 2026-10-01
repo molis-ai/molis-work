@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 /**
- * Which Chrome-family browser on this machine the side panel drives (specs/side-panel D03). Only browsers that speak
+ * Which Chrome-family browser on this machine the side panel drives (specs/archive/side-panel D03). Only browsers that speak
  * CDP qualify; none is bundled. `MOLIS_WORK_BROWSER_PATH` names one explicitly (tests, unusual installs).
  */
 export interface LocatedBrowser { readonly path: string; readonly name: string }

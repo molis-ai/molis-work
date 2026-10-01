@@ -35,7 +35,7 @@
 
 ## 已收
 
-157 份，在 [`archive/`](archive/)。其中按开头状态收走的是第一批；后来对着代码核对、确认产品里已经有这份行为的，也收在同一处。
+158 份，在 [`archive/`](archive/)。其中按开头状态收走的是第一批；后来对着代码核对、确认产品里已经有这份行为的，也收在同一处。
 
 <details>
 <summary>名单</summary>
@@ -185,6 +185,7 @@
 - [shelf-row-ink](archive/shelf-row-ink/spec.md)
 - [shelf-settings-flatten](archive/shelf-settings-flatten/spec.md)
 - [shelf-stage-chrome-align](archive/shelf-stage-chrome-align/spec.md)
+- [side-panel](archive/side-panel/spec.md)：平台侧栏。用户本人验收为接受，依据是已做的工程与真实场景验证，用户暂不亲自实操；没覆盖的部分见正文 7.3、7.4。
 - [tab-reorder-preview](archive/tab-reorder-preview/spec.md)
 - [tab-sash-handle](archive/tab-sash-handle/spec.md)
 - [tab-split-drop-preview](archive/tab-split-drop-preview/spec.md)

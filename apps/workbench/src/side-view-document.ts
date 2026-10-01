@@ -9,7 +9,7 @@ import { CONTROL_CLIENT_SCRIPT } from "./scripts/control.js";
 import { SIDE_LINKS_SCRIPT } from "./side-panel.js";
 
 /**
- * One plugin tab of the side panel (specs/side-panel D13): the Host serves the declared `side` view in its own
+ * One plugin tab of the side panel (specs/archive/side-panel D13): the Host serves the declared `side` view in its own
  * document, which the panel loads in a same-origin frame. The plugin supplies the contribution, its stylesheet and
  * client factory, exactly as for its other views; where the tab sits and how wide it is stay the Host's.
  * The model a side contribution receives is only where it is: `{ project_id, route_prefix, view_id }`.

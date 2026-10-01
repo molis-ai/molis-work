@@ -1,7 +1,7 @@
 import type { SidePanelPrimitives } from "./side-panel.js";
 
 /**
- * The file tab of the side panel (specs/side-panel P3, P8). Lists the file sources plugins declare here and previews
+ * The file tab of the side panel (specs/archive/side-panel P3, P8). Lists the file sources plugins declare here and previews
  * one file; "open in its plugin" goes through the same open target system search uses. Other surfaces (the
  * Assistant's work, a plugin page) open a preview here with `molis:side-open { tab: "files", target }`, where the
  * target names a declared source and subject, or carries a preview of its own (`{ preview: { title, media_type, text | url } }`).

@@ -521,7 +521,8 @@ test("a moment on a card is picked, not typed: the field says so, the exact inst
     () => reply({ name: "suggest-action", input: { title: "记下并提醒", summary: "存一条笔记，到点提醒", capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes",
       input: { text: "给财务回邮件" }, missing: [{ field: "remind_at", question: "什么时候提醒你？" }] } }),
     () => reply(undefined, "按钮在上面。"),
-  ]);
+    // A fixed clock before the picked moment: on the real clock that moment passes and the card rightly reads as stale.
+  ], { now: () => new Date("2026-09-30T12:00:00.000Z") });
   try {
     const sent = await f.service.send({ text: "记一条要提醒的笔记", request_id: "req-00000031" }, { project_ref: f.project });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");

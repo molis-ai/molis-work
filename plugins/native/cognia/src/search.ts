@@ -6,7 +6,7 @@ import type { Material } from "./types.js";
 export const cogniaSearchActions = {
   entries: defineSearchEntriesAction("cognia.search.entries", [{ kind: "cognia_material", title: "资料", surface: "cognia" }], "Cognia 资料", ["cognia:read"], "home"),
   subject: defineSubjectContextAction("cognia.subject.read", "cognia_material", "Cognia 资料", ["cognia:read"], "home"),
-  /** The side panel's file tab (specs/side-panel): the person's knowledge by folder; previews read `subject`. */
+  /** The side panel's file tab (specs/archive/side-panel): the person's knowledge by folder; previews read `subject`. */
   files: defineFileEntriesAction("cognia.files.entries", [{ kind: "cognia_material", title: "资料", surface: "cognia" }], "Cognia 资料", ["cognia:read"], "home"),
 };
 const revisionOf = (material: Material) => `${material.revision}:${material.hash}`;

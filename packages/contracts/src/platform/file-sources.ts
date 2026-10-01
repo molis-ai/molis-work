@@ -3,7 +3,7 @@ import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js"
 import { SEARCH_OPEN_TARGET_SCHEMA, searchRevisionOf, type SearchOpenTarget } from "./search-sources.js";
 
 /**
- * How a plugin shows its files in the side panel (specs/side-panel §3.3, D11). The plugin keeps its own store; the
+ * How a plugin shows its files in the side panel (specs/archive/side-panel §3.3, D11). The plugin keeps its own store; the
  * panel lists a source's entries and previews one through these declared actions, with the person's own authority.
  * A source that declares no content action is previewed through the plugin's subject reader (`<plugin>.subject.read`).
  * A plugin turned off leaves the directory, and its files leave the panel with it.

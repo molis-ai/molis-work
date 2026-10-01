@@ -39,7 +39,7 @@ export function shelfClipboardSearchEntries(snapshot: ShelfSnapshot): SearchEntr
     title: clip.title || searchText(clip.body, 80) || "剪贴板", summary: searchText(clip.body, 4000), updated_at: clip.created_at, content: "summary", open: { surface: "shelf", id: clip.clip_id } }));
 }
 
-/** The side panel's file tab (specs/side-panel): what is on the shelf, originals previewed as themselves. Folders stay on the shelf. */
+/** The side panel's file tab (specs/archive/side-panel): what is on the shelf, originals previewed as themselves. Folders stay on the shelf. */
 const shelfFileKinds = [{ kind: "shelf_item", title: "置物架材料", surface: "shelf" }];
 export const shelfFileEntriesAction = defineFileEntriesAction("shelf.files.entries", shelfFileKinds, "置物架", ["shelf:read"], "home");
 export const shelfFileContentAction = defineFileContentAction("shelf.files.content", shelfFileKinds, "置物架", ["shelf:read"], "home");

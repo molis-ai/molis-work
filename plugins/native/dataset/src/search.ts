@@ -6,7 +6,7 @@ import type { DatasetStore } from "./store.js";
 export const datasetSearchActions = {
   entries: defineSearchEntriesAction("dataset.search.entries", [{ kind: "dataset", title: "数据表", surface: DATASET_PROJECT_PLUGIN_ID }], "数据表", ["dataset:read"]),
   subject: defineSubjectContextAction("dataset.subject.read", "dataset", "数据表", ["dataset:read"]),
-  /** The side panel's file tab (specs/side-panel): each table as the CSV it would export to. */
+  /** The side panel's file tab (specs/archive/side-panel): each table as the CSV it would export to. */
   files: defineFileEntriesAction("dataset.files.entries", [{ kind: "dataset", title: "数据表", surface: DATASET_PROJECT_PLUGIN_ID }], "数据表", ["dataset:read"]),
   fileContent: defineFileContentAction("dataset.files.content", [{ kind: "dataset", title: "数据表", surface: DATASET_PROJECT_PLUGIN_ID }], "数据表", ["dataset:read"]),
 };

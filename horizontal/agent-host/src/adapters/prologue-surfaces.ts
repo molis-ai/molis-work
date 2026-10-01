@@ -3,7 +3,7 @@ import { APP_MODE_SURFACE_TOOLS } from "@prologue/sdk";
 import type { HostSurfaceAction, HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 
 /**
- * The side panel's browser, as Prologue's interface control (specs/side-panel D05–D10). The local Host implements
+ * The side panel's browser, as Prologue's interface control (specs/archive/side-panel D05–D10). The local Host implements
  * the driver; here it is attached to the runtime for one business session at a time, and every look and action goes
  * through Prologue's rules: looking is allowed, each action stops for the person, a site the person allowed stops
  * asking for everything but sending files, and a blocked site cannot even be looked at.

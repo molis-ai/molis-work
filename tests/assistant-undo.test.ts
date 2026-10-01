@@ -95,6 +95,8 @@ test("a change that can be undone runs when asked without a confirmation, and th
     assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["change:completed"], JSON.stringify(done.rounds[0]!.activity));
     assert.equal(notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
     assert.deepEqual(done.undoable?.map(item => [item.title, item.state]), [["Notes · Add a note", "available"]]);
+    // The page that owns the note rereads once it is taken back: the view names the capability that takes it back.
+    assert.equal(done.undoable![0]!.capability_id, "fixture.notes.remove");
 
     // Taken back once, by the person's click; the owner's own undo runs, and a second click is refused.
     const undone = await service.undo(sent.work.work_id, done.undoable![0]!.undo_id);

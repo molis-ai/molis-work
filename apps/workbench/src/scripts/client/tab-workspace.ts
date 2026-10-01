@@ -67,6 +67,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const TAB_SHARE_MIN_TOUCH = ${TAB_SHARE_MIN_TOUCH};
   const storageKey = "molis-work-tab-workspace:" + (getProjectId() || "board");
   const paneParams = new URLSearchParams(location.search);
+  // A link that asked for a plugin page (onboarding sends the person to Todo) is honored over "entering starts at home".
+  let pluginRequestedOnLoad = false;
   const embedded = window.parent !== window && paneParams.has("workbenchPane");
   if (embedded) document.body.dataset.paneEmbedded = "true";
   const notifyParent = (type, payload = {}) => { if (embedded) parent.postMessage({ type, paneId: paneParams.get("workbenchPane"), ...payload }, location.origin); };
@@ -136,6 +138,16 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
     // A record in a plugin whose objects open from its own list (Forms, Dataset, PPT…): jump to it once the list is up.
     const requestedRecord = paneParams.get("openRecord");
+    // Only the plugin asked for: open its page.
+    if (requestedPlugin && !requestedItem && !requestedRecord && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin)) {
+      ops.setExclusive(state, null);
+      state.focusedPaneId = ops.focused(state).id;
+      ops.openPlugin(state, requestedPlugin);
+      pluginRequestedOnLoad = true;
+      const returnedUrl = new URL(location.href);
+      returnedUrl.searchParams.delete("openPlugin");
+      history.replaceState(history.state, "", returnedUrl);
+    }
     if (requestedPlugin && requestedRecord) {
       const returnedUrl = new URL(location.href);
       returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openRecord");
@@ -1161,6 +1173,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     persist();
   };
   const landAtProjectRoot = () => {
+    if (pluginRequestedOnLoad) return;
     ops.landAtProjectRoot(state);
     apply();
     persist();

@@ -55,7 +55,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     (${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: L, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
     (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ translate: L, route, projectId: state.project?.project_id });
-    // The side panel's file tab opens a file in its plugin the way system search does (specs/side-panel P3).
+    // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3).
     (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id) });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: L,

@@ -11,6 +11,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     // address the cover loaded, not the workbench's.
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindAssistantSettings?.(root);
+    globalThis.molisWorkBindAgentDiagnostics?.(root);
     globalThis.molisWorkBindProjectIdentity?.(root);
     globalThis.molisWorkBindProjectGuidance?.(root);
     globalThis.molisWorkBindProjectRules?.(root);

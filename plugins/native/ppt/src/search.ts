@@ -6,7 +6,7 @@ import type { PptStore } from "./store.js";
 export const pptSearchActions = {
   entries: defineSearchEntriesAction("ppt.search.entries", [{ kind: "presentation", title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),
   subject: defineSubjectContextAction("ppt.subject.read", "presentation", "演示稿", ["ppt:read"]),
-  /** The side panel's file tab (specs/side-panel): each deck; its preview is the outline `subject` reads. */
+  /** The side panel's file tab (specs/archive/side-panel): each deck; its preview is the outline `subject` reads. */
   files: defineFileEntriesAction("ppt.files.entries", [{ kind: "presentation", title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),
 };
 

@@ -4,7 +4,7 @@ import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceObservationKind }
 import { browserAddress, BrowserError, shortcutCommands, type BrowserPage } from "./browser-host.js";
 
 /**
- * The side panel page as the Assistant sees and drives it (specs/side-panel D05–D10). Prologue decides whether each
+ * The side panel page as the Assistant sees and drives it (specs/archive/side-panel D05–D10). Prologue decides whether each
  * look and each action may happen; this driver only does it, on the same page the person watches, and marks what it
  * does so the panel can show it. While the person has taken the page over, every action is refused.
  */

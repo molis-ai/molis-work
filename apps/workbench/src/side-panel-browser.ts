@@ -1,7 +1,7 @@
 import type { SidePanelPrimitives } from "./side-panel.js";
 
 /**
- * The browser tab of the side panel (specs/side-panel P2). The page lives in the local Host's browser; this tab shows
+ * The browser tab of the side panel (specs/archive/side-panel P2). The page lives in the local Host's browser; this tab shows
  * its screencast and sends the person's pointer, keys and input-method text back over one socket. The address bar,
  * problems, dialogs, file choosing and downloads are all this tab's; what the assistant does on the page shows here too.
  */

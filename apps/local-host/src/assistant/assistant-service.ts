@@ -8,6 +8,7 @@ import {
   type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantMemory, type AssistantMemoryCandidate, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover, type AssistantPageCardInput, type AssistantPreparedCard, type AssistantMaterialText,
+  type AssistantDiagnostics, type AssistantRoundDiagnostics,
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
@@ -369,6 +370,27 @@ function checkPreparedCard(card: AssistantPreparedCard | undefined): AssistantPr
     ...(card.editable ? { editable: [...card.editable] } : {}), ...(missing ? { missing } : {}), ...(materials ? { materials } : {}),
     ...(object ? { source_object: { kind: object.kind, id: object.id, ...(object.version !== undefined ? { version: object.version } : {}),
       ...(typeof object.title === "string" && object.title.trim() ? { title: object.title.trim().slice(0, 200) } : {}) } } : {}) };
+}
+
+/** One round for the developer diagnostics page: its run's frozen start, what it was given, and where it stopped. */
+function roundDiagnostics(workId: string, work: StoredWork | null, round: StoredRound, view: AgentRunView | null): AssistantRoundDiagnostics {
+  const frozen = view?.frozen;
+  const tokens = view?.usage?.tokens;
+  return {
+    work_id: workId, work_title: work?.title ?? "", project_id: work?.project_ref?.project_id ?? null, session_id: work?.session_id ?? null,
+    run_id: round.run_id, started_at: round.started_at, ended_at: view?.ended_at ?? null, phase: view?.phase ?? "unknown", stop_reason: view?.stop_reason ?? null,
+    frozen: frozen ? { model_id: frozen.model_id, role: { id: frozen.role_id, version: frozen.role_version }, execution: frozen.execution,
+      character: frozen.character ? { artifact_id: frozen.character.reference.artifact_id, version: frozen.character.reference.version, title: frozen.character.title } : null,
+      prompts: frozen.prompts.map(({ prompt_id, version, layer, user_revision }) => ({ prompt_id, version, layer, ...(user_revision !== undefined ? { user_revision } : {}) })),
+      ...(frozen.history ? { history: frozen.history } : {}), ...(frozen.thinking ? { thinking: frozen.thinking } : {}) } : null,
+    materials: round.materials.map(material => ({ kind: material.kind, title: material.title, explicit: material.explicit, ...(material.draft ? { draft: true } : {}),
+      ...(material.object ? { object: { ...material.object } } : {}),
+      ...(material.capability ? { capability: { capability_id: material.capability.capability_id, version: material.capability.version, provider_id: material.capability.provider_id } } : {}),
+      ...(material.method ? { method: { method_id: material.method.method_id, ...(material.method.version !== undefined ? { version: material.method.version } : {}) } } : {}) })),
+    usage: tokens ? { input: tokens.input, output: tokens.output, cached_input: tokens.cached_input ?? 0 } : null,
+    failures: (view?.activity ?? []).filter(item => item.state === "failed" || item.state === "unknown")
+      .map(item => ({ tool: item.name, target: item.target.slice(0, 200), state: item.state as "failed" | "unknown", summary: item.summary.slice(0, 400) })),
+  };
 }
 
 /** The title a change's output gives the object it made or changed (`{ id, title }` at the top or one level down). */
@@ -2545,6 +2567,28 @@ export class AssistantService {
     if (!found.available) throw new AssistantError("assistant.character_unavailable", found.reason ?? "所选 Character 版本不可用，请明确选择其他版本，或不指定角色", undefined, "重新选择角色");
     if (work.character?.artifact_id === choice.artifact_id && work.character.version === choice.version) return work;
     return this.store.update(this.actorId, work.work_id, null, { character: { artifact_id: choice.artifact_id, version: choice.version, title: found.title } }, false);
+  }
+
+  /**
+   * The developer diagnostics page: the runtime's own account of its assembly, and the Assistant's latest rounds of the
+   * past week with the exact identities and versions they ran with. Coding's rounds are traced in Coding.
+   */
+  async diagnostics(limit = 15): Promise<AssistantDiagnostics> {
+    const host = await this.ports.host();
+    const adapter = host.adapter(RUNTIME);
+    const since = new Date(this.now().getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const recent = this.store.roundsSince(this.actorId, since).filter(({ round }) => round.executor !== "coding").slice(0, Math.max(1, Math.min(limit, 50)));
+    const works = new Map<string, StoredWork | null>();
+    const workOf = (workId: string) => {
+      if (!works.has(workId)) { try { works.set(workId, this.store.get(this.actorId, workId)); } catch { works.set(workId, null); } }
+      return works.get(workId) ?? null;
+    };
+    const rounds = await Promise.all(recent.map(async ({ work_id, round }): Promise<AssistantRoundDiagnostics> => {
+      const work = workOf(work_id);
+      const view = work?.session_id ? await adapter.read({ session_id: work.session_id, run_id: round.run_id }).catch(() => null) : null;
+      return roundDiagnostics(work_id, work, round, view);
+    }));
+    return { runtime: adapter.diagnostics?.() ?? null, rounds };
   }
 
   private roundView(round: StoredRound, view: AgentRunView | undefined, titles: CapabilityTitles | undefined): AssistantRound {

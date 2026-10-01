@@ -1,6 +1,6 @@
 # Prologue 能力矩阵（P12，AC28）
 
-核对日期：2026-09-28，2026-09-29 按新包补核。对象是本分支实际使用的 SDK：`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`（`c63ea1a1`，由 main 的 resource-intake 线 `18a1c827` 与助理的记忆项目作用域 `ac4d1135` 合成，见 vendor README）。相对 9-28 核对的包，公开面新增 `collectRun`、`decodeJsonOutput`，以及结构校验、网络派出授权与原图摄取限额；这些都已补进下表。
+核对日期：2026-09-28，2026-09-29 按新包补核。对象是本分支实际使用的 SDK：`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`（2026-09-30 已从 vendor 删掉，现用的是侧栏与记忆的合成包；`c63ea1a1`，由 main 的 resource-intake 线 `18a1c827` 与助理的记忆项目作用域 `ac4d1135` 合成，见 vendor README）。相对 9-28 核对的包，公开面新增 `collectRun`、`decodeJsonOutput`，以及结构校验、网络派出授权与原图摄取限额；这些都已补进下表。
 
 **核对方法**
 - SDK 公开面：`createRuntime` 返回的 `Runtime` 接口（`packages/sdk/src/composition/core/runtime.ts`）逐个成员，以及 `Session` 接口（`session/core/session.ts`）逐个方法；另查了 `LocalQueue`、`heartbeats`、`subagents` 等子面的方法。
@@ -96,7 +96,7 @@
 | `parseResource` ＋ `document-parser` 槽（App 提供 pdfjs 解析器） | Agent Host `documents` 能力 | PDF 附件读成有界文本材料 | — | ✅ `assistant-attachments`；§5 P2（MiniMax 实测） |
 | `beginIntake` ＋ 运行 `start.attachments` | Agent Host `documents.intakeImage`；开跑请求 `image_materials` | 图片经 Host 私有目录吸入，随那一轮交给模型；标注不能看图时拒绝 | — | ✅ `assistant-attachments`；§5 P2（MiniMax 实测） |
 | `parseDocument`（授权根里的文件）、`collectResources`、`resourceLeases` | — | 助理无目录，不适用于 `parseDocument`；吸入的临时文件发布后即删，资源回收暂按运行时默认 | — | 🟡 |
-| `sources/extractFromSource/ingestWebPage/ingestSourceFrom`、`collections`、`webSearch` | — | 新资料由插件首页事项提供；侧栏浏览器的“交给助理”把用户看到的页面（选段或正文，带地址与时间）作为本轮材料，经资源通道进入 | — | ⛔ 未接：`ingestWebPage` 会匿名重抓，与用户登录后看到的页面不同；app 模式没有让模型检索资料源的工具，登记成资料源不产生可用引用（specs/side-panel D20）。网页检索需要搜索服务的钥匙，未配置 |
+| `sources/extractFromSource/ingestWebPage/ingestSourceFrom`、`collections`、`webSearch` | — | 新资料由插件首页事项提供；侧栏浏览器的“交给助理”把用户看到的页面（选段或正文，带地址与时间）作为本轮材料，经资源通道进入 | — | ⛔ 未接：`ingestWebPage` 会匿名重抓，与用户登录后看到的页面不同；app 模式没有让模型检索资料源的工具，登记成资料源不产生可用引用（specs/archive/side-panel D20）。网页检索需要搜索服务的钥匙，未配置 |
 
 ## 12. 多模态；13. 界面观察与计算机操作
 
@@ -108,7 +108,7 @@
 | 网络派出授权（`beforeNetworkDispatch`） | Host 对每次真实网络请求做可信复核（包括 MCP） | 助理的模型与 MCP 请求一样受它约束 | ✅ | ✅ SDK `network-dispatch-authority.live`；撤权场景见 §12 第二片 |
 | 原图摄取限额（整批容量、原子发布、取消不复活） | `beginIntake` 所在的同一路径 | 图片附件经此吸入 | — | ✅ SDK `resource-intake*.live`；§5 P2 图片（合包后图片测试 `assistant-attachments` 通过） |
 | `speech` | — | — | — | ⛔ 语音输入／转录未接 |
-| `surfaces`（UiControl：`surface-list/observe/act`、按 origin 的规则、截图脱敏、`attach(owner)`、`effects.remember/forget`） | Agent Host `prologue-surfaces.ts`：侧栏浏览器的驱动（local-host `browser/surface-driver.ts`，CDP）按会话挂到业务轮次；规则=观察允许、每种动作各自问、用户允许的网站作为记住的批准（`effects.remember`，启动时也这样载入，撤销用 `forget` 当场生效；上传永远问）、禁止的网站由驱动在看和动手前当场拒绝（不写成启动规则：启动规则在重启前收不回）；脱敏器只放行驱动遮蔽过的截图；审批卡中文、输入文字显示全文；Coding 执行规则不再对界面效果与 surface-* 工具一律「问」（否则看也被拦、允许过的网站也照问） | 业务轮次在项目有侧栏浏览器时得到三件工具（只读轮次只能看；页面被另一项工作占用时不给并说明；设置可整体关闭） | — | 🟡 已接入并有 SDK 与真 Chrome 证据（specs/side-panel §7）；SDK 补丁 `feat/molis-side-panel-surfaces`：app 模式放行、文字观察进模型、ask 时等批准、等批准时间不计入新鲜期、`forget`、输入文字作审查正文、Character 绑定界面工具同样放行、空白页 scope 为 `about:blank`。真实模型（MiniMax-M3）已跑通：空白页→确认打开→确认点击（选了「这个网站以后不用问」）→答对新页标题。桌面其他应用不接（specs/side-panel D02） |
+| `surfaces`（UiControl：`surface-list/observe/act`、按 origin 的规则、截图脱敏、`attach(owner)`、`effects.remember/forget`） | Agent Host `prologue-surfaces.ts`：侧栏浏览器的驱动（local-host `browser/surface-driver.ts`，CDP）按会话挂到业务轮次；规则=观察允许、每种动作各自问、用户允许的网站作为记住的批准（`effects.remember`，启动时也这样载入，撤销用 `forget` 当场生效；上传永远问）、禁止的网站由驱动在看和动手前当场拒绝（不写成启动规则：启动规则在重启前收不回）；脱敏器只放行驱动遮蔽过的截图；审批卡中文、输入文字显示全文；Coding 执行规则不再对界面效果与 surface-* 工具一律「问」（否则看也被拦、允许过的网站也照问） | 业务轮次在项目有侧栏浏览器时得到三件工具（只读轮次只能看；页面被另一项工作占用时不给并说明；设置可整体关闭） | — | 🟡 已接入并有 SDK 与真 Chrome 证据（specs/archive/side-panel §7）；SDK 补丁 `feat/molis-side-panel-surfaces`：app 模式放行、文字观察进模型、ask 时等批准、等批准时间不计入新鲜期、`forget`、输入文字作审查正文、Character 绑定界面工具同样放行、空白页 scope 为 `about:blank`。真实模型（MiniMax-M3）已跑通：空白页→确认打开→确认点击（选了「这个网站以后不用问」）→答对新页标题。桌面其他应用不接（specs/archive/side-panel D02） |
 
 ## 14. Workspace、文件、命令、检查点与回退
 
@@ -133,8 +133,8 @@
 | --- | --- | --- | --- | --- |
 | `artifacts`（ArtifactRegistry） | — | 成果归各业务插件（Pages、Artifacts 插件等），工作只记关系 | — | ➖ 不在 SDK 另存一份业务成果 |
 | 审计 | 动作服务按 `assistant:<工作>` 记审计身份 | ✅ | ✅ | ✅ |
-| `capabilityReport/assembly/identity/state` | Host 运行时描述 | 未给用户看 | — | ⛔ 开发者诊断里未显示实际装配与版本 |
-| `ledgerFailures` | — | — | — | ⛔ 未显示 |
+| `capabilityReport/assembly/identity/state` | 适配器 `diagnostics()` | 设置 · 诊断 ·「助理与执行服务」（开发者看，不进对话） | — | ✅ `assistant-diagnostics`：装配指纹、各槽实现与版本、本机能力缺口 |
+| `ledgerFailures` | 同上 | 同上：列出重启后回放不出来的运行 | — | ✅ 同上 |
 
 ## 17. 提问、表单与 MCP Elicitation
 
@@ -175,9 +175,8 @@
 4. 会话分支、受控导出、会话目标；系统级搜索已合入（按对象检索），会话历史本身的检索未接。
 5. SDK Refine（业务工作的评审—补改—复查已由 Host 委托实现并实测，AC16）。
 6. MCP 资源／Prompt、MCP Elicitation、SDK Functions、网页检索与来源摄取。
-7. 装配与版本诊断（`capabilityReport`、`assembly`、`ledgerFailures`）给开发者看：数据在运行时里都有，缺一个开发者诊断页；设置页正由页面动线会话调整，等它合入后再加，避免冲突。
-8. Prologue 缺口：结果未知的修改只能凭执行回执或“确认没发生”收口。Host 已补“交给插件的那一刻记一笔”，停止先于发出的修改如实显示“没有执行”（e58b1e6e）；真正发出后没回执的仍是“结果未确认”。
+7. Prologue 缺口：结果未知的修改只能凭执行回执或“确认没发生”收口。Host 已补“交给插件的那一刻记一笔”，停止先于发出的修改如实显示“没有执行”（e58b1e6e）；真正发出后没回执的仍是“结果未确认”。
 
-已从缺口移出：按工作的预算（25c1c711，已实测）；记忆的 Character 维度（按推荐不另设角色专用记忆库，角色轮次受同一组开关约束，AC34 实测；记忆整体迁到平台记忆服务 feature/memory-system）。
+已从缺口移出：装配与版本诊断（2026-09-30，设置 · 诊断 ·「助理与执行服务」，见 implementation.md §2.1）；按工作的预算（25c1c711，已实测）；记忆的 Character 维度（按推荐不另设角色专用记忆库，角色轮次受同一组开关约束，AC34 实测；记忆整体迁到平台记忆服务 feature/memory-system）。
 
 标“不适用”的只有：SDK Goals（业务 Goal 归插件）、SDK Artifacts／collections／migrate（业务成果与主数据归模块）、助理的目录与命令（按设计由 Coding 承担）、heartbeats（到点执行已由持久队列承担）。

@@ -21,6 +21,7 @@ export function createPptRouteHandlers(ports: PptRoutePorts): Record<string, Ppt
   const identified = ({ params }: PptPluginRouteContext, body: Record<string, unknown>) => ({ ...body, id: params.id });
   return {
     "ppt.list": call(pptActions.list, empty),
+    "ppt.outline_pages": call(pptActions.outlinePages, empty),
     "ppt.get": call(pptActions.get, ({ params }) => ({ id: params.id })),
     "ppt.create": call(pptActions.create, input),
     "ppt.update": call(pptActions.update, identified),

@@ -5,7 +5,7 @@ export const WORKBENCH_UI_SLOTS = {
   main: { slot_id: 'workbench.main', version: 1, accepts: ['declarative-html'] },
   overlay: { slot_id: 'workbench.overlay', version: 1, accepts: ['declarative-html'] },
   settings: { slot_id: 'workbench.settings', version: 1, accepts: ['declarative-html'] },
-  /** One tab of the side panel (specs/side-panel D13): served in its own document, sized and placed by the Host. */
+  /** One tab of the side panel (specs/archive/side-panel D13): served in its own document, sized and placed by the Host. */
   side: { slot_id: 'workbench.side', version: 1, accepts: ['declarative-html'] },
 } as const satisfies Record<string, UiSlotDescriptor>;
 

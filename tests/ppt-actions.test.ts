@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pptActions as actions, PPT_ACTION_PERMISSIONS, openPptStore, runPptMcpTool } from "@molis-ai/molis-work-plugin-ppt";
+import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 async function fixture(t: test.TestContext) {
@@ -108,4 +109,25 @@ test("PPT outline: pasted Markdown becomes slides locally; the model path needs 
   await assert.rejects(f.bound.invoke(actions.outline, { id: created.id, text: "## 晚了", expected_version: 1 }), { code: "ppt.conflict" });
   await assert.rejects(f.bound.invoke(actions.outlineAi, { id: created.id, text: "整理一下" }), { code: "actions.connection_required" });
   assert.equal((await f.bound.invoke(actions.list, {})).ai_available, false);
+});
+
+test("PPT outline from a Pages document reads it through Pages' own actions with the caller's authority", async t => {
+  const f = await fixture(t);
+  const both = bindActionClient(f.client, () => ({ ...f.caller, permissions: [...new Set([...PPT_ACTION_PERMISSIONS, ...PAGES_ACTION_PERMISSIONS])] }));
+  const { document: page } = await both.invoke(pagesActions.create, { title: "周会纪要" });
+  await both.invoke(pagesActions.update, { id: page.id, markdown: "## 进展\n\n- 上线灰度\n" });
+  const listed = await both.invoke(actions.outlinePages, {});
+  assert.deepEqual(listed.documents.map(doc => doc.title), ["周会纪要"]);
+  const { presentation } = await both.invoke(actions.create, {});
+  const outlined = await both.invoke(actions.outline, { id: presentation.id, page_id: page.id });
+  // An untitled deck takes the document's title; its sections become slides.
+  assert.equal(outlined.presentation.title, "周会纪要");
+  assert.deepEqual(outlined.presentation.slides.map(slide => slide.title), ["进展"]);
+  assert.deepEqual(outlined.presentation.slides[0]!.bullets, ["上线灰度"]);
+  await assert.rejects(both.invoke(actions.outline, { id: presentation.id }), { code: "ppt.invalid" });
+  await assert.rejects(both.invoke(actions.outline, { id: presentation.id, text: "## a", page_id: page.id }), { code: "ppt.invalid" });
+  // Without Pages permission the caller cannot read the document through PPT either.
+  const pptOnly = bindActionClient(f.client, () => ({ ...f.caller, permissions: PPT_ACTION_PERMISSIONS.filter(permission => permission !== "pages:read") }));
+  await assert.rejects(pptOnly.invoke(actions.outlinePages, {}), { code: "actions.forbidden" });
+  await assert.rejects(pptOnly.invoke(actions.outline, { id: presentation.id, page_id: page.id }), { code: "actions.forbidden" });
 });

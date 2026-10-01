@@ -629,7 +629,7 @@ interface AgentStartRequestFields {
   /** The session's name as the person sees it, for the project's list of work under way. */
   session_title?: string;
   /**
-   * `false`: this round gets no side panel browser even where its project has one (specs/side-panel) — e.g. a delegated
+   * `false`: this round gets no side panel browser even where its project has one (specs/archive/side-panel) — e.g. a delegated
    * work running beside its parent. Absent: a business round in a project with a browser may use it.
    */
   browser?: false;
@@ -1236,7 +1236,27 @@ export interface AgentStartExecution {
   beforeDispatch?(): void | Promise<void>;
 }
 
+/**
+ * What a Runtime says about itself, for developers: how it was assembled, what the machine gives it, and what it could
+ * not write down. Read from the Runtime's own receipts, never inferred; nothing here is a person's content.
+ */
+export interface AgentRuntimeDiagnostics {
+  app: { app_id: string; app_version: string };
+  state: "starting" | "ready" | "failed" | "stopped";
+  /** The assembly every run froze: the same inputs resolve to the same fingerprint. */
+  fingerprint: string;
+  slots: Array<{ slot: string; state: "ready" | "disabled" | "unavailable"; implementation: string | null; version: string | null;
+    /** Why a slot is not ready, in the Runtime's words. */
+    why: string | null; fallback: boolean }>;
+  /** What the app asked of the machine, what it really has, and every capability that is not simply present. */
+  host: { requested: string[]; effective: string[]; not_present: Array<{ capability: string; state: string }> };
+  /** Terminal records the Runtime could not keep: runs listed here would not replay after a restart. Empty is good news. */
+  ledger_failures: Array<{ kind: string; seq: number; code: string | null; detail: string | null }>;
+}
+
 export interface AgentRuntimeAdapter {
+  /** The Runtime's own account of its assembly, for the developer diagnostics page; absent when it keeps none. */
+  diagnostics?(): AgentRuntimeDiagnostics;
   readonly recovery?: AgentRecoveryCapability;
   readonly schedule?: AgentScheduleCapability;
   readonly memory?: AgentMemoryCapability;

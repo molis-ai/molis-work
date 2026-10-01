@@ -1,5 +1,5 @@
 import type { ContractDescriptor } from "../platform/package.js";
-import type { AgentPendingQuestion, AgentRunPhase, AgentRunUsage, AgentTurnView } from "./agent-host.js";
+import type { AgentPendingQuestion, AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 
 /**
  * The system Assistant: one personal assistant, many independent pieces of work.
@@ -694,4 +694,43 @@ export interface AssistantFollowUp {
   enabled: boolean;
   created_at: string;
   last?: { due_at: string; at: string; outcome: "started" | "missed" | "skipped" | "failed"; detail?: string };
+}
+
+/**
+ * The developer diagnostics page: the execution runtime's own account, and the Assistant's latest rounds with the exact
+ * identities and versions they ran with. Identifiers live here so the conversation never has to show them.
+ */
+export interface AssistantDiagnostics {
+  runtime: AgentRuntimeDiagnostics | null;
+  rounds: AssistantRoundDiagnostics[];
+}
+
+/** One round as a developer traces it: what it froze at its start, what it was given and why, and where it stopped. */
+export interface AssistantRoundDiagnostics {
+  work_id: string;
+  work_title: string;
+  project_id: string | null;
+  session_id: string | null;
+  run_id: string;
+  started_at: string;
+  ended_at: string | null;
+  phase: AgentRunPhase | "unknown";
+  /** The runtime's own reason, not rewritten for the person. */
+  stop_reason: string | null;
+  /** Frozen at the start; null when the runtime no longer has the run. */
+  frozen: {
+    model_id: string;
+    role: { id: string; version: number };
+    execution: string;
+    character: { artifact_id: string; version: number; title: string } | null;
+    prompts: Array<{ prompt_id: string; version: number; layer: string; user_revision?: number }>;
+    history?: "digest";
+    thinking?: "adaptive";
+  } | null;
+  /** What the round was given, and whether the person added it or it came from the page. */
+  materials: Array<{ kind: AssistantMaterial["kind"]; title: string; explicit: boolean; draft?: boolean; object?: AssistantObjectRef;
+    capability?: { capability_id: string; version: number; provider_id: string }; method?: { method_id: string; version?: number } }>;
+  usage: { input: number; output: number; cached_input: number } | null;
+  /** Calls that failed or whose outcome is not known, with the tool's own name and summary. */
+  failures: Array<{ tool: string; target: string; state: "failed" | "unknown"; summary: string }>;
 }

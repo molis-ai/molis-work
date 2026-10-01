@@ -521,7 +521,8 @@ test("a moment on a card is picked, not typed: the field says so, the exact inst
     () => reply({ name: "suggest-action", input: { title: "记下并提醒", summary: "存一条笔记，到点提醒", capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes",
       input: { text: "给财务回邮件" }, missing: [{ field: "remind_at", question: "什么时候提醒你？" }] } }),
     () => reply(undefined, "按钮在上面。"),
-  ]);
+    // A fixed clock before the picked moment: on the real clock that moment passes and the card rightly reads as stale.
+  ], { now: () => new Date("2026-09-30T12:00:00.000Z") });
   try {
     const sent = await f.service.send({ text: "记一条要提醒的笔记", request_id: "req-00000031" }, { project_ref: f.project });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
@@ -747,5 +748,31 @@ test("a reply that shows the capability id the round found is held once and rewr
     const last = done.rounds.at(-1)!.turns.filter(turn => turn.kind === "assistant").at(-1)!;
     assert.doesNotMatch(last.text, /fixture\.notes/);
     assert.match(last.text, /一条都没有/);
+  } finally { await f.close(); }
+});
+
+test("the developer diagnostics trace a round by its exact identities and frozen versions, with the call that failed", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "find-capabilities", input: { query: "Notes" } }),
+    () => reply({ name: "read-capability", input: { capability_id: "fixture.notes.gone", version: 1, provider_id: "fixture.notes", input: {} } }),
+    () => reply(undefined, "Notes 里读不到这项，没有做任何修改。"),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "读一下笔记", request_id: "req-00000092" }, { project_ref: f.project });
+    await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    const found = await f.service.diagnostics();
+    assert.ok(found.runtime, "the runtime gives its own account");
+    assert.ok(found.runtime.fingerprint);
+    assert.ok(found.runtime.slots.some(slot => slot.slot === "model-protocol" && slot.state === "ready"));
+    assert.equal(found.rounds.length, 1);
+    const [round] = found.rounds;
+    assert.equal(round!.work_id, sent.work.work_id);
+    assert.equal(round!.project_id, "project");
+    assert.ok(round!.session_id && round!.run_id);
+    assert.equal(round!.phase, "completed");
+    assert.equal(round!.frozen?.model_id, "fixture");
+    assert.ok(round!.frozen!.prompts.length > 0, "the prompts it froze, with versions");
+    assert.ok(round!.failures.some(failure => failure.tool === "read-capability" && failure.state === "failed"), JSON.stringify(round!.failures));
+    assert.ok(round!.usage && round!.usage.input > 0);
   } finally { await f.close(); }
 });

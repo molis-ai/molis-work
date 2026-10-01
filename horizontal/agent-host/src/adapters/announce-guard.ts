@@ -1,3 +1,6 @@
+import { APP_MODE_SURFACE_TOOLS, APP_MODE_SYSTEM_TOOLS } from "@prologue/sdk";
+import { DELEGATION_TOOLS, GATEWAY_TOOLS, MEMORY_TOOLS } from "./prologue-action-gateway.js";
+
 /**
  * A round that ends by saying what it will do next, with nothing done.
  *
@@ -74,7 +77,10 @@ export const BUTTON_CLAIM_HELD =
  * answered with “[suggest-action] … capability_id: pages.create …” blocks, so the person saw markup and no card.
  * Held once whatever the round's execution: nothing it wrote happened.
  */
-const TOOL_NAMES = "suggest-action|change-capability|change-reversible|read-capability|find-capabilities|delegate-work|check-delegated-work|follow-up-delegated-work|remember|forget-memory|list-memories|suggest-memory|ask-user|update-todo";
+// Every tool a business round can be given, from the same constants that register them: a new tool is covered by itself.
+export const GUARDED_TOOL_NAMES: readonly string[] = [...Object.values(GATEWAY_TOOLS), ...Object.values(DELEGATION_TOOLS), ...Object.values(MEMORY_TOOLS),
+  ...APP_MODE_SYSTEM_TOOLS, ...APP_MODE_SURFACE_TOOLS];
+const TOOL_NAMES = GUARDED_TOOL_NAMES.join("|");
 const WRITTEN_CALL = new RegExp(`\\[\\/?(?:${TOOL_NAMES})\\]|<\\/?(?:${TOOL_NAMES})>|(?:^|\\n)\\s*(?:capability_id|provider_id)\\s*[:=：]|"capability_id"\\s*:`);
 export function writesToolCallAsText(text: string): boolean {
   return WRITTEN_CALL.test(text);

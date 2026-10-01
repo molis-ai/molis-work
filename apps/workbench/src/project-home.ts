@@ -2,7 +2,7 @@ import type { ImmersiveShellPrimitives } from "./immersive-shell.js";
 
 /**
  * Project home, as in the Soft Workbench design: today's heading, a horizontal day strip, the Goal in progress,
- * the day's events that open in place, and a margin with a local note and the things at hand.
+ * the day's events that open in place, and a margin with the things at hand.
  * The event detail keeps one node (`data-home-detail`) that the client moves into the open row.
  */
 export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: ImmersiveShellPrimitives): string {
@@ -19,11 +19,6 @@ export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: Imme
         </nav>
         <section class="home-focus" data-home-focus aria-labelledby="home-focus-title" hidden></section>
         <aside class="home-margin" aria-label="${L("手边")}">
-          <section class="home-note" aria-labelledby="home-note-title">
-            <div class="home-note__head"><h2 id="home-note-title">${icon("edit")}${L("随手记")}</h2><span data-home-note-state>${L("只在此浏览器保存")}</span></div>
-            <textarea class="home-note__text" data-home-note maxlength="20000" aria-labelledby="home-note-title" placeholder="${L("一个想法，一个下一步。")}&#10;${L("先放在这里。")}"></textarea>
-            <div class="home-note__foot"><span>${L("不必现在就整理好")}</span>${icon("note")}</div>
-          </section>
           <section class="home-launch" aria-labelledby="home-launch-title">
             <h2 id="home-launch-title">${L("回到手边的内容")}</h2>
             <ul class="home-quick" data-home-quick></ul>

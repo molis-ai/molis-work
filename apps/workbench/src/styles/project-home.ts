@@ -7,9 +7,9 @@ export const PROJECT_HOME_STYLES = `
   }
   .immersive-home .home-scroll {
     flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;
-    width: 100%; max-width: 1280px; margin: 0 auto; padding: 48px clamp(28px, 4.3vw, 66px) 32px;
+    width: 100%; max-width: 1280px; margin: 0 auto; padding: 32px clamp(28px, 4.3vw, 66px) 24px;
   }
-  .immersive-home .home-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin: 0 0 32px; }
+  .immersive-home .home-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin: 0 0 20px; }
   .immersive-home .home-heading__main { min-width: 0; }
   .immersive-home .home-heading h1 { margin: 0; font-size: 30px; font-weight: var(--weight-title, 600); letter-spacing: -.03em; line-height: 1.25; }
   .immersive-home .home-heading__sub {
@@ -43,7 +43,7 @@ export const PROJECT_HOME_STYLES = `
 
   /* The day strip: the chosen day is the graphite choice; days with events carry a few quiet dots. */
   .immersive-home .home-dates { --dot-me: color-mix(in srgb, var(--ink) 28%, transparent); --dot-org: var(--accent);
-    display: flex; align-items: center; gap: 8px; margin: 0 0 24px; min-width: 0; }
+    display: flex; align-items: center; gap: 8px; margin: 0 0 16px; min-width: 0; }
   .immersive-home .home-dates__list { display: flex; gap: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 4px 4px 8px; margin: -4px -4px -8px; }
   .immersive-home .home-dates__list::-webkit-scrollbar { height: 0; }
   .immersive-home .home-day {
@@ -69,15 +69,15 @@ export const PROJECT_HOME_STYLES = `
 
   /* The Goal in progress: a raised card with warm light, the one continue action and real child progress. */
   .immersive-home .home-focus {
-    position: relative; isolation: isolate; overflow: hidden; min-height: 296px;
-    padding: 24px 32px 24px; border-radius: 14px; background: var(--surface-soft);
+    position: relative; isolation: isolate; overflow: hidden; min-height: 208px;
+    padding: 20px 32px 24px; border-radius: 14px; background: var(--surface-soft);
   }
   .immersive-home .home-focus[hidden] { display: none; }
   .immersive-home .home-focus::before {
     content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
     background: radial-gradient(ellipse at 96% 4%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 75%);
   }
-  .immersive-home .home-focus__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 24px; color: var(--ink-soft); font-size: 12px; }
+  .immersive-home .home-focus__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; color: var(--ink-soft); font-size: 12px; }
   .immersive-home .home-focus__top > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
   .immersive-home .home-focus__top svg { width: 14px; height: 14px; }
   .immersive-home .home-focus__status { display: inline-flex; align-items: center; gap: 8px; color: var(--accent); font-weight: var(--weight-control, 500); }
@@ -85,18 +85,18 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-focus__status.is-attention { color: var(--amber); }
   .immersive-home .home-focus h2 {
     position: relative; z-index: 1; max-width: min(24ch, calc(100% - 200px)); margin: 0;
-    font-size: 30px; font-weight: var(--weight-title, 600); line-height: 1.4; letter-spacing: -.025em; text-wrap: balance;
+    font-size: 24px; font-weight: var(--weight-title, 600); line-height: 1.4; letter-spacing: -.02em; text-wrap: balance;
   }
   .immersive-home .home-focus > p {
-    position: relative; z-index: 1; max-width: min(34em, calc(100% - 200px)); margin: 12px 0 0;
-    color: var(--ink-soft); font-size: 13px; line-height: 1.85;
+    position: relative; z-index: 1; max-width: min(34em, calc(100% - 200px)); margin: 8px 0 0;
+    color: var(--ink-soft); font-size: 13px; line-height: 1.7;
   }
-  .immersive-home .home-focus__bottom { position: relative; z-index: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 32px; }
+  .immersive-home .home-focus__bottom { position: relative; z-index: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 20px; }
   .immersive-home .home-focus__bottom .mw-btn svg { width: 14px; height: 14px; }
   .immersive-home .home-focus__progress { display: flex; flex-direction: column; gap: 8px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .immersive-home .home-focus__bar { display: block; width: 65px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
   .immersive-home .home-focus__bar > span { display: block; height: 100%; background: var(--accent); }
-  .immersive-home .home-focus__art { position: absolute; right: 45px; top: 86px; width: 175px; height: 190px; pointer-events: none; }
+  .immersive-home .home-focus__art { position: absolute; right: 36px; top: 46px; width: 175px; height: 190px; transform: scale(.78); transform-origin: top right; pointer-events: none; }
   .immersive-home .home-focus__sheet {
     position: absolute; width: 123px; height: 158px; padding: 24px 16px; border-radius: 10px;
     background: var(--paper); box-shadow: var(--shadow-raised);
@@ -112,7 +112,7 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-focus__sheet b i { width: 67%; height: 3px; border-radius: 2px; background: var(--line); }
 
   /* The day's events: a quiet list; a row opens in place to show the event, its facts and its actions. */
-  .immersive-home .home-tl { margin-top: 32px; }
+  .immersive-home .home-tl { margin-top: 24px; }
   .immersive-home .home-layout:has(> .home-focus[hidden]) .home-tl { margin-top: 8px; }
   .immersive-home .home-tl__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .immersive-home .home-tl__head h2 { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 13px; font-weight: var(--weight-title, 600); }
@@ -247,22 +247,8 @@ export const PROJECT_HOME_STYLES = `
   }
 
 
-  /* The margin: a note kept in this browser, the things at hand, and one quiet line. */
+  /* The margin: the things at hand and one quiet line. */
   .immersive-home .home-margin { min-width: 0; padding-top: 4px; }
-  .immersive-home .home-note { padding: 24px 16px 16px; border-radius: 12px; background: var(--surface-soft); box-shadow: var(--lift-1); }
-  .immersive-home .home-note__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-  .immersive-home .home-note__head h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: var(--weight-title, 600); white-space: nowrap; }
-  .immersive-home .home-note__head h2 svg { width: 16px; height: 16px; }
-  .immersive-home .home-note__head span { color: var(--muted); font-size: 12px; line-height: 20px; text-align: right; }
-  .immersive-home .home-note__text {
-    display: block; width: 100%; min-height: 150px; margin: 16px 0 8px; padding: 0; resize: vertical;
-    border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 13px; line-height: 2; box-shadow: none;
-  }
-  .immersive-home .home-note__text::placeholder { color: var(--muted); }
-  .immersive-home .home-note__text:focus-visible { outline: var(--focus-stroke); outline-offset: 3px; border-radius: 4px; }
-  .immersive-home .home-note__foot { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 12px; }
-  .immersive-home .home-note__foot svg { width: 14px; height: 14px; }
-  .immersive-home .home-launch { margin-top: 32px; }
   .immersive-home .home-launch > h2 { margin: 0 0 12px; color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
   .immersive-home :is(.home-quick, .home-shortcuts) { list-style: none; margin: 0; padding: 0; }
   .immersive-home .home-shortcut { position: relative; }
@@ -296,16 +282,19 @@ export const PROJECT_HOME_STYLES = `
   }
 
   @container project-home (max-width: 1160px) {
-    .immersive-home .home-layout { grid-template-columns: minmax(0, 1fr) 220px; gap: 32px; }
+    .immersive-home .home-layout { grid-template-columns: minmax(0, 1fr) 220px; column-gap: 32px; }
     .immersive-home .home-focus__art { right: 20px; }
   }
   @container project-home (max-width: 1020px) {
     .immersive-home .home-scroll { padding: 32px 32px 32px; }
     /* The margin holds still content; it sits above the events so a list that arrives later never moves it. */
     .immersive-home .home-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "dates" "focus" "margin" "events"; }
-    .immersive-home .home-margin { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; padding-top: 0; margin-top: 32px; }
-    .immersive-home .home-note__text { min-height: 96px; }
-    .immersive-home .home-launch { margin-top: 0; }
+    .immersive-home .home-margin { padding-top: 0; margin-top: 20px; }
+    .immersive-home .home-layout:has(> .home-focus[hidden]) .home-tl { margin-top: 24px; }
+    /* Its rows sit side by side, so a few things at hand take one line, not a column. */
+    .immersive-home .home-launch { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); column-gap: 24px; }
+    .immersive-home .home-launch > :is(h2, .home-shortcut-error) { grid-column: 1 / -1; }
+    .immersive-home :is(.home-quick, .home-shortcuts) { display: contents; }
     .immersive-home .home-margin-note { display: none; }
   }
   @container project-home (max-width: 640px) {
@@ -324,8 +313,9 @@ export const PROJECT_HOME_STYLES = `
     .immersive-home .home-erow__src { display: none; }
     .immersive-home .home-erow__slot { padding-left: 0; }
     .immersive-home .home-layout { grid-template-areas: "dates" "focus" "events" "margin"; }
-    .immersive-home .home-margin { display: block; margin-top: 32px; }
-    .immersive-home .home-launch { margin-top: 32px; }
+    .immersive-home .home-margin { margin-top: 24px; }
+    .immersive-home .home-launch { display: block; }
+    .immersive-home :is(.home-quick, .home-shortcuts) { display: block; }
     .immersive-home .home-talk { width: auto; }
   }
   @media (pointer: coarse) {
@@ -349,18 +339,17 @@ export const PROJECT_HOME_STYLES = `
   @media (prefers-reduced-motion: reduce) { .immersive-home .home-shortcut-icon { transition: none; } }
   @media (pointer: coarse) { body.immersive-workbench .home-shortcut-dialog header button { width: 44px; height: 44px; } .immersive-home .home-shortcut-edit { width: 30px; height: 30px; } }
 
-  .immersive-home .home-start { padding: 24px 0 32px; max-width: 560px; }
-  .immersive-home .home-start h3 { font-size: 17px; font-weight: 500; letter-spacing: -.02em; margin: 0 0 8px; }
-  .immersive-home .home-start > p { color: var(--muted); margin: 0 0 24px; line-height: 1.65; }
-  .immersive-home .home-start-actions { display: flex; flex-direction: column; gap: 4px; }
-  .immersive-home .home-start-action { display: flex; align-items: center; gap: 16px; min-height: 68px; padding: 12px; margin-left: -12px; border: 0; border-radius: 10px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; font: inherit; transition: background-color 130ms var(--ease-quint); }
-  .immersive-home .home-start-action:hover { background: var(--nav-hover); }
-  .immersive-home .home-start-action > svg:last-child { margin-left: auto; width: 14px; }
-  .immersive-home .home-start-action span { display: grid; gap: 4px; }
-  .immersive-home .home-start-action strong { font-size: 15px; font-weight: 500; }
-  .immersive-home .home-start-action small { color: var(--muted); font-size: 12px; line-height: 1.6; }
-  .immersive-home .home-start-browse { align-self: flex-start; margin: 16px 0 0 -8px; }
-  .immersive-home .home-start-today { margin: -8px 0 16px; }
-  .immersive-home .home-start-today svg { width: 14px; height: 14px; }
+  .immersive-home .home-start { padding: 4px 0 0; }
+  .immersive-home .home-start__lead { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .immersive-home .home-start__lead b { margin-right: 8px; color: var(--ink-soft); font-weight: var(--weight-control, 500); }
+  .immersive-home .home-start-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .immersive-home .home-start-action {
+    display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 8px;
+    background: var(--control-fill); color: var(--ink); font: inherit; font-size: 13px; font-weight: var(--weight-control, 500); white-space: nowrap; cursor: pointer;
+    transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring);
+  }
+  .immersive-home .home-start-action:hover { background: var(--control-fill-hover); }
+  .immersive-home .home-start-action:active { transform: scale(.97); transition-duration: var(--dur-press); }
+  .immersive-home .home-start-action svg { flex: none; width: 15px; height: 15px; color: var(--ink-soft); }
   @media (prefers-reduced-motion: reduce) { .immersive-home .home-start-action { transition: none; } }
 `;

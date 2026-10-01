@@ -70,6 +70,8 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts tests/web
 
 ## 开发要求
 
+Web 目录连接归每个服务实例及固定 Home 所有；借用时复核 owner/schema，查询不缓存授权或项目事实，关闭等待已有借用。当前 schema 的目录打开不取得初始化写事务，也不执行建表。`/health` 在请求校验后读取服务就绪状态，不通过目录数据库探活。
+
 - 负责：本机唯一的组合根：数据库、Module、横向服务、插件、动作目录、安装器，以及 Web 与 MCP 网关。
 - 不负责：第二个业务协调者，或面向用户的外壳。
 - 公开入口：`@molis-ai/molis-work-app-local-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。

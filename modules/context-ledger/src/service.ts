@@ -13,6 +13,8 @@ export class ContextLedgerError extends Error {
 export interface ContextLedgerOptions {
   authorize(access: ContextAccess, operation: "read" | "write"): boolean;
   now?: () => Date;
+  /** The owning Host already initialized and verified the schema. */
+  initializeSchema?: boolean;
 }
 
 function sameScope(a: ContextScope, b: ContextScope): boolean { return a.kind === b.kind && a.id === b.id; }

@@ -31,6 +31,8 @@ import { handleBrowserHttp } from "./browser/browser-http.js";
 import { BrowserSiteDecisions, registerBrowserSurfaces } from "./browser/browser-surfaces.js";
 import { createBrowserSurfaceDriver } from "./browser/surface-driver.js";
 import { locateBrowser } from "./browser/locate.js";
+import { createWebCatalogAccess } from "./web-catalog-access.js";
+import { serviceProcessId } from "./web-runtime-settings.js";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 
 function loopbackWebOrigin(server: http.Server): string {
@@ -40,13 +42,15 @@ function loopbackWebOrigin(server: http.Server): string {
 }
 
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
-  const composition = createLocalWebComposition(platform);
-  const { serveWorkbenchAsset } = composition;
   return function createMolisWorkWebServer(options: WebServerOptions = {}): http.Server {
     const storageHome = path.resolve(options.homeDirectory ?? resolveMolisWorkHome());
+    const catalogAccess = platform.openCatalog ? createWebCatalogAccess(storageHome, platform.openCatalog) : undefined;
+    const withCatalog = catalogAccess?.withCatalog ?? platform.withCatalog;
+    const composition = createLocalWebComposition({ ...platform, withCatalog });
+    const { serveWorkbenchAsset } = composition;
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };
     const fixture = fixtureWebBoardOptions(serverOptions);
-    const catalogAvailability = projectActionAvailability(platform.withCatalog, storageHome);
+    const catalogAvailability = projectActionAvailability(withCatalog, storageHome);
     // Explicit single-database mode predates project installation records. Its
     // configured board is the authority; other project callers still use catalog policy.
     const actionAvailability = Object.assign((...args: Parameters<typeof catalogAvailability>) => {
@@ -69,7 +73,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       actionAvailability,
       sceneAvailability: actionAvailability,
       projectRoutePrefix: projectId => fixture && projectId === fixture.boardId ? "" : `/projects/${encodeURIComponent(projectId)}`,
-      workspacesFor: (projectId) => platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
+      workspacesFor: (projectId) => withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
       workspaceFor: (projectId) => {
         const configuredRoot = () => {
           if (!serverOptions.projectRoot) return null;
@@ -77,12 +81,12 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           return { workspace_id: `configured:${projectId}`, canonical_path, realpath_verified: true, display_name: path.basename(canonical_path) };
         };
         if (fixture && projectId === fixture.boardId) return configuredRoot();
-        return platform.withCatalog({ homeDirectory: storageHome }, catalog => workspaceRefFor(catalog, projectId) ?? configuredRoot());
+        return withCatalog({ homeDirectory: storageHome }, catalog => workspaceRefFor(catalog, projectId) ?? configuredRoot());
       },
     });
-    localHost.configurePersonalPlanning(storageHome, platform.withCatalog);
+    localHost.configurePersonalPlanning(storageHome, withCatalog);
     const ownsLocalHost = !serverOptions.localHost;
-    const agents = ensureSystemAgentService(localHost, storageHome, platform.withCatalog);
+    const agents = ensureSystemAgentService(localHost, storageHome, withCatalog);
     const controlToken = resolveWebControlToken(serverOptions);
     serverOptions.casebook ??= loadCasebookConfiguration(storageHome,serverOptions.casebookConfigPath,[controlToken]);
     if ([...(serverOptions.casebook?.grants ?? []), ...(serverOptions.casebook?.catalogConnections ?? [])].some(g => g.token === controlToken || g.token.length < 32)) {
@@ -98,7 +102,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const pty = { host: null as MolisWorkPtyHost | null };
     const im = createLocalImServer(storageHome, async id => {
       if (fixture && id === fixture.boardId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
-      return platform.withCatalog({homeDirectory:storageHome}, catalog => {
+      return withCatalog({homeDirectory:storageHome}, catalog => {
         try { const project=catalog.getProject(id); return {id:project.project_id,title:project.display_name}; }
         catch { return null; }
       });
@@ -121,7 +125,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
         // The person can turn the Assistant's use of the browser off altogether; rounds then get no browser tools.
         if (!sites.assistantEnabled || !locateBrowser()) return null;
         const projectId = fixture && boardId === fixture.boardId ? fixture.boardId
-          : await platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().find(project => project.board_id === boardId)?.project_id ?? null);
+          : await withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().find(project => project.board_id === boardId)?.project_id ?? null);
         if (!projectId) return null;
         let driver = drivers.get(projectId);
         if (!driver) drivers.set(projectId, driver = createBrowserSurfaceDriver(browserHost().page(projectId), origin => sites.blocked(origin)));
@@ -129,7 +133,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       },
     });
     const projectExists = async (projectId: string) => (fixture && projectId === fixture.boardId)
-      || await platform.withCatalog({ homeDirectory: storageHome }, catalog => { try { catalog.getProject(projectId); return true; } catch { return false; } });
+      || await withCatalog({ homeDirectory: storageHome }, catalog => { try { catalog.getProject(projectId); return true; } catch { return false; } });
     const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
@@ -163,9 +167,18 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
               pathname => resolveWebRequest(serverOptions,pathname,composition.withCatalog))) return;
           }
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
+          if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
+            const ready = Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
+            sendJson(response, ready ? 200 : 503, {
+              status: ready ? "ok" : "starting", process_id: process.pid,
+              service_process_id: serviceProcessId(), desktop_tui: Boolean(pty.host),
+              ...(fixture ? { board_id: fixture.boardId } : { project_count: catalogAccess.projectCount }),
+            });
+            return;
+          }
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
-          if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, platform.withCatalog)) return;
+          if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(
@@ -185,7 +198,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             composition,
             agents.agentHost,
             () => agents.ready,
-            (projectId) => platform.withCatalog(
+            (projectId) => withCatalog(
               { homeDirectory: serverOptions.homeDirectory },
               (catalog) => workspaceRefFor(catalog, projectId),
             ),
@@ -230,7 +243,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.
     const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready,
-      projectTitle: async projectId => platform.withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) }).service;
+      projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) }).service;
     // Timed rounds live in Prologue's durable queue: the Assistant becomes their runner as soon as the runtime is up.
     // With timed work waiting the runtime is started for it; otherwise the runner joins whenever something starts the
     // runtime (a server start then costs no runtime until it is needed). It may be busy for a moment at start (another
@@ -260,7 +273,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
       if (ownsLocalHost) void localHost.close();
+      void catalogAccess?.close();
     });
+    if (!fixture) void catalogAccess?.warm().catch(() => undefined);
     return server;
   }
 

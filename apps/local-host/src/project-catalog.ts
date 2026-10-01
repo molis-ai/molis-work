@@ -22,7 +22,8 @@ export { type MolisWorkProjectCatalogErrorDetails } from "./project-catalog-cont
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "./product-home.js";
-import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { LocalCatalogMetadata, LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { CATALOG_SCHEMA_VERSION, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { PersonalPlanningMethods } from "@molis-ai/molis-work-module-goals";
@@ -171,7 +172,7 @@ export class MolisWorkProjectCatalog {
   ) {
     const db = storage.db;
     this.personalPlanningMethods = new PersonalPlanningMethods(db);
-    this.models = new ModelProviderStore({ db, secrets: {
+    this.models = new ModelProviderStore({ db, initializeSchema: false, secrets: {
       put: (ref, value) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().put(ref, value)),
       get: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().get(ref)),
       delete: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().delete(ref)),
@@ -245,6 +246,19 @@ export class MolisWorkProjectCatalog {
     const storage = new LocalSqliteStorage(databasePath);
     const db = storage.db;
     try {
+      if (existed) {
+        assertOwnedCatalog(storage, databasePath);
+        const version = new LocalCatalogMetadata(db).version();
+        const compatibilityError = catalogSchemaCompatibilityError(version);
+        if (compatibilityError) throw compatibilityError;
+        if (version === CATALOG_SCHEMA_VERSION) {
+          const ledger = createContextLedger(db, {
+            initializeSchema: false,
+            authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
+          });
+          return new MolisWorkProjectCatalog(storage, homeDirectory, ledger, platform);
+        }
+      }
       const catalog = db.transaction(() => {
         if (existed) assertOwnedCatalog(storage, databasePath);
         const ledger = createContextLedger(db, {
@@ -263,6 +277,17 @@ export class MolisWorkProjectCatalog {
 
   close(): void {
     this.storage.close();
+  }
+
+  /** A retained connection must not outlive the owner/schema it was opened for. */
+  assertCurrentSchema(): void {
+    assertOwnedCatalog(this.storage, this.databasePath);
+    const version = new LocalCatalogMetadata(this.storage.db).version();
+    const error = catalogSchemaCompatibilityError(version);
+    if (error) throw error;
+    if (version !== CATALOG_SCHEMA_VERSION) {
+      throw new MolisWorkProjectCatalogError("catalog.unsupported_schema", "项目目录版本已变化，请重新打开服务后按原规则迁移");
+    }
   }
 
   listProjects(): MolisWorkProjectRecord[] {

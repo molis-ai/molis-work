@@ -10,11 +10,23 @@ export function createWebCatalogAccess(
   let opening: Promise<MolisWorkProjectCatalog> | undefined;
   let ready = false, closing = false, active = 0, projectCount = 0;
   const idle = new Set<() => void>();
+  let retry: ReturnType<typeof setTimeout> | undefined;
   const prepare = () => opening ??= open({ homeDirectory }).then(catalog => {
     try { projectCount = catalog.listProjects().length; ready = true; }
     catch (error) { catalog.close(); throw error; }
     return catalog;
-  }).catch(error => { opening = undefined; throw error; });
+  }).catch(error => {
+    opening = undefined;
+    // Retry only an unstarted preparation, never the business operation that borrowed it.
+    if (!closing && !retry && error.code === "SQLITE_BUSY") {
+      retry = setTimeout(() => {
+        retry = undefined;
+        if (!closing) void withCatalog({ homeDirectory }, () => undefined).catch(() => undefined);
+      }, 100);
+      retry.unref();
+    }
+    throw error;
+  });
   const withCatalog: LocalWebCatalogRunner = async (options, operation) => {
     if (path.resolve(options.homeDirectory ?? homeDirectory) !== homeDirectory) throw new Error("Web catalog belongs to another Home");
     if (closing) throw new Error("Web catalog is closing");
@@ -39,6 +51,7 @@ export function createWebCatalogAccess(
     warm: () => withCatalog({ homeDirectory }, () => undefined),
     close() {
       closing = true;
+      clearTimeout(retry); retry = undefined;
       return shutdown ??= (async () => {
         if (active) await new Promise<void>(resolve => idle.add(resolve));
         const catalog = await opening?.catch(() => undefined);

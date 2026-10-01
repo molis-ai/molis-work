@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { resolveConfiguredHome } from "./product-home.js";
 
 /**
@@ -84,7 +85,10 @@ export function markProjectOpened(homeDirectory: string | undefined, projectId: 
 /** The first paragraph of a summary that says something (a heading is a title, not a description), flattened to one sentence a chooser row can carry. */
 export function descriptionFromSummary(summary: string): string | null {
   const paragraph = summary.split(/\n\s*\n/u)
-    .map(part => part.split("\n").filter(line => !/^\s*#{1,6}\s/u.test(line)).join(" ").replace(/\*\*([^*]+)\*\*/gu, "$1").replace(/\s+/gu, " ").trim())
+    .map(part => part.split("\n").filter(line => !/^\s*#{1,6}\s/u.test(line)).join(" ")
+      // Emphasis, links and the [S1] marks that point at a source read as their words only.
+      .replace(/\*\*([^*]+)\*\*/gu, "$1").replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1").replace(/\s*\[S\d+\]/gu, "").replace(/`([^`]+)`/gu, "$1")
+      .replace(/\s+/gu, " ").trim())
     .find(part => part.length > 0);
   if (!paragraph) return null;
   return paragraph.length > MAX_DESCRIPTION ? `${paragraph.slice(0, MAX_DESCRIPTION - 1).trimEnd()}…` : paragraph;
@@ -102,15 +106,23 @@ export function setProjectDescription(homeDirectory: string | undefined, project
   }
 }
 
-/** A project that no longer exists leaves no memory behind. */
-export function forgetProjectArrival(homeDirectory: string | undefined, projectId: string): void {
+/**
+ * A project that is no longer in the catalog leaves no memory behind. The chooser reads the catalog anyway, so it is the
+ * one place that knows which projects exist; the personal space is made on first use and keeps its memory either way.
+ * Returns what remains.
+ */
+export function pruneProjectArrival(homeDirectory: string | undefined, liveProjectIds: ReadonlySet<string>): ProjectArrivalState {
+  const state = readProjectArrival(homeDirectory);
+  const alive = (id: string) => liveProjectIds.has(id) || id === PERSONAL_SPACE_PROJECT_ID;
+  const stale = Object.keys(state.projects).filter(id => !alive(id));
+  const lastGone = state.last_project_id !== null && !alive(state.last_project_id);
+  if (!stale.length && !lastGone) return state;
+  for (const id of stale) delete state.projects[id];
+  if (lastGone) state.last_project_id = null;
   try {
-    const state = readProjectArrival(homeDirectory);
-    if (!(projectId in state.projects) && state.last_project_id !== projectId) return;
-    delete state.projects[projectId];
-    if (state.last_project_id === projectId) state.last_project_id = null;
     write(homeDirectory, state);
   } catch {
     // Presentation memory only.
   }
+  return state;
 }

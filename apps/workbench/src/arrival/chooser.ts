@@ -103,7 +103,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
     const personalSelected = selected === PERSONAL;
     const context = renderBarContext({ mark: mark(entry), title: entry.display_name, caption: L("预览中 · 回车进入") });
     const enter = `<a class="mw-btn mw-btn--primary mw-btn--lg" data-slot="button" data-act="enter" href="${entryPath(selected)}" aria-keyshortcuts="Enter"><span data-slot="button-label">${personalSelected ? L("进入个人空间") : L("进入项目")}</span><kbd class="mw-btn__key" aria-hidden="true">↵</kbd></a>`;
-    const create = `<a class="mw-btn mw-btn--secondary mw-btn--lg" data-slot="button" data-act="new" href="${href("/onboarding?mode=new-project")}">${icon("plus")}<span data-slot="button-label">${L("新建项目")}</span></a>`;
+    const create = `<a class="mw-btn mw-btn--secondary mw-btn--lg" data-slot="button" data-act="new" aria-label="${L("新建项目")}" href="${href("/onboarding?mode=new-project")}">${icon("plus")}<span data-slot="button-label">${L("新建项目")}</span></a>`;
     const bar = shell.bar({ kind: "chooser", start: context, center: renderAssistantDock({ L, icon }), end: `${create}${enter}` });
 
     // Fragments the chooser cannot make without the person's words: what to say when nothing matches, and when nothing exists yet.

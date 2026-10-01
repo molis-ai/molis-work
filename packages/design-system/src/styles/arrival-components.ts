@@ -8,7 +8,7 @@ export const ARRIVAL_COMPONENT_STYLES = `
   .mw-wordmark { position: relative; display: inline-block; white-space: nowrap; font-size: 17px; font-weight: var(--weight-title, 600); letter-spacing: -.03em; line-height: 1; color: var(--ink); }
   .mw-wordmark__caret { position: absolute; left: calc(100% + .08em); bottom: .04em; width: .36em; height: .07em; border-radius: 1px; background: var(--accent); opacity: 0; }
   .mw-wordmark[data-pace="ritual"][data-state="done"] .mw-wordmark__caret { opacity: 1; background: currentColor; }
-  .mw-caption { display: inline-grid; grid-template-columns: repeat(2, max-content); column-gap: .27em; padding: 2px 6px; margin: -2px -6px; border: 0; border-radius: 6px; background: none; color: var(--muted); font: inherit; font-size: 13px; letter-spacing: -.005em; text-align: left; cursor: pointer; transition: opacity var(--dur-move, 250ms) var(--ease-quint), visibility 0s var(--dur-move, 250ms); }
+  .mw-caption { display: inline-grid; grid-template-columns: repeat(2, max-content); column-gap: .27em; min-height: 24px; align-content: center; padding: 2px 6px; margin: -2px -6px; border: 0; border-radius: 6px; background: none; color: var(--muted); font: inherit; font-size: 13px; letter-spacing: -.005em; text-align: left; cursor: pointer; transition: opacity var(--dur-move, 250ms) var(--ease-quint), visibility 0s var(--dur-move, 250ms); }
   .mw-caption:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, 1px); }
   .mw-caption__row { white-space: nowrap; }
   .mw-caption__ini { color: var(--ink); font-weight: var(--weight-control, 500); }
@@ -29,7 +29,7 @@ export const ARRIVAL_COMPONENT_STYLES = `
   .mw-bar-context__mark svg { width: 20px; height: 20px; stroke-width: 1.6; }
   .mw-bar-context__text { min-width: 0; display: grid; }
   .mw-bar-context__text strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 18px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .mw-bar-context__text small { font-size: 12px; line-height: 16px; color: var(--muted); white-space: nowrap; }
+  .mw-bar-context__text small { font-size: 12px; line-height: 16px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-bar-status { display: flex; align-items: center; gap: 12px; min-width: 0; height: var(--composer-h, 50px); padding: 0 4px; }
   .mw-bar-status__tile { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 10px; background: var(--rail); color: var(--ink-soft); }
   .mw-bar-status__tile svg { width: 16px; height: 16px; }
@@ -67,7 +67,7 @@ export const ARRIVAL_COMPONENT_STYLES = `
   .mw-file-group__head:hover .mw-file-group__x, .mw-file-group__x:focus-visible { opacity: 1; }
   .mw-file-group__note { margin: 0; padding: 4px 0 0 40px; color: var(--faint); font-size: 12px; }
   .mw-file-list { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0 0 0 40px; list-style: none; }
-  .mw-file-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 36px; padding: 2px 4px 2px 8px; margin-left: -8px; border-radius: var(--r-row, 10px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
+  .mw-file-row { display: grid; grid-template-columns: minmax(6em, 1fr) auto auto; align-items: center; gap: 12px; min-height: 36px; padding: 2px 4px 2px 8px; margin-left: -8px; border-radius: var(--r-row, 10px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-file-row:hover { background: var(--nav-hover); }
   .mw-file-row__label { display: flex; align-items: center; gap: 10px; min-width: 0; cursor: inherit; }
   label.mw-file-row__label { cursor: pointer; }
@@ -75,6 +75,8 @@ export const ARRIVAL_COMPONENT_STYLES = `
   .mw-file-row__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--ink); }
   .mw-file-row__name.is-off { color: var(--muted); }
   .mw-file-row__size, .mw-file-row__state { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* A size is short; a receipt's detail (why a file was not read) may be long. It gives way with an ellipsis, and its title carries the whole of it. */
+  .mw-file-row__size { max-width: 16em; overflow: hidden; text-overflow: ellipsis; }
   .mw-file-row__x { opacity: 0; transition: opacity var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-file-row:hover .mw-file-row__x, .mw-file-row__x:focus-visible { opacity: 1; }
   .mw-file-row.is-todo { grid-template-columns: minmax(0, 1fr) auto; }
@@ -109,6 +111,9 @@ export const ARRIVAL_COMPONENT_STYLES = `
   .mw-brief__focus.is-empty { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-block: 18px; }
   .mw-brief__focus.is-empty::before { display: none; }
   .mw-brief__focus.is-empty h2 { margin: 0; font-size: 15px; }
+  /* The action may be longer than the card is wide (a longer language, a narrow phone): it gives way with an ellipsis instead of running past the card. */
+  .mw-brief__focus.is-empty .mw-btn { min-width: 0; max-width: 100%; }
+  .mw-brief__focus.is-empty .mw-btn [data-slot="button-label"] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-brief__focus.is-empty p { margin: 2px 0 0; color: var(--muted); font-size: 13px; line-height: 1.8; }
   .mw-brief__cols { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); margin-top: 44px; }
   .mw-brief__sec > h2 { margin: 0 0 10px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; }

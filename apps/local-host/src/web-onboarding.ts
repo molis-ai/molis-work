@@ -145,9 +145,11 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
     if (request.method === "GET" && url.pathname === "/onboarding") {
       const status = molisWorkOnboardingStatus(homeDirectory, projectCount);
       const requestedMode = url.searchParams.get("mode");
+      // The first run is for a person who has not met the product yet: one who put it off or finished it and has no project
+      // right now begins a new project the way anyone does, without the opening and Welcome again.
       const mode = requestedMode === "update" || (status.update_required && requestedMode !== "new-project")
         ? "update"
-        : projectCount === 0
+        : status.first_run_required
           ? "first_run"
           : "new_project";
       response.writeHead(200, {

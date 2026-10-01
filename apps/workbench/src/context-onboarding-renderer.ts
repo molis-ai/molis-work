@@ -15,7 +15,7 @@ export function renderContextOnboarding(options: MolisWorkOnboardingRenderOption
   const firstRun = options.mode === "first_run";
   const exit = firstRun
     ? `<button class="mw-btn mw-btn--ghost mw-btn--lg arrival-back" data-slot="button" type="button" id="cx-exit"><span data-slot="button-label">${p.L("稍后再说")}</span></button>`
-    : `<button class="mw-btn mw-btn--ghost mw-btn--lg arrival-back" data-slot="button" type="button" id="cx-exit">${p.icon("back")}<span data-slot="button-label">${p.L("返回项目")}</span></button>`;
+    : `<button class="mw-btn mw-btn--ghost mw-btn--lg arrival-back" data-slot="button" type="button" id="cx-exit" aria-label="${p.L("返回项目")}">${p.icon("back")}<span data-slot="button-label">${p.L("返回项目")}</span></button>`;
   const stage = `<main class="arrival-stage" id="cx-app" aria-busy="true"><div class="stage-single"><div class="stage-sheet" data-ob-view="loading"><div class="ob-error-page"><h1 id="ob-title" tabindex="-1">${p.L("从你正在做的事开始。")}</h1><p role="status">${p.L("正在检查可用的来源…")}</p></div></div></div></main>`;
   return shell.document({
     title: `${p.L("从已有工作开始")} · Molis Work`, screen: "onboard", desktopShell, controlToken: options.controlToken ?? "",

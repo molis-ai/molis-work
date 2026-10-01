@@ -67,7 +67,7 @@ import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
 import { codingBackgroundTasks } from "./coding-background-tasks.js";
 import { createProjectArrivalHttp } from "./project-arrival-http.js";
-import { readProjectArrival } from "./project-arrival.js";
+import { pruneProjectArrival } from "./project-arrival.js";
 import type { ProjectDeletionWebPorts } from "./web-project-settings.js";
 
 /** One per Host, so the few-second answer a brief is good for is shared by every look at the chooser. */
@@ -415,7 +415,7 @@ export async function handleLocalCatalogWebRequest(
       "cache-control": "no-store",
       "content-security-policy": PAGE_CSP,
     });
-    const remembered = readProjectArrival(serverOptions.homeDirectory);
+    const remembered = pruneProjectArrival(serverOptions.homeDirectory, new Set(projects.map(project => project.project_id)));
     response.end(renderMolisWorkProjectIndex(projects, controlToken, desktopShell, {
       now: new Date().toISOString(), last_project_id: remembered.last_project_id,
       opened: Object.fromEntries(Object.entries(remembered.projects).flatMap(([id, record]) => record.last_opened_at ? [[id, record.last_opened_at]] : [])),

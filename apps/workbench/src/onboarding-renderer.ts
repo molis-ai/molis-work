@@ -46,7 +46,7 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
       <aside class="welcome-scene" aria-hidden="true">${miniWorkbench(primitives.icon)}</aside></div></div></main>`;
     const bar = shell.bar({
       kind: "update",
-      start: `<a class="mw-btn mw-btn--ghost mw-btn--lg arrival-back" data-slot="button" href="${href("/settings/projects")}"><span data-slot="button-label">${L("查看项目设置")}</span></a>`,
+      start: `<a class="mw-btn mw-btn--ghost mw-btn--lg arrival-back" data-slot="button" aria-label="${L("查看项目设置")}" href="${href("/settings/projects")}">${primitives.icon("settings")}<span data-slot="button-label">${L("查看项目设置")}</span></a>`,
       end: `<button class="mw-btn mw-btn--primary mw-btn--lg" data-slot="button" type="button" data-onboarding-dismiss="update" aria-keyshortcuts="Enter"><span data-slot="button-label">${L("继续使用 Molis Work")}</span><kbd class="mw-btn__key" aria-hidden="true">↵</kbd></button>`,
     });
     return shell.document({

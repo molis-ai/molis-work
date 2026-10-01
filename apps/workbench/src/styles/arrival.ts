@@ -54,6 +54,11 @@ export const ARRIVAL_STYLES = String.raw`
   .arrival-bar .bar-center { grid-column: 2; }
   .arrival-bar .bar-end { grid-column: 3; gap: 8px; }
   .arrival-bar :is(.bar-start, .bar-center, .bar-end):empty { visibility: hidden; }
+  /* Only the chooser's bar has the Assistant to keep room for. The journey's centre is a status: it gives way to the way back and the buttons (a longer language, a narrower window), and the steps go first. */
+  @media (min-width: 601px) {
+    html body.immersive-workbench.arrival-page .arrival-bar:not([data-bar="chooser"]) { grid-template-columns: auto minmax(0, 1fr) auto; }
+  }
+  @media (max-width: 900px) { .arrival-bar .mw-steps { display: none; } }
   .arrival-bar .mw-btn--lg { min-height: 38px; padding-inline: 16px; border-radius: var(--r-control, 8px); }
   .arrival-bar .mw-btn--ghost.arrival-back { padding-inline: 12px 14px; color: var(--ink-soft); }
   .arrival-bar .mw-btn--ghost.arrival-back:hover:not(:disabled) { color: var(--ink); }
@@ -86,6 +91,9 @@ export const ARRIVAL_STYLES = String.raw`
   .brief-none { align-self: center; min-height: 100%; justify-content: center; }
   .brief-none .mw-empty { max-width: 30em; margin: 0 auto; text-align: left; justify-items: start; }
   .brief-none__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  /* A button named for what the person typed gives way with an ellipsis rather than run past the sheet. */
+  .brief-none__actions .mw-btn { min-width: 0; max-width: 100%; }
+  .brief-none__actions .mw-btn [data-slot="button-label"] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-brief--loading .mw-brief__focus { margin-top: 36px; }
   .mw-brief--error .mw-empty { margin: 36px 0 0; justify-items: start; text-align: left; }
 
@@ -101,6 +109,9 @@ export const ARRIVAL_STYLES = String.raw`
   @media (max-width: 1024px) { .ob-greeting-wordmark .mw-wordmark { font-size: 128px; } }
   @media (max-width: 760px) { .ob-greeting-wordmark .mw-wordmark { font-size: 96px; } .opening-caption .mw-caption { display: inline-grid; font-size: 20px; } }
   @media (max-width: 480px) { .ob-greeting-wordmark .mw-wordmark { font-size: 68px; } }
+  /* The name is about 4.8 times as wide as its size; these steps keep it inside the opening's side room down to the narrowest phone. */
+  @media (max-width: 400px) { .ob-greeting-wordmark .mw-wordmark { font-size: 56px; } }
+  @media (max-width: 340px) { .ob-greeting-wordmark .mw-wordmark { font-size: 48px; } }
   .ob-greeting-wordmark .mw-wordmark__caret { height: .035em; width: .2em; bottom: .06em; left: calc(100% + .04em); background: currentColor; }
 
   /* ───────── Welcome: one question at a time ───────── */
@@ -167,7 +178,6 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-source .is-unavailable { opacity: .55; }
   .ob-source__cfg { display: grid; gap: 14px; padding: 6px 12px 18px 32px; }
   .ob-cfg-block { display: grid; gap: 8px; }
-  .ob-cfg-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .ob-cfg-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .ob-cfg-actions .ob-note { flex-basis: 100%; }
   .ob-picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -196,7 +206,6 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-phase__text strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 18px; }
   .ob-phase.is-idle .ob-phase__text strong { color: var(--muted); font-weight: var(--weight-body, 400); }
   .ob-phase__text small { font-size: 12px; line-height: 16px; color: var(--muted); }
-  .ob-current { margin-top: 12px; color: var(--muted); font-size: 12px; min-height: 18px; }
   .ob-right .mw-progress { height: 4px; }
   .ob-right .mw-progress > span { background: var(--accent); }
   .ob-name { display: grid; gap: 6px; }
@@ -206,7 +215,6 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-preview { margin: -28px calc(-1 * clamp(24px, 3.4vw, 48px)) 8px; }
   .ob-preview .mw-brief { width: min(100%, 860px); padding-top: 32px; padding-bottom: 8px; }
   .ob-preview .mw-brief__cols { grid-template-columns: minmax(0, 1fr); margin-top: 24px; }
-  .ob-refs { display: grid; gap: 4px; padding: 4px 0 0 16px; color: var(--muted); font-size: 12px; list-style: disc; }
   .ob-resume { display: flex; align-items: center; gap: 8px; margin: -4px 0 0; padding: 8px 12px; border-radius: var(--r-row, 10px); background: var(--accent-soft); color: var(--ink-soft); font-size: 12px; }
   .ob-resume svg { width: 14px; height: 14px; color: var(--accent); flex: none; }
   .ob-resume span { flex: 1; }
@@ -217,8 +225,6 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-update-list li { display: grid; gap: 2px; }
   .ob-update-list strong { font-size: 13px; font-weight: var(--weight-control, 500); }
   .ob-update-list span { color: var(--muted); font-size: 12px; line-height: 1.7; }
-  .ob-citations { display: grid; gap: 4px; }
-  .ob-reading { display: grid; gap: 4px; }
   .cx-citation { display: inline; padding: 0 2px; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
   .ob-error-page { padding: 48px clamp(24px, 6vw, 96px); max-width: 640px; }
   .ob-error-page h1 { font-size: 24px; font-weight: var(--weight-title, 600); line-height: 1.3; letter-spacing: -.02em; outline: none; }

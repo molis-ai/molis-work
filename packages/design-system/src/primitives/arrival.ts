@@ -83,7 +83,7 @@ export function renderFileRow(options: MwFileRowOptions): string {
   const remove = options.remove
     ? `<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm mw-file-row__x" data-slot="button" aria-label="${escapeHtml(options.remove.label)}" title="${escapeHtml(options.remove.label)}"${renderAttrs(options.remove.attrs)}>${icon("x")}</button>`
     : "";
-  return `<li class="${cx("mw-file-row", options.className)}" data-slot="file-row">${options.check ? `<label class="mw-file-row__label">${label}</label>` : `<span class="mw-file-row__label">${label}</span>`}${options.size ? `<span class="mw-file-row__size">${escapeHtml(options.size)}</span>` : ""}${options.state ?? ""}${remove}</li>`;
+  return `<li class="${cx("mw-file-row", options.className)}" data-slot="file-row">${options.check ? `<label class="mw-file-row__label">${label}</label>` : `<span class="mw-file-row__label">${label}</span>`}${options.size ? `<span class="mw-file-row__size" title="${escapeHtml(options.size)}">${escapeHtml(options.size)}</span>` : ""}${options.state ?? ""}${remove}</li>`;
 }
 
 export interface MwFileGroupOptions {

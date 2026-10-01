@@ -17,7 +17,8 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
   const detail = $('#chooser-detail'), list = $('#chooser-dir'), search = $('#chooser-q'), bar = $('.arrival-bar'), none = $('[data-chooser-none]');
   const PERSONAL = 'personal';
   const desktop = document.body.dataset.nativeDesktop === 'true';
-  const route = (path) => desktop ? path + (path.includes('?') ? '&' : '?') + 'desktop=1' : path;
+  // A link the page already carries into the desktop shell (the rows do) is left as it is.
+  const route = (path) => desktop && !/[?&]desktop=1(&|$)/.test(path) ? path + (path.includes('?') ? '&' : '?') + 'desktop=1' : path;
   const storage = {
     session: { get(key) { try { return sessionStorage.getItem(key); } catch { return null; } }, set(key, value) { try { sessionStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } } },
     local: { get(key) { try { return localStorage.getItem(key); } catch { return null; } }, set(key, value) { try { localStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } } },
@@ -81,7 +82,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     const context = $('.bar-start', bar);
     const enter = $('[data-act="enter"]', bar);
     if (!id || !row) {
-      context.innerHTML = '<div class="mw-bar-context" data-slot="bar-context"><span class="mw-bar-context__mark is-none"><svg aria-hidden="true"><use href="#icon-search"></use></svg></span><span class="mw-bar-context__text"><strong></strong><small></small></span></div>';
+      context.innerHTML = '<div class="mw-bar-context" data-slot="bar-context"><span class="mw-bar-context__mark"><svg aria-hidden="true"><use href="#icon-search"></use></svg></span><span class="mw-bar-context__text"><strong></strong><small></small></span></div>';
       $('strong', context).textContent = L('没有匹配的项目');
       $('small', context).textContent = L('助理在个人空间里工作');
       enter.setAttribute('aria-disabled', 'true'); enter.removeAttribute('href');
@@ -171,6 +172,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
 
   /* ───────── Selecting, searching, going in ───────── */
   const paintSelection = () => {
+    $('.chooser').dataset.selected = state.selected || '';
     $$('.mw-dir-row', list).forEach((row) => {
       const on = row.dataset.id === state.selected;
       row.classList.toggle('is-selected', on);
@@ -182,7 +184,15 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     if (id === state.selected) { if (focus) rowOf(id)?.focus({ preventScroll: true }); return; }
     state.selected = id;
     paintSelection();
-    if (id) { const row = rowOf(id); if (scroll) row?.scrollIntoView?.({ block: 'nearest' }); if (focus) row?.focus({ preventScroll: true }); }
+    if (id) {
+      const row = rowOf(id);
+      if (scroll && row) {
+        // The ends of the list go to the ends (the heading above the first row, the room below the last); the rest only as far as they need.
+        const rows = visibleRows();
+        if (row === rows[0]) list.scrollTop = 0; else if (row === rows[rows.length - 1]) list.scrollTop = list.scrollHeight; else row.scrollIntoView?.({ block: 'nearest' });
+      }
+      if (focus) row?.focus({ preventScroll: true });
+    }
     swapDraft(id || PERSONAL);
     aboutSelection();
     paintBar();

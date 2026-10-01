@@ -1,8 +1,8 @@
 # 保持数据与行为的性能修复方案
 
-状态：实施中。用户已授权开工；先在隔离工作树串行实施和验证，本文件是唯一需求书，不表示已安装。依据当前仓库 `62cbc14d` 与 [性能审计报告](/Users/yijunwang/code/goalboard/docs/reviews/performance-audit-2026-10-01.md)。实施前重新核对基线与其他会话的修改。
+状态：六项代码修复已完成，工程验收通过；原生窗口输入实操未通过，尚未达到全部“内部完整”门槛。用户已授权开工；代码与验证位于隔离工作树，本文件是唯一需求书，未替换真实应用。依据当前仓库 `62cbc14d` 与 [性能审计报告](/Users/yijunwang/code/goalboard/docs/reviews/performance-audit-2026-10-01.md)。实施前重新核对基线与其他会话的修改。
 
-目标完成程度为“内部完整”：六项已识别开销得到处理，桌面真实关键路径、既有数据、异常恢复和代码回退均有证据。工程测试、隔离桌面实操、用户本人验收分别记录；当前均未进行修复后的验收。此前“管理项目”卡死的现场根因仍未确认，性能修复不能直接等同于现场故障已解决。
+目标完成程度为“内部完整”：六项已识别开销得到处理，桌面真实关键路径、既有数据、异常恢复和代码回退均有证据。工程测试、隔离桌面实操、用户本人验收分别记录；工程及隔离浏览器验收已通过，隔离原生 IPC 实操通过，原生窗口按钮/键盘实操与用户本人验收尚未通过。此前“管理项目”卡死的现场根因仍未确认，性能修复不能直接等同于现场故障已解决。
 
 ## 无损的具体含义
 
@@ -76,15 +76,15 @@ Workbench 页面创建一个 Host 生命周期 scope，将 `refreshBoard` 的定
 
 先完成 Pages editor 的首次使用加载，再覆盖插件 surface 和 client；只初始化真实打开的插件。资源和 UI 仍从已有注册目录、Manifest/contribution 派生，补齐依赖时写在原 owner 的登记处，不新增 Host 插件名单。分屏沿用现有 `workbenchPane` / `panePlugin` 与父子消息合同，只渲染/初始化该 pane 必需的内容，不启动第二个整套工作台。
 
-未打开插件不创建真实 surface DOM 或 client；首次打开等待必要资源和依赖就绪再挂载，同一 surface 去重。已打开 surface 留存原实例，隐藏时暂停 UI 订阅；不删草稿或通过减少缓存 frame 数量提速。已有设置、审查、材料、伴随视图与跨插件依赖可以共享通用 shell；错误时保留当前内容、提示加载失败，重试只加载 UI 资源，不能重放业务命令。
+本轮对原目录登记独立 clientFactory 的插件延迟其真实 surface 正文与客户端；surface 根仍供原导航识别，正文保存在惯有页面内的惰性 template 中。已有 Goals/Feed/Inbox 与通用设置绑定保留为 shell，不在本轮拆成新客户端协议；分屏省略其他独立客户端 surface 正文。首次打开等待必要资源和依赖就绪再挂载，同一 surface 去重。已打开 surface 留存原实例，隐藏时暂停 UI 订阅；不删草稿或通过减少缓存 frame 数量提速。已有设置、审查、材料、伴随视图与跨插件依赖可以共享通用 shell；错误时保留当前内容、提示加载失败，重试只加载 UI 资源，不能重放业务命令。
 
-CSS 公共/全局规则保留在 shell，只延迟具有明确 surface 作用域的规则；按现有 asset order 插入，不能按网络返回先后改变层叠。HTML/client/资源必须来自同一构建，检查现有 CSP 和声明边界。全局搜索、设置直达、插件深链接、拖拽分屏、伴随 Files/Git/Diff 等不能依赖未创建的隐藏 DOM；需要数据的入口走原公开查询，而不是为搜索重新提前挂载所有插件。
+CSS 公共/全局规则保留在 shell；本轮核对后保留整份 CSS 及原 asset order，因为既有样式仍含全局层叠，没有可独立证明安全的拆分边界。页面体积改善来自客户端和 Pages 编辑器的按需加载，不宣称 CSS 已缩减。后续只有确认 surface 作用域后才延迟对应规则，不能按网络返回先后改变层叠。HTML/client/资源必须来自同一构建，检查现有 CSP 和声明边界。全局搜索、设置直达、插件深链接、拖拽分屏、伴随 Files/Git/Diff 等不能依赖未创建的隐藏 DOM；需要数据的入口走原公开查询，而不是为搜索重新提前挂载所有插件。
 
 依赖第 3、4 步；不依赖第 5 步，但仍串行实施。边界：[页面 renderer](/Users/yijunwang/code/goalboard/apps/workbench/src/goals-page-renderer.ts)、[插件资源投影](/Users/yijunwang/code/goalboard/apps/workbench/src/plugin-workbench.ts)、[tab workspace](/Users/yijunwang/code/goalboard/apps/workbench/src/scripts/client/tab-workspace.ts)、原插件 UI 贡献及公开 factory。涉及插件实现时按原插件开发规则补必要依赖声明与测试，不夹带设计重做。
 
 ## 验收：正确性先于提速
 
-性能数据在同机器、同构建模式、同 fixture 下与基线比较，冷启动与 warm 分开记录；时间阈值是待实施验证的目标，不是当前结果。功能断言先独立通过，不能为了满足时间阈值放宽语义。
+性能数据在同机器、同构建模式、同 fixture 下与基线比较，冷启动与 warm 分开记录；下表是原验收目标，实际通过范围及数值见后面的实施记录。功能断言先独立通过，不能为了满足时间阈值放宽语义。
 
 | 验收对象 | 必须证明的无损结果 | 性能目标或机制证据 |
 | --- | --- | --- |
@@ -112,7 +112,7 @@ node scripts/run-tests.mjs tests/plugin-declarative-mounting.test.ts tests/built
 node scripts/run-tests.mjs tests/agent-host.test.ts tests/agent-host-wiring.test.ts tests/prologue-recovery.test.ts tests/prologue-checkpoints.test.ts tests/prologue-stop-review.test.ts tests/prologue-approval-bridge.test.ts tests/prologue-step-amend.test.ts tests/coding-session-recovery.test.ts tests/coding-session-follow.test.ts tests/home-backup-recovery.test.ts
 ```
 
-以上是已存在的重点测试。若修改 ContextLedger、Projects、Storage、UI Host 或具体插件，补对应 README 的必跑集合；新增回归的文件名在实施时记录到此处，不把尚未创建的命令写成已可用。最终还要做隔离安装包的真实桌面操作，不能只依赖 Chrome 或 Rust 单元测试。
+以上是已存在的重点测试。修改 ContextLedger、Projects、Storage、UI Host 或具体插件时，已补对应 README 的必跑集合；新增回归与实际结果见后面的实施记录。最终还要做隔离安装包的真实桌面操作，不能只依赖 Chrome 或 Rust 单元测试。
 
 逐步记录实际 diff、通过/失败/未运行的验收项及原因，保存相关 trace、请求统计和内存/时延对比；不新建状态 manifest、锁系统或第二份项目进度账。首次正常导航、后台执行期间导航、历史较多的 Coding 返回、慢导入期间窗口操作都要覆盖。此前真实卡死若仍能复现，保留现场采样继续定位，不能在性能数值下降后直接关闭原故障。
 
@@ -124,10 +124,58 @@ node scripts/run-tests.mjs tests/agent-host.test.ts tests/agent-host-wiring.test
 
 先在可丢弃的测试 Home 原绝对路径做恢复与代码回退演练，确认可读正文、精确引用和新增记录保留，再进入真实使用。真实安装/服务切换及任何数据恢复按当时已有用户授权执行；本轮不进行这些动作，不推送、不发布。
 
-## 假设和待实施核实项
+## 实施记录与验收结果（2026-10-01）
 
-- “无损”包含数据、权限、执行和用户未提交状态，而不只是记录数量。保留现有合法失败与恢复语义；不给未知状态制造成功。
-- 目录复用不缓存权限，但需要验证 async 操作交错、外部连接变更和停机次序。真实写等待的具体 owner 边界在第 1 步故障注入中确定；若必要方案扩到全库 IO 架构或 schema 变更，先更新此 spec 并说明范围变化。
-- 当前 SDK 没有直接可用的完整 `AgentSessionStatus` 接口，但已有宿主索引及公开事实读取口。第 5 步必须先证明轻量投影可以保留恢复门槛；无法证明时保留原路径，不能省略检查。
-- 插件延迟挂载涉及已有初始化假设、CSS 全局规则及跨插件依赖。第 6 步先做 Pages/Coding/伴随视图的真实行为切片，再扩至其余登记插件；完整交付仍覆盖全部现有功能入口，不能把切片通过当成六项已完成。
-- 原生慢 IO 导致窗口冻结目前是代码风险，尚未实测；原始“管理项目”现场也仍未捕获。方案验收需要补对应证据。
+代码位于 `/private/tmp/molis-project-management-freeze`，分支 `feature/fix-project-management-freeze`，从 `62cbc14d` 开始；主检出源码、其他会话的设计稿、真实 Home、已安装应用及服务均未替换。代码提交可独立回退：
+
+| 步骤 | 提交 | 已完成的边界 |
+| --- | --- | --- |
+| 1 | `a9dc7c96`、`11299c1c` | 当前 schema 普通访问不执行 DDL/初始化写事务；固定 Home 的 Web 连接复用；健康检查直接读进程状态；项目创建/删除/改名、插件 membership 和工作目录提交只异步等待未开始事务的锁，提交体一次执行 |
+| 2 | `a38cc4b0` | 三个原生 Shelf 命令的原同步 IO 转工作线程；导入批次互斥，批内顺序保持 |
+| 3 | `3903facd` | 全局读取归原 UI Host 可见性生命周期，隐藏停止轮询、显示立即补读；取消读取后校验 signal，后台任务与写请求生命周期保持 |
+| 4 | `60bfa772` | 固定构建资源每个 locale 变体只生成/读取/计算 ETag 一次，GET/HEAD/304 合同保持 |
+| 5 | `c98914a3` | 冷 Coding 状态复用原 owner 索引及 SDK 恢复检查，只回放最新轮；详情仍完整恢复，不增加历史控制句柄或重派任务 |
+| 6 | `b3bcb90a` | 原登记目录派生插件客户端与依赖，首次打开才装正文及客户端；保留原根节点/实例、草稿与跨插件入口；加载失败只重试 UI 资源 |
+
+### 实测改善
+
+| 场景 | 基线 | 修复后 | 证据边界 |
+| --- | --- | --- | --- |
+| 外部进程持有目录写锁 1.25 秒，warm 管理项目请求 | 1,343.2 ms | 4.3 ms | 同机器隔离 Home、生产 HTTP 与真实 SQLite 锁 |
+| 同一锁场景的 health / 20 ms 定时器最大间隔 | 1,340.5 ms / 1,337 ms | 4.4 ms / 22 ms | health 不进入业务数据库；冷启动未就绪仍正常返回 503 |
+| 真实 HTTP 项目改名等待外部写锁 | 原同步获取锁存在事件循环阻塞 | 8 次 health 均 <200 ms，定时器最大间隔 <100 ms；改名成功，异常回滚 | `tests/catalog-read-contention.test.ts` 同时验证撤权发生于实际异步锁等待之后仍零副作用、FIFO 与提交体不重试 |
+| 原生 Tauri 导入连接延迟 2 秒的后端 | 同步 command 在 IPC 路径等待 | 后端 2,002 ms、导入 2,011 ms；期间另一同步 IPC 14 ms 返回 | 隔离原生包、临时 Home、后端只收到一次导入，成功数 1；**原生窗口按钮/键盘未通过** |
+| 隐藏 pane 5 秒 | 隐藏仍有全局轮询 | cursor 与 Coding 状态新增请求均为 0；显示立即补读 | Chrome 真实 iframe，另有 4.5 秒定向回归 |
+| 初载 Workbench JS / Pages editor JS | 2,728,343 B / 1,051,326 B | 1,361,069 B / 首次打开 Pages 才加载 | 原始未压缩资源；插件独立客户端不在首次载入执行 |
+| 初载 JS/CSS 总量 / 全插件首页 DOM | 约 5.76 MB / 10,888 节点 | 约 3.34 MB / 7,124 节点 | 约下降 42% / 35%；CSS 仍为 1,979,438 B，未减少；HTML 内仍有惰性模板 |
+| warm 304：JS / CSS / Pages editor | 6.7 / 5.7 / 2.2 ms | 0.8 / 0.7 / 0.4 ms | 回归同时断言成功资源每变体只生成一次 |
+| 25 会话 ×40 轮、101,000 条事件的状态读取 | 25 次完整恢复，101,000 次事件访问，161 ms，保留 heap +12.4 MiB | 0 次完整恢复，5,050 次事件访问，5 ms，保留 heap 约 +0 MiB | **合成历史的生产 Adapter 探针**；不是用户首开时延，warm 会继续读真实状态，未添加状态 TTL 缓存 |
+
+冷项目页面与整个首页尚有后端准备和浏览器长任务；本次后测记录到 229 ms 与 90 ms 的长任务，不能据体积下降宣称全部渲染卡顿消失。原生注入多次受到前台焦点限制；改用限定测试 PID 的辅助功能按钮操作时，WebView 没有暴露探针按钮，因此没有取得窗口输入响应证据。测试进程已退出，临时 Home/后端已清理，没有修改用户的系统权限。
+
+### 工程与真实路径验证
+
+- `pnpm build` 与 `pnpm boundary:check` 通过；边界检查 1,824 个源码文件、7,550 个 import、230 条依赖边，零错误；最终 diff 检查通过。
+- Rust：`cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`，66 项通过；独立调试二进制构建通过。日志 `/tmp/molis-performance-native-tests.log`。
+- Agent/Prologue：`node scripts/run-tests.mjs tests/agent-*.test.ts tests/prologue-*.test.ts`，404 项中 402 通过、2 跳过、0 失败。跳过分别为原测试未启用的真实 npm 安装和未提供 MiniMax API Key 的外部模型调用；未伪报真实模型验收。日志 `/tmp/molis-performance-status-tests.log`。
+- Workbench：原文“验证命令”的必跑集合，以及生命周期、分屏/frame、Coding、contextual interactions、隐藏刷新、资源缓存、按需加载、管理项目导航，共 46 项通过。覆盖真实 Chrome 的 Pages 编辑/深链接、搜索、设置、窄屏、Coding 草稿/会话标签、Files/Git/Diff/TextStats 和返回。日志 `/tmp/molis-performance-ui-regression.log`。
+- Host/数据：原必跑集合及 Home 隔离、schema/owner、Projects、ContextLedger、Models、工作目录、Shelf、备份恢复，共 138 项通过。日志 `/tmp/molis-performance-host-regression.log`。
+- 补充：`tests/workspace-project-actions.test.ts`、`tests/project-workspaces-settings.e2e.test.ts`、`tests/characters-appearance.test.ts`、`tests/agent-host-wiring.test.ts`、`tests/prologue-recovery.test.ts`，24 项通过。日志 `/tmp/molis-performance-additional-regression.log`。
+- 最终锁竞争回归 4 项通过（包含真实等锁中途撤权与提交队列顺序）；按需界面资源失败、按钮重试和已打开根节点留存也通过定向回归。日志 `/tmp/molis-performance-catalog-final.log`、`/tmp/molis-performance-target-retest.log`。测试集合有重叠，不把上述数量相加成唯一用例总数。
+
+新增有效回归为 `tests/catalog-read-contention.test.ts`、`tests/workbench-hidden-refresh.e2e.test.ts`、`tests/workbench-asset-cache.test.ts`、`tests/prologue-status-projection.test.ts`、`tests/workbench-deferred-clients.e2e.test.ts`，并扩充真实 SDK 的 `tests/prologue-recovery.test.ts` 和独立脚本的 `tests/client-script-undeclared.test.ts`。先前的 `tests/project-management-navigation.e2e.test.ts` 保留 Coding 新建会话→管理项目→目录搜索→返回同一会话的普通 Web 与 desktop=1 回归；它不等于原生实操或事故现场复现。
+
+### 数据保护与回退演练
+
+`tests/home-backup-recovery.test.ts` 在所有 writer 正常关闭后做离线 Home 复制和原绝对路径恢复，精确核对正文、Artifact 版本、加密会话和引用，并验证恢复后仍可追加。SQLite `integrity_check=ok`、`foreign_key_check=[]`。这不是在线快照，也没有恢复真实用户 Home。
+
+另用新代码在独立 Home 创建修复期间新增的真实项目、Goal 与事件历史、两个 Artifact 版本及原 payload、加密 WorkSession 正文，并通过实际 Prologue Node Adapter/SDK 落盘一次受控失败的运行。所有 writer 关闭后，由干净的 `62cbc14d` 基线构建读取，再由当前新构建读取，两次均对原 project 身份、完整 board snapshot、精确版本正文、加密会话归属/正文及 SDK 会话全文、时间、owner 做一致性断言；旧历史控制均被原协议拒绝，读取期间禁止调用模型配置或重派任务。未变更 baseline 工作树；fixture 保持同一绝对 Home 后清理。日志 `/tmp/molis-performance-rollback-create.log`、`/tmp/molis-performance-rollback-baseline.log`、`/tmp/molis-performance-rollback-new.log`。
+
+探针位于本工作树 `.impeccable/qa/performance-audit/`，原生 IPC 通过记录 `/tmp/molis-performance-native-ipc-proof.log`，性能后测 `/tmp/molis-performance-after-lazy-assets.json`、`/tmp/molis-performance-after-lazy.json`、`/tmp/molis-performance-status-after.json`。探针是隔离验证材料，不加入业务状态或产品资源。
+
+## 剩余验收与范围限制
+
+- **目标仍为内部完整，尚差原生窗口输入实操。** 原生慢导入中的 IPC 已通过，实际指针/键盘和新版真实桌面导航尚未通过，因此本轮只能交付六项代码实现与工程验证，不能标记全部内部验收完成。后续应在可正常操作的隔离应用窗口验证慢 IO 时的输入与 Coding 返回目录；不修改系统权限来强行绕过测试限制。
+- 此前管理项目卡住的事故现场没有捕获，根因仍未确认。浏览器导航通过和已消除的锁阻塞不能等同于该事故已经关闭。
+- 本轮不把所有同步 SQLite、凭据/连接设置、项目 IO 或全局 CSS 都改造成异步架构。目录普通读和列明的项目提交边界已处理；其他 owner 的同步写仍沿原合同，不宣称任意并发写或全量插件操作均无卡顿。
+- 未替换真实应用/服务、未推送或发布，用户本人验收未进行。正式切换仍须遵循前面的完整 Home 一致性备份、原恢复协议与实际授权范围。

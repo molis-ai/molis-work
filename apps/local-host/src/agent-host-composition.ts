@@ -35,6 +35,7 @@ import { createGitWorktreePort } from "./git-worktrees.js";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities, type WriterIntegrationSource } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { createHash } from "node:crypto";
 import path from "node:path";
+import { memoryForAgentRun } from "./memory/memory-host.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -398,6 +399,9 @@ async function startAuthority(
     },
     ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.board_id, runtime.coordinator.artifacts.query, reference) } : {}),
     project_prompts: await projectPrompts(runtime, localHost),
+    // The platform memory under the Agent work switch: the person's and this project's, where they apply.
+    memory: (task, context) => memoryForAgentRun(localHost, { project_id: runtime.project_id, task, plugin_id: pluginId, ...(context?.character ? { character: context.character } : {}),
+      used_for: `${manifest?.name ?? pluginId} · ${task.replace(/\s+/g, " ").trim().slice(0, 40)}` }),
   };
 }
 

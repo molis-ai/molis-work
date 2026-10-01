@@ -10,6 +10,7 @@ import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
 import { renderConnectorsSettings } from "./settings-connectors.js";
 import { renderPromptSettings } from "./settings-prompts.js";
 import { renderAssistantSettings } from "./settings-assistant.js";
+import { renderMemorySettings } from "./settings-memory.js";
 import { renderAgentDiagnostics } from "./settings-agent-diagnostics.js";
 import { createCapabilitiesRenderer } from "./capabilities.js";
 import { renderMcpAccess } from "./mcp-access.js";
@@ -224,6 +225,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
       ? L("助理")
     : view.section === "prompts"
       ? L("提示词")
+    : view.section === "memory"
+      ? L("记忆")
     : view.section === "mcp"
       ? L("MCP")
       : view.section === "connectors"
@@ -249,6 +252,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
           ? renderAssistantSettings({ L, projectId: contextProject?.project_id ?? null })
         : view.section === "prompts"
           ? renderPromptSettings({ L })
+        : view.section === "memory"
+          ? renderMemorySettings({ L, scope: "personal", projectId: null })
         : view.section === "mcp"
           ? renderMcpSettings(view, desktopShell)
           : view.section === "connectors"

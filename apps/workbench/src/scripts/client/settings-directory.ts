@@ -11,6 +11,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     // address the cover loaded, not the workbench's.
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindAssistantSettings?.(root);
+    globalThis.molisWorkBindMemorySettings?.(root);
     globalThis.molisWorkBindAgentDiagnostics?.(root);
     globalThis.molisWorkBindProjectIdentity?.(root);
     globalThis.molisWorkBindProjectGuidance?.(root);
@@ -189,6 +190,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (!rest || rest === "/general") return "general";
     if (rest === "/workspaces") return "workspaces";
     if (rest.startsWith("/guidance")) return "guidance";
+    if (rest.startsWith("/memory")) return "memory";
     if (rest.startsWith("/rules")) return "rules";
     if (rest.startsWith("/planning")) return "planning";
     return "";

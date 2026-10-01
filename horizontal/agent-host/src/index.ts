@@ -239,6 +239,11 @@ export interface AgentStartAuthority {
    * which is different from stating an empty one and is shown differently.
    */
   project_prompts?: readonly AgentPromptText[];
+  /**
+   * The platform memory for this run, recalled by the Host for this consumer (the switches and scopes are the Host's).
+   * Absent or null: the run is given no memory.
+   */
+  memory?(task: string, context?: { character?: { artifact_id: string; title: string } }): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null>;
 }
 
 /**
@@ -610,6 +615,8 @@ export class AgentHost implements AgentHostApi {
     const characterSkillIds = request.character_skill_ids === undefined ? undefined : [...request.character_skill_ids];
     if (characterSkillIds && !character?.import_snapshot && characterSkillIds.length) throw new Error("请先选择包含导入 Skills 的 Character");
     const prompts = composeRolePrompts(role, authority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
+    // The memories this run is given: the Host's recall for this consumer. A failed recall runs without memory, never stops the run.
+    const memory = authority.memory ? await authority.memory(request.task, character ? { character: { artifact_id: character.reference.artifact_id, title: character.title } } : {}).catch(() => null) : null;
     await beforeStart();
     const handle = await adapter.start({
       ...request,
@@ -628,6 +635,7 @@ export class AgentHost implements AgentHostApi {
         ...(character ? { character } : {}),
         ...(characterSkillIds === undefined ? {} : { character_skill_ids: characterSkillIds }),
         prompts: prompts.map((prompt) => ({ ...prompt })),
+        ...(memory && memory.pinned.length ? { memory: structuredClone(memory) } : {}),
         skills,
         ...(compaction ? { compaction } : {}),
         host_tools: hostTools,

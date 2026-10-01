@@ -6,9 +6,9 @@
 
 - `specs/archive/directory-plugin-sections/spec.md` 里「所有插件列表叠在同一列、可同时展开」；
 - `specs/archive/directory-title-toolbar/spec.md` 里项目切换/搜索/设置住在目录头顶；
-- `specs/linear-workbench-density/spec.md` 里目录列通顶、titlebar 只盖内容列（`tree-pane` `grid-row: 1 / 3`）。
+- `specs/archive/linear-workbench-density/spec.md` 里目录列通顶、titlebar 只盖内容列（`tree-pane` `grid-row: 1 / 3`）。
 
-右边标签、分栏、单击添加、各插件主表面与领域事实仍以 `specs/workbench-tab-workspace/spec.md`、`specs/archive/additive-tabs/spec.md`、`specs/pane-local-split-tabs/spec.md` 为准。快捷方式仍在项目首页，见 `specs/archive/home-shortcuts-return/spec.md`。
+右边标签、分栏、单击添加、各插件主表面与领域事实仍以 `specs/archive/workbench-tab-workspace/spec.md`、`specs/archive/additive-tabs/spec.md`、`specs/archive/pane-local-split-tabs/spec.md` 为准。快捷方式仍在项目首页，见 `specs/archive/home-shortcuts-return/spec.md`。
 
 ## 背景与目标
 

@@ -48,7 +48,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 删除后存储、旁表（事实、历史、使用记录）、最近变动的正文、重启之后都不再带出该条。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
 - 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts`
-- 相关手册：[specs/memory-system/spec.md](../../specs/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+- 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
 

@@ -1019,7 +1019,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-context-actions { position: absolute; z-index: 54; left: 0; right: 0; bottom: calc(100% + 8px); display: flex; align-items: center; gap: 6px; min-width: 0; }
   ${ASSIST} .assistant-context-actions:is(:empty, :not([data-state="active"])) { display: none; }
   ${ASSIST} [data-assistant-island]:has(.assistant-panel:not([hidden]), .assistant-offer:not([hidden])) .assistant-context-actions { display: none; }
-  /* The row itself (specs/contextual-interaction §6.3): what the person has in hand, up to three actions, “更多”, the
+  /* The row itself (specs/archive/contextual-interaction §6.3): what the person has in hand, up to three actions, “更多”, the
      Assistant's offer when the judgment thinks it is worth one, and what the order is based on. It never moves what the
      pointer is on; a new context's actions arrive by fading in place. */
   ${ASSIST} .context-actions-pill {

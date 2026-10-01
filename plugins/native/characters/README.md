@@ -8,7 +8,7 @@
 
 “发布并使用”提供内置 Prologue 与对应原生 Agent 两种方式。内置模式选择本轮文本 Skills，读取其固定正文和文本附件；脚本/二进制依赖明确不可选。原生模式由服务端派发交互 PTY，沿用原工具登录、模型、实时配置和权限，提供固定 Character 包读取指令，记录输出并支持重连/停止；是否实际加载以原生输出为准。刷新或相同请求不会重跑任务。
 
-实现和验证：`specs/characters-local-agent-import/spec.md`、`specs/characters-local-agent-import/validation.md`。真实 MiniMax-M3 / Prologue 已通过导入附件规则核对任务；未安装的原生 CLI 显示不可用，不假称五家模型执行均已验证。
+实现和验证：`specs/archive/characters-local-agent-import/spec.md`、`specs/archive/characters-local-agent-import/validation.md`。真实 MiniMax-M3 / Prologue 已通过导入附件规则核对任务；未安装的原生 CLI 显示不可用，不假称五家模型执行均已验证。
 
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`

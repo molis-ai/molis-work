@@ -10,7 +10,7 @@ const scriptJson = (value: unknown) => JSON.stringify(value).replaceAll("<", "\\
 /**
  * One self-contained HTML file someone else opens in their own browser: they fill the form and the page saves an
  * answer file for them to send back. Nothing is uploaded anywhere; the owner imports the files into Results
- * (specs/work-placement §6: forms are shared without a hosted collector).
+ * (specs/archive/work-placement §6: forms are shared without a hosted collector).
  */
 export function formFillPageHtml(form: FormRecord): string {
   const data = { format: FORM_ANSWER_FORMAT, form_id: form.id, form_version: form.version, title: form.title, description: form.description, questions: form.questions };

@@ -3,7 +3,7 @@
 Status: `partial`. Contract: `@molis-ai/molis-work-contracts/platform/plugin-sandbox`.
 Migration goal: `goal-reorg-f2`. SSOT: `docs/SSOT-MATRIX.md`.
 
-S0 execution foundation for `specs/plugin-builder/work-items/agent-built-plugins/spec.md`.
+S0 execution foundation for `specs/archive/plugin-builder/work-items/agent-built-plugins/spec.md`.
 This package does not install plugins, run the authoring agent, implement build gates,
 or render generated interfaces. Those hosts must supply explicit grants and connected services.
 

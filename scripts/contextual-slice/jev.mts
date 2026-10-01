@@ -1,5 +1,5 @@
 /**
- * Real Jev for the slice (specs/contextual-interaction §5.2, §5.4): the multi-question request goes through the
+ * Real Jev for the slice (specs/archive/contextual-interaction §5.2, §5.4): the multi-question request goes through the
  * Prologue inference port, the same path the Host uses for TypeSafe. The key is read in-process from the person's own
  * Home (they agreed on 2026-09-30), kept only in memory, never printed or written. Real answers can be recorded so the
  * `replay` mode can later show recorded Jev instead of hand-written samples.

@@ -1,6 +1,6 @@
 # 放在哪里：位置、关联、移动与完成提示
 
-用户做完一件事，要知道东西存在哪里、和哪项工作有关、谁能看到、以后从哪里找回来。这些规则由系统统一说明，插件只做几件小事。需求与语义见 [specs/work-placement/spec.md](../../specs/work-placement/spec.md)。
+用户做完一件事，要知道东西存在哪里、和哪项工作有关、谁能看到、以后从哪里找回来。这些规则由系统统一说明，插件只做几件小事。需求与语义见 [specs/archive/work-placement/spec.md](../../specs/archive/work-placement/spec.md)。
 
 ## 四个概念
 

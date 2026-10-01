@@ -2,7 +2,7 @@
 
 Status: `partial`. Workspace migration: `goal-reorg-f2`. Contract: `@molis-ai/molis-work-contracts/platform/plugin`.
 
-Personal knowledge workspace for the current Molis Work Home. Import a local Obsidian, LLM Wiki or Markdown folder, preview the fixed snapshot, then explicitly commit. Browser folder uploads create an independent source; select an existing upload source to update it. Local paths use the canonical directory as source identity. Source files are never changed. See [format compatibility](../../../specs/cognia-plugin/compatibility.md).
+Personal knowledge workspace for the current Molis Work Home. Import a local Obsidian, LLM Wiki or Markdown folder, preview the fixed snapshot, then explicitly commit. Browser folder uploads create an independent source; select an existing upload source to update it. Local paths use the canonical directory as source identity. Source files are never changed. See [format compatibility](../../../specs/archive/cognia-plugin/compatibility.md).
 
 The Home store is `cognia/cognia.db`. Materials preserve paths, original bytes, Markdown, frontmatter, common title/tags/aliases and every changed version. Source/path pairs are unique. Import previews expire after 30 minutes; cancelled previews do not add materials. Repeated commits and draft saves are idempotent. Conflicting previews require a fresh preview. Deleting source files does not delete imported materials.
 
@@ -44,4 +44,4 @@ No cloud sync, background watching, bidirectional sync, proprietary database mig
   - 下载用附件方式，从不执行 HTML 或 SVG；发现能力不发起请求、不解密凭据。
   - HTTP、旧 MCP 名与导入都经绑定的动作服务，原 Store 是唯一数据 owner。
 - 改动后必跑：`node scripts/run-tests.mjs tests/cognia-actions.test.ts tests/cognia-store.test.ts tests/cognia-ai.test.ts tests/cognia-http.test.ts tests/cognia-prologue.test.ts`
-- 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[specs/cognia-plugin/spec.md](../../../specs/cognia-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+- 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[specs/archive/cognia-plugin/spec.md](../../../specs/archive/cognia-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

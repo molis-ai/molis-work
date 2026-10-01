@@ -58,7 +58,7 @@ node --import tsx --test --test-concurrency=1 tests/shelf-plugin.test.ts
 
 - [职责说明](../../docs/modules/shelf.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
-- [Shelf 插件需求](../../specs/shelf-plugin/spec.md)
+- [Shelf 插件需求](../../specs/archive/shelf-plugin/spec.md)
 
 - Status: `partial`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/modules/shelf`

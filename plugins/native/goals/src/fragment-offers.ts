@@ -3,7 +3,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
- * What Goals offers for part of anything the person is reading or writing (specs/contextual-interaction §3.3 S2, S5):
+ * What Goals offers for part of anything the person is reading or writing (specs/archive/contextual-interaction §3.3 S2, S5):
  * - a plan becomes proposed steps: a structure proposal that creates nothing until the person approves it in Goals;
  * - a task just ticked, in something that belongs to a Goal, becomes that Goal's progress.
  * Both write, so the surface shows them as prepared cards the person confirms; preparing only reads the Goal's cursor.

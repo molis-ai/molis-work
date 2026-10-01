@@ -1,5 +1,5 @@
 /**
- * What can be done with what the person has in hand (specs/contextual-interaction §3, §4, §6.3): the row of actions
+ * What can be done with what the person has in hand (specs/archive/contextual-interaction §3, §4, §6.3): the row of actions
  * right above the Assistant input.
  *
  * A surface raises `molis:surface-focus` whenever its focus changes. The Host ranks the actions the directory offers

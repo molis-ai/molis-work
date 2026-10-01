@@ -2150,7 +2150,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (open) { setStarters(false); paintMaterials(); materialsList.querySelector("button")?.focus(); }
   };
   materialsButton?.addEventListener("click", () => setMaterials(materialsList.hidden));
-  /* Starting points for what is open (specs/contextual-interaction §6.4.2): what the action directory offers for it,
+  /* Starting points for what is open (specs/archive/contextual-interaction §6.4.2): what the action directory offers for it,
      through the context row's controller — the row's own plan while something is in hand. Choosing one of those runs
      it as a click on the row would. With nothing offered, three plain questions that only fill the input. Pages no
      longer list their own (their "starters" are still accepted and ignored). */

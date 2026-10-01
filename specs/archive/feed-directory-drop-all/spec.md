@@ -2,7 +2,7 @@
 
 状态：已实现。完成等级 **3：功能可用**。不改用户库、不提交。
 
-本文件覆盖 `specs/archive/feed-directory-all-fold/spec.md` 的「全部」集合头，以及 `specs/feed-directory-goal-list/spec.md` 里「来源行无图标、缩进为子项」。主区按来源分组见 `specs/archive/feed-stage-source-groups/spec.md`。
+本文件覆盖 `specs/archive/feed-directory-all-fold/spec.md` 的「全部」集合头，以及 `specs/archive/feed-directory-goal-list/spec.md` 里「来源行无图标、缩进为子项」。主区按来源分组见 `specs/archive/feed-stage-source-groups/spec.md`。
 
 ## 背景目标
 

@@ -3,7 +3,7 @@
 Status: `partial`。Contract: `@molis-ai/molis-work-contracts/services/im`。
 Workspace registration: `goal-reorg-f2`。
 
-本包负责每个项目的主群、公开 Thread 标签与单个当前会话。项目成员都能发现并参与话题；不提供私聊。当前行为和验收以 [标签版 spec](../../specs/molis-work-im/redesign-v2/spec.md) 为准，视觉规则见 [DESIGN.md](./DESIGN.md)。
+本包负责每个项目的主群、公开 Thread 标签与单个当前会话。项目成员都能发现并参与话题；不提供私聊。当前行为和验收以 [标签版 spec](../../specs/archive/molis-work-im/redesign-v2/spec.md) 为准，视觉规则见 [DESIGN.md](./DESIGN.md)。
 
 ## 模块边界
 

@@ -1,6 +1,6 @@
 # macOS 目录与资料准备验证
 
-2026-09-26。需求书：`specs/molis-work-context-onboarding/spec.md` 的当日扩展。目标为功能可用；此记录不代表发布包或用户本人验收。
+2026-09-26。需求书：`specs/archive/molis-work-context-onboarding/spec.md` 的当日扩展。目标为功能可用；此记录不代表发布包或用户本人验收。
 
 ## 当前实现
 

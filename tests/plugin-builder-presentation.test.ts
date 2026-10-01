@@ -120,7 +120,7 @@ test('inspiration asset route serves the approved PNG bytes with its image conte
   const response=await request(f.route('builder.inspiration-asset'));
   assert.equal(response.status,200);assert.equal(response.mime,'image/png');assert.equal(response.headers!['content-type'],'image/png');
   assert.ok(response.bytes instanceof Uint8Array);
-  assert.deepEqual(Buffer.from(response.bytes!),await readFile(new URL('../specs/plugin-builder/ui/assets/inspiration-atlas.png',import.meta.url)));
+  assert.deepEqual(Buffer.from(response.bytes!),await readFile(new URL('../specs/archive/plugin-builder/ui/assets/inspiration-atlas.png',import.meta.url)));
   assert.equal(response.body,undefined,'image bytes are not encoded into JSON');
  }finally{db.close();}
 });

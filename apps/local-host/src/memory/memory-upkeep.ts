@@ -11,7 +11,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { MolisWorkLocalHost } from "../project-host.js";
 
 /**
- * One upkeep pass (specs/memory-system §6.4): the memory service's deterministic rules, with the model only asked for
+ * One upkeep pass (specs/archive/memory-system §6.4): the memory service's deterministic rules, with the model only asked for
  * possible duplicates and contradictions (they go to the person), and each memory's object checked through its own
  * plugin's reader — never a plugin's store.
  */

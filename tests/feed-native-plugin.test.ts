@@ -397,7 +397,7 @@ test("Gmail source detail opens Connectors with the current project", () => {
   assert.match(html, /管理账号连接/);
 });
 
-// Soft Workbench (specs/soft-workbench-rollout): the Feed column is one timeline, as in the approved prototype; the
+// Soft Workbench (specs/archive/soft-workbench-rollout): the Feed column is one timeline, as in the approved prototype; the
 // per-source folds became a source menu. Attribution, counts, empty sources and source state are still checked here.
 test("Feed stage list is one timeline and the source menu keeps each source's count and state", () => {
   const host = new UiHost();

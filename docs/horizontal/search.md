@@ -8,4 +8,4 @@
 
 **不拥有：** 插件的表与业务规则、对象正文的解释（归各插件的对象读取器）、权限授予（归动作服务与各入口的授权）、可信身份、会话与助理交互。
 
-**当前来源与 Goal：** `horizontal/search`，索引适配 `packages/storage` 的 `openTextSearchIndex`，Host 装配 `apps/local-host/src/search-actions.ts`。见 `specs/system-search/spec.md`。
+**当前来源与 Goal：** `horizontal/search`，索引适配 `packages/storage` 的 `openTextSearchIndex`，Host 装配 `apps/local-host/src/search-actions.ts`。见 `specs/archive/system-search/spec.md`。

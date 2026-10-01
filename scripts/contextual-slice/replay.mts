@@ -1,5 +1,5 @@
 /**
- * Replayed judgments for the slice (specs/contextual-interaction §9). Two kinds, always labelled on screen:
+ * Replayed judgments for the slice (specs/archive/contextual-interaction §9). Two kinds, always labelled on screen:
  * - `recorded`: real Jev answers captured with `--record` (file `replay-recorded.json`, written by the preview);
  * - `authored`: hand-written samples used before a real Jev key is available. They show what the layout policy does
  *   with a semantic judgment; they are not evidence that Jev judges this way.

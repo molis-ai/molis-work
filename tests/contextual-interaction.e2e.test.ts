@@ -6,7 +6,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 /**
- * P1 of specs/contextual-interaction in the real Workbench: the Pages editor reports what is in hand, the Host ranks
+ * P1 of specs/archive/contextual-interaction in the real Workbench: the Pages editor reports what is in hand, the Host ranks
  * the directory's actions (rules here: this Home has no judgment connection, and the row says so), the row above the
  * Assistant input shows them, and a click runs the chosen one on the range that was in hand — even when the person
  * selects something else while the model is working.

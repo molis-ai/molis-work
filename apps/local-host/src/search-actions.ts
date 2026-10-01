@@ -6,7 +6,7 @@ import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 
 /**
- * Host wiring for the system search (specs/system-search §6): the index lives in this Home, indexing reads with the local
+ * Host wiring for the system search (specs/archive/system-search §6): the index lives in this Home, indexing reads with the local
  * person's own access, and every caller reaches search through the shared directory with its own authority.
  * Search itself is in horizontal/search; nothing about any plugin is known here.
  */

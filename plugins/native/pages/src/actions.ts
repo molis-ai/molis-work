@@ -50,7 +50,7 @@ const readOnly = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I,
 export const pagesActions = {
   /** One document's current text, version and links, by the shared subject protocol (the Assistant, Home, references). */
   subject: defineSubjectContextAction("pages.subject.read", PAGES_SUBJECT_KIND, "文档", read),
-  /** What can be done with part of a document; preparing reads and writes nothing (specs/contextual-interaction §5.1). */
+  /** What can be done with part of a document; preparing reads and writes nothing (specs/archive/contextual-interaction §5.1). */
   fragmentOffers: defineFragmentOffersAction("pages.fragment.offers", [PAGES_SUBJECT_KIND], "文档片段可以做的事", read, PAGES_FRAGMENT_CHOICES),
   /** System search: every document of the project by version; its text is read back through `subject`. */
   searchEntries: defineSearchEntriesAction("pages.search.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "文档", read),
@@ -58,7 +58,7 @@ export const pagesActions = {
   fileEntries: defineFileEntriesAction("pages.files.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read),
   /** The document as Markdown, the same conversion Pages uses when it hands a page to another plugin. */
   fileContent: defineFileContentAction("pages.files.content", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read),
-  /** Where a document lives (specs/work-placement): moving keeps its id; copying makes an independent document. */
+  /** Where a document lives (specs/archive/work-placement): moving keeps its id; copying makes an independent document. */
   move: defineObjectMoveAction("pages.placement.move", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
   copy: defineObjectCopyAction("pages.placement.copy", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
   list: define<Record<string, never>, { documents: PagesRecord[]; folders: PagesFolder[] }>("list", "文档列表", "读取当前项目全部文档和文件夹", "query", object({}), object({ documents: array(page), folders: array(folder) }), read),

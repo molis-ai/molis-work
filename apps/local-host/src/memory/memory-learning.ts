@@ -6,7 +6,7 @@ import { resolveModelPrompt } from "../agent-definitions/instructions.js";
 import { hostTextGeneration, type HostTextGeneration } from "../host-complete-text.js";
 
 /**
- * Drawing memories out of a finished work (specs/memory-system §6.1 item 2). The model reads the person's own words and
+ * Drawing memories out of a finished work (specs/archive/memory-system §6.1 item 2). The model reads the person's own words and
  * proposes; the memory service's write gate decides. A malformed or failed answer leaves nothing behind.
  */
 export interface MemoryLearningRequest {

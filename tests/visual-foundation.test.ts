@@ -23,7 +23,7 @@ import {
   renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
 
-// Soft Workbench (specs/soft-workbench-rollout): every layer takes its base tokens from one helper.
+// Soft Workbench (specs/archive/soft-workbench-rollout): every layer takes its base tokens from one helper.
 test("Soft Workbench shell tokens come from one helper", () => {
   const light = renderShellTokens("light");
   const dark = renderShellTokens("dark");

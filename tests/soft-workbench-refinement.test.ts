@@ -9,7 +9,7 @@ import {
   renderMolisWorkWorkbenchStylesheet,
 } from "../apps/workbench/src/page-assets.js";
 
-// Soft Workbench visual refinement (specs/soft-workbench-rollout/spec.md → 精修): guards for the fixed scales.
+// Soft Workbench visual refinement (specs/archive/soft-workbench-rollout/spec.md → 精修): guards for the fixed scales.
 
 const sheets = () => [
   ["workbench", renderMolisWorkWorkbenchStylesheet()],

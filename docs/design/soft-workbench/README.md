@@ -1,6 +1,6 @@
 # Molis Work 高保真交互原型
 
-> **参考原型，不是生产规范。** 2026-09-28 起生产界面已按本原型正式升级，规范见根目录 [DESIGN.md](../../../DESIGN.md)，迁移记录见 [specs/soft-workbench-rollout](../../../specs/soft-workbench-rollout/spec.md)。本目录的数据、截图和本地脚本仅作对照，不要当产品图使用。
+> **参考原型，不是生产规范。** 2026-09-28 起生产界面已按本原型正式升级，规范见根目录 [DESIGN.md](../../../DESIGN.md)，迁移记录见 [specs/archive/soft-workbench-rollout](../../../specs/archive/soft-workbench-rollout/spec.md)。本目录的数据、截图和本地脚本仅作对照，不要当产品图使用。
 
 本轮验证项目首页、目标、信息流和视频参考的新手引导。保留 Molis Work 的底部统一菜单和对话栏；插件自己的目录属于内容区。原型本身没有改动生产 UI。
 
@@ -21,4 +21,4 @@ node docs/design/soft-workbench/server.mjs
 
 采用 macOS 系统字体 / 苹方，Inter 后备；视频的确切字体名称尚未确认。动效提供按压、选项反馈、浮层进出、密度预览和引导转场，尊重减少动态效果设置。
 
-需求：`specs/soft-workbench-ui/spec.md`。验证结果见同目录 `verification.md`。
+需求：`specs/archive/soft-workbench-ui/spec.md`。验证结果见同目录 `verification.md`。

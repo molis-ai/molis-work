@@ -95,7 +95,32 @@
 
 ## 6. 全量回归
 
-（基线运行中：干净工作树 `origin/main` 62cbc14d，整体构建后跑 `node scripts/run-tests.mjs` 全部用例。）
+**基线**：干净工作树 `origin/main` 62cbc14d。`pnpm install --frozen-lockfile --offline` 与整体 `pnpm build` 都通过，之后跑 `node scripts/run-tests.mjs` 全部 702 个测试文件，时间是 2026-10-01 03:55–06:06 PDT。
+
+- **结果**：3570 条通过，24 条失败，退出码 1。
+- **负载**：跑基线的同时，本机还在构建两个修复工作树，跑隔离 Home 的浏览器检查，负载在 9–30 之间波动。
+- **失败分布**：15 个文件，大多数是浏览器用例。
+- **初步归类**：
+  - 一半以上是 30 秒导航等待（`Navigation did not finish`）或 CDP 超时，发生在高负载时段。
+  - 需要单独看的有：
+    - `compact-icon-tabs.e2e`：断言不等；
+    - `goal-event-document.e2e`：点击目标被隐藏；
+    - `feed-research-authority`：测试自建的 `bin/git` 启动报 ENOENT；
+    - `e2e.test.ts` 的安装包流程：Runtime 接入回滚；
+    - `agent-studio.e2e`：180 秒超时。
+- **复跑**：负载 5–12 时单独复跑这 15 个文件。17 条通过，归为高负载下的导航或 CDP 超时。剩下的再单独连跑两次，逐条归类：
+
+| 用例 | 文件 | 归类 | 依据 | 处理 |
+| --- | --- | --- | --- | --- |
+| icon tabs pin, restore … keep fixed dimensions | `compact-icon-tabs.e2e` | 合并引入的布局副作用 | 干净基线连跑两次都失败。动态交互线的读屏播报区 `.context-actions-live` 让 390×640 页面高 641px | [#142](https://github.com/molis-ai/molis-work/pull/142) 改用 `mw-sr-only`，修复后通过 |
+| research repository revoked / reconfigured / cancelled | `feed-research-authority` | 测试缺陷（环境相关） | 在加入该用例的提交 21cdfbf8 上同样失败。本机 `fs.watch` 会漏掉别的进程新建的文件（探针两次里漏一次） | [#143](https://github.com/molis-ai/molis-work/pull/143) 改为轮询标记文件，连跑两次通过 |
+| studio: a request becomes a working, published plugin | `agent-studio.e2e` | 测试时序缺陷 | 单独跑两次都通过；并发时模型下拉先于画布加载，立即读空态读到空串 | [#143](https://github.com/molis-ai/molis-work/pull/143) 等空态文字出现再断言 |
+| Dense workspace keeps many long tabs … | `dense-workspace.e2e` | 负载时序 | 连跑两次一过一挂，挂在 4 秒的 iframe 内容等待 | 记录；第二步做「浏览器用例时限与负载」专项时处理 |
+| Characters opens an existing project after its manifest upgrade … | `cross-plugin-recovery.e2e` | 负载时序 | 同一批连跑两次一过一挂 | 同上 |
+| opening a related Goal inside a pane leaves the original Goal tab intact | `workbench-pane-feed.e2e` | 负载时序 | 复跑时挂在两个窗格 iframe 的 4 秒等待；基线里的同文件另一条在复跑中通过 | 同上 |
+| 其余 17 条（Coding 工具舞台、Cognia 390、连续工作区三档、Schedule、配置模型两档、动态交互三条、P2 搜索、减少动效、事件文档、安装包全流程、灵光 1440、合并 Feed 窗格、Cognia MCP） | 多个 | 高负载超时 | 低负载复跑全部通过 | 无 |
+
+结论：合并后的 main 没有确定性的产品回归。唯一确定性的失败来自两条线合在一起的布局副作用（#142）。另有两处测试缺陷（#143）、三条负载下的时序不稳。
 
 ## 7. 行为基线
 

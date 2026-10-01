@@ -651,7 +651,12 @@ Pages 用一个 ProseMirror 插件的 view update 维护它；其他插件第一
 - **C12 在 P2 正式分支上复核**（记忆线经 #130 进 main，P2 合 main 2510098f 后，整体构建通过，隔离 Home 新副本，真实 Jev）：没有记忆 拆成行动项 0.45 / 拆成目标步骤 0.25 / 记成待办 0.23；在“设置 → 记忆 → 添加”写入同一条偏好后 记成待办 0.92 升到首位，设置里显示“最近用于：给选中的内容排动作 · 9/30”；在动作条选“拆成行动项”后信号回 counted（1 次 / 1 处，门槛 3 / 2）；关掉“界面推荐”后 拆成行动项 0.95、记成待办 0.01，偏好不再起作用（拆成行动项更高是因为刚选过它，判断会读到最近选过的动作）。
 - **修复后的浏览器 e2e 复核**（协调会话特批的小时段，fdfcb6c8）：`contextual-interaction.e2e` 4/4、`pages-actions.e2e` 3/3，共 7/7，没有出现夹具清理超时。
 - **合 main 与门禁（2026-09-30，P2 轮到）**：合入 main 2510098f（含记忆线 #130、#128）无冲突；整体 `pnpm build`、`boundary:check`、`boundary:test` 13/13、`typecheck`、`workspace:typecheck` 全过；受影响单测与门禁 36 个文件 303/303。
-- **尚待**：全量回归（协调会话时段）、推送与开 PR（用户已在本会话放行）；读屏软件实测与用户体验认可（用户本人）。
+- **全量回归对基线（协调会话时段 S20，P2 f41ecbd6 = main 2510098f + 本线）**：`node scripts/run-tests.mjs` 702 个文件，3613 项：3598 通过、8 失败、7 跳过、0 取消，72 分钟。8 项逐条对照记忆线在基线 c17015e9 上的失败清单（#130、memory spec 17.9；c17015e9 → 2510098f 之间只有 #127/#128/#130）：
+  - 基线同样失败的 5 项：icon tabs、event recovery、clean developer project（打包公开 SDK）、Shelf DropAgent parity、related Goal inside a pane。
+  - main 自身失败的 1 项：`immersive-directory` 第 85 行 `'block' !== 'inline'`，#126 新加的断言，main 09aaf91e 上同样失败。
+  - 负载下的 2 项：research repository reconfigured / cancelled；单独重跑 3/3 通过。
+  - 结论：对基线无新增失败。
+- **尚待**：推送与开 PR（用户已在本会话放行）；读屏软件实测与用户体验认可（用户本人）。
 
 ## 14. 待定
 

@@ -3,7 +3,7 @@ import { renderSideBrowser } from "./side-panel-browser.js";
 import { renderSideFiles } from "./side-panel-files.js";
 
 /**
- * The panel beside the work (specs/side-panel). Host layout only: which tab shows, how wide, open or closed.
+ * The panel beside the work (specs/archive/side-panel). Host layout only: which tab shows, how wide, open or closed.
  * What a tab shows belongs to its owner — the discussion to im-ui and the shared server, the browser to the
  * local browser service, files to the plugins that declare file sources, a plugin tab to that plugin.
  *
@@ -193,7 +193,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
 })();`;
 
 /**
- * Links that leave Molis Work open in the side panel's browser (specs/side-panel, 存量接入): every plugin's
+ * Links that leave Molis Work open in the side panel's browser (specs/archive/side-panel, 存量接入): every plugin's
  * `target="_blank"` link and `window.open` of a web address, without each plugin knowing about the panel. The person
  * keeps the system browser with ⌘/Ctrl/Shift. Same-origin addresses, downloads, `javascript:`/`mailto:` and
  * `window.open("")` (sign-in popups a page fills itself) are left alone. Runs in the workbench, in its embedded panes

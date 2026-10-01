@@ -103,7 +103,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
         catch { return null; }
       });
     });
-    // The side panel's browser (specs/side-panel): started on first use, one page per project. Its pages may never load
+    // The side panel's browser (specs/archive/side-panel): started on first use, one page per project. Its pages may never load
     // this server itself, which hands its control token to whoever loads it.
     let browsers: BrowserHost | null = null;
     const browserHost = () => browsers ??= new BrowserHost({ homeDirectory: storageHome, forbiddenOrigins: () => {
@@ -111,7 +111,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       const port = address && typeof address === "object" ? address.port : 0;
       return port ? [`http://127.0.0.1:${port}`, `http://localhost:${port}`, `http://[::1]:${port}`] : [];
     } });
-    // The Assistant may look at and act on a project's page through Prologue (specs/side-panel P5): one driver per page,
+    // The Assistant may look at and act on a project's page through Prologue (specs/archive/side-panel P5): one driver per page,
     // found by the board its round works on; sites the person allowed or blocked are kept beside the browser profile.
     const sites = new BrowserSiteDecisions(storageHome);
     const drivers = new Map<string, HostSurfaceDriver>();

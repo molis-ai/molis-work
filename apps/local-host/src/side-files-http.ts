@@ -11,7 +11,7 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
 /**
- * The side panel's file tab (specs/side-panel P3): the file sources plugins declare in this project, their entries,
+ * The side panel's file tab (specs/archive/side-panel P3): the file sources plugins declare in this project, their entries,
  * and one file's preview — all read through the shared action directory as the local person, so a source the person
  * cannot read, or a plugin turned off here, is simply not there. Nothing is copied or cached on the Host.
  */

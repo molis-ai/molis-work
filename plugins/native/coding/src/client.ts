@@ -578,7 +578,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-method-search]').value='';q('[data-coding-method-document]').hidden=true;q('[data-coding-method-error]').textContent='';renderMethods();q('[data-coding-method-dialog]').showModal();
   };
   // Web addresses in a turn (a dev server the round started, a page it read) are links, built from text nodes, never
-  // from model-written markup; the Workbench opens them in the side panel's browser (specs/side-panel).
+  // from model-written markup; the Workbench opens them in the side panel's browser (specs/archive/side-panel).
   const linkedText = (node, text) => {
     node.replaceChildren();let at=0;const pattern=/https?:\\/\\/[^\\s<>"'\\x60）】」]+[^\\s<>"'\\x60）】」.,;:!?。，；：！？)]/g;
     for(const match of text.matchAll(pattern)){

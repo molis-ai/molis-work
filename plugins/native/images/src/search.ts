@@ -6,7 +6,7 @@ import type { ImagesService } from "./service.js";
 export const imagesSearchActions = {
   entries: defineSearchEntriesAction("images.search.entries", [{ kind: "image_job", title: "生成记录", surface: IMAGES_PROJECT_PLUGIN_ID }], "生图记录", ["images:read"]),
   subject: defineSubjectContextAction("images.subject.read", "image_job", "生图记录", ["images:read"]),
-  /** The side panel's file tab (specs/side-panel): each generated picture, previewed as itself. */
+  /** The side panel's file tab (specs/archive/side-panel): each generated picture, previewed as itself. */
   files: defineFileEntriesAction("images.files.entries", [{ kind: "generated_image", title: "生成的图片", surface: IMAGES_PROJECT_PLUGIN_ID }], "生成的图片", ["images:read"]),
   fileContent: defineFileContentAction("images.files.content", [{ kind: "generated_image", title: "生成的图片", surface: IMAGES_PROJECT_PLUGIN_ID }], "生成的图片", ["images:read"]),
 };

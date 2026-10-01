@@ -16,7 +16,7 @@ export type UiContributionKind = "primary-page" | "embedded" | "overlay" | "sett
  *
  * These are exactly the regions the Workbench has today: the directory column,
  * the tabbed work area, the global settings directory, the personal island
- * above the project card, and the side panel beside the work (specs/side-panel),
+ * above the project card, and the side panel beside the work (specs/archive/side-panel),
  * where a `side` view becomes one tab. A new region is a shell change first and a
  * slot second, never a slot a Plugin can target before anywhere exists to put it.
  */

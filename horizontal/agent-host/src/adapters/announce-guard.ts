@@ -49,7 +49,7 @@ export function claimsMemoryChange(text: string): "keep" | "forget" | null {
 
 /** What the model reads when it claimed a memory change in a round the person gave no memory (switched off in settings). */
 export const MEMORY_OFF_HELD =
-  "The person has switched off forming memories, so this round cannot keep or forget anything and nothing was kept. Say plainly that you did not keep it, that it still applies within this work, and that they can allow it under 设置 · 助理 · 记忆与偏好.";
+  "The person has switched off forming memories, so this round cannot keep or forget anything and nothing was kept. Say plainly that you did not keep it, that it still applies within this work, and that they can turn on “允许记住” under 设置 · 个人 · 记忆.";
 
 /** What the model reads when it claimed a memory change it did not make. */
 export const MEMORY_CLAIM_HELD = {

@@ -40,19 +40,13 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
       <p class="settings-form-error" data-assistant-budget-error role="alert" hidden></p>
     </section>
     <section class="settings-section assistant-memory" aria-labelledby="assistant-memory-title" data-assistant-memory>
-      <h2 id="assistant-memory-title">${L("记忆与偏好")}</h2>
-      <p class="settings-muted">${L("助理只记你明确要它记住的（例如“以后回答都用要点列表”），或你认可的建议；不会从你的一次选择或修改里自己学。个人的在你所有工作里用；项目的只在那个项目里用。停用是保留但暂不使用；删除后不会再被想起。")}</p>
-      <p class="settings-muted">${L("这些设置对所有角色和委托出去的子任务同样生效，换角色不会绕过。主动提醒和新资料提示从不使用记忆，只在你让助理做事时才用。")}</p>
-      <div class="assistant-memory-prefs">
-        <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="form"> ${L("允许记住我明确要求记住的事")}</label>
-        <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="use_personal"> ${L("在工作里使用个人记忆")}</label>
-        <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="use_project"> ${L("在项目的工作里使用这个项目的记忆")}</label>
-        <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="learn_personal"> ${L("从工作里提出值得记住的个人偏好或经验（等我认可才生效）")}</label>
-        <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="learn_project"> ${L("从项目的工作里提出这个项目的约定或经验（等我认可才生效）")}</label>
+      <h2 id="assistant-memory-title">${L("记忆")}</h2>
+      <p class="settings-muted">${L("助理用的是平台记忆：你的偏好和习惯在“个人 → 记忆”，项目的约定在项目设置的“项目记忆”。在那里能看到每一条从哪来、最近用在哪，可以修改、停用或删除，也能决定助理能不能用。")}</p>
+      <p class="settings-muted" data-assistant-memory-summary>${L("正在读取…")}</p>
+      <div class="settings-actions">
+        <a class="mw-btn mw-btn--secondary mw-btn--sm" href="/settings/memory">${L("去个人记忆")}</a>
+        ${projectId ? `<a class="mw-btn mw-btn--ghost mw-btn--sm" href="/projects/${encodeURIComponent(projectId)}/settings/memory">${L("去项目记忆")}</a>` : ""}
       </div>
-      <div data-assistant-memory-candidates hidden></div>
-      <div data-assistant-memory-list><p class="settings-muted">${L("正在读取…")}</p></div>
-      <p class="settings-form-error" data-assistant-memory-error role="alert" hidden></p>
     </section>
     <p class="prompt-settings-notice" role="note">${L("读取类能力直接使用；修改类每次执行前都会请你确认准确参数；不可撤回的操作每次单独确认。")}</p>
     <div class="prompt-settings-tools">
@@ -235,88 +229,24 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     run(() => rulesApi("/rules", { rule: { kind: "pause", surfaces: [], except, until: until.toISOString(), label: L("暂停提醒到") + " " + until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) } }));
   });
   run(() => rulesApi("/rules"));
-  // Memories: personal ones live with the person; a project's are read and changed under that project's own route.
-  const memoryBox = root.querySelector("[data-assistant-memory-list]");
-  const memoryError = root.querySelector("[data-assistant-memory-error]");
-  const memoryApi = async (payload, path) => {
-    const url = (project ? "/projects/" + encodeURIComponent(project) : "") + "/api/assistant" + (path || "/memories");
-    const response = await fetch(url, payload ? { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) } : undefined);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
-    return data;
-  };
-  const paintMemories = (memories) => {
-    memoryBox.replaceChildren();
-    if (!memories.length) { memoryBox.append(el("p", "settings-muted", L("还没有记住任何事：在对话里说“以后……”或“记住……”，助理会记下并告诉你在哪里生效。"))); return; }
-    const list = el("ul", "prompt-list");
-    memories.forEach((memory) => {
-      const item = el("li", "prompt-row" + (memory.disabled ? " is-disabled" : ""));
-      const head = el("div", "prompt-row-head"), copy = el("div", "prompt-row-copy");
-      const text = el("strong", "", memory.text);
-      copy.append(text, el("span", "settings-muted", L(memory.scope === "personal" ? "个人" : "本项目") + " · " + memory.origin + (memory.disabled ? " · " + L("已停用") : "")));
-      const edit = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("修改")); edit.type = "button";
-      edit.addEventListener("click", () => {
-        const next = window.prompt(L("修改这条记忆"), memory.text);
-        if (next !== null && next.trim() && next.trim() !== memory.text) runMemory(() => memoryApi({ memory_id: memory.memory_id, action: "update", text: next.trim() }));
-      });
-      edit.setAttribute("aria-label", L("修改") + "：" + memory.text);
-      const toggle = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L(memory.disabled ? "启用" : "停用")); toggle.type = "button";
-      toggle.setAttribute("aria-label", L(memory.disabled ? "启用" : "停用") + "：" + memory.text);
-      toggle.addEventListener("click", () => runMemory(() => memoryApi({ memory_id: memory.memory_id, action: memory.disabled ? "enable" : "disable" })));
-      const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("删除")); remove.type = "button";
-      remove.setAttribute("aria-label", L("删除") + "：" + memory.text);
-      remove.addEventListener("click", () => { if (window.confirm(L("删除后助理不会再想起这条。确定删除？"))) runMemory(() => memoryApi({ memory_id: memory.memory_id, action: "remove" })); });
-      const actions = el("span", "prompt-row-meta"); actions.append(edit, toggle, remove);
-      head.append(copy, actions); item.append(head); list.append(item);
-    });
-    memoryBox.append(list);
-  };
-  const paintPrefs = (prefs) => root.querySelectorAll("[data-assistant-memory-pref]").forEach((box) => { box.checked = Boolean(prefs[box.dataset.assistantMemoryPref]); });
-  const runMemory = async (work) => {
-    memoryError.hidden = true;
-    try { const data = await work(); if (data.memories) paintMemories(data.memories); if (data.prefs) paintPrefs(data.prefs); }
-    catch (failure) { memoryError.textContent = failure.message; memoryError.hidden = false; }
-  };
-  root.querySelectorAll("[data-assistant-memory-pref]").forEach((box) => box.addEventListener("change", () => {
-    const prefs = {}; root.querySelectorAll("[data-assistant-memory-pref]").forEach((one) => { prefs[one.dataset.assistantMemoryPref] = one.checked; });
-    runMemory(() => memoryApi(prefs, "/memory-prefs"));
-  }));
-  runMemory(() => memoryApi());
-  // Suggestions to keep, from work: each waits for the person, and takes effect only when they keep it.
-  const candidateBox = root.querySelector("[data-assistant-memory-candidates]");
-  const candidateApi = async (path, payload) => {
-    const response = await fetch("/api/assistant/memory-candidates" + (path || ""), payload ? { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) } : undefined);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
-    return data;
-  };
-  const paintCandidates = (candidates) => {
-    candidateBox.replaceChildren();
-    candidateBox.hidden = !candidates.length;
-    if (!candidates.length) return;
-    candidateBox.append(el("h3", "", L("等你认可的建议")));
-    const list = el("ul", "prompt-list");
-    candidates.forEach((candidate) => {
-      const item = el("li", "prompt-row"), head = el("div", "prompt-row-head"), copy = el("div", "prompt-row-copy");
-      copy.append(el("strong", "", candidate.text), el("span", "settings-muted", L(candidate.scope === "personal" ? "个人" : "项目") + " · " + L("适用") + "：" + candidate.applies + " · " + L("依据") + "：" + candidate.why + " · " + L("来自工作") + "「" + candidate.work_title + "」"));
-      const keep = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("记住")); keep.type = "button";
-      keep.setAttribute("aria-label", L("记住") + "：" + candidate.text);
-      const drop = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("不用")); drop.type = "button";
-      drop.setAttribute("aria-label", L("不用") + "：" + candidate.text);
-      const settle = async (path) => {
-        keep.disabled = drop.disabled = true; memoryError.hidden = true;
-        try { await candidateApi("/" + encodeURIComponent(candidate.candidate_id) + path, {}); await loadCandidates(); await runMemory(() => memoryApi()); }
-        catch (failure) { keep.disabled = drop.disabled = false; memoryError.textContent = failure.message; memoryError.hidden = false; }
-      };
-      keep.addEventListener("click", () => settle("/accept"));
-      drop.addEventListener("click", () => settle("/discard"));
-      const actions = el("span", "prompt-row-meta"); actions.append(keep, drop);
-      head.append(copy, actions); item.append(head); list.append(item);
-    });
-    candidateBox.append(list);
-  };
-  const loadCandidates = async () => { try { paintCandidates((await candidateApi()).candidates || []); } catch { /* the list shows again on the next visit */ } };
-  void loadCandidates();
+  // Memory is managed on its own pages (个人 → 记忆, 项目记忆): here only how much there is and whether the Assistant may use it.
+  const memorySummary = root.querySelector("[data-assistant-memory-summary]");
+  const overview = async (url) => { const response = await fetch(url); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || ""); return data; };
+  (async () => {
+    try {
+      const personal = await overview("/api/memory/overview?scope=personal");
+      const parts = [L("个人记忆") + " " + ((personal.counts && personal.counts.personal) || 0) + " " + L("条")];
+      if (project) {
+        const own = await overview("/projects/" + encodeURIComponent(project) + "/api/memory/overview?scope=project");
+        parts.push(L("这个项目的记忆") + " " + ((own.counts && own.counts.project) || 0) + " " + L("条"));
+      }
+      const waiting = (personal.candidates || []).length;
+      if (waiting) parts.push(L("等你认可") + " " + waiting + " " + L("条"));
+      const prefs = personal.prefs && personal.prefs.consumers ? personal.prefs : personal.prefs && personal.prefs.prefs;
+      if (prefs && prefs.consumers && prefs.consumers.assistant === false) parts.push(L("你关掉了助理使用个人记忆"));
+      memorySummary.textContent = parts.join(" · ");
+    } catch { memorySummary.textContent = L("记忆服务还没有就绪，稍后再看"); }
+  })();
   // Usage and the daily cap belong to the person: the Home's own route.
   const usageLine = root.querySelector("[data-assistant-usage-today]");
   const budgetForm = root.querySelector("[data-assistant-budget]");

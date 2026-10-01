@@ -9,6 +9,16 @@ import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantService, recallKeywords } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
+import { prologueMemoryBackend } from "../apps/local-host/src/memory/memory-host.js";
+import { MemoryService } from "@molis-ai/molis-work-service-memory";
+import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+
+/** The platform memory over the test's own runtime (Prologue Memory) and a ledger in its Home, as the Host wires it. */
+function platformMemory(host: AgentHost, home: string, t: { after(fn: () => void): void }): MemoryService {
+  const ledger = openMemoryLedger({ homeDirectory: home });
+  t.after(() => ledger.close());
+  return new MemoryService({ backend: prologueMemoryBackend(async () => host.adapter("prologue").memory!), ledger, timeZone: "Asia/Shanghai" });
+}
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -28,6 +38,7 @@ function reply(tool?: { name: string; input: unknown }, text = "好的。"): Res
 
 test("what the person asks to keep is remembered in Prologue Memory, recalled only where it applies, and switched off or forgotten exactly as asked", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-"));
+  const learned: Array<{ work: string; said: string[] }> = [];
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const projectA = { project_id: "project-a", board_id: "board-a", storage_key: "memory:a" };
   const projectB = { project_id: "project-b", board_id: "board-b", storage_key: "memory:b" };
@@ -42,10 +53,13 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
+  const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
-    projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙", timeZone: "Asia/Shanghai" }, "web-user");
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      memory: (task: string) => service.memoryForRound(work, task) }),
+    projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙", timeZone: "Asia/Shanghai", memory: () => memory,
+    learnFromRound: input => learned.push({ work: input.work.work_id, said: input.said }) }, "web-user");
   const round = async (text: string, project: typeof projectA | null, request: string, workId?: string) => {
     const before = requests.length;
     const sent = await service.send({ text, request_id: request, ...(workId ? { work_id: workId } : {}) }, project ? { project_ref: project } : {});
@@ -60,6 +74,9 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
       () => reply({ name: "remember", input: { text: "项目甲里 NSM 指北极星指标", scope: "project", said: "记住：NSM 是北极星指标" } }),
       () => reply(undefined, "记下了：回答用要点列表（个人）；NSM 指北极星指标（项目甲）。"));
     const first = await round("以后回答都用要点列表；另外记住：NSM 是北极星指标", projectA, "req-memory-001");
+    // A finished round hands the person's own words to the platform memory's learning (once per round).
+    await until(async () => { await service.list(); return learned.find(item => item.work === first.work.work_id); }, "learning handed over");
+    assert.deepEqual(learned.find(item => item.work === first.work.work_id)!.said, ["以后回答都用要点列表；另外记住：NSM 是北极星指标"]);
     assert.ok(first.first.tools.some((tool: { name: string }) => tool.name === "remember"), "the round may remember");
     const kept = await service.memories("project-a");
     assert.deepEqual(kept.map(item => [item.scope, item.text, item.disabled]), [["personal", "回答用要点列表", false], ["project", "项目甲里 NSM 指北极星指标", false]]);
@@ -69,12 +86,18 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
 
     // Another project sees the personal preference, never project A's convention.
     const inB = await round("总结一下本周进展", projectB, "req-memory-002");
-    assert.match(recalled(inB.first), /记住的偏好与背景[\s\S]*回答用要点列表/);
+    assert.match(recalled(inB.first), /memory-recall[\s\S]{0,400}回答用要点列表/, "the personal memory reaches the round as Prologue memory-recall data");
     assert.doesNotMatch(recalled(inB.first), /NSM/);
     assert.deepEqual((await service.memories("project-b")).map(item => item.text), ["回答用要点列表"]);
+    // The panel sees what each round was given, and what the work kept (specs/memory-system §7.3, §10.3).
+    const inBView = await service.read(inB.work.work_id);
+    assert.deepEqual(inBView.rounds[0]!.memories_used?.used.map(item => [item.scope, item.text]), [["personal", "回答用要点列表"]]);
+    const firstView = await service.read(first.work.work_id);
+    assert.deepEqual(firstView.memory_changes?.map(change => [change.kind, change.text, change.undoable]).sort(),
+      [["kept", "回答用要点列表", false], ["kept", "项目甲里 NSM 指北极星指标", false]]);
     // Project A's work sees both.
     const inA = await round("NSM 这周怎么样", projectA, "req-memory-003");
-    assert.match(recalled(inA.first), /\[本项目\] 项目甲里 NSM 指北极星指标/);
+    assert.match(recalled(inA.first), /memory-recall[\s\S]{0,400}项目甲里 NSM 指北极星指标/);
 
     // Switched off: kept, but not used; switched on again: used again.
     await service.changeMemory({ memory_id: kept[0]!.memory_id, action: "disable" }, "project-a");
@@ -138,14 +161,18 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-candidates-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
+  const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
-    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai" }, "web-user");
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      memory: (task: string) => service.memoryForRound(work, task) }),
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const tools = (body: any) => (body.tools as Array<{ name: string }>).map(tool => tool.name);
   const lesson = { text: "项目甲的周报先写风险，再写进展", scope: "project", why: "这次和上次你都把风险挪到了最前面", applies: "写项目甲的周报时" };
   try {
-    // Off by default: the tool is not offered, and nothing can be suggested.
+    // The platform default is on (specs/memory-system §10.1); switched off, the tool is not offered and nothing can be suggested.
+    assert.deepEqual([service.memoryPrefs().learn_personal, service.memoryPrefs().learn_project], [true, true]);
+    service.saveMemoryPrefs({ learn_personal: false, learn_project: false });
     const first = await service.send({ text: "写周报", request_id: "req-candidate-1" }, { project_ref: project });
     await until(async () => (await service.read(first.work.work_id)).work.state === "completed", "first");
     assert.ok(!tools(requests[0]).includes("suggest-memory"), "suggesting is off until the person allows it");
@@ -175,12 +202,12 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
     script.push(() => reply({ name: "suggest-memory", input: { ...lesson, text: "项目甲的周报用表格" } }), () => reply(undefined, "好的。"));
     await service.send({ work_id: first.work.work_id, text: "这次用表格", request_id: "req-candidate-3" }, {});
     const third = await until(async () => { const v = await service.read(first.work.work_id); return v.rounds.length === 3 && v.work.state === "completed" ? v : undefined; }, "third");
-    service.discardMemoryCandidate(third.memory_candidates![0]!.candidate_id);
+    await service.discardMemoryCandidate(third.memory_candidates![0]!.candidate_id);
     script.push(() => reply({ name: "suggest-memory", input: { ...lesson, text: "项目甲的周报用表格" } }), () => reply(undefined, "好的。"));
     await service.send({ work_id: first.work.work_id, text: "再用表格", request_id: "req-candidate-4" }, {});
     await until(async () => { const v = await service.read(first.work.work_id); return v.rounds.length === 4 && v.work.state === "completed"; }, "fourth");
     assert.match(JSON.stringify(requests.at(-1)), /已经建议过了/);
-    assert.equal(service.memoryCandidates().length, 0);
+    assert.equal((await service.memoryCandidates()).length, 0);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -199,15 +226,16 @@ test("memory switches hold the same when a Character carries the round; turning 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-character-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
+  const memory = platformMemory(host, home, t);
   const editor = { character_id: "editor", title: "严格的编辑", instructions: "你是严格的编辑：每次回答先列出三处可改进的地方。", host_tools: null,
     source: { owner_actor_id: "web-user", draft_revision: 2 }, reference: { artifact_id: "character:board-a:editor", version: 2 }, board_id: "board-a",
     content_digest: "digest-2", producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.4.0", binding_signature: "sig" }, published_at: "2026-09-28T00:00:00.000Z" };
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
-      resolveCharacter: () => structuredClone(editor) as never }),
+      memory: (task: string) => service.memoryForRound(work, task), resolveCharacter: () => structuredClone(editor) as never }),
     characters: async () => [{ reference: { ...editor.reference }, title: editor.title, available: true }],
-    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai" }, "web-user");
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const tools = (body: any) => (body.tools as Array<{ name: string }>).map(tool => tool.name);
   const round = async (input: { text: string; request_id: string; work_id?: string; character?: { artifact_id: string; version: number } }, rounds: number) => {
     const before = requests.length;
@@ -226,22 +254,34 @@ test("memory switches hold the same when a Character carries the round; turning 
     assert.ok(tools(on.first).includes("remember"));
     assert.match(JSON.stringify(on.first.messages), /回答用要点列表/);
 
+    // The Character keeps something of its own: used in work it carries, never in work without it (spec M5).
+    script.push(() => reply({ name: "remember", input: { text: "先列问题再给改法", scope: "character", said: "你以后都先列问题再给改法" } }), () => reply(undefined, "记下了。"));
+    await round({ text: "你以后都先列问题再给改法", request_id: "req-mc-2b", work_id: on.work.work_id }, 2);
+    const own = (await service.memories("project-a")).find(item => item.scope === "character");
+    assert.equal(own?.text, "先列问题再给改法");
+    const withIt = await round({ text: "再看看这段问题说明", request_id: "req-mc-2c", character: { artifact_id: editor.reference.artifact_id, version: 2 } }, 1);
+    assert.match(JSON.stringify(withIt.first.messages), /先列问题再给改法/, "a new work carried by the same Character recalls it");
+    const without = await round({ text: "再看看这段问题说明", request_id: "req-mc-2d" }, 1);
+    assert.doesNotMatch(JSON.stringify(without.first.messages), /先列问题再给改法/, "work no Character carries never gets it");
+    assert.match(JSON.stringify(without.first.messages), /回答用要点列表/);
+
     // Switched off: choosing the Character does not get around either switch.
     service.saveMemoryPrefs({ form: false, use_personal: false });
     // It says it kept the rule anyway (as MiniMax-M3 did): held once, told that forming memories is off.
     script.push(() => reply(undefined, "这是长期规则，我用 remember 记到项目「项目甲」里：以后标题都不超过十个字。"),
       body => { assert.match(JSON.stringify(body.messages), /switched off forming memories/); return reply(undefined, "这项工作里标题都不超过十个字；没有长期记下，需要的话可以在设置里打开“允许记住”。"); });
-    const off = await round({ text: "我写方案时，标题都不超过十个字。再看一遍", request_id: "req-mc-3", work_id: on.work.work_id }, 2);
+    const off = await round({ text: "我写方案时，标题都不超过十个字。再看一遍", request_id: "req-mc-3", work_id: on.work.work_id }, 3);
     assert.match(JSON.stringify(off.first), /每次回答先列出三处可改进的地方/);
     assert.ok(!tools(off.first).includes("remember") && !tools(off.first).includes("suggest-memory"), "no memory tools under the Character either");
     assert.doesNotMatch(JSON.stringify(off.first.messages), /回答用要点列表/, "nothing personal is recalled under the Character either");
+    assert.match(JSON.stringify(off.first.messages), /先列问题再给改法/, "its Character memory follows the project's switch, which is still on");
     assert.match(JSON.stringify(off.first.messages), /关闭了“允许记住”/, "the round is told forming memories is off");
-    assert.match((await service.read(on.work.work_id)).rounds[1]!.turns.filter(turn => turn.kind === "assistant").at(-1)!.text ?? "", /没有长期记下/);
+    assert.match((await service.read(on.work.work_id)).rounds[2]!.turns.filter(turn => turn.kind === "assistant").at(-1)!.text ?? "", /没有长期记下/);
 
     // Learning off does not make this work forget what it was told: the next round still has it.
-    const next = await round({ text: "按刚才的要求改标题", request_id: "req-mc-4", work_id: on.work.work_id }, 3);
+    const next = await round({ text: "按刚才的要求改标题", request_id: "req-mc-4", work_id: on.work.work_id }, 4);
     assert.match(JSON.stringify(next.first.messages), /标题都不超过十个字/);
-    assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["回答用要点列表"], "kept memories stay; nothing new was kept");
+    assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["回答用要点列表", "先列问题再给改法"], "kept memories stay; nothing new was kept");
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -279,10 +319,13 @@ test("a claim of keeping made before the call that then failed is held at the en
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-said-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
+  // Memory is the platform memory service, as in the tests above: the remember tool goes through its write gate.
+  const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
-    projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      memory: (task: string) => service.memoryForRound(work, task) }),
+    projectTitle: async () => "项目", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   try {
     const sent = await service.send({ text: "以后周报都用表格，记住", request_id: "req-memory-said-1" }, {});
     const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "round");

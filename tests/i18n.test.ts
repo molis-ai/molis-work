@@ -44,7 +44,7 @@ test("L translates chrome in an English request and keeps Chinese as source", ()
 test("every static renderer label has an English translation", () => {
   // Keep checking the labels after the page and Goals directory move to their owners.
   const source = ["../apps/workbench/src/renderer.ts", "../apps/workbench/src/goals-page-renderer.ts",
-    "../apps/workbench/src/onboarding-renderer.ts", "../apps/workbench/src/project-directory-renderer.ts",
+    "../apps/workbench/src/onboarding-renderer.ts",
     "../apps/workbench/src/settings-navigation.ts", "../apps/workbench/src/settings-renderer.ts",
     "../apps/workbench/src/project-settings-stage.ts",
     "../apps/workbench/src/human-review-renderer.ts",
@@ -100,6 +100,25 @@ test("every static renderer label has an English translation", () => {
     .map((match) => JSON.parse(`"${match[1]}"`) as string);
   const missing = [...new Set([...labels, ...projectionLabels].filter((label) => EN[label] == null))];
   assert.deepEqual(missing, []);
+});
+
+// The way in (chooser, brief, opening, Welcome, new-project journey, update page): server renderers call L("…"), and the
+// client scripts (written as plain strings) call L('…', { key }) with {key} placeholders. Both forms are checked, so a
+// sentence added to either cannot ship without its English.
+test("every label on the way in has an English translation", () => {
+  const files = ["../apps/workbench/src/arrival/chooser.ts", "../apps/workbench/src/arrival/chooser-client.ts",
+    "../apps/workbench/src/arrival/project-brief.ts", "../apps/workbench/src/arrival/shell.ts",
+    "../apps/workbench/src/context-onboarding-renderer.ts", "../apps/workbench/src/onboarding-renderer.ts",
+    "../apps/workbench/src/scripts/context-onboarding.ts", "../apps/local-host/src/project-arrival-http.ts"];
+  const labels = new Set<string>();
+  for (const file of files) {
+    const source = readFileSync(new URL(file, import.meta.url), "utf8");
+    for (const match of source.matchAll(/\bL\("((?:[^"\\]|\\.)*)"/g)) labels.add(JSON.parse(`"${match[1]}"`) as string);
+    for (const match of source.matchAll(/\bL\('((?:[^'\\]|\\.)*)'/g)) labels.add(match[1]!.replace(/\\(['\\])/g, "$1"));
+  }
+  assert.ok(labels.size > 150, `read ${labels.size} labels from the way-in sources`);
+  // A name with no Chinese in it (Gmail, Google) is the same in both languages.
+  assert.deepEqual([...labels].filter(label => /\p{Script=Han}/u.test(label) && EN[label] == null), []);
 });
 
 test("every work state explains what it means, what to do, and how to continue in both languages", () => {

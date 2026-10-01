@@ -184,6 +184,10 @@ test("a question to the person is named by what it asks", () => {
   const state = emptyPrologueStreamState();
   apply(state, { type: "tool-call", call: { id: "q1", name: "ask-user", input: { why: "截止日期定在哪天？", questions: [] } } });
   assert.equal(state.activity[0]!.target, "截止日期定在哪天？");
+  // A questionnaire reads as its own question, not the model's reason for asking (seen with MiniMax-M3).
+  apply(state, { type: "tool-call", call: { id: "q2", name: "ask-user", input: { why: "用户拒绝删除这条待办，需要明确下一步怎么处理",
+    questions: [{ prompt: "这条待办你想怎么处理？", options: ["保留不动", "改个截止日期"] }, { prompt: "要提醒你吗？", options: ["要", "不要"] }] } } });
+  assert.equal(state.activity[1]!.target, "这条待办你想怎么处理？（等 2 个问题）");
 });
 
 test("compaction is a phase, not an outcome", () => {

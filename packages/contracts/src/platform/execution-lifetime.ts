@@ -1,3 +1,7 @@
+/**
+ * In-process cancellation, time limit and ownership monitoring for one execution. It has no dependencies, so the Kernel
+ * and the public Plugin SDK both hand out this one implementation without the SDK depending on the private Kernel.
+ */
 export interface ExecutionLifetimeOptions {
   signal?: AbortSignal;
   timeout?: { milliseconds: number; reason: Error };

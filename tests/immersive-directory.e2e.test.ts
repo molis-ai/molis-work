@@ -82,7 +82,8 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   // (「状态」) instead of being a bare icon (plugin-e2e-review §5.1), so it is wider than a square icon button.
   assert.equal(filter.height, 32);
   assert.ok(filter.width > 32, "the status filter shows its name on a wide stage");
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-tree-filter-trigger] > span')).display"), "inline");
+  // The trigger is a grid, so its label is blockified: check that it renders with width and says 状态, not its display keyword.
+  assert.ok(await evaluate("(()=>{const label=document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger] > span');return Boolean(label) && getComputedStyle(label).display!=='none' && label.getBoundingClientRect().width>0 && label.textContent.trim()==='状态';})()"), "the status filter label is visible on a wide stage");
   assert.ok(await evaluate("(()=>{const shell=document.querySelector('[data-goal-canvas-shell]'),list=document.querySelector('[data-goal-stage-list]'),chrome=document.querySelector('[data-goal-stage-chrome]');if(!shell||!list||!chrome)return false;const s=shell.getBoundingClientRect(),l=list.getBoundingClientRect();return Math.abs(s.top-l.top)<2 && getComputedStyle(shell).backgroundColor===getComputedStyle(list).backgroundColor && getComputedStyle(chrome).backgroundColor==='rgba(0, 0, 0, 0)';})()"), "List paper fills the stage top; chrome has no toolbar strip");
   await evaluate("document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger]')?.click()");
   await waitFor("document.querySelector('[data-goal-stage-chrome] [data-tree-filter]') && !document.querySelector('[data-goal-stage-chrome] [data-tree-filter]').hidden");

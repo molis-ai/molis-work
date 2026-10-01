@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetimeOptions } from "@molis-ai/molis-work-kernel";
+export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetimeOptions } from "@molis-ai/molis-work-contracts/platform/execution-lifetime";
 import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";

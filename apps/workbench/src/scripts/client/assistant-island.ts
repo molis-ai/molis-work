@@ -323,6 +323,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let drawerOpen = false;
   // The platform side panel takes the window's right edge (body[data-side-open], --side-panel-width): what is left decides.
   const sideWidth = () => document.body.dataset.sideOpen === "true" ? parseFloat(getComputedStyle(document.body).getPropertyValue("--side-panel-width")) || 0 : 0;
+  const sideInset = () => parseFloat(getComputedStyle(document.body).getPropertyValue("--sheet-inset")) || 14;
   const spacious = () => wide.matches && window.innerWidth - sideWidth() >= 1240;
   const sideOpen = () => spacious() ? store.get(SIDE_KEY) !== "closed" : drawerOpen;
   const paintLayout = () => {
@@ -333,7 +334,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     island.toggleAttribute("data-side-shown", !panel.hidden && sideOpen());
     paintStrip();
     const anchor = !panel.hidden && sideWidth() ? panel.offsetParent : null;
-    if (anchor) panel.style.setProperty("--assistant-room", Math.round(window.innerWidth - sideWidth() - 12 - anchor.getBoundingClientRect().right) + "px");
+    if (anchor) panel.style.setProperty("--assistant-room", Math.round(window.innerWidth - sideWidth() - sideInset() - 4 - anchor.getBoundingClientRect().right) + "px");
     else panel.style.removeProperty("--assistant-room");
   };
   sideToggle?.addEventListener("click", () => {

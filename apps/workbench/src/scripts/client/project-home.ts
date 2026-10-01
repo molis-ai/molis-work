@@ -5,7 +5,7 @@ import { createHomeFlow } from "../../home-flow.js";
 
 /**
  * Today's heading, the day strip, the Goal in progress, the day's events that open in place, and the margin
- * (a note kept in this browser and the things at hand). One detail node moves into whichever row is open.
+ * (the things at hand). One detail node moves into whichever row is open.
  */
 export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const { getState, translate: L, openItem, openPlugin, openTarget, feedApi, messageApi } = host;
@@ -209,12 +209,14 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         { plugin: 'pages', title: '写一份文档', copy: '把思路写下来，逐步整理成作品。', icon: 'file' },
         { plugin: 'lingguang', title: '记下一点灵感', copy: '还没想清楚，也可以先留下。', icon: 'idea' },
       ].filter(item => document.querySelector('[data-plugin-id="' + item.plugin + '"]'));
-      paint('<div class="home-start">' + (otherDay
-          ? '<h3>' + L('这一天还没有事件') + '</h3><p>' + L('已有工作仍在，可以从当前目标继续，或从这里开始一件新的事。') + '</p>' +
-            '<button type="button" class="mw-btn mw-btn--secondary home-start-today" data-home-today>' + ico("back") + L('回到今天') + '</button>'
-          : '<h3>' + L('从这里开始') + '</h3><p>' + L('选一件想做的事，或继续已有的工作。') + '</p>') + '<div class="home-start-actions">' +
-        starts.map(item => '<button type="button" class="home-start-action" data-home-start="' + item.plugin + '"><span class="home-erow__icon">' + ico(item.icon) + '</span><span><strong>' + L(item.title) + '</strong><small>' + L(item.copy) + '</small></span>' + ico('arrow') + '</button>').join('') +
-        '<button type="button" class="mw-btn mw-btn--ghost home-start-browse" data-home-start="market">' + L('浏览更多工具') + ico('arrow') + '</button></div></div>');
+      // The ways to start are one row of small buttons; the sentence of each is its hint.
+      const chip = (attrs, glyph, label, hint) => '<button type="button" class="home-start-action" ' + attrs + (hint ? ' title="' + esc(L(hint)) + '"' : '') + '>' + ico(glyph) + '<span>' + esc(L(label)) + '</span></button>';
+      paint('<div class="home-start"><p class="home-start__lead">' + (otherDay
+          ? '<b>' + L('这一天还没有事件') + '</b>' + L('已有工作仍在，可以从当前目标继续，或从这里开始一件新的事。')
+          : L('选一件想做的事，或继续已有的工作。')) + '</p><div class="home-start-actions">' +
+        (otherDay ? chip('data-home-today', 'back', '回到今天') : '') +
+        starts.map(item => chip('data-home-start="' + item.plugin + '"', item.icon, item.title, item.copy)).join('') +
+        chip('data-home-start="market"', 'grid', '浏览更多工具') + '</div></div>');
       return;
     }
     const nowAt = Date.now(), nowLabel = homeFlow.clockLabel(new Date(nowAt));
@@ -292,21 +294,6 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       (QUICK_CAPTIONS[entry.id] ? '<small>' + esc(L(QUICK_CAPTIONS[entry.id])) + '</small>' : '') + '</span>' + ico("chevron-right") + '</button></li>').join("");
     if (list.dataset.html !== html) { list.innerHTML = html; list.dataset.html = html; }
   };
-  // A private scratch note for this project, kept only in this browser.
-  const noteKey = "molis-work:home-note:" + projectKey;
-  const note = $("[data-home-note]"), noteState = $("[data-home-note-state]");
-  const readNote = () => { try { return localStorage.getItem(noteKey) || ""; } catch { return ""; } };
-  note.value = readNote();
-  const showNoteState = (saved) => { noteState.textContent = saved ? L("已保存在此浏览器") : L("只在此浏览器保存"); };
-  showNoteState(!!note.value);
-  let noteTimer = 0;
-  note.addEventListener("input", () => {
-    clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => {
-      try { if (note.value) localStorage.setItem(noteKey, note.value); else localStorage.removeItem(noteKey); showNoteState(!!note.value); }
-      catch { noteState.textContent = L("此浏览器无法保存"); }
-    }, 300);
-  });
   const render = () => {
     collect();
     renderDates();

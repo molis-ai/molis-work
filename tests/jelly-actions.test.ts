@@ -20,6 +20,9 @@ function fixture(t: { after(fn: () => Promise<void>): void }, completeText: Host
   const command = async (type: keyof typeof commands, input: Record<string, unknown> = {}) => (await bound.invoke(commands[type], { expected_revision: (await read()).revision, ...input })).state;
   return { home, host, caller, bound, service, read, command };
 }
+// Commands on one note or inspiration that name it as their result (converting and writing a digest name the note).
+const noteResults = ["note.create", "note.import", "note.update", "note.pin", "note.restore", "inspiration.convert", "inspiration.digest_write"] as const;
+const inspirationResults = ["inspiration.create", "inspiration.update", "inspiration.restore"] as const;
 const digestModel: HostCompleteText = async prompt => {
   const blocks = JSON.parse(prompt.match(/<材料块>\n([\s\S]*?)\n<\/材料块>/u)![1]!);
   return JSON.stringify({ thesis: { text: "保留真实来源", evidence_block_ids: [blocks[0].id] }, takeaways: [{ text: "核对证据", evidence_block_ids: [blocks[0].id] }], chapters: [], quotes: [], dropped: [] });
@@ -123,12 +126,74 @@ test("commands on one calendar entry name it as their result, and the Assistant 
   assert.notEqual(later.result.subject.id, seriesId, "this and later occurrences become a new series");
   assert.equal(later.context.title, "此后改名");
   assert.ok((await read()).series.some(entry => entry.id === later.result.subject.id));
-  // The developer diagnostics count exactly these as changes the Assistant can relate and read back.
+  // The developer diagnostics count exactly these, and the note and inspiration commands, as changes the Assistant can relate and read back.
   const jelly = assistantContributions(await host.inspectActions({ actor_id: "web-user", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [] }))
     .find(row => row.title === "Jelly")!;
   assert.ok(jelly.readable_kinds.includes("jelly_item"));
-  assert.equal(jelly.linked_changes, entries.length);
+  assert.equal(jelly.linked_changes, entries.length + noteResults.length + inspirationResults.length);
   assert.match(jelly.gaps.find(gap => gap.area === "results" && gap.text.includes("jelly_workspace"))!.text, /没有读取动作/);
+});
+
+test("commands on one note or inspiration name it as their result, and the Assistant can read it back; archiving and deletion do not", async t => {
+  const { bound, read, host, caller } = fixture(t, digestModel);
+  for (const type of noteResults) {
+    assert.deepEqual(commands[type].action.subject_kinds, ["jelly_note"], type);
+    assert.ok(commands[type].action.result_subject, type);
+  }
+  for (const type of inspirationResults) {
+    assert.deepEqual(commands[type].action.subject_kinds, ["jelly_inspiration"], type);
+    assert.ok(commands[type].action.result_subject, type);
+  }
+  // Right after these the readers treat the object as gone: the work would show its own result as missing.
+  for (const type of ["note.archive", "note.delete", "inspiration.archive", "inspiration.delete"] as const) assert.deepEqual(commands[type].action.subject_kinds, ["jelly_workspace"], type);
+  const agent = bindActionClient(host.homeActionClient(), () => ({ ...caller, audience: "agent" }));
+  type Output = { state: Awaited<ReturnType<typeof read>>; note?: { id: string }; inspiration?: { id: string } };
+  // What the Assistant's work keeps from a successful change, and what it then reads back from Jelly.
+  const run = async (type: (typeof noteResults)[number] | (typeof inspirationResults)[number], input: Record<string, unknown>) => {
+    const full = { expected_revision: (await read()).revision, ...input };
+    const output = await bound.invoke(commands[type], full) as Output;
+    const result = actionResultSubject(commands[type].action, full, output);
+    assert.ok(result, type);
+    const context = await agent.invoke(result.subject.kind === "jelly_note" ? actions.noteSubject : actions.inspirationSubject, { subject_id: result.subject.id });
+    assert.equal(context.revision, result.revision, `${type}: the recorded revision is the one read back`);
+    return { output, result, context };
+  };
+  const created = await run("note.create", { title: "周报", markdown: "本周完成预算核对" });
+  const noteId = created.output.note!.id;
+  assert.deepEqual(created.result.subject, { kind: "jelly_note", id: noteId });
+  assert.ok(created.output.state.notes.some(note => note.id === noteId));
+  assert.equal(created.context.title, "周报");
+  const updated = await run("note.update", { id: noteId, patch: { title: "第 40 周周报" } });
+  assert.equal(updated.result.subject.id, noteId); assert.equal(updated.context.title, "第 40 周周报");
+  assert.notEqual(updated.result.revision, created.result.revision);
+  assert.match((await run("note.import", { id: noteId, format: "markdown", mode: "append", source: "下周计划" })).context.content, /下周计划/);
+  assert.equal((await run("note.pin", { id: noteId, pinned: true })).result.subject.id, noteId);
+  await bound.invoke(commands["note.archive"], { expected_revision: (await read()).revision, id: noteId });
+  await assert.rejects(agent.invoke(actions.noteSubject, { subject_id: noteId }), { code: "jelly.not_found" }, "an archived note is not read back");
+  assert.equal((await run("note.restore", { id: noteId })).context.title, "第 40 周周报");
+
+  const inspired = await run("inspiration.create", { raw_text: "应保留原始证据，完成后核对。" });
+  const inspirationId = inspired.output.inspiration!.id;
+  assert.deepEqual(inspired.result.subject, { kind: "jelly_inspiration", id: inspirationId });
+  assert.equal((await run("inspiration.update", { id: inspirationId, patch: { title: "来源" } })).context.title, "来源");
+  await bound.invoke(actions.digest, { source_type: "inspiration", source_id: inspirationId });
+  const written = await run("inspiration.digest_write", { id: inspirationId });
+  assert.equal(written.result.subject.kind, "jelly_note");
+  assert.notEqual(written.result.subject.id, noteId, "with no note named, the digest goes to a new note");
+  assert.equal(written.output.state.inspirations.find(entry => entry.id === inspirationId)!.note_id, written.result.subject.id);
+  assert.match(written.context.content, /素材摘要/);
+  const again = await run("inspiration.digest_write", { id: inspirationId });
+  assert.equal(again.result.subject.id, written.result.subject.id, "writing it again names the note it is already in");
+  const into = await run("inspiration.digest_write", { id: inspirationId, note_id: noteId });
+  assert.equal(into.result.subject.id, noteId); assert.match(into.context.content, /素材摘要/);
+  assert.equal((await run("inspiration.convert", { id: inspirationId })).result.subject.id, written.result.subject.id, "an inspiration already in a note converts to that note");
+  const other = (await run("inspiration.create", { raw_text: "另一条灵感", url: "https://example.com/source" })).output.inspiration!.id;
+  const converted = await run("inspiration.convert", { id: other });
+  assert.ok(![noteId, written.result.subject.id].includes(converted.result.subject.id));
+  assert.match(converted.context.content, /另一条灵感/);
+  await bound.invoke(commands["inspiration.archive"], { expected_revision: (await read()).revision, id: inspirationId });
+  await assert.rejects(agent.invoke(actions.inspirationSubject, { subject_id: inspirationId }), { code: "jelly.not_found" }, "an archived inspiration is not read back");
+  assert.equal((await run("inspiration.restore", { id: inspirationId })).result.subject.id, inspirationId);
 });
 
 test("notes, tasks and relationships update the same objects; confirmed deletion retains scheduled items and undo restores links", async t => {

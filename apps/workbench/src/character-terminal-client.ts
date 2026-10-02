@@ -2,7 +2,21 @@ import { createTerminalConnection, createTerminalScreens } from "@molis-ai/molis
 import type { PtySpawnRequest } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
 /** Character terminals share Runtime Host PTYs and Work Session recording. Reconnect never launches. */
+/** Runs `start` once `selector` is in the page: a plugin surface is filled in when it first opens (#150). */
+function whenPresent(selector: string, start: () => void): void {
+  const observer = new MutationObserver(() => {
+    if (!document.querySelector(selector)) return;
+    observer.disconnect();
+    start();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
 export function startCharacterTerminalClient(): void {
+  if (!document.querySelector("[data-characters] [data-character-terminal]")) {
+    whenPresent("[data-characters] [data-character-terminal]", startCharacterTerminalClient);
+    return;
+  }
   const root = document.querySelector<HTMLElement>("[data-characters]");
   const host = root?.querySelector<HTMLElement>("[data-character-terminal]");
   const status = root?.querySelector<HTMLElement>("[data-character-terminal-status]");

@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promis
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
-import type { PluginBuilderAgentOptions } from '../horizontal/agent-host/src/adapters/plugin-builder.js';
+import { MAX_OUTPUT_TOKENS, MODEL_CALL_LIMIT_MS, type PluginBuilderAgentOptions } from '../horizontal/agent-host/src/adapters/plugin-builder.js';
 import { createPrologueNodeAdapter } from '../horizontal/agent-host/src/adapters/prologue-node.js';
 import { AgentReviewQueue } from '../horizontal/agent-host/src/reviews.js';
 
@@ -229,4 +229,14 @@ test('one model request may take as long as the role allows, not Prologue\'s 60-
   const long = await createPluginBuilderAgent({ buildRoot: build, storageRoot: join(root, 'long'), ...configuration, modelCallTimeoutMs: 2_000 });
   try { assert.equal((await long.run(request)).phase, 'completed'); }
   finally { await long.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('each role may spend its whole output budget in one request, within the run\'s ten minutes', () => {
+  // Measured with MiniMax M3.1-Flash in the plugin studio: about 110 tokens a second, reasoning included and not streamed.
+  // Asking for less than that throughput needs cut the designer's detailed design off with no text at all.
+  const tokensPerSecond = 100;
+  for (const role of ['designer', 'coder'] as const) {
+    assert.ok(MODEL_CALL_LIMIT_MS[role] >= MAX_OUTPUT_TOKENS[role] / tokensPerSecond * 1000, `${role}: ${MODEL_CALL_LIMIT_MS[role]} ms is too short for ${MAX_OUTPUT_TOKENS[role]} tokens`);
+    assert.ok(MODEL_CALL_LIMIT_MS[role] <= 600_000, `${role}: one request may not outlast the run`);
+  }
 });

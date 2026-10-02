@@ -72,7 +72,8 @@ test("event document writes planning, report, concern, decision and closure thro
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: `(()=>{const original=window.setInterval;window.setInterval=function(fn,ms,...args){if(ms===4000&&typeof fn==='function')window.__refreshCallback=fn;return original.call(this,fn,ms,...args);};})()` }, sessionId);
+  // The board's real 4-second refresh: since #150 it is a polled timeout (the UI lifecycle's poll), not an interval.
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `(()=>{const original=window.setTimeout;window.setTimeout=function(fn,ms,...args){if(ms===4000&&typeof fn==='function')window.__refreshTick=fn;return original.call(this,fn,ms,...args);};})()` }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId));
     if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
   await waitDom(`document.querySelector('[data-goal-event-document]')?.dataset.goalView === ${JSON.stringify(goalId)}`);
@@ -227,16 +228,26 @@ test("event document writes planning, report, concern, decision and closure thro
   assert.ok(retryKey);
   const beforeReviewCursor = app.goalEvents.readState(DEMO_BOARD_ID, goalId).goal_event_cursor;
   await evaluate(`(() => {
-    if (typeof window.__refreshCallback !== "function") throw new Error("Missing real refresh callback");
+    if (typeof window.__refreshTick !== "function") throw new Error("Missing real refresh callback");
     const real = window.fetch.bind(window);
-    let once = true;
+    let once = true, boardReads = 0;
+    // Run the real refresh now and wait for the board reads it starts, as the old awaited interval callback did.
+    const refreshNow = async () => {
+      window.__refreshTick();
+      await new Promise(resolve => setTimeout(resolve, 0));
+      while (boardReads > 0) await new Promise(resolve => setTimeout(resolve, 20));
+    };
     window.fetch = async (input, init) => {
-      const response = await real(input, init);
-      if (once && String(input).endsWith("/event-state")) {
-        once = false;
-        await window.__refreshCallback();
-      }
-      return response;
+      const board = String(input).includes("/api/board");
+      if (board) boardReads += 1;
+      try {
+        const response = await real(input, init);
+        if (once && String(input).endsWith("/event-state")) {
+          once = false;
+          await refreshNow();
+        }
+        return response;
+      } finally { if (board) boardReads -= 1; }
     };
   })()`);
   await click("[data-conflict-retry]");

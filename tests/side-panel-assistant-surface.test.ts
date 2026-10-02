@@ -188,3 +188,23 @@ test("a site allowed before the runtime started asks again as soon as the person
     assert.equal(f.page.done.length, 1, "nothing happens before the person answers");
   } finally { await f.close(); }
 });
+
+test("waiting on the page is not asked about; the next real action still is", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "surface-list", input: {} }),
+    body => reply({ name: "surface-observe", input: { target: targetOf(body), kind: "accessibility-tree" } }),
+    body => reply({ name: "surface-act", input: { observation: observationOf(body), do: "wait", ms: 50 } }),
+    body => reply({ name: "surface-observe", input: { target: targetOf(f.requests[1]), kind: "accessibility-tree" } }),
+    body => reply({ name: "surface-act", input: { observation: observationOf(body), do: "pointer", x: 10, y: 20, button: "left" } }),
+    () => reply(undefined, "点好了。"),
+  ], [], "https://example.com");
+  try {
+    const sent = await f.send("等页面加载好再点 Learn more");
+    const click = await f.pending();
+    assert.match(click.document.summary, /点击页面/u, "the first card is the click, not the wait");
+    assert.deepEqual(f.page.done, [{ what: "wait", ms: 50 }], "the wait ran without a card");
+    await f.queue.respond({ review_id: click.review_id, decision: "approve", actor_id: "web-user" });
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "completion");
+    assert.deepEqual(f.page.done.map(action => action.what), ["wait", "pointer"]);
+  } finally { await f.close(); }
+});

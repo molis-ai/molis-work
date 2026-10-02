@@ -46,7 +46,7 @@
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2050,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 250,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 461,
-    "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 208,
+    "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
     "function horizontal/agent-host/src/adapters/prologue-action-gateway.ts#prologueActionGateway": 174,
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
@@ -184,7 +184,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 961,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 202
   },
-  "testInternalImports": 1016,
+  "testInternalImports": 1015,
   "vendoredPrologueSdk": 1,
   "schemaPatches": 115,
   "note": "Only decreases. Regenerate with `node scripts/check-health-gates.mjs --update` in the PR that lowers a number."

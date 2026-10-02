@@ -35,7 +35,7 @@
 | BL-015 | 菜单栏胶囊在副屏上的点击 | [macos-secondary-display-tray-click](archive/macos-secondary-display-tray-click/spec.md) | 双屏 | 低 | 用户 |
 | BL-016 | 真机中文输入法与 VoiceOver：底栏输入、Todo、侧栏、动态交互的读屏 | [system-assistant/implementation.md §14](archive/system-assistant/implementation.md)、[todo-plugin/implementation.md](archive/todo-plugin/implementation.md)、[side-panel §7.4](archive/side-panel/spec.md)、[contextual-interaction](archive/contextual-interaction/spec.md) | 真机 | 中 | 用户 |
 | BL-017 | 平台侧栏 7.3 的 8 步，特别是在侧栏浏览器里登录真实网站（AC05） | [side-panel §7.4](archive/side-panel/spec.md) | 无 | 低 | 用户 |
-| BL-088 | 打开 Molis Work 的重做：项目选择页（预选上次项目、右边是项目简介）、开场与 Welcome、新建项目引导、更新页（#159） | [project-arrival-flow](archive/project-arrival-flow/spec.md) | 无 | 中 | 用户 |
+| BL-105 | 打开 Molis Work 的重做：项目选择页（预选上次项目、右边是项目简介）、开场与 Welcome、新建项目引导、更新页（#159） | [project-arrival-flow](archive/project-arrival-flow/spec.md) | 无 | 中 | 用户 |
 
 ## 2. 待你决定
 
@@ -112,8 +112,8 @@
 | BL-061 | 来源：浏览器标签页自动捕获、实时 IM Connector、多项目自动归类、持续同步 | [molis-work-context-onboarding](archive/molis-work-context-onboarding/spec.md) | 明确后续做 | 不在现有底座 | 无 | 中 | 未分配 |
 | BL-062 | 正式 OAuth 发布配置（产品级客户端） | [molis-work-context-onboarding](archive/molis-work-context-onboarding/spec.md) | 未实现 | 外部条件 | BL-060 | 中 | 未分配 |
 | BL-063 | 群聊：手机真机与公网部署 | [molis-work-im](archive/molis-work-im/spec.md) | 明确后续做 | 依赖 Server 与成员身份 | 团队能力 | 低 | 未分配 |
-| BL-089 | 选择页项目简介里的材料数、文档数与「助理在做」：设计稿里有，现在按「不猜」不显示（个人空间那一行的「灵光、Shelf、待办」计数同理） | [project-arrival-flow · 与设计稿的差异](archive/project-arrival-flow/spec.md) | 已知缺口 | 没有公开读口，要读各插件私有存储或跨项目汇总 | 各插件的公开读口 | 低 | 未分配 |
-| BL-090 | 新建项目引导的「在后台继续」：离开页面后整理仍在继续，回来接着看（现在整理本来就在 Host 后台跑，只是没有登记成后台任务入口） | [project-arrival-flow · 与设计稿的差异](archive/project-arrival-flow/spec.md) | 明确后续做 | 登记成后台任务没有 owner | 无 | 低 | 未分配 |
+| BL-106 | 选择页项目简介里的材料数、文档数与「助理在做」：设计稿里有，现在按「不猜」不显示（个人空间那一行的「灵光、Shelf、待办」计数同理） | [project-arrival-flow · 与设计稿的差异](archive/project-arrival-flow/spec.md) | 已知缺口 | 没有公开读口，要读各插件私有存储或跨项目汇总 | 各插件的公开读口 | 低 | 未分配 |
+| BL-107 | 新建项目引导的「在后台继续」：离开页面后整理仍在继续，回来接着看（现在整理本来就在 Host 后台跑，只是没有登记成后台任务入口） | [project-arrival-flow · 与设计稿的差异](archive/project-arrival-flow/spec.md) | 明确后续做 | 登记成后台任务没有 owner | 无 | 低 | 未分配 |
 
 ## 7. 平台与架构
 

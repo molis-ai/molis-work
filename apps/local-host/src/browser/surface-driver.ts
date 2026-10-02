@@ -91,16 +91,18 @@ function keyOf(name: string): { key: string; code: string; keyCode: number; text
 }
 
 /** Uploads come from a path Prologue has already checked against its floor table (never `.ssh` and the like). */
-export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: string) => boolean = () => false): HostSurfaceDriver {
+export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: string) => boolean = () => false, enabled: () => boolean = () => true): HostSurfaceDriver {
   const producedScreens: string[] = [];
   let idle: ReturnType<typeof setTimeout> | undefined;
   const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
-  const release = () => { if (page.controlMode === "assistant") page.setControl({ mode: "person", work_id: null, activity: null }); };
+  const releaseControl = () => { if (page.controlMode === "assistant") page.setControl({ mode: "person", work_id: null, activity: null }); };
+  // The person turned the Assistant's use of the browser off: a round that already has the page stops looking and acting too.
+  const assertEnabled = () => { if (!enabled()) throw new BrowserError("page.load_failed", "用户关掉了「允许助理使用侧栏浏览器」：不能再查看或操作这个页面。"); };
   const mark = (sessionId: string | null, summary: string, point: { x: number; y: number } | null) => {
     if (page.controlMode === "taken-over") throw new BrowserError("page.load_failed", "用户已接手这个页面，助理暂停操作。等用户交还后，先重新观察页面。");
     page.setControl({ mode: "assistant", work_id: sessionId, activity: { summary, point, at: new Date().toISOString() } });
     clearTimeout(idle);
-    idle = setTimeout(release, IDLE_RELEASE_MS);
+    idle = setTimeout(releaseControl, IDLE_RELEASE_MS);
     idle.unref?.();
   };
   const settle = async () => {
@@ -126,6 +128,7 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
       return page.snapshot().origin || BLANK_SCOPE;
     },
     async observe(kind: HostSurfaceObservationKind, context?: { readonly session_id: string | null }) {
+      assertEnabled();
       await page.ensure();
       // A site the person blocked is not even looked at, from the moment they said so (Prologue's own deny rule joins
       // when the runtime next starts).
@@ -176,6 +179,7 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
     },
     async perform(action: HostSurfaceAction, context) {
       const sessionId = context.session_id;
+      assertEnabled();
       if (blocked(page.snapshot().origin)) throw new BrowserError("page.load_failed", "用户禁止助理查看或操作这个网站。");
       const session = await page.session();
       const send = (method: string, params: Record<string, unknown>) => session.send(method, params);
@@ -248,7 +252,8 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
       const parsed = JSON.parse(typeof raw === "string" ? raw : "{}") as { label?: string; sensitive?: boolean };
       return { label: parsed.label ?? "", sensitive: parsed.sensitive === true };
     },
-    async close() { clearTimeout(idle); release(); },
+    async release() { clearTimeout(idle); releaseControl(); },
+    async close() { clearTimeout(idle); releaseControl(); },
     masked(bytes: Uint8Array) { return producedScreens.includes(digest(bytes)); },
   };
 }

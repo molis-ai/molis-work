@@ -1495,6 +1495,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
                 actionController.abort(); actionControllers.delete(started.run.ref.id);
                 if (stepBoard) stepBoards.unfollow(stepBoard.ref.id);
                 if (liveSessions.get(session.ref.id) === started.run.ref.id) liveSessions.delete(session.ref.id);
+                // The side panel stops saying the Assistant is using the page the moment its round is over.
+                if (surfaceHost) void surfaceHost.release(session.ref.id).catch(() => undefined);
                 const work = runWork.get(started.run.ref.id);
                 if (work) { runWork.delete(started.run.ref.id); void projectWork.end(work.project, work.id, event.type === "cancelled" ? "stopped" : event.type).catch(() => undefined); }
                 // A round that finished normally saw every message given to it; unanswered requests are settled.

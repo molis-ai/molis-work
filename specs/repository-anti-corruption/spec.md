@@ -195,6 +195,84 @@
 
 开工后逐包填写：公共入口、负责与不负责、主要文件及各自的变化原因、放错位置的类和方法、重复实现、建议的移动。73 个包的 README 都有「开发要求」一节。
 
+开工时的事实（main 16879b22，脚本统计）：「源文件」「行数」只算 `src/` 下的 `.ts/.mts`；「公开入口」是 `package.json` 的 `exports` 条数；「依赖内部包」「被依赖」只算仓内 workspace 包之间的运行时依赖。
+
+| 包 | 源文件 | 行数 | 最大文件 | 公开入口 | 依赖内部包 | 被依赖 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `apps/cli` | 5 | 186 | `command-dispatch.ts` 66 | 1 | 2 | 1 |
+| `apps/desktop` | 11 | 1,209 | `capsule-shell.ts` 556 | 1 | 6 | 1 |
+| `apps/local-host` | 367 | 43,086 | `assistant/assistant-service.ts` 2,700 | 1 | 66 | 2 |
+| `apps/mcp` | 20 | 1,448 | `runtime-context-tools.ts` 162 | 1 | 2 | 1 |
+| `apps/server` | 5 | 185 | `assets.ts` 75 | 1 | 7 | 0 |
+| `apps/workbench` | 171 | 41,054 | `i18n/en.ts` 3,636 | 2 | 32 | 1 |
+| `horizontal/agent-host` | 35 | 9,391 | `adapters/prologue-node.ts` 1,764 | 1 | 1 | 1 |
+| `horizontal/connector-host` | 3 | 591 | `connection-store.ts` 345 | 1 | 1 | 1 |
+| `horizontal/listener-host` | 1 | 757 | `index.ts` 757 | 1 | 1 | 1 |
+| `horizontal/memory` | 5 | 1,641 | `service.ts` 1,419 | 1 | 1 | 1 |
+| `horizontal/placement` | 1 | 480 | `index.ts` 480 | 1 | 1 | 1 |
+| `horizontal/runtime-host` | 5 | 980 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 |
+| `horizontal/scheduler` | 1 | 573 | `index.ts` 573 | 1 | 2 | 1 |
+| `horizontal/search` | 1 | 572 | `index.ts` 572 | 1 | 1 | 1 |
+| `modules/artifacts` | 6 | 880 | `service.ts` 448 | 1 | 1 | 1 |
+| `modules/attention-resumption` | 1 | 512 | `index.ts` 512 | 1 | 1 | 1 |
+| `modules/characters` | 4 | 203 | `service.ts` 128 | 1 | 1 | 1 |
+| `modules/context-ledger` | 4 | 288 | `service.ts` 102 | 1 | 1 | 1 |
+| `modules/evidence-verification` | 6 | 827 | `locator.ts` 360 | 1 | 1 | 2 |
+| `modules/execution` | 4 | 545 | `repository.ts` 273 | 1 | 1 | 2 |
+| `modules/feed` | 3 | 1,004 | `index.ts` 922 | 1 | 2 | 1 |
+| `modules/functions` | 9 | 1,896 | `store.ts` 1,030 | 1 | 2 | 1 |
+| `modules/goals` | 49 | 11,193 | `event-facts.ts` 631 | 1 | 1 | 2 |
+| `modules/governance-collaboration` | 16 | 1,908 | `goal-tree-records.ts` 220 | 1 | 1 | 1 |
+| `modules/private-work-context` | 21 | 3,440 | `session-schema.ts` 401 | 1 | 1 | 1 |
+| `modules/projects` | 6 | 1,246 | `repository.ts` 571 | 1 | 1 | 1 |
+| `modules/shelf` | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 |
+| `modules/signals` | 1 | 380 | `index.ts` 380 | 1 | 1 | 1 |
+| `modules/sources` | 1 | 483 | `index.ts` 483 | 1 | 1 | 1 |
+| `packages/contracts` | 93 | 17,158 | `services/agent-host.ts` 1,736 | 66 | 0 | 72 |
+| `packages/design-system` | 44 | 17,123 | `styles/craft-finish.ts` 2,245 | 1 | 1 | 22 |
+| `packages/im-ui` | 11 | 1,401 | `browser/controller.ts` 966 | 1 | 2 | 3 |
+| `packages/kernel` | 5 | 1,146 | `action-service.ts` 489 | 1 | 1 | 4 |
+| `packages/plugin-runtime` | 19 | 4,672 | `index.ts` 912 | 1 | 1 | 3 |
+| `packages/plugin-sandbox` | 8 | 726 | `runner.ts` 214 | 1 | 2 | 1 |
+| `packages/plugin-sdk` | 2 | 203 | `index.ts` 186 | 1 | 1 | 8 |
+| `packages/storage` | 12 | 2,115 | `adapters/file-secret-store.ts` 719 | 1 | 1 | 17 |
+| `packages/test-kit` | 2 | 483 | `boundaries.ts` 456 | 1 | 1 | 0 |
+| `packages/ui-host` | 4 | 441 | `client-lifecycle.ts` 152 | 1 | 1 | 2 |
+| `plugins/native/alchemist` | 101 | 10,240 | `studio/server/db/pulse-repository.ts` 567 | 1 | 4 | 2 |
+| `plugins/native/artifacts` | 14 | 1,298 | `browser-ui.ts` 195 | 1 | 2 | 2 |
+| `plugins/native/characters` | 12 | 954 | `client.ts` 217 | 1 | 2 | 2 |
+| `plugins/native/coding` | 57 | 10,840 | `client.ts` 1,656 | 1 | 2 | 2 |
+| `plugins/native/cognia` | 16 | 702 | `store.ts` 145 | 1 | 3 | 2 |
+| `plugins/native/dataset` | 16 | 2,018 | `client.ts` 694 | 1 | 3 | 2 |
+| `plugins/native/diff` | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 |
+| `plugins/native/experiments` | 10 | 740 | `styles.ts` 164 | 1 | 1 | 2 |
+| `plugins/native/feed` | 45 | 5,896 | `ui.ts` 702 | 1 | 2 | 3 |
+| `plugins/native/files` | 16 | 1,176 | `actions.ts` 149 | 1 | 1 | 2 |
+| `plugins/native/form` | 17 | 2,509 | `client.ts` 934 | 1 | 3 | 2 |
+| `plugins/native/git` | 15 | 1,712 | `client.ts` 255 | 1 | 1 | 2 |
+| `plugins/native/goals` | 157 | 16,247 | `event-document-client.ts` 733 | 1 | 4 | 4 |
+| `plugins/native/images` | 14 | 1,506 | `client.ts` 454 | 1 | 4 | 2 |
+| `plugins/native/inbox` | 13 | 1,019 | `ui.ts` 189 | 1 | 1 | 2 |
+| `plugins/native/jelly` | 28 | 2,390 | `content.ts` 202 | 1 | 3 | 2 |
+| `plugins/native/lingguang` | 14 | 1,785 | `client.ts` 645 | 1 | 3 | 2 |
+| `plugins/native/pages` | 45 | 14,861 | `editor-browser.ts` 4,043 | 3 | 3 | 2 |
+| `plugins/native/plugin-builder` | 35 | 4,906 | `agent-authoring.ts` 800 | 1 | 2 | 2 |
+| `plugins/native/ppt` | 18 | 2,242 | `client.ts` 806 | 1 | 3 | 2 |
+| `plugins/native/schedule` | 24 | 2,517 | `client.ts` 379 | 1 | 1 | 2 |
+| `plugins/native/shelf` | 21 | 5,025 | `client.ts` 1,708 | 2 | 3 | 2 |
+| `plugins/native/text-stats` | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 |
+| `plugins/native/todo` | 22 | 4,202 | `client.ts` 1,245 | 1 | 3 | 2 |
+| `plugins/native/work` | 44 | 6,666 | `terminal/client.ts` 478 | 3 | 2 | 2 |
+| `plugins/native/workflows` | 14 | 3,623 | `client.ts` 1,398 | 1 | 3 | 2 |
+| `plugins/official-integrations/catalog` | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 |
+| `plugins/official-integrations/github` | 5 | 939 | `provider.ts` 586 | 1 | 2 | 1 |
+| `plugins/official-integrations/gmail` | 12 | 3,009 | `provider.ts` 961 | 3 | 2 | 2 |
+| `plugins/official-integrations/rss` | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 |
+| `plugins/official-integrations/web-query` | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 |
+| `plugins/official-integrations/youtube` | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 |
+| `server` | 18 | 1,064 | `continuity/service.ts` 162 | 1 | 2 | 2 |
+| `tooling/plugin-cli` | 8 | 329 | `sample-source.ts` 90 | 1 | 2 | 0 |
+
 ## 6. 未验证的范围
 
 尚未开工，暂无。

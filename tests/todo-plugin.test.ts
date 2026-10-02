@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, pluginMarketCards, railEntries } from "@molis-ai/molis-work-app-workbench";
+import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PERSONAL_HOME_SQLITE_STORES } from "@molis-ai/molis-work-storage";
 import {
@@ -64,7 +64,12 @@ test("the workbench mounts the Todo stage, and the client script still parses wi
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
   assert.doesNotThrow(() => new Function("return " + TODO_CLIENT_FACTORY_SCRIPT));
-  assert.match(script, /data-todo=workbench/);
+  // The page's script only knows Todo is there; Todo's own client loads when its surface opens (#150).
+  assert.match(script, /\{"id":"todo","assets":\[\]\}/);
+  const client = pluginWorkbenchClientAsset("todo");
+  assert.ok(client, "Todo's client is served on its own");
+  assert.doesNotThrow(() => new Function(client));
+  assert.match(client, /data-todo=workbench/);
   assert.match(TODO_CLIENT_FACTORY_SCRIPT, /const parseQuick = \(function parseTodoQuickText/);
   assert.doesNotMatch(TODO_CLIENT_FACTORY_SCRIPT, /window\.confirm|window\.alert|window\.prompt/);
   assert.match(TODO_CLIENT_FACTORY_SCRIPT, /data-assistant-context/);

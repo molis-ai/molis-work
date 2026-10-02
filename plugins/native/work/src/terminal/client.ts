@@ -63,15 +63,9 @@ export function startWorkTerminalClient() {
       onInput: (panelId, data) => {
         const panel = panelController.panels.find((item) => item.panel_id === panelId);
         if (!canControlPanel(panel)) return;
-        if (pendingOnboardingAutofill() && /[\r\n]/.test(data)) {
-          const pendingSession = screens.get(panelId);
-          if (pendingSession) pendingSession.recentOutput = "";
-          window.setTimeout(() => void fillPendingOnboardingContext(), 420);
-        }
         void sendPty({ type: "write", panelId, data }).catch((error) => setStatus(errorText(error), "error"));
       },
     });
-    const terminalVisibleOutput = screens.visibleOutput;
     let selectedKind = (menu.querySelector("[data-tui-kind]:not(:disabled)") as HTMLButtonElement | null)?.dataset.tuiKind || "generic";
     let promptCache = "";
     let parentReadOnly = pane.dataset.tuiParentReadOnly === "true";
@@ -240,9 +234,6 @@ export function startWorkTerminalClient() {
       setStatus, setMenuOpen,
       renderTabs: () => renderTabs(),
       showTerminal: (panelId) => showTerminal(panelId),
-      onOutput: () => {
-        if (pendingOnboardingAutofill()) window.setTimeout(() => void fillPendingOnboardingContext(), 240);
-      },
       afterOpened: () => fillPendingFeedContext(),
     });
     const { current, loadPanels, openPanel, closePanel, connect: connectPty, send: sendPty } = panelController;
@@ -284,27 +275,24 @@ export function startWorkTerminalClient() {
       }
     };
 
-    const writePrompt = async (send: boolean, feedItemId?: string, onboarding = false) => {
+    const writePrompt = async (send: boolean, feedItemId?: string) => {
       const panel = current();
       if (!canControlPanel(panel)) return;
-      const text = await loadAdvancePrompt(panel.goal_id, feedItemId, onboarding);
+      const text = await loadAdvancePrompt(panel.goal_id, feedItemId);
       const fillText = text
         .replace(/[\r\n]+/g, " ⏎ ")
         .replace(/[\u0000-\u001f\u007f]/g, " ");
       await sendPty({ type: "write", panelId: panel.panel_id, data: send ? `${fillText}\r` : fillText });
     };
 
-    const { fillPendingFeedContext, fillPendingOnboardingContext, pendingOnboardingAutofill } = createTerminalAutofill({
+    const { fillPendingFeedContext } = createTerminalAutofill({
       goalId,
-      parentReadOnly: () => parentReadOnly,
       text: L,
       errorText,
       terminal: {
         current,
         isAlive: (panelId) => panelController.isAlive(panelId),
         output: (panelId) => screens.get(panelId),
-        visibleOutput: terminalVisibleOutput,
-        open: openPanel,
         writePrompt,
       },
       setStatus,
@@ -312,7 +300,7 @@ export function startWorkTerminalClient() {
       showToast: showPageToast,
     });
 
-    const loadAdvancePrompt = async (requestedGoalId?: string, feedItemId?: string, onboarding = false) => {
+    const loadAdvancePrompt = async (requestedGoalId?: string, feedItemId?: string) => {
       const id = requestedGoalId || goalId();
       if (!id) throw new Error(L("打开失败"));
       if (parentReadOnly) throw new Error(parentReadOnlyMessage());
@@ -321,7 +309,6 @@ export function startWorkTerminalClient() {
       }
       const query = new URLSearchParams();
       if (feedItemId) query.set("feed_item_id", feedItemId);
-      if (onboarding) query.set("onboarding", "1");
       const queryText = query.size ? `?${query.toString()}` : "";
       const response = await fetch(route(`/api/goals/${encodeURIComponent(id)}/advance-prompt${queryText}`), {
         cache: "no-store",
@@ -476,7 +463,6 @@ export function startWorkTerminalClient() {
         setStatus(errorText(error), "error");
       }
       await loadPanels();
-      await fillPendingOnboardingContext();
     })();
   }
 

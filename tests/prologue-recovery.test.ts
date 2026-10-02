@@ -59,7 +59,12 @@ test("packed SDK: failed terminal ledger and frozen ownership survive restart wi
     });
     assert.equal(before.phase, "failed");
     await adapter.close(); adapter = await make();
+    const coldStatus = await adapter.readSessionStatus(session);
+    assert.deepEqual(coldStatus, { owner: { ...owner, actor_id: "local-user" }, status: {
+      session_id: session.session_id, latest_phase: "failed", recovery: false, checkpoint_busy: false,
+    } });
     const restored = await adapter.readSession(session);
+    assert.deepEqual(await adapter.readSessionStatus(session), coldStatus);
     assert.deepEqual(restored.owner, { ...owner, actor_id: "local-user" });
     assert.equal(restored.recovery, undefined);
     assert.deepEqual(restored.runs, [handle.ref]);

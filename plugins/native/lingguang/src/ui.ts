@@ -59,6 +59,9 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-lingguang="directory">
       <header class="plugin-stage-chrome lingguang-stage-chrome">
         <button class="mw-btn mw-btn--ghost tree-create" type="button" data-lingguang-capture>${icon("plus")}<span>${p.text("记下")}</span></button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-import-file title="${p.text("把文件里的文字记成一条灵光：文本、PDF、图片和音视频都可以")}">${icon("upload")}<span>${p.text("导入文件")}</span></button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-read-link title="${p.text("把网页、视频字幕或播客里的文字记成一条灵光")}">${icon("link")}<span>${p.text("读取链接")}</span></button>
+        <input type="file" data-lingguang-file accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.pdf,image/*,text/*,audio/*,video/*" hidden>
         <div class="lingguang-selection-bar" data-lingguang-selection hidden>
           <span data-lingguang-selected-count></span>
           <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-clear-selection>${p.text("清空")}</button>
@@ -86,6 +89,7 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         <span data-placement-slot data-placement-saved="off"></span>
         <span class="lingguang-bar-group" data-lingguang-keep-group>
         <button class="mw-btn mw-btn--secondary" type="button" data-lingguang-to-doc title="${p.text("做成一篇可以继续写的文档，记着它来自这条灵光；灵光本身不变")}">${p.text("转成文档")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-to-jelly title="${p.text("做成一篇 Jelly 笔记，记着它来自这条灵光；灵光本身不变")}">${p.text("转成 Jelly 笔记")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-to-goal title="${p.text("在这个位置建一个 Goal，这条灵光作为它的来源")}">${p.text("建成 Goal")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-todo data-make-todo="lingguang" data-make-todo-subject="lingguang_spark" data-make-todo-surface="lingguang" data-make-todo-reason="${p.text("你从灵光转为待办")}">${p.text("转为待办")}</button>
         </span>
@@ -118,6 +122,23 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
       </div>
     </div>
     <p class="lingguang-note" data-lingguang-note data-make-todo-status role="status" hidden></p>
+    <dialog class="mw-dialog creative-confirm" data-lingguang-reading aria-label="${p.text("读取内容")}">
+      <form class="creative-confirm-form" method="dialog">
+        <p data-lingguang-reading-text>${p.text("正在读取…")}</p>
+        <progress class="lingguang-reading-progress" data-lingguang-reading-progress max="1" value="0"></progress>
+        <p class="lingguang-note">${p.text("关掉这个窗口会停止读取，不会留下半条灵光。")}</p>
+        <div class="creative-confirm-actions"><button class="mw-btn mw-btn--ghost" value="cancel">${p.text("取消")}</button></div>
+      </form>
+    </dialog>
+    <dialog class="mw-dialog creative-confirm" data-lingguang-link aria-label="${p.text("读取链接")}">
+      <form class="creative-confirm-form" method="dialog">
+        <label class="lingguang-link-field">${p.text("链接")}<input class="mw-input" type="url" data-lingguang-link-input placeholder="https://" autocomplete="off"></label>
+        <div class="creative-confirm-actions">
+          <button class="mw-btn mw-btn--primary" value="ok">${p.text("读取")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-link-cancel>${p.text("取消")}</button>
+        </div>
+      </form>
+    </dialog>
     <dialog class="mw-dialog creative-confirm" data-lingguang-confirm>
       <form class="creative-confirm-form" method="dialog">
         <p data-confirm-text></p>

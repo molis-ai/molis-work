@@ -46,6 +46,8 @@ node --import tsx --test --test-concurrency=1 tests/context-ledger.test.ts tests
 
 ## 开发要求
 
+`createContextLedger` 默认准备原 schema；已完成 owner/schema 校验的 Host 可传 `initializeSchema: false`，只装配已有表，避免普通查询触发 DDL。该选项不省略引用或内容权限检查。
+
 - 负责：对象引用、跨 owner 关系、发布与物化记录。
 - 不负责：被引用对象（Goal、Artifact、Feed、Session）的内容。
 - 公开入口：`@molis-ai/molis-work-module-context-ledger`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/context-ledger`。

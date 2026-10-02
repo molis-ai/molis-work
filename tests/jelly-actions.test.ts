@@ -20,13 +20,9 @@ function fixture(t: { after(fn: () => Promise<void>): void }, completeText: Host
   const command = async (type: keyof typeof commands, input: Record<string, unknown> = {}) => (await bound.invoke(commands[type], { expected_revision: (await read()).revision, ...input })).state;
   return { home, host, caller, bound, service, read, command };
 }
-// Commands on one note or inspiration that name it as their result (converting and writing a digest name the note).
-const noteResults = ["note.create", "note.import", "note.update", "note.pin", "note.restore", "inspiration.convert", "inspiration.digest_write"] as const;
-const inspirationResults = ["inspiration.create", "inspiration.update", "inspiration.restore"] as const;
-const digestModel: HostCompleteText = async prompt => {
-  const blocks = JSON.parse(prompt.match(/<材料块>\n([\s\S]*?)\n<\/材料块>/u)![1]!);
-  return JSON.stringify({ thesis: { text: "保留真实来源", evidence_block_ids: [blocks[0].id] }, takeaways: [{ text: "核对证据", evidence_block_ids: [blocks[0].id] }], chapters: [], quotes: [], dropped: [] });
-};
+// Commands on one note that name it as their result.
+const noteResults = ["note.create", "note.import", "note.update", "note.pin", "note.restore"] as const;
+const planModel: HostCompleteText = async () => JSON.stringify({ actions: [{ title: "核对来源", notes: "逐条核实", minutes: 30 }], clarification_questions: [] });
 
 test("Jelly Home registration executes without a project; permissions, malformed inputs and separate Homes do not leak", async t => {
   const f = fixture(t), other = fixture(t);
@@ -126,35 +122,31 @@ test("commands on one calendar entry name it as their result, and the Assistant 
   assert.notEqual(later.result.subject.id, seriesId, "this and later occurrences become a new series");
   assert.equal(later.context.title, "此后改名");
   assert.ok((await read()).series.some(entry => entry.id === later.result.subject.id));
-  // The developer diagnostics count exactly these, and the note and inspiration commands, as changes the Assistant can relate and read back.
+  // The developer diagnostics count exactly these, the note commands and the note a handoff makes, as changes the Assistant can relate and read back.
   const jelly = assistantContributions(await host.inspectActions({ actor_id: "web-user", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [] }))
     .find(row => row.title === "Jelly")!;
   assert.ok(jelly.readable_kinds.includes("jelly_item"));
-  assert.equal(jelly.linked_changes, entries.length + noteResults.length + inspirationResults.length);
+  assert.equal(jelly.linked_changes, entries.length + noteResults.length + 1);
   assert.match(jelly.gaps.find(gap => gap.area === "results" && gap.text.includes("jelly_workspace"))!.text, /没有读取动作/);
 });
 
-test("commands on one note or inspiration name it as their result, and the Assistant can read it back; archiving and deletion do not", async t => {
-  const { bound, read, host, caller } = fixture(t, digestModel);
+test("commands on one note name it as their result, and the Assistant can read it back; archiving and deletion do not", async t => {
+  const { bound, read, host, caller } = fixture(t);
   for (const type of noteResults) {
     assert.deepEqual(commands[type].action.subject_kinds, ["jelly_note"], type);
     assert.ok(commands[type].action.result_subject, type);
   }
-  for (const type of inspirationResults) {
-    assert.deepEqual(commands[type].action.subject_kinds, ["jelly_inspiration"], type);
-    assert.ok(commands[type].action.result_subject, type);
-  }
   // Right after these the readers treat the object as gone: the work would show its own result as missing.
-  for (const type of ["note.archive", "note.delete", "inspiration.archive", "inspiration.delete"] as const) assert.deepEqual(commands[type].action.subject_kinds, ["jelly_workspace"], type);
+  for (const type of ["note.archive", "note.delete"] as const) assert.deepEqual(commands[type].action.subject_kinds, ["jelly_workspace"], type);
   const agent = bindActionClient(host.homeActionClient(), () => ({ ...caller, audience: "agent" }));
-  type Output = { state: Awaited<ReturnType<typeof read>>; note?: { id: string }; inspiration?: { id: string } };
+  type Output = { state: Awaited<ReturnType<typeof read>>; note?: { id: string } };
   // What the Assistant's work keeps from a successful change, and what it then reads back from Jelly.
-  const run = async (type: (typeof noteResults)[number] | (typeof inspirationResults)[number], input: Record<string, unknown>) => {
+  const run = async (type: (typeof noteResults)[number], input: Record<string, unknown>) => {
     const full = { expected_revision: (await read()).revision, ...input };
     const output = await bound.invoke(commands[type], full) as Output;
     const result = actionResultSubject(commands[type].action, full, output);
     assert.ok(result, type);
-    const context = await agent.invoke(result.subject.kind === "jelly_note" ? actions.noteSubject : actions.inspirationSubject, { subject_id: result.subject.id });
+    const context = await agent.invoke(actions.noteSubject, { subject_id: result.subject.id });
     assert.equal(context.revision, result.revision, `${type}: the recorded revision is the one read back`);
     return { output, result, context };
   };
@@ -172,28 +164,6 @@ test("commands on one note or inspiration name it as their result, and the Assis
   await assert.rejects(agent.invoke(actions.noteSubject, { subject_id: noteId }), { code: "jelly.not_found" }, "an archived note is not read back");
   assert.equal((await run("note.restore", { id: noteId })).context.title, "第 40 周周报");
 
-  const inspired = await run("inspiration.create", { raw_text: "应保留原始证据，完成后核对。" });
-  const inspirationId = inspired.output.inspiration!.id;
-  assert.deepEqual(inspired.result.subject, { kind: "jelly_inspiration", id: inspirationId });
-  assert.equal((await run("inspiration.update", { id: inspirationId, patch: { title: "来源" } })).context.title, "来源");
-  await bound.invoke(actions.digest, { source_type: "inspiration", source_id: inspirationId });
-  const written = await run("inspiration.digest_write", { id: inspirationId });
-  assert.equal(written.result.subject.kind, "jelly_note");
-  assert.notEqual(written.result.subject.id, noteId, "with no note named, the digest goes to a new note");
-  assert.equal(written.output.state.inspirations.find(entry => entry.id === inspirationId)!.note_id, written.result.subject.id);
-  assert.match(written.context.content, /素材摘要/);
-  const again = await run("inspiration.digest_write", { id: inspirationId });
-  assert.equal(again.result.subject.id, written.result.subject.id, "writing it again names the note it is already in");
-  const into = await run("inspiration.digest_write", { id: inspirationId, note_id: noteId });
-  assert.equal(into.result.subject.id, noteId); assert.match(into.context.content, /素材摘要/);
-  assert.equal((await run("inspiration.convert", { id: inspirationId })).result.subject.id, written.result.subject.id, "an inspiration already in a note converts to that note");
-  const other = (await run("inspiration.create", { raw_text: "另一条灵感", url: "https://example.com/source" })).output.inspiration!.id;
-  const converted = await run("inspiration.convert", { id: other });
-  assert.ok(![noteId, written.result.subject.id].includes(converted.result.subject.id));
-  assert.match(converted.context.content, /另一条灵感/);
-  await bound.invoke(commands["inspiration.archive"], { expected_revision: (await read()).revision, id: inspirationId });
-  await assert.rejects(agent.invoke(actions.inspirationSubject, { subject_id: inspirationId }), { code: "jelly.not_found" }, "an archived inspiration is not read back");
-  assert.equal((await run("inspiration.restore", { id: inspirationId })).result.subject.id, inspirationId);
 });
 
 test("notes, tasks and relationships update the same objects; confirmed deletion retains scheduled items and undo restores links", async t => {
@@ -232,24 +202,6 @@ test("notes, tasks and relationships update the same objects; confirmed deletion
   assert.match((await bound.invoke(actions.exportNote, { id: noteId })).content, /迁移随记/);
 });
 
-test("inspiration commands preserve evidence and note references through conversion, archive, deletion and undo", async t => {
-  const { bound, command, read } = fixture(t, digestModel);
-  let state = await command("inspiration.create", { raw_text: "应保留原始证据，完成后核对。" }); const id = state.inspirations[0]!.id;
-  state = await command("inspiration.update", { id, patch: { title: "来源", raw_text: "新的原始证据，核对其内容。" } });
-  const result = await bound.invoke(actions.digest, { source_type: "inspiration", source_id: id });
-  assert.ok("digest" in result); assert.ok(result.state!.inspirations[0]!.digest!.structured);
-  state = await command("inspiration.update", { id, patch: { digest: result.digest } });
-  state = await command("inspiration.digest_write", { id }); const noteId = state.inspirations[0]!.note_id;
-  await command("inspiration.digest_write", { id }); assert.equal((await read()).notes.length, 1);
-  state = await command("inspiration.convert", { id }); assert.equal(state.notes.length, 1); assert.equal(state.inspirations[0]!.note_id, noteId);
-  await assert.rejects(command("inspiration.update", { id, patch: { raw_text: "覆盖" } }), { code: "jelly.source_locked" });
-  await command("inspiration.archive", { id }); await command("inspiration.restore", { id });
-  const search = await bound.invoke(actions.search, { query: "原始证据" }); assert.equal(search.inspirations.length, 1); assert.equal(search.notes.length, 1);
-  await command("inspiration.archive", { id }); const preview = (await bound.invoke(actions.previewInspirationDelete, { id })).preview;
-  state = await command("inspiration.delete", { id, confirmation_token: preview.confirmation_token }); assert.equal(state.inspirations.length, 0); assert.equal(state.notes[0]!.id, noteId);
-  state = await command("undo"); assert.equal(state.inspirations[0]!.note_id, noteId); assert.equal(state.inspirations[0]!.digest!.written_note_ids[0], noteId);
-});
-
 test("manual plans need no model; stale plans and altered imports cannot write and confirmed imports survive restart", async t => {
   const { bound, command, home, caller, read, host } = fixture(t);
   const result = await bound.invoke(actions.manualPlan, { source_type: "text", text: "核对来源\n保存结果" });
@@ -274,19 +226,19 @@ test("manual plans need no model; stale plans and altered imports cannot write a
   finally { await reopened.close(); }
 });
 
-for (const mode of ["edit", "cancel", "failure", "success"] as const) test(`Jelly model ${mode} uses the action path and does not commit stale material`, async t => {
+for (const mode of ["cancel", "failure", "success"] as const) test(`Jelly model ${mode} uses the action path and commits nothing until a plan is applied`, async t => {
   let enter!: () => void, release!: () => void;
   const entered = new Promise<void>(resolve => { enter = resolve; }), released = new Promise<void>(resolve => { release = resolve; });
-  const f = fixture(t, async (prompt, options) => { enter(); await released; if (mode === "failure") throw new Error("model down"); return digestModel(prompt, options); });
-  const state = await f.command("inspiration.create", { raw_text: "足够的原始证据。" }), id = state.inspirations[0]!.id;
+  const f = fixture(t, async (prompt, options) => { enter(); await released; if (mode === "failure") throw new Error("model down"); return planModel(prompt, options); });
+  const before = await f.command("note.create", { title: "原笔记", markdown: "准备真实发布材料" }), id = before.notes[0]!.id;
   const controller = new AbortController();
-  const pending = f.service.invoke({ ...f.caller, signal: controller.signal }, actions.digest, { source_type: "inspiration", source_id: id });
+  const pending = f.service.invoke({ ...f.caller, signal: controller.signal }, actions.modelPlan, { source_type: "note", source_id: id });
   await entered;
-  if (mode === "edit") await f.command("inspiration.update", { id, patch: { raw_text: "更新后的材料" } });
   if (mode === "cancel") controller.abort();
   release();
-  if (mode === "success") { await pending; assert.ok((await f.read()).inspirations[0]!.digest?.structured); }
-  else { await assert.rejects(pending, mode === "edit" ? { code: "jelly.conflict" } : mode === "cancel" ? { code: "jelly.cancelled" } : /model down/); assert.equal((await f.read()).inspirations[0]!.digest, null); }
+  if (mode === "success") assert.equal((await pending).plan.actions[0]!.title, "核对来源");
+  else await assert.rejects(pending, mode === "cancel" ? { code: "jelly.cancelled" } : /model down/);
+  assert.deepEqual(await f.read(), before);
 });
 
 test("all legacy Jelly MCP aliases call real actions with optional revision compatibility", async t => {
@@ -339,19 +291,19 @@ test("Jelly accepts whole-response JSON fences through Host and still returns an
   assert.deepEqual(await f.read(), before);
 });
 
-for (const phase of ["dispatch", "result"] as const) test(`Jelly revocation at ${phase} prevents further model dispatch or digest writes`, async t => {
+for (const phase of ["dispatch", "result"] as const) test(`Jelly revocation at ${phase} prevents further model dispatch or a returned plan`, async t => {
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let allowed = true, dispatched = 0;
   const f = fixture(t, async (prompt, options) => {
     if (phase === "dispatch") { entered.resolve(); await release.promise; }
     await options?.beforeDispatch?.(); dispatched++;
     if (phase === "result") { entered.resolve(); await release.promise; }
-    return digestModel(prompt, options);
+    return planModel(prompt, options);
   });
-  const state = await f.command("inspiration.create", { raw_text: "这份原文必须保留。" });
+  const state = await f.command("note.create", { title: "原笔记", markdown: "这份原文必须保留。" });
   const pending = f.service.invoke({ ...f.caller, validate_authority: async () => {
     if (!allowed) throw Object.assign(new Error("Jelly permission revoked"), { code: "actions.forbidden" });
-  } }, actions.digest, { source_type: "inspiration", source_id: state.inspirations[0]!.id });
+  } }, actions.modelPlan, { source_type: "note", source_id: state.notes[0]!.id });
   await entered.promise; allowed = false; release.resolve();
   await assert.rejects(pending, { code: "actions.forbidden" });
   assert.equal(dispatched, phase === "dispatch" ? 0 : 1);

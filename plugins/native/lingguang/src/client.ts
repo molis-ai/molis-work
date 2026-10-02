@@ -98,6 +98,60 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     confirmDialog.addEventListener("close", onClose);
     confirmDialog.showModal();
   });
+  const readingDialog = workbench.querySelector("[data-lingguang-reading]");
+  const linkDialog = workbench.querySelector("[data-lingguang-link]");
+  const fileInput = workbench.querySelector("[data-lingguang-file]");
+  const READING_STAGES = { extracting: "正在读取内容", fetching: "正在读取网页", downloading: "正在下载转写模型", model_download: "正在下载转写模型", transcribing: "正在转写音频", loading: "正在加载模型", ocr: "正在识别文字", frames: "正在读取视频画面", frame_ocr: "正在读取视频画面" };
+  /** Read a file or a page with its progress shown; closing the dialog stops it. The reading, or null when stopped. */
+  const readMaterial = async (path, payload) => {
+    const controller = new AbortController();
+    const stage = readingDialog.querySelector("[data-lingguang-reading-text]"), bar = readingDialog.querySelector("[data-lingguang-reading-progress]");
+    stage.textContent = L("正在读取…"); bar.value = 0;
+    const onClose = () => controller.abort();
+    readingDialog.addEventListener("close", onClose);
+    readingDialog.showModal();
+    let result = null, failure = null;
+    try {
+      const response = await fetch(host.route(path) + "?stream=1", { method: "POST", headers: headers(), body: JSON.stringify(payload), signal: controller.signal });
+      const reader = response.body.getReader(), decoder = new TextDecoder();
+      let buffer = "";
+      const consume = (line) => {
+        if (!line.trim()) return;
+        const event = JSON.parse(line);
+        if (event.type === "progress") { stage.textContent = L(READING_STAGES[event.stage] || "正在读取…"); if (typeof event.progress === "number") bar.value = Math.max(0, Math.min(1, event.progress)); }
+        else if (event.type === "result") result = event.result;
+        else if (event.type === "error") { const error = new Error(event.error || L("读取失败")); error.code = event.code; error.details = event.details; throw error; }
+      };
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        const lines = buffer.split("\\n"); buffer = lines.pop(); lines.forEach(consume);
+      }
+      buffer += decoder.decode(); if (buffer.trim()) consume(buffer);
+      if (!result) throw new Error(L("读取没有返回结果"));
+    } catch (error) { failure = error; }
+    finally { readingDialog.removeEventListener("close", onClose); if (readingDialog.open) readingDialog.close(); }
+    if (failure) {
+      if (failure.name === "AbortError") { showNote(L("已停止读取")); return null; }
+      // Transcription needs a local speech model: downloaded only on the person's yes, then the reading starts again.
+      if (failure.code === "jelly.material.model_required") {
+        const size = failure.details && failure.details.approximate_bytes;
+        const ok = await ask(L("转写需要下载本机语音模型") + (size ? "（" + Math.round(size / 1024 / 1024) + " MB）" : "") + L("，只在这台机器上用。现在下载并继续？"), L("下载并继续"));
+        return ok ? readMaterial(path, { ...payload, allow_model_download: true }) : null;
+      }
+      throw failure;
+    }
+    return result;
+  };
+  const askLink = () => new Promise((resolve) => {
+    const input = linkDialog.querySelector("[data-lingguang-link-input]");
+    input.value = ""; linkDialog.returnValue = "cancel";
+    const onClose = () => { linkDialog.removeEventListener("close", onClose); const value = input.value.trim(); resolve(linkDialog.returnValue === "ok" && value ? value : null); };
+    linkDialog.addEventListener("close", onClose);
+    linkDialog.showModal(); input.focus();
+  });
+  linkDialog?.querySelector("[data-lingguang-link-cancel]")?.addEventListener("click", () => linkDialog.close("cancel"));
   const previewOf = (record) => {
     const line = (record.body || "").trim().split(/\\r?\\n/)[0] || "";
     return line && line !== record.title ? line : L("还没有正文");
@@ -206,6 +260,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const kind = target.kind === "object" ? String(target.object?.kind || "") : "";
     if (kind.includes("todo")) return L("已转为待办");
     if (kind.includes("page") || kind.includes("document")) return L("已转成文档");
+    if (kind.includes("jelly")) return L("已转成 Jelly 笔记");
     return L("已转出");
   };
   const annotateFates = async (items) => {
@@ -395,6 +450,29 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     fates.clear();
     void loadList().catch((error) => showNote(error.message, true));
   });
+  /** A reading becomes one spark, its origin and anything it could not read said in it. */
+  const keepReading = async (reading, fallbackTitle, origin) => {
+    const body = [reading.text, origin, reading.partial && reading.issues && reading.issues.length ? L("说明：") + reading.issues.join("；") : ""].filter(Boolean).join("\\n\\n");
+    const payload = await request("POST", "/api/plugins/lingguang", { title: (reading.title || fallbackTitle).slice(0, 80), body });
+    selectedIds = new Set([payload.spark.id]);
+    await loadList();
+    fillEditor(payload.spark);
+    placed({ verb: "created", title: payload.spark.title, object: { kind: "lingguang_spark", id: payload.spark.id } });
+    if (reading.partial) showNote(L("只读到了部分内容，请核对原文"));
+  };
+  fileInput?.addEventListener("change", () => {
+    const file = fileInput.files && fileInput.files[0];
+    fileInput.value = "";
+    if (!file) return;
+    void (async () => {
+      if (file.size > 25 * 1024 * 1024) throw new Error(L("文件不能超过 25 MB"));
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = "";
+      for (let start = 0; start < bytes.length; start += 32768) binary += String.fromCharCode(...bytes.subarray(start, start + 32768));
+      const reading = await readMaterial("/api/plugins/lingguang/material", { file_name: file.name, data_base64: btoa(binary) });
+      if (reading) await keepReading(reading, file.name.replace(/\\.[^.]+$/, ""), L("文件：") + file.name);
+    })().catch((error) => showNote(error.message, true));
+  });
   workbench.addEventListener("click", async (event) => {
     try {
       if (event.target.closest("[data-lingguang-save-retry]")) { await save(); return; }
@@ -409,13 +487,23 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         placed({ verb: "created", title: payload.spark.title, object: { kind: "lingguang_spark", id: payload.spark.id } });
         return;
       }
-      if (event.target.closest("[data-lingguang-to-doc], [data-lingguang-to-goal]") && selected) {
+      if (event.target.closest("[data-lingguang-to-doc], [data-lingguang-to-goal], [data-lingguang-to-jelly]") && selected) {
         await save();
-        const goal = Boolean(event.target.closest("[data-lingguang-to-goal]"));
+        const goal = Boolean(event.target.closest("[data-lingguang-to-goal]")), jelly = Boolean(event.target.closest("[data-lingguang-to-jelly]"));
         fates.delete(selected.id);
         window.dispatchEvent(new CustomEvent("molis:placement-convert", { detail: { source: { kind: "lingguang_spark", id: selected.id },
-          ...(goal ? { goal: true } : { station: "pages" }),
-          note: goal ? L("这条灵光是它的来源；灵光本身留着，想好了可以丢掉") : L("文档里记着它来自这条灵光；灵光本身留着，想好了可以丢掉") } }));
+          ...(goal ? { goal: true } : { station: jelly ? "jelly" : "pages" }),
+          note: goal ? L("这条灵光是它的来源；灵光本身留着，想好了可以丢掉") : jelly ? L("笔记里记着它来自这条灵光；灵光本身留着，想好了可以丢掉")
+            : L("文档里记着它来自这条灵光；灵光本身留着，想好了可以丢掉") } }));
+        return;
+      }
+      if (event.target.closest("[data-lingguang-import-file]")) { await save(); fileInput.click(); return; }
+      if (event.target.closest("[data-lingguang-read-link]")) {
+        await save();
+        const url = await askLink();
+        if (!url) return;
+        const reading = await readMaterial("/api/plugins/lingguang/source", { url });
+        if (reading) await keepReading(reading, url, L("来源：") + url);
         return;
       }
       if (event.target.closest("[data-lingguang-clear-selection]")) {

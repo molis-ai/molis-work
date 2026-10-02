@@ -70,9 +70,8 @@ test("linked task rename/completion remains consistent, deletion preserves note 
 });
 test("category deletion migrates all domains and exception categories; protected defaults remain", () => {
   const state = emptyJellyWorkspace(); apply(state, { type: "category.create", category: { id: "work", name: "工作", color: "#FF8800" } }); create(state, "task", { category_id: "work" }); weekly(state, { category_id: "work" }); note(state); state.notes[0]!.category_id = "work";
-  state.inspirations.push({ id: "idea", input_kind: "text", title: "想法", raw_text: "想法", url: null, file_name: null, category_id: "work", archived_at: null, note_id: null, digest: null, created_at: now, updated_at: now });
   apply(state, { type: "series.update", id: "series", original_date: "2026-09-21", scope: "onlyThis", patch: { category_id: "work" } });
-  apply(state, { type: "category.delete", id: "work" }); assert.equal(state.items[0]!.category_id, "uncategorized"); assert.equal(state.series[0]!.exceptions["2026-09-21"]!.patch!.category_id, "uncategorized"); assert.equal(state.notes[0]!.category_id, "uncategorized"); assert.equal(state.inspirations[0]!.category_id, "uncategorized");
+  apply(state, { type: "category.delete", id: "work" }); assert.equal(state.items[0]!.category_id, "uncategorized"); assert.equal(state.series[0]!.exceptions["2026-09-21"]!.patch!.category_id, "uncategorized"); assert.equal(state.notes[0]!.category_id, "uncategorized");
   assert.throws(() => apply(state, { type: "category.delete", id: "uncategorized" }));
 });
 test("progress deduplicates multi-day schedules and counts recurring instances and inclusive category filters", () => {

@@ -1,5 +1,6 @@
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
+import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type {
   LingguangConversation,
   LingguangMessage,
@@ -352,7 +353,7 @@ function normalizeTitle(value: string, body: string): string {
 }
 
 function normalizeBody(value: string): string {
-  if (value.length > 8000) throw new LingguangError("lingguang.invalid", "正文须为 0 到 8000 个字");
+  if (value.length > LINGGUANG_BODY_LIMIT) throw new LingguangError("lingguang.invalid", `正文须为 0 到 ${LINGGUANG_BODY_LIMIT} 个字`);
   return value;
 }
 

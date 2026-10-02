@@ -32,7 +32,8 @@ async function privateDirectory(parent: string, name: string): Promise<string> {
 async function saveUpload(home: string, extension: string, data: Buffer, hash: string, options: JellyMaterialOptions): Promise<string> {
   await checkCurrent(options);
   await mkdir(home, { recursive: true, mode: 0o700 }); const homeRoot = await realpath(home);
-  const jelly = await privateDirectory(homeRoot, "jelly"); const directory = await privateDirectory(jelly, "imports");
+  // Kept where 灵光, the one that reads files now, keeps its things.
+  const jelly = await privateDirectory(homeRoot, "lingguang"); const directory = await privateDirectory(jelly, "imports");
   const file = path.join(directory, `${hash}${extension}`);
   await checkCurrent(options);
   const staging = await mkdtemp(path.join(jelly, "material-upload-")), staged = path.join(staging, "source");
@@ -83,23 +84,3 @@ export async function extractJellyMaterial(home: string, upload: JellyMaterialUp
   }
 }
 
-/** Re-read only a previously uploaded, content-addressed copy; never accept a filesystem path. */
-export async function readStoredJellyMaterial(home: string, input: { file_name: string; sha256: string; allow_model_download?: boolean }, options: JellyMaterialOptions = {}): Promise<JellyMaterialExtraction> {
-  await checkCurrent(options);
-  fail(typeof input?.sha256 === "string" && /^[a-f0-9]{64}$/u.test(input.sha256), "jelly.material.invalid_reference", "上传副本标识无效");
-  fail(typeof input.file_name === "string" && input.file_name.length > 0 && input.file_name.length <= 240 && !/[\\/\x00-\x1F\x7F]/u.test(input.file_name), "jelly.material.invalid_filename", "上传副本文件名无效");
-  const homeRoot = await realpath(home), directory = path.join(homeRoot, "jelly", "imports");
-  try { fail(await realpath(directory) === directory, "jelly.material.unsafe_storage", "素材保存目录无效", 500); }
-  catch (error) { if (error instanceof JellyMaterialError) throw error; throw new JellyMaterialError("jelly.material.not_found", "上传副本不存在，请重新选择原始文件", 404); }
-  const file = path.join(directory, input.sha256 + path.extname(input.file_name).toLowerCase());
-  let data: Buffer;
-  try {
-    const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
-    try {
-      const stat = await handle.stat(); fail(stat.isFile() && stat.size > 0 && stat.size <= maximumBytes, "jelly.material.invalid_reference", "上传副本格式或大小无效");
-      data = await handle.readFile();
-    } finally { await handle.close(); }
-  } catch (error) { if (error instanceof JellyMaterialError) throw error; throw new JellyMaterialError("jelly.material.not_found", "上传副本不存在，请重新选择原始文件", 404); }
-  fail(createHash("sha256").update(data).digest("hex") === input.sha256, "jelly.material.storage_conflict", "上传副本校验失败，原文件保留，请重新选择原始文件", 409);
-  return extractJellyMaterial(home, { file_name: input.file_name, data_base64: data.toString("base64"), allow_model_download: input.allow_model_download }, options);
-}

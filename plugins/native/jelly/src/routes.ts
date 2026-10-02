@@ -8,7 +8,6 @@ export interface JellyRouteResponse { status: number; body: unknown }
 export const JELLY_NATIVE_PLUGIN_ROUTES = [
   ["GET", "/api/jelly"], ["GET", "/api/jelly/calendar"], ["GET", "/api/jelly/progress"], ["GET", "/api/jelly/export"],
   ["POST", "/api/jelly/commands"], ["POST", "/api/jelly/preview"], ["POST", "/api/jelly/ai"],
-  ["POST", "/api/jelly/material"], ["POST", "/api/jelly/material/reread"], ["POST", "/api/jelly/source"],
   ["GET", "/api/jelly/model-settings"], ["POST", "/api/jelly/model-settings"],
 ] as const;
 /** Historical URL and response shapes; all business work goes through the bound Host. */
@@ -35,19 +34,15 @@ export class JellyPluginRouteTable {
     }
     if (pathname === "/api/jelly/preview") {
       if (body.kind === "delete-note") return ok(await this.actions.invoke(jellyActions.previewNoteDelete, { id: body.id as string }));
-      if (body.kind === "delete-inspiration") return ok(await this.actions.invoke(jellyActions.previewInspirationDelete, { id: body.id as string }));
       if (body.kind === "import") return ok(await this.actions.invoke(jellyActions.previewImport, { source: body.source }));
       throw new JellyError("jelly.invalid", "未知的预览操作");
     }
     if (pathname === "/api/jelly/ai") {
       const { kind, manual, ...input } = body;
-      if ((kind !== "decompose" && kind !== "digest") || (manual !== undefined && typeof manual !== "boolean")) throw new JellyError("jelly.invalid", "整理方式无效");
-      const action = kind === "digest" ? jellyActions.digest : manual === true ? jellyActions.manualPlan : jellyActions.modelPlan;
+      if (kind !== "decompose" || (manual !== undefined && typeof manual !== "boolean")) throw new JellyError("jelly.invalid", "整理方式无效");
+      const action = manual === true ? jellyActions.manualPlan : jellyActions.modelPlan;
       return ok(await this.actions.invoke(action, input as never));
     }
-    if (pathname === "/api/jelly/material") return ok(await this.actions.invoke(jellyServiceActions.material, body as never));
-    if (pathname === "/api/jelly/material/reread") return ok(await this.actions.invoke(jellyServiceActions.reread, body as never));
-    if (pathname === "/api/jelly/source") return ok(await this.actions.invoke(jellyServiceActions.source, body as never));
     if (pathname === "/api/jelly/model-settings") return ok(await this.actions.invoke(jellyServiceActions.saveModelSettings, body as never));
     return null;
   }

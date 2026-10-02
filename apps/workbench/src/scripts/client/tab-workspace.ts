@@ -138,12 +138,15 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
     // A record in a plugin whose objects open from its own list (Forms, Dataset, PPT…): jump to it once the list is up.
     const requestedRecord = paneParams.get("openRecord");
-    // Only the plugin asked for: open its page.
+    // Only the plugin asked for: open its page, if this project offers it (its menu lists the plugins it has on).
     if (requestedPlugin && !requestedItem && !requestedRecord && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin)) {
-      ops.setExclusive(state, null);
-      state.focusedPaneId = ops.focused(state).id;
-      ops.openPlugin(state, requestedPlugin);
-      pluginRequestedOnLoad = true;
+      const offered = document.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(requestedPlugin) + '"], [data-plugin-strip] [data-plugin-id="' + CSS.escape(requestedPlugin) + '"]');
+      if (offered) {
+        ops.setExclusive(state, null);
+        state.focusedPaneId = ops.focused(state).id;
+        ops.openPlugin(state, requestedPlugin);
+        pluginRequestedOnLoad = true;
+      }
       const returnedUrl = new URL(location.href);
       returnedUrl.searchParams.delete("openPlugin");
       history.replaceState(history.state, "", returnedUrl);

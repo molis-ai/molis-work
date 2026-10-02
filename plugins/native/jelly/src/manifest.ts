@@ -8,7 +8,7 @@ export const jellyManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-jelly-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
-    { permission: "storage:private", required: true, reason: "本机日历、笔记、灵感及撤销恢复记录" },
+    { permission: "storage:private", required: true, reason: "本机日历、笔记及撤销恢复记录" },
     ...JELLY_ACTION_PERMISSIONS.map(permission => ({ permission, required: false, reason: "按每项能力的授权读写个人内容、使用模型或管理模型选择" })),
   ],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },

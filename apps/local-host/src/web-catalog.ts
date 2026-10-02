@@ -107,14 +107,14 @@ export async function handleLocalCatalogWebRequest(
   if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: ["functions:invoke", "functions:manage"] })),
   })) return;
-  if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, async input => {
+  if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, async (input, transport) => {
     const projectId = input.query.get("project_id") ?? input.body.project_id;
     if (typeof projectId !== "string" || !projectId.trim()) throw new ActionError("actions.project_required", "请选择项目");
     const project = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.getProject(projectId));
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
     return { projectId: project.project_id,
       actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "web-user", project_id: reference.project_id,
-        audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS })) };
+        audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS, ...transport })) };
   })) return;
   if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, async input => {
     const projectId = input.query.get("project_id") ?? input.body.project_id;

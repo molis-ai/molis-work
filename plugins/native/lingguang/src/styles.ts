@@ -99,4 +99,6 @@ export const LINGGUANG_STYLES = `
   .lingguang-bar-group { display: inline-flex; align-items: center; gap: 4px; }
   .lingguang-bar-group + .lingguang-bar-group { margin-left: 4px; padding-left: 8px; border-left: 1px solid var(--line); }
   .lingguang-bar-group--quiet { margin-left: auto; }
+  .lingguang-link-field { display: grid; gap: 6px; font-size: 13px; width: min(420px, 80vw); }
+  .lingguang-reading-progress { width: 100%; accent-color: var(--accent); }
 `;

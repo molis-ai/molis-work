@@ -14,12 +14,12 @@ export async function handleJellyNativePluginHttp(request: IncomingMessage, resp
     try { return await new JellyPluginRouteTable(actions({ signal: controller.signal, on_progress: progress })).handle(input); }
     finally { response.off("close", cancel); }
   };
-  if (request.method === "POST" && ["/api/jelly/material", "/api/jelly/material/reread", "/api/jelly/source", "/api/jelly/ai"].includes(url.pathname) && url.searchParams.get("stream") === "1") {
+  if (request.method === "POST" && url.pathname === "/api/jelly/ai" && url.searchParams.get("stream") === "1") {
     const write = (value: unknown) => { if (!response.destroyed) response.write(JSON.stringify(value) + "\n"); };
     try {
       const body = await readNativePluginJsonBody(request, 36_000_000);
       response.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
-      write({ type: "progress", stage: url.pathname.endsWith("/ai") ? "summarizing" : "extracting", progress: 0 });
+      write({ type: "progress", stage: "planning", progress: 0 });
       const result = await handle({ method: "POST", pathname: url.pathname, query: url.searchParams, body }, progress => write({ type: "progress", ...progress }));
       if (result) write({ type: "result", result: result.body });
     } catch (error) {

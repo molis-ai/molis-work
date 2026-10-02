@@ -11,7 +11,7 @@ import {
   type ProjectBriefInput,
 } from "../apps/workbench/src/arrival/project-brief.js";
 
-// The project brief (specs/project-arrival-flow): what the chooser's sheet says about a project, decided from what the
+// The project brief (specs/archive/project-arrival-flow): what the chooser's sheet says about a project, decided from what the
 // public readers returned. It never fills a gap with a guess, so each test is a gap or a rule about one.
 
 const NOW = "2026-10-01T10:00:00.000Z";

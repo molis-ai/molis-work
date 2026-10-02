@@ -12,7 +12,7 @@ import {
   setProjectDescription,
 } from "../apps/local-host/src/project-arrival.js";
 
-// What the chooser remembers about each project on this machine (specs/project-arrival-flow): presentation memory only,
+// What the chooser remembers about each project on this machine (specs/archive/project-arrival-flow): presentation memory only,
 // so every failure to read or write it must leave the chooser working with an empty memory.
 
 function withHome(run: (home: string) => void) {

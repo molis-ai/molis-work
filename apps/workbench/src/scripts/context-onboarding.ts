@@ -1,5 +1,5 @@
 /**
- * The way in for a new person and for a new project, in the browser (specs/project-arrival-flow): the opening, two
+ * The way in for a new person and for a new project, in the browser (specs/archive/project-arrival-flow): the opening, two
  * Welcome questions, and the journey that turns existing materials into a project — sources, scope, reading, naming.
  * Account authorization is performed by the provider, never simulated here. The journey is the Host's (the
  * `/api/onboarding/context` ids and phases are unchanged); this program only draws it, in the arrival frame: the

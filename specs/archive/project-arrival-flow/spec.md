@@ -1,6 +1,8 @@
 # 打开 Molis Work：项目选择、Welcome 与新建项目
 
-状态：已实现，PR 评审中（2026-10-01）。高保真设计与可交互原型经用户认可（「整体设计不错」），用户授权开发并在完成后推送 PR（须检查边界场景、元素重叠、组件沿用项目整体设计、动线）；这些检查已写成真实浏览器里的版面审计与动线测试，见本文末「实现记录」。设计图、动效录屏与原型见 [docs/design/project-arrival-flow/README.md](../../docs/design/project-arrival-flow/README.md)；实现记录见本文末「实现记录」。分支 `feature/project-arrival-flow`。上一轮概念稿与需求书已删除。
+> 归档（2026-10-01）：判定为**已实现**。PR #159 已合 main（fb879410）；工程验证记在本文末「实现记录 · 验证」与 PR 正文：全量回归的 14 项失败里 2 项是本改动引入、已改到新结构，其余 12 项在干净的 main 上同样失败。只差用户本人验收，另有两项已知缺口。剩余事项已移到[统一待办清单](../../BACKLOG.md)：BL-088、BL-089、BL-090。
+
+状态：已实现，已合入 main（PR #159，2026-10-01）。高保真设计与可交互原型经用户认可（「整体设计不错」），用户授权开发并在完成后推送 PR（须检查边界场景、元素重叠、组件沿用项目整体设计、动线）；这些检查已写成真实浏览器里的版面审计与动线测试，见本文末「实现记录」。设计图、动效录屏与原型见 [docs/design/project-arrival-flow/README.md](../../../docs/design/project-arrival-flow/README.md)；实现记录见本文末「实现记录」。分支 `feature/project-arrival-flow`（已合入）。上一轮概念稿与需求书已删除。
 
 ## 要解决什么
 
@@ -115,7 +117,7 @@
 ## 下一步
 
 1. 用户确认动线与结构（已确认，2026-10-01）。
-2. 低保真线框：[docs/design/project-arrival-flow/wireframes.html](../../docs/design/project-arrival-flow/wireframes.html)（已认可）。
+2. 低保真线框：[docs/design/project-arrival-flow/wireframes.html](../../../docs/design/project-arrival-flow/wireframes.html)（已认可）。
 3. 高保真：11 张设计图、状态与深色、窄屏图，三段动效录屏，可交互原型（`docs/design/project-arrival-flow/prototype/`，72 项动线检查通过）。**待用户评审。**
 4. 评审通过后：补候选组件进 `packages/design-system` 与 `/__ui/catalog`；写项目简介的数据投影与「最近打开」记录；替换引导里的 `cx-*`；新建项目选择页与开场；e2e 覆盖预选、回车进入、搜索、新建、返回、草稿保留。实现前先在 `docs/SSOT-MATRIX.md` 确认 owner，并读各包 README 的「开发要求」。
 

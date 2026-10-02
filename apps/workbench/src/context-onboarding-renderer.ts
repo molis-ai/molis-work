@@ -5,7 +5,7 @@ import { createArrivalShell } from "./arrival/shell.js";
 import type { MolisWorkOnboardingRenderOptions, OnboardingRenderPrimitives } from "./onboarding-renderer.js";
 
 /**
- * The real first-run and new-project journey, drawn in the arrival frame (specs/project-arrival-flow): a titlebar,
+ * The real first-run and new-project journey, drawn in the arrival frame (specs/archive/project-arrival-flow): a titlebar,
  * a stage and the resident bar. The shell carries the way out and the quiet first stage; the client script draws
  * every step into `#cx-app` and changes the bar's three blocks.
  */

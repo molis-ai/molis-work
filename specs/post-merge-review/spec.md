@@ -518,7 +518,7 @@
 | Pages 390：中断的发布刷新后续上 | `pages-publication.e2e` | 测试假设过时（#145） | #145 起 `?openPlugin=pages` 会打开 Pages 并重开上次的文稿；760px 以下文稿展开时列表本就收起，用例去点列表项 | 分支 `fix/test-pages-publication-narrow`：断言重开的就是这篇；待浏览器时段验证 |
 | Product journeys | `product-experience-polish.e2e` | 待定 | d39e8e5b 与 b5f6ddec 通过，fccb2a30 两次失败（都在负载下）；之后只有 #154 动过相关文件，但它只影响加载时的 `?openPlugin=`，搜索切换工具不经过它 | 安静时段在 fccb2a30 上单独复跑 |
 | 事件文档写规划、报告、关注、决定与关闭 | `goal-event-document.e2e` | 测试没跟上（#150 的 3903facd） | fccb2a30 上报 `Missing real refresh callback`：3903facd 把看板 4 秒刷新从 `setInterval` 改成界面生命周期的 `poll`（`setTimeout` 链），用例还在钩 `setInterval`。d39e8e5b 上的失败是另一回事（负载下 DOM 等待超时） | `fix/tests-deferred-plugin-clients`（e65373b1）：改钩 4 秒 `setTimeout`，并等这次刷新发起的看板读取结束，相当于原来 await 的 interval 回调；待浏览器时段验证 |
-| 安装包全流程 | `e2e.test.ts` | **环境**：本机 4173 被另一个 Home 的服务占着；用例不隔离 | 用例的 Web 跑在随机端口，接入校验按 Web 自己的环境启动 MCP 启动器，环境里没有 `MOLIS_WORK_WEB_URL`，启动器去默认的 127.0.0.1:4173。本机 4173 上是 10-01 10:39 起的旧 Home `~/.goalboard` 的 Web（pid 2115，非本会话所起），控制令牌对不上返回 403，启动器在 tools/list 时抛出 `actions.transport_denied` 退出，校验失败、回滚、409。保留临时目录手工运行安装后的启动器复现了同一条 stderr。4173 空着时发现失败走 `service_unavailable` 退回，所以 62cbc14d 基线时通过 | 分支 `fix/test-packed-e2e-own-web-url`（58b105b4）：Web 进程带上 `MOLIS_WORK_WEB_URL=origin`，与用例后面 Runtime 对话的写法一致；待构建时段验证。产品侧两点记入 BL-108 |
+| 安装包全流程 | `e2e.test.ts` | **环境**：本机 4173 上是用户真实 Home 的常驻服务；用例不隔离 | 用例的 Web 跑在随机端口，接入校验按 Web 自己的环境启动 MCP 启动器，环境里没有 `MOLIS_WORK_WEB_URL`，启动器去默认的 127.0.0.1:4173。本机 4173 上是用户真实 Home 的常驻服务（LaunchAgent `com.adeptify.goalboard.web`，安装版 0.2.0，pid 2115；`~/.goalboard` 是指向 `~/.molis-work` 的符号链接），与用例的临时 Home 不是同一个，控制令牌对不上返回 403，启动器在 tools/list 时抛出 `actions.transport_denied` 退出，校验失败、回滚、409。保留临时目录手工运行安装后的启动器复现了同一条 stderr。4173 空着时发现失败走 `service_unavailable` 退回，所以 62cbc14d 基线时通过 | 分支 `fix/test-packed-e2e-own-web-url`（58b105b4）：Web 进程带上 `MOLIS_WORK_WEB_URL=origin`，与用例后面 Runtime 对话的写法一致；待构建时段验证。产品侧两点记入 BL-108 |
 
 其余失败都跨过了休眠，复跑通过。
 
@@ -844,6 +844,8 @@
 | 2026-10-01 | 第四批合并 | #153（灵光合一处）、#154 与 #155（两个小修）、#157（侧栏浏览器停止与撤权）、#158（按钮防护误判） | 全部合 | 逐个同步 main、等 CI 通过后合入 |
 | 2026-10-01 | 侧栏浏览器「等待页面」也要确认（PMR-29） | 等待不再询问；保持每步都问 | 等待不再询问 | 其余动作照旧逐步确认；实现见 [#160](https://github.com/molis-ai/molis-work/pull/160)，合并另问 |
 | 2026-10-01 | Feed 自身的体验问题（场景 3） | 不单独问：不是合并引入，不在本轮需求线内 | 记入 BACKLOG | BL-094～BL-099；首页是否列 Feed 消息（BL-098）是产品取舍，列在「待你决定」类型 |
+| 2026-10-02 | 合并 #166（Pages 窄屏用例）、#167（第一步文档进度） | 两个都推荐 | 两个都合 | #166 已合（72786be4）；#167 同步 main、更正下一行的事实后合 |
+| 2026-10-02 | 4173 上的服务怎么处理（第一次问时我把它说成独立的旧 Home `~/.goalboard`，用户选「备份后停用」） | 执行前发现 `~/.goalboard` 是指向 `~/.molis-work` 的符号链接，4173 是真实 Home 的常驻服务（LaunchAgent，安装版 0.2.0）；按更正后的事实重问：不停，保持现状；停掉常驻服务；第二步升级时一并换新版 | 不停，保持现状 | 没有备份、没有停服务；用例已改为连自己的 Web（`fix/test-packed-e2e-own-web-url`）；第二步的真实 Home 安全按「保留并升级」做 |
 
 ## 10. 未验证的范围
 

@@ -23,7 +23,7 @@
 | 2026-10-02 | 同事有没有要保留的 Home | 给同事一份备份升级说明；没有同事在用；稍后告知 | 没有同事在用 | 只处理本机 `~/.molis-work` |
 | 2026-10-02 | 共享核心的评审方式 | CODEOWNERS 记归属、不开必选评审；共享核心必须评审；再加合并队列 | CODEOWNERS 记归属，不开必选评审 | 加 `.github/CODEOWNERS`，自动请求评审但不强制；合同变更靠门禁守；不改仓库设置、不开合并队列 |
 | 2026-10-02 | vendored 私有包 | 删 3 份不用的、分发照旧；删 3 份并改私有源；先不动 | 删 3 份不用的，分发照旧 | [#170](https://github.com/molis-ai/molis-work/pull/170) 删掉 assistant-memory、compaction-growth、resource-intake；私有包继续随仓库分发 |
-| 2026-10-02 | 他人的工作树与分支 | 只清已合入且干净的；全部保留；逐个问 | 只清已合入且干净的 | 已删 `~/code/molis-work-performance-pr` 工作树与本地分支（#150 已合、无未提交改动）。删远端已合入分支（他人的 #159、#164，以及本目标自己的 23 条）被自动模式拦下，留给用户在 GitHub 上删，清单见 §8 |
+| 2026-10-02 | 他人的工作树与分支 | 只清已合入且干净的；全部保留；逐个问 | 只清已合入且干净的 | 已删 `~/code/molis-work-performance-pr` 工作树与本地分支（#150 已合、无未提交改动）。删远端已合入分支（他人的 #159、#164，以及本目标自己的 23 条）被自动模式拦下，留给用户在 GitHub 上删，清单见 §7 |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -330,10 +330,10 @@
 
 允许的写法也不一样（有的认 `localhost`，有的只认 IP）。这一条并入 R-08 的重复实现，收成一个共用判断。
 
-## 8. 需要用户操作的事项
+## 7. 需要用户操作的事项
 
 - 删除已合入的远端分支（自动模式拦下了我执行的删除）：`docs/spec-sweep`、`fix/onboarding-blank-name`、`fix/global-links-in-project`、`feat/one-attention-bell`、`feat/characters-settings-only`、`fix/contextual-live-region`、`test/baseline-timing-defects`、`fix/todo-project-search`、`fix/open-plugin-link`、`fix/jelly-assistant-refresh`、`fix/assistant-undo-refresh`、`fix/narrow-stage-side-panel`、`fix/assistant-claimed-save`、`fix/pages-writing-faithful`、`feat/one-idea-inbox`、`fix/open-plugin-enabled-only`、`fix/todo-search-plain-fields`、`fix/side-browser-stop-revoke`、`fix/button-guard-same-sentence`、`fix/side-browser-wait-no-ask`、`fix/assistant-origin-name`、`fix/builder-model-call-limit`、`fix/test-pages-publication-narrow`，以及他人的 `feature/project-arrival-flow`（#159）、`claude/nostalgic-engelbart-93e407`（#164）。也可以在仓库设置里打开「合并后自动删除分支」。
 
-## 7. 未验证的范围
+## 8. 未验证的范围
 
 尚未开工，暂无。

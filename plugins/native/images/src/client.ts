@@ -442,7 +442,9 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       }
     } catch (error) { say(error.message || L('图片服务请求失败'), true); }
   });
-  restoreDraft(); expand(); syncGenerate(); syncSaving();
+  // The stage stays as the workbench set it (its list first); the composer opens from 新建图片 or a chosen record. Since the
+  // client loads when its surface opens (#150), expanding here would override the workbench's own choice.
+  restoreDraft(); syncGenerate(); syncSaving();
   lifetime.whenVisible(signal => {
     viewSignal = signal; ensureContext(); syncGenerate();
     void Promise.all([loadConnections(signal), loadJobs(signal)]).catch(error => {

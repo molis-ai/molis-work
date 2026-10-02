@@ -183,7 +183,12 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     })`, awaitPromise: true, returnByValue: true }, sessionId, timeoutMs + 2_000);
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
   }
+  /** No shown plugin surface is still loading its client; one whose client failed to load shows its own retry. */
+  const SURFACES_SETTLED = `!document.querySelector('[data-ui-client-state="loading"]')
+    && ![...document.querySelectorAll('[data-deferred-surface]')].some(surface => !surface.closest('[hidden]') && surface.dataset.uiClientState !== 'failed')`;
   async function click(selector: string): Promise<void> {
+    // A person waits while a plugin surface they opened is still loading its client (#150): it is inert until then.
+    await waitFor(SURFACES_SETTLED, 10_000);
     const point = await evaluate<{ x: number; y: number }>(`(async () => { let element = document.querySelector(${JSON.stringify(selector)});
       if (!element) throw new Error('Missing click target: ' + ${JSON.stringify(selector)});
       // Reach an entry the way a person would: its Dock window, the full plugin list, a collapsed source drawer, or the menu it sits in.
@@ -270,5 +275,10 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     })()`);
     await waitFor("document.querySelector('[data-goal-canvas-shell]') && !document.querySelector('[data-goal-canvas-shell]').hidden && document.querySelector('[data-goal-stage-chrome] [data-open-create]')?.getBoundingClientRect().width > 0");
   }
-  return { store, localHost, databasePath, origin, before, sessionId, command, evaluate, waitFor, click, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  /** A plugin surface whose client loads when it first opens (#150) is ready for a person to use. */
+  async function surfaceReady(id: string, timeoutMs = 10_000): Promise<void> {
+    await waitFor(`(() => { const surface = document.querySelector('[data-work-surface=${JSON.stringify(id)}]');
+      return Boolean(surface) && !surface.hasAttribute('data-deferred-surface') && surface.dataset.uiClientState !== 'loading'; })()`, timeoutMs);
+  }
+  return { store, localHost, databasePath, origin, before, sessionId, command, evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

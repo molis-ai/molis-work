@@ -778,6 +778,6 @@ flowchart TB
 | [Agent Host 契约](../../../packages/contracts/src/services/agent-host.ts)、[当前 Host](../../../horizontal/agent-host/src/index.ts) | 会话、运行、角色、权限及无工作目录边界 |
 | [TaskBoard 接入](../../../horizontal/agent-host/src/adapters/prologue-taskboard.ts)、[子代理接入](../../../horizontal/agent-host/src/adapters/prologue-subagents.ts) | 已有运行事实与尚需完善的产品接入 |
 | [定时运行](../../../apps/local-host/src/schedule-runtime.ts) | 已有时间意图和运行关系，避免重复调度 |
-| [SDK 版本来源](../../../vendor/prologue-sdk/README.md)、[公共导出](../../../horizontal/agent-host/node_modules/@prologue/sdk/dist/index.d.ts)、[Runtime](../../../horizontal/agent-host/node_modules/@prologue/sdk/dist/composition/core/runtime.d.ts)、[Memory](../../../horizontal/agent-host/node_modules/@prologue/sdk/dist/memory/core/memory.d.ts) | Prologue 实际能力与限制，不将 SDK 支持等同产品完成 |
+| [SDK 版本来源](../../../vendor/prologue-sdk/README.md)、公共导出（`../../../horizontal/agent-host/node_modules/@prologue/sdk/dist/index.d.ts`）、Runtime（`../../../horizontal/agent-host/node_modules/@prologue/sdk/dist/composition/core/runtime.d.ts`）、Memory（`../../../horizontal/agent-host/node_modules/@prologue/sdk/dist/memory/core/memory.d.ts`） | Prologue 实际能力与限制，不将 SDK 支持等同产品完成 |
 
 用户 2026-09-28 第三次补充：同一件工作在助手、插件页面和用户手动操作之间连续进行，恢复不依赖聊天记录或页面内存；事实继续由现有模块拥有，优先复用 Context Ledger、现有工作记录与公开查询/事件，只补必要的关联、变更感知与恢复协议；区分“正在看哪里”和“正在处理哪件事”；尽可能覆盖官方插件并纳入开发手册。作为 U18 纳入第 10.4 节、第 13.2 节与 AC46—AC51。

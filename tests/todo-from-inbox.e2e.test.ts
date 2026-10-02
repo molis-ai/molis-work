@@ -9,7 +9,7 @@ import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵光 become todos that keep where they came from; neither original is handled for the person`, { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null);
   if (!browser) return;
-  const { store, localHost, projectId, homeDirectory, command, sessionId, navigate, evaluate, waitFor, click, origin } = browser;
+  const { store, localHost, projectId, homeDirectory, command, sessionId, navigate, evaluate, waitFor, click, surfaceReady, origin } = browser;
   assert.ok(localHost); assert.ok(projectId);
   const boardId = store.goalsQuery.listBoardIds()[0]!;
   await localHost.withProject(molisWorkHostProjectReference({ databasePath: browser.databasePath, boardId, projectId }), () => undefined);
@@ -68,6 +68,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵
   // Beside the project on a wide screen; from the plugin switcher on a narrow one.
   await click(await evaluate(visible("[data-bar-resident=lingguang]")) ? "[data-bar-resident=lingguang]" : "[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor("document.body.dataset.desktopSurface === 'lingguang'");
+  await surfaceReady("lingguang");
   await evaluate(`document.querySelector("[data-lingguang-capture]").click()`);
   await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'");
   await evaluate(`(() => {

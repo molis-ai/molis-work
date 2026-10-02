@@ -103,7 +103,9 @@ test("failed compact refresh falls back to the full Goal page and keeps other wo
   await addGoal(origin, "REFRESH-FALLBACK");
   const afterExternalWrite = store.snapshot(DEMO_BOARD_ID);
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
-  await waitFor("document.querySelector('.tree-node[data-select-goal=REFRESH-FALLBACK]')");
+  // Since #150 the board refreshes on the UI lifecycle's 4-second poll; a synthetic visibilitychange that does not change
+  // visibility does not restart it, so the external write shows up on the next poll.
+  await waitFor("document.querySelector('.tree-node[data-select-goal=REFRESH-FALLBACK]')", 10_000);
   const paths = await evaluate<string[]>("globalThis.__refreshPaths");
   assert.ok(paths.includes("/api/board/refresh"));
   assert.ok(paths.indexOf("/goals/V1") > paths.indexOf("/api/board/refresh"));

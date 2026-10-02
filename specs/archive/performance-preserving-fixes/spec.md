@@ -1,6 +1,8 @@
 # 保持数据与行为的性能修复方案
 
-状态：五项复查缺陷、首次目录初始化竞态及 PR 验证追加发现的热状态采样问题已修正，Cognia 按需加载断言已同步，已提交 [PR #150](https://github.com/molis-ai/molis-work/pull/150)。合入 main `597d15d2` 并追加修正后，整体构建、依赖边界、定向 25 项、Agent/Prologue 必跑集合及真实浏览器 5 项通过。全量非 E2E、完整视觉走查和原生窗口输入验收尚未完成，原始卡死现场仍未复现，整体“内部完整”门槛继续单列。本文件是唯一需求书；改动位于隔离工作树，未替换真实应用或 Home，未发布。依据起始仓库 `62cbc14d` 与 [性能审计报告](/Users/yijunwang/code/goalboard/docs/reviews/performance-audit-2026-10-01.md)。
+> 归档（2026-10-02）：判定为**部分实现**。六项开销修复随 [#150](https://github.com/molis-ai/molis-work/pull/150) 合入 main（b5f6ddec）；合入后全量回归见 [合入后审查 §6.1](../../post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02)，其中 #150 引入的 Shelf 终端回归，修复见该节。完整视觉走查与原生窗口输入验收没有做。剩余事项已移到统一待办清单：BL-109。
+
+状态：五项复查缺陷、首次目录初始化竞态及 PR 验证追加发现的热状态采样问题已修正，Cognia 按需加载断言已同步，已提交 [PR #150](https://github.com/molis-ai/molis-work/pull/150)。合入 main `597d15d2` 并追加修正后，整体构建、依赖边界、定向 25 项、Agent/Prologue 必跑集合及真实浏览器 5 项通过。全量非 E2E、完整视觉走查和原生窗口输入验收尚未完成，原始卡死现场仍未复现，整体“内部完整”门槛继续单列。本文件是唯一需求书；改动位于隔离工作树，未替换真实应用或 Home，未发布。依据起始仓库 `62cbc14d` 与 性能审计报告（`/Users/yijunwang/code/goalboard/docs/reviews/performance-audit-2026-10-01.md`）。
 
 目标完成程度为“内部完整”：六项已识别开销得到处理，桌面真实关键路径、既有数据、异常恢复和代码回退均须有证据。工程测试、隔离桌面实操、用户本人验收分别记录；已覆盖的工程及隔离浏览器路径通过，复查发现的失败场景已补有效回归，隔离原生 IPC 实操通过，原生窗口按钮/键盘实操与用户本人验收仍未完成。此前“管理项目”卡死的现场根因仍未确认，性能修复不能直接等同于现场故障已解决。
 
@@ -36,7 +38,7 @@
 
 **写入边界单独验证。** 保留事务、提交顺序和幂等回执，不对整个 async 业务动作重试。本步首先解决普通读抢写锁；并发真实写操作也要注入锁竞争检查。如果真实写等待仍阻塞 HTTP 事件循环，继续在原 owner 的提交边界处理获取锁：只在副作用尚未派出、原事务未提交且 owner 确认可重试时异步等待；已派出或未知结果保留原恢复语义。不得靠调小全局 busy_timeout、丢写入或伪报成功通过验收。具体写边界在实施第 1 步中确定，不把“普通读已恢复”当成全部阻塞已消除。
 
-主要边界：[catalog](/Users/yijunwang/code/goalboard/apps/local-host/src/project-catalog.ts)、[migrations](/Users/yijunwang/code/goalboard/apps/local-host/src/catalog-migrations.ts)、[Web 装配](/Users/yijunwang/code/goalboard/apps/local-host/src/web-server.ts)、[桌面目录适配](/Users/yijunwang/code/goalboard/apps/desktop/src/project-catalog.ts)、[ContextLedger](/Users/yijunwang/code/goalboard/modules/context-ledger/src/repository.ts)。必要时改公开构造选项及对应 README，不深入导入其他 owner 的实现。
+主要边界：[catalog](../../../apps/local-host/src/project-catalog.ts)、[migrations](../../../apps/local-host/src/catalog-migrations.ts)、[Web 装配](../../../apps/local-host/src/web-server.ts)、[桌面目录适配](../../../apps/desktop/src/project-catalog.ts)、[ContextLedger](../../../modules/context-ledger/src/repository.ts)。必要时改公开构造选项及对应 README，不深入导入其他 owner 的实现。
 
 ### 2. 原生命令
 
@@ -44,7 +46,7 @@
 
 第一步保留原命令合同和 IO 时限，只改变执行线程。线程异常不能报告成功；窗口离开不代表导入被撤销；连接超时不能自动重新提交。Spotlight 的进程截止时间和真正的取消能力只有在错误语义明确后再接入，不能把超时当作“没有文件”，或承诺已提交导入能够无副作用撤销。
 
-边界：[Tauri command](/Users/yijunwang/code/goalboard/apps/desktop/adapters/tauri/src/main.rs)、[Shelf HTTP](/Users/yijunwang/code/goalboard/apps/desktop/adapters/tauri/src/shelf_http.rs)。原后台轮盘/剪贴板路径不重复改造。
+边界：[Tauri command](../../../apps/desktop/adapters/tauri/src/main.rs)、[Shelf HTTP](../../../apps/desktop/adapters/tauri/src/shelf_http.rs)。原后台轮盘/剪贴板路径不重复改造。
 
 ### 3. 隐藏轮询
 
@@ -52,7 +54,7 @@ Workbench 页面创建一个 Host 生命周期 scope，将 `refreshBoard` 的定
 
 恢复可见立即检查游标；输入、搜索、拖动等原 deferred refresh 规则继续生效，忙时保留尚未消费的变化。写请求沿用原挂载/业务生命周期，不能因隐藏页面取消服务端执行。本轮先修缺失的可见性判断；跨 pane 游标去重留待实测仍有必要时，避免额外引入消息总线。
 
-边界：[全局刷新](/Users/yijunwang/code/goalboard/apps/workbench/src/scripts/client/refresh-decisions.ts)、[初始化](/Users/yijunwang/code/goalboard/apps/workbench/src/scripts/client/initialization.ts)、[已有 UI 生命周期](/Users/yijunwang/code/goalboard/packages/ui-host/src/client-lifecycle.ts)。保留原分屏 frame 数量、恢复和持久化逻辑。
+边界：[全局刷新](../../../apps/workbench/src/scripts/client/refresh-decisions.ts)、[初始化](../../../apps/workbench/src/scripts/client/initialization.ts)、[已有 UI 生命周期](../../../packages/ui-host/src/client-lifecycle.ts)。保留原分屏 frame 数量、恢复和持久化逻辑。
 
 ### 4. 静态资源
 
@@ -60,7 +62,7 @@ Workbench 页面创建一个 Host 生命周期 scope，将 `refreshBoard` 的定
 
 第一步保持现有 URL 和 cache-control，内容及 ETag 算法不变，GET/HEAD 与 304 语义不变。进程重启加载新构建；生产资源视为该构建固定资产，开发资源若支持热更新，则按原热更新规则失效。暂不引入长期 HTTP 缓存或版本化 URL，避免扩大升级兼容面。
 
-边界：[web-assets](/Users/yijunwang/code/goalboard/apps/local-host/src/web-assets.ts)。
+边界：[web-assets](../../../apps/local-host/src/web-assets.ts)。
 
 ### 5. Coding 状态与详情分离
 
@@ -70,7 +72,7 @@ Workbench 页面创建一个 Host 生命周期 scope，将 `refreshBoard` 的定
 
 对外 `AgentSessionStatus` 及授权入口保持兼容；不支持新内部读取口的 Adapter 沿用原合同。具体会话、历史轮次和新一轮执行仍按原路径加载、复核授权与恢复门槛。读取状态不制造历史控制句柄，不触发模型或重派 Effect。初期不增加后台预恢复和自动内存淘汰，避免正在运行的会话被误释放。
 
-依赖第 1 步的目录/授权读取稳定性。边界：[Adapter](/Users/yijunwang/code/goalboard/horizontal/agent-host/src/adapters/prologue.ts)、[SDK 装配](/Users/yijunwang/code/goalboard/horizontal/agent-host/src/adapters/prologue-node.ts)、[状态身份校验](/Users/yijunwang/code/goalboard/horizontal/agent-host/src/capability-registration.ts)。Coding 插件仍通过公开 Host 能力读取，不直接访问 SDK 或其他插件 Store。
+依赖第 1 步的目录/授权读取稳定性。边界：[Adapter](../../../horizontal/agent-host/src/adapters/prologue.ts)、[SDK 装配](../../../horizontal/agent-host/src/adapters/prologue-node.ts)、[状态身份校验](../../../horizontal/agent-host/src/capability-registration.ts)。Coding 插件仍通过公开 Host 能力读取，不直接访问 SDK 或其他插件 Store。
 
 ### 6. 按需界面与分屏加载
 
@@ -80,7 +82,7 @@ Workbench 页面创建一个 Host 生命周期 scope，将 `refreshBoard` 的定
 
 CSS 公共/全局规则保留在 shell；本轮核对后保留整份 CSS 及原 asset order，因为既有样式仍含全局层叠，没有可独立证明安全的拆分边界。页面体积改善来自客户端和 Pages 编辑器的按需加载，不宣称 CSS 已缩减。后续只有确认 surface 作用域后才延迟对应规则，不能按网络返回先后改变层叠。HTML/client/资源必须来自同一构建，检查现有 CSP 和声明边界。全局搜索、设置直达、插件深链接、拖拽分屏、伴随 Files/Git/Diff 等不能依赖未创建的隐藏 DOM；需要数据的入口走原公开查询，而不是为搜索重新提前挂载所有插件。
 
-依赖第 3、4 步；不依赖第 5 步，但仍串行实施。边界：[页面 renderer](/Users/yijunwang/code/goalboard/apps/workbench/src/goals-page-renderer.ts)、[插件资源投影](/Users/yijunwang/code/goalboard/apps/workbench/src/plugin-workbench.ts)、[tab workspace](/Users/yijunwang/code/goalboard/apps/workbench/src/scripts/client/tab-workspace.ts)、原插件 UI 贡献及公开 factory。涉及插件实现时按原插件开发规则补必要依赖声明与测试，不夹带设计重做。
+依赖第 3、4 步；不依赖第 5 步，但仍串行实施。边界：[页面 renderer](../../../apps/workbench/src/goals-page-renderer.ts)、[插件资源投影](../../../apps/workbench/src/plugin-workbench.ts)、[tab workspace](../../../apps/workbench/src/scripts/client/tab-workspace.ts)、原插件 UI 贡献及公开 factory。涉及插件实现时按原插件开发规则补必要依赖声明与测试，不夹带设计重做。
 
 ## 验收：正确性先于提速
 
@@ -177,7 +179,7 @@ node scripts/run-tests.mjs tests/agent-host.test.ts tests/agent-host-wiring.test
 
 用户要求复查后，读取六项改动及相关调用链，并在隔离 Home 注入真实锁竞争、连接重建和资源挂起。确认 P1：并发恢复同一新项目时失败调用删除另一调用已登记的数据库（新增回归）；示例重置提交超时后原库与新库均被删除（旧版已有、本轮遗漏）。确认 P2：外部 Host 复用重建 Web Server 后个人规划保存仍引用关闭的 runner；首次 warm 锁超时后仅探活无法自行恢复；插件资源一直不返回时界面持续 inert 且没有重试出口。
 
-并发误删已用两个真实 Catalog 和真实 SQLite 锁复现；示例重置、连接重建与启动恢复均与旧版对照。挂起资源在真实 Chrome 复现。详细触发条件、影响边界、修正方向、复现命令与日志见 [复查报告](/private/tmp/molis-project-management-freeze/docs/reviews/performance-fix-review-2026-10-01.md)。这些场景未被此前通过的工程集合覆盖。复查阶段未修改生产源码；随后用户授权修复，实施结果见下节。保留此前性能和回退证据，不把局部回归通过等同于全部内部验收通过。
+并发误删已用两个真实 Catalog 和真实 SQLite 锁复现；示例重置、连接重建与启动恢复均与旧版对照。挂起资源在真实 Chrome 复现。详细触发条件、影响边界、修正方向、复现命令与日志见 [复查报告](../../../docs/reviews/performance-fix-review-2026-10-01.md)。这些场景未被此前通过的工程集合覆盖。复查阶段未修改生产源码；随后用户授权修复，实施结果见下节。保留此前性能和回退证据，不把局部回归通过等同于全部内部验收通过。
 
 ## 缺陷修正实施与验收（2026-10-01）
 

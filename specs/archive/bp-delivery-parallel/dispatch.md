@@ -43,7 +43,7 @@ Onboarding 的一次 PDF 文本解析依赖更新需求已转给 Builder，双�
 
 ## 审查结果交接
 
-已阅读 2026-09-26 [独立审查报告](/Users/yijunwang/.codex/visualizations/2026/09/26/01a0db8f-26a6-7951-9e90-62990912666e/repository-review.md)。报告中的动态复现来自审查快照，当前修复状态仍由 owner 对照最新代码核对，不等于统筹已独立复现或修复。
+已阅读 2026-09-26 独立审查报告（`/Users/yijunwang/.codex/visualizations/2026/09/26/01a0db8f-26a6-7951-9e90-62990912666e/repository-review.md`）。报告中的动态复现来自审查快照，当前修复状态仍由 owner 对照最新代码核对，不等于统筹已独立复现或修复。
 
 - F1 调用身份借用、F2 异步等待后撤权仍写入：共享动作/Agent Host owner 优先修复并做业务回归。
 - F3 预算映射、F4 工作流重复交接：同一 owner 在原范围处理，Prologue 收敛任务不另改共享核心。

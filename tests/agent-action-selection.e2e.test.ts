@@ -89,6 +89,8 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   // At phone width the rail folds away; the rest of the check is on the desktop layout again.
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await open("characters");
+  // Characters reads its records once its page opens (#150 loads the client then), so the list fills in a moment later.
+  await waitFor(`Boolean(document.querySelector('[data-character-id="${draft.character_id}"]'))`, 10_000);
   await click(`[data-character-id="${draft.character_id}"]`);
   await waitFor("!document.querySelector('[data-character-workspace]').hidden");
   await fill('[data-character-title]', "保留失效能力的角色"); await click('[data-character-save]');

@@ -19,9 +19,14 @@ export interface PluginBuilderAgentOptions {
 }
 /**
  * One model request, not the whole run. A designer's answer is one long structured reply (up to 32k tokens) and the
- * code role writes whole files; Prologue's own 60-second default cut off a slower model mid-answer.
+ * code role writes whole files; Prologue's own 60-second default cut off a slower model mid-answer. A request must be
+ * allowed long enough to spend its whole output budget: MiniMax M3.1-Flash wrote about 110 tokens a second (reasoning
+ * included, none of it streamed as text), so 32k tokens take about five minutes. The designer gets the run's whole
+ * ten minutes; the code role's 16k turns get five.
  */
-const MODEL_CALL_LIMIT_MS = { designer: 300_000, coder: 180_000 } as const;
+export const MODEL_CALL_LIMIT_MS = { designer: 600_000, coder: 300_000 } as const;
+/** The most one request may write: a designer's whole answer, or one code turn. */
+export const MAX_OUTPUT_TOKENS = { designer: 32768, coder: 16384 } as const;
 // No search: every file the code role needs is named in its task, and real runs spent most turns on empty searches.
 const TOOLS = ['read', 'write', 'edit', 'plugin-checks'] as const;
 const WRITABLE = /^(?:src\/(?!index\.ts$)[a-zA-Z0-9_./-]+\.ts|tests\/[a-zA-Z0-9_./-]+\.ts|package\.json)$/;
@@ -179,7 +184,7 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
             instructionsRef: instructions.ref, tools }).ref);
           abort.signal.throwIfAborted();
           const started = await sdk.startAgentRun({ session, rootRef: authorized.ref, grants: { toolNames: tools, paths: request.role === 'coder' ? ['.'] : [] },
-            start: { protocol: model.protocol, endpoint: model.endpoint, model: model.model, credentialRef, params: { maxOutputTokens: request.role === 'designer' ? 32768 : 16384 },
+            start: { protocol: model.protocol, endpoint: model.endpoint, model: model.model, credentialRef, params: { maxOutputTokens: MAX_OUTPUT_TOKENS[request.role] },
               timeoutMs: options.modelCallTimeoutMs ?? MODEL_CALL_LIMIT_MS[request.role],
               ...(model.prompt_cache && model.prompt_cache !== 'off' ? { promptCache: model.prompt_cache } : {}),
               messages: [{ role: 'user', text: request.task }], ...(images.length ? { attachments: images.map(ref => ({ ref, as: 'original' as const })) } : {}) },

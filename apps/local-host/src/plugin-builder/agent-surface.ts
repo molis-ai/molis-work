@@ -362,7 +362,7 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
     if (!release) return [];
     const surface = 'app-' + release.buildId, label = release.design.title;
     return [{ pluginId: item.plugin_id, surface, label, stage: '<section class="desktop-work-surface pb-surface" data-work-surface="' + surface + '" data-work-surface-label="' + escapeHtml(label) + '" data-installed-plugin="' + escapeHtml(item.plugin_id) + '" hidden>'
-      + '<iframe src="' + escapeHtml(prefix + '/plugins/' + item.plugin_id) + '" title="' + escapeHtml(label) + '" loading="lazy" style="display:block;width:100%;height:100%;min-height:calc(100vh - 64px);border:0;background:#fff"></iframe></section>' }];
+      + '<iframe src="' + escapeHtml(prefix + '/plugins/' + item.plugin_id) + '" title="' + escapeHtml(label) + '" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe></section>' }];
   });
 }
 

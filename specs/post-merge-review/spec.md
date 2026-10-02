@@ -414,6 +414,7 @@
 | PMR-30 | 助理在必应搜索框「输入 Molis Work」后，框里仍是空的；确认卡写「在当前输入框里输入」而不是框名，说明那一刻页面上没有获得焦点的输入框。用户自己在侧栏点框打字正常 | 场景 4 实测一次；驱动先点击，等确认约 10 秒后用 `Input.insertText` 写入当前焦点 | 真实网站上点击与输入之间焦点丢失，原因未查明 | 记入 BACKLOG：用本地页面复现「点击 → 长时间等确认 → 输入」，必要时输入前按坐标重新聚焦 | 交 BACKLOG |
 | PMR-31 | 在待办页发起的助理工作，详情「路径 · 起点」写「待办 / io.molis.work.todo」；在 Coding 页发起的写「Coding / Coding」 | 真实模型复测 PANEL-06 时看到；页面上下文给插件包 id，`surfaceName()` 只按短 id 在左栏找名字，找不到就显示 id | 露出内部 id | 起点只用页面自己的名字；查到的插件名与标题不同、且不是 id 时才写第二行。新增 `tests/assistant-origin-name.e2e.test.ts`，去掉修复时失败 | 修复中 [#162](https://github.com/molis-ai/molis-work/pull/162) |
 | PMR-32 | 带清单的一轮里，助理三次更新步骤都失败（用了「1」「2」「3」，实际编号是 todo-4/5/6），回答却写「三步都已完成（进度清单已更新为全部完成）」；路径如实停在「步骤 0/3」 | 4301 真实模型（MiniMax M3.1）复测 PANEL-08，1 次里 1 次；Prologue 的 todo 工具报 `There is no todo item "1"` | 模型行为；「声称已更新」没有防护 | 记入 BACKLOG（BL-104）：给步骤更新加「编号要照抄」的说明，或认序号；考虑把「声称清单已更新」纳入已有的声称类防护 | 交 BACKLOG |
+| PMR-33 | 插件创作台：主线设计 35 秒给出两个方案；选定后，UI Agent 的「先设计使用路径……」连续两次报 `The operation was aborted due to timeout` | 4301 真实模型（MiniMax M3.1-Flash）复测 BUILDER-02。运行记录显示两次都是开始后整 60 秒被中止：创作台启动 run 时没给单次请求设时限，沿用 Prologue 默认 60 秒。四份 vendored SDK 都是 60 秒，合入前用的 MiniMax-M3 刚好写得完 | 现用模型下 BUILDER-02 的缺口，不是合并引入 | 单次请求时限按角色设定：设计者 300 秒、代码 Agent 180 秒；新增用例，去掉修复时失败。用修复分支的构建复测，同一步约 3.5 分钟完成 | 修复中 [#163](https://github.com/molis-ai/molis-work/pull/163) |
 
 ## 4. 合并缺陷与用户可见重复
 

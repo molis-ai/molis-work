@@ -67,6 +67,7 @@
 | BL-101 | 侧栏浏览器：助理点了必应搜索框、等确认约 10 秒后「输入 Molis Work」，框里仍是空的；确认卡写「在当前输入框里输入」，说明那一刻没有获得焦点的输入框（PMR-30）。用户自己点框打字正常 | [post-merge-review §5 场景 4](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 只在真实网站复现一次，原因未查明 | 无 | 中 | 未分配 |
 | BL-102 | 窗口约 740px 时，助理面板盖住侧栏浏览器里的确认卡（「允许这一次」只露出一半） | [post-merge-review §5 场景 4](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 窄屏布局 | 无 | 中 | 未分配 |
 | BL-103 | 中文对话里，助理的过程文字夹英文句子（「I'll open the page in the sidebar browser.」），结尾还提到会话标识前缀和 `applied: false` | [post-merge-review §5 场景 4](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 模型行为；与 BL-091 同类 | BL-091 | 低 | 未分配 |
+| BL-104 | 带清单的一轮：模型更新步骤时用序号「1」「2」「3」，实际编号是 todo-4/5/6，三次都失败，回答仍写「清单已更新为全部完成」（PMR-32） | [post-merge-review §3 PMR-32](post-merge-review/spec.md#3-问题表) | 已知缺口 | 要么在说明里要求照抄编号，要么让工具认序号（后者在 Prologue）；「声称已更新」是否纳入防护要先看误判 | 无 | 中 | 未分配 |
 
 ## 4. 搜索、放置与工作流
 

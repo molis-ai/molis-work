@@ -106,7 +106,7 @@
 | R-14 | `.impeccable/` 约 1,000 个文件 | 1,067 个 | 仍然成立 |
 | N-02 | 4 份 tgz | 4 份 | 仍然成立；删除要问用户 |
 | N-07 | 二十多个工作树 | 27 个；本会话已清掉自己的 13 个 | 他人的待用户确认 |
-| N-12 | 两套能力机制 | `HostCapabilityDefinition` 18 个源码文件；`registerCapability` 10 处；动作服务 `registerProvider` 45 处 | 仍然成立 |
+| N-12 | 两套能力机制 | `HostCapabilityDefinition` 18 个源码文件；`registerCapability` 10 处；动作服务 `registerProvider` 45 处。`LocalHost.register()`（`apps/local-host/src/local-host.ts:121`）分两路：定义带 `action` 的交给 `ActionService.registerProvider`，与插件能力同一条路；不带的进 `CapabilityRegistry`，经 `LocalHost.invoke()` 调用，自带 `host_only` 可用性、提供方令牌与 `beforeEffect` 校验，是第二条路径 | 仍然成立。收敛方案：不带 `action` 的宿主能力也登记为动作（`host_only` 改成动作的可用性策略），删掉 `CapabilityRegistry` 直调分支，`LocalHost.invoke()` 改走动作服务 |
 | N-13 | 没有格式化与静态检查 | 没有 lint/format 配置与脚本 | 仍然成立 |
 | N-15 | 兼容逻辑大量存在 | 见 §4 | 仍然成立 |
 | N-16 | 测试串行 | `scripts/run-tests.mjs` 仍用 `--test-concurrency=1` | 仍然成立 |

@@ -83,6 +83,7 @@
 | BL-044 | 跨项目库对象的移动（Goals、Feed、Inbox、Artifacts、Schedule、Coding） | [work-placement §9](archive/work-placement/spec.md) | 明确后续做 | 各项目独立库，涉及事件历史与所有权 | 无 | 低 | 未分配 |
 | BL-045 | 问卷外网公开链接与托管填写；PPT 富排版（图片、图表、母版） | [work-placement §9](archive/work-placement/spec.md) | 明确后续做 | 与本机优先定位不符 / 非本期 | 无 | 低 | 未分配 |
 | BL-046 | 图片插件真实厂商生成未测；图生图、蒙版编辑、多图批处理、厂商异步协议 | [work-placement §13](archive/work-placement/spec.md)、[images-plugin](archive/images-plugin/spec.md) | 明确后续做 | 本机没配图像厂商 | 无 | 低 | 未分配 |
+| BL-112 | 全局搜索：工具行先出现，内容结果稍后到达并排在上面，结果在指针下移动，刚瞄准的一行可能被挤开（产品动线用例因此间歇失败，用例已改为等结果稳定） | [post-merge-review §6.1](post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02) | 已知缺口 | 「内容在前」是搜索的设计；可改为给内容预留位置，或已显示的行不再移动，要搜索负责人定 | 无 | 低 | 未分配 |
 
 ## 5. 插件
 

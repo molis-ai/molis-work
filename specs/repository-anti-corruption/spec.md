@@ -218,6 +218,38 @@
 
 搜索索引这种可以从权威数据重建的派生库，版本不符时重建，不算兼容。
 
+**执行顺序**（每步一个 PR）：
+
+1. `packages/storage` 加一个共用的打开函数，例如 `openBaselineSqlite(home, name, { version, schema })`：
+   - 新库：执行基线建库语句，写入版本号（`PRAGMA user_version`）；
+   - 版本相同：直接打开；
+   - 版本不同：抛出明确的错误，带库路径、期望版本和处理办法，不就地升级。
+2. 按库替换，每个库只留一份当前 schema。Home 级库的打开处（main 16879b22）：
+
+   | 库 | 打开处 |
+   | --- | --- |
+   | `agent-definitions` | `apps/local-host/src/agent-definitions/agent-definitions.ts:315` |
+   | `assistant`（助理与记忆宿主共用） | `assistant/assistant-http.ts:41`、`memory/memory-host.ts:256` |
+   | `connectors` | `connector-authorization-status.ts`、`connector-connection-store.ts`、`connector-protocol-store.ts` |
+   | `context-onboarding` | `context-onboarding-store.ts` |
+   | `placement` | `placement-actions.ts` |
+   | `functions` | `modules/functions/src/store.ts:460` |
+   | 记忆账本 | `packages/storage/src/adapters/memory-ledger.ts` |
+   | 搜索索引 | `text-search-index.ts`（派生库，不符就重建） |
+   | 插件库 | cognia、dataset、form、images、jelly、lingguang、pages、ppt、todo、workflows 各自的 `src/store.ts` |
+
+3. 项目库 `projects/<id>/molis-work.db` 由多个 Module 的建库语句经 `catalog-migrations`、`project-migrations` 依次组成，最后做：
+   - 各 Module 只交出当前 schema；
+   - 宿主一次建库、写版本；
+   - 删掉迁移链与 `tooling/migrations/`。
+4. 真实 Home（用户选「保留并升级」）：
+   1. 整份备份 `~/.molis-work`；
+   2. 停掉 4207 与常驻服务 4173；
+   3. 用删除前的代码打开一次，让它升到最新；
+   4. 用新代码在临时目录建一个基线库，逐表比对两者的表、列、索引、约束与版本号；
+   5. 一致后才合入删除迁移代码的 PR；
+   6. 合入后用新代码打开真实 Home，确认版本相符、不被拒绝。
+
 真实 Home 要先按用户的决定备份、升级或重建，才能删兼容代码（§4.1「真实 Home 的安全」）。
 
 ## 5. 包级清单（§4.4）

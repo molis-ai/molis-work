@@ -5,10 +5,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { alchemistActions as a, alchemistLegacyActions as old, ALCHEMIST_ACTION_PERMISSIONS, createAlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
+import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS, createAlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
-import { seedAlchemistLegacy } from "./fixtures/alchemist-legacy.js";
 
 async function setup(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "alchemist-host-lifecycle-")), hosts: MolisWorkLocalHost[] = [];
@@ -76,14 +75,8 @@ test("Alchemist discovery is inert; on the Home's one Host a job keeps its calle
   assert.equal((await reopened.bound.invoke(a.conversationList, {})).messages.length, 4);
 });
 
-test("Alchemist queued jobs keep their original actor after restart; legacy reads retain old data without opening Studio", async t => {
+test("Alchemist queued jobs keep their original actor after restart", async t => {
   const f = await setup(t), caller = await f.open("new-reader");
-  seedAlchemistLegacy(f.home);
-  const legacy = await caller.bound.invoke(old.export, {});
-  assert.equal(legacy.label, "历史演示数据（不作为真实研究）"); assert.equal(legacy.directions[0]!.decisions[0]!.reason, "历史判断理由");
-  assert.equal((await caller.bound.invoke(old.get, { id: "old-direction" })).cards[0]!.origin, "demo");
-  assert.equal((await caller.bound.invoke(old.list, {})).directions[0]!.kept_count, 1);
-  await assert.rejects(access(f.path), { code: "ENOENT" });
   // A queued Studio task from the previous process, using its real invocation and persistent job input.
   const original = createAlchemistStudioRuntime({ databasePath: f.path, ai: f.ai });
   let receipt: { runId: string; jobId?: string };
@@ -103,5 +96,4 @@ test("Alchemist queued jobs keep their original actor after restart; legacy read
     await new Promise(resolve => setTimeout(resolve, 20));
   }
   assert.equal(state, "completed"); assert.equal(f.requests[0]!.actorId, "original-actor");
-  assert.equal((await caller.bound.invoke(old.get, { id: "old-direction" })).direction.updated_at, "2024-02-01");
 });

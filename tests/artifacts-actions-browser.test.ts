@@ -32,8 +32,9 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
     if (exact) assert.deepEqual(reference, exact, "repeated import keeps the same stored version");
     exact = reference;
     await navigate(() => click("[data-import-result-link]"));
-    assert.match(await evaluate<string>("document.body.innerText"), /浏览器原始文档/);
-    assert.match(await evaluate<string>("document.body.innerText"), /通过同一能力保存与读取/);
+    // The version's address opens the workbench on that version.
+    await waitFor("document.body.dataset.desktopSurface === 'artifacts' && (document.querySelector('[data-artifact-detail]')?.innerText ?? '').includes('浏览器原始文档')", 15_000);
+    assert.match(await evaluate<string>("document.querySelector('[data-artifact-detail]').innerText"), /通过同一能力保存与读取/);
     const exported = await evaluate<any>(`fetch(${JSON.stringify(prefix + `/api/artifacts/${encodeURIComponent(exact.artifact_id)}/versions/1/export`)}).then(r=>r.json())`);
     assert.equal(exported.payload.content, content); assert.equal(exported.version, 1);
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);

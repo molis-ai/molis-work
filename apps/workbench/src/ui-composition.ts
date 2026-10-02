@@ -2,7 +2,7 @@ import { COGNIA_UI_CONTRIBUTION_ID, type CogniaUiModel } from "@molis-ai/molis-w
 import { IMAGES_UI_CONTRIBUTION_ID, type ImagesUiModel } from "@molis-ai/molis-work-plugin-images";
 import { JELLY_UI_CONTRIBUTION_ID, type JellyUiModel, type JellyUiSurface } from "@molis-ai/molis-work-plugin-jelly";
 import { EXPERIMENTS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-experiments";
-import { THEME_BOOTSTRAP_SCRIPT, icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { THEME_BOOTSTRAP_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import type {
   UiRenderRequest,
   UiSlotDescriptor,
@@ -74,7 +74,7 @@ import {
 import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
-import { createArtifactWorkbenchRenderer, type ArtifactImportWorkbenchRequest, type ArtifactWorkbenchRequest } from "./artifact-ui.js";
+import { createArtifactWorkbenchRenderer, type ArtifactImportWorkbenchRequest } from "./artifact-ui.js";
 import { createGoalsContextWorkbenchRenderer } from "./goals-context-ui.js";
 import { createGoalsDecisionResultsWorkbenchRenderer } from "./goals-decision-results-ui.js";
 import { createGoalsDialogsWorkbenchRenderer } from "./goals-dialogs-ui.js";
@@ -410,16 +410,6 @@ export function renderShelfSettingsContribution(model: ShelfSettingsUiModel): st
 
 export function listWorkbenchUiContributions() {
   return workbenchUiHost.list();
-}
-
-export function renderArtifactWorkbenchPage(
-  request: Omit<ArtifactWorkbenchRequest, "headHtml" | "backIconHtml" | "iconSpriteHtml"> & { nativeDesktopBootstrapScript: string },
-): string {
-  return artifactWorkbench.page({
-    ...request,
-    headHtml: `<script>${THEME_BOOTSTRAP_SCRIPT}${request.nativeDesktopBootstrapScript}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css">`,
-    backIconHtml: icon("arrow"), iconSpriteHtml: renderIconSprite(),
-  });
 }
 
 export function renderArtifactImportPage(

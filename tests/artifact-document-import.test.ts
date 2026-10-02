@@ -48,12 +48,13 @@ async function fixture(t: test.TestContext) {
   const rawPost = (body: string | Buffer, requestHeaders: Record<string, string>) => fetch(origin + "/api/artifacts/import", {
     method: "POST", headers: requestHeaders, body,
   });
-  const get = (path: string, extraHeaders: Record<string, string> = {}) => fetch(origin + path, { headers: { "accept-language": "zh", ...extraHeaders } });
-  return { store, coordinator, post, rawPost, get, headers, restart: async () => { await stop(); await start(); } };
+  // The 成果 surface as the workbench reads it; a person's direct visit is redirected into the workbench (checked below).
+  const get = (path: string, extraHeaders: Record<string, string> = {}) => fetch(origin + path, { headers: { "accept-language": "zh", "x-molis-work-fragment": "artifact-workbench", ...extraHeaders } });
+  return { store, coordinator, post, rawPost, get, headers, origin, restart: async () => { await stop(); await start(); } };
 }
 
 test("document file HTTP import registers, previews, exports, reuses and survives restart", async t => {
-  const { store, coordinator, post, get, restart } = await fixture(t);
+  const { store, coordinator, post, get, origin, restart } = await fixture(t);
   const before = store.snapshot(DEMO_BOARD_ID);
   const page = await get("/artifacts/import");
   assert.equal(page.status, 200);
@@ -76,6 +77,10 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   assert.equal(artifact.content_kind, "inline");
   assert.equal((artifact.payload as Record<string, unknown>).content, markdown);
   assert.equal((artifact.metadata as Record<string, unknown>).source, "file");
+  const direct = await fetch(origin + imported.url, { redirect: "manual" });
+  assert.equal(direct.status, 302, "a direct visit opens the workbench");
+  assert.equal(new URL(direct.headers.get("location")!, origin).searchParams.get("openItem"), imported.url);
+  await direct.text();
   const detail = await get(imported.url);
   assert.equal(detail.status, 200);
   const html = await detail.text();
@@ -341,7 +346,7 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
     assert.equal(result.version, 1);
     assert.equal(result.reused, false);
     assert.equal(result.url, `${prefix}/artifacts/${encodeURIComponent(result.artifact_id)}/versions/1`);
-    const detail = await fetch(origin + result.url);
+    const detail = await fetch(origin + result.url, { headers: { "x-molis-work-fragment": "artifact-workbench" } });
     assert.equal(detail.status, 200);
     const html = await detail.text();
     assert.ok(html.includes(content));
@@ -358,7 +363,7 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
   for (const [own, other] of [[imported[0]!, imported[1]!], [imported[1]!, imported[0]!]]) {
     const foreignPath = `/artifacts/${encodeURIComponent(other.artifact_id)}/versions/1`;
     for (const path of [own.prefix + foreignPath, `${own.prefix}/api${foreignPath}/export`]) {
-      const response = await fetch(origin + path);
+      const response = await fetch(origin + path, { headers: { "x-molis-work-fragment": "artifact-workbench" } });
       assert.equal(response.status, 404, path);
       assert.ok(!(await response.text()).includes(content), "a foreign exact-version reference must not reveal the document body");
     }

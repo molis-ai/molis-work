@@ -44,6 +44,7 @@
 | BL-021 | macOS 公开发布：是否申请 Developer ID 与公证 | [macos-desktop-release](archive/macos-desktop-release/spec.md) | 外部账号与费用 | 低 |
 | BL-022 | 多人协作项目里项目记忆的可见性；团队共享记忆 | [memory-system §3、§15](archive/memory-system/spec.md) | 等协作能力定型 | 低 |
 | BL-023 | Coding 会话的执行目录（项目偏好）与 Files/Git 浏览目录（项目设置）是否合成一个 | [coding-plugin/spec.md 第 0 节「仍未做到」](coding-plugin/spec.md) | 设计取舍 | 中 |
+| BL-024 | 侧栏界面控制与平台记忆的 Prologue 提交（`9fc3b173` 等）是否推到 prologue 远端 | [vendor/prologue-sdk/README.md](../vendor/prologue-sdk/README.md) | 推 Prologue 上游需要用户同意 | 低 |
 
 ## 3. 助理、记忆与动态交互
 
@@ -59,6 +60,14 @@
 | BL-037 | 记忆：自动写入默认开，若实测误记多改为默认「先问我」；提炼成本单独记账 | [memory-system §15](archive/memory-system/spec.md) | 已知缺口 | 待实测数据 | 无 | 低 | 未分配 |
 | BL-038 | 动态交互待定：容器是否原生支持分组；渲染预算 1.5 秒与阈值 τ 用真实 Jev 延迟定；其他插件片段动作的第一批名单 | [contextual-interaction §14](archive/contextual-interaction/spec.md) | 待你决定 | 需真实数据 | 无 | 低 | 未分配 |
 | BL-039 | 动态交互：Goals、Inbox 没有对象声明；除 Pages 外的插件没有片段级动作 | [contextual-interaction §13](archive/contextual-interaction/spec.md)、[plugin-e2e-review §5.1](archive/plugin-e2e-review/spec.md) | 部分实现 | Feed、炼金术士方向与实验已补，其余未做 | 各插件 | 中 | 未分配 |
+| BL-089 | MiniMax M3.1 把数组参数写成 `{item: …}`（待办的 `sources`、提问工具的 `options` 都碰到过）：网关按合同拒绝，模型有时自己改对，有时连续失败到上限。可以按 schema 把 `{item: X}` 归一成数组，与已有的数字、是否归一同类 | [post-merge-review §5 场景 1](post-merge-review/spec.md) | 已知缺口 | 本步不新增兼容处理 | 无 | 中 | 未分配 |
+| BL-090 | 开发者诊断把「输入不合能力合同」的失败记成 `EFFECT_NOT_AUTHORIZED`，看不出真实原因 | [post-merge-review §5 场景 1](post-merge-review/spec.md)（`/api/assistant/diagnostics`） | 已知缺口 | 只影响开发者诊断页 | 无 | 低 | 未分配 |
+| BL-091 | 助理过程中的文字会露出内部标识（如 `todo.items.create`、`change-reversible`、分类 id `uncategorized`）；现有防护只检查最后的回复 | [post-merge-review §5 场景 1](post-merge-review/spec.md) | 已知缺口 | 需定过程文字是否也要拦 | 无 | 低 | 未分配 |
+| BL-093 | 记忆候选误提炼：一句一次性的「记一下：要把评审会的会议纪要发给全组」被提成项目范围的「以后把评审会的会议纪要发给全组」待确认候选 | [post-merge-review §5 场景 2](post-merge-review/spec.md) | 已知缺口 | 候选需要用户认可，不会直接生效；提炼规则要区分一次性事项与长期偏好 | 无 | 低 | 未分配 |
+| BL-101 | 侧栏浏览器：助理点了必应搜索框、等确认约 10 秒后「输入 Molis Work」，框里仍是空的；确认卡写「在当前输入框里输入」，说明那一刻没有获得焦点的输入框（PMR-30）。用户自己点框打字正常 | [post-merge-review §5 场景 4](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 只在真实网站复现一次，原因未查明 | 无 | 中 | 未分配 |
+| BL-102 | 窗口约 740px 时，助理面板盖住侧栏浏览器里的确认卡（「允许这一次」只露出一半） | [post-merge-review §5 场景 4](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 窄屏布局 | 无 | 中 | 未分配 |
+| BL-103 | 中文对话里，助理的过程文字夹英文句子（「I'll open the page in the sidebar browser.」），结尾还提到会话标识前缀和 `applied: false` | [post-merge-review §5 场景 4](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 模型行为；与 BL-091 同类 | BL-091 | 低 | 未分配 |
+| BL-104 | 带清单的一轮：模型更新步骤时用序号「1」「2」「3」，实际编号是 todo-4/5/6，三次都失败，回答仍写「清单已更新为全部完成」（PMR-32） | [post-merge-review §3 PMR-32](post-merge-review/spec.md#3-问题表) | 已知缺口 | 要么在说明里要求照抄编号，要么让工具认序号（后者在 Prologue）；「声称已更新」是否纳入防护要先看误判 | 无 | 中 | 未分配 |
 
 ## 4. 搜索、放置与工作流
 
@@ -85,6 +94,14 @@
 | BL-056 | 规划方法：更多行业按单文件扩充 | [planning-method-markdown-catalog](archive/planning-method-markdown-catalog/spec.md) | 明确后续做 | 首批只为验证机制 | 无 | 低 | 未分配 |
 | BL-057 | Cognia：LLM Wiki 专有格式（当前按通用 Markdown Wiki 接入） | [cognia-plugin](archive/cognia-plugin/spec.md) | 明确后续做 | 用户未指定实现 | 无 | 低 | 未分配 |
 | BL-058 | 插件市场的上架与审核流程（市场只列本地注册表） | [plugin-platform-v2「不做」](plugin-platform-v2/spec.md) | 明确后续做 | 非本期 | 无 | 低 | 未分配 |
+| BL-092 | 从助理结果打开 Jelly 日程时，侧栏「文件」标签写「这个文件所在的插件没有向侧栏提供文件」：日程被叫成文件，Jelly 也没有给侧栏提供预览 | [post-merge-review §5 场景 1](post-merge-review/spec.md) | 已知缺口 | 「在插件中打开」可用（#146 修好后能直接打开到这条日程） | #146 | 低 | 未分配 |
+| BL-094 | Feed 的失败提示：来源返回 403 时写「未取得可信终态」；失败卡片带成功图标并露出原码 `protocol_invalid`；同一个错误出现两个提示框；上一个表单的错误带到另一个表单 | [post-merge-review §5 场景 3](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 不是合并引入；Feed 体验整理 | 无 | 中 | 未分配 |
+| BL-095 | Feed 添加来源：提交按钮写「创建任务」；来源目录把已知会被网站防火墙拦下的 36氪 当作默认选项 | [post-merge-review §5 场景 3](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 同上 | 无 | 低 | 未分配 |
+| BL-096 | Feed 详情与搜索摘要露出内部值：作者写 `exact-1`，标签写 `feed-source:feed-source-<十六进制>` | [post-merge-review §5 场景 3](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 同上 | 无 | 中 | 未分配 |
+| BL-097 | 首次打开慢：Feed 第一条详情约 8 秒；从 Inbox「打开待办」后舞台空白约 5 秒才出现待办 | [post-merge-review §5 场景 3](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 要先量插件首次加载的耗时分布 | 第二步性能基线 | 中 | 未分配 |
+| BL-098 | 「今天的工作」把同步来的 20 条 Feed 消息都列为「个人」事件（「今天接到 22 件事」），项目里的 Feed 也算作个人 | [post-merge-review §5 场景 3](post-merge-review/spec.md#5-跨功能场景) | 待你决定 | 首页事件应列哪些、怎么归属，属于产品取舍 | 无 | 中 | 未分配 |
+| BL-099 | 用 `?openPlugin=market` 打开插件市场时，标签和窗口标题写 `market`（从界面入口打开正常，产品里没有生成这种链接） | [post-merge-review §5 场景 3](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 只在手写地址时出现 | 无 | 低 | 未分配 |
+| BL-100 | Coding：停止一轮时，还没批准的写文件显示「修改文件 … — 结果未确认」，其实确定没有执行 | [post-merge-review §5 场景 4](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 文案与状态映射 | 无 | 低 | 未分配 |
 
 ## 6. 连接、来源与 Onboarding
 
@@ -117,3 +134,4 @@
 | BL-085 | 插件复查遗留：Promote 无 Artifact 口仍写 `goal_id`；Functions 并发锁只覆盖草稿与发布；HTTP 别名、目录面、Workbench 注册手写 | [personal-plugins-review-fixes](archive/personal-plugins-review-fixes/spec.md) | 已知缺口 | 中 |
 | BL-086 | 左侧插件栏（`plugin-rail-items`）在统一底栏改版后是否已成死代码 | [plugin-rail-selection-align](archive/plugin-rail-selection-align/spec.md) | 已知缺口 | 低 |
 | BL-087 | 端口默认连线按插件名写死（D-04 选 C 短期保留）；有第三方端口插件时改为 Manifest 声明 `default_source` | [repository-systematic-review §9 D-04](archive/repository-systematic-review/spec.md) | 明确后续做 | 中 |
+| BL-088 | 个人插件在项目里「移除」即在该项目停用：动作拒绝、搜索来源停用、助理与 MCP 调不到，数据不删、加回即恢复（用户 2026-10-01 决定） | [合入后审查 PMR-15、§9](post-merge-review/spec.md#9-决策记录与待决事项) | 明确后续做 | 高 |

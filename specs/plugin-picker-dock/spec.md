@@ -1,6 +1,6 @@
 # 插件切换器：一张网格管「装没装」和「常驻 Dock」
 
-状态：已实现，等用户验收（2026-10-02；同日用户看过第一版后追加两条：①插件市场与插件创作工作台移到切换器最上面、做成两个独立按钮；②移除用红色垃圾桶代替 ×）。用户 2026-10-01 提出：切换器里「常驻在 Dock」的长列表与上面的插件网格合成一份，每个插件末尾加按钮；没装的置灰，装了的有颜色；后面要能去除；按钮照 DropAgent 目录行那样，悬停才出现，动效舒服；添加和移除要无感刷新。按钮样式用设计系统的 `mw-btn`（浅灰次按钮、深色主按钮）。
+状态：已实现，等用户验收（2026-10-02；同日用户看过第一版后追加：①插件市场与插件创作工作台移到切换器最上面、做成两个独立按钮；②移除用红色垃圾桶代替 ×；③Feed 与 Coding 也要无感，做进同一个 PR）。用户 2026-10-01 提出：切换器里「常驻在 Dock」的长列表与上面的插件网格合成一份，每个插件末尾加按钮；没装的置灰，装了的有颜色；后面要能去除；按钮照 DropAgent 目录行那样，悬停才出现，动效舒服；添加和移除要无感刷新。按钮样式用设计系统的 `mw-btn`（浅灰次按钮、深色主按钮）。
 
 ## 背景与目标
 
@@ -31,12 +31,12 @@
 4. 移除要确认一次：第一次点，条目的第二行换成「再点一次移除；同时移除：…」，叉变红，3 秒不点自己收回；添加时的伴随插件写在按钮提示里，装完提示一次。
 5. 键盘：切换器仍是一个 Tab 停靠点；→ 进入这一行的按钮，← 回到条目，↑ ↓ 在同类按钮间走。
 6. 市场的添加 / 移除，在当前项目上走同一个就地流程。
+7. Feed 与 Coding 也就地：目录里 Feed 的一节（含来源目录）、设置列表里 Coding 的一行随插件进出；Feed 在每个项目页里都有的两张页（Feed、来源）按服务端当下渲染的填上，接上来源目录的搜索与键盘，页面自己记的目录清单同步；`RELOAD_ON_MEMBERSHIP_IDS` 清空。
 
 不做：
 
 - 不改领域规则：加上伴随插件、移除时连带依赖它的插件，仍由 Projects 服务决定。
 - 不改个人插件「移除」的语义（用户 2026-10-01 定为停用，BL-088，第二步统一装配时实现）；这里的文案只说「从本项目移除」，不承诺更多。
-- Feed、Coding 的添加 / 移除仍整页刷新一次（见下）。
 - 工作室里装的运行时插件（`installed`）只有常驻按钮：从项目里拿掉是创作台的事。
 
 ## 方案与关键决策
@@ -47,7 +47,9 @@
 - **头部**：`.plugin-picker-head` 里是搜索和 `.plugin-picker-extend`（`data-global-menu`，客户端按它找市场与创作工作台、标当前页）。两个按钮是 `mw-btn mw-btn--secondary mw-btn--sm`（按钮高 34px，与搜索同高），图标 + 名字，市场按钮里带更新数；当前页（`aria-current`）是淡底加描边。窗口里头部 `position: sticky`，长列表在它下面滚动，滚到的条目用 `scroll-padding-top` 避开它；手机上搜索占一行、两个按钮平分下一行，每个 44px，头部随列表滚走。点它们和点条目一样，打开页面并收起切换器。没有创作工作台插件的项目只有市场一个按钮。
 - **让位**：`.plugin-rail-tile:is(:hover, :focus-within, .is-confirming)` 时条目 `padding-right` 即刻让出 72px（不动画，不重排），按钮 `opacity 0→1`（130ms）并从右侧 8px 滑入（250ms），第二个晚 32ms。没有指针的设备按钮常在。
 - **就地更新**：只读、不整页替换。条目逐个按服务端当下渲染的属性对齐（客户端自己的状态——常驻、询问中、忙——不动）；`[data-surface-pool]` 里多出的舞台页插入、少了的撤掉（撤之前让显示它的窗格先退回）；对话框里选项的 `data-*-mode` 对齐。结束后用 `molis-work:plugins-changed` 通知 Dock 重画（保持已有的钉子，新的弹入，走的缩出）。
-- **什么时候退回整页刷新**：加或减的插件在 `RELOAD_ON_MEMBERSHIP_IDS`（Feed 的目录栏、Coding 的设置行在页面加载时一次接上，目前是这两个）；目录栏或设置行的条目与服务端不一致；对齐后的结果与服务端不一致；读页面失败。刷新前先 `saveUiState()`。
+- **目录的节与设置的行**：`.directory-content-scroll` 里按 `data-plugin-section` 对齐（Feed 的一节随插件进出，含 `[data-directory-panel=sources]`），设置列表（全局、项目）里按 `data-settings-section` 对齐（Coding 的 `coding-settings`），都插在服务端把它放的位置；带走的行如果正被设置页显示，列表退回第一节并丢掉它的缓存（`settingsDirectory.leave`）。之后页面记的目录清单（`desktopDirectoryPanels`）同步、目录所在位置重新校验（带走的目录退回根）。
+- **Feed**：Feed 的两张页（`feed`、`sources`）在没有 Feed 的项目里也在页面里，只是空壳，有 Feed 时才填满来源（列表、来源页、添加来源面板）。事件 `molis-work:plugins-changed` 把读到的页面交给 Feed（`adoptFeed`）：把 `[data-feed-source-header]`、`[data-feed-list]`、`[data-feed-sources-dialog]`、`[data-source-workbench]` 四个容器的内容换成服务端的（容器不换，绑在它们上面的监听、页面缓存的节点引用都还有效，`hidden` 等状态也不动），重新找到启动时缓存的那批节点（`findFeedNodes`），给新出现的来源目录接上搜索与键盘（`bindSourceDirectory`，只接一次），再按页面启动时的做法把状态摆好。失败就让整页刷新兜底。
+- **什么时候退回整页刷新**：加或减的插件在 `RELOAD_ON_MEMBERSHIP_IDS`（现在为空；以后有页面部件只能在加载时接上的插件，列在这里）；目录的节、设置的行、侧栏页签与服务端不一致；对齐后的结果与服务端不一致；Feed 接上时出错；读页面失败。刷新前先 `saveUiState()`。
 - **乐观**：点下去条目立刻换样；服务端拒绝则换回并提示。同一时刻只处理一个变更。
 
 ## 输入输出与依赖
@@ -56,7 +58,7 @@
 
 ## 文件 / 模块边界
 
-允许：`apps/workbench/src/{immersive-shell,plugin-catalog}.ts`、`scripts/client/{plugin-membership,navigation-presentation,immersive-navigation,plugin-workbench,initialization}.ts`、`packages/design-system/src/styles/craft-finish.ts`、`i18n/gap-en.ts`、相关测试、`DESIGN.md`。
+允许：`apps/workbench/src/{immersive-shell,plugin-catalog}.ts`、`scripts/client/{plugin-membership,navigation-presentation,immersive-navigation,plugin-workbench,initialization,bootstrap,events-primary,navigation-feed,settings-directory}.ts`、`packages/design-system/src/styles/craft-finish.ts`、`i18n/gap-en.ts`、相关测试、`DESIGN.md`。
 禁止：Projects 服务规则、插件运行时、凭据。
 
 ## 验收标准
@@ -68,7 +70,7 @@
 5. 点 ＋（没装的）：条目变色、变成可打开、加号换成红色垃圾桶，页面**不刷新**（页内变量还在）；点开那个插件正常加载。
 6. 点垃圾桶：第一次只出现确认（垃圾桶填成红色），行不变；3 秒不点、点别处、按 Esc 都收回；第二次移除：条目变灰、Dock 里的钉子走掉、正显示它的窗格退回，页面**不刷新**；连带移除的插件一起变灰并在确认里写明。
 7. 添加带伴随插件时，装完提示「同时添加了：…」。
-8. 加或减 Feed / Coding 仍整页刷新一次，刷新前保存页面状态。
+8. 加或减 Feed / Coding **也不刷新**：Feed 的一节与来源目录出现 / 消失，来源列表、来源页与添加面板填上 / 清空，来源目录的搜索与方向键可用，再加一次仍可用；Coding 的设置行出现 / 消失，点它能载入 Coding 的设置并接上，带走时设置页退回第一节。命名在 `RELOAD_ON_MEMBERSHIP_IDS` 里的插件仍整页刷新一次，刷新前保存页面状态。
 9. 市场里对当前项目的添加 / 移除走同一个就地流程，市场卡片状态随之更新。
 10. 键盘：Tab 进切换器是一个停靠点；→ 进入这一行的按钮，← 回条目，↑ ↓ 在同类按钮之间走；Esc 先收回确认，再关切换器。
 11. `prefers-reduced-motion`：过渡为 0s，状态仍切换。
@@ -86,5 +88,4 @@ pnpm boundary:check
 
 ## 假设与开放问题
 
-- Feed、Coding 的页面部分在加载时一次接上；把它们改成可以随时接上、撤下之后，从 `RELOAD_ON_MEMBERSHIP_IDS` 里删掉对应的 id 即可，别处不用改。
 - 个人插件移除后的真正停用（动作拒绝、搜索与助理不可用）见 BL-088，不在这里。

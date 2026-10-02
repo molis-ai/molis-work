@@ -225,21 +225,120 @@ test("a plugin that brings a stage page gets it in place, and takes it away agai
   assert.equal(await stayed(), true, "still in place");
 });
 
-test("Feed's and Coding's page parts are wired when the page loads, so they bring the page back once, with its state kept", async t => {
+test("a plugin that cannot change in place still brings the page back once, with its state kept (the way out)", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, press } = b;
-  assert.deepEqual(await evaluate<string[]>("document.querySelector('.plugin-rail-items').dataset.reloadPlugins.split(' ')"), ["feed", "coding"]);
-  await press(`${tile("feed")} [data-plugin-toggle]`);
-  // The page is loaded again under the test: ask until a page that has Feed answers.
+  // None is named today; the list the switcher carries is what the client reads, so naming one makes it take the way out.
+  assert.equal(await evaluate("document.querySelector('.plugin-rail-items').dataset.reloadPlugins"), "", "no plugin is named");
+  await evaluate("document.querySelector('.plugin-rail-items').dataset.reloadPlugins = 'schedule'");
+  await press(`${tile("schedule")} [data-plugin-toggle]`);
+  // The page is loaded again under the test: ask until a page that has the plugin answers.
   const deadline = Date.now() + 20_000;
   let back = false;
   while (!back && Date.now() < deadline) {
-    back = await evaluate<boolean>("window.__stayed === undefined && document.readyState === 'complete' && Boolean(document.querySelector('[data-plugin-tile=\"feed\"]')) && !document.querySelector('[data-plugin-tile=\"feed\"]').classList.contains('is-available')").catch(() => false);
+    back = await evaluate<boolean>("window.__stayed === undefined && document.readyState === 'complete' && Boolean(document.querySelector('[data-plugin-tile=\"schedule\"]')) && !document.querySelector('[data-plugin-tile=\"schedule\"]').classList.contains('is-available')").catch(() => false);
     if (!back) await quiet(150);
   }
-  assert.ok(back, "the page came back with Feed in the project");
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-directory-panel=\"sources\"], [data-plugin-section=\"feed\"]'))"), true, "Feed came with its directory");
+  assert.ok(back, "the page came back with the plugin in the project");
+});
+
+test("Feed comes in place: its pages fill, its source directory joins the directory and answers; and it goes again, and comes again", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, press, settled, stayed, waitFor, click } = b;
+  type Feed = { section: boolean; rows: number; details: number; header: number; choices: number; panels: string[] };
+  const feed = () => evaluate<Feed>(`({
+    section: Boolean(document.querySelector('.directory-content-scroll > [data-plugin-section="feed"]')),
+    rows: document.querySelectorAll('[data-source-list] [data-source-entry-id]').length,
+    details: document.querySelectorAll('[data-source-workbench] [data-source-detail]').length,
+    header: document.querySelectorAll('[data-feed-source-header] [data-feed-task-toggle]:not([data-feed-task-toggle="all"])').length,
+    choices: document.querySelectorAll('[data-feed-sources-dialog] [data-feed-choose-kind]').length,
+    panels: [...document.querySelectorAll('[data-directory-panel]')].map(panel => panel.dataset.directoryPanel),
+  })`);
+  // The directory answers (its filter, its list and its add button reach what was found when it came), and the add button opens
+  // the setup panel, which is the page's own.
+  const probe = () => evaluate<{ hidden: boolean; empty: boolean; count: string; back: boolean; moved: boolean; setup: string; closed: boolean }>(`(async () => {
+    // The page's click handler is asynchronous: what a click does is read a moment after it.
+    const wait = () => new Promise(resolve => setTimeout(resolve, 150));
+    const rows = () => [...document.querySelectorAll('[data-source-list] [data-source-entry-id]')];
+    document.querySelector('[data-source-filter="public"]').click(); await wait();
+    const hidden = rows().every(row => row.hidden);
+    const empty = document.querySelector('[data-source-empty]').hidden === false;
+    const count = document.querySelector('[data-source-result-count]').textContent;
+    document.querySelector('[data-source-filter="all"]').click(); await wait();
+    const back = rows().every(row => !row.hidden);
+    rows()[0].focus(); rows()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); await wait();
+    const moved = rows()[1].classList.contains('is-selected');
+    document.querySelector('[data-source-directory] [data-feed-sources-open]').click(); await wait();
+    const setup = document.querySelector('[data-feed-workbench]').dataset.feedView + ':' + String(document.querySelector('[data-feed-sources-dialog]').hidden);
+    document.querySelector('[data-feed-sources-dialog] [data-feed-sources-close]').click(); await wait();
+    return { hidden, empty, count, back, moved, setup, closed: document.querySelector('[data-feed-sources-dialog]').hidden };
+  })()`);
+  const before = await feed();
+  assert.deepEqual({ section: before.section, rows: before.rows, details: before.details, header: before.header }, { section: false, rows: 0, details: 0, header: 0 }, "not in the project: the pages are empty shells and the directory has no section");
+  assert.ok(!before.panels.includes("sources"));
+  for (const round of ["comes", "comes again"]) {
+    await press(`${tile("feed")} [data-plugin-toggle]`);
+    await settled("feed");
+    assert.equal(await stayed(), true, `Feed ${round}: no reload`);
+    const came = await feed();
+    assert.equal(came.section, true, `Feed ${round}: its section is in the directory`);
+    assert.ok(came.rows >= 2 && came.details === came.rows && came.header === came.rows, `its sources are listed, paged and in the header: ${JSON.stringify(came)}`);
+    assert.ok(came.choices > 0, "and the setup panel offers what to add");
+    assert.ok(came.panels.includes("sources"), "the page's list of directory panels knows the source directory");
+    const answered = await probe();
+    assert.deepEqual({ hidden: answered.hidden, empty: answered.empty, back: answered.back }, { hidden: true, empty: true, back: true }, "a filter narrows the list, says so, and lets go");
+    assert.match(answered.count, /0/, "and counts it");
+    assert.equal(answered.moved, true, "an arrow moves the selection");
+    assert.match(answered.setup, /^add:false$/, "the add button opens the setup panel, which is the page's own");
+    assert.equal(answered.closed, true, "and it closes");
+    // Its page: the entry opens Feed.
+    await click(`${tile("feed")} > .plugin-rail-item`);
+    await waitFor("document.body.dataset.desktopSurface === 'feed' && !document.querySelector('[data-work-surface=\"feed\"]').hidden");
+    await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+    await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
+    // Taking it away: asked once, then in place; the pane that showed it goes back, the directory loses the section.
+    await press(`${tile("feed")} [data-plugin-toggle]`); await press(`${tile("feed")} [data-plugin-toggle]`);
+    await waitFor(`document.querySelector(${JSON.stringify(tile("feed"))}).classList.contains('is-available') && !document.querySelector(${JSON.stringify(tile("feed"))}).classList.contains('is-busy')`);
+    const gone = await feed();
+    assert.deepEqual({ section: gone.section, rows: gone.rows, details: gone.details, header: gone.header }, { section: false, rows: 0, details: 0, header: 0 }, `Feed goes (${round}): back to the shells`);
+    assert.ok(!gone.panels.includes("sources"));
+    assert.notEqual(await evaluate("document.body.dataset.desktopSurface"), "feed", "the pane that showed it went back");
+    assert.equal(await stayed(), true, "still no reload");
+    await settled("feed");
+    if (round === "comes") await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden && document.querySelector('[data-plugin-picker-toggle]').click()");
+  }
+});
+
+test("Coding comes in place: its page and its row in the settings list, which loads its settings; and it goes again", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, press, settled, stayed, waitFor, click } = b;
+  const row = '[data-directory-panel="settings"] [data-settings-section="coding-settings"]';
+  const has = (selector: string) => evaluate<boolean>(`Boolean(document.querySelector(${JSON.stringify(selector)}))`);
+  assert.equal(await has(row), false, "not in the project: no row");
+  assert.equal(await has('[data-surface-pool] > [data-work-surface="coding"]'), false);
+  await press(`${tile("coding")} [data-plugin-toggle]`);
+  await settled("coding");
+  assert.equal(await stayed(), true, "no reload");
+  assert.equal(await has(row), true, "its row is in the settings list");
+  assert.equal(await has('[data-surface-pool] > [data-work-surface="coding"]'), true, "and its page is in the pool");
+  // The row loads Coding's settings, and the script that serves them binds when the page is given to it.
+  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await click('[data-directory-open="settings"]');
+  await click(row);
+  await waitFor("Boolean(document.querySelector('[data-work-surface=settings] [data-coding-method-library]')) && document.querySelector('[data-work-surface=settings] [data-coding-method-library]').dataset.bound === 'true'", 15_000);
+  assert.equal(await stayed(), true, "still no reload");
+  // Taking it away while its settings are showing: the row goes and the list falls back to its first section.
+  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
+  await press(`${tile("coding")} [data-plugin-toggle]`); await press(`${tile("coding")} [data-plugin-toggle]`);
+  await waitFor(`document.querySelector(${JSON.stringify(tile("coding"))}).classList.contains('is-available') && !document.querySelector(${JSON.stringify(tile("coding"))}).classList.contains('is-busy')`);
+  assert.equal(await has(row), false, "the row went");
+  assert.equal(await has('[data-surface-pool] > [data-work-surface="coding"]'), false, "and its page");
+  await waitFor("document.querySelector('[data-directory-panel=\"settings\"] [data-settings-section][aria-current=\"page\"]')?.dataset.settingsSection === 'appearance'", 15_000);
+  assert.equal(await stayed(), true, "no reload at all");
 });
 
 test("the keyboard reaches the buttons: → into them, ← back, ↑ ↓ along the same kind; Enter on the trash can asks, Escape takes it back first", async t => {

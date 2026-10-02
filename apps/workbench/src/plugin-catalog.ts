@@ -68,11 +68,11 @@ export const PERSONAL_PLUGIN_IDS: readonly ProjectPluginId[] = BUILTIN_PLUGIN_CA
 export const DOCK_DEFAULT_PINS: readonly string[] = ["goals", "inbox", "feed", "sessions"];
 
 /**
- * Plugins whose page parts the workbench wires once, when the page loads (Feed's source directory, Coding's settings), so
- * adding or removing one still brings the page back once. Every other plugin changes in place. Delete an id here when its
- * client attaches and detaches live; nothing else needs to change (specs/plugin-picker-dock).
+ * Plugins whose page parts the workbench wires once, when the page loads and cannot change after, so adding or removing one
+ * brings the page back once (saved first). None today: Feed's source directory and Coding's settings row both attach and detach
+ * live (specs/plugin-picker-dock). A plugin that cannot is listed here and nothing else needs to change.
  */
-export const RELOAD_ON_MEMBERSHIP_IDS: readonly string[] = ["feed", "coding"];
+export const RELOAD_ON_MEMBERSHIP_IDS: readonly string[] = [];
 
 /**
  * Plugins that must come along, worked out from the Manifests.

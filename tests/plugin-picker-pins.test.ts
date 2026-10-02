@@ -113,10 +113,12 @@ test("what adding adds along, and what removing takes with it, is written on the
   assert.doesNotMatch(tileOf(all, "text-stats").wrapper, /data-dependents|data-along/, "nothing depends on Text Stats, and it is already in");
 });
 
-test("the plugins whose page parts are wired once at load are named, so the client reloads for them and no one else", () => {
+test("no plugin brings the page back: the list of those that cannot change in place is empty, and the switcher carries it for the client", () => {
   const html = renderPluginRail(primitives, ["goals"], "");
   assert.match(html, new RegExp(`<div class="plugin-rail-items" data-reload-plugins="${RELOAD_ON_MEMBERSHIP_IDS.join(" ")}">`));
-  assert.deepEqual([...RELOAD_ON_MEMBERSHIP_IDS], ["feed", "coding"]);
+  // Feed's source directory and Coding's settings row both attach and detach live (specs/plugin-picker-dock); a plugin that
+  // cannot would be named here, and the client would save the page's state and load it again for that one only.
+  assert.deepEqual([...RELOAD_ON_MEMBERSHIP_IDS], []);
 });
 
 test("a plugin the project installed at run time can be kept in the Dock, and is not this list's to remove", () => {

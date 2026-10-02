@@ -3,12 +3,14 @@
  *
  * The request is the one the market makes. Then the page that follows the project's plugins is brought in line with what the
  * server renders now: each tile of the switcher in place (so its colour, glyphs and buttons change where they stand), the
- * stage pages a plugin brings or takes along, the Dock. The page is fetched once and only read; nothing is swapped wholesale,
- * so nothing a client holds (open panes, focus, scroll) is lost.
+ * stage pages a plugin brings or takes along, the sections it has in the directory (Feed's sources), the rows it has in the
+ * settings lists (Coding's), the Dock. The page is fetched once and only read; nothing is swapped wholesale, so nothing a client
+ * holds (open panes, focus, scroll) is lost. A plugin whose pages fill when the project has it (Feed's) is told what the server
+ * renders (molis-work:plugins-changed carries the page) and fills them itself.
  *
- * What cannot be brought in line in place ends the old way, once: a plugin whose page parts are wired when the page loads
- * (RELOAD_ON_MEMBERSHIP_IDS), a part of the page this does not know changed, or a result that does not match what the server
- * renders. The page's state is saved and the page is loaded again.
+ * What cannot be brought in line in place ends the old way, once: a plugin whose page parts cannot be changed after the page
+ * loads (RELOAD_ON_MEMBERSHIP_IDS — none today), a part of the page this does not know changed, or a result that does not
+ * match what the server renders. The page's state is saved and the page is loaded again.
  */
 export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
   const { route, translate: L, projectId, saveUiState, showToast } = host;
@@ -19,12 +21,15 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
   const nameOf = (id) => tileOf(id)?.querySelector('.plugin-rail-item > span')?.textContent || id;
   const reload = () => { try { saveUiState?.(); } catch {} location.reload(); };
   const keys = (nodes, key) => [...nodes].map(key).join(',');
+  // The settings lists (global, and the project's) and their rows: what is loaded into the pages beside them is not theirs.
+  const LISTS = ['settings', 'project-settings'];
+  const rowsOf = (root, list) => [...root.querySelectorAll('[data-directory-panel="' + list + '"] [data-settings-section]')];
 
-  /* The parts of the page that depend on the project's plugins but are not brought in line here: if they differ, load again. */
+  /* The parts of the page that depend on the project's plugins, as the page shows them: once brought in line they are the server's; if they differ, load again. */
   const unfollowed = (root) => [
     keys(tiles(root), (tile) => tile.dataset.pluginTile),
     keys(root.querySelectorAll('.directory-content-scroll > *'), (node) => node.dataset.pluginSection || node.dataset.directoryPanel || node.className),
-    keys(root.querySelectorAll('[data-settings-section]'), (node) => node.dataset.settingsSection),
+    keys(LISTS.flatMap((list) => rowsOf(root, list)), (node) => node.dataset.settingsSection),
     keys(root.querySelectorAll('[data-side-tab]'), (node) => node.dataset.sideTab),
   ].join('|');
   // A plugin's stage page. The workbench moves the pages it shows out of the pool, so "there" means anywhere on the page.
@@ -73,6 +78,38 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
       host.trackSurface?.(node);
     }
   };
+  // The sections a plugin has in the directory (Feed's, with its source directory), keyed by plugin; each goes where the server puts it.
+  const sectionsOf = (root) => [...(root.querySelector('.directory-content-scroll')?.children || [])].filter((node) => node.dataset?.pluginSection);
+  const patchSections = (next) => {
+    const scroll = document.querySelector('.directory-content-scroll');
+    if (!scroll) return;
+    const theirs = sectionsOf(next);
+    const has = (list, key) => list.some((node) => node.dataset.pluginSection === key);
+    sectionsOf(document).forEach((node) => { if (!has(theirs, node.dataset.pluginSection)) node.remove(); });
+    theirs.forEach((node, index) => {
+      if (has(sectionsOf(document), node.dataset.pluginSection)) return;
+      const later = theirs.slice(index + 1).map((other) => sectionsOf(document).find((mine) => mine.dataset.pluginSection === other.dataset.pluginSection)).find(Boolean);
+      scroll.insertBefore(document.importNode(node, true), later || null);
+    });
+  };
+  // The rows of the settings lists a plugin brings (Coding's), per list and keyed by section; each goes where the server puts it,
+  // and a list that was showing a row that went falls back to its first.
+  const patchRows = (next) => {
+    const left = [];
+    for (const list of LISTS) {
+      const theirs = rowsOf(next, list);
+      const has = (rows, key) => rows.some((row) => row.dataset.settingsSection === key);
+      rowsOf(document, list).forEach((row) => { if (!has(theirs, row.dataset.settingsSection)) { left.push(row.dataset.settingsSection); row.remove(); } });
+      theirs.forEach((row, index) => {
+        const mine = rowsOf(document, list);
+        if (has(mine, row.dataset.settingsSection)) return;
+        const after = mine.find((other) => other.dataset.settingsSection === theirs[index - 1]?.dataset.settingsSection);
+        const node = document.importNode(row, true);
+        if (after) after.after(node); else mine[0]?.before(node);
+      });
+    }
+    left.forEach((section) => host.leaveSettingsSection?.(section));
+  };
   // A dialog's choices can say what a plugin makes possible (Sessions offers Codex natively only when Coding is here).
   const patchChoices = (next) => {
     const liveDialogs = [...document.querySelectorAll('dialog')], nextDialogs = [...next.querySelectorAll('dialog')];
@@ -94,16 +131,21 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     const after = owned(next);
     const came = [...after].filter((id) => !before.has(id)), gone = [...before].filter((id) => !after.has(id));
     const wired = (rail()?.dataset.reloadPlugins || '').split(' ').filter(Boolean);
-    if ([...came, ...gone].some((id) => wired.includes(id)) || unfollowed(document) !== unfollowed(next)) { reload(); return; }
+    if ([...came, ...gone].some((id) => wired.includes(id))) { reload(); return; }
     // What leaves is left first: a pane showing it goes back to where it was.
     gone.forEach((id) => host.leavePlugin?.(id));
     const nextTiles = tiles(next);
     tiles().forEach((tile) => { const mate = nextTiles.find((other) => other.dataset.pluginTile === tile.dataset.pluginTile); if (mate) patchTile(tile, mate); });
-    patchStages(next, came, gone); patchChoices(next);
-    document.dispatchEvent(new CustomEvent('molis-work:plugins-changed', { detail: { came, gone } }));
+    patchStages(next, came, gone); patchSections(next); patchRows(next); patchChoices(next);
+    host.directoryChanged?.();
+    // The plugins whose pages fill when the project has them fill them now (they are given the page the server renders, and
+    // say so if they could not).
+    const detail = { came, gone, next, failed: false };
+    document.dispatchEvent(new CustomEvent('molis-work:plugins-changed', { detail }));
+    if (detail.failed) { reload(); return; }
     const same = (a, b) => [...a].sort().join() === [...b].sort().join();
     // What the page has must now be what the server renders; if it is not, no half-way: load it again.
-    if (!same(owned(), after) || [...came, ...gone].some((id) => Boolean(stageOf(next, id)) !== (livePage(id).length > 0))) { reload(); return; }
+    if (!same(owned(), after) || unfollowed(document) !== unfollowed(next) || [...came, ...gone].some((id) => Boolean(stageOf(next, id)) !== (livePage(id).length > 0))) { reload(); return; }
     try { saveUiState?.(); } catch {}
     const also = [...came, ...gone].filter((id) => id !== pluginId);
     if (also.length) showToast?.((adding ? L('同时添加了：{list}') : L('同时移除了：{list}')).replace('{list}', also.map(nameOf).join('、')));

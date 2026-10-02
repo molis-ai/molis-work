@@ -37,6 +37,13 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
       trackSurface: (node) => { if (!desktopWorkSurfaces.includes(node)) desktopWorkSurfaces.push(node); },
       untrackSurface: (node) => { const at = desktopWorkSurfaces.indexOf(node); if (at >= 0) desktopWorkSurfaces.splice(at, 1); },
+      // A plugin's section of the directory came or went: the page's list of panels is what is there now, and where the directory
+      // stands is checked against it (a directory that went falls back to the root).
+      directoryChanged: () => {
+        desktopDirectoryPanels.splice(0, desktopDirectoryPanels.length, ...document.querySelectorAll("[data-directory-panel]"));
+        setDesktopDirectory(treePane?.dataset.desktopDirectory || "root", false, false);
+      },
+      leaveSettingsSection: (section) => settingsDirectory?.leave?.(section),
     });
     pluginWorkbench = (${PLUGIN_WORKBENCH_FACTORY_SCRIPT})({
       mountPluginClient, membership: pluginMembership,

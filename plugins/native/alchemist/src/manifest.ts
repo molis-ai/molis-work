@@ -2,7 +2,6 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/alchemist";
 import { ALCHEMIST_UI_CONTRIBUTION_ID } from "./ui.js";
 import { alchemistActions, ALCHEMIST_ACTION_PERMISSIONS } from "./studio/shared/contracts/actions.js";
-import { alchemistLegacyActions } from "./legacy-actions.js";
 
 export { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID };
 
@@ -15,7 +14,7 @@ export const alchemistManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-alchemist-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  actions: [...Object.values(alchemistActions), ...Object.values(alchemistLegacyActions)],
+  actions: Object.values(alchemistActions),
   permissions: [
     ...ALCHEMIST_ACTION_PERMISSIONS.map(permission => ({ permission, required: true, reason: "炼金术士业务动作" })),
     { permission: "storage:private", required: true, reason: "按项目保存方向、Idea、研究证据、决策和个人 Memory" },

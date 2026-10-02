@@ -36,6 +36,11 @@ jobs:
       - name: Verify package contracts and boundaries
         run: pnpm workspace:verify
 
+      # Numbers that may only go down: giant units, tests reaching into package internals, vendored SDK packages,
+      # in-place schema patches, and a status line on every spec in specs/ (specs/repository-anti-corruption §5a).
+      - name: Health gates
+        run: pnpm health:check
+
       - name: Verify Goal boundaries, migrations and release assets
         run: |
           node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs

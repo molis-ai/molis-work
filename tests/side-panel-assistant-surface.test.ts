@@ -210,6 +210,9 @@ test("waiting on the page is not asked about; the next real action still is", { 
     await f.queue.respond({ review_id: click.review_id, decision: "approve", actor_id: "web-user" });
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "completion");
     assert.deepEqual(f.page.done.map(action => action.what), ["wait", "pointer"]);
+  } finally { await f.close(); }
+});
+
 test("the page is the person's again as soon as a round is stopped or ends, not after an idle wait", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply({ name: "surface-list", input: {} }),

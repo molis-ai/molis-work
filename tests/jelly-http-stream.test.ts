@@ -22,40 +22,24 @@ async function fixture(t: {after(fn:()=>void|Promise<void>):void}, ports: { comp
 }
 const post=(base:string,path:string,body:unknown,signal?:AbortSignal)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal});
 
-test('material stream delivers progress and extraction, and errors remain reviewable',async t=>{
-  const {base}=await fixture(t);
-  const response=await post(base,'/api/jelly/material?stream=1',{file_name:'检查.txt',data_base64:Buffer.from('验证素材来源与笔记之间的联系。').toString('base64')});
+test('a plan stream reports progress, returns the plan and commits nothing',async t=>{
+  const {base,home}=await fixture(t,{completeText:async()=>JSON.stringify({actions:[{title:'核对来源与任务',notes:'逐条核实',minutes:30}],clarification_questions:[]})});
+  const store=openJellyStore(home);store.execute({type:'note.create',title:'原笔记',markdown:'任务与日历应一致；保留来源以便核对。'});const before=store.read(),id=before.notes[0]!.id;store.close();
+  const response=await post(base,'/api/jelly/ai?stream=1',{kind:'decompose',source_type:'note',source_id:id});
   assert.match(response.headers.get('content-type')!,/ndjson/);
-  const events=(await response.text()).trim().split('\n').map(line=>JSON.parse(line));
-  assert.equal(events[0].type,'progress');assert.equal(events.at(-1).type,'result');assert.equal(events.at(-1).result.text,'验证素材来源与笔记之间的联系。');
-  const material=events.at(-1).result;
-  const reread=await post(base,'/api/jelly/material/reread',{file_name:material.file_name,sha256:material.source_sha256});
-  assert.equal(reread.status,200);assert.equal((await reread.json() as {text:string}).text,material.text);
-  const badReference=await post(base,'/api/jelly/material/reread',{file_name:'../检查.txt',sha256:material.source_sha256});
-  assert.equal(badReference.status,400);
-  const invalid=await post(base,'/api/jelly/material?stream=1',{file_name:'bad.exe',data_base64:'AA=='});
-  const failure=(await invalid.text()).trim().split('\n').map(line=>JSON.parse(line)).at(-1);
-  assert.equal(failure.type,'error');assert.equal(failure.status,415);assert.match(failure.code,/unsupported/);
-});
-
-test('digest stream persists structured evidence only after successful completion',async t=>{
-  const {base,home}=await fixture(t,{completeText:async prompt=>{
-    const blocks=JSON.parse(prompt.match(/<材料块>\n([\s\S]*?)\n<\/材料块>/u)![1]!);const id=blocks[0].id;
-    return JSON.stringify({thesis:{text:'核对来源与任务',evidence_block_ids:[id]},takeaways:[{text:'任务与日历应一致',evidence_block_ids:[id]}],chapters:[],quotes:[],dropped:[]});
-  }});
-  const store=openJellyStore(home);store.execute({type:'inspiration.create',raw_text:'任务与日历应一致；保留素材来源以便核对。'});const id=store.read().inspirations[0]!.id;store.close();
-  const response=await post(base,'/api/jelly/ai?stream=1',{kind:'digest',source_type:'inspiration',source_id:id});
   const events=(await response.text()).trim().split('\n').map(line=>JSON.parse(line));const final=events.at(-1);
-  assert.equal(final.type,'result');assert.equal(final.result.digest.structured.thesis.text,'核对来源与任务');
-  const persisted=openJellyStore(home);try{assert.ok(persisted.read().inspirations[0]!.digest?.snapshot?.blocks.length);}finally{persisted.close();}
+  assert.equal(events[0].type,'progress');assert.equal(final.type,'result');assert.equal(final.result.plan.actions[0].title,'核对来源与任务');
+  const persisted=openJellyStore(home);try{assert.deepEqual(persisted.read(),before);}finally{persisted.close();}
+  // Only planning streams: the routes that read files and pages now belong to 灵光.
+  assert.equal((await post(base,'/api/jelly/material?stream=1',{file_name:'a.txt',data_base64:'YQ=='})).status,404);
 });
 
-test('disconnecting a digest aborts model work and never commits a late result',async t=>{
+test('disconnecting a plan aborts model work and changes nothing',async t=>{
   let started!:()=>void, cancelled!:()=>void;
   const began=new Promise<void>(resolve=>{started=resolve;});const aborted=new Promise<void>(resolve=>{cancelled=resolve;});
   const {base,home}=await fixture(t,{completeText:async(_prompt,options)=>{started();return new Promise<string>((_resolve,reject)=>{options?.signal?.addEventListener('abort',()=>{cancelled();reject(new Error('cancelled'));},{once:true});});}});
-  const store=openJellyStore(home);store.execute({type:'inspiration.create',raw_text:'这是取消场景的原始材料。'});const before=store.read(),id=before.inspirations[0]!.id;store.close();
-  const controller=new AbortController();const pending=post(base,'/api/jelly/ai?stream=1',{kind:'digest',source_type:'inspiration',source_id:id},controller.signal);await began;const response=await pending;
+  const store=openJellyStore(home);store.execute({type:'note.create',title:'原笔记',markdown:'这是取消场景的原始材料。'});const before=store.read(),id=before.notes[0]!.id;store.close();
+  const controller=new AbortController();const pending=post(base,'/api/jelly/ai?stream=1',{kind:'decompose',source_type:'note',source_id:id},controller.signal);await began;const response=await pending;
   const body=response.text().catch(()=>null);controller.abort();await aborted;await body;
   const persisted=openJellyStore(home);try{assert.deepEqual(persisted.read(),before);}finally{persisted.close();}
 });

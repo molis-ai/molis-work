@@ -109,7 +109,8 @@
 
 | 片 | 内容 | 对应 |
 | --- | --- | --- |
-| S1 | 删死代码与旧页：旧解释器创作台 `/plugin-builder` 与旧生成插件独立页（P3、P4）、`renderPluginPageWorkspace` 与它的出口和测试（P9）、炼金术士历史演示记录（P8） | 只删不改 |
+| S1 | 删 `renderPluginPageWorkspace` 与它的出口和测试（P9）、炼金术士历史演示记录（P8） | 只删不改；分支 `fix/shell-s1-drop-standalone-pages` |
+| S1b | 删旧的解释器创作台整套（P3、P4）：`/plugin-builder` 整页、旧生成插件独立页，以及只为它们存在的旧实现。新创作台（`agent-*`）只依赖旧包里的 `formula.ts`、`model.ts`、`validation.ts`；`actions`、`activity`、`client`、`generated`、`plugin`、`record-client`、`record-routes`、`records`、`routes`、`spec-board`、`starter`、`store`、`styles`、`ui`、`visuals`、`workflow` 只属旧系统。宿主还从旧系统取 `builderManifest`、`builderUiContribution`、`BUILDER_PROMPTS` 与两个角色（新创作台也用设计者、代码两个角色），要先把插件身份与角色提示词挪到新创作台，再删旧系统与 `tests/plugin-builder-browser.e2e`、`plugin-builder-visual.e2e` 等旧用例 | 大；旧发布记录不迁移、不读 |
 | S2 | 直达链接打开工作台：`/artifacts`、`/artifacts/<版本>` 改为回工作台并定位（P1）；未知地址打开工作台并说明找不到（P17）；`/api/project-references/` 在工作台里定位（P18） | 删 `renderArtifactWorkbenchPage` 整页 |
 | S3 | 沙箱框只在工作台里开：试用与已安装生成插件去掉框内的品牌、返回链接与「编辑新草稿」条；「单独打开试用」「打开插件」「打开 vN」改为工作台标签；直达框文档路由时打开工作台定位（P6、P7） | |
 | S4 | 创作台去框：创作台作为工作台插件面直接渲染（P5） | 大 |

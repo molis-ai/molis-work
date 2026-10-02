@@ -1195,7 +1195,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (parent) step("flag", "", L("受托于"), card({ icon: "workflow", title: parent.title, sub: L("验收") + "：" + parent.acceptance, open: () => switchTo(parent.work_id) }));
       objects.filter((o) => o.relation === "origin").forEach((o) => step("flag", "", L("起点"), objectCard(o)));
       if (work && !objects.some((o) => o.relation === "origin") && work.origin && (work.origin.title || work.origin.surface)) {
-        step("flag", "", L("起点"), card({ icon: kindGlyph(work.origin.surface), title: work.origin.title || surfaceName(work.origin.surface), sub: surfaceName(work.origin.surface) }));
+        // The page is named as it names itself; its id is never shown, and the same name is not said twice.
+        const name = surfaceName(work.origin.surface), title = work.origin.title || name;
+        step("flag", "", L("起点"), card({ icon: kindGlyph(work.origin.surface), title, sub: name !== title && name !== work.origin.surface ? name : "" }));
       }
       objects.filter((o) => o.relation === "session").forEach((o) => step("code", "", L("专业会话"), objectCard(o, "", L("在 Coding 打开"))));
       if (work && work.executor.kind === "coding" && work.executor.session_id && !objects.some((o) => o.relation === "session")) {

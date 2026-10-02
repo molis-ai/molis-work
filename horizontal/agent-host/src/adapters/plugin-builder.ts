@@ -14,7 +14,14 @@ export interface PluginBuilderAgentOptions {
   modelConfiguration(): Promise<PrologueModelConfiguration | null>;
   resolveCredential(reference: string): Promise<string | null> | string | null;
   timeoutMs?: number;
+  /** How long one model request may take; tests shorten it. Defaults to MODEL_CALL_LIMIT_MS for the role. */
+  modelCallTimeoutMs?: number;
 }
+/**
+ * One model request, not the whole run. A designer's answer is one long structured reply (up to 32k tokens) and the
+ * code role writes whole files; Prologue's own 60-second default cut off a slower model mid-answer.
+ */
+const MODEL_CALL_LIMIT_MS = { designer: 300_000, coder: 180_000 } as const;
 // No search: every file the code role needs is named in its task, and real runs spent most turns on empty searches.
 const TOOLS = ['read', 'write', 'edit', 'plugin-checks'] as const;
 const WRITABLE = /^(?:src\/(?!index\.ts$)[a-zA-Z0-9_./-]+\.ts|tests\/[a-zA-Z0-9_./-]+\.ts|package\.json)$/;
@@ -173,6 +180,7 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
           abort.signal.throwIfAborted();
           const started = await sdk.startAgentRun({ session, rootRef: authorized.ref, grants: { toolNames: tools, paths: request.role === 'coder' ? ['.'] : [] },
             start: { protocol: model.protocol, endpoint: model.endpoint, model: model.model, credentialRef, params: { maxOutputTokens: request.role === 'designer' ? 32768 : 16384 },
+              timeoutMs: options.modelCallTimeoutMs ?? MODEL_CALL_LIMIT_MS[request.role],
               ...(model.prompt_cache && model.prompt_cache !== 'off' ? { promptCache: model.prompt_cache } : {}),
               messages: [{ role: 'user', text: request.task }], ...(images.length ? { attachments: images.map(ref => ({ ref, as: 'original' as const })) } : {}) },
             agent: { idempotencyKey: record.id, mode: request.role === 'coder' ? 'build' : 'plan',

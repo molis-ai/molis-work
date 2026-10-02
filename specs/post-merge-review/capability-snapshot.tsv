@@ -1,0 +1,666 @@
+# 能力快照：main 62cbc14d，空 Home + 演示项目，按受众列出能看到的动作（1=出现在目录）。生成脚本见 spec §7。
+capability_id	version	provider	kind	scheduling	home:user	home:agent	home:workflow	home:plugin	home:mcp	project:user	project:agent	project:workflow	project:plugin	project:mcp
+actions.usages.read	1	system.action-usages	query	concurrent	1	1		1	1	1	1		1	1
+alchemist.annotations.create	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.annotations.list	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.annotations.resolve	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.cards.discard	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.cards.get	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.cards.keep	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.cards.restore	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.conversation.list	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.conversation.send	1	io.molis.work.alchemist	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+alchemist.decisions.create	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.decisions.list	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.decisions.workspace	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.direction.subject.read	1	io.molis.work.alchemist	query	concurrent	1	1	1	1	1	1	1	1	1	1
+alchemist.directions.create	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.directions.status	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.directions.update	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.explorations.get	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.explorations.start	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.idea.subject.read	1	io.molis.work.alchemist	query	concurrent	1	1	1	1	1	1	1	1	1	1
+alchemist.ideas.version	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.legacy.export	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.legacy.get	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.legacy.list	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.memory.apply	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.memory.playbook.disable	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.memory.playbook.revise	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.memory.propose	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.memory.read	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.memory.taste.create	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.memory.taste.disable	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.opportunities.convert	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.opportunities.save	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.playbook.context	1	io.molis.work.alchemist	query	concurrent	1	1	1	1	1	1	1	1	1	1
+alchemist.proposals.pending	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.proposals.reject	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.pulse.reports	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.pulse.sources	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.pulse.sources.configure	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.pulse.start	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.research.cancel	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.research.plan	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.research.start	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.research.workspace	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.reuse.assess	1	io.molis.work.alchemist	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+alchemist.reuse.candidates	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.reuse.feedback	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.reuse.publish	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.reuse.receipt	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.reuse.reconcile	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.runs.events	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.runtime.configure	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.runtime.models	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.runtime.settings	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.runtime.verify	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+alchemist.search.entries	1	io.molis.work.alchemist	query	concurrent	1	1	1	1	1	1	1	1	1	1
+alchemist.workspace.export	1	io.molis.work.alchemist	operation		1	1	1	1	1	1	1	1	1	1
+alchemist.workspace.read	1	io.molis.work.alchemist	query		1	1	1	1	1	1	1	1	1	1
+artifacts.browse	1	io.molis.work.artifacts	query							1	1	1	1	1
+artifacts.export	1	io.molis.work.artifacts	query							1	1	1	1	1
+artifacts.files.entries	1	io.molis.work.artifacts	query	concurrent						1				
+artifacts.goals.embeds	1	io.molis.work.artifacts	query							1	1	1	1	1
+artifacts.import.external	1	io.molis.work.artifacts	operation	concurrent						1	1	1	1	1
+artifacts.import.file	1	io.molis.work.artifacts	operation	concurrent						1	1	1	1	1
+artifacts.import.sources	1	io.molis.work.artifacts	query							1	1	1	1	1
+artifacts.read	1	io.molis.work.artifacts	query							1	1	1	1	1
+artifacts.references.open	1	io.molis.work.artifacts	query							1	1	1	1	1
+artifacts.search.entries	1	io.molis.work.artifacts	query	concurrent						1	1	1	1	1
+artifacts.subject.read	1	io.molis.work.artifacts	query	concurrent						1	1	1		1
+characters.actions.catalog	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	query							1	1	1	1	1
+characters.create	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	operation							1	1	1	1	1
+characters.drafts.file	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	query							1				
+characters.execution	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	query							1				
+characters.imports.discover	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	query							1				
+characters.imports.file	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	query							1				
+characters.imports.import	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	operation							1				
+characters.launch	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	operation							1				
+characters.list	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	query							1	1	1	1	1
+characters.publications.file	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	query							1				
+characters.publish	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	operation							1	1	1	1	1
+characters.runs	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	query							1				
+characters.search.entries	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	query	concurrent						1	1	1	1	1
+characters.state	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	operation							1	1	1	1	1
+characters.subject.read	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	query	concurrent						1	1	1	1	1
+characters.update	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	operation							1	1	1	1	1
+characters.usages	1	plugin-install-9118333e82adbdf7214fda357f25ff2c	query	concurrent						1	1		1	1
+coding.artifacts.list	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	query							1	1	1	1	1
+coding.changesets.read	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	query							1	1	1	1	1
+coding.changesets.save	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	operation							1				
+coding.plans.confirm	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	operation							1				
+coding.plans.read	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	query							1	1	1	1	1
+coding.plans.save	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	operation							1				
+coding.reports.list	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	query							1	1	1	1	1
+coding.reports.read	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	query							1	1	1	1	1
+coding.reports.save	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	operation							1				
+coding.runs.control	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	operation							1				
+coding.runs.list	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	query							1	1	1	1	1
+coding.runs.start	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	operation							1				
+coding.search.entries	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	query	concurrent						1	1	1	1	1
+coding.sessions.create	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	operation							1	1	1	1	1
+coding.sessions.read	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	query							1	1	1	1	1
+coding.sessions.update	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	operation							1				
+coding.state	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	query							1	1	1	1	1
+coding.subject.read	1	plugin-install-9b090ee5406d4f5907d370339bdd8045	query	concurrent						1	1	1	1	1
+cognia.directory.scan	1	io.molis.work.cognia	query	concurrent	1	1	1	1	1	1	1	1	1	1
+cognia.domain.create	1	io.molis.work.cognia	operation		1	1	1	1	1	1	1	1	1	1
+cognia.domain.delete	1	io.molis.work.cognia	operation		1	1	1		1	1	1	1		1
+cognia.domain.update	1	io.molis.work.cognia	operation		1	1	1	1	1	1	1	1	1	1
+cognia.draft.archive	1	io.molis.work.cognia	operation		1	1	1	1	1	1	1	1	1	1
+cognia.draft.get	1	io.molis.work.cognia	query		1	1	1	1	1	1	1	1	1	1
+cognia.draft.save	1	io.molis.work.cognia	operation		1	1	1	1	1	1	1	1	1	1
+cognia.files.entries	1	io.molis.work.cognia	query	concurrent	1					1				
+cognia.import.cancel	1	io.molis.work.cognia	operation		1	1	1	1	1	1	1	1	1	1
+cognia.import.commit	1	io.molis.work.cognia	operation		1	1	1	1	1	1	1	1	1	1
+cognia.import.directory_preview	1	io.molis.work.cognia	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+cognia.import.preview	1	io.molis.work.cognia	operation		1	1	1	1	1	1	1	1	1	1
+cognia.knowledge.query	1	io.molis.work.cognia	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+cognia.knowledge.synthesize	1	io.molis.work.cognia	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+cognia.material.create	1	io.molis.work.cognia	operation		1	1	1	1	1	1	1	1	1	1
+cognia.material.delete	1	io.molis.work.cognia	operation		1	1	1		1	1	1	1		1
+cognia.material.download	1	io.molis.work.cognia	query		1	1	1	1	1	1	1	1	1	1
+cognia.material.get	1	io.molis.work.cognia	query		1	1	1	1	1	1	1	1	1	1
+cognia.material.search	1	io.molis.work.cognia	query		1	1	1	1	1	1	1	1	1	1
+cognia.material.update	1	io.molis.work.cognia	operation		1	1	1	1	1	1	1	1	1	1
+cognia.search.entries	1	io.molis.work.cognia	query	concurrent	1	1	1	1	1	1	1	1	1	1
+cognia.source.delete	1	io.molis.work.cognia	operation		1	1	1		1	1	1	1		1
+cognia.source.update	1	io.molis.work.cognia	operation		1	1	1	1	1	1	1	1	1	1
+cognia.subject.read	1	io.molis.work.cognia	query	concurrent	1	1	1	1	1	1	1	1	1	1
+cognia.workspace.get	1	io.molis.work.cognia	query		1	1	1	1	1	1	1	1	1	1
+connectors.account.read	1	system.connectors	query	concurrent	1	1		1	1	1	1		1	1
+dataset.columns.add	1	io.molis.work.dataset	operation							1	1	1	1	1
+dataset.columns.ai	1	io.molis.work.dataset	operation	concurrent						1	1	1	1	1
+dataset.content.create	1	io.molis.work.dataset	operation							1	1	1	1	1
+dataset.content.list	1	io.molis.work.dataset	query							1	1	1	1	1
+dataset.content.read	1	io.molis.work.dataset	query							1	1	1	1	1
+dataset.content.receive	1	io.molis.work.dataset	operation							1	1	1	1	1
+dataset.create	1	io.molis.work.dataset	operation							1	1	1	1	1
+dataset.delete	1	io.molis.work.dataset	operation							1	1	1		1
+dataset.export	1	io.molis.work.dataset	query							1	1	1	1	1
+dataset.files.content	1	io.molis.work.dataset	query	concurrent						1				
+dataset.files.entries	1	io.molis.work.dataset	query	concurrent						1				
+dataset.get	1	io.molis.work.dataset	query							1	1	1	1	1
+dataset.import	1	io.molis.work.dataset	operation							1	1	1	1	1
+dataset.list	1	io.molis.work.dataset	query							1	1	1	1	1
+dataset.placement.copy	1	io.molis.work.dataset	operation							1				
+dataset.placement.move	1	io.molis.work.dataset	operation							1				
+dataset.promote	1	io.molis.work.dataset	operation							1	1	1	1	1
+dataset.rollback	1	io.molis.work.dataset	operation							1	1	1	1	1
+dataset.search.entries	1	io.molis.work.dataset	query	concurrent						1	1	1	1	1
+dataset.snapshot	1	io.molis.work.dataset	operation							1	1	1	1	1
+dataset.subject.read	1	io.molis.work.dataset	query	concurrent						1	1	1	1	1
+dataset.update	1	io.molis.work.dataset	operation							1	1	1	1	1
+dataset.versions	1	io.molis.work.dataset	query							1	1	1	1	1
+diff.compare	1	plugin-install-a2d0547d448030b70d0710e378775d51	query							1	1	1	1	1
+diff.state	1	plugin-install-a2d0547d448030b70d0710e378775d51	query							1	1	1	1	1
+experiments.cancel	1	io.molis.work.experiments	operation		1					1				
+experiments.connection.select	1	io.molis.work.experiments	operation		1					1				
+experiments.create	1	io.molis.work.experiments	operation		1					1				
+experiments.delete	1	io.molis.work.experiments	operation		1					1				
+experiments.functions.list	1	io.molis.work.experiments	query		1					1				
+experiments.get	1	io.molis.work.experiments	query		1					1				
+experiments.list	1	io.molis.work.experiments	query		1	1	1	1	1	1	1	1	1	1
+experiments.participants.delete	1	io.molis.work.experiments	operation		1					1				
+experiments.participants.list	1	io.molis.work.experiments	query		1					1				
+experiments.participants.save	1	io.molis.work.experiments	operation		1					1				
+experiments.results	1	io.molis.work.experiments	query		1	1	1	1	1	1	1	1	1	1
+experiments.review	1	io.molis.work.experiments	operation		1					1				
+experiments.run	1	io.molis.work.experiments	operation		1					1				
+experiments.search.entries	1	io.molis.work.experiments	query	concurrent	1	1	1	1	1	1	1	1	1	1
+experiments.subject.read	1	io.molis.work.experiments	query	concurrent	1	1	1	1	1	1	1	1	1	1
+feed.connections.status	1	io.molis.work.feed	query							1				
+feed.content.list	1	io.molis.work.feed	query							1	1	1	1	1
+feed.content.read	1	io.molis.work.feed	query							1	1	1	1	1
+feed.content.receive	1	io.molis.work.feed	operation							1	1	1	1	1
+feed.goals.context	1	io.molis.work.feed	query							1				
+feed.home.events	1	io.molis.work.feed	query	concurrent						1	1	1	1	1
+feed.items.disposition	1	io.molis.work.feed	operation							1	1	1	1	1
+feed.items.get	1	io.molis.work.feed	query							1				
+feed.items.inbox	1	io.molis.work.feed	operation							1	1	1	1	1
+feed.items.offers	1	io.molis.work.feed	query	concurrent						1	1	1	1	1
+feed.items.promote	1	io.molis.work.feed	operation							1	1	1	1	1
+feed.items.read	1	io.molis.work.feed	operation							1	1	1	1	1
+feed.items.restore	1	io.molis.work.feed	operation							1	1	1	1	1
+feed.rules.create	1	io.molis.work.feed	operation							1	1	1	1	1
+feed.rules.delete	1	io.molis.work.feed	operation							1	1	1		1
+feed.rules.evaluate	1	io.molis.work.feed	operation	concurrent						1	1	1	1	1
+feed.rules.judgments	1	io.molis.work.feed	query							1	1	1	1	1
+feed.rules.list	1	io.molis.work.feed	query							1	1	1	1	1
+feed.rules.preview	1	io.molis.work.feed	query							1	1	1	1	1
+feed.rules.preview-judgment	1	io.molis.work.feed	operation	concurrent						1	1	1	1	1
+feed.rules.recommendations	1	io.molis.work.feed	query							1	1	1	1	1
+feed.rules.update	1	io.molis.work.feed	operation							1	1	1	1	1
+feed.search.entries	1	io.molis.work.feed	query	concurrent						1	1	1	1	1
+feed.snapshot	1	io.molis.work.feed	query							1				
+feed.source.subject.read	1	io.molis.work.feed	query	concurrent						1	1	1	1	1
+feed.sources.delete	1	io.molis.work.feed	operation							1	1			1
+feed.sources.disconnect	1	io.molis.work.feed	operation							1				
+feed.sources.enabled	1	io.molis.work.feed	operation							1	1		1	1
+feed.sources.register	1	io.molis.work.feed	operation							1	1		1	1
+feed.sources.schedule	1	io.molis.work.feed	operation							1	1		1	1
+feed.sources.sync	1	io.molis.work.feed	operation	concurrent						1	1		1	1
+feed.sources.tick	1	io.molis.work.feed	operation	concurrent						1				
+feed.sources.update	1	io.molis.work.feed	operation							1	1		1	1
+feed.subject.read	1	io.molis.work.feed	query	concurrent						1	1	1	1	1
+files.capture	1	plugin-install-4790d5958896dce594cbd88abc496685	operation							1	1	1	1	1
+files.directory	1	plugin-install-4790d5958896dce594cbd88abc496685	operation							1	1	1	1	1
+files.open	1	plugin-install-4790d5958896dce594cbd88abc496685	operation							1	1	1	1	1
+files.side.content	1	plugin-install-4790d5958896dce594cbd88abc496685	query	concurrent						1				
+files.side.entries	1	plugin-install-4790d5958896dce594cbd88abc496685	query	concurrent						1				
+files.state	1	plugin-install-4790d5958896dce594cbd88abc496685	operation							1	1	1	1	1
+form.answers.import	1	io.molis.work.form	operation							1	1	1	1	1
+form.close	1	io.molis.work.form	operation							1	1	1	1	1
+form.content.create	1	io.molis.work.form	operation							1	1	1	1	1
+form.content.list	1	io.molis.work.form	query							1	1	1	1	1
+form.content.read	1	io.molis.work.form	query							1	1	1	1	1
+form.content.receive	1	io.molis.work.form	operation							1	1	1	1	1
+form.create	1	io.molis.work.form	operation							1	1	1	1	1
+form.delete	1	io.molis.work.form	operation							1	1	1		1
+form.fillpage	1	io.molis.work.form	query							1	1	1	1	1
+form.get	1	io.molis.work.form	query							1	1	1	1	1
+form.list	1	io.molis.work.form	query							1	1	1	1	1
+form.placement.copy	1	io.molis.work.form	operation							1				
+form.placement.move	1	io.molis.work.form	operation							1				
+form.promote	1	io.molis.work.form	operation							1	1	1	1	1
+form.publish	1	io.molis.work.form	operation							1	1	1	1	1
+form.questions.add	1	io.molis.work.form	operation							1	1	1	1	1
+form.questions.ai	1	io.molis.work.form	operation	concurrent						1	1	1	1	1
+form.results	1	io.molis.work.form	query							1	1	1	1	1
+form.results.csv	1	io.molis.work.form	query							1	1	1	1	1
+form.search.entries	1	io.molis.work.form	query	concurrent						1	1	1	1	1
+form.subject.read	1	io.molis.work.form	query	concurrent						1	1	1	1	1
+form.submit	1	io.molis.work.form	operation							1	1	1	1	1
+form.update	1	io.molis.work.form	operation							1	1	1	1	1
+functions.authoring.catalog	1	system.functions	query		1	1	1	1	1	1	1	1	1	1
+functions.authoring.configure	1	system.functions	operation		1	1	1	1	1	1	1	1	1	1
+functions.authoring.create	1	system.functions	operation		1	1	1	1	1	1	1	1	1	1
+functions.authoring.delete	1	system.functions	operation		1	1	1		1	1	1	1		1
+functions.authoring.get	1	system.functions	query		1	1	1	1	1	1	1	1	1	1
+functions.authoring.history	1	system.functions	query		1	1	1	1	1	1	1	1	1	1
+functions.authoring.list	1	system.functions	query		1	1	1	1	1	1	1	1	1	1
+functions.authoring.preview	1	system.functions	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+functions.authoring.publish	1	system.functions	operation		1	1	1	1	1	1	1	1	1	1
+functions.authoring.sample.add	1	system.functions	operation		1	1	1	1	1	1	1	1	1	1
+functions.authoring.sample.remove	1	system.functions	operation		1	1	1		1	1	1	1		1
+functions.authoring.targets	1	system.functions	query		1	1	1	1	1	1	1	1	1	1
+functions.authoring.update	1	system.functions	operation		1	1	1	1	1	1	1	1	1	1
+functions.authoring.usages	1	system.functions	query		1	1	1	1	1	1	1	1	1	1
+functions.describe	1	system.functions	query		1	1	1	1	1	1	1	1	1	1
+functions.invoke	1	system.functions	judgment	concurrent	1	1	1	1	1	1	1	1	1	1
+functions.list	1	system.functions	query		1	1	1	1	1	1	1	1	1	1
+functions.published.system_admit_inbox	1	system.functions	judgment	concurrent	1	1	1	1	1	1	1	1	1	1
+functions.published.system_pick_home_dock	1	system.functions	judgment	concurrent	1	1	1	1	1	1	1	1	1	1
+functions.published.system_pick_inbox_next	1	system.functions	judgment	concurrent	1	1	1	1	1	1	1	1	1	1
+git.conflict	1	plugin-install-1f6466ff32b4232a98f50611ede69465	query							1	1	1	1	1
+git.operations	1	plugin-install-1f6466ff32b4232a98f50611ede69465	query							1	1	1	1	1
+git.pr-support	1	plugin-install-1f6466ff32b4232a98f50611ede69465	query							1	1	1	1	1
+git.prepare-index	1	plugin-install-1f6466ff32b4232a98f50611ede69465	operation							1	1	1	1	1
+git.prepare-operation	1	plugin-install-1f6466ff32b4232a98f50611ede69465	operation							1	1	1	1	1
+git.results	1	plugin-install-1f6466ff32b4232a98f50611ede69465	query							1	1	1	1	1
+git.save-result	1	plugin-install-1f6466ff32b4232a98f50611ede69465	operation							1	1	1	1	1
+git.select-diff	1	plugin-install-1f6466ff32b4232a98f50611ede69465	operation							1	1	1	1	1
+git.state	1	plugin-install-1f6466ff32b4232a98f50611ede69465	query							1	1	1	1	1
+git.summary	1	plugin-install-1f6466ff32b4232a98f50611ede69465	query							1	1	1	1	1
+goals.active.set	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.agreement.set	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.archive.set	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.board.import-v3	1	io.molis.work.goals	operation							1				
+goals.board.initialize	1	io.molis.work.goals	operation							1				
+goals.closure.submit	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.collection.read	1	io.molis.work.goals	query							1	1	1	1	1
+goals.concerns.apply	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.contract.read	1	io.molis.work.goals	query							1	1	1	1	1
+goals.create	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.decisions.cite	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.decisions.record	1	io.molis.work.goals	operation							1				
+goals.decisions.request	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.directory.read	1	io.molis.work.goals	query							1	1	1	1	1
+goals.document.read	1	io.molis.work.goals	query							1	1	1	1	1
+goals.events.configure	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.events.latest	1	io.molis.work.goals	query							1	1	1	1	1
+goals.events.list	1	io.molis.work.goals	query							1	1	1	1	1
+goals.events.read	1	io.molis.work.goals	query							1	1	1	1	1
+goals.events.report	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.fragment.offers	1	io.molis.work.goals	query	concurrent						1	1	1	1	1
+goals.guidance.add	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.guidance.read	1	io.molis.work.goals	query							1	1	1	1	1
+goals.guidance.update	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.history.list	1	io.molis.work.goals	query							1	1	1	1	1
+goals.history.read	1	io.molis.work.goals	query							1	1	1	1	1
+goals.inputs.bind	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.inputs.list	1	io.molis.work.goals	query							1	1	1	1	1
+goals.inputs.release	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.list	1	io.molis.work.goals	query							1	1	1	1	1
+goals.note	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.planning.apply	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.planning.graph.check	1	io.molis.work.goals	query							1	1	1	1	1
+goals.planning.impact	1	io.molis.work.goals	query							1	1	1	1	1
+goals.planning.personal.list	1	io.molis.work.goals.home	query		1	1	1	1	1	1	1	1	1	1
+goals.planning.personal.save	1	io.molis.work.goals.home	operation		1					1				
+goals.planning.read	1	io.molis.work.goals	query							1	1	1	1	1
+goals.planning.save	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.policy.history	1	io.molis.work.goals	query							1	1	1	1	1
+goals.policy.resolve	1	io.molis.work.goals	query							1	1	1	1	1
+goals.policy.save	1	io.molis.work.goals	operation							1				
+goals.progress.receipt	1	io.molis.work.goals	query							1	1	1	1	1
+goals.progress.record	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.relations.add	1	io.molis.work.goals	operation							1				
+goals.relations.deactivate	1	io.molis.work.goals	operation							1				
+goals.relations.list	1	io.molis.work.goals	query							1	1	1	1	1
+goals.search.entries	1	io.molis.work.goals	query	concurrent						1	1	1	1	1
+goals.snapshot.read	1	io.molis.work.goals	query							1	1	1	1	1
+goals.state.read	1	io.molis.work.goals	query							1	1	1	1	1
+goals.subject.read	1	io.molis.work.goals	query	concurrent						1	1	1	1	1
+goals.timeline.list	1	io.molis.work.goals	query							1	1	1	1	1
+goals.trash.list	1	io.molis.work.goals	query							1	1	1	1	1
+goals.trash.set	1	io.molis.work.goals	operation							1	1	1		1
+goals.tree.check	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.tree.decide	1	io.molis.work.goals	operation							1				
+goals.tree.read	1	io.molis.work.goals	query							1	1	1	1	1
+goals.tree.submit	1	io.molis.work.goals	operation							1	1	1	1	1
+goals.work.resume	1	io.molis.work.goals	operation							1	1	1	1	1
+home.actions.choices	1	system.home	query	concurrent						1	1	1	1	1
+home.actions.execute	1	system.home	operation	concurrent						1	1	1	1	1
+home.actions.prepare	1	system.home	query	concurrent						1	1	1	1	1
+home.events.open	1	system.home	query	concurrent						1	1	1	1	1
+home.events.read	1	system.home	query	concurrent						1	1	1	1	1
+home.judgment.evaluate	1	system.home	operation	concurrent						1	1	1	1	1
+home.judgment.read	1	system.home	query							1	1	1	1	1
+home.judgment.write	1	system.home	operation							1	1	1	1	1
+home.recommendations.read	1	system.home	query							1	1	1	1	1
+home.talk.prepare	1	system.home	query	concurrent						1	1	1	1	1
+images.connections.delete	1	io.molis.work.images	operation		1	1	1		1	1	1	1		1
+images.connections.list	1	io.molis.work.images	query		1	1	1	1	1	1	1	1	1	1
+images.connections.save	1	io.molis.work.images	operation		1	1	1	1	1	1	1	1	1	1
+images.files.content	1	io.molis.work.images	query	concurrent	1					1				
+images.files.entries	1	io.molis.work.images	query	concurrent	1					1				
+images.images.read	1	io.molis.work.images	query		1	1	1	1	1	1	1	1	1	1
+images.jobs.cancel	1	io.molis.work.images	operation		1	1	1	1	1	1	1	1	1	1
+images.jobs.delete	1	io.molis.work.images	operation		1	1	1		1	1	1	1		1
+images.jobs.get	1	io.molis.work.images	query		1	1	1	1	1	1	1	1	1	1
+images.jobs.list	1	io.molis.work.images	query		1	1	1	1	1	1	1	1	1	1
+images.jobs.start	1	io.molis.work.images	operation		1	1	1	1	1	1	1	1	1	1
+images.search.entries	1	io.molis.work.images	query	concurrent	1	1	1	1	1	1	1	1	1	1
+images.subject.read	1	io.molis.work.images	query	concurrent	1	1	1	1	1	1	1	1	1	1
+inbox.actions.prepare	1	io.molis.work.inbox	query	concurrent						1	1	1	1	1
+inbox.content.list	1	io.molis.work.inbox	query							1	1	1	1	1
+inbox.content.read	1	io.molis.work.inbox	query							1	1	1	1	1
+inbox.content.receive	1	io.molis.work.inbox	operation							1	1	1	1	1
+inbox.entry.status	1	io.molis.work.inbox	operation							1	1	1	1	1
+inbox.home.events	1	io.molis.work.inbox	query	concurrent						1	1	1	1	1
+inbox.judgment.evaluate	1	io.molis.work.inbox	operation	concurrent						1	1	1	1	1
+inbox.judgment.read	1	io.molis.work.inbox	query							1	1	1	1	1
+inbox.judgment.recommendations	1	io.molis.work.inbox	query							1	1	1	1	1
+inbox.judgment.write	1	io.molis.work.inbox	operation							1	1	1	1	1
+inbox.list	1	io.molis.work.inbox	query							1	1	1	1	1
+inbox.pages.generate	1	io.molis.work.inbox	operation	concurrent						1	1	1	1	1
+inbox.pages.results	1	io.molis.work.inbox	query							1	1	1	1	1
+inbox.search.entries	1	io.molis.work.inbox	query	concurrent						1	1	1	1	1
+inbox.subject.read	1	io.molis.work.inbox	query	concurrent						1	1	1	1	1
+information.plan	1	system.information	query	concurrent						1				
+jelly.calendar.list	1	io.molis.work.jelly	query		1	1	1	1	1	1	1	1	1	1
+jelly.calendar.progress	1	io.molis.work.jelly	query		1	1	1	1	1	1	1	1	1	1
+jelly.category.create	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.category.delete	1	io.molis.work.jelly	operation		1	1	1		1	1	1	1		1
+jelly.category.list	1	io.molis.work.jelly	query		1	1	1	1	1	1	1	1	1	1
+jelly.category.reorder	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.category.update	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.inspiration.archive	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.inspiration.convert	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.inspiration.create	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.inspiration.delete	1	io.molis.work.jelly	operation		1	1	1		1	1	1	1		1
+jelly.inspiration.delete_preview	1	io.molis.work.jelly	operation		1	1	1		1	1	1	1		1
+jelly.inspiration.digest_write	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.inspiration.restore	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.inspiration.subject.read	1	io.molis.work.jelly	query	concurrent	1	1	1	1	1	1	1	1	1	1
+jelly.inspiration.summarize	1	io.molis.work.jelly	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+jelly.inspiration.update	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.item.complete	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.item.create	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.item.delete	1	io.molis.work.jelly	operation		1	1	1		1	1	1	1		1
+jelly.item.get	1	io.molis.work.jelly	query		1	1	1	1	1	1	1	1	1	1
+jelly.item.move	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.item.move_many	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.item.notes_to_note	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.item.reorder	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.item.subject.read	1	io.molis.work.jelly	query	concurrent	1	1	1	1	1	1	1	1	1	1
+jelly.item.update	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.material.extract	1	io.molis.work.jelly	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+jelly.material.reread	1	io.molis.work.jelly	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+jelly.model.configure	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.model.settings	1	io.molis.work.jelly	query		1	1	1	1	1	1	1	1	1	1
+jelly.note.archive	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.note.create	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.note.delete	1	io.molis.work.jelly	operation		1	1	1		1	1	1	1		1
+jelly.note.delete_preview	1	io.molis.work.jelly	operation		1	1	1		1	1	1	1		1
+jelly.note.export	1	io.molis.work.jelly	query		1	1	1	1	1	1	1	1	1	1
+jelly.note.import	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.note.pin	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.note.restore	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.note.subject.read	1	io.molis.work.jelly	query	concurrent	1	1	1	1	1	1	1	1	1	1
+jelly.note.update	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.plan.apply	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.plan.generate	1	io.molis.work.jelly	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+jelly.plan.manual	1	io.molis.work.jelly	query		1	1	1	1	1	1	1	1	1	1
+jelly.redo	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.relation.attach	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.relation.detach	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.relation.reset	1	io.molis.work.jelly	operation		1	1	1		1	1	1	1		1
+jelly.search	1	io.molis.work.jelly	query		1	1	1	1	1	1	1	1	1	1
+jelly.search.entries	1	io.molis.work.jelly	query	concurrent	1	1	1	1	1	1	1	1	1	1
+jelly.series.complete	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.series.create	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.series.delete	1	io.molis.work.jelly	operation		1	1	1		1	1	1	1		1
+jelly.series.update	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.source.read	1	io.molis.work.jelly	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+jelly.task.complete	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.task.schedule	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.task.unlink	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.undo	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.workspace.export	1	io.molis.work.jelly	query		1	1	1	1	1	1	1	1	1	1
+jelly.workspace.get	1	io.molis.work.jelly	query		1	1	1	1	1	1	1	1	1	1
+jelly.workspace.import	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+jelly.workspace.import_preview	1	io.molis.work.jelly	operation		1	1	1	1	1	1	1	1	1	1
+lingguang.content.create	1	io.molis.work.lingguang	operation							1	1	1	1	1
+lingguang.content.list	1	io.molis.work.lingguang	query							1	1	1	1	1
+lingguang.content.read	1	io.molis.work.lingguang	query							1	1	1	1	1
+lingguang.content.receive	1	io.molis.work.lingguang	operation							1	1	1	1	1
+lingguang.conversation.get	1	io.molis.work.lingguang	query							1	1	1	1	1
+lingguang.conversation.message	1	io.molis.work.lingguang	operation	concurrent						1	1	1	1	1
+lingguang.conversation.open	1	io.molis.work.lingguang	operation							1	1	1	1	1
+lingguang.create	1	io.molis.work.lingguang	operation							1	1	1	1	1
+lingguang.discard	1	io.molis.work.lingguang	operation							1	1	1	1	1
+lingguang.fragment.offers	1	io.molis.work.lingguang	query	concurrent						1	1	1	1	1
+lingguang.get	1	io.molis.work.lingguang	query							1	1	1	1	1
+lingguang.list	1	io.molis.work.lingguang	query							1	1	1	1	1
+lingguang.placement.copy	1	io.molis.work.lingguang	operation							1				
+lingguang.placement.move	1	io.molis.work.lingguang	operation							1				
+lingguang.search.entries	1	io.molis.work.lingguang	query	concurrent						1	1	1	1	1
+lingguang.subject.read	1	io.molis.work.lingguang	query	concurrent						1	1	1	1	1
+lingguang.update	1	io.molis.work.lingguang	operation							1	1	1	1	1
+mcp.grants.usages	1	system.action-usages	query	concurrent	1					1				
+memory.candidates.accept	1	system.memory	operation		1					1				
+memory.candidates.discard	1	system.memory	operation		1					1				
+memory.candidates.list	1	system.memory	query		1					1				
+memory.change	1	system.memory	operation		1					1				
+memory.changes.list	1	system.memory	query		1					1				
+memory.changes.undo	1	system.memory	operation		1					1				
+memory.export	1	system.memory	query		1					1				
+memory.history	1	system.memory	query		1					1				
+memory.import	1	system.memory	operation		1					1				
+memory.list	1	system.memory	query		1	1		1		1	1		1	
+memory.pairs.list	1	system.memory	query		1					1				
+memory.pairs.resolve	1	system.memory	operation		1					1				
+memory.prefs.read	1	system.memory	query		1					1				
+memory.prefs.write	1	system.memory	operation		1					1				
+memory.recall	1	system.memory	query	concurrent	1	1	1	1	1	1	1	1	1	1
+memory.scope.clear	1	system.memory	operation		1					1				
+memory.scope.preview	1	system.memory	query		1					1				
+memory.signals.report	1	system.memory	operation	concurrent	1					1				
+memory.upkeep.run	1	system.memory	operation		1					1				
+memory.write	1	system.memory	operation		1	1		1		1	1		1	
+model.generate	1	plugin-platform	operation	concurrent									1	
+pages.ai	1	io.molis.work.pages	operation	concurrent						1	1	1	1	1
+pages.content.create	1	io.molis.work.pages	operation							1	1	1	1	1
+pages.content.list	1	io.molis.work.pages	query							1	1	1	1	1
+pages.content.read	1	io.molis.work.pages	query							1	1	1	1	1
+pages.content.receive	1	io.molis.work.pages	operation							1	1	1	1	1
+pages.create	1	io.molis.work.pages	operation							1	1	1	1	1
+pages.delete	1	io.molis.work.pages	operation							1	1	1		1
+pages.discard	1	io.molis.work.pages	operation							1	1	1		1
+pages.documents.import	1	io.molis.work.pages	operation							1	1	1	1	1
+pages.extract	1	io.molis.work.pages	operation							1	1	1	1	1
+pages.files.content	1	io.molis.work.pages	query	concurrent						1				
+pages.files.entries	1	io.molis.work.pages	query	concurrent						1				
+pages.folders.create	1	io.molis.work.pages	operation							1	1	1	1	1
+pages.folders.delete	1	io.molis.work.pages	operation							1	1	1		1
+pages.folders.update	1	io.molis.work.pages	operation							1	1	1	1	1
+pages.fragment.offers	1	io.molis.work.pages	query	concurrent						1	1	1	1	1
+pages.generate	1	io.molis.work.pages	operation	concurrent						1	1	1	1	1
+pages.generations.get	1	io.molis.work.pages	query							1	1	1	1	1
+pages.generations.list	1	io.molis.work.pages	query							1	1	1	1	1
+pages.get	1	io.molis.work.pages	query							1	1	1	1	1
+pages.import	1	io.molis.work.pages	operation	concurrent						1	1	1	1	1
+pages.import.preview	1	io.molis.work.pages	query	concurrent						1	1	1	1	1
+pages.list	1	io.molis.work.pages	query							1	1	1	1	1
+pages.placement.copy	1	io.molis.work.pages	operation							1				
+pages.placement.move	1	io.molis.work.pages	operation							1				
+pages.promote	1	io.molis.work.pages	operation							1	1	1	1	1
+pages.revert	1	io.molis.work.pages	operation							1	1	1	1	1
+pages.search.entries	1	io.molis.work.pages	query	concurrent						1	1	1	1	1
+pages.subject.read	1	io.molis.work.pages	query	concurrent						1	1	1	1	1
+pages.templates	1	io.molis.work.pages	query							1	1	1	1	1
+pages.update	1	io.molis.work.pages	operation							1	1	1	1	1
+placement.convert	1	system.placement	operation		1					1				
+placement.copy	1	system.placement	operation		1					1				
+placement.create	1	system.placement	operation		1					1				
+placement.describe	1	system.placement	query	concurrent	1	1		1		1	1		1	
+placement.goal.bind	1	system.placement	operation		1					1				
+placement.goals	1	system.placement	query	concurrent	1	1		1		1	1		1	
+placement.link	1	system.placement	operation		1					1				
+placement.locate	1	system.placement	query	concurrent	1	1		1		1	1		1	
+placement.move	1	system.placement	operation		1					1				
+placement.related	1	system.placement	query	concurrent	1	1		1		1	1		1	
+placement.spaces	1	system.placement	query	concurrent	1	1		1		1	1		1	
+placement.unlink	1	system.placement	operation		1					1				
+ppt.content.create	1	io.molis.work.ppt	operation							1	1	1	1	1
+ppt.content.list	1	io.molis.work.ppt	query							1	1	1	1	1
+ppt.content.read	1	io.molis.work.ppt	query							1	1	1	1	1
+ppt.content.receive	1	io.molis.work.ppt	operation							1	1	1	1	1
+ppt.create	1	io.molis.work.ppt	operation							1	1	1	1	1
+ppt.delete	1	io.molis.work.ppt	operation							1	1	1		1
+ppt.export	1	io.molis.work.ppt	query							1	1	1	1	1
+ppt.files.entries	1	io.molis.work.ppt	query	concurrent						1				
+ppt.get	1	io.molis.work.ppt	query							1	1	1	1	1
+ppt.list	1	io.molis.work.ppt	query							1	1	1	1	1
+ppt.outline	1	io.molis.work.ppt	operation							1	1	1	1	1
+ppt.outline_ai	1	io.molis.work.ppt	operation	concurrent						1	1	1	1	1
+ppt.outline_pages	1	io.molis.work.ppt	query							1	1	1	1	1
+ppt.placement.copy	1	io.molis.work.ppt	operation							1				
+ppt.placement.move	1	io.molis.work.ppt	operation							1				
+ppt.pptx	1	io.molis.work.ppt	query							1	1	1	1	1
+ppt.promote	1	io.molis.work.ppt	operation							1	1	1	1	1
+ppt.search.entries	1	io.molis.work.ppt	query	concurrent						1	1	1	1	1
+ppt.subject.read	1	io.molis.work.ppt	query	concurrent						1	1	1	1	1
+ppt.update	1	io.molis.work.ppt	operation							1	1	1	1	1
+projects.workspaces.add	1	system.project-workspaces	operation							1				
+projects.workspaces.repair	1	system.project-workspaces	operation							1				
+projects.workspaces.unlink	1	system.project-workspaces	operation							1				
+reminders.add	1	schedule.reminders	operation										1	
+reminders.cancel	1	schedule.reminders	operation										1	
+scenes.disable:feed.capture	1	io.molis.work.feed	operation							1	1	1	1	1
+scenes.disable:home.dock	1	system.home	operation							1	1	1	1	1
+scenes.disable:inbox.next	1	io.molis.work.inbox	operation							1	1	1	1	1
+scenes.enable:feed.capture	1	io.molis.work.feed	operation							1	1	1	1	1
+scenes.enable:home.dock	1	system.home	operation							1	1	1	1	1
+scenes.enable:inbox.next	1	io.molis.work.inbox	operation							1	1	1	1	1
+scenes.targets:feed.capture	1	io.molis.work.feed	query							1	1	1	1	1
+scenes.targets:home.dock	1	system.home	query							1	1	1	1	1
+scenes.targets:inbox.next	1	io.molis.work.inbox	query							1	1	1	1	1
+schedule.jobs.enabled	1	io.molis.work.schedule	operation							1	1	1	1	1
+schedule.operations.recover	1	io.molis.work.schedule	operation							1	1	1		1
+schedule.reminders.recover	1	io.molis.work.schedule	operation							1	1	1		1
+schedule.search.entries	1	io.molis.work.schedule	query	concurrent						1	1	1	1	1
+schedule.subject.read	1	io.molis.work.schedule	query	concurrent						1	1	1	1	1
+schedule.tasks.archive	1	io.molis.work.schedule	operation							1	1	1	1	1
+schedule.tasks.create	1	io.molis.work.schedule	operation							1	1	1	1	1
+schedule.tasks.enabled	1	io.molis.work.schedule	operation							1	1	1	1	1
+schedule.tasks.list	1	io.molis.work.schedule	query							1	1	1	1	1
+schedule.tasks.open	1	io.molis.work.schedule	operation							1	1	1	1	1
+schedule.tasks.update	1	io.molis.work.schedule	operation							1	1	1	1	1
+schedules.add	1	schedule.operations	operation										1	
+schedules.cancel	1	schedule.operations	operation										1	
+sdk.artifacts.plugin-install-1f6466ff32b4232a98f50611ede69465.publish	1	sdk.artifacts.plugin-install-1f6466ff32b4232a98f50611ede69465	operation										1	
+sdk.artifacts.plugin-install-1f6466ff32b4232a98f50611ede69465.read	1	sdk.artifacts.plugin-install-1f6466ff32b4232a98f50611ede69465	query										1	
+sdk.artifacts.plugin-install-4790d5958896dce594cbd88abc496685.publish	1	sdk.artifacts.plugin-install-4790d5958896dce594cbd88abc496685	operation										1	
+sdk.artifacts.plugin-install-4790d5958896dce594cbd88abc496685.read	1	sdk.artifacts.plugin-install-4790d5958896dce594cbd88abc496685	query										1	
+sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678.publish	1	sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678	operation										1	
+sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678.read	1	sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678	query										1	
+sdk.artifacts.plugin-install-9118333e82adbdf7214fda357f25ff2c.publish	1	sdk.artifacts.plugin-install-9118333e82adbdf7214fda357f25ff2c	operation										1	
+sdk.artifacts.plugin-install-9118333e82adbdf7214fda357f25ff2c.read	1	sdk.artifacts.plugin-install-9118333e82adbdf7214fda357f25ff2c	query										1	
+sdk.artifacts.plugin-install-9b090ee5406d4f5907d370339bdd8045.publish	1	sdk.artifacts.plugin-install-9b090ee5406d4f5907d370339bdd8045	operation										1	
+sdk.artifacts.plugin-install-9b090ee5406d4f5907d370339bdd8045.read	1	sdk.artifacts.plugin-install-9b090ee5406d4f5907d370339bdd8045	query										1	
+sdk.artifacts.plugin-install-a2d0547d448030b70d0710e378775d51.publish	1	sdk.artifacts.plugin-install-a2d0547d448030b70d0710e378775d51	operation										1	
+sdk.artifacts.plugin-install-a2d0547d448030b70d0710e378775d51.read	1	sdk.artifacts.plugin-install-a2d0547d448030b70d0710e378775d51	query										1	
+sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131.publish	1	sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131	operation										1	
+sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131.read	1	sdk.artifacts.plugin-install-d235ca007dcd828cde4b5350e0531131	query										1	
+search.fragment.offers	1	system.search	query	concurrent	1	1	1	1	1	1	1	1	1	1
+search.open	1	system.search	query	concurrent	1	1	1	1	1	1	1	1	1	1
+search.query	1	system.search	query	concurrent	1	1	1	1	1	1	1	1	1	1
+search.rebuild	1	system.search	operation	concurrent	1					1				
+search.status	1	system.search	query	concurrent	1	1	1	1	1	1	1	1	1	1
+sessions.archive	1	io.molis.work.sessions	operation							1				
+sessions.associations.update	1	io.molis.work.sessions	operation							1				
+sessions.content.read	1	io.molis.work.sessions	query							1	1	1	1	1
+sessions.create	1	io.molis.work.sessions	operation							1				
+sessions.directory.read	1	io.molis.work.sessions	query							1	1	1	1	1
+sessions.discover	1	io.molis.work.sessions	operation							1				
+sessions.handoffs.cancel	1	io.molis.work.sessions	operation							1				
+sessions.handoffs.prepare	1	io.molis.work.sessions	operation							1				
+sessions.handoffs.send	1	io.molis.work.sessions	operation							1				
+sessions.handoffs.update	1	io.molis.work.sessions	operation							1				
+sessions.home.events	1	io.molis.work.sessions	query	concurrent						1	1	1	1	1
+sessions.list	1	io.molis.work.sessions	query							1	1	1	1	1
+sessions.message.read	1	io.molis.work.sessions	query	concurrent						1	1	1	1	1
+sessions.message.retry	1	io.molis.work.sessions	operation	concurrent						1	1	1	1	1
+sessions.message.send	1	io.molis.work.sessions	operation	concurrent						1	1	1	1	1
+sessions.resume	1	io.molis.work.sessions	operation							1	1	1	1	1
+sessions.search.entries	1	io.molis.work.sessions	query	concurrent						1	1	1	1	1
+sessions.subject.read	1	io.molis.work.sessions	query	concurrent						1	1	1	1	1
+shelf.clipboard.add	1	io.molis.work.shelf	operation	concurrent	1					1				
+shelf.clipboard.delete	1	io.molis.work.shelf	operation	concurrent	1					1				
+shelf.clipboard.material	1	io.molis.work.shelf	operation	concurrent	1					1				
+shelf.clipboard.search.entries	1	io.molis.work.shelf	query	concurrent	1					1				
+shelf.files.content	1	io.molis.work.shelf	query	concurrent	1					1				
+shelf.files.entries	1	io.molis.work.shelf	query	concurrent	1					1				
+shelf.items.admit	1	io.molis.work.shelf	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+shelf.items.admit-folder	1	io.molis.work.shelf	operation	concurrent	1					1				
+shelf.items.delete	1	io.molis.work.shelf	operation	concurrent	1	1	1		1	1	1	1		1
+shelf.items.edit	1	io.molis.work.shelf	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+shelf.items.file	1	io.molis.work.shelf	query	concurrent	1					1				
+shelf.items.hide	1	io.molis.work.shelf	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+shelf.items.list	1	io.molis.work.shelf	query	concurrent	1	1	1	1	1	1	1	1	1	1
+shelf.items.read	1	io.molis.work.shelf	query	concurrent	1	1	1	1	1	1	1	1	1	1
+shelf.items.use-material	1	io.molis.work.shelf	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+shelf.jobs.cancel	1	io.molis.work.shelf	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+shelf.jobs.extract	1	io.molis.work.shelf	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+shelf.jobs.generate	1	io.molis.work.shelf	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+shelf.jobs.run	1	io.molis.work.shelf	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+shelf.material-output.read	1	plugin-install-7d7b3314323c66d2f0199158cb692678	query							1	1	1	1	1
+shelf.material-output.select	1	plugin-install-7d7b3314323c66d2f0199158cb692678	operation							1	1	1	1	1
+shelf.material.preview	1	io.molis.work.shelf	query							1				
+shelf.material.save	1	io.molis.work.shelf	operation							1				
+shelf.results.list	1	plugin-install-7d7b3314323c66d2f0199158cb692678	query							1	1	1	1	1
+shelf.results.preview	1	plugin-install-7d7b3314323c66d2f0199158cb692678	query							1	1	1	1	1
+shelf.results.receive	1	plugin-install-7d7b3314323c66d2f0199158cb692678	operation							1				
+shelf.sample.seed	1	io.molis.work.shelf	operation	concurrent	1					1				
+shelf.search.entries	1	io.molis.work.shelf	query	concurrent	1	1	1	1	1	1	1	1	1	1
+shelf.settings.read	1	io.molis.work.shelf	query	concurrent	1					1				
+shelf.settings.write	1	io.molis.work.shelf	operation	concurrent	1					1				
+shelf.snapshot	1	io.molis.work.shelf	query	concurrent	1					1				
+shelf.subject.read	1	io.molis.work.shelf	query	concurrent	1	1	1	1	1	1	1	1	1	1
+text-stats.count	1	plugin-install-d235ca007dcd828cde4b5350e0531131	query							1	1	1	1	1
+text-stats.state	1	plugin-install-d235ca007dcd828cde4b5350e0531131	query							1	1	1	1	1
+todo.batch.subject.read	1	io.molis.work.todo	query	concurrent	1	1	1	1	1	1	1	1	1	1
+todo.changes.revert	1	io.molis.work.todo	operation		1	1	1	1	1	1	1	1	1	1
+todo.fragment.offers	1	io.molis.work.todo	query	concurrent	1	1	1	1	1	1	1	1	1	1
+todo.home.events	1	io.molis.work.todo	query	concurrent	1	1	1	1	1	1	1	1	1	1
+todo.item.subject.read	1	io.molis.work.todo	query	concurrent	1	1	1	1	1	1	1	1	1	1
+todo.items.archive	1	io.molis.work.todo	operation		1	1	1	1	1	1	1	1	1	1
+todo.items.batch	1	io.molis.work.todo	operation		1	1	1	1	1	1	1	1	1	1
+todo.items.create	1	io.molis.work.todo	operation		1	1	1	1	1	1	1	1	1	1
+todo.items.delete	1	io.molis.work.todo	operation		1	1	1		1	1	1	1		1
+todo.items.get	1	io.molis.work.todo	query		1	1	1	1	1	1	1	1	1	1
+todo.items.link	1	io.molis.work.todo	operation		1	1	1	1	1	1	1	1	1	1
+todo.items.list	1	io.molis.work.todo	query		1	1	1	1	1	1	1	1	1	1
+todo.items.status	1	io.molis.work.todo	operation		1	1	1	1	1	1	1	1	1	1
+todo.items.update	1	io.molis.work.todo	operation		1	1	1	1	1	1	1	1	1	1
+todo.organize.apply	1	io.molis.work.todo	operation		1	1	1	1	1	1	1	1	1	1
+todo.organize.close	1	io.molis.work.todo	operation		1	1	1	1	1	1	1	1	1	1
+todo.organize.extract	1	io.molis.work.todo	operation	concurrent	1	1	1	1	1	1	1	1	1	1
+todo.organize.get	1	io.molis.work.todo	query		1	1	1	1	1	1	1	1	1	1
+todo.organize.list	1	io.molis.work.todo	query		1	1	1	1	1	1	1	1	1	1
+todo.placement.move	1	io.molis.work.todo	operation		1					1				
+todo.reminders.acknowledge	1	io.molis.work.todo	operation		1	1	1	1	1	1	1	1	1	1
+todo.reminders.due	1	io.molis.work.todo	query		1	1	1	1	1	1	1	1	1	1
+todo.reminders.window	1	io.molis.work.todo	query	concurrent	1					1				
+todo.search.entries	1	io.molis.work.todo	query	concurrent	1	1	1	1	1	1	1	1	1	1
+workflows.create	1	io.molis.work.native.workflows	operation	concurrent						1	1		1	1
+workflows.delete	1	io.molis.work.native.workflows	operation	concurrent						1	1			1
+workflows.get	1	io.molis.work.native.workflows	query	concurrent						1	1		1	1
+workflows.instances.continue	1	io.molis.work.native.workflows	operation	concurrent						1	1		1	1
+workflows.instances.get	1	io.molis.work.native.workflows	query	concurrent						1	1		1	1
+workflows.instances.preview	1	io.molis.work.native.workflows	query	concurrent						1	1		1	1
+workflows.instances.start	1	io.molis.work.native.workflows	operation	concurrent						1	1		1	1
+workflows.instances.stop	1	io.molis.work.native.workflows	operation	concurrent						1	1		1	1
+workflows.judgments.list	1	io.molis.work.native.workflows	query	concurrent						1	1		1	1
+workflows.list	1	io.molis.work.native.workflows	query	concurrent						1	1		1	1
+workflows.search.entries	1	io.molis.work.native.workflows	query	concurrent						1	1	1	1	1
+workflows.stations.items	1	io.molis.work.native.workflows	query	concurrent						1	1		1	1
+workflows.steps.actions	1	io.molis.work.native.workflows	query	concurrent						1	1		1	1
+workflows.subject.read	1	io.molis.work.native.workflows	query	concurrent						1	1	1	1	1
+workflows.update	1	io.molis.work.native.workflows	operation	concurrent						1	1		1	1
+workflows.usages	1	io.molis.work.native.workflows	query	concurrent						1	1		1	1
+# MCP 默认工具（runtime 入口）：molis_work_v1_action_actions.usages.read__v1, molis_work_v1_action_functions.describe__v1, molis_work_v1_action_functions.list__v1, molis_work_v1_context_bind, molis_work_v1_context_create_and_bind, molis_work_v1_context_list_projects, molis_work_v1_context_reject_suggestion, molis_work_v1_context_resolve, molis_work_v1_context_unbind, molis_work_v1_functions_describe, molis_work_v1_functions_list, molis_work_v1_project_delete

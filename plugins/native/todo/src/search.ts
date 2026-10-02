@@ -1,5 +1,5 @@
 import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
-import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoEditableField, type TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
 import type { TodoAccess, TodoStore } from "./store.js";
 import { todoCallerProject } from "./caller.js";
 
@@ -14,6 +14,9 @@ export const todoSearchActions = {
 
 const STATUS: Record<TodoItem["status"], string> = { open: "待处理", doing: "进行中", waiting: "等待他人", done: "已完成", cancelled: "已取消" };
 const PLACEMENT: Record<TodoItem["placement"], string> = { personal: "个人", project: "项目", unassigned: "暂未归类" };
+// The fields the person changed, named as the todo page names them; readers never see the stored field names.
+const FIELD: Record<TodoEditableField, string> = { title: "要做什么", notes: "说明", due_date: "截止日期", due_time: "截止时间", planned_date: "计划处理日期",
+  remind_at: "提醒时间", placement: "放在哪里", important: "重要", waiting: "在等谁" };
 
 /** The facts a reader (search, the Assistant) needs, in plain words; the owner's revision says when it changed. */
 export function todoText(item: TodoItem): string {
@@ -28,7 +31,7 @@ export function todoText(item: TodoItem): string {
     item.notes ? `说明：\n${item.notes}` : "",
     ...item.sources.map(source => `来源：${source.title}${source.reason ? `（${source.reason}）` : ""}${source.excerpt ? `\n  依据：${source.excerpt}` : ""}`),
     ...item.links.map(link => `关联：${link.title}${link.relation ? `（${link.relation}）` : link.outcome === "draft" ? "（草稿）" : link.outcome === "done" ? "（已完成的动作）" : ""}`),
-    item.edited_fields.length ? `你手动改过：${item.edited_fields.join("、")}` : "",
+    item.edited_fields.length ? `你手动改过：${item.edited_fields.map(field => FIELD[field] ?? field).join("、")}` : "",
   ];
   return lines.filter(Boolean).join("\n");
 }

@@ -25,17 +25,12 @@ export class JellyStore {
   previewImport(source: unknown): JellyPreview {
     const state = this.read(), imported = decodeJellyImport(source), merged = mergeJellyImport(state, imported.workspace);
     const counts: Record<string, number> = {};
-    for (const key of ["categories", "items", "series", "notes", "inspirations", "relations", "task_links"] as const) counts[key] = merged[key].length - state[key].length;
+    for (const key of ["categories", "items", "series", "notes", "relations", "task_links"] as const) counts[key] = merged[key].length - state[key].length;
     return this.savePreview("workspace.import", imported.source_hash, state.revision, counts, imported.warnings);
   }
   previewDelete(id: string): JellyPreview {
     const state = this.read(), note = state.notes.find(n => n.id === id); jellyAssert(note, "笔记不存在", "jelly.not_found", 404); jellyAssert(note.archived_at, "请先归档，再永久删除笔记");
     return this.savePreview("note.delete", id, state.revision, { notes: 1, relations: state.relations.filter(r => r.note_id === id).length, task_links: state.task_links.filter(l => l.note_id === id).length }, ["笔记及其关联将删除；已排期的日历事项保留。可通过撤销恢复。"]);
-  }
-  previewDeleteInspiration(id: string): JellyPreview {
-    const state = this.read(), inspiration = state.inspirations.find(entry => entry.id === id);
-    jellyAssert(inspiration, "灵感不存在", "jelly.not_found", 404); jellyAssert(inspiration.archived_at, "请先归档，再永久删除灵感");
-    return this.savePreview("inspiration.delete", id, state.revision, { inspirations: 1, notes: 0 }, ["灵感和其中的素材摘要将删除；已经转成的笔记会保留。可通过撤销恢复。"]);
   }
   private savePreview(type: string, fingerprint: string, revision: number, counts: Record<string, number>, warnings: string[]): JellyPreview {
     const token = randomUUID(); this.db.prepare("DELETE FROM jelly_previews WHERE expires_at < ?").run(Date.now());
@@ -58,7 +53,7 @@ export class JellyStore {
       } else if (command.type === "workspace.import") {
         const imported = decodeJellyImport(command.source); this.requirePreview(command, imported.source_hash, previous.revision); next = mergeJellyImport(previous, imported.workspace);
       } else {
-        if (command.type === "note.delete" || command.type === "inspiration.delete") this.requirePreview(command, String(command.id), previous.revision);
+        if (command.type === "note.delete") this.requirePreview(command, String(command.id), previous.revision);
         const now = new Date().toISOString();
         jellyAssert(applyJellyContentCommand(next, command, now) || applyJellyCalendarCommand(next, command, now), "不支持的 Jelly 命令");
       }

@@ -213,8 +213,13 @@ test("search entries and the object reader follow the caller's scope", async t =
   const personalSpace = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: PERSONAL_SPACE_PROJECT_ID, audience: "user", permissions: TODO_ACTION_PERMISSIONS }));
   assert.equal((await personalSpace.invoke(todoSearchActions.subject, { subject_id: inB.id })).project_id, "project-b");
   assert.deepEqual(titles(await personalSpace.invoke(actions.list, { view: "all" })), ["个人的事"], "列表仍只列个人空间的");
+  // What the person changed is said in the page's words, not as stored field names (search shows this text).
+  const changed = await f.me.invoke(actions.update, { id: mine.id, expected_revision: mine.revision, due_date: "2026-10-05", planned_date: "2026-10-02" });
+  const edited = (await f.agentA.invoke(todoSearchActions.subject, { subject_id: mine.id })).content;
+  assert.match(edited, /你手动改过：(截止日期、计划处理日期|计划处理日期、截止日期)/u);
+  assert.doesNotMatch(edited, /due_date|planned_date/u);
   // Archived reads as gone from use (the readers' shared convention), though Todo still lists it under 已归档.
-  const done = await f.me.invoke(actions.status, { id: mine.id, status: "done", expected_revision: mine.revision });
+  const done = await f.me.invoke(actions.status, { id: mine.id, status: "done", expected_revision: changed.item.revision });
   await f.me.invoke(actions.archive, { id: mine.id, archived: true, expected_revision: done.item.revision });
   await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: mine.id }), { code: "todo.not_found" });
 });

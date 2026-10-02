@@ -1,21 +1,19 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { JELLY_DECOMPOSE, JELLY_DIGEST_MERGE, JELLY_DIGEST_PART } from "./prompts.js";
+import { JELLY_DECOMPOSE } from "./prompts.js";
 import { createHash, randomUUID } from "node:crypto";
-import type { JellyDigest, JellyMaterialSnapshot, JellyStructuredDigest, JellyPlan, JellyPlanAction, JellySchedule, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyPlan, JellyPlanAction, JellySchedule, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { jellySourceHash } from "./content.js";
 import { jellyOccurrences } from "./calendar.js";
 import { JellyError } from "./error.js";
-import { makeJellyMaterialSnapshot, validateJellyStructuredDigest, renderJellyDigestMarkdown, jellyMaterialFingerprint } from "./material.js";
 
 export interface JellyAiPorts {
   completeJson?: (prompt: InstructedPrompt, options?: { signal?: AbortSignal }) => Promise<unknown>;
-  readSource?: (url: string) => Promise<{ text: string; title?: string }>;
   signal?: AbortSignal;
   onProgress?: (progress: { stage: string; progress: number }) => void;
 }
 export interface JellyAiInput {
-  kind: "decompose" | "digest";
-  source_type: "note" | "inspiration" | "text";
+  kind: "decompose";
+  source_type: "note" | "text";
   source_id?: string | null; text?: string; instructions?: string; today?: string; start_time?: number; manual?: boolean;
   selection?: { block_ids: string[]; text: string };
 }
@@ -32,11 +30,6 @@ function sourceText(state: JellyWorkspace, input: JellyAiInput): string {
       return input.selection.text;
     }
     return note.blocks.map((b) => b.text).join("\n");
-  }
-  if (input.source_type === "inspiration") {
-    const source = state.inspirations.find((n) => n.id === input.source_id && !n.archived_at);
-    if (!source) throw new JellyError("jelly.not_found", "找不到原灵感");
-    return source.raw_text;
   }
   return input.text?.trim() ?? "";
 }
@@ -71,51 +64,10 @@ async function complete(ports: JellyAiPorts, prompt: InstructedPrompt): Promise<
   try { return await ports.completeJson(prompt, { signal: ports.signal }); }
   finally { cancelled(ports); }
 }
-async function digestSnapshot(snapshot: JellyMaterialSnapshot, ports: JellyAiPorts): Promise<JellyStructuredDigest> {
-  const batches: JellyMaterialSnapshot["blocks"][] = [];
-  let group: JellyMaterialSnapshot["blocks"] = [], length = 0;
-  for (const block of snapshot.blocks) { if (group.length && length + block.text.length > 16000) { batches.push(group); group = []; length = 0; } group.push(block); length += block.text.length; }
-  if (group.length) batches.push(group);
-  if (!batches.length) throw new JellyError("jelly.invalid", "素材没有可提炼的正文");
-  let results: JellyStructuredDigest[] = [];
-  for (const [index, blocks] of batches.entries()) {
-    ports.onProgress?.({ stage: "summarizing", progress: index / batches.length });
-    const value = await complete(ports, instructed(JELLY_DIGEST_PART, `这是第 ${index + 1}/${batches.length} 部分。\n<材料块>\n${JSON.stringify(blocks)}\n</材料块>`));
-    results.push(validateJellyStructuredDigest(value, { ...snapshot, blocks, content_fingerprint: jellyMaterialFingerprint(blocks, snapshot.coverage, snapshot.attachment) }));
-  }
-  while (results.length > 1) {
-    const next: JellyStructuredDigest[] = [];
-    // Bound each merge prompt; retain original IDs through every level.
-    for (let index = 0; index < results.length; index += 3) {
-      const part = results.slice(index, index + 3);
-      if (part.length === 1) { next.push(part[0]!); continue; }
-      const merged = await complete(ports, instructed(JELLY_DIGEST_MERGE, `<分段摘要>\n${JSON.stringify(part)}\n</分段摘要>`));
-      next.push(validateJellyStructuredDigest(merged, snapshot));
-    }
-    results = next;
-  }
-  ports.onProgress?.({ stage: "summarizing", progress: 1 });
-  return results[0]!;
-}
-
-export async function runJellyAi(state: JellyWorkspace, input: JellyAiInput, ports: JellyAiPorts): Promise<{ plan: JellyPlan; method: "model" | "manual" } | { digest: JellyDigest }> {
-  if (!["note", "inspiration", "text"].includes(input.source_type)) throw new JellyError("jelly.invalid", "请选择原文");
-  let text = sourceText(state, input);
+export async function runJellyAi(state: JellyWorkspace, input: JellyAiInput, ports: JellyAiPorts): Promise<{ plan: JellyPlan; method: "model" | "manual" }> {
+  if (!["note", "text"].includes(input.source_type)) throw new JellyError("jelly.invalid", "请选择原文");
+  const text = sourceText(state, input);
   const sourceHash = jellySourceHash(state, input.source_type, input.source_id ?? null, input.text ?? "");
-  if (input.kind === "digest") {
-    const source = state.inspirations.find((n) => n.id === input.source_id);
-    let extracted: { text: string; title?: string } | undefined;
-    if (source?.material?.source_hash === sourceHash) text = source.material.blocks.map(block => block.text).join("\n\n");
-    if (!source?.material && source?.url && ports.readSource) { extracted = await ports.readSource(source.url); text = extracted.text; }
-    else if (source?.url && !text.trim()) throw new JellyError("jelly.source_unavailable", "来源正文还没有读取成功，请导入原文后重试");
-    if (!ports.completeJson) throw new JellyError("jelly.ai_unavailable", "尚未配置文字模型。原始素材已保留，可以先转为笔记。");
-    if (!text.trim()) throw new JellyError("jelly.invalid", "原始素材没有可提炼的正文");
-    if (text.length > 2_000_000) throw new JellyError("jelly.invalid", "材料超过 200 万字符，请按章节分开处理；没有截断后冒充全文");
-    const snapshot = source?.material?.source_hash === sourceHash ? source.material : makeJellyMaterialSnapshot(sourceHash, extracted ?? { text });
-    if (snapshot.coverage.status === "insufficient") throw new JellyError("jelly.source_unavailable", "可读取内容不足，请补充原文或重新导入文件");
-    const structured = await digestSnapshot(snapshot, ports);
-    return { digest: { source_hash: sourceHash, source_text: snapshot.blocks.map(block => block.text).join("\n\n"), summary: renderJellyDigestMarkdown(structured, snapshot), snapshot, structured, created_at: new Date().toISOString(), written_note_ids: [] } };
-  }
   if (input.kind !== "decompose") throw new JellyError("jelly.invalid", "未知的整理操作");
   if (!text.trim() || text.length > 80_000) throw new JellyError("jelly.invalid", "需要一段不超过 8 万字的原文");
   let entries: unknown[]; let questions: string[] = [];

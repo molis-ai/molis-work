@@ -141,22 +141,12 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* One Codex-style desktop titlebar co
       transform: translateY(-2px);
     }
     body.settings-page[data-desktop-shell="true"][data-native-desktop="true"] > .topbar,
-    html[data-native-desktop="true"] body.settings-page[data-desktop-shell="true"] > .topbar,
-    body.project-index-page[data-desktop-shell="true"][data-native-desktop="true"] > .topbar,
-    html[data-native-desktop="true"] body.project-index-page[data-desktop-shell="true"] > .topbar {
+    html[data-native-desktop="true"] body.settings-page[data-desktop-shell="true"] > .topbar {
       height: var(--desktop-titlebar-height);
       min-height: var(--desktop-titlebar-height);
     }
-    body.project-index-page[data-desktop-shell="true"][data-native-desktop="true"] > .project-index,
-    html[data-native-desktop="true"] body.project-index-page[data-desktop-shell="true"] > .project-index {
-      min-height: 0;
-      overflow: hidden;
-      overscroll-behavior: contain;
-    }
     body.settings-page[data-desktop-shell="true"][data-native-desktop="true"] > .topbar > *,
-    html[data-native-desktop="true"] body.settings-page[data-desktop-shell="true"] > .topbar > *,
-    body.project-index-page[data-desktop-shell="true"][data-native-desktop="true"] > .topbar > *,
-    html[data-native-desktop="true"] body.project-index-page[data-desktop-shell="true"] > .topbar > * {
+    html[data-native-desktop="true"] body.settings-page[data-desktop-shell="true"] > .topbar > * {
       transform: translateY(-2px);
     }
   }

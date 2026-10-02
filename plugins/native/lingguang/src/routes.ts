@@ -32,6 +32,9 @@ export const LINGGUANG_NATIVE_PLUGIN_ROUTES = [
   route("lingguang.list", "GET", /^\/api\/lingguang$/u),
   route("lingguang.create", "POST", /^\/api\/lingguang$/u),
   route("lingguang.discard_many", "POST", /^\/api\/lingguang\/discard$/u),
+  // Before the per-spark routes: these two names are not spark ids.
+  route("lingguang.material_read", "POST", /^\/api\/lingguang\/material$/u),
+  route("lingguang.source_read", "POST", /^\/api\/lingguang\/source$/u),
   route("lingguang.conversation_open", "POST", /^\/api\/lingguang\/conversations$/u),
   route("lingguang.conversation_message", "POST", /^\/api\/lingguang\/conversations\/([^/]+)\/messages$/u, ["id"]),
   route("lingguang.get", "GET", /^\/api\/lingguang\/([^/]+)$/u, ["id"]),

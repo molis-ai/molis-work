@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { computeBuildSourceDigest } from "../apps/local-host/src/installer/fingerprint.js";
 import { declaredReleaseFileEntries, copyReleaseEntries } from "../apps/local-host/src/installer/package-release-files.js";
 import { createMaterialExtractor, extractMaterial, MaterialExtractionError, readMaterialHtml } from "../apps/local-host/src/material-extraction.js";
-import { extractJellyMaterial, readStoredJellyMaterial } from "../apps/local-host/src/jelly-native-material.js";
+import { extractJellyMaterial } from "../apps/local-host/src/jelly-native-material.js";
 import { prepareContextDocuments } from "../apps/local-host/src/context-onboarding-documents.js";
 
 function pdf(texts: string[]): Buffer {
@@ -74,26 +74,25 @@ test("malformed HTML cannot block the Host deadline; cancellation releases its w
   assert.deepEqual(await readMaterialHtml("<head><title>OK</title></head><p>Recovered</p>"), { title: "OK", text: "Recovered" });
   assert.equal(ports(), initial);
 });
-test("Jelly old SHA references remain readable and revoked/aborted uploads cannot leave partial copies", async () => {
+test("revoked or aborted uploads cannot leave partial copies", async () => {
   const home = mkdtempSync(path.join(tmpdir(), "molis-material-ref-"));
   try {
     const original = Buffer.from("# 原始材料\n保持原件"), upload = { file_name: "old.md", data_base64: original.toString("base64") };
     const saved = await extractJellyMaterial(home, upload);
-    const file = path.join(home, "jelly", "imports", `${saved.source_sha256}.md`);
-    const reread = await readStoredJellyMaterial(home, { file_name: "renamed.md", sha256: saved.source_sha256 });
-    assert.equal(reread.text, saved.text); assert.deepEqual(readFileSync(file), original);
+    const file = path.join(home, "lingguang", "imports", `${saved.source_sha256}.md`);
+    assert.deepEqual(readFileSync(file), original);
     const cancelled = new AbortController();
     await assert.rejects(extractJellyMaterial(home, { file_name: "cancel.md", data_base64: Buffer.from("NEW COPY").toString("base64") }, {
       signal: cancelled.signal, beforeEffect() {
-        const staging = readdirSync(path.join(home, "jelly")).find(name => name.startsWith("material-upload-"));
-        if (staging && existsSync(path.join(home, "jelly", staging, "source"))) cancelled.abort();
+        const staging = readdirSync(path.join(home, "lingguang")).find(name => name.startsWith("material-upload-"));
+        if (staging && existsSync(path.join(home, "lingguang", staging, "source"))) cancelled.abort();
       },
     }), /已取消/);
     assert.deepEqual(readdirSync(path.dirname(file)), [`${saved.source_sha256}.md`]);
     const revoked = new Error("permission revoked");
     await assert.rejects(extractJellyMaterial(home, upload, { beforeEffect() { throw revoked; } }), error => error === revoked);
     assert.deepEqual(readFileSync(file), original);
-    assert.ok(!readdirSync(path.join(home, "jelly")).some(name => name.startsWith("material-upload-")));
+    assert.ok(!readdirSync(path.join(home, "lingguang")).some(name => name.startsWith("material-upload-")));
     const simultaneous = await Promise.all(Array.from({ length: 8 }, () => extractJellyMaterial(home, {
       file_name: "simultaneous.txt", data_base64: Buffer.from("same concurrent content").toString("base64"),
     })));

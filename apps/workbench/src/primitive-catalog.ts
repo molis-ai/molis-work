@@ -1,4 +1,5 @@
 import {
+  ARRIVAL_MOTION_CLIENT_SCRIPT,
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   escapeHtml,
@@ -86,6 +87,19 @@ const BAR_SPECIMEN_SCRIPT = `
   });
 })();`;
 
+/** The arrival specimens move: the wordmark types again on demand and the caption cycles its words. */
+const ARRIVAL_SPECIMEN_SCRIPT = `
+(() => {
+  const arrival = window.molisArrival;
+  if (!arrival) return;
+  const wordmark = document.querySelector("[data-arrival-wordmark]");
+  arrival.settleWordmark(wordmark);
+  document.querySelectorAll("[data-caption]").forEach((button) => arrival.mountCaption(button));
+  document.addEventListener("click", (event) => {
+    if (event.target.closest('[data-arrival-demo="wordmark"]')) arrival.typeWordmark(wordmark, { pace: "ritual", delay: 200 });
+  });
+})();`;
+
 export function renderMolisWorkPrimitiveCatalog(): string {
   const themes = renderToggleGroup({
     label: "主题",
@@ -118,6 +132,7 @@ export function renderMolisWorkPrimitiveCatalog(): string {
   </header>
   ${catalog}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${ARRIVAL_MOTION_CLIENT_SCRIPT}${ARRIVAL_SPECIMEN_SCRIPT}</script>
 </body>
 </html>`;
 }

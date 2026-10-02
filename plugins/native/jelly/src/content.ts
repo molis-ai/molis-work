@@ -1,24 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { JellyBlock, JellyCommand, JellyInspiration, JellyItem, JellyNote, JellyPlan, JellyRelation, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyBlock, JellyCommand, JellyItem, JellyNote, JellyPlan, JellyRelation, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { makeJellyItem, jellyOccurrences, jellySchedulesOverlap } from "./calendar.js";
 import { jellyAssert } from "./error.js";
-import { makeJellyMaterialSnapshot, validateJellyMaterialSnapshot, validateJellyStructuredDigest, renderJellyDigestMarkdown, type JellyMaterialExtraction } from "./material.js";
 import { validateJellySchedule } from "./calendar-validation.js";
 import { jellyMarkdownToBlocks, jellyHtmlToBlocks } from "./markdown.js";
 
 export const jellyHash = (value: string): string => createHash("sha256").update(value).digest("hex");
-export function jellySourceHash(state: JellyWorkspace, sourceType: "note" | "inspiration" | "text", sourceId: string | null, sourceText = ""): string {
+export function jellySourceHash(state: JellyWorkspace, sourceType: "note" | "text", sourceId: string | null, sourceText = ""): string {
   if (sourceType === "note") return jellyHash(JSON.stringify(noteById(state, sourceId).blocks));
-  if (sourceType === "inspiration") { const i = inspirationById(state, sourceId); return jellyHash(i.raw_text + "\n" + (i.url ?? "")); }
   return jellyHash(sourceText);
 }
-/**
- * The note an inspiration's digest is written to: the one named, else the note the inspiration became, else the first it
- * was written to. None means a new note, which then becomes the inspiration's note, so after writing this names it.
- */
-export function jellyDigestNoteId(inspiration: JellyInspiration, noteId?: unknown): unknown { return noteId ?? inspiration.note_id ?? inspiration.digest?.written_note_ids[0]; }
 function noteById(state: JellyWorkspace, id: unknown): JellyNote { const n = state.notes.find(n => n.id === id); jellyAssert(n, "笔记不存在", "jelly.not_found", 404); return n; }
-function inspirationById(state: JellyWorkspace, id: unknown): JellyInspiration { const i = state.inspirations.find(n => n.id === id); jellyAssert(i, "灵感不存在", "jelly.not_found", 404); return i; }
 function record(value: unknown): Record<string, unknown> { jellyAssert(value && typeof value === "object" && !Array.isArray(value), "命令内容必须是对象"); return value as Record<string, unknown>; }
 function string(value: unknown, fallback = ""): string { if (value == null) return fallback; jellyAssert(typeof value === "string", "内容必须是文本"); return value; }
 function category(state: JellyWorkspace, id: unknown): string { const result = id === undefined ? "uncategorized" : string(id); jellyAssert(state.categories.some(c => c.id === result), "分类不存在"); return result; }
@@ -112,60 +104,7 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
       const n = noteById(state, command.id); jellyAssert(n.archived_at, "请先归档，再永久删除笔记");
       state.notes = state.notes.filter(x => x.id !== n.id); state.relations = state.relations.filter(r => r.note_id !== n.id); state.task_links = state.task_links.filter(l => l.note_id !== n.id);
       for (const o of state.relation_overrides ?? []) { if (o.primary === n.id) o.primary = "clear"; o.added_reference_ids = o.added_reference_ids.filter(id => id !== n.id); o.removed_reference_ids = o.removed_reference_ids.filter(id => id !== n.id); }
-      for (const i of state.inspirations) { if (i.note_id === n.id) i.note_id = null; if (i.digest) i.digest.written_note_ids = i.digest.written_note_ids.filter(id => id !== n.id); } return true;
-    }
-    case "inspiration.create": {
-      const kind = command.input_kind ?? (command.url ? "url" : command.file_name ? "file" : "text"); jellyAssert(["text", "url", "file"].includes(string(kind)), "灵感类型无效");
-      const inspiration: JellyInspiration = { id: command.id === undefined ? randomUUID() : string(command.id), input_kind: kind as JellyInspiration["input_kind"], title: string(command.title, string(command.raw_text).slice(0, 80) || string(command.url) || string(command.file_name) || "新灵感"), raw_text: string(command.raw_text), url: command.url == null ? null : string(command.url), file_name: command.file_name == null ? null : string(command.file_name), category_id: category(state, command.category_id), archived_at: null, note_id: null, digest: null, created_at: now, updated_at: now };
-      state.inspirations.push(inspiration);
-      if (command.material !== undefined) applyJellyContentCommand(state, { type: "inspiration.update", id: inspiration.id, patch: { material: command.material } }, now);
       return true;
-    }
-    case "inspiration.update": {
-      const i = inspirationById(state, command.id), patch = record(command.patch);
-      const sourceChanged = (["raw_text", "url", "file_name"] as const).some(key => patch[key] !== undefined && patch[key] !== i[key]);
-      jellyAssert(!sourceChanged || !i.note_id, "已转为笔记的灵感原始内容已锁定；可以修改标题、分类或更新摘要", "jelly.source_locked", 409);
-      for (const k of ["title", "raw_text"] as const) if (patch[k] !== undefined) i[k] = string(patch[k]);
-      for (const k of ["url", "file_name"] as const) if (patch[k] !== undefined) i[k] = patch[k] === null ? null : string(patch[k]);
-      if (patch.category_id !== undefined) i.category_id = category(state, patch.category_id);
-      if (sourceChanged) { delete i.material; i.digest = null; }
-      const sourceHash = jellySourceHash(state, "inspiration", i.id);
-      if (patch.material !== undefined) {
-        if (patch.material === null) { delete i.material; i.digest = null; }
-        else {
-          const material = record(patch.material);
-          const snapshot = material.blocks !== undefined ? validateJellyMaterialSnapshot(material) : makeJellyMaterialSnapshot(sourceHash, material as unknown as JellyMaterialExtraction);
-          jellyAssert(snapshot.source_hash === sourceHash, "素材与原文来源不一致，请重新读取", "jelly.source_changed", 409);
-          if (i.digest && i.digest.snapshot?.content_fingerprint !== snapshot.content_fingerprint) i.digest = null;
-          i.material = snapshot;
-        }
-      }
-      if (patch.digest !== undefined) {
-        const d = record(patch.digest); jellyAssert(d.source_hash === sourceHash, "素材已变更，请重新生成摘要", "jelly.source_changed", 409);
-        jellyAssert(d.snapshot && d.structured, "新摘要必须携带素材快照与逐条来源证据");
-        const snapshot = validateJellyMaterialSnapshot(d.snapshot); jellyAssert(snapshot.source_hash === sourceHash, "摘要素材来源已变更", "jelly.source_changed", 409);
-        jellyAssert(!i.material || i.material.content_fingerprint === snapshot.content_fingerprint, "整理期间素材快照已变更，请基于最新素材重新生成摘要", "jelly.source_changed", 409);
-        const structured = validateJellyStructuredDigest(d.structured, snapshot), summary = renderJellyDigestMarkdown(structured, snapshot);
-        const identical = i.digest?.snapshot?.content_fingerprint === snapshot.content_fingerprint && JSON.stringify(i.digest.structured) === JSON.stringify(structured);
-        i.material = snapshot; i.digest = { source_hash: sourceHash, source_text: snapshot.blocks.map(block => block.text).join("\n\n"), summary, snapshot, structured, created_at: now, written_note_ids: identical ? [...i.digest!.written_note_ids] : [] };
-      }
-      i.updated_at = now; return true;
-    }
-    case "inspiration.delete": {
-      const i = inspirationById(state, command.id); jellyAssert(i.archived_at, "请先归档，再永久删除灵感");
-      state.inspirations = state.inspirations.filter(entry => entry.id !== i.id); return true;
-    }
-    case "inspiration.archive": case "inspiration.restore": { const i = inspirationById(state, command.id); i.archived_at = command.type === "inspiration.archive" ? now : null; i.updated_at = now; return true; }
-    case "inspiration.convert": {
-      const i = inspirationById(state, command.id); if (i.note_id && state.notes.some(n => n.id === i.note_id)) return true;
-      const n = createNote(state, { title: i.title, category_id: i.category_id, markdown: [i.raw_text, i.url ? `来源：${i.url}` : "", i.file_name ? `附件：${i.file_name}` : ""].filter(Boolean).join("\n\n") }, now); i.note_id = n.id; i.updated_at = now; return true;
-    }
-    case "inspiration.digest_write": {
-      const i = inspirationById(state, command.id), digest = i.digest; jellyAssert(digest, "请先生成摘要"); jellyAssert(digest.source_hash === jellySourceHash(state, "inspiration", i.id), "素材已变更，请重新生成摘要", "jelly.source_changed", 409);
-      const targetId = jellyDigestNoteId(i, command.note_id);
-      if (targetId && digest.written_note_ids.includes(string(targetId))) return true;
-      const n = targetId ? noteById(state, targetId) : createNote(state, { title: i.title, category_id: i.category_id }, now);
-      n.blocks.push(...jellyMarkdownToBlocks(`## 素材摘要\n${digest.summary}\n\n来源：${i.url ?? i.file_name ?? i.title}\n\n> ${digest.source_text.replace(/\n/g, "\n> ")}`, [], now)); touch(n, now); digest.written_note_ids.push(n.id); i.note_id ??= n.id; i.updated_at = now; return true;
     }
     case "relation.attach": case "relation.detach": relation(state, command); return true;
     case "relation.reset": {
@@ -194,7 +133,7 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
     case "plan.apply": {
       const plan = record(command.plan) as unknown as JellyPlan; jellyAssert(typeof plan.id === "string" && plan.id.length > 0 && Array.isArray(plan.actions), "拆解提案无效");
       if (state.applied_plan_ids.includes(plan.id)) return true;
-      jellyAssert(["note", "inspiration", "text"].includes(plan.source_type), "提案来源无效");
+      jellyAssert(["note", "text"].includes(plan.source_type), "提案来源无效");
       jellyAssert(plan.source_hash === jellySourceHash(state, plan.source_type, plan.source_id, plan.source_text), "原文已变更，请重新生成提案", "jelly.source_changed", 409);
       const selected = command.selected_action_ids === undefined ? plan.actions.map(a => a.id) : command.selected_action_ids; jellyAssert(Array.isArray(selected) && selected.every(id => typeof id === "string"), "选择的任务无效"); jellyAssert(selected.length > 0 && new Set(selected).size === selected.length, "至少选择一项任务，不能重复");
       jellyAssert(selected.every(id => plan.actions.some(a => a.id === id)) && new Set(plan.actions.map(a => a.id)).size === plan.actions.length, "提案任务 ID 无效");
@@ -229,7 +168,7 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
         if (insertionAfter) { const index = n.blocks.findIndex(existing => existing.id === insertionAfter); n.blocks.splice(index + 1, 0, ...added); insertionAfter = added.at(-1)!.id; } else n.blocks.push(...added);
         if (action.schedule) scheduleTask(state, { type: "task.schedule", note_id: n.id, block_id: block.id, schedule: action.schedule, category_id: action.category_id, priority: action.priority }, now);
       }
-      touch(n, now); if (plan.source_type === "inspiration") inspirationById(state, plan.source_id).note_id ??= n.id;
+      touch(n, now);
       state.applied_plan_ids.push(plan.id); return true;
     }
     default: return false;
@@ -240,8 +179,7 @@ export function applyJellyContentCommand(state: JellyWorkspace, command: JellyCo
 export function validateJellyContent(state: JellyWorkspace): void {
   const unique = (values: string[], label: string) => jellyAssert(values.every(x => typeof x === "string" && x.length > 0) && new Set(values).size === values.length, `${label} ID 重复或为空`);
   const time = (value: unknown, nullable = false) => (nullable && value === null) || (typeof value === "string" && Number.isFinite(Date.parse(value)));
-  const maybeText = (value: unknown) => value === null || typeof value === "string";
-  unique(state.notes.map(n => n.id), "笔记"); unique(state.inspirations.map(i => i.id), "灵感"); unique(state.applied_plan_ids, "提案");
+  unique(state.notes.map(n => n.id), "笔记"); unique(state.applied_plan_ids, "提案");
   for (const n of state.notes) {
     jellyAssert(typeof n.title === "string" && typeof n.pinned === "boolean" && Number.isSafeInteger(n.revision) && n.revision >= 0, "笔记数据无效");
     jellyAssert(time(n.created_at) && time(n.updated_at) && time(n.archived_at, true), "笔记时间戳无效");
@@ -254,20 +192,6 @@ export function validateJellyContent(state: JellyWorkspace): void {
         jellyAssert(Array.isArray(b.inline_spans), "内联格式无效");
         for (const span of b.inline_spans) jellyAssert(span && typeof span.text === "string" && Array.isArray(span.marks) && new Set(span.marks).size === span.marks.length && span.marks.every(mark => ["bold", "italic", "code"].includes(mark)) && (span.link_url === undefined || typeof span.link_url === "string"), "内联格式内容无效");
       }
-    }
-  }
-  for (const i of state.inspirations) {
-    category(state, i.category_id); jellyAssert(["text", "url", "file"].includes(i.input_kind) && typeof i.title === "string" && typeof i.raw_text === "string", "灵感内容无效");
-    jellyAssert(maybeText(i.url) && maybeText(i.file_name), "灵感来源无效");
-    jellyAssert(time(i.created_at) && time(i.updated_at) && time(i.archived_at, true), "灵感时间戳无效");
-    jellyAssert(i.note_id === null || state.notes.some(n => n.id === i.note_id), "灵感关联笔记不存在");
-    jellyAssert(i.digest === null || (i.digest && typeof i.digest === "object" && !Array.isArray(i.digest)), "摘要数据无效");
-    if (i.material !== undefined) { const snapshot = validateJellyMaterialSnapshot(i.material); jellyAssert(snapshot.source_hash === jellySourceHash(state, "inspiration", i.id), "素材来源与灵感不一致"); }
-    if (i.digest) {
-      if (i.digest.snapshot !== undefined) { const snapshot = validateJellyMaterialSnapshot(i.digest.snapshot); jellyAssert(snapshot.source_hash === i.digest.source_hash, "摘要素材来源不一致"); }
-      if (i.digest.structured !== undefined) { jellyAssert(i.digest.snapshot, "摘要缺少素材证据"); validateJellyStructuredDigest(i.digest.structured, i.digest.snapshot); jellyAssert(i.digest.summary === renderJellyDigestMarkdown(i.digest.structured, i.digest.snapshot), "摘要正文与结构化证据不一致"); }
-      jellyAssert(typeof i.digest.summary === "string" && typeof i.digest.source_text === "string" && typeof i.digest.source_hash === "string" && /^[a-f0-9]{64}$/.test(i.digest.source_hash) && time(i.digest.created_at) && Array.isArray(i.digest.written_note_ids), "摘要数据无效");
-      unique(i.digest.written_note_ids, "摘要笔记"); jellyAssert(i.digest.written_note_ids.every(id => state.notes.some(n => n.id === id)), "摘要关联笔记不存在");
     }
   }
   if (state.imported_sources !== undefined) {

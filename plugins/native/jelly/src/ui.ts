@@ -40,7 +40,6 @@ export function renderJellyWorkbench(model: JellyUiModel): string {
       <nav class="jelly-tabs" aria-label="${t("Jelly 工作区")}">
         ${button("日历", 'data-jelly-view="calendar" aria-current="page"', "calendar")}
         ${button("笔记", 'data-jelly-view="notes"', "note")}
-        ${button("灵感", 'data-jelly-view="inspirations"', "idea")}
         ${button("回顾", 'data-jelly-view="progress"', "check")}
       </nav>
       <div class="jelly-header-actions">
@@ -49,7 +48,7 @@ export function renderJellyWorkbench(model: JellyUiModel): string {
         ${button("更多", 'data-jelly-more aria-expanded="false" aria-haspopup="menu"', "more")}
         <div class="mw-menu jelly-global-menu" data-jelly-menu hidden role="menu">
           <button type="button" class="mw-menu__item" data-jelly-categories>${icon("tag")}${t("管理分类")}</button>
-          <button type="button" class="mw-menu__item" data-jelly-model>${icon("sparkles")}${t("摘要与拆解模型")}</button>
+          <button type="button" class="mw-menu__item" data-jelly-model>${icon("sparkles")}${t("拆解模型")}</button>
           <button type="button" class="mw-menu__item" data-jelly-export>${icon("download")}${t("导出工作区")}</button>
           <button type="button" class="mw-menu__item" data-jelly-import>${icon("upload")}${t("导入工作区")}</button>
         </div>
@@ -91,7 +90,6 @@ export function renderJellyWorkbench(model: JellyUiModel): string {
           <button type="button" class="mw-menu__item" data-jelly-export-note-html>${t("导出 HTML")}</button>
           <button type="button" class="mw-menu__item" data-jelly-import-note>${t("导入笔记内容")}</button>
           <button type="button" class="mw-menu__item mw-menu__item--danger" data-jelly-delete-note>${t("永久删除笔记")}</button>
-          <button type="button" class="mw-menu__item mw-menu__item--danger" data-jelly-delete-inspiration hidden>${t("永久删除灵感")}</button>
         </div>
       </div>
       <div class="jelly-document" data-jelly-document></div>
@@ -123,7 +121,6 @@ export function renderJellyWorkbench(model: JellyUiModel): string {
     </dialog>
     <dialog class="mw-dialog jelly-generic-dialog" data-jelly-dialog><form class="jelly-dialog-form" data-jelly-dialog-form><header><h2 data-jelly-dialog-title></h2>${button("关闭", 'data-jelly-close-dialog="generic"', "x")}</header><div data-jelly-dialog-body></div><p role="alert" class="jelly-form-error" data-jelly-dialog-error hidden></p><footer><span></span><div>${button("取消", 'data-jelly-close-dialog="generic"')}<button type="submit" class="mw-btn mw-btn--primary" data-jelly-dialog-ok>${t("确定")}</button></div></footer></form></dialog>
     <input type="file" data-jelly-import-file accept=".json,application/json" hidden>
-    <input type="file" data-jelly-material-file accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.pdf,image/*,text/*,audio/*,video/*" hidden>
     <input type="file" data-jelly-note-file accept=".md,.markdown,.txt,.html,.htm,text/*" hidden>
   ` });
 }

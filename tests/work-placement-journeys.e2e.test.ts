@@ -79,9 +79,8 @@ test("placement journey: no project yet — start in the personal space, finish 
   if (!j) return;
   const { go, press, card, cardButton, current, describe, openPlugin, panel, title, evaluate, waitFor, click, reloadPage, homeDirectory, screenshot, command, sessionId } = j;
   await go("/onboarding");
-  // A first run opens with language and appearance; the person goes past both before choosing how to start.
-  await press('[data-action="intro-next"]');
-  await press('[data-action="intro-next"]');
+  // A first run opens with the opening, then language and appearance; the person goes past all three before choosing how to start.
+  for (let step = 0; step < 3; step++) await press('[data-action="intro-next"]');
   await press('[data-action="blank"]');
   await j.navigate(() => press('[data-action="personal"]'));
   await waitFor("location.pathname.startsWith('/projects/personal/')", 15_000);

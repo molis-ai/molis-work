@@ -22,3 +22,4 @@ export * from "./mcp.js";
 export * from "./actions.js";
 export * from "./command-actions.js";
 export * from "./service-actions.js";
+export * from "./content-actions.js";

@@ -7,7 +7,6 @@ import { DatabaseSync } from "node:sqlite";
 import { openJellyStore } from "../plugins/native/jelly/src/store.js";
 import { jellySourceHash } from "../plugins/native/jelly/src/content.js";
 import { jellyMarkdownToBlocks, jellyBlocksToMarkdown, jellyBlocksToHtml, jellyHtmlToBlocks } from "../plugins/native/jelly/src/markdown.js";
-import { makeJellyMaterialSnapshot } from "../plugins/native/jelly/src/material.js";
 import { decodeJellyImport } from "../plugins/native/jelly/src/import.js";
 import type { JellyPlan } from "../packages/contracts/src/modules/jelly.js";
 function temporary(t: test.TestContext): string { const home = mkdtempSync(join(tmpdir(), "molis-jelly-")); t.after(() => rmSync(home, { recursive: true, force: true })); return home; }
@@ -50,16 +49,6 @@ test("Jelly note delete requires a current bound preview and undo restores all l
   const preview = store.previewDelete(note.id); assert.equal(preview.counts.task_links, 1);
   state = store.execute({ type: "note.delete", id: note.id, confirmation_token: preview.confirmation_token }); assert.equal(state.notes.length, 0); assert.equal(state.items.length, 1); assert.equal(state.task_links.length, 0);
   state = store.execute({ type: "undo" }); assert.equal(state.task_links.length, 1); assert.equal(state.notes.length, 1);
-});
-
-test("Jelly digest write and conversion are idempotent and reject changed source", t => {
-  const store = openJellyStore(temporary(t)); t.after(() => store.close());
-  let state = store.execute({ type: "inspiration.create", raw_text: "原始研究内容", url: "https://example.com/source", input_kind: "url" }); const inspiration = state.inspirations[0]!;
-  state = store.execute({ type: "inspiration.convert", id: inspiration.id }); const revision = state.revision; assert.equal(store.execute({ type: "inspiration.convert", id: inspiration.id }).revision, revision);
-  const snapshot = makeJellyMaterialSnapshot(jellySourceHash(state, "inspiration", inspiration.id), { text: "原始研究内容" }); const claim = { text: "研究结论", evidence_block_ids: [snapshot.blocks[0]!.id] };
-  state = store.execute({ type: "inspiration.update", id: inspiration.id, patch: { digest: { source_hash: snapshot.source_hash, snapshot, structured: { thesis: claim, takeaways: [claim], chapters: [], quotes: [], dropped: [] } } } });
-  state = store.execute({ type: "inspiration.digest_write", id: inspiration.id }); const length = state.notes[0]!.blocks.length; assert.equal(store.execute({ type: "inspiration.digest_write", id: inspiration.id }).notes[0]!.blocks.length, length);
-  assert.throws(() => store.execute({ type: "inspiration.update", id: inspiration.id, patch: { raw_text: "新的研究" } }), /已锁定/); assert.equal(store.read().inspirations[0]!.raw_text, "原始研究内容");
 });
 
 test("Jelly plan source binding, selection, validation and atomic idempotent application", t => {
@@ -149,12 +138,4 @@ test("Jelly legacy notes migrate atomically into the primary note and repeated i
   state = store.execute({ type: "series.update", id: seriesId, original_date: schedule.start_date, scope: "onlyThis", patch: { notes: "本次记录" } });
   state = store.execute({ type: "item.notes_to_note", owner_id: seriesId, original_date: schedule.start_date, mode: "new" }); assert.equal(state.notes.length, 2); assert.equal(state.relation_overrides?.[0]?.primary, state.notes[1]!.id); assert.equal(state.series[0]!.exceptions[schedule.start_date]?.patch?.notes, "");
   state = store.execute({ type: "relation.reset", owner_id: seriesId, original_date: schedule.start_date }); assert.equal(state.relation_overrides?.length, 0); assert.equal(state.relations[0]!.note_id, primary.id);
-});
-
-test("Jelly permanent inspiration deletion requires preview, preserves converted notes and supports undo", t => {
-  const store = openJellyStore(temporary(t)); t.after(() => store.close());
-  let state = store.execute({ type: "inspiration.create", raw_text: "灵感" }); const id = state.inspirations[0]!.id;
-  store.execute({ type: "inspiration.convert", id }); store.execute({ type: "inspiration.archive", id }); assert.throws(() => store.execute({ type: "inspiration.delete", id }), /预览/);
-  const preview = store.previewDeleteInspiration(id); state = store.execute({ type: "inspiration.delete", id, confirmation_token: preview.confirmation_token }); assert.equal(state.inspirations.length, 0); assert.equal(state.notes.length, 1);
-  state = store.execute({ type: "undo" }); assert.equal(state.inspirations[0]!.note_id, state.notes[0]!.id);
 });

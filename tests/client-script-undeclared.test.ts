@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import ts from "typescript";
+import { ARRIVAL_MOTION_CLIENT_SCRIPT } from "../packages/design-system/src/arrival-motion-client.js";
 import { CLIENT_SCRIPT } from "../apps/workbench/src/browser-assets.js";
+import { CHOOSER_CLIENT_SCRIPT } from "../apps/workbench/src/arrival/chooser-client.js";
+import { CONTEXT_ONBOARDING_CLIENT } from "../apps/workbench/src/scripts/context-onboarding.js";
+import { BUILTIN_PLUGIN_WORKBENCH, pluginWorkbenchClientAsset } from "../apps/workbench/src/plugin-workbench.js";
 
 /**
  * The Workbench browser program is assembled from string segments, so TypeScript never sees inside it: a variable
@@ -37,7 +41,22 @@ test("the assembled Workbench browser program uses no name that nothing declares
   assert.deepEqual(unknown, [], "declare these, or list a real page global here with where it comes from");
 });
 
+// The way in (the chooser, the opening, Welcome and the new-project journey) is written the same way, so the same
+// check holds for its three programs: a branch for a state a person reaches rarely (no projects, a failed read, a
+// narrow window) is where a leftover name would hide.
+test("the way-in browser programs use no name that nothing declares", { timeout: 120_000 }, () => {
+  for (const [name, source] of [["chooser", CHOOSER_CLIENT_SCRIPT], ["journey", CONTEXT_ONBOARDING_CLIENT], ["motion", ARRIVAL_MOTION_CLIENT_SCRIPT]] as const) {
+    const unknown = [...undeclaredNames(source)].filter(([identifier]) => !PAGE_GLOBALS.has(identifier));
+    assert.deepEqual(unknown, [], `${name}: declare these, or list a real page global here with where it comes from`);
+  }
+});
+
 test("the check catches a leftover reference in a branch that rarely runs", () => {
   const leftover = `document.addEventListener("click", async () => { try { await fetch("/x"); } catch { const label = phase === "out-rule" ? "a" : "b"; console.log(label); } });`;
   assert.deepEqual([...undeclaredNames(leftover).keys()], ["phase"]);
+});
+
+test("separate plugin assets do not depend on variables inside the Workbench closure", { timeout: 120_000 }, () => {
+  const assets = BUILTIN_PLUGIN_WORKBENCH.map(pack => pluginWorkbenchClientAsset(pack.project_plugin_id) ?? "").join("\n");
+  assert.deepEqual([...undeclaredNames(assets)].filter(([name]) => !PAGE_GLOBALS.has(name)), []);
 });

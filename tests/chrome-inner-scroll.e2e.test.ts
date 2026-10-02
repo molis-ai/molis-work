@@ -28,7 +28,7 @@ const scrollProbe = (chromeSelector: string, scrollerSelector: string) => `(() =
   };
 })()`;
 
-test("Window chrome stays put while project index, settings, Feed, Sessions and Goals scroll inside their containers", { timeout: 90_000 }, async t => {
+test("Window chrome stays put while chooser, settings, Feed, Sessions and Goals scroll inside their containers", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
@@ -56,13 +56,18 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
     })()`);
   };
 
+  // The chooser (specs/project-arrival-flow): the directory and the project brief scroll on their own; the titlebar,
+  // the greeting and the bottom bar never move.
   await navigate(() => command("Page.navigate", { url: origin + "/?desktop=1" }, sessionId));
-  await waitFor("document.body.classList.contains('project-index-page')");
-  await expectContained(".project-directory-topbar", ".project-index-body");
-  await expectContained(".project-index-heading", ".project-index-body");
+  await waitFor("document.body.classList.contains('arrival-page') && document.querySelector('.chooser-dir .mw-dir-row')");
+  await expectContained(".arrival-titlebar", ".chooser-dir");
+  await expectContained(".chooser-head", ".chooser-dir");
+  await expectContained(".arrival-bar", ".chooser-dir");
+  await expectContained(".arrival-titlebar", ".chooser-detail");
+  await expectContained(".arrival-bar", ".chooser-detail");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true }, sessionId);
-  await expectContained(".project-directory-topbar", ".project-index-body");
-  await expectContained(".project-index-heading", ".project-index-body");
+  await expectContained(".arrival-titlebar", ".chooser-dir");
+  await expectContained(".arrival-bar", ".chooser-detail");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
 
   await navigate(() => command("Page.navigate", { url: origin + "/settings/appearance?desktop=1" }, sessionId));

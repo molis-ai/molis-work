@@ -3,6 +3,8 @@ import type { FeedSnapshot, FeedSourceCatalogView, FeedUiModel } from "@molis-ai
 import type { ScheduleConversationTaskView, ScheduleJobView } from "@molis-ai/molis-work-plugin-schedule";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 export interface MolisWorkWebView {
+  /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
+  pane_plugin?: string;
   enabled_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
   /** Personal plugins this project has hidden. They stay installed; the rail omits them. */
   hidden_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];

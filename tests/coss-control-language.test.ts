@@ -6,8 +6,7 @@ import { join } from "node:path";
 import { COSS_CONTROL_STYLES, PRIMITIVE_STYLES } from "@molis-ai/molis-work-design-system";
 import { FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
 import {
-  renderMolisWorkOnboardingStylesheet,
-  renderMolisWorkProjectIndexStylesheet,
+  renderMolisWorkArrivalStylesheet,
   renderMolisWorkSettingsStylesheet,
   renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
@@ -76,8 +75,7 @@ test("production CSS does not paint indigo or blue focus strokes", () => {
   const assembled = [
     renderMolisWorkWorkbenchStylesheet(),
     renderMolisWorkSettingsStylesheet(),
-    renderMolisWorkProjectIndexStylesheet(),
-    renderMolisWorkOnboardingStylesheet(),
+    renderMolisWorkArrivalStylesheet(),
   ].join("\n");
   assert.equal(banned.some((pattern) => pattern.test(assembled)), false);
 });
@@ -99,14 +97,14 @@ test("shared tokens describe control radius, height, and translucent borders", (
   assert.match(COSS_CONTROL_STYLES, /--control-border: color-mix\(in srgb, var\(--ink\) 9%, transparent\)/);
 });
 
-test("workbench, settings, and project-index keep the Coss control layer after later surface CSS", () => {
+test("workbench, settings, and the way in keep the Coss control layer after later surface CSS", () => {
   const workbench = renderMolisWorkWorkbenchStylesheet();
   const settings = renderMolisWorkSettingsStylesheet();
-  const index = renderMolisWorkProjectIndexStylesheet();
+  const arrival = renderMolisWorkArrivalStylesheet();
   const marker = COSS_CONTROL_STYLES.trim().slice(0, 80);
   assert.ok(workbench.includes(marker));
   assert.ok(settings.includes(marker));
-  assert.ok(index.includes(marker));
+  assert.ok(arrival.includes(marker));
   assert.ok(workbench.lastIndexOf(".mw-btn--primary") > workbench.lastIndexOf(marker));
   assert.doesNotMatch(workbench, /feed-detail-actions \.button-primary \{ color: var\(--paper\); background: var\(--blue-dark\);/);
   assert.doesNotMatch(workbench, /feed-stage-add-actions \.button-primary \{ color: var\(--paper\); background: var\(--blue-dark\);/);
@@ -145,28 +143,27 @@ test("primary actions stay Action fill on mw-* without chasing business selector
 
 test("product stylesheets stop painting mw-btn fills through descendant button rules", () => {
   const workbench = renderMolisWorkWorkbenchStylesheet();
-  const onboarding = renderMolisWorkOnboardingStylesheet();
+  const arrival = renderMolisWorkArrivalStylesheet();
   assert.doesNotMatch(workbench, /\.feed-list-empty button \{[^}]*background: transparent;[^}]*color: var\(--blue-dark\)/);
   assert.doesNotMatch(workbench, /\.project-operation-surface-empty button\[data-open-session-add\] \{[^}]*background: var\(--ink\)/);
   assert.doesNotMatch(workbench, /\.goal-canvas-empty button,[^{]*\{[^}]*background: var\(--paper\)/);
-  assert.match(onboarding, /\.mw-btn--primary/);
-  assert.doesNotMatch(onboarding, /\.onboarding-actions button \{[^}]*background: transparent;/);
+  assert.match(arrival, /\.mw-btn--primary/);
+  assert.doesNotMatch(arrival, /\.onboarding-actions button \{[^}]*background: transparent;/);
 });
 
-// Soft Workbench (DESIGN.md → Onboarding): the onboarding window carries the shared shell tokens for both
-// themes plus its own scoped desk and window tokens; the retired `--onboarding-*` canvas is gone.
-test("onboarding window shares the workbench tokens in both themes", () => {
-  const onboarding = renderMolisWorkOnboardingStylesheet();
+// Soft Workbench (DESIGN.md → Onboarding, 项目选择页): the way in (the chooser, the opening, Welcome, the new-project
+// journey, the update page) is drawn on the shell's own tokens in both themes and keeps no palette of its own: the desk
+// is the shell's desk and the sheet its paper, so it follows every token change.
+test("the way in shares the workbench tokens in both themes", () => {
+  const arrival = renderMolisWorkArrivalStylesheet();
   const workbench = renderMolisWorkWorkbenchStylesheet();
   assert.match(workbench, /--page: #eeefef/);
   assert.match(workbench, /--page: #1c1d20/);
-  assert.match(onboarding, /--page: #eeefef/);
-  assert.match(onboarding, /html\[data-resolved-theme=dark\]\{--page: #1c1d20/);
-  // The onboarding window's own palette is now derived from the shell tokens instead of near-copies of them
-  // (spec → 第三轮 · 颜色), so it follows every token change in both themes.
-  assert.match(onboarding, /--ob-page:var\(--desk\);--ob-window:var\(--paper\);/);
-  assert.match(onboarding, /html\[data-resolved-theme=dark\]\{[^}]*--ob-page:var\(--desk\);--ob-window:var\(--paper\);/);
-  assert.doesNotMatch(onboarding, /--onboarding-canvas/);
+  assert.match(arrival, /--page: #eeefef/);
+  assert.match(arrival, /data-resolved-theme="dark"[\s\S]*--page: #1c1d20/);
+  assert.match(arrival, /\.arrival \{[^}]*background: var\(--desk\)/);
+  assert.match(arrival, /\.stage-sheet \{[^}]*background: var\(--paper\)/);
+  assert.doesNotMatch(arrival, /--ob-page|--ob-window|--onboarding-/);
 });
 
 test("product HTML no longer uses retired control class names", () => {

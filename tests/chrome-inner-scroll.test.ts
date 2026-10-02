@@ -1,30 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  renderMolisWorkProjectIndexStylesheet,
+  renderMolisWorkArrivalStylesheet,
   renderMolisWorkSettingsStylesheet,
   renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
 
-test("project index, settings, and workbench keep titles pinned and scroll only the content lists", () => {
-  const index = renderMolisWorkProjectIndexStylesheet();
+test("chooser, settings, and workbench keep titles pinned and scroll only the content lists", () => {
+  const arrival = renderMolisWorkArrivalStylesheet();
   const settings = renderMolisWorkSettingsStylesheet();
   const workbench = renderMolisWorkWorkbenchStylesheet();
 
-  assert.match(index, /html \{[^}]*overflow: hidden;/);
-  assert.doesNotMatch(index, /body\.project-index-page \{ overflow: auto/);
-  assert.match(index, /body\.project-index-page \{[^}]*overflow: hidden;/);
-  assert.match(index, /\.project-index \{[^}]*overflow: hidden;/);
-  assert.doesNotMatch(index, /\.project-index \{[^}]*overflow: auto;/);
-  assert.match(index, /\.project-index-body \{[^}]*overflow: auto;[^}]*overscroll-behavior: contain;/);
-  assert.match(index, /body\.project-index-page \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
-  assert.match(index, /body\.project-index-page > \.topbar > \.brand \{[^}]*display: flex;/);
-  assert.doesNotMatch(index, /\.project-card footer svg \{[^}]*rotate\(180deg\)/);
-  assert.ok(
-    index.lastIndexOf("body.project-index-page[data-desktop-shell=\"true\"]:not(.settings-page) > .topbar > .brand")
-      > index.lastIndexOf("body[data-desktop-shell=\"true\"]:not(.settings-page) .topbar > .brand"),
-    "project-index chrome must win over workbench topbar hiding",
-  );
+  // The way in is one fixed frame: titlebar, stage, bar. The page never scrolls; the directory and the sheet do.
+  assert.match(arrival, /html:has\(> body\.arrival-page\), body\.arrival-page \{[^}]*overflow: hidden;/);
+  assert.match(arrival, /\.arrival \{ height: 100dvh; display: grid; grid-template-rows: var\(--arrival-titlebar-h\) minmax\(0, 1fr\) var\(--dock-h, 76px\);/);
+  assert.match(arrival, /\.arrival-stage \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
+  assert.match(arrival, /\.stage-side \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
+  assert.match(arrival, /\.chooser-dir \{ flex: 1; min-height: 0; overflow: auto;/);
+  assert.match(arrival, /\.stage-sheet \{[^}]*min-height: 0;[^}]*overflow: auto;/);
+  // On a phone the directory is capped so the brief keeps the larger part of the stage, and the bar grows to two rows.
+  assert.match(arrival, /\.stage-split > \.stage-side \{ max-height: 36vh; overflow: auto; \}/);
+  assert.match(arrival, /@media \(max-width: 600px\)[\s\S]*arrival-bar \{ grid-template-columns: auto minmax\(0, 1fr\); grid-template-rows: auto auto;/);
+  assert.match(arrival, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.doesNotMatch(arrival, /project-index-page|\.project-card\b|\.project-index-body/);
 
   assert.match(settings, /body\.settings-page \{[^}]*overflow: hidden;/);
   assert.match(settings, /\.settings-content \{[^}]*overflow: hidden;/);

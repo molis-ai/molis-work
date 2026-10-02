@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "@molis-ai/molis-work-module-goals";
@@ -17,11 +17,56 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
 import { resolveWebControlToken } from "../apps/local-host/src/web-control-token.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { createWebCatalogAccess } from "../apps/local-host/src/web-catalog-access.js";
 
 const user: ActionCallContext = { actor_id: "owner", actor_kind: "user", audience: "user", project_id: null,
   permissions: ["goals:read", "goals:write"], user_action: { source: "management", conversation_ref: "test://planning", message_ref: "test://save" } };
 const { scope: _scope, created_at: _created, updated_at: _updated, ...method } = BUILTIN_PLANNING_METHOD_PACKS.find(m => m.method_id === "domain-software-development")!;
 const input = { method: { ...method, method_id: "personal-action", name: "My complete method" } };
+
+test("planning can rebind from a released Catalog runner to the same Home's replacement", async () => {
+  const home = await mkdtemp(join(tmpdir(), "planning-catalog-rebinding-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const firstOwner = createWebCatalogAccess(home, openMolisWorkProjectCatalog), nextOwner = createWebCatalogAccess(home, openMolisWorkProjectCatalog);
+  const actions = bindActionClient(host.homeActionClient(), () => user);
+  try {
+    host.configurePersonalPlanning(home, firstOwner.withCatalog);
+    const first = await actions.invoke(personalPlanningActions.save, input);
+    await firstOwner.close();
+    host.configurePersonalPlanning(home, nextOwner.withCatalog);
+    const next = await actions.invoke(personalPlanningActions.save, { method: { ...input.method, instructions: "replacement owner" } });
+    assert.equal(next.method.version, first.method.version + 1);
+    assert.equal(await nextOwner.withCatalog({ homeDirectory: home }, c => c.personalPlanningMethods.list().find(m => m.method_id === input.method.method_id)?.instructions), "replacement owner");
+  } finally { await host.close(); await firstOwner.close(); await nextOwner.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("an external Host keeps its Catalog through Web shutdown and replacement, releasing it only at Host close", async () => {
+  const home = await mkdtemp(join(tmpdir(), "planning-web-host-lifetime-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const actions = bindActionClient(host.homeActionClient(), () => user);
+  let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
+  const close = async () => { if (server) { server.closeAllConnections(); await new Promise<void>(resolve => server!.close(() => resolve())); server = undefined; } };
+  const start = async () => {
+    server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: "planning-retained-host-token-0123456789" });
+    await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
+  };
+  try {
+    await start();
+    const first = await actions.invoke(personalPlanningActions.save, input);
+    const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
+    const borrowed = await access.withCatalog({ homeDirectory: home }, catalog => catalog);
+    await close();
+    const between = await actions.invoke(personalPlanningActions.save, { method: { ...input.method, instructions: "transport closed, Host lives" } });
+    assert.equal(between.method.version, first.method.version + 1);
+    await start();
+    const after = await actions.invoke(personalPlanningActions.save, { method: { ...input.method, instructions: "replacement transport" } });
+    assert.equal(after.method.version, between.method.version + 1);
+    assert.equal(host.ensureWebCatalog(home, openMolisWorkProjectCatalog), access);
+    assert.equal(borrowed.personalPlanningMethods.list().find(m => m.method_id === input.method.method_id)?.instructions, "replacement transport");
+    await close(); await host.close();
+    assert.throws(() => borrowed.listProjects(), /not open/);
+  } finally { await close(); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
 
 test("Home planning actions use the original Catalog, require trusted users and keep Homes and lifecycle isolated", async () => {
   const home = await mkdtemp(join(tmpdir(), "planning-home-actions-")), otherHome = join(home, "separate-home");

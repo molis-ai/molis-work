@@ -11,6 +11,7 @@ import { createCogniaProloguePort } from "./cognia-prologue.js";
 import { prepareContextDocuments } from "./context-onboarding-documents.js";
 import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
 import { completeMolisWorkOnboarding } from "./onboarding.js";
+import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 
@@ -229,6 +230,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "pages", actor_id: "web-user" });
         catalog.addProjectPlugin({ project_id: journey.project_id, plugin_id: "artifacts", actor_id: "web-user" });
       });
+      // The chooser introduces the new project in the words the person accepted (a blank start has none). Safe to repeat.
+      if (!journey.adoption!.blank) setProjectDescription(home, journey.project_id, descriptionFromSummary(journey.adoption!.body));
       if (!ports.actions) throw new Error("当前环境没有提供动作服务，已确认内容仍保留");
       const actions = await ports.actions(home, journey.project_id);
       {

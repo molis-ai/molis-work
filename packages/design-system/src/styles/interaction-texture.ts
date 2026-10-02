@@ -17,7 +17,6 @@ export const INTERACTION_TEXTURE_STYLES = `
   :root,
   body.immersive-workbench,
   body.settings-page,
-  body.project-index-page,
   body.project-preferences-page {
     ${renderShellTokens("light")}
     ${renderShapeTokens()}
@@ -25,7 +24,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   }
 
   html[data-resolved-theme="dark"],
-  html[data-resolved-theme="dark"] :is(body.immersive-workbench, body.settings-page, body.project-index-page, body.project-preferences-page) {
+  html[data-resolved-theme="dark"] :is(body.immersive-workbench, body.settings-page, body.project-preferences-page) {
     ${renderShellTokens("dark")}
     ${renderPaletteTokens("dark")}
   }
@@ -65,7 +64,7 @@ export const INTERACTION_TEXTURE_STYLES = `
 
   /* Icons sit one step quieter than their label and resolve on interaction.
    * Lucide draws on a 24 grid, so 2 keeps a 16px glyph at a Linear-weight 1.33px stroke. */
-  body:is(.immersive-workbench, .settings-page, .project-index-page, .project-preferences-page) svg { stroke-width: 2; }
+  body:is(.immersive-workbench, .settings-page, .project-preferences-page) svg { stroke-width: 2; }
   body.immersive-workbench :is(.tui-empty-mark, .goal-canvas-empty, .work-empty) svg { stroke-width: 1.6; }
   body.immersive-workbench :is(.immersive-plugin-link, .tree-tool, .tab-item-close, .workspace-history-button) svg {
     transition: color var(--motion-instant) var(--ease-quint), opacity var(--motion-instant) var(--ease-quint);

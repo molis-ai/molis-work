@@ -27,14 +27,12 @@ export const MICRO_INTERACTION_STYLES = `
   /* Contained focus sits last in the design-system tail so leftover outer rings cannot win. */
   body.immersive-workbench :focus-visible,
   body.settings-page :focus-visible,
-  body.project-index-page :focus-visible,
   body.project-preferences-page :focus-visible {
     outline: var(--focus-stroke);
     outline-offset: var(--focus-stroke-inset);
   }
   body.immersive-workbench :is(a:not([class]), .mw-btn--link):focus-visible,
-  body.settings-page :is(a:not([class]), .mw-btn--link):focus-visible,
-  body.project-index-page :is(a:not([class]), .mw-btn--link):focus-visible {
+  body.settings-page :is(a:not([class]), .mw-btn--link):focus-visible {
     outline-offset: 2px;
   }
 

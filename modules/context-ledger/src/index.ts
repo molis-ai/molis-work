@@ -14,7 +14,7 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export function createContextLedger(db: ContextLedgerDatabase, options: ContextLedgerOptions): ContextLedgerService {
-  return new ContextLedgerService(new ContextLedgerRepository(db), options);
+  return new ContextLedgerService(new ContextLedgerRepository(db, options.initializeSchema), options);
 }
 
 export { createContextLedgerSchema, type ContextLedgerDatabase } from "./repository.js";

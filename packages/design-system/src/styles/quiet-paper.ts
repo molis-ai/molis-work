@@ -313,30 +313,6 @@ export const QUIET_PAPER_STYLES = `  /* Quiet Paper visual replacement. Persiste
     background: var(--rail);
   }
 
-  .project-index-panel {
-    border: 0;
-    border-radius: 16px;
-    background: var(--paper);
-    box-shadow: var(--shadow);
-    overflow: hidden;
-  }
-  .project-index-heading { border-bottom-color: var(--line); }
-  .project-index-desktop-note {
-    border: 0;
-    border-radius: var(--radius-control);
-    background: var(--rail);
-    color: var(--ink-soft);
-    font-weight: 400;
-  }
-  .project-list a:hover { background: var(--nav-hover); }
-  .project-list a:hover svg { color: var(--ink); }
-  .project-index-note { background: color-mix(in srgb, var(--paper) 42%, var(--rail)); }
-  .project-index-start a { border-radius: var(--radius-control); }
-  .project-index-start a:first-child {
-    border-color: var(--action);
-    color: var(--action-ink);
-    background: var(--action);
-  }
 
   html[data-resolved-theme="dark"] .tree-node.is-selected,
   html[data-resolved-theme="dark"] .navigator-goal-row.is-selected,

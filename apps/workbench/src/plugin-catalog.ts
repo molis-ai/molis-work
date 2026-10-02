@@ -64,6 +64,16 @@ export const PERSONAL_PLUGIN_IDS: readonly ProjectPluginId[] = BUILTIN_PLUGIN_CA
   .filter((entry) => entry.personal === true)
   .map((entry) => entry.project_plugin_id);
 
+/** The plugins the Dock keeps until the person chooses others (their choice is kept in the browser, per viewer). */
+export const DOCK_DEFAULT_PINS: readonly string[] = ["goals", "inbox", "feed", "sessions"];
+
+/**
+ * Plugins whose page parts the workbench wires once, when the page loads (Feed's source directory, Coding's settings), so
+ * adding or removing one still brings the page back once. Every other plugin changes in place. Delete an id here when its
+ * client attaches and detaches live; nothing else needs to change (specs/plugin-picker-dock).
+ */
+export const RELOAD_ON_MEMBERSHIP_IDS: readonly string[] = ["feed", "coding"];
+
 /**
  * Plugins that must come along, worked out from the Manifests.
  *

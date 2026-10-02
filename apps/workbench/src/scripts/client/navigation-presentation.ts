@@ -1,4 +1,4 @@
-import { pluginStageSummaries } from "../../plugin-catalog.js";
+import { DOCK_DEFAULT_PINS, pluginStageSummaries } from "../../plugin-catalog.js";
 /** Menus of the bottom bar and the stage: presentation only; opening one never selects or starts a tool. */
 export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
   // Plugin list pages draw their heading from the surface's own label (craft-finish, "Plugin list pages").
@@ -69,7 +69,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (!pickerPopover || !pickerToggle) return;
     pickerPopover.hidden = !open;
     pickerToggle.setAttribute('aria-expanded', String(open));
-    if (open) pickerPopover.querySelector('[aria-current], [data-plugin-id]')?.focus();
+    if (open) pickerPopover.querySelector('[aria-current], [data-plugin-id]')?.focus(); else stopAsking();
   };
   // What the work area shows: the current plugin, or one per pane when it is split, the focused pane first in weight.
   const shown = () => {
@@ -129,21 +129,22 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     });
   };
 
-  /* The Dock: 项目首页 always, then the plugins chosen in the Dock menu. */
+  /* The Dock: 项目首页 always, then the plugins chosen with the button at the end of their entry in the switcher. */
   const PINS_KEY = 'molis-work:dock-pins';
+  const DEFAULT_PINS = ${JSON.stringify(DOCK_DEFAULT_PINS)};
   const pins = dock.querySelector('[data-dock-pins]');
-  const choices = dock.querySelector('[data-dock-choices]');
   // Shelf and 灵光 already stay beside the Assistant; the Dock does not offer them twice.
   const residents = new Set([...dock.querySelectorAll('[data-bar-resident]')].map((node) => node.dataset.barResident));
   const readPins = () => {
     try { const value = JSON.parse(localStorage.getItem(PINS_KEY) || 'null'); if (Array.isArray(value)) return value.filter((id) => typeof id === 'string' && !residents.has(id)); } catch {}
-    return ['goals', 'inbox', 'feed', 'sessions'];
+    return DEFAULT_PINS.slice();
   };
-  const makePin = (id, fixed) => {
+  const makePin = (id, fixed, arriving = false) => {
     const source = railItem(id);
     if (!source || !pins) return null;
     const pin = document.createElement('button');
-    pin.type = 'button'; pin.className = 'dock-pin' + (fixed ? ' is-fixed' : ''); pin.dataset.dockPin = id;
+    pin.type = 'button'; pin.className = 'dock-pin' + (fixed ? ' is-fixed' : '') + (arriving ? ' is-arriving' : ''); pin.dataset.dockPin = id;
+    if (arriving) pin.addEventListener('animationend', () => pin.classList.remove('is-arriving'), { once: true });
     pin.title = labelOf(source); pin.setAttribute('aria-label', labelOf(source));
     const glyph = glyphOf(id); if (glyph) pin.append(glyph);
     return pin;
@@ -160,7 +161,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const setOverflow = (open) => {
     if (!more || !overflow) return;
     if (open) {
-      overflow.replaceChildren(...[...pins.querySelectorAll('[data-dock-pin][hidden]')].map((pin) => {
+      overflow.replaceChildren(...[...pins.querySelectorAll('[data-dock-pin][hidden]:not(.is-leaving)')].map((pin) => {
         const row = document.createElement('button');
         row.type = 'button'; row.className = 'dock-overflow-item'; row.dataset.dockPin = pin.dataset.dockPin;
         if (pin.hasAttribute('aria-current')) row.setAttribute('aria-current', 'page');
@@ -177,7 +178,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   };
   const fit = () => {
     if (!pins || !more) return;
-    const all = [...pins.querySelectorAll('[data-dock-pin]')];
+    const all = [...pins.querySelectorAll('[data-dock-pin]:not(.is-leaving)')];
     all.forEach((pin) => { pin.hidden = false; });
     more.remove();
     if (pins.scrollWidth <= pins.clientWidth + 1) { setOverflow(false); paintCurrent(); return; }
@@ -190,39 +191,89 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (overflow && !overflow.hidden) setOverflow(true);
     paintCurrent();
   };
+  // The Dock keeps the buttons it has: one that is kept stays where it is, a new one lands, one that goes lets go.
+  let dockPainted = false;
   const paintDock = () => {
     if (!pins) return;
-    const chosen = readPins();
-    pins.replaceChildren(...[makePin('home', true), ...chosen.filter((id) => id !== 'home').map((id) => makePin(id, false))].filter(Boolean));
+    const wanted = ['home', ...readPins().filter((id) => id !== 'home')];
+    const have = new Map([...pins.querySelectorAll('[data-dock-pin]:not(.is-leaving)')].map((pin) => [pin.dataset.dockPin, pin]));
+    const next = [];
+    for (const id of wanted) {
+      if (!railItem(id)) continue;
+      next.push(have.get(id) || makePin(id, id === 'home', dockPainted));
+    }
+    for (const [id, pin] of have) if (!next.includes(pin)) {
+      pin.classList.add('is-leaving'); pin.setAttribute('aria-hidden', 'true'); pin.tabIndex = -1;
+      setTimeout(() => pin.remove(), 260);
+    }
+    next.forEach((pin, index) => { if (pins.children[index] !== pin) pins.insertBefore(pin, pins.children[index] || null); });
+    dockPainted = true;
     fit();
+  };
+  // The pin at the end of each entry says whether its plugin is in the Dock: graphite while it is, grey while not.
+  const markKept = (button, on) => {
+    button.setAttribute('aria-pressed', String(on));
+    button.classList.toggle('mw-btn--primary', on);
+    button.classList.toggle('mw-btn--secondary', !on);
+    button.closest('.plugin-rail-tile')?.classList.toggle('is-kept', on);
   };
   const paintPins = () => {
     if (!pins) return;
+    // The choice itself is this browser's. Shelf and 灵光 are always on, so their pin is never repainted.
     const chosen = readPins();
-    if (choices) {
-      choices.replaceChildren(...rail().filter((node) => node.dataset.pluginId !== 'home' && !residents.has(node.dataset.pluginId)).map((node) => {
-        const id = node.dataset.pluginId;
-        const row = document.createElement('button');
-        row.type = 'button'; row.className = 'dock-choice'; row.dataset.dockChoice = id;
-        row.setAttribute('aria-pressed', String(chosen.includes(id)));
-        const glyph = glyphOf(id);
-        const name = document.createElement('span'); name.textContent = labelOf(node);
-        if (glyph) row.append(glyph); row.append(name);
-        return row;
-      }));
-    }
+    dock.querySelectorAll('[data-dock-choice]:not(:disabled)').forEach((button) => markKept(button, chosen.includes(button.dataset.dockChoice)));
     paintDock();
   };
-  choices?.addEventListener('click', (event) => {
+  // A plugin was added to or removed from this project in place: the Dock follows what the project has.
+  document.addEventListener('molis-work:plugins-changed', () => paintPins());
+
+  /* Removing asks once, in the tile's own second line, and gives up by itself. */
+  let asking = null;
+  const stopAsking = () => {
+    if (!asking) return;
+    const { tile, button, label, title } = asking;
+    clearTimeout(asking.timer);
+    tile.classList.remove('is-confirming');
+    button.setAttribute('aria-label', label);
+    if (title == null) button.removeAttribute('title'); else button.setAttribute('title', title);
+    const words = button.querySelector('.mw-sr-only'); if (words) words.textContent = label;
+    asking = null;
+  };
+  document.addEventListener('click', (event) => { if (asking && !(event.target?.nodeType === 1 && asking.tile.contains(event.target))) stopAsking(); });
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && asking) { event.preventDefault(); stopAsking(); } });
+  dock.addEventListener('click', (event) => {
+    const target = event.target?.nodeType === 1 ? event.target : null;
+    const toggle = target?.closest('[data-plugin-toggle]');
+    if (!toggle || toggle.disabled) return;
+    const tile = toggle.closest('.plugin-rail-tile');
+    const id = toggle.dataset.pluginToggle;
+    if (toggle.dataset.state === 'available') { stopAsking(); void host.membership?.change(id, 'add'); return; }
+    if (asking && asking.tile === tile) { stopAsking(); void host.membership?.change(id, 'remove'); return; }
+    stopAsking();
+    const list = (tile.dataset.dependents || '').split('|').filter(Boolean).join('、');
+    const message = list ? L('再点一次移除；同时移除：{list}').replace('{list}', list) : L('再点一次移除');
+    tile.querySelector('.plugin-rail-confirm').textContent = message;
+    const title = toggle.getAttribute('title');
+    toggle.setAttribute('title', message);
+    const label = toggle.getAttribute('aria-label') || '';
+    const sure = L('确认移除') + label.slice(label.indexOf('：'));
+    toggle.setAttribute('aria-label', sure);
+    const words = toggle.querySelector('.mw-sr-only'); if (words) words.textContent = sure;
+    tile.classList.add('is-confirming');
+    asking = { tile, button: toggle, label, title, timer: setTimeout(stopAsking, 3200) };
+  });
+  dock.addEventListener('click', (event) => {
     const row = event.target?.nodeType === 1 ? event.target.closest('[data-dock-choice]') : null;
-    if (!row) return;
+    if (!row || row.disabled) return;
     const order = rail().map((node) => node.dataset.pluginId);
     const next = new Set(readPins());
     const on = row.getAttribute('aria-pressed') !== 'true';
     if (on) next.add(row.dataset.dockChoice); else next.delete(row.dataset.dockChoice);
-    try { localStorage.setItem(PINS_KEY, JSON.stringify(order.filter((id) => next.has(id)))); } catch {}
-    // The row changes in place, so focus and the menu stay where the person is.
-    row.setAttribute('aria-pressed', String(on));
+    // The choice is the browser's, not the project's: a plugin this project does not have keeps its place for the ones that do.
+    const away = [...next].filter((id) => !order.includes(id));
+    try { localStorage.setItem(PINS_KEY, JSON.stringify([...order.filter((id) => next.has(id)), ...away])); } catch {}
+    // The button changes in place, so focus and the list stay where the person is.
+    markKept(row, on);
     paintDock();
   });
   // The bar's width is the window's; watching it (not the Dock itself) keeps folding from feeding back into itself.
@@ -297,7 +348,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
       railItem(id)?.click();
       return;
     }
-    // Choosing a plugin in the switcher (or the market or studio at its foot) closes it; 全部插件 and the Dock choices keep it open.
+    // Choosing a plugin in the switcher (or the market or studio at its foot) closes it; the Dock buttons keep it open.
     if (pickerPopover && !pickerPopover.hidden && target.closest('.plugin-rail-items [data-plugin-id], .plugin-rail-items a.plugin-rail-item, .dock-settings .account-global-item')) requestAnimationFrame(() => setPicker(false));
   });
   // Search heads the switcher's list, so the list stays behind it while it is open. Dismissed (×, Esc, ⌘K), you are back

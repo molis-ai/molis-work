@@ -73,6 +73,24 @@ const BAR_SPECIMEN_SCRIPT = `
   input?.addEventListener("input", () => { if (send) send.disabled = !input.value.trim(); });
   stage.querySelector("[data-assistant-composer]")?.addEventListener("submit", (event) => event.preventDefault());
   stage.addEventListener("click", (event) => {
+    // The switcher's two buttons answer here the way the workbench's do (the specimen holds no project, so nothing is kept).
+    const keep = event.target.closest("[data-dock-choice]");
+    if (keep && !keep.disabled) {
+      const on = keep.getAttribute("aria-pressed") !== "true";
+      keep.setAttribute("aria-pressed", String(on));
+      keep.classList.toggle("mw-btn--primary", on); keep.classList.toggle("mw-btn--secondary", !on);
+      keep.closest(".plugin-rail-tile")?.classList.toggle("is-kept", on);
+      return;
+    }
+    const toggle = event.target.closest("[data-plugin-toggle]");
+    if (toggle && !toggle.disabled) {
+      const tile = toggle.closest(".plugin-rail-tile"); const adding = toggle.dataset.state === "available";
+      tile.classList.toggle("is-available", !adding);
+      toggle.dataset.state = adding ? "added" : "available";
+      toggle.classList.toggle("mw-btn--primary", !adding); toggle.classList.toggle("mw-btn--secondary", adding);
+      const pin = tile.querySelector("[data-dock-choice]"); if (pin && !pin.hasAttribute("data-resident")) pin.disabled = !adding;
+      return;
+    }
     const pin = event.target.closest("[data-dock-pin], [data-bar-resident]");
     if (!pin) return;
     stage.querySelectorAll("[data-dock-pin], [data-bar-resident]").forEach((node) => node.toggleAttribute("aria-current", node === pin));

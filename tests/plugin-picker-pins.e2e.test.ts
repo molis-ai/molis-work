@@ -1,0 +1,316 @@
+import assert from "node:assert/strict";
+import test, { type TestContext } from "node:test";
+import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { assertLayoutClean, layoutFindings } from "./fixtures/layout-audit.js";
+
+// The switcher's grid in a real browser (specs/plugin-picker-dock): buttons that appear when an entry is looked at, a pin
+// that keeps a plugin in the Dock, a plus/cross that adds or removes it without bringing the page back.
+
+type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
+
+const tile = (id: string) => `[data-plugin-tile="${id}"]`;
+const quiet = (ms = 40) => new Promise(resolve => setTimeout(resolve, ms));
+
+/** The project page with its switcher open, on a fresh project that has only the default plugins; `__stayed` marks the page. */
+async function openPicker(t: TestContext, width = 1440, height = 900) {
+  const b = await openGoalBrowser(t, "user");
+  if (!b) return null;
+  const { command, sessionId, evaluate, waitFor, origin, projectId } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await b.navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("Boolean(document.querySelector('[data-plugin-picker-toggle]')) && Boolean(document.querySelector('[data-plugin-tile]'))");
+  await evaluate("window.__stayed = true; localStorage.removeItem('molis-work:dock-pins'); true");
+  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
+  const centre = (selector: string) => evaluate<{ x: number; y: number }>(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) throw new Error('missing ' + ${JSON.stringify(selector)}); e.scrollIntoView({ block: 'nearest' }); const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+  const frames = () => evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  /** The pointer moves onto it, as a person's would: what shows only on a look shows. */
+  const hover = async (selector: string) => { const point = await centre(selector); await command("Input.dispatchMouseEvent", { type: "mouseMoved", ...point }, sessionId); await frames(); };
+  const press = async (selector: string) => {
+    await hover(selector);
+    const point = await centre(selector);
+    await command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, sessionId);
+    await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", clickCount: 1 }, sessionId);
+  };
+  const away = async () => { await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 }, sessionId); await frames(); };
+  const key = async (name: string, code: number) => {
+    await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: name, code: name, windowsVirtualKeyCode: code }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: name, code: name, windowsVirtualKeyCode: code }, sessionId);
+  };
+  const state = (id: string) => evaluate<{ grey: boolean; opens: boolean; pinned: boolean | null; pinDisabled: boolean; toggle: string; kept: boolean; busy: boolean; asking: boolean }>(`(() => {
+    const t = document.querySelector(${JSON.stringify(tile(id))}); const pin = t.querySelector('[data-dock-choice]');
+    return { grey: t.classList.contains('is-available'), opens: Boolean(t.querySelector(':scope > .plugin-rail-item').dataset.pluginId), pinned: pin ? pin.getAttribute('aria-pressed') === 'true' : null, pinDisabled: Boolean(pin?.disabled),
+      toggle: t.querySelector('[data-plugin-toggle]').dataset.state, kept: t.classList.contains('is-kept'), busy: t.classList.contains('is-busy'), asking: t.classList.contains('is-confirming') };
+  })()`);
+  const settled = (id: string) => waitFor(`(() => { const t = document.querySelector(${JSON.stringify(tile(id))}); return t && !t.classList.contains('is-busy'); })()`);
+  const stayed = () => evaluate<boolean>("window.__stayed === true");
+  const dock = () => evaluate<string[]>("[...document.querySelectorAll('[data-dock-pins] [data-dock-pin]:not(.is-leaving)')].map(pin => pin.dataset.dockPin)");
+  return { ...b, centre, hover, press, away, key, state, settled, stayed, dock, frames };
+}
+
+test("at rest an entry shows no buttons; looked at, it shows its two, and its text gives up the room", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, hover, away } = b;
+  const probe = () => evaluate<{ ops: string; events: string; pin: string; padding: number; opsCount: number }>(`(() => {
+    const t = document.querySelector(${JSON.stringify(tile("pages"))}); const ops = t.querySelector('.plugin-rail-ops');
+    return { ops: getComputedStyle(ops.querySelector('button')).opacity, events: getComputedStyle(ops).pointerEvents, pin: getComputedStyle(t.querySelector('.plugin-rail-mark')).opacity,
+      padding: parseFloat(getComputedStyle(t.querySelector(':scope > .plugin-rail-item')).paddingRight), opsCount: ops.querySelectorAll('button').length };
+  })()`);
+  await away();
+  const rest = await probe();
+  assert.equal(rest.opsCount, 2, "a pin and a plus");
+  assert.equal(rest.ops, "0", "no buttons while nobody looks");
+  assert.equal(rest.events, "none", "and nothing to hit");
+  assert.ok(rest.padding < 20, "the entry has the whole row");
+  await hover(tile("pages"));
+  const looked = await probe();
+  assert.equal(looked.ops, "1");
+  assert.equal(looked.events, "auto");
+  assert.ok(looked.padding >= 70, `the entry yields the room (${looked.padding}px)`);
+  await away();
+  assert.equal((await probe()).ops, "0", "and takes them back when the look goes");
+});
+
+test("a kept plugin carries a small pin at rest; looked at, the buttons take its place", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, hover, away, press, frames } = b;
+  const mark = (id: string) => evaluate<number>(`parseFloat(getComputedStyle(document.querySelector(${JSON.stringify(tile(id))} + ' .plugin-rail-mark')).opacity)`);
+  await away();
+  assert.equal(await mark("goals"), 1, "Goals is kept by default");
+  assert.equal(await mark("pages"), 0, "Pages is not");
+  await press(`${tile("pages")} [data-dock-choice]`); await frames();
+  await away();
+  assert.equal(await mark("pages"), 1, "once kept it shows");
+  await hover(tile("goals"));
+  assert.equal(await mark("goals"), 0, "looked at, the pin gives way to the buttons");
+});
+
+test("a plugin the project does not have is grey, opens nothing, and cannot be kept", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, press, state, centre, command, sessionId, frames } = b;
+  const grey = await state("schedule");
+  assert.deepEqual({ grey: grey.grey, opens: grey.opens, pinDisabled: grey.pinDisabled, toggle: grey.toggle }, { grey: true, opens: false, pinDisabled: true, toggle: "available" });
+  const surface = await evaluate<string>("document.body.dataset.desktopSurface");
+  const point = await centre(`${tile("schedule")} > .plugin-rail-item`);
+  await command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, sessionId);
+  await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", clickCount: 1 }, sessionId);
+  await frames();
+  assert.equal(await evaluate("document.body.dataset.desktopSurface"), surface, "pressing it goes nowhere");
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-dock-pins] [data-dock-pin=\"schedule\"]'))"), false, "and it is not in the Dock");
+  // Colour: the name is the faint ink, a plugin the project has is the full one.
+  const ink = await evaluate<{ grey: string; have: string }>(`({ grey: getComputedStyle(document.querySelector(${JSON.stringify(`${tile("schedule")} .plugin-rail-item > span`)})).color, have: getComputedStyle(document.querySelector(${JSON.stringify(`${tile("pages")} .plugin-rail-item > span`)})).color })`);
+  assert.notEqual(ink.grey, ink.have, "grey is not the colour of a plugin in the project");
+  void press;
+});
+
+test("the pin keeps a plugin in the Dock and out of it, and the choice survives a reload; Shelf's and 灵光's are fixed on", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { press, state, dock, evaluate, waitFor, navigate, command, sessionId, origin, projectId, frames } = b;
+  assert.ok(!(await dock()).includes("pages"));
+  await press(`${tile("pages")} [data-dock-choice]`); await frames();
+  assert.deepEqual({ ...(await state("pages")), busy: undefined, asking: undefined }, { grey: false, opens: true, pinned: true, pinDisabled: false, toggle: "added", kept: true, busy: undefined, asking: undefined });
+  assert.ok((await dock()).includes("pages"), "the Dock has it at once");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden"), false, "choosing for the Dock keeps the list open");
+  await press(`${tile("pages")} [data-dock-choice]`); await frames();
+  await waitFor("!document.querySelector('[data-dock-pins] [data-dock-pin=\"pages\"]')");
+  // Shelf and 灵光 are always on beside the Assistant.
+  for (const id of ["shelf", "lingguang"]) {
+    const resident = await state(id);
+    assert.deepEqual({ pinned: resident.pinned, pinDisabled: resident.pinDisabled, kept: resident.kept }, { pinned: true, pinDisabled: true, kept: true }, id);
+  }
+  // Kept in this browser: it is there again after the page is.
+  await press(`${tile("form")} [data-dock-choice]`); await frames();
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("Boolean(document.querySelector('[data-dock-pins] [data-dock-pin=\"form\"]'))");
+});
+
+test("adding a plugin changes the page in place: the entry wakes, the cross appears, the plugin opens — and the page was not loaded again", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, press, state, settled, stayed, waitFor, click } = b;
+  assert.equal((await state("schedule")).grey, true);
+  await press(`${tile("schedule")} [data-plugin-toggle]`);
+  await settled("schedule");
+  const added = await state("schedule");
+  assert.deepEqual({ grey: added.grey, opens: added.opens, toggle: added.toggle, pinDisabled: added.pinDisabled }, { grey: false, opens: true, toggle: "added", pinDisabled: false });
+  assert.equal(await stayed(), true, "no reload");
+  assert.equal(await evaluate("document.querySelector(" + JSON.stringify(`${tile("schedule")} [data-plugin-toggle] .mw-sr-only`) + ").textContent.startsWith('移除')"), true, "the button now says what it does");
+  // The entry is the real one: pressing it opens the plugin in the work area, its client loads.
+  await click(`${tile("schedule")} > .plugin-rail-item`);
+  await waitFor("document.body.dataset.desktopSurface === 'schedule' && document.querySelector('[data-work-surface=\"schedule\"]') && !document.querySelector('[data-work-surface=\"schedule\"]').hidden");
+  await waitFor("!document.querySelector('[data-work-surface=\"schedule\"]').hasAttribute('data-deferred-surface') && document.querySelector('[data-work-surface=\"schedule\"]').dataset.uiClientState !== 'failed'");
+  assert.equal(await stayed(), true, "and still no reload");
+});
+
+test("removing asks once, then takes the plugin out in place; the pane showing it goes back and its Dock pin goes", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, press, state, settled, stayed, waitFor, dock, click, frames } = b;
+  // pages is in the project and kept in the Dock, and open.
+  await press(`${tile("pages")} [data-dock-choice]`); await frames();
+  await click(`${tile("pages")} > .plugin-rail-item`);
+  await waitFor("document.body.dataset.desktopSurface === 'pages'");
+  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
+  await press(`${tile("pages")} [data-plugin-toggle]`);
+  assert.equal((await state("pages")).asking, true, "the first press asks");
+  assert.equal((await state("pages")).grey, false, "and changes nothing");
+  assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(`${tile("pages")} .plugin-rail-confirm`)}).textContent`), /再点一次移除/);
+  assert.equal(await evaluate<string>(`getComputedStyle(document.querySelector(${JSON.stringify(`${tile("pages")} .plugin-rail-confirm`)})).opacity`), "1");
+  await press(`${tile("pages")} [data-plugin-toggle]`);
+  await waitFor(`document.querySelector(${JSON.stringify(tile("pages"))}).classList.contains('is-available') && !document.querySelector(${JSON.stringify(tile("pages"))}).classList.contains('is-busy')`);
+  const gone = await state("pages");
+  assert.deepEqual({ grey: gone.grey, opens: gone.opens, pinDisabled: gone.pinDisabled, asking: gone.asking, toggle: gone.toggle }, { grey: true, opens: false, pinDisabled: true, asking: false, toggle: "available" });
+  assert.ok(!(await dock()).includes("pages"), "its pin leaves the Dock");
+  assert.notEqual(await evaluate("document.body.dataset.desktopSurface"), "pages", "the pane that showed it went back");
+  assert.equal(await stayed(), true, "no reload");
+  await settled("pages");
+});
+
+test("the question is dropped when nothing follows: Escape, a press elsewhere, a few seconds", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, press, hover, state, key, waitFor } = b;
+  await press(`${tile("pages")} [data-plugin-toggle]`);
+  assert.equal((await state("pages")).asking, true);
+  await key("Escape", 27);
+  assert.equal((await state("pages")).asking, false, "Escape takes the question back");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden"), false, "and leaves the list open");
+  await press(`${tile("form")} [data-plugin-toggle]`);
+  assert.equal((await state("form")).asking, true);
+  await press(`${tile("dataset")} [data-dock-choice]`);
+  assert.equal((await state("form")).asking, false, "a press elsewhere takes it back");
+  await hover(tile("ppt"));
+  await press(`${tile("ppt")} [data-plugin-toggle]`);
+  assert.equal((await state("ppt")).asking, true);
+  await waitFor(`!document.querySelector(${JSON.stringify(tile("ppt"))}).classList.contains('is-confirming')`, 6_000);
+  assert.equal((await state("ppt")).grey, false, "left alone it stays");
+});
+
+test("Goals cannot be removed", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, state } = b;
+  assert.equal(await evaluate("document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-toggle]').disabled"), true);
+  assert.equal((await state("goals")).grey, false);
+});
+
+test("a plugin that brings a stage page gets it in place, and takes it away again", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, press, state, settled, stayed, waitFor, click } = b;
+  const pool = () => evaluate<string[]>("[...document.querySelectorAll('[data-surface-pool] > [data-work-surface]')].map(node => node.dataset.workSurface)");
+  assert.ok(!(await pool()).includes("files"));
+  await press(`${tile("files")} [data-plugin-toggle]`);
+  await settled("files");
+  await waitFor("Boolean(document.querySelector('[data-surface-pool] > [data-work-surface=\"files\"]'))");
+  assert.equal((await state("files")).grey, false);
+  assert.equal(await stayed(), true, "in place");
+  // Its page loads when it is first shown, as the pages that came with the page do.
+  await click(`${tile("files")} > .plugin-rail-item`);
+  await waitFor("document.body.dataset.desktopSurface === 'files' && !document.querySelector('[data-work-surface=\"files\"]').hidden");
+  await waitFor("!document.querySelector('[data-work-surface=\"files\"]').hasAttribute('data-deferred-surface')");
+  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
+  await press(`${tile("files")} [data-plugin-toggle]`); await press(`${tile("files")} [data-plugin-toggle]`);
+  // The page it showed is in the pane, not the pool: gone means gone from the page.
+  await waitFor("!document.querySelector('[data-work-surface=\"files\"]')");
+  assert.equal((await state("files")).grey, true);
+  assert.notEqual(await evaluate("document.body.dataset.desktopSurface"), "files", "the pane that showed it went back");
+  assert.equal(await stayed(), true, "still in place");
+});
+
+test("Feed's and Coding's page parts are wired when the page loads, so they bring the page back once, with its state kept", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, press } = b;
+  assert.deepEqual(await evaluate<string[]>("document.querySelector('.plugin-rail-items').dataset.reloadPlugins.split(' ')"), ["feed", "coding"]);
+  await press(`${tile("feed")} [data-plugin-toggle]`);
+  // The page is loaded again under the test: ask until a page that has Feed answers.
+  const deadline = Date.now() + 20_000;
+  let back = false;
+  while (!back && Date.now() < deadline) {
+    back = await evaluate<boolean>("window.__stayed === undefined && document.readyState === 'complete' && Boolean(document.querySelector('[data-plugin-tile=\"feed\"]')) && !document.querySelector('[data-plugin-tile=\"feed\"]').classList.contains('is-available')").catch(() => false);
+    if (!back) await quiet(150);
+  }
+  assert.ok(back, "the page came back with Feed in the project");
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-directory-panel=\"sources\"], [data-plugin-section=\"feed\"]'))"), true, "Feed came with its directory");
+});
+
+test("the keyboard reaches the buttons: → into them, ← back, ↑ ↓ along the same kind; Enter on the cross asks, Escape takes it back first", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, key, state, waitFor } = b;
+  const focused = () => evaluate<string>("(() => { const e = document.activeElement; return e ? (e.dataset.dockChoice ? 'pin:' + e.dataset.dockChoice : e.dataset.pluginToggle ? 'toggle:' + e.dataset.pluginToggle : e.dataset.pluginId ? 'entry:' + e.dataset.pluginId : e.className) : ''; })()");
+  await evaluate("document.querySelector('[data-plugin-tile=\"pages\"] > .plugin-rail-item').focus()");
+  assert.equal(await focused(), "entry:pages");
+  await key("ArrowRight", 39); assert.equal(await focused(), "pin:pages");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-plugin-tile=\"pages\"] .plugin-rail-ops button')).opacity"), "1", "focus shows the buttons as a look does");
+  await key("ArrowRight", 39); assert.equal(await focused(), "toggle:pages");
+  await key("ArrowLeft", 37); await key("ArrowLeft", 37); assert.equal(await focused(), "entry:pages");
+  await key("ArrowRight", 39); await key("ArrowDown", 40);
+  assert.match(await focused(), /^pin:/, "↓ from a pin goes to the next pin");
+  await key("ArrowRight", 39); assert.match(await focused(), /^toggle:/);
+  await evaluate("document.activeElement.click()");
+  const id = (await focused()).replace("toggle:", "");
+  assert.equal((await state(id)).asking, true, "the cross asks");
+  await key("Escape", 27);
+  assert.equal((await state(id)).asking, false);
+  assert.equal(await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden"), false, "Escape took the question, not the list");
+  await key("Escape", 27);
+  await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
+});
+
+test("the market, for this project, changes the page in place too, and the entry in the switcher agrees", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, click, waitFor, stayed } = b;
+  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await click('.dock-settings [data-plugin-id="market"]');
+  await waitFor("document.body.dataset.desktopSurface === 'market' || !document.querySelector('[data-work-surface=\"market\"]').hidden");
+  await waitFor("Boolean(document.querySelector('[data-market-plugin=\"schedule\"] [data-market-add]')) && !document.querySelector('[data-market-plugin=\"schedule\"] [data-market-add]').disabled", 10_000);
+  await click('[data-market-plugin="schedule"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"schedule\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  assert.equal(await stayed(), true, "no reload");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-tile=\"schedule\"]').classList.contains('is-available')"), false, "the switcher's entry followed");
+});
+
+test("every state of the grid lays out cleanly: at rest, with an entry looked at, with a removal being asked; light and dark; wide, narrow, phone", { timeout: 300_000 }, async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { command, sessionId, evaluate, hover, press, away, frames } = b;
+  // The page behind the list is not what is judged: only the switcher (the bar's left) is left showing.
+  await evaluate(`(() => { const style = document.createElement('style'); style.dataset.audit = ''; style.textContent = 'main.immersive-workspace > :not(.workbench-bar), .workbench-bar > :not(.bar-start), .bar-start > :not(.plugin-picker) { visibility: hidden !important; }'; document.head.append(style); })()`);
+  // The two buttons sit over the end of their entry, in the room it gave up: that overlap is the design. Text under them is not.
+  const inOwnTile = (finding: { kind: string; a?: string; b?: string }) => finding.kind === "overlap"
+    && [[finding.a, finding.b], [finding.b, finding.a]].some(([entry, over]) => /plugin-rail-item/.test(entry ?? "") && /^button\.mw-btn|^svg$/.test(over ?? ""));
+  for (const scheme of ["light", "dark"] as const) {
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+    for (const [width, height] of [[1440, 900], [1024, 700], [768, 800], [390, 844]] as const) {
+      await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
+      await frames();
+      if (await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden")) { await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()"); await frames(); }
+      const where = (state: string) => `${state} · ${width} · ${scheme}`;
+      await away();
+      // The popover scrolls; what is inside it is judged where it is seen, so the audit reads each screenful.
+      await assertLayoutClean(evaluate, where("at rest"), { allow: inOwnTile });
+      if (width >= 600) {
+        await hover(tile("pages"));
+        const looked = await layoutFindings(evaluate);
+        assert.deepEqual(looked.filter(finding => !inOwnTile(finding)), [], where("looked at"));
+        await press(`${tile("pages")} [data-plugin-toggle]`);
+        const asked = await layoutFindings(evaluate);
+        assert.deepEqual(asked.filter(finding => !inOwnTile(finding)), [], where("being asked"));
+        await away();
+        await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+        await frames();
+        if (await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden")) { await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()"); await frames(); }
+      }
+      void quiet;
+    }
+  }
+});

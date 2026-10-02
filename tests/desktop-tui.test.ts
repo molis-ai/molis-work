@@ -602,10 +602,10 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
       assert.match(pluginStrip, new RegExp(`data-plugin-id="${plugin}"`));
     }
     assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="sessions"/);
-    // No rail: one bar at the foot. At its left the switcher, which holds the project's entries with the Dock's own
-    // settings at their foot, then the Dock; the Assistant is only an input; Shelf and 灵光; then the project, whose
-    // menu opens group chat and holds the person.
-    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-plugin-picker-toggle[\s\S]*class="plugin-rail-items"[\s\S]*data-global-menu[\s\S]*data-dock-choices[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island>[\s\S]*data-assistant-input[\s\S]*<div class="bar-end">[\s\S]*data-bar-resident="shelf"[\s\S]*data-bar-resident="lingguang"[\s\S]*class="bar-chat"[^>]*data-dock-toggle="im"[\s\S]*data-dock-window="im"[\s\S]*data-project-menu/);
+    // No rail: one bar at the foot. At its left the switcher, which holds every plugin (each with its own Dock button) with
+    // the market and the studio at its foot, then the Dock; the Assistant is only an input; Shelf and 灵光; then the project,
+    // whose menu opens group chat and holds the person.
+    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-plugin-picker-toggle[\s\S]*class="plugin-rail-items"[\s\S]*data-global-menu[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island>[\s\S]*data-assistant-input[\s\S]*<div class="bar-end">[\s\S]*data-bar-resident="shelf"[\s\S]*data-bar-resident="lingguang"[\s\S]*class="bar-chat"[^>]*data-dock-toggle="im"[\s\S]*data-dock-window="im"[\s\S]*data-project-menu/);
     assert.doesNotMatch(browser, /class="plugin-stack"|class="workbench-dock"|data-navigation-labels-toggle/);
     assert.doesNotMatch(pluginStrip, /返回项目目录/);
     assert.doesNotMatch(pluginStrip, /data-plugin-section=|data-plugin-expand=/);
@@ -621,12 +621,13 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     // The menu is the project and the person; the discussion has its own button in the bar.
     assert.doesNotMatch(projectMenu, /data-dock-toggle/);
     assert.match(projectMenu, /navigator-project-manage[\s\S]*data-personal-menu[\s\S]*class="personal-account"[\s\S]*href="\/capabilities\/library[^"]*"[^>]*data-capabilities-open[\s\S]*data-plugin-id="settings"/);
-    const railItems = pluginStrip?.match(/<div class="plugin-rail-items">[\s\S]*?<\/div>/)?.[0] ?? "";
-    assert.match(railItems, /^<div class="plugin-rail-items"><button[^>]*data-plugin-id="home"/);
+    const railItems = pluginStrip?.slice(pluginStrip.indexOf('<div class="plugin-rail-items"'), pluginStrip.indexOf("data-rail-tools-toggle") + "data-rail-tools-toggle".length) ?? "";
+    assert.match(railItems, /^<div class="plugin-rail-items"[^>]*><button[^>]*data-plugin-id="home"/);
     // The backbone sits under the first purpose heading, 推进 (plugin-e2e-review §3.1).
     assert.match(railItems, /data-plugin-id="home"[\s\S]*class="plugin-rail-group" data-rail-zone="tools">推进<\/p>[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*data-plugin-id="feed"[\s\S]*data-plugin-id="sessions"[\s\S]*data-rail-tools-toggle/);
     assert.doesNotMatch(railItems, /data-plugin-id="(market|plugin-builder|settings)"/, "the market and the studio live in the Dock menu, settings under the project");
-    assert.match(accountFooter, /data-global-menu[\s\S]*data-plugin-id="market"[^>]*data-work-surface-open="market"[\s\S]*data-plugin-id="plugin-builder"[\s\S]*data-dock-choices/);
+    assert.match(accountFooter, /data-global-menu[\s\S]*data-plugin-id="market"[^>]*data-work-surface-open="market"[\s\S]*data-plugin-id="plugin-builder"/);
+    assert.doesNotMatch(browser, /data-dock-choices|class="dock-choices"|account-global-heading">常驻在 Dock/, "the Dock's list is the buttons on the tiles, not a second list");
     assert.doesNotMatch(railItems, /plugin-rail-rule/);
     assert.doesNotMatch(browser, /data-directory-shortcuts|directory-shortcuts-title/);
     const homeStart = browser.indexOf('data-work-surface="home"');

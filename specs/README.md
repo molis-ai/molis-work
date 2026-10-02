@@ -5,6 +5,7 @@
 ## 在做的
 
 - [post-merge-review](post-merge-review/spec.md)：全部需求合入后的功能审查、合并缺陷修复与 spec 梳理（防腐收尾第一步）。
+- [plugin-picker-dock](plugin-picker-dock/spec.md)：插件切换器里「常驻 Dock」与「装没装」合成一张网格，悬停才出现的两个图标按钮，添加与移除不刷新页面。
 - [project-arrival-flow](project-arrival-flow/spec.md)：打开 Molis Work——项目选择页、Welcome 与新建项目引导的重做（设计已认可，已实现，PR 评审中）。
 
 ## 现行规范

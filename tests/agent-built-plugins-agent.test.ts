@@ -213,3 +213,20 @@ test('builder screenshot bytes reach the model protocol through Prologue and sta
     assert.ok(!JSON.stringify(await agent.records()).includes(png), 'image is not copied into persisted run JSON');
   } finally { await agent.close(); await rm(root, { recursive: true, force: true }); }
 });
+
+test('one model request may take as long as the role allows, not Prologue\'s 60-second default', { timeout: 30_000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'molis-builder-call-limit-')); const build = join(root, 'build'); await mkdir(build);
+  // The model answers after 400 ms: a 100 ms limit stops the request, a 2 s limit lets it finish.
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    await new Promise((resolve, reject) => { const timer = setTimeout(resolve, 400); init.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(init.signal!.reason); }); });
+    return response();
+  });
+  const configuration = { modelConfiguration: async () => ({ protocol: 'anthropic-compatible' as const, endpoint: 'https://1.1.1.1/v1/messages', model: 'fixture', credential_ref: 'fixture' }), resolveCredential: () => 'fixture' };
+  const request = { role: 'designer' as const, instruction: 'Return a design.', task: 'A reading log.', promptVersion: 'design@1', contractRevision: '1' };
+  const short = await createPluginBuilderAgent({ buildRoot: build, storageRoot: join(root, 'short'), ...configuration, modelCallTimeoutMs: 100 });
+  try { await assert.rejects(short.run(request), /timeout|aborted/i); }
+  finally { await short.close(); }
+  const long = await createPluginBuilderAgent({ buildRoot: build, storageRoot: join(root, 'long'), ...configuration, modelCallTimeoutMs: 2_000 });
+  try { assert.equal((await long.run(request)).phase, 'completed'); }
+  finally { await long.close(); await rm(root, { recursive: true, force: true }); }
+});

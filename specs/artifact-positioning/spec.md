@@ -112,7 +112,7 @@
 | S1 | 删 `renderPluginPageWorkspace` 与它的出口和测试（P9）、炼金术士历史演示记录（P8） | 只删不改；分支 `fix/shell-s1-drop-standalone-pages` |
 | S1b | 删旧的解释器创作台整套（P3、P4）：`/plugin-builder` 整页、旧生成插件独立页，以及只为它们存在的旧实现。新创作台（`agent-*`）只依赖旧包里的 `formula.ts`、`model.ts`、`validation.ts`；`actions`、`activity`、`client`、`generated`、`plugin`、`record-client`、`record-routes`、`records`、`routes`、`spec-board`、`starter`、`store`、`styles`、`ui`、`visuals`、`workflow` 只属旧系统。宿主还从旧系统取 `builderManifest`、`builderUiContribution`、`BUILDER_PROMPTS` 与两个角色（新创作台也用设计者、代码两个角色），要先把插件身份与角色提示词挪到新创作台，再删旧系统与 `tests/plugin-builder-browser.e2e`、`plugin-builder-visual.e2e` 等旧用例 | 大；旧发布记录不迁移、不读 |
 | S2 | 直达链接打开工作台：`/artifacts`、`/artifacts/<版本>` 改为打开工作台并定位（P1）；未知页面地址打开工作台并提示找不到（P17） | 删 `renderArtifactWorkbenchPage` 整页与只给它用的样式；分支 `fix/shell-s2-direct-links-open-workbench` |
-| S3 | 沙箱框只在工作台里开：试用与已安装生成插件去掉框内的品牌、返回链接与「编辑新草稿」条；「单独打开试用」「打开插件」「打开 vN」改为工作台标签；直达框文档路由时打开工作台定位（P6、P7） | |
+| S3 | 沙箱框只在工作台里开（P6、P7）。① 已安装生成插件的框内文档去掉自带头条（标题、版本、「回创作台」链接），出错页不再链到创作台整页；② 「单独打开试用」两处改为切到创作台自己的「试用」标签（`data-as-tab="try"`），不开新标签页；③ 「打开插件」「打开 vN」只走现有的 postMessage 让工作台打开，去掉新标签页兜底；④ 顶层直接访问试用与已安装插件地址（`Sec-Fetch-Dest: document`）时打开工作台并定位到该插件面；作为 iframe 加载时照常回框内文档。`agent-studio.e2e` 里顶层打开试用页、已安装页的步骤随之改为经工作台或框内检查 | 中；`agent-surface.ts`、`agent-studio.ts`、工作台初始化（按面打开） |
 | S4 | 创作台去框：创作台作为工作台插件面直接渲染（P5） | 大 |
 | S5 | 文件在工作台里预览：Shelf 网页版打开文件（P19）、项目内引用 `/api/project-references/`（P18），浏览器能显示的在标签或侧栏预览，其余下载 | |
 | S6 | 设置并进工作台：全局与项目设置成为工作台的设置面，删设置整页；插件里「去设置」的链接改为工作台内切面（P10、P11、P21） | 最大 |

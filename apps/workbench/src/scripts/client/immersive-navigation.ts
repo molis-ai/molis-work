@@ -215,28 +215,48 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       window.dispatchEvent(new StorageEvent("storage", { key: "molis-work:theme", newValue: theme }));
     }
   });
-  // The plugin list is one Tab stop: the current plugin is tabbable, arrows move between plugins.
+  // The plugin list is one Tab stop: the current plugin is tabbable, arrows move between plugins. Each plugin's two buttons
+  // (keep it in the Dock, add or remove it) are shown while its entry has focus: → reaches them, ← comes back, and ↑ ↓ then
+  // walk the buttons of the same kind down the list.
   const railItems = pluginRail?.querySelector(".plugin-rail-items");
   if (railItems) {
-    const railButtons = () => [...railItems.querySelectorAll("[data-plugin-id], a.plugin-rail-item, [data-rail-tools-toggle]")].filter((button) => button.getClientRects().length && !button.disabled);
+    const ENTRY = ".plugin-rail-item, [data-rail-tools-toggle]";
+    const OPS = ".plugin-rail-ops > button";
+    const usable = (nodes) => [...nodes].filter((button) => button.getClientRects().length && !button.disabled);
+    const railButtons = () => usable(railItems.querySelectorAll(ENTRY));
     const syncRailTabStop = () => {
       const buttons = railButtons();
       const current = buttons.find((button) => button.classList.contains("is-current") || button.getAttribute("aria-current") === "page") || buttons[0];
       buttons.forEach((button) => { button.tabIndex = button === current ? 0 : -1; });
+      railItems.querySelectorAll(OPS).forEach((button) => { button.tabIndex = -1; });
     };
     railItems.addEventListener("keydown", (event) => {
-      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-      const buttons = railButtons();
-      const index = buttons.indexOf(event.target.closest("[data-plugin-id], a.plugin-rail-item, [data-rail-tools-toggle]"));
+      if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      const op = event.target.closest(OPS);
+      const entry = op ? null : event.target.closest(ENTRY);
+      const tile = (op || entry)?.closest(".plugin-rail-tile");
+      if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+        if (!tile) return;
+        const stops = [tile.querySelector(":scope > .plugin-rail-item"), ...usable(tile.querySelectorAll(OPS))].filter(Boolean);
+        const next = stops[stops.indexOf(op || entry) + (event.key === "ArrowRight" ? 1 : -1)];
+        if (!next) return;
+        event.preventDefault();
+        // The entry a person comes back to is the one the list rests on.
+        if (next.matches(ENTRY)) railButtons().forEach((button) => { button.tabIndex = button === next ? 0 : -1; });
+        next.focus();
+        return;
+      }
+      const buttons = op ? usable(railItems.querySelectorAll(OPS)).filter((button) => button.className.split(" ").some((name) => ["dock-keep", "plugin-toggle"].includes(name) && op.classList.contains(name))) : railButtons();
+      const index = buttons.indexOf(op || entry);
       if (index < 0) return;
       event.preventDefault();
       const next = event.key === "Home" ? buttons[0] : event.key === "End" ? buttons.at(-1)
         : buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length];
-      buttons.forEach((button) => { button.tabIndex = button === next ? 0 : -1; });
+      if (!op) buttons.forEach((button) => { button.tabIndex = button === next ? 0 : -1; });
       next.focus();
     });
     railItems.addEventListener("focusout", (event) => { if (!railItems.contains(event.relatedTarget)) syncRailTabStop(); });
-    new MutationObserver(syncRailTabStop).observe(railItems, { subtree: true, attributes: true, attributeFilter: ["class", "aria-current", "hidden"] });
+    new MutationObserver(syncRailTabStop).observe(railItems, { subtree: true, attributes: true, attributeFilter: ["class", "aria-current", "hidden", "disabled"] });
     syncRailTabStop();
   }
   document.addEventListener("keydown", event => {

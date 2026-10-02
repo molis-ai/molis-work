@@ -1,6 +1,6 @@
 # 全部需求合入后的功能审查、合并缺陷修复与 spec 梳理
 
-状态：执行中（2026-10-01 起）。本文是第一步的唯一进度与证据记录。任务要求见 `docs/prompts/post-merge-functional-review.md`（以 `anti-rot` 分支上的版本为准）；第二步见 `docs/prompts/repository-anti-corruption.md`，以本文交付的 main、行为基线与 spec 梳理结果为起点。
+状态：已完成，等最后几个 PR 合入（2026-10-02）。最终汇报见 §13。本文是第一步的唯一进度与证据记录。任务要求见 `docs/prompts/post-merge-functional-review.md`（以 `anti-rot` 分支上的版本为准）；第二步见 `docs/prompts/repository-anti-corruption.md`，以本文交付的 main、行为基线与 spec 梳理结果为起点。
 
 ## 1. 范围与基线
 
@@ -298,7 +298,7 @@
 | --- | --- | --- | --- | --- |
 | BUILDER-01 | 空间表达真正改善 | 「实施与验证记录」截图与实操 | `agent-built-plugins-*`、`plugin-builder-*` 通过；`agent-studio.e2e` 为测试时序缺陷（#143） | 已实现（合入前实测、合入后回归通过） |
 | BUILDER-02 | Agent 能生产该结果（真实模型记录） | MiniMax-M3 真实运行记录 | 4301 真实模型（MiniMax M3.1-Flash）：需求「读书记录插件，按月份分组、每月显示本数」→ 主线设计 35 秒给两个方案 → 采用后 UI Agent 在 60 秒默认时限下两次中止（PMR-33）→ 用 [#163](https://github.com/molis-ai/molis-work/pull/163) 的构建续跑，体验设计约 3.5 分钟完成，代码 Agent 写完两项功能，门禁 G1–G6 通过、界面验收 5/5，「功能已验证；视觉未复查」。试用：录入《三体》后立即出现「2026年9月 · 读完 1 本」和这本书，表单清空并提示已保存 | 已实现（合入后真实模型复测，依赖 [#163](https://github.com/molis-ai/molis-work/pull/163)，已合入） |
-| BUILDER-03 | 不退化为新模板（三个需求三种结构） | 同上 | 合入后只用真实模型复测了一个需求（见 BUILDER-02），三个需求三种结构没有重跑 | ◐ 合入后只复测一个需求 |
+| BUILDER-03 | 不退化为新模板（三个需求三种结构） | 同上 | 合入后用真实模型（MiniMax M3.1-Flash）跑了两个需求，结构各不相同：①读书记录（按月份分组、每月本数）构建完成并试用通过（BUILDER-02）；②报名表（组织者设固定时间段、报名人勾选多个时间段、联系方式唯一、按时间段统计）设计出独立的合同与界面（5 项操作、时间段初始化、去重规则），代码全部过门禁，但界面验收后的「显示问题」修复路径失败（PMR-36），未完成构建。途中修了单次时限（#163、#168）与运行记录并发写（#182）。第三个需求没有跑 | ◐ 两个需求结构不同，第二个未完成（PMR-36、BL-113） |
 | BUILDER-04 | 新建、编辑、删除、筛选与详情稳定 | 定向回归 144/144 | 合入后回归通过 | 已实现（合入后回归通过） |
 | BUILDER-05 | 视觉修改不触发代码 Agent | 定向回归 | 同上 | 已实现（合入后回归通过） |
 | BUILDER-06 | 复查可信（遮挡、溢出可被检测） | 定向回归 | 同上 | 已实现（合入后回归通过） |
@@ -415,6 +415,9 @@
 | PMR-31 | 在待办页发起的助理工作，详情「路径 · 起点」写「待办 / io.molis.work.todo」；在 Coding 页发起的写「Coding / Coding」 | 真实模型复测 PANEL-06 时看到；页面上下文给插件包 id，`surfaceName()` 只按短 id 在左栏找名字，找不到就显示 id | 露出内部 id | 起点只用页面自己的名字；查到的插件名与标题不同、且不是 id 时才写第二行。新增 `tests/assistant-origin-name.e2e.test.ts`，去掉修复时失败 | 已修 [#162](https://github.com/molis-ai/molis-work/pull/162) |
 | PMR-32 | 带清单的一轮里，助理三次更新步骤都失败（用了「1」「2」「3」，实际编号是 todo-4/5/6），回答却写「三步都已完成（进度清单已更新为全部完成）」；路径如实停在「步骤 0/3」 | 4301 真实模型（MiniMax M3.1）复测 PANEL-08，1 次里 1 次；Prologue 的 todo 工具报 `There is no todo item "1"` | 模型行为；「声称已更新」没有防护 | 记入 BACKLOG（BL-104）：给步骤更新加「编号要照抄」的说明，或认序号；考虑把「声称清单已更新」纳入已有的声称类防护 | 交 BACKLOG |
 | PMR-33 | 插件创作台：主线设计 35 秒给出两个方案；选定后，UI Agent 的「先设计使用路径……」连续两次报 `The operation was aborted due to timeout` | 4301 真实模型（MiniMax M3.1-Flash）复测 BUILDER-02。运行记录显示两次都是开始后整 60 秒被中止：创作台启动 run 时没给单次请求设时限，沿用 Prologue 默认 60 秒。四份 vendored SDK 都是 60 秒，合入前用的 MiniMax-M3 刚好写得完 | 现用模型下 BUILDER-02 的缺口，不是合并引入 | 单次请求时限按角色设定：设计者 300 秒、代码 Agent 180 秒；新增用例，去掉修复时失败。用修复分支的构建复测，同一步约 3.5 分钟完成 | 已修 [#163](https://github.com/molis-ai/molis-work/pull/163) |
+| PMR-34 | 插件创作台：757px 宽时，输入框下的模型说明（「请选择构建使用的模型 · …」）被底栏挡住一半 | 用户 2026-10-02 截图报告；在 4301 量得舞台在 y=968 结束（底栏顶边），创作台框架却到 y=1024：框架的内联 `min-height: calc(100vh - 64px)` 比舞台高，多出的 56px 被舞台裁掉、落在底栏下。已安装的生成插件框架是同一写法 | 界面缺陷，与舞台高度（底栏 52–116px）不一致；不是合并引入（eff5b09d 起就有） | 框架只填满舞台，去掉按视口的最小高度；新增浏览器用例在 757、1440 宽度下断言框架底边不低于舞台与底栏 | 修复中（[#172](https://github.com/molis-ai/molis-work/pull/172)，新用例改前失败、改后通过） |
+| PMR-35 | 插件创作台：报名表需求（BUILDER-03）在 #168 之后续跑，体验设计约 2 分钟完成、代码 Agent 写完第一项功能，随后整次构建失败：`ENOENT: rename builder-runs/<id>.json.tmp -> <id>.json` | 4301 真实模型（MiniMax M3.1-Flash），main 98984bf7，10-02 09:02–09:13。`horizontal/agent-host/src/adapters/plugin-builder.ts` 的 `save()` 先写 `<id>.json.tmp` 再改名；同一条记录的两次保存重叠时共用同一个临时文件，第一次改名拿走了它，第二次就找不到 | 产品缺陷（运行记录的并发写），#163 之前被 60 秒时限遮住，没有走到这一步 | 按记录排队保存，每次改名都找得到自己的文件，最后一次保存留在磁盘上；新增用例：三次重叠保存都成功、留下最后一次 | 修复中（[#182](https://github.com/molis-ai/molis-work/pull/182)：新用例改前报同一个 ENOENT、改后通过；创作台用例 11/11；4301 续跑报名表见 §2.2 BUILDER-03） |
+| PMR-36 | 插件创作台：报名表在 #182 的构建上续跑，代码全部过门禁后，宿主界面验收发现首次设置组件 `slot-setup` 没有出现；走「显示问题」路径（交回设计、重新装配、重新实现）之后门禁不通过（各操作 `import '../store'` 找不到），整次构建直接判失败，没有交回代码 Agent 修；再按「继续」也是在发布前整体门禁上立刻失败（同一个 `../store` 找不到），不会进入代码 Agent，这条构建无法从界面恢复 | 4301 真实模型，10-02 10:46–10:59；`plugins/native/plugin-builder/src/agent-workflow.ts` 的 `repairAcceptance`：显示问题分支在 `implement` 后 `check` 不通过就 `throw new Error('调整显示后，门禁没有通过：…')`；普通分支有最多两轮修复 | 已知缺口（创作台流程），不是合并引入 | 显示问题分支在门禁不通过时进入与普通分支相同的修复轮，而不是直接失败；记入 BL-113 | 交后续（BL-113） |
 
 ## 4. 合并缺陷与用户可见重复
 
@@ -459,7 +462,7 @@
 | 3 | Feed 新资料 → Inbox → 转待办 → 放置到项目 → 首页相关资料 → 搜索打开 | 通过（1 处修复） | 4301（main 1ff917a1）：市场添加 Feed，Hacker News 来源同步 20 条；打开一条（首个详情约 8 秒）→「加入 Inbox」→ Inbox「转为待办」→「打开待办」（约 5 秒空白后出现，放在项目「合入后验收」）→ 放置面板「移到 · 个人空间」→「用于项目 · 合入后验收」→ 项目首页「关联资料」列出它，「打开」进入这条待办 → ⌘K 搜 DKIM 同时命中 Inbox、Feed、待办，打开待办定位准确。待办摘要露出字段名见 PMR-26（[#155](https://github.com/molis-ai/molis-work/pull/155)）。项目待办搜索见 PMR-16（#144，已修）。Feed 自身的体验问题记入 BACKLOG（BL-094～BL-101） |
 | 4 | Coding 委派与助理交接 → 侧栏浏览器 → 审批 → 停止与撤权 | 通过（3 处修复，1 项待决） | 4301（main d39e8e5b），MiniMax M3.1：①助理在侧栏浏览器打开 example.com，如实报标题和首段；②多步任务（打开必应 → 点搜索框 → 输入 → 点搜索前停下问我）逐步确认，助理在提交前停下提问，我在「按下 Enter」的确认卡出现时点「停止」，Enter 没有执行；③「接手」可用，我在侧栏输入可用；④拒绝一步后，助理如实说明并不换办法重试；⑤「交给 Coding 继续」后，Coding 读到交接内容，新建文件前给出 diff 等确认，批准后文件落盘（磁盘核对）；第二个写文件任务在确认卡出现时停止，文件没有写（磁盘核对）；「回到助理」后，助理按 Coding 会话记录如实回答。发现：停止后仍显示「助理正在操作」、接手再交还会重开已停止的工作、总开关关掉后进行中和下一轮都不受影响（PMR-27，[#157](https://github.com/molis-ai/molis-work/pull/157)）；按钮防护误判（PMR-28，[#158](https://github.com/molis-ai/molis-work/pull/158)）；等待也要确认（PMR-29，待决）；必应输入框没写进去（PMR-30，BACKLOG）。项目没有工作目录时，交给 Coding 后发送会提示先选目录，并保留输入 |
 | 5 | 底栏、设置、Shelf、灵光的开关与返回；标签增删与暂存；刷新、后退、分屏 | 通过 | Shelf ↔ 灵光切换后「上一步」「下一步」回到正确的面；刷新回到原面；插件首页不开标签（按需求）；向右分屏得到两个独立窗格；运行时无脚本错误 |
-| 6 | 插件停用、卸载、升级 → 目录、搜索、助理能力、MCP、记忆、情境动作同步 | 项目插件通过；个人插件待决；升级未做 | 移除 Feed 后接口返回 403 `actions.plugin_disabled`，搜索来源变「disabled」，加回后恢复；个人插件「移除」只隐藏（PMR-15）。没有可用的升级候选，升级未实测，靠 `plugin-upgrades` 等回归 |
+| 6 | 插件停用、卸载、升级 → 目录、搜索、助理能力、MCP、记忆、情境动作同步 | 项目插件通过；升级由自动用例覆盖；个人插件交第二步（BL-088） | 移除 Feed 后接口返回 403 `actions.plugin_disabled`，搜索来源变「disabled」，加回后恢复；个人插件「移除」只隐藏（PMR-15，用户定为「移除即停用」，BL-088）。隔离 Home 里没有可升级的插件，升级未手工走查；由 98984bf7 全量回归里通过的用例覆盖：`plugin-market-upgrade.e2e`（真实点击市场手动升级）、`plugin-upgrades`（5 条：兼容声明、不许未声明的新版启动、只报告不改动等）、`agent-studio.e2e`（生成插件发布、升级、回滚）、「a plugin disabled or upgraded while its change waits … the new version is found」（助理能力在升级后找到新版本） |
 | 7 | 项目切换、个人空间与项目之间移动 → 权限与可见范围 | 通过（修复后） | 项目 A 的待办 B 看不到；移到个人空间后两边都能看到并能在「个人」搜到；移回 A 后 B 看不到。项目待办搜不到见 PMR-16（#144） |
 | 8 | 重启与崩溃恢复 | 通过（后台任务回报未单独构造） | 无模型部分：记下助理工作、待办、搜索结果后重启服务，工作（含状态）、待办、搜索结果、页面所在的面都恢复，无脚本错误。真实模型部分（4301，main d39e8e5b，MiniMax M3.1）：助理按「今天 19:20 提醒我检查 Feed」定了一次性跟进，另建一条 19:21 提醒的待办；19:14 按 pid `kill -9` 强杀服务后重启，跟进仍在（下一次 19:20），19:20:00 准时开了新一轮，读 Feed 给出带表格和链接的结果，跟进随后失效；19:21 待办提醒出现在底栏「等你处理」和待办页「到了时间的提醒」。Coding 写文件的确认卡挂着时强杀并重启：工作标为「需要核对」，说明「不会自动重复执行」，给出「去核对」「打开 Coding 核对」，文件没有写（磁盘核对）。未确认的写入显示「结果未确认」，见 BL-100 |
 | 9 | 拷贝用户正在用的 Home，用当前 main 打开 | 未做 | 要先问用户；拷贝真实 Home 的同类操作已被自动模式拦下 |
@@ -512,13 +515,13 @@
 
 | 用例 | 文件 | 归类 | 依据 | 处理 |
 | --- | --- | --- | --- | --- |
-| 工作台挂上 Todo 舞台；工作台 HTML 挂上 Pages 舞台和编辑器 | `todo-plugin`、`pages-plugin` | 预期已变，测试没跟上（#150） | #150 把插件客户端改为打开时再加载，页面只登记插件；两条单元测试还在找首屏里的脚本 | 修复分支 `fix/tests-deferred-plugin-clients`：按新合同断言，单元测试 132/132 通过 |
-| Shelf 打开、提取 PDF、保留 DropAgent 令牌 | `shelf-plugin.e2e` | **产品回归**（#150） | Shelf 终端客户端只在页面加载时找一次挂载点；#150 之后挂载点留在 `<template>` 里，Shelf「对话」的终端再也起不来。角色终端同理 | 同一分支：挂载点出现后再启动；待浏览器时段验证 |
-| 角色与 Coding 发现授权的未知动作；Images 390；Todo 1440/390 从 Inbox 与灵光转待办；Goals 失败的紧凑刷新退回整页 | `agent-action-selection.e2e`、`images-actions.e2e`、`todo-from-inbox.e2e`、`goals-refresh.e2e` | 测试没等界面就绪（#150） | 插件面加载期间是 inert，用例立即点击，没有作用 | 同一分支：夹具的 `click` 先等插件面加载完，新增 `surfaceReady()`；待浏览器时段验证 |
-| Pages 390：中断的发布刷新后续上 | `pages-publication.e2e` | 测试假设过时（#145） | #145 起 `?openPlugin=pages` 会打开 Pages 并重开上次的文稿；760px 以下文稿展开时列表本就收起，用例去点列表项 | 分支 `fix/test-pages-publication-narrow`：断言重开的就是这篇；待浏览器时段验证 |
-| Product journeys | `product-experience-polish.e2e` | 待定 | d39e8e5b 与 b5f6ddec 通过，fccb2a30 两次失败（都在负载下）；之后只有 #154 动过相关文件，但它只影响加载时的 `?openPlugin=`，搜索切换工具不经过它 | 安静时段在 fccb2a30 上单独复跑 |
-| 事件文档写规划、报告、关注、决定与关闭 | `goal-event-document.e2e` | 测试没跟上（#150 的 3903facd） | fccb2a30 上报 `Missing real refresh callback`：3903facd 把看板 4 秒刷新从 `setInterval` 改成界面生命周期的 `poll`（`setTimeout` 链），用例还在钩 `setInterval`。d39e8e5b 上的失败是另一回事（负载下 DOM 等待超时） | `fix/tests-deferred-plugin-clients`（e65373b1）：改钩 4 秒 `setTimeout`，并等这次刷新发起的看板读取结束，相当于原来 await 的 interval 回调；待浏览器时段验证 |
-| 安装包全流程 | `e2e.test.ts` | **环境**：本机 4173 上是用户真实 Home 的常驻服务；用例不隔离 | 用例的 Web 跑在随机端口，接入校验按 Web 自己的环境启动 MCP 启动器，环境里没有 `MOLIS_WORK_WEB_URL`，启动器去默认的 127.0.0.1:4173。本机 4173 上是用户真实 Home 的常驻服务（LaunchAgent `com.adeptify.goalboard.web`，安装版 0.2.0，pid 2115；`~/.goalboard` 是指向 `~/.molis-work` 的符号链接），与用例的临时 Home 不是同一个，控制令牌对不上返回 403，启动器在 tools/list 时抛出 `actions.transport_denied` 退出，校验失败、回滚、409。保留临时目录手工运行安装后的启动器复现了同一条 stderr。4173 空着时发现失败走 `service_unavailable` 退回，所以 62cbc14d 基线时通过 | 分支 `fix/test-packed-e2e-own-web-url`（58b105b4）：Web 进程带上 `MOLIS_WORK_WEB_URL=origin`，与用例后面 Runtime 对话的写法一致；待构建时段验证。产品侧两点记入 BL-108 |
+| 工作台挂上 Todo 舞台；工作台 HTML 挂上 Pages 舞台和编辑器 | `todo-plugin`、`pages-plugin` | 预期已变，测试没跟上（#150） | #150 把插件客户端改为打开时再加载，页面只登记插件；两条单元测试还在找首屏里的脚本 | [#173](https://github.com/molis-ai/molis-work/pull/173)：按新合同断言，通过 |
+| Shelf 打开、提取 PDF、保留 DropAgent 令牌 | `shelf-plugin.e2e` | **产品回归**（#150） | Shelf 终端客户端只在页面加载时找一次挂载点；#150 之后挂载点留在 `<template>` 里，Shelf「对话」的终端起不来。角色终端同理 | [#173](https://github.com/molis-ai/molis-work/pull/173)：挂载点出现后再启动；Shelf 三个浏览器文件通过 |
+| 角色与 Coding 发现授权的未知动作；Images 390；Todo 1440/390；Goals 失败的紧凑刷新退回整页 | `agent-action-selection.e2e`、`images-actions.e2e`、`todo-from-inbox.e2e`、`goals-refresh.e2e` | 测试没等界面就绪（#150），另有两处**产品问题** | 1. 插件面加载期间是 inert，用例立即点击。2. **Images**：#150 后客户端启动时的 `expand()` 落在工作台收起舞台之后，窄屏打开直接进「新建」、列表被收起（诊断：390 时列表 `display:none`）。3. **放置完成卡片**：卡片在工具栏出现后才到，窄屏避让把它抬到最高处，按钮压住「建成 Goal」「转为待办」（诊断：卡片 `bottom:672px`，区域 106–172，按钮 108–152） | [#173](https://github.com/molis-ai/molis-work/pull/173)：夹具等插件面就绪；Images 不在启动时展开；卡片先躲开所有控件、躲不开时只躲可按的控件、舞台变化时重排；新增 `placement-card-clearance.e2e`（改前 390 失败、改后通过）。受影响 8 个文件 15/15；角色单独两次通过 |
+| Pages 390：中断的发布刷新后续上 | `pages-publication.e2e` | 测试假设过时（#145） | #145 起 `?openPlugin=pages` 会打开 Pages 并重开上次的文稿；760px 以下文稿展开时列表本就收起，用例去点列表项 | [#166](https://github.com/molis-ai/molis-work/pull/166)（已合入）：断言重开的就是这篇；390 与 1440 通过 |
+| Product journeys | `product-experience-polish.e2e` | 测试时序（间歇） | 二分各点：#159、#155 通过；#158 一过两败；#160 两败一过，不是某个 PR 引入。推断：搜索先显示工具行，内容结果稍后到达并排在上面，用例在结果还在变时点下去，落到别的行 | [#174](https://github.com/molis-ai/molis-work/pull/174)：等结果列表稳定后再点；在 161b1d73 上连跑 4 次，4 次通过。「结果在指针下移动」记入 BL-112 |
+| 事件文档写规划、报告、关注、决定与关闭 | `goal-event-document.e2e` | 测试没跟上（#150 的 3903facd） | fccb2a30 上报 `Missing real refresh callback`：3903facd 把看板 4 秒刷新从 `setInterval` 改成界面生命周期的 `poll`（`setTimeout` 链），用例还在钩 `setInterval`。d39e8e5b 上的失败是另一回事（负载下 DOM 等待超时） | `fix/tests-deferred-plugin-clients`（e65373b1）：改钩 4 秒 `setTimeout`，并等这次刷新发起的看板读取结束，相当于原来 await 的 interval 回调；浏览器时段通过（[#173](https://github.com/molis-ai/molis-work/pull/173)） |
+| 安装包全流程 | `e2e.test.ts` | **环境**：本机 4173 上是用户真实 Home 的常驻服务；用例不隔离 | 用例的 Web 跑在随机端口，接入校验按 Web 自己的环境启动 MCP 启动器，环境里没有 `MOLIS_WORK_WEB_URL`，启动器去默认的 127.0.0.1:4173。本机 4173 上是用户真实 Home 的常驻服务（LaunchAgent `com.adeptify.goalboard.web`，安装版 0.2.0，pid 2115；`~/.goalboard` 是指向 `~/.molis-work` 的符号链接），与用例的临时 Home 不是同一个，控制令牌对不上返回 403，启动器在 tools/list 时抛出 `actions.transport_denied` 退出，校验失败、回滚、409。保留临时目录手工运行安装后的启动器复现了同一条 stderr。4173 空着时发现失败走 `service_unavailable` 退回，所以 62cbc14d 基线时通过 | [#169](https://github.com/molis-ai/molis-work/pull/169)：Web 进程带上 `MOLIS_WORK_WEB_URL=origin`，与用例后面 Runtime 对话的写法一致；4173 仍被占着时 1/1 通过。产品侧两点记入 BL-108 |
 
 其余失败都跨过了休眠，复跑通过。
 
@@ -536,6 +539,38 @@
   - Goals「失败的紧凑刷新退回整页」：树节点没出现。3903facd 去掉了看板自己的 `visibilitychange` 刷新，改由生命周期在真正的「隐藏→可见」时重启轮询；用例派发的合成事件不改可见性，所以要等下一次 4 秒轮询（e65373b1，等待放宽到 10 秒，断言不变）；
   - Product journeys：低负载下也失败，不是偶发。截图里重新加载后左侧「全部插件」面板是展开的，搜索里点 Dataset 没有切过去。
 - **事件文档与安装包全流程**：低负载下也失败，不是负载时序。后来查清：事件文档是 #150 的轮询改动，安装包全流程是本机 4173 被占，见上表。
+
+**第二档浏览器验证**（10-02 07:16–08:12，另一会话让出时段）：
+
+- 构建 4 个工作树（builder-limit2、packed-e2e、二分点、builder-frame）都通过。
+- 非浏览器：
+  - 创作台 4 个文件：106 / 106；
+  - 安装包全流程：1 / 1。
+- `fix/tests-deferred-plugin-clients` 第一组 11 个文件：160 条中 157 条通过。剩下 3 条：
+  - 角色：间歇，单独两次都通过；
+  - Images 390、Todo 390：诊断出上表的两处产品问题，修好后受影响的 8 个文件 15 / 15。
+- 创作台框架（PMR-34）：
+  - 新用例 2 / 2；
+  - 放回旧的 `min-height` 并重新构建后，两种宽度都失败（757 宽时 `{"frame":1024,"stage":968,"bar":968}`）。
+- Product journeys 的二分与复测：见上表。
+
+坑：浏览器夹具经包名加载 `dist`。只改源码、不重新构建对应包，反向验证是无效的。
+
+### 6.2 修复全部合入后的复核（2026-10-02，main 98984bf7）
+
+本轮修复全部合入后（#166、#168、#169、#170、#172、#173、#174、#175），在干净工作树 `regression-final` 上检出 98984bf7：
+
+- `pnpm install --frozen-lockfile --offline`、整体 `pnpm build`、`pnpm typecheck:all`、`pnpm boundary:check` 全部通过。
+- §6.1 全量回归里失败过的 24 个文件，加上本轮新增的 `plugin-builder-stage.e2e`、`placement-card-clearance.e2e`：222 条全部通过，0 失败，用时 7 分钟。
+
+**全量回归**（全部文件，main 98984bf7，2026-10-02 09:12–10:38，86 分钟；保持唤醒，另一会话让出时段）：
+
+- 结果：3,732 条，3,724 通过，1 失败，7 跳过，0 取消。
+- 唯一的失败是 `goals-refresh.e2e` 的「a completed refresh response cannot overwrite a Goal selected while it was in flight」，等 `__refreshHeld` 超时。
+  - 同一棵树上单独连跑 3 次都通过。
+  - 归类为测试时序：#150 之后刷新是 4 秒轮询，合成的 `visibilitychange` 不重启它，被拦住的那次刷新要等下一次轮询，负载下超过默认 4 秒等待。同文件另一条已由 #173 同样处理。
+  - 修复：[#181](https://github.com/molis-ai/molis-work/pull/181)，两处等待放到 10 秒，断言不变；套用后连跑两次都通过。
+- 结论：全量回归没有未归类的失败。
 
 ## 7. 行为基线
 
@@ -846,6 +881,8 @@
 | 2026-10-01 | Feed 自身的体验问题（场景 3） | 不单独问：不是合并引入，不在本轮需求线内 | 记入 BACKLOG | BL-094～BL-099；首页是否列 Feed 消息（BL-098）是产品取舍，列在「待你决定」类型 |
 | 2026-10-02 | 合并 #166（Pages 窄屏用例）、#167（第一步文档进度） | 两个都推荐 | 两个都合 | #166 已合（72786be4）；#167 同步 main、更正下一行的事实后合 |
 | 2026-10-02 | 4173 上的服务怎么处理（第一次问时我把它说成独立的旧 Home `~/.goalboard`，用户选「备份后停用」） | 执行前发现 `~/.goalboard` 是指向 `~/.molis-work` 的符号链接，4173 是真实 Home 的常驻服务（LaunchAgent，安装版 0.2.0）；按更正后的事实重问：不停，保持现状；停掉常驻服务；第二步升级时一并换新版 | 不停，保持现状 | 没有备份、没有停服务；用例已改为连自己的 Web（`fix/test-packed-e2e-own-web-url`）；第二步的真实 Home 安全按「保留并升级」做 |
+| 2026-10-02 | 合并 #181、#182、#183（第一步收尾），#184、#185（两份总 spec），#176、#177（壳子 S1、S2），#179（健康门禁） | 四组都推荐 | 全部合 | 逐个同步 main、CI 通过后合入 |
+| 2026-10-02 | 第一步留下的未完成项（BL-088～104、BL-108～113，共 28 条） | 按各条方案进后续；确认，另把 BL-113 放进本目标；逐条过 | 按各条方案进后续 | 方案按 BACKLOG 所写，负责人未分配，按优先级排；BL-088 已在第二步插件装配里 |
 
 ## 10. 未验证的范围
 
@@ -928,3 +965,56 @@
 | 测试依赖 `fs.watch` 收到其他进程的文件事件 | #143 修了一处 | 全仓检查同类写法 |
 | 本机全量回归 2 小时以上，并行会话一多就互相干扰 | §6 | 按文件分片、给出「受影响测试」挑选脚本 |
 | 页面在浏览器窗格隐藏时不启动（`lifetime.whenVisible`），自动化验收会误以为页面坏了 | 本步复测创作台时遇到 | 验收脚本先确认 `document.visibilityState`，或用 CDP 设置可见 |
+
+## 13. 最终汇报（2026-10-02）
+
+### 13.1 完成标准逐条（任务要求 §9）
+
+| 标准 | 结论 | 证据 |
+| --- | --- | --- |
+| 范围内每个 PR 对应到 spec 或单列；每条验收有判定与证据；部分实现与未实现的项已补齐，或有用户确认过的方案与负责人 | 满足（用户 10-02 确认按各条方案进后续，见 §9） | §2 PR 与需求清单、§11 逐需求验收清单；未完成项都在 BACKLOG，带来源、原因、方案与优先级 |
+| 合并丢失与互相覆盖已修复；用户能看到的重复只剩一条路径、一份数据 | 满足 | §4；两个铃铛合一（#140）、Characters 只在设置（#141）、收想法只在灵光（#153） |
+| 跨功能场景在真实浏览器与真实模型下通过 | 基本满足 | §5：场景 1–5、7、8 通过（修了 10 处）；场景 6 的升级由自动用例覆盖；场景 9 用户定为第二步做。真实模型（MiniMax）：场景 2–4、助理面板、创作台第一个需求完成；第二个需求未完成（PMR-36，BL-113） |
+| 全量回归没有未归类的失败；`pnpm build`、`typecheck:all`、`boundary:check` 与 CI 通过 | 满足 | §6.2：main 98984bf7 全量 3,732 条，3,724 通过，唯一失败归类为测试时序并由 #181 修；build、typecheck、boundary 通过；各 PR 的 CI 通过 |
+| `specs/` 根目录只剩在做的与现行规范，每份有状态句；已实现的已归档；未完成事项全部进 BACKLOG；仓库内没有断链 | 满足 | §8；10-02 第二轮归档 3 份；断链检查 0 处（#167）；#179 的门禁把「每份有状态句」接进 CI |
+| 行为基线与交给第二步的清单已写进总 spec | 满足 | §7、§12；第二步总 spec 已链接 |
+| 本步没有新增兼容或迁移逻辑 | 满足 | 灵光合一按用户决定不迁移旧数据（§9）；#176 还删掉了炼金术士的旧演示读取 |
+| 不在首次扫描或部分修复后提前结束 | 满足 | 经 6 轮修复与复测，见 §6.1、§6.2 |
+
+### 13.2 已确认、推断、未验证
+
+- **已确认**（有测试或实测记录）：
+  - §3 问题表里标「已修」的各项；
+  - 全量回归与复核（§6.2）；
+  - 真实模型的场景 2–4 与 BUILDER-02；
+  - 创作台框架、放置卡片、Images、Shelf 终端的正反向验证；
+  - 安装包用例在 4173 被占时通过。
+- **推断**（没有直接复现，但有代码与结果支持）：
+  - Product journeys 的间歇失败来自搜索结果后到、排在工具行上面（#174 后连跑 4 次通过）；
+  - `goals-refresh` 竞态用例的失败来自 4 秒轮询与默认等待（#181）。
+- **未验证**：见 §10。主要有：
+  - 真机输入法与读屏；
+  - 真实第三方账号；
+  - 原生 macOS 安装包；
+  - 场景 9（拷贝用户的 Home，交第二步）；
+  - 创作台第三个需求。
+
+### 13.3 已完成、在途、待决
+
+- **已完成**：本步修复与文档 PR 全部合入（见 13.4）。
+- **在途**：
+  - 本步：[#181](https://github.com/molis-ai/molis-work/pull/181)（测试时序）、[#182](https://github.com/molis-ai/molis-work/pull/182)（创作台运行记录并发写），CI 通过、等用户确认合并；
+  - 本 spec 的最终更新。
+- **待决**：无。BACKLOG 里本步新增的 28 条按各条方案进入后续（用户 10-02 确认），负责人未分配。
+
+### 13.4 本步的 PR
+
+- **已合入**：[#137](https://github.com/molis-ai/molis-work/pull/137)～[#146](https://github.com/molis-ai/molis-work/pull/146)、[#148](https://github.com/molis-ai/molis-work/pull/148)、[#149](https://github.com/molis-ai/molis-work/pull/149)、[#151](https://github.com/molis-ai/molis-work/pull/151)～[#155](https://github.com/molis-ai/molis-work/pull/155)、[#157](https://github.com/molis-ai/molis-work/pull/157)、[#158](https://github.com/molis-ai/molis-work/pull/158)、[#160](https://github.com/molis-ai/molis-work/pull/160)、[#162](https://github.com/molis-ai/molis-work/pull/162)、[#163](https://github.com/molis-ai/molis-work/pull/163)、[#165](https://github.com/molis-ai/molis-work/pull/165)～[#169](https://github.com/molis-ai/molis-work/pull/169)、[#172](https://github.com/molis-ai/molis-work/pull/172)～[#175](https://github.com/molis-ai/molis-work/pull/175)。
+- **在途**：#181、#182。
+- 第二步与 Artifact 定位另有记录：#170 已合入；#176、#177、#179 在途。
+
+### 13.5 需要用户操作的事项
+
+- 删除已合入的远端分支：自动模式拦下了删除。清单见 [第二步 §7](../repository-anti-corruption/spec.md)；也可以在仓库设置里打开「合并后自动删除分支」。
+- BACKLOG「待你验收」类的事项（本人试用）。
+- 主检出的无主改动与 `wip/main-checkout-rescue-2026-10-01` 分支：用户在目标里说过由用户处理。

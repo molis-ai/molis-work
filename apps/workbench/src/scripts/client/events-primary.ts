@@ -101,10 +101,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       noteSearchActivity();
       filterFeedItems();
     });
-    sourceSearch?.addEventListener("input", () => {
-      noteSearchActivity();
-      filterSources();
-    });
     [feedSourceFilter, feedTypeFilter, feedTimeFilter, feedStatusFilter, feedSort].forEach((control) => {
       control?.addEventListener("change", () => {
         syncFeedFilterUi();
@@ -150,19 +146,35 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       selectFeedItem(next.dataset.feedEntryId, false, true);
       next.focus();
     });
-    sourceList?.addEventListener("keydown", (event) => {
-      const current = event.target.closest?.("[data-source-entry-id]");
-      if (!current || !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-      const rows = [...sourceList.querySelectorAll("[data-source-entry-id]")].filter((row) => !row.hidden);
-      const index = rows.indexOf(current);
-      const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)));
-      event.preventDefault();
-      const next = rows[nextIndex];
-      if (next) {
-        selectSource(next.dataset.sourceEntryId, false);
-        next.focus();
+    // The source directory is in the page only while the project has Feed: its search and its list are bound when it is there,
+    // at load or when Feed comes (adoptFeed), and only once.
+    const bindSourceDirectory = () => {
+      if (sourceSearch && !sourceSearch.dataset.bound) {
+        sourceSearch.dataset.bound = "true";
+        sourceSearch.addEventListener("input", () => {
+          noteSearchActivity();
+          filterSources();
+        });
       }
-    });
+      const list = sourceList;
+      if (list && !list.dataset.bound) {
+        list.dataset.bound = "true";
+        list.addEventListener("keydown", (event) => {
+          const current = event.target.closest?.("[data-source-entry-id]");
+          if (!current || !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+          const rows = [...list.querySelectorAll("[data-source-entry-id]")].filter((row) => !row.hidden);
+          const index = rows.indexOf(current);
+          const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)));
+          event.preventDefault();
+          const next = rows[nextIndex];
+          if (next) {
+            selectSource(next.dataset.sourceEntryId, false);
+            next.focus();
+          }
+        });
+      }
+    };
+    bindSourceDirectory();
 
     const closeGoalOverlay = () => {
       const shell = document.querySelector("[data-goal-canvas-shell]");

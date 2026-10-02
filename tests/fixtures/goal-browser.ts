@@ -189,7 +189,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   async function click(selector: string): Promise<void> {
     // A person waits while a plugin surface they opened is still loading its client (#150): it is inert until then.
     await waitFor(SURFACES_SETTLED, 10_000);
-    const point = await evaluate<{ x: number; y: number }>(`(async () => { let element = document.querySelector(${JSON.stringify(selector)});
+    const point = await evaluate<{ x: number; y: number; covered: boolean }>(`(async () => { let element = document.querySelector(${JSON.stringify(selector)});
       if (!element) throw new Error('Missing click target: ' + ${JSON.stringify(selector)});
       // Reach an entry the way a person would: its Dock window, the full plugin list, a collapsed source drawer, or the menu it sits in.
       // Each step looks at the current state, so it is safe to repeat (a list closing from the previous choice, say).
@@ -226,8 +226,16 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       if (!element) throw new Error('Click target disappeared: ' + ${JSON.stringify(selector)});
       const rect = element.getBoundingClientRect(); if (!rect.width || !rect.height) throw new Error('Hidden click target: ' + ${JSON.stringify(selector)});
       const hit = document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
-      if (!element.contains(hit)) throw new Error('Click target ' + ${JSON.stringify(selector)} + ' is covered by ' + hit?.outerHTML.slice(0, 400));
-      return {x:rect.x+rect.width/2,y:rect.y+rect.height/2}; })()`);
+      return {x:rect.x+rect.width/2,y:rect.y+rect.height/2,covered:!element.contains(hit)}; })()`);
+    if (point.covered) {
+      // What shows only while the pointer is on its row (a row's own buttons) shows once the pointer is there, as for a person;
+      // what is still covered then really is.
+      await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y }, sessionId);
+      const hit = await evaluate<string | null>(`(async () => { await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const element = document.querySelector(${JSON.stringify(selector)}); const hit = document.elementFromPoint(${point.x}, ${point.y});
+        return element && element.contains(hit) ? null : (hit?.outerHTML.slice(0, 400) ?? 'nothing'); })()`);
+      if (hit !== null) throw new Error("Click target " + selector + " is covered by " + hit);
+    }
     await command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, sessionId);
     await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", clickCount: 1 }, sessionId);
   }

@@ -24,14 +24,12 @@ function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
 
 export function renderPluginRailAccountFooter(primitives: SettingsDirectoryPrimitives): string {
   const { L, icon } = primitives;
-  // The Dock menu: the ways to extend the workbench, then which plugins stay in the Dock.
+  // The ways to extend the workbench. Which plugins stay in the Dock is chosen on the switcher's own entries, not here.
   return `<footer class="personal-sidebar-footer">
     <details class="account-global-menu" data-global-menu>
       <summary class="account-global-trigger" aria-label="${L("Dock 与插件")}" title="${L("Dock 与插件")}">${icon("package")}</summary>
       <div class="account-global-popover">
         <!-- account-global-items -->
-        <p class="account-global-heading">${L("常驻在 Dock")}</p>
-        <div class="dock-choices" data-dock-choices role="group" aria-label="${L("常驻在 Dock")}"></div>
       </div>
     </details>
   </footer>`;

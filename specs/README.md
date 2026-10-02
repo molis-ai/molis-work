@@ -5,6 +5,9 @@
 ## 在做的
 
 - [post-merge-review](post-merge-review/spec.md)：全部需求合入后的功能审查、合并缺陷修复与 spec 梳理（防腐收尾第一步）。
+- [plugin-picker-dock](plugin-picker-dock/spec.md)：插件切换器里「常驻 Dock」与「装没装」合成一张网格，悬停才出现的两个图标按钮，添加与移除不刷新页面。
+- [repository-anti-corruption](repository-anti-corruption/spec.md)：系统性代码与架构防腐整理（防腐收尾第二步）。
+- [artifact-positioning](artifact-positioning/spec.md)：Artifact 定位与动线梳理，所有插件统一进同一个壳子。
 
 ## 现行规范
 

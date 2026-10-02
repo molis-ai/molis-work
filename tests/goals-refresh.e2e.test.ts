@@ -65,14 +65,16 @@ test("a completed refresh response cannot overwrite a Goal selected while it was
   await addGoal(origin, "REFRESH-RACE");
   const afterExternalWrite = store.snapshot(DEMO_BOARD_ID);
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
-  await waitFor("globalThis.__refreshHeld === true");
+  // The board refreshes on the UI lifecycle's 4-second poll (#150); a synthetic visibilitychange does not restart it, so
+  // the held refresh comes with the next poll. Under a full run that can take longer than the 4-second default wait.
+  await waitFor("globalThis.__refreshHeld === true", 10_000);
   await click('.tree-node[data-select-goal="RELEASE"]');
   await waitFor("document.querySelector('[data-goal-view]')?.dataset.goalView === 'RELEASE' && !document.querySelector('[data-document-pane]').hasAttribute('aria-busy')");
   await evaluate("globalThis.__releaseRefresh(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert.equal(await evaluate("globalThis.__refreshDelivered"), true);
   assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "RELEASE");
-  // The discarded response must not advance the cursor; the deferred refresh must still apply the new Goal.
-  await waitFor("document.querySelector('.tree-node[data-select-goal=REFRESH-RACE]')");
+  // The discarded response must not advance the cursor; the deferred refresh must still apply the new Goal (on a later poll).
+  await waitFor("document.querySelector('.tree-node[data-select-goal=REFRESH-RACE]')", 10_000);
   assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "RELEASE");
   assert.equal(await evaluate("document.querySelector('.tree-node.is-selected').dataset.selectGoal"), "RELEASE");
   assert.equal(await evaluate("location.pathname"), "/goals/RELEASE");

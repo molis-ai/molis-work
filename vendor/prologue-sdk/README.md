@@ -29,11 +29,11 @@
 - 重建：检出 `af7375c7`，先应用 [resource-intake.patch](resource-intake.patch)，再应用 [memory-project.patch](memory-project.patch)；`pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-assistant-intake.tgz`。
 - 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`5eab31e2c4a8b2a4d4b9c2bf7ab30804800025b2df709c3cd8c85822782e95b0`。
 - 验证：记忆（含项目作用域）、app 模式、派出前拒绝、原图摄取与限额、网络派出授权 8 个文件 71 项全过，类型检查无错。
-- 本目录暂时多出两份已不被依赖的包：`resource-intake.tgz`（main 上一版当前依赖）与 `assistant-memory.tgz`（助理分支上一版）。按本目录约定应删除，删 vendor 文件由用户决定。
+- 当时多出的两份已不被依赖的包（`resource-intake.tgz`、`assistant-memory.tgz`）连同 `compaction-growth.tgz`，经用户同意于 2026-10-02 删除（仓库防腐整理第二步，N-02）；需要时按下文从 Git 历史取。
 
 ## 上一依赖：原图摄取与资源限额（main）
 
-`prologue-sdk-0.0.0-rc.1-resource-intake.tgz` 保留此前有界结果、Assistant、网络授权等全部改动，修复原图输入所用的 Runtime → Node Host intake → ResourceStore：采用当前 App 限额、整批容量/引用原子发布、取消后不复活、在途清理和内存资源竞争容量。没有新增模型循环或业务状态。
+`prologue-sdk-0.0.0-rc.1-resource-intake.tgz`（2026-10-02 已从本目录删除，需要时从 Git 历史取）保留此前有界结果、Assistant、网络授权等全部改动，修复原图输入所用的 Runtime → Node Host intake → ResourceStore：采用当前 App 限额、整批容量/引用原子发布、取消后不复活、在途清理和内存资源竞争容量。没有新增模型循环或业务状态。
 
 - 源码：`/Users/yijunwang/code/prologue-dispatch-denied`，分支 `feature/molis-bounded-results`，提交 `18a1c827c933eb22624a6904b71d704945567682`，基于 `93bbe1db`。完整补丁 [resource-intake.patch](resource-intake.patch) 相对 `af7375c7`，包括源码、合同与测试；旧补丁仅用于历史重建，不叠加应用。
 - 重建：检出 `af7375c7`，应用完整补丁，`pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-resource-intake.tgz`。
@@ -60,7 +60,7 @@ git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendo
 
 ## 历史依赖：assistant-memory（2026-09-28，在 assistant 包上补记忆的 project 作用域）
 
-`prologue-sdk-0.0.0-rc.1-assistant-memory.tgz`。在下面的 assistant 包之上只改一处：记忆作用域 `MemoryScope` 新增 `"project"`（归属者是 App 的项目标识，同一人不同项目的记忆各自隔离），并加测试 `test/memory-project-scope.live.test.ts`。
+`prologue-sdk-0.0.0-rc.1-assistant-memory.tgz`（2026-10-02 已从本目录删除，需要时从 Git 历史取）。在下面的 assistant 包之上只改一处：记忆作用域 `MemoryScope` 新增 `"project"`（归属者是 App 的项目标识，同一人不同项目的记忆各自隔离），并加测试 `test/memory-project-scope.live.test.ts`。
 
 - 源码：本机 `~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`，提交 `ac4d1135`（父 `4702abe3`）；增量补丁 [memory-project.patch](memory-project.patch)。
 - 重建：检出 `4702abe3` 应用 `memory-project.patch`（或直接检出 `ac4d1135`），`pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack`。
@@ -394,7 +394,7 @@ git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendo
 
 ## 上一依赖：按新增上下文触发整理
 
-该历史依赖为 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。包含下方步骤回报修复，并让一次实际上下文整理后按新增内容达到原阈值再软触发；窗口硬检查和 Provider 明确溢出仍优先。保护内容持续超过软阈值不会逐工具往返重复整理，未缩短的整理也等待新增量；不放宽原文选择校验或丢弃历史。
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`（2026-10-02 已从本目录删除，需要时从 Git 历史取）。包含下方步骤回报修复，并让一次实际上下文整理后按新增内容达到原阈值再软触发；窗口硬检查和 Provider 明确溢出仍优先。保护内容持续超过软阈值不会逐工具往返重复整理，未缩短的整理也等待新增量；不放宽原文选择校验或丢弃历史。
 
 - 来源分支：`codex/molis-coding-receipts`
 - 对应源码提交：`a7e785b8c76149961d25b2f918aeec55554d8420`（已推送）

@@ -132,6 +132,22 @@
 
 不留兼容：旧的成果记录与交换数据不迁移、不保留读取；涉及真实 Home 的数据先问用户（与防腐第二步「真实 Home 安全」一起做）。
 
+### A1 合同设计（草案）
+
+现状：`packages/contracts/src/modules/artifacts.ts` 的 `ArtifactVersionRecord` 记类型、生产插件、内容（内联或引用）、元数据与作用域，没有「来源对象与当时修订号」，来源只能塞进 `metadata`；交换数据与用户成果同一张表。
+
+改成：
+
+- **一条成果 = 两种之一**（`origin`）：
+  - `pinned`：`{ subject: { plugin_id, kind, id }, revision }`，某个工作对象在某一刻固定下来的版本；
+  - `imported`：`{ file_name, media_type }`，导入的外部文件，保留原件。
+- **标题与媒体类型**是记录的字段（`title`、`media_type`），不再从 payload 猜，也不再一律写 `text/markdown`。
+- **追溯**：`trace: [{ plugin_id, kind, id, version? }]`，指向产生它的过程项（例如 Coding 交付的一版指向变更集与 Git 回执）。过程项本身存在 owner 插件里，成果库只存引用。
+- **类型由 owner 声明**：manifest 的 `artifacts.produces[]` 带 `title`（显示名）、`preview`（预览贡献）与可选的 `continue`（「从这一版继续」的动作）。成果库按声明显示，不再写死名称；没有预览的类型不允许声明为可见类型（门禁 A7）。
+- **交换数据**：`workspace-artifacts.ts` 里的文件快照、文件集合、变更集、Git 结果、Coding 变更集改名为「过程项」合同，由 Files、Diff、Git、Coding 各自存、各自读；它们之间经动作结果与端口传递，不再写成果库。
+- **引用关系**：`goal.output`、`goal.input`、助理工作结果、文档引用都指向成果引用 `{ artifact_id, version }`；成果库按这些关系显示「被谁引用」。
+- 身份字段随防腐第二步把 `board_id` 合并为 `project_id`。
+
 ## 6. 进度
 
 - 2026-10-02：建 spec；问题 1–6 初步核实；独立页面排查（§3）；三批弹窗问完全部待决（§1）；例外清单（§4）；实施计划（§5）。

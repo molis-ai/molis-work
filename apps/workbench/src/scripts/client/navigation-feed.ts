@@ -990,4 +990,35 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         immersiveNavigation?.sync();
       }
     };
+
+    // Feed comes into the project, or goes (the membership script has already brought or taken away its section of the
+    // directory, with the source directory in it). Its pages are in the page either way and fill when the project has Feed — the
+    // sources as a list, as pages and in the setup panel — so they are filled the way the server renders them now; a container
+    // keeps its identity, so what is bound to it stays bound, and only its contents change. Then the nodes wired at load are found
+    // again, the source directory is bound, and what depends on them is put the way the page puts it at load.
+    const FEED_FILLED_REGIONS = ["[data-feed-source-header]", "[data-feed-list]", "[data-feed-sources-dialog]", "[data-source-workbench]"];
+    const adoptFeed = (next) => {
+      for (const selector of FEED_FILLED_REGIONS) {
+        const mine = document.querySelector(selector), theirs = next.querySelector(selector);
+        if (mine && theirs) mine.replaceChildren(...[...theirs.childNodes].map((node) => document.importNode(node, true)));
+      }
+      findFeedNodes();
+      desktopDirectoryPanels.splice(0, desktopDirectoryPanels.length, ...document.querySelectorAll("[data-directory-panel]"));
+      bindSourceDirectory();
+      activeSourceFilter = "all";
+      selectedSource = sourceList?.querySelector("[data-source-entry-id].is-selected")?.dataset.sourceEntryId || "";
+      selectedFeedItem = feedList?.querySelector("[data-feed-entry-id].is-selected")?.dataset.feedEntryId || "";
+      if (sourceDirectory) {
+        filterSources(true);
+        if (selectedSource) selectSource(selectedSource, false);
+      }
+      if (feedDirectory) setFeedPreset("feed", false);
+      setDesktopDirectory(treePane?.dataset.desktopDirectory || "root", false, false);
+    };
+    document.addEventListener("molis-work:plugins-changed", (event) => {
+      const { came = [], gone = [], next } = event.detail || {};
+      if (!next || ![...came, ...gone].includes("feed")) return;
+      // If Feed could not be brought in line the membership script is told, and loads the page again.
+      try { adoptFeed(next); } catch (error) { event.detail.failed = true; console.error(error); }
+    });
 `;

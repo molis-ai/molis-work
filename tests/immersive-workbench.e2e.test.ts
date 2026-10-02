@@ -96,9 +96,9 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const prefix = "/projects/" + projectId;
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=artifacts]')"), null);
-  // The market is yours everywhere, so it sits in the account menu rather than among this project's plugins.
+  // The market is yours everywhere, so it is a button at the head of the switcher rather than among this project's plugins.
   assert.equal(await evaluate("Boolean(document.querySelector('.plugin-rail-items [data-plugin-id=market]'))"), false);
-  assert.equal(await evaluate("document.querySelector('.personal-sidebar-footer [data-global-menu] [data-work-surface-open=market]')?.dataset.pluginId"), "market");
+  assert.equal(await evaluate("document.querySelector('.plugin-picker-extend[data-global-menu] [data-work-surface-open=market]')?.dataset.pluginId"), "market");
   const railColors = await evaluate<{ current: string; idle: string; market: string; idleId: string }>(`(() => {
     const items = [...document.querySelectorAll('.plugin-rail-items [data-plugin-id]')].map((node) => ({
       id: node.dataset.pluginId,
@@ -124,7 +124,11 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   assert.deepEqual(list.find(item => item.project_id === projectId)!.plugins, ["goals"]);
   assert.deepEqual(list.find(item => item.project_id === otherId)!.plugins, ["feed", "goals", "inbox"]);
   await evaluate(`(()=>{const s=document.querySelector('[data-market-project]');s.value=${JSON.stringify(projectId)};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await navigate(() => click('[data-market-add="artifacts"]'));
+  // This project: the page changes in place (the switcher's entry wakes, nothing is loaded again).
+  await evaluate("window.__stayedOnPage = true");
+  await click('[data-market-add="artifacts"]');
+  await waitFor("document.querySelector('[data-market-add=artifacts]').dataset.marketMembership === 'added' && !document.querySelector('[data-plugin-tile=artifacts]').classList.contains('is-available')");
+  assert.equal(await evaluate("window.__stayedOnPage === true"), true, "adding to this project does not load the page again");
   await waitFor("document.body.dataset.desktopSurface === 'market' && !document.querySelector('[data-market-project]').disabled");
   await evaluate("(()=>{let q=document.querySelector('[data-market-search]');q.value='Artifacts';q.dispatchEvent(new Event('input',{bubbles:true}));})()");
   assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-market-plugin]:not([hidden])')].map(x=>x.dataset.marketPlugin)"), ["artifacts"]);

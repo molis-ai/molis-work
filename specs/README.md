@@ -5,6 +5,7 @@
 ## 在做的
 
 - [post-merge-review](post-merge-review/spec.md)：全部需求合入后的功能审查、合并缺陷修复与 spec 梳理（防腐收尾第一步）。
+- [plugin-picker-dock](plugin-picker-dock/spec.md)：插件切换器里「常驻 Dock」与「装没装」合成一张网格，悬停才出现的两个图标按钮，添加与移除不刷新页面。
 - [context-toolbar](context-toolbar/spec.md)：情境动作从底栏搬到选区旁——与 Pages 格式条合并成系统级浮条，定义工具 / 动作两类内容与插件协议（设计已定，未开工）。§10 是各插件现状与可扩展场景。
 - [quick-create](quick-create/spec.md)：每个插件一句话新建，与选区浮条里的「发送到…」共用一条起草 → 确认 → 创建的路径（设计已定，未开工）。
 - [side-shelf](side-shelf/spec.md)：Shelf 不再是插件，成为右栏的一格；右栏（Shelf、灵光、文件、浏览器、讨论）与左边双向互动，落点与「放进左边」（设计已定，未开工）。

@@ -28,13 +28,19 @@ export function pluginSearchRows(packs: readonly BuiltinPluginWorkbenchPack[] = 
     : []);
 }
 
-export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
+export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH, deferClients = false): string {
   return packs.flatMap((pack) => {
     const lines: string[] = [];
-    if (pack.clientFactory) {
+    if (pack.clientFactory && !deferClients) {
       lines.push(`(${pack.clientFactory})({ mountPluginClient, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "", projectTitle: () => state.project?.display_name || "", feedApi, route });`);
     }
     if (pack.settingsClient) lines.push(pack.settingsClient);
     return lines;
   }).join("\n    ");
+}
+
+/** Fixed-build client assets derived from the same registration as styles and UI. */
+export function pluginWorkbenchClientAsset(id: string): string | null {
+  const pack = BUILTIN_PLUGIN_WORKBENCH.find(pack => pack.project_plugin_id === id);
+  return pack?.clientFactory ? `globalThis.molisWorkbenchPluginFactories ||= {}; globalThis.molisWorkbenchPluginFactories[${JSON.stringify(id)}] = ${pack.clientFactory};` : null;
 }

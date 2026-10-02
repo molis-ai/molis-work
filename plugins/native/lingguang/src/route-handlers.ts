@@ -23,6 +23,8 @@ export function createLingguangRouteHandlers(ports: LingguangRoutePorts): Record
     "lingguang.update": call(lingguangActions.update, ({ params }, body) => ({ ...body, id: params.id })),
     "lingguang.discard": call(lingguangActions.discard, ({ params }) => ({ ids: [params.id] })),
     "lingguang.discard_many": call(lingguangActions.discard, (_, body) => body),
+    "lingguang.material_read": call(lingguangActions.readFile, (_, body) => body),
+    "lingguang.source_read": call(lingguangActions.readSource, (_, body) => body),
     "lingguang.conversation_open": call(lingguangActions.openConversation, (_, body) => body),
     "lingguang.conversation_message": call(lingguangActions.message, ({ params }, body) => ({ ...body, id: params.id })),
   };
@@ -31,7 +33,10 @@ export function createLingguangRouteHandlers(ports: LingguangRoutePorts): Record
 export function lingguangRouteErrorResponse(error: unknown): LingguangPluginRouteResponse {
   const code = error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : "";
   const message = error instanceof Error ? error.message : "灵光请求失败";
-  const status = code === "lingguang.not_found" ? 404 : code === "lingguang.conflict" ? 409
-    : ["actions.forbidden", "actions.scope_mismatch"].includes(code) ? 403 : 400;
-  return { status, body: { error: message, ...(code ? { code } : {}) } };
+  // A file or page reader says its own status and details (how large a model download would be).
+  const own = error instanceof Error && "status" in error && typeof (error as { status: unknown }).status === "number" ? (error as { status: number }).status : undefined;
+  const details = error instanceof Error && "details" in error ? (error as { details: unknown }).details : undefined;
+  const status = own ?? (code === "lingguang.not_found" ? 404 : code === "lingguang.conflict" ? 409
+    : ["actions.forbidden", "actions.scope_mismatch"].includes(code) ? 403 : 400);
+  return { status, body: { error: message, ...(code ? { code } : {}), ...(details !== undefined ? { details } : {}) } };
 }

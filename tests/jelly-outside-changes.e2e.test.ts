@@ -5,7 +5,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // A change made outside the page (the Assistant through a Jelly capability) and an object opened by id (search, the side
 // panel, an Assistant result) both have to show the workspace as stored, not as the page first loaded it.
-test("Jelly shows what the Assistant changed and opens an item, note or idea by id", { timeout: 90_000 }, async t => {
+test("Jelly shows what the Assistant changed and opens an item or a note by id", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const write = (change: Parameters<ReturnType<typeof openJellyStore>["execute"]>[0]) => {
@@ -30,14 +30,14 @@ test("Jelly shows what the Assistant changed and opens an item, note or idea by 
   await evaluate("window.dispatchEvent(new CustomEvent('molis:assistant-effect', { detail: { work_id: 'w-1', capability_id: 'jelly.item.create' } }))");
   await waitFor(shown);
 
-  // Opened by id while the calendar shows: the idea, written after the page loaded, opens in its own view.
-  write({ type: "inspiration.create", id: "wall-idea", title: "现场放一面用户留言墙", raw_text: "发布会现场可以放一面用户留言墙" });
+  // Opened by id while the calendar shows: the note, written after the page loaded, opens in its own view.
+  write({ type: "note.create", id: "wall-note", title: "现场放一面用户留言墙", markdown: "发布会现场可以放一面用户留言墙" });
   const select = (id: string) => evaluate(`document.querySelector('[data-work-surface="jelly"]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(id)} } }))`);
   const declared = "JSON.parse(document.querySelector('[data-work-surface=\"jelly\"]').getAttribute('data-assistant-context') || '{}').object";
-  await select("wall-idea");
+  await select("wall-note");
   await waitFor("document.querySelector('[data-jelly-record-title]')?.value === '现场放一面用户留言墙'");
-  assert.equal(await evaluate("document.querySelector('[data-jelly-view=\"inspirations\"]').getAttribute('aria-current')"), "page");
-  assert.deepEqual(await evaluate(`(${declared}).id`), "wall-idea");
+  assert.equal(await evaluate("document.querySelector('[data-jelly-view=\"notes\"]').getAttribute('aria-current')"), "page");
+  assert.deepEqual(await evaluate(`(${declared}).id`), "wall-note");
 
   // An item opens in its editor, and the page names it only while that editor is open.
   await select("budget-sync");

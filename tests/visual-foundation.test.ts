@@ -18,7 +18,7 @@ import {
 } from "@molis-ai/molis-work-design-system";
 import { STYLES } from "@molis-ai/molis-work-app-workbench";
 import {
-  renderMolisWorkProjectIndexStylesheet,
+  renderMolisWorkArrivalStylesheet,
   renderMolisWorkSettingsStylesheet,
   renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
@@ -77,7 +77,7 @@ test("dependency proposal records use semantic colors in both themes", () => {
 // Soft Workbench (DESIGN.md → Primary): graphite action in both themes, and no `!important` skin that
 // would stop a disabled or hovered primary from showing its own state.
 test("primary and danger buttons keep semantic foregrounds across Light and Dark", () => {
-  const projectIndexStyles = renderMolisWorkProjectIndexStylesheet();
+  const arrivalStyles = renderMolisWorkArrivalStylesheet();
   const settingsStyles = renderMolisWorkSettingsStylesheet();
   const workbenchStyles = renderMolisWorkWorkbenchStylesheet();
   assert.match(VISUAL_FOUNDATION_STYLES, /--action: #292a2c;[\s\S]*--action-ink: #ffffff;/);
@@ -85,7 +85,7 @@ test("primary and danger buttons keep semantic foregrounds across Light and Dark
   assert.match(VISUAL_FOUNDATION_STYLES, /--danger-action: var\(--red\);[\s\S]*--danger-action-ink: var\(--page\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-btn--primary[\s\S]*background: var\(--action\);[\s\S]*color: var\(--action-ink\);/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.mw-btn--primary[^{}]*\{[^}]*background: var\(--action\) !important/);
-  assert.match(projectIndexStyles, /\.mw-btn--primary[\s\S]*background: var\(--action\)/);
+  assert.match(arrivalStyles, /\.mw-btn--primary[\s\S]*background: var\(--action\)/);
   assert.match(settingsStyles, /\.mw-btn--primary[\s\S]*background: var\(--action\)/);
   assert.match(workbenchStyles, /\.mw-btn--danger \{[^}]*background: var\(--danger-action, var\(--red\)\);/);
   assert.doesNotMatch(workbenchStyles, /\.mw-btn--danger \{[^}]*!important/);
@@ -105,7 +105,6 @@ test("visual foundation ships one Soft Workbench world across workbench and sett
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-board-view\] \.document-pane,[\s\S]*border-radius: 0;[\s\S]*box-shadow: none;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-node\.is-selected,[\s\S]*background: var\(--nav-active\);[\s\S]*box-shadow: none;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.settings-navigation a\[aria-current="page"\][\s\S]*background: var\(--nav-active\);/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.project-index-panel \{[\s\S]*border-radius: 12px;/);
 });
 
 test("workbench chrome no longer ships Ant Design selected blues", () => {
@@ -282,9 +281,9 @@ test("desktop shell uses one project directory, project tabs, and soft work surf
   assert.match(VISUAL_FOUNDATION_STYLES, /\.navigator-native-row \{[\s\S]*padding: 0 8px 0 var\(--desktop-project-safe-inline-start\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\]\[data-native-desktop="true"\] \.navigator-native-row,[\s\S]*\.desktop-workbench-bar \{[\s\S]*transform: translateY\(-2px\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\.settings-page\[data-desktop-shell="true"\]\[data-native-desktop="true"\] > \.topbar,/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /body\.project-index-page\[data-desktop-shell="true"\]\[data-native-desktop="true"\] > \.topbar,[\s\S]*height: var\(--desktop-titlebar-height\);/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /body\.project-index-page\[data-desktop-shell="true"\]\[data-native-desktop="true"\] > \.project-index,[\s\S]*min-height: 0;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /body\.settings-page\[data-desktop-shell="true"\]\[data-native-desktop="true"\] > \.topbar > \*,[\s\S]*body\.project-index-page\[data-desktop-shell="true"\]\[data-native-desktop="true"\] > \.topbar > \*/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /body\.settings-page\[data-desktop-shell="true"\]\[data-native-desktop="true"\] > \.topbar,[\s\S]*height: var\(--desktop-titlebar-height\);/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /body\.settings-page\[data-desktop-shell="true"\]\[data-native-desktop="true"\] > \.topbar > \*,/);
+  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /project-index-page|\.project-index-panel|\.project-card\b/);
   assert.match(VISUAL_FOUNDATION_STYLES, /grid-template-columns: var\(--tree-width, clamp\(286px, 26vw, 334px\)\) 8px minmax\(0, 1fr\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-pane,[\s\S]*grid-template-rows: auto minmax\(0, 1fr\) auto !important/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-pane,[\s\S]*padding: 0 8px;/);
@@ -453,7 +452,7 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
     /data-resolved-theme="dark"[\s\S]*--page: #1c1d20;[\s\S]*--paper: #242528;[\s\S]*--ink: #f0efed;[\s\S]*--muted: #a2a19e;[\s\S]*--faint: #979693;/, // Dark faint lifted a step for 4.5:1 (spec → 第三轮 · 对比度)
   );
   const workbench = renderMolisWorkWorkbenchStylesheet();
-  const index = renderMolisWorkProjectIndexStylesheet();
+  const arrival = renderMolisWorkArrivalStylesheet();
   assert.match(TYPEFACE_STYLES, /font-family: "Inter Variable"/);
   assert.match(TYPEFACE_STYLES, /font-family: "Noto Sans SC"/);
   // Soft Workbench (DESIGN.md → Typography): weights are roles (400/500/600), never forced globally.
@@ -472,8 +471,9 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
   assert.doesNotMatch(workbench, /\.home-calendar td\.home-calendar-outside \{[^}]*opacity:/);
   assert.doesNotMatch(workbench, /\.home-composer input \{[^}]*opacity: \.7/);
   assert.match(workbench, /\.frame-empty\.mw-empty \{[\s\S]*justify-content: center;[\s\S]*gap: 12px/);
-  assert.match(index, /\.project-index-panel \{[\s\S]*height: auto;[\s\S]*max-height: 100%;/);
-  assert.match(index, /\.project-card p \{[\s\S]*color: var\(--ink-soft\)/);
+  // The chooser's directory scrolls inside its column, and the brief's prose stays one step above the captions.
+  assert.match(arrival, /\.chooser-dir \{ flex: 1; min-height: 0; overflow: auto;/);
+  assert.match(arrival, /\.mw-brief__desc \{[^}]*color: var\(--ink-soft\)/);
 });
 
 test("plugin list titles yield at the squeeze edge", () => {

@@ -12,6 +12,7 @@ import { artifactActionProvider } from "./artifact-actions.js";
 import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
 import { PersonalPlanningActions } from "./personal-planning-actions.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import { createWebCatalogAccess } from "./web-catalog-access.js";
 import { goalsActionProvider } from "./goals-actions.js";
 import { ImagesHostService } from "./images-service-host.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
@@ -126,6 +127,7 @@ export class MolisWorkLocalHost {
   /** Tools of remote MCP connections in 服务连接, as Home actions; absent without a Home. */
   readonly connectorMcp?: ConnectorMcpDirectory;
   private catalogRunner?: LocalWebCatalogRunner;
+  private webCatalog?: { home: string; access: ReturnType<typeof createWebCatalogAccess> };
   private readonly systemFunctions?: SystemFunctionsActions;
   private readonly images?: ImagesHostService;
   private readonly alchemist?: AlchemistHostService;
@@ -301,6 +303,16 @@ export class MolisWorkLocalHost {
     }
   }
 
+  /** A borrowed Web transport keeps the shared connection alive until its external Host closes. */
+  ensureWebCatalog(home: string, open: Parameters<typeof createWebCatalogAccess>[1]) {
+    if (this.closing || this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+    const canonicalHome = path.resolve(home);
+    if (this.options.homeDirectory && path.resolve(this.options.homeDirectory) !== canonicalHome || this.webCatalog && this.webCatalog.home !== canonicalHome) {
+      throw new ActionError("actions.home_mismatch", "项目目录与 Host 必须属于同一个 Home");
+    }
+    return (this.webCatalog ??= { home: canonicalHome, access: createWebCatalogAccess(canonicalHome, open) }).access;
+  }
+
   /** Platform startup injects the existing Catalog owner before accepting requests. */
   configurePersonalPlanning(home: string, withCatalog: LocalWebCatalogRunner): void {
     if (this.closing || this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
@@ -459,7 +471,8 @@ export class MolisWorkLocalHost {
       try { await this.host.close(); }
       finally {
         this.systemFunctions?.dispose();
-        await Promise.all([this.agents?.service.dispose(), this.images?.close(), this.alchemist?.close(), this.sessions.close()]);
+        try { await Promise.all([this.agents?.service.dispose(), this.images?.close(), this.alchemist?.close(), this.sessions.close()]); }
+        finally { await this.webCatalog?.access.close(); }
       }
     })();
   }

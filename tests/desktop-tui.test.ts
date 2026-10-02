@@ -852,15 +852,15 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
 
     const index = await webFetch(`${origin}/`);
     const indexHtml = await index.text();
-    assert.match(indexHtml, /class="project-index-page"/);
-    assert.match(indexHtml, new RegExp(`href="${prefix}"`));
+    assert.match(indexHtml, /class="arrival-page immersive-workbench"/);
+    assert.match(indexHtml, new RegExp(`href="${prefix}/"`));
     assert.doesNotMatch(indexHtml, /class="tui-pane"|pty-client\.js/);
 
     const desktopIndex = await webFetch(`${origin}/?desktop=1`);
     assert.equal(desktopIndex.headers.get("set-cookie"), null);
     const desktopIndexHtml = await desktopIndex.text();
-    assert.match(desktopIndexHtml, /class="project-index-page"/);
-    assert.match(desktopIndexHtml, new RegExp(`href="${prefix}\\?desktop=1"`));
+    assert.match(desktopIndexHtml, /class="arrival-page immersive-workbench"/);
+    assert.match(desktopIndexHtml, new RegExp(`href="${prefix}/\\?desktop=1"`));
 
     const cookieResponse = await webFetch(`${origin}${prefix}/goals/TUI-GOAL`, {
       headers: { cookie: "molis_work_desktop=1" },

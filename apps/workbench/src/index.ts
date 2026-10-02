@@ -75,8 +75,6 @@ export {
   ONBOARDING_CLIENT_SCRIPT,
   PROJECT_GUIDANCE_CLIENT_SCRIPT,
   PROJECT_GUIDANCE_SETTINGS_STYLES,
-  PROJECT_INDEX_CLIENT_SCRIPT,
-  PROJECT_INDEX_STYLES,
   PROJECT_RULES_CLIENT_SCRIPT,
   PROJECT_RULES_SETTINGS_STYLES,
   RESPONSIVE_STYLES,
@@ -114,7 +112,9 @@ export { ONBOARDING_INTENT_FRAMES, onboardingIntentFrame, onboardingIntentFrameD
 export { createWorkbenchSettingsNavigation, type WebProjectNavigation, type WebSettingsSection, type SettingsNavigationPrimitives } from "./settings-navigation.js";
 export { listPluginSettingsNavItems, findPluginSettingsNavItem, pluginSettingsNavItemsFrom, isHostGlobalSettingsSection } from "./plugin-settings-catalog.js";
 export { isProjectSettingsWorkbenchPath, projectSettingsPageFromPath, projectSettingsPath } from "./project-settings-stage.js";
-export { createWorkbenchProjectDirectoryRenderer, type ProjectDirectoryPrimitives } from "./project-directory-renderer.js";
+export { createWorkbenchProjectChooserRenderer, type ChooserArrival } from "./arrival/chooser.js";
+export { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "./arrival/project-brief.js";
+export type { ArrivalPrimitives, ArrivalShellPrimitives } from "./arrival/shell.js";
 export { createWorkbenchHumanReviewRenderer, type HumanReviewPrimitives } from "./human-review-renderer.js";
 export type { WebSettingsProject, WebInstallationDiagnostics, MolisWorkSettingsView } from "./settings-view.js";
 export { createWorkbenchSettingsRenderer, type SettingsRenderPrimitives } from "./settings-renderer.js";
@@ -153,3 +153,5 @@ export {
   type ModelSettingsPrimitives,
 } from "./settings-models.js";
 export { BUILTIN_PLUGIN_AGENTS } from "./plugin-catalog.js";
+
+export { pluginWorkbenchClientAsset } from "./plugin-workbench.js";

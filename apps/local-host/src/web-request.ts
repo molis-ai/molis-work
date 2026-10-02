@@ -4,6 +4,7 @@ import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
+import { markProjectOpened } from "./project-arrival.js";
 import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import { createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
@@ -109,7 +110,16 @@ export async function handleMolisWorkWebRequest(
   if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath) {
     await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
   }
-  const resolved = await resolveWebRequest(serverOptions, url.pathname, composition.withCatalog);
+  let resolved: Awaited<ReturnType<typeof resolveWebRequest>>;
+  try {
+    resolved = await resolveWebRequest(serverOptions, url.pathname, composition.withCatalog);
+  } catch (error) {
+    // The chooser is the way in: when the project list cannot be read it says so, and the personal space still opens.
+    if (request.method !== "GET" || url.pathname !== "/" || !serverOptions.homeDirectory) throw error;
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
+    response.end(workbenchRenderer.renderMolisWorkProjectIndex([], controlToken, isDesktopShellRequest(request, url), { now: new Date().toISOString(), last_project_id: null, opened: {}, load_error: true }));
+    return;
+  }
   if (request.method === "GET" && resolved.kind !== "project_not_found"
     && (resolved.kind === "board" ? resolved.pathname === "/" : url.pathname === "/")
     && (url.searchParams.get("openPlugin") === "functions" || url.searchParams.get("panePlugin") === "functions")) {
@@ -149,6 +159,9 @@ export async function handleMolisWorkWebRequest(
       }
       const options = resolved.options;
       url.pathname = resolved.pathname;
+      // Opening a project's own page (not a pane inside it) is what the chooser remembers it by.
+      if (request.method === "GET" && url.pathname === "/" && options.project && !url.searchParams.has("workbenchPane") && url.searchParams.get("embed") !== "1"
+        && (request.headers["sec-fetch-dest"] ?? "document") === "document") markProjectOpened(serverOptions.homeDirectory, options.project.project_id);
       if (!fs.existsSync(options.databasePath)) {
         if (url.pathname.startsWith("/api/")) {
           sendJson(response, 404, { error: "Molis Work 数据库不存在，请先初始化" });
@@ -244,7 +257,7 @@ export async function handleMolisWorkWebRequest(
           ...(options.project ? { enablePlugin: async (pluginId: string) => {
             const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId && !item.personal);
             if (!entry) throw new Error('这个插件不能在项目里启用：' + pluginId);
-            await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: "web-user" }));
+            await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.commit(() => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: "web-user" })));
           } } : {}),
           ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }, controlToken)) return;
         if (await handleBuilderHttp(request, response, url, { ...codingServices, store, boardId: options.boardId,
@@ -389,11 +402,11 @@ export async function handleMolisWorkWebRequest(
         if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
           actions: bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, "inbox:write", "functions:manage"]),
         })) return;
-        if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, {
+        if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, (_input, transport) => ({
           projectId: hostReference.project_id,
           actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
-            audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS })),
-        })) return;
+            audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS, ...transport })),
+        }))) return;
         if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, {
           projectId: hostReference.project_id,
           actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,

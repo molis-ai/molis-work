@@ -4,7 +4,7 @@ export const ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID = "io.molis.work.native.artif
 
 export interface ArtifactReferenceUiPrimitives {
   escape(value: string): string;
-  icon(name: "external" | "copy"): string;
+  icon(name: "external" | "copy" | "file"): string;
   text(value: string): string;
 }
 

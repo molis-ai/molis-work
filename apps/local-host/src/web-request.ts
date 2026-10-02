@@ -535,15 +535,19 @@ export async function handleMolisWorkWebRequest(
         })) return;
         if (await goalsReadHttp.page(request, response, url, options, serverOptions.homeDirectory, readWebView, bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: WORK_ACTION_PERMISSIONS })), controlToken, goalActions,
           bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS })), coordinator, store, codingServices)) return;
-        // An address this project does not have: a person (a page request, not an API call) lands in the workbench and is
-        // told so there, never on a bare error body.
-        if (request.method === "GET" && !url.pathname.startsWith("/api/") && !url.pathname.startsWith("/assets/")
-          && (requestHeader(request, "accept") ?? "").includes("text/html")) {
-          response.writeHead(302, { location: `${options.routePrefix ?? ""}/?missing=${encodeURIComponent(url.pathname)}`, "cache-control": "no-store" });
-          response.end();
-          return;
-        }
-        sendJson(response, 404, { error: L("页面或接口不存在") });
+        sendNotFound(request, response, url, options.routePrefix ?? "");
       }
       });
+}
+
+/** An address this project does not have: a person (a page request, not an API call) lands in the workbench and is told
+ * so there, never on a bare error body. */
+function sendNotFound(request: IncomingMessage, response: ServerResponse, url: URL, routePrefix: string): void {
+  if (request.method === "GET" && !url.pathname.startsWith("/api/") && !url.pathname.startsWith("/assets/")
+    && (requestHeader(request, "accept") ?? "").includes("text/html")) {
+    response.writeHead(302, { location: `${routePrefix}/?missing=${encodeURIComponent(url.pathname)}`, "cache-control": "no-store" });
+    response.end();
+    return;
+  }
+  sendJson(response, 404, { error: L("页面或接口不存在") });
 }

@@ -513,13 +513,13 @@
 
 | 用例 | 文件 | 归类 | 依据 | 处理 |
 | --- | --- | --- | --- | --- |
-| 工作台挂上 Todo 舞台；工作台 HTML 挂上 Pages 舞台和编辑器 | `todo-plugin`、`pages-plugin` | 预期已变，测试没跟上（#150） | #150 把插件客户端改为打开时再加载，页面只登记插件；两条单元测试还在找首屏里的脚本 | 修复分支 `fix/tests-deferred-plugin-clients`：按新合同断言，单元测试 132/132 通过 |
-| Shelf 打开、提取 PDF、保留 DropAgent 令牌 | `shelf-plugin.e2e` | **产品回归**（#150） | Shelf 终端客户端只在页面加载时找一次挂载点；#150 之后挂载点留在 `<template>` 里，Shelf「对话」的终端再也起不来。角色终端同理 | 同一分支：挂载点出现后再启动；待浏览器时段验证 |
-| 角色与 Coding 发现授权的未知动作；Images 390；Todo 1440/390 从 Inbox 与灵光转待办；Goals 失败的紧凑刷新退回整页 | `agent-action-selection.e2e`、`images-actions.e2e`、`todo-from-inbox.e2e`、`goals-refresh.e2e` | 测试没等界面就绪（#150） | 插件面加载期间是 inert，用例立即点击，没有作用 | 同一分支：夹具的 `click` 先等插件面加载完，新增 `surfaceReady()`；待浏览器时段验证 |
-| Pages 390：中断的发布刷新后续上 | `pages-publication.e2e` | 测试假设过时（#145） | #145 起 `?openPlugin=pages` 会打开 Pages 并重开上次的文稿；760px 以下文稿展开时列表本就收起，用例去点列表项 | 分支 `fix/test-pages-publication-narrow`：断言重开的就是这篇；待浏览器时段验证 |
-| Product journeys | `product-experience-polish.e2e` | 待定 | d39e8e5b 与 b5f6ddec 通过，fccb2a30 两次失败（都在负载下）；之后只有 #154 动过相关文件，但它只影响加载时的 `?openPlugin=`，搜索切换工具不经过它 | 安静时段在 fccb2a30 上单独复跑 |
-| 事件文档写规划、报告、关注、决定与关闭 | `goal-event-document.e2e` | 测试没跟上（#150 的 3903facd） | fccb2a30 上报 `Missing real refresh callback`：3903facd 把看板 4 秒刷新从 `setInterval` 改成界面生命周期的 `poll`（`setTimeout` 链），用例还在钩 `setInterval`。d39e8e5b 上的失败是另一回事（负载下 DOM 等待超时） | `fix/tests-deferred-plugin-clients`（e65373b1）：改钩 4 秒 `setTimeout`，并等这次刷新发起的看板读取结束，相当于原来 await 的 interval 回调；待浏览器时段验证 |
-| 安装包全流程 | `e2e.test.ts` | **环境**：本机 4173 上是用户真实 Home 的常驻服务；用例不隔离 | 用例的 Web 跑在随机端口，接入校验按 Web 自己的环境启动 MCP 启动器，环境里没有 `MOLIS_WORK_WEB_URL`，启动器去默认的 127.0.0.1:4173。本机 4173 上是用户真实 Home 的常驻服务（LaunchAgent `com.adeptify.goalboard.web`，安装版 0.2.0，pid 2115；`~/.goalboard` 是指向 `~/.molis-work` 的符号链接），与用例的临时 Home 不是同一个，控制令牌对不上返回 403，启动器在 tools/list 时抛出 `actions.transport_denied` 退出，校验失败、回滚、409。保留临时目录手工运行安装后的启动器复现了同一条 stderr。4173 空着时发现失败走 `service_unavailable` 退回，所以 62cbc14d 基线时通过 | 分支 `fix/test-packed-e2e-own-web-url`（58b105b4）：Web 进程带上 `MOLIS_WORK_WEB_URL=origin`，与用例后面 Runtime 对话的写法一致；待构建时段验证。产品侧两点记入 BL-108 |
+| 工作台挂上 Todo 舞台；工作台 HTML 挂上 Pages 舞台和编辑器 | `todo-plugin`、`pages-plugin` | 预期已变，测试没跟上（#150） | #150 把插件客户端改为打开时再加载，页面只登记插件；两条单元测试还在找首屏里的脚本 | [#173](https://github.com/molis-ai/molis-work/pull/173)：按新合同断言，通过 |
+| Shelf 打开、提取 PDF、保留 DropAgent 令牌 | `shelf-plugin.e2e` | **产品回归**（#150） | Shelf 终端客户端只在页面加载时找一次挂载点；#150 之后挂载点留在 `<template>` 里，Shelf「对话」的终端起不来。角色终端同理 | [#173](https://github.com/molis-ai/molis-work/pull/173)：挂载点出现后再启动；Shelf 三个浏览器文件通过 |
+| 角色与 Coding 发现授权的未知动作；Images 390；Todo 1440/390；Goals 失败的紧凑刷新退回整页 | `agent-action-selection.e2e`、`images-actions.e2e`、`todo-from-inbox.e2e`、`goals-refresh.e2e` | 测试没等界面就绪（#150），另有两处**产品问题** | 1. 插件面加载期间是 inert，用例立即点击。2. **Images**：#150 后客户端启动时的 `expand()` 落在工作台收起舞台之后，窄屏打开直接进「新建」、列表被收起（诊断：390 时列表 `display:none`）。3. **放置完成卡片**：卡片在工具栏出现后才到，窄屏避让把它抬到最高处，按钮压住「建成 Goal」「转为待办」（诊断：卡片 `bottom:672px`，区域 106–172，按钮 108–152） | [#173](https://github.com/molis-ai/molis-work/pull/173)：夹具等插件面就绪；Images 不在启动时展开；卡片先躲开所有控件、躲不开时只躲可按的控件、舞台变化时重排；新增 `placement-card-clearance.e2e`（改前 390 失败、改后通过）。受影响 8 个文件 15/15；角色单独两次通过 |
+| Pages 390：中断的发布刷新后续上 | `pages-publication.e2e` | 测试假设过时（#145） | #145 起 `?openPlugin=pages` 会打开 Pages 并重开上次的文稿；760px 以下文稿展开时列表本就收起，用例去点列表项 | [#166](https://github.com/molis-ai/molis-work/pull/166)（已合入）：断言重开的就是这篇；390 与 1440 通过 |
+| Product journeys | `product-experience-polish.e2e` | 测试时序（间歇） | 二分各点：#159、#155 通过；#158 一过两败；#160 两败一过，不是某个 PR 引入。推断：搜索先显示工具行，内容结果稍后到达并排在上面，用例在结果还在变时点下去，落到别的行 | [#174](https://github.com/molis-ai/molis-work/pull/174)：等结果列表稳定后再点；在 161b1d73 上连跑 4 次，4 次通过。「结果在指针下移动」记入 BL-112 |
+| 事件文档写规划、报告、关注、决定与关闭 | `goal-event-document.e2e` | 测试没跟上（#150 的 3903facd） | fccb2a30 上报 `Missing real refresh callback`：3903facd 把看板 4 秒刷新从 `setInterval` 改成界面生命周期的 `poll`（`setTimeout` 链），用例还在钩 `setInterval`。d39e8e5b 上的失败是另一回事（负载下 DOM 等待超时） | `fix/tests-deferred-plugin-clients`（e65373b1）：改钩 4 秒 `setTimeout`，并等这次刷新发起的看板读取结束，相当于原来 await 的 interval 回调；浏览器时段通过（[#173](https://github.com/molis-ai/molis-work/pull/173)） |
+| 安装包全流程 | `e2e.test.ts` | **环境**：本机 4173 上是用户真实 Home 的常驻服务；用例不隔离 | 用例的 Web 跑在随机端口，接入校验按 Web 自己的环境启动 MCP 启动器，环境里没有 `MOLIS_WORK_WEB_URL`，启动器去默认的 127.0.0.1:4173。本机 4173 上是用户真实 Home 的常驻服务（LaunchAgent `com.adeptify.goalboard.web`，安装版 0.2.0，pid 2115；`~/.goalboard` 是指向 `~/.molis-work` 的符号链接），与用例的临时 Home 不是同一个，控制令牌对不上返回 403，启动器在 tools/list 时抛出 `actions.transport_denied` 退出，校验失败、回滚、409。保留临时目录手工运行安装后的启动器复现了同一条 stderr。4173 空着时发现失败走 `service_unavailable` 退回，所以 62cbc14d 基线时通过 | [#169](https://github.com/molis-ai/molis-work/pull/169)：Web 进程带上 `MOLIS_WORK_WEB_URL=origin`，与用例后面 Runtime 对话的写法一致；4173 仍被占着时 1/1 通过。产品侧两点记入 BL-108 |
 
 其余失败都跨过了休眠，复跑通过。
 
@@ -537,6 +537,22 @@
   - Goals「失败的紧凑刷新退回整页」：树节点没出现。3903facd 去掉了看板自己的 `visibilitychange` 刷新，改由生命周期在真正的「隐藏→可见」时重启轮询；用例派发的合成事件不改可见性，所以要等下一次 4 秒轮询（e65373b1，等待放宽到 10 秒，断言不变）；
   - Product journeys：低负载下也失败，不是偶发。截图里重新加载后左侧「全部插件」面板是展开的，搜索里点 Dataset 没有切过去。
 - **事件文档与安装包全流程**：低负载下也失败，不是负载时序。后来查清：事件文档是 #150 的轮询改动，安装包全流程是本机 4173 被占，见上表。
+
+**第二档浏览器验证**（10-02 07:16–08:12，另一会话让出时段）：
+
+- 构建 4 个工作树（builder-limit2、packed-e2e、二分点、builder-frame）都通过。
+- 非浏览器：
+  - 创作台 4 个文件：106 / 106；
+  - 安装包全流程：1 / 1。
+- `fix/tests-deferred-plugin-clients` 第一组 11 个文件：160 条中 157 条通过。剩下 3 条：
+  - 角色：间歇，单独两次都通过；
+  - Images 390、Todo 390：诊断出上表的两处产品问题，修好后受影响的 8 个文件 15 / 15。
+- 创作台框架（PMR-34）：
+  - 新用例 2 / 2；
+  - 放回旧的 `min-height` 并重新构建后，两种宽度都失败（757 宽时 `{"frame":1024,"stage":968,"bar":968}`）。
+- Product journeys 的二分与复测：见上表。
+
+坑：浏览器夹具经包名加载 `dist`。只改源码、不重新构建对应包，反向验证是无效的。
 
 ## 7. 行为基线
 

@@ -865,6 +865,9 @@
 | 死脚本 | `scripts/personal-assistant-public-sources.mts` | PMR-09 | 删除 |
 | 左侧插件栏标记是否已成死代码 | `immersive-shell.ts` 的 `plugin-rail-items` | BL-086 | 核对后删除 |
 | 能力快照脚本 | [capability-snapshot.mts](capability-snapshot.mts) | §7.2 | 改成仓库内的 API 快照门禁 |
+| 插件有两套 id：页面上下文与搜索用包 id（`io.molis.work.todo`），路由、面与左栏用短 id（`todo`） | PMR-31：助理「起点」查名字时对不上，露出包 id（#162 只修了显示） | PMR-31 | 给出统一的插件身份映射，界面取名只走它 |
+| 助理面板取插件名靠左栏标记 `.plugin-rail-items` | `assistant-island.ts` 的 `surfaceName()` | PMR-31、BL-086 | 删左栏前先换成统一的插件名查找 |
+| 单次模型请求沿用 Prologue 默认 60 秒 | 创作台已在 #163 按角色设定；助理（`prologue-node.ts`）、Coding 等仍用默认 | PMR-33 | 在 Agent Host 统一按场景设定单次请求时限，并写进 Prologue AI 手册 |
 
 ### 12.3 测试与回归基础设施
 
@@ -873,3 +876,4 @@
 | 浏览器用例的固定时限（4 秒 `waitFor`、30 秒导航）对负载敏感 | §6：17 条高负载超时，3 条负载时序不稳 | 时限按负载放宽或改为等真实条件；在 CI 子集里跑稳定的那部分 |
 | 测试依赖 `fs.watch` 收到其他进程的文件事件 | #143 修了一处 | 全仓检查同类写法 |
 | 本机全量回归 2 小时以上，并行会话一多就互相干扰 | §6 | 按文件分片、给出「受影响测试」挑选脚本 |
+| 页面在浏览器窗格隐藏时不启动（`lifetime.whenVisible`），自动化验收会误以为页面坏了 | 本步复测创作台时遇到 | 验收脚本先确认 `document.visibilityState`，或用 CDP 设置可见 |

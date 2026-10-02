@@ -24,7 +24,7 @@
 
 ## 生产实现 · 2026-09-26
 
-以下记录当前应用实现，与上方 `index.html` 模拟切片分开。视觉继续沿用 [Operate](../../../../DESIGN.md) 的中性纸面、细边界和黑白主动作。实现依据为 [页面入口](../../../../apps/workbench/src/context-onboarding-renderer.ts)、[交互](../../../../apps/workbench/src/scripts/context-onboarding.ts)和[样式](../../../../apps/workbench/src/styles/context-onboarding.ts)。
+以下记录当前应用实现，与上方 `index.html` 模拟切片分开。视觉继续沿用 [Operate](../../../../DESIGN.md) 的中性纸面、细边界和黑白主动作。实现依据为 [页面入口](../../../../apps/workbench/src/context-onboarding-renderer.ts)、[交互](../../../../apps/workbench/src/scripts/context-onboarding.ts)和[样式](../../../../apps/workbench/src/styles/arrival.ts)。
 
 - **清单与真实授权。** 有原生 bridge 时，下载、文稿、桌面、其他文件夹各自选择、授权和显示实际路径；全选支持半选，零选禁用继续。统一继续动作逐项打开系统目录选择器，正常取消后可处理后续来源。浏览器提供选文件夹的替代入口，不显示伪造的 macOS 授权状态。取消连接只清除 Molis 的访问记录。
 - **先预览，再读正文。** 授权后显示文件名、大小、修改日期；原生目录可分别选择最近 7／30／90 天或全部时间，排除文件或整个子目录。只读取预览中选中的范围，显示 50 份／6 MB 上限；未就绪来源可重试或本次跳过。单文件提取失败保留原因，其余内容继续。

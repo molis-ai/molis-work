@@ -109,7 +109,7 @@ components:
 
 本记录描述已实现的来源清单、读入状态和项目建议页面。沿用 Molis Work 的 Linear × coss.ui 视觉世界：中性色承载阅读与操作，细线区分内容，少量靛蓝提示来源、引用和进度。说明、材料与动作清楚分层，视觉密度随任务阶段变化。
 
-这是局部切片记录，不替代[根设计系统](../../../../DESIGN.md)。代码依据为 [样式](../../../../apps/workbench/src/styles/context-onboarding.ts)、[客户端](../../../../apps/workbench/src/scripts/context-onboarding.ts)和 [renderer](../../../../apps/workbench/src/context-onboarding-renderer.ts)；范围依据为[本轮约定](review/contract.md)。双栏清单是本次首屏表达，不能据此规定整个产品的页面结构。图稿中的账号、目录和模型结果不成为组件默认内容；`review-*` 截图采用固定模型响应，只能证明相应排版和交互，不证明真实模型质量或真实账号授权已验收。
+这是局部切片记录，不替代[根设计系统](../../../../DESIGN.md)。代码依据为 [样式](../../../../apps/workbench/src/styles/arrival.ts)、[客户端](../../../../apps/workbench/src/scripts/context-onboarding.ts)和 [renderer](../../../../apps/workbench/src/context-onboarding-renderer.ts)；范围依据为[本轮约定](review/contract.md)。双栏清单是本次首屏表达，不能据此规定整个产品的页面结构。图稿中的账号、目录和模型结果不成为组件默认内容；`review-*` 截图采用固定模型响应，只能证明相应排版和交互，不证明真实模型质量或真实账号授权已验收。
 
 **Key Characteristics:**
 

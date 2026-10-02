@@ -120,6 +120,8 @@
 
 | N-03 | 平台记忆、放置落在横向服务 | 按 `docs/system/ARCHITECTURE.md` §3：Horizontal Service「保存 cursor、lease、retry 等技术状态，但不决定业务结果」。`horizontal/memory` 负责写入门与自动写入决策，`horizontal/placement` 记录对象与工作的业务关系，都属于 Module 的职责；`horizontal/search` 是索引技术服务，留在横向。架构文档 §2 还写着 `board_id` 的兼容说明，要随 §4.1 一起改 | 仍然成立；开工后给迁移方案 |
 
+| 新 | 真实 Home 上同时跑着两个 Web | `~/.molis-work` 上有主检出的 4207（开发）与常驻服务 4173（安装版 0.2.0，LaunchAgent），两个版本差很多。`AGENTS.md` 的硬约束是「一个 Home 只有一个执行进程」；Agent 运行锁在两者之间仲裁（storage_busy 时轮流用） | 第二步升级真实 Home 时一并处理：同一 Home 只留一个常驻服务，其他入口转发给它；开发用隔离 Home |
+
 其余条目（皮肤、Goals UI、Server、N-01、N-04～N-06、N-08～N-11、N-14、N-17、N-18、C 组）开工后逐项复核。
 
 ## 4. 兼容逻辑清单（§4.1，初稿）

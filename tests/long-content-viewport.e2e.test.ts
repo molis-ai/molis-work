@@ -137,11 +137,13 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   }
   await command("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile:false},sessionId);
   await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/artifacts/reading-report/versions/1`},sessionId));
-  await waitFor("document.body.classList.contains('artifact-page')");
+  // A direct address opens the workbench on that version, not a page of its own.
+  await waitFor("document.body.dataset.desktopSurface === 'artifacts' && Boolean(document.querySelector('[data-artifact-detail] [data-artifact-id=\"reading-report\"][data-artifact-version=\"1\"]'))", 15_000);
+  assert.equal(await evaluate("Boolean(document.querySelector('.artifact-shell, .artifact-back, body.artifact-page'))"), false, "no standalone artifact page shell");
   await click('.artifact-raw:nth-of-type(2) > summary');
   const directHeader=await probe('.artifact-detail > header');
   const directFooter=await probe('.artifact-actions');
-  assert.ok(directHeader.top>=0 && directFooter.bottom<=height,"standalone artifact keeps title and export visible");
+  assert.ok(directHeader.top>=0 && directFooter.bottom<=height,"a directly opened artifact keeps title and export visible");
   await evaluate("document.querySelector('.artifact-detail-content').scrollTop=99999");
   assert.deepEqual(await probe('.artifact-detail > header'),directHeader);
   assert.deepEqual(await probe('.artifact-actions'),directFooter);

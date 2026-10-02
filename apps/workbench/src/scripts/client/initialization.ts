@@ -321,6 +321,13 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setMobileView(restoredMobileView);
     }
     openRequestedFeedRule();
+    // An address the project does not have opens here (the server sends it with ?missing=): say so, then forget it.
+    const missingPage = new URLSearchParams(location.search).get("missing");
+    if (missingPage) {
+      showToast(L("找不到这个页面：{path}").replace("{path}", missingPage), true);
+      const cleaned = new URL(location.href); cleaned.searchParams.delete("missing");
+      history.replaceState(history.state, "", cleaned);
+    }
     updateRelationPreviews();
     updateAllRelationFormPreviews();
     boardLifetime.poll(async signal => {

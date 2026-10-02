@@ -416,7 +416,7 @@
 | PMR-32 | 带清单的一轮里，助理三次更新步骤都失败（用了「1」「2」「3」，实际编号是 todo-4/5/6），回答却写「三步都已完成（进度清单已更新为全部完成）」；路径如实停在「步骤 0/3」 | 4301 真实模型（MiniMax M3.1）复测 PANEL-08，1 次里 1 次；Prologue 的 todo 工具报 `There is no todo item "1"` | 模型行为；「声称已更新」没有防护 | 记入 BACKLOG（BL-104）：给步骤更新加「编号要照抄」的说明，或认序号；考虑把「声称清单已更新」纳入已有的声称类防护 | 交 BACKLOG |
 | PMR-33 | 插件创作台：主线设计 35 秒给出两个方案；选定后，UI Agent 的「先设计使用路径……」连续两次报 `The operation was aborted due to timeout` | 4301 真实模型（MiniMax M3.1-Flash）复测 BUILDER-02。运行记录显示两次都是开始后整 60 秒被中止：创作台启动 run 时没给单次请求设时限，沿用 Prologue 默认 60 秒。四份 vendored SDK 都是 60 秒，合入前用的 MiniMax-M3 刚好写得完 | 现用模型下 BUILDER-02 的缺口，不是合并引入 | 单次请求时限按角色设定：设计者 300 秒、代码 Agent 180 秒；新增用例，去掉修复时失败。用修复分支的构建复测，同一步约 3.5 分钟完成 | 已修 [#163](https://github.com/molis-ai/molis-work/pull/163) |
 | PMR-34 | 插件创作台：757px 宽时，输入框下的模型说明（「请选择构建使用的模型 · …」）被底栏挡住一半 | 用户 2026-10-02 截图报告；在 4301 量得舞台在 y=968 结束（底栏顶边），创作台框架却到 y=1024：框架的内联 `min-height: calc(100vh - 64px)` 比舞台高，多出的 56px 被舞台裁掉、落在底栏下。已安装的生成插件框架是同一写法 | 界面缺陷，与舞台高度（底栏 52–116px）不一致；不是合并引入（eff5b09d 起就有） | 框架只填满舞台，去掉按视口的最小高度；新增浏览器用例在 757、1440 宽度下断言框架底边不低于舞台与底栏 | 修复中（[#172](https://github.com/molis-ai/molis-work/pull/172)，新用例改前失败、改后通过） |
-| PMR-35 | 插件创作台：报名表需求（BUILDER-03）在 #168 之后续跑，体验设计约 2 分钟完成、代码 Agent 写完第一项功能，随后整次构建失败：`ENOENT: rename builder-runs/<id>.json.tmp -> <id>.json` | 4301 真实模型（MiniMax M3.1-Flash），main 98984bf7，10-02 09:02–09:13。`horizontal/agent-host/src/adapters/plugin-builder.ts` 的 `save()` 先写 `<id>.json.tmp` 再改名；同一条记录的两次保存重叠时共用同一个临时文件，第一次改名拿走了它，第二次就找不到 | 产品缺陷（运行记录的并发写），#163 之前被 60 秒时限遮住，没有走到这一步 | 按记录排队保存，每次改名都找得到自己的文件，最后一次保存留在磁盘上；新增用例：三次重叠保存都成功、留下最后一次 | 修复中（`fix/builder-run-record-writes`，全量回归结束后跑用例与反向验证，再在 4301 续跑报名表） |
+| PMR-35 | 插件创作台：报名表需求（BUILDER-03）在 #168 之后续跑，体验设计约 2 分钟完成、代码 Agent 写完第一项功能，随后整次构建失败：`ENOENT: rename builder-runs/<id>.json.tmp -> <id>.json` | 4301 真实模型（MiniMax M3.1-Flash），main 98984bf7，10-02 09:02–09:13。`horizontal/agent-host/src/adapters/plugin-builder.ts` 的 `save()` 先写 `<id>.json.tmp` 再改名；同一条记录的两次保存重叠时共用同一个临时文件，第一次改名拿走了它，第二次就找不到 | 产品缺陷（运行记录的并发写），#163 之前被 60 秒时限遮住，没有走到这一步 | 按记录排队保存，每次改名都找得到自己的文件，最后一次保存留在磁盘上；新增用例：三次重叠保存都成功、留下最后一次 | 修复中（[#182](https://github.com/molis-ai/molis-work/pull/182)：新用例改前报同一个 ENOENT、改后通过；创作台用例 11/11；4301 续跑报名表见 §2.2 BUILDER-03） |
 
 ## 4. 合并缺陷与用户可见重复
 
@@ -562,7 +562,14 @@
 - `pnpm install --frozen-lockfile --offline`、整体 `pnpm build`、`pnpm typecheck:all`、`pnpm boundary:check` 全部通过。
 - §6.1 全量回归里失败过的 24 个文件，加上本轮新增的 `plugin-builder-stage.e2e`、`placement-card-clearance.e2e`：222 条全部通过，0 失败，用时 7 分钟。
 
-另起一次全量回归（全部文件），09:13 开始，结果记在下面。
+**全量回归**（全部文件，main 98984bf7，2026-10-02 09:12–10:38，86 分钟；保持唤醒，另一会话让出时段）：
+
+- 结果：3,732 条，3,724 通过，1 失败，7 跳过，0 取消。
+- 唯一的失败是 `goals-refresh.e2e` 的「a completed refresh response cannot overwrite a Goal selected while it was in flight」，等 `__refreshHeld` 超时。
+  - 同一棵树上单独连跑 3 次都通过。
+  - 归类为测试时序：#150 之后刷新是 4 秒轮询，合成的 `visibilitychange` 不重启它，被拦住的那次刷新要等下一次轮询，负载下超过默认 4 秒等待。同文件另一条已由 #173 同样处理。
+  - 修复：[#181](https://github.com/molis-ai/molis-work/pull/181)，两处等待放到 10 秒，断言不变；套用后连跑两次都通过。
+- 结论：全量回归没有未归类的失败。
 
 ## 7. 行为基线
 

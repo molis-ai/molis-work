@@ -3,8 +3,7 @@ import test from "node:test";
 import { PLUGIN_ICON, STATUS_ICON } from "../packages/design-system/src/icons.js";
 import { pluginTabGlyphs } from "../apps/workbench/src/plugin-catalog.js";
 import {
-  renderMolisWorkOnboardingStylesheet,
-  renderMolisWorkProjectIndexStylesheet,
+  renderMolisWorkArrivalStylesheet,
   renderMolisWorkSettingsStylesheet,
   renderMolisWorkWorkbenchStylesheet,
 } from "../apps/workbench/src/page-assets.js";
@@ -14,8 +13,7 @@ import {
 const sheets = () => [
   ["workbench", renderMolisWorkWorkbenchStylesheet()],
   ["settings", renderMolisWorkSettingsStylesheet()],
-  ["project-index", renderMolisWorkProjectIndexStylesheet()],
-  ["onboarding", renderMolisWorkOnboardingStylesheet()],
+  ["arrival", renderMolisWorkArrivalStylesheet()],
 ] as const;
 
 test("each plugin has one glyph, the same one the Manifests declare, and no two plugins share it", () => {

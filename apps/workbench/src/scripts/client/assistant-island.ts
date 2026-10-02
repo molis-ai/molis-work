@@ -35,7 +35,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const targetClear = island.querySelector("[data-assistant-target-clear]");
   const newButton = island.querySelector("[data-assistant-new]");
   if (!composer || !input || !send || !thread || !target) return null;
-  const project = host.project && host.project.id ? host.project : null;
+  // The project the next new work belongs to. The project list changes it as the person looks from one project to another.
+  let project = host.project && host.project.id ? host.project : null;
   // Search opens with ⌘K (Ctrl K elsewhere); a touch screen has no key to name.
   const searchKey = () => !document.querySelector("[data-global-search-open], [data-global-search-dialog]") || (window.matchMedia && window.matchMedia("(hover: none)").matches) ? ""
     : /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
@@ -239,8 +240,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       // A new work needs no chip: where it lives and who does it are in “+”; the input says the rest.
       if (targetWrap) { targetWrap.dataset.mode = "new"; targetWrap.hidden = true; }
     }
+    // A page that knows what the person is looking at (the project list) may say so in the placeholder of a new work.
+    const hint = !work && newExecutor === "assistant" && host.placeholder ? host.placeholder(project) : "";
     input.placeholder = work ? L("补充、回答或纠正…") : newExecutor === "coding" ? L("让 Coding Agent 做点什么…")
-      : searchKey() ? L("让助理做点什么，或按 {key} 搜索").replace("{key}", searchKey()) : L("让助理做点什么…");
+      : hint ? hint : searchKey() ? L("让助理做点什么，或按 {key} 搜索").replace("{key}", searchKey()) : L("让助理做点什么…");
     // A Coding work shows the mode its next round runs in — the session's own setting, the same one its page shows.
     if (modeButton) {
       // A new work that continues an open Coding session runs in that session's own mode, shown once it is the work's.
@@ -2800,5 +2803,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   // The work's own draft is known only once the list arrives; fill it then unless the person has already typed.
   // Changes already done before this page loaded are not news; only ones completing from now on are announced.
   loadWorks().then(() => { restIfStale(); if (!typed) loadDraft(); if (currentId) return refresh().then(schedule); }).finally(() => { announcing = true; });
-  return { isOpen: () => Boolean(panel && !panel.hidden), dispose: () => { clearTimeout(pollTimer); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
+  return { isOpen: () => Boolean(panel && !panel.hidden),
+    /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */
+    setProject: (next) => { project = next && next.id ? next : null; if (!currentWork()) newScope = project ? "project" : "personal"; paintTarget(); paintSummary(); },
+    dispose: () => { clearTimeout(pollTimer); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
 }`;

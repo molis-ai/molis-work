@@ -33,6 +33,7 @@ import { PLACEMENT_EN } from "./placement-en.js";
 import { CONTEXTUAL_EN } from "./contextual-en.js";
 import { SIDE_PANEL_EN } from "./side-panel-en.js";
 import { ONBOARDING_EN } from "./onboarding-en.js";
+import { ARRIVAL_EN } from "./arrival-en.js";
 import { RENDERER_GAP_EN } from "./renderer-gap-en.js";
 import { HOME_EN } from "./home-en.js";
 import { FLOW_EN } from "./flow-en.js";
@@ -136,6 +137,7 @@ export const EN: Record<string, string> = {
   ...INFORMATION_LOOP_EN,
   ...ASSISTANT_EN,
   ...ONBOARDING_EN,
+  ...ARRIVAL_EN,
   ...RENDERER_GAP_EN,
   ...HOME_EN,
   ...IMAGES_EN,

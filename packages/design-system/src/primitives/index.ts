@@ -81,4 +81,25 @@ export {
   type DirectoryRowDensity,
   type DirectoryAddOptions,
 } from "./directory.js";
+export {
+  ARRIVAL_CAPTION_PHRASES,
+  renderWordmark,
+  renderCaption,
+  renderSteps,
+  renderGoalTrack,
+  renderBarContext,
+  renderBarStatus,
+  renderFileKind,
+  renderFileRow,
+  renderFileGroup,
+  renderBrief,
+  renderBriefSection,
+  renderBriefFocus,
+  renderBriefRecent,
+  renderBriefStatus,
+  type MwGoalTrackState,
+  type MwFileRowOptions,
+  type MwFileGroupOptions,
+  type MwBriefOptions,
+} from "./arrival.js";
 export { renderPrimitiveCatalog, PRIMITIVE_CATALOG_IDS } from "./catalog.js";

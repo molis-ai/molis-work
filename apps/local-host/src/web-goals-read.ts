@@ -156,6 +156,7 @@ export function createLocalGoalsReadHttp(ports: {
               projectConfiguration!.workspaces,
             )
           : { sessions: [], workspaces: [] };
+        if (url.searchParams.has("workbenchPane")) view = { ...view, pane_plugin: url.searchParams.get("panePlugin") || "home" };
         return renderMolisWorkWeb(
           coordinator && store
             ? await withSelectedGoalDocument(

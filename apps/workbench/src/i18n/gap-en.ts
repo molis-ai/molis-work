@@ -1,5 +1,6 @@
 /** User-visible copy that already goes through L() but was missing from the English catalog. */
 export const GAP_EN: Record<string, string> = {
+  "无法加载界面，请重试": "Could not load this view. Retry",
   "待核对的插件通知": "Plugin notifications to review",
   "核对这条通知": "Review this notification",
   "原处理可能已经产生结果。先核对实际结果；重试可能重复执行，跳过只结束这一条通知。": "The original handler may already have produced a result. Check the actual outcome first. Retrying may repeat its effects; skipping closes only this notification.",

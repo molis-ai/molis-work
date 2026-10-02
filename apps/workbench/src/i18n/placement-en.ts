@@ -18,7 +18,6 @@ export const PLACEMENT_EN: Record<string, string> = {
   "例如：秋季内容计划": "For example: Autumn content plan",
   "还没想好是什么项目？": "Not sure what the project is yet?",
   "先在个人空间开始": "Start in your personal space",
-  "个人空间里的内容只有你能看到；之后建了项目，可以把它们移过去或用于项目。": "Only you can see what's in your personal space. Once you create a project, you can move things into it or use them there.",
 
   // Completion cards
   "{verb}《{title}》": "{verb} “{title}”",

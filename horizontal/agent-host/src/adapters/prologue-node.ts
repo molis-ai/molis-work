@@ -1,7 +1,7 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { GATEWAY_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
 import { createPrologueSurfaces, surfaceRules, SURFACE_GUIDANCE, type PrologueSurfacePorts, type PrologueSurfaces } from "./prologue-surfaces.js";
-import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, MEMORY_CLAIM_HELD, MEMORY_OFF_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, internalIdsHeld, mentionsInternalIds, writesToolCallAsText } from "./announce-guard.js";
+import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, MEMORY_CLAIM_HELD, MEMORY_OFF_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, claimsSavedChange, internalIdsHeld, mentionsInternalIds, writesToolCallAsText } from "./announce-guard.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { createPrologueInference } from "./prologue-inference.js";
@@ -41,7 +41,8 @@ import { createSessionMessages, MAX_BROADCAST } from "./prologue-messages.js";
 import { createPrologueWaits } from "./prologue-waits.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AgentReviewReceipt, AgentRunRef, AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionClient, AgentReviewReceipt, AgentRunRef, AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { actionEffect, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PrologueApprovalBridge, type ProloguePendingPort } from "./prologue-approvals.js";
 import type { AgentReviewQueue } from "../reviews.js";
 
@@ -248,6 +249,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   let memoryRefs: (pinned: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentPinnedMemory[]) => Promise<import("@prologue/sdk").ExactRef<"memory">[]> = async () => [];
   // Suggestions this round really made, for the same check: a reply may not say a button is ready when none was.
   const offerRounds = new Map<string, { offered: number }>();
+  // Calls this round finished without error, for the same check: a reply may not say something was saved when no change was.
+  const changeRounds = new Map<string, { client: AgentActionClient; invoked: ExactActionReference[] }>();
   const stopGuards = new Map<string, { writing: boolean; held: Map<string, Set<HeldKind>> }>();
   const actionControllers = new Map<string, AbortController>();
   const runRoots = new Map<string, ExactRef<"authorized-root">>();
@@ -762,6 +765,47 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   /** Subtasks of this session left without a known outcome, as the runtime projects them after a restart. */
   const childrenToReconcile = (sessionId: string) => runtime.subagents.list()
     .filter(child => child.parentSession.id === sessionId && child.state === "reconcile-required");
+  // Both paths inspect every start and all SDK recovery facts; only transcript replay is selective.
+  const restoreSession = async (id: string, statusOnly = false): Promise<(PrologueRestoredSession & { planned?: AgentRunRef }) | undefined> => {
+    const index = await readIndex(id);
+    if (!index) return undefined;
+    const session = await runtime.sessions.open(index.ref);
+    if (!session) throw new Error("SDK 会话已不可读，保留原引用，不能创建新会话替代");
+    if (index.workspace !== "none" && index.workspace !== "business") await checkpoints?.restore(id);
+    const terminal = await session.terminalRuns();
+    const open = await runtime.listOpenWork();
+
+    const reasons: string[] = [];
+    if (open.unavailable.length) reasons.push("未能查清运行时的未结束工作，暂不能安全继续");
+    if (open.items.some(item => item.origin.session === id)) reasons.push("此会话仍有中断的执行、等待或结果未知的操作，需要核对");
+    if (childrenToReconcile(id).length) reasons.push("有子任务在中断后结果待核对：核对并结束它的中断轮次后，才能开始新一轮");
+    if (terminal.some(ref => !index.attempts.some(attempt => attempt.run_id === ref.id))) reasons.push("SDK 有执行记录缺少宿主启动索引，需要核对对应关系");
+    const runs: PrologueRestoredSession["runs"] = [];
+    const reverse = [...index.attempts].reverse();
+    const last = reverse.find(attempt => attempt.run_id);
+    const planned = reverse.find(attempt => attempt.run_id && attempt.frozen.execution_plan);
+    const unclaimed = open.unavailable.length > 0 || unclaimedWork(index, terminal, open);
+    for (const attempt of index.attempts) {
+      // A start the runtime refused never created a run; one with no reference is only unknown while some run or
+      // open item of this session is claimed by no start, because that is the only run it could have made.
+      if (!attempt.run_id) { if (!attempt.refused && unclaimed) reasons.push("一次启动没有完整保存执行引用，不能判断是否发生过操作"); continue; }
+      const ref = terminal.find(ref => ref.id === attempt.run_id);
+      const pendingQuestions = !ref && (!statusOnly || attempt === last) ? (await runtime.effects.pendings.readByOrigin({ session: id, run: attempt.run_id })).filter(pending => pending.state !== "settled" && ["text", "questionnaire"].includes(pending.kind)) : [];
+      if (!ref) reasons.push("中断轮次仅有已保存的过程，结束状态与操作仍需核对，不会自动重复执行");
+      if (statusOnly && attempt !== last) continue;
+      runs.push({ ref: { run_id: attempt.run_id, session_id: id }, frozen: attempt.frozen,
+        started_at: attempt.started_at, task: attempt.task,
+        ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
+        ...(attempt.timing ? { timing: attempt.timing } : {}),
+        ...(ref ? { terminal: true } : {}),
+        ...(!ref ? { original_questions: pendingQuestions.filter(pending => pending.origin?.run === attempt.run_id).map(pending => ({ pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind, why: pending.why })) } : {}),
+        events: ref ? await session.replay(ref) : await session.readRunProgress({ kind: "run", id: attempt.run_id, revision: 1 }) });
+    }
+    sessions.set(id, index.ref);
+    return { title: index.title, owner: index.owner, workspace: index.workspace ?? "required", runs,
+      ...(planned ? { planned: { session_id: id, run_id: planned.run_id! } } : {}),
+      ...(reasons.length ? { recovery: { required: true as const, reason: [...new Set(reasons)].join("；") } } : {}) };
+  };
   const port: PrologueRuntimePort = {
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
     readStepBoard: run => stepBoards.read(run),
@@ -1065,40 +1109,10 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         sessions.set(session.ref.id, session.ref);
         return session;
       },
-      async restore(id) {
-        const index = await readIndex(id);
-        if (!index) return undefined;
-        const session = await runtime.sessions.open(index.ref);
-        if (!session) throw new Error("SDK 会话已不可读，保留原引用，不能创建新会话替代");
-        if (index.workspace !== "none" && index.workspace !== "business") await checkpoints?.restore(id);
-        const terminal = await session.terminalRuns();
-        const open = await runtime.listOpenWork();
-
-        const reasons: string[] = [];
-        if (open.unavailable.length) reasons.push("未能查清运行时的未结束工作，暂不能安全继续");
-        if (open.items.some(item => item.origin.session === id)) reasons.push("此会话仍有中断的执行、等待或结果未知的操作，需要核对");
-        if (childrenToReconcile(id).length) reasons.push("有子任务在中断后结果待核对：核对并结束它的中断轮次后，才能开始新一轮");
-        if (terminal.some(ref => !index.attempts.some(attempt => attempt.run_id === ref.id))) reasons.push("SDK 有执行记录缺少宿主启动索引，需要核对对应关系");
-        const runs: PrologueRestoredSession["runs"] = [];
-        const unclaimed = open.unavailable.length > 0 || unclaimedWork(index, terminal, open);
-        for (const attempt of index.attempts) {
-          // A start the runtime refused never created a run; one with no reference is only unknown while some run or
-          // open item of this session is claimed by no start, because that is the only run it could have made.
-          if (!attempt.run_id) { if (!attempt.refused && unclaimed) reasons.push("一次启动没有完整保存执行引用，不能判断是否发生过操作"); continue; }
-          const ref = terminal.find(ref => ref.id === attempt.run_id);
-          const pendingQuestions = !ref ? (await runtime.effects.pendings.readByOrigin({ session: id, run: attempt.run_id })).filter(pending => pending.state !== "settled" && ["text", "questionnaire"].includes(pending.kind)) : [];
-          if (!ref) reasons.push("中断轮次仅有已保存的过程，结束状态与操作仍需核对，不会自动重复执行");
-          runs.push({ ref: { run_id: attempt.run_id, session_id: id }, frozen: attempt.frozen,
-            started_at: attempt.started_at, task: attempt.task,
-            ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
-            ...(attempt.timing ? { timing: attempt.timing } : {}),
-            ...(ref ? { terminal: true } : {}),
-            ...(!ref ? { original_questions: pendingQuestions.filter(pending => pending.origin?.run === attempt.run_id).map(pending => ({ pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind, why: pending.why })) } : {}),
-            events: ref ? await session.replay(ref) : await session.readRunProgress({ kind: "run", id: attempt.run_id, revision: 1 }) });
-        }
-        sessions.set(id, index.ref);
-        return { title: index.title, owner: index.owner, workspace: index.workspace ?? "required", runs,
-          ...(reasons.length ? { recovery: { required: true as const, reason: [...new Set(reasons)].join("；") } } : {}) };
+      restore: id => restoreSession(id),
+      async readStatus(id) {
+        const saved = await restoreSession(id, true);
+        return saved ? { owner: saved.owner, recovery: saved.recovery, latest: saved.runs.at(-1), planned: saved.planned } : undefined;
       },
     },
     async startAgentRun(input: PrologueStartInput) {
@@ -1128,7 +1142,11 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const offer = input.action_gateway?.client.offer;
       const offersDone = { offered: 0 };
       if (offer) offerRounds.set(input.session_id, offersDone); else offerRounds.delete(input.session_id);
-      const gatewayForRun = input.action_gateway && (memory || offer) ? { ...input.action_gateway, client: { ...input.action_gateway.client,
+      const client = input.action_gateway?.client;
+      const changesDone = client ? { client, invoked: [] as ExactActionReference[] } : undefined;
+      if (changesDone) changeRounds.set(input.session_id, changesDone); else changeRounds.delete(input.session_id);
+      const gatewayForRun = input.action_gateway && client ? { ...input.action_gateway, client: { ...client,
+        invoke: async (reference: ExactActionReference, value: unknown, signal?: AbortSignal) => { const result = await client.invoke(reference, value, signal); changesDone!.invoked.push(reference); return result; },
         ...(memory ? { memory: {
           remember: async (value: Parameters<typeof memory.remember>[0]) => { const kept = await memory.remember(value); memoryDone.keep += 1; return kept; },
           list: () => memory.list(),
@@ -1177,6 +1195,10 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           // Tool names, capability ids this round found, UUIDs and error codes are ours, not the person's words.
           const ids = business && !held.has("ids") ? mentionsInternalIds(text, gatewayKnown.get(sessionId) ?? []) : [];
           if (ids.length) return hold("ids", internalIdsHeld(ids));
+          // A claim of having saved or created something, from a round where no change went through. Memory has its own check.
+          const done = changeRounds.get(sessionId), kept = memoryRounds.get(sessionId);
+          if (business && created.writing && done && !held.has("saved") && !claim && !(kept && kept.keep + kept.forget) && claimsSavedChange(text)
+            && !(await changedThisRound(done))) return hold("saved", SAVED_CLAIM_HELD);
           if (!created.writing || !announcesWithoutActing(text)) return { kind: "allow" as const };
           // Continued once and still only announcing: it ends (the round then says plainly that nothing was done, see endedOnPromise).
           if (held.has("announce")) return { kind: "allow" as const };
@@ -1566,7 +1588,18 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   } });
 }
 
-type HeldKind = "memory" | "written" | "button" | "ids" | "announce";
+/** Whether any call this round finished was a change (a capability no longer offered counts as one: nothing is held then). */
+async function changedThisRound(done: { client: AgentActionClient; invoked: ExactActionReference[] }): Promise<boolean> {
+  if (!done.invoked.length) return false;
+  const views = await done.client.discover().catch(() => null);
+  if (!views) return true;
+  return done.invoked.some(reference => {
+    const view = views.find(row => row.capability_id === reference.capability_id && row.version === reference.version && row.provider.provider_id === reference.provider_id);
+    return !view || actionEffect(view.action, view.capability_id) !== "read";
+  });
+}
+
+type HeldKind = "memory" | "written" | "button" | "ids" | "saved" | "announce";
 /** How a held ending reads in the round: what was wrong with it, and that the round was let go on to correct it. */
 const HELD_LABELS: Record<HeldKind, { target: string; summary: string }> = {
   announce: { target: "上一段只说了要做什么，没有实际执行", summary: "这一轮只说明了接下来要做什么、没有调用工具，已让它接着实际去做（每轮最多一次）" },
@@ -1574,6 +1607,7 @@ const HELD_LABELS: Record<HeldKind, { target: string; summary: string }> = {
   written: { target: "上一段把调用写成了文字，并没有执行", summary: "回答里写的是调用的文字而不是调用本身，已让它真正去调用或改用平常的话回答" },
   button: { target: "上一段说按钮准备好了，但这一轮没有做出按钮", summary: "回答说按钮已经准备好，可这一轮没有成功准备操作卡，已让它真正去准备或如实更正" },
   ids: { target: "上一段写出了内部标识，已让它改用名称重写", summary: "回答里出现了工具名、能力标识或编号，已让它改用标题和名称重写" },
+  saved: { target: "上一段说已经保存或建好，但这一轮没有成功的改动", summary: "回答说已经保存或建好，可这一轮没有成功的改动，已让它真正去做或如实更正" },
 };
 
 /** The runtime's own receipts, as the developer diagnostics page shows them. */

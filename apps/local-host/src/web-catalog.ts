@@ -66,7 +66,12 @@ import { readMcpToolPreference } from "./mcp-settings-store.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
 import { codingBackgroundTasks } from "./coding-background-tasks.js";
+import { createProjectArrivalHttp } from "./project-arrival-http.js";
+import { pruneProjectArrival } from "./project-arrival.js";
 import type { ProjectDeletionWebPorts } from "./web-project-settings.js";
+
+/** One per Host, so the few-second answer a brief is good for is shared by every look at the chooser. */
+const projectArrivalHttps = new WeakMap<MolisWorkLocalHost, ReturnType<typeof createProjectArrivalHttp>>();
 
 export async function handleLocalCatalogWebRequest(
   request: IncomingMessage, response: ServerResponse, url: URL, serverOptions: WebServerOptions,
@@ -76,7 +81,7 @@ export async function handleLocalCatalogWebRequest(
   codingRuntimes: () => Promise<readonly AgentRuntimeDescriptor[]> = async () => [],
 ): Promise<void> {
   const { PAGE_CSP, handleOnboarding, renderCapsuleShell, isDesktopShellRequest, planningHttp, projectSettings, servePtyClient } = composition;
-  const { renderMolisWorkSettings, renderMolisWorkProjectIndex } = composition.workbenchRenderer;
+  const { renderMolisWorkSettings, renderMolisWorkProjectIndex, renderMolisWorkProjectBrief } = composition.workbenchRenderer;
   const { settingsProjects } = projectSettings;
   const capabilityAlias = url.pathname === "/settings/mcp" ? "access" : url.pathname === "/settings/connectors" || url.pathname === "/settings/functions" ? "connections" : null;
   if (request.method === "GET" && capabilityAlias) {
@@ -89,6 +94,12 @@ export async function handleLocalCatalogWebRequest(
     response.writeHead(302, { location: `/capabilities/library${url.search}`, "cache-control": "no-store" });
     response.end();
     return;
+  }
+  // What the project chooser shows of a project it is only looking at.
+  if (serverOptions.homeDirectory) {
+    let arrivalHttp = projectArrivalHttps.get(localHost);
+    if (!arrivalHttp) projectArrivalHttps.set(localHost, arrivalHttp = createProjectArrivalHttp({ localHost, withCatalog: composition.withCatalog, renderBrief: renderMolisWorkProjectBrief }));
+    if (await arrivalHttp(request, response, url, serverOptions.homeDirectory)) return;
   }
   // Without a project, search covers personal content only; the caller's context has no project to widen it.
   if (await handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
@@ -404,7 +415,11 @@ export async function handleLocalCatalogWebRequest(
       "cache-control": "no-store",
       "content-security-policy": PAGE_CSP,
     });
-    response.end(renderMolisWorkProjectIndex(projects, controlToken, desktopShell));
+    const remembered = pruneProjectArrival(serverOptions.homeDirectory, new Set(projects.map(project => project.project_id)));
+    response.end(renderMolisWorkProjectIndex(projects, controlToken, desktopShell, {
+      now: new Date().toISOString(), last_project_id: remembered.last_project_id,
+      opened: Object.fromEntries(Object.entries(remembered.projects).flatMap(([id, record]) => record.last_opened_at ? [[id, record.last_opened_at]] : [])),
+    }));
     return;
   }
   if (request.method === "GET" && (url.pathname === "/sessions" || url.pathname === "/workspaces")) {

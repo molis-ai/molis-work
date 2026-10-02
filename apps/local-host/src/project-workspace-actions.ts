@@ -46,8 +46,8 @@ export function projectWorkspaceActionProvider(projectId: string, sessions: Sess
       const catalog = owner(caller);
       await caller.beforeEffect();
       // Offered to the local user only; that audience is what stands for the person's confirmation.
-      return { workspace: await withCatalog(catalog, value => value.addWorkspaceProject({ canonical_path: input.workspace_path.trim(), project_id: projectId,
-        actor_id: caller.actor_id, user_confirmed: caller.audience === "user" })) };
+      return { workspace: await withCatalog(catalog, value => value.commit(() => value.addWorkspaceProject({ canonical_path: input.workspace_path.trim(), project_id: projectId,
+        actor_id: caller.actor_id, user_confirmed: caller.audience === "user" }), () => caller.beforeEffect())) };
     } },
     { ...a.repair, handle: async (caller, value) => {
       const input = value as { workspace_id: string; workspace_path: string };
@@ -57,7 +57,7 @@ export function projectWorkspaceActionProvider(projectId: string, sessions: Sess
       if (!next) throw new ActionError("actions.input_invalid", "新的工作目录必须是绝对路径");
       const { registry } = await sessions.resources();
       await caller.beforeEffect();
-      const result = await changing(() => withCatalog(catalog, value => repairProjectWorkspace({ catalog: value, registry, current: folder, canonicalPath: next.canonical_path, projectId, actorId: caller.actor_id })));
+      const result = await changing(() => withCatalog(catalog, value => value.commit(() => repairProjectWorkspace({ catalog: value, registry, current: folder, canonicalPath: next.canonical_path, projectId, actorId: caller.actor_id }), () => caller.beforeEffect())));
       return { workspace: result.workspace, updated_session_count: result.sessions.length };
     } },
     { ...a.unlink, handle: async (caller, value) => {
@@ -66,7 +66,7 @@ export function projectWorkspaceActionProvider(projectId: string, sessions: Sess
       const folder = await current(catalog, input.workspace_id);
       const { registry } = await sessions.resources();
       await caller.beforeEffect();
-      const result = await changing(() => withCatalog(catalog, value => unlinkProjectWorkspace({ catalog: value, registry, current: folder, projectId, actorId: caller.actor_id })));
+      const result = await changing(() => withCatalog(catalog, value => value.commit(() => unlinkProjectWorkspace({ catalog: value, registry, current: folder, projectId, actorId: caller.actor_id }), () => caller.beforeEffect())));
       return { changed: result.changed, updated_session_count: result.sessions.length };
     } },
   ];

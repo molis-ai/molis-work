@@ -39,6 +39,23 @@ export interface PluginBuilderRuntimeBindings {
   credentialRefFor(reference: string): Promise<ExactRef<'credential'>>;
   withDispatchGuard<T>(guard: () => void | Promise<void>, work: () => Promise<T>): Promise<T>;
 }
+/**
+ * Saves of one run record can overlap (a progress update while a step settles). Each save goes through the same temporary
+ * file, so they are queued per record: every rename finds its own file and the last save is what stays on disk.
+ */
+export function createRunRecordWriter(directory: string): (record: BuilderAgentRecord) => Promise<void> {
+  const queued = new Map<string, Promise<void>>();
+  return record => {
+    const content = JSON.stringify(record), target = join(directory, record.id + '.json'), temporary = target + '.tmp';
+    const next = (queued.get(record.id) ?? Promise.resolve()).catch(() => undefined).then(async () => {
+      await writeFile(temporary, content, { mode: 0o600 });
+      await rename(temporary, target);
+    });
+    queued.set(record.id, next);
+    void next.finally(() => { if (queued.get(record.id) === next) queued.delete(record.id); }).catch(() => undefined);
+    return next;
+  };
+}
 const registeredSkills = new WeakMap<Runtime, Map<string, Skill>>();
 /** Dedicated Builder sessions on the Home Runtime; no global grants or Coding policy changes. */
 export async function createPluginBuilderAgent(options: PluginBuilderAgentOptions, bindings: PluginBuilderRuntimeBindings) {
@@ -48,11 +65,7 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
   if (!inside || (!inside.startsWith('..') && !isAbsolute(inside))) throw new Error('Agent execution history must be outside its build directory');
   const records = join(storage, 'builder-runs');
   await mkdir(records, { recursive: true });
-  const save = async (record: BuilderAgentRecord) => {
-    const target = join(records, record.id + '.json'), temporary = target + '.tmp';
-    await writeFile(temporary, JSON.stringify(record), { mode: 0o600 });
-    await rename(temporary, target);
-  };
+  const save = createRunRecordWriter(records);
   // A process crash cannot make an old claim of "running" into a success. Host checks resume the build.
   for (const name of await readdir(records)) if (/^[a-f0-9-]+\.json$/.test(name)) {
     const record = JSON.parse(await readFile(join(records, name), 'utf8')) as BuilderAgentRecord;

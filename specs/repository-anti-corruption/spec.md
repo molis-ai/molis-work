@@ -32,7 +32,7 @@
 
 ### 2.1 改动成本
 
-- 09-28 起合入 main 的 PR：71 个。每个 PR 改动的文件数：中位数 6，p90 98，最大 615。
+- 09-28 起合入 main 的 PR：71 个。每个 PR 改动的文件数：中位数 6，p90 98，最大 615；改动的包数（`plugins/<区>/<包>` 与其他区的 `<区>/<包>`）：中位数 1，p90 11，最大 37。
 - 新增一个内置插件的实际改动面（以 Todo 为例），插件包外有 15 个文件直接接线：
   - 宿主：`todo-actions.ts`、`todo-native-plugin-http.ts`、`project-host.ts`（`registerProvider`）、`web-request.ts`、`web-catalog.ts`、`context-onboarding-service.ts`、`package.json`；
   - 工作台：`builtin-plugins.ts`、`ui-composition.ts`、`i18n/en.ts`、`scripts/client/initialization.ts`、`package.json`；
@@ -87,6 +87,7 @@
 | 宿主入口导出 | 136 行，12 个 `export *` | 不变（`apps/local-host/src/index.ts` 222 行） |
 | contracts 导出的运行时函数、类与常量 | 157 | 503（口径更宽：含 Schema 常量） |
 | 只有占位描述的 contracts subpath | 6 | 6，见 §3 R-11 |
+| 跨层依赖 | — | `boundary:check` 通过，兼容白名单 0 条；它守的是声明过的规则。按 `docs/system/PACKAGE-BOUNDARIES.md` 的层次重新数「向上」与「同层插件互引」，在分层一片里做 |
 
 ## 3. 体检报告附录 A 复核
 

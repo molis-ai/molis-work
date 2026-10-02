@@ -82,7 +82,8 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home "$HOME
   - 改共享控件先看规格板 `/__ui/catalog`。
   - 禁止系统色盘、系统日期/时间弹出、`alert`/`confirm`/`prompt` 与未换肤的 `range`。
   - 键盘焦点只用 `--focus-stroke`；动效只用 `--dur-*`、`--motion-*`、`--ease-*`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/coss-control-language.test.ts tests/visual-foundation.test.ts`
+  - 进入工作台之前的页面用到的部件（`mw-wordmark`、`mw-caption`、`mw-steps`、`mw-goal-track`、`mw-bar-context`、`mw-bar-status`、`mw-file-kind/row/group`、`mw-brief`、按钮上的 `mw-btn__key`）在这里定义，规格板的「到达」一节各有标本；页面（`apps/workbench/src/arrival/`）只排版，不重画。打字与飞入动效是一段脚本（`ARRIVAL_MOTION_CLIENT_SCRIPT`），在减少动态效果与自动化下静止。
+- 改动后必跑：`node scripts/run-tests.mjs tests/coss-control-language.test.ts tests/visual-foundation.test.ts tests/arrival-components.test.ts`
 - 相关手册：[DESIGN.md](../../DESIGN.md)、[specs/craft-finish/spec.md](../../specs/craft-finish/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

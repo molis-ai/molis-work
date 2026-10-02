@@ -14,6 +14,7 @@ import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-wor
 import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { withContextJourneys } from "../apps/local-host/src/context-onboarding-store.js";
+import { readProjectArrival } from "../apps/local-host/src/project-arrival.js";
 import { selectContextSources, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, reopenContextJourney, updateContextDraft } from "../apps/local-host/src/context-onboarding-service.js";
 import { contextSources, readContextSource, readOnboardingGmail } from "../apps/local-host/src/context-onboarding-sources.js";
 import { createContextOnboardingHttp } from "../apps/local-host/src/web-context-onboarding.js";
@@ -108,6 +109,8 @@ test('local scope → grounded summary → one real project and editable source 
   const ready=await waitContextJourney(dir,id);assert.equal(ready.phase,'review');assert.equal(calls,1);assert.equal(ready.summary?.references.length,1);updateContextDraft(dir,id,{title:'已修改的草稿',body:ready.summary!.body});assert.equal(readContextJourney(dir,id).summary!.title,'已修改的草稿');assert.match(ready.sources[1]!.error!,/连接 Google/);
   const [a,b]=await Promise.all([adoptContextJourney(dir,id,{title:'用户确认的发布',body:ready.summary!.body},ports),adoptContextJourney(dir,id,{title:'用户确认的发布'},ports)]);
   assert.equal(a.phase,'complete');assert.equal(a.project_id,b.project_id);
+  // The chooser introduces the new project in the words the person accepted: the summary's first paragraph, without its headings or [S1] marks.
+  const introduced=readProjectArrival(dir).projects[a.project_id]?.description;assert.match(introduced??'',/10 月 8 日/);assert.doesNotMatch(introduced??'',/\[S\d+\]|^#/);
   await withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.ok(!catalog.listHiddenPlugins(a.project_id).includes('pages'));});
   const pages=openPagesStore(dir);try{assert.equal(pages.list(a.project_id).length,2);const summary=pages.get(a.document_id!,a.project_id);assert.match(JSON.stringify(summary.body),/openPlugin=pages/);pages.update(summary.id,{title:'手动修改后'});}finally{pages.close();}
   await adoptContextJourney(dir,id,{title:'重复请求'},ports);
@@ -151,6 +154,7 @@ test('missing model preserves imported bodies, restart/retry does not re-read, i
 test('empty project is real, idempotent, and has no implicit root Goal',async t=>{
   const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
   const result=await adoptContextJourney(dir,id,{title:'从空白开始',blank:true},{...pagesPorts(dir)});assert.equal(result.phase,'complete');
+  assert.equal(readProjectArrival(dir).projects[result.project_id]?.description??null,null,'a blank start has no introduction to show');
   await withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,'从空白开始');});
   // There is no goal command in the new flow; inspect the actual project database.
   const {DatabaseSync}=await import('node:sqlite');const db=new DatabaseSync(join(dir,'projects',result.project_id,'molis-work.db'));try{const table=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='goals'").get();assert.ok(table);assert.equal((db.prepare('SELECT COUNT(*) AS n FROM goals').get() as {n:number}).n,0);}finally{db.close();}

@@ -4,6 +4,7 @@ import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
+import { markProjectOpened } from "./project-arrival.js";
 import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import { createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
@@ -109,7 +110,16 @@ export async function handleMolisWorkWebRequest(
   if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath) {
     await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
   }
-  const resolved = await resolveWebRequest(serverOptions, url.pathname, composition.withCatalog);
+  let resolved: Awaited<ReturnType<typeof resolveWebRequest>>;
+  try {
+    resolved = await resolveWebRequest(serverOptions, url.pathname, composition.withCatalog);
+  } catch (error) {
+    // The chooser is the way in: when the project list cannot be read it says so, and the personal space still opens.
+    if (request.method !== "GET" || url.pathname !== "/" || !serverOptions.homeDirectory) throw error;
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
+    response.end(workbenchRenderer.renderMolisWorkProjectIndex([], controlToken, isDesktopShellRequest(request, url), { now: new Date().toISOString(), last_project_id: null, opened: {}, load_error: true }));
+    return;
+  }
   if (request.method === "GET" && resolved.kind !== "project_not_found"
     && (resolved.kind === "board" ? resolved.pathname === "/" : url.pathname === "/")
     && (url.searchParams.get("openPlugin") === "functions" || url.searchParams.get("panePlugin") === "functions")) {
@@ -149,6 +159,9 @@ export async function handleMolisWorkWebRequest(
       }
       const options = resolved.options;
       url.pathname = resolved.pathname;
+      // Opening a project's own page (not a pane inside it) is what the chooser remembers it by.
+      if (request.method === "GET" && url.pathname === "/" && options.project && !url.searchParams.has("workbenchPane") && url.searchParams.get("embed") !== "1"
+        && (request.headers["sec-fetch-dest"] ?? "document") === "document") markProjectOpened(serverOptions.homeDirectory, options.project.project_id);
       if (!fs.existsSync(options.databasePath)) {
         if (url.pathname.startsWith("/api/")) {
           sendJson(response, 404, { error: "Molis Work 数据库不存在，请先初始化" });

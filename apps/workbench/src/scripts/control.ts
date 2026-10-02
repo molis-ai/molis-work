@@ -375,30 +375,3 @@ export const ONBOARDING_CLIENT_SCRIPT = `
     showStep(0);
   })();
 `;
-
-export const PROJECT_INDEX_CLIENT_SCRIPT = `
-  (() => {
-    const projectSearch = document.querySelector("[data-project-search]");
-    const projectSearchEmpty = document.querySelector("[data-project-search-empty]");
-    const applyProjectSearch = () => {
-      if (!projectSearch) return;
-      const query = projectSearch.value.trim().toLocaleLowerCase();
-      const rows = [...document.querySelectorAll("[data-project-search-row]")];
-      let visible = 0;
-      rows.forEach((row) => {
-        row.hidden = Boolean(query) && !String(row.dataset.projectSearchRow || "").includes(query);
-        if (!row.hidden) visible += 1;
-      });
-      if (projectSearchEmpty) projectSearchEmpty.hidden = visible > 0;
-    };
-    projectSearch?.addEventListener("input", applyProjectSearch);
-    projectSearch?.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape" || !projectSearch.value) return;
-      projectSearch.value = "";
-      applyProjectSearch();
-      event.preventDefault();
-    });
-  })();
-`;
-
-

@@ -11,6 +11,21 @@ import {
   MW_TYPE_TONES,
 } from "../palette.js";
 import { renderButton } from "./button.js";
+import {
+  renderBarContext,
+  renderBarStatus,
+  renderBrief,
+  renderBriefFocus,
+  renderBriefRecent,
+  renderBriefSection,
+  renderBriefStatus,
+  renderCaption,
+  renderFileGroup,
+  renderFileRow,
+  renderGoalTrack,
+  renderSteps,
+  renderWordmark,
+} from "./arrival.js";
 import { renderCalendar, renderDatePicker } from "./calendar.js";
 import {
   renderAutocomplete,
@@ -44,6 +59,7 @@ import {
   renderSeparator,
   renderSkeleton,
   renderSpinner,
+  renderStatusMark,
   renderToast,
 } from "./feedback.js";
 import {
@@ -226,6 +242,49 @@ function motionSection(): string {
       ${specimen("页面 / 插件切换 · 130ms", `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("switch", "切换页面")}</div><div class="mw-motion-pages"><section data-motion-page>Goals 页面</section><section data-motion-page hidden>Feed 页面</section></div></div>`)}
       ${specimen("Toast · 250ms", `<div class="mw-craft-row">${demo("toast", "显示提示")}</div>`)}
       ${specimen("完成时刻 · 640ms", `<p class="mw-catalog__hint">见上方「试一下 → 完成这一条」：状态换成完成、一次落定，不循环。</p>`)}
+    </div>`);
+}
+
+/** The parts the opening, the Welcome questions, the project chooser and the new-project journey share. */
+function arrivalSection(): string {
+  const monogram = renderProjectMonogram("FlyLeaf-V0.1", "flyleaf", (value) => value.replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char] ?? char));
+  const goals = [["明确使用场景", "done"], ["确认首版范围", "done"], ["完成阅读页原型", "done"], ["连接笔记链路", "done"], ["打磨首次使用", "doing"], ["邀请首批内测", "todo"]] as const;
+  const track = renderGoalTrack({ goals: goals.map(([title, state]) => ({ title, state })), label: "4 / 6 个目标完成" });
+  const next = renderBriefSection({ title: "接下来", body: `<div class="mw-brief__list">${renderDirectoryRow({ title: "检查空白状态与导入材料的完整路径", caption: "目标「打磨首次使用」", density: "meta", status: "进行中", statusTone: "progress", statusIcon: "status-progress" })}${renderDirectoryRow({ title: "确认首批内测名单", caption: "12 人", density: "meta", status: "等你确认", statusTone: "attention", statusIcon: "status-needs-you" })}</div>` });
+  const recent = renderBriefSection({ title: "最近", body: renderBriefRecent([{ when: "昨天 22:14", text: "更新了《阅读页交互说明》" }, { when: "9月29日", text: "加入 4 份用户访谈记录" }]) });
+  const brief = renderBrief({
+    kicker: `${renderBriefStatus({ label: "进行中", tone: "progress", glyph: "status-progress" })}<span>最近打开 2 小时前</span>`,
+    title: "FlyLeaf-V0.1",
+    description: "让阅读、笔记与灵感连成一条线：读到的段落直接变成笔记，笔记再长成新的创作。",
+    focus: renderBriefFocus({ label: "当前目标", count: "<b>4</b> / 6 完成", title: "打磨首次使用", body: "检查空白状态、导入材料和创建项目的完整路径。", track }),
+    sections: [next, recent],
+  });
+  const files = renderFileGroup({
+    glyph: "folder", title: "文件夹 · 文稿", caption: "~/文稿/FlyLeaf 资料 · 最近 30 天 · 含子目录", count: "2/3",
+    check: { checked: false, mixed: true }, status: renderStatusMark({ label: "已授权", tone: "done", icon: "status-done", plain: true }),
+    rows: [
+      renderFileRow({ name: "首版功能范围.md", size: "12 KB", state: '<span class="mw-file-row__state">未读取</span>', check: { checked: true } }),
+      renderFileRow({ name: "用户访谈-0926.pdf", size: "412 KB", state: '<span class="mw-file-row__state">未读取</span>', check: { checked: true } }),
+      renderFileRow({ name: "竞品笔记.md", size: "9 KB", state: '<span class="mw-file-row__state">未读取</span>', check: { checked: false } }),
+    ],
+    note: "另有 2 项因时间、类型或访问范围未列入。",
+  });
+  const added = renderFileGroup({
+    glyph: "file", title: "单独选的文件", caption: "系统选择器选中的文件",
+    remove: { label: "移除 单独选的文件" },
+    rows: [renderFileRow({ name: "FlyLeaf 品牌说明.pdf", size: "524 KB", remove: { label: "移除 FlyLeaf 品牌说明.pdf" } }), renderFileRow({ name: "首屏文案.md", size: "4 KB", remove: { label: "移除 首屏文案.md" } })],
+  });
+  return section("arrival", "到达 / Arrival", `<p class="mw-catalog__hint">打开 Molis Work 时几个画面共用的部件：开场、Welcome 的提问、项目选择页和新建项目引导，外加同一条底栏里随画面变化的内容。外框（桌面、白色工作面、底栏）不动，换画面只换里面的东西。字标和字幕的动效只动 opacity 与 transform，减少动态效果时直接显示结果。</p>
+    <div class="mw-catalog__specimens">
+      ${mark("wordmark", specimen("字标 · 打字机", `<div class="mw-arrival-demo">${renderWordmark({ attrs: { "data-arrival-wordmark": true } })}${renderButton({ label: "重播", variant: "secondary", size: "sm", attrs: { "data-arrival-demo": "wordmark" } })}</div>`))}
+      ${mark("caption", specimen("AI 字幕 · A / I 常驻，词组变换", renderCaption({ label: "暂停标题动画", playLabel: "播放标题动画", title: "点按暂停或播放" })))}
+      ${mark("steps", specimen("进度短线 · 已完成、当前、未到", `<div class="mw-arrival-bar-strip">${renderSteps({ total: 6, current: 2, label: "引导进度" })}</div>`))}
+      ${specimen("按钮 · 标明回车键", `${renderButton({ label: "继续", variant: "primary", size: "lg", key: "↵" })}${renderButton({ label: "返回项目", variant: "ghost", size: "lg", icon: "back" })}`)}
+      ${mark("bar-context", specimen("底栏 · 左：正在看的是谁", `<div class="mw-arrival-bar-strip">${renderBarContext({ mark: monogram, title: "FlyLeaf-V0.1", caption: "预览中 · 回车进入" })}</div>`))}
+      ${mark("bar-status", specimen("底栏 · 中：正在发生什么", `<div class="mw-arrival-bar-strip">${renderBarStatus({ spin: true, title: "正在整理工作脉络", caption: "可以离开，回来后接着整理" })}${renderBarStatus({ glyph: "shield", title: "已选 11 份 · 1.5 MB", caption: "开始后读取正文并发给所选模型整理" })}</div>`))}
+      ${mark("goal-track", specimen("目标条 · 一段一个目标", `<div class="mw-arrival-wide">${track}</div>`))}
+      ${mark("file-list", specimen("材料清单 · 勾选与分组勾选", `<div class="mw-arrival-wide">${files}${added}</div>`))}
+      ${mark("brief", specimen("项目简介 · 目录与详情的详情", `<div class="mw-arrival-brief">${brief}</div>`))}
     </div>`);
 }
 
@@ -596,6 +655,7 @@ export function renderPrimitiveCatalog(): string {
     ${iconInventorySection()}
     ${craftSection()}
     ${motionSection()}
+    ${arrivalSection()}
     ${choiceSection}
     ${composeSection}
     ${section("plugin-composition", "插件页面组合", renderPluginPresentationExample())}

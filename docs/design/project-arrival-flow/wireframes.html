@@ -1,0 +1,467 @@
+<title>打开 Molis Work 线框</title>
+<style>
+/* 低保真线框板：灰阶 + 组件板的角色色（珍珠灰桌面、白色工作面、石墨主操作、铜色只给焦点与进行中）。
+   每屏按 1440×900 的真实比例绘制再缩放；底栏在所有屏里是同一个组件。 */
+:root {
+  --board: #f1f0ec; --board-ink: #1f1f1d; --board-muted: #69685f; --board-line: #dcdad3;
+  --desk: #e8e7e2; --paper: #ffffff; --soft: #f6f5f2; --rail: #efeeea; --line: #e3e2dc;
+  --ink: #232321; --ink-2: #4a4944; --muted: #8a8981; --bar-g: #dddcd6;
+  --action: #2a2a28; --nav-active: #ebeae6; --accent: #93604b; --accent-soft: #f3e8e2;
+  --green: #3b7a52; --amber: #9a6a14; --red: #b4341b;
+  --pin: #93604b;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--board); color: var(--board-ink); font: 14px/1.6 -apple-system, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+.board { max-width: 1320px; margin: 0 auto; padding: 40px 24px 96px; }
+.board > header { display: grid; gap: 10px; padding-bottom: 28px; border-bottom: 1px solid var(--board-line); }
+.board h1 { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -.01em; }
+.board .intro { margin: 0; max-width: 46em; color: var(--board-muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 4px 0 0; padding: 0; list-style: none; font-size: 12.5px; color: var(--board-muted); }
+.legend li { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,.08); }
+.sec { padding-top: 44px; }
+.sec > h2 { margin: 0 0 4px; font-size: 21px; font-weight: 600; }
+.sec > p { margin: 0 0 18px; max-width: 52em; color: var(--board-muted); }
+.grid { display: grid; gap: 28px 24px; }
+.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.card { min-width: 0; display: grid; gap: 10px; align-content: start; }
+.card > h3 { margin: 0; font-size: 14.5px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
+.card > h3 span { font-weight: 400; color: var(--board-muted); font-size: 13px; }
+.notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 12.5px; color: var(--board-ink); }
+.notes li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 6px; }
+.notes b { display: inline-grid; place-items: center; width: 17px; height: 17px; margin-top: 1px; border-radius: 50%; background: var(--pin); color: #fff; font-size: 10.5px; font-weight: 600; }
+.notes em { font-style: normal; color: var(--board-muted); }
+.notes code { font: 11.5px ui-monospace, "SF Mono", Menlo, monospace; background: #e7e5df; padding: 0 4px; border-radius: 4px; }
+
+/* 一屏：1440×900 的真实比例，按容器宽度缩放 */
+.shot { position: relative; width: 100%; aspect-ratio: 1440 / 900; overflow: hidden; border-radius: 10px; box-shadow: 0 0 0 1px rgba(0,0,0,.06), 0 10px 30px rgba(0,0,0,.08); background: var(--desk); }
+.frame { position: absolute; left: 0; top: 0; width: 1440px; height: 900px; transform-origin: 0 0; transform: scale(var(--s, .5)); color: var(--ink); font-size: 14px; line-height: 1.5; }
+.shot.bar-only { aspect-ratio: 1440 / 84; }
+.shot.bar-only .frame { height: 84px; }
+
+/* 标题栏 */
+.tb { position: absolute; left: 0; right: 0; top: 0; height: 48px; display: flex; align-items: center; gap: 14px; padding: 0 18px; }
+.lights { display: flex; gap: 8px; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; background: #d3d2cc; }
+.wm { font-weight: 600; font-size: 16px; letter-spacing: -.01em; color: var(--ink); margin-left: 14px; }
+.wm .caret { display: inline-block; width: 2px; height: 15px; margin-left: 2px; vertical-align: -2px; background: var(--accent); }
+.ai { color: var(--muted); font-size: 14px; }
+.ai b { color: var(--ink); font-weight: 500; }
+.tb .sp { flex: 1; }
+.tool { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; color: var(--ink-2); font-size: 13px; }
+.tool .n { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--ink); color: #fff; font-size: 10.5px; display: inline-grid; place-items: center; }
+.g { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.6px solid currentColor; opacity: .7; flex: none; }
+.g.c { border-radius: 50%; }
+
+/* 工作面与底栏 */
+.paper { position: absolute; left: 10px; right: 10px; top: 48px; bottom: 84px; border-radius: 14px; background: var(--paper); box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 10px 26px rgba(0,0,0,.05); overflow: hidden; }
+.paper.full { bottom: 84px; }
+.bar { position: absolute; left: 10px; right: 10px; bottom: 10px; height: 64px; display: grid; grid-template-columns: 300px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 0 6px 0 8px; }
+.bar .left, .bar .right { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bar .right { justify-content: flex-end; }
+.ctx { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ctx strong { display: block; font-weight: 500; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctx small { display: block; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.mono { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none; background: #c9b6a8; color: #fff; font-weight: 600; font-size: 13px; }
+.mono.b { background: #8ea3b8; } .mono.c { background: #9bb39f; } .mono.d { background: #b8a07a; } .mono.e { background: #a79bb8; } .mono.f { background: #b8919a; } .mono.p { background: var(--rail); color: var(--ink-2); }
+.mono.sm { width: 26px; height: 26px; font-size: 11.5px; }
+.composer { height: 46px; border-radius: 15px; background: var(--paper); box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 18px rgba(0,0,0,.06); display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; color: var(--muted); font-size: 13.5px; min-width: 0; }
+.composer > span:not(.g) { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.composer .send { width: 30px; height: 30px; border-radius: 9px; background: var(--bar-g); }
+.status { display: flex; align-items: center; gap: 10px; min-width: 0; padding-left: 4px; }
+.status .si { width: 30px; height: 30px; border-radius: 9px; background: var(--rail); flex: none; display: grid; place-items: center; }
+.status .spin { width: 13px; height: 13px; border-radius: 50%; border: 2px solid #cfcdc6; border-top-color: var(--ink); }
+.status strong { display: block; font-weight: 500; font-size: 13.5px; white-space: nowrap; }
+.status small { display: block; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.back { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px; border-radius: 8px; font-weight: 500; font-size: 13.5px; }
+.ticks { display: flex; gap: 5px; align-items: center; }
+.ticks i { width: 16px; height: 3px; border-radius: 2px; background: #cfcdc6; }
+.ticks i.on { width: 26px; background: var(--accent); }
+.ticks i.done { background: #b9a59a; }
+
+/* 组件板控件（低保真） */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 40px; padding: 0 16px; border-radius: 8px; font-weight: 500; font-size: 13.5px; white-space: nowrap; }
+.btn.sm { height: 32px; padding: 0 12px; font-size: 13px; }
+.btn.primary { background: var(--action); color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.12), 0 4px 10px rgba(0,0,0,.08); }
+.btn.secondary { background: var(--rail); color: var(--ink); }
+.btn.quiet { color: var(--ink-2); }
+.btn.off { background: #e2e1dc; color: #a4a39c; box-shadow: none; }
+.kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.18); font-size: 11px; }
+.btn.secondary .kbd, .btn.off .kbd { background: rgba(0,0,0,.06); }
+.input { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border-radius: 8px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); font-size: 13.5px; }
+.input.val { color: var(--ink); }
+.input.focus { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
+.input .k { margin-left: auto; font-size: 11px; padding: 0 5px; border-radius: 4px; background: var(--rail); color: var(--muted); }
+.textarea { height: 104px; align-items: flex-start; padding-top: 8px; line-height: 1.65; }
+.choice-group { display: flex; gap: 10px; flex-wrap: wrap; }
+.choice { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-width: 150px; height: 46px; padding: 0 14px; border-radius: 10px; background: var(--paper); box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.05); font-weight: 500; font-size: 14px; }
+.choice.on { background: var(--action); color: #fff; }
+.choice small { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted); }
+.choice.on small { color: rgba(255,255,255,.7); }
+.choice .ck { font-size: 14px; }
+.choice.wide { min-width: 0; flex: 1 1 calc(50% - 10px); height: 54px; }
+.toggle { display: inline-flex; padding: 3px; gap: 2px; border-radius: 9px; background: var(--rail); font-size: 12.5px; }
+.toggle span { height: 28px; padding: 0 10px; border-radius: 7px; display: grid; place-items: center; color: var(--ink-2); }
+.toggle span.on { background: var(--paper); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.cb { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.cb i { width: 16px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px #b9b8b1; display: grid; place-items: center; font-style: normal; font-size: 11px; color: #fff; }
+.cb i.on { background: var(--action); box-shadow: none; }
+.cb i.mix { background: var(--action); box-shadow: none; }
+.sm-st { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.sm-st::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #b9b8b1; }
+.sm-st.prog::before { background: var(--accent); }
+.sm-st.ok::before { background: var(--green); }
+.sm-st.wait::before { background: var(--amber); }
+.sm-st.ai::before { background: #8a6fb0; }
+.sm-st.idle::before { background: #c4c3bc; }
+.progress { height: 6px; border-radius: 3px; background: var(--rail); overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.meter { display: grid; gap: 6px; }
+.meter p { margin: 0; display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ink-2); }
+.meter b { font-weight: 600; color: var(--ink); }
+.empty { display: grid; justify-items: start; gap: 10px; }
+.empty .mark { width: 40px; height: 40px; border-radius: 12px; background: var(--rail); display: grid; place-items: center; }
+.empty h4 { margin: 0; font-size: 18px; font-weight: 600; }
+.empty p { margin: 0; color: var(--ink-2); font-size: 13.5px; }
+.alert { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: #f8e8e3; color: #7c2a16; font-size: 13px; }
+.bars { display: grid; gap: 7px; }
+.bars i { display: block; height: 8px; border-radius: 4px; background: var(--rail); }
+
+/* 目录行（Directory Row · meta 密度） */
+.dir { display: grid; gap: 2px; }
+.dir-h { display: flex; justify-content: space-between; padding: 14px 10px 6px; font-size: 12px; color: var(--muted); }
+.row { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 52px; padding: 8px 10px; border-radius: 10px; }
+.row.dense { min-height: 36px; padding: 4px 10px; }
+.row.on { background: var(--nav-active); }
+.row .t { min-width: 0; }
+.row .t strong { display: block; font-weight: 500; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .t small { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .tr { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; display: flex; gap: 8px; align-items: center; }
+.row .ic { width: 28px; height: 28px; border-radius: 8px; background: var(--rail); display: grid; place-items: center; color: var(--ink-2); flex: none; }
+.row .ext { min-width: 34px; height: 18px; border-radius: 5px; background: var(--rail); font: 600 9.5px/18px ui-monospace, Menlo, monospace; text-align: center; color: var(--ink-2); }
+.row.dense .t strong { font-weight: 400; font-size: 13px; }
+.rowx { margin: 0 10px 8px 48px; padding: 14px; border-radius: 10px; background: var(--soft); display: grid; gap: 12px; }
+.lbl { font-size: 12px; color: var(--muted); margin: 0; }
+
+/* 屏内的两栏 */
+.split { position: absolute; inset: 0; display: grid; grid-template-columns: 380px minmax(0, 1fr); }
+.split.wide { grid-template-columns: 440px minmax(0, 1fr); }
+.col-l { background: var(--soft); padding: 22px 18px; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: hidden; }
+.col-r { padding: 40px 56px; display: flex; flex-direction: column; gap: 22px; min-width: 0; overflow: hidden; }
+.hello h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -.01em; }
+.hello p { margin: 2px 0 0; color: var(--ink-2); font-size: 13.5px; }
+.q h1 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
+.q p { margin: 6px 0 0; color: var(--ink-2); font-size: 13.5px; }
+.kick { display: flex; gap: 10px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.d-title { margin: 6px 0 0; font-size: 34px; font-weight: 600; letter-spacing: -.02em; }
+.d-desc { margin: 8px 0 0; max-width: 40em; color: var(--ink-2); font-size: 15px; line-height: 1.7; }
+.sect h5 { margin: 0 0 10px; display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 40px; }
+.nx { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+.nx:first-child { border-top: 0; }
+.nx small { display: block; color: var(--muted); font-size: 12px; }
+.nx .dot { width: 22px; height: 22px; border-radius: 7px; background: var(--rail); }
+.rec { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.rec:first-child { border-top: 0; }
+.rec span:first-child { color: var(--muted); font-size: 12px; }
+.facts { display: flex; gap: 22px; font-size: 12.5px; color: var(--muted); margin-top: auto; }
+.privacy { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.coll { display: flex; gap: 6px; align-items: center; font-size: 12.5px; font-weight: 500; }
+
+/* 编号标注 */
+.pin { position: absolute; z-index: 5; width: 26px; height: 26px; border-radius: 50%; background: var(--pin); color: #fff; font: 600 13px/26px -apple-system, system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 3px rgba(255,255,255,.9); }
+
+/* 开场 */
+.glow { position: absolute; inset: 0; background: radial-gradient(60% 70% at 18% 12%, rgba(240, 214, 196, .9), rgba(240, 214, 196, 0) 70%), radial-gradient(40% 40% at 92% 96%, rgba(226, 228, 232, .9), rgba(226, 228, 232, 0) 70%); }
+.big-wm { position: absolute; left: 120px; bottom: 210px; font-weight: 600; font-size: 168px; letter-spacing: -.055em; line-height: .9; color: var(--ink); }
+.big-wm .caret { display: inline-block; width: 64px; height: 8px; margin-left: 8px; background: var(--ink); vertical-align: 6px; }
+.big-ai { position: absolute; left: 126px; bottom: 420px; font-size: 34px; letter-spacing: -.02em; color: var(--muted); }
+.big-ai b { color: var(--ink); font-weight: 500; }
+.timeline { position: absolute; left: 126px; right: 120px; bottom: 120px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; font-size: 13px; color: var(--ink-2); }
+.timeline div { border-top: 2px solid #cfcdc6; padding-top: 10px; }
+.timeline div.on { border-top-color: var(--accent); }
+.greet { position: absolute; left: 380px; top: 0; height: 48px; display: flex; align-items: center; font-size: 13px; color: var(--ink-2); }
+
+/* 动线 */
+.flows { display: grid; gap: 14px; }
+.lane { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 14px; align-items: start; padding: 16px; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.05); }
+.lane > b { font-size: 13.5px; padding-top: 6px; }
+.steps { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.st { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 8px; background: var(--rail); font-size: 13px; white-space: nowrap; }
+.st.key { background: var(--action); color: #fff; }
+.ar { color: var(--board-muted); font-size: 13px; }
+.branch { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-left: 18px; font-size: 12.5px; color: var(--board-muted); }
+.branch::before { content: '↳'; }
+
+@media (max-width: 900px) {
+  .grid.two, .grid.three { grid-template-columns: minmax(0, 1fr); }
+  .lane { grid-template-columns: minmax(0, 1fr); }
+  .board { padding: 24px 16px 64px; }
+}
+</style>
+
+<main class="board" id="board">
+  <header>
+    <h1>打开 Molis Work · 线框</h1>
+    <p class="intro">低保真：只定结构、动线、组件和每屏底栏的内容，不定视觉细节。每屏按 1440×900 的真实比例绘制。项目、材料和整理结果都是示例数据，没有接入真实项目。需求书：specs/project-arrival-flow/spec.md。</p>
+    <ul class="legend">
+      <li><span class="sw" style="background:var(--desk)"></span>桌面（标题栏与底栏所在）</li>
+      <li><span class="sw" style="background:#fff"></span>工作面</li>
+      <li><span class="sw" style="background:var(--soft)"></span>目录列 / 内部块</li>
+      <li><span class="sw" style="background:var(--action)"></span>主操作与选中的选项</li>
+      <li><span class="sw" style="background:var(--accent)"></span>焦点、进行中、编号标注</li>
+    </ul>
+  </header>
+  <div id="content"></div>
+</main>
+
+<script>
+(() => {
+  /* ───────── 线框零件：都对应组件板里的一个组件 ───────── */
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const pin = (n, x, y) => `<i class="pin" style="left:${x}px;top:${y}px">${n}</i>`;
+  const g = (c = '') => `<span class="g ${c}"></span>`;
+  const btn = (label, kind = 'primary', o = {}) => `<span class="btn ${kind}${o.sm ? ' sm' : ''}${o.off ? ' off' : ''}">${o.icon ? g() : ''}${esc(label)}${o.enter ? '<span class="kbd">↵</span>' : ''}${o.arrow ? ' →' : ''}</span>`;
+  const input = (text, o = {}) => `<div class="input${o.val ? ' val' : ''}${o.focus ? ' focus' : ''}${o.area ? ' textarea' : ''}"${o.style ? ` style="${o.style}"` : ''}>${o.icon === false ? '' : g('c')}<span>${esc(text)}</span>${o.k ? `<span class="k">${o.k}</span>` : ''}</div>`;
+  const choice = (label, on, sub, wide) => `<span class="choice${on ? ' on' : ''}${wide ? ' wide' : ''}"><span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span><span class="ck">${on ? '✓' : ''}</span></span>`;
+  const toggle = (items, on) => `<span class="toggle">${items.map((t, i) => `<span class="${i === on ? 'on' : ''}">${t}</span>`).join('')}</span>`;
+  const cb = (label, state) => `<span class="cb"><i class="${state === 1 ? 'on' : state === 2 ? 'mix' : ''}">${state === 1 ? '✓' : state === 2 ? '–' : ''}</i>${label}</span>`;
+  const st = (tone, label) => `<span class="sm-st ${tone}">${esc(label)}</span>`;
+  const progress = (v, m) => `<div class="progress"><i style="width:${(v / m) * 100}%"></i></div>`;
+  const mono = (ch, c = '', sm) => `<span class="mono ${c}${sm ? ' sm' : ''}">${esc(ch)}</span>`;
+  const row = ({ lead = '', t, s = '', tr = '', on, dense, style = '' }) => `<div class="row${on ? ' on' : ''}${dense ? ' dense' : ''}"${style ? ` style="${style}"` : ''}>${lead || '<span></span>'}<span class="t"><strong>${t}</strong>${s ? `<small>${s}</small>` : ''}</span><span class="tr">${tr}</span></div>`;
+  const icon = (c = '') => `<span class="ic">${g(c)}</span>`;
+  const ext = (e) => `<span class="ext">${e}</span>`;
+
+  /* 标题栏：字标 + AI 字幕 + 全局入口 */
+  const titlebar = (o = {}) => `<div class="tb"><span class="lights"><i></i><i></i><i></i></span>
+    <span class="wm">${o.wm ?? 'Molis Work'}${o.caret ? '<i class="caret"></i>' : ''}</span>${o.ai === false ? '' : `<span class="ai">${o.ai ?? '<b>A</b>mplify <b>I</b>deas'}</span>`}
+    <span class="sp"></span>${o.tools === false ? '' : `<span class="tool">${g()}后台任务<span class="n">1</span></span><span class="tool">${g()}能力</span><span class="tool">${g()}设置</span>`}</div>`;
+
+  /* 同一条底栏：左 · 中 · 右，只换内容 */
+  const bar = ({ left = '', center = '', right = '' }) => `<div class="bar"><div class="left">${left}</div><div class="center">${center}</div><div class="right">${right}</div></div>`;
+  const composer = (ph) => `<div class="composer">${g()}<span>${esc(ph)}</span><i class="send"></i></div>`;
+  const status = (strong, small, spin) => `<div class="status"><span class="si">${spin ? '<i class="spin"></i>' : g()}</span><span><strong>${esc(strong)}</strong><small>${esc(small)}</small></span></div>`;
+  const ticks = (n, cur) => `<span class="ticks">${Array.from({ length: n }, (_, i) => `<i class="${i < cur ? 'done' : i === cur ? 'on' : ''}"></i>`).join('')}</span>`;
+  const backLeft = (n, cur, label = '← 返回项目') => `<span class="back">${label}</span>${ticks(n, cur)}`;
+  const ctx = (m, name, sub) => `<div class="ctx">${m}<span><strong>${esc(name)}</strong><small>${esc(sub)}</small></span></div>`;
+
+  const bars = {
+    chooser: (name = 'FlyLeaf-V0.1', m = mono('F')) => bar({ left: ctx(m, name, '预览中 · 回车进入'), center: composer(`问问「${name}」的进展，或交给助理一项工作…`), right: btn('＋ 新建项目', 'secondary') + btn('进入项目', 'primary', { enter: true }) }),
+    personal: () => bar({ left: ctx(mono('你', 'p'), '个人空间', '预览中 · 回车进入'), center: composer('在个人空间里，让助理做点什么…'), right: btn('＋ 新建项目', 'secondary') + btn('进入个人空间', 'primary', { enter: true }) }),
+    none: () => bar({ left: ctx(mono('?', 'p'), '没有匹配的项目', '助理在个人空间里工作'), center: composer('让助理做点什么…'), right: btn('＋ 新建项目', 'secondary') + btn('进入项目', 'primary', { enter: true, off: true }) }),
+    opening: () => bar({ left: '', center: '', right: btn('开始', 'primary', { enter: true }) }),
+    welcome: (cur) => bar({ left: (cur ? '<span class="back">上一步</span>' : '<span class="back" style="color:var(--muted)">稍后再说</span>') + ticks(6, cur), center: '', right: btn('继续', 'primary', { enter: true }) }),
+    sources: (n) => bar({ left: backLeft(4, 0), center: n ? status(`已添加 ${n} 份材料`, '4 组 · 1.5 MB · 正文尚未读取') : status('还没有材料', '添加至少一份，或空白开始'), right: btn('空白开始', 'secondary') + btn('确认范围', 'primary', { enter: true, off: !n }) }),
+    scope: (model = true) => bar({ left: backLeft(4, 1), center: status('已选 10 份 · 1.5 MB', model ? '开始后读取正文并发给 MiniMax 整理' : '开始后读取正文，暂存在本机'), right: btn('上一步', 'secondary') + btn(model ? '开始整理' : '带入资料，先开始', 'primary', { enter: true }) }),
+    organize: () => bar({ left: backLeft(4, 2), center: status('正在读入 8 / 11 份', '可以离开，回来后接着整理', true), right: btn('在后台继续', 'secondary') + btn('整理中', 'primary', { off: true }) }),
+    result: () => bar({ left: backLeft(4, 3), center: status('项目建议已就绪 · 3 项待办', '摘要、来源快照和勾选的待办会一起保存'), right: btn('调整来源', 'secondary') + btn('采用，加入 3 项待办并开始', 'primary', { enter: true }) }),
+    blank: () => bar({ left: backLeft(4, -1), center: status('空白项目', '将创建「秋季内容计划」'), right: btn('带入材料', 'secondary') + btn('创建项目', 'primary', { enter: true }) }),
+    project: () => bar({ left: `<span class="back">${g()} 项目首页</span>${['', '', '', '', ''].map((_, i) => `<span class="mono p sm" style="border-radius:9px;${i === 0 ? 'background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.1)' : 'background:transparent'}">${g()}</span>`).join('')}`, center: composer('在「FlyLeaf-V0.1」里，让助理做点什么…'), right: `<span class="mono p sm" style="background:transparent">${g()}</span><span class="mono p sm" style="background:transparent">${g()}</span><span class="mono p sm" style="background:transparent">${g()}</span>${mono('F')}` }),
+  };
+
+  /* ───────── 项目选择页 ───────── */
+  const PROJECTS = [
+    ['F', '', 'FlyLeaf-V0.1', '打磨首次使用 · 1 项等你确认', '4/6'],
+    ['G', 'b', 'GoalBoard 信息流工作台重设计', '信息流关联目标 · 昨天 18:40', '2/5'],
+    ['C', 'c', 'Coding 开发沙盒', '用真实任务验收 · 昨天 11:05', '3/4'],
+    ['G', 'd', 'GoalBoard 发布验收', '安装包签名 · 9月29日', '1/4'],
+    ['G', 'e', 'GoalBoard 架构与包重组', '旧插件路径迁移 · 9月27日', '2/4'],
+    ['A', 'f', 'ASTRALO', '数据源评估 · 9月24日', '1/3'],
+    ['G', 'b', 'GoalBoard Product Demo', '演示数据 · 目标全部完成', '3/3'],
+    ['F', 'c', 'Footballnia', '还没有目标 · 9月12日', '—'],
+    ['C', 'd', 'ceshi', '还没有目标 · 8月30日', '—'],
+  ];
+  function directory(o = {}) {
+    const sel = o.sel ?? 0;
+    const list = o.list ?? PROJECTS;
+    const head = o.hello === false ? '' : `<div class="hello"><h1>下午好</h1><p>${o.helloSub ?? '上次在 FlyLeaf-V0.1 · 2 小时前'}</p></div>`;
+    const rows = list.map((p, i) => row({ lead: mono(p[0], p[1], true), t: esc(p[2]), s: esc(p[3]), tr: p[4], on: i === sel })).join('');
+    return `<div class="col-l">${head}${input(o.q ?? '搜索项目', { k: '⌘K', val: !!o.q, focus: !!o.q })}
+      <div class="dir">${o.personal === false ? '' : row({ lead: mono('你', 'p', true), t: '个人空间', s: '灵光 12 · Shelf 34 · 待办 5', on: sel === -1 })}
+      ${o.listHead === false ? '' : `<div class="dir-h"><span>项目 · ${list.length}</span><span>最近打开</span></div>`}${o.extra ?? ''}${rows}</div></div>`;
+  }
+  function detail(o = {}) {
+    const next = (o.next ?? [['prog', '由你推进', '检查空白状态与导入材料的完整路径', '目标「打磨首次使用」'], ['wait', '等你确认', '确认首批内测名单', '12 人'], ['ai', '助理在做', '整理 5 份用户访谈纪要', '3/5']])
+      .map(([tone, word, t, s]) => `<div class="nx"><span class="dot"></span><span>${esc(t)}<small>${esc(s)}</small></span>${st(tone, word)}</div>`).join('');
+    const recent = [['昨天 22:14', '更新了《阅读页交互说明》'], ['9月29日', '加入 4 份用户访谈记录'], ['9月28日', '完成目标「连接笔记链路」']].map(([w, t]) => `<div class="rec"><span>${w}</span><span>${t}</span></div>`).join('');
+    return `<div class="col-r">
+      <div><div class="kick">${st(o.tone ?? 'prog', o.stateWord ?? '进行中')}<span>${o.kickRest ?? '最近打开 2 小时前 · 18 份材料'}</span></div>
+      <h2 class="d-title">${o.name ?? 'FlyLeaf-V0.1'}</h2>${o.desc === false ? '' : `<p class="d-desc">${o.desc ?? '让阅读、笔记与灵感连成一条线：读到的段落直接变成笔记，笔记再长成新的创作。'}</p>`}${o.descSlot ?? ''}</div>
+      ${o.goals ?? `<div class="sect"><h5><span>目标</span><span>4 / 6 完成</span></h5>${progress(4, 6)}<p style="margin:10px 0 0;font-size:13.5px">当前：<b style="font-weight:500">打磨首次使用</b><span style="color:var(--muted)"> · 下一个：邀请首批内测</span></p></div>`}
+      ${o.cols ?? `<div class="cols"><div class="sect"><h5><span>接下来</span></h5>${next}</div><div class="sect"><h5><span>最近</span></h5>${recent}</div></div>`}
+      ${o.facts === false ? '' : `<div class="facts"><span>材料 18 份</span><span>文档 7 篇</span><span>~/Molis/FlyLeaf-V0.1</span></div>`}</div>`;
+  }
+  const chooser = (o = {}) => `${titlebar(o.tb)}<div class="paper"><div class="split">${directory(o.dir)}${o.right ?? detail(o.detail)}</div></div>${o.bar ?? bars.chooser()}${o.pins ?? ''}`;
+
+  /* ───────── 引导 ───────── */
+  const SOURCES = [['文件夹资料', '选择一个工作文件夹中的文本资料'], ['单独选文件', 'PDF、Word、Markdown 和文本文件'], ['浏览器内容', '粘贴网页正文与来源网址'], ['Gmail', 'Molis 尚未配置 Google 接入'], ['聊天记录', '导入飞书、Slack 等导出的文本']];
+  function sources(o = {}) {
+    const states = o.states ?? ['待添加', '待添加', '待添加', '暂不可连接', '待添加'];
+    return SOURCES.map(([t, s], i) => row({ lead: icon(), t: i === 3 ? `<span style="color:var(--muted)">${t}</span>` : t, s, tr: `${states[i]} ⌄`, on: o.open === i }) + (o.open === i ? `<div class="rowx">
+      <p class="lbl">位置</p><div class="choice-group">${choice('文稿', true, '笔记和资料', true)}${choice('桌面', false, '正在处理的内容', true)}${choice('最近下载', false, '下载的工作文件', true)}${choice('其他文件夹', false, '用系统选择器选', true)}</div>
+      <p class="lbl">时间范围</p><div style="display:flex;justify-content:space-between;align-items:center">${toggle(['7 天', '30 天', '90 天', '全部'], 1)}${cb('整个子目录', 1)}</div>
+      <div style="display:flex;gap:10px;align-items:center">${btn('选择并授权', 'primary', { sm: true })}<span style="font-size:12px;color:var(--muted)">先列出文件名，开始整理后才读正文</span></div></div>` : '')).join('');
+  }
+  const obLeft = (q, sub, body, foot = '') => `<div class="col-l" style="gap:14px"><div class="q"><h1>${q}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${body}${foot ? `<div style="margin-top:auto">${foot}</div>` : ''}</div>`;
+  const privacy = (t) => `<p class="privacy">${g()}${t}</p>`;
+  const GROUPS = [
+    ['文件夹 · 文稿', '~/文稿/FlyLeaf 资料 · 最近 30 天 · 含子目录', [['MD', '首版功能范围.md', '12 KB'], ['DOCX', '阅读页交互说明.docx', '86 KB'], ['PDF', '用户访谈-0926.pdf', '412 KB'], ['PDF', '用户访谈-0928.pdf', '388 KB'], ['MD', '竞品笔记.md', '9 KB'], ['MD', '设计评审纪要.md', '15 KB'], ['TXT', '内测招募文案.txt', '3 KB']], '另有 2 项因时间或类型未列入'],
+    ['单独选的文件', '系统选择器选中的文件', [['PDF', 'FlyLeaf 品牌说明.pdf', '524 KB'], ['MD', '首屏文案.md', '4 KB']]],
+    ['网页正文', 'readwise.io · 粘贴的正文', [['TXT', '网页正文 · 1,240 字', '4 KB']]],
+    ['聊天记录', '导出的文本记录', [['TXT', '飞书导出 · FlyLeaf 产品群 0901–0930.txt', '48 KB']]],
+  ];
+  function materials(scope) {
+    return GROUPS.map(([t, s, files, note], gi) => row({ lead: scope ? cb('', gi === 0 ? 2 : 1).replace('</span>', '</span>') : icon(), t, s, tr: scope ? `${gi === 0 ? '6/7' : `${files.length}/${files.length}`} · 已授权` : (gi === 0 ? st('ok', '已授权') : '') }) + files.map(([e, n, sz], fi) => row({ lead: scope ? `<span style="display:flex;gap:8px;align-items:center">${cb('', gi === 0 && fi === 6 ? 0 : 1)}${ext(e)}</span>` : ext(e), t: esc(n), tr: scope ? `${sz} · 未读取` : sz, dense: true, style: 'margin-left:38px' })).join('') + (note && !scope ? `<p style="margin:2px 0 8px 48px;font-size:12px;color:var(--muted)">${note}</p>` : '')).join('');
+  }
+  const obRight = (body) => `<div class="col-r" style="padding:32px 48px;gap:16px">${body}</div>`;
+  const stageHead = (t, s) => `<div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid var(--line);padding-bottom:12px"><h2 style="margin:0;font-size:22px;font-weight:600">${t}</h2><span style="font-size:13px;color:var(--muted)">${s}</span></div>`;
+  const onboard = (left, right, b, pins = '') => `${titlebar({ ai: false })}<div class="paper"><div class="split wide">${left}${right}</div></div>${b}${pins}`;
+
+  /* ───────── 屏 ───────── */
+  const S = {};
+  S.openingNew = () => `<div class="glow"></div>${titlebar({ wm: '', ai: false, tools: false })}
+    <div class="big-ai"><b>A</b>waken <b>I</b>magination</div><div class="big-wm">Molis Work<i class="caret"></i></div>
+    <div class="timeline"><div class="on">0–0.6s · 暖光渐亮</div><div class="on">0.25–2.0s · 字标逐字打出</div><div class="on">2.0s · 光标闪三下，AI 字幕开始变换</div><div>2.4s · 「开始 ↵」出现</div></div>
+    ${bars.opening()}${pin(1, 78, 470)}${pin(2, 78, 690)}${pin(3, 1320, 778)}`;
+  S.returningT0 = () => chooser({ tb: { wm: 'Mol', caret: true, ai: '' }, pins: pin(1, 1220, 778) + pin(2, 150, 11) });
+  S.returningT2 = () => chooser({ tb: { caret: false }, pins: pin(1, 300, 11) + pin(2, 378, 70) });
+  S.chooser = () => chooser({ pins: pin(1, 378, 70) + pin(2, 378, 122) + pin(3, 378, 250) + pin(4, 1396, 100) + pin(5, 1396, 228) + pin(6, 1396, 300) + pin(7, 20, 776) + pin(8, 420, 776) + pin(9, 1290, 776) + pin(10, 290, 11) });
+  S.ceshi = () => chooser({
+    dir: { sel: 8 }, bar: bars.chooser('ceshi', mono('C', 'd')),
+    detail: { tone: 'idle', stateWord: '未设目标', kickRest: '最近打开 8月30日 · 0 份材料', name: 'ceshi', desc: false,
+      descSlot: `<p class="d-desc" style="color:var(--muted)">还没有项目描述。进入项目后，在项目设置里补一句它要做什么。</p>`,
+      goals: `<div class="sect"><h5><span>目标</span></h5><div class="empty" style="padding:18px;border-radius:12px;background:var(--soft)"><h4 style="font-size:15px">还没有目标</h4><p>进入项目后写下第一个目标；有材料时这里给「让助理起草目标」。</p></div></div>`,
+      cols: `<div class="sect"><h5><span>最近</span></h5><div class="rec"><span>8月30日</span><span>创建了项目</span></div></div>`, facts: false },
+    pins: pin(1, 1396, 150) + pin(2, 1396, 250),
+  });
+  S.personal = () => chooser({
+    dir: { sel: -1 }, bar: bars.personal(),
+    detail: { tone: 'idle', stateWord: '只有你能看到', kickRest: '最近打开 今天上午', name: '个人空间', desc: '没想好放进哪个项目的资料、灵光和待办，先放在这里；之后可以移进项目。',
+      goals: `<div style="display:flex;gap:56px">${[['12', '灵光'], ['34', 'Shelf'], ['5', '待办']].map(([v, l]) => `<div><div style="font-size:40px;font-weight:600;letter-spacing:-.03em">${v}</div><div style="color:var(--muted);font-size:12.5px">${l}</div></div>`).join('')}</div>`,
+      next: [['prog', '由你推进', '回复周会改期的邮件', '今天'], ['prog', '由你推进', '读完《Local-first software》', '本周'], ['ai', '助理在做', '把 9 月的收据整理成报销清单', '7/11']], facts: false },
+  });
+  S.none = () => chooser({
+    dir: { sel: -2, q: 'roadmap', list: [], listHead: false, personal: false, extra: `<p style="padding:14px 10px;color:var(--muted);font-size:13px;margin:0">没有匹配的项目</p>` }, bar: bars.none(),
+    right: `<div class="col-r" style="justify-content:center"><div class="empty"><span class="mark">${g('c')}</span><h4>没有叫「roadmap」的项目</h4><p>换个关键词，或者就用它开始一个新项目。不属于任何项目的事，也可以先放进个人空间。</p><div style="display:flex;gap:10px">${btn('清除搜索', 'secondary')}${btn('新建「roadmap」', 'primary')}</div></div></div>`,
+    pins: pin(1, 1396, 380) + pin(2, 1290, 776),
+  });
+  S.empty = () => chooser({
+    dir: { sel: -1, list: [], listHead: false, helloSub: '欢迎来到 Molis Work', extra: `<p style="padding:14px 10px;color:var(--muted);font-size:13px;margin:0">还没有项目</p>` }, bar: bars.personal(),
+    right: `<div class="col-r" style="justify-content:center"><div class="empty"><span class="mark">${g()}</span><h4>从一个真实项目开始</h4><p>带入正在做的文件、网页或聊天记录，整理成项目；也可以空白开始。</p><div style="display:flex;gap:10px">${btn('带入材料新建', 'primary')}${btn('空白开始', 'secondary')}</div></div></div>`,
+  });
+  S.failed = () => chooser({
+    dir: { sel: -1, list: [], listHead: false, extra: `<div style="padding:8px 4px"><div class="alert">${g('c')}<span>项目列表没有读出来。</span><span style="margin-left:auto;font-weight:500">重试</span></div></div>` }, bar: bars.personal(),
+    right: `<div class="col-r" style="justify-content:center"><div class="empty"><h4>个人空间仍然可以用</h4><p>项目列表恢复后会出现在左边。</p></div></div>`,
+  });
+  S.welcomeLang = () => `${titlebar({ ai: false })}<div class="paper"><div class="split wide" style="grid-template-columns:1fr 1fr"><div class="col-r" style="justify-content:center;padding-left:96px"><div class="q"><h1>语言</h1><p>用你最熟悉的语言开始。之后可以在设置里随时更改。</p></div><div class="choice-group">${choice('简体中文', true)}${choice('English', false)}</div></div><div class="col-r" style="justify-content:center;align-items:center;gap:6px"><div style="font-size:96px;font-weight:600;letter-spacing:-.03em">你好。</div><div style="color:var(--muted)">Molis Work</div></div></div></div>${bars.welcome(0)}${pin(1, 60, 400)}${pin(2, 20, 776)}`;
+  S.welcomeLook = () => `${titlebar({ ai: false })}<div class="paper"><div class="split wide" style="grid-template-columns:1fr 1fr"><div class="col-r" style="justify-content:center;padding-left:96px"><div class="q"><h1>外观</h1><p>选择浅色、深色，或跟随系统。改动立即生效，只保存在这台设备。</p></div><div class="choice-group">${choice('浅色', true)}${choice('深色', false)}${choice('跟随系统', false)}</div><p class="lbl">界面密度</p><div class="choice-group">${choice('标准', true)}${choice('紧凑', false)}</div></div><div class="col-r" style="justify-content:center;align-items:center"><div style="width:420px;height:280px;border-radius:14px;background:var(--desk);padding:14px;display:grid;grid-template-rows:1fr 34px;gap:10px"><div style="background:#fff;border-radius:10px;padding:16px" class="bars"><i style="width:60%"></i><i style="width:84%"></i><i style="width:72%"></i></div><div style="background:#fff;border-radius:10px"></div></div></div></div></div>${bars.welcome(1)}`;
+  S.srcEmpty = () => onboard(obLeft('想带入哪些内容？', '文件、网页和聊天记录会成为新项目的背景。', `<div class="dir">${sources()}</div>`, privacy('添加时只记下文件名和大小，开始整理时才读取正文。')),
+    `<div class="col-r" style="justify-content:center"><div class="empty"><h4 style="font-size:30px;letter-spacing:-.02em">从你正在做的事开始。</h4><p>选一种来源，材料会出现在这里。</p><div style="display:flex;gap:10px">${btn('添加文件夹', 'secondary', { sm: true })}${btn('选择文件', 'secondary', { sm: true })}${btn('粘贴网页正文', 'secondary', { sm: true })}</div></div></div>`,
+    bars.sources(0), pin(1, 446, 170) + pin(2, 1396, 330) + pin(3, 20, 776) + pin(4, 1290, 776));
+  S.srcFilled = () => onboard(obLeft('想带入哪些内容？', '', `<div class="dir">${sources({ open: 0, states: ['已添加 7', '已添加 2', '已添加 1', '暂不可连接', '已添加 1'] })}</div>`),
+    obRight(stageHead('这次带入', '11 份 · 4 组 · 1.5 MB · 正文尚未读取') + `<div class="dir">${materials(false)}</div>`),
+    bars.sources(11), pin(1, 446, 128) + pin(2, 446, 230) + pin(3, 446, 340) + pin(4, 1396, 100) + pin(5, 1396, 170));
+  S.scope = (model = true) => onboard(obLeft('确认这次读取的范围', '取消不需要的文件；开始后才读取正文。',
+    `<div style="display:grid;gap:14px;padding:14px;border-radius:10px;background:#fff"><div class="meter"><p><span>份数</span><span><b>10</b> / 50</span></p>${progress(10, 50)}</div><div class="meter"><p><span>大小</span><span><b>1.5</b> / 6 MB</span></p>${progress(1.5, 6)}</div></div>
+     <div class="row" style="background:#fff">${model ? '<span class="sm-st ok"></span>' : '<span class="sm-st idle"></span>'}<span class="t"><strong>${model ? '文字模型 · MiniMax' : '尚未连接文字模型'}</strong><small>${model ? '已连接 · 选中的正文会发给它整理' : '原文先暂存在本机，连接后再生成摘要'}</small></span><span class="tr" style="color:var(--ink);font-weight:500">${model ? '更换' : '连接'}</span></div>`,
+    privacy('开始后读取选中正文；原文件保持原样。') + `<p class="coll" style="margin:10px 0 0">› 读取规则</p>`),
+    obRight(stageHead('逐项确认', '已选 10 / 11 份 · 1.5 MB') + `<div class="dir">${materials(true)}</div>`),
+    bars.scope(model), model ? pin(1, 446, 140) + pin(2, 446, 250) + pin(3, 1396, 130) + pin(4, 446, 700) : pin(1, 446, 250) + pin(2, 1290, 776));
+  S.organize = () => onboard(obLeft('正在整理', '可以离开，回来后接着整理。',
+    `<div class="dir">${row({ lead: '<span class="mono p sm" style="background:var(--accent);color:#fff">·</span>', t: '读入材料', s: '8 / 11 份' })}${row({ lead: '<span class="mono p sm">2</span>', t: '整理工作脉络', s: '背景、进展与时间线' })}${row({ lead: '<span class="mono p sm">3</span>', t: '找出要你推进的事', s: '待办、等待与截止' })}</div>`, privacy('只读取刚才选中的范围。')),
+    obRight(stageHead('读入材料', '8 / 11 份') + progress(8, 11) + `<p style="margin:0;color:var(--ink-2)">正在读取：首屏文案.md</p><div class="dir">${[['首版功能范围.md', '已读取'], ['阅读页交互说明.docx', '已读取'], ['用户访谈-0926.pdf', '已读取'], ['用户访谈-0928.pdf', '已读取'], ['竞品笔记.md', '已读取'], ['设计评审纪要.md', '已读取'], ['FlyLeaf 品牌说明.pdf', '已读取'], ['首屏文案.md', '正在读取'], ['网页正文 · 1,240 字', '等待中']].map(([n, s]) => row({ lead: ext(n.split('.').pop().slice(0, 4).toUpperCase().replace(/[^A-Z]/g, '') || 'TXT'), t: n, tr: st(s === '已读取' ? 'ok' : s === '正在读取' ? 'prog' : 'idle', s), dense: true })).join('')}</div>`),
+    bars.organize(), pin(1, 446, 140) + pin(2, 1396, 130) + pin(3, 1140, 776));
+  S.result = () => onboard(obLeft('给新项目起个名字', '根据已有材料整理了一份建议，名字和摘要都可以改。',
+    `<p class="lbl">项目名称</p>${input('FlyLeaf 首版内测', { val: true, icon: false, focus: true })}<p class="lbl">摘要</p>${input('FlyLeaf 是一款把阅读、笔记和创作连起来的阅读器。首版已完成阅读页原型和笔记链路，正在打磨首次使用体验，计划 10 月中旬邀请 12 位用户内测。', { val: true, icon: false, area: true, style: 'height:132px' })}
+     <p class="privacy">${g()}11 份材料 · 4 个来源 · 读取于 10月1日 15:42</p><p class="coll" style="margin:0">↺ 调整来源并重新整理</p>`),
+    detail({ tone: 'prog', stateWord: '新项目预览', kickRest: '采用后在项目选择页里就是这样', name: 'FlyLeaf 首版内测', desc: 'FlyLeaf 是一款把阅读、笔记和创作连起来的阅读器。首版已完成阅读页原型和笔记链路，正在打磨首次使用体验……',
+      goals: '', cols: `<div class="sect"><h5><span>接下来 · 待办草稿</span><span>勾选的加入新项目</span></h5>${[['确认首批内测名单（12 人）', 'wait', '截止 10月10日', 1], ['补齐空白状态与导入路径的设计', 'prog', '由你推进', 1], ['回复设计评审里的 3 个问题', 'idle', '在等别人', 1], ['整理竞品笔记里的定价信息', 'idle', '负责人不确定', 0]].map(([t, tone, w, on]) => `<div class="nx" style="grid-template-columns:22px minmax(0,1fr) auto">${cb('', on)}<span${on ? '' : ' style="color:var(--muted)"'}>${t}</span>${st(tone, w)}</div>`).join('')}<p class="coll" style="margin:10px 0 0">› 2 条仅供参考，未列为待办</p></div>`, facts: false }),
+    bars.result(), pin(1, 446, 180) + pin(2, 1396, 70) + pin(3, 1396, 250));
+  S.blank = () => onboard(obLeft('给新项目一个名字', '先建一个空间，资料和下一步可以慢慢补充。', `<p class="lbl">项目名称</p>${input('秋季内容计划', { val: true, icon: false, focus: true })}<p style="margin:0;font-size:13px;color:var(--ink-2)">还没想好是什么项目？<b style="font-weight:500;text-decoration:underline">先在个人空间开始</b></p>`),
+    detail({ tone: 'idle', stateWord: '新项目预览', kickRest: '空白开始', name: '秋季内容计划', desc: false, descSlot: `<p class="d-desc" style="color:var(--muted)">还没有项目描述。</p>`, goals: `<div class="sect"><h5><span>目标</span></h5><p style="margin:0;color:var(--muted)">进入后写下第一个目标。</p></div>`, cols: '', facts: false }),
+    bars.blank(), pin(1, 446, 170) + pin(2, 1396, 70));
+  S.project = () => `${titlebar({ ai: false })}<div class="paper" style="padding:48px 120px"><div class="kick"><span>今天的工作 · 10月1日 星期四</span></div><h2 class="d-title">FlyLeaf-V0.1</h2><div class="bars" style="max-width:640px;margin-top:24px"><i style="width:70%"></i><i style="width:90%"></i><i style="width:55%"></i></div><p style="margin-top:26px;color:var(--muted)">（生产现状的项目首页，不在本次范围）</p></div>${bars.project()}`;
+
+  /* ───────── 板 ───────── */
+  const shot = (html, cls = '') => `<div class="shot ${cls}"><div class="frame">${html}</div></div>`;
+  const card = (title, sub, html, notes = []) => `<article class="card"><h3>${title}${sub ? `<span>${sub}</span>` : ''}</h3>${shot(html)}${notes.length ? `<ol class="notes">${notes.map((n, i) => `<li><b>${i + 1}</b><span>${n}</span></li>`).join('')}</ol>` : ''}</article>`;
+  const plain = (title, sub, html, notes = []) => `<article class="card"><h3>${title}${sub ? `<span>${sub}</span>` : ''}</h3>${shot(html)}${notes.length ? `<ul class="notes">${notes.map((n) => `<li><span></span><span>${n}</span></li>`).join('')}</ul>` : ''}</article>`;
+  const section = (title, intro, body) => `<section class="sec"><h2>${title}</h2><p>${intro}</p>${body}</section>`;
+
+  const html = [
+    section('动线', '三条路线共用同一个外框：标题栏、工作面和底栏都不换位置，只换内容。', `<div class="flows">
+      <div class="lane"><b>首次打开</b><div class="steps"><span class="st key">开场</span><span class="ar">→</span><span class="st">语言</span><span class="ar">→</span><span class="st">外观</span><span class="ar">→</span><span class="st">来源</span><span class="ar">→</span><span class="st">确认</span><span class="ar">→</span><span class="st">整理</span><span class="ar">→</span><span class="st">命名开始</span><span class="ar">→</span><span class="st key">进入新项目</span>
+        <span class="branch">来源页「空白开始」→ <span class="st">空白</span> → 进入新项目</span><span class="branch">语言页「稍后再说」→ <span class="st">项目选择 · 还没有项目</span></span></div></div>
+      <div class="lane"><b>日常打开</b><div class="steps"><span class="st key">项目选择（轻开场 · 预选上次项目）</span><span class="ar">→ 回车</span><span class="st">项目首页</span><span class="ar">→ 项目按钮「全部项目」</span><span class="st">项目选择（预选当前项目，不重播开场）</span>
+        <span class="branch">⌘K 搜索 → 无结果 →「新建「关键词」」→ <span class="st">空白</span>（名字已带入）</span></div></div>
+      <div class="lane"><b>新建项目</b><div class="steps"><span class="st">项目选择</span><span class="ar">→ 新建项目</span><span class="st">来源</span><span class="ar">→</span><span class="st">确认</span><span class="ar">→</span><span class="st">整理</span><span class="ar">→</span><span class="st">命名开始</span><span class="ar">→</span><span class="st key">进入新项目</span>
+        <span class="branch">任一步「← 返回项目」→ 项目选择，原来的选中与助理草稿不丢</span><span class="branch">整理中「在后台继续」→ 项目选择；标题栏「后台任务」里回到整理或命名开始</span></div></div></div>`),
+
+    section('开场', '每次打开都有开场。新用户是完整的一屏；老用户的开场就是项目选择页本身，全程可操作，不让人等。', `<div class="grid">
+      ${card('A1 · 新用户开场', '首次启动 · 单独一屏', S.openingNew(), ['AI 字幕在字标上方变换（A/I 常驻，每字 90ms 打出，停 2.3s，45ms 逆序删除）。', '巨型字标逐字打出（250ms 起，每字 170ms），光标闪三下；暖光同时从左上渐亮。参考 Molis Club Edition C 与 Daylight。', '打完后底栏右侧出现「开始 ↵」。任意键或点击直接跳到结束状态；减少动态效果时直接显示终态。'])}
+      <div class="grid two">
+        ${card('A2 · 老用户 · 刚打开', '0–0.4s', S.returningT0(), ['页面一出现就能操作：上次的项目已预选，回车立即进入，键盘与点击不等动效。', '只有标题栏里的字标在打字；列表与详情在 420ms 内从可见状态到达，不从全透明闪入。'])}
+        ${card('A3 · 老用户 · 2 秒后', '静止', S.returningT2(), ['字标打完，AI 字幕在旁边开始变换；悬停、聚焦、页面隐藏时暂停。', '问候「下午好 · 上次在 FlyLeaf-V0.1」只在打开时出现；切换项目、从项目里回来、搜索都不重播开场。'])}
+      </div></div>`),
+
+    section('项目选择页', '组件板的「目录与详情」组合。单击预览，回车或双击进入，方向键切换，⌘K 搜索，Esc 清空搜索。', `<div class="grid">
+      ${card('B1 · 正常', '预选上次的项目', S.chooser(), [
+        '问候与回来的位置（「下午好 · 上次在 …」），也是老用户开场的落点。',
+        '搜索 <code>renderInput</code> + <code>renderKbd</code>（⌘K）。',
+        '目录 <code>renderDirectoryPanel</code> / <code>renderDirectoryRow</code>（meta 密度）：项目徽标、名字、一行说明（当前目标 / N 项等你确认 / 还没有目标 · 最近打开）、行尾目标完成数。个人空间置顶；选中行是 <code>--nav-active</code>。',
+        '状态 <code>renderStatusMark</code> + 最近打开 + 材料数；项目名与一句描述（项目背景或引导采用时的摘要）。',
+        '目标：<code>renderProgress</code> + 当前目标与下一个。数据来自 Goals。',
+        '接下来三条（由你推进 / 等你确认 / 助理在做）与最近三条动静。',
+        '底栏左：所选项目，告诉你回车会打开谁。',
+        '底栏中：助理输入，作用于所选项目，按项目保留草稿。',
+        '底栏右：新建项目（次要）、进入项目 ↵（主操作）。',
+        '标题栏：字标、AI 字幕；右侧后台任务（有任务才出现）、能力、设置。'])}
+      <div class="grid two">
+        ${card('B2 · 没有描述也没有目标', 'ceshi', S.ceshi(), ['没有描述时说清楚去哪里补；有材料时给「让助理根据 N 份材料写一段」。', '没有目标时不显示假进度；有材料时给「让助理起草目标」，点了只把请求放进底栏输入，不直接执行。'])}
+        ${plain('B3 · 个人空间', '只有你能看到', S.personal(), ['同一个详情组件：进度换成灵光 / Shelf / 待办三个数，接下来是个人待办。底栏主操作是「进入个人空间 ↵」。'])}
+        ${card('B4 · 搜索无结果', '「roadmap」', S.none(), ['<code>renderEmpty</code>：清除搜索，或用这个词新建（进空白页，名字已带入）。', '没有选中项时「进入项目」禁用但仍可见；助理回到个人空间。'])}
+        ${plain('B5 · 还没有任何项目', 'Welcome 里选了「稍后再说」', S.empty(), ['只剩两个入口：带入材料新建、空白开始；个人空间照常可用并被预选。'])}
+        ${plain('B6 · 项目列表读取失败', '', S.failed(), ['<code>renderAlert</code> 就地给重试；个人空间和新建不受影响。'])}
+      </div></div>`),
+
+    section('Welcome', '内容和节奏保留现在的样子，只放进共同外框；页脚换成底栏的引导态。', `<div class="grid two">
+      ${card('D1 · 语言', '', S.welcomeLang(), ['<code>renderChoice</code>：白色选项，选中变石墨并出现勾；右侧大字问候。', '底栏左：稍后再说 / 上一步 + 进度短线（首次 6 段：语言、外观、来源、确认、整理、开始）；右：继续 ↵。'])}
+      ${plain('D2 · 外观', '', S.welcomeLook(), ['主题与界面密度用同一个 Choice；右侧小样即时反映。'])}
+    </div>`),
+
+    section('新建项目', '逻辑不变：来源 → 确认 → 整理 → 命名开始，可空白开始。去掉居中小窗和示意插画，说明就近、一句话为限。', `<div class="grid">
+      <div class="grid two">
+        ${card('C1 · 来源 · 还没有材料', '', S.srcEmpty(), ['五个来源都是 <code>renderDirectoryRow</code>，行尾是待添加 / 已添加 N / 暂不可连接。', '右侧 <code>renderEmpty</code>：一句话加三个快捷添加，不再有示意插画。', '底栏左：← 返回项目 + 进度短线（4 段）。', '「确认范围 ↵」在没有材料时禁用；「空白开始」一直可用。'])}
+        ${card('C2 · 来源 · 已添加，文件夹展开', '', S.srcFilled(), ['点开的来源行就地展开配置（当前行用 <code>--nav-active</code>），不弹窗、不跳页。', '位置用 <code>renderChoice</code>；时间范围用 <code>renderToggleGroup</code>；整个子目录用 <code>renderCheckbox</code>。', '「选择并授权」打开系统选择器；只列文件名和大小。', '右侧是这次带入的清单，按来源分组。', '文件行用 Directory Row 的文件名模式；行尾大小与移除（悬停出现）。'])}
+        ${card('C3 · 确认范围', '已连接模型', S.scope(true), ['两个 <code>renderMeter</code>：份数 / 50、大小 / 6 MB；超限就地报错并禁用开始。', '模型行：状态 + 更换。', '逐项 <code>renderCheckbox</code>，分组可全选（含部分选中态）。', '一句隐私说明 + 折叠的「读取规则」（<code>renderCollapsible</code>）；原来三处重复的读取说明合并到这里和底栏中间。'])}
+        ${card('C3′ · 确认范围', '未连接模型', S.scope(false), ['模型行变成「尚未连接文字模型 · 连接」。', '主操作变成「带入资料，先开始 ↵」，后面跳过整理，直接命名。'])}
+        ${card('C4 · 整理中', '', S.organize(), ['三个阶段。', '<code>renderProgress</code> + 当前文件 + 逐份回执（已读取 / 正在读取 / 等待中 / 未读取及原因）。', '「在后台继续」回到项目选择；完成后在标题栏「后台任务」里接着命名。'])}
+        ${card('C5 · 命名开始', '', S.result(), ['左边是表单：项目名、摘要（<code>renderInput</code> / <code>renderTextarea</code>）、来源快照、调整来源。', '右边是新项目预览，和项目选择页的详情是同一个组件：采用后它在列表里就是这个样子。', '待办草稿逐条勾选；没勾的留在「待办 → 待你确认」。'])}
+        ${card('C6 · 空白开始', '', S.blank(), ['只要一个名字；Enter 即创建。', '右侧预览随输入更新名字。'])}
+        ${plain('项目内（现状）', '采用或进入之后', S.project(), ['底栏同一个位置换成插件切换器与 Dock、助理输入、常驻入口与项目按钮。项目按钮菜单的「全部项目」回到项目选择。'])}
+      </div></div>`),
+
+    section('底栏在每一屏', '同一个组件、同一个位置和高度，内容按情境换。左边说明「在哪 / 回哪」，中间是助理或处理状态，右边是这一屏的动作（主操作在最右，带 ↵ 的可以直接回车）。', `<div class="grid" style="gap:10px">
+      ${[['开场', bars.opening()], ['Welcome · 语言', bars.welcome(0)], ['项目选择', bars.chooser()], ['项目选择 · 个人空间', bars.personal()], ['项目选择 · 搜索无结果', bars.none()], ['新建 · 来源', bars.sources(11)], ['新建 · 确认', bars.scope()], ['新建 · 整理', bars.organize()], ['新建 · 命名开始', bars.result()], ['新建 · 空白', bars.blank()], ['项目内', bars.project()]]
+        .map(([t, b]) => `<article class="card" style="gap:4px"><h3 style="font-size:12.5px;font-weight:500;color:var(--board-muted)">${t}</h3><div class="shot bar-only"><div class="frame">${b.replace('class="bar"', 'class="bar" style="bottom:10px"')}</div></div></article>`).join('')}
+    </div>`),
+
+    section('还要补进组件板的', '页面只组合组件板里的东西；下面几样现在没有，要先补进 <code>/__ui/catalog</code> 再用。', `<ul class="notes" style="font-size:13.5px;gap:8px">
+      <li><span>·</span><span>引导的进度短线（现在是引导页自己的样式）。</span></li>
+      <li><span>·</span><span>底栏的引导态内容：返回 + 进度短线、处理状态。</span></li>
+      <li><span>·</span><span>项目详情块，作为「目录与详情」的组合标本；项目选择页与命名开始的预览共用。</span></li>
+      <li><span>·</span><span>字标打字机与 AI 字幕（动效标本）。</span></li>
+      <li><span>·</span><span>引导现有的 <code>cx-button</code>、<code>cx-row</code>、<code>cx-check</code>、<code>cx-field</code> 换成对应的 <code>mw-*</code>。</span></li>
+    </ul>`),
+  ].join('');
+  document.getElementById('content').innerHTML = html;
+
+  /* 每屏按容器宽度缩放 */
+  const fit = () => document.querySelectorAll('.shot').forEach((s) => s.style.setProperty('--s', String(s.clientWidth / 1440)));
+  fit();
+  try { new ResizeObserver(fit).observe(document.getElementById('board')); } catch { window.addEventListener('resize', fit); }
+})();
+</script>

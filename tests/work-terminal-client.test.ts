@@ -16,16 +16,7 @@ function installGlobals(t: TestContext, values: Record<string, unknown>) {
 // Browser ports, not a browser E2E: assertions exercise the exported production controller.
 function autofillFixture(t: TestContext) {
   const storage = new Map<string, string>();
-  const posts: unknown[] = [];
-  const browser = Object.assign(new EventTarget(), {
-    parent: { postMessage: (message: unknown) => posts.push(message) },
-    setTimeout,
-  });
   installGlobals(t, {
-    window: browser,
-    location: { origin: "http://localhost", search: "?onboarding-embed=1" },
-    document: { querySelector: () => ({ click() {} }) },
-    matchMedia: () => ({ matches: false }),
     sessionStorage: {
       getItem: (key: string) => storage.get(key) ?? null,
       setItem: (key: string, value: string) => storage.set(key, value),
@@ -33,25 +24,22 @@ function autofillFixture(t: TestContext) {
     },
   });
   const writes: unknown[][] = [];
-  const opened: unknown[] = [];
   const statuses: Array<[string, string | undefined]> = [];
   const menus: boolean[] = [];
-  const state = { panel: null as { panel_id: string } | null, output: "Ask Codex to do anything", readOnly: false };
+  const state = { panel: null as { panel_id: string } | null };
   const options: TerminalAutofillOptions = {
-    goalId: () => "goal-a", parentReadOnly: () => state.readOnly,
+    goalId: () => "goal-a",
     text: (text) => text, errorText: (error) => String(error),
     terminal: {
       current: () => state.panel,
       isAlive: (id) => state.panel?.panel_id === id,
       output: () => ({ hasOutput: true, lastOutputAt: Date.now() - 10_000 }),
-      visibleOutput: () => state.output,
-      open: async (body) => { opened.push(body); state.panel = { panel_id: "panel-a" }; },
       writePrompt: async (...args) => { writes.push(args); },
     },
     setStatus: (text, status) => statuses.push([text, status]),
     setMenuOpen: (open) => menus.push(open), showToast() {},
   };
-  return { storage, posts, browser, state, options, writes, opened, statuses, menus };
+  return { storage, state, options, writes, statuses, menus };
 }
 
 test("Feed context waits for a live panel, fills once without sending, and consumes its pending record", async (t) => {
@@ -97,45 +85,6 @@ test("Failed context fill preserves the pending item for a later retry", async (
   await controller.fillPendingFeedContext();
   assert.equal(f.storage.has(key), false);
   assert.deepEqual(f.writes, [[false, "item-a"]]);
-});
-
-test("Onboarding opens one panel and waits for human startup confirmation before filling", async (t) => {
-  const f = autofillFixture(t);
-  const key = "molis-work-onboarding-runtime-autofill:goal-a";
-  f.storage.set(key, JSON.stringify({ runtimeKind: "codex", workspacePath: "/project", at: Date.now() - 10_000 }));
-  f.state.output = "Do you trust the contents of this directory? Press Enter to confirm";
-  const controller = createTerminalAutofill(f.options);
-  await controller.fillPendingOnboardingContext();
-  assert.deepEqual(f.opened, [{ runtime_kind: "codex", cwd: "/project" }]);
-  assert.deepEqual(f.writes, []);
-  assert.equal(f.storage.has(key), true);
-  assert.deepEqual(f.posts.at(-1), { type: "molis-work:onboarding-runtime-waiting", goalId: "goal-a", message: undefined });
-  f.state.output = "Ask Codex to do anything";
-  await controller.fillPendingOnboardingContext();
-  assert.equal(f.opened.length, 1);
-  assert.deepEqual(f.writes, [[false, undefined, true]]);
-  assert.equal(f.storage.has(key), false);
-  assert.deepEqual(f.posts.at(-1), { type: "molis-work:onboarding-runtime-ready", goalId: "goal-a", message: undefined });
-});
-
-test("Onboarding ignores foreign messages and does not open terminals for read-only parents", async (t) => {
-  const f = autofillFixture(t);
-  f.state.readOnly = true;
-  const controller = createTerminalAutofill(f.options);
-  const data = { type: "molis-work:onboarding-runtime-bootstrap", goalId: "goal-a", runtimeKind: "codex", workspacePath: "/project" };
-  for (const fields of [
-    { origin: "https://foreign.test", source: f.browser.parent, data },
-    { origin: "http://localhost", source: {}, data },
-    { origin: "http://localhost", source: f.browser.parent, data: { ...data, goalId: "goal-b" } },
-  ]) {
-    f.browser.dispatchEvent(Object.assign(new Event("message"), fields));
-  }
-  assert.equal(f.storage.size, 0);
-  f.browser.dispatchEvent(Object.assign(new Event("message"), { origin: "http://localhost", source: f.browser.parent, data }));
-  await controller.fillPendingOnboardingContext();
-  assert.equal(f.storage.size, 1);
-  assert.deepEqual(f.opened, []);
-  assert.deepEqual(f.writes, []);
 });
 
 class BrowserSocket extends EventTarget {
@@ -249,7 +198,7 @@ function panelsFixture(t: TestContext) {
     text: (text) => text, errorText: (error) => String(error), route: (path) => "/projects/project-a" + path,
     headers: () => ({ "x-molis-work-control-token": "token" }), desktopHeaders: () => ({ "x-molis-work-desktop": "1" }),
     controlToken: () => "token", setStatus() {}, setMenuOpen() {}, renderTabs() {},
-    showTerminal: (id) => shown.push(id), onOutput() {}, afterOpened: async () => {},
+    showTerminal: (id) => shown.push(id), afterOpened: async () => {},
   };
   return { controller: createTerminalPanels(options), io, state, requests, sessions, shown, written, resets: () => resets };
 }

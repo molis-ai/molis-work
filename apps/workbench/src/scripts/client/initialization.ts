@@ -257,15 +257,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       saveUiState();
     }
     const feedStartRequested = new URLSearchParams(location.search).get("feed-start") === "1";
-    const onboardingRuntimeRequested = new URLSearchParams(location.search).get("onboarding-runtime") === "1";
-    if (onboardingRuntimeRequested && selected && tuiPane) {
-      goalWorkspaceMode = "runtime";
-      setDesktopDirectory("goals", false, false);
-      if (desktopWorkSurfaces.length) setDesktopWorkSurface("goal", false, false);
-      setWorkspaceMode("runtime", false);
-      setMobileView("tui");
-      saveUiState();
-    }
     if (feedStartRequested && selected && tuiPane) {
       goalWorkspaceMode = "runtime";
       setDesktopDirectory("goals", false, false);

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { once } from "node:events";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createAlchemistHttpApp, alchemistLegacyActions, type AlchemistActionInvoker } from "@molis-ai/molis-work-plugin-alchemist";
+import { createAlchemistHttpApp, type AlchemistActionInvoker } from "@molis-ai/molis-work-plugin-alchemist";
 import { readNativePluginJsonBody, writeNativePluginJsonResponse } from "./native-plugin-http.js";
 
 export interface AlchemistHostPorts {
@@ -20,10 +20,6 @@ export async function handleAlchemistNativePluginHttp(
     const requestedProject = url.searchParams.get("project_id");
     if (requestedProject && requestedProject !== ports.projectId) throw new ActionError("actions.scope_mismatch", "请求与当前项目不一致。");
     const base = "/api/alchemist/studio";
-    if ((url.pathname === base || url.pathname === base + "/") && request.method === "GET") {
-      response.writeHead(302, { location: ports.routePrefix + "/", "cache-control": "no-store" });
-      response.end(); return true;
-    }
     const abort = new AbortController();
     response.once("close", () => abort.abort());
     if (url.pathname.startsWith(base + "/api/")) {
@@ -44,19 +40,6 @@ export async function handleAlchemistNativePluginHttp(
         } finally { await reader.cancel().catch(() => undefined); }
       }
       response.end(); return true;
-    }
-    if (!url.pathname.startsWith(base) && request.method !== "GET") {
-      writeNativePluginJsonResponse(response, { status: 410, body: { error: "演示版已升级，请在炼金术士工作台继续。旧记录可在设置中查看。" } }); return true;
-    }
-    if (request.method === "GET") {
-      let result: unknown;
-      if (url.pathname === base + "/legacy") result = await ports.actions.invoke(alchemistLegacyActions.export, {}, abort.signal);
-      else if (url.pathname === "/api/alchemist") result = await ports.actions.invoke(alchemistLegacyActions.list, {}, abort.signal);
-      else {
-        const match = /^\/api\/alchemist\/([^/]+)$/.exec(url.pathname);
-        if (match && match[1] !== "studio") result = await ports.actions.invoke(alchemistLegacyActions.get, { id: decodeURIComponent(match[1]!) }, abort.signal);
-      }
-      if (result !== undefined) { writeNativePluginJsonResponse(response, { status: 200, body: result as Record<string, unknown> }); return true; }
     }
     writeNativePluginJsonResponse(response, { status: 404, body: { error: "没有这个炼金术士页面。" } }); return true;
   } catch (error) {

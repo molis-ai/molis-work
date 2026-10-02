@@ -78,7 +78,6 @@ export const ALCHEMIST_EN: Record<string, string> = {
   "决定": "Decision",
   "决策": "Decisions",
   "决策理由": "Reason",
-  "历史演示记录": "Legacy demo records",
   "原始信号": "Raw signals",
   "反例": "Negative examples",
   "正例": "Positive examples",

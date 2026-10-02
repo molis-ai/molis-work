@@ -5,7 +5,7 @@ import {
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { ExternalDocumentImportError } from "@molis-ai/molis-work-integration-catalog";
-import { artifactWorkbench, renderArtifactWorkbenchPage, renderArtifactImportPage } from "@molis-ai/molis-work-app-workbench";
+import { artifactWorkbench, renderArtifactImportPage } from "@molis-ai/molis-work-app-workbench";
 import { codingChangeSetPreview, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
 import { compareRunChangeSet, renderDiff } from "@molis-ai/molis-work-plugin-diff";
 import { icon } from "@molis-ai/molis-work-design-system";
@@ -83,6 +83,16 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
       }
       const view = await context.actions.invoke(artifactsActions.browser, { reference: route.reference,
         supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
+      // Read first, so a disabled or forbidden 成果 surface answers as before. A direct visit (address bar, refresh, a link
+      // from elsewhere) then opens the workbench on the 成果 surface and, for a version, that version; only the workbench's
+      // own fragment requests get the surface's HTML.
+      if (!requestHeader(request, "x-molis-work-fragment")) {
+        const target = new URLSearchParams({ openPlugin: "artifacts" });
+        if (route.kind === "detail") target.set("openItem", context.routePrefix + pathname);
+        response.writeHead(302, { location: `${context.routePrefix}/?${target}`, "cache-control": "no-store" });
+        response.end();
+        return true;
+      }
       const report = codingReportPreview(view.selected), changes = codingChangeSetPreview(view.selected);
       const changesHtml = changes?.change.files.map((file, index) => {
         const comparison = compareRunChangeSet({ content: changes.change, source_plugin_id: "io.molis.work.coding", content_version: changes.reference.version }, undefined, index);
@@ -100,26 +110,11 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
           source_href: `${context.routePrefix}/?openPlugin=coding&openItem=${encodeURIComponent(changes.reference.artifact_id)}&openTitle=${encodeURIComponent(changes.title)}`,
           source_label: "在 Coding 查看固定变更并返回原任务", plugin_id: "coding", item_id: changes.reference.artifact_id,
         } : undefined;
-      const fragment = requestHeader(request, "x-molis-work-fragment");
-      if (fragment === "artifact-workbench" || fragment === "frame-block") {
-        const compact = fragment === "frame-block";
-        response.writeHead(view.requested && !view.selected ? 404 : 200, {
-          "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
-        });
-        response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation }, compact ? "frame-block" : "detail"));
-        return true;
-      }
-      const html = renderArtifactWorkbenchPage({
-        view, routePrefix: context.routePrefix, projectTitle: context.projectTitle,
-        lang: htmlLang(), desktopShell: context.desktopShell,
-        nativeDesktopBootstrapScript: ports.nativeDesktopBootstrapScript,
-        primitives, presentation,
-      });
+      const compact = requestHeader(request, "x-molis-work-fragment") === "frame-block";
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
-        "content-type": "text/html; charset=utf-8", "cache-control": "no-store",
-        "content-security-policy": context.pageCsp,
+        "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
-      response.end(html);
+      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation }, compact ? "frame-block" : "detail"));
       return true;
     } catch (error) {
       if (error instanceof ActionError) {

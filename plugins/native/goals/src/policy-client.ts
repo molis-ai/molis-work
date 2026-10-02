@@ -89,7 +89,8 @@ export const GOALS_POLICY_CLIENT_FACTORY_SCRIPT = `(host) => {
       requireFormFacts, refreshBoard, showFactorReceipt, showToast, humanDecisionError } = host;
     const submitMatchedPolicy = async (submittedForm, event) => {
 ${GOALS_POLICY_SUBMIT_SCRIPT}    };
-    const handleGoalPolicySubmit = (submittedForm, event) => submittedForm.closest?.("[data-policy-form]")
+    // The project's rules page has its own script (project-policy-client); this one saves a Goal's rules.
+    const handleGoalPolicySubmit = (submittedForm, event) => submittedForm.closest?.("[data-policy-form]:not([data-project-rules-form])")
       ? submitMatchedPolicy(submittedForm, event) : null;
     return { handleGoalPolicySubmit };
   }`;

@@ -135,7 +135,20 @@
 - 源码里提到旧产品名 GoalBoard 的有 10 个文件；
 - 0.1.x 根 SDK 出口、MCP 旧名与别名仍在。
 
-完整清单开工时全仓重新清点。
+源码（排除 tests/specs/docs/dist）里与兼容相关的标识：
+
+| 标识 | 文件数 | 处数 |
+| --- | --- | --- |
+| `legacy` / `Legacy` | 158 / 101 | 449 / 304 |
+| `compat` | 78 | 187 |
+| `historical` | 48 | 82 |
+| `backfill` | 11 | 15 |
+| `v3Import` / `importV3` / `V3_` | 11 | 19 |
+| `GoalBoard` / `goalboard` | 1 / 9 | 38 / 21 |
+
+另有：0.1.x 根 SDK 出口 `apps/local-host/sdk/`（index、sdk-store、sdk-types）、`tsconfig.sdk.json`、根包 `exports["."]`。
+
+这些标识里，有些是产品里的「历史」功能，例如时间线、版本、撤销记录，不算兼容。开工时逐项分类：删除，或写明保留理由。
 
 ## 5. 包级清单（§4.4）
 

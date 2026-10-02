@@ -25,6 +25,7 @@
 3. 共享核心的评审方式（CODEOWNERS）、合并队列、必选评审（§4.7）。
 4. vendored 私有 Prologue 包能否随公开仓库分发；删除不用的 3 份 tgz（§4.17、N-02）。
 5. 他人的工作树与分支清理（N-07）。
+6. Casebook 外部合同的旧名：`apps/local-host/src/casebook/` 里的 `contract_id` 都是 `goalboard.casebook.*`，JSON Schema 的 `$id` 在 `goalboard.dev` 下。外部 Casebook 插件按这些 id 对接，改名是合同变化，要外部插件同步（§4.1「旧身份与旧名称」）。源码里其余的 `GoalBoard`（如 `project-capabilities.ts` 的 `checkGoalBoard`）只是内部命名，随 `board_id` 合并一起改。
 
 ## 2. 现状度量（§3）
 

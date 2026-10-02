@@ -152,6 +152,45 @@
 
 这些标识里，有些是产品里的「历史」功能，例如时间线、版本、撤销记录，不算兼容。开工时逐项分类：删除，或写明保留理由。
 
+### 4.1 库与就地补表
+
+一个隔离 Home（QA Home，跑过一轮场景）里 Molis 自己的库共 30 个：
+
+- 个人库 16 个：`{name}/{name}.db`，名单在 `packages/storage/src/home-sqlite.ts` 的 `PERSONAL_HOME_SQLITE_STORES`；
+- 其他 Home 级库：`projects/catalog.db`、`assistant/assistant.db`、`sessions/sessions.db`、`placement/placement.db`、`agent-definitions/agent-definitions.db`、`characters/characters.sqlite`、`agent-runtime/.molis-runtime-owner.db`、`plugins/experiments/private.sqlite`；
+- 每个项目一个 `projects/<id>/molis-work.db`；炼金术士每个项目一个 `alchemist/projects/<id>/studio.sqlite`；
+- 锁库：`images` 的运行锁与 runner 库、`feed/secrets.lock.sqlite`。
+
+建库代码里就地补旧表（main 16879b22，源码，不含测试）：
+
+| 写法 | 处数 | 文件数 |
+| --- | --- | --- |
+| `ALTER TABLE` | 80 | 31 |
+| `ensureSqliteColumn()`（缺列就加） | 35 | 7 |
+| `PRAGMA table_info`（看列再决定） | 23 | 18 |
+| `PRAGMA user_version` | 2 | 1 |
+
+补得最多的文件：
+
+- `modules/functions/src/store.ts` 12 处；
+- `modules/goals/src/event-state-schema.ts` 9；
+- `plugins/native/form/src/store.ts` 8；
+- `modules/governance-collaboration/src/migrations.ts` 8；
+- `pages/store.ts`、`goals/migrations.ts`、`execution/migrations.ts` 各 6。
+
+版本记法不统一：`catalog_meta.schema_version`（项目目录）、`search_meta.schema`（搜索索引，不符就重建）、`user_version`（1 处），其余库没有版本，靠看列补列。
+
+**方案**（开工后按库执行）：
+
+1. 每个库只留一份当前 schema 的建库语句，删掉 `ALTER TABLE`、`ensureSqliteColumn` 与看列补列；
+2. 统一一个版本记法：建库时写入当前版本；
+3. 打开时版本不符就明确拒绝，报出库路径与期望版本，不就地升级；
+4. 加门禁：源码里不再出现 `ALTER TABLE` 与 `ensureSqliteColumn`（测试夹具除外）。
+
+搜索索引这种可以从权威数据重建的派生库，版本不符时重建，不算兼容。
+
+真实 Home 要先按用户的决定备份、升级或重建，才能删兼容代码（§4.1「真实 Home 的安全」）。
+
 ## 5. 包级清单（§4.4）
 
 开工后逐包填写：公共入口、负责与不负责、主要文件及各自的变化原因、放错位置的类和方法、重复实现、建议的移动。73 个包的 README 都有「开发要求」一节。

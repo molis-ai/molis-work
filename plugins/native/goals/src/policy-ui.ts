@@ -182,7 +182,7 @@ function renderPolicyEditor(
     const toggle = (name: string, checked: boolean, title: string, description: string) => `<label class="settings-setting-row settings-toggle-row"><span class="setting-copy"><strong>${L(title)}</strong><span>${L(description)}</span></span><span class="mw-switch" data-slot="switch"><input type="checkbox" role="switch" name="${name}"${checked ? " checked" : ""}><span class="mw-switch__track" aria-hidden="true"></span></span></label>`;
     return `<section class="settings-document project-rules-document" aria-labelledby="project-rules-title">
       <header class="settings-heading"><div class="settings-heading-title"><h1 id="project-rules-title">${L("项目工作规则")}</h1>${renderHeadingHint("settings-hint-rules", L("这些规则什么时候生效"), L("这些规则只约束之后开始或重新领取的工作。"))}</div><p>${L("设置这个项目里所有 Goal 共同遵守的最低要求。单个 Goal 可以增加要求，但不能降低这里的规则。")}</p></header>
-      <div class="settings-body"><form class="settings-rules-form" data-policy-form data-live-form="policy-project_default-${escapeHtml(projectId ?? "current-project")}" novalidate>
+      <div class="settings-body"><form class="settings-rules-form" data-policy-form data-project-rules-form data-live-form="policy-project_default-${escapeHtml(projectId ?? "current-project")}" novalidate>
         <aside class="project-rules-receipt" data-project-rules-receipt role="status" tabindex="-1" hidden><strong data-project-rules-receipt-title></strong><span data-project-rules-receipt-detail></span></aside>
         <p class="settings-state-note">${projectBinding ? L("已保存 · ") + escapeHtml(formatDate(projectBinding.created_at)) : L("当前使用系统默认")}</p>
         <input type="hidden" name="scope" value="project_default">

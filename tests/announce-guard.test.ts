@@ -79,7 +79,9 @@ test("a reply that says a button is ready is recognised; one that says none was 
   for (const text of ["按钮准备好了，等你点：\n\n- 标题：喝水\n- 提醒时间：2026-09-29 21:05", "卡片在上面，点一下就会创建。", "The button is ready — click it to add the todo."]) {
     assert.equal(claimsButton(text), true, text);
   }
-  for (const text of ["没有准备按钮：这个能力现在不可用。", "我把报告写进了文档，可以在 Pages 里打开。", "要不要我给你一个按钮？"]) {
+  for (const text of ["没有准备按钮：这个能力现在不可用。", "我把报告写进了文档，可以在 Pages 里打开。", "要不要我给你一个按钮？",
+    // Seen from MiniMax M3.1 in the side panel browser: the page's own button, and “here” said of where it stopped.
+    "我停在这里了。\n\n我先点了输入框右侧的「清除」按钮想把它清空——第一次点击没生效（页面位置变了）。\n我再次点击「清除」时，被拒绝了，这一步没有执行。"]) {
     assert.equal(claimsButton(text), false, text);
   }
 });

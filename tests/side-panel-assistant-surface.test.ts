@@ -10,6 +10,8 @@ import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
+import { createBrowserSurfaceDriver } from "../apps/local-host/src/browser/surface-driver.js";
+import type { BrowserPage } from "../apps/local-host/src/browser/browser-host.js";
 
 /*
  * The Assistant drives the side panel's browser through Molis's own wiring (specs/archive/side-panel P5): a business round gets
@@ -39,7 +41,7 @@ function reply(tool?: { name: string; input: unknown }, text = "Done."): Respons
  * the person's blocks as they stand, and refuses a blocked site before looking or acting.
  */
 function fakePage(decisions: ReadonlyArray<{ scope: string; decision: "allow" | "block" }>, start = "about:blank") {
-  let scope = start, visits = 0, looks = 0;
+  let scope = start, visits = 0, looks = 0, released = 0;
   const done: HostSurfaceAction[] = [];
   const refuse = () => { if (decisions.some(row => row.scope === scope && row.decision === "block")) throw new Error("用户禁止助理查看或操作这个网站。"); };
   const driver: HostSurfaceDriver = {
@@ -56,11 +58,12 @@ function fakePage(decisions: ReadonlyArray<{ scope: string; decision: "allow" | 
       done.push(action);
       if (action.what === "navigate") { scope = new URL(action.url).origin; visits += 1; }
     },
+    async release() { released += 1; },
     async close() {},
     async describePoint() { return "Learn more"; },
     masked: () => false,
   };
-  return { driver, done, looks: () => looks };
+  return { driver, done, looks: () => looks, released: () => released };
 }
 
 const wire = (body: any) => JSON.stringify(body.messages);
@@ -72,6 +75,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
   const page = fakePage(decisions, start);
+  const browser = { on: true };
   const requests: any[] = [];
   let turn = 0;
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
@@ -83,7 +87,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.side-surface-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
     resolveCredential: () => "fixture-only",
-    surfaces: { driverFor: owner => owner === "board" ? page.driver : null, siteDecisions: () => decisions } });
+    surfaces: { driverFor: owner => owner === "board" && browser.on ? page.driver : null, siteDecisions: () => decisions } });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
@@ -91,9 +95,9 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
-  const send = (text: string) => service.send({ text, request_id: `req-${Math.random().toString(36).slice(2, 10)}`, context: { source: { surface: "home", title: "项目首页" }, captured_at: new Date().toISOString() } }, { project_ref: project });
+  const send = (text: string, work_id?: string) => service.send({ ...(work_id ? { work_id } : {}), text, request_id: `req-${Math.random().toString(36).slice(2, 10)}`, context: { source: { surface: "home", title: "项目首页" }, captured_at: new Date().toISOString() } }, { project_ref: project });
   const pending = () => until(() => queue.list("board", "pending")[0], "a pending review");
-  return { service, queue, requests, page, send, pending, adapter, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, queue, requests, page, browser, send, pending, adapter, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("from a blank page the Assistant looks, then opens a site and clicks only after the person approves each step", { timeout: 60_000 }, async t => {
@@ -186,5 +190,57 @@ test("a site allowed before the runtime started asks again as soon as the person
     const asked = await f.pending();
     assert.match(asked.document.summary, /在 https:\/\/example\.com 点击页面/u);
     assert.equal(f.page.done.length, 1, "nothing happens before the person answers");
+  } finally { await f.close(); }
+});
+
+test("the page is the person's again as soon as a round is stopped or ends, not after an idle wait", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "surface-list", input: {} }),
+    body => reply({ name: "surface-observe", input: { target: targetOf(body), kind: "accessibility-tree" } }),
+    body => reply({ name: "surface-act", input: { observation: observationOf(body), do: "navigate", url: "https://example.com/" } }),
+    () => reply(undefined, "空白页上没有内容。"),
+  ]);
+  try {
+    const sent = await f.send("在侧栏浏览器打开 example.com");
+    await f.pending();
+    assert.equal(f.page.released(), 0, "while the round waits on the person the page stays the Assistant's");
+    // The person stops the round instead of answering: the side panel stops showing the Assistant on the page.
+    await f.service.control(sent.work.work_id, { kind: "stop" });
+    await until(() => f.page.released() >= 1, "the page given back after the stop");
+    assert.deepEqual(f.page.done, [], "the stopped step never ran");
+
+    const next = await f.send("现在页面上是什么？");
+    await until(async () => (await f.service.read(next.work.work_id)).work.state === "completed", "the next round");
+    await until(() => f.page.released() >= 2, "the page given back after the round ended");
+  } finally { await f.close(); }
+});
+
+test("turning the Assistant's browser off stops a round that already holds the page", async () => {
+  let on = true;
+  const page = { controlMode: "person" } as unknown as BrowserPage;
+  const driver = createBrowserSurfaceDriver(page, () => false, () => on);
+  on = false;
+  await assert.rejects(driver.observe("accessibility-tree", { session_id: "s" }), /允许助理使用侧栏浏览器/u);
+  await assert.rejects(driver.perform({ what: "pointer", x: 1, y: 1, button: "left", clicks: 1 }, { session_id: "s" }), /允许助理使用侧栏浏览器/u);
+});
+
+test("a work that already holds the page gets no browser in its next round once the person turned it off", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "surface-list", input: {} }),
+    body => reply({ name: "surface-observe", input: { target: targetOf(body), kind: "accessibility-tree" } }),
+    () => reply(undefined, "看过了。"),
+    () => reply(undefined, "侧栏浏览器已经关掉，我看不了页面。"),
+  ], [], "https://example.com");
+  try {
+    const first = await f.send("看看侧栏浏览器里的页面");
+    await until(async () => (await f.service.read(first.work.work_id)).work.state === "completed", "the first round");
+    assert.equal(f.page.looks(), 1);
+    f.browser.on = false;
+    const requestsBefore = f.requests.length;
+    await f.send("再看一次", first.work.work_id);
+    await until(async () => { const view = await f.service.read(first.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "the second round");
+    const offered = f.requests[requestsBefore].tools.map((tool: any) => tool.name);
+    assert.equal(offered.some((name: string) => name.startsWith("surface-")), false, `no surface tools after the switch-off: ${offered.join(",")}`);
+    assert.equal(f.page.looks(), 1, "the page was not looked at again");
   } finally { await f.close(); }
 });

@@ -58,6 +58,10 @@ test("Characters is not among the plugins; the market and the studio live in the
   assert.doesNotMatch(html, /plugin-rail-rule|navigation-labels-toggle/);
 
   const without = renderPluginRail(primitives, ["goals"], account);
-  assert.doesNotMatch(without, /data-plugin-id="characters"|>创作<|>更多</);
+  assert.doesNotMatch(without, /data-plugin-id="characters"|data-plugin-tile="characters"|>创作</);
+  // 更多 now lists what the project could add: grey entries that open nothing, never a Character.
+  const more = without.slice(without.indexOf(">更多<"), without.indexOf("data-rail-tools-toggle"));
+  assert.match(more, /data-plugin-tile="files"/);
+  assert.doesNotMatch(more, /data-plugin-id=|data-plugin-tile="characters"/, "a plugin the project does not have opens nothing");
   assert.match(without, /data-plugin-id="goals"[\s\S]*data-global-menu[\s\S]*data-plugin-id="market"/);
 });

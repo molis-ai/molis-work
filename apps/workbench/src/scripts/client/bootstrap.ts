@@ -15,32 +15,41 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const desktopDirectoryPanels = [...document.querySelectorAll("[data-directory-panel]")];
     const desktopWorkSurfaces = [...document.querySelectorAll("[data-work-surface]")];
     const projectMenus = [...document.querySelectorAll("[data-project-menu]")];
-    const feedDirectory = document.querySelector("[data-feed-directory]");
-    const feedWorkbench = document.querySelector("[data-feed-workbench]");
-    const feedList = document.querySelector("[data-feed-list]");
-    const feedSearch = document.querySelector("[data-feed-search]");
-    const feedFilterTrigger = document.querySelector("[data-feed-filter-trigger]");
-    const feedFilterPanel = document.querySelector("[data-feed-filter-panel]");
-    const feedFilterBadge = document.querySelector("[data-feed-filter-badge]");
-    const feedFilterSummary = document.querySelector("[data-feed-filter-summary]");
-    const feedFilterReset = document.querySelector("[data-feed-filter-reset]");
-    const feedSourceFilter = document.querySelector("[data-feed-source-filter]");
-    const feedTypeFilter = document.querySelector("[data-feed-type-filter]");
-    const feedTimeFilter = document.querySelector("[data-feed-time-filter]");
-    const feedStatusFilter = document.querySelector("[data-feed-status-filter]");
-    const feedSort = document.querySelector("[data-feed-sort]");
-    const feedResultCount = document.querySelector("[data-feed-result-count]");
-    const feedEmpty = document.querySelector("[data-feed-empty]");
-    const feedDetailEmpty = document.querySelector("[data-feed-detail-empty]");
-    const sourceDirectory = document.querySelector("[data-source-directory]");
-    const sourceWorkbench = document.querySelector("[data-source-workbench]");
-    const sourceList = document.querySelector("[data-source-list]");
-    const sourceSearch = document.querySelector("[data-source-search]");
-    const sourceResultCount = document.querySelector("[data-source-result-count]");
-    const sourceEmpty = document.querySelector("[data-source-empty]");
-    const feedSourcesDialog = document.querySelector("[data-feed-sources-dialog]");
-    const feedSourceError = feedSourcesDialog?.querySelector("[data-feed-source-error]");
-    const feedSourceProgress = feedSourcesDialog?.querySelector("[data-feed-source-progress]");
+    // Feed's pages and its source directory are wired from these. The pages are in the page whether or not the project has Feed
+    // (they fill when it does) and the source directory only while it does, so they are found again when Feed comes or goes
+    // (adoptFeed); what was bound to a container stays bound, its contents are what change.
+    let feedDirectory, feedWorkbench, feedList, feedSearch, feedFilterTrigger, feedFilterPanel, feedFilterBadge, feedFilterSummary, feedFilterReset,
+      feedSourceFilter, feedTypeFilter, feedTimeFilter, feedStatusFilter, feedSort, feedResultCount, feedEmpty, feedDetailEmpty,
+      sourceDirectory, sourceWorkbench, sourceList, sourceSearch, sourceResultCount, sourceEmpty, feedSourcesDialog, feedSourceError, feedSourceProgress;
+    const findFeedNodes = () => {
+      feedDirectory = document.querySelector("[data-feed-directory]");
+      feedWorkbench = document.querySelector("[data-feed-workbench]");
+      feedList = document.querySelector("[data-feed-list]");
+      feedSearch = document.querySelector("[data-feed-search]");
+      feedFilterTrigger = document.querySelector("[data-feed-filter-trigger]");
+      feedFilterPanel = document.querySelector("[data-feed-filter-panel]");
+      feedFilterBadge = document.querySelector("[data-feed-filter-badge]");
+      feedFilterSummary = document.querySelector("[data-feed-filter-summary]");
+      feedFilterReset = document.querySelector("[data-feed-filter-reset]");
+      feedSourceFilter = document.querySelector("[data-feed-source-filter]");
+      feedTypeFilter = document.querySelector("[data-feed-type-filter]");
+      feedTimeFilter = document.querySelector("[data-feed-time-filter]");
+      feedStatusFilter = document.querySelector("[data-feed-status-filter]");
+      feedSort = document.querySelector("[data-feed-sort]");
+      feedResultCount = document.querySelector("[data-feed-result-count]");
+      feedEmpty = document.querySelector("[data-feed-empty]");
+      feedDetailEmpty = document.querySelector("[data-feed-detail-empty]");
+      sourceDirectory = document.querySelector("[data-source-directory]");
+      sourceWorkbench = document.querySelector("[data-source-workbench]");
+      sourceList = document.querySelector("[data-source-list]");
+      sourceSearch = document.querySelector("[data-source-search]");
+      sourceResultCount = document.querySelector("[data-source-result-count]");
+      sourceEmpty = document.querySelector("[data-source-empty]");
+      feedSourcesDialog = document.querySelector("[data-feed-sources-dialog]");
+      feedSourceError = feedSourcesDialog?.querySelector("[data-feed-source-error]");
+      feedSourceProgress = feedSourcesDialog?.querySelector("[data-feed-source-progress]");
+    };
+    findFeedNodes();
     const mobileTreeTab = document.querySelector('[data-mobile-target="tree"]');
     const mobileDocumentTab = document.querySelector('[data-mobile-target="document"]');
     const mobileDirectoryTab = document.querySelector("[data-mobile-directory-root]");

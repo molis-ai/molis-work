@@ -64,8 +64,9 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
   try {
     const denied = await fetch(`${origin}/projects/a/api/alchemist/studio/api/v1/directions`, { method: "POST", body: "{}" });
     assert.equal(denied.status, 403);
+    // The old standalone Studio address is gone, not redirected (no compatibility routes).
     const page = await fetch(`${origin}/projects/a/api/alchemist/studio`, { redirect: "manual" });
-    assert.equal(page.status, 302); assert.equal(page.headers.get("location"), "/projects/a/");
+    assert.equal(page.status, 404);
     assert.equal((await fetch(`${origin}/projects/a/api/alchemist/studio/assets/app.js`)).status, 404);
     const mismatch = await fetch(`${origin}/projects/a/api/alchemist/studio?project_id=b`); assert.equal(mismatch.status, 400);
     const created = await request("a", "/directions", { description: "让创始人用访谈原句复核自己的产品假设" });
@@ -86,7 +87,7 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
     const exported = await request("a", "/workspace/export?format=json", {});
     assert.equal(exported.status, 200); assert.match(JSON.stringify(exported.body), /访谈回看/); assert.doesNotMatch(JSON.stringify(exported.body), /api_key|secret_alias/);
     const otherExport = await request("b", "/workspace/export?format=json", {}); assert.doesNotMatch(JSON.stringify(otherExport.body), /访谈回看/);
-    const oldWrite = await fetch(`${origin}/projects/a/api/alchemist`, { method: "POST", headers: { origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() }, body: "{}" }); assert.equal(oldWrite.status, 410);
+    const oldWrite = await fetch(`${origin}/projects/a/api/alchemist`, { method: "POST", headers: { origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() }, body: "{}" }); assert.equal(oldWrite.status, 404);
     await host.close();
     host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai } });
     const restored = await request("a", "/bootstrap"); assert.equal(restored.body.ideas.length, 1); assert.equal(restored.body.ideas[0].title, card.title);

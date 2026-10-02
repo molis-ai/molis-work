@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promis
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
-import { MAX_OUTPUT_TOKENS, MODEL_CALL_LIMIT_MS, type PluginBuilderAgentOptions } from '../horizontal/agent-host/src/adapters/plugin-builder.js';
+import { MAX_OUTPUT_TOKENS, MODEL_CALL_LIMIT_MS, createRunRecordWriter, type BuilderAgentRecord, type PluginBuilderAgentOptions } from '../horizontal/agent-host/src/adapters/plugin-builder.js';
 import { createPrologueNodeAdapter } from '../horizontal/agent-host/src/adapters/prologue-node.js';
 import { AgentReviewQueue } from '../horizontal/agent-host/src/reviews.js';
 
@@ -239,4 +239,15 @@ test('each role may spend its whole output budget in one request, within the run
     assert.ok(MODEL_CALL_LIMIT_MS[role] >= MAX_OUTPUT_TOKENS[role] / tokensPerSecond * 1000, `${role}: ${MODEL_CALL_LIMIT_MS[role]} ms is too short for ${MAX_OUTPUT_TOKENS[role]} tokens`);
     assert.ok(MODEL_CALL_LIMIT_MS[role] <= 600_000, `${role}: one request may not outlast the run`);
   }
+});
+
+test('overlapping saves of one run record all land, and the last one stays', async () => {
+  // A real build (报名表, MiniMax) failed with ENOENT renaming builder-runs/<id>.json.tmp: two saves shared the temporary file.
+  const directory = await mkdtemp(join(tmpdir(), 'builder-run-records-'));
+  try {
+    const save = createRunRecordWriter(directory);
+    const record = (phase: string) => ({ id: 'run-1', phase }) as unknown as BuilderAgentRecord;
+    await Promise.all([save(record('running')), save(record('running')), save(record('completed'))]);
+    assert.equal(JSON.parse(await readFile(join(directory, 'run-1.json'), 'utf8')).phase, 'completed');
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

@@ -4,7 +4,7 @@ import { renderPluginRail, renderWorkbenchBar } from "../apps/workbench/src/imme
 import { BUILTIN_PLUGIN_REGISTRY, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, pluginMarketCards } from "../apps/workbench/src/plugin-catalog.ts";
 
 // The switcher lists every plugin a project could have, once, as a tile that reads the same in both states, and each tile
-// carries the same two buttons (keep it in the Dock; add it to or remove it from the project) — specs/plugin-picker-dock.
+// carries the same two buttons (keep it in the Dock; add it to or remove it from the project) — specs/archive/plugin-picker-dock.
 
 const primitives = {
   L: (value: string) => value,
@@ -116,7 +116,7 @@ test("what adding adds along, and what removing takes with it, is written on the
 test("no plugin brings the page back: the list of those that cannot change in place is empty, and the switcher carries it for the client", () => {
   const html = renderPluginRail(primitives, ["goals"], "");
   assert.match(html, new RegExp(`<div class="plugin-rail-items" data-reload-plugins="${RELOAD_ON_MEMBERSHIP_IDS.join(" ")}">`));
-  // Feed's source directory and Coding's settings row both attach and detach live (specs/plugin-picker-dock); a plugin that
+  // Feed's source directory and Coding's settings row both attach and detach live (specs/archive/plugin-picker-dock); a plugin that
   // cannot would be named here, and the client would save the page's state and load it again for that one only.
   assert.deepEqual([...RELOAD_ON_MEMBERSHIP_IDS], []);
 });

@@ -70,7 +70,7 @@ export const DOCK_DEFAULT_PINS: readonly string[] = ["goals", "inbox", "feed", "
 /**
  * Plugins whose page parts the workbench wires once, when the page loads and cannot change after, so adding or removing one
  * brings the page back once (saved first). None today: Feed's source directory and Coding's settings row both attach and detach
- * live (specs/plugin-picker-dock). A plugin that cannot is listed here and nothing else needs to change.
+ * live (specs/archive/plugin-picker-dock). A plugin that cannot is listed here and nothing else needs to change.
  */
 export const RELOAD_ON_MEMBERSHIP_IDS: readonly string[] = [];
 

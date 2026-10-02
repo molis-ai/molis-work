@@ -142,4 +142,4 @@
 | BL-085 | 插件复查遗留：Promote 无 Artifact 口仍写 `goal_id`；Functions 并发锁只覆盖草稿与发布；HTTP 别名、目录面、Workbench 注册手写 | [personal-plugins-review-fixes](archive/personal-plugins-review-fixes/spec.md) | 已知缺口 | 中 |
 | BL-086 | 左侧插件栏（`plugin-rail-items`）在统一底栏改版后是否已成死代码 | [plugin-rail-selection-align](archive/plugin-rail-selection-align/spec.md) | 已知缺口 | 低 |
 | BL-087 | 端口默认连线按插件名写死（D-04 选 C 短期保留）；有第三方端口插件时改为 Manifest 声明 `default_source` | [repository-systematic-review §9 D-04](archive/repository-systematic-review/spec.md) | 明确后续做 | 中 |
-| BL-088 | 个人插件在项目里「移除」即在该项目停用：动作拒绝、搜索来源停用、助理与 MCP 调不到，数据不删、加回即恢复（用户 2026-10-01 决定） | [合入后审查 PMR-15、§9](post-merge-review/spec.md#9-决策记录与待决事项) | 明确后续做 | 高 |
+| BL-088 | 个人插件在项目里「移除」即在该项目停用：动作拒绝、搜索来源停用、助理与 MCP 调不到，数据不删、加回即恢复（用户 2026-10-01 决定） | [合入后审查 PMR-15、§9](post-merge-review/spec.md#9-决策记录与待决事项)；切换器里「移除」现在只写「从本项目移除」，做完后可改，见 [plugin-picker-dock](archive/plugin-picker-dock/spec.md) | 明确后续做 | 高 |

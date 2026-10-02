@@ -134,7 +134,7 @@
 
 此外：
 
-- `board_id` 出现在 269 个源码文件、335 个测试文件里；
+- `board_id` 出现在 269 个源码文件、335 个测试文件里；建库语句里有 91 处 `board_id TEXT` 列。最多的是宿主 75 个文件、goals 模块 35、Goals 插件 32、contracts 19、Feed 14。按 `docs/system/ARCHITECTURE.md` §2，新项目两者同值，`board_id` 只为旧 V1 库保留。方案：与各库的基线重写同一片做，列与合同字段统一成 `project_id`，合同里的 `board_id` 字段删除，不留别名；
 - 源码里提到旧产品名 GoalBoard 的有 10 个文件；
 - 0.1.x 根 SDK 出口、MCP 旧名与别名仍在。
 

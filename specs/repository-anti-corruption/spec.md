@@ -302,6 +302,26 @@
 | `server` | 18 | 1,064 | `continuity/service.ts` 162 | 1 | 2 | 2 |
 | `tooling/plugin-cli` | 8 | 329 | `sample-source.ts` 90 | 1 | 2 | 0 |
 
+## 5a. 门禁先行（§5 第 1 步，方案）
+
+先接进 CI、防止边整理边恶化。每个门禁都有入库的基线文件，「只减不增」；改动后用突变验证（故意违反一次，确认 CI 变红）。
+
+| 门禁 | 机制 | 基线 | 突变验证 |
+| --- | --- | --- | --- |
+| 静态检查最小规则集 | ESLint（或 Biome）只开几条：无未用变量与导入、无空 catch（显式注释的除外）、无 `as unknown as`（现有处数进基线） | `tooling/gates/lint-baseline.json` | 新增一处空 catch |
+| 公开 API 快照 | 插件 SDK、contracts 各 subpath 的导出清单生成文件入库；导出一变就要显式更新快照，PR 里说明兼容影响 | `tooling/gates/api/*.txt` | 新增一个导出不更新快照 |
+| 巨大单元只减不增 | 按 §4.5 阈值（文件 800 行、类 300 行或 25 个方法、函数 150 行）统计，超出的列名单 | `tooling/gates/giant-units.json`（开工时 37 个文件、43 个类、99 个函数） | 新增一个 160 行函数 |
+| 装配名单只减不增 | 已有 `tests/builtin-plugin-assembly-gate.test.ts`，接进 CI | 冻结名单 | 加回一个 `*-native-plugin-http.ts` |
+| 分层与依赖方向 | 已有 `pnpm boundary:check`，按 `PACKAGE-BOUNDARIES.md` 补上「向上依赖」与「插件互引」的统计 | 现有规则 | 插件 import 另一插件 |
+| 测试不新增内部引用 | 统计测试里 `../<区>/*/src/` 与 `dist/` 的引用处数，只减不增 | 开工时 959 + 34 处 | 新增一处内部引用 |
+| vendored 包数量 | `vendor/prologue-sdk/*.tgz` 不超过 2 份 | #170 合入后 1 份 | 放回一份旧包 |
+| spec 状态句与根目录 | `specs/` 根目录每份都有状态句；只许在做的与现行规范 | 当前根目录 | 新建一份没有状态句的 spec |
+| 兼容逻辑不回流 | 源码不再出现 `ALTER TABLE`、`ensureSqliteColumn`、旧产品名与兼容标记（建库基线与允许名单除外） | 删兼容后为 0 | 加一处 `ALTER TABLE` |
+| 独立整页（artifact-positioning S7） | 除例外清单外没有路由返回完整 HTML；插件内容里不出现自带外壳；站内链接不跳出工作台 | [artifact-positioning §4](../artifact-positioning/spec.md) | 加一个返回整页的路由 |
+| 成果库声明（artifact-positioning A7） | manifest 声明与实际写入一致；可见类型必须有预览；交换数据不进用户可见列表 | 同上 | 写一个未声明的类型 |
+
+CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.yml`）；以上门禁都以非浏览器用例或脚本形式加到 `architecture-boundaries` 作业里，时间预算 3 分钟以内。
+
 ## 6. 安全不变量（§4.18，初稿）
 
 开工后逐条补上守住它的测试（要求断言「拒绝」本身），没有的补写。

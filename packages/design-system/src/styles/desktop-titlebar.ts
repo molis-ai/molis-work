@@ -246,56 +246,6 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* One Codex-style desktop titlebar co
     body[data-desktop-shell="true"] .prototype-honesty-note { font-size: 11px; }
   }
 
-  html[data-onboarding-embed="true"],
-  html[data-onboarding-embed="true"] body {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
-    background: var(--desk);
-  }
-  html[data-onboarding-embed="true"] body > .icon-sprite,
-  html[data-onboarding-embed="true"] body > dialog,
-  html[data-onboarding-embed="true"] body > .toast,
-  html[data-onboarding-embed="true"] .mobile-project-bar,
-  html[data-onboarding-embed="true"] .mobile-switch,
-  html[data-onboarding-embed="true"] .tui-owner-actions,
-  html[data-onboarding-embed="true"] .tui-add,
-  html[data-onboarding-embed="true"] .tui-tab-close,
-  html[data-onboarding-embed="true"] .tui-chrome-actions { display: none !important; }
-  html[data-onboarding-embed="true"] .app {
-    width: 100% !important;
-    height: 100dvh !important;
-    min-height: 0 !important;
-    display: block !important;
-    overflow: hidden !important;
-    background: var(--desk) !important;
-  }
-  html[data-onboarding-embed="true"] .workspace {
-    position: relative !important;
-    inset: auto !important;
-    width: 100% !important;
-    height: 100dvh !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    display: block !important;
-    overflow: hidden !important;
-    background: var(--desk) !important;
-  }
-  html[data-onboarding-embed="true"] .workspace > :not(.tui-pane) { display: none !important; }
-  html[data-onboarding-embed="true"] .workspace > .tui-pane {
-    position: absolute !important;
-    inset: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    min-width: 0 !important;
-    min-height: 0 !important;
-    display: grid !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .personal-new-goal { transition: none; }
     body[data-desktop-shell="true"] .navigator-project-selector,

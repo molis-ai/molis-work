@@ -4,7 +4,7 @@ export { MORE_STYLES } from "./styles/workbench.js";
 export { RESPONSIVE_STYLES } from "./styles/responsive.js";
 export {
   CONTROL_CLIENT_SCRIPT,
-  ONBOARDING_CLIENT_SCRIPT,
+  ONBOARDING_DISMISS_CLIENT_SCRIPT,
 } from "./scripts/control.js";
 export {
   PROJECT_GUIDANCE_SETTINGS_STYLES,

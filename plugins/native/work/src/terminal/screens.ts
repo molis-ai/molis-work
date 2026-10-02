@@ -108,23 +108,11 @@ export function createTerminalScreens(options: TerminalScreensOptions) {
     return session;
   };
 
-  const terminalVisibleOutput = (panelId: string) => {
-    const session = sessions.get(panelId);
-    const buffer = session?.term.buffer.active;
-    const renderedOutput = buffer
-      ? Array.from({ length: Math.min(session?.term.rows ?? 24, Math.max(0, buffer.length - buffer.viewportY)) }, (_, index) =>
-          buffer.getLine(buffer.viewportY + index)?.translateToString(true) ?? "",
-        ).join("\n")
-      : "";
-    return [terminalHost.textContent ?? "", renderedOutput].join("\n");
-  };
-
   return {
     get: (panelId: string) => sessions.get(panelId),
     has: (panelId: string) => sessions.has(panelId),
     entries: () => sessions.entries(),
     ensure: ensureSession,
-    visibleOutput: terminalVisibleOutput,
     remove(panelId: string) {
       sessions.get(panelId)?.term.dispose();
       sessions.get(panelId)?.wrapper.remove();

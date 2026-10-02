@@ -161,13 +161,6 @@ test("visual foundation keeps terminal appearance separate and local", () => {
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /localStorage\.setItem\(terminalThemeKey/);
 });
 
-test("embedded onboarding Runtime exposes only the real TUI work surface", () => {
-  assert.match(VISUAL_FOUNDATION_STYLES, /data-onboarding-embed="true"/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.workspace > :not\(\.tui-pane\) \{ display: none !important; \}/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.workspace > \.tui-pane \{[\s\S]*inset: 0 !important;[\s\S]*display: grid !important;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.mobile-project-bar,[\s\S]*\.mobile-switch,[\s\S]*\.tui-chrome-actions \{ display: none !important; \}/);
-});
-
 test("live xterm sessions receive the selected terminal palette", () => {
   const ptyClientSource = readFileSync(new URL("../plugins/native/work/src/terminal/screens.ts", import.meta.url), "utf8");
   assert.match(ptyClientSource, /theme: terminalPalette\(\)/);

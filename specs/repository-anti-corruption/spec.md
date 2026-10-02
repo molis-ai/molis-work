@@ -274,6 +274,34 @@
 | `server` | 18 | 1,064 | `continuity/service.ts` 162 | 1 | 2 | 2 |
 | `tooling/plugin-cli` | 8 | 329 | `sample-source.ts` 90 | 1 | 2 | 0 |
 
-## 6. 未验证的范围
+## 6. 安全不变量（§4.18，初稿）
+
+开工后逐条补上守住它的测试（要求断言「拒绝」本身），没有的补写。
+
+| 不变量 | 代码位置（main 16879b22） | 守住的测试 |
+| --- | --- | --- |
+| Web 只绑回环地址 | `apps/desktop/launchers/web/server.ts:52` | 待确认 |
+| 变更请求要控制令牌、同源 Origin、一次性操作键 | `apps/local-host/src/web-http.ts` 的 `authorizeLocalWebRequest` | `tests/action-gateway.test.ts` 等，待逐条确认 |
+| 跨进程动作网关只接受回环 http，不带账号、密码与查询串 | `apps/local-host/src/action-gateway.ts:16` | 待确认 |
+| MCP 逐客户端授权 | `apps/local-host/src/mcp-action-client.ts` 的 `authorizeMcpActions` | 待确认 |
+| 插件权限与沙箱 | Plugin Runtime 的权限与网络策略 | `tests/installed-plugin-policy.test.ts`、`agent-built-plugins-network.test.ts`，待确认 |
+| 密钥只给引用 | 连接存储与密钥库 | 待确认 |
+| 侧栏浏览器与 Computer Use 的站点策略与逐步确认 | Prologue `surface-act` 闸门；Molis 侧 `prologue-surfaces.ts` | `tests/side-panel-*`，待确认 |
+| 网页与记忆内容的提示注入防护 | Prologue 以 `<untrusted-page-content>` 交给模型 | 待确认 |
+| 外部输入的路径与 URL 校验 | 见下 | 待确认 |
+
+「是不是本机地址」的判断在源码里至少各写了一份：
+
+- `action-gateway.ts:16`；
+- `browser/browser-socket.ts:19`；
+- `configured-models.ts:45`；
+- `connector-api-oauth.ts:32`；
+- `connector-mcp.ts:105`、`:136`；
+- `im-server.ts:39`；
+- `web-http.ts:32`。
+
+允许的写法也不一样（有的认 `localhost`，有的只认 IP）。这一条并入 R-08 的重复实现，收成一个共用判断。
+
+## 7. 未验证的范围
 
 尚未开工，暂无。

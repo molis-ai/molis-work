@@ -20,9 +20,9 @@
 - 本次审查的源码改动仅为下文“已完成的清理”三处。其余已有改动不归本次审查所有。不要 reset、clean、整文件覆盖、全量暂存，或把别人的改动混进自己的修复说明。
 - 交接范围是本地代码修复与验证。本文不授予提交、推送、合并、发布、覆盖安装用户 App、调用付费模型、向第三方发送内容或改写用户数据的权限。
 - 验证使用独立临时 home、SQLite 或代表性 fixture。并行预览可能依赖当前 `dist`；构建前核对运行方，必要时用包含当前未提交源码的隔离副本。只复制 HEAD 的 worktree 不包含这些改动。
-- [UI 修复交接](/Users/oreal/adeptify-home/repos/molis-work/docs/ui-audit-handoff-2026-09-22.md) 是另一份审计，编号与本文无关。修改 Pages/Workbench 前核对文件是否正在被该任务修改；不自动把那份任务并入本文。
+- UI 修复交接（`/Users/oreal/adeptify-home/repos/molis-work/docs/ui-audit-handoff-2026-09-22.md`） 是另一份审计，编号与本文无关。修改 Pages/Workbench 前核对文件是否正在被该任务修改；不自动把那份任务并入本文。
 
-先读唯一事实源：[SSOT-MATRIX](/Users/oreal/adeptify-home/repos/molis-work/docs/SSOT-MATRIX.md)、[ARCHITECTURE](/Users/oreal/adeptify-home/repos/molis-work/docs/system/ARCHITECTURE.md)、[PACKAGE-BOUNDARIES](/Users/oreal/adeptify-home/repos/molis-work/docs/system/PACKAGE-BOUNDARIES.md)、[HUGE-CLASS-MIGRATION](/Users/oreal/adeptify-home/repos/molis-work/docs/system/HUGE-CLASS-MIGRATION.md)。随后按修复对象读 `specs/archive/goal-event-workflow-cleanup/spec.md`、`specs/plugin-platform-v2/spec.md`、`specs/archive/pages-plugin/spec.md`、`specs/archive/schedule-plugin/spec.md`、`specs/coding-plugin/spec.md` 及对应当前 Contract。
+先读唯一事实源：SSOT-MATRIX（`/Users/oreal/adeptify-home/repos/molis-work/docs/SSOT-MATRIX.md`）、ARCHITECTURE（`/Users/oreal/adeptify-home/repos/molis-work/docs/system/ARCHITECTURE.md`）、PACKAGE-BOUNDARIES（`/Users/oreal/adeptify-home/repos/molis-work/docs/system/PACKAGE-BOUNDARIES.md`）、HUGE-CLASS-MIGRATION（`/Users/oreal/adeptify-home/repos/molis-work/docs/system/HUGE-CLASS-MIGRATION.md`）。随后按修复对象读 `specs/archive/goal-event-workflow-cleanup/spec.md`、`specs/plugin-platform-v2/spec.md`、`specs/archive/pages-plugin/spec.md`、`specs/archive/schedule-plugin/spec.md`、`specs/coding-plugin/spec.md` 及对应当前 Contract。
 
 ## 修复顺序与责任
 
@@ -194,7 +194,7 @@
 
 ## 复现资料与执行方式
 
-原始完整报告：[代码审查报告](/Users/oreal/.codex/visualizations/2026/09/22/01a0c888-8bf3-79c1-a97a-4a5f48b8be91/代码审查报告.md)。证据目录：
+原始完整报告：代码审查报告（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c888-8bf3-79c1-a97a-4a5f48b8be91/代码审查报告.md`）。证据目录：
 
 ```text
 /Users/oreal/.codex/visualizations/2026/09/22/01a0c888-8bf3-79c1-a97a-4a5f48b8be91/代码审查证据

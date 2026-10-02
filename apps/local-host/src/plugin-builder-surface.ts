@@ -120,11 +120,12 @@ if(valid(pending))addEventListener("load",()=>setTimeout(()=>entry(pending)?.cli
 /**
  * The workbench entry opens the agent-built plugin studio. It is a host page (no plugin script runs in it), framed
  * in place and loaded only when the entry is opened; the earlier interpreter-based builder is no longer the entry.
+ * The frame fills its stage, which ends above the bottom bar: no viewport-based minimum that would run under the bar.
  */
 export async function builderWorkbenchPanel(ports:CodingSurfacePorts):Promise<string>{
  const source=(ports.routePrefix??'')+'/plugin-builder/studio';
  return '<section class="desktop-work-surface pb-surface" data-work-surface="plugin-builder" data-work-surface-label="插件创作工作台" hidden>'
-  +'<iframe class="pb-studio-frame" src="'+escapeHtml(source)+'" title="插件创作工作台" loading="lazy" style="display:block;width:100%;height:100%;min-height:calc(100vh - 64px);border:0;background:#f3f3f1"></iframe>'
+  +'<iframe class="pb-studio-frame" src="'+escapeHtml(source)+'" title="插件创作工作台" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#f3f3f1"></iframe>'
   +'<script>'+STUDIO_STAGE_SCRIPT+'</script></section>';
 }
 

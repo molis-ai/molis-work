@@ -11,6 +11,7 @@ import {
   PERSONAL_PLUGIN_IDS,
   PROJECT_SCOPED_PLUGIN_IDS,
   pluginMarketCards,
+  pluginWorkbenchClientAsset,
   railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import {
@@ -563,7 +564,10 @@ test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
   assert.match(html, /data-pages="workbench"/);
   assert.match(html, /data-pages-editor/);
   assert.match(html, /data-pages-confirm/);
-  assert.match(html, /molis-work-pages-editor\.js/);
+  // The editor kernel loads with Pages' own client when its surface opens, not with every page (#150).
+  assert.doesNotMatch(html, /molis-work-pages-editor\.js/);
+  assert.match(renderMolisWorkWorkbenchClientScript(), /\{"id":"pages","assets":\["\/assets\/molis-work-pages-editor\.js"\]\}/);
+  assert.ok(pluginWorkbenchClientAsset("pages"), "Pages' client is served on its own");
   const pages = html.slice(html.indexOf('data-pages="workbench"'), html.indexOf("data-pages-confirm"));
   assert.match(pages, /还没有文档/);
   assert.match(pages, /mw-empty__mark[\s\S]*#icon-note/);

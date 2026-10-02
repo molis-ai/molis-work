@@ -23,9 +23,20 @@ declare global {
   var molisWorkShelfTui: ShelfTuiBridge | undefined;
 }
 
+/** Runs `start` once `selector` is in the page: a plugin surface is filled in when it first opens (#150). */
+function whenPresent(selector: string, start: () => void): void {
+  const observer = new MutationObserver(() => {
+    if (!document.querySelector(selector)) return;
+    observer.disconnect();
+    start();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
 export function startShelfTerminalClient(): void {
   const host = document.querySelector<HTMLElement>("[data-shelf-tty-screen]");
-  if (!host || host.dataset.shelfTuiBound === "1") return;
+  if (!host) { whenPresent("[data-shelf-tty-screen]", startShelfTerminalClient); return; }
+  if (host.dataset.shelfTuiBound === "1") return;
   host.dataset.shelfTuiBound = "1";
   ensureStyle();
 

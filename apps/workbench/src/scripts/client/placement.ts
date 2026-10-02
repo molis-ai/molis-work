@@ -75,25 +75,37 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   document.addEventListener("input", settle, true);
   document.addEventListener("pointerdown", settle, true);
   // A card's buttons never sit on the stage's own controls (a composer's send button on a phone): when one would cover a
-  // button or field underneath, the cards rise above it; with no room left they go to the top.
+  // button or field underneath, the cards rise above it; with no room left they go to the top. When neither keeps every
+  // control clear (a phone whose text field fills the stage under its toolbar), the cards may cover the field but still
+  // never a button: covering part of a field is a nuisance, covering a button takes its press.
   const INTERACTIVE = "button, a[href], input, textarea, select, [contenteditable=true], [role=button]";
-  const clearControls = () => {
+  const PRESSABLE = "button, a[href], select, [role=button], input:is([type=button], [type=submit], [type=checkbox], [type=radio])";
+  const coveredLift = (selector) => {
+    let lift = 0;
+    region.querySelectorAll("button").forEach((button) => {
+      const rect = button.getBoundingClientRect();
+      if (!rect.width) return;
+      for (const [x, y] of [[rect.left + 2, rect.top + 2], [rect.right - 2, rect.top + 2], [rect.left + 2, rect.bottom - 2], [rect.right - 2, rect.bottom - 2]]) {
+        const under = document.elementsFromPoint(x, y).find((element) => !region.contains(element));
+        const control = under && under.closest ? under.closest(selector) : null;
+        if (control) lift = Math.max(lift, innerHeight - control.getBoundingClientRect().top + 8);
+      }
+    });
+    return lift;
+  };
+  const place = (selector) => {
     region.style.bottom = ""; region.classList.remove("is-top");
-    for (let attempt = 0; attempt < 3 && region.children.length; attempt += 1) {
-      let lift = 0;
-      region.querySelectorAll("button").forEach((button) => {
-        const rect = button.getBoundingClientRect();
-        if (!rect.width) return;
-        for (const [x, y] of [[rect.left + 2, rect.top + 2], [rect.right - 2, rect.top + 2], [rect.left + 2, rect.bottom - 2], [rect.right - 2, rect.bottom - 2]]) {
-          const under = document.elementsFromPoint(x, y).find((element) => !region.contains(element));
-          const control = under && under.closest ? under.closest(INTERACTIVE) : null;
-          if (control) lift = Math.max(lift, innerHeight - control.getBoundingClientRect().top + 8);
-        }
-      });
-      if (!lift) return;
-      if (lift > innerHeight - 160) { region.style.bottom = ""; region.classList.add("is-top"); return; }
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const lift = coveredLift(selector);
+      if (!lift) return true;
+      if (lift > innerHeight - 160) { region.style.bottom = ""; region.classList.add("is-top"); return !coveredLift(selector); }
       region.style.bottom = lift + "px";
     }
+    return !coveredLift(selector);
+  };
+  const clearControls = () => {
+    if (!region.children.length) { region.style.bottom = ""; region.classList.remove("is-top"); return; }
+    if (!place(INTERACTIVE) && !place(PRESSABLE)) { region.style.bottom = ""; region.classList.remove("is-top"); }
   };
   new MutationObserver(() => clearControls()).observe(region, { childList: true });
   window.addEventListener("resize", () => clearControls());
@@ -540,6 +552,8 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       document.querySelectorAll("[data-placement-slot]").forEach((slot) => { if (!slot.closest("[hidden]")) void paintBar(slot); });
       paintTargets();
       paintMaterials();
+      // The stage changed under the cards (a toolbar shown once its record exists): keep their buttons off its controls.
+      if (region.children.length) clearControls();
       const home = document.querySelector('[data-work-surface="home"]');
       if (home && !home.hidden && Date.now() - relatedAt > 10000) void paintRelated();
     });

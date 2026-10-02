@@ -261,7 +261,9 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
     const origin = `http://127.0.0.1:${port}`;
     const web = spawn(process.execPath, [installation.launchers.web, "--home", molisWorkHome, "--port", String(port)], {
       cwd: directory,
-      env: environment,
+      // The Runtime check this Web runs starts the MCP launcher with the Web's own environment; without the URL the
+      // launcher goes to the default 127.0.0.1:4173, which may be another Home's service on this machine.
+      env: { ...environment, MOLIS_WORK_WEB_URL: origin },
       stdio: ["pipe", "pipe", "pipe"],
     });
     let token: string;

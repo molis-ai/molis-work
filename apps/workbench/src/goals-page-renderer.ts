@@ -95,6 +95,14 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string;
 }
 
+/** A project file that evidence points to opens here, in an overlay over the workbench, never in a new browser tab. */
+function renderProjectReferenceDialog(L: (text: string) => string): string {
+  return renderDialog({ labelledBy: "project-reference-title", title: L("项目内引用"), className: "project-reference-dialog",
+    attrs: { "data-project-reference-dialog": true }, closeLabel: L("关闭"),
+    body: `<pre class="project-reference-body" data-project-reference-body tabindex="0"></pre>`,
+    footer: `<a class="mw-btn mw-btn--secondary" data-project-reference-download download>${L("下载")}</a><button class="mw-btn mw-btn--primary" value="close">${L("关闭")}</button>` });
+}
+
 /** Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. */
 export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionItem,
   TView extends WorkbenchGoalsPageView<TItem>, TFeedEntry>(
@@ -314,11 +322,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   ${renderGlobalSearchOverlay(primitives)}
   ${renderGoalTrashDialog()}
   ${projectOperations.overlays}
-  <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>
-  ${renderDialog({ labelledBy: "project-reference-title", title: L("项目内引用"), className: "project-reference-dialog",
-    attrs: { "data-project-reference-dialog": true }, closeLabel: L("关闭"),
-    body: `<pre class="project-reference-body" data-project-reference-body tabindex="0"></pre>`,
-    footer: `<a class="mw-btn mw-btn--secondary" data-project-reference-download download>${L("下载")}</a><button class="mw-btn mw-btn--primary" value="close">${L("关闭")}</button>` })}
+  <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>
   <script src="/assets/molis-work-workbench.js"></script>

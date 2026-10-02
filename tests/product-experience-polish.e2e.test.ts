@@ -40,7 +40,13 @@ test('Product journeys: discover tools, create from empty states, save and recov
   await waitFor("document.querySelector('[data-dock-pins] [data-dock-pin=home]')");
   await click('[data-global-search-open]');
   await input('[data-global-search]', 'dataset');
-  await waitFor("document.querySelector('[data-global-search-id=dataset]')");
+  // Content results arrive after the tool rows and go above them, so a click aimed at a row while the search is still
+  // running can land on another one. Wait until the list has stopped changing, as a person would see it.
+  await waitFor(`(() => {
+    const html = document.querySelector('[data-global-search-results]')?.innerHTML ?? '', now = performance.now();
+    if (globalThis.__searchResults !== html) { globalThis.__searchResults = html; globalThis.__searchResultsAt = now; return false; }
+    return now - globalThis.__searchResultsAt > 400 && Boolean(document.querySelector('[data-global-search-id=dataset]'));
+  })()`, 10_000);
   await shot('search-tools');
   await click('[data-global-search-id=dataset]');
   await waitFor("document.body.dataset.desktopSurface === 'dataset'");

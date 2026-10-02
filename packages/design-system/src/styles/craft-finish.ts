@@ -467,10 +467,16 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-mark { position: absolute; top: 50%; right: 14px; display: grid; place-items: center; width: 14px; height: 14px; margin-top: -7px; color: var(--faint); opacity: 0; font-style: normal; pointer-events: none; transition: opacity var(--dur-hover) var(--ease-quint); }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-mark svg { grid-row: auto; width: 13px; height: 13px; color: inherit; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-kept:not(:hover, :has(:focus-visible), .is-confirming) .plugin-rail-mark { opacity: 1; }
-  /* The glyphs: the pin stands up when kept; the plus turns into a cross when the plugin is in the project. */
+  /* The glyphs: the pin stands up when kept. The toggle holds both a plus and a trash can and shows the one that fits — the plus
+     while the plugin is not in the project, a red trash can once it is — swapping in place (opacity and transform only). */
   html ${SHELL} .workbench-bar .plugin-picker-popover .dock-keep svg, html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-toggle svg { width: 14px; height: 14px; transition: transform var(--dur-move) var(--ease-spring); }
   html ${SHELL} .workbench-bar .plugin-picker-popover .dock-keep[aria-pressed="false"] svg { transform: rotate(32deg); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile:not(.is-available) .plugin-toggle svg { transform: rotate(45deg); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-toggle { display: inline-grid; place-items: center; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-toggle > svg { grid-area: 1 / 1; transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-available .plugin-toggle > .plugin-toggle-remove { opacity: 0; transform: scale(.5) rotate(-18deg); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile:not(.is-available) .plugin-toggle > .plugin-toggle-add { opacity: 0; transform: scale(.5) rotate(45deg); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile:not(.is-available) .plugin-toggle:not(:disabled) { color: var(--red); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile:not(.is-available, .is-confirming) .plugin-toggle:not(:disabled):hover { background: color-mix(in srgb, var(--red) 13%, var(--control-fill)); }
   /* Not in this project: the whole entry is grey and inert; it wakes (tone only) when the plugin comes in. */
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile .plugin-rail-item > span,
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile .plugin-rail-item > svg,
@@ -480,12 +486,12 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-available .plugin-rail-item > svg,
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-available .plugin-rail-hint { color: var(--faint); }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-available:hover { background: transparent; }
-  /* Removing asks once, in the tile's own second line: the hint gives way to what will go, the cross turns red. */
+  /* Removing asks once, in the tile's own second line: the hint gives way to what will go, the trash can fills red. */
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-confirm { grid-row: 2; grid-column: 2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; line-height: 16px; color: var(--tone-blocked); opacity: 0; transition: opacity var(--dur-hover) var(--ease-quint); pointer-events: none; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile .plugin-rail-hint { transition: opacity var(--dur-hover) var(--ease-quint), color var(--dur-move) var(--ease-quint); }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-rail-hint { opacity: 0; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-rail-confirm { opacity: 1; }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-toggle { background: color-mix(in srgb, var(--tone-blocked) 16%, transparent); color: var(--tone-blocked); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-confirming .plugin-toggle:not(:disabled) { border-color: var(--danger-action); background: var(--danger-action); color: var(--danger-action-ink); }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-busy > .plugin-rail-ops { pointer-events: none; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-tile.is-busy > .plugin-rail-ops > .mw-btn { --ops-opacity: .55; }
   /* Without a pointer to look with, the buttons stay and the row keeps their room. */
@@ -495,7 +501,7 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-ops > .mw-btn { opacity: var(--ops-opacity, 1); transform: none; }
     html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-mark { display: none; }
   }
-  /* The switcher at the bar's left: where you are, and every plugin; the market and the studio at the foot of its list. */
+  /* The switcher at the bar's left: where you are, and every plugin; at its head, search and the market and the studio. */
   ${SHELL} .bar-start .plugin-picker { flex: none; max-width: 60%; }
   ${SHELL} .plugin-picker-all { display: none; }
   ${SHELL} .plugin-picker-all svg { width: 20px; height: 20px; stroke-width: 1.6; }
@@ -503,8 +509,21 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .plugin-picker:has([data-market-update-count]:not([hidden])) > .plugin-picker-trigger::after {
     content: ""; position: absolute; top: 7px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
   }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .dock-settings { position: static; z-index: auto; display: grid; width: auto; max-height: none; overflow: visible; margin: 8px -8px -8px;
-    padding: 6px 8px 8px; border-radius: 0; background: transparent; box-shadow: inset 0 1px 0 var(--line); animation: none; }
+  /* The head: search, and beside it the two ways to get more plugins — the market and the studio — as buttons, not rows among
+     the places. Where the room runs out the buttons wrap under search; on a window it stays in view while a long list scrolls
+     under it (and what is scrolled to keeps clear of it). */
+  html ${SHELL} .workbench-bar .plugin-picker-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -8px -8px 0; padding: 8px 8px 6px; border-radius: 14px 14px 0 0; background: var(--paper); }
+  @media (min-width: 761px) {
+    html ${SHELL} .workbench-bar .plugin-picker-popover { scroll-padding-top: 52px; }
+    html ${SHELL} .workbench-bar .plugin-picker-head { position: sticky; top: -8px; z-index: 3; }
+  }
+  html ${SHELL} .workbench-bar .plugin-picker-head .plugin-picker-search { flex: 1 1 200px; width: auto; min-width: 0; margin: 0; }
+  html ${SHELL} .workbench-bar .plugin-picker-extend { flex: 0 1 auto; display: flex; gap: 6px; min-width: 0; }
+  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 auto; justify-content: flex-start; gap: 8px; height: 34px; min-height: 34px; padding: 0 12px; border-radius: 9px; font-size: 13px; white-space: nowrap; }
+  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn svg { width: 15px; height: 15px; color: var(--ink-soft); }
+  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn[aria-current] { background: var(--nav-active); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn[aria-current] svg { color: var(--ink); }
+  html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-rail-update-count { position: static; margin-left: 2px; }
   /* Search heads the list: finding a place is part of going there (⌘K opens it from anywhere). */
   html ${SHELL} .workbench-bar .plugin-picker-search { display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; margin: 0 0 6px; padding: 0 10px; border: 0; border-radius: 9px;
     background: var(--wash); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
@@ -1336,6 +1355,9 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .bar-end :is(.immersive-show-directory, .navigator-directory-toggle):hover { background: var(--nav-hover); color: var(--ink); }
     html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; }
     html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items { grid-template-columns: minmax(0, 1fr); }
+    html ${SHELL} .workbench-bar .plugin-picker-head .plugin-picker-search { flex-basis: 100%; height: 44px; }
+    html ${SHELL} .workbench-bar .plugin-picker-extend { flex: 1 1 100%; }
+    html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; height: 44px; min-height: 44px; }
     ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; height: min(70dvh, 560px); }
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }

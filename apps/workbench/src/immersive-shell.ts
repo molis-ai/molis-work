@@ -1,4 +1,4 @@
-import { renderButton, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { icon as glyph, renderButton, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
 import { BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
 import { renderAssistantDock } from "./assistant-dock.js";
@@ -147,15 +147,18 @@ export function renderPluginRail(
       label: resident ? `${plugin.label}：${L("固定在底栏右侧")}` : `${L("常驻 Dock")}：${plugin.label}`,
       attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: resident ? L("固定在底栏右侧") : L("常驻 Dock"), ...(resident ? { "data-resident": "true" } : {}) } });
   };
-  // The plus turns into a cross when the plugin is in: one button, one glyph, two states. Goals is the project's core and stays.
+  // One button, two states: a plus while the plugin is not in the project, a red trash can once it is. Both glyphs are in the
+  // button, so a change of state is the tile's class and nothing more; the stylesheet shows the one that fits. Goals is the
+  // project's core and stays.
   const toggleButton = (plugin: { id: string; label: string }, owned: boolean, along: readonly string[]) => {
     const locked = owned && plugin.id === "goals";
     const sites = sitesOf.get(plugin.id) ?? [];
     const alongNote = along.length ? `；${L("添加会同时添加：{list}").replace("{list}", along.map(id => names.get(id) ?? id).join("、"))}` : "";
-    return renderButton({ variant: owned ? "secondary" : "primary", size: "sm", icon: "plus", iconOnly: true, className: "plugin-toggle", disabled: locked,
+    const button = renderButton({ variant: owned ? "secondary" : "primary", size: "sm", icon: "plus", iconOnly: true, className: "plugin-toggle", disabled: locked,
       label: `${owned ? L("移除") : L("添加")}：${plugin.label}`,
       attrs: { "data-plugin-toggle": plugin.id, "data-state": owned ? "added" : "available",
         title: locked ? L("Goals 是项目的核心，不能移除") : owned ? L("从本项目移除") : `${L("添加到本项目")}${alongNote}${sites.length ? `；${L("会在侧栏浏览器里使用")}：${sites.join("、")}` : ""}` } });
+    return button.replace(glyph("plus"), glyph("plus", "plugin-toggle-add") + glyph("trash", "plugin-toggle-remove"));
   };
   // At rest the end of the tile shows only a small pin when the plugin is kept; looked at, the buttons replace it.
   const mark = `<i class="plugin-rail-mark" aria-hidden="true">${icon("pin")}</i><small class="plugin-rail-confirm" aria-hidden="true"></small>`;
@@ -205,9 +208,27 @@ export function renderAccountGlobalItems(primitives: ImmersiveShellPrimitives, e
 }
 
 /**
+ * The market and the plugin studio, the workbench's two ways to get more plugins, as two buttons at the head of the switcher
+ * beside search (not rows among the plugins: they are things to do, not places). The group keeps `data-global-menu`, which
+ * the client finds them by.
+ */
+export function renderPickerExtend(primitives: ImmersiveShellPrimitives, enabled: readonly string[]): string {
+  const { L } = primitives;
+  const button = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon }, suffix = "") => {
+    const html = renderButton({ variant: "secondary", size: "sm", icon: plugin.glyph, label: plugin.label, className: "plugin-picker-extend-btn",
+      attrs: { "data-plugin-id": plugin.id, ...(DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? {} : { "data-directory-open": plugin.id }), "data-work-surface-open": plugin.surface, title: plugin.label } });
+    return html.replace(/<\/button>$/, `${suffix}</button>`);
+  };
+  const builder = directoryPlugins(enabled).filter(plugin => RAIL_EXTEND_PLUGIN_IDS.has(plugin.id)).map(plugin => button(plugin)).join("");
+  const market = button({ id: "market", surface: "market", label: L("插件市场"), glyph: "grid" },
+    `<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"></b>`);
+  return `<div class="plugin-picker-extend" data-global-menu role="group" aria-label="${L("添加与创作插件")}">${market}${builder}</div>`;
+}
+
+/**
  * The bottom bar replaces the rail. Left, where you go: the switcher — it names where you are (one chip per pane
- * when split) and opens search and every plugin, each with the button that keeps it in the Dock, with the market and
- * the plugin studio at its foot — then the plugins chosen to stay; the two sit in one tray.
+ * when split) and opens, under search and the two buttons that get more plugins (the market, the plugin studio), every
+ * plugin, each with the button that keeps it in the Dock — then the plugins chosen to stay; the two sit in one tray.
  * Centre: the resident Assistant, only an input. Right: Shelf and 灵光 with the side panel's button (the project's
  * discussion, the browser and files beside the work, specs/archive/side-panel) in one tray, then the project as a round button
  * whose menu holds the project and the person — switching, search, settings, capabilities.
@@ -220,19 +241,16 @@ export function renderWorkbenchBar(
   const known = [...directoryPlugins(parts.enabled), ...islandPlugins(parts.enabled)];
   const residents = BAR_RESIDENT_IDS.map(id => known.find(plugin => plugin.id === id)).filter(plugin => plugin !== undefined)
     .map(plugin => `<button class="bar-resident" type="button" data-bar-resident="${plugin.id}" data-craft-tip="${plugin.label}" aria-label="${L("切换到插件")}：${plugin.label}">${icon(plugin.glyph)}</button>`).join("");
-  // The ways to extend the workbench sit at the foot of the full list, where the plugins they are about are.
-  const dockSettings = `<footer class="personal-sidebar-footer">
-          <section class="account-global-popover dock-settings" data-global-menu aria-label="${L("Dock 与插件")}">
-            ${renderAccountGlobalItems(primitives, parts.enabled)}
-          </section>
-        </footer>`;
   return `<div class="workbench-bar" data-dock aria-label="${L("底栏")}">
     <div class="bar-start">
       <div class="plugin-picker" data-plugin-picker>
         <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${L("全部插件与 Dock")}" title="${L("全部插件与 Dock")}"><span class="plugin-picker-all" aria-hidden="true">${icon("grid")}</span><span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${L("项目首页")}</span></span>${icon("chevron-up")}</button>
         <div class="plugin-picker-popover" data-plugin-picker-popover hidden>
-          <button class="plugin-picker-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}<span>${L("搜索")}</span><kbd>⌘K</kbd></button>
-          ${parts.rail}${dockSettings}
+          <div class="plugin-picker-head">
+            <button class="plugin-picker-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}<span>${L("搜索")}</span><kbd>⌘K</kbd></button>
+            ${renderPickerExtend(primitives, parts.enabled)}
+          </div>
+          ${parts.rail}
         </div>
       </div>
       <div class="dock-pins" data-dock-pins role="toolbar" aria-label="${L("常驻插件")}"></div>

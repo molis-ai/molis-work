@@ -69,7 +69,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (!pickerPopover || !pickerToggle) return;
     pickerPopover.hidden = !open;
     pickerToggle.setAttribute('aria-expanded', String(open));
-    if (open) pickerPopover.querySelector('[aria-current], [data-plugin-id]')?.focus(); else stopAsking();
+    if (open) pickerPopover.querySelector('.plugin-rail-items [aria-current], .plugin-rail-items [data-plugin-id]')?.focus(); else stopAsking();
   };
   // What the work area shows: the current plugin, or one per pane when it is split, the focused pane first in weight.
   const shown = () => {
@@ -348,8 +348,8 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
       railItem(id)?.click();
       return;
     }
-    // Choosing a plugin in the switcher (or the market or studio at its foot) closes it; the Dock buttons keep it open.
-    if (pickerPopover && !pickerPopover.hidden && target.closest('.plugin-rail-items [data-plugin-id], .plugin-rail-items a.plugin-rail-item, .dock-settings .account-global-item')) requestAnimationFrame(() => setPicker(false));
+    // Choosing a plugin in the switcher (or the market or studio at its head) closes it; the Dock buttons keep it open.
+    if (pickerPopover && !pickerPopover.hidden && target.closest('.plugin-rail-items [data-plugin-id], .plugin-rail-items a.plugin-rail-item, .plugin-picker-extend [data-plugin-id]')) requestAnimationFrame(() => setPicker(false));
   });
   // Search heads the switcher's list, so the list stays behind it while it is open. Dismissed (×, Esc, ⌘K), you are back
   // on 搜索 in the list; a chosen result opens elsewhere, so the list closes with it and focus waits on the switcher.

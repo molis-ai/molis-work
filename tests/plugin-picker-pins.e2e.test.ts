@@ -4,7 +4,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean, layoutFindings } from "./fixtures/layout-audit.js";
 
 // The switcher's grid in a real browser (specs/plugin-picker-dock): buttons that appear when an entry is looked at, a pin
-// that keeps a plugin in the Dock, a plus/cross that adds or removes it without bringing the page back.
+// that keeps a plugin in the Dock, a plus (a red trash can once the plugin is in) that adds or removes it without bringing the
+// page back, and at the head of the list the market and the studio.
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
@@ -128,7 +129,7 @@ test("the pin keeps a plugin in the Dock and out of it, and the choice survives 
   await waitFor("Boolean(document.querySelector('[data-dock-pins] [data-dock-pin=\"form\"]'))");
 });
 
-test("adding a plugin changes the page in place: the entry wakes, the cross appears, the plugin opens — and the page was not loaded again", async t => {
+test("adding a plugin changes the page in place: the entry wakes, the trash can replaces the plus, the plugin opens — and the page was not loaded again", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, press, state, settled, stayed, waitFor, click } = b;
@@ -241,7 +242,7 @@ test("Feed's and Coding's page parts are wired when the page loads, so they brin
   assert.equal(await evaluate("Boolean(document.querySelector('[data-directory-panel=\"sources\"], [data-plugin-section=\"feed\"]'))"), true, "Feed came with its directory");
 });
 
-test("the keyboard reaches the buttons: → into them, ← back, ↑ ↓ along the same kind; Enter on the cross asks, Escape takes it back first", async t => {
+test("the keyboard reaches the buttons: → into them, ← back, ↑ ↓ along the same kind; Enter on the trash can asks, Escape takes it back first", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { evaluate, key, state, waitFor } = b;
@@ -257,11 +258,72 @@ test("the keyboard reaches the buttons: → into them, ← back, ↑ ↓ along t
   await key("ArrowRight", 39); assert.match(await focused(), /^toggle:/);
   await evaluate("document.activeElement.click()");
   const id = (await focused()).replace("toggle:", "");
-  assert.equal((await state(id)).asking, true, "the cross asks");
+  assert.equal((await state(id)).asking, true, "the trash can asks");
   await key("Escape", 27);
   assert.equal((await state(id)).asking, false);
   assert.equal(await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden"), false, "Escape took the question, not the list");
   await key("Escape", 27);
+  await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
+});
+
+test("the toggle shows a plus where the plugin is not in the project and a red trash can where it is; asking fills the can red", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, hover, press } = b;
+  const glyphs = (id: string) => evaluate<{ add: string; remove: string; colour: string; fill: string }>(`(() => {
+    const button = document.querySelector(${JSON.stringify(`${tile(id)} [data-plugin-toggle]`)});
+    return { add: getComputedStyle(button.querySelector('.plugin-toggle-add')).opacity, remove: getComputedStyle(button.querySelector('.plugin-toggle-remove')).opacity,
+      colour: getComputedStyle(button).color, fill: getComputedStyle(button).backgroundColor };
+  })()`);
+  /** What a token comes to on this page, as a colour. */
+  const token = (name: string, property: "color" | "backgroundColor") => evaluate<string>(`(() => { const probe = document.createElement('i'); probe.style.${property} = 'var(${name})'; document.body.append(probe); const value = getComputedStyle(probe).${property}; probe.remove(); return value; })()`);
+  await hover(tile("schedule"));
+  const lack = await glyphs("schedule");
+  assert.deepEqual({ add: lack.add, remove: lack.remove }, { add: "1", remove: "0" }, "not in the project: a plus");
+  await hover(tile("pages"));
+  const have = await glyphs("pages");
+  assert.deepEqual({ add: have.add, remove: have.remove }, { add: "0", remove: "1" }, "in the project: a trash can");
+  assert.equal(have.colour, await token("--red", "color"), "and it is red");
+  await press(`${tile("pages")} [data-plugin-toggle]`);
+  const asked = await glyphs("pages");
+  assert.equal(asked.fill, await token("--danger-action", "backgroundColor"), "asking fills it");
+  assert.notEqual(asked.fill, have.fill);
+  // Goals' is out of reach: neither a plus nor red.
+  await hover(tile("goals"));
+  const core = await glyphs("goals");
+  assert.notEqual(core.colour, await token("--red", "color"), "the core cannot be removed, so it does not look removable");
+});
+
+test("the market and the studio are two buttons at the head of the switcher: with search, above the project's own entry; one opens its page and closes the list", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, click, waitFor, command, sessionId, frames } = b;
+  const box = (selector: string) => evaluate<{ x: number; y: number; w: number; h: number; right: number } | null>(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right }; })()`);
+  const layout = async () => {
+    const [search, market, studio, home, popover] = await Promise.all([box(".plugin-picker-search"), box('.plugin-picker-extend [data-plugin-id="market"]'), box('.plugin-picker-extend [data-plugin-id="plugin-builder"]'),
+      box('.plugin-rail-items [data-plugin-id="home"]'), box("[data-plugin-picker-popover]")]);
+    assert.ok(search && market && home && popover, "search, the market, the home entry, the list");
+    return { search, market, studio, home, popover };
+  };
+  assert.equal(await evaluate("document.querySelector('.plugin-picker-extend[data-global-menu] [data-plugin-id=\"market\"]').classList.contains('mw-btn--secondary')"), true, "a design-system button, not a row");
+  const wide = await layout();
+  assert.ok(wide.market.y + wide.market.h <= wide.home.y, "above the project's own entry");
+  assert.ok(Math.abs(wide.market.y - wide.search.y) < 6 && wide.market.x >= wide.search.x + wide.search.w, "wide: on search's line, to its right");
+  assert.ok(wide.market.h >= 32);
+  if (wide.studio) assert.ok(wide.studio.x >= wide.market.x + wide.market.w - 1 && Math.abs(wide.studio.y - wide.market.y) < 2, "the studio beside the market");
+  assert.equal(await evaluate("Boolean(document.querySelector('.plugin-rail-items [data-plugin-id=\"market\"], .plugin-rail-items [data-plugin-id=\"plugin-builder\"]'))"), false, "neither is a row among the plugins");
+  // A phone: search takes its line, the two buttons share the next and are a finger's size.
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+  await frames(); await frames();
+  const phone = await layout();
+  assert.ok(phone.market.y >= phone.search.y + phone.search.h - 1, "phone: the buttons wrap under search");
+  assert.ok(phone.market.h >= 44 && phone.search.h >= 44, "and are a finger's size");
+  assert.ok(phone.market.right <= phone.popover.right && phone.market.x >= phone.popover.x, "inside the list");
+  if (phone.studio) assert.ok(Math.abs(phone.studio.w - phone.market.w) < 2, "sharing the line in equal halves");
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await frames(); await frames();
+  await click('.plugin-picker-extend [data-plugin-id="market"]');
+  await waitFor("document.body.dataset.desktopSurface === 'market' || !document.querySelector('[data-work-surface=\"market\"]').hidden");
   await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
 });
 
@@ -270,7 +332,7 @@ test("the market, for this project, changes the page in place too, and the entry
   if (!b) return;
   const { evaluate, click, waitFor, stayed } = b;
   await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
-  await click('.dock-settings [data-plugin-id="market"]');
+  await click('.plugin-picker-extend [data-plugin-id="market"]');
   await waitFor("document.body.dataset.desktopSurface === 'market' || !document.querySelector('[data-work-surface=\"market\"]').hidden");
   await waitFor("Boolean(document.querySelector('[data-market-plugin=\"schedule\"] [data-market-add]')) && !document.querySelector('[data-market-plugin=\"schedule\"] [data-market-add]').disabled", 10_000);
   await click('[data-market-plugin="schedule"] [data-market-add]');

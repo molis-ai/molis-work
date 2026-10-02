@@ -51,6 +51,7 @@ export const GAP_EN: Record<string, string> = {
   "添加会同时添加：{list}": "Also adds: {list}",
   "全局": "Everywhere",
   "Dock 与插件": "Dock and plugins",
+  "添加与创作插件": "Get and build plugins",
   "更多常驻插件": "More pinned plugins",
   "切换插件": "Switch plugin",
   "问 Assistant，或搜索": "Ask Assistant or search",

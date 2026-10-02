@@ -52,7 +52,26 @@ test("every plugin the market offers is listed once, and the Dock has no second 
   }
   const bar = renderWorkbenchBar(primitives, { rail: html, projectChrome: "", enabled: ["goals"] });
   assert.doesNotMatch(bar, /data-dock-choices|class="dock-choices"|常驻在 Dock<\/p>/);
-  assert.match(bar, /data-plugin-id="market"[\s\S]*data-dock-pins/, "the market stays at the foot of the list");
+  assert.doesNotMatch(bar, /dock-settings|personal-sidebar-footer/, "and no list at the foot of the switcher");
+});
+
+test("the market and the plugin studio are two buttons at the head of the switcher, beside search and above the project's own entry", () => {
+  const enabled = ["goals", "plugin-builder"];
+  const bar = renderWorkbenchBar(primitives, { rail: renderPluginRail(primitives, enabled, ""), projectChrome: "", enabled });
+  const head = bar.slice(bar.indexOf('<div class="plugin-picker-head">'), bar.indexOf('class="plugin-rail-items"'));
+  assert.match(head, /data-global-search-open[\s\S]*<div class="plugin-picker-extend" data-global-menu[^>]*>[\s\S]*data-plugin-id="market"[\s\S]*data-plugin-id="plugin-builder"/, "search, then the market, then the studio");
+  for (const id of ["market", "plugin-builder"]) {
+    const button = head.match(new RegExp(`<button[^>]*data-plugin-id="${id}"[^>]*>`))?.[0] ?? "";
+    assert.match(button, /class="mw-btn mw-btn--secondary mw-btn--sm plugin-picker-extend-btn"/, `${id} is a design-system button`);
+    assert.match(button, /data-work-surface-open="[^"]+"/, `${id} opens its page`);
+  }
+  assert.match(head, /data-plugin-id="market"[\s\S]*?data-market-update-count hidden[^>]*><\/b><\/button>/, "the market's update count is inside its button");
+  assert.ok(bar.indexOf('class="plugin-picker-extend"') < bar.indexOf('data-plugin-id="home"'), "above the project's own entry");
+  assert.doesNotMatch(bar, /dock-settings|personal-sidebar-footer/, "nothing at the foot");
+  // Without the studio plugin there is one button, not an empty slot.
+  const without = renderWorkbenchBar(primitives, { rail: renderPluginRail(primitives, ["goals"], ""), projectChrome: "", enabled: ["goals"] });
+  assert.match(without, /data-plugin-id="market"/);
+  assert.doesNotMatch(without, /data-plugin-id="plugin-builder"/);
 });
 
 test("the pin: grey while not kept, graphite while kept, out of reach until the plugin is in; Shelf's and 灵光's are fixed on", () => {
@@ -71,14 +90,14 @@ test("the pin: grey while not kept, graphite while kept, out of reach until the 
   }
 });
 
-test("the plus turns into a cross in the project: one button, two states; Goals cannot be removed", () => {
+test("one button, two states: a plus while the plugin is not in the project, a trash can once it is; Goals cannot be removed", () => {
   const html = renderPluginRail(primitives, ["goals", "pages"], "");
   const have = tileOf(html, "pages"), lack = tileOf(html, "schedule"), core = tileOf(html, "goals");
   assert.match(have.toggle, /data-state="added"/); assert.match(have.toggle, /mw-btn--secondary/); assert.doesNotMatch(have.toggle, / disabled/);
   assert.match(lack.toggle, /data-state="available"/); assert.match(lack.toggle, /mw-btn--primary/);
   assert.match(core.toggle, / disabled/); assert.match(core.toggle, /Goals 是项目的核心，不能移除/);
-  // The glyph is the same plus either way: the stylesheet turns it.
-  for (const tile of [have, lack]) assert.match(tile.all, /<button[^>]*data-plugin-toggle[\s\S]*?<use href="#icon-plus">/);
+  // Both glyphs are in the button either way, so a change of state is the tile's class only: the stylesheet shows the one that fits.
+  for (const tile of [have, lack, core]) assert.match(tile.all, /<button[^>]*data-plugin-toggle[\s\S]*?<svg class="plugin-toggle-add"[^>]*><use href="#icon-plus"><\/use><\/svg><svg class="plugin-toggle-remove"[^>]*><use href="#icon-trash"><\/use><\/svg>/);
 });
 
 test("what adding adds along, and what removing takes with it, is written on the tile", () => {

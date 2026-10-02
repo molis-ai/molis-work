@@ -96,9 +96,9 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const prefix = "/projects/" + projectId;
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=artifacts]')"), null);
-  // The market is yours everywhere, so it sits in the account menu rather than among this project's plugins.
+  // The market is yours everywhere, so it is a button at the head of the switcher rather than among this project's plugins.
   assert.equal(await evaluate("Boolean(document.querySelector('.plugin-rail-items [data-plugin-id=market]'))"), false);
-  assert.equal(await evaluate("document.querySelector('.personal-sidebar-footer [data-global-menu] [data-work-surface-open=market]')?.dataset.pluginId"), "market");
+  assert.equal(await evaluate("document.querySelector('.plugin-picker-extend[data-global-menu] [data-work-surface-open=market]')?.dataset.pluginId"), "market");
   const railColors = await evaluate<{ current: string; idle: string; market: string; idleId: string }>(`(() => {
     const items = [...document.querySelectorAll('.plugin-rail-items [data-plugin-id]')].map((node) => ({
       id: node.dataset.pluginId,

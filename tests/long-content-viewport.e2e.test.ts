@@ -136,6 +136,8 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
     await capture("session-split");
   }
   await command("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile:false},sessionId);
+  // Opened in a single pane: the split panes made above would leave the version a 122px frame at this height.
+  await evaluate(`localStorage.removeItem(${JSON.stringify("molis-work-tab-workspace:"+projectId)})`);
   await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/artifacts/reading-report/versions/1`},sessionId));
   // A direct address opens the workbench on that version, not a page of its own.
   await waitFor("document.body.dataset.desktopSurface === 'artifacts' && Boolean(document.querySelector('[data-artifact-detail] [data-artifact-id=\"reading-report\"][data-artifact-version=\"1\"]'))", 15_000);

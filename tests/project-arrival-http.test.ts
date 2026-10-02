@@ -3,7 +3,7 @@ import test from "node:test";
 import { createReadLimiter } from "../apps/local-host/src/project-arrival-http.js";
 
 // Looking at a project opens it, so the chooser's brief reads are limited to a couple at a time however fast the person
-// moves down the list (specs/project-arrival-flow → 数据与 owner).
+// moves down the list (specs/archive/project-arrival-flow → 数据与 owner).
 
 const settle = () => new Promise<void>(resolve => setImmediate(resolve));
 const gate = () => { let open!: () => void; const wait = new Promise<void>(resolve => { open = resolve; }); return { open, wait }; };

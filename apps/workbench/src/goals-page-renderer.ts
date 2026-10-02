@@ -222,7 +222,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     title,
     head_before_title_html: controlTokenMeta(controlToken),
     head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}</script>
-  <script>if(new URLSearchParams(location.search).get("onboarding-embed")==="1"){document.documentElement.dataset.onboardingEmbed="true";document.documentElement.dataset.resolvedTheme="dark";document.documentElement.dataset.resolvedTerminalTheme="dark";}</script>
   <link rel="stylesheet" href="__WORKBENCH_CSS__">`,
     body_attributes: {
       class: "immersive-workbench",

@@ -8,7 +8,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
 import { renderMolisWorkProjectIndex } from "./workbench-renderer-fixture.js";
 
-// The project chooser in a real browser (specs/project-arrival-flow): the directory on the desk, the brief on the sheet,
+// The project chooser in a real browser (specs/archive/project-arrival-flow): the directory on the desk, the brief on the sheet,
 // one bar below. These follow a person through it — what is preselected, what the keys do, what an empty search or an
 // unreadable brief says — and check at every width that nothing sits on anything else.
 

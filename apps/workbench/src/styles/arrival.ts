@@ -2,7 +2,7 @@ import { BACKGROUND_TASKS_MENU_STYLES } from "./background-tasks.js";
 
 /**
  * Arrival: the three screens a person passes through on the way in — the project chooser, the opening and Welcome
- * questions, and the new-project journey — drawn in one frame (specs/project-arrival-flow). The titlebar, the stage and
+ * questions, and the new-project journey — drawn in one frame (specs/archive/project-arrival-flow). The titlebar, the stage and
  * the bottom bar never move; a screen changes what is inside them. Controls and parts are the `mw-*` components; this
  * sheet only lays them out. Tokens only: gradients are the new person's opening and the Welcome questions (the
  * onboarding's ambient light) and the goal card's warm light.

@@ -18,7 +18,6 @@ export interface TerminalPanelsOptions {
   setMenuOpen(open: boolean): void;
   renderTabs(): void;
   showTerminal(panelId: string | null): void;
-  onOutput(): void;
   afterOpened(): Promise<void>;
 }
 
@@ -51,7 +50,6 @@ export function createTerminalPanels(options: TerminalPanelsOptions) {
       session.hasOutput = true;
       session.recentOutput = (session.recentOutput + value.data).slice(-12_000);
       session.lastOutputAt = Date.now();
-      options.onOutput();
       return;
     }
     if (value.type === "exit") {

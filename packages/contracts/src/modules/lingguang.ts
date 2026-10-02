@@ -10,6 +10,8 @@ export const modulesLingguangContract = {
 
 export const LINGGUANG_PLUGIN_ID = "io.molis.work.lingguang";
 export const LINGGUANG_PROJECT_PLUGIN_ID = "lingguang";
+/** A spark may hold text read from a file or page, not only a line typed in. */
+export const LINGGUANG_BODY_LIMIT = 200_000;
 
 export type LingguangSourceKind = "manual";
 export type LingguangStatus = "inbox" | "discarded";

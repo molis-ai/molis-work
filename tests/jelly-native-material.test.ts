@@ -16,8 +16,8 @@ test("uploaded UTF8 and HTML become traceable text without evaluating scripts", 
     const text = await extractJellyMaterial(directory, upload("用户笔记.md", "# 真实想法\n保留中文。")); assert.equal(text.text, "# 真实想法\n保留中文。"); assert.equal(text.coverage.status, "sufficient");
     const html = await extractJellyMaterial(directory, upload("网页.html", "<html><style>SECRET STYLE</style><script>SECRET SCRIPT</script><h1>标题</h1><p>A &amp; B &#x4E2D;&#25991;</p></html>"));
     assert.match(html.text, /标题/); assert.match(html.text, /A & B 中文/); assert.doesNotMatch(html.text, /SECRET/); assert.equal(html.coverage.status, "partial");
-    assert.ok(readdirSync(path.join(directory, "jelly", "imports")).every(file => /^[\da-f]{64}\.(md|html)$/.test(file)));
-    await extractJellyMaterial(directory, upload("副本.md", "# 真实想法\n保留中文。")); assert.equal(readdirSync(path.join(directory, "jelly", "imports")).length, 2);
+    assert.ok(readdirSync(path.join(directory, "lingguang", "imports")).every(file => /^[\da-f]{64}\.(md|html)$/.test(file)));
+    await extractJellyMaterial(directory, upload("副本.md", "# 真实想法\n保留中文。")); assert.equal(readdirSync(path.join(directory, "lingguang", "imports")).length, 2);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 test("path names, invalid base64, empty, unsupported and non-UTF8 inputs fail", async () => {
@@ -32,12 +32,12 @@ test("missing native helper and unsupported host return explicit unavailable err
     const input = upload("document.pdf", "%PDF-1.4\n");
     await assert.rejects(extractJellyMaterial(directory, input, { platform: "linux" }), (error: unknown) => error instanceof JellyMaterialError && error.status === 503);
     await assert.rejects(extractJellyMaterial(directory, input, { platform: "darwin", helperPath: path.join(directory, "missing") }), (error: unknown) => error instanceof JellyMaterialError && error.code === "jelly.material.native_unavailable");
-    assert.equal(readdirSync(path.join(directory, "jelly", "imports")).length, 1);
+    assert.equal(readdirSync(path.join(directory, "lingguang", "imports")).length, 1);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 test("imports symlink cannot redirect uploaded data outside the private directory", async () => {
   const directory = home(); const outside = home();
-  try { mkdirSync(path.join(directory, "jelly")); symlinkSync(outside, path.join(directory, "jelly", "imports")); await assert.rejects(extractJellyMaterial(directory, upload("test.txt", "data")), JellyMaterialError); assert.deepEqual(readdirSync(outside), []); }
+  try { mkdirSync(path.join(directory, "lingguang")); symlinkSync(outside, path.join(directory, "lingguang", "imports")); await assert.rejects(extractJellyMaterial(directory, upload("test.txt", "data")), JellyMaterialError); assert.deepEqual(readdirSync(outside), []); }
   finally { rmSync(directory, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
 });
 test("real macOS helper extracts image OCR, PDF text and image-only PDF pages", { skip: process.platform !== "darwin" || !existsSync(helper) }, async () => {
@@ -62,8 +62,8 @@ test("real Whisper helper requires an explicit model download choice and leaves 
   const directory = home();
   try {
     await assert.rejects(extractJellyMaterial(directory, upload("sample.wav", silentWav()), { whisperHelperPath: whisperHelper }), (error: unknown) => error instanceof JellyMaterialError && error.code === "jelly.material.model_required" && error.status === 409 && error.details?.approximate_bytes === 626000000);
-    assert.deepEqual(readdirSync(path.join(directory, "jelly", "models")), []);
-    assert.ok(!readdirSync(path.join(directory, "jelly")).some(file => file.startsWith("material-run-")));
+    assert.deepEqual(readdirSync(path.join(directory, "lingguang", "models")), []);
+    assert.ok(!readdirSync(path.join(directory, "lingguang")).some(file => file.startsWith("material-run-")));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 test("cancelling media extraction terminates the helper and removes its run directory", async () => {
@@ -73,7 +73,7 @@ test("cancelling media extraction terminates the helper and removes its run dire
     writeFileSync(fake, `#!${process.execPath}\nprocess.stderr.write(JSON.stringify({stage:'transcribing',progress:0})+'\\n');setInterval(()=>{},1000);\n`, { mode: 0o700 });
     const controller = new AbortController();
     await assert.rejects(extractJellyMaterial(directory, upload("sample.wav", silentWav()), { platform: "darwin", whisperHelperPath: fake, signal: controller.signal, onProgress() { controller.abort(); } }), (error: unknown) => error instanceof JellyMaterialError && error.code === "jelly.material.cancelled");
-    assert.ok(!readdirSync(path.join(directory, "jelly")).some(file => file.startsWith("material-run-")));
+    assert.ok(!readdirSync(path.join(directory, "lingguang")).some(file => file.startsWith("material-run-")));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 test("real silent video extracts timestamped frame OCR without downloading a speech model", { skip: process.platform !== "darwin" || !existsSync(whisperHelper) }, async () => {
@@ -84,7 +84,7 @@ test("real silent video extracts timestamped frame OCR without downloading a spe
     execFileSync("swift", [fixture, directory], { timeout: 60_000 });
     const result = await extractJellyMaterial(directory, upload("sample.mov", readFileSync(path.join(directory, "sample.mov"))), { whisperHelperPath: whisperHelper });
     assert.match(result.text, /JELLY VIDEO FRAME 2026/); assert.equal(result.frames?.length, 5); assert.equal(result.segments?.length, 0); assert.equal(result.coverage.status, "partial");
-    assert.ok(result.frames!.every(frame => Number.isFinite(frame.seconds))); assert.deepEqual(readdirSync(path.join(directory, "jelly", "models")), []);
-    assert.ok(!readdirSync(path.join(directory, "jelly")).some(file => file.startsWith("material-run-")));
+    assert.ok(result.frames!.every(frame => Number.isFinite(frame.seconds))); assert.deepEqual(readdirSync(path.join(directory, "lingguang", "models")), []);
+    assert.ok(!readdirSync(path.join(directory, "lingguang")).some(file => file.startsWith("material-run-")));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

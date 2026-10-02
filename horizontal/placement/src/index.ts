@@ -350,7 +350,9 @@ export class PlacementService {
       const item = await scope.client.invoke(scope.caller, ref(receive), { payload: { title, body, source: from },
         context: { instance_id: `placement:${request.request_id}`, step: 0, title } }) as WorkflowItemRef;
       const readers = views.filter(view => isSubjectReader(view.action) && view.provider.provider_id === receive.provider.provider_id);
-      const kind = readers.length === 1 ? readers[0]!.action.subject_kinds[0]! : station;
+      // The station says what its content is when its provider reads several kinds (Jelly: calendar entries and notes).
+      const declared = readers.find(view => receive.action.subject_kinds.includes(view.action.subject_kinds[0]!));
+      const kind = declared ? declared.action.subject_kinds[0]! : readers.length === 1 ? readers[0]!.action.subject_kinds[0]! : station;
       created = { kind, id: item.item_id, project_id: request.to_project_id };
     }
     this.remember(source);

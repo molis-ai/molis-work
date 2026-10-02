@@ -56,7 +56,7 @@ test("Window chrome stays put while chooser, settings, Feed, Sessions and Goals 
     })()`);
   };
 
-  // The chooser (specs/project-arrival-flow): the directory and the project brief scroll on their own; the titlebar,
+  // The chooser (specs/archive/project-arrival-flow): the directory and the project brief scroll on their own; the titlebar,
   // the greeting and the bottom bar never move.
   await navigate(() => command("Page.navigate", { url: origin + "/?desktop=1" }, sessionId));
   await waitFor("document.body.classList.contains('arrival-page') && document.querySelector('.chooser-dir .mw-dir-row')");

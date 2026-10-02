@@ -20,7 +20,7 @@ import {
   renderWordmark,
 } from "../packages/design-system/src/index.js";
 
-// The arrival components (specs/project-arrival-flow): what the opening, Welcome, the project chooser and the
+// The arrival components (specs/archive/project-arrival-flow): what the opening, Welcome, the project chooser and the
 // new-project journey share. Their markup and rules are the board's, so a page cannot drift from them.
 
 test("the wordmark is one decorative span per letter under one accessible name", () => {

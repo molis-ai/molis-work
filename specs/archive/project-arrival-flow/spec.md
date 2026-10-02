@@ -1,6 +1,8 @@
 # 打开 Molis Work：项目选择、Welcome 与新建项目
 
-状态：已实现，PR 评审中（2026-10-01）。高保真设计与可交互原型经用户认可（「整体设计不错」），用户授权开发并在完成后推送 PR（须检查边界场景、元素重叠、组件沿用项目整体设计、动线）；这些检查已写成真实浏览器里的版面审计与动线测试，见本文末「实现记录」。设计图、动效录屏与原型见 [docs/design/project-arrival-flow/README.md](../../docs/design/project-arrival-flow/README.md)；实现记录见本文末「实现记录」。分支 `feature/project-arrival-flow`。上一轮概念稿与需求书已删除。
+> 归档（2026-10-01）：判定为**已实现**。PR #159 已合 main（fb879410）；工程验证记在本文末「实现记录 · 验证」与 PR 正文：全量回归的 14 项失败里 2 项是本改动引入、已改到新结构，其余 12 项在干净的 main 上同样失败。只差用户本人验收，另有两项已知缺口。剩余事项已移到[统一待办清单](../../BACKLOG.md)：BL-105、BL-106、BL-107。
+
+状态：已实现，已合入 main（PR #159，2026-10-01）。高保真设计与可交互原型经用户认可（「整体设计不错」），用户授权开发并在完成后推送 PR（须检查边界场景、元素重叠、组件沿用项目整体设计、动线）；这些检查已写成真实浏览器里的版面审计与动线测试，见本文末「实现记录」。设计图、动效录屏与原型见 [docs/design/project-arrival-flow/README.md](../../../docs/design/project-arrival-flow/README.md)；实现记录见本文末「实现记录」。分支 `feature/project-arrival-flow`（已合入）。上一轮概念稿与需求书已删除。
 
 ## 要解决什么
 
@@ -115,7 +117,7 @@
 ## 下一步
 
 1. 用户确认动线与结构（已确认，2026-10-01）。
-2. 低保真线框：[docs/design/project-arrival-flow/wireframes.html](../../docs/design/project-arrival-flow/wireframes.html)（已认可）。
+2. 低保真线框：[docs/design/project-arrival-flow/wireframes.html](../../../docs/design/project-arrival-flow/wireframes.html)（已认可）。
 3. 高保真：11 张设计图、状态与深色、窄屏图，三段动效录屏，可交互原型（`docs/design/project-arrival-flow/prototype/`，72 项动线检查通过）。**待用户评审。**
 4. 评审通过后：补候选组件进 `packages/design-system` 与 `/__ui/catalog`；写项目简介的数据投影与「最近打开」记录；替换引导里的 `cx-*`；新建项目选择页与开场；e2e 覆盖预选、回车进入、搜索、新建、返回、草稿保留。实现前先在 `docs/SSOT-MATRIX.md` 确认 owner，并读各包 README 的「开发要求」。
 
@@ -152,7 +154,7 @@
 - **整理中的左栏**只列真实的两个阶段（读入材料、整理工作脉络），设计稿的第三条「找出要你推进的事」发生在复核页（待办草稿），不在整理阶段。
 - **空白命名页**去掉了关于个人空间的长提示（设计稿「要删的文字」），只留一行「还没想好是什么项目？先在个人空间开始」；设计稿左栏的「改为带入已有材料」与底栏的「带入材料」是一回事，只留底栏的。
 - **开场里的「开始 ↵」**在名字打出后约 2.9 秒才出现（与原型一致），期间任意键或点击结束打字；第一下回车只结束打字，第二下才继续。
-- **旧的 `ONBOARDING_CLIENT_SCRIPT` 里整段多步表单代码**早已没有页面渲染它，只有更新页用到其中的「关闭」；断言它的几条 desktop-tui 检查属于上一代引导，这次没有动，留给单独清理。
+- **旧的 `ONBOARDING_CLIENT_SCRIPT` 里整段多步表单代码**早已没有页面渲染它，只有更新页用到其中的「关闭」；本次没有动，随后单独清理了：脚本只剩「关闭」，改名 `ONBOARDING_DISMISS_CLIENT_SCRIPT`；它在项目页一侧的接收端（`onboarding-runtime` / `onboarding-embed` 握手：`initialization.ts`、终端 `autofill.ts`、嵌入样式）和断言它们的 desktop-tui、work-terminal-client、visual-foundation 检查一并删除，对应的英文词条同步清掉。
 
 ### 验证
 

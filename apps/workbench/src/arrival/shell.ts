@@ -2,7 +2,7 @@ import { renderCaption, renderWordmark, type MolisWorkIcon } from "@molis-ai/mol
 
 /**
  * The frame every arrival screen shares: a titlebar, a stage and the resident bottom bar on the desk. A screen is
- * what goes inside the stage and the bar's three blocks; the frame itself never moves (specs/project-arrival-flow).
+ * what goes inside the stage and the bar's three blocks; the frame itself never moves (specs/archive/project-arrival-flow).
  */
 export interface ArrivalShellPrimitives {
   L(text: string, values?: Record<string, string | number>): string;

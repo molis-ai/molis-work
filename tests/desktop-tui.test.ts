@@ -23,10 +23,7 @@ import {
   resolveNvmBinDirectory,
   resolvePtyCommand,
 } from "@molis-ai/molis-work-service-runtime-host";
-import {
-  CLIENT_SCRIPT,
-  ONBOARDING_CLIENT_SCRIPT,
-} from "@molis-ai/molis-work-app-workbench";
+import { CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import {
   renderMolisWorkWeb,
   renderMolisWorkWorkbenchClientScript,
@@ -39,7 +36,7 @@ const PTY_CLIENT_SOURCE = readFileSync(new URL("../plugins/native/work/src/termi
 const TERMINAL_AUTOFILL_SOURCE = readFileSync(new URL("../plugins/native/work/src/terminal/autofill.ts", import.meta.url), "utf8");
 const TERMINAL_PANELS_SOURCE = readFileSync(new URL("../plugins/native/work/src/terminal/panels.ts", import.meta.url), "utf8");
 const WEB_RENDER_SOURCE = readFileSync(new URL("../apps/workbench/src/renderer.ts", import.meta.url), "utf8");
-const WORKBENCH_UI_SOURCE = [WEB_RENDER_SOURCE, CLIENT_SCRIPT, ONBOARDING_CLIENT_SCRIPT].join("\n");
+const WORKBENCH_UI_SOURCE = [WEB_RENDER_SOURCE, CLIENT_SCRIPT].join("\n");
 const DESKTOP_CAPABILITIES = JSON.parse(
   readFileSync(new URL("../apps/desktop/src-tauri/capabilities/default.json", import.meta.url), "utf8"),
 ) as { permissions?: string[] };
@@ -1124,30 +1121,6 @@ test("Feed processing opens Runtime and fills context without sending it", () =>
   assert.match(PTY_CLIENT_SOURCE, /data: send \? `\$\{fillText\}\\r` : fillText/);
   assert.match(TERMINAL_AUTOFILL_SOURCE, /Item 上下文已填入，检查后再发送/);
   assert.doesNotMatch(TERMINAL_AUTOFILL_SOURCE, /fillPendingFeedContext[\s\S]{0,1200}writePrompt\(true\)/);
-});
-
-test("Onboarding opens one Goal-bound TUI and fills the advance prompt without sending it", () => {
-  assert.match(WORKBENCH_UI_SOURCE, /embeddedDestination\.searchParams\.set\("onboarding-runtime", "1"\)/);
-  assert.match(WORKBENCH_UI_SOURCE, /embeddedDestination\.searchParams\.set\("onboarding-embed", "1"\)/);
-  assert.match(WORKBENCH_UI_SOURCE, /data-onboarding-runtime-frame/);
-  assert.match(WORKBENCH_UI_SOURCE, /molis-work:onboarding-runtime-bootstrap/);
-  assert.match(WORKBENCH_UI_SOURCE, /molis-work:onboarding-runtime-ready/);
-  assert.match(WORKBENCH_UI_SOURCE, /安排好了，进入 Molis Work/);
-  assert.match(WORKBENCH_UI_SOURCE, /const onboardingRuntimeRequested = new URLSearchParams\(location\.search\)\.get\("onboarding-runtime"\) === "1"/);
-  assert.match(WORKBENCH_UI_SOURCE, /onboardingRuntimeRequested[\s\S]{0,700}setWorkspaceMode\("runtime", false\)[\s\S]{0,220}setMobileView\("tui"\)/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work-onboarding-runtime-autofill:/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /await openPanel\(\{ runtime_kind: pending\.runtimeKind, cwd: pending\.workspacePath \}\)/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /await waitForTerminalOutput\(panel\.panel_id\)/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /await writePrompt\(false, undefined, true\)/);
-  assert.match(PTY_CLIENT_SOURCE, /query\.set\("onboarding", "1"\)/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work:onboarding-runtime-bootstrap/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work:onboarding-runtime-ready/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work:onboarding-runtime-waiting/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /molis-work:onboarding-runtime-error/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /press enter to \(\?:continue\|confirm\)/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /ask codex to do anything/);
-  assert.match(TERMINAL_AUTOFILL_SOURCE, /初始化提示已填入，检查后再发送/);
-  assert.doesNotMatch(TERMINAL_AUTOFILL_SOURCE, /fillPendingOnboardingContext[\s\S]{0,1800}writePrompt\(true\)/);
 });
 
 test("Feed Item actions create one bound Goal and expose its source context to Terminal", async () => {

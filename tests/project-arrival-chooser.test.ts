@@ -3,7 +3,7 @@ import test from "node:test";
 import { runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { renderMolisWorkProjectIndex, renderMolisWorkArrivalStylesheet } from "./workbench-renderer-fixture.js";
 
-// The project chooser (specs/project-arrival-flow): the directory on the desk, the brief on the sheet, one bar below.
+// The project chooser (specs/archive/project-arrival-flow): the directory on the desk, the brief on the sheet, one bar below.
 // Server-rendered, so everything the first paint shows is here; what the brief reads arrives from the Host afterwards.
 
 // Local time, so “yesterday” and “3 hours ago” read the same wherever the suite runs.

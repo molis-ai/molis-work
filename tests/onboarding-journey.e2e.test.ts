@@ -10,7 +10,7 @@ import { withContextJourneys, type ContextJourney, type ContextReference } from 
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean } from "./fixtures/layout-audit.js";
 
-// The way in for a new person and for a new project, in a real browser (specs/project-arrival-flow): the opening, the
+// The way in for a new person and for a new project, in a real browser (specs/archive/project-arrival-flow): the opening, the
 // two Welcome questions, and the journey from existing materials to a named project. The first test follows a person
 // through it; the rest put every screen — including the ones that need a journey already part-way — at every width, in
 // light and dark, and check that nothing overlaps, is cut off, or out of reach.

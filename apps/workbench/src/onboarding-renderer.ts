@@ -1,5 +1,5 @@
 import { ARRIVAL_MOTION_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
-import { CONTROL_CLIENT_SCRIPT, ONBOARDING_CLIENT_SCRIPT } from "./browser-assets.js";
+import { CONTROL_CLIENT_SCRIPT, ONBOARDING_DISMISS_CLIENT_SCRIPT } from "./browser-assets.js";
 import { renderContextOnboarding } from "./context-onboarding-renderer.js";
 import { createArrivalShell } from "./arrival/shell.js";
 
@@ -52,7 +52,7 @@ export function createWorkbenchOnboardingRenderer(primitives: OnboardingRenderPr
     return shell.document({
       title: L("Molis Work 已更新"), screen: "update", desktopShell, controlToken: options.controlToken ?? "",
       bodyAttrs: ` data-onboarding-mode="update"`, titlebar: shell.titlebar(desktopShell, { tools: false }), stage, bar,
-      scripts: `${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${ARRIVAL_MOTION_CLIENT_SCRIPT}${ONBOARDING_CLIENT_SCRIPT}
+      scripts: `${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${ARRIVAL_MOTION_CLIENT_SCRIPT}${ONBOARDING_DISMISS_CLIENT_SCRIPT}
 (() => { const mark = document.querySelector('.arrival-titlebar [data-wordmark]'); window.molisArrival?.settleWordmark(mark); })();`,
     });
   }

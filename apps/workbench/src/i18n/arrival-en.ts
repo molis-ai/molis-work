@@ -1,4 +1,4 @@
-/** English for the way in: the project chooser, the opening, and the new-project journey (specs/project-arrival-flow). Whole sentences with placeholders keep English word order. */
+/** English for the way in: the project chooser, the opening, and the new-project journey (specs/archive/project-arrival-flow). Whole sentences with placeholders keep English word order. */
 export const ARRIVAL_EN: Record<string, string> = {
   // Chooser
   "暂停标题动画": "Pause the title animation",

@@ -1,7 +1,7 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { LINGGUANG_CONVERSATION } from "./prompts.js";
 import { ActionError, FRAGMENT_ANY_OBJECT, bindObjectCopyHandler, bindObjectMoveHandler, defineFragmentOffersAction, defineObjectCopyAction, defineObjectMoveAction, type FragmentActionOffer, type FragmentOfferChoice, type FragmentOffersInput, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import { LINGGUANG_BODY_LIMIT, type LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangConversationState, LingguangStore } from "./store.js";
 import { createLingguangSearchHandlers, lingguangSearchActions, revisionOf } from "./search.js";
 
@@ -13,15 +13,23 @@ const spark = object({ id, project_id: id, title: text, body: text, source_kind:
 const conversation = object({ id, project_id: id, spark_ids: { type: "array", items: id }, created_at: text, updated_at: text });
 const message = object({ id, conversation_id: id, role: { enum: ["user", "assistant", "stub"] }, body: text, created_at: text });
 const conversationState = object({ conversation, sparks: { type: "array", items: spark }, messages: { type: "array", items: message } });
-const fields = { title: { type: "string", maxLength: 80 }, body: { type: "string", maxLength: 8000 } };
+const fields = { title: { type: "string", maxLength: 80 }, body: { type: "string", maxLength: LINGGUANG_BODY_LIMIT } };
 const read = ["lingguang:read"], write = ["lingguang:write"];
+const CONCURRENT = new Set(["conversation.message", "material.read", "source.read"]);
+type MaterialUpload = { file_name: string; data_base64: string; allow_model_download?: boolean };
+type MaterialSource = { url: string; allow_model_download?: boolean };
+/** Text read from a file or a public page. Reading keeps no spark: the person keeps what they want from it. */
+export interface LingguangMaterial { text: string; title?: string; file_name?: string; source_url?: string; partial?: boolean; issues?: string[] }
+/** What the Host's reader returns; only the text and what it says about its coverage are kept. */
+export interface LingguangHostMaterial { text: string; title?: string; file_name?: string; source_url?: string; coverage?: string | { status?: string; issues?: string[] } }
+const material = object({ text, title: text, file_name: text, source_url: text, partial: { type: "boolean" }, issues: { type: "array", items: text } }, ["text"]);
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
   return { capability_id: `lingguang.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}),
     kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
     permissions, subject_kinds: ["lingguang_spark"], input_schema: input, output_schema: output,
-    // A reply waits on a model; the store commits it only against the conversation snapshot it was asked about.
-    ...(name === "conversation.message" ? { scheduling: "concurrent" as const } : {}) } };
+    // A reply waits on a model, and reading a file or page on its source: neither holds the project's queue.
+    ...(CONCURRENT.has(name) ? { scheduling: "concurrent" as const } : {}) } };
 }
 const undoable = <I, O>(definition: ActionDefinition<I, O>, undo: NonNullable<ActionDefinition["action"]["undo"]>): ActionDefinition<I, O> =>
   ({ ...definition, action: { ...definition.action, undo } });
@@ -52,6 +60,10 @@ export const lingguangActions = {
   subject: lingguangSearchActions.subject,
   move: defineObjectMoveAction("lingguang.placement.move", ["lingguang_spark"], "灵光", [...read, ...write]),
   copy: defineObjectCopyAction("lingguang.placement.copy", ["lingguang_spark"], "灵光", [...read, ...write]),
+  readFile: define<MaterialUpload, LingguangMaterial>("material.read", "读取文件内容", "提取上传文件的文字（含图片识别与音视频转写），不保存灵光；需要下载本机识别模型时先得到同意", "command",
+    object({ file_name: { type: "string", minLength: 1, maxLength: 240 }, data_base64: { type: "string", minLength: 1 }, allow_model_download: { type: "boolean" } }, ["file_name", "data_base64"]), material, write),
+  readSource: define<MaterialSource, LingguangMaterial>("source.read", "读取链接内容", "读取公开网页、视频字幕或播客音频的文字，不保存灵光；遵守原来源的边界", "command",
+    object({ url: { type: "string", minLength: 1, maxLength: 2000 }, allow_model_download: { type: "boolean" } }, ["url"]), material, write),
   fragmentOffers: defineFragmentOffersAction("lingguang.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以记下", read, LINGGUANG_FRAGMENT_CHOICES),
 };
 /** The complete `lingguang.create` input for a fragment; pure. The same request id saves it once. */
@@ -61,7 +73,7 @@ export function prepareLingguangFragmentOffers(input: FragmentOffersInput): Frag
   const first = text.split("\n")[0]!.trim();
   const title = first.length > 40 ? first.slice(0, 39) + "…" : first;
   const from = input.fragment.object.title ? `\n\n出自：${input.fragment.object.title}` : "";
-  const body = (text + from).slice(0, 8000);
+  const body = (text + from).slice(0, LINGGUANG_BODY_LIMIT);
   return [{ offer_id: "capture", title: "记下灵光", action: { capability_id: "lingguang.create", version: 1 },
     input: { title, body, request_id: input.request_id.slice(0, 160) }, summary: `在灵光里记下一条：「${title}」`, editable: ["title", "body"] }];
 }
@@ -70,6 +82,9 @@ export const LINGGUANG_ACTIONS: readonly ActionDefinition[] = Object.values(ling
 export const LINGGUANG_ACTION_PERMISSIONS = [...new Set(LINGGUANG_ACTIONS.flatMap(definition => definition.action.permissions))];
 export interface LingguangActionPorts {
   withStore<T>(run: (store: LingguangStore) => T): T;
+  /** Reading files and public pages, where this machine can. */
+  readFile?(input: MaterialUpload, caller: ActionExecutionContext): Promise<LingguangHostMaterial>;
+  readSource?(input: MaterialSource, caller: ActionExecutionContext): Promise<LingguangHostMaterial>;
   completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
   modelAvailability(): ActionAvailability;
 }
@@ -94,6 +109,8 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
     bind(lingguangActions.list, (_, caller) => ports.withStore(store => ({ sparks: store.list(project(caller)) }))),
     bind(lingguangActions.get, (input, caller) => ports.withStore(store => ({ spark: store.get(input.id, project(caller)) }))),
     bind(lingguangActions.fragmentOffers, input => ({ offers: prepareLingguangFragmentOffers(input) })),
+    bind(lingguangActions.readFile, async (input, caller) => keptMaterial(await ports.readFile!(input, caller)), () => reading(ports.readFile)),
+    bind(lingguangActions.readSource, async (input, caller) => keptMaterial(await ports.readSource!(input, caller)), () => reading(ports.readSource)),
     bind(lingguangActions.create, (input, caller) => ports.withStore(store => ({ spark: store.create({ ...input, project_id: project(caller) }) }))),
     bind(lingguangActions.update, (input, caller) => ports.withStore(store => ({ spark: store.update(input.id, input, project(caller)) }))),
     bind(lingguangActions.discard, (input, caller) => ports.withStore(store => { store.discard(input.ids, project(caller)); return { ok: true }; })),
@@ -116,9 +133,20 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
   ];
 }
 
+const reading = (port: unknown): ActionAvailability => port ? { available: true } : { available: false, code: "actions.connection_required", reason: "这里不能读取文件或链接" };
+/** What a spark can hold of a reading: all of it up to the limit, and it says when it is not all. */
+function keptMaterial(read: LingguangHostMaterial): LingguangMaterial {
+  const coverage = typeof read.coverage === "string" ? { status: read.coverage, issues: [] as string[] } : { status: read.coverage?.status, issues: read.coverage?.issues ?? [] };
+  const room = LINGGUANG_BODY_LIMIT - 2_000;
+  const issues = [...coverage.issues, ...(read.text.length > room ? [`内容较长，只保留了前 ${room} 字`] : [])];
+  return { text: read.text.slice(0, room), ...(read.title ? { title: read.title.slice(0, 200) } : {}), ...(read.file_name ? { file_name: read.file_name } : {}),
+    ...(read.source_url ? { source_url: read.source_url } : {}), ...(coverage.status && coverage.status !== "sufficient" || read.text.length > room ? { partial: true } : {}), ...(issues.length ? { issues } : {}) };
+}
+const SPARK_IN_PROMPT = 12_000;
 function conversationPrompt(state: LingguangConversationState, body: string): InstructedPrompt {
   // JSON keeps source text visibly separate from the instruction; all values remain untrusted material.
-  const material = { sparks: state.sparks.map(({ title, body }) => ({ title, body })),
+  // A spark read from a file or page can be long: the conversation gets its opening part, said so.
+  const material = { sparks: state.sparks.map(({ title, body }) => ({ title, body: body.length > SPARK_IN_PROMPT ? body.slice(0, SPARK_IN_PROMPT) + "\n（以下省略）" : body })),
     history: state.messages.filter(message => message.role !== "stub").map(({ role, body }) => ({ role, body })), message: body };
   const data = JSON.stringify(material);
   if (data.length > 180_000) throw new ActionError("lingguang.context_too_large", "这场对话的材料过长，请减少所选灵光后开启对话");

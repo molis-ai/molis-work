@@ -28,6 +28,8 @@ export interface HostSurfaceDriver {
   observe(kind: HostSurfaceObservationKind, context?: { readonly session_id: string | null }): Promise<Uint8Array>;
   /** Performs one action. Refuses while the person has taken the page over. */
   perform(action: HostSurfaceAction, context: { readonly session_id: string | null }): Promise<void>;
+  /** The round using the page ended — finished, failed or stopped: the page is the person's again at once. */
+  release?(): Promise<void>;
   close(): Promise<void>;
   /** The name of what sits at a point of the page now (for the person's approval card); empty when nothing readable. */
   describePoint?(x: number, y: number): Promise<string>;

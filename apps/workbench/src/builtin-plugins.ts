@@ -111,7 +111,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: jellyManifest,
     instructions: JELLY_INSTRUCTIONS,
     personal: true,
-    summary: "日历、笔记、灵感，按天安排。",
+    summary: "日历与笔记，按天安排。",
     workbench: {
       order: 3,
       contributions: [jellyUiContribution],

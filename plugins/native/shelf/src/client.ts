@@ -1002,7 +1002,13 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (!hasFile(item)) return;
       const opened = invokeNative("shelf_open_path", { path: filePathOf(item) });
       if (opened) { opened.catch(() => {}); return; }
-      window.open(fileUrl(item.item_id), "_blank", "noopener");
+      // In the browser the side panel's file tab previews it (text, images, PDF; others are named with a download), never a
+      // new browser tab. Without a side panel here (a frame asks its page), the file is downloaded.
+      const target = { subject: { kind: "shelf_item", id: item.item_id }, title: item.name };
+      const asked = new CustomEvent("molis:side-open", { detail: { tab: "files", target, focus: true }, cancelable: true });
+      if (!document.dispatchEvent(asked)) return;
+      if (window.parent !== window) { window.parent.postMessage({ type: "molis:side-open", tab: "files", target, focus: true }, location.origin); return; }
+      const link = document.createElement("a"); link.href = fileUrl(item.item_id); link.download = item.name || ""; link.click();
       return;
     }
     const row = event.target.closest("[data-shelf-clip]");

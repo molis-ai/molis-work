@@ -554,6 +554,15 @@
 
 坑：浏览器夹具经包名加载 `dist`。只改源码、不重新构建对应包，反向验证是无效的。
 
+### 6.2 修复全部合入后的复核（2026-10-02，main 98984bf7）
+
+本轮修复全部合入后（#166、#168、#169、#170、#172、#173、#174、#175），在干净工作树 `regression-final` 上检出 98984bf7：
+
+- `pnpm install --frozen-lockfile --offline`、整体 `pnpm build`、`pnpm typecheck:all`、`pnpm boundary:check` 全部通过。
+- §6.1 全量回归里失败过的 24 个文件，加上本轮新增的 `plugin-builder-stage.e2e`、`placement-card-clearance.e2e`：222 条全部通过，0 失败，用时 7 分钟。
+
+另起一次全量回归（全部文件），09:13 开始，结果记在下面。
+
 ## 7. 行为基线
 
 第二步每次重构后，都对照这三样：全量回归基线、能力快照、跨功能场景清单。

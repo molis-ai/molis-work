@@ -36,7 +36,8 @@ for (const width of [1440, 390]) {
       assert.equal(pages.get(original.id, projectId!).publication_pending!.version, 1);
       db.exec("DROP TRIGGER fail_ui_publication");
       await openPages();
-      await click(`button.feed-stage-entry[data-page-id="${original.id}"]`);
+      // Opening Pages again reopens the page that was open (on a phone it fills the stage and the list steps aside).
+      await waitFor(`document.querySelector('[data-pages-title]')?.value === '已确认的发布快照'`);
       await waitFor("document.querySelector('[data-pages-artifact-bar]').textContent.includes('继续保存') && document.querySelector('[data-pages-note]').textContent.includes('当时的快照')");
       await evaluate(`(() => { const title = document.querySelector('[data-pages-title]'); title.value = '后续编辑仍在文稿中'; title.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
       await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");

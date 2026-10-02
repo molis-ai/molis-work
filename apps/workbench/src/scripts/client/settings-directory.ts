@@ -319,10 +319,19 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const href = event.data?.type === "molis-work:open-settings" ? event.data.href : "";
     if (typeof href === "string" && href) openGlobalSettingsFromUrl(href);
   });
+  // A section whose row went with its plugin (Coding's): its cached page is dropped, and a list that was showing it goes back to its first.
+  const leave = (section) => {
+    for (const [panel, first] of [[globalSettings, "appearance"], [projectSettings, "general"]]) {
+      if (!panel) continue;
+      panel.caches.delete(section);
+      if (panel.getActive() === section) void panel.loadSection(first);
+    }
+  };
   return {
     loadSection: (section) => globalSettings?.loadSection(section),
     loadProjectSection: (section, path) => projectSettings?.loadSection(section, path),
     getActive: () => globalSettings?.getActive(),
     getProjectActive: () => projectSettings?.getActive(),
+    leave,
   };
 }`;

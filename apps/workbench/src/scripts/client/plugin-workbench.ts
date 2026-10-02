@@ -239,17 +239,25 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     pending = true; selector.disabled = true; filter();
     status.textContent = removing ? L("正在移除…") : L("正在添加…");
     try {
-      const response = await fetch("/api/settings/projects/" + encodeURIComponent(targetProject) + "/plugins", {
-        method: removing ? "DELETE" : "POST", headers: globalThis.molisWorkControlHeaders(),
-        body: JSON.stringify({ plugin_id: button.dataset.marketAdd }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || (removing ? L("无法移除插件") : L("无法添加插件")));
+      let result;
+      if (targetProject === projectId && host.membership) {
+        // This project: the page changes in place (the switcher and the Dock follow); no reload.
+        const outcome = await host.membership.change(button.dataset.marketAdd, removing ? "remove" : "add", { quiet: true });
+        if (!outcome.ok) throw new Error(outcome.error);
+        result = outcome.result;
+      } else {
+        const response = await fetch("/api/settings/projects/" + encodeURIComponent(targetProject) + "/plugins", {
+          method: removing ? "DELETE" : "POST", headers: globalThis.molisWorkControlHeaders(),
+          body: JSON.stringify({ plugin_id: button.dataset.marketAdd }),
+        });
+        result = await response.json();
+        if (!response.ok) throw new Error(result.error || (removing ? L("无法移除插件") : L("无法添加插件")));
+      }
       const project = projects.find(project => project.project_id === targetProject);
       project.plugins = result.plugins;
       project.hidden = result.hidden || [];
       status.textContent = (removing ? L("已移除自") : L("已添加到")) + " " + project.display_name;
-      if (targetProject === projectId) { saveUiState(); location.reload(); }
+      if (targetProject === projectId && !host.membership) { saveUiState(); location.reload(); }
     } catch (error) { status.textContent = error.message; }
     finally { pending = false; selector.disabled = false; filter(); }
   });

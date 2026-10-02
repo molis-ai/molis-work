@@ -3,6 +3,7 @@ import { DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT } from "./deferred-plugin-client.
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
+import { PLUGIN_MEMBERSHIP_FACTORY_SCRIPT } from "./plugin-membership.js";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { NAVIGATION_PRESENTATION_SCRIPT, DOCK_SCRIPT } from "./navigation-presentation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
@@ -30,8 +31,22 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setMobileView: (...args) => setMobileView(...args), queueSave: () => queueSave(),
       saveUiState: () => saveUiState(),
     });
+    // Adding a plugin to the project or taking it away changes the page in place (the switcher's buttons and the market's both).
+    const pluginMembership = (${PLUGIN_MEMBERSHIP_FACTORY_SCRIPT})({
+      route, translate: L, projectId: state.project?.project_id, saveUiState, showToast,
+      leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,
+      trackSurface: (node) => { if (!desktopWorkSurfaces.includes(node)) desktopWorkSurfaces.push(node); },
+      untrackSurface: (node) => { const at = desktopWorkSurfaces.indexOf(node); if (at >= 0) desktopWorkSurfaces.splice(at, 1); },
+      // A plugin's section of the directory came or went: the page's list of panels is what is there now, and where the directory
+      // stands is checked against it (a directory that went falls back to the root).
+      directoryChanged: () => {
+        desktopDirectoryPanels.splice(0, desktopDirectoryPanels.length, ...document.querySelectorAll("[data-directory-panel]"));
+        setDesktopDirectory(treePane?.dataset.desktopDirectory || "root", false, false);
+      },
+      leaveSettingsSection: (section) => settingsDirectory?.leave?.(section),
+    });
     pluginWorkbench = (${PLUGIN_WORKBENCH_FACTORY_SCRIPT})({
-      mountPluginClient,
+      mountPluginClient, membership: pluginMembership,
       route, translate: L, projectId: state.project?.project_id,
       setSurface: surface => { setDesktopDirectory("artifacts", false, false); setDesktopWorkSurface(surface); },
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
@@ -42,6 +57,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     document.body.toggleAttribute("data-todo-available", Boolean(document.querySelector('[data-work-surface="todo"]')));
     (${NAVIGATION_PRESENTATION_SCRIPT})(L);
     (${DOCK_SCRIPT})(L, state.project?.project_id, {
+      membership: pluginMembership,
       setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
       setDirectory: (...args) => setDesktopDirectory(...args),
       leavePlugin: (plugin) => tabWorkspace?.leavePlugin?.(plugin) === true,

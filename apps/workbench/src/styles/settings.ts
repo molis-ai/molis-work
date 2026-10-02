@@ -257,8 +257,9 @@ export const SETTINGS_STYLES = `
   .settings-form-error { margin: 0; color: var(--red); font-size: 12px; }
   .project-general-page .settings-action-section { padding: 24px; margin-bottom: 12px; }
   .project-delete-section > button { justify-self: start; }
-  .settings-page .project-delete-button:disabled { opacity: .5; cursor: not-allowed; }
-  .settings-page .project-delete-dialog { width: min(560px, calc(100vw - 28px)); height: fit-content; max-height: calc(100dvh - 28px); margin: auto; border-radius: var(--radius-surface); }
+  /* The same in project settings on their own page and over the workbench (a settings cover). */
+  :is(.settings-page, body.immersive-workbench) .project-delete-button:disabled { opacity: .5; cursor: not-allowed; }
+  :is(.settings-page, body.immersive-workbench) .project-delete-dialog.runtime-plan-dialog { width: min(560px, calc(100vw - 28px)); height: fit-content; max-height: calc(100dvh - 28px); margin: auto; border-radius: var(--radius-surface); }
   .project-delete-dialog .runtime-plan-shell { height: auto; max-height: calc(100dvh - 28px); }
   .project-delete-dialog .runtime-plan-body > p:first-child { margin: 0; }
   .project-delete-dialog .settings-form-error { margin-top: 12px; }

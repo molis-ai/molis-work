@@ -316,6 +316,25 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     openCapabilities(capabilitiesLink.href);
   });
   if (capabilitiesLink) host.registerCover?.('capabilities', () => openCapabilities(capabilitiesFrame?.getAttribute('src') || capabilitiesLink.href));
+  // Any link to 能力 in the workbench (a plugin's "connect" link, say) opens in this cover.
+  const capabilitiesAddress = (href) => {
+    const url = new URL(href, location.origin);
+    const prefixed = /^\\/projects\\/[^/]+(\\/capabilities(?:\\/|$).*)$/.exec(url.pathname);
+    if (prefixed) url.pathname = prefixed[1];
+    if (url.origin !== location.origin || !/^\\/capabilities(\\/|$)/.test(url.pathname)) return null;
+    const project = document.body.dataset.projectId;
+    if (project && !url.searchParams.has('project')) url.searchParams.set('project', project);
+    return url.pathname + url.search + url.hash;
+  };
+  document.addEventListener('click', (event) => {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    const link = event.target?.closest?.('a[href]');
+    if (!link || link === capabilitiesLink || link.target === '_blank' || !capabilitiesFrame) return;
+    const href = capabilitiesAddress(link.href);
+    if (!href) return;
+    event.preventDefault();
+    openCapabilities(href);
+  });
   // A reload that restores the cover restores what it shows.
   const coverRoot = document.querySelector('[data-tab-workspace]');
   const restoreCover = () => { if (coverRoot?.dataset.exclusive === 'capabilities' && !capabilitiesFrame?.getAttribute('src')) loadCapabilities(capabilitiesLink?.href); };

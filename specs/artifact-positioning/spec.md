@@ -76,8 +76,8 @@
 | P14 | `/__ui/catalog`、`/__ui/catalog/bar` | 开发用规格板 | `web-catalog.ts:186-201`、`apps/workbench/src/primitive-catalog.ts` | 开发工具，拟列入例外 |
 | P15 | `/projects/<id>/side/<插件>/<视图>` | 宿主排版的侧栏文档 | `apps/local-host/src/web-request.ts:187`、`apps/workbench/src/side-view-document.ts` | 用户已列为例外 |
 | P16 | 协作服务 `/continuity`、`/im` | 另一个进程（`server/`）的整页 | `server/src/http.ts:58-61`、`packages/im-ui/src/page.ts` | 问用户 |
-| P17 | 未找到的页面 | 宿主自己的 404 整页 | `web-request.ts:191` | 拟改为打开工作台并说明找不到 |
-| P18 | 站内新标签页：`/api/project-references/<引用>` | Artifacts 内联引用、Goal 历史附件在新标签页打开 | `plugins/native/artifacts/src/reference-ui.ts:46`、`plugins/native/goals/src/event-history-body.ts:169` | 改为在工作台里定位 |
+| P17 | 未知地址 | 项目里不存在的页面地址回一段 JSON 错误（`{"error":"页面或接口不存在"}`），不是工作台（排查时误写成「宿主 404 整页」；`web-request.ts:191` 那一处是侧栏文档自己的找不到提示，属 P15） | `apps/local-host/src/web-request.ts:538` | 页面地址打开工作台并提示找不到；接口仍回 JSON 404（S2） |
+| P18 | 站内新标签页：`/api/project-references/<引用>` | Artifacts 内联引用、Goal 历史附件在新标签页打开 | `plugins/native/artifacts/src/reference-ui.ts:46`、`plugins/native/goals/src/event-history-body.ts:169` | 打开的是项目文件的原文（`text/plain` 内联），与 P19 同类：随 S5 在工作台里预览 |
 | P19 | Shelf 打开文件（网页版） | 原生里交给系统打开；网页里 `window.open` 新标签页 | `plugins/native/shelf/src/client.ts:1005` | 问用户（算导出还是要在工作台预览） |
 | P20 | 导出与打印 | 问卷填写页导出、Pages 导出 HTML、Jelly 导出、PPT 打印 | `plugins/native/form/src/fillpage.ts`、`plugins/native/pages/src/client.ts:734`、`plugins/native/jelly/src/markdown.ts:95`、`plugins/native/ppt/src/client.ts:126` | 用户已列为例外 |
 
@@ -111,10 +111,10 @@
 | --- | --- | --- |
 | S1 | 删 `renderPluginPageWorkspace` 与它的出口和测试（P9）、炼金术士历史演示记录（P8） | 只删不改；分支 `fix/shell-s1-drop-standalone-pages` |
 | S1b | 删旧的解释器创作台整套（P3、P4）：`/plugin-builder` 整页、旧生成插件独立页，以及只为它们存在的旧实现。新创作台（`agent-*`）只依赖旧包里的 `formula.ts`、`model.ts`、`validation.ts`；`actions`、`activity`、`client`、`generated`、`plugin`、`record-client`、`record-routes`、`records`、`routes`、`spec-board`、`starter`、`store`、`styles`、`ui`、`visuals`、`workflow` 只属旧系统。宿主还从旧系统取 `builderManifest`、`builderUiContribution`、`BUILDER_PROMPTS` 与两个角色（新创作台也用设计者、代码两个角色），要先把插件身份与角色提示词挪到新创作台，再删旧系统与 `tests/plugin-builder-browser.e2e`、`plugin-builder-visual.e2e` 等旧用例 | 大；旧发布记录不迁移、不读 |
-| S2 | 直达链接打开工作台：`/artifacts`、`/artifacts/<版本>` 改为回工作台并定位（P1）；未知地址打开工作台并说明找不到（P17）；`/api/project-references/` 在工作台里定位（P18） | 删 `renderArtifactWorkbenchPage` 整页 |
+| S2 | 直达链接打开工作台：`/artifacts`、`/artifacts/<版本>` 改为打开工作台并定位（P1）；未知页面地址打开工作台并提示找不到（P17） | 删 `renderArtifactWorkbenchPage` 整页与只给它用的样式；分支 `fix/shell-s2-direct-links-open-workbench` |
 | S3 | 沙箱框只在工作台里开：试用与已安装生成插件去掉框内的品牌、返回链接与「编辑新草稿」条；「单独打开试用」「打开插件」「打开 vN」改为工作台标签；直达框文档路由时打开工作台定位（P6、P7） | |
 | S4 | 创作台去框：创作台作为工作台插件面直接渲染（P5） | 大 |
-| S5 | Shelf 网页版在工作台里预览文件（P19） | |
+| S5 | 文件在工作台里预览：Shelf 网页版打开文件（P19）、项目内引用 `/api/project-references/`（P18），浏览器能显示的在标签或侧栏预览，其余下载 | |
 | S6 | 设置并进工作台：全局与项目设置成为工作台的设置面，删设置整页；插件里「去设置」的链接改为工作台内切面（P10、P11、P21） | 最大 |
 | S7 | 门禁：除 §4 例外外没有路由返回完整 HTML；插件内容里不出现自带页面外壳；站内链接不跳出工作台 | 守住 S1–S6 |
 
@@ -150,4 +150,5 @@
 
 ## 6. 进度
 
+- 2026-10-02：S1（P8、P9）与 S2（P1、P17）的代码已提交，待构建时段验证后开 PR；S1b 的依赖已理清。
 - 2026-10-02：建 spec；问题 1–6 初步核实；独立页面排查（§3）；三批弹窗问完全部待决（§1）；例外清单（§4）；实施计划（§5）。

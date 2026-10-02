@@ -517,8 +517,8 @@
 | 角色与 Coding 发现授权的未知动作；Images 390；Todo 1440/390 从 Inbox 与灵光转待办；Goals 失败的紧凑刷新退回整页 | `agent-action-selection.e2e`、`images-actions.e2e`、`todo-from-inbox.e2e`、`goals-refresh.e2e` | 测试没等界面就绪（#150） | 插件面加载期间是 inert，用例立即点击，没有作用 | 同一分支：夹具的 `click` 先等插件面加载完，新增 `surfaceReady()`；待浏览器时段验证 |
 | Pages 390：中断的发布刷新后续上 | `pages-publication.e2e` | 测试假设过时（#145） | #145 起 `?openPlugin=pages` 会打开 Pages 并重开上次的文稿；760px 以下文稿展开时列表本就收起，用例去点列表项 | 分支 `fix/test-pages-publication-narrow`：断言重开的就是这篇；待浏览器时段验证 |
 | Product journeys | `product-experience-polish.e2e` | 待定 | d39e8e5b 与 b5f6ddec 通过，fccb2a30 两次失败（都在负载下）；之后只有 #154 动过相关文件，但它只影响加载时的 `?openPlugin=`，搜索切换工具不经过它 | 安静时段在 fccb2a30 上单独复跑 |
-| 事件文档写规划、报告、关注、决定与关闭 | `goal-event-document.e2e` | 既有，负载时序 | 基线 62cbc14d 时已归为高负载超时；d39e8e5b 上同样失败 | 安静时段复跑确认 |
-| 安装包全流程 | `e2e.test.ts` | 既有，待定 | 基线时归为高负载；这次 Runtime 接入回滚，返回 409 | 安静时段复跑确认 |
+| 事件文档写规划、报告、关注、决定与关闭 | `goal-event-document.e2e` | 测试没跟上（#150 的 3903facd） | fccb2a30 上报 `Missing real refresh callback`：3903facd 把看板 4 秒刷新从 `setInterval` 改成界面生命周期的 `poll`（`setTimeout` 链），用例还在钩 `setInterval`。d39e8e5b 上的失败是另一回事（负载下 DOM 等待超时） | `fix/tests-deferred-plugin-clients`（e65373b1）：改钩 4 秒 `setTimeout`，并等这次刷新发起的看板读取结束，相当于原来 await 的 interval 回调；待浏览器时段验证 |
+| 安装包全流程 | `e2e.test.ts` | **环境**：本机 4173 被另一个 Home 的服务占着；用例不隔离 | 用例的 Web 跑在随机端口，接入校验按 Web 自己的环境启动 MCP 启动器，环境里没有 `MOLIS_WORK_WEB_URL`，启动器去默认的 127.0.0.1:4173。本机 4173 上是 10-01 10:39 起的旧 Home `~/.goalboard` 的 Web（pid 2115，非本会话所起），控制令牌对不上返回 403，启动器在 tools/list 时抛出 `actions.transport_denied` 退出，校验失败、回滚、409。保留临时目录手工运行安装后的启动器复现了同一条 stderr。4173 空着时发现失败走 `service_unavailable` 退回，所以 62cbc14d 基线时通过 | 分支 `fix/test-packed-e2e-own-web-url`（58b105b4）：Web 进程带上 `MOLIS_WORK_WEB_URL=origin`，与用例后面 Runtime 对话的写法一致；待构建时段验证。产品侧两点记入 BL-108 |
 
 其余失败都跨过了休眠，复跑通过。
 
@@ -530,16 +530,12 @@
   - Todo 1440 从 Inbox 与灵光转待办；
   - Goals「刷新回来不覆盖选中的 Goal」。
 - **还在失败**：
-  - Characters 卡片：加载后还要拉记录，用例在列表出来前就点了；
-  - Images 390：刷新按钮被隐藏，疑似窄屏下打开后重开了记录、列表收起，同 Pages 390；
-  - Todo 390：灵光「转为待办」被放置提示的关闭按钮盖住；
-  - Goals「失败的紧凑刷新退回整页」：树节点没出现；
+  - Characters 卡片：加载后还要拉记录，用例在列表出来前就点了。已改为先等列表项出现（e65373b1）；
+  - Images 390：刷新按钮被隐藏。Images 客户端一启动就 `expand()` 打开新建工作区，#150 之间 Images 与放置代码都没改，差别只在客户端改为打开时才加载；要在时段里截图看 390 下列表为什么收起，再定是产品还是用例；
+  - Todo 390：灵光「转为待办」被放置提示的关闭按钮盖住。放置提示本来的设计是「不压在舞台自己的按钮上」，但只在提示插入和窗口缩放时检查；提示升到顶部（`is-top`）后不再检查，也不会在下面的按钮出现后重排。#150 没动放置与灵光，只是客户端加载时机变了，把这个潜在问题露出来。要在时段里确认提示与按钮的先后，再修 `placement.ts` 的避让；
+  - Goals「失败的紧凑刷新退回整页」：树节点没出现。3903facd 去掉了看板自己的 `visibilitychange` 刷新，改由生命周期在真正的「隐藏→可见」时重启轮询；用例派发的合成事件不改可见性，所以要等下一次 4 秒轮询（e65373b1，等待放宽到 10 秒，断言不变）；
   - Product journeys：低负载下也失败，不是偶发。截图里重新加载后左侧「全部插件」面板是展开的，搜索里点 Dataset 没有切过去。
-- **既有失败**：事件文档与安装包全流程在低负载下也失败，不是负载时序。
-  - 事件文档：报 `Missing real refresh callback`；
-  - 安装包全流程：Runtime 接入回滚，返回 409。
-
-  这两条在 d39e8e5b 上同样失败，在 62cbc14d 基线上通过，所以是本轮范围里引入的，下一档在范围内二分。
+- **事件文档与安装包全流程**：低负载下也失败，不是负载时序。后来查清：事件文档是 #150 的轮询改动，安装包全流程是本机 4173 被占，见上表。
 
 ## 7. 行为基线
 

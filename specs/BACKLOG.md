@@ -69,6 +69,7 @@
 | BL-102 | 窗口约 740px 时，助理面板盖住侧栏浏览器里的确认卡（「允许这一次」只露出一半） | [post-merge-review §5 场景 4](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 窄屏布局 | 无 | 中 | 未分配 |
 | BL-103 | 中文对话里，助理的过程文字夹英文句子（「I'll open the page in the sidebar browser.」），结尾还提到会话标识前缀和 `applied: false` | [post-merge-review §5 场景 4](post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 模型行为；与 BL-091 同类 | BL-091 | 低 | 未分配 |
 | BL-104 | 带清单的一轮：模型更新步骤时用序号「1」「2」「3」，实际编号是 todo-4/5/6，三次都失败，回答仍写「清单已更新为全部完成」（PMR-32） | [post-merge-review §3 PMR-32](post-merge-review/spec.md#3-问题表) | 已知缺口 | 要么在说明里要求照抄编号，要么让工具认序号（后者在 Prologue）；「声称已更新」是否纳入防护要先看误判 | 无 | 中 | 未分配 |
+| BL-108 | Runtime 的 MCP 启动器找不到自己 Home 的服务时：①写进 Codex 等配置的环境只有 Home、受众、Runtime，没有 Web 地址，启动器一律去 127.0.0.1:4173，常驻服务不在 4173（如开发用的 4207）就连不上；②4173 上若是另一个 Home 的服务，发现能力被拒（403），启动器在 tools/list 时抛错退出，Runtime 只看到 MCP 起不来 | [post-merge-review §6.1](post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02) | 已知缺口 | ①要改 Runtime 配置合同（加地址，或让启动器从 Home 读服务地址），属合同变化；②被拒时回 JSON-RPC 错误、说明「4173 上不是这个 Home 的服务」，而不是退出进程 | 无 | 中 | 未分配 |
 
 ## 4. 搜索、放置与工作流
 

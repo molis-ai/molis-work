@@ -162,14 +162,14 @@ UI 工具遵循接手环境允许的浏览器方式。上轮浏览器连接后�
 
 ## 截图与交付要求
 
-完整审计报告：[视觉与交互审计](/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/视觉与交互审计.md)。该目录在本机仓库之外；如果接手环境拿不到附件，按上文步骤在隔离预览重新复现即可，不假称已经看过截图。
+完整审计报告：视觉与交互审计（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/视觉与交互审计.md`）。该目录在本机仓库之外；如果接手环境拿不到附件，按上文步骤在隔离预览重新复现即可，不假称已经看过截图。
 
 | 问题 | 原始截图 |
 | --- | --- |
-| 分屏跳首页 | [split-loses-goals.png](/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/split-loses-goals.png) |
-| 搜索重复 | [search-duplicate-pages.png](/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/search-duplicate-pages.png) |
-| Inbox 标题 | [inbox-title-desktop.png](/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/inbox-title-desktop.png) |
-| Pages Escape | [pages-more-after-escape.png](/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/pages-more-after-escape.png) |
-| 低高度菜单 | [layout-menu-1024x340.png](/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/layout-menu-1024x340.png) |
+| 分屏跳首页 | split-loses-goals.png（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/split-loses-goals.png`） |
+| 搜索重复 | search-duplicate-pages.png（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/search-duplicate-pages.png`） |
+| Inbox 标题 | inbox-title-desktop.png（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/inbox-title-desktop.png`） |
+| Pages Escape | pages-more-after-escape.png（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/pages-more-after-escape.png`） |
+| 低高度菜单 | layout-menu-1024x340.png（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/layout-menu-1024x340.png`） |
 
 交付时按 #1–#8 逐项写明：改了什么、工程验证结果、在哪个构建/端口实操、仍有哪些未知。检查自己新增的 diff 是否混入他人改动；给视觉项保留相同窗口尺寸的对照截图。没有完成的项写明具体阻塞，不用测试数量代替端到端行为；等待真人验收不阻塞其余独立修复。

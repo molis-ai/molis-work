@@ -118,8 +118,8 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     $('[data-jelly-archived]').hidden=inCalendar||view==='progress';
     $('[data-jelly-archived]').setAttribute('aria-pressed',String(archived));
     $('[data-jelly-hide-completed]').setAttribute('aria-pressed',String(hideCompleted));
-    const create=$('[data-jelly-new]');create.hidden=view==='progress';create.querySelector('span').textContent=L(view==='notes'?'新建笔记':view==='inspirations'?'收集灵感':'新建事项');
-    create.setAttribute('aria-label',L(view==='notes'?'新建笔记':view==='inspirations'?'收集灵感':'新建事项'));
+    const create=$('[data-jelly-new]');create.hidden=view==='progress';create.querySelector('span').textContent=L(view==='notes'?'新建笔记':'新建事项');
+    create.setAttribute('aria-label',L(view==='notes'?'新建笔记':'新建事项'));
     $$('[data-jelly-view]').forEach((node)=>{if(node.dataset.jellyView===view)node.setAttribute('aria-current','page');else node.removeAttribute('aria-current');});
     $$('[data-jelly-mode]').forEach((node)=>node.setAttribute('aria-pressed',String(node.dataset.jellyMode===mode)));
   };
@@ -131,7 +131,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if(target.dataset.jellyCloseDialog){ $(target.dataset.jellyCloseDialog==='item'?'[data-jelly-item-dialog]':'[data-jelly-dialog]').close();return; }
     if(target.matches('[data-jelly-view]'))return void run(()=>switchView(target.dataset.jellyView));
     if(target.matches('[data-jelly-filter]')){filterCategory=target.dataset.jellyFilter;return void run(renderView);}
-    if(target.matches('[data-jelly-new]'))return void run(async()=>{await flushEditor();if(view==='notes')await createNote();else if(view==='inspirations')await createInspiration();else openItem(null,anchor);});
+    if(target.matches('[data-jelly-new]'))return void run(async()=>{await flushEditor();if(view==='notes')await createNote();else openItem(null,anchor);});
     if(target.matches('[data-jelly-mode]')){mode=target.dataset.jellyMode;return void run(renderView);}
     if(target.matches('[data-jelly-step]')){const step=Number(target.dataset.jellyStep);if(mode==='week'&&view==='calendar'||view==='progress'&&reviewPeriod==='week')anchor=addDays(anchor,step*7);else{const date=dayDate(anchor);date.setDate(1);date.setMonth(date.getMonth()+step);anchor=civil(date);}return void run(renderView);}
     if(target.matches('[data-jelly-today]')){anchor=civil();return void run(renderView);}
@@ -145,7 +145,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if(target.matches('[data-jelly-export]'))return void run(async()=>{await flushEditor();const result=await request('GET','/api/jelly/export');download('Jelly-'+civil()+'.json',JSON.stringify(result.workspace,null,2),'application/json');showNote(L('工作区已导出'));});
     if(target.matches('[data-jelly-import]')){$('[data-jelly-menu]').hidden=true;$('[data-jelly-import-file]').click();return;}
     if(target.matches('[data-jelly-back]'))return void run(async()=>{await flushEditor();closeWorkspace();await loadList();});
-    if(target.matches('[data-jelly-record]'))return void run(async()=>{await flushEditor();openRecord(view==='notes'?'note':'inspiration',target.dataset.jellyRecord);});
+    if(target.matches('[data-jelly-record]'))return void run(async()=>{await flushEditor();openRecord('note',target.dataset.jellyRecord);});
     handleCalendarClick(target,event); handleContentClick(target,event); handlePlanClick(target,event);
   });
   $('[data-jelly-search]').addEventListener('input',(event)=>{query=event.target.value.trim();void run(renderView);});
@@ -176,10 +176,10 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       await flushEditor();await mutationQueue.catch(()=>{});
       state=(await request('GET','/api/jelly')).state;
       const item=state.items.find((entry)=>entry.id===id),series=state.series.find((entry)=>entry.id===id);
-      const kind=item||series?null:recordFor('note',id)?'note':recordFor('inspiration',id)?'inspiration':null;
+      const kind=item||series?null:recordFor('note',id)?'note':null;
       if(!item&&!series&&!kind){await renderView();showNote(L('这条内容已不存在'),true);return;}
       closeWorkspace();
-      if(kind){view=kind==='note'?'notes':'inspirations';archived=Boolean(recordFor(kind,id).archived_at);await renderView();openRecord(kind,id);return;}
+      if(kind){view='notes';archived=Boolean(recordFor(kind,id).archived_at);await renderView();openRecord(kind,id);return;}
       const today=civil();view='calendar';anchor=item?item.start_date:series.start_date>today?series.start_date:today;
       await renderView();if(item)openItem(item);
     });

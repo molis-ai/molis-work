@@ -1,8 +1,7 @@
-import type { JellyBlock, JellyItem, JellyWorkspace, JellySchedule, JellyMaterialSnapshot, JellyMaterialBlock, JellyMaterialCoverage, JellyMaterialLocator, JellyStructuredDigest } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyBlock, JellyItem, JellyWorkspace, JellySchedule } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { emptyJellyWorkspace, validateJellyWorkspace } from "./calendar.js";
 import { jellyAddDays } from "./calendar-validation.js";
 import { jellyHash, validateJellyContent } from "./content.js";
-import { jellyMaterialFingerprint, validateJellyMaterialSnapshot, validateJellyStructuredDigest, renderJellyDigestMarkdown } from "./material.js";
 import { jellyAssert } from "./error.js";
 
 type Obj = Record<string, any>;
@@ -26,29 +25,6 @@ function block(value: any, now: string): JellyBlock {
   const text = spans.map(s => s.text).join("");
   return { id: id(b.id), kind: b.kind === "ordered" ? "numbered" : b.kind, text, indent: b.indentLevel ?? 0, completed_at: b.taskState?.completedAt == null ? null : stamp(b.taskState.completedAt, now), completion_description: b.taskState?.completionDescription ?? "", ...(b.codeInfoString ? { language: b.codeInfoString } : {}), inline_spans: spans };
 }
-function nativeMaterialSnapshot(value: unknown, sourceHash: string, now: string): JellyMaterialSnapshot {
-  const raw = object(value);
-  const blocks: JellyMaterialBlock[] = list(raw.blocks).map(value => {
-    const block = object(value), loc = object(block.locator); jellyAssert(block.confidence == null || (Number.isInteger(block.confidence.basisPoints) && block.confidence.basisPoints >= 0 && block.confidence.basisPoints <= 10_000), "原 Jelly 素材置信度无效"); let locator: JellyMaterialLocator;
-    if (loc.paragraph) locator = { kind: "paragraph", index: loc.paragraph.index };
-    else if (loc.page) locator = { kind: "page", number: loc.page.number };
-    else if (loc.image) locator = { kind: "image", index: loc.image.index };
-    else { jellyAssert(loc.timestamp, "原 Jelly 素材定位无效"); locator = { kind: "timestamp", start_seconds: loc.timestamp.startSeconds, end_seconds: loc.timestamp.endSeconds }; }
-    return { id: id(block.id), role: block.role, text: block.text, locator, ...(block.confidence == null ? {} : { confidence: block.confidence.basisPoints / 10_000 }) };
-  });
-  const c = object(raw.coverage); let coverage: JellyMaterialCoverage;
-  if (c.sufficient) coverage = { status: "sufficient", processed: blocks.filter(block => block.role !== "metadata").length, issues: [] };
-  else if (c.partial) coverage = { status: "partial", processed: c.partial.processed, ...(c.partial.expected === undefined ? {} : { expected: c.partial.expected }), issues: c.partial.issues };
-  else { jellyAssert(c.insufficient, "原 Jelly 素材覆盖率无效"); coverage = { status: "insufficient", processed: blocks.filter(block => block.role !== "metadata").length, issues: [c.insufficient.code] }; }
-  return validateJellyMaterialSnapshot({ source_hash: sourceHash, content_fingerprint: jellyMaterialFingerprint(blocks, coverage), blocks, coverage, provider: raw.provenance?.adapterIdentifier ?? "jelly-native", acquired_at: stamp(raw.provenance?.acquiredAt ?? raw.createdAt, now) });
-}
-function nativeStructuredDigest(value: unknown, snapshot: JellyMaterialSnapshot): JellyStructuredDigest {
-  const summary = object(value), claim = (raw: unknown) => { const c = object(raw); return { text: c.text, evidence_block_ids: list(c.evidenceBlockIDs).map(id) }; };
-  return validateJellyStructuredDigest({ thesis: claim(summary.thesisClaim ?? summary.thesis), takeaways: list(summary.takeawayClaims ?? summary.takeaways).map(claim),
-    chapters: list(summary.chapters ?? []).map(ch => ({ title: ch.title, anchor_block_id: id(ch.anchorBlockID), points: list(ch.pointClaims ?? ch.points).map(claim) })),
-    quotes: list(summary.quotes ?? []).map(q => ({ text: q.text, evidence_block_id: id(q.evidenceBlockID), ...(q.speaker ? { speaker: q.speaker } : {}) })),
-    dropped: list(summary.droppedClaims ?? summary.dropped ?? []).map(claim) }, snapshot);
-}
 export interface JellyImportResult { workspace: JellyWorkspace; warnings: string[]; source_hash: string }
 export function decodeJellyImport(source: unknown, now = new Date().toISOString()): JellyImportResult {
   const parsed = typeof source === "string" ? JSON.parse(source) : structuredClone(source), doc = object(parsed), source_hash = jellyHash(typeof source === "string" ? source : JSON.stringify(source));
@@ -68,38 +44,12 @@ export function decodeJellyImport(source: unknown, now = new Date().toISOString(
   for (const [key, value] of pairs(recurrence.completions)) { const s = workspace.series.find(s => s.id === id(key.seriesID)); jellyAssert(s, "完成状态系列不存在"); s.completions[date(key.originalDate)] = { completed_at: stamp(value.completedAt, nowStamp), completion_description: value.completionDescription ?? "" }; }
   for (const [, n] of identities(sourceState.notes)) jellyAssert(n.document?.schemaVersion === 1, "不支持的笔记区块版本");
   workspace.notes = identities(sourceState.notes).map(([, n]) => ({ id: id(n.id), title: n.title, category_id: catId(n.categoryID), blocks: list(n.document.blocks).map(b => block(b, nowStamp)), pinned: n.isPinned ?? false, archived_at: n.archivedAt == null ? null : stamp(n.archivedAt, nowStamp), revision: n.revision, created_at: stamp(n.createdAt, nowStamp), updated_at: stamp(n.updatedAt, nowStamp) }));
-  workspace.inspirations = identities(sourceState.inspirations).map(([, i]) => ({ id: id(i.id), input_kind: i.inputKind, title: i.resolvedMetadata?.title ?? i.rawText?.slice(0, 80) ?? i.rawFile?.displayName ?? i.rawURL ?? "灵感", raw_text: i.rawText ?? "", url: i.rawURL ?? null, file_name: i.rawFile?.displayName ?? null, category_id: catId(i.categoryID), archived_at: i.lifecycle === "archived" ? stamp(i.updatedAt, nowStamp) : null, note_id: null, digest: null, created_at: stamp(i.createdAt, nowStamp), updated_at: stamp(i.updatedAt, nowStamp) }));
-  for (const l of list(sourceState.inspirationNoteLinks ?? [])) {
-    jellyAssert(workspace.notes.some(note => note.id === id(l.noteID)), "灵感关联笔记不存在");
-    if (l.source?.deleted) continue; // Deleted-source provenance remains in imported_sources; no live inspiration is invented.
-    const sourceId = l.source?.live?._0 ?? l.inspirationID;
-    const i = workspace.inspirations.find(i => i.id === id(sourceId)); jellyAssert(i, "灵感关联来源不存在"); i.note_id ??= id(l.noteID);
-  }
   workspace.task_links = list(sourceState.taskBlockLinks ?? []).map(l => ({ item_id: id(l.calendarItemID), note_id: id(l.noteID), block_id: id(l.blockID) }));
   // Native task titles are plain text even when the document spans carry formatting.
   for (const l of workspace.task_links) { const b = workspace.notes.find(n => n.id === l.note_id)?.blocks.find(b => b.id === l.block_id), item = workspace.items.find(i => i.id === l.item_id); if (b && item) { const plain = b.inline_spans?.map(s => s.text).join("") ?? b.text; jellyAssert(item.title.trim() === plain.trim() && item.completed_at === b.completed_at, "原工作区任务与日历关联不一致，请先在原 Jelly 修复"); b.text = plain; item.completion_description = b.completion_description; } }
   const graph = sourceState.calendarNoteRelations ?? {};
   for (const [owner, set] of pairs(graph.baselines)) { const ownerId = id(owner.item?._0 ?? owner.series?._0); if (set.primaryNoteID) workspace.relations.push({ owner_id: ownerId, original_date: null, note_id: id(set.primaryNoteID), role: "primary" }); for (const ref of list(set.referenceNoteIDs ?? [])) workspace.relations.push({ owner_id: ownerId, original_date: null, note_id: id(ref), role: "reference" }); }
   workspace.relation_overrides = pairs(graph.occurrenceOverrides).map(([key, v]) => ({ owner_id: id(key.seriesID), original_date: date(key.originalDate), primary: v.primary?.replace ? id(v.primary.replace._0) : v.primary?.clear ? "clear" : "inherit", added_reference_ids: list(v.addedReferenceNoteIDs ?? []).map(id), removed_reference_ids: list(v.removedReferenceNoteIDs ?? []).map(id) }));
-  for (const [key, d] of pairs(sourceState.materialDigests)) {
-    const i = workspace.inspirations.find(i => i.id === id(key)); jellyAssert(i, "摘要来源灵感不存在");
-    const sourceHash = jellyHash(i.raw_text + "\n" + (i.url ?? "")), rawSnapshot = d.result ? d.preparedSnapshot : d.pendingSnapshot ?? d.preparedSnapshot;
-    let snapshot: JellyMaterialSnapshot | undefined;
-    if (rawSnapshot) { jellyAssert(rawSnapshot.sourceChecksum === d.sourceChecksum, "原摘要素材来源校验不一致"); snapshot = nativeMaterialSnapshot(rawSnapshot, sourceHash, nowStamp); i.material = snapshot; }
-    if (!d.result) continue;
-    const result = d.result, summary = result.summary, claim = (v: any): string => typeof v === "string" ? v : v?.text ?? "";
-    const sourceText = snapshot?.blocks.map(b => b.text).join("\n\n") ?? "";
-    const summaryParts = [claim(summary.thesisClaim ?? summary.thesis), ...list(summary.takeawayClaims ?? summary.takeaways ?? []).map(v => `- ${claim(v)}`), ...list(summary.chapters ?? []).flatMap(ch => [`### ${ch.title}`, ...list(ch.pointClaims ?? ch.points ?? []).map(v => `- ${claim(v)}`)]), ...list(summary.quotes ?? []).map(q => `> ${q.text}${q.speaker ? ` —— ${q.speaker}` : ""}`), ...list(summary.droppedClaims ?? summary.dropped ?? []).map(v => `未采纳：${claim(v)}`)];
-    const modern = result.provenance?.summaryContractVersion === "summary-contract-v3";
-    let structured: JellyStructuredDigest | undefined;
-    if (modern) {
-      jellyAssert(snapshot && rawSnapshot.contentFingerprint === result.contentFingerprint, "原摘要缺少匹配的素材快照");
-      structured = nativeStructuredDigest(summary, snapshot);
-    } else warnings.push(`「${i.title}」是旧版摘要：保留正文与素材，原版本没有完整的逐条证据，需重新生成才能达到当前证据要求。`);
-    i.digest = { source_hash: sourceHash, source_text: sourceText, summary: structured && snapshot ? renderJellyDigestMarkdown(structured, snapshot) : summaryParts.filter(Boolean).join("\n"), ...(snapshot ? { snapshot } : {}), ...(structured ? { structured } : {}), created_at: stamp(result.completedAt, nowStamp), written_note_ids: [...new Set<string>((d.noteWrite ? [d.noteWrite] : list(d.noteWrites ?? [])).map(w => id(w.noteID)))] };
-  }
-  if (workspace.inspirations.some(i => i.file_name)) warnings.push("文件名称已导入；原生文件授权书签保存在原包中，浏览器需重新选择文件才能读取。");
-  if (pairs(sourceState.materialDigests).length) warnings.push("已有摘要及可用的素材块、定位、逐条引用证据已导入；原生运行状态完整保存在原始备份包中。");
   workspace.imported_sources = [{ sha256: source_hash, schema_version: 5, source: parsed, imported_at: now }];
   validateJellyWorkspace(workspace); validateJellyContent(workspace);
   return { workspace, warnings, source_hash };
@@ -127,7 +77,6 @@ export function mergeJellyImport(current: JellyWorkspace, imported: JellyWorkspa
   mergeById(merged.items, imported.items, "items");
   mergeById(merged.series, imported.series, "series");
   mergeById(merged.notes, imported.notes, "notes");
-  mergeById(merged.inspirations, imported.inspirations, "inspirations");
   merged.relations = mergeRows(merged.relations, imported.relations);
   merged.task_links = mergeRows(merged.task_links, imported.task_links);
   merged.relation_overrides = mergeRows(merged.relation_overrides, imported.relation_overrides);

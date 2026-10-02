@@ -142,3 +142,7 @@ Files/Git 的目录子树独立挂载，避免和 Coding 根节点争用同一�
 生成插件使用 design-system 的 `PluginPresentation` v1：stack/split/grid 树引用已有部件，kind、密度、阅读宽度、主操作与选中详情都是语义属性。结构由 `validatePluginPresentation` 严格校验；旧插件没有 presentation 时沿用旧布局。可操作示例在 `/__ui/catalog#plugin-composition`，由正式渲染器运行，示例数据只在该页内存。
 
 详情从当前集合记录读取，宽屏并排、窄屏返回目录；移动布局保留输入与选中。不要另复制操作和绑定，也不要写自有 CSS 或脚本。流程与输出见 [generated-ui.md](generated-ui.md)。
+
+### 工作台按需客户端
+
+已有构建期登记的 `workbench.clientFactory` 通过同一目录投影为独立脚本，`clientAssets` 声明必须先准备的 UI 资源。首次打开后才挂载；factory 不能依赖工作台闭包内的私有变量，所需能力通过 Host 参数或原声明的页面全局提供。保持同一 surface 根和已打开实例，加载期间最新 select-item 意图在挂载后传递；资源失败只重试 UI 资源。保留原 mountPluginClient 可见性与取消合同，不从隐藏页面停止后台任务。涉及此路径时运行 `tests/workbench-deferred-clients.e2e.test.ts` 和 `tests/client-script-undeclared.test.ts`。

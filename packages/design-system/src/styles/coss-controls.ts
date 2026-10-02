@@ -2,13 +2,13 @@ import { renderControlMetrics, renderShapeTokens, renderShellTokens } from "../p
 
 /** Shared Coss surfaces and controls. Loaded last by each page renderer. */
 export const COSS_CONTROL_STYLES = `
-  :root, body.immersive-workbench, body.settings-page, body.project-index-page {
+  :root, body.immersive-workbench, body.settings-page {
     ${renderShellTokens("light")}
     ${renderShapeTokens()}
     ${renderControlMetrics()}
   }
   html[data-resolved-theme="dark"],
-  html[data-resolved-theme="dark"] :is(body.immersive-workbench, body.settings-page, body.project-index-page) {
+  html[data-resolved-theme="dark"] :is(body.immersive-workbench, body.settings-page) {
     ${renderShellTokens("dark")}
   }
   html[data-density="compact"] :is(body.immersive-workbench, body.settings-page, body.project-preferences-page) { --control-h: 28px; }
@@ -65,8 +65,6 @@ export const COSS_CONTROL_STYLES = `
   .project-operation-dialog select,
   .project-operation-dialog textarea,
   .runtime-plan-dialog input:not([type=checkbox]),
-  .project-index-search input,
-  .project-index-search input[type="search"],
   .artifact-reference-label input,
   .artifact-content-reference input,
   body.immersive-workbench .home-shortcut-dialog input {
@@ -79,18 +77,10 @@ export const COSS_CONTROL_STYLES = `
     background: var(--paper);
     box-shadow: none;
   }
-  .project-index-search input,
-  .project-index-search input[type="search"] { padding-left: 32px; appearance: none; -webkit-appearance: none; }
   body.immersive-workbench .home-shortcut-dialog input:focus {
     border-color: var(--control-input);
     outline: 0;
     box-shadow: none;
-  }
-  .project-index-search input:focus-visible,
-  .project-index-search input[type="search"]:focus-visible {
-    outline: var(--focus-stroke);
-    outline-offset: var(--focus-stroke-inset);
-    border-color: var(--ink);
   }
   .dialog-body textarea,
   .project-operation-dialog textarea {
@@ -163,8 +153,7 @@ export const COSS_CONTROL_STYLES = `
   a:focus-visible:not([class^="mw-"]),
   summary:focus-visible:not([class^="mw-"]),
   body.immersive-workbench :focus-visible:not([class^="mw-"]),
-  body.settings-page :focus-visible:not([class^="mw-"]),
-  body.project-index-page :focus-visible:not([class^="mw-"]) {
+  body.settings-page :focus-visible:not([class^="mw-"]) {
     outline: var(--focus-stroke);
     outline-offset: var(--focus-stroke-inset);
   }

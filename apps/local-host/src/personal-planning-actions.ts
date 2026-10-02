@@ -21,7 +21,7 @@ export class PersonalPlanningActions {
       }),
     });
   }
-  configure(withCatalog: LocalWebCatalogRunner): void { this.withCatalog ??= withCatalog; }
+  configure(withCatalog: LocalWebCatalogRunner): void { this.withCatalog = withCatalog; }
 }
 
 /** Only bound after the local HTTP channel has passed origin/control-token checks. */

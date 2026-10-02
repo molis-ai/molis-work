@@ -71,8 +71,8 @@ export function validateJellySeries(series: JellySeries, categoryIds: Set<string
 function uniqueIds(values: { id: string }[], label: string): void { jellyAssert(new Set(values.map(value => value.id)).size === values.length && values.every(value => value && typeof value.id === "string" && value.id.length > 0), `${label} ID 重复或无效`); }
 export function validateJellyWorkspace(state: JellyWorkspace): void {
   jellyAssert(state && state.schema_version === 1 && Number.isSafeInteger(state.revision) && state.revision >= 0, "工作区版本无效");
-  for (const key of ["categories", "items", "series", "notes", "inspirations", "relations", "task_links", "applied_plan_ids"] as const) jellyAssert(Array.isArray(state[key]), `工作区 ${key} 无效`);
-  uniqueIds(state.categories, "分类"); uniqueIds(state.items, "事项"); uniqueIds(state.series, "系列"); uniqueIds(state.notes, "笔记"); uniqueIds(state.inspirations, "灵感");
+  for (const key of ["categories", "items", "series", "notes", "relations", "task_links", "applied_plan_ids"] as const) jellyAssert(Array.isArray(state[key]), `工作区 ${key} 无效`);
+  uniqueIds(state.categories, "分类"); uniqueIds(state.items, "事项"); uniqueIds(state.series, "系列"); uniqueIds(state.notes, "笔记");
   const categoryIds = new Set(state.categories.map(value => value.id));
   jellyAssert(categoryIds.has(JELLY_UNCATEGORIZED_ID), "缺少未分类");
   jellyAssert(new Set(state.categories.map(value => value.name.trim().toLocaleLowerCase())).size === state.categories.length, "分类名称重复");
@@ -84,7 +84,6 @@ export function validateJellyWorkspace(state: JellyWorkspace): void {
     uniqueIds(note.blocks, "笔记块");
     for (const block of note.blocks) jellyAssert(["paragraph", "heading1", "heading2", "heading3", "bullet", "numbered", "task", "quote", "code", "divider", "link"].includes(block.kind) && typeof block.text === "string" && Number.isInteger(block.indent) && block.indent >= 0 && block.indent <= 8 && stamp(block.completed_at) && typeof block.completion_description === "string", "笔记块无效");
   }
-  for (const inspiration of state.inspirations) jellyAssert(categoryIds.has(inspiration.category_id) && ["text", "url", "file"].includes(inspiration.input_kind) && typeof inspiration.raw_text === "string" && stamp(inspiration.archived_at) && (inspiration.note_id === null || state.notes.some(note => note.id === inspiration.note_id)), "灵感无效");
   const relations = new Set<string>(); const primaries = new Set<string>();
   for (const relation of state.relations) {
     jellyAssert(state.notes.some(note => note.id === relation.note_id), "笔记关联指向不存在的笔记");

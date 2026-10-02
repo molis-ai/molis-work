@@ -138,6 +138,8 @@ export interface ModelProviderStoreOptions {
   db: ModelProviderSqlite;
   secrets: ModelSecretPort;
   now?: () => Date;
+  /** The catalog owner has already prepared these tables. */
+  initializeSchema?: boolean;
 }
 
 export class ModelProviderStore {
@@ -149,7 +151,7 @@ export class ModelProviderStore {
     this.#db = options.db;
     this.#secrets = options.secrets;
     this.#now = options.now ?? (() => new Date());
-    createModelProviderTables(this.#db);
+    if (options.initializeSchema !== false) createModelProviderTables(this.#db);
   }
 
   /** Read existing credential references without schema writes or secret access. */

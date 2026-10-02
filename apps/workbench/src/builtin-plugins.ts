@@ -1,3 +1,4 @@
+import { CODING_WORKBENCH_SETUP_SCRIPT } from "./scripts/client/coding-setup.js";
 import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, runCogniaMcpTool } from "@molis-ai/molis-work-plugin-cognia";
 import { builderManifest, builderPrompts, builderUiContribution, BUILDER_STYLES, BUILDER_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
 import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-images";
@@ -17,7 +18,7 @@ import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goa
 import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "@molis-ai/molis-work-plugin-inbox";
 import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "@molis-ai/molis-work-plugin-schedule";
 import { SHELF_INSTRUCTIONS, SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "@molis-ai/molis-work-plugin-shelf";
-import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest, charactersSettingsUiContribution } from "@molis-ai/molis-work-plugin-characters";
+import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest, charactersSettingsUiContribution, CHARACTERS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-characters";
 import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, runPagesMcpTool } from "@molis-ai/molis-work-plugin-pages";
 import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, runFormMcpTool } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_INSTRUCTIONS, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, runDatasetMcpTool } from "@molis-ai/molis-work-plugin-dataset";
@@ -40,6 +41,8 @@ export interface BuiltinPluginWorkbench {
   readonly contributions: readonly UiContribution[];
   readonly stylesheet?: string;
   readonly clientFactory?: string;
+  /** Browser dependencies prepared before this factory mounts. */
+  readonly clientAssets?: readonly string[];
   readonly settingsClient?: string;
   readonly searchRow?: PluginSearchRow;
 }
@@ -108,7 +111,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     manifest: jellyManifest,
     instructions: JELLY_INSTRUCTIONS,
     personal: true,
-    summary: "日历、笔记、灵感，按天安排。",
+    summary: "日历与笔记，按天安排。",
     workbench: {
       order: 3,
       contributions: [jellyUiContribution],
@@ -249,6 +252,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     workbench: {
       order: 14,
       contributions: [charactersSettingsUiContribution],
+      clientFactory: CHARACTERS_CLIENT_FACTORY_SCRIPT,
     },
   },
   {
@@ -263,6 +267,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       contributions: [pagesUiContribution],
       stylesheet: PAGES_STYLES,
       clientFactory: PAGES_CLIENT_FACTORY_SCRIPT,
+      clientAssets: ["/assets/molis-work-pages-editor.js"],
       searchRow: { selector: "button.feed-stage-entry[data-page-id]", idDataset: "pageId" },
     },
     legacyMcp: runPagesMcpTool,
@@ -357,26 +362,31 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     workbench: {
       order: 20,
       contributions: [codingSettingsContribution],
+      clientFactory: CODING_WORKBENCH_SETUP_SCRIPT,
     },
   },
   {
     project_plugin_id: FILES_PROJECT_PLUGIN_ID,
     manifest: filesManifest,
+    workbench: { order: 21, contributions: [], clientFactory: CODING_WORKBENCH_SETUP_SCRIPT },
     summary: "查看工作区文件与保留的内容。",
   },
   {
     project_plugin_id: GIT_PROJECT_PLUGIN_ID,
     manifest: gitManifest,
+    workbench: { order: 22, contributions: [], clientFactory: CODING_WORKBENCH_SETUP_SCRIPT },
     summary: "查看工作区的版本与变更。",
   },
   {
     project_plugin_id: DIFF_PROJECT_PLUGIN_ID,
     manifest: diffManifest,
+    workbench: { order: 23, contributions: [], clientFactory: CODING_WORKBENCH_SETUP_SCRIPT },
     summary: "比较固定版本，逐项阅读差异。",
   },
   {
     project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID,
     manifest: textStatsManifest,
+    workbench: { order: 24, contributions: [], clientFactory: CODING_WORKBENCH_SETUP_SCRIPT },
     summary: "查看材料与成果的文本统计。",
   },
 ];

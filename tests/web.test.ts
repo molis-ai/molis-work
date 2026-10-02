@@ -887,11 +887,13 @@ test("Web first-run onboarding can be skipped without creating a project or Runt
     const onboarding = await (await webFetch(`${origin}/onboarding`)).text();
     assertInlineScriptsCompile(onboarding);
     assert.match(onboarding, /从你正在做的事/);
-    assert.match(onboarding, /想带入哪些内容/);
-    assert.match(onboarding, /cx-all/);
-    assert.match(onboarding, /连接 Google/);
+    assert.match(onboarding, /带入已有的材料/);
+    assert.match(onboarding, /Google 连接/);
     assert.match(onboarding, /空白开始/);
     assert.match(onboarding, /api\/onboarding\/context/);
+    // The first run is the arrival frame too: the same titlebar and bar as the chooser, and a way out of the journey.
+    assert.match(onboarding, /<body class="arrival-page immersive-workbench" data-arrival="onboard" data-onboarding-mode="first_run"/);
+    assert.match(onboarding, /id="cx-exit"/);
     assert.doesNotMatch(onboarding, /data-onboarding-form|name="intent_frame"|data-onboarding-runtime-frame/);
 
     const dismissed = await webFetch(`${origin}/api/onboarding/dismiss`, {
@@ -901,12 +903,17 @@ test("Web first-run onboarding can be skipped without creating a project or Runt
     });
     assert.equal(dismissed.status, 200);
 
+    // Having put the first run off, a person is not a new person again: a new project starts at the sources.
+    const again = await (await webFetch(`${origin}/onboarding?mode=new-project`)).text();
+    assert.match(again, /data-onboarding-mode="new_project"/);
+
     const projectIndex = await webFetch(`${origin}/`, { redirect: "manual" });
     assert.equal(projectIndex.status, 200);
     const page = await projectIndex.text();
     assert.match(page, /从一个真实项目开始/);
-    assert.match(page, /开始建立第一个项目/);
-    assert.match(page, /直接进入项目设置/);
+    assert.match(page, /带入材料新建/);
+    assert.match(page, /\/onboarding\?mode=new-project&amp;start=blank|\/onboarding\?mode=new-project&start=blank/);
+    assert.match(page, /进入个人空间/);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),

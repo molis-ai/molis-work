@@ -85,7 +85,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const empty = (title, message, label) => '<div class="jelly-empty">' + glyph(view === 'calendar' ? 'calendar' : view === 'notes' ? 'note' : 'idea') + '<h2>' + tx(title) + '</h2><p>' + tx(message) + '</p>' + (label ? btn(label,'data-jelly-new','plus') : '') + '</div>';
   const download = (filename, body, type) => { const url=URL.createObjectURL(new Blob([body],{type})); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); };
   const setStatus = (value) => { $('[data-jelly-save-status]').textContent=L(value); };
-  const closeWorkspace = () => { selected=null; dirty=false; root.dataset.expanded='false'; workspace.hidden=true; documentEl.replaceChildren(); };
+  const closeWorkspace = () => { selected=null; dirty=false; root.dataset.expanded='false'; workspace.hidden=true; documentEl.replaceChildren(); root.removeAttribute('data-assistant-context'); };
   const openGeneric = (title, html, ok, submit, cleanup) => {
     const dialog=$('[data-jelly-dialog]');
     genericVersion++;
@@ -118,8 +118,8 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     $('[data-jelly-archived]').hidden=inCalendar||view==='progress';
     $('[data-jelly-archived]').setAttribute('aria-pressed',String(archived));
     $('[data-jelly-hide-completed]').setAttribute('aria-pressed',String(hideCompleted));
-    const create=$('[data-jelly-new]');create.hidden=view==='progress';create.querySelector('span').textContent=L(view==='notes'?'新建笔记':view==='inspirations'?'收集灵感':'新建事项');
-    create.setAttribute('aria-label',L(view==='notes'?'新建笔记':view==='inspirations'?'收集灵感':'新建事项'));
+    const create=$('[data-jelly-new]');create.hidden=view==='progress';create.querySelector('span').textContent=L(view==='notes'?'新建笔记':'新建事项');
+    create.setAttribute('aria-label',L(view==='notes'?'新建笔记':'新建事项'));
     $$('[data-jelly-view]').forEach((node)=>{if(node.dataset.jellyView===view)node.setAttribute('aria-current','page');else node.removeAttribute('aria-current');});
     $$('[data-jelly-mode]').forEach((node)=>node.setAttribute('aria-pressed',String(node.dataset.jellyMode===mode)));
   };
@@ -131,7 +131,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if(target.dataset.jellyCloseDialog){ $(target.dataset.jellyCloseDialog==='item'?'[data-jelly-item-dialog]':'[data-jelly-dialog]').close();return; }
     if(target.matches('[data-jelly-view]'))return void run(()=>switchView(target.dataset.jellyView));
     if(target.matches('[data-jelly-filter]')){filterCategory=target.dataset.jellyFilter;return void run(renderView);}
-    if(target.matches('[data-jelly-new]'))return void run(async()=>{await flushEditor();if(view==='notes')await createNote();else if(view==='inspirations')await createInspiration();else openItem(null,anchor);});
+    if(target.matches('[data-jelly-new]'))return void run(async()=>{await flushEditor();if(view==='notes')await createNote();else openItem(null,anchor);});
     if(target.matches('[data-jelly-mode]')){mode=target.dataset.jellyMode;return void run(renderView);}
     if(target.matches('[data-jelly-step]')){const step=Number(target.dataset.jellyStep);if(mode==='week'&&view==='calendar'||view==='progress'&&reviewPeriod==='week')anchor=addDays(anchor,step*7);else{const date=dayDate(anchor);date.setDate(1);date.setMonth(date.getMonth()+step);anchor=civil(date);}return void run(renderView);}
     if(target.matches('[data-jelly-today]')){anchor=civil();return void run(renderView);}
@@ -145,7 +145,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if(target.matches('[data-jelly-export]'))return void run(async()=>{await flushEditor();const result=await request('GET','/api/jelly/export');download('Jelly-'+civil()+'.json',JSON.stringify(result.workspace,null,2),'application/json');showNote(L('工作区已导出'));});
     if(target.matches('[data-jelly-import]')){$('[data-jelly-menu]').hidden=true;$('[data-jelly-import-file]').click();return;}
     if(target.matches('[data-jelly-back]'))return void run(async()=>{await flushEditor();closeWorkspace();await loadList();});
-    if(target.matches('[data-jelly-record]'))return void run(async()=>{await flushEditor();openRecord(view==='notes'?'note':'inspiration',target.dataset.jellyRecord);});
+    if(target.matches('[data-jelly-record]'))return void run(async()=>{await flushEditor();openRecord('note',target.dataset.jellyRecord);});
     handleCalendarClick(target,event); handleContentClick(target,event); handlePlanClick(target,event);
   });
   $('[data-jelly-search]').addEventListener('input',(event)=>{query=event.target.value.trim();void run(renderView);});
@@ -155,6 +155,35 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     await flushEditor();const source=JSON.parse(await file.text());const {preview}=await request('POST','/api/jelly/preview',{kind:'import',source});
     openGeneric('导入工作区','<p class="jelly-muted">'+tx('合并导入前先检查数量与影响。原工作区会保留备份；重复导入不会重复创建。')+'</p><pre class="jelly-muted">'+esc(JSON.stringify(preview.counts,null,2))+'</pre>'+(preview.warnings||[]).map((line)=>'<p class="jelly-muted">'+esc(line)+'</p>').join(''),'确认导入',async()=>{await command({type:'workspace.import',source,confirmation_token:preview.confirmation_token});closeWorkspace();await loadList();showNote(L('导入完成'));});
   }));
+  // The Assistant changed Jelly: read the workspace again. An open note or idea with unsaved edits keeps them; saving
+  // then reports the conflict instead of overwriting.
+  window.addEventListener('molis:assistant-effect',(event)=>{
+    const capability=event.detail&&event.detail.capability_id;
+    if(typeof capability!=='string'||capability.indexOf('jelly.')!==0)return;
+    void run(async()=>{
+      await mutationQueue.catch(()=>{});await loadList();
+      if(!selected)return;
+      if(dirty){showNote(L('助理刚改过 Jelly；你还有没保存的修改，保存时会提示冲突，不会覆盖。'),true);return;}
+      if(recordFor(selected.kind,selected.id))openRecord(selected.kind,selected.id);else closeWorkspace();
+    });
+  });
+  // Opened by id (search, the side panel, an Assistant result): the object may be newer than this page, so read the
+  // workspace again and show that item, note or idea where it lives.
+  root.addEventListener('molis-work:select-item',(event)=>{
+    const id=event.detail&&event.detail.itemId;
+    if(typeof id!=='string'||!id)return;
+    void run(async()=>{
+      await flushEditor();await mutationQueue.catch(()=>{});
+      state=(await request('GET','/api/jelly')).state;
+      const item=state.items.find((entry)=>entry.id===id),series=state.series.find((entry)=>entry.id===id);
+      const kind=item||series?null:recordFor('note',id)?'note':null;
+      if(!item&&!series&&!kind){await renderView();showNote(L('这条内容已不存在'),true);return;}
+      closeWorkspace();
+      if(kind){view='notes';archived=Boolean(recordFor(kind,id).archived_at);await renderView();openRecord(kind,id);return;}
+      const today=civil();view='calendar';anchor=item?item.start_date:series.start_date>today?series.start_date:today;
+      await renderView();if(item)openItem(item);
+    });
+  });
   window.addEventListener('beforeunload',(event)=>{if(dirty){event.preventDefault();event.returnValue='';}});
   root.addEventListener('keydown',(event)=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='s'){event.preventDefault();void run(flushEditor);}});
   void loadList().catch((error)=>{content.innerHTML=empty('Jelly 暂时无法打开','请检查本地服务后重试。')+btn('重试','data-jelly-retry');showNote(error.message,true);});

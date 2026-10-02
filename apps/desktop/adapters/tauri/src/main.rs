@@ -586,7 +586,13 @@ struct ShelfFoundFile {
 /// Spotlight, the same way the Finder does it: type two characters and the
 /// shelf can add a local file without leaving the panel.
 #[tauri::command]
-fn shelf_find_files(query: String) -> Vec<ShelfFoundFile> {
+async fn shelf_find_files(query: String) -> Result<Vec<ShelfFoundFile>, String> {
+    tauri::async_runtime::spawn_blocking(move || shelf_find_files_blocking(query))
+        .await
+        .map_err(|error| format!("文件搜索未完成：{error}"))
+}
+
+fn shelf_find_files_blocking(query: String) -> Vec<ShelfFoundFile> {
     let needle = query.trim();
     if needle.chars().count() < 2 {
         return Vec::new();
@@ -613,7 +619,16 @@ fn shelf_find_files(query: String) -> Vec<ShelfFoundFile> {
 
 /// Add local files by path; the bytes never travel through the WebView.
 #[tauri::command]
-fn shelf_admit_paths(paths: Vec<String>) -> Result<usize, String> {
+async fn shelf_admit_paths(paths: Vec<String>) -> Result<usize, String> {
+    tauri::async_runtime::spawn_blocking(move || shelf_admit_paths_blocking(paths))
+        .await
+        .map_err(|error| format!("文件导入未完成：{error}"))?
+}
+
+fn shelf_admit_paths_blocking(paths: Vec<String>) -> Result<usize, String> {
+    // A second invocation must not interleave this command's original ordered batch.
+    static ADMISSIONS: Mutex<()> = Mutex::new(());
+    let _admission = ADMISSIONS.lock().map_err(|_| "文件导入状态需要核对".to_string())?;
     let mut added = 0;
     for path in paths {
         let candidate = std::path::Path::new(&path);
@@ -625,7 +640,13 @@ fn shelf_admit_paths(paths: Vec<String>) -> Result<usize, String> {
 
 /// Double-click opens the copy with whatever the system uses for it.
 #[tauri::command]
-fn shelf_open_path(path: String) -> Result<(), String> {
+async fn shelf_open_path(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || shelf_open_path_blocking(path))
+        .await
+        .map_err(|error| format!("文件打开未完成：{error}"))?
+}
+
+fn shelf_open_path_blocking(path: String) -> Result<(), String> {
     let status = std::process::Command::new("/usr/bin/open")
         .arg(&path)
         .status()

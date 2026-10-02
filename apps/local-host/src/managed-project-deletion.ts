@@ -1,3 +1,4 @@
+import type { CatalogCommit } from "./catalog-commit.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
@@ -16,7 +17,7 @@ export interface ProjectDeletionCleanupPorts {
 export class ManagedProjectDeletion {
   constructor(private readonly projects: Pick<ProjectsModule, "query" | "lifecycle">,
     private readonly projectsDirectory: string, private readonly cleanup: ProjectDeletionCleanupPorts,
-    private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">) {}
+    private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">, private readonly commit: CatalogCommit) {}
 async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
     return this.deleteProjectInternal(input, false);
   }
@@ -54,7 +55,7 @@ async deleteProjectInternal(
     await fs.rename(projectDirectory, stagedDirectory);
     let catalogCommitted = false;
     try {
-      const deletion = this.projects.lifecycle.transaction(() => {
+      const deletion = await this.commit(() => this.projects.lifecycle.transaction(() => {
         const racedReplay = this.projects.lifecycle.findDeletion(actorId, idempotencyKey);
         if (racedReplay) {
           throw new MolisWorkProjectCatalogError(
@@ -85,7 +86,7 @@ async deleteProjectInternal(
         };
         this.projects.lifecycle.insertDeletion(record);
         return record;
-      });
+      }));
       catalogCommitted = true;
       return { deletion: await this.finishProjectDeletionCleanup(deletion), replayed: false };
     } catch (error) {
@@ -101,17 +102,17 @@ async finishProjectDeletionCleanup(record: StoredProjectDeletion): Promise<Molis
     try {
       await fs.rm(record.staged_directory, { recursive: true, force: true });
       const cleanedAt = new Date().toISOString();
-      record = this.projects.lifecycle.updateDeletionCleanup(record.deletion_id, {
+      record = await this.commit(() => this.projects.lifecycle.updateDeletionCleanup(record.deletion_id, {
         state: "complete",
         error: null,
         cleaned_at: cleanedAt,
-      });
+      }));
     } catch (error) {
-      record = this.projects.lifecycle.updateDeletionCleanup(record.deletion_id, {
+      record = await this.commit(() => this.projects.lifecycle.updateDeletionCleanup(record.deletion_id, {
         state: "pending",
         error: error instanceof Error ? error.message : String(error),
         cleaned_at: null,
-      });
+      }));
     }
     return this.projects.lifecycle.deletionRecord(record);
   }

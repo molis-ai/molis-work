@@ -25,7 +25,9 @@ test("standard MCP clients share Jelly facts, preserve permissions and recover p
   try {
     const a = await connect(homes[0]!), reader = await connect(homes[0]!, "read"), b = await connect(homes[1]!);
     const tools = (await a.listTools()).tools.map(row => row.name);
-    for (const name of ["note.create", "workspace.get", "calendar.list", "plan.manual", "material.extract", "model.settings", "inspiration.delete_preview"]) assert.ok(tools.includes(`jelly.${name}__v1`));
+    for (const name of ["note.create", "workspace.get", "calendar.list", "plan.manual", "model.settings", "note.delete_preview"]) assert.ok(tools.includes(`jelly.${name}__v1`));
+    // Reading files and pages, and keeping ideas, belong to 灵光 now.
+    for (const name of ["material.extract", "source.read", "inspiration.create", "inspiration.delete_preview"]) assert.ok(!tools.includes(`jelly.${name}__v1`), name);
     const state = (await call(a, "note.create", { expected_revision: 0, title: "外部笔记", markdown: "核对真正的结果" })).state;
     const id = state.notes[0].id;
     assert.equal((await call(reader, "workspace.get")).state.notes[0].id, id);
@@ -36,8 +38,6 @@ test("standard MCP clients share Jelly facts, preserve permissions and recover p
     const plan = (await call(reader, "plan.manual", { source_type: "note", source_id: id })).plan;
     const applied = (await call(a, "plan.apply", { expected_revision: state.revision, plan })).state;
     assert.ok(applied.notes[0].blocks.some((block: { kind: string }) => block.kind === "task"));
-    const material = await call(a, "material.extract", { file_name: "source.txt", data_base64: Buffer.from("来源内容可重新读取").toString("base64") });
-    assert.equal((await call(a, "material.reread", { file_name: material.file_name, sha256: material.source_sha256 })).text, "来源内容可重新读取");
     assert.equal((await call(a, "model.settings")).configured, false);
     const archived = (await call(a, "note.archive", { id, expected_revision: applied.revision })).state;
     const preview = (await call(a, "note.delete_preview", { id })).preview;

@@ -631,8 +631,9 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(browser, /data-directory-shortcuts|directory-shortcuts-title/);
     const homeStart = browser.indexOf('data-work-surface="home"');
     assert.ok(homeStart >= 0);
-    assert.match(browser.slice(homeStart), /class="home-scroll"[\s\S]*data-home-dates[\s\S]*data-home-focus[\s\S]*data-home-note[\s\S]*class="home-shortcuts"[\s\S]*data-home-shortcut-add[\s\S]*data-home-list/);
+    assert.match(browser.slice(homeStart), /class="home-scroll"[\s\S]*data-home-dates[\s\S]*data-home-focus[\s\S]*class="home-shortcuts"[\s\S]*data-home-shortcut-add[\s\S]*data-home-list/);
     assert.doesNotMatch(browser.slice(homeStart, homeStart + 8000), /home-composer|home-calendar|data-home-agent-input/);
+    assert.doesNotMatch(browser.slice(homeStart, homeStart + 8000), /home-note|data-home-note/, "Home keeps no scratch note");
     assert.match(browser, /scrollbar-width: none/);
     assert.match(renderMolisWorkWorkbenchStylesheet(), /tree-footer[\s\S]*display: none !important/);
     assert.match(directGoal, /data-desktop-directory="root"/);
@@ -851,15 +852,15 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
 
     const index = await webFetch(`${origin}/`);
     const indexHtml = await index.text();
-    assert.match(indexHtml, /class="project-index-page"/);
-    assert.match(indexHtml, new RegExp(`href="${prefix}"`));
+    assert.match(indexHtml, /class="arrival-page immersive-workbench"/);
+    assert.match(indexHtml, new RegExp(`href="${prefix}/"`));
     assert.doesNotMatch(indexHtml, /class="tui-pane"|pty-client\.js/);
 
     const desktopIndex = await webFetch(`${origin}/?desktop=1`);
     assert.equal(desktopIndex.headers.get("set-cookie"), null);
     const desktopIndexHtml = await desktopIndex.text();
-    assert.match(desktopIndexHtml, /class="project-index-page"/);
-    assert.match(desktopIndexHtml, new RegExp(`href="${prefix}\\?desktop=1"`));
+    assert.match(desktopIndexHtml, /class="arrival-page immersive-workbench"/);
+    assert.match(desktopIndexHtml, new RegExp(`href="${prefix}/\\?desktop=1"`));
 
     const cookieResponse = await webFetch(`${origin}${prefix}/goals/TUI-GOAL`, {
       headers: { cookie: "molis_work_desktop=1" },

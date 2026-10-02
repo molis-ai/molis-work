@@ -2,7 +2,7 @@
   "name": "@molis-ai/molis-work-plugin-jelly",
   "version": "0.0.0",
   "private": true,
-  "description": "Jelly 日历、笔记与灵感的 Molis Work 插件。",
+  "description": "Jelly 日历与笔记的 Molis Work 插件。",
   "type": "module",
   "license": "MIT",
   "engines": {

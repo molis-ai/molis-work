@@ -33,6 +33,7 @@ import { PLACEMENT_EN } from "./placement-en.js";
 import { CONTEXTUAL_EN } from "./contextual-en.js";
 import { SIDE_PANEL_EN } from "./side-panel-en.js";
 import { ONBOARDING_EN } from "./onboarding-en.js";
+import { ARRIVAL_EN } from "./arrival-en.js";
 import { RENDERER_GAP_EN } from "./renderer-gap-en.js";
 import { HOME_EN } from "./home-en.js";
 import { FLOW_EN } from "./flow-en.js";
@@ -136,6 +137,7 @@ export const EN: Record<string, string> = {
   ...INFORMATION_LOOP_EN,
   ...ASSISTANT_EN,
   ...ONBOARDING_EN,
+  ...ARRIVAL_EN,
   ...RENDERER_GAP_EN,
   ...HOME_EN,
   ...IMAGES_EN,
@@ -350,7 +352,7 @@ export const EN: Record<string, string> = {
   "项目的固定成果，各版本可回看。": "The project's fixed outcomes; every version can be revisited.",
   "先记下想法，再决定留下或丢掉。": "Jot down ideas, then keep or drop them.",
   "记下要做的事，分清今天、在等谁。": "Note what to do: today, or waiting on someone.",
-  "日历、笔记、灵感，按天安排。": "Calendar, notes and ideas, planned by day.",
+  "日历与笔记，按天安排。": "Calendar and notes, planned by day.",
   "导入本地知识，带来源检索问答。": "Import local knowledge; search and ask with sources.",
   "定义 AI 做事方式，供任务选用。": "Define how an AI works, for tasks to pick.",
   "同一任务，比较各模型的判断与成本。": "Compare models on one task: judgement and cost.",
@@ -359,7 +361,6 @@ export const EN: Record<string, string> = {
   "导入本地知识，带着来源检索和问答。": "Import local knowledge, then search and ask with sources kept.",
   "用自然语言设计、构建并使用自己的插件。": "Design, build and use your own plugin in plain language.",
   "连接生图服务，用一句描述生成图片。": "Connect an image service and generate pictures from a description.",
-  "日历、笔记和灵感放在一起，按天安排。": "Calendar, notes and ideas in one place, planned by day.",
   "同一任务，比较不同模型的判断、耗时与成本。": "Compare models on one task: judgement, time and cost.",
   "定时跑一轮对话任务，也替其他插件准时提醒。": "Run a conversation task on schedule, and ring other plugins' reminders on time.",
   "订阅来源，读消息，留下值得留的。": "Follow sources, read what arrives, keep what matters.",
@@ -603,9 +604,6 @@ export const EN: Record<string, string> = {
   "不接受，改为继续处理": "Do not accept; continue mitigation",
   "你没有接受这项风险，已改为由 Runtime 继续处理。": "You did not accept this risk, so it has been returned to the Runtime for mitigation.",
   " 下一步：{action}。": " Next: {action}.",
-  "通知，暂不可用": "Notifications, currently unavailable",
-  "通知功能即将开放": "Notifications are coming soon",
-  "插件通知": "Plugin notifications",
   "插件通知：{count} 条待核对": "Plugin notifications: {count} to review",
   "没有附加摘要": "No additional summary",
   "Inbox Message · Goal 决定": "Inbox Message · Goal decision",

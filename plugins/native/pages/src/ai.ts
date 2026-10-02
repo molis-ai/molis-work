@@ -70,6 +70,10 @@ export async function runPagesAi(
   if (completeText) {
     const output = (await completeText(instructed(PAGES_WRITING_ASSISTANT, `命令：${label}\n\n${text}`))).trim();
     if (!output) throw Object.assign(new Error("模型没有返回文字"), { code: "pages.invalid" });
+    // “更短” promises a shorter text: a longer one is not offered as the rewrite (seen from MiniMax M3.1, which also added facts).
+    if (request.command === "rewrite" && request.style === "concise" && output.length >= text.length) {
+      throw Object.assign(new Error("这次改写没有比原文更短，没有采用；可以再试一次"), { code: "pages.invalid" });
+    }
     return { text: output, stub: false, command: request.command, style: request.style };
   }
   throw Object.assign(new Error("请先配置文字模型，再使用写作助手"), { code: "actions.connection_required" });

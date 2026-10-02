@@ -35,7 +35,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const targetClear = island.querySelector("[data-assistant-target-clear]");
   const newButton = island.querySelector("[data-assistant-new]");
   if (!composer || !input || !send || !thread || !target) return null;
-  const project = host.project && host.project.id ? host.project : null;
+  // The project the next new work belongs to. The project list changes it as the person looks from one project to another.
+  let project = host.project && host.project.id ? host.project : null;
   // Search opens with ⌘K (Ctrl K elsewhere); a touch screen has no key to name.
   const searchKey = () => !document.querySelector("[data-global-search-open], [data-global-search-dialog]") || (window.matchMedia && window.matchMedia("(hover: none)").matches) ? ""
     : /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
@@ -239,8 +240,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       // A new work needs no chip: where it lives and who does it are in “+”; the input says the rest.
       if (targetWrap) { targetWrap.dataset.mode = "new"; targetWrap.hidden = true; }
     }
+    // A page that knows what the person is looking at (the project list) may say so in the placeholder of a new work.
+    const hint = !work && newExecutor === "assistant" && host.placeholder ? host.placeholder(project) : "";
     input.placeholder = work ? L("补充、回答或纠正…") : newExecutor === "coding" ? L("让 Coding Agent 做点什么…")
-      : searchKey() ? L("让助理做点什么，或按 {key} 搜索").replace("{key}", searchKey()) : L("让助理做点什么…");
+      : hint ? hint : searchKey() ? L("让助理做点什么，或按 {key} 搜索").replace("{key}", searchKey()) : L("让助理做点什么…");
     // A Coding work shows the mode its next round runs in — the session's own setting, the same one its page shows.
     if (modeButton) {
       // A new work that continues an open Coding session runs in that session's own mode, shown once it is the work's.
@@ -323,6 +326,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let drawerOpen = false;
   // The platform side panel takes the window's right edge (body[data-side-open], --side-panel-width): what is left decides.
   const sideWidth = () => document.body.dataset.sideOpen === "true" ? parseFloat(getComputedStyle(document.body).getPropertyValue("--side-panel-width")) || 0 : 0;
+  const sideInset = () => parseFloat(getComputedStyle(document.body).getPropertyValue("--sheet-inset")) || 14;
   const spacious = () => wide.matches && window.innerWidth - sideWidth() >= 1240;
   const sideOpen = () => spacious() ? store.get(SIDE_KEY) !== "closed" : drawerOpen;
   const paintLayout = () => {
@@ -333,7 +337,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     island.toggleAttribute("data-side-shown", !panel.hidden && sideOpen());
     paintStrip();
     const anchor = !panel.hidden && sideWidth() ? panel.offsetParent : null;
-    if (anchor) panel.style.setProperty("--assistant-room", Math.round(window.innerWidth - sideWidth() - 12 - anchor.getBoundingClientRect().right) + "px");
+    if (anchor) panel.style.setProperty("--assistant-room", Math.round(window.innerWidth - sideWidth() - sideInset() - 4 - anchor.getBoundingClientRect().right) + "px");
     else panel.style.removeProperty("--assistant-room");
   };
   sideToggle?.addEventListener("click", () => {
@@ -1356,7 +1360,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const made = results.map((o) => objectCard(o, "done"));
       const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
         title: change.title, sub: L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
-        actions: change.state !== "undone" ? [sideAction(L("撤销"), change.title, async () => { view = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {}); render(); }, false, "secondary", "undo")] : [] }));
+        actions: change.state !== "undone" ? [sideAction(L("撤销"), change.title, async () => {
+          view = await api("/works/" + encodeURIComponent(work.work_id) + "/undo/" + encodeURIComponent(change.undo_id), "POST", {});
+          // Taken back: the owner's page rereads, as it did when the change was made.
+          const taken = (view.undoable || []).find((one) => one.undo_id === change.undo_id);
+          if (taken && taken.state === "undone" && taken.capability_id) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: taken.capability_id } }));
+          render();
+        }, false, "secondary", "undo")] : [] }));
       const JOB = { running: "进行中", completed: "已完成", failed: "没有完成", unknown: "不再跟进，请到原处查看" };
       const background = jobs.map((job) => card({ icon: job.state === "running" ? spinner() : job.state === "completed" ? "check" : "circle-alert",
         tone: job.state === "completed" ? "done" : job.state === "failed" ? "blocked" : "", title: job.title, sub: L(JOB[job.state] || job.state) + (job.last_state ? " · " + job.last_state : "") }));
@@ -1898,6 +1908,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const attentionCount = island.querySelector("[data-assistant-attention-count]");
   const noticesPop = island.querySelector("[data-assistant-notices]");
   let notices = [];
+  // Plugin notifications waiting for a decision in the market (plugin-notifications.ts reads them for this project).
+  let pluginWaiting = Number(document.body.dataset.pluginEventsPending) || 0;
   const URGENT = new Set(["needs-decision", "failed", "reminder"]);
   let lastUrgent = 0;
   const shownSurface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
@@ -1905,7 +1917,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!noticesPop) return;
     // Polling repaints only what changed, and keeps focus on the same button: a list rebuilt under the person's
     // finger or keyboard focus loses the tap or drops focus to the page.
-    const signature = JSON.stringify(notices.map((notice) => [notice.notice_id, notice.text, notice.held && notice.held.reason]));
+    const signature = JSON.stringify([pluginWaiting, notices.map((notice) => [notice.notice_id, notice.text, notice.held && notice.held.reason])]);
     if (!force && noticesPop.dataset.signature === signature) return;
     noticesPop.dataset.signature = signature;
     const focused = noticesPop.contains(document.activeElement) ? document.activeElement : null;
@@ -1945,6 +1957,18 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       item.append(actions);
       return item;
     };
+    if (pluginWaiting) {
+      // Settled only in the market's review, so this row has no "知道了": it goes when the notifications are handled.
+      const item = el("div", "assistant-notice");
+      const text = L("插件通知：{count} 条待核对").replace("{count}", String(pluginWaiting));
+      item.append(el("p", "assistant-notice-text", text));
+      const actions = el("div", "assistant-offer-actions");
+      const go = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("去核对")); go.type = "button";
+      go.dataset.noticeId = "plugin-events"; go.dataset.noticeAction = "open";
+      go.setAttribute("aria-label", L("去核对") + "：" + text);
+      go.addEventListener("click", () => { setNotices(false); document.dispatchEvent(new CustomEvent("molis-work:plugin-events-open")); });
+      actions.append(go); item.append(actions); noticesPop.append(item);
+    }
     open.forEach((notice) => noticesPop.append(row(notice)));
     if (news.length) {
       const fresh = el("details", "assistant-notices-held");
@@ -1958,14 +1982,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       held.forEach((notice) => quiet.append(row(notice)));
       noticesPop.append(quiet);
     }
-    if (!notices.length) noticesPop.append(el("p", "assistant-material-origin", L("现在没有需要你看的事")));
+    if (!notices.length && !pluginWaiting) noticesPop.append(el("p", "assistant-material-origin", L("现在没有需要你看的事")));
     if (focusKey) (noticesPop.querySelector('[data-notice-id="' + focusKey[0] + '"][data-notice-action="' + focusKey[1] + '"]') || noticesPop.querySelector("button"))?.focus();
   };
   // Only what needs the person (a decision, a failure, a reminder that is due) shows before the input; news about a work
   // is a mark on that work's tab and in the list of works, gone once it is seen.
   const paintAttention = () => {
     const open = notices.filter((notice) => !notice.held);
-    const urgent = open.filter((notice) => URGENT.has(notice.kind)).length;
+    const urgent = open.filter((notice) => URGENT.has(notice.kind)).length + pluginWaiting;
     if (attentionButton) {
       if (urgent > lastUrgent) { attentionButton.removeAttribute("data-bump"); void attentionButton.offsetWidth; attentionButton.setAttribute("data-bump", ""); }
       lastUrgent = urgent;
@@ -1996,6 +2020,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     await loadNotices();
   };
   attentionButton?.addEventListener("click", () => setNotices(noticesPop.hidden));
+  document.addEventListener("molis-work:plugin-events-waiting", (event) => { pluginWaiting = Number(event.detail?.pending) || 0; paintAttention(); });
   setInterval(() => { if (!document.hidden) void loadNotices(); }, 20000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) void loadNotices(); });
   // The rules depend on where the person is: moving to another plugin reads them again.
@@ -2778,5 +2803,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   // The work's own draft is known only once the list arrives; fill it then unless the person has already typed.
   // Changes already done before this page loaded are not news; only ones completing from now on are announced.
   loadWorks().then(() => { restIfStale(); if (!typed) loadDraft(); if (currentId) return refresh().then(schedule); }).finally(() => { announcing = true; });
-  return { isOpen: () => Boolean(panel && !panel.hidden), dispose: () => { clearTimeout(pollTimer); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
+  return { isOpen: () => Boolean(panel && !panel.hidden),
+    /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */
+    setProject: (next) => { project = next && next.id ? next : null; if (!currentWork()) newScope = project ? "project" : "personal"; paintTarget(); paintSummary(); },
+    dispose: () => { clearTimeout(pollTimer); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
 }`;

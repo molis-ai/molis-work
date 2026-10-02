@@ -25,6 +25,7 @@ import { QUIET_PAPER_STYLES } from "./styles/quiet-paper.js";
 import { SOURCE_FEED_STYLES } from "./styles/source-feed.js";
 import { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 import { PRIMITIVE_STYLES } from "./styles/primitives.js";
+import { ARRIVAL_COMPONENT_STYLES } from "./styles/arrival-components.js";
 
 /** Stable concatenation order preserves the existing cascade.
  * Coss + Primitive sit at the end of this bundle so Catalog/tests that only
@@ -45,6 +46,7 @@ export const VISUAL_FOUNDATION_STYLES = [
   DESKTOP_TITLEBAR_STYLES,
   COSS_CONTROL_STYLES,
   PRIMITIVE_STYLES,
+  ARRIVAL_COMPONENT_STYLES,
 ].join("");
 
 /** Theme preferences plus the measured micro-interactions; every page renderer inlines this. */
@@ -52,6 +54,7 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `${PREFERENCE_CLIENT_SCRIPT}${MIC
 
 export { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 export { PRIMITIVE_STYLES } from "./styles/primitives.js";
+export { ARRIVAL_COMPONENT_STYLES } from "./styles/arrival-components.js";
 export { INTERACTION_TEXTURE_STYLES } from "./styles/interaction-texture.js";
 export { MICRO_INTERACTION_STYLES, MICRO_INTERACTION_CLIENT_SCRIPT } from "./styles/micro-interactions.js";
 export { CRAFT_FINISH_STYLES, CRAFT_FINISH_CLIENT_SCRIPT } from "./styles/craft-finish.js";

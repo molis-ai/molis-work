@@ -3,7 +3,7 @@ import { GIT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-git";
 
 /** Host navigation and project-directory operations; file/Git behavior stays in its plugin. */
 export const CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
-  for (const root of document.querySelectorAll('[data-companion]')) {
+  for (const root of (host.root ? host.root.matches('[data-companion]') ? [host.root] : [] : document.querySelectorAll('[data-companion]'))) {
     const lifetime=host.mountPluginClient(root);if(!lifetime)continue;
     const plugin=root.dataset.companion, q=selector=>root.querySelector(selector);
     const openResult=()=>{root.dataset.companionDetail='true';};

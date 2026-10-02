@@ -30,14 +30,13 @@ import { createWorkbenchInboxProjectionRenderer } from "./inbox-projection-ui.js
 import { createWorkbenchScheduleProjectionRenderer } from "./schedule-projection-ui.js";
 import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
 import {
-  renderMolisWorkOnboardingStylesheet as renderOnboardingCss,
-  renderMolisWorkProjectIndexStylesheet as renderProjectIndexCss,
+  renderMolisWorkArrivalStylesheet as renderArrivalCss,
   renderMolisWorkSettingsStylesheet as renderSettingsCss,
   renderMolisWorkWorkbenchClientScript as renderWorkbenchClient,
   renderMolisWorkWorkbenchStylesheet as renderWorkbenchCss,
 } from "./page-assets.js";
 import type { MolisWorkWebView } from "./page-view.js";
-import { createWorkbenchProjectDirectoryRenderer } from "./project-directory-renderer.js";
+import { createWorkbenchProjectChooserRenderer } from "./arrival/chooser.js";
 import { createWorkbenchProjectSettingsPages } from "./project-settings-pages.js";
 import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createWorkbenchSettingsRenderer } from "./settings-renderer.js";
@@ -176,9 +175,9 @@ const THEME_BOOTSTRAP_SCRIPT = `${BASE_THEME_BOOTSTRAP_SCRIPT}${NATIVE_DESKTOP_B
 
 const { settingsContextHref, renderProjectSwitcher, renderDesktopProjectChrome, renderSettingsNavigation, renderProjectSettingsNavigation } = createWorkbenchSettingsNavigation({ L, escapeHtml, icon, withDesktopQuery });
 
-const projectDirectoryRenderer = createWorkbenchProjectDirectoryRenderer({ L, escapeHtml, icon, withDesktopQuery, htmlLang, renderIconSprite, controlTokenMeta, clientI18nScript, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT });
+const projectChooserRenderer = createWorkbenchProjectChooserRenderer({ L, escapeHtml, icon, withDesktopQuery, htmlLang, renderIconSprite, controlTokenMeta, clientI18nScript, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT, dateTimeLocale });
 
-const { renderMolisWorkProjectIndex } = projectDirectoryRenderer;
+const { renderMolisWorkProjectIndex, renderProjectBrief: renderMolisWorkProjectBrief } = projectChooserRenderer;
 
 const renderMolisWorkSettings = createWorkbenchSettingsRenderer({
   L, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, clientI18nScript, renderIconSprite,
@@ -438,8 +437,10 @@ const { renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGeneralSettings
 });
 
 function prefixLocalLinks(html: string, routePrefix: string, desktopShell = false): string {
+  // Global settings and the capability service live outside any project; a Plugin linking to them from the
+  // project page means the global page (project settings come in through the __PROJECT_SETTINGS__ tokens).
   const prefixed = routePrefix
-    ? html.replace(/href="\/(?!locale(?:\?|")|projects\/)/g, `href="${routePrefix}/`)
+    ? html.replace(/href="\/(?!locale(?:\?|")|projects\/|settings(?:[/?#"])|capabilities(?:[/?#"]))/g, `href="${routePrefix}/`)
     : html;
   const resolved = prefixed
     .replaceAll('href="__PROJECT_INDEX__"', 'href="/"')
@@ -463,6 +464,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
   });
   return {
     renderMolisWorkProjectIndex,
+    renderMolisWorkProjectBrief,
     renderMolisWorkSettings,
     renderDecisionCenter,
     renderPersistedFeedItemDetail,
@@ -480,8 +482,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderMolisWorkPlanningMethodPage,
     renderMolisWorkPlanningSettings,
     renderMolisWorkWorkbenchStylesheet: (): string => renderWorkbenchCss(),
-    renderMolisWorkOnboardingStylesheet: (): string => renderOnboardingCss(),
-    renderMolisWorkProjectIndexStylesheet: (): string => renderProjectIndexCss(),
+    renderMolisWorkArrivalStylesheet: (): string => renderArrivalCss(),
     renderMolisWorkSettingsStylesheet: (): string => renderSettingsCss(),
     renderMolisWorkWorkbenchClientScript: (): string => renderWorkbenchClient(),
     renderMolisWorkWeb,

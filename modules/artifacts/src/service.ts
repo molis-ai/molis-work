@@ -54,6 +54,19 @@ export interface ArtifactsServiceOptions {
   now?: () => string;
   errorFactory?: ArtifactsErrorFactory;
   appendEvent: (input: ArtifactEventInput) => number;
+  /**
+   * Whether the producer declared this type for this store (specs/artifact-positioning A7): a problem to refuse the write
+   * with, or null. The host answers from the Manifests it knows; without it every declared-or-not type is written.
+   */
+  declared?: (producer: { plugin_id: string }, type: { artifact_type_id: string; schema_version: number }, kind: VersionStoreKind) => string | null;
+}
+
+/** A write the host's Manifest check refuses never reaches the store (specs/artifact-positioning A7). */
+function declaredOnly<T extends { producer_plugin_id: string; artifact_type_id: string; schema_version: number }>(normalized: T,
+  declared: ArtifactsServiceOptions["declared"], kind: VersionStoreKind, error: ArtifactsErrorFactory): T {
+  const undeclared = declared?.({ plugin_id: normalized.producer_plugin_id }, normalized, kind);
+  if (undeclared) throw error("artifact.type_undeclared", undeclared, { artifact_type_id: normalized.artifact_type_id, producer_plugin_id: normalized.producer_plugin_id });
+  return normalized;
 }
 
 export class ArtifactsService<
@@ -112,7 +125,7 @@ export class ArtifactsService<
   }
 
   registerVersion(input: I): FixedVersionResult<R> {
-    const normalized = this.normalizeRegistration(input);
+    const normalized = declaredOnly(this.normalizeRegistration(input), this.options.declared, this.kind, this.error);
     return this.repository.immediate(() => {
       const globalIdentity = this.repository.getIdentityById(normalized.artifact_id);
       if (globalIdentity && globalIdentity.board_id !== normalized.board_id) {

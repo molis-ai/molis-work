@@ -391,8 +391,11 @@ test("A Coding changeset is a process item: it never shows in the 成果库, and
   const html = await response.text();
   assert.match(html, /找不到这个/);
   assert.doesNotMatch(html, /data-artifact-business-preview|在 Coding 查看固定变更并返回原任务|cart\.mjs/);
-  // Even written straight into the 成果库 under the same identity, the 成果库 shows no change set preview of its own.
-  coordinator.artifacts.commands.registerVersion({ ...input, artifact_id: "coding-changeset:session-fixed:in-library" });
+  // Coding cannot write it straight into the 成果库: its Manifest declares change sets as process items (A7).
+  assert.throws(() => coordinator.artifacts.commands.registerVersion({ ...input, artifact_id: "coding-changeset:session-fixed:in-library" }), { code: "artifact.type_undeclared" });
+  // Another producer writing the same type into the 成果库 still gets no change set preview of its own.
+  coordinator.artifacts.commands.registerVersion({ ...input, artifact_id: "coding-changeset:session-fixed:in-library",
+    producer: { plugin_id: "com.example.installed", plugin_version: "1.0.0", binding_signature: "installed-binding" } });
   const direct = await (await surface(`/artifacts/${encodeURIComponent("coding-changeset:session-fixed:in-library")}/versions/1`)).text();
   assert.doesNotMatch(direct, /data-artifact-business-preview|在 Coding 查看固定变更并返回原任务/);
 });

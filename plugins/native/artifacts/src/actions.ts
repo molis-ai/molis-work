@@ -58,6 +58,9 @@ export const artifactsActions = {
   importSources: define<Record<string, never>, { sources: Record<string, boolean>; connections: ConnectorConnectionView[] }>("import.sources", "文档来源连接状态", "查看文档导入支持来源是否已连接，不返回凭据", "query", object({}), object({ sources: { type: "object", additionalProperties: { type: "boolean" } }, connections: array({ type: "object", additionalProperties: true }) })),
   goalEmbeds: define<{ goal_id: string; supported_types?: ArtifactConsumerType[] }, { embeds: GoalArtifactEmbed[] }>("goals.embeds", "读取目标成果引用", "读取原 Ledger 明确关联的输入和输出及固定版本，保留失效引用，不猜测关系", "query", object({ goal_id: id, supported_types: consumerTypes }, ["goal_id"]),
     object({ embeds: array(object({ relationship: { enum: ["input", "output"] }, view: browser })) })),
+  links: define<{ reference: ArtifactReference }, ArtifactReferences>("links", "这一版被谁引用", "列出把这一版作为输入、交付物或提议交付物的目标，以及其他引用的数量；不修改数据",
+    "query", object({ reference }), object({ goals: { type: "array", items: object({ goal_id: { type: "string" }, title: { type: "string" },
+      role: { enum: ["input", "deliverable", "proposed"] } }) }, other: { type: "integer", minimum: 0 } })),
   projectReference: define<{ reference: string; evidence_id?: string | null }, { filename: string; content_base64: string }>("references.open", "打开项目结果引用", "通过受限读取器读取 project:// 或历史相对路径引用；已验证 Evidence 的原工作区优先，不接受调用者提供目录", "query",
     object({ reference: id, evidence_id: nullable(id) }, ["reference"]), object({ filename: text, content_base64: text }), [...read, "workspace:read"]),
 };
@@ -71,7 +74,15 @@ export interface ArtifactActionPorts {
   importSources(): Record<string, boolean>;
   importConnections?(): ConnectorConnectionView[];
   openProjectReference(input: { reference: string; evidence_id?: string | null }): Promise<{ filename: string; content_base64: string }>;
+  /** A Goal's title for 「被谁引用」, read by the host; null when the Goal is gone. */
+  goalTitle?(goalId: string): string | null;
 }
+/** Who refers to one version (A4b, 「被谁引用」): Goals that take it as input, hand it in, or have it proposed; other links counted. */
+export interface ArtifactReferences {
+  goals: Array<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" }>;
+  other: number;
+}
+const GOAL_ROLES: Record<string, ArtifactReferences["goals"][number]["role"]> = { "goal.input": "input", "goal.output": "deliverable", "goal.output.proposal": "proposed" };
 export function createArtifactActionHandlers(ports: ArtifactActionPorts): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => run(input as I, caller),
@@ -128,5 +139,12 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     bind(artifactsActions.importSources, () => ({ sources: ports.importSources(), connections: ports.importConnections?.() ?? [] })),
     bind(artifactsActions.goalEmbeds, input => ({ embeds: readGoalArtifactEmbeds({ boardId: ports.boardId, goalId: input.goal_id, artifacts: ports.artifacts.query, ledger: ports.ledger, supportedTypes: input.supported_types }) })),
     bind(artifactsActions.projectReference, input => ports.openProjectReference(input)),
+    bind(artifactsActions.links, (input, caller) => {
+      const edges = ports.ledger.list({ actor_id: caller.actor_id, scope: { kind: "personal", id: ports.boardId } }).filter(edge => edge.state === "active"
+        && edge.target.module === "artifacts" && edge.target.id === input.reference.artifact_id && edge.target.version === input.reference.version);
+      const goals = edges.filter(edge => edge.source.module === "goals" && GOAL_ROLES[edge.type])
+        .map(edge => ({ goal_id: edge.source.id, title: ports.goalTitle?.(edge.source.id) ?? edge.source.id, role: GOAL_ROLES[edge.type]! }));
+      return { goals, other: edges.length - goals.length } satisfies ArtifactReferences;
+    }),
   ];
 }

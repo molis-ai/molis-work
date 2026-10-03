@@ -10,7 +10,7 @@ import { ExternalDocumentImportError } from "@molis-ai/molis-work-integration-ca
 import { artifactWorkbench, artifactTypeDeclarations, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ArtifactCompareResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dateTimeLocale, L } from "./web-locale.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
@@ -48,9 +48,16 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
   try { content = await context.ownerActions(declaration.preview.action.permissions).invoke(declaration.preview, { artifact }) as FileContent; }
   catch { return undefined; }
   const pinned = artifact.origin.kind === "pinned" ? artifact.origin.subject : null;
-  return { body_html: renderFilePreviewHtml(content, primitives),
-    ...(artifact.origin.kind === "imported" ? { notice: "这是导入时保存的版本；原文后续修改不会自动同步。" } : {}),
-    source_href: pinned ? `${context.routePrefix}/?openPlugin=${encodeURIComponent(declaration.surface)}&openItem=${encodeURIComponent(pinned.id)}&openTitle=${encodeURIComponent(artifact.title)}` : "",
+  // 「原文已改」 (A4b): the owner compares the version with its work object as it is now.
+  let compared: ArtifactCompareResult["state"] | null = null;
+  if (pinned && declaration.compare) {
+    try { compared = (await context.ownerActions(declaration.compare.action.permissions).invoke(declaration.compare, { artifact }) as ArtifactCompareResult).state; }
+    catch { compared = null; }
+  }
+  const notice = artifact.origin.kind === "imported" ? "这是导入时保存的版本；原文后续修改不会自动同步。"
+    : compared === "changed" ? "原对象之后改过了；这里仍是固定下来的这一版。" : compared === "missing" ? "原对象已经删除；这里仍保留固定下来的这一版。" : undefined;
+  return { body_html: renderFilePreviewHtml(content, primitives), ...(notice ? { notice } : {}),
+    source_href: pinned && compared !== "missing" ? `${context.routePrefix}/?openPlugin=${encodeURIComponent(declaration.surface)}&openItem=${encodeURIComponent(pinned.id)}&openTitle=${encodeURIComponent(artifact.title)}` : "",
     source_label: pinned ? `在${/^[\x20-\x7e]+$/u.test(declaration.plugin_title) ? ` ${declaration.plugin_title} ` : declaration.plugin_title}打开原对象` : "",
     plugin_id: declaration.surface, item_id: pinned?.id ?? "" };
 }
@@ -154,13 +161,14 @@ export function createLocalArtifactHttp() {
       }
       const declarations = artifactTypeDeclarations();
       const presentation = await ownerPreview(view.selected, declarations, context);
+      const links = view.selected && route.kind === "detail" ? await context.actions.invoke(artifactsActions.links, { reference: { artifact_id: view.selected.artifact_id, version: view.selected.version } }) : undefined;
       const compact = requestHeader(request, "x-molis-work-fragment") === "frame-block";
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
       // The directory carries the 成果库's one import entry (A3); its dialog needs the connected document services.
       const available = compact ? null : await context.actions.invoke(artifactsActions.importSources, {});
-      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation,
+      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}),
         typeTitles: Object.fromEntries([...declarations].map(([type, declaration]) => [type, declaration.title])),
         ...(available ? { importForm: { connectionStatus: available.sources, connections: available.connections } } : {}) }, compact ? "frame-block" : "detail"));
       return true;

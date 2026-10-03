@@ -20,6 +20,8 @@ export interface ArtifactBrowserUiModel {
   /** Display names the owners declare for their 成果 types (A4). */
   readonly typeTitles?: Readonly<Record<string, string>>;
   readonly relationship?: "input" | "output";
+  /** Who refers to the selected version (A4b, 「被谁引用」), read by the host through `artifacts.links`. */
+  readonly links?: { readonly goals: ReadonlyArray<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" }>; readonly other: number };
   /** The import dialog's connected services; the directory offers the 成果库's one import entry when present (A3). */
   readonly importForm?: Pick<ArtifactImportUiModel, "connections" | "connectionStatus">;
   readonly primitives: {
@@ -142,6 +144,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${artifact.unavailable_reason ? `<p>${p.escape(artifact.unavailable_reason)}</p>` : ""}
     ${!embedded && model.presentation ? `${model.presentation.source_href ? `<p><a class="mw-btn" href="${p.escape(model.presentation.source_href)}" data-workbench-item-plugin="${p.escape(model.presentation.plugin_id)}" data-workbench-item-id="${p.escape(model.presentation.item_id)}" data-workbench-item-title="${p.escape(title)}">${p.text(model.presentation.source_label)}</a></p>` : ""}<section class="artifact-business-preview mw-prose" data-artifact-business-preview>${model.presentation.body_html}</section>` : ""}
     ${preview}
+    ${!embedded && model.links ? linksSection(model.links, routePrefix, p) : ""}
     <dl class="artifact-facts">
       <div><dt>${p.text("结果类型")}</dt><dd>${p.escape(artifactTypeLabel(artifact.artifact_type_id, model.typeTitles, p))} · ${p.escape(artifact.artifact_type_id)} · Schema ${artifact.schema_version}</dd></div>
       <div><dt>${p.text("来源插件")}</dt><dd>${p.escape(artifact.producer_plugin_id)} · ${p.escape(artifact.producer_plugin_version)}</dd></div>
@@ -155,6 +158,14 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${embedded ? "" : `</div>
       <div class="artifact-actions"><a class="artifact-export" href="${p.escape(routePrefix + "/api" + artifactVersionPath(artifact) + "/export")}" download>${p.text("导出这个版本")}</a><span>${p.text("仅下载本地副本，不会发布或共享。")}</span></div>`}
   </article>`;
+}
+
+const LINK_ROLES = { input: "输入", deliverable: "交付物", proposed: "提议的交付物" } as const;
+/** 「被谁引用」: the Goals that use this version, each opening in the workbench, and how many other links there are. */
+function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, routePrefix: string, p: ArtifactBrowserUiModel["primitives"]): string {
+  const goals = links.goals.map(link => `<li><a href="${p.escape(`${routePrefix}/goals/${encodeURIComponent(link.goal_id)}`)}">${p.escape(link.title)}</a><span>${p.text(LINK_ROLES[link.role])}</span></li>`).join("");
+  const other = links.other ? `<p class="artifact-links-other">${p.text("另有其他引用")} · ${links.other}</p>` : "";
+  return `<section class="artifact-links" data-artifact-links><h2>${p.text("被谁引用")}</h2>${goals ? `<ul>${goals}</ul>` : `<p>${p.text("还没有目标引用这一版。")}</p>`}${other}</section>`;
 }
 
 export function renderArtifactFrameBlock({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel): string {

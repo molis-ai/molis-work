@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isArtifactPinAction, isArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isArtifactCompareAction, isArtifactPinAction, isArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_CATALOG, artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 
 // specs/artifact-positioning A4/A7: every type a plugin pins into the 成果库 names itself and has a preview from its owner,
@@ -16,6 +16,9 @@ test("every 成果 type a built-in plugin produces declares its display name and
     else if (!isArtifactPreviewAction(action.action)) problems.push(`${where}: ${type.preview.capability_id} is not a preview action`);
     // A type that can be pinned on the spot (A5) names a pin action of its own plugin, for exactly one kind of work object.
     if (!type.pin) continue;
+    // ...and says whether a pinned version still matches its object (A4b), so the 成果库 can tell 「原文已改」.
+    const compare = type.compare ? entry.manifest.actions?.find(item => item.capability_id === type.compare!.capability_id && item.version === type.compare!.version) : undefined;
+    if (!compare || !isArtifactCompareAction(compare.action)) problems.push(`${where}: pinned on the spot but no compare action`);
     const pin = entry.manifest.actions?.find(item => item.capability_id === type.pin!.capability_id && item.version === type.pin!.version);
     if (!pin) problems.push(`${where}: pin ${type.pin.capability_id} is not one of the plugin's actions`);
     else if (!isArtifactPinAction(pin.action) || pin.action.subject_kinds.length !== 1) problems.push(`${where}: ${type.pin.capability_id} is not a pin action for one kind`);

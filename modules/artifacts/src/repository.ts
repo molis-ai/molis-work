@@ -37,7 +37,7 @@ export interface VersionStoreTables {
 
 /**
  * The 成果库. Its tables are new with A1: versions written before carry no origin or title and are not read again
- * (the old `artifacts`/`artifact_versions` tables stay untouched until a real Home is cleaned up with its owner).
+ * (the old `artifacts`/`artifact_versions` tables are gone: the real Home dropped them on 2026-10-03).
  */
 export const ARTIFACT_TABLES: VersionStoreTables = { identities: "library_artifacts", versions: "library_artifact_versions", library: true };
 export const PROCESS_ITEM_TABLES: VersionStoreTables = { identities: "process_items", versions: "process_item_versions", library: false };

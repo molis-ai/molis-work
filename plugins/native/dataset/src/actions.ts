@@ -1,7 +1,7 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DATASET_NAME_COLUMN } from "./prompts.js";
-import { ActionError, defineArtifactPinAction, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { DatasetRecord, DatasetVersionRecord, DatasetColumnInput, DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
+import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { DATASET_ARTIFACT_TYPE_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { promoteDataset, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStore } from "./store.js";
 import { createDatasetSearchHandlers, datasetSearchActions } from "./search.js";
@@ -28,6 +28,8 @@ export const datasetActions = {
   artifactPreview: datasetArtifactPreview,
   /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
   artifactPin: defineArtifactPinAction("dataset.artifacts.pin", "dataset", "数据表", [...write, "artifact:write"]),
+  /** Whether a pinned version still matches the dataset object it came from (A4b, 「原文已改」); compares content, not revisions. */
+  artifactCompare: defineArtifactCompareAction("dataset.artifacts.compare", "数据表", read),
   list: define<Record<string, never>, { datasets: DatasetRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "数据表列表", "读取当前项目数据表及当前 AI 加列可用性", "query", object({}), object({ datasets: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { dataset: DatasetRecord }>("get", "读取数据表", "读取当前项目表格的完整列、行、版本及发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { dataset: DatasetRecord }>("create", "新建数据表", "创建当前项目的草稿数据表", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
@@ -97,6 +99,8 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
     bind(datasetActions.rollback, (input, caller) => ports.withStore(store => ({ dataset: store.rollback(input.id, input.version_id, project(caller), input.expected_version) }))),
     bind(datasetActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
     bind(datasetActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bindArtifactCompare(datasetActions.artifactCompare, DATASET_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "columns", "rows"])),
     ...createDatasetSearchHandlers(ports.withStore),
     bindObjectMoveHandler(datasetActions.move, input => ports.withStore(store => {
       const dataset = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);

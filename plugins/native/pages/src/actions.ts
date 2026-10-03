@@ -1,6 +1,6 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash } from "node:crypto";
-import { ActionError, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PAGES_ARTIFACT_TYPE_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_AI_COMMANDS, runPagesAi, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
@@ -62,6 +62,8 @@ export const pagesActions = {
   artifactPreview: defineArtifactPreviewAction("pages.artifacts.preview", "文档", read),
   /** Pins a document's current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
   artifactPin: defineArtifactPinAction("pages.artifacts.pin", PAGES_SUBJECT_KIND, "文档", [...read, ...write, "artifact:write"]),
+  /** Whether a pinned version still matches the pages object it came from (A4b, 「原文已改」); compares content, not revisions. */
+  artifactCompare: defineArtifactCompareAction("pages.artifacts.compare", "文档", [...read]),
   /** Where a document lives (specs/archive/work-placement): moving keeps its id; copying makes an independent document. */
   move: defineObjectMoveAction("pages.placement.move", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
   copy: defineObjectCopyAction("pages.placement.copy", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
@@ -220,6 +222,8 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     }, () => ports.modelAvailability()),
     bind(pagesActions.promote, (input, caller) => promote(input.id, caller, input.goal_id, input.expected_version), publishable),
     bind(pagesActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bindArtifactCompare(pagesActions.artifactCompare, PAGES_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "body"])),
     bind(pagesActions.extract, (input, caller) => ports.withStore(store => store.extract(input.id, project(caller)))),
   ];
 }

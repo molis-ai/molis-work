@@ -416,8 +416,9 @@ test("each visible type is previewed by its owner: Pages renders its own version
   assert.match(html, /<h2>季度目标<\/h2>/);
   assert.match(html, /保持每周发布/);
   assert.doesNotMatch(html, /<script>attack\(\)<\/script>/);
-  assert.match(html, /在 Pages 打开原对象/);
-  assert.ok(html.includes("openPlugin=pages") && html.includes("openItem=page-q3"));
+  // There is no document page-q3 in Pages: the version stays readable, says the original is gone, and offers no way back (A4b).
+  assert.match(html, /原对象已经删除；这里仍保留固定下来的这一版/);
+  assert.doesNotMatch(html, /在 Pages 打开原对象|openItem=page-q3/);
   // A version of the type that Pages did not produce gets no Pages preview.
   coordinator.artifacts.commands.registerVersion(registration({ artifact_id: "pages-forged", artifact_type_id: "io.molis.work.pages.document",
     content: { kind: "inline", payload: { title: "伪造", body } } }));

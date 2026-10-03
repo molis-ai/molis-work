@@ -31,7 +31,8 @@ export const pptManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   artifacts: {
     produces: [{ artifact_type_id: PPT_ARTIFACT_TYPE_ID, schema_version: PPT_ARTIFACT_SCHEMA_VERSION, title: "演示稿",
-      preview: { capability_id: "ppt.artifacts.preview", version: 1 }, pin: { capability_id: "ppt.artifacts.pin", version: 1 } }],
+      preview: { capability_id: "ppt.artifacts.preview", version: 1 }, pin: { capability_id: "ppt.artifacts.pin", version: 1 },
+      compare: { capability_id: "ppt.artifacts.compare", version: 1 } }],
     consumes: [],
   },
   ui: {

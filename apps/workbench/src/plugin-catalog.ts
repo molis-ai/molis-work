@@ -290,6 +290,8 @@ export interface ArtifactTypeDeclaration {
   readonly preview: ActionDefinition | null;
   /** The owner's action that pins one of its work objects on the spot (A5), when the type has one. */
   readonly pin: ActionDefinition | null;
+  /** The owner's action that says whether a version still matches its work object (A4b). */
+  readonly compare: ActionDefinition | null;
 }
 
 /** Each declared 成果 type: display name, preview and pin actions and owner, from the built-in Manifests. */
@@ -299,7 +301,7 @@ export function artifactTypeDeclarations(): ReadonlyMap<string, ArtifactTypeDecl
     if (!type.title) continue;
     const action = (declared?: { capability_id: string; version: number }) => declared ? entry.manifest.actions?.find(item => item.capability_id === declared.capability_id && item.version === declared.version) ?? null : null;
     declarations.set(type.artifact_type_id, { title: type.title, plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name,
-      surface: entry.project_plugin_id, preview: action(type.preview), pin: action(type.pin) });
+      surface: entry.project_plugin_id, preview: action(type.preview), pin: action(type.pin), compare: action(type.compare) });
   }
   return declarations;
 }

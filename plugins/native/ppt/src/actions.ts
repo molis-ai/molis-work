@@ -1,9 +1,9 @@
-import { ActionError, defineArtifactPinAction, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { slidesFromMarkdown } from "./content-actions.js";
 import { PPT_DRAFT_OUTLINE } from "./prompts.js";
-import type { PptRecord, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_ARTIFACT_TYPE_ID, type PptRecord, type PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { promotePpt, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
 import type { PptStore } from "./store.js";
 import { createPptSearchHandlers, pptSearchActions } from "./search.js";
@@ -33,6 +33,8 @@ export const pptActions = {
   artifactPreview: pptArtifactPreview,
   /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
   artifactPin: defineArtifactPinAction("ppt.artifacts.pin", "presentation", "演示稿", [...write, "artifact:write"]),
+  /** Whether a pinned version still matches the ppt object it came from (A4b, 「原文已改」); compares content, not revisions. */
+  artifactCompare: defineArtifactCompareAction("ppt.artifacts.compare", "演示稿", read),
   list: define<Record<string, never>, { presentations: PptRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "演示稿列表", "读取当前项目的演示稿，以及当前调用方能否让模型整理大纲", "query", object({}),
     object({ presentations: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { presentation: PptRecord }>("get", "读取演示稿", "读取幻灯片、配色、版本和发布状态；id 来自列表或创建结果", "query", object({ id }), changed),
@@ -120,6 +122,8 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
     })),
     bind(pptActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
     bind(pptActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bindArtifactCompare(pptActions.artifactCompare, PPT_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "color_primary", "color_background", "color_text", "slides"])),
     bind(pptActions.pptx, (input, caller) => ports.withStore(store => {
       const presentation = store.get(input.id, project(caller));
       if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后导出");

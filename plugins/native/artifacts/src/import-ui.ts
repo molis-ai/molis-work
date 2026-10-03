@@ -59,7 +59,7 @@ export function renderArtifactImportSurface(model: ArtifactImportUiModel): strin
   const messages = Object.fromEntries([
     ["ready", "凭据已配置，导入时验证文档访问权限。"],
     ["missing", "尚未配置此连接器。请先配置凭据，再返回这里导入。"],
-    ["busy", "正在读取文档并保存 Artifact…"],
+    ["busy", "正在读取文档并保存成果…"],
     ["submit", "导入文档"],
     ["retry", "重试导入"],
     ["failed", "导入失败。请检查链接、文档权限和连接器配置后重试。"],
@@ -75,10 +75,10 @@ export function renderArtifactImportSurface(model: ArtifactImportUiModel): strin
     ["invalidResult", "服务返回的版本信息不完整。请重试以获取导入结果。"],
   ].map(([key, value]) => [key, p.text(value!)]));
   return `<main class="artifact-import-main">
-    <a class="artifact-import-back" href="${p.escape(model.routePrefix + "/artifacts")}">${p.text("返回 Artifact 列表")}</a>
+    <a class="artifact-import-back" href="${p.escape(model.routePrefix + "/artifacts")}">${p.text("返回成果列表")}</a>
     <p class="artifact-import-project">${p.escape(model.projectTitle)}</p>
     <h1>${p.text("导入文档")}</h1>
-    <p class="artifact-import-intro">${p.text("把外部文档保存为当前项目的 Artifact。保留本次读取的正文和来源；原文后续修改不会自动同步。")}</p>
+    <p class="artifact-import-intro">${p.text("把外部文档存为当前项目的成果。保留本次读取的正文和来源；原文后续修改不会自动同步。")}</p>
     <form class="artifact-import-form" data-artifact-import-form data-route-prefix="${p.escape(model.routePrefix)}" data-import-messages="${p.escape(JSON.stringify(messages))}" data-import-connections="${p.escape(JSON.stringify(model.connections ?? []))}">
       <fieldset data-import-fields>
         <label>${p.text("文档来源")}<select name="source" data-import-source>${SOURCES.map(source => `<option value="${source.id}" data-connected="${Boolean(model.connectionStatus[source.id])}" data-placeholder="${p.escape(source.placeholder)}" data-help="${p.escape(p.text(source.help))}">${p.text(source.label)}</option>`).join("")}</select></label>

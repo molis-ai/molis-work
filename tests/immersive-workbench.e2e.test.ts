@@ -130,7 +130,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   await waitFor("document.querySelector('[data-market-add=artifacts]').dataset.marketMembership === 'added' && !document.querySelector('[data-plugin-tile=artifacts]').classList.contains('is-available')");
   assert.equal(await evaluate("window.__stayedOnPage === true"), true, "adding to this project does not load the page again");
   await waitFor("document.body.dataset.desktopSurface === 'market' && !document.querySelector('[data-market-project]').disabled");
-  await evaluate("(()=>{let q=document.querySelector('[data-market-search]');q.value='Artifacts';q.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  await evaluate("(()=>{let q=document.querySelector('[data-market-search]');q.value='成果';q.dispatchEvent(new Event('input',{bubbles:true}));})()");
   assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-market-plugin]:not([hidden])')].map(x=>x.dataset.marketPlugin)"), ["artifacts"]);
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
   await waitFor("document.querySelector('[data-artifact-directory] .artifact-version-list')");

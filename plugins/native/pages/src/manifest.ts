@@ -22,7 +22,7 @@ export const pagesManifest: PluginManifest = {
   permissions: [
     ...PAGES_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: false, reason: "读写交接内容" })),
     { permission: "storage:private", required: true, reason: "本机文档库" },
-    { permission: "artifact:write", required: true, reason: "把文档发成 Artifact" },
+    { permission: "artifact:write", required: true, reason: "把文档存为成果" },
   ],
   capabilities: { provides: [], consumes: [] },
   actions: [...PAGES_ACTIONS, ...Object.values(pagesContentActions)],

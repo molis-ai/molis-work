@@ -99,7 +99,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     return this.repository.immediate(() => {
       const globalIdentity = this.repository.getIdentityById(normalized.artifact_id);
       if (globalIdentity && globalIdentity.board_id !== normalized.board_id) {
-        throw this.error("artifact.board_mismatch", "Artifact ID 已属于另一个 Project", {
+        throw this.error("artifact.board_mismatch", "成果 ID 已属于另一个 Project", {
           artifact_id: normalized.artifact_id,
         });
       }
@@ -113,7 +113,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       );
       if (existing) {
         if (!sameVersion(existing, normalized)) {
-          throw this.error("artifact.version_conflict", "同一 Artifact id + version 已有不同内容", {
+          throw this.error("artifact.version_conflict", "同一成果 id + version 已有不同内容", {
             artifact_id: normalized.artifact_id,
             version: normalized.version,
           });
@@ -127,7 +127,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
 
       const latest = this.repository.latestVersion(normalized.board_id, normalized.artifact_id);
       if (latest && normalized.version <= latest.version) {
-        throw this.error("artifact.version_not_increasing", "Artifact version 必须由 Plugin 严格递增", {
+        throw this.error("artifact.version_not_increasing", "成果版本必须由 Plugin 严格递增", {
           artifact_id: normalized.artifact_id,
           latest_version: latest.version,
           requested_version: normalized.version,
@@ -142,7 +142,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
           normalized.artifact_id,
           normalized.supersedes_version,
         )) {
-          throw this.error("artifact.supersession_missing", "找不到被替代的 Artifact version");
+          throw this.error("artifact.supersession_missing", "找不到被替代的成果版本");
         }
       }
 
@@ -167,7 +167,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
         type: latest ? "artifact.version_registered" : "artifact.published",
         objectType: "artifact",
         objectId: `${record.artifact_id}@${record.version}`,
-        reason: latest ? "Plugin 注册了新的 Artifact version" : "Plugin 发布了 Artifact",
+        reason: latest ? "Plugin 注册了新的成果版本" : "Plugin 发布了成果",
         payload: {
           artifact_id: record.artifact_id,
           version: record.version,
@@ -233,7 +233,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
         type: "artifact.archived",
         objectType: "artifact",
         objectId: `${input.artifact_id}@${input.version}`,
-        reason: "Artifact version 已归档",
+        reason: "成果版本已归档",
         payload: { artifact_id: input.artifact_id, version: input.version },
         at,
       });
@@ -261,7 +261,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     );
     const scope = input.scope ?? "personal";
     if (scope !== "personal" && scope !== "team_project") {
-      throw this.error("artifact.scope_invalid", "Artifact scope 无效");
+      throw this.error("artifact.scope_invalid", "成果 scope 无效");
     }
     if (scope === "team_project" && input.team_share_authorized !== true) {
       throw this.error(
@@ -280,7 +280,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       try {
         payload = normalizeArtifactPayload(input.content.payload);
       } catch (error) {
-        throw this.error("artifact.payload_invalid", "Artifact inline payload 不是可往返的 JSON", {
+        throw this.error("artifact.payload_invalid", "成果 inline payload 不是可往返的 JSON", {
           cause: error instanceof Error ? error.message : String(error),
         });
       }
@@ -294,7 +294,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       if (input.content.observed_digest) {
         const observed = normalizedDigest(input.content.observed_digest, "content.observed_digest", this.error);
         if (observed !== digest) {
-          throw this.error("artifact.hash_mismatch", "Storage 返回的内容摘要与 Artifact Envelope 不一致");
+          throw this.error("artifact.hash_mismatch", "Storage 返回的内容摘要与 成果 Envelope 不一致");
         }
       }
       if (input.content.available === false) {
@@ -302,12 +302,12 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
         unavailableReason = "Content reference 在注册时不可读取";
       }
     } else {
-      throw this.error("artifact.content_invalid", "Artifact content kind 无效");
+      throw this.error("artifact.content_invalid", "成果 content kind 无效");
     }
     if (input.expected_digest) {
       const expected = normalizedDigest(input.expected_digest, "expected_digest", this.error);
       if (expected !== digest) {
-        throw this.error("artifact.hash_mismatch", "Artifact 内容摘要与 expected_digest 不一致");
+        throw this.error("artifact.hash_mismatch", "成果内容摘要与 expected_digest 不一致");
       }
     }
 
@@ -345,7 +345,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     input: Omit<ArtifactVersionRecord, "created_at">,
   ): void {
     if (identity.owner_actor_id !== input.created_by) {
-      throw this.error("artifact.not_owner", "只有 Artifact owner 可以注册新 version", {
+      throw this.error("artifact.not_owner", "只有成果 owner 可以注册新 version", {
         owner_actor_id: identity.owner_actor_id,
         actor_id: input.created_by,
       });
@@ -356,7 +356,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     ) {
       throw this.error(
         "artifact.producer_mismatch",
-        "Producer binding 已变化，请将结果作为新的 Artifact 处理",
+        "Producer binding 已变化，请将结果作为新的成果处理",
       );
     }
   }
@@ -365,7 +365,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     try {
       return normalizeArtifactMetadata(value);
     } catch (error) {
-      throw this.error("artifact.metadata_invalid", "Artifact metadata 必须是可往返的 JSON 对象", {
+      throw this.error("artifact.metadata_invalid", "成果 metadata 必须是可往返的 JSON 对象", {
         cause: error instanceof Error ? error.message : String(error),
       });
     }
@@ -373,7 +373,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
 
   private requireVersion(boardId: string, reference: ArtifactReference): ArtifactVersionRecord {
     const artifact = this.repository.getVersion(boardId, reference.artifact_id, reference.version);
-    if (!artifact) throw this.error("artifact.not_found", "找不到 Artifact version");
+    if (!artifact) throw this.error("artifact.not_found", "找不到成果版本");
     return artifact;
   }
 
@@ -384,7 +384,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
   ): ArtifactVersionRecord {
     const artifact = this.requireVersion(boardId, reference);
     if (artifact.owner_actor_id !== actorId) {
-      throw this.error("artifact.not_owner", "只有 Artifact owner 可以修改版本状态");
+      throw this.error("artifact.not_owner", "只有成果 owner 可以修改版本状态");
     }
     return artifact;
   }

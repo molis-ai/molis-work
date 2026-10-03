@@ -23,7 +23,7 @@ export const formManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "storage:private", required: true, reason: "本机问卷库" },
-    { permission: "artifact:write", required: true, reason: "把问卷存成 Artifact" },
+    { permission: "artifact:write", required: true, reason: "把问卷存为成果" },
     ...FORM_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: permission !== "model:invoke", reason: "问卷动作读取、编辑、填写或显式模型调用" })),
   ],
   actions: [...Object.values(formActions), ...Object.values(formContentActions)],

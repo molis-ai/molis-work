@@ -134,7 +134,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
       }).join('')).join('');
       return '<section class="side-files-group"><h3>'+esc(source.title)+'</h3>'+(held.error?'<p class="side-files-note">'+esc(held.error)+'</p>':'')+rows+(held.next&&!query?'<button class="mw-btn mw-btn--ghost mw-btn--sm side-files-more" type="button" data-side-files-more="'+esc(source.id)+'">'+esc(L('加载更多'))+'</button>':'')+'</section>';
     }).join('');
-    list.innerHTML=groups||'<p class="side-files-note">'+esc(query?L('没有符合条件的文件'):sources.length?L('这些插件里还没有文件'):L('这个项目里还没有提供文件的插件。Files、Pages、Artifacts 等插件启用后，它们的文件会出现在这里。'))+'</p>';
+    list.innerHTML=groups||'<p class="side-files-note">'+esc(query?L('没有符合条件的文件'):sources.length?L('这些插件里还没有文件'):L('这个项目里还没有提供文件的插件。Files、Pages、成果等插件启用后，它们的文件会出现在这里。'))+'</p>';
   };
   const find=(source,kind,id)=>(entries.get(source)?.items||[]).find(item=>item.subject.kind===kind&&item.subject.id===id);
   const show=(on)=>{preview.hidden=!on;browse.hidden=on&&!wide;};

@@ -130,7 +130,7 @@ export const alchemistOperations = {
   },
   reuseCandidates: operation("reuse.candidates", "寻找可沿用成果与方法", "读取当前授权范围内固定版本成果与适用方法；查询不运行模型，不代表已采用", "query", reuseCandidateInputSchema, reuseCandidatesSchema),
   reuseAssess: operation("reuse.assess", "检查复用适用性", "通过 Prologue 判断给定候选的适用、失效与重核条件，不自动采用", "command", reuseAssessInputSchema, reuseAssessmentSchema, ["alchemist:generate"], { cost: "metered" }, "concurrent"),
-  reusePublish: operation("reuse.publish", "保存研究固定版本", "将研究与证据幂等登记为当前项目私有 Artifact，不公开发布", "command", object({ reportId: id }), object({ reference: reuseReferenceSchema })),
+  reusePublish: operation("reuse.publish", "保存研究固定版本", "将研究与证据幂等登记为当前项目私有成果，不公开发布", "command", object({ reportId: id }), object({ reference: reuseReferenceSchema })),
   reuseReceipt: operation("reuse.receipt", "读取实际复用记录", "区分已选择、已实际消费和关系补写状态，返回固定方法及成果版本", "query", object({ planId: id }), object({ receipt: reuseReceiptSchema.nullable() })),
   reuseReconcile: operation("reuse.reconcile", "补写复用关系", "仅补写已实际消费的 Context Ledger 关系，不重复模型调用", "command", object({ planId: id }), object({ receipt: reuseReceiptSchema.nullable() })),
   reuseFeedback: operation("reuse.feedback", "记录复用效果", "如实记录解释、准备、修正和结果，不推算节省比例", "command", reuseFeedbackSchema, object({ receipt: reuseReceiptSchema })),

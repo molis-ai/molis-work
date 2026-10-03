@@ -95,7 +95,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
       const type = record(value, `artifacts.${key}`);
       if (!text(type.artifact_type_id) || typeof type.schema_version !== "number"
         || !Number.isSafeInteger(type.schema_version) || type.schema_version < 1) {
-        invalid("Artifact 必须声明 type ID 与正整数 schema_version");
+        invalid("成果必须声明 type ID 与正整数 schema_version");
       }
     }
   }

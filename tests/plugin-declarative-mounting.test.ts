@@ -302,7 +302,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
       ["dataset", "Dataset", "database"],
       ["ppt", "PPT", "presentation"], // its own glyph; "image" belongs to 图片 (spec → 第三轮 · 图标)
       ["alchemist", "炼金术士", "zap"],
-      ["artifacts", "Artifacts", "package"],
+      ["artifacts", "成果", "package"],
     ],
     "侧栏轨只挂 Manifest 声明了 navigator 的插件；灵光在岛上",
   );

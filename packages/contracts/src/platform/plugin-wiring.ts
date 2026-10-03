@@ -295,7 +295,7 @@ export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefine
       continue;
     }
     if (typeof input.artifact_type_id !== "string" || input.artifact_type_id.trim() === "") {
-      problems.push(`输入端口 ${input.port} 缺少 Artifact 类型`);
+      problems.push(`输入端口 ${input.port} 缺少成果类型`);
       continue;
     }
     if (!Number.isSafeInteger(input.schema_version) || input.schema_version < 1) {
@@ -316,7 +316,7 @@ export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefine
       continue;
     }
     if (typeof output.artifact_type_id !== "string" || output.artifact_type_id.trim() === "") {
-      problems.push(`输出端口 ${output.port} 缺少 Artifact 类型`);
+      problems.push(`输出端口 ${output.port} 缺少成果类型`);
       continue;
     }
     if (!Number.isSafeInteger(output.schema_version) || output.schema_version < 1) {

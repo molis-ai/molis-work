@@ -79,7 +79,9 @@ window.fetch = async (url, init) => {
   return new Response(JSON.stringify(result.body), { status: result.status, headers: { "content-type": "application/json" } });
 };
 try {
-  (${embed(FUNCTIONS_CLIENT_FACTORY_SCRIPT)})({ translate: (value) => value, feedApi: null });
+  // The same host the standalone rules page gives it (functions/bootstrap.ts): its own document and address.
+  (${embed(FUNCTIONS_CLIENT_FACTORY_SCRIPT)})({ translate: (value) => value, feedApi: null, root: document,
+    page: { address: () => new URL(location.href), replace: (next) => history.replaceState(null, "", next) } });
   window.__booted = true;
 } catch (error) {
   window.__bootError = String(error && error.stack || error);

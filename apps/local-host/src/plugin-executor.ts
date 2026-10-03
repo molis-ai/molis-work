@@ -1,4 +1,4 @@
-import type { ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
@@ -18,7 +18,7 @@ export interface PluginHostExecutorOptions {
   actor_id: string;
   artifacts: ArtifactsApplicationApi;
   /** Exchange data plugins record for each other, kept out of the 成果库 (specs/artifact-positioning A2). */
-  processItems: ArtifactsApplicationApi;
+  processItems: ProcessItemsApplicationApi;
   actions: { registry: import("@molis-ai/molis-work-contracts/platform/actions").ActionRegistryPort;
     client: import("@molis-ai/molis-work-contracts/platform/actions").SyncActionClient & import("@molis-ai/molis-work-contracts/platform/actions").ActionClient; project_id: string;
     /** Composition-only metadata of the whole directory (what the Plugin Builder's catalog is made from). */

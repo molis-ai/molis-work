@@ -18,6 +18,12 @@ export interface CharactersPluginPorts {
   publish(id: string, revision: number, publisher: (content: CharacterContent) => Pick<ArtifactVersionResult, "artifact" | "replayed">): Pick<ArtifactVersionResult, "artifact" | "replayed">;
 }
 
+/** A published character is a pinned revision of its draft (artifact-positioning A1). */
+function characterPublication(content: CharacterContent) {
+  return { origin: { kind: "pinned" as const, subject: { kind: "character", id: content.character_id }, revision: String(content.source.draft_revision) },
+    title: content.title.trim() || content.character_id, media_type: "application/json" };
+}
+
 export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefinition {
   return { manifest: charactersManifest, async start(context) {
     for (const permission of charactersManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
@@ -25,7 +31,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
     if (!boardId || !artifacts) throw new Error("角色的项目发布入口尚未装配");
     const publications = (): ArtifactVersionRecord[] => ports.references().flatMap(ref => {
       const record = artifacts.read(ref);
-      if (!record || record.board_id !== boardId || record.owner_actor_id !== ports.actorId
+      if (!record || !("origin" in record) || record.board_id !== boardId || record.owner_actor_id !== ports.actorId
         || record.producer_plugin_id !== CHARACTER_PLUGIN_ID || record.producer_binding_signature !== CHARACTER_PUBLISHER_SIGNATURE
         || record.artifact_type_id !== CHARACTER_ARTIFACT_TYPE || record.schema_version !== 1) return [];
       // An invalid owned publication is an error, not permission to overwrite its identity/version.
@@ -102,7 +108,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
           const previous = existing[0];
           const version = (previous?.version ?? 0) + 1;
           return artifacts.publish({ artifact_id, version, artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1,
-            content: { kind: "inline", payload: content as unknown as ArtifactJsonValue },
+            content: { kind: "inline", payload: content as unknown as ArtifactJsonValue }, ...characterPublication(content),
             ...(previous ? { supersedes_version: previous.version } : {}),
           });
         });

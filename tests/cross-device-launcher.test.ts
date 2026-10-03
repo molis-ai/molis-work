@@ -63,7 +63,8 @@ test('compiled standalone launcher starts headless, restores a real Catalog proj
     server.child.kill('SIGTERM');assert.equal(await server.exited,0,server.errors());server=undefined;
     const bundle={format:'molis-work-assets',version:1,source_project_id:'headless-source',title:'Headless import',goals:[],notes:[],dependencies:[],artifacts:[{
       artifact_id:'headless-artifact',version:1,artifact_type_id:'io.test.document',schema_version:1,owner_actor_id:'source-owner',
-      producer:{plugin_id:'io.test.writer',plugin_version:'1.0.0',binding_signature:'original'},content:{kind:'inline',payload:{content:'CLI restored body'}},metadata:{title:'CLI artifact'},scope:'team_project',availability:'available',lifecycle_state:'active',supersedes_version:null,source_supersedes_version:null,
+      producer:{plugin_id:'io.test.writer',plugin_version:'1.0.0',binding_signature:'original'},content:{kind:'inline',payload:{content:'CLI restored body'}},metadata:{title:'CLI artifact'},scope:'team_project',availability:'available',lifecycle_state:'active',
+      origin:{kind:'pinned',subject:{kind:'document',id:'headless-artifact'},revision:'1'},title:'CLI artifact',media_type:'application/json',supersedes_version:null,source_supersedes_version:null,
     }]};
     const bundleFile=join(directory,'bundle.json');await writeFile(bundleFile,JSON.stringify(bundle));
     const destination=join(directory,'new-home');

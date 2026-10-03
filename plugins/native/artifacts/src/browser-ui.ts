@@ -1,6 +1,6 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon } from "@molis-ai/molis-work-design-system";
-import { artifactDisplayTitle, artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
+import { artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
 
 const ARTIFACT_TYPE_LABELS: Record<string, string> = {
   "coding.report.v1": "Coding 执行报告",
@@ -52,7 +52,7 @@ function directory({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel)
     const tone = attention ? "attention" : "ready";
     const rows = versions.map((artifact) => {
       const selected = view.selected?.artifact_id === artifact.artifact_id && view.selected.version === artifact.version;
-      const title = artifactDisplayTitle(artifact);
+      const title = artifact.title;
       const status = artifact.lifecycle_state === "archived"
         ? p.text("已归档")
         : artifact.availability === "unavailable"
@@ -117,7 +117,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${!view.requested && !view.versions.length ? `<p>${p.text("项目成果与导入的文档会保存在这里。可以先导入文档，或推进 Goal 后提交成果。")}</p>` : ""}
     ${view.requested ? `<p>${p.text("它可能属于其他项目，或这个版本尚未发布。请返回列表选择；不会自动替换成最新版本。")}</p><a href="${p.escape(routePrefix + "/artifacts")}">${p.text("返回成果列表")}</a>` : ""}</section>`;
   const href = routePrefix + artifactVersionPath(artifact);
-  const title = artifactDisplayTitle(artifact);
+  const title = artifact.title;
   const preview = documentPreview(artifact, p);
   const notice = model.presentation && artifact.lifecycle_state !== "archived" ? model.presentation.notice ?? "这是保存时的固定报告。阅读不会重新执行任务，也不代表目标验收。" : view.compatibility?.reason === "artifact_unavailable"
     ? "这个版本的内容不可用；引用和来源信息仍然保留。"

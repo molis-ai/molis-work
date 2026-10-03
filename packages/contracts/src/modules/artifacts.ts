@@ -81,7 +81,8 @@ export interface ArtifactIdentityRecord {
   created_at: string;
 }
 
-export interface ArtifactVersionRecord extends ArtifactReference {
+/** The fields every immutable version has, in the 成果库 and in process items alike. */
+export interface FixedVersionRecord extends ArtifactReference {
   board_id: string;
   artifact_type_id: string;
   schema_version: number;
@@ -106,7 +107,30 @@ export interface ArtifactVersionRecord extends ArtifactReference {
   archived_by: string | null;
 }
 
-export interface RegisterArtifactVersionInput extends ArtifactReference {
+/**
+ * Where a 成果 came from (specs/artifact-positioning A1): one of the producer's work objects pinned at a revision, or a
+ * file someone imported. The subject belongs to the producing plugin, so it names only the object's kind and id.
+ */
+export type ArtifactOrigin =
+  | { kind: "pinned"; subject: { kind: string; id: string }; revision: string }
+  | { kind: "imported"; file_name: string };
+
+/** One version in the 成果库: what people keep, cite and hand in. */
+export interface ArtifactVersionRecord extends FixedVersionRecord {
+  origin: ArtifactOrigin;
+  /** What people see in lists and links; never guessed from the payload. */
+  title: string;
+  /** The real media type of the content, e.g. `text/markdown`, `application/json`, `application/pdf`. */
+  media_type: string;
+  /** The process items this version was made from, newest first; each stays with the plugin that produced it. */
+  trace: ArtifactReference[];
+}
+
+/** Exchange data plugins hand to each other (A2): the same immutable versions, without a place in the 成果库. */
+export type ProcessItemRecord = FixedVersionRecord;
+
+/** The fields every version is written with, in either store. */
+export interface RecordFixedVersionInput extends ArtifactReference {
   board_id: string;
   actor_id: string;
   artifact_type_id: string;
@@ -121,6 +145,15 @@ export interface RegisterArtifactVersionInput extends ArtifactReference {
   supersedes_version?: number | null;
 }
 
+export type RecordProcessItemInput = RecordFixedVersionInput;
+
+export interface RegisterArtifactVersionInput extends RecordFixedVersionInput {
+  origin: ArtifactOrigin;
+  title: string;
+  media_type: string;
+  trace?: ArtifactReference[];
+}
+
 export interface MarkArtifactUnavailableInput extends ArtifactReference {
   board_id: string;
   actor_id: string;
@@ -132,11 +165,14 @@ export interface ArchiveArtifactVersionInput extends ArtifactReference {
   actor_id: string;
 }
 
-export interface ArtifactVersionResult {
-  artifact: ArtifactVersionRecord;
+export interface FixedVersionResult<R extends FixedVersionRecord = FixedVersionRecord> {
+  artifact: R;
   observed_event_cursor: number;
   replayed: boolean;
 }
+
+export type ArtifactVersionResult = FixedVersionResult<ArtifactVersionRecord>;
+export type ProcessItemResult = FixedVersionResult<ProcessItemRecord>;
 
 export interface ArtifactListQuery {
   artifact_type_id?: string;
@@ -156,11 +192,11 @@ export interface ArtifactConsumptionCompatibility {
   reason: "compatible_consumer" | "consumer_missing" | "artifact_unavailable" | "artifact_archived";
 }
 
-export interface ArtifactsQueryApi {
-  getArtifactVersion(boardId: string, reference: ArtifactReference): ArtifactVersionRecord | null;
-  listArtifactVersions(boardId: string, artifactId: string): ArtifactVersionRecord[];
-  latestArtifactVersion(boardId: string, artifactId: string): ArtifactVersionRecord | null;
-  listArtifacts(boardId: string, query?: ArtifactListQuery): ArtifactVersionRecord[];
+export interface FixedVersionQueryApi<R extends FixedVersionRecord> {
+  getArtifactVersion(boardId: string, reference: ArtifactReference): R | null;
+  listArtifactVersions(boardId: string, artifactId: string): R[];
+  latestArtifactVersion(boardId: string, artifactId: string): R | null;
+  listArtifacts(boardId: string, query?: ArtifactListQuery): R[];
   consumptionCompatibility(
     boardId: string,
     reference: ArtifactReference,
@@ -168,13 +204,22 @@ export interface ArtifactsQueryApi {
   ): ArtifactConsumptionCompatibility;
 }
 
-export interface ArtifactsCommandApi {
-  registerVersion(input: RegisterArtifactVersionInput): ArtifactVersionResult;
-  markUnavailable(input: MarkArtifactUnavailableInput): ArtifactVersionResult;
-  archiveVersion(input: ArchiveArtifactVersionInput): ArtifactVersionResult;
+export interface FixedVersionCommandApi<R extends FixedVersionRecord, I extends RecordFixedVersionInput> {
+  registerVersion(input: I): FixedVersionResult<R>;
+  markUnavailable(input: MarkArtifactUnavailableInput): FixedVersionResult<R>;
+  archiveVersion(input: ArchiveArtifactVersionInput): FixedVersionResult<R>;
 }
+
+export type ArtifactsQueryApi = FixedVersionQueryApi<ArtifactVersionRecord>;
+export type ArtifactsCommandApi = FixedVersionCommandApi<ArtifactVersionRecord, RegisterArtifactVersionInput>;
 
 export interface ArtifactsApplicationApi {
   query: ArtifactsQueryApi;
   commands: ArtifactsCommandApi;
+}
+
+/** The process items store (A2): kept apart from the 成果库, written without an origin or title. */
+export interface ProcessItemsApplicationApi {
+  query: FixedVersionQueryApi<ProcessItemRecord>;
+  commands: FixedVersionCommandApi<ProcessItemRecord, RecordProcessItemInput>;
 }

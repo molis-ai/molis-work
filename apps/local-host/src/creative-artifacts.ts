@@ -41,6 +41,9 @@ export function registerFormArtifactVersion(
       producer: producerOf(formManifest),
       content: { kind: "inline", payload: JSON.parse(JSON.stringify(input.content)) },
       metadata: { form_id: input.record_id, title: input.title },
+      // A pinned revision of the form (artifact-positioning A1); the content is the form's JSON snapshot.
+      origin: { kind: "pinned", subject: { kind: "form", id: input.record_id }, revision: String(input.source_version) },
+      title: input.title, media_type: "application/json",
       scope: "personal",
       supersedes_version: input.version > 1 ? input.version - 1 : null,
     });
@@ -82,6 +85,9 @@ export function registerDatasetArtifactVersion(
       producer: producerOf(datasetManifest),
       content: { kind: "inline", payload: JSON.parse(JSON.stringify(input.content)) },
       metadata: { dataset_id: input.record_id, title: input.title },
+      // A pinned revision of the dataset (artifact-positioning A1); the content is the dataset's JSON snapshot.
+      origin: { kind: "pinned", subject: { kind: "dataset", id: input.record_id }, revision: String(input.source_version) },
+      title: input.title, media_type: "application/json",
       scope: "personal",
       supersedes_version: input.version > 1 ? input.version - 1 : null,
     });
@@ -123,6 +129,9 @@ export function registerPptArtifactVersion(
       producer: producerOf(pptManifest),
       content: { kind: "inline", payload: JSON.parse(JSON.stringify(input.content)) },
       metadata: { presentation_id: input.record_id, title: input.title },
+      // A pinned revision of the presentation (artifact-positioning A1); the content is the presentation's JSON snapshot.
+      origin: { kind: "pinned", subject: { kind: "presentation", id: input.record_id }, revision: String(input.source_version) },
+      title: input.title, media_type: "application/json",
       scope: "personal",
       supersedes_version: input.version > 1 ? input.version - 1 : null,
     });

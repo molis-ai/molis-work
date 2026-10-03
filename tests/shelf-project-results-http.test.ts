@@ -9,6 +9,7 @@ import { LocalProjectDatabase, GoalProjectApplication, releaseCodingSurface } fr
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 test("Shelf explicitly receives a genuine fixed Coding report, preserves edited copies on retry and keeps provenance through project material publication", async t => {
   const home = mkdtempSync(join(tmpdir(), "shelf-results-"));
@@ -25,7 +26,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   t.after(async()=>{ await new Promise<void>(resolve=>server.close(()=>resolve())); await releaseCodingSurface(store,boardId); store.close(); rmSync(home,{recursive:true,force:true}); });
   const request=async(path:string,body?:unknown,authorized=true)=>{const response=await fetch(origin+prefix+path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{origin,'content-type':'application/json','x-molis-work-idempotency-key':randomUUID(),...(authorized?{'x-molis-work-control-token':token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:response.status,body:await response.json()};};
   const reference={artifact_id:'coding-report:session-original:run-original',version:1};
-  const input={board_id:boardId,actor_id:'web-user',...reference,artifact_type_id:'coding.report.v1',schema_version:1,
+  const input={...pinnedArtifact('已固定的原报告'),board_id:boardId,actor_id:'web-user',...reference,artifact_type_id:'coding.report.v1',schema_version:1,
     producer:{plugin_id:'io.molis.work.coding',plugin_version:'1.20.0',binding_signature:'official-coding-binding'},
     content:{kind:'inline' as const,payload:{title:'已固定的原报告',run_id:'run-original',source:{session_id:'session-original'},body_markdown:'## 完整原文\r\n含 ``` 与 <script>，不重新请求模型。\n最后一行🌲'}}};
   const original=app.artifacts.commands.registerVersion(input).artifact;

@@ -1,5 +1,5 @@
 import { SHELF_TEXT_MATERIAL_TYPE, parseShelfTextMaterial } from "@molis-ai/molis-work-contracts/modules/shelf";
-import type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { compareTexts, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, parseChangeSet, parseGitResult, parseFileSnapshot, parseFileTextSelection, selectionCitationLabel } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTextMaterialContent, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -43,7 +43,7 @@ export function savedMaterials(context: PluginStartContext, sessionId: string): 
   const value = context.services?.storage?.get(`materials:${sessionId}`);
   return typeof value === "string" ? materialSelection(JSON.parse(value)) : [];
 }
-function materialFrom(record: ArtifactVersionRecord | null, sessionTitle?: SessionTitle): AgentTextMaterial {
+function materialFrom(record: FixedVersionRecord | null, sessionTitle?: SessionTitle): AgentTextMaterial {
   if (!record || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("材料已归档或不可读，请移除或重新选择");
   if (record.schema_version !== 1 || record.content_kind !== "inline") throw new Error("材料没有可读取的固定正文");
   let title: string, text: string;

@@ -3,7 +3,10 @@ import type {
   ArtifactJsonValue,
   ArtifactListQuery,
   ArtifactMetadata,
+  ArtifactOrigin,
+  ArtifactReference,
   ArtifactVersionRecord,
+  FixedVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 type Row = Record<string, unknown>;
@@ -28,10 +31,16 @@ export interface ArtifactsSqliteDatabase {
 export interface VersionStoreTables {
   readonly identities: string;
   readonly versions: string;
+  /** The 成果库 also records each version's origin, title, media type and trace (artifact-positioning A1). */
+  readonly library: boolean;
 }
 
-export const ARTIFACT_TABLES: VersionStoreTables = { identities: "artifacts", versions: "artifact_versions" };
-export const PROCESS_ITEM_TABLES: VersionStoreTables = { identities: "process_items", versions: "process_item_versions" };
+/**
+ * The 成果库. Its tables are new with A1: versions written before carry no origin or title and are not read again
+ * (the old `artifacts`/`artifact_versions` tables stay untouched until a real Home is cleaned up with its owner).
+ */
+export const ARTIFACT_TABLES: VersionStoreTables = { identities: "library_artifacts", versions: "library_artifact_versions", library: true };
+export const PROCESS_ITEM_TABLES: VersionStoreTables = { identities: "process_items", versions: "process_item_versions", library: false };
 
 export function versionStoreSchemaSql(t: VersionStoreTables): string {
   return `
@@ -67,7 +76,11 @@ export function versionStoreSchemaSql(t: VersionStoreTables): string {
     created_by TEXT NOT NULL,
     created_at TEXT NOT NULL,
     archived_at TEXT,
-    archived_by TEXT,
+    archived_by TEXT,${t.library ? `
+    origin_json TEXT NOT NULL,
+    title TEXT NOT NULL CHECK (length(title) > 0),
+    media_type TEXT NOT NULL,
+    trace_json TEXT NOT NULL DEFAULT '[]',` : ""}
     PRIMARY KEY (artifact_id, version),
     FOREIGN KEY (artifact_id, supersedes_version)
       REFERENCES ${t.versions}(artifact_id, version),
@@ -92,8 +105,12 @@ export function createProcessItemsSchema(db: ArtifactsSqliteDatabase): void {
   db.exec(PROCESS_ITEMS_SCHEMA_SQL);
 }
 
-export class ArtifactsRepository {
+export class ArtifactsRepository<R extends FixedVersionRecord = ArtifactVersionRecord> {
   constructor(readonly db: ArtifactsSqliteDatabase, readonly tables: VersionStoreTables = ARTIFACT_TABLES) {}
+
+  private map(row: Row): R {
+    return (this.tables.library ? mapArtifactVersion(row) : mapFixedVersion(row)) as R;
+  }
 
   immediate<T>(operation: () => T): T {
     return this.db.transaction(operation).immediate();
@@ -134,7 +151,7 @@ export class ArtifactsRepository {
     );
   }
 
-  getVersion(boardId: string, artifactId: string, version: number): ArtifactVersionRecord | null {
+  getVersion(boardId: string, artifactId: string, version: number): R | null {
     const row = this.db.prepare(`
       SELECT version.*, identity.board_id, identity.owner_actor_id,
              identity.producer_plugin_id, identity.producer_binding_signature
@@ -142,10 +159,10 @@ export class ArtifactsRepository {
       JOIN ${this.tables.identities} identity ON identity.artifact_id = version.artifact_id
       WHERE identity.board_id = ? AND version.artifact_id = ? AND version.version = ?
     `).get(boardId, artifactId, version) as Row | undefined;
-    return row ? mapArtifactVersion(row) : null;
+    return row ? this.map(row) : null;
   }
 
-  listVersions(boardId: string, artifactId: string): ArtifactVersionRecord[] {
+  listVersions(boardId: string, artifactId: string): R[] {
     return (this.db.prepare(`
       SELECT version.*, identity.board_id, identity.owner_actor_id,
              identity.producer_plugin_id, identity.producer_binding_signature
@@ -153,15 +170,15 @@ export class ArtifactsRepository {
       JOIN ${this.tables.identities} identity ON identity.artifact_id = version.artifact_id
       WHERE identity.board_id = ? AND version.artifact_id = ?
       ORDER BY version.version ASC
-    `).all(boardId, artifactId) as Row[]).map(mapArtifactVersion);
+    `).all(boardId, artifactId) as Row[]).map(row => this.map(row));
   }
 
-  latestVersion(boardId: string, artifactId: string): ArtifactVersionRecord | null {
+  latestVersion(boardId: string, artifactId: string): R | null {
     const versions = this.listVersions(boardId, artifactId);
     return versions.at(-1) ?? null;
   }
 
-  listArtifacts(boardId: string, query: ArtifactListQuery = {}): ArtifactVersionRecord[] {
+  listArtifacts(boardId: string, query: ArtifactListQuery = {}): R[] {
     return (this.db.prepare(`
       SELECT version.*, identity.board_id, identity.owner_actor_id,
              identity.producer_plugin_id, identity.producer_binding_signature
@@ -170,7 +187,7 @@ export class ArtifactsRepository {
       WHERE identity.board_id = ?
       ORDER BY version.created_at DESC, version.artifact_id, version.version DESC
     `).all(boardId) as Row[])
-      .map(mapArtifactVersion)
+      .map(row => this.map(row))
       .filter((record) =>
         (!query.artifact_type_id || record.artifact_type_id === query.artifact_type_id)
         && (!query.schema_version || record.schema_version === query.schema_version)
@@ -178,14 +195,15 @@ export class ArtifactsRepository {
         && (!query.lifecycle_state || record.lifecycle_state === query.lifecycle_state));
   }
 
-  insertVersion(record: ArtifactVersionRecord): void {
+  insertVersion(record: R): void {
+    const library = this.tables.library ? record as unknown as ArtifactVersionRecord : null;
     this.db.prepare(`
       INSERT INTO ${this.tables.versions} (
         artifact_id, version, artifact_type_id, schema_version, producer_plugin_version,
         content_kind, payload_json, content_ref, content_digest, size_bytes,
         metadata_json, scope, availability, unavailable_reason, lifecycle_state,
-        supersedes_version, created_by, created_at, archived_at, archived_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        supersedes_version, created_by, created_at, archived_at, archived_by${library ? ", origin_json, title, media_type, trace_json" : ""}
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${library ? ", ?, ?, ?, ?" : ""})
     `).run(
       record.artifact_id,
       record.version,
@@ -207,6 +225,7 @@ export class ArtifactsRepository {
       record.created_at,
       record.archived_at,
       record.archived_by,
+      ...(library ? [JSON.stringify(library.origin), library.title, library.media_type, JSON.stringify(library.trace)] : []),
     );
   }
 
@@ -239,7 +258,17 @@ export function mapArtifactIdentity(row: Row): ArtifactIdentityRecord {
 }
 
 export function mapArtifactVersion(row: Row): ArtifactVersionRecord {
-  const contentKind = String(row.content_kind) as ArtifactVersionRecord["content_kind"];
+  return {
+    ...mapFixedVersion(row),
+    origin: parseJson<ArtifactOrigin>(row.origin_json, { kind: "imported", file_name: "" }),
+    title: String(row.title),
+    media_type: String(row.media_type),
+    trace: parseJson<ArtifactReference[]>(row.trace_json, []),
+  };
+}
+
+export function mapFixedVersion(row: Row): FixedVersionRecord {
+  const contentKind = String(row.content_kind) as FixedVersionRecord["content_kind"];
   return {
     board_id: String(row.board_id),
     artifact_id: String(row.artifact_id),
@@ -258,10 +287,10 @@ export function mapArtifactVersion(row: Row): ArtifactVersionRecord {
     content_digest: String(row.content_digest),
     size_bytes: Number(row.size_bytes),
     metadata: parseJson<ArtifactMetadata>(row.metadata_json, {}),
-    scope: String(row.scope) as ArtifactVersionRecord["scope"],
-    availability: String(row.availability) as ArtifactVersionRecord["availability"],
+    scope: String(row.scope) as FixedVersionRecord["scope"],
+    availability: String(row.availability) as FixedVersionRecord["availability"],
     unavailable_reason: row.unavailable_reason == null ? null : String(row.unavailable_reason),
-    lifecycle_state: String(row.lifecycle_state) as ArtifactVersionRecord["lifecycle_state"],
+    lifecycle_state: String(row.lifecycle_state) as FixedVersionRecord["lifecycle_state"],
     supersedes_version: row.supersedes_version == null ? null : Number(row.supersedes_version),
     created_by: String(row.created_by),
     created_at: String(row.created_at),

@@ -16,6 +16,7 @@ import type {
   ArtifactJsonValue,
   RegisterArtifactVersionInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 function createHarness() {
   const db = new Database(":memory:");
@@ -92,6 +93,7 @@ function registration(
       },
     },
     metadata: { source: "plugin-private-shape" },
+    ...pinnedArtifact("Sprint report"),
     ...overrides,
   };
 }
@@ -117,7 +119,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
     const replayed = module.commands.registerVersion(firstInput);
     assert.equal(replayed.replayed, true);
     assert.equal(replayed.artifact.created_at, first.artifact.created_at);
-    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM artifact_versions").get().count, 1);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM library_artifact_versions").get().count, 1);
 
     expectCode(
       () => module.commands.registerVersion(registration({
@@ -277,12 +279,13 @@ test("Artifact reference digest mismatch and schema migration are rollback-safe 
     `);
     migrateArtifactsSchema(migrationDb as unknown as ArtifactsSqliteDatabase);
     migrateArtifactsSchema(migrationDb as unknown as ArtifactsSqliteDatabase);
+    // The 成果库 (A1) and the process items store (A2); the pre-A1 tables are no longer created.
     const tables = migrationDb.prepare(`
       SELECT name FROM sqlite_master
-      WHERE type = 'table' AND name IN ('artifacts', 'artifact_versions')
+      WHERE type = 'table' AND name IN ('artifacts', 'artifact_versions', 'library_artifacts', 'library_artifact_versions', 'process_items', 'process_item_versions')
       ORDER BY name
     `).all().map((row) => row.name);
-    assert.deepEqual(tables, ["artifact_versions", "artifacts"]);
+    assert.deepEqual(tables, ["library_artifact_versions", "library_artifacts", "process_item_versions", "process_items"]);
     assert.equal(
       migrationDb.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE migration_id = 31").get().count,
       1,

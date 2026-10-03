@@ -1,6 +1,6 @@
 import type {
   ArtifactReference,
-  ArtifactVersionRecord,
+  FixedVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
@@ -55,7 +55,7 @@ export function createPluginInputsClient(input: PluginWiringServicesInput): Plug
     status(): PluginInputStatus {
       return graph.status(pluginId);
     },
-    read(port: string): ArtifactVersionRecord | null {
+    read(port: string): FixedVersionRecord | null {
       if (!declared.includes(port)) {
         throw new PluginWiringError("port_unknown", `${pluginId} 没有输入端口 ${port}`);
       }

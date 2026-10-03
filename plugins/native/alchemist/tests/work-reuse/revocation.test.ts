@@ -12,7 +12,8 @@ async function seed(){
   const {reference:publicRef}=await f.call(a.reusePublish,{reportId:report.id});
   const privateRef={artifact_id:'private-source',version:1};
   f.artifacts.commands.registerVersion({...privateRef,board_id:'board-test',actor_id:'actor-local',artifact_type_id:'alchemist.research',schema_version:1,
-    producer:{plugin_id:'alchemist',plugin_version:'1',binding_signature:'fixture'},content:{kind:'inline',payload:marker},metadata:{title:marker}});
+    producer:{plugin_id:'alchemist',plugin_version:'1',binding_signature:'fixture'},content:{kind:'inline',payload:marker},metadata:{title:marker},
+    origin:{kind:'pinned',subject:{kind:'research_report',id:'private-source'},revision:'1'},title:marker,media_type:'application/json'});
   return {method,publicRef,privateRef,reuse:{artifacts:[{reference:privateRef,reason:marker},{reference:publicRef,reason:'public reason'}],methodIds:[method.id]}};
 }
 function barrier(){let enter!:()=>void,release!:()=>void;return {entered:new Promise<void>(r=>{enter=r}),waiting:new Promise<void>(r=>{release=r}),enter:()=>enter(),release:()=>release()}}

@@ -81,6 +81,9 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
     metadata: { source: document.source, source_id: document.source_id, source_url: document.source_url,
       title: document.title, imported_at: (ports.now ?? (() => new Date().toISOString()))(), ...(document.connection_id ? { connection_id: document.connection_id } : {}) },
     scope: "personal", supersedes_version: latest?.version ?? null,
+    // An imported document keeps its file name and the type of the text it was read into (artifact-positioning A1).
+    origin: { kind: "imported", file_name: source === "file" ? String(input.filename) : document.title },
+    title: document.title, media_type: document.format === "text" ? "text/plain" : "text/markdown",
   });
   return { artifact_id: artifactId, version: result.artifact.version, reused: false,
     url: ports.routePrefix + artifactVersionPath(result.artifact), warnings: document.warnings };

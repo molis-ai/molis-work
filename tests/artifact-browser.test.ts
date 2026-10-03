@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
-import { artifactDisplayTitle, readArtifactBrowser } from "@molis-ai/molis-work-plugin-artifacts";
+import { readArtifactBrowser } from "@molis-ai/molis-work-plugin-artifacts";
+import { pinnedArtifact, titleOf } from "./fixtures/artifacts.js";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -19,13 +20,14 @@ const encodedId = encodeURIComponent(artifactId);
 const exactPath = (version: number) => `/artifacts/${encodedId}/versions/${version}`;
 
 function registration(overrides: Partial<RegisterArtifactVersionInput> = {}): RegisterArtifactVersionInput {
-  return {
+  const input = {
     board_id: DEMO_BOARD_ID, actor_id: "report-owner", artifact_id: artifactId, version: 1,
     artifact_type_id: "io.example.report", schema_version: 1,
     producer: { plugin_id: "io.example.writer", plugin_version: "1.0.0", binding_signature: "fixture-publisher" },
-    content: { kind: "inline", payload: { title: "Original report", custom: ["</pre><script>attack()</script>", 7, null] } },
+    content: { kind: "inline" as const, payload: { title: "Original report", custom: ["</pre><script>attack()</script>", 7, null] } },
     metadata: { origin: "plugin-owned-shape", details: { preserved: true } }, ...overrides,
   };
+  return { ...pinnedArtifact(titleOf(input.content, "Original report")), ...input };
 }
 
 async function fixture(t: test.TestContext) {
@@ -54,17 +56,18 @@ async function fixture(t: test.TestContext) {
   return { store, coordinator, get, surface, direct, origin };
 }
 
-test("Artifact display title prefers payload title, then name, then text", () => {
-  assert.equal(artifactDisplayTitle({
-    artifact_id: "feed-capture:item:rule",
-    payload: { title: "Product launch checklist", name: "Ignored name", summary: "Ship the launch notes" },
-  }), "Product launch checklist");
-  assert.equal(artifactDisplayTitle({ artifact_id: "named", payload: { name: "Named result" } }), "Named result");
-  assert.equal(artifactDisplayTitle({ artifact_id: "frame-note", payload: { text: "Frame artifact" } }), "Frame artifact");
-  assert.equal(artifactDisplayTitle({ artifact_id: "raw-id", payload: { count: 1 } }), "raw-id");
-  assert.equal(artifactDisplayTitle({ artifact_id: "raw-id", payload: null }), "raw-id");
-  assert.equal(artifactDisplayTitle({ artifact_id: "fixed-id", payload: { run_id: "r" }, metadata: { title: "固定变更标题" } }), "固定变更标题");
-  assert.equal(artifactDisplayTitle({ artifact_id: "fixed-id", payload: { title: "正文标题" }, metadata: { title: "元数据标题" } }), "正文标题");
+test("the 成果库 shows each version's recorded title and media type, never one guessed from the payload", async (t) => {
+  // specs/artifact-positioning A1: a 成果 records its title and media type; the payload stays the producer's own shape.
+  const { coordinator, surface } = await fixture(t);
+  coordinator.artifacts.commands.registerVersion(registration({ artifact_id: "recorded-title",
+    content: { kind: "inline", payload: { title: "Payload title", name: "Ignored name" } }, title: "Recorded title", media_type: "text/markdown" }));
+  const list = await (await surface("/artifacts")).text();
+  assert.match(list, /Recorded title/);
+  assert.doesNotMatch(list, /Payload title|Ignored name/);
+  const record = coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, { artifact_id: "recorded-title", version: 1 })!;
+  assert.equal(record.title, "Recorded title");
+  assert.equal(record.media_type, "text/markdown");
+  assert.deepEqual(record.origin, { kind: "pinned", subject: { kind: "item", id: "Payload title" }, revision: "1" });
 });
 
 test("Artifact HTTP links exact versions, exports opaque records and preserves existing Goal/Evidence state", async (t) => {

@@ -58,6 +58,10 @@
 | 2026-10-03 | 交换数据怎么搬出成果库（A2 实现方式，代为决定） | 并列的过程项存储、同一套版本引擎（推荐）；每个插件自己的私有存储；成果库里打标记过滤 | 并列的过程项存储 | 用户已定「各自 owner、不进版本库，但要能被成果追溯、链接」。私有存储要求跨插件读取改走插件间调用，端口、Coding 材料、Shelf 接收都要重写；打标记是用户没选的「同一个库打标记过滤」。并列存储按生产插件归属、只有它能写，引用形状不变，消费方不用改 |
 | 2026-10-03 | Shelf 交给项目的材料、Coding 的计划与变更集算哪一类（常规取舍） | — | 过程项 | 它们是交给 Coding 与其他 Agent 的材料、交给 Git 与 Diff 的变更，不是人要留存引用的版本；Coding 的执行报告是成果。用户已定的 A2 清单写的是「Files、Diff、Git、Coding 的快照、变更集、回执、计划」，Shelf 材料同理归入 |
 | 2026-10-03 | 合并 #200 A6（代为决定） | 按推荐合并 | 已合并 | cbc12e3e |
+| 2026-10-03 | 合并 #201 A2（代为决定） | 按推荐合并 | 已合并 | bbc1b42d |
+| 2026-10-03 | 旧成果记录怎么处理（A1，代为决定，等用户回来确认） | 新表、旧表不读不删（推荐）；给旧记录补来源后迁移；删除旧表 | 新表、旧表不读不删 | 用户定过「不留兼容：旧的成果记录与交换数据不迁移、不保留读取；涉及真实 Home 的数据先问用户」。新表不动旧数据，真实 Home 升级后成果库从空开始，旧数据仍在库里可回退；删表与真实 Home 的清理一起做、先问。代价：真实 Home 里已有的成果（若有）升级后看不到 |
+| 2026-10-03 | 来源里的修订号用什么类型（A1，常规取舍） | — | 字符串 | Feed 条目、文件只有修订串，没有递增整数；数字修订写成字符串 |
+| 2026-10-03 | 类型显示名与预览声明放在哪一片（常规取舍） | — | A4 | 显示名要和「每种可见类型都有预览」「门禁 A7」一起落地，A1 只收紧单条记录 |
 
 **待决**：无（「没有项目时的全局设置」已答，见上表）。
 
@@ -150,7 +154,7 @@
 
 不留兼容：旧的成果记录与交换数据不迁移、不保留读取；涉及真实 Home 的数据先问用户（与防腐第二步「真实 Home 安全」一起做）。
 
-### A1 合同设计（草案）
+### A1 合同设计（已实施，与草案的差异见下）
 
 现状：`packages/contracts/src/modules/artifacts.ts` 的 `ArtifactVersionRecord` 记类型、生产插件、内容（内联或引用）、元数据与作用域，没有「来源对象与当时修订号」，来源只能塞进 `metadata`；交换数据与用户成果同一张表。
 
@@ -166,6 +170,16 @@
 - **引用关系**：`goal.output`、`goal.input`、助理工作结果、文档引用都指向成果引用 `{ artifact_id, version }`；成果库按这些关系显示「被谁引用」。
 - 身份字段随防腐第二步把 `board_id` 合并为 `project_id`。
 
+**A1 实施与草案的差异**
+
+- **记录**：`ArtifactVersionRecord` 加 `origin`、`title`、`media_type`、`trace`；过程项沿用不带这四项的 `FixedVersionRecord`（`ProcessItemRecord`）。写入合同分开：`RegisterArtifactVersionInput` 必须带来源、标题与媒体类型，过程项的 `RecordProcessItemInput` 不带；编译器因此逐个点出了每个成果写入方。
+- **来源**：`pinned` 只写对象的 `kind` 与 `id`（插件就是生产者），`revision` 是字符串（Pages、问卷、数据表、PPT 写版本号，Feed 写条目的修订串，角色写草稿修订号，Coding 报告写 `"1"`：一轮结束后不再变）；`imported` 写文件名。
+- **媒体类型**：结构化对象写 `application/json`；导入的文档按读进来的正文写 `text/markdown` 或 `text/plain`。侧栏文件按它标注，不再一律 `text/markdown`。
+- **追溯**：`trace` 是过程项引用的列表；Coding 报告追溯到同一轮保存过的变更集。
+- **标题**：成果库、搜索、侧栏文件都用记录的 `title`，删掉了从 payload 猜标题的 `artifactDisplayTitle`。
+- **存储**：成果库换到新表 `library_artifacts`、`library_artifact_versions`（多四列）；旧的 `artifacts`、`artifact_versions` 不再读写，也不删除。真实 Home 升级后旧记录不再显示，删表留给真实 Home 的清理，先问用户。
+- **类型显示名与预览声明**（manifest 的 `title`、`preview`）挪到 A4，与「每种可见类型都有预览」一起做。
+
 ### A2 过程项（已实施）
 
 先做 A2 再做 A1：A1 要求每条成果带来源与标题，交换数据若还在成果库就得给它们编造来源，所以先把它们搬出去。
@@ -179,6 +193,7 @@
 
 ## 6. 进度
 
+- 2026-10-03：A1 开 PR（分支 `feat/artifact-a1-contract`）。每个成果写明来源、标题、真实媒体类型与追溯的过程项，做法与差异见上文「A1 实施与草案的差异」。写入方逐个改：Pages、问卷、数据表、PPT（推广端口带上来源修订号）、Feed 捕获（修订号用捕获内容的摘要，同一封信重复进来仍是同一版）、文档导入、角色、Coding 报告（追溯同轮变更集）、演示数据、接续服务的资产包（导出带上三项，导入缺了就拒绝）、两个示例插件；成果库、搜索、侧栏文件改用记录的标题与媒体类型。`ArtifactsService` 的输入检查拆到 `modules/artifacts/src/validation.ts`（服务文件超过 500 行的上限）；巨大单元一律压回原行数。整体构建后相关 242 个用例文件 1187 条：1179 通过、6 失败、2 跳过；6 条都是夹具与旧合同（迁移只建新表、触发器挂旧表、Feed 修订号、接续资产包、两个示例插件），修后重跑 12 个文件 88 条全部通过，迁移用例单独重跑 2/2。
 - 2026-10-03：A2 开 PR（分支 `feat/artifact-a2-process-items`）。交换数据搬出成果库，做法见上文「A2 过程项」：并列的过程项存储、manifest 的 `process_items`、端口发布一律记成过程项、按引用读取两边都能读到。六个插件的 manifest 改了归类（Files、Git、Diff、Text Stats、Shelf、Coding）；Coding 的计划、Goal 上下文与变更集改记过程项，执行报告仍是成果；Shelf 交给项目的材料改记过程项；成果库去掉了 Coding 变更集的预览与类型名。顺带修了两处只看 `artifacts` 声明的宿主判断：读 Files 输出前先刷新 Files 的判断（`coding-surface.ts`），和输入图在别的连接提交后重新求值的监视（`plugin-artifact-refresh.ts`，改为也看 `process_item` 事件）；后者漏掉时，切换工作目录后 Diff 不再变成「等待」，由 `files-product-http` 用例发现，用基线工作树对照确认是本分支引入。文档与 `skills/molis-plugin-dev` 写明成果与过程项的区别。用例：断言旧行为的改为新合同（成果库渲染 Coding 变更集的用例改为「变更集是过程项、成果库不显示」；端口同一类型既发布又选择成果的用例拆成成果端口与过程项端口两条，原有检查都保留）；测试夹具里交换数据改写进过程项。整体构建后相关 124 个用例文件 515 条全部通过。合入 main（A6）后：包边界检查里成果仓库「必须有 `CREATE TABLE IF NOT EXISTS artifacts`」的条目改成按表名参数化的写法；巨大单元只许变小，`ArtifactsService`、`openInstalledPlugins`、`migrateLocalProjectDatabase` 各压回原行数，`handleCodingPluginHttp` 的新判断提成独立函数。重跑相关 67 个用例文件 314 条全部通过。
 - 2026-10-03：A6 开 PR（分支 `fix/artifact-a6-naming-and-feed-manifest`）。Feed 的 manifest 声明它写的 `io.molis.work.feed.capture`（常量移到 `identity.ts`，manifest 不再引入带 node:crypto 的模块）；48 个源文件里 126 处中文文案的「Artifact」改成「成果」，导航、标签页与插件名「Artifacts」改成「成果」；断言旧文案的 3 个用例随之更新（预期变化）。整体构建后，相关 119 个用例文件 696 条：692 通过、2 失败、2 跳过。两条失败都已查明并修好：一是模板插值里嵌套的 5 处文案第一遍没改到；二是市场搜「成果」同时命中 Text Stats 的简介（简介本身不准确，已改）。修后重跑这两个文件 13/13。
 - 2026-10-03：S1b 开 [#198](https://github.com/molis-ai/molis-work/pull/198)，叠在 #197 上。删的是旧的解释器创作台整套：插件包里只属旧系统的源码（含 `builder.builds.*` 动作、`/plugin-builder` 整页与 `/records` 路由、灵感库示例与图片），宿主的 `handleBuilderHttp`、`releaseBuilderSurface`，以及工作台里没人用的 `agent.prompts`；还有旧预览脚本和它的替身，旧创作台的 6 个用例文件与 `builder-routes` 夹具。领域用例保留仍适用的 schema 与公式两条。`plugin-builder-surface.ts` 不再出整页，从 S7 的整页产出名单里去掉；README 只写新创作台，必跑用例逐个列出。整体构建后，涉及创作台、生成插件和整页门禁的 41 个用例文件：355 条，355 通过、0 失败（1 条是只在设了环境时才跑的真实 npm 用例，跳过）。`health:check` 通过，基线下降（测试引用包内部 1015 → 979，若干巨大单元变小），`boundary:check` 无错误。

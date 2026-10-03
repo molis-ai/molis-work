@@ -5,6 +5,7 @@ import { artifactSubjectId, parseArtifactSubjectId, type ArtifactVersionRecord, 
 import { ActionError, resolveActionSubject, type ActionCallContext } from "../packages/contracts/src/platform/actions.js";
 import { ActionService } from "../packages/kernel/src/action-service.js";
 import { ArtifactsModule, createArtifactsSchema } from "../modules/artifacts/src/index.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { createContextLedger, createContextLedgerSchema } from "../modules/context-ledger/src/index.js";
 import { artifactsActions, createArtifactActionHandlers } from "../plugins/native/artifacts/src/actions.js";
 import { artifactsManifest } from "../plugins/native/artifacts/src/manifest.js";
@@ -29,7 +30,7 @@ function fixture(t: test.TestContext) {
     board_id: boardId, actor_id: caller.actor_id, ...reference, artifact_type_id: "io.example.unknown-result", schema_version: 7,
     producer: { plugin_id: "io.example.original", plugin_version: "1.0.0", binding_signature: "original-binding" },
     content: { kind: "inline", payload: { title: "第一版原文", content: "仍需核验的旧判断", goal_id: "not-a-relation", session_id: "not-a-session" } },
-    metadata: { producer: { plugin_id: "forged-metadata" } }, ...override,
+    metadata: { producer: { plugin_id: "forged-metadata" } }, ...pinnedArtifact("第一版原文"), ...override,
   }).artifact;
   const actions = new ActionService();
   let enabled = true, reads = 0;

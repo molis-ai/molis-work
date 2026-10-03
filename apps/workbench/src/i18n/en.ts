@@ -1440,7 +1440,7 @@ export const EN: Record<string, string> = {
   "请先明确确认这次 Session 关联变更": "Confirm this Session link change first",
   "这条 Session 关联已不存在，请刷新页面": "This Session link no longer exists. Refresh the page",
   "请选择要切换到的项目": "Choose the project to switch to",
-  "关联结果": "Linked results",
+  "交付物与输入": "Deliverables and inputs",
   "Session 切换后无法读取关联结果": "Could not read the link after switching the Session",
   "请先明确确认目录默认项目": "Confirm the folder default project first",
   "请先明确确认解除目录关联": "Confirm unlinking the folder first",

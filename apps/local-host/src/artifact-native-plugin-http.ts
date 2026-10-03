@@ -103,6 +103,19 @@ export function createLocalArtifactHttp() {
         return true;
       }
       if (request.method !== "GET") return false;
+      if (pathname === "/api/artifacts/versions") {
+        // What a Goal can hand in (A5): the latest available version of each 成果, named as its owner declares the type.
+        const view = await context.actions.invoke(artifactsActions.browser, { reference: null });
+        const declarations = artifactTypeDeclarations(), latest = new Map<string, ArtifactVersionRecord>();
+        for (const version of view.versions) {
+          if (version.lifecycle_state !== "active" || version.availability !== "available") continue;
+          const current = latest.get(version.artifact_id);
+          if (!current || version.version > current.version) latest.set(version.artifact_id, version);
+        }
+        sendLocalWebJson(response, 200, { versions: [...latest.values()].map(version => ({ reference: { artifact_id: version.artifact_id, version: version.version },
+          title: version.title, type_title: declarations.get(version.artifact_type_id)?.title ?? version.artifact_type_id, created_at: version.created_at })) });
+        return true;
+      }
       const route = matchArtifactBrowserRoute(pathname);
       if (!route) return false;
       if (route.kind === "file") {

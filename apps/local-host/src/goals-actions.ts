@@ -3,6 +3,7 @@ import type { ActionProviderRegistration, ActionClient, ActionCallContext, Actio
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 
 export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMethods: () => readonly PlanningMethodPack[]): ActionProviderRegistration {
@@ -16,7 +17,10 @@ export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMe
         goals: runtime.coordinator.goalQueries, inputs: runtime.coordinator.goalInputs, eventWork: runtime.coordinator.goalEvents,
         projectGoalLifecycle: (snapshot, goalId) => runtime.coordinator.projectGoalLifecycle(snapshot, goalId) },
       readGoal: goalId => runtime.coordinator.goalQueries.getGoal(runtime.board_id, goalId),
-      readContract: goalId => runtime.coordinator.goalQueries.readGoalContract(runtime.board_id, goalId), history: {
+      readContract: goalId => runtime.coordinator.goalQueries.readGoalContract(runtime.board_id, goalId),
+      deliverables: { readArtifact: reference => runtime.coordinator.artifacts.query.getArtifactVersion(runtime.board_id, reference),
+        ledger: createContextLedger(runtime.store.db, { authorize: access => access.scope.kind === "personal" && access.scope.id === runtime.board_id }) },
+      history: {
       snapshot: () => runtime.store.snapshot(runtime.board_id), journalEvents: () => runtime.store.readEventsDescending(runtime.board_id),
     }, planning: { planning: runtime.coordinator.goals.planning, baseMethods: () => resolvePlanningMethodPacks(personalMethods()) },
     guidance: { commands: runtime.coordinator.goals.commands, read: boardId => runtime.coordinator.goalQueries.readProjectGuidance(boardId) },

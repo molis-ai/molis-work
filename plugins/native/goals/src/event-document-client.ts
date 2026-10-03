@@ -158,12 +158,50 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
           : article.querySelector('[data-event-form="' + CSS.escape(name) + '"]');
       if (form) {
         form.hidden = false;
+        if (name === "closure") void loadDeliverables(form);
         requestAnimationFrame(() => {
           if (!form.isConnected || form.hidden || reading.form !== name) return;
           [...form.querySelectorAll('input:not([type="hidden"]), textarea, select')].find((field) => !field.disabled && field.getClientRects().length)?.focus({ preventScroll: true });
         });
       }
       showDetail(true);
+    };
+
+    // The closure form's deliverables (specs/artifact-positioning A5): versions in the 成果库, recorded before closing.
+    const loadDeliverables = async (form) => {
+      const box = form.querySelector("[data-closure-deliverables]"), currentGoal = goalId();
+      if (!box || box.dataset.loadedFor === currentGoal) return;
+      const list = box.querySelector("[data-closure-deliverable-list]");
+      list.textContent = L("正在读取成果…");
+      try {
+        const read = (path, fallback) => fetch(route(path), { cache: "no-store" }).then(response => response.ok ? response.json() : fallback);
+        const [library, current] = await Promise.all([read("/api/artifacts/versions", { versions: [] }),
+          read("/api/goals/" + encodeURIComponent(currentGoal) + "/deliverables", { deliverables: [] })]);
+        if (goalId() !== currentGoal) return;
+        const key = (reference) => reference.artifact_id + "@" + reference.version;
+        const chosen = new Set((current.deliverables || []).map(item => key(item.reference)));
+        const rows = [...(current.deliverables || []).map(item => ({ reference: item.reference, title: item.title, type_title: "" })),
+          ...(library.versions || []).filter(item => !chosen.has(key(item.reference)))];
+        list.replaceChildren(...(rows.length ? rows.map(item => {
+          const label = document.createElement("label"), input = document.createElement("input"), name = document.createElement("span"), meta = document.createElement("small");
+          input.type = "checkbox"; input.name = "deliverable"; input.value = JSON.stringify(item.reference);
+          input.checked = chosen.has(key(item.reference)); input.dataset.was = String(input.checked);
+          name.textContent = item.title; meta.textContent = [item.type_title, "v" + item.reference.version].filter(Boolean).join(" · ");
+          label.append(input, name, meta);
+          return label;
+        }) : [Object.assign(document.createElement("p"), { className: "form-note", textContent: L("成果库里还没有版本。可以先在 Pages、问卷等插件里存为成果，或导入文件。") })]));
+        box.dataset.loadedFor = currentGoal;
+      } catch { list.textContent = L("成果库暂时读不到；可以先收尾，之后再记交付物。"); }
+    };
+    const saveDeliverables = async (form, currentGoal) => {
+      for (const input of form.querySelectorAll('input[name="deliverable"]')) {
+        if (input.checked === (input.dataset.was === "true")) continue;
+        const response = await fetch(route("/api/goals/" + encodeURIComponent(currentGoal) + "/deliverables"), { method: "POST",
+          headers: { ...jsonHeaders(), "x-molis-work-idempotency-key": globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random() },
+          body: JSON.stringify({ reference: JSON.parse(input.value), delivered: input.checked }) });
+        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || L("交付物没有记下"));
+        input.dataset.was = String(input.checked);
+      }
     };
 
     const fieldError = (form, fieldId, message) => {
@@ -327,6 +365,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       const restore = { ...captureRestore(), form: kind };
       let typeSaved = false;
       try {
+        if (kind === "closure") await saveDeliverables(form, currentGoal);
         const response = await fetch(route("/api/goals/" + encodeURIComponent(currentGoal) + formPath(kind)), {
           method: "POST", headers: { ...jsonHeaders(), "x-molis-work-idempotency-key": key },
           body: JSON.stringify({ ...buildPayload(form, kind, article), idempotency_key: key }),

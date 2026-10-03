@@ -8,6 +8,9 @@ import { GoalProjectApplication } from "./goal-project-application.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
 import { openWorkSessionRegistry } from "./session-registry.js";
+import { artifactsManifest, DOCUMENT_ARTIFACT_TYPE } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
 export const DEMO_GITHUB_SOURCE_ID = "demo-github";
 export const DEMO_GMAIL_SOURCE_ID = "demo-gmail";
@@ -166,48 +169,7 @@ export function seedDemoPluginSurfaces(databasePath: string, boardId = DEMO_BOAR
       },
     });
 
-    const coordinator = new GoalProjectApplication(store);
-    coordinator.artifacts.commands.registerVersion({
-      board_id: boardId,
-      actor_id: DEMO_ACTOR,
-      artifact_id: DEMO_CORE_ARTIFACT_ID,
-      version: 1,
-      artifact_type_id: "io.molis.work.goal.delivery",
-      schema_version: 1,
-      producer: { plugin_id: "io.molis.work.native.goals", plugin_version: "0.0.0", binding_signature: "native:goals" },
-      content: {
-        kind: "inline",
-        payload: {
-          title: "生命周期记录已接通",
-          result: "从约定、报告到收尾形成完整记录",
-          goal_id: "CORE",
-        },
-      },
-      metadata: { origin: "demo-seed", goal_id: "CORE" },
-      origin: { kind: "pinned", subject: { kind: "goal", id: "CORE" }, revision: "1" },
-      title: "生命周期记录已接通", media_type: "application/json",
-    });
-    coordinator.artifacts.commands.registerVersion({
-      board_id: boardId,
-      actor_id: DEMO_ACTOR,
-      artifact_id: DEMO_CORE_ARTIFACT_ID,
-      version: 2,
-      artifact_type_id: "io.molis.work.goal.delivery",
-      schema_version: 1,
-      producer: { plugin_id: "io.molis.work.native.goals", plugin_version: "0.0.0", binding_signature: "native:goals" },
-      content: {
-        kind: "inline",
-        payload: {
-          title: "可用的生命周期记录",
-          result: "约定要求已有支持事实，演示收尾",
-          goal_id: "CORE",
-        },
-      },
-      metadata: { origin: "demo-seed", goal_id: "CORE" },
-      origin: { kind: "pinned", subject: { kind: "goal", id: "CORE" }, revision: "2" },
-      title: "可用的生命周期记录", media_type: "application/json",
-      supersedes_version: 1,
-    });
+    seedDemoDeliverable(store, boardId);
   } finally {
     store.close();
   }
@@ -381,4 +343,24 @@ function ingestOnce(
     occurredAt: input.occurredAt,
     attention: input.attention ?? false,
   });
+}
+
+/**
+ * CORE's deliverable (specs/artifact-positioning A5): a real 成果 — an imported record, two versions — that the Goal
+ * hands in through a `goal.output` link to the second version, not a type of its own.
+ */
+function seedDemoDeliverable(store: LocalProjectDatabase, boardId: string): void {
+  const coordinator = new GoalProjectApplication(store);
+  const producer = { plugin_id: artifactsManifest.plugin_id, plugin_version: artifactsManifest.version, binding_signature: artifactsManifest.publisher.signature };
+  for (const [version, title, content] of [[1, "生命周期记录已接通", "从约定、报告到收尾形成完整记录"], [2, "可用的生命周期记录", "约定要求已有支持事实，演示收尾"]] as const) {
+    coordinator.artifacts.commands.registerVersion({ board_id: boardId, actor_id: DEMO_ACTOR, artifact_id: DEMO_CORE_ARTIFACT_ID, version,
+      artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1, producer, metadata: { origin: "demo-seed", goal_id: "CORE" },
+      content: { kind: "inline", payload: { source: "file", source_id: `生命周期记录.md:v${version}`, source_url: null, title, content: `# ${title}\n\n${content}\n`, format: "markdown", warnings: [] } },
+      origin: { kind: "imported", file_name: "生命周期记录.md" }, title, media_type: "text/markdown", ...(version > 1 ? { supersedes_version: version - 1 } : {}) });
+  }
+  const scope = { kind: "personal" as const, id: boardId };
+  const delivered = { artifact_id: DEMO_CORE_ARTIFACT_ID, version: 2 };
+  createContextLedger(store.db, { authorize: access => access.scope.kind === "personal" && access.scope.id === boardId }).commands.put({ actor_id: DEMO_ACTOR, scope }, {
+    key: `goal.output:CORE:${artifactSubjectId(delivered)}`, type: "goal.output", cause: "goals.deliverable",
+    source: { module: "goals", id: "CORE", version: null, scope }, target: { module: "artifacts", id: delivered.artifact_id, version: delivered.version, scope } });
 }

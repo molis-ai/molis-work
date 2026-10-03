@@ -4,6 +4,7 @@ import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionV
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperationsSlice } from "@molis-ai/molis-work-plugin-work";
 
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
+import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
@@ -92,6 +93,14 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderTodoNativePluginSurface(surface: "directory" | "workbench"): string;
   renderAlchemistNativePluginSurface(surface: "directory" | "workbench"): string;
   renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string;
+}
+
+/** A project file that evidence points to opens here, in an overlay over the workbench, never in a new browser tab. */
+function renderProjectReferenceDialog(L: (text: string) => string): string {
+  return renderDialog({ labelledBy: "project-reference-title", title: L("项目内引用"), className: "project-reference-dialog",
+    attrs: { "data-project-reference-dialog": true }, closeLabel: L("关闭"),
+    body: `<pre class="project-reference-body" data-project-reference-body tabindex="0"></pre>`,
+    footer: `<a class="mw-btn mw-btn--secondary" data-project-reference-download download>${L("下载")}</a><button class="mw-btn mw-btn--primary" value="close">${L("关闭")}</button>` });
 }
 
 /** Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. */
@@ -312,7 +321,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   ${renderGlobalSearchOverlay(primitives)}
   ${renderGoalTrashDialog()}
   ${projectOperations.overlays}
-  <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>
+  <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>
   <script src="/assets/molis-work-workbench.js"></script>

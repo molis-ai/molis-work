@@ -156,7 +156,9 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const lines = [detail.verb === "versioned" ? (detail.note || "") : L("存到 {place}", { place: where }) + (description && description.location ? " · " + L(description.location.access_label) : "")];
     if (detail.note && detail.verb !== "versioned") lines.push(detail.note);
     const actions = [];
-    if (detail.open) actions.push({ label: L("打开"), primary: true, run: () => openObject(detail.open, title) });
+    // A version just pinned opens in the 成果库, not the object it was pinned from (artifact-positioning walkthrough).
+    const open = detail.open || (detail.verb === "versioned" && detail.artifact ? { surface: "artifacts", id: "/artifacts/" + encodeURIComponent(detail.artifact.artifact_id) + "/versions/" + detail.artifact.version, project_id: null } : null);
+    if (open) actions.push({ label: L("打开"), primary: true, run: () => openObject(open, title) });
     else if (description && description.open && detail.verb !== "created") actions.push({ label: L("打开"), primary: true, run: () => openObject(description.open, title) });
     if (detail.verb !== "versioned") actions.push(...followUps(description));
     card(head, lines.filter(Boolean).join(" · "), actions.slice(0, 3), "done");

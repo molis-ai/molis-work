@@ -18,8 +18,13 @@ export interface GoalDeliverable {
   /** Why it was proposed, in the proposer's words; null for confirmed deliverables. */
   reason: string | null;
 }
-const OUTPUT = "goal.output", PROPOSAL = "goal.output.proposal", PROPOSED = "goals.deliverable_proposed";
-type Kind = typeof OUTPUT | typeof PROPOSAL;
+/**
+ * The two ways a Goal links an exact version in the 成果库: handing it in (`goal.output`) and taking it as an input
+ * (`goal.input`, A4b). Both follow the same rules; each has its own proposal edge and error codes.
+ */
+interface LinkRole { readonly type: string; readonly proposal: string; readonly code: string; readonly noun: string; readonly item: string; readonly items: string }
+const OUTPUT_ROLE: LinkRole = { type: "goal.output", proposal: "goal.output.proposal", code: "goals.deliverable", noun: "交付物", item: "deliverable", items: "deliverables" };
+const INPUT_ROLE: LinkRole = { type: "goal.input", proposal: "goal.input.proposal", code: "goals.artifact_input", noun: "输入", item: "input", items: "inputs" };
 const reference = object({ artifact_id: identifier, version: { type: "integer", minimum: 1 } });
 const subject = object({ kind: identifier, id: identifier });
 const deliverable = object({ goal_id: text, reference, title: text, artifact_type_id: text, recorded_at: text, proposed: boolean, reason: nullable(text) });
@@ -46,6 +51,18 @@ export const goalsDeliverableActions = {
     "可以当场固定的资料", "列出目标绑定的资料里，能当场固定为成果的那些", "query", object({ goal_id: identifier }), object({ objects: array(object({ subject, title: text })) })),
 } as const;
 
+/** A version in the 成果库 a Goal takes as an input (A4b, 「作为 Goal 的输入」); same rules as deliverables. */
+export const goalsArtifactInputActions = {
+  add: goalAction<{ goal_id: string; reference: ArtifactReference; reason?: string }, { input: GoalDeliverable; replayed: boolean }>("goals.artifact_inputs.add",
+    "把成果作为目标的输入", "把成果库里的一版记为目标的输入；不复制、不改动这一版，重复记录返回原记录。由助理、Coding、工作流或 MCP 调用时只记为提议（附理由），等用户确认", "command",
+    object({ goal_id: identifier, reference, reason }, ["goal_id", "reference"]), object({ input: deliverable, replayed: boolean })),
+  remove: goalAction<{ goal_id: string; reference: ArtifactReference }, { removed: boolean }>("goals.artifact_inputs.remove",
+    "移除目标的成果输入", "不再把这一版算作目标的输入，或撤回、拒绝对它的提议；成果本身不受影响。只有用户能移除已确认的输入", "command",
+    object({ goal_id: identifier, reference }), object({ removed: boolean })),
+  list: goalAction<{ goal_id: string }, { inputs: GoalDeliverable[] }>("goals.artifact_inputs.list",
+    "目标的成果输入", "列出目标作为输入的成果版本，以及还在等用户确认的提议（proposed）", "query", object({ goal_id: identifier }), object({ inputs: array(deliverable) })),
+} as const;
+
 export interface GoalDeliverablePorts {
   readonly boardId: string;
   goalExists(goalId: string): boolean;
@@ -62,64 +79,65 @@ export interface GoalDeliverablePorts {
 
 export function createGoalsDeliverableActionHandlers(ports: GoalDeliverablePorts): ActionHandlerBinding[] {
   const access = (caller: ActionCallContext): ContextAccess => ({ actor_id: goalActor(caller).actor_id, scope: { kind: "personal", id: ports.boardId } });
-  const keyOf = (goalId: string, ref: ArtifactReference, type: Kind = OUTPUT) => `${type}:${goalId}:${artifactSubjectId(ref)}`;
-  const view = (edge: ContextEdge): GoalDeliverable | null => {
-    if ((edge.type !== OUTPUT && edge.type !== PROPOSAL) || edge.source.module !== "goals" || edge.target.module !== "artifacts" || edge.target.version == null) return null;
-    const ref = { artifact_id: edge.target.id, version: edge.target.version };
-    const artifact = ports.readArtifact(ref), proposed = edge.type === PROPOSAL;
-    return { goal_id: edge.source.id, reference: ref, title: artifact?.title ?? edge.target.id, artifact_type_id: artifact?.artifact_type_id ?? "", recorded_at: edge.recorded_at,
-      proposed, reason: proposed && edge.cause !== PROPOSED ? edge.cause : null };
-  };
   const active = (at: ContextAccess, key: string) => { const edge = ports.ledger.query.get(at, key); return edge?.state === "active" ? edge : null; };
   const requireGoal = (goalId: string) => { if (!ports.goalExists(goalId)) throw new ActionError("goals.not_found", "找不到这个目标"); };
-  const deliver = (caller: ActionCallContext, goalId: string, ref: ArtifactReference, reason?: string) => {
-    const artifact = ports.readArtifact(ref);
-    if (!artifact) throw new ActionError("goals.deliverable_missing", "成果库里没有这一版");
-    if (artifact.availability !== "available" || artifact.lifecycle_state !== "active") throw new ActionError("goals.deliverable_unavailable", "这一版已归档或不可用，不能作为交付物");
-    const at = access(caller), delivered = active(at, keyOf(goalId, ref));
-    if (delivered) return { deliverable: view(delivered)!, replayed: true };
-    // The person decides what a Goal delivered; everyone else proposes, and confirming retires the proposal.
-    const type: Kind = caller.audience === "user" ? OUTPUT : PROPOSAL, proposal = active(at, keyOf(goalId, ref, PROPOSAL));
-    if (type === PROPOSAL && proposal) return { deliverable: view(proposal)!, replayed: true };
-    const edge = ports.ledger.commands.put(at, { key: keyOf(goalId, ref, type), type, cause: type === OUTPUT ? "goals.deliverable" : reason?.trim() || PROPOSED,
-      source: { module: "goals", id: goalId, version: null, scope: at.scope },
-      target: { module: "artifacts", id: ref.artifact_id, version: ref.version, scope: at.scope } });
-    if (type === OUTPUT && proposal) ports.ledger.commands.remove(at, proposal.key, "goals.deliverable_confirmed");
-    return { deliverable: view(edge)!, replayed: false };
+  const links = (role: LinkRole) => {
+    const keyOf = (goalId: string, ref: ArtifactReference, type = role.type) => `${type}:${goalId}:${artifactSubjectId(ref)}`;
+    const view = (edge: ContextEdge): GoalDeliverable | null => {
+      if ((edge.type !== role.type && edge.type !== role.proposal) || edge.source.module !== "goals" || edge.target.module !== "artifacts" || edge.target.version == null) return null;
+      const ref = { artifact_id: edge.target.id, version: edge.target.version };
+      const artifact = ports.readArtifact(ref), proposed = edge.type === role.proposal;
+      return { goal_id: edge.source.id, reference: ref, title: artifact?.title ?? edge.target.id, artifact_type_id: artifact?.artifact_type_id ?? "", recorded_at: edge.recorded_at,
+        proposed, reason: proposed && edge.cause !== `${role.code}_proposed` ? edge.cause : null };
+    };
+    const record = (caller: ActionCallContext, goalId: string, ref: ArtifactReference, reason?: string) => {
+      const artifact = ports.readArtifact(ref);
+      if (!artifact) throw new ActionError(`${role.code}_missing`, "成果库里没有这一版");
+      if (artifact.availability !== "available" || artifact.lifecycle_state !== "active") throw new ActionError(`${role.code}_unavailable`, `这一版已归档或不可用，不能作为${role.noun}`);
+      const at = access(caller), linked = active(at, keyOf(goalId, ref));
+      if (linked) return { [role.item]: view(linked)!, replayed: true };
+      // The person decides what a Goal used and delivered; everyone else proposes, and confirming retires the proposal.
+      const type = caller.audience === "user" ? role.type : role.proposal, proposal = active(at, keyOf(goalId, ref, role.proposal));
+      if (type === role.proposal && proposal) return { [role.item]: view(proposal)!, replayed: true };
+      const edge = ports.ledger.commands.put(at, { key: keyOf(goalId, ref, type), type, cause: type === role.type ? role.code : reason?.trim() || `${role.code}_proposed`,
+        source: { module: "goals", id: goalId, version: null, scope: at.scope },
+        target: { module: "artifacts", id: ref.artifact_id, version: ref.version, scope: at.scope } });
+      if (type === role.type && proposal) ports.ledger.commands.remove(at, proposal.key, `${role.code}_confirmed`);
+      return { [role.item]: view(edge)!, replayed: false };
+    };
+    const remove = (caller: ActionCallContext, goalId: string, ref: ArtifactReference) => {
+      const at = access(caller), linked = active(at, keyOf(goalId, ref)), proposal = active(at, keyOf(goalId, ref, role.proposal));
+      // Others withdraw their proposals; only the person takes back a confirmed link or turns a proposal down.
+      if (caller.audience !== "user" && linked && !proposal) throw new ActionError(`${role.code}_confirmed`, `已确认的${role.noun}只能由用户移除`);
+      const removed = [caller.audience === "user" ? linked : null, proposal].filter((edge): edge is ContextEdge => edge !== null)
+        .map(edge => ports.ledger.commands.remove(at, edge.key, edge.type === role.type ? `${role.code}_removed` : `${role.code}_declined`));
+      return { removed: removed.some(Boolean) };
+    };
+    const list = (caller: ActionCallContext, goalId: string) => ({ [role.items]: [role.type, role.proposal].flatMap(type => ports.ledger.query.list(access(caller), { type }))
+      .filter(edge => edge.state === "active" && edge.source.module === "goals" && edge.source.id === goalId)
+      .map(view).filter((item): item is GoalDeliverable => item !== null) });
+    return { record, remove, list };
   };
+  const outputs = links(OUTPUT_ROLE), inputs = links(INPUT_ROLE);
+  type Ref = { goal_id: string; reference: ArtifactReference; reason?: string };
+  const bindLinks = (actions: typeof goalsArtifactInputActions | Pick<typeof goalsDeliverableActions, "add" | "remove" | "list">, role: ReturnType<typeof links>): ActionHandlerBinding[] => [
+    { ...actions.add, handle: (caller, input) => { const value = input as Ref; requireGoal(value.goal_id); return role.record(caller, value.goal_id, value.reference, value.reason); } },
+    { ...actions.remove, handle: (caller, input) => { const value = input as Ref; requireGoal(value.goal_id); return role.remove(caller, value.goal_id, value.reference); } },
+    { ...actions.list, handle: (caller, input) => { const value = input as { goal_id: string }; requireGoal(value.goal_id); return role.list(caller, value.goal_id); } },
+  ];
   return [
-    { ...goalsDeliverableActions.add, handle: (caller, input) => {
-      const value = input as { goal_id: string; reference: ArtifactReference; reason?: string };
-      requireGoal(value.goal_id);
-      return deliver(caller, value.goal_id, value.reference, value.reason);
-    } },
+    ...bindLinks(goalsDeliverableActions, outputs),
+    ...bindLinks(goalsArtifactInputActions, inputs),
     { ...goalsDeliverableActions.pin, handle: async (caller, input) => {
       const value = input as { goal_id: string; subject: { kind: string; id: string }; reason?: string };
       requireGoal(value.goal_id);
-      return deliver(caller, value.goal_id, await ports.pin(caller, value.subject), value.reason);
+      return outputs.record(caller, value.goal_id, await ports.pin(caller, value.subject), value.reason);
     } },
     { ...goalsDeliverableActions.candidates, handle: async (caller, input) => {
       const value = input as { goal_id: string };
       requireGoal(value.goal_id);
       const kinds = new Set(await ports.pinnableKinds(caller));
       return { objects: ports.boundObjects(value.goal_id).filter(item => kinds.has(item.subject.kind)).map(item => ({ subject: item.subject, title: item.title })) };
-    } },
-    { ...goalsDeliverableActions.remove, handle: (caller, input) => {
-      const value = input as { goal_id: string; reference: ArtifactReference };
-      requireGoal(value.goal_id);
-      const at = access(caller), delivered = active(at, keyOf(value.goal_id, value.reference)), proposal = active(at, keyOf(value.goal_id, value.reference, PROPOSAL));
-      // Others withdraw their proposals; only the person takes back a confirmed deliverable or turns a proposal down.
-      if (caller.audience !== "user" && delivered && !proposal) throw new ActionError("goals.deliverable_confirmed", "已确认的交付物只能由用户移除");
-      const removed = [caller.audience === "user" ? delivered : null, proposal].filter((edge): edge is ContextEdge => edge !== null)
-        .map(edge => ports.ledger.commands.remove(at, edge.key, edge.type === OUTPUT ? "goals.deliverable_removed" : "goals.deliverable_declined"));
-      return { removed: removed.some(Boolean) };
-    } },
-    { ...goalsDeliverableActions.list, handle: (caller, input) => {
-      const value = input as { goal_id: string };
-      requireGoal(value.goal_id);
-      return { deliverables: [OUTPUT, PROPOSAL].flatMap(type => ports.ledger.query.list(access(caller), { type }))
-        .filter(edge => edge.state === "active" && edge.source.module === "goals" && edge.source.id === value.goal_id)
-        .map(view).filter((item): item is GoalDeliverable => item !== null) };
     } },
   ];
 }

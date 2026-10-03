@@ -3,7 +3,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { createGoalsDeliverableActionHandlers, goalsDeliverableActions, type GoalDeliverable } from "@molis-ai/molis-work-plugin-goals";
+import { createGoalsDeliverableActionHandlers, goalsArtifactInputActions, goalsDeliverableActions, type GoalDeliverable } from "@molis-ai/molis-work-plugin-goals";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 // specs/artifact-positioning A5c: the assistant, Coding, workflows and MCP propose deliverables; only the person records them.
@@ -14,7 +14,7 @@ test("deliverables from anyone but the person are proposals the person confirms 
   const pinned: string[] = [];
   const actions = new ActionService();
   actions.registerProvider({ provider: { provider_id: "goals", title: "Goals", kind: "plugin", project_id: "project" },
-    definitions: Object.values(goalsDeliverableActions), handlers: createGoalsDeliverableActionHandlers({ boardId: "board", goalExists: id => id === "G1", ledger,
+    definitions: [...Object.values(goalsDeliverableActions), ...Object.values(goalsArtifactInputActions)], handlers: createGoalsDeliverableActionHandlers({ boardId: "board", goalExists: id => id === "G1", ledger,
       readArtifact: ref => versions.has(`${ref.artifact_id}@${ref.version}`) ? { title: versions.get(`${ref.artifact_id}@${ref.version}`)!, artifact_type_id: "doc", availability: "available", lifecycle_state: "active" } : null,
       pin: async (_caller, subject) => { pinned.push(subject.id); return { artifact_id: "plan", version: 2 }; },
       pinnableKinds: async () => ["pages_document"], boundObjects: () => [] }) });

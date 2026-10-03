@@ -1,5 +1,5 @@
 import { bindOwnerPluginAction, ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { parseShelfTextMaterial, type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
@@ -36,7 +36,7 @@ export const SHELF_RUNTIME_ACTIONS: readonly ActionDefinition[] = Object.values(
 
 export interface ShelfResultPorts {
   references(): ArtifactReference[];
-  preview(record: ArtifactVersionRecord): ShelfArtifactPreview;
+  preview(record: FixedVersionRecord): ShelfArtifactPreview;
   receive(preview: ShelfArtifactPreview): { item: ShelfItemRecord; snapshot: ShelfSnapshot };
 }
 

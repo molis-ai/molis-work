@@ -10,6 +10,7 @@ import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumptio
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 test("losing the Ledger does not delete Goal, Artifact or Feed content or recreate links from old columns", async () => {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-owner-isolation-"));
@@ -29,7 +30,7 @@ test("losing the Ledger does not delete Goal, Artifact or Feed content or recrea
     first.coordinator.goals.commands.createGoal("project", { goal_id: "goal", title: "Original goal", outcome: "Report",
       why: "User requirement", business_logic: "Preserve content", acceptance_criteria: [] }, { actor_id: "user", idempotency_key: "goal" });
     const goal = first.coordinator.goalQueries.readGoalContract("project", "goal").goal;
-    const artifact = first.coordinator.artifacts.commands.registerVersion({ board_id: "project", artifact_id: "report", version: 1,
+    const artifact = first.coordinator.artifacts.commands.registerVersion({ ...pinnedArtifact("Original report"), board_id: "project", artifact_id: "report", version: 1,
       actor_id: "user", artifact_type_id: "io.example.report", schema_version: 1,
       producer: { plugin_id: "io.example.writer", plugin_version: "1.0.0", binding_signature: "official-writer" },
       content: { kind: "inline", payload: { text: "Original report", custom: [1, 2] } }, metadata: {} }).artifact;

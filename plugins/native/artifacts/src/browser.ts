@@ -1,6 +1,6 @@
 import type {
   ArtifactConsumptionCompatibility, ArtifactConsumerType, ArtifactReference,
-  ArtifactsQueryApi, ArtifactJsonValue, ArtifactVersionRecord,
+  ArtifactsQueryApi, ArtifactVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ARTIFACT_SUBJECT_KIND, artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, subjectContext, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -66,7 +66,7 @@ export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: 
   const relatedGoals = [...new Set(goalIds)].sort();
   return subjectContext({
     subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
-    revision: JSON.stringify([record.version, record.content_digest, relatedGoals]), title: artifactDisplayTitle(record),
+    revision: JSON.stringify([record.version, record.content_digest, relatedGoals]), title: record.title,
     content: JSON.stringify({ artifact_id: record.artifact_id, version: record.version,
       artifact_type_id: record.artifact_type_id, schema_version: record.schema_version,
       producer: { plugin_id: record.producer_plugin_id, plugin_version: record.producer_plugin_version,
@@ -79,25 +79,6 @@ export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: 
 export type ArtifactBrowserRoute =
   | { readonly kind: "index"; readonly reference: null }
   | { readonly kind: "detail" | "export"; readonly reference: ArtifactReference };
-
-const DISPLAY_TITLE_KEYS = ["title", "name", "text"] as const;
-
-/** Directory and reading-card title. Exact identity stays on artifact_id. */
-export function artifactDisplayTitle(artifact: Pick<ArtifactVersionRecord, "artifact_id" | "payload"> & Partial<Pick<ArtifactVersionRecord, "metadata">>): string {
-  const line = payloadDisplayLine(artifact.payload);
-  return line || payloadDisplayLine({ title: artifact.metadata?.title ?? null }) || artifact.artifact_id;
-}
-
-function payloadDisplayLine(payload: ArtifactJsonValue | null): string {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return "";
-  for (const key of DISPLAY_TITLE_KEYS) {
-    const value = payload[key];
-    if (typeof value !== "string") continue;
-    const line = value.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
-    if (line) return line;
-  }
-  return "";
-}
 
 /** Routes require an exact producer-supplied version, never an implicit latest. */
 export function matchArtifactBrowserRoute(pathname: string): ArtifactBrowserRoute | null {

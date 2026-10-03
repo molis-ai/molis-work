@@ -23,6 +23,7 @@ function bundleInput(value: unknown): AssetBundle {
   if (b.format !== "molis-work-assets" || b.version !== 1 || typeof b.source_project_id !== "string" || !b.source_project_id || b.source_project_id.length > 200 || typeof b.title !== "string" || !Array.isArray(b.artifacts) || b.artifacts.length > 100 || !Array.isArray(b.goals) || b.goals.length > 100 || !Array.isArray(b.dependencies)) throw new ImError("assets.invalid","工作资产包格式无效");
   for (const a of b.artifacts) {
     if (!a || typeof a.owner_actor_id !== "string" || !a.owner_actor_id || !a.producer || !a.content || !["inline","reference"].includes(a.content.kind)) throw new ImError("assets.invalid","成果内容无效");
+    if (!a.origin || typeof a.title !== "string" || !a.title.trim() || typeof a.media_type !== "string") throw new ImError("assets.invalid","成果缺少来源、标题或媒体类型");
     // External locations never become filesystem paths or network requests during restore.
     if (a.content.kind === "reference" && (a.content.available !== false || !a.content.content_ref.startsWith("unavailable://"))) throw new ImError("assets.external_reference","外部内容必须保留为未连接引用");
     if (a.supersedes_version !== null) throw new ImError("assets.unsupported_history","资产包未包含完整历史链，不能声称恢复版本历史");

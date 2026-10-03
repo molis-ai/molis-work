@@ -174,11 +174,7 @@ export function seedDemoPluginSurfaces(databasePath: string, boardId = DEMO_BOAR
       version: 1,
       artifact_type_id: "io.molis.work.goal.delivery",
       schema_version: 1,
-      producer: {
-        plugin_id: "io.molis.work.native.goals",
-        plugin_version: "0.0.0",
-        binding_signature: "native:goals",
-      },
+      producer: { plugin_id: "io.molis.work.native.goals", plugin_version: "0.0.0", binding_signature: "native:goals" },
       content: {
         kind: "inline",
         payload: {
@@ -188,6 +184,8 @@ export function seedDemoPluginSurfaces(databasePath: string, boardId = DEMO_BOAR
         },
       },
       metadata: { origin: "demo-seed", goal_id: "CORE" },
+      origin: { kind: "pinned", subject: { kind: "goal", id: "CORE" }, revision: "1" },
+      title: "生命周期记录已接通", media_type: "application/json",
     });
     coordinator.artifacts.commands.registerVersion({
       board_id: boardId,
@@ -196,11 +194,7 @@ export function seedDemoPluginSurfaces(databasePath: string, boardId = DEMO_BOAR
       version: 2,
       artifact_type_id: "io.molis.work.goal.delivery",
       schema_version: 1,
-      producer: {
-        plugin_id: "io.molis.work.native.goals",
-        plugin_version: "0.0.0",
-        binding_signature: "native:goals",
-      },
+      producer: { plugin_id: "io.molis.work.native.goals", plugin_version: "0.0.0", binding_signature: "native:goals" },
       content: {
         kind: "inline",
         payload: {
@@ -210,6 +204,8 @@ export function seedDemoPluginSurfaces(databasePath: string, boardId = DEMO_BOAR
         },
       },
       metadata: { origin: "demo-seed", goal_id: "CORE" },
+      origin: { kind: "pinned", subject: { kind: "goal", id: "CORE" }, revision: "2" },
+      title: "可用的生命周期记录", media_type: "application/json",
       supersedes_version: 1,
     });
   } finally {

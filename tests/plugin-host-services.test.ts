@@ -30,6 +30,7 @@ import {
   PluginHostExecutor,
   seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 const PRODUCER = "io.molis.work.producer";
 const CONSUMER = "io.molis.work.consumer";
@@ -411,7 +412,7 @@ test("a 成果 port carries a pinned version by selection: exact identity, no co
     rig.wiring.bind({ board_id: DEMO_BOARD_ID, target_plugin_id: CONSUMER, target_port: "report", source_plugin_id: PRODUCER, source_port: "report", origin: "user", actor_id: "tester" });
     const services = rig.services[PRODUCER]!, outputs = services.outputs!;
     const fixed = { artifact_id: "fixed-report-one", version: 1 };
-    const original = services.artifacts.publish({ ...fixed, artifact_type_id: REPORT, schema_version: 1, content: { kind: "inline", payload: { note: "不可改写的原报告" } } });
+    const original = services.artifacts.publish({ ...fixed, artifact_type_id: REPORT, schema_version: 1, content: { kind: "inline", payload: { note: "不可改写的原报告" } }, ...pinnedArtifact("原报告") });
     const count = rig.artifacts.query.listArtifacts(DEMO_BOARD_ID).length;
     assert.deepEqual(outputs.select({ port: "report", reference: fixed, expected_reference: null }), fixed);
     await rig.wiring.drain();
@@ -421,9 +422,9 @@ test("a 成果 port carries a pinned version by selection: exact identity, no co
     assert.deepEqual(outputs.select({ port: "report", reference: fixed, expected_reference: null }), fixed, "lost-response retry is harmless");
     assert.throws(() => outputs.publish({ port: "report", content: { kind: "inline", payload: { note: "直接写进端口" } } }), /请先固定再选择/,
       "a 成果 reaches a port only after it is pinned");
-    const foreign = rig.services[CONSUMER]!.artifacts.publish({ artifact_id: "foreign-report", version: 1, artifact_type_id: REPORT, schema_version: 1, content: { kind: "inline", payload: { note: "另一个生产者" } } }).artifact;
+    const foreign = rig.services[CONSUMER]!.artifacts.publish({ artifact_id: "foreign-report", version: 1, artifact_type_id: REPORT, schema_version: 1, content: { kind: "inline", payload: { note: "另一个生产者" } }, ...pinnedArtifact("另一个生产者") }).artifact;
     assert.throws(() => outputs.select({ port: "report", reference: foreign, expected_reference: fixed }), /自己的/);
-    const wrong = services.artifacts.publish({ artifact_id: "other-kind", version: 1, artifact_type_id: "other.type", schema_version: 1, content: { kind: "inline", payload: {} } }).artifact;
+    const wrong = services.artifacts.publish({ artifact_id: "other-kind", version: 1, artifact_type_id: "other.type", schema_version: 1, content: { kind: "inline", payload: {} }, ...pinnedArtifact("另一种成果") }).artifact;
     assert.throws(() => outputs.select({ port: "report", reference: wrong, expected_reference: fixed }), /类型/);
     rig.artifacts.commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: "tester", ...fixed });
     assert.throws(() => outputs.select({ port: "report", reference: fixed, expected_reference: null }), /artifact_archived/);

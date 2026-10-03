@@ -14,6 +14,7 @@ import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-
 import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 test("an unknown Runtime plugin cannot turn a Host-only adapter into user authority through consumes", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-host-only-plugin-"));
@@ -92,7 +93,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
       if (failStart) throw new Error("start failed after UI registration");
       services.storage!.set("visits", String(count));
       services.artifacts.publish({ artifact_id: "hosted-note", version: count, artifact_type_id: "example.note",
-        schema_version: 1, content: { kind: "inline", payload: { visits: count } } });
+        schema_version: 1, content: { kind: "inline", payload: { visits: count } }, ...pinnedArtifact("Visits", { kind: "counter", id: "visits" }, String(count)) });
       return base.start(context);
     }, async stop(context) { assert.ok(context.services); if (failStop) throw new Error("stop failed"); } };
   try {
@@ -174,7 +175,7 @@ test("compatible Host execution and crash recovery use the implementation versio
         kind: "primary-page", label: "Compatible", slots: [], surfaces: [{ surface_id: "main", target_slot_id: "main", format: "html" }] },
         render: () => `<p>${version}</p>` });
       context.services!.artifacts.publish({ artifact_id: "compatible-note", version: count,
-        artifact_type_id: "example.note", schema_version: 1, content: { kind: "inline", payload: { count } } });
+        artifact_type_id: "example.note", schema_version: 1, content: { kind: "inline", payload: { count } }, ...pinnedArtifact("Count", { kind: "counter", id: "count" }, String(count)) });
       return base.start(context);
     },
   });

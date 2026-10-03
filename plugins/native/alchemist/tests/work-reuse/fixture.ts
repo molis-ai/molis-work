@@ -59,7 +59,8 @@ export async function fixture(options: { ai?: AlchemistAiPort; description?: str
       const reference = { artifact_id: `report:${input.report.id}`, version: input.report.revision };
       artifacts.commands.registerVersion({ ...reference, board_id: "board-test", actor_id: caller.actor_id,
         artifact_type_id: "alchemist.research", schema_version: 1, producer: { plugin_id: "alchemist", plugin_version: "1", binding_signature: "fixture" },
-        content: { kind: "inline", payload: JSON.parse(JSON.stringify({ report: input.report, evidence: input.evidence })) }, metadata: { title: input.title } });
+        content: { kind: "inline", payload: JSON.parse(JSON.stringify({ report: input.report, evidence: input.evidence })) }, metadata: { title: input.title },
+        origin: { kind: "pinned", subject: { kind: "research_report", id: input.report.id }, revision: String(input.report.revision) }, title: input.title || input.report.id, media_type: "application/json" });
       return reference;
     },
     linkConsumption: async (caller, input) => {

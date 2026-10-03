@@ -16,6 +16,7 @@ import type {
   ArtifactJsonValue,
   RegisterArtifactVersionInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 function createHarness() {
   const db = new Database(":memory:");
@@ -92,6 +93,7 @@ function registration(
       },
     },
     metadata: { source: "plugin-private-shape" },
+    ...pinnedArtifact("Sprint report"),
     ...overrides,
   };
 }
@@ -117,7 +119,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
     const replayed = module.commands.registerVersion(firstInput);
     assert.equal(replayed.replayed, true);
     assert.equal(replayed.artifact.created_at, first.artifact.created_at);
-    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM artifact_versions").get().count, 1);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM library_artifact_versions").get().count, 1);
 
     expectCode(
       () => module.commands.registerVersion(registration({

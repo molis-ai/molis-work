@@ -4,7 +4,6 @@ import type {
   ArtifactConsumerType,
   ArtifactIdentityRecord,
   ArtifactListQuery,
-  ArtifactOrigin,
   ArtifactReference,
   ArtifactVersionRecord,
   FixedVersionCommandApi,
@@ -20,7 +19,6 @@ import {
   artifactContentDigest,
   artifactContentSize,
   canonicalArtifactJson,
-  normalizeArtifactMetadata,
   normalizeArtifactPayload,
 } from "./content.js";
 import {
@@ -28,6 +26,7 @@ import {
   type ArtifactsErrorFactory,
 } from "./errors.js";
 import { ArtifactsRepository } from "./repository.js";
+import { libraryFields, nonNegativeInteger, normalizedDigest, normalizedMetadata, positiveInteger, requiredText } from "./validation.js";
 
 export interface ArtifactEventInput {
   eventId: string;
@@ -356,39 +355,8 @@ export class ArtifactsService<
       archived_at: null,
       archived_by: null,
     };
-    if (!this.repository.tables.library) return base as Omit<R, "created_at">;
-    // The 成果库 keeps what people see: where the version came from, its title and its real media type (A1).
-    const library = input as unknown as RegisterArtifactVersionInput;
-    return {
-      ...base,
-      origin: this.normalizeOrigin(library.origin),
-      title: boundedText(library.title, "title", 200, this.error),
-      media_type: mediaType(library.media_type, this.error),
-      trace: this.normalizeTrace(library.trace),
-    } as unknown as Omit<R, "created_at">;
-  }
-
-  private normalizeOrigin(value: unknown): ArtifactOrigin {
-    const origin = value as Partial<ArtifactOrigin> | null | undefined;
-    if (origin?.kind === "pinned") {
-      const subject = (origin as { subject?: { kind?: unknown; id?: unknown } }).subject;
-      return { kind: "pinned", subject: { kind: requiredText(subject?.kind, "origin.subject.kind", this.error),
-        id: requiredText(subject?.id, "origin.subject.id", this.error) },
-        revision: boundedText((origin as { revision?: unknown }).revision, "origin.revision", 200, this.error) };
-    }
-    if (origin?.kind === "imported") {
-      return { kind: "imported", file_name: boundedText((origin as { file_name?: unknown }).file_name, "origin.file_name", 255, this.error) };
-    }
-    throw this.error("artifact.origin_invalid", "成果必须写明来源：固定下来的工作对象，或导入的文件");
-  }
-
-  private normalizeTrace(value: unknown): ArtifactReference[] {
-    if (value === undefined) return [];
-    if (!Array.isArray(value)) throw this.error("artifact.input_invalid", "trace 必须是过程项引用的列表", { path: "trace" });
-    return value.map((item: { artifact_id?: unknown; version?: unknown } | null, index) => ({
-      artifact_id: requiredText(item?.artifact_id, `trace[${index}].artifact_id`, this.error),
-      version: positiveInteger(item?.version, `trace[${index}].version`, this.error),
-    }));
+    // The 成果库 also keeps what people see: where the version came from, its title and its real media type (A1).
+    return (this.repository.tables.library ? { ...base, ...libraryFields(input, this.error) } : base) as Omit<R, "created_at">;
   }
 
   private assertIdentity(
@@ -453,61 +421,4 @@ function sameVersion(
     ...requestedEnvelope
   } = requested;
   return JSON.stringify(existingEnvelope) === JSON.stringify(requestedEnvelope);
-}
-
-function normalizedMetadata(value: unknown, error: ArtifactsErrorFactory): ArtifactVersionRecord["metadata"] {
-  try {
-    return normalizeArtifactMetadata(value);
-  } catch (cause) {
-    throw error("artifact.metadata_invalid", "成果 metadata 必须是可往返的 JSON 对象", {
-      cause: cause instanceof Error ? cause.message : String(cause),
-    });
-  }
-}
-
-function requiredText(
-  value: unknown,
-  path: string,
-  error: ArtifactsErrorFactory,
-): string {
-  const normalized = typeof value === "string" ? value.trim() : "";
-  if (!normalized) throw error("artifact.input_invalid", `${path} 不能为空`, { path });
-  return normalized;
-}
-
-function boundedText(value: unknown, path: string, limit: number, error: ArtifactsErrorFactory): string {
-  const text = requiredText(value, path, error);
-  if (text.length > limit) throw error("artifact.input_invalid", `${path} 不能超过 ${limit} 个字符`, { path });
-  return text;
-}
-
-/** A real media type such as `text/markdown`; parameters are not part of what a 成果 records. */
-function mediaType(value: unknown, error: ArtifactsErrorFactory): string {
-  const text = requiredText(value, "media_type", error).toLowerCase();
-  if (!/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/u.test(text)) {
-    throw error("artifact.input_invalid", "media_type 必须是 类型/子类型，例如 text/markdown", { path: "media_type" });
-  }
-  return text;
-}
-
-function positiveInteger(value: unknown, path: string, error: ArtifactsErrorFactory): number {
-  if (!Number.isSafeInteger(value) || Number(value) <= 0) {
-    throw error("artifact.input_invalid", `${path} 必须是正整数`, { path });
-  }
-  return Number(value);
-}
-
-function nonNegativeInteger(value: unknown, path: string, error: ArtifactsErrorFactory): number {
-  if (!Number.isSafeInteger(value) || Number(value) < 0) {
-    throw error("artifact.input_invalid", `${path} 必须是非负整数`, { path });
-  }
-  return Number(value);
-}
-
-function normalizedDigest(value: unknown, path: string, error: ArtifactsErrorFactory): string {
-  const digest = requiredText(value, path, error).toLowerCase();
-  if (!/^sha256:[0-9a-f]{64}$/u.test(digest)) {
-    throw error("artifact.digest_invalid", `${path} 必须是 sha256 digest`, { path });
-  }
-  return digest;
 }

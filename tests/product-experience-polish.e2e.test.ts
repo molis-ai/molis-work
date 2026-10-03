@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { GoalProjectApplication, DEMO_BOARD_ID } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 const shots = reviewEvidenceUrl("product-experience-20260926/");
 
@@ -133,7 +134,7 @@ test('Artifact tabs restore the exact item after switching, reload and split', {
   try {
   const { origin, projectId, command, sessionId, navigate, evaluate, click, waitFor, reloadPage } = b;
   const app = new GoalProjectApplication(b.store);
-  for (const id of ['polish/a', 'polish-b']) app.artifacts.commands.registerVersion({
+  for (const id of ['polish/a', 'polish-b']) app.artifacts.commands.registerVersion({ ...pinnedArtifact(`验证 ${id}`),
     board_id: DEMO_BOARD_ID, actor_id: 'polish-test', artifact_id: id, version: 1,
     artifact_type_id: 'io.molis.work.document', schema_version: 1,
     producer: { plugin_id: 'io.example.writer', plugin_version: '1.0.0', binding_signature: 'polish-fixture' },

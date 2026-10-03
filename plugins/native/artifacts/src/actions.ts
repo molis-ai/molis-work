@@ -2,7 +2,7 @@ import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFi
 import type { ArtifactConsumerType, ArtifactReference, ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactDisplayTitle, artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
+import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
 import { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
 import type { ExternalDocumentSource } from "./document-import.js";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -96,7 +96,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         if (!current || record.version > current.version) latest.set(record.artifact_id, record);
       }
       return [...latest.values()].map((record): SearchEntry => ({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
-        revision: `${record.version}:${record.content_digest}`, title: artifactDisplayTitle(record), summary: payloadText(record.payload).join("\n").slice(0, 4000),
+        revision: `${record.version}:${record.content_digest}`, title: record.title, summary: payloadText(record.payload).join("\n").slice(0, 4000),
         updated_at: record.created_at, content: "summary", open: { surface: "artifacts", id: artifactVersionPath(record) } }));
     }),
     bindFileEntriesHandler(artifactsActions.fileEntries, () => {
@@ -107,8 +107,8 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         if (!current || record.version > current.version) latest.set(record.artifact_id, record);
       }
       return [...latest.values()].map(record => ({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
-        revision: `${record.version}:${record.content_digest}`, title: artifactDisplayTitle(record), folder: [record.artifact_type_id],
-        media_type: "text/markdown", size: record.size_bytes ?? null, updated_at: record.created_at, open: { surface: "artifacts", id: artifactVersionPath(record) } }));
+        revision: `${record.version}:${record.content_digest}`, title: record.title, folder: [record.artifact_type_id],
+        media_type: record.media_type, size: record.size_bytes ?? null, updated_at: record.created_at, open: { surface: "artifacts", id: artifactVersionPath(record) } }));
     }),
     bind(artifactsActions.browser, input => readArtifactBrowser(ports.artifacts.query, ports.boardId, input.reference ?? null, input.supported_types)),
     bind(artifactsActions.read, input => readArtifactSelection(ports.artifacts.query, ports.boardId, input.reference, input.supported_types)),

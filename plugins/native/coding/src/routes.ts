@@ -14,7 +14,7 @@ import type { CodingSessionRecord, CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
 import type { AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_REPORT_TYPE } from "./artifacts.js";
-import { codingReportPreview, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
+import { codingReportPreview, codingReportPublication, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 import { codingContinuation, CONTINUATION_MARKER } from "./continuation.js";
@@ -686,8 +686,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     if (saved) return saved;
     const reference = codingReportReference(record.session_id, runId);
     const result = artifacts.publish({ ...reference, artifact_type_id: CODING_REPORT_TYPE, schema_version: 1,
-      content: { kind: "inline", payload: JSON.parse(JSON.stringify(report)) },
-      metadata: { title: report.title, session_id: record.session_id, run_id: runId } });
+      content: { kind: "inline", payload: JSON.parse(JSON.stringify(report)) }, ...codingReportPublication(report, record.session_id, runId, artifacts) });
     return { report, reference, saved_at: result.artifact.created_at };
   };
   const reportOutput = (write: boolean) => route(write ? "coding.select-report-output" : "coding.report-output", async (request, _api, execution) => {

@@ -48,9 +48,9 @@ for (const width of [1440, 390]) {
       await waitFor("document.querySelector('[data-pages-note]').textContent.includes('已恢复上次成果') && document.querySelector('[data-pages-artifact-bar]').textContent === '再存一个固定版本'");
       const final = pages.get(original.id, projectId!);
       assert.equal(final.title, "后续编辑仍在文稿中"); assert.equal(final.artifact_version, 1); assert.equal(final.publication_pending, undefined);
-      const artifact = project.db.prepare("SELECT payload_json FROM artifact_versions WHERE artifact_id = ? AND version = 1").get(final.artifact_id) as { payload_json: string };
+      const artifact = project.db.prepare("SELECT payload_json FROM library_artifact_versions WHERE artifact_id = ? AND version = 1").get(final.artifact_id) as { payload_json: string };
       assert.equal(JSON.parse(artifact.payload_json).title, "已确认的发布快照");
-      assert.equal(project.db.prepare("SELECT COUNT(*) AS n FROM artifact_versions WHERE artifact_id = ?").get(final.artifact_id)!.n, 1);
+      assert.equal(project.db.prepare("SELECT COUNT(*) AS n FROM library_artifact_versions WHERE artifact_id = ?").get(final.artifact_id)!.n, 1);
       assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
       await screenshot("recovered");
     } finally { db.close(); pages.close(); }

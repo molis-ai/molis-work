@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ShelfArtifactPreview } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { codingChangeSetPreview, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
 
@@ -8,7 +8,7 @@ const literal = (value: string) => {
   return `${fence}\n${value}\n${fence}`;
 };
 /** Host composes producer validation with Shelf's explicit copy import. */
-export function codingShelfMaterial(record: ArtifactVersionRecord, boardId: string, projectPath: string): ShelfArtifactPreview {
+export function codingShelfMaterial(record: FixedVersionRecord, boardId: string, projectPath: string): ShelfArtifactPreview {
   if (record.board_id !== boardId || record.lifecycle_state !== "active") throw new Error("原成果已归档或不属于当前项目");
   const report = codingReportPreview(record), changes = codingChangeSetPreview(record);
   if (!report && !changes) throw new Error("这份成果不是可接收的 Coding 固定报告或固定变更");

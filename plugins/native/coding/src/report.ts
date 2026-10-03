@@ -1,11 +1,12 @@
 import { codingReportStepsMarkdown, type CodingReportSteps } from "./report-steps.js";
 import { requestText } from "./continuation.js";
-import type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentCommandOutput, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingUsageSummary } from "./usage.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_REPORT_TYPE, type CodingReport } from "./artifacts.js";
+import { codingChangeSetReference } from "./changeset.js";
 
 export interface CodingExecutionReport extends CodingReport {
   steps?: CodingReportSteps;
@@ -22,7 +23,7 @@ export interface CodingExecutionReport extends CodingReport {
 }
 
 /** Read only a genuine fixed Coding report; its source identity must agree with the exact Artifact. */
-export function codingReportPreview(artifact: ArtifactVersionRecord | null) {
+export function codingReportPreview(artifact: FixedVersionRecord | null) {
   if (!artifact || artifact.artifact_type_id !== CODING_REPORT_TYPE || artifact.schema_version !== 1
     || artifact.producer_plugin_id !== "io.molis.work.coding" || artifact.producer_binding_signature !== "official-coding-binding"
     || artifact.content_kind !== "inline" || artifact.availability !== "available") return null;
@@ -39,6 +40,17 @@ export function codingReportPreview(artifact: ArtifactVersionRecord | null) {
 /** Stable identity makes a lost save response retryable without a second index. */
 export function codingReportReference(sessionId: string, runId: string): ArtifactReference {
   return { artifact_id: `coding-report:${encodeURIComponent(sessionId)}:${encodeURIComponent(runId)}`, version: 1 };
+}
+
+/**
+ * The report as a 成果 (artifact-positioning A1): it pins a finished round, which never changes again, and traces to the
+ * round's change set when one was kept; the change set itself stays a Coding process item.
+ */
+export function codingReportPublication(report: { title: string }, sessionId: string, runId: string, artifacts: Pick<PluginArtifactClient, "read">) {
+  const changeSet = codingChangeSetReference(sessionId, runId);
+  return { metadata: { title: report.title, session_id: sessionId, run_id: runId },
+    origin: { kind: "pinned" as const, subject: { kind: "coding_run", id: `${sessionId}/${runId}` }, revision: "1" },
+    title: report.title, media_type: "application/json", trace: artifacts.read(changeSet) ? [changeSet] : [] };
 }
 
 export function readCodingExecutionReport(artifacts: PluginArtifactClient, sessionId: string, runId: string) {

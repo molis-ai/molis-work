@@ -182,25 +182,32 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
         const chosen = new Set((current.deliverables || []).map(item => key(item.reference)));
         const rows = [...(current.deliverables || []).map(item => ({ reference: item.reference, title: item.title, type_title: "" })),
           ...(library.versions || []).filter(item => !chosen.has(key(item.reference)))];
-        list.replaceChildren(...(rows.length ? rows.map(item => {
-          const label = document.createElement("label"), input = document.createElement("input"), name = document.createElement("span"), meta = document.createElement("small");
-          input.type = "checkbox"; input.name = "deliverable"; input.value = JSON.stringify(item.reference);
-          input.checked = chosen.has(key(item.reference)); input.dataset.was = String(input.checked);
-          name.textContent = item.title; meta.textContent = [item.type_title, "v" + item.reference.version].filter(Boolean).join(" · ");
-          label.append(input, name, meta);
+        const option = (fieldName, value, checked, title, meta) => {
+          const label = document.createElement("label"), input = document.createElement("input"), name = document.createElement("span"), small = document.createElement("small");
+          input.type = "checkbox"; input.name = fieldName; input.value = JSON.stringify(value); input.checked = checked; input.dataset.was = String(checked);
+          name.textContent = title; small.textContent = meta;
+          label.append(input, name, small);
           return label;
-        }) : [Object.assign(document.createElement("p"), { className: "form-note", textContent: L("成果库里还没有版本。可以先在 Pages、问卷等插件里存为成果，或导入文件。") })]));
+        };
+        // The Goal's own materials can be pinned on the spot: the current content becomes a new version and is handed in.
+        const pinnable = (current.candidates || []).map(item => option("deliverable-pin", item.subject, false, item.title, L("固定当前内容并交付")));
+        const versions = rows.map(item => option("deliverable", item.reference, chosen.has(key(item.reference)), item.title, [item.type_title, "v" + item.reference.version].filter(Boolean).join(" · ")));
+        list.replaceChildren(...(pinnable.length || versions.length ? [...pinnable, ...versions]
+          : [Object.assign(document.createElement("p"), { className: "form-note", textContent: L("成果库里还没有版本。可以先在 Pages、问卷等插件里存为成果，或导入文件。") })]));
         box.dataset.loadedFor = currentGoal;
       } catch { list.textContent = L("成果库暂时读不到；可以先收尾，之后再记交付物。"); }
     };
     const saveDeliverables = async (form, currentGoal) => {
-      for (const input of form.querySelectorAll('input[name="deliverable"]')) {
+      for (const input of form.querySelectorAll('input[name="deliverable"], input[name="deliverable-pin"]')) {
         if (input.checked === (input.dataset.was === "true")) continue;
+        const pin = input.name === "deliverable-pin";
         const response = await fetch(route("/api/goals/" + encodeURIComponent(currentGoal) + "/deliverables"), { method: "POST",
           headers: { ...jsonHeaders(), "x-molis-work-idempotency-key": globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random() },
-          body: JSON.stringify({ reference: JSON.parse(input.value), delivered: input.checked }) });
+          body: JSON.stringify({ [pin ? "subject" : "reference"]: JSON.parse(input.value), delivered: input.checked }) });
         if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || L("交付物没有记下"));
         input.dataset.was = String(input.checked);
+        // A pinned version is now an ordinary deliverable; pinning again would write another version.
+        if (pin) input.disabled = true;
       }
     };
 

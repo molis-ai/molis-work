@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isArtifactPinAction, isArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_CATALOG, artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 
 // specs/artifact-positioning A4/A7: every type a plugin pins into the 成果库 names itself and has a preview from its owner,
@@ -14,8 +14,25 @@ test("every 成果 type a built-in plugin produces declares its display name and
     const action = entry.manifest.actions?.find(item => item.capability_id === type.preview!.capability_id && item.version === type.preview!.version);
     if (!action) problems.push(`${where}: preview ${type.preview.capability_id} is not one of the plugin's actions`);
     else if (!isArtifactPreviewAction(action.action)) problems.push(`${where}: ${type.preview.capability_id} is not a preview action`);
+    // A type that can be pinned on the spot (A5) names a pin action of its own plugin, for exactly one kind of work object.
+    if (!type.pin) continue;
+    const pin = entry.manifest.actions?.find(item => item.capability_id === type.pin!.capability_id && item.version === type.pin!.version);
+    if (!pin) problems.push(`${where}: pin ${type.pin.capability_id} is not one of the plugin's actions`);
+    else if (!isArtifactPinAction(pin.action) || pin.action.subject_kinds.length !== 1) problems.push(`${where}: ${type.pin.capability_id} is not a pin action for one kind`);
   }
   assert.deepEqual(problems, []);
+});
+
+test("each kind of work object has at most one owner that pins it, and every pin action is declared on a type", () => {
+  const pinners = new Map<string, string[]>(), undeclared: string[] = [];
+  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const action of entry.manifest.actions ?? []) {
+    if (!isArtifactPinAction(action.action)) continue;
+    for (const kind of action.action.subject_kinds) pinners.set(kind, [...pinners.get(kind) ?? [], action.capability_id]);
+    if (!entry.manifest.artifacts.produces.some(type => type.pin?.capability_id === action.capability_id)) undeclared.push(action.capability_id);
+  }
+  assert.deepEqual([...pinners].filter(([, actions]) => actions.length > 1), []);
+  assert.deepEqual(undeclared, []);
+  assert.deepEqual([...pinners.keys()].sort(), ["dataset", "form", "pages_document", "presentation"]);
 });
 
 test("a 成果 type has exactly one owner", () => {

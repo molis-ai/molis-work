@@ -161,5 +161,5 @@ export type { PagesPublishArtifactPort, PagesReadArtifactPort } from "./promote.
 
 export { pagesContentActions, createPagesContentHandlers } from "./content-actions.js";
 
-export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, createPagesActionHandlers } from "./actions.js";
+export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, createPagesActionHandlers } from "./actions.js";
 export type { PagesActionPorts } from "./actions.js";

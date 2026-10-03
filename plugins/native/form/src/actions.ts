@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { FORM_DRAFT_QUESTION } from "./prompts.js";
-import { ActionError, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineArtifactPinAction, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormRecord, FormQuestionInput, FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import { promoteForm, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
 import type { FormStore } from "./store.js";
@@ -30,6 +30,8 @@ function define<I, O>(name: string, title: string, description: string, operatio
 export const formActions = {
   /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
   artifactPreview: formArtifactPreview,
+  /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
+  artifactPin: defineArtifactPinAction("form.artifacts.pin", "form", "问卷", [...write, "artifact:write"]),
   list: define<Record<string, never>, { forms: FormRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "问卷列表", "读取当前项目问卷和 AI 加题可用性", "query", object({}), object({ forms: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { form: FormRecord }>("get", "读取问卷", "读取题目、选项、状态、版本和发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { form: FormRecord }>("create", "新建问卷", "创建当前项目的草稿问卷", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
@@ -66,6 +68,9 @@ export interface FormActionPorts {
 export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
+  const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promoteForm(store, id, project(caller), value => ports.publishArtifact!(value, caller),
+    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined }));
+  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "form.unavailable", reason: "当前环境不能发出成果" };
   return [
     formArtifactPreviewHandler,
     bind(formActions.list, (_, caller) => ports.withStore(store => {
@@ -115,8 +120,8 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       const submissions = store.listSubmissions(input.id, project(caller));
       return { analysis: { form_id: input.id, submission_count: submissions.length }, submissions };
     })),
-    bind(formActions.promote, (input, caller) => ports.withStore(store => promoteForm(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
-      () => ports.publishArtifact ? { available: true } : { available: false, code: "form.unavailable", reason: "当前环境不能发出成果" }),
+    bind(formActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
+    bind(formActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
     ...createFormSearchHandlers(ports.withStore),
   ];
 }

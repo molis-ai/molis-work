@@ -31,6 +31,14 @@ export const goalsInputActions = {
     object({ goal_id: nullable(identifier), subject: nullable(subject) }, []), object({ bindings: array(bound) })),
 } as const;
 
+/** A Goal's confirmed bound Plugin objects, by the owner's subject and the name they were bound under. */
+export function boundGoalObjects(records: readonly GoalInputBindingRecord[], goalId: string): Array<{ subject: { kind: string; id: string }; title: string }> {
+  return records.flatMap(record => {
+    const subjectRef = record.goal_id === goalId && record.state === "confirmed" && record.source_type === GOAL_PLUGIN_OBJECT_SOURCE ? parseGoalPluginObjectRef(record.source_ref) : null;
+    return subjectRef ? [{ subject: subjectRef, title: record.input_name }] : [];
+  });
+}
+
 export function createGoalsInputActionHandlers(boardId: string, inputs: Pick<GoalInputBindingsApi, "list" | "register" | "deactivate">, goalExists: (goalId: string) => boolean): ActionHandlerBinding[] {
   const view = (record: GoalInputBindingRecord): GoalBoundObject | null => {
     const subjectRef = parseGoalPluginObjectRef(record.source_ref);

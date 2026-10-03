@@ -194,10 +194,11 @@ export interface PluginManifest {
   /**
    * Types this Plugin pins into the 成果库 (versions people keep and cite), and the 成果 types it reads. Each produced
    * type names itself (`title`, e.g. 「文档」) and its preview action (A4): one of this Plugin's actions defined with
-   * `defineArtifactPreviewAction`.
+   * `defineArtifactPreviewAction`. A type whose work objects can be pinned on the spot (a Goal handing one in, A5) also
+   * names its pin action, defined with `defineArtifactPinAction`.
    */
   artifacts: {
-    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; preview?: { capability_id: string; version: number } }>;
+    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number } }>;
     consumes: Array<{ artifact_type_id: string; schema_version: number }>;
   };
   /** Exchange data this Plugin records for others and reads from them; kept out of the 成果库. A type is either a 成果 type or a process item type. */

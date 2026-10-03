@@ -72,6 +72,13 @@
 | 2026-10-03 | Goal 交付的入口放在哪（A5，常规取舍） | — | 现有的「收尾」表单里加「交付物」一组 | Goal 页已有负责人可用的「收尾」表单（事件文档里的 closure），方案里「没有收尾入口」是错的；在它里面列出成果库里每个成果的最新可用版本供勾选，提交收尾前先记下交付物，不另做浮层 |
 | 2026-10-03 | 交付物的动作形状（A5，常规取舍） | — | `goals.deliverables.add/remove/list`，不做整组 `set` | 每条交付物是一条以 `goal.output:<goal>:<成果版本>` 为键的 ledger 边，加与删天然幂等；整组 `set` 要比较读取时的版本，收尾表单只需要逐条增删 |
 | 2026-10-03 | A5 分两片（常规取舍） | — | A5a 记下与显示已有版本；A5b 当场固定、Agent 提议、`goal.input` | 当场固定要各 owner 声明 `pin` 动作并在浮层里调用；Agent 提议要接待确认流。先让人能在收尾时交付成果库里已有的版本 |
+| 2026-10-03 | 合并 #205 A5a（代为决定） | 按推荐合并 | 已合并 | 99e66669 |
+| 2026-10-03 | 当场固定怎么找到 owner（A5b，常规取舍） | — | 固定协议：`defineArtifactPinAction`（输入 `{subject_id}`，输出 `{artifact, recovered}`），按对象种类发现；manifest 的成果类型声明 `pin` | 与读取对象上下文（`resolveActionSubject`）同一种发现方式，不写插件名单；门禁要求每个固定动作都声明在某个成果类型上、每种对象至多一个 owner。Pages、问卷、演示稿、数据表的固定动作就是各自原有的「存为成果」，换成统一的输入输出 |
+| 2026-10-03 | 网页上固定用谁的权限（A5b，常规取舍） | — | 本机的人用各 owner 固定动作自己的权限 | Goals 的网页入口只带 Goals 权限，嵌套调用 Pages 等会被拒；与 A3「在 Pages 继续」、A4 owner 预览同一做法：只对 `goals.deliverables.pin/candidates` 加上目录里各固定动作声明的权限。Agent、MCP 等调用方不加，仍需自己有 owner 的权限 |
+| 2026-10-03 | 同一内容固定两次怎么办（A5b，常规取舍） | — | 每次固定都是新的一版 | 想按「来源修订号相同就沿用」去重，但各插件完成一次发布会把对象自己的版本号加一，修订号永远对不上；沿用原有「存为成果」的语义。收尾表单里固定过的一项立即变为不可再勾，避免同一次收尾重复固定 |
+| 2026-10-03 | 固定动作对 MCP 与 Agent 可见吗（A5b，常规取舍） | — | 可见 | 助理、Coding、MCP 调用 `goals.deliverables.pin` 时，嵌套调用的固定动作沿用原调用方，必须对它们的受众开放；它也是一个有意义的独立操作。问卷、数据表、演示稿的 MCP 工具清单因此多一项 `artifacts.pin`（用例的精确清单随之更新）。与原有 `promote` 并存：`promote` 还带读取时的版本、Pages 还带 Goal，删它是另一回事 |
+| 2026-10-03 | A1 遗留：Pages 成果的来源种类（常规取舍） | — | 改为 Pages 自己的对象种类 `pages_document` | A1 写成了 `page`，与 Pages 的对象读取、搬动、搜索用的种类不一致，A4b 的「原文已改」与当场固定都按种类找 owner。真实 Home 里还没有 A1 之后的 Pages 成果（A1 刚合入），不需要迁移 |
+| 2026-10-03 | A6 遗留：Goal Frame 选材料的「交付物」来源（常规取舍） | — | 改叫「成果」，英文「交付物」改为 Deliverable | 这个筛选项指成果库，不是 Goal 的交付物；A6 只改了「Artifact」字样，漏了这里 |
 
 **待决**：无（「没有项目时的全局设置」已答，见上表）。
 
@@ -239,10 +246,17 @@
 - Goal 页的成果区块改名「交付物与输入」，交付物一条显示「vN · 交付物」；成果库详情里的关系名改为「输入」「交付物」。
 - 演示数据删掉 `goal.delivery` 类型，改为一个导入的文档（两版）加一条 `goal.output` 指向第二版。
 
-**A5b（下一片）**：收尾时当场固定工作对象（manifest 为可见类型声明 `pin`）、助理与 Coding 提议交付物进待确认、`goal.input` 的记下入口。
+**A5b（本片）**：收尾时当场固定 Goal 的资料。
+
+- 固定协议 `defineArtifactPinAction`（`molis.artifacts.pin.request.v1` → `molis.artifacts.pin.v1`），由 `pinActionSubject` 按对象种类找唯一的 owner、以原调用方的权限调用；`pinnableSubjectKinds` 列出当前能固定的种类。Pages、问卷、演示稿、数据表各有一个固定动作，内部就是原来的「存为成果」；manifest 的成果类型声明 `pin`。
+- Goals 新动作 `goals.deliverables.pin`（固定后按 A5a 的规则记为交付物）与 `goals.deliverables.candidates`（Goal 已确认的绑定资料里能固定的那些）。`GET /api/goals/:id/deliverables` 一并返回 `candidates`，`POST` 带 `subject` 即固定并交付。
+- 收尾表单的「交付物」先列 Goal 的资料（「固定当前内容并交付」），再列成果库里的版本。
+
+**A5c（下一片）**：助理与 Coding 提议交付物，用户在收尾表单里确认；`goal.input` 的记下入口。
 
 ## 6. 进度
 
+- 2026-10-03：A5b 开 PR（分支 `feat/artifact-a5b-pin-deliverables`），做法见上文「A5 Goal 交付」A5b。整体构建后相关用例（Goals、成果、四个 owner 插件、目录与 MCP、Frame、i18n 共 168 个文件）831 条 826 通过，5 条失败分三类：① 问卷、数据表、演示稿的 MCP 精确工具清单多了 `artifacts.pin`（预期变化，清单补上）；② `i18n.test` 三个标签缺英文：A3 的「在 Pages 继续」「没能在 Pages 打开这一版」与 A5a 的「成果库暂时读不到」一句，main 上同样失败（A3、A5a 的相关用例集没含 i18n，漏了），本片补译；③ `functions-draft-retention` 在 main（99e66669）同样失败，是 S6b（#195）改了 Functions 脚本的宿主参数而这个用例的装配没跟上，单开 [#206](https://github.com/molis-ai/molis-work/pull/206) 修用例装配（断言不变，0/1 → 1/1）。前两类修后重跑 12/12。新增用例：`goal-deliverables` 的当场固定（候选列出、经 Pages 固定出 v1 并记为交付物、来源记对象与修订号、不能固定的种类 400 且不写成果）；`artifact-type-gate` 加固定动作的两条门禁。教训：改了带 `L()` 的界面文案，相关用例集要含 `tests/i18n.test.ts`。
 - 2026-10-03：A5a 开 PR（分支 `feat/artifact-a5-goal-delivery`），做法见上文「A5 Goal 交付」。整体构建后相关用例（goals、goal-event、artifact、演示数据共 70 个文件）258 条 256 通过；2 条是本片引起：Goal 页区块与关系改名的预期变化（断言同强度改为新文案，并加上标签结尾，确保不是旧的「输入结果」）、一个自己装配 Goals 处理器的用例没给交付物端口（manifest 声明了动作就必须有处理器，端口改为必填，用例补上真实 ledger）。修后这批与门禁用例 50/50；健康门禁、边界检查、整页门禁通过。新增 `tests/goal-deliverables.test.ts`（记下、重放、列出、Goal 页显示、拒绝归档与不存在的版本、移除），`goal-event-document.e2e` 断言收尾表单的交付物列表读完。#204 已合入（7abc37e3），本片直接基于 main。
 - 2026-10-03：A4a 开 PR（分支 `feat/artifact-a4-consumers`），做法见上文「A4 每种可见类型的消费方」。八种可见类型都由 owner 声明显示名与预览动作；成果库按声明分组、显示 owner 的预览并给回到原对象的链接；宿主为 Coding 报告单拼的预览删掉。门禁 `tests/artifact-type-gate.test.ts`（每种成果类型有显示名与 owner 预览动作、每种类型只有一个 owner）接进 CI。途中两处：预览动作起初沿用侧栏文件内容的输出类型，被动作目录当成侧栏文件来源拒绝，改为单列的 `molis.artifacts.preview.v1`；成果插件里 `actions → document-import → manifest → actions` 循环引用，文档类型常量挪到叶子模块。用例：类型名改按 owner 声明断言（Feed 的「捕获的消息」、未声明类型取末段）；Coding 报告的来源链接打开会话；导入文件改由 owner 预览渲染；Coding 动作目录按 manifest 比对；新增 Pages 版本由 Pages 预览、非 Pages 生产的同类型不预览。整体构建后相关 276 个用例文件 1327 条：1321 通过、4 失败、2 跳过；4 条都已改（导入的预览标记、循环引用、Coding 目录），重跑 5 个文件 28 条全部通过。
 - 2026-10-03：A3 开 PR（分支 `feat/artifact-a3-import-in-library`），做法见上文「A3 导入只在成果库」。另：成果的 HTTP 入口给「在 Pages 继续」单独绑了一个按 Pages 自己权限调用的动作客户端，不放宽成果入口的权限（首次实测报 `actions.forbidden` 后改的）；网页请求里七处相同的用户动作绑定合成一个 `userActions(权限)`，巨大单元不变大。整页门禁去掉「待 A3」两处。用例：导入页的断言改为目录里的浮层、`/artifacts/import` 不再是页；新增「任何文件」用例（图片原件、真实媒体类型、`/file` 取回、文本在 Pages 继续、图片不能继续）；浏览器用例改为在工作台里开浮层导入（文件框限定在浮层里：工作台里不止一个文件框）。整体构建后相关 41 个用例文件 325 条全部通过。

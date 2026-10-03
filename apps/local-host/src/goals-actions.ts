@@ -1,12 +1,16 @@
 import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
-import type { ActionProviderRegistration, ActionClient, ActionCallContext, ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 
-export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMethods: () => readonly PlanningMethodPack[]): ActionProviderRegistration {
+/** Permissions of the owners' pin actions: the local person handing in a deliverable pins with each owner's own permissions (A5). */
+const pinPermissions = () => [...new Set([...artifactTypeDeclarations().values()].flatMap(declaration => declaration.pin?.action.permissions ?? []))];
+
+export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMethods: () => readonly PlanningMethodPack[], client: ActionClient): ActionProviderRegistration {
   return { provider: { provider_id: goalsManifest.plugin_id, plugin_id: goalsManifest.plugin_id,
     title: goalsManifest.name, kind: "plugin", project_id: runtime.project_id },
     definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ events: runtime.coordinator.goalEvents, boardId: runtime.board_id,
@@ -19,7 +23,8 @@ export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMe
       readGoal: goalId => runtime.coordinator.goalQueries.getGoal(runtime.board_id, goalId),
       readContract: goalId => runtime.coordinator.goalQueries.readGoalContract(runtime.board_id, goalId),
       deliverables: { readArtifact: reference => runtime.coordinator.artifacts.query.getArtifactVersion(runtime.board_id, reference),
-        ledger: createContextLedger(runtime.store.db, { authorize: access => access.scope.kind === "personal" && access.scope.id === runtime.board_id }) },
+        ledger: createContextLedger(runtime.store.db, { authorize: access => access.scope.kind === "personal" && access.scope.id === runtime.board_id }),
+        pin: async (caller, subject) => (await pinActionSubject(client, caller, subject)).artifact, pinnableKinds: caller => pinnableSubjectKinds(client, caller) },
       history: {
       snapshot: () => runtime.store.snapshot(runtime.board_id), journalEvents: () => runtime.store.readEventsDescending(runtime.board_id),
     }, planning: { planning: runtime.coordinator.goals.planning, baseMethods: () => resolvePlanningMethodPacks(personalMethods()) },
@@ -49,6 +54,9 @@ export function bindGoalsWebActions(client: ActionClient, reference: LocalHostPr
         const payload = input as { idempotency_key?: string; confirm_all_pending?: boolean };
         return await client.invoke({ ...caller, user_action: { source: "web", conversation_ref: `web:${reference.board_id}`,
           message_ref: `web-decision:${payload.idempotency_key ?? ""}`, whole_confirmation_prompted: payload.confirm_all_pending === true } }, definition, input) as Output;
+      }
+      if ([goalsActions.deliverablesPin.capability_id, goalsActions.deliverablesCandidates.capability_id].includes(definition.capability_id)) {
+        return await client.invoke({ ...caller, permissions: [...new Set([...caller.permissions, ...pinPermissions()])] }, definition, input) as Output;
       }
       if (definition.capability_id !== goalsActions.decide.capability_id) return await client.invoke(caller, definition, input) as Output;
       const authority = hostEventDecisionAuthority("web", reference.board_id, caller.actor_id, String((input as { idempotency_key?: unknown }).idempotency_key ?? ""));

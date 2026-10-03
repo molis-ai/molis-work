@@ -648,7 +648,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
           }
           throw error;
         }
-        placed({ verb: "versioned", title: payload.form.title, object: { kind: "form", id: payload.form.id },
+        placed({ verb: "versioned", title: payload.form.title, object: { kind: "form", id: payload.form.id }, artifact: payload.artifact,
           note: L("第 {version} 版题目 · 放在这个位置的成果里；不含答卷", { version: payload.artifact.version }) });
         await loadList();
         if (payload.form && selected && selected.id === payload.form.id) remember(payload.form, false);

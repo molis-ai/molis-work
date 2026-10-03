@@ -95,6 +95,8 @@
 | 2026-10-03 | A1 旧成果记录（弹窗） | 保持现状，第二步再删旧表（推荐）；一次性迁移进新表；现在就在真实 Home 删旧表 | 现在就在真实 Home 删旧表 | 执行前只读核对发现：常驻服务 4173 是安装版 0.2.0，Files、Diff、Coding 与成果库仍读写旧表；旧表在 3 个项目里共 111 版（Coding 报告 8、Feed 捕获 1、演示 `goal.delivery` 2，其余是 Diff 变更集、Files 快照、Coding 计划、工作区引用等交换数据）。这是选项里没写到的后果，于是再问 |
 | 2026-10-03 | 删旧表时常驻服务怎么办（弹窗，追问） | 现在备份、换新版时再删（推荐）；备份、停 4173、现在删；备份后现在删、4173 继续跑 | 备份、停 4173、现在删 | 已执行，见下一行 |
 | 2026-10-03 | 真实 Home 删旧成果表（执行记录） | — | 已完成 | ① `launchctl bootout gui/<uid>/com.adeptify.goalboard.web` 停下常驻服务（KeepAlive，按 pid 停会被拉起；plist 未改，下次登录或 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.adeptify.goalboard.web.plist` 会再启动，但 0.2.0 没有旧表不能用，要等装新版）；确认 4173 不再监听、没有进程打开项目库。② 18 个项目库用 SQLite `.backup` 备份到 `~/.molis-work-backups/2026-10-03-drop-old-artifact-tables/`（148 MB），逐个 `integrity_check` 为 ok，旧表行数与原库一致（13、45、53，其余 0）。③ 每个库一个事务 `DROP TABLE artifact_versions; DROP TABLE artifacts`；之后 18 个库都没有这两张表及其索引，`quick_check` 为 ok。④ 先核对过当前代码不再建、读、改这两张表（只剩 `repository.ts` 一处注释），以后升级不会把它们带回来 |
+| 2026-10-03 | 合并 #210 A4b-1 | CI 通过即合并（用户已授权） | 已合并 | a639242b |
+| 2026-10-03 | Pages 导入怎么恢复（常规取舍，按用户决定执行） | — | 按 A3 之前的样子恢复入口、对话框与脚本 | 解析与 `pages.import` 动作一直留着，只恢复界面；导入对话框的样式放进 `import-client.ts`，由包入口拼进 `PAGES_STYLES`，`styles.ts` 与 `client.ts` 不变大（健康门禁）。导入结果是 Pages 文档，不写成果库 |
 | 2026-10-03 | A1 遗留：Pages 成果的来源种类（常规取舍） | — | 改为 Pages 自己的对象种类 `pages_document` | A1 写成了 `page`，与 Pages 的对象读取、搬动、搜索用的种类不一致，A4b 的「原文已改」与当场固定都按种类找 owner。真实 Home 里还没有 A1 之后的 Pages 成果（A1 刚合入），不需要迁移 |
 | 2026-10-03 | A6 遗留：Goal Frame 选材料的「交付物」来源（常规取舍） | — | 改叫「成果」，英文「交付物」改为 Deliverable | 这个筛选项指成果库，不是 Goal 的交付物；A6 只改了「Artifact」字样，漏了这里 |
 
@@ -295,6 +297,7 @@
 
 ## 6. 进度
 
+- 2026-10-03：Pages 恢复自己的导入入口（分支 `feat/pages-import-entry-back`，用户回来后的决定，见 §1）。新增 `tests/pages-import-entry.e2e.test.ts`（1440、390）：导入一个 Markdown 文件成为 Pages 文档并打开，成果库版本数不变，页面不横向溢出。整体构建后 Pages 导入、发布、动作、i18n、整页门禁 57/57，Pages 与目录、样式相关的其余 29 个文件 280/280；健康门禁通过。
 - 2026-10-03：A4b-1 开 PR（分支 `feat/artifact-a4b-source-and-references`），做法见上文「A4」A4b-1。新增 `tests/artifact-source-and-links.test.ts`：Pages 文档固定后不提示改动、给回到原对象的链接；加星不算改动；改正文后提示「原对象之后改过了」且仍显示固定的内容；记为交付物与输入的 Goal 出现在「被谁引用」并能点开；删除文档后提示「原对象已经删除」、不再给链接。比较一开始误报「改过了」：成果库按排好序的键存 payload，Pages 保留自己的键序，`sameArtifactFields` 改为排序后比较。整体构建后相关用例（成果、四个 owner 插件、交付物、收尾表单、i18n、侧栏、目录与 MCP、整页门禁等 104 个文件）564 条 563 通过；1 条是预期变化：A4 的 Pages 预览用例固定的是 Pages 里并不存在的 page-q3，现在如实提示「原对象已经删除」、不给链接，断言随之改；原来对链接地址（`openPlugin=pages`、`openItem`）的检查移到新用例里真实存在的文档上。重跑 15/15；健康门禁、边界检查通过。
 - 2026-10-03：A7 开 PR（分支 `feat/artifact-a7-declaration-gates`），做法见上文「A7 门禁」。整体构建后写成果或过程项的相关用例（成果、Coding、Files、Shelf、Feed、角色、Pages 固定、安装插件、插件平台、演示数据等 238 个文件）1168 条 1164 通过、1 条失败：`i18n.test` 三个标签缺英文，是 main 上已知的失败，#207 已修，本分支合入 main 后重跑通过。一条既有用例随门禁调整：`artifact-browser` 原来把 Coding 变更集直接写进成果库再检查不出预览，现在这样写会被拒（新断言），原意（成果库不为别的生产者写入的同类型渲染变更集预览）改用一个安装插件的生产者保留。
 - 2026-10-03：A5c 开 PR（分支 `feat/artifact-a5c-deliverable-proposals`，叠在 A5b [#207] 上），做法见上文「A5 Goal 交付」A5c。新增 `tests/goal-deliverable-proposals.test.ts`：真实的交付物处理器与 ledger，以用户和助理两种身份调用——助理提议附理由、重复返回原提议、提议不是 `goal.output`、用户确认后提议退场、助理不能移除已确认的交付物、助理固定后的新版本也是提议、用户拒绝提议不影响已确认的。整体构建后 Goals、交付物、收尾表单 e2e、MCP、i18n、成果门禁等 13 个文件 71/71。`en.ts` 再删一个无引用的旧文案，行数不增。

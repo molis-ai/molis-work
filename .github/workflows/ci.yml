@@ -57,6 +57,9 @@ jobs:
       - name: Action and plugin contracts
         run: pnpm test:contracts
 
+      - name: One workbench shell (no standalone pages)
+        run: node scripts/run-tests.mjs tests/shell-page-gate.test.ts
+
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests
         run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test

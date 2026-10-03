@@ -200,11 +200,15 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
  * keeps the system browser with ⌘/Ctrl/Shift. Same-origin addresses, downloads, `javascript:`/`mailto:` and
  * `window.open("")` (sign-in popups a page fills itself) are left alone. Runs in the workbench, in its embedded panes
  * and in plugin side views; a frame hands the address to the panel in the window above it.
+ * Molis Work's own pages never open a second browser tab (specs/artifact-positioning §4): in the workbench a new-tab
+ * link or `window.open` of one opens here, as a plain click on it would.
  */
 export const SIDE_LINKS_SCRIPT = String.raw`(() => {
   if(globalThis.__molisSideLinks)return;globalThis.__molisSideLinks=true;
   const external=(value)=>{try{const url=new URL(String(value),location.href);return /^https?:$/.test(url.protocol)&&url.origin!==location.origin?url.href:'';}catch{return '';}};
   const hasPanel=()=>!!document.querySelector('[data-side-panel]')&&!document.body?.hasAttribute('data-pane-embedded');
+  const own=(value)=>{try{const url=new URL(String(value),location.href);return window.parent===window&&hasPanel()&&url.origin===location.origin&&!/^\/(api|assets)\//.test(url.pathname)&&!/\/api\//.test(url.pathname)?url.href:'';}catch{return '';}};
+  const openHere=(href)=>{const link=document.createElement('a');link.href=href;link.hidden=true;document.body.append(link);link.click();link.remove();};
   const open=(url)=>{
     if(hasPanel()){const event=new CustomEvent('molis:side-open',{detail:{tab:'browser',target:{url}},cancelable:true});document.dispatchEvent(event);return event.defaultPrevented;}
     if(window.parent!==window){try{window.parent.postMessage({type:'molis:side-open',tab:'browser',target:{url}},location.origin);return true;}catch{return false;}}
@@ -214,6 +218,8 @@ export const SIDE_LINKS_SCRIPT = String.raw`(() => {
     if(event.defaultPrevented||event.button!==0)return;
     const link=event.target?.nodeType===1?event.target.closest('a[href]'):null;
     if(!link||link.hasAttribute('download')||link.closest('[data-side-links=off]'))return;
+    const here=link.target==='_blank'&&!event.metaKey&&!event.ctrlKey&&!event.shiftKey?own(link.getAttribute('href')):'';
+    if(here){event.preventDefault();openHere(here);return;}
     const url=external(link.getAttribute('href'));
     if(!url||(link.target!=='_blank'&&!link.closest('[data-side-links=on]')))return;
     if(event.metaKey||event.ctrlKey||event.shiftKey){
@@ -227,6 +233,8 @@ export const SIDE_LINKS_SCRIPT = String.raw`(() => {
   window.open=(value,target,features)=>{
     const url=value?external(value):'';
     if(url&&open(url))return null;
+    const here=value?own(value):'';
+    if(here){openHere(here);return null;}
     return nativeOpen(value,target,features);
   };
 })();`;

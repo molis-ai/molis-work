@@ -1,6 +1,7 @@
 import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactsManifest, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import { readProjectReference } from "@molis-ai/molis-work-module-evidence-verification";
 import { runWithMolisWorkHome, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";
@@ -16,6 +17,7 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
       boardId: runtime.board_id, artifacts: runtime.coordinator.artifacts,
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.board_id }).query,
       goalTitle: goalId => runtime.coordinator.goalQueries.getGoal(runtime.board_id, goalId)?.title ?? null,
+      typeTitle: typeId => artifactTypeDeclarations().get(typeId)?.title ?? null,
       importSources: () => runWithMolisWorkHome(home, documentImportConnectionStatus),
       importConnections: () => documentImportConnections(home),
       importDocument: (input, caller) => runWithMolisWorkHome(home, () => importLocalArtifactDocument({ ...input }, {

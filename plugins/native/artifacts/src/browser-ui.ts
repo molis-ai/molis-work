@@ -117,7 +117,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     <p>${p.text("关联的版本不可用或不存在。引用仍然保留，不会替换成最新版本。")}</p></article>`;
   if (!artifact) return `<section class="artifact-empty"${view.requested ? ' role="status"' : ""}>
     <h1>${p.text(view.requested ? "找不到这个成果版本" : view.versions.length ? "选择一个结果版本" : "还没有项目成果")}</h1>
-    ${!view.requested && !view.versions.length ? `<p>${p.text("项目成果与导入的文档会保存在这里。可以先导入文档，或推进 Goal 后提交成果。")}</p>` : ""}
+    ${!view.requested && !view.versions.length ? `<p>${p.text("在 Pages、问卷、演示稿、数据表里「存为固定版本」，或在这里导入文件，固定下来的版本都在这里。")}</p>` : ""}
     ${view.requested ? `<p>${p.text("它可能属于其他项目，或这个版本尚未发布。请返回列表选择；不会自动替换成最新版本。")}</p><a href="${p.escape(routePrefix + "/artifacts")}">${p.text("返回成果列表")}</a>` : ""}</section>`;
   const href = routePrefix + artifactVersionPath(artifact);
   const title = artifact.title;
@@ -132,7 +132,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
           ? artifact.content_kind === "inline"
             ? "没有兼容插件。当前可查看版本信息和原始 JSON，或导出本地副本。"
             : "没有兼容插件。当前可查看版本信息和内容引用，或导出本地副本。"
-          : "已有兼容的类型声明；具体操作由消费插件提供。";
+          : "这是固定下来的一版；原对象之后的修改不会改变它。";
   const reference = JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version });
   const versionLabel = `v${artifact.version}${model.relationship ? ` · ${p.text(model.relationship === "input" ? "输入" : "交付物")}` : ""}`;
   const heading = embedded
@@ -140,7 +140,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     : `<header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-artifact-collapse aria-label="${p.text("返回成果列表")}" title="${p.text("返回成果列表")}">${icon("chevron-right")}</button><h1>${p.escape(title)}</h1><span>${versionLabel}</span></header>`;
   return `<article class="artifact-detail${embedded ? " artifact-embed" : ""}" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
     ${heading}
-    ${embedded ? "" : `<div class="artifact-detail-content">`}<p class="artifact-notice">${p.text(embedded && !preview && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice)}</p>
+    ${embedded ? "" : `<div class="artifact-detail-content">`}<p class="artifact-notice">${p.text(embedded && !preview && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice).replace("{version}", String(artifact.version))}</p>
     ${artifact.unavailable_reason ? `<p>${p.escape(artifact.unavailable_reason)}</p>` : ""}
     ${!embedded && model.presentation ? `${model.presentation.source_href ? `<p><a class="mw-btn" href="${p.escape(model.presentation.source_href)}" data-workbench-item-plugin="${p.escape(model.presentation.plugin_id)}" data-workbench-item-id="${p.escape(model.presentation.item_id)}" data-workbench-item-title="${p.escape(title)}">${p.text(model.presentation.source_label)}</a></p>` : ""}<section class="artifact-business-preview mw-prose" data-artifact-business-preview>${model.presentation.body_html}</section>` : ""}
     ${!embedded && model.continuers?.length ? continueActions(model.continuers, artifact, p) : ""}

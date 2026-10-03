@@ -111,9 +111,9 @@ globalThis.molisWorkBindArtifactImport = (form) => {
           if (destination.origin === location.origin && destination.pathname === exactPath) href = destination.href;
         } catch {}
       }
-      form.querySelector('[data-import-result-link]').href = href;
+      form.querySelector('[data-import-result-link]').href = href; form.querySelector('[data-import-result-link]').dataset.tabTitle = payload.title;
       form.querySelector('[data-import-result-title]').textContent = payload.reused ? messages.reused : messages.success;
-      form.querySelector('[data-import-version]').textContent = payload.artifact_id + ' · v' + payload.version;
+      form.querySelector('[data-import-version]').textContent = payload.title + ' · v' + payload.version;
       const warnings = Array.isArray(payload.warnings) ? payload.warnings.filter(item => typeof item === 'string') : [];
       const warningList = form.querySelector('[data-import-warning-list]');
       warningList.replaceChildren(...warnings.map(text => { const item = document.createElement('li'); item.textContent = text; return item; }));

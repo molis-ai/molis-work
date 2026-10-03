@@ -36,7 +36,7 @@ test("a pinned document shows when the original changed or was deleted, and whic
   const created = (await post("/api/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
   const pinned = (await post("/api/pages/" + created.id + "/promote", { expected_version: created.version })).artifact as { artifact_id: string; version: number };
   const fresh = await detail(pinned.artifact_id, pinned.version);
-  assert.doesNotMatch(fresh, /原对象之后改过了|原对象已经删除/);
+  assert.doesNotMatch(fresh, /原文已改|原对象已经删除/);
   assert.match(fresh, /在 Pages 打开原对象/);
   assert.ok(fresh.includes("openPlugin=pages") && fresh.includes(`openItem=${created.id}`), "the way back opens the pinned document in Pages");
   // No Goal uses it yet.
@@ -45,13 +45,13 @@ test("a pinned document shows when the original changed or was deleted, and whic
   // Starring changes the document's revision but not its content: still the same.
   let current = (await (await fetch(`${origin}/api/pages/${created.id}`)).json() as { document: { version: number } }).document;
   await post("/api/pages/" + created.id, { starred: true, expected_version: current.version });
-  assert.doesNotMatch(await detail(pinned.artifact_id, pinned.version), /原对象之后改过了/);
+  assert.doesNotMatch(await detail(pinned.artifact_id, pinned.version), /原文已改/);
 
   // Editing the content is a change; the pinned version itself stays as it was.
   current = (await (await fetch(`${origin}/api/pages/${created.id}`)).json() as { document: { version: number } }).document;
   await post("/api/pages/" + created.id, { markdown: "第二稿", expected_version: current.version });
   const changed = await detail(pinned.artifact_id, pinned.version);
-  assert.match(changed, /原对象之后改过了；这里仍是固定下来的这一版/);
+  assert.match(changed, /原文已改，这里仍是第 1 版/);
   assert.match(changed, /第一稿/);
 
   // Goals that take it as input or hand it in are listed under 「被谁引用」, each opening the Goal.
@@ -68,7 +68,7 @@ test("a pinned document shows when the original changed or was deleted, and whic
   // Deleting the document leaves the version, says so, and no longer offers to open the original.
   await post("/api/pages/" + created.id + "/delete", {});
   const missing = await detail(pinned.artifact_id, pinned.version);
-  assert.match(missing, /原对象已经删除；这里仍保留固定下来的这一版/);
+  assert.match(missing, /原对象已经删除，这里仍保留第 1 版/);
   assert.doesNotMatch(missing, /在 Pages 打开原对象/);
   assert.match(missing, /第一稿/);
 });

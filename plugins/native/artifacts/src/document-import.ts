@@ -70,7 +70,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
   const sameContent = previous && typeof previous === "object" && !Array.isArray(previous)
     && Object.entries(document).every(([key, value]) => key === "source_url" || isDeepStrictEqual(previous[key], value));
   if (latest && sameContent && latest.lifecycle_state === "active" && latest.availability === "available") {
-    return { artifact_id: artifactId, version: latest.version, reused: true,
+    return { artifact_id: artifactId, version: latest.version, title: latest.title, reused: true,
       url: ports.routePrefix + artifactVersionPath(latest), warnings: document.warnings };
   }
   const result = ports.artifacts.commands.registerVersion({
@@ -88,7 +88,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
     title: document.title, media_type: document.format === "file" ? document.original_file!.mime
       : document.format === "text" ? "text/plain" : "text/markdown",
   });
-  return { artifact_id: artifactId, version: result.artifact.version, reused: false,
+  return { artifact_id: artifactId, version: result.artifact.version, title: result.artifact.title, reused: false,
     url: ports.routePrefix + artifactVersionPath(result.artifact), warnings: document.warnings };
 }
 

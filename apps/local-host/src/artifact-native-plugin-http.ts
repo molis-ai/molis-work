@@ -7,7 +7,7 @@ import {
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { ExternalDocumentImportError } from "@molis-ai/molis-work-integration-catalog";
-import { artifactWorkbench, artifactTypeDeclarations, artifactContinuers, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
+import { artifactWorkbench, artifactTypeDeclarations, artifactContinuers, BUILTIN_PLUGIN_CATALOG, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ArtifactCompareResult, ArtifactContinueResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -53,16 +53,22 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
     catch { compared = null; }
   }
   const notice = artifact.origin.kind === "imported" ? "这是导入时保存的版本；原文后续修改不会自动同步。"
-    : compared === "changed" ? "原对象之后改过了；这里仍是固定下来的这一版。" : compared === "missing" ? "原对象已经删除；这里仍保留固定下来的这一版。" : undefined;
+    : compared === "changed" ? "原文已改，这里仍是第 {version} 版。" : compared === "missing" ? "原对象已经删除，这里仍保留第 {version} 版。" : undefined;
   return { body_html: renderFilePreviewHtml(content, primitives), ...(notice ? { notice } : {}),
     source_href: pinned && compared !== "missing" ? `${context.routePrefix}/?openPlugin=${encodeURIComponent(declaration.surface)}&openItem=${encodeURIComponent(pinned.id)}&openTitle=${encodeURIComponent(artifact.title)}` : "",
     source_label: pinned ? `在${/^[\x20-\x7e]+$/u.test(declaration.plugin_title) ? ` ${declaration.plugin_title} ` : declaration.plugin_title}打开原对象` : "",
     plugin_id: declaration.surface, item_id: pinned?.id ?? "" };
 }
 
+/** Every 成果 type a built-in plugin declares, as consumers name types (id and schema version). */
+export function declaredArtifactTypes(): Array<{ artifact_type_id: string; schema_version: number }> {
+  return BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.manifest.artifacts.produces.map(type => ({ artifact_type_id: type.artifact_type_id, schema_version: type.schema_version })));
+}
+
 export function renderGoalArtifactContext(embeds: GoalArtifactEmbed[]): string {
-  // The containing Goal fragment applies its Project prefix once to every local link.
-  return artifactWorkbench.goalContext(embeds, { routePrefix: "", primitives });
+  // The containing Goal fragment applies its Project prefix once to every local link; types are named as their owners declare.
+  return artifactWorkbench.goalContext(embeds, { routePrefix: "", primitives,
+    typeTitles: Object.fromEntries([...artifactTypeDeclarations()].map(([type, declaration]) => [type, declaration.title])) });
 }
 
 /** HTTP composition only: Artifact application owns routing and exact-version reads. */
@@ -144,7 +150,7 @@ export function createLocalArtifactHttp() {
       // own fragment requests get the surface's HTML.
       if (!requestHeader(request, "x-molis-work-fragment")) {
         const target = new URLSearchParams({ openPlugin: "artifacts" });
-        if (route.kind === "detail") target.set("openItem", context.routePrefix + pathname);
+        if (route.kind === "detail") { target.set("openItem", context.routePrefix + pathname); if (view.selected) target.set("openTitle", view.selected.title); }
         response.writeHead(302, { location: `${context.routePrefix}/?${target}`, "cache-control": "no-store" });
         response.end();
         return true;

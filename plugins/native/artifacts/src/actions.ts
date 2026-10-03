@@ -12,7 +12,7 @@ import { text, id, version, object, array, nullable, reference, consumerTypes, r
 const selection = { selected: nullable(record), requested: nullable(reference), compatibility: nullable(object({ artifact: reference,
   consumable: { type: "boolean" }, reason: { enum: ["compatible_consumer", "consumer_missing", "artifact_unavailable", "artifact_archived"] } })) };
 const browser = object({ versions: array(record), ...selection });
-const imported = object({ artifact_id: id, version, reused: { type: "boolean" }, url: text, warnings: array(text) });
+const imported = object({ artifact_id: id, version, title: text, reused: { type: "boolean" }, url: text, warnings: array(text) });
 const sources = { enum: ["notion", "feishu", "lark", "google-docs"] };
 const read = ["artifacts:read"], write = [...read, "artifacts:write"];
 const subjectDefinition = defineSubjectContextAction("artifacts.subject.read", ARTIFACT_SUBJECT_KIND, "固定版本成果", read);
@@ -23,7 +23,7 @@ const subject: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = 
 export interface ArtifactFileImport { source: "file"; filename: string; content?: string; title?: string;
   source_id?: string; original_file?: { filename: string; mime: string; data_base64: string } }
 export interface ArtifactExternalImport { source: ExternalDocumentSource; url: string; connection_id?: string }
-export interface ArtifactImportResult { artifact_id: string; version: number; reused: boolean; url: string; warnings: string[] }
+export interface ArtifactImportResult { artifact_id: string; version: number; title: string; reused: boolean; url: string; warnings: string[] }
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = read, scheduling?: ActionDefinition['action']['scheduling']): ActionDefinition<I, O> {
   return { capability_id: `artifacts.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
     scope: "project", ...(scheduling ? { scheduling } : {}), audiences: ["user", "agent", "workflow", "mcp"], permissions, subject_kinds: ["artifact"], input_schema: input, output_schema: output } };
@@ -76,6 +76,8 @@ export interface ArtifactActionPorts {
   openProjectReference(input: { reference: string; evidence_id?: string | null }): Promise<{ filename: string; content_base64: string }>;
   /** A Goal's title for 「被谁引用」, read by the host; null when the Goal is gone. */
   goalTitle?(goalId: string): string | null;
+  /** A 成果 type's display name as its owner declares it (the side panel groups by it); null when undeclared. */
+  typeTitle?(artifactTypeId: string): string | null;
 }
 /** Who refers to one version (A4b, 「被谁引用」): Goals that take it as input, hand it in, or have it proposed; other links counted. */
 export interface ArtifactReferences {
@@ -128,7 +130,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         if (!current || record.version > current.version) latest.set(record.artifact_id, record);
       }
       return [...latest.values()].map(record => ({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
-        revision: `${record.version}:${record.content_digest}`, title: record.title, folder: [record.artifact_type_id],
+        revision: `${record.version}:${record.content_digest}`, title: record.title, folder: [ports.typeTitle?.(record.artifact_type_id) ?? record.artifact_type_id],
         media_type: record.media_type, size: record.size_bytes ?? null, updated_at: record.created_at, open: { surface: "artifacts", id: artifactVersionPath(record) } }));
     }),
     bind(artifactsActions.browser, input => readArtifactBrowser(ports.artifacts.query, ports.boardId, input.reference ?? null, input.supported_types)),

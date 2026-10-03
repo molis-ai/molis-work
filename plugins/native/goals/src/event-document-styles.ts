@@ -81,9 +81,11 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .goal-event-document .event-form h2, .goal-event-document .event-form h3 { margin: 0; }
   .goal-event-document .event-form label, .goal-event-document .event-form fieldset { display: grid; gap: 4px; margin: 0; padding: 0; border: 0; min-width: 0; }
   .goal-event-document .event-form label > span, .goal-event-document .event-form legend { font-size: 12px; font-weight: 400; }
-  .goal-event-document .closure-deliverables [data-closure-deliverable-list] { display: grid; gap: 6px; max-height: 240px; overflow: auto; }
-  .goal-event-document .closure-deliverables [data-closure-deliverable-list] label { display: flex; align-items: baseline; gap: 8px; font-weight: 400; }
-  .goal-event-document .closure-deliverables [data-closure-deliverable-list] small { color: var(--muted); margin-left: auto; white-space: nowrap; }
+  /* The closure's deliverables, wherever the form opens (the Goal document or the workspace's side panel). */
+  .closure-deliverables [data-closure-deliverable-list] { display: grid; gap: 6px; max-height: 240px; overflow: auto; }
+  .closure-deliverables [data-closure-deliverable-list] label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; font-weight: 400; }
+  .closure-deliverables [data-closure-deliverable-list] input[type="checkbox"] { width: auto; margin: 0; padding: 0; }
+  .closure-deliverables [data-closure-deliverable-list] small { color: var(--muted); white-space: nowrap; }
   .goal-event-document .event-form small, .goal-event-document .form-lead, .goal-event-document .form-note { color: var(--muted); font-size: 11px; }
   .goal-event-document .event-form input, .goal-event-document .event-form select, .goal-event-document .event-form textarea { width: 100%; min-width: 0; padding: 8px 8px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--paper); color: var(--ink); }
   .goal-event-document .check-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; }

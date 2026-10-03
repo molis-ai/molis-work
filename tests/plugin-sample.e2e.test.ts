@@ -10,7 +10,7 @@ import Database from "better-sqlite3";
 import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, PluginRuntimeError, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createActionMcpPorts, handleMcpMessage, actionMcpToolName } from "@molis-ai/molis-work-app-mcp";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -117,7 +117,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     store = new LocalProjectDatabase(boardPath);
     privateDb = new Database(join(directory, "private.db"));
     const privateOwner = new SqlitePluginPrivateStorage(privateDb);
-    const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store!.appendEvent(event) });
+    const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store!.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store!.appendEvent(event) });
     const ui = new UiHost();
     const actions = pluginActions(store, DEMO_BOARD_ID);
     let registeredPublications = 0;
@@ -128,7 +128,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
       return result;
     };
     const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, board_id: DEMO_BOARD_ID, actor_id: "developer",
-      artifacts, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { actions });
+      artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }), { actions });
     const installed = runtime.install({ definition, deployment: "local" });
     const installId = installed.install.install_id;
     await assert.rejects(runtime.start(installId), (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin_grant_denied");

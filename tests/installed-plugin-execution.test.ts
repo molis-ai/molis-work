@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { ActionDefinition, ActionCallContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { ActionService } from '@molis-ai/molis-work-kernel';
-import { ArtifactsModule } from '@molis-ai/molis-work-module-artifacts';
+import { ArtifactsModule, ProcessItemsModule } from '@molis-ai/molis-work-module-artifacts';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import { createPluginPlatform } from '../apps/local-host/src/plugin-platform.js';
@@ -24,7 +24,7 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
   const service = new ActionService(), actions = { registry: service, client: service, project_id: 'p' };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const platform = createPluginPlatform({ board_id: 'p', actor_id: 'owner', db: store.db, actions, ui: new UiHost(),
-    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
   const entered = gate(), releaseGate = gate(), finished = gate(), controller = new AbortController();
   t.signal.addEventListener('abort', () => { controller.abort(); releaseGate.resolve(); }, { once: true });

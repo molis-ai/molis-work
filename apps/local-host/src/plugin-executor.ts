@@ -17,6 +17,8 @@ export interface PluginHostExecutorOptions {
   board_id: string;
   actor_id: string;
   artifacts: ArtifactsApplicationApi;
+  /** Exchange data plugins record for each other, kept out of the 成果库 (specs/artifact-positioning A2). */
+  processItems: ArtifactsApplicationApi;
   actions: { registry: import("@molis-ai/molis-work-contracts/platform/actions").ActionRegistryPort;
     client: import("@molis-ai/molis-work-contracts/platform/actions").SyncActionClient & import("@molis-ai/molis-work-contracts/platform/actions").ActionClient; project_id: string;
     /** Composition-only metadata of the whole directory (what the Plugin Builder's catalog is made from). */
@@ -87,7 +89,7 @@ export class PluginHostExecutor implements PluginExecutor {
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }),
         assertActive: () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); },
       });
-      const artifactService = createPluginArtifactClient({ api: this.options.artifacts, manifest, context, actions: this.options.actions,
+      const artifactService = createPluginArtifactClient({ api: this.options.artifacts, process: this.options.processItems, manifest, context, actions: this.options.actions,
         board_id: this.options.board_id, actor_id: this.options.actor_id });
       const artifacts = artifactService.client;
       disposeArtifacts = artifactService.dispose;
@@ -114,9 +116,9 @@ export class PluginHostExecutor implements PluginExecutor {
       const declaresCapabilities = manifest.capabilities.consumes.length > 0;
       const wiringInput = wiring === undefined
         ? undefined
-        : { manifest, graph: wiring, artifacts, scopeKey: this.options.scopeKey ?? null,
+        : { manifest, graph: wiring, artifacts, processItems: artifactService.process, scopeKey: this.options.scopeKey ?? null,
             requireGrant: (permission: string) => context.requireGrant(permission),
-            latestVersion: (artifactId: string) => this.options.artifacts.query.latestArtifactVersion(this.options.board_id, artifactId)?.version ?? 0 };
+            latestVersion: (artifactId: string) => this.options.processItems.query.latestArtifactVersion(this.options.board_id, artifactId)?.version ?? 0 };
 
       const hostedContext: PluginStartContext = Object.freeze({ ...context,
         board_id: this.options.board_id,
@@ -127,6 +129,7 @@ export class PluginHostExecutor implements PluginExecutor {
           storage: manifest.permissions.some(item => item.permission === "storage:private")
             ? this.options.privateStorageFor(context, manifest) : undefined,
           artifacts,
+          ...((manifest.process_items?.produces ?? []).length > 0 ? { processItems: artifactService.process } : {}),
           ui: ui.client,
           ...(declaresEvents && this.options.events !== undefined
             ? { events: this.options.events.clientFor({

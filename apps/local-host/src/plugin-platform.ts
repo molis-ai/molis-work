@@ -52,6 +52,8 @@ export interface PluginPlatformOptions {
   /** Domain journal from the same project connection; ordinary queries stay direct. */
   journal?: LocalSqliteJournal;
   artifacts: ArtifactsApplicationApi;
+  /** Exchange data plugins record for each other, kept out of the 成果库 (specs/artifact-positioning A2). */
+  processItems: ArtifactsApplicationApi;
   ui: UiHostApi;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
@@ -91,6 +93,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     board_id: options.board_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
+    processItems: options.processItems,
     actions: options.actions,
     ui: options.ui,
     privateStorageFor: options.privateStorageFor,
@@ -108,8 +111,10 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     lifecycle: supervisor,
     canReadCommitted: () => options.db.inTransaction !== true,
     repository: new SqlitePluginWiringRepository(options.db),
+    // A port carries a process item it recorded, or a 成果 it pinned and selected.
     artifacts: {
-      read: (reference) => options.artifacts.query.getArtifactVersion(options.board_id, reference),
+      read: (reference) => options.processItems.query.getArtifactVersion(options.board_id, reference)
+        ?? options.artifacts.query.getArtifactVersion(options.board_id, reference),
     },
   });
   const events = new PluginEventBus({

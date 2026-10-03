@@ -81,7 +81,7 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     assert.equal(git.view.phase, "ready"); assert.equal(git.view.staged[0]?.path[0], "note.txt");
     const diff = await bound.invoke(gitActions.selectDiff, { workspace_id: "fixture", path: ["note.txt"], side: "index" });
     assert.equal(diff.result.outcome, "diff"); assert.ok(diff.selected?.reference);
-    const published = await host.withProject(reference, runtime => runtime.coordinator.artifacts.query.getArtifactVersion("board", diff.selected!.reference));
+    const published = await host.withProject(reference, runtime => runtime.coordinator.processItems.query.getArtifactVersion("board", diff.selected!.reference));
     assert.equal(published?.owner_actor_id, "web-user");
     for (const invalid of [{ ...input, actor_id: "other" }, { ...input, path: ["..", "secret"] }, { ...input, fingerprint: "stale" }]) {
       await assert.rejects(bound.invoke(filesActions.capture, invalid));
@@ -100,7 +100,7 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
       if (mode === "cancelled") controller.abort();
       release(); await rejection;
       allowed = true; enabled = true; pauseAt = -1;
-      assert.equal(await host.withProject(reference, runtime => runtime.coordinator.artifacts.query.latestArtifactVersion("board", first.saved.artifact.artifact_id)?.version), 1, mode);
+      assert.equal(await host.withProject(reference, runtime => runtime.coordinator.processItems.query.latestArtifactVersion("board", first.saved.artifact.artifact_id)?.version), 1, mode);
     }
     const recovered = await bound.invoke(filesActions.capture, input);
     assert.equal(recovered.saved.artifact.version, 2);

@@ -8,7 +8,7 @@ import { composeAgentHost } from "../apps/local-host/src/agent-host-composition.
 import { PluginHostExecutor } from "../apps/local-host/src/plugin-executor.js";
 import { PluginRuntime, createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
 import { agentHostCapabilities as agent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -28,7 +28,7 @@ async function terminal(adapter: any, ref: any): Promise<AgentRunView> {
 test("real Plugin executor binds unknown Agent declarations and rejects forged owner/options and foreign sessions", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "plugin-agent-identity-"));
   const project = { project_id: "project", board_id: "board", storage_key: join(home, "project.sqlite") };
-  const store = new LocalProjectDatabase(project.storage_key), artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const store = new LocalProjectDatabase(project.storage_key), artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const local = new LocalHost({ runtimeFactory: { open: () => ({ project_id: project.project_id, board_id: project.board_id, store, coordinator: { artifacts } }), close: () => {} } });
   let modelCalls = 0;
   t.mock.method(globalThis, "fetch", async () => { modelCalls++; return cogniaModelResponse("Original owner result"); });
@@ -48,7 +48,7 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
     definitions.push(definition); return definition;
   };
   const actions = { registry: local.actionRegistry(project), client: { ...local.actionClient(project), ...local.syncActionClient(project) }, project_id: project.project_id };
-  const executor = new PluginHostExecutor({ actions, board_id: project.board_id, actor_id: "web-user", artifacts, ui: new UiHost(), capabilities: local.client(project),
+  const executor = new PluginHostExecutor({ actions, board_id: project.board_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), capabilities: local.client(project),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   const runtime = new PluginRuntime(undefined, executor);
   const first = runtime.install({ definition: make("io.molis.work.example.own-agent"), deployment: "local", grants: [] }).install;

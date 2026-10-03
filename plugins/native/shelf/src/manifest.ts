@@ -34,7 +34,9 @@ export const shelfManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   // Redeemed by this project's Runtime instance. The personal store's actions are Home-level; the Host registers them from `SHELF_ACTIONS`.
   actions: SHELF_RUNTIME_ACTIONS,
-  artifacts: { produces: [{ artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 }], consumes: [{ artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 }, { artifact_type_id: "coding.report.v1", schema_version: 1 }, { artifact_type_id: "coding.changeset.v1", schema_version: 1 }] },
+  artifacts: { produces: [], consumes: [{ artifact_type_id: "coding.report.v1", schema_version: 1 }] },
+  // Project materials are handed to Coding and other agents; they are not 成果.
+  process_items: { produces: [{ artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 }], consumes: [{ artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 }, { artifact_type_id: "coding.changeset.v1", schema_version: 1 }] },
   ports: { inputs: [{ port: "coding-report", artifact_type_id: "coding.report.v1", schema_version: 1, optional: true }, { port: "coding-changeset", artifact_type_id: "coding.changeset.v1", schema_version: 1, optional: true }], outputs: [{ port: "material", artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 }] },
   routes: [
     { route_id: "shelf.project-results", method: "GET", path: "/project-results" },

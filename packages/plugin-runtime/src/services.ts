@@ -7,6 +7,7 @@ import {
   PluginWiringError,
   requiredPorts,
   type PluginArtifactClient,
+  type PluginProcessItemClient,
   type PluginCapabilityClient,
   type PluginInputsClient,
   type PluginInputStatus,
@@ -34,7 +35,9 @@ export interface PluginWiringServicesInput {
   manifest: PluginManifest;
   graph: PluginInputGraph;
   artifacts: PluginArtifactClient;
-  /** Host reads the canonical publication history, independently of selected references. */
+  /** Where port publications go: process items, kept out of the 成果库 (specs/artifact-positioning A2). */
+  processItems: PluginProcessItemClient;
+  /** Host reads the canonical publication history of a port's process item, independently of selected references. */
   latestVersion(artifactId: string): number;
   requireGrant(permission: string): void;
   /**
@@ -83,10 +86,15 @@ export function createPluginOutputsClient(input: PluginWiringServicesInput): Plu
       if (!declared) {
         throw new PluginWiringError("port_unknown", `${pluginId} 没有输出端口 ${request.port}`);
       }
+      if (!(manifest.process_items?.produces ?? []).some(type => type.artifact_type_id === declared.artifact_type_id
+        && type.schema_version === declared.schema_version)) {
+        // A 成果 reaches a port only after it is pinned: select it instead of copying content into the port.
+        throw new PluginWiringError("port_binding_invalid", `${pluginId} 的输出端口 ${request.port} 传的是成果，请先固定再选择`);
+      }
       const artifactId = portArtifactId(pluginId, request.port);
       const previous = input.latestVersion(artifactId);
       const version = previous + 1;
-      const result = artifacts.publish({
+      const result = input.processItems.record({
         artifact_id: artifactId,
         version,
         artifact_type_id: declared.artifact_type_id,
@@ -116,7 +124,7 @@ export function createPluginOutputsClient(input: PluginWiringServicesInput): Plu
       const artifact = artifacts.read(request.reference);
       if (!artifact || artifact.availability !== "available" || artifact.lifecycle_state !== "active"
         || artifact.producer_plugin_id !== pluginId || artifact.producer_binding_signature !== manifest.publisher.signature) {
-        throw new PluginWiringError("port_binding_invalid", "只能选择当前插件自己的可用固定成果");
+        throw new PluginWiringError("port_binding_invalid", "只能选择当前插件自己的可用固定版本");
       }
       if (artifact.artifact_type_id !== declared.artifact_type_id || artifact.schema_version !== declared.schema_version) {
         throw new PluginWiringError("port_type_mismatch", "固定成果与输出端口类型不一致");

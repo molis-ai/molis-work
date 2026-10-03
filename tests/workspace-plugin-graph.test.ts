@@ -7,7 +7,7 @@ import test from "node:test";
 
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
   DEMO_BOARD_ID,
   LocalProjectDatabase,
@@ -47,7 +47,7 @@ function project(directory: string, capabilities?: Parameters<typeof createPlugi
     board_id: DEMO_BOARD_ID,
     actor_id: "tester",
     db: store.db,
-    artifacts: new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }),
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }),
     ui: new UiHost(),
     ...(capabilities ? { capabilities } : {}),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
@@ -162,7 +162,8 @@ test("Coding fixed output reaches Diff through the production default binding wi
     ]);
     bindWorkspaceCompanions(platform, DEMO_BOARD_ID, "tester");
     assert.equal(platform.wiring.selectedGroup(DIFF_PLUGIN_ID), "snapshots", "publishing must not change the user's comparison group");
-    const saved = coding!.services!.artifacts.publish({ artifact_id: "fixed-coding", version: 1, artifact_type_id: "coding.changeset.v1", schema_version: 1,
+    // Coding records its change set as a process item (artifact-positioning A2), then selects it into the port.
+    const saved = coding!.services!.processItems!.record({ artifact_id: "fixed-coding", version: 1, artifact_type_id: "coding.changeset.v1", schema_version: 1,
       content: { kind: "inline", payload: { scope: "run-frozen", run_id: "run", applied: true, coverage: "text-reviews", files: [{ path: "a.ts", kind: "modified", diff: "", added_lines: 1, removed_lines: 1,
         review: { review_id: "review", before_text: "original\r\n", after_text: "fixed\n", decision: "approved", execution: "applied" } }] } } });
     coding!.services!.outputs!.select({ port: "changeset", reference: { artifact_id: saved.artifact.artifact_id, version: 1 }, expected_reference: null });

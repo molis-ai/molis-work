@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createPluginArtifactClient, PluginArtifactAccessError } from "@molis-ai/molis-work-plugin-artifacts";
 import { PluginRuntime, PluginRuntimeError } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
@@ -18,6 +18,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const runtime = new PluginRuntime();
   try {
     const base = createGithubIntegrationPlugin({ provider: {
@@ -34,7 +35,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
         artifacts: { produces: [{ artifact_type_id: "example.note", schema_version: 1 }],
           consumes: [{ artifact_type_id: "example.note", schema_version: options.schema ?? 1 }] } };
       const definition: PluginDefinition = { manifest, async start(context) {
-        const hosted = createPluginArtifactClient({ api, context, manifest, actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID,
+        const hosted = createPluginArtifactClient({ api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID,
           actor_id: options.actor ?? "author" });
         client = hosted.client; dispose = hosted.dispose;
         return base.start(context);

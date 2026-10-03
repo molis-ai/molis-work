@@ -9,7 +9,8 @@ export function observePluginArtifacts(boardId: string, journal: LocalSqliteJour
     // Never notify a consumer from a transaction whose outer owner can still roll back.
     if (journal.db.inTransaction) return;
     try {
-      const current = journal.eventCursor(boardId, "artifact");
+      // Ports carry process items and selected 成果; a committed change to either can change an input.
+      const current = Math.max(journal.eventCursor(boardId, "artifact"), journal.eventCursor(boardId, "process_item"));
       if (current === cursor) return;
       wiring.evaluateAll();
       cursor = current;

@@ -204,8 +204,10 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   if (!router.match(request.method ?? "GET", url.pathname)) return false;
   // Existing workspace outputs need a settings refresh before their consumers
   // read them. Unrelated plugins must not cause Files reads or publications.
-  const filesOutputs = record.platform.supervisor.manifest(FILES_PLUGIN_ID)?.artifacts.produces ?? [];
-  const consumesFiles = record.platform.supervisor.manifest(pluginId)?.artifacts.consumes.some(input =>
+  const files = record.platform.supervisor.manifest(FILES_PLUGIN_ID), consumer = record.platform.supervisor.manifest(pluginId);
+  // Files hands its snapshots on as process items (artifact-positioning A2); either list can name them.
+  const filesOutputs = [...files?.artifacts.produces ?? [], ...files?.process_items?.produces ?? []];
+  const consumesFiles = [...consumer?.artifacts.consumes ?? [], ...consumer?.process_items?.consumes ?? []].some(input =>
     filesOutputs.some(output => output.artifact_type_id === input.artifact_type_id && output.schema_version === input.schema_version));
   if (consumesFiles) {
     await router.dispatch({ method: "GET", pathname: `/api/plugins/${FILES_PLUGIN_ID}/state`, actor_id: ports.actorId, query: {} });

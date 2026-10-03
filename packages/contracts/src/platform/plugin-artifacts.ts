@@ -12,6 +12,17 @@ export interface PluginArtifactPublishInput extends ArtifactReference {
 
 /** Host-bound author surface: project, user and producer identity cannot be supplied by a Plugin. */
 export interface PluginArtifactClient {
+  /** Pin a version into the 成果库; the type must be in `artifacts.produces`. */
   publish(input: PluginArtifactPublishInput): ArtifactVersionResult;
+  /** Read one fixed version by reference, whether it is a 成果 or a process item. */
   read(reference: ArtifactReference): ArtifactVersionRecord | null;
+}
+
+/**
+ * Process items are the exchange data a Plugin hands to others (a file snapshot, a change set, a run's receipt). They
+ * keep the same immutable versions as 成果 but live in the producing Plugin's own store and never appear in the 成果库;
+ * a 成果 can trace back to them (specs/artifact-positioning A2). The type must be in `process_items.produces`.
+ */
+export interface PluginProcessItemClient {
+  record(input: PluginArtifactPublishInput): ArtifactVersionResult;
 }

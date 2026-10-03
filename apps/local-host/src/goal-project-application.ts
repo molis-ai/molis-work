@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { ArtifactsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, ProcessItemsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { EvidenceVerificationModule, type EvidenceSqliteDatabase } from "@molis-ai/molis-work-module-evidence-verification";
 import type { EvidenceVerificationApplicationApi } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
@@ -57,6 +57,8 @@ interface ActorWrite {
 
 export class GoalProjectApplication {
   readonly artifacts: ArtifactsApplicationApi;
+  /** Exchange data plugins record for each other, kept out of the 成果库 (specs/artifact-positioning A2). */
+  readonly processItems: ArtifactsApplicationApi;
   private readonly evidenceVerificationModule: EvidenceVerificationModule;
   private readonly executionModule: ExecutionModule;
   private readonly goalsModule: GoalsModule;
@@ -94,6 +96,13 @@ export class GoalProjectApplication {
       query: artifactsModule.query,
       commands: artifactsModule.commands,
     };
+    const processItemsModule = new ProcessItemsModule({
+      db: this.store.db as unknown as ArtifactsSqliteDatabase,
+      now: () => this.clock().toISOString(),
+      errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
+      appendEvent: (input) => this.store.appendEvent(input),
+    });
+    this.processItems = { query: processItemsModule.query, commands: processItemsModule.commands };
     this.executionModule = new ExecutionModule({
       db: this.store.db as unknown as ExecutionSqliteDatabase,
     });

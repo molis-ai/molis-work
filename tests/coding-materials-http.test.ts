@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LocalProjectDatabase, GoalProjectApplication, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -17,7 +17,8 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
   const root = mkdtempSync(join(tmpdir(), "coding-materials-http-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   new GoalProjectApplication(store).initializeBoard({ board_id: "other-project", title: "Other", actor_id: "web-user", idempotency_key: "other-project-init" });
-  const artifacts = () => new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  // File snapshots and Git changes are process items (artifact-positioning A2).
+  const artifacts = () => new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const publish = (id: string, version: number, text: string, actor = "web-user", board = DEMO_BOARD_ID) => artifacts().commands.registerVersion({
     board_id: board, actor_id: actor, artifact_id: id, version, artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1,
     producer: { plugin_id: "io.molis.work.files", plugin_version: "1.1.0", binding_signature: "official-files-binding" },

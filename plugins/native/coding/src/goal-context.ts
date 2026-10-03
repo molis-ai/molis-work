@@ -55,7 +55,7 @@ export function saveGoalContext(context: PluginStartContext, sessionId: string, 
   const { snapshot, reference } = value;
   const previous = context.services!.artifacts.read(reference);
   if (previous) readGoalContext(context, reference);
-  else context.services!.artifacts.publish({ ...reference, artifact_type_id: CODING_GOAL_CONTEXT_TYPE, schema_version: 1,
+  else context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_GOAL_CONTEXT_TYPE, schema_version: 1,
     content: { kind: "inline", payload: JSON.parse(JSON.stringify(snapshot)) },
     metadata: { title: value.material.title, goal_id: snapshot.goal.goal_id, contract_revision: snapshot.goal.current_contract_revision } });
   context.services!.storage!.set(`goal-context:${sessionId}`, JSON.stringify(reference));

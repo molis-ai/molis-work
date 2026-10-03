@@ -26,6 +26,9 @@ export default definePlugin({
       services.artifacts.publish({
         artifact_id: artifactId, version, artifact_type_id: "io.molis.work.example.note", schema_version: 1,
         content: { kind: "inline", payload: { title: "Local sample result", sequence: version } },
+        // A 成果 says what it pins, what it is called and what its content is.
+        origin: { kind: "pinned", subject: { kind: "counter", id: "sample" }, revision: String(version) },
+        title: "Local sample result", media_type: "application/json",
       });
       // Publish first: if interrupted before this write, the same version/content can replay safely.
       storage.set("saved-count", String(version));

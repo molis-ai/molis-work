@@ -10,7 +10,10 @@ export const packageDescriptor = {
 
 export { PAGES_UI_CONTRIBUTION_ID, pagesUiContribution, pagesUiDescriptor, renderPagesWorkbench } from "./ui.js";
 export type { PagesUiModel, PagesUiPrimitives, PagesUiSurface } from "./ui.js";
-export { PAGES_STYLES } from "./styles.js";
+import { PAGES_STYLES as PAGES_BASE_STYLES } from "./styles.js";
+import { PAGES_IMPORT_STYLES } from "./import-client.js";
+/** Pages' stylesheet: the workbench, and its own import dialog (restored 2026-10-03 at the user's request). */
+export const PAGES_STYLES = PAGES_BASE_STYLES + PAGES_IMPORT_STYLES;
 export { PAGES_EN } from "./en.js";
 export { PAGES_INSTRUCTIONS, PAGES_WRITING_ASSISTANT, PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
 export { PAGES_CLIENT_FACTORY_SCRIPT } from "./client.js";

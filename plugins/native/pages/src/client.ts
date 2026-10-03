@@ -1,3 +1,4 @@
+import { PAGES_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 
 /** Pages workbench client: library, autosave, ProseMirror host. */
 export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
@@ -821,8 +822,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       throw error;
     } finally { publishing.delete(id); }
   };
-
-
+  ${PAGES_IMPORT_CLIENT_SCRIPT}
   // Moved or copied from the placement bar: the list here changed; a document moved away is no longer here to edit.
   window.addEventListener?.("molis:placement-changed", (event) => {
     const detail = event.detail || {};

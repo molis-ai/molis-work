@@ -141,7 +141,6 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/project-settings-pages.ts": "工作台用 fetch 读它的内容；页面导航一律进工作台",
   "apps/desktop/src/capsule-shell.ts": "桌面菜单栏胶囊",
   "apps/workbench/src/primitive-catalog.ts": "开发规格板",
-  "apps/local-host/src/plugin-builder-surface.ts": "沙箱框里的文档：试用与已安装的生成插件",
   "apps/local-host/src/plugin-builder/agent-surface.ts": "沙箱框里的文档：试用与已安装的生成插件",
   "packages/im-ui/src/page.ts": "协作服务",
   "plugins/native/form/src/fillpage.ts": "导出：问卷填写页文件",

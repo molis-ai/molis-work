@@ -35,7 +35,6 @@ import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modu
 import { inboxActions, INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { handleBuilderHttp } from "./plugin-builder-surface.js";
 import { handleAgentStudioHttp } from "./plugin-builder/agent-surface.js";
 import { observedWebGoalsActions } from './casebook/web-observer.js';
 import { bindGoalsWebActions } from "./goals-actions.js";
@@ -259,10 +258,6 @@ export async function handleMolisWorkWebRequest(
             await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.commit(() => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: "web-user" })));
           } } : {}),
           ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }, controlToken)) return;
-        if (await handleBuilderHttp(request, response, url, { ...codingServices, store, boardId: options.boardId,
-          routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
-          actorId: "web-user", goalTitle: (id) => coordinator.goalQueries.getGoal(options.boardId, id)?.title,
-          escapeHtml: (value) => String(value), translate: (value) => value }, controlToken)) return;
         const runtimePluginRoute = /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\//u.exec(url.pathname);
         const runtimeUpdatesRoute = url.pathname === "/api/plugins/runtime/updates" || isPluginEventManagementPath(url.pathname);
         const runtimeEntry = runtimePluginRoute

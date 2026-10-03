@@ -22,7 +22,7 @@ export const datasetManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "storage:private", required: true, reason: "本机数据表库" },
-    { permission: "artifact:write", required: true, reason: "把数据表存成 Artifact" },
+    { permission: "artifact:write", required: true, reason: "把数据表存为成果" },
     ...DATASET_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: true, reason: "数据表动作使用的读取、编辑或模型权限" })),
   ],
   actions: [...Object.values(datasetActions), ...Object.values(datasetContentActions)],

@@ -388,6 +388,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID,
     manifest: textStatsManifest,
     workbench: { order: 24, contributions: [], clientFactory: CODING_WORKBENCH_SETUP_SCRIPT },
-    summary: "查看材料与成果的文本统计。",
+    summary: "统计文件快照的字数、字节与行数。",
   },
 ];

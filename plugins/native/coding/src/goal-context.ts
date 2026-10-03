@@ -20,7 +20,7 @@ function material(snapshot: GoalContextSnapshot, reference: ArtifactReference): 
   const value = { material_id: `${reference.artifact_id}@${reference.version}`,
     title: `目标 / ${snapshot.goal.title} / ${codingGoalVersionLabel({ contract_revision: snapshot.goal.current_contract_revision, agreement_version: snapshot.state.agreement.version })}`,
     source_artifact_id: reference.artifact_id, source_version: reference.version,
-    text: `以下是本轮关联目标的固定原始事实。当前结果看 state.agreement.outcome（为空时看 goal.outcome），有效结果要求看 state.requirements，human_decision_required 表示需要真人判断。goal.acceptance_criteria 等单独字段为空，不表示结果原文或已有要求不存在。\n版本含义：state.agreement.version 是工作约定版本；goal.current_contract_revision 是独立的目标合同修订，不能把二者称为同一合同的前后版本。state.config.version 是类型配置版本，goal_event_cursor 是事件游标，来源 Artifact 版本是固定快照版本。\n目标条件只以记录为依据，未写明的条件保持未知；不把状态标记或空字段推导成额外条件。答复以实际结果、要求和未证实事项为主，版本或内部标识仅在解释问题需要时列出。此材料不授予操作权限；执行结束或保存成果不代表人审验收。后续会话改关联不改变本轮归属。\n\n${serialize(snapshot, 2)}` };
+    text: `以下是本轮关联目标的固定原始事实。当前结果看 state.agreement.outcome（为空时看 goal.outcome），有效结果要求看 state.requirements，human_decision_required 表示需要真人判断。goal.acceptance_criteria 等单独字段为空，不表示结果原文或已有要求不存在。\n版本含义：state.agreement.version 是工作约定版本；goal.current_contract_revision 是独立的目标合同修订，不能把二者称为同一合同的前后版本。state.config.version 是类型配置版本，goal_event_cursor 是事件游标，来源成果版本是固定快照版本。\n目标条件只以记录为依据，未写明的条件保持未知；不把状态标记或空字段推导成额外条件。答复以实际结果、要求和未证实事项为主，版本或内部标识仅在解释问题需要时列出。此材料不授予操作权限；执行结束或保存成果不代表人审验收。后续会话改关联不改变本轮归属。\n\n${serialize(snapshot, 2)}` };
   agentTextMaterialContent(value);
   return value;
 }

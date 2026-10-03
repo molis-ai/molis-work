@@ -29,7 +29,7 @@ export function createPluginArtifactClient(input: {
   }
   function requirePermission(permission: string): void {
     if (!manifest.permissions.some(item => item.permission === permission)) {
-      throw new PluginArtifactAccessError("plugin_artifact_denied", "Manifest 未声明该 Artifact 权限");
+      throw new PluginArtifactAccessError("plugin_artifact_denied", "Manifest 未声明该成果权限");
     }
     context.requireGrant(permission);
   }
@@ -42,7 +42,7 @@ export function createPluginArtifactClient(input: {
       requirePermission("artifact:write");
       if (!manifest.artifacts.produces.some(type => type.artifact_type_id === value.artifact_type_id
         && type.schema_version === value.schema_version)) {
-        throw new PluginArtifactAccessError("plugin_artifact_incompatible", "Manifest 未声明生产此 Artifact type/schema");
+        throw new PluginArtifactAccessError("plugin_artifact_incompatible", "Manifest 未声明生产此成果 type/schema");
       }
       // Pick fields explicitly: runtime JavaScript must not override bound identity or share authority.
       return api.commands.registerVersion({
@@ -59,7 +59,7 @@ export function createPluginArtifactClient(input: {
       const artifact = api.query.getArtifactVersion(board_id, reference);
       if (!artifact) return null;
       if (artifact.scope === "personal" && artifact.owner_actor_id !== actor_id) {
-        throw new PluginArtifactAccessError("plugin_artifact_denied", "不能读取其他用户的个人 Artifact");
+        throw new PluginArtifactAccessError("plugin_artifact_denied", "不能读取其他用户的个人成果");
       }
       const compatibility = api.query.consumptionCompatibility(board_id, reference, manifest.artifacts.consumes);
       if (!compatibility.consumable) {

@@ -385,10 +385,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const COVER_OPENERS = {
     settings: '[data-directory-open="settings"]',
     "project-settings": '[data-directory-open="project-settings"]',
-    capabilities: "[data-capabilities-open]",
     market: ':is([data-dock], [data-global-menu], .plugin-stack) [data-plugin-id="market"]',
   };
-  const coverLabel = (kind) => kind === "market" ? L("插件市场") : kind === "project-settings" ? L("项目设置") : kind === "settings" ? L("设置") : kind === "capabilities" ? L("能力") : ops.pluginTitle(kind);
+  const coverLabel = (kind) => kind === "market" ? L("插件市场") : kind === "project-settings" ? L("项目设置") : kind === "settings" ? L("设置") : ops.pluginTitle(kind);
   // The glyph comes from the entry that opened the cover.
   const coverGlyph = (kind) => document.querySelector((COVER_OPENERS[kind] || '[data-plugin-id="' + CSS.escape(kind) + '"]') + " svg")?.cloneNode(true) || null;
   const coverKindOf = (element) => Object.keys(COVER_OPENERS).find((kind) => element.closest(COVER_OPENERS[kind])) || null;

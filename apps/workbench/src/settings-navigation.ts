@@ -1,5 +1,5 @@
 import { renderProjectMonogram, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
-import { groupedGlobalSettingsSections } from "./settings-sections.js";
+import { globalSettingsSectionPath, groupedGlobalSettingsSections } from "./settings-sections.js";
 
 export interface WebProjectNavigation {
   project_id: string;
@@ -90,9 +90,7 @@ function renderSettingsNavigation(
     <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${L("返回项目")}</a>
     <div class="settings-nav-body">
       ${groupedGlobalSettingsSections(enabledPlugins, hiddenPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${L(group)}</div>
-      ${sections.map((section) => section.kind === "cover"
-        ? `<a href="${href("/capabilities/library")}">${icon(section.icon)}${L(section.label)}</a>`
-        : `<a href="${href(`/settings/${section.id}`)}"${current(section.id)}>${icon(section.icon)}${escapeHtml(L(section.label))}</a>`).join("")}`).join("")}
+      ${sections.map((section) => `<a href="${href(globalSettingsSectionPath(section.id))}"${current(section.id)}>${icon(section.icon)}${escapeHtml(L(section.label))}</a>`).join("")}`).join("")}
     </div>
   </nav>`;
 }

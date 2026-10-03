@@ -1,6 +1,9 @@
 export const CAPABILITIES_STYLES = `
-  .capabilities-page .settings-content:has(.functions-system-editor) { padding: 0; overflow: hidden; }
+  :is(.capabilities-page, .settings-stage) .settings-content:has(.functions-system-editor) { padding: 0; overflow: hidden; }
   .functions-system-editor { position: relative; height: 100%; min-height: 0; overflow: hidden; background: var(--paper); }
+  /* In the workbench's settings these two fill the stage and scroll inside, unlike the centred settings documents. */
+  :is(.capabilities-page, .settings-stage) .settings-content > :is(.functions-system-editor, .capability-library)[data-settings-panel] { max-width: none; height: 100%; margin: 0; overflow: hidden; }
+  :is(.capabilities-page, .settings-stage) .settings-content > .capability-library[data-settings-panel] { display: flex; }
   .functions-system-editor .functions-stage-chrome h1 { flex: 1; margin: 0; font-size: 15px; font-weight: 500; }
   .functions-system-editor[data-expanded="true"] > .plugin-stage-list { display: none; }
   .functions-system-editor > .plugin-stage-workspace { position: absolute; inset: 0; overflow: hidden; }
@@ -10,8 +13,8 @@ export const CAPABILITIES_STYLES = `
   .functions-system-editor .feed-stage-entry strong { font-size: 15px; font-weight: 500; }
   .functions-system-editor .mw-empty { padding: 32px; }
   .capability-rules-link { display: inline-block; margin: 12px 0 4px; color: var(--ink); text-underline-offset: 4px; }
-  .capabilities-page .functions-settings-document { padding-bottom: 24px; margin-bottom: 32px; border-bottom: 1px solid var(--line); }
-  .capabilities-page .settings-content:has(.capability-library) { padding: 0; overflow: hidden; }
+  :is(.capabilities-page, .settings-stage) .functions-settings-document { padding-bottom: 24px; margin-bottom: 32px; border-bottom: 1px solid var(--line); }
+  :is(.capabilities-page, .settings-stage) .settings-content:has(.capability-library) { padding: 0; overflow: hidden; }
   .capability-library { height: 100%; min-height: 0; display: flex; flex-direction: column; }
   .capability-heading { padding: 32px 32px 16px; border-bottom: 1px solid var(--line); }
   .capability-heading h1 { margin: 0; font-size: 24px; letter-spacing: -.025em; }
@@ -58,7 +61,7 @@ export const CAPABILITIES_STYLES = `
   .capability-history article { padding: 24px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
   .capability-history article header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
   .capability-history :is(p, time) { color: var(--muted); font-size: 12px; }
-  .capabilities-page :is(a, input, select, summary, button):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  :is(.capabilities-page, .settings-stage) :is(a, input, select, summary, button):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
   .mcp-access { margin-bottom: 32px; }
   [data-mcp-settings] .settings-heading a { color: var(--ink-soft); text-underline-offset: 3px; }
   [data-mcp-settings] .settings-heading a:hover { color: var(--ink); }
@@ -74,7 +77,7 @@ export const CAPABILITIES_STYLES = `
   .mcp-access-copy .mcp-access-state { margin-top: 12px; color: var(--muted); }
   .mcp-access-copy .mcp-access-state:is([data-status="enabled"],[data-status="public"]) { color: var(--green); }
   .mcp-access-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: end; }
-  .capabilities-page .mcp-access-actions button { min-height: 36px; white-space: nowrap; }
+  :is(.capabilities-page, .settings-stage) .mcp-access-actions button { min-height: 36px; white-space: nowrap; }
   .mcp-access-row summary { padding: 12px 0; font-size: 12px; color: var(--ink-soft); cursor: pointer; }
   .mcp-access-row dl { margin: 0; padding: 12px; background: var(--rail); font-size: 12px; }
   .mcp-access-row dt { color: var(--muted); margin-bottom: 4px; }
@@ -86,7 +89,7 @@ export const CAPABILITIES_STYLES = `
   .mcp-legacy-tools > summary { cursor: pointer; padding: 12px 0; color: var(--ink-soft); font-size: 13px; }
   .mcp-legacy-tools > p { color: var(--muted); line-height: 1.6; }
   @media (max-width: 760px) {
-    .capabilities-page .mcp-access :is(button,input) { min-height: 44px; }
+    :is(.capabilities-page, .settings-stage) .mcp-access :is(button,input) { min-height: 44px; }
     .mcp-access-row { flex-direction: column; gap: 12px; }
     .mcp-access-actions { align-self: end; }
     .mcp-access-row :is(summary,button) { min-height: 44px; }

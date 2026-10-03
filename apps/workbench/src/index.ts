@@ -154,3 +154,4 @@ export {
 export { BUILTIN_PLUGIN_AGENTS } from "./plugin-catalog.js";
 
 export { pluginWorkbenchClientAsset } from "./plugin-workbench.js";
+export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";

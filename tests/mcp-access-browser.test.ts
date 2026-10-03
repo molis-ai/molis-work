@@ -28,7 +28,9 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
     try { await client.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return client;
   };
-  const visit = async (query = "") => navigate(() => command("Page.navigate", { url: `${b.origin}/capabilities/access${query}` }, sessionId));
+  // 对外接入 is a settings category in the workbench (specs/artifact-positioning S6b): its address opens it there.
+  const shown = (condition = "true") => waitFor(`!!document.querySelector('[data-work-surface=settings] [data-mcp-access]') && (${condition})`, 15_000);
+  const visit = async (query = "") => { await navigate(() => command("Page.navigate", { url: `${b.origin}/capabilities/access${query}` }, sessionId)); await shown(); };
   const search = async (q: string, filter = "") => {
     await evaluate(`document.querySelector('[data-mcp-access-search] [name=q]').value=${JSON.stringify(q)};document.querySelector('[data-mcp-access-search] [name=filter]').value=${JSON.stringify(filter)}`);
     await click('[data-mcp-access-search] button[type=submit]');
@@ -48,7 +50,8 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   await command("Input.insertText", { text: "runtime:ui-alpha" }, sessionId);
   await click('.mcp-access-scope label:has([name=project]) [data-mw-select-trigger]');
   await click(`.mcp-access-scope [data-value="${projectId}"]`);
-  await navigate(() => click('.mcp-access-scope button[type=submit]'));
+  await click('.mcp-access-scope button[type=submit]');
+  await shown("document.querySelector('[data-mcp-access]').dataset.clientId === 'runtime:ui-alpha'");
   assert.equal(await evaluate("document.querySelector('[data-mcp-access]').dataset.clientId"), "runtime:ui-alpha");
   await search(a.directionCreate.capability_id);
   assert.equal(await status(a.directionCreate.capability_id), "ungranted");
@@ -77,6 +80,7 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   const workspace = await localHost.actionClient(ref).invoke({ actor_id: "browser-test", project_id: projectId, audience: "user", permissions: ["alchemist:read"] }, a.bootstrap, {});
   assert.ok(JSON.stringify(workspace).includes((created.structuredContent as any).direction.id));
   await reloadPage();
+  await shown(`!!document.querySelector(${JSON.stringify(row(a.directionCreate.capability_id))})`);
   assert.equal(await status(a.directionCreate.capability_id), "enabled");
   // The write reaches the real server, then its response is lost. UI must not claim success.
   await evaluate(`globalThis.originalFetch=globalThis.fetch;globalThis.fetch=async(...args)=>{const response=await originalFetch(...args);if(String(args[0])==='/api/settings/mcp/actions'&&args[1]?.method==='POST'){globalThis.fetch=originalFetch;throw new TypeError('simulated response loss');}return response;}`);
@@ -150,7 +154,7 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(row(a.directionCreate.capability_id))}).querySelector('details').open`), true);
   const detail = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(`${artifacts}/access-390-detail-dark.png`, Buffer.from(detail.data, "base64"));
-  await evaluate("document.cookie='molis_work_locale=en; Path=/'"); await reloadPage();
+  await evaluate("document.cookie='molis_work_locale=en; Path=/'"); await reloadPage(); await shown(`!!document.querySelector(${JSON.stringify(row(a.directionCreate.capability_id))})`);
   assert.match(await evaluate<string>("document.querySelector('.mcp-access-scope').innerText"), /Access scope/);
   assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(row(a.directionCreate.capability_id))}).innerText`), /Access revoked/);
 });

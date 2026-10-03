@@ -219,7 +219,8 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
       void refreshComposeResults().catch(error => { composeForm.querySelector("[data-inbox-compose-status]").textContent = error.message; });
     };
     document.addEventListener("click", async event => {
-      if (event.target.closest?.("[data-inbox-functions]")) { location.href = "/capabilities/rules?project=" + encodeURIComponent(document.body.dataset.projectId || "") + (new URL(location.href).searchParams.get("desktop") === "1" ? "&desktop=1" : ""); return; }
+      // The rules editor is in 能力, in the workbench's settings.
+      if (event.target.closest?.("[data-inbox-functions]")) { document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: "/capabilities/rules?project=" + encodeURIComponent(document.body.dataset.projectId || "") } })); return; }
       const evaluate = event.target.closest?.("[data-inbox-evaluate]");
       if (evaluate) {
         event.preventDefault(); evaluate.disabled = true;

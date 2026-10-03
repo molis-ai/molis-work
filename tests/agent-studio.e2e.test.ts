@@ -41,7 +41,10 @@ test('studio: a request becomes a working, published plugin that the person can 
     const page = await browser.page();
     await page.viewport(1440, 900);
     await page.command('Page.enable');
-    await page.command('Page.navigate', { url: origin + '/plugin-builder/studio' });
+    // The studio is a frame document of the workbench; opened without the frame marker it sends the person to the workbench.
+    const directStudio = await fetch(origin + '/plugin-builder/studio', { redirect: 'manual' });
+    assert.equal(directStudio.status, 302); assert.equal(directStudio.headers.get('location'), '/?openPlugin=plugin-builder'); await directStudio.text();
+    await page.command('Page.navigate', { url: origin + '/plugin-builder/studio?frame=workbench' });
     await page.wait(`[...document.querySelectorAll('[data-as-model] option')].some(o=>o.value.startsWith('fixture'))`);
     // The models and the canvas load separately; wait for the canvas's own empty state instead of reading it at once.
     await page.wait(`/这里会出现你的插件/.test(document.querySelector('[data-as-empty]')?.innerText || '')`);
@@ -136,10 +139,14 @@ test('studio: a request becomes a working, published plugin that the person can 
     // The workbench lists it beside the built-in plugins: one stage framing its installed page.
     const stages = await installedPluginStages(options);
     assert.deepEqual(stages.map(item => [item.label, item.surface.startsWith('app-')]), [['笔记墙', true]]);
-    assert.match(stages[0]!.stage, new RegExp('data-work-surface="' + stages[0]!.surface + '"[^>]*hidden><iframe src="' + pluginHref.replaceAll('.', '\\.') + '"'));
+    assert.match(stages[0]!.stage, new RegExp('data-work-surface="' + stages[0]!.surface + '"[^>]*hidden><iframe src="' + pluginHref.replaceAll('.', '\\.') + '\\?frame=workbench"'));
+    // Its address opened directly (a link in a notice, say) opens the workbench on that plugin's stage, not a page of its own.
+    const directPlugin = await fetch(origin + pluginHref, { redirect: 'manual' });
+    assert.equal(directPlugin.status, 302); assert.equal(directPlugin.headers.get('location'), '/?openSurface=' + encodeURIComponent(stages[0]!.surface)); await directPlugin.text();
     const installedPage = await browser.page();
     await installedPage.command('Page.enable');
-    await installedPage.command('Page.navigate', { url: origin + pluginHref });
+    await installedPage.command('Page.navigate', { url: origin + pluginHref + '?frame=workbench' });
+    assert.equal(await installedPage.evaluate(`Boolean(document.querySelector('.as-installed-bar, a[href*="/plugin-builder/studio"]'))`), false, 'the frame shows only the plugin: no own header or link back');
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('还没有笔记')`);
     await installedPage.click('[data-pc-open="editor"]');
     await installedPage.fill('[data-component-id="editor"] [data-field]', '正式使用的第一条');
@@ -180,7 +187,9 @@ test('studio: a request becomes a working, published plugin that the person can 
     const buildId = await page.evaluate<string>(`new URLSearchParams(location.search).get('build')`);
     const standalone = await browser.page();
     await standalone.command('Page.enable');
-    await standalone.command('Page.navigate', { url: origin + '/plugin-builder/studio/preview/' + buildId });
+    const directPreview = await fetch(origin + '/plugin-builder/studio/preview/' + buildId, { redirect: 'manual' });
+    assert.equal(directPreview.status, 302); assert.equal(directPreview.headers.get('location'), '/?openPlugin=plugin-builder'); await directPreview.text();
+    await standalone.command('Page.navigate', { url: origin + '/plugin-builder/studio/preview/' + buildId + '?frame=workbench' });
     await standalone.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('间隔复习比集中复习记得更久')`);
 
     const installedOwner = await ensureInstalledPlugins(options);

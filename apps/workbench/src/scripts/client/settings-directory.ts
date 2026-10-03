@@ -14,6 +14,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindMemorySettings?.(root);
     globalThis.molisWorkBindAgentDiagnostics?.(root);
     globalThis.molisWorkBindProjectIdentity?.(root);
+    globalThis.molisWorkBindProjectManager?.(root, { hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindProjectGuidance?.(root);
     globalThis.molisWorkBindProjectRules?.(root);
     globalThis.molisWorkBindPlanningSettings?.(root);
@@ -82,6 +83,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       wrap.dataset.settingsPanel = section;
       if (fetchPath) {
         const address = new URL(fetchPath, location.origin);
+        wrap.dataset.settingsAddress = fetchPath;
         wrap.dataset.settingsSearch = address.search;
         wrap.dataset.settingsHash = address.hash;
       }
@@ -103,6 +105,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         markNav(section);
         return;
       }
+      // A page inside the section (one method's detail) is kept only until the section itself is asked for.
+      if (!fetchPath && caches.get(section)?.dataset.settingsAddress) caches.delete(section);
       if (!fetchPath && caches.has(section)) {
         loading = null;
         showNode(caches.get(section));
@@ -201,6 +205,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (pathname.startsWith("/settings/mcp")) return "mcp";
     if (pathname.startsWith("/settings/connectors")) return "connectors";
     if (pathname.startsWith("/settings/diagnostics")) return "diagnostics";
+    // Every project on this machine: reached from its links (onboarding, a page with no project), not listed as a category.
+    if (pathname.startsWith("/settings/projects")) return "projects";
     if (pathname.startsWith("/settings/appearance") || pathname === "/settings") return "appearance";
     const slug = pathname.replace(/^\\/settings\\//, "").split("/")[0];
     if (!slug || slug === pathname) return "";
@@ -280,6 +286,16 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     history.replaceState(history.state, "", address);
     if (knownGlobalSection(requestedSection)) openShell("settings", requestedSection);
   }, 0);
+  // “?settingsPath=<address>” is a settings page that was opened directly; the server sent it here to open in place.
+  const requestedPath = new URLSearchParams(location.search).get("settingsPath");
+  if (requestedPath) setTimeout(() => {
+    const address = new URL(location.href);
+    address.searchParams.delete("settingsPath");
+    history.replaceState(history.state, "", address);
+    const asked = new URL(requestedPath, location.origin);
+    if (openProjectSettingsFromUrl(asked.href) || openGlobalSettingsFromUrl(asked.href)) return;
+    openShell("settings", "appearance");
+  }, 0);
   document.addEventListener("click", (event) => {
     const projectOpener = event.target.closest("[data-directory-open=project-settings]");
     if (projectOpener) {
@@ -294,7 +310,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       return;
     }
     const link = event.target.closest("a[href]");
-    if (!link || modifiedClick(event)) return;
+    // A page that holds its own link back (a planning editor while it saves) keeps the person where they are.
+    if (!link || modifiedClick(event) || event.defaultPrevented) return;
     const url = new URL(link.href, location.origin);
     if (url.origin !== location.origin) return;
     if (url.pathname === "/locale" || url.pathname.startsWith("/locale?")) return;
@@ -328,7 +345,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     }
   };
   return {
-    loadSection: (section) => globalSettings?.loadSection(section),
+    loadSection: (section, path) => globalSettings?.loadSection(section, path),
     loadProjectSection: (section, path) => projectSettings?.loadSection(section, path),
     getActive: () => globalSettings?.getActive(),
     getProjectActive: () => projectSettings?.getActive(),

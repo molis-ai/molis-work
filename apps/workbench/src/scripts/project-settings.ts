@@ -164,6 +164,68 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
       bindDemo(scope);
     };
     globalThis.molisWorkBindProjectIdentity(document);
+    // Every project on this machine (/settings/projects): a list to pick one, its settings beside it, and 新建项目. On its
+    // own page the picked project is the address's #fragment; in the workbench's settings it is the address the cover loaded.
+    globalThis.molisWorkBindProjectManager = (scope, address = { hash: location.hash }) => {
+      const projectManager = scope.matches?.("[data-project-manager]") ? scope : scope.querySelector("[data-project-manager]");
+      if (projectManager && projectManager.dataset.bound !== "1") {
+        projectManager.dataset.bound = "1";
+        const ownPage = scope === document;
+        const radios = [...projectManager.querySelectorAll('input[name="project-focus"]')];
+        const panes = projectManager.querySelectorAll("[data-project-pane]");
+        const showPane = (value) => {
+          panes.forEach((pane) => {
+            const hide = pane.dataset.projectPane !== value;
+            if (hide && !pane.hidden) globalThis.molisWorkResetProjectSettingsEmbeds?.(pane);
+            pane.hidden = hide;
+          });
+        };
+        const applyHash = (hash) => {
+          const raw = decodeURIComponent(String(hash || "").replace(/^#/, ""));
+          const match = raw && radios.find((radio) => radio.value === raw);
+          if (!match) return;
+          match.checked = true;
+          showPane(match.value);
+        };
+        radios.forEach((radio) => {
+          radio.addEventListener("change", () => {
+            if (!radio.checked) return;
+            showPane(radio.value);
+            const next = "#" + encodeURIComponent(radio.value);
+            if (ownPage && location.hash !== next) history.replaceState(null, "", next);
+          });
+        });
+        if (ownPage) window.addEventListener("hashchange", () => applyHash(location.hash));
+        applyHash(address.hash);
+      }
+      const createForm = scope.querySelector("[data-project-create]");
+      if (!createForm || createForm.dataset.bound === "1") return;
+      createForm.dataset.bound = "1";
+      createForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const values = new FormData(createForm);
+        const error = createForm.querySelector(".settings-form-error");
+        if (values.get("user_confirmed") !== "on") {
+          error.textContent = L("请先确认创建这个项目。");
+          error.hidden = false;
+          return;
+        }
+        const submit = createForm.querySelector("button[type=submit]");
+        submit.disabled = true;
+        error.hidden = true;
+        try {
+          const response = await fetch("/api/settings/projects", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ display_name: String(values.get("display_name") || "").trim(), user_confirmed: true }) });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || L("项目创建失败"));
+          location.assign(globalThis.molisWorkNavigationUrl(result.project_path));
+        } catch (caught) {
+          error.textContent = caught.message || L("项目创建失败");
+          error.hidden = false;
+          submit.disabled = false;
+        }
+      });
+    };
+    globalThis.molisWorkBindProjectManager(document);
     const bindEmbedded = (root) => {
       globalThis.molisWorkBindProjectIdentity?.(root);
       globalThis.molisWorkBindProjectGuidance?.(root);

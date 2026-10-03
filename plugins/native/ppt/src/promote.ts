@@ -38,7 +38,7 @@ export function promotePpt(
   const existing = options.readArtifact?.({ project_id: projectId, record_id: id, version });
   if (current.artifact_version > 0) options.readArtifact?.({ project_id: projectId, record_id: id, version: current.artifact_version });
   const intent = store.beginPublication(id, projectId, options.actorId, options.expectedVersion ?? current.version, existing ?? undefined);
-  if (existing && !isDeepStrictEqual(existing, intent.content)) throw new PptError("ppt.publication_conflict", "Artifact 与原发布快照不同，演示稿及快照已保留");
+  if (existing && !isDeepStrictEqual(existing, intent.content)) throw new PptError("ppt.publication_conflict", "成果与原发布快照不同，演示稿及快照已保留");
   const published = existing ? { artifact_id: "ppt-" + id, version: intent.version } : publishArtifact({
     project_id: projectId,
     record_id: current.id,
@@ -47,7 +47,7 @@ export function promotePpt(
     source_version: intent.source_version,
     content: intent.content,
   });
-  if (published.artifact_id !== "ppt-" + id || published.version !== intent.version) throw new PptError("ppt.publication_conflict", "Artifact 返回身份与发布意图不一致，原快照已保留");
+  if (published.artifact_id !== "ppt-" + id || published.version !== intent.version) throw new PptError("ppt.publication_conflict", "成果返回身份与发布意图不一致，原快照已保留");
   return {
     presentation: store.completePublication(current.id, projectId, intent, published),
     artifact: published,

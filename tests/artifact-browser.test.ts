@@ -168,7 +168,7 @@ test("Artifact HTTP keeps unknown and cross-project versions missing and rejects
 
 test("Artifact empty, unavailable, archived and embedded views reflect Module state without inventing consumers", async (t) => {
   const { coordinator, surface } = await fixture(t);
-  assert.match(await (await surface("/artifacts")).text(), /还没有 Artifact/);
+  assert.match(await (await surface("/artifacts")).text(), /还没有成果/);
   assert.doesNotMatch(await (await surface("/artifacts")).text(), /插件明确发布的结果会出现在这里|查看插件发布的结果、来源和原始内容/);
   coordinator.artifacts.commands.registerVersion(registration());
   const query = coordinator.artifacts.query;
@@ -322,7 +322,7 @@ test("Artifact browser distinguishes no results, unselected versions and missing
   const unselected=await (await surface("/artifacts")).text();
   assert.match(unselected,/<h1>选择一个结果版本<\/h1>/);
   const missing=await (await surface(exactPath(99))).text();
-  assert.match(missing,/找不到这个 Artifact 版本/);
+  assert.match(missing,/找不到这个成果版本/);
   assert.match(missing,/不会自动替换成最新版本/);
 });
 

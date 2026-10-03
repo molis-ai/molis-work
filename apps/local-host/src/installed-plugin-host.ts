@@ -93,8 +93,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const platform = createPluginPlatform({ board_id: boardId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(),
-    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
-    processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
     capturePrivateData: id => privateStorage.snapshotInstallationData(id),
     restorePrivateData: (id, snapshot) => privateStorage.restoreInstallationData(id, snapshot as ReturnType<typeof privateStorage.snapshotInstallationData>),

@@ -105,11 +105,11 @@ export function matchArtifactBrowserRoute(pathname: string): ArtifactBrowserRout
   const match = pathname.match(/^\/(api\/)?artifacts\/([^/]+)\/versions\/([^/]+)(\/export)?$/);
   if (!match || (Boolean(match[1]) !== Boolean(match[4]))) return null;
   if (!/^[1-9]\d*$/.test(match[3]!) || !Number.isSafeInteger(Number(match[3]))) {
-    throw new ArtifactBrowserError(400, "Artifact version 必须是正整数");
+    throw new ArtifactBrowserError(400, "成果版本必须是正整数");
   }
   let id: string;
   try { id = decodeURIComponent(match[2]!); }
-  catch { throw new ArtifactBrowserError(400, "Artifact ID 编码无效"); }
+  catch { throw new ArtifactBrowserError(400, "成果 ID 编码无效"); }
   return { kind: match[1] ? "export" : "detail", reference: { artifact_id: id, version: Number(match[3]) } };
 }
 
@@ -120,6 +120,6 @@ export function artifactVersionPath(reference: ArtifactReference): string {
 /** Read-only local interchange; no publication, registration or state change. */
 export function exportArtifactVersion(query: ArtifactsQueryApi, boardId: string, reference: ArtifactReference): string {
   const artifact = query.getArtifactVersion(boardId, reference);
-  if (!artifact) throw new ArtifactBrowserError(404, "当前项目中找不到这个 Artifact 版本");
+  if (!artifact) throw new ArtifactBrowserError(404, "当前项目中找不到这个成果版本");
   return `${JSON.stringify(artifact, null, 2)}\n`;
 }

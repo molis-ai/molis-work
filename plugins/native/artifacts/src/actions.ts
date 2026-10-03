@@ -75,7 +75,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
   return [
     bind(artifactsActions.subject, (input, caller) => {
       const reference = parseArtifactSubjectId(input.subject_id);
-      if (!reference) throw new ActionError("actions.invalid_input", "成果事项必须包含准确的 Artifact ID 和版本");
+      if (!reference) throw new ActionError("actions.invalid_input", "成果事项必须包含准确的成果 ID 和版本");
       const artifact = requireArtifactAnalysisRecord(ports.artifacts.query.getArtifactVersion(ports.boardId, reference),
         { board_id: ports.boardId, actor_id: caller.actor_id, reference });
       const scope = { kind: "personal" as const, id: ports.boardId };

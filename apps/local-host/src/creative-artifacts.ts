@@ -56,13 +56,13 @@ export function readFormArtifactVersion(coordinator: GoalProjectApplication, boa
     if (input.project_id !== expectedProjectId) throw new FormError("form.invalid", "问卷项目与当前项目不一致");
     const artifact = coordinator.artifacts.query.getArtifactVersion(boardId, { artifact_id: "form-" + input.record_id, version: input.version });
     if (!artifact) return null;
-    if (artifact.owner_actor_id !== actorId) throw new FormError("form.publication_owner", "此 Artifact 属于其他发起者，不能替换或代为恢复");
+    if (artifact.owner_actor_id !== actorId) throw new FormError("form.publication_owner", "此成果属于其他发起者，不能替换或代为恢复");
     if (artifact.artifact_type_id !== FORM_ARTIFACT_TYPE_ID || artifact.schema_version !== FORM_ARTIFACT_SCHEMA_VERSION
       || artifact.producer_plugin_id !== formManifest.plugin_id || artifact.producer_binding_signature !== formManifest.publisher.signature || artifact.content_kind !== "inline")
-      throw new FormError("form.publication_conflict", "Artifact 来源或类型不一致，原记录已保留");
+      throw new FormError("form.publication_conflict", "成果来源或类型不一致，原记录已保留");
     const payload = artifact.payload as FormPublicationSnapshot | null;
     if (!payload || typeof payload.title !== "string" || typeof payload.description !== "string" || !Array.isArray(payload.questions) || !["draft", "published"].includes(payload.status))
-      throw new FormError("form.publication_conflict", "Artifact 问卷内容不完整，原记录已保留");
+      throw new FormError("form.publication_conflict", "成果问卷内容不完整，原记录已保留");
     return payload;
   };
 }
@@ -100,13 +100,13 @@ export function readDatasetArtifactVersion(coordinator: GoalProjectApplication, 
     if (input.project_id !== expectedProjectId) throw new DatasetError("dataset.invalid", "数据表项目与当前项目不一致");
     const artifact = coordinator.artifacts.query.getArtifactVersion(boardId, { artifact_id: "dataset-" + input.record_id, version: input.version });
     if (!artifact) return null;
-    if (artifact.owner_actor_id !== actorId) throw new DatasetError("dataset.publication_owner", "此 Artifact 属于其他发起者，不能替换或代为恢复");
+    if (artifact.owner_actor_id !== actorId) throw new DatasetError("dataset.publication_owner", "此成果属于其他发起者，不能替换或代为恢复");
     if (artifact.artifact_type_id !== DATASET_ARTIFACT_TYPE_ID || artifact.schema_version !== DATASET_ARTIFACT_SCHEMA_VERSION
       || artifact.producer_plugin_id !== datasetManifest.plugin_id || artifact.producer_binding_signature !== datasetManifest.publisher.signature || artifact.content_kind !== "inline")
-      throw new DatasetError("dataset.publication_conflict", "Artifact 来源或类型不一致，原记录已保留");
+      throw new DatasetError("dataset.publication_conflict", "成果来源或类型不一致，原记录已保留");
     const payload = artifact.payload as DatasetPublicationSnapshot | null;
     if (!payload || typeof payload.title !== "string" || typeof payload.description !== "string" || !Array.isArray(payload.columns) || !Array.isArray(payload.rows))
-      throw new DatasetError("dataset.publication_conflict", "Artifact 数据表内容不完整，原记录已保留");
+      throw new DatasetError("dataset.publication_conflict", "成果数据表内容不完整，原记录已保留");
     return payload;
   };
 }
@@ -144,13 +144,13 @@ export function readPptArtifactVersion(coordinator: GoalProjectApplication, boar
     if (input.project_id !== expectedProjectId) throw new PptError("ppt.invalid", "演示稿项目与当前项目不一致");
     const artifact = coordinator.artifacts.query.getArtifactVersion(boardId, { artifact_id: "ppt-" + input.record_id, version: input.version });
     if (!artifact) return null;
-    if (artifact.owner_actor_id !== actorId) throw new PptError("ppt.publication_owner", "此 Artifact 属于其他发起者，不能替换或代为恢复");
+    if (artifact.owner_actor_id !== actorId) throw new PptError("ppt.publication_owner", "此成果属于其他发起者，不能替换或代为恢复");
     if (artifact.artifact_type_id !== PPT_ARTIFACT_TYPE_ID || artifact.schema_version !== PPT_ARTIFACT_SCHEMA_VERSION
       || artifact.producer_plugin_id !== pptManifest.plugin_id || artifact.producer_binding_signature !== pptManifest.publisher.signature || artifact.content_kind !== "inline")
-      throw new PptError("ppt.publication_conflict", "Artifact 来源或类型不一致，原记录已保留");
+      throw new PptError("ppt.publication_conflict", "成果来源或类型不一致，原记录已保留");
     const payload = artifact.payload as PptPublicationSnapshot | null;
     if (!payload || typeof payload.title !== "string" || typeof payload.description !== "string" || !Array.isArray(payload.slides) || typeof payload.color_primary !== "string" || typeof payload.color_background !== "string" || typeof payload.color_text !== "string")
-      throw new PptError("ppt.publication_conflict", "Artifact 演示稿内容不完整，原记录已保留");
+      throw new PptError("ppt.publication_conflict", "成果演示稿内容不完整，原记录已保留");
     return payload;
   };
 }

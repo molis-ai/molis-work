@@ -31,7 +31,7 @@ export function createPluginArtifactClient(input: {
   }
   function requirePermission(permission: string): void {
     if (!manifest.permissions.some(item => item.permission === permission)) {
-      throw new PluginArtifactAccessError("plugin_artifact_denied", "Manifest 未声明该 Artifact 权限");
+      throw new PluginArtifactAccessError("plugin_artifact_denied", "Manifest 未声明该成果权限");
     }
     context.requireGrant(permission);
   }
@@ -58,7 +58,7 @@ export function createPluginArtifactClient(input: {
     publish(value) {
       requirePermission("artifact:write");
       if (!declares(manifest.artifacts.produces, value)) {
-        throw new PluginArtifactAccessError("plugin_artifact_incompatible", "Manifest 未声明生产此 Artifact type/schema");
+        throw new PluginArtifactAccessError("plugin_artifact_incompatible", "Manifest 未声明生产此成果 type/schema");
       }
       unused(process, value.artifact_id, "过程项");
       return api.commands.registerVersion({ ...fixed(value), origin: value.origin, title: value.title, media_type: value.media_type,
@@ -78,7 +78,7 @@ export function createPluginArtifactClient(input: {
       const artifact = pinned ?? process.query.getArtifactVersion(board_id, reference);
       if (!artifact) return null;
       if (artifact.scope === "personal" && artifact.owner_actor_id !== actor_id) {
-        throw new PluginArtifactAccessError("plugin_artifact_denied", "不能读取其他用户的个人 Artifact");
+        throw new PluginArtifactAccessError("plugin_artifact_denied", "不能读取其他用户的个人成果");
       }
       const compatibility = pinned ? api.query.consumptionCompatibility(board_id, reference, manifest.artifacts.consumes)
         : process.query.consumptionCompatibility(board_id, reference, manifest.process_items?.consumes ?? []);

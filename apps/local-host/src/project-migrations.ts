@@ -137,9 +137,7 @@ export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {
 
         ${GOVERNANCE_SCHEMA_SQL}
 
-        ${ARTIFACTS_SCHEMA_SQL}
-
-        ${PROCESS_ITEMS_SCHEMA_SQL}
+        ${ARTIFACTS_SCHEMA_SQL} ${PROCESS_ITEMS_SCHEMA_SQL}
 
         ${CLARIFICATION_SCHEMA_SQL}
 

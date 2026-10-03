@@ -659,7 +659,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
           throw error;
         }
         placed({ verb: "versioned", title: payload.presentation.title, object: { kind: "presentation", id: payload.presentation.id },
-          note: L("第 {version} 版 · 放在这个位置的成果（Artifacts）里；继续编辑不会改变这一版", { version: payload.artifact.version }) });
+          note: L("第 {version} 版 · 放在这个位置的成果里；继续编辑不会改变这一版", { version: payload.artifact.version }) });
         await loadList();
         if (payload.presentation && selected && selected.id === payload.presentation.id) remember(payload.presentation, false);
         return;

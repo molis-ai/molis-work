@@ -34,9 +34,9 @@ export const pptActions = {
   create: define<{ title?: string }, { presentation: PptRecord }>("create", "新建演示稿", "创建带一页空白幻灯片的演示稿", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
   update: define<Edit, { presentation: PptRecord }>("update", "编辑演示稿", "替换指定字段或整组幻灯片；提交读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, color_primary: color, color_background: color, color_text: color,
     slides: { ...array(object(slideFields, [])), minItems: 1, maxItems: 40 } }, ["id"]), changed),
-  delete: define<Identity, { ok: true }>("delete", "删除演示稿", "删除当前项目演示稿，待恢复的 Artifact 发布需先完成", "command", object(identity, ["id"]), object({ ok: { const: true } })),
+  delete: define<Identity, { ok: true }>("delete", "删除演示稿", "删除当前项目演示稿，待恢复的成果发布需先完成", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   export: define<Identity, { filename: string; mime_type: "application/json"; content: string }>("export", "导出演示稿 JSON", "返回已保存演示稿的完整 JSON、文件名和 MIME 类型；不是 PPTX", "query", object(identity, ["id"]), object({ filename: text, mime_type: { const: "application/json" }, content: text })),
-  promote: define<Identity, { presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "演示稿存成 Artifact", "发布固定幻灯片与配色或恢复原发布；后续编辑保留", "command", object(identity, ["id"]), object({ presentation: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  promote: define<Identity, { presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "演示稿存为成果", "发布固定幻灯片与配色或恢复原发布；后续编辑保留", "command", object(identity, ["id"]), object({ presentation: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   pptx: define<Identity, { filename: string; mime_type: typeof PPTX_MIME_TYPE; content_base64: string; slide_count: number }>("pptx", "导出 PowerPoint 文件",
     "按已保存的版本生成 .pptx（每页标题、要点、讲者备注与配色），PowerPoint、Keynote、WPS 可直接打开和放映；不含图片与图表", "query", object(identity, ["id"]),
     object({ filename: text, mime_type: { const: PPTX_MIME_TYPE }, content_base64: text, slide_count: { type: "integer", minimum: 1 } })),
@@ -110,7 +110,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       return { filename: presentation.title.replace(/[\\/:*?"<>|\x00-\x1f]/g, "_") + ".json", mime_type: "application/json" as const, content: JSON.stringify(presentation, null, 2) };
     })),
     bind(pptActions.promote, (input, caller) => ports.withStore(store => promotePpt(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
-      () => ports.publishArtifact ? { available: true } : { available: false, code: "ppt.unavailable", reason: "当前环境不能发出 Artifact" }),
+      () => ports.publishArtifact ? { available: true } : { available: false, code: "ppt.unavailable", reason: "当前环境不能发出成果" }),
     bind(pptActions.pptx, (input, caller) => ports.withStore(store => {
       const presentation = store.get(input.id, project(caller));
       if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw new ActionError("ppt.conflict", "演示稿已改变，请重新读取后导出");

@@ -42,7 +42,7 @@ function isolatePayload(payload: unknown): unknown {
   if (Buffer.byteLength(json, "utf8") > PLUGIN_EVENT_PAYLOAD_MAX_BYTES) {
     throw new PluginEventError(
       "event_payload_too_large",
-      `事件内容超过 ${PLUGIN_EVENT_PAYLOAD_MAX_BYTES} 字节上限；大正文请改用 Artifact 引用`,
+      `事件内容超过 ${PLUGIN_EVENT_PAYLOAD_MAX_BYTES} 字节上限；大正文请改用成果引用`,
     );
   }
   return JSON.parse(json) as unknown;

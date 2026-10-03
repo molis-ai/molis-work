@@ -99,7 +99,7 @@ export class PptStore {
   delete(id: string, projectId?: string, expectedVersion?: number): void {
     this.transaction(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
-      if (current.publication_pending) throw new PptError("ppt.publication_pending", "请先恢复上次 Artifact 发布，再删除演示稿");
+      if (current.publication_pending) throw new PptError("ppt.publication_pending", "请先恢复上次成果发布，再删除演示稿");
       this.db.prepare("DELETE FROM presentations WHERE id = ?").run(id);
     });
   }

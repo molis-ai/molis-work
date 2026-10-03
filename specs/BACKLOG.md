@@ -105,6 +105,7 @@
 | BL-097 | 首次打开慢：Feed 第一条详情约 8 秒；从 Inbox「打开待办」后舞台空白约 5 秒才出现待办 | [post-merge-review §5 场景 3](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 要先量插件首次加载的耗时分布 | 第二步性能基线 | 中 | 未分配 |
 | BL-098 | 「今天的工作」把同步来的 20 条 Feed 消息都列为「个人」事件（「今天接到 22 件事」），项目里的 Feed 也算作个人 | [post-merge-review §5 场景 3](archive/post-merge-review/spec.md#5-跨功能场景) | 待你决定 | 首页事件应列哪些、怎么归属，属于产品取舍 | 无 | 中 | 未分配 |
 | BL-099 | 用 `?openPlugin=market` 打开插件市场时，标签和窗口标题写 `market`（从界面入口打开正常，产品里没有生成这种链接） | [post-merge-review §5 场景 3](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 只在手写地址时出现 | 无 | 低 | 未分配 |
+| BL-114 | Dock 的插件切换器把插件创作工作台写成内部 id `plugin-builder`，不是它的显示名 | [artifact-positioning §6](artifact-positioning/spec.md#6-进度)（S4 走查） | 已知缺口 | 从切换器找创作台时看到的是内部名 | 无 | 低 | 未分配 |
 | BL-100 | Coding：停止一轮时，还没批准的写文件显示「修改文件 … — 结果未确认」，其实确定没有执行 | [post-merge-review §5 场景 4](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 文案与状态映射 | 无 | 低 | 未分配 |
 | BL-113 | 插件创作台：界面验收发现「显示问题」时交回设计并重新实现，之后门禁不通过就整次构建失败，没有像普通分支那样交回代码 Agent 修（报名表真实模型复测，PMR-36） | [post-merge-review §3 PMR-36](archive/post-merge-review/spec.md#3-问题表) | 已知缺口 | 显示问题分支在门禁失败时进入相同的修复轮（最多两轮），用离线回放验证 | 无 | 中 | 未分配 |
 

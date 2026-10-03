@@ -31,13 +31,13 @@ export const formActions = {
   get: define<{ id: string }, { form: FormRecord }>("get", "读取问卷", "读取题目、选项、状态、版本和发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { form: FormRecord }>("create", "新建问卷", "创建当前项目的草稿问卷", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
   update: define<Edit, { form: FormRecord }>("update", "编辑问卷", "替换指定字段或题目列表；提交读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, questions: { ...array(questionInput), maxItems: 40 } }, ["id"]), changed),
-  publish: define<Identity, { form: FormRecord }>("publish", "开始收集答卷", "开始在这台电脑上收集答卷：本机填写页可以提交，也可以导出填写页文件发给别人，对方生成的答卷文件导回结果；不会生成外网链接，也不发布 Artifact", "command", object(identity, ["id"]), changed),
-  delete: define<Identity, { ok: true }>("delete", "删除问卷", "原子删除问卷和答卷；未完成的 Artifact 发布需先恢复", "command", object(identity, ["id"]), object({ ok: { const: true } })),
+  publish: define<Identity, { form: FormRecord }>("publish", "开始收集答卷", "开始在这台电脑上收集答卷：本机填写页可以提交，也可以导出填写页文件发给别人，对方生成的答卷文件导回结果；不会生成外网链接，也不发布成果", "command", object(identity, ["id"]), changed),
+  delete: define<Identity, { ok: true }>("delete", "删除问卷", "原子删除问卷和答卷；未完成的成果发布需先恢复", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   generate: define<Identity & { prompt: string }, { form: FormRecord }>("questions.add", "按题目加题", "本地追加一题填空，以输入作为题目，不调用模型", "command", object({ ...identity, prompt: { ...text, maxLength: 200 } }, ["id", "prompt"]), changed),
   generateAi: define<Identity & { prompt: string }, { form: FormRecord }>("questions.ai", "AI 拟题并追加", "按明确提示拟一道填空题；调用当前文字模型，失败或问卷变化时不写入", "command", object({ ...identity, prompt: { ...id, maxLength: 2000 } }, ["id", "prompt"]), changed, [...write, "model:invoke"], { cost: "metered" }),
   submit: define<Identity & { answers: Record<string, string>; request_id?: string; source?: "preview" | "fill" }, { submission: FormSubmissionRecord }>("submit", "提交答卷", "按预览版本及题号提交文字答案；多选以换行分隔选项文字。request_id 用于同一次提交恢复", "command", object({ ...identity, answers, request_id: { ...id, maxLength: 200 }, source: { enum: ["preview", "fill"] } }, ["id", "answers"]), object({ submission }), ["form:read", "form:submit"]),
   results: define<{ id: string }, { analysis: { form_id: string; submission_count: number }; submissions: FormSubmissionRecord[] }>("results", "读取答卷", "读取答卷及计数，新增答卷保留提交时题目；旧答卷快照为 null，不重建未知历史", "query", object({ id }), object({ analysis: object({ form_id: id, submission_count: { type: "integer", minimum: 0 } }), submissions: array(submission) })),
-  promote: define<Identity, { form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "问卷存成 Artifact", "发布固定问卷内容或恢复原发布；不包含答卷，后续编辑保留", "command", object(identity, ["id"]), object({ form: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  promote: define<Identity, { form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "问卷存为成果", "发布固定问卷内容或恢复原发布；不包含答卷，后续编辑保留", "command", object(identity, ["id"]), object({ form: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   close: define<Identity, { form: FormRecord }>("close", "停止收集答卷", "停止收集：本机填写页不再接受提交，已有答卷保留；之后可以重新开始收集", "command", object(identity, ["id"]), changed),
   importAnswers: define<{ id: string; files: { name: string; content: string }[] }, { imported: number; skipped: number; rejected: { name: string; reason: string }[] }>("answers.import", "导入答卷文件",
     "导入别人用填写页生成的答卷文件；同一份只算一次，属于其他问卷或内容无效的会列出原因、不写入", "command",
@@ -112,7 +112,7 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       return { analysis: { form_id: input.id, submission_count: submissions.length }, submissions };
     })),
     bind(formActions.promote, (input, caller) => ports.withStore(store => promoteForm(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
-      () => ports.publishArtifact ? { available: true } : { available: false, code: "form.unavailable", reason: "当前环境不能发出 Artifact" }),
+      () => ports.publishArtifact ? { available: true } : { available: false, code: "form.unavailable", reason: "当前环境不能发出成果" }),
     ...createFormSearchHandlers(ports.withStore),
   ];
 }

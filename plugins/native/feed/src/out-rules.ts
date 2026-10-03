@@ -10,8 +10,8 @@ import type {
 import { FeedStoreError } from "./application-errors.js";
 import type { FeedItemRecord, FeedOutRuleMatch, FeedOutRuleRecord } from "./projection.js";
 
-export const FEED_CAPTURE_ARTIFACT_TYPE_ID = "io.molis.work.feed.capture";
-export const FEED_CAPTURE_SCHEMA_VERSION = 1;
+import { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
+export { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
 export const FEED_ARTIFACT_PRODUCER = {
   plugin_id: "io.molis.work.native.feed",
   plugin_version: "0.0.0",

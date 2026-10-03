@@ -1,4 +1,4 @@
-import { pluginWorkbenchClientAsset } from "@molis-ai/molis-work-app-workbench";
+import { pluginWorkbenchClientAsset, renderMolisWorkCapabilitiesClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -63,6 +63,8 @@ export function createLocalWebAssets(ports: {
       ? { body: renderMolisWorkWorkbenchStylesheet(), contentType: "text/css; charset=utf-8" }
       : pathname === "/assets/molis-work-workbench.js"
         ? { body: renderMolisWorkWorkbenchClientScript(), contentType: "text/javascript; charset=utf-8" }
+        : pathname === "/assets/molis-work-capabilities.js"
+        ? { body: renderMolisWorkCapabilitiesClientScript(), contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-arrival.css"
           ? { body: renderMolisWorkArrivalStylesheet(), contentType: "text/css; charset=utf-8" }
         : pathname === "/assets/molis-work-settings.css"

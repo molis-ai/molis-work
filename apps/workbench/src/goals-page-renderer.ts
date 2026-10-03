@@ -308,7 +308,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="Artifacts" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives)}</section>
-            <section class="desktop-work-surface capabilities-surface" data-work-surface="capabilities" data-work-surface-label="${L("能力")}" hidden><iframe class="capabilities-frame" title="${L("能力")}" data-capabilities-frame></iframe></section>
             ${settingsSurfaces}
             ${(view.plugin_stages ?? []).map(defer).join("")}
           </div>

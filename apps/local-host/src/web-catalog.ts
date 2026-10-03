@@ -40,6 +40,7 @@ import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
+import { redirectSettingsAddress } from "./web-settings-arrival.js";
 import { L } from "./web-locale.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
@@ -83,13 +84,7 @@ export async function handleLocalCatalogWebRequest(
   const { PAGE_CSP, handleOnboarding, renderCapsuleShell, isDesktopShellRequest, planningHttp, projectSettings, servePtyClient } = composition;
   const { renderMolisWorkSettings, renderMolisWorkProjectIndex, renderMolisWorkProjectBrief } = composition.workbenchRenderer;
   const { settingsProjects } = projectSettings;
-  const capabilityAlias = url.pathname === "/settings/mcp" ? "access" : url.pathname === "/settings/connectors" || url.pathname === "/settings/functions" ? "connections" : null;
-  if (request.method === "GET" && capabilityAlias) {
-    if (url.pathname === "/settings/functions") url.searchParams.set("connector", "typesafe");
-    response.writeHead(302, { location: `/capabilities/${capabilityAlias}${url.search}`, "cache-control": "no-store" });
-    response.end();
-    return;
-  }
+  if (await redirectSettingsAddress(request, response, url, serverOptions.homeDirectory, () => settingsProjects(serverOptions.homeDirectory), isDesktopShellRequest(request, url))) return;
   if (request.method === "GET" && url.pathname === "/capabilities") {
     response.writeHead(302, { location: `/capabilities/library${url.search}`, "cache-control": "no-store" });
     response.end();

@@ -70,14 +70,17 @@ test("Window chrome stays put while chooser, settings, Feed, Sessions and Goals 
   await expectContained(".arrival-bar", ".chooser-detail");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
 
+  // Settings open in the workbench (specs/artifact-positioning S6): its title bar stays while a category scrolls.
   await navigate(() => command("Page.navigate", { url: origin + "/settings/appearance?desktop=1" }, sessionId));
-  await waitFor("document.body.classList.contains('settings-page')");
-  await expectContained(".project-preferences-chrome", ".settings-content");
+  await waitFor("document.querySelector('[data-tab-workspace]')?.dataset.exclusive === 'settings' && !!document.querySelector('[data-work-surface=settings] [data-settings-panel=appearance]')", 15_000);
+  await expectContained(".immersive-titlebar", "[data-work-surface=settings] [data-settings-stage-body]");
 
   await navigate(() => command("Page.navigate", { url: origin + "/settings/projects?desktop=1" }, sessionId));
-  await waitFor("document.body.classList.contains('settings-page')");
-  await expectContained(".project-preferences-chrome", ".project-manager-list");
+  await waitFor("!!document.querySelector('[data-work-surface=settings] [data-settings-panel=projects] .project-manager-list')", 15_000);
+  await expectContained(".immersive-titlebar", ".project-manager-list");
   await expectContained(".project-manager-index-chrome", ".project-manager-list");
+  await click("[data-cover-close]");
+  await waitFor("!document.querySelector('[data-tab-workspace]')?.dataset.exclusive");
 
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/?desktop=1" }, sessionId));
   await waitFor("document.body.classList.contains('immersive-workbench') && document.body.dataset.desktopSurface === 'home'");

@@ -1,7 +1,10 @@
 export const MCP_ACCESS_CLIENT_SCRIPT = `
 (() => {
-  const root = document.querySelector('[data-mcp-access]');
-  if (!root) return;
+  // Binds to its own page or to the settings section the workbench loaded it into; \`page\` is the address it was opened at.
+  const bind = (scope, page) => {
+  const root = scope.matches?.('[data-mcp-access]') ? scope : scope.querySelector('[data-mcp-access]');
+  if (!root || root.dataset.bound === '1') return;
+  root.dataset.bound = '1';
   const client = root.querySelector('[data-mcp-client]');
   const custom = root.querySelector('[data-mcp-custom]');
   const project = root.querySelector('[name=project]');
@@ -35,7 +38,7 @@ export const MCP_ACCESS_CLIENT_SCRIPT = `
     const opened = Array.from(rows.querySelectorAll('details[open]')).map(node => node.closest('[data-grant-row]').dataset.grantRow);
     rows.innerHTML = payload.html;
     rows.querySelectorAll('[data-grant-row]').forEach(node => { if (opened.includes(node.dataset.grantRow)) node.querySelector('details').open = true; });
-    const url = new URL(location.href); url.searchParams.set('q',form.elements.q.value); url.searchParams.set('filter',form.elements.filter.value); history.replaceState(null,'',url);
+    const url = page.address(); url.searchParams.set('q',form.elements.q.value); url.searchParams.set('filter',form.elements.filter.value); page.replace(url);
     refresh.hidden = true;
   }
   async function reload() {
@@ -62,5 +65,8 @@ export const MCP_ACCESS_CLIENT_SCRIPT = `
     } catch { message(L('保存结果未确认，请刷新列表检查后再操作。'),true); refresh.hidden=false; }
     finally { setBusy(false); }
   });
+  };
+  globalThis.molisWorkBindMcpAccess = bind;
+  bind(document, { address: () => new URL(location.href), replace: (next) => history.replaceState(null, '', next) });
 })();
 `;

@@ -62,10 +62,11 @@ for (const [width, height] of [[1440, 900], [390, 640]]) {
     assert.equal(saved[0].native_runtime_session_id, 'fixture-existing-session');
     assert.equal(saved[0].current_goal_id, 'CORE'); assert.equal(saved[0].title, '跨页面关联验收');
     await waitFor("document.querySelector('[data-operation-row=session]')");
+    // Project settings open over the workbench (specs/artifact-positioning S6); closing them is back where the work was.
     await navigate(() => command('Page.navigate', {url: prefix + '/settings'}, sessionId));
-    await waitFor("document.body.classList.contains('project-preferences-page')");
-    await navigate(() => click('.settings-nav-back'));
-    await waitFor("document.querySelector('[data-operation-row=session]')");
+    await waitFor("document.querySelector('[data-tab-workspace]')?.dataset.exclusive === 'project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')", 15000);
+    await click('[data-cover-close]');
+    await waitFor("!document.querySelector('[data-tab-workspace]')?.dataset.exclusive && !!document.querySelector('[data-operation-row=session]')");
     assert.equal((await journeySessions()).length,1);
     assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1'),true);
   });

@@ -2,7 +2,8 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
   (() => {
     const bind = (root = document) => {
     const scope = root && root.querySelector ? root : document;
-    const form = scope.querySelector("[data-policy-form]");
+    // Only the project's rules page: a Goal's own rules form in the same document belongs to the Goal's script.
+    const form = scope.matches?.("[data-project-rules-form]") ? scope : scope.querySelector("[data-project-rules-form]");
     if (!form || form.dataset.bound === "1") return;
     form.dataset.bound = "1";
     const routePrefix = (scope.closest && scope.closest("[data-route-prefix]"))?.dataset.routePrefix

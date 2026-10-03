@@ -1,8 +1,8 @@
 # 系统性代码与架构防腐整理
 
-状态：准备中（2026-10-02）。第一步（[合入后功能审查](../archive/post-merge-review/spec.md)）收尾期间先量化现状、做清单与方案；第一步完成并合入后开始结构性改动。
+状态：准备中，结构性改动尚未开工（2026-10-03）。第一步已完成并归档；同一目标里用户追加的「Artifact 定位与统一外壳」（[artifact-positioning](../artifact-positioning/spec.md)）壳子 S1–S7 与成果库 A1–A7、A4b 已全部合入 main。下一步：main 自检（本文「main 自检」一节），再按 §5a 门禁先行开始结构性改动。
 
-任务要求：`docs/prompts/repository-anti-corruption.md`，以 `origin/anti-rot` 上的版本为准（用户 2026-10-02 指定）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
+任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
@@ -18,12 +18,16 @@
 | --- | --- | --- | --- | --- |
 | 2026-10-02 | 任务要求以哪份为准 | anti-rot 版；main 版 | anti-rot 版 | 用户在目标里指定；anti-rot 合入并删除后改用 main 版 |
 | 2026-10-02 | `~/.molis-work` 在删迁移代码前怎么处理 | 保留并升级；备份后重建；先不处理 | 保留并升级 | 先整份备份；停 4207 与常驻服务期间用删除前的代码升到最新；与新基线逐表比对一致后才删迁移代码 |
-| 2026-10-02 | 4173 上的服务（第一次问时我误说成独立的旧 Home，用户选「备份后停用」；执行前发现是真实 Home 的常驻服务，重问） | 不停，保持现状；停掉常驻服务；第二步升级时一并换新版 | 不停，保持现状 | 不备份、不停；升级 `~/.molis-work` 时常驻服务也要一起停，升级后由用户决定是否换新版 |
+| 2026-10-02 | 4173 上的服务（第一次问时我误说成独立的旧 Home，用户选「备份后停用」；执行前发现是真实 Home 的常驻服务，重问） | 不停，保持现状；停掉常驻服务；第二步升级时一并换新版 | 不停，保持现状 | 不备份、不停；升级 `~/.molis-work` 时常驻服务也要一起停，升级后由用户决定是否换新版（**已被 2026-10-03 的决定推翻**：备份、停 4173、删旧成果表，见本表下方）|
 | 2026-10-02 | 插件升级声明的机制 | 保留机制，清掉旧声明；连机制一起删 | 保留机制，清掉旧声明 | 保留 `compatible_from_versions`、`migratable_from_versions` 与发行物留存；内置插件为过去版本写的声明删掉，版本号按新策略重置 |
 | 2026-10-02 | 同事有没有要保留的 Home | 给同事一份备份升级说明；没有同事在用；稍后告知 | 没有同事在用 | 只处理本机 `~/.molis-work` |
 | 2026-10-02 | 共享核心的评审方式 | CODEOWNERS 记归属、不开必选评审；共享核心必须评审；再加合并队列 | CODEOWNERS 记归属，不开必选评审 | 加 `.github/CODEOWNERS`，自动请求评审但不强制；合同变更靠门禁守；不改仓库设置、不开合并队列 |
 | 2026-10-02 | vendored 私有包 | 删 3 份不用的、分发照旧；删 3 份并改私有源；先不动 | 删 3 份不用的，分发照旧 | [#170](https://github.com/molis-ai/molis-work/pull/170) 删掉 assistant-memory、compaction-growth、resource-intake；私有包继续随仓库分发 |
 | 2026-10-02 | 他人的工作树与分支 | 只清已合入且干净的；全部保留；逐个问 | 只清已合入且干净的 | 已删 `~/code/molis-work-performance-pr` 工作树与本地分支（#150 已合、无未提交改动）。删远端已合入分支（他人的 #159、#164，以及本目标自己的 23 条）被自动模式拦下，留给用户在 GitHub 上删，清单见 §7 |
+| 2026-10-03 | 任务书来源 | — | 以 main 为准 | 任务书已合入 main：[#216](https://github.com/molis-ai/molis-work/pull/216)（`592f15bc`）用 anti-rot 上的两份任务书替换 main 上的旧版（anti-rot 自分叉以来只改了这两个文件）。此后任务要求、代码与 spec 都以 main 为准，按目标原文「anti-rot 合入 main 后以 main 为准」执行；每个分支从最新 origin/main 开，开工前 fetch、合并前同步到最新 main，不再基于 anti-rot 或其他旧分支开新工作 |
+| 2026-10-03 | 验证频率 | — | 用户调整 | 用户 2026-10-03 调整验证频率：小改动攒成一批，整体构建一次，跑这批改动涉及的相关用例（改了什么就跑读它、调它的用例；带 `L()` 文案的加 `tests/i18n.test.ts`，改路由的加所有读这条路由的用例）；全量回归只在大改动时跑（改共享核心 contracts、kernel、modules、local-host 的装配、workbench 外壳，改迁移或存储，改动跨三个以上包，删除整块旧代码，或合入后相关用例意外失败），每个阶段收尾也跑一次全量作为阶段证据。不变的底线：每个 PR 的 CI 必须通过；跑测试前先整体构建；构建与浏览器用例串行；不跳过、不放宽、不删除断言；失败先用干净基线工作树比对 |
+| 2026-10-03 | 推翻 10-02「4173 不停，保持现状」 | 保持现状；备份、停 4173、现在删旧成果表 | 备份、停 4173、现在删 | 成果库改造里用户决定立即删真实 Home 的旧成果表（[artifact-positioning §1](../artifact-positioning/spec.md)）：已 `launchctl bootout` 停下 4173（安装版 0.2.0，没有旧表已不能用，要等装新版）；18 个项目库已备份到 `~/.molis-work-backups/2026-10-03-drop-old-artifact-tables/` 后逐库删掉 `artifacts`、`artifact_versions`。下面 §4.1 第 4 步按此重写 |
+| 2026-10-03 | anti-rot 分支与工作树（弹窗） | #216 合入后三处都删（推荐）；只删工作树与本地分支；先都不删 | 三处都删 | 已执行：#216 合入（592f15bc）后删了工作树 `.claude/worktrees/review-prompts-goal`（无未提交改动）、本地分支 `anti-rot`（无本地独有提交）与远端 `origin/anti-rot` |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -242,13 +246,14 @@
    - 各 Module 只交出当前 schema；
    - 宿主一次建库、写版本；
    - 删掉迁移链与 `tooling/migrations/`。
-4. 真实 Home（用户选「保留并升级」）：
-   1. 整份备份 `~/.molis-work`；
-   2. 停掉 4207 与常驻服务 4173；
-   3. 用删除前的代码打开一次，让它升到最新；
+4. 真实 Home（用户选「保留并升级」；2026-10-03 起的现状：旧成果表已删、常驻服务 4173 已停，见 §1）：
+   1. 整份备份 `~/.molis-work`（10-03 已单独备份 18 个项目库，见 §7；升级前仍要整份备份一次）；
+   2. 确认 4207 没在跑、4173 仍停着（10-03 起它没有旧成果表已不能用）；
+   3. 用删除迁移代码之前的最新 main 打开一次，让每个库升到最新（新成果表、过程项表在这一步建出）；
    4. 用新代码在临时目录建一个基线库，逐表比对两者的表、列、索引、约束与版本号；
    5. 一致后才合入删除迁移代码的 PR；
-   6. 合入后用新代码打开真实 Home，确认版本相符、不被拒绝。
+   6. 合入后用新代码打开真实 Home，确认版本相符、不被拒绝；
+   7. 4173 换成新版（重新安装或指向新构建）再启动，由用户决定时机。
 
 真实 Home 要先按用户的决定备份、升级或重建，才能删兼容代码（§4.1「真实 Home 的安全」）。
 
@@ -334,6 +339,14 @@
 | `server` | 18 | 1,064 | `continuity/service.ts` 162 | 1 | 2 | 2 |
 | `tooling/plugin-cli` | 8 | 329 | `sample-source.ts` 90 | 1 | 2 | 0 |
 
+### 5.x 本轮补记的清单项（2026-10-03）
+
+| 项 | 现状 | 证据 | 处理 |
+| --- | --- | --- | --- |
+| `apps/workbench/src/i18n/en.ts` 无引用的译文 | 约 1,489 条键在源码里找不到（全文件约 3,640 行），译文表一大半是死数据 | 脚本逐键在 `apps`、`plugins`、`packages`、`modules`、`horizontal`、`server`、`tooling`、`examples` 的源码里查找（排除 `dist`、`node_modules`）；抽查「官方连接方式」「计划与执行看板」「钉住预览」只在 `en.ts` 出现 | 死代码清理一片：删无引用的键，把动态拼出的文案改成常量后再删；健康门禁随之下调 |
+| `tests/ppt-actions.e2e.test.ts` 下载竞态 | 读到 Chrome 先建的空文件就停，main 上 3 次 2 次失败 | A4b-3b 相关用例与基线对比 | 已修：[#214](https://github.com/molis-ai/molis-work/pull/214)（等文件写完再读，断言不变）。`tests/alchemist-workbench.e2e.test.ts` 读导出有同样写法，尚未见失败，留待测试稳定性一片一起改 |
+| 演示稿对象的两套种类名 | PPT 的动作（`ppt.*`）声明 `subject_kinds: ["ppt"]`，对象读取、搬动、搜索、侧栏与成果来源用 `presentation` | `plugins/native/ppt/src/actions.ts`（`subject_kinds: ["ppt"]`）对 `search.ts`、`defineObjectMoveAction("ppt.placement.move", ["presentation"])` | 统一成 `presentation`；改动方的发现与授权都按种类匹配，要连同读它的用例一起改 |
+
 ## 5a. 门禁先行（§5 第 1 步，方案）
 
 先接进 CI、防止边整理边恶化。每个门禁都有入库的基线文件，「只减不增」；改动后用突变验证（故意违反一次，确认 CI 变红）。
@@ -392,6 +405,10 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 ## 7. 需要用户操作的事项
 
+- **常驻服务 4173 要装新版**：10-03 已停（`launchctl bootout gui/<uid>/com.adeptify.goalboard.web`，plist 未改）。它是安装版 0.2.0，读写已删除的旧成果表，不能再用；装新版或改指向新构建后，用 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.adeptify.goalboard.web.plist` 启动。
+- **旧成果表的备份**：`~/.molis-work-backups/2026-10-03-drop-old-artifact-tables/`（18 个项目库，148 MB，逐个 `integrity_check` 通过、行数与删除前一致）。确认不再需要后由用户删除。
+- ~~**anti-rot**~~：已于 10-03 删除（工作树、本地与远端分支，见 §1），不再需要用户操作。
+- **#192–#215 合入后留下的远端分支**（24 条，GitHub 上 Branches 页删除）：`docs/artifact-positioning-progress`、`fix/shell-s6-settings-in-workbench`、`docs/archive-post-merge-review`、`fix/shell-s6b-capabilities-in-workbench`、`chore/shell-s7-page-gates`、`fix/shell-s4-studio-in-workbench`、`fix/shell-s1b-drop-old-builder`、`docs/artifact-positioning-s4-s1b`、`fix/artifact-a6-naming-and-feed-manifest`、`feat/artifact-a2-process-items`、`feat/artifact-a1-contract`、`feat/artifact-a3-import-in-library`、`feat/artifact-a4-consumers`、`feat/artifact-a5-goal-delivery`、`fix/test-functions-harness-host`、`feat/artifact-a5b-pin-deliverables`、`feat/artifact-a5c-deliverable-proposals`、`feat/artifact-a7-declaration-gates`、`feat/artifact-a4b-source-and-references`、`feat/pages-import-entry-back`、`feat/artifact-a4b2-goal-inputs`、`feat/artifact-a4b3-continue-and-side`、`fix/test-ppt-download-race`、`feat/artifact-a4b3b-continue`；以及之后合入的本目标分支。
 - 删除已合入的远端分支（自动模式拦下了我执行的删除）：`docs/spec-sweep`、`fix/onboarding-blank-name`、`fix/global-links-in-project`、`feat/one-attention-bell`、`feat/characters-settings-only`、`fix/contextual-live-region`、`test/baseline-timing-defects`、`fix/todo-project-search`、`fix/open-plugin-link`、`fix/jelly-assistant-refresh`、`fix/assistant-undo-refresh`、`fix/narrow-stage-side-panel`、`fix/assistant-claimed-save`、`fix/pages-writing-faithful`、`feat/one-idea-inbox`、`fix/open-plugin-enabled-only`、`fix/todo-search-plain-fields`、`fix/side-browser-stop-revoke`、`fix/button-guard-same-sentence`、`fix/side-browser-wait-no-ask`、`fix/assistant-origin-name`、`fix/builder-model-call-limit`、`fix/test-pages-publication-narrow`，以及他人的 `feature/project-arrival-flow`（#159）、`claude/nostalgic-engelbart-93e407`（#164）。也可以在仓库设置里打开「合并后自动删除分支」。
 
 ## 8. 未验证的范围

@@ -1,6 +1,6 @@
 # 插件切换器：头部两个按钮、一张网格、悬停才出现的两个图标按钮 · 评审截图
 
-对应 `specs/plugin-picker-dock/spec.md`。2026-10-02 在最终构建上取的：一个开发用 Home 里的项目，装了 Pages / 工作流程 / Schedule / Coding 等一批插件，
+对应 `specs/archive/plugin-picker-dock/spec.md`。2026-10-02 在最终构建上取的：一个开发用 Home 里的项目，装了 Pages / 工作流程 / Schedule / Coding 等一批插件，
 其余是项目没有的（灰）。悬停与点击用的是真实的鼠标事件；手机那张开了触控模拟（没有悬停，按钮常在）。
 
 | 文件 | 看什么 |

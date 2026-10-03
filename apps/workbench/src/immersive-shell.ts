@@ -104,7 +104,7 @@ export interface InstalledRailEntry { surface: string; label: string }
  * colour and opens its plugin; one it does not have is grey and opens nothing. Each tile carries the same two small
  * buttons, shown when the tile is looked at (the row yields to them, as DropAgent's directory rows do): keep it in the Dock
  * (the Dock's list is these buttons; there is no second list), and add it to or remove it from this project. The client
- * changes a tile's state in place (specs/plugin-picker-dock), so the markup is the same in both states.
+ * changes a tile's state in place (specs/archive/plugin-picker-dock), so the markup is the same in both states.
  */
 export function renderPluginRail(
   primitives: ImmersiveShellPrimitives,

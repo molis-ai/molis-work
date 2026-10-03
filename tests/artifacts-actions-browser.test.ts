@@ -25,9 +25,9 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
     await waitFor("document.querySelector('[data-artifact-import-dialog]')?.open === true");
     assert.equal(await evaluate("document.querySelector('[data-import-source]').value"), "file", "a local file is the first choice");
     const root = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
-    const input = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: root.root.nodeId, selector: "input[type=file]" }, sessionId);
+    const input = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: root.root.nodeId, selector: "[data-artifact-import-dialog] input[type=file]" }, sessionId);
     await command("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] }, sessionId);
-    await click("[data-import-submit]");
+    await click("[data-artifact-import-dialog] [data-import-submit]");
     await waitFor("!document.querySelector('[data-import-result]').hidden || !document.querySelector('[data-import-error]').hidden", 10_000);
     assert.equal(await evaluate("document.querySelector('[data-import-error]').hidden"), true);
     const href = await evaluate<string>("document.querySelector('[data-import-result-link]').getAttribute('href')");

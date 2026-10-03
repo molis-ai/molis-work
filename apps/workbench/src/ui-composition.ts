@@ -2,7 +2,6 @@ import { COGNIA_UI_CONTRIBUTION_ID, type CogniaUiModel } from "@molis-ai/molis-w
 import { IMAGES_UI_CONTRIBUTION_ID, type ImagesUiModel } from "@molis-ai/molis-work-plugin-images";
 import { JELLY_UI_CONTRIBUTION_ID, type JellyUiModel, type JellyUiSurface } from "@molis-ai/molis-work-plugin-jelly";
 import { EXPERIMENTS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-experiments";
-import { THEME_BOOTSTRAP_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import type {
   UiRenderRequest,
   UiSlotDescriptor,

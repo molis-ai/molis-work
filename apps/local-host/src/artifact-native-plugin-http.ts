@@ -19,6 +19,8 @@ export interface ArtifactHttpContext {
   readonly routePrefix: string;
   readonly projectTitle: string;
   readonly actions: BoundActionClient;
+  /** Pages, bound with its own permissions, for "在 Pages 继续". */
+  readonly pages?: BoundActionClient;
   readonly controlToken: string;
   readonly desktopShell: boolean;
   readonly pageCsp: string;
@@ -66,9 +68,10 @@ export function createLocalArtifactHttp() {
           supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
         const file = importedFileOf(view.selected);
         if (!file || !PAGES_READABLE_FILE.test(file.filename)) { sendLocalWebJson(response, 400, { error: L("Pages 读不了这一版：支持 Markdown、TXT、HTML、CSV、Word 与 ZIP") }); return true; }
+        if (!context.pages) { sendLocalWebJson(response, 404, { error: L("这个项目没有 Pages") }); return true; }
         const files = [{ name: file.filename, data: file.bytes.toString("base64") }];
-        const prepared = await context.actions.invoke(pagesActions.previewImport, { files });
-        const imported = await context.actions.invoke(pagesActions.import, { files, request_id: randomUUID(),
+        const prepared = await context.pages.invoke(pagesActions.previewImport, { files });
+        const imported = await context.pages.invoke(pagesActions.import, { files, request_id: randomUUID(),
           selected_keys: prepared.documents.map(document => document.key) });
         const document = imported.documents[0];
         if (!document) { sendLocalWebJson(response, 400, { error: L("这一版没有可以继续的正文") }); return true; }

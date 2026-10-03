@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionReference } from "./actions.js";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference } from "./actions.js";
 import type { ActionSubject } from "./action-subjects.js";
 import type { ArtifactReference, ArtifactVersionRecord } from "../modules/artifacts.js";
 
@@ -104,4 +104,39 @@ export function objectOrMissing<T>(read: () => T): T | null {
     if (/not_found$/u.test(String((error as { code?: unknown }).code ?? ""))) return null;
     throw error;
   }
+}
+
+/**
+ * 「从这一版继续」 (A4b): a plugin starts a new work object of its own from a version in the 成果库 and says where it opens.
+ * The version itself never changes. A plugin declares it on the types it can continue from, its own or another's
+ * (Pages continues from imported text files).
+ */
+export const ARTIFACT_CONTINUE_INPUT_TYPE = "molis.artifacts.continue.request.v1";
+export const ARTIFACT_CONTINUE_OUTPUT_TYPE = "molis.artifacts.continue.v1";
+export interface ArtifactContinueInput { artifact: ArtifactVersionRecord }
+export interface ArtifactContinueResult { open: { surface: string; id: string; title: string } }
+
+export function defineArtifactContinueAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult> {
+  const id = { type: "string", minLength: 1 };
+  return { capability_id: capabilityId, version: 1, operation: "command", action: {
+    title: `从这一版新建${objectTitle}`, description: `用成果库里的一版新建一份${objectTitle}继续编辑；这一版本身不变。`,
+    kind: "operation", scope: "project", audiences: ["user"], plugin: false, permissions: [...permissions], subject_kinds: [],
+    input_type: ARTIFACT_CONTINUE_INPUT_TYPE, output_type: ARTIFACT_CONTINUE_OUTPUT_TYPE,
+    input_schema: { type: "object", properties: { artifact: { type: "object" } }, required: ["artifact"], additionalProperties: false },
+    output_schema: { type: "object", properties: { open: { type: "object", properties: { surface: id, id, title: { type: "string" } }, required: ["surface", "id", "title"], additionalProperties: false } },
+      required: ["open"], additionalProperties: false } } };
+}
+
+export function isArtifactContinueAction(action: { input_type?: string; output_type?: string }): boolean {
+  return action.input_type === ARTIFACT_CONTINUE_INPUT_TYPE && action.output_type === ARTIFACT_CONTINUE_OUTPUT_TYPE;
+}
+
+/** The plugin's half: a new object from the version, for the types it declared; a version it cannot read is refused. */
+export function bindArtifactContinue(definition: ActionDefinition<ArtifactContinueInput, ArtifactContinueResult>, artifactTypeIds: readonly string[],
+  start: (artifact: ArtifactVersionRecord, caller: ActionExecutionContext) => ArtifactContinueResult["open"] | Promise<ArtifactContinueResult["open"]>): ActionHandlerBinding {
+  return { capability_id: definition.capability_id, version: definition.version, handle: async (caller, input) => {
+    const artifact = (input as ArtifactContinueInput).artifact;
+    if (!artifact || !artifactTypeIds.includes(artifact.artifact_type_id) || artifact.availability !== "available") throw new ActionError("actions.input_invalid", "这一版不能在这个插件里继续");
+    return { open: await start(artifact, caller) } satisfies ArtifactContinueResult;
+  } };
 }

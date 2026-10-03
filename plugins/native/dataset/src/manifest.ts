@@ -30,7 +30,7 @@ export const datasetManifest: PluginManifest = {
   artifacts: {
     produces: [{ artifact_type_id: DATASET_ARTIFACT_TYPE_ID, schema_version: DATASET_ARTIFACT_SCHEMA_VERSION, title: "数据表",
       preview: { capability_id: "dataset.artifacts.preview", version: 1 }, pin: { capability_id: "dataset.artifacts.pin", version: 1 },
-      compare: { capability_id: "dataset.artifacts.compare", version: 1 } }],
+      compare: { capability_id: "dataset.artifacts.compare", version: 1 }, continue: { capability_id: "dataset.artifacts.continue", version: 1 } }],
     consumes: [],
   },
   ui: {

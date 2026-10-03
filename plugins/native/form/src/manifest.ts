@@ -31,7 +31,7 @@ export const formManifest: PluginManifest = {
   artifacts: {
     produces: [{ artifact_type_id: FORM_ARTIFACT_TYPE_ID, schema_version: FORM_ARTIFACT_SCHEMA_VERSION, title: "问卷",
       preview: { capability_id: "form.artifacts.preview", version: 1 }, pin: { capability_id: "form.artifacts.pin", version: 1 },
-      compare: { capability_id: "form.artifacts.compare", version: 1 } }],
+      compare: { capability_id: "form.artifacts.compare", version: 1 }, continue: { capability_id: "form.artifacts.continue", version: 1 } }],
     consumes: [],
   },
   ui: {

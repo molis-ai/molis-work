@@ -1,6 +1,8 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { createHash } from "node:crypto";
-import { ActionError, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { createHash, randomUUID } from "node:crypto";
+import { ActionError, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { IMPORTED_DOCUMENT_TYPE, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { parsePagesBody } from "./document.js";
 import { PAGES_ARTIFACT_TYPE_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_AI_COMMANDS, runPagesAi, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
@@ -38,6 +40,8 @@ type Fields = { title?: string; body?: PagesBody; folder_id?: string; starred?: 
 type WrittenFields = Fields & { markdown?: string };
 /** The object kind every Pages action and surface names. */
 export const PAGES_SUBJECT_KIND = "pages_document";
+/** What Pages can start documents from: text it reads, and the Word, CSV and ZIP (e.g. Notion export) files it parses. */
+export const PAGES_READABLE_FILE = /\.(?:md|markdown|txt|html?|csv|docx|zip)$/iu;
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[], execution?: ActionDefinition["action"]["execution"], scheduling?: ActionDefinition["action"]["scheduling"]): ActionDefinition<I, O> {
   return { capability_id: `pages.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}),
     kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
@@ -64,6 +68,8 @@ export const pagesActions = {
   artifactPin: defineArtifactPinAction("pages.artifacts.pin", PAGES_SUBJECT_KIND, "文档", [...read, ...write, "artifact:write"]),
   /** Whether a pinned version still matches the pages object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("pages.artifacts.compare", "文档", [...read]),
+  /** 「从这一版继续」 (A4b): a new document from a version of a document, or from an imported text file Pages can read. */
+  artifactContinue: defineArtifactContinueAction("pages.artifacts.continue", "文档", [...read, ...write]),
   /** Where a document lives (specs/archive/work-placement): moving keeps its id; copying makes an independent document. */
   move: defineObjectMoveAction("pages.placement.move", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
   copy: defineObjectCopyAction("pages.placement.copy", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
@@ -201,6 +207,24 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       await caller.beforeEffect();
       return ports.withStore(store => ({ documents: store.importDocuments({ project_id: project(caller), request_id: input.request_id.toLowerCase(), request_hash, folder_id, documents }),
         warnings: [...new Set([...prepared.warnings, ...documents.flatMap(document => document.warnings)])] }));
+    }),
+    bindArtifactContinue(pagesActions.artifactContinue, [PAGES_ARTIFACT_TYPE_ID, IMPORTED_DOCUMENT_TYPE], async (artifact, caller) => {
+      if (artifact.artifact_type_id === PAGES_ARTIFACT_TYPE_ID) {
+        const payload = (artifact.payload ?? {}) as { title?: unknown; body?: unknown };
+        const document = ports.withStore(store => store.create({ project_id: project(caller), title: typeof payload.title === "string" ? payload.title : artifact.title, body: parsePagesBody(payload.body) }));
+        return { surface: "pages", id: document.id, title: document.title };
+      }
+      // An imported file Pages can read is parsed the way Pages imports files.
+      const file = importedDocumentFile(artifact);
+      if (!file || !PAGES_READABLE_FILE.test(file.filename)) throw new ActionError("pages.unsupported", "Pages 读不了这一版：支持 Markdown、TXT、HTML、CSV、Word 与 ZIP");
+      const files = [{ name: file.filename, data: file.data_base64 ?? Buffer.from(file.text ?? "", "utf8").toString("base64") }];
+      const prepared = await prepareImport(files, caller);
+      const documents = prepared.documents;
+      if (!documents.length) throw new ActionError("pages.invalid", "这一版没有可以继续的正文");
+      const request_hash = createHash("sha256").update(JSON.stringify({ files, selected_keys: documents.map(document => document.key).sort(), folder_id: "" })).digest("hex");
+      await caller.beforeEffect();
+      const [first] = ports.withStore(store => store.importDocuments({ project_id: project(caller), request_id: randomUUID(), request_hash, folder_id: "", documents }));
+      return { surface: "pages", id: first!.id, title: first!.title };
     }),
     bind(pagesActions.importDocuments, (input, caller) => ports.withStore(store => ({ documents: store.importDocuments({ ...input, project_id: project(caller) }) }))),
     bind(pagesActions.generations, (_, caller) => ports.withStore(store => ({ records: store.generations(project(caller)) }))),

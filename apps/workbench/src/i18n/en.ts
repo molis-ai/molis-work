@@ -1440,7 +1440,7 @@ export const EN: Record<string, string> = {
   "交付物没有记下": "The deliverables were not recorded",
   "成果库暂时读不到；可以先收尾，之后再记交付物。": "The results library cannot be read right now. You can close the goal and record deliverables later.",
   "在 Pages 继续": "Continue in Pages",
-  "没能在 Pages 打开这一版": "Could not open this version in Pages",
+  "没能从这一版继续": "Could not continue from this version",
   "固定当前内容并交付": "Pin the current content and hand it in",
   "助理提议": "Proposed by the assistant",
   "选成果库里的版本，或把目标的资料当场固定一版；选中的记在目标下，之后原对象怎么改都不影响它。": "Choose versions from the results library, or pin a version of this goal's materials now. They are recorded under the goal and stay as they are when the originals change.",

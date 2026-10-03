@@ -17,6 +17,8 @@ import {readLocalWebBody,sendLocalWebJson} from './web-http.js';
 interface GeneratedSurface {platform:PluginPlatform;control:GeneratedPluginControl;release:Release}
 interface BuilderSurface {platform:PluginPlatform;workflow:BuilderWorkflow;generated:Map<string,Promise<GeneratedSurface>>}
 const surfaces=new WeakMap<LocalProjectDatabase,Map<string,Promise<BuilderSurface>>>();
+/** The query a builder frame document is asked for with; without it the page is a direct visit and opens the workbench. */
+export const FRAME_QUERY='frame=workbench';
 export function selectionPorts(homeDirectory?:string){
  const key=()=>process.env.TYPESAFE_API_KEY?.trim()||(homeDirectory?typeSafeCredential(homeDirectory,'functions'):null);
  return {selectionAvailable:()=>Boolean(key()),async choose(question:ChoiceQuestion){
@@ -107,7 +109,8 @@ export async function releaseBuilderSurface(store:LocalProjectDatabase,boardId:s
 /**
  * The studio asks the workbench to open a plugin it installed, through the same rail entry a person would click.
  * A plugin installed since the page loaded has no entry yet, so the page reloads once and then opens it; an
- * uninstalled plugin's entry and stage leave the page at once.
+ * uninstalled plugin's entry and stage leave the page at once. A direct address of an installed plugin arrives as
+ * `?openSurface=app-<build>` and opens it the same way.
  */
 const STUDIO_STAGE_SCRIPT=`(()=>{const KEY="molis-studio-open";const valid=s=>typeof s==="string"&&/^app-[a-f0-9-]{36}$/.test(s);
 const entry=s=>[...document.querySelectorAll("[data-work-surface-open]")].find(el=>el.dataset.workSurfaceOpen===s);
@@ -115,6 +118,7 @@ addEventListener("message",event=>{const frame=document.querySelector(".pb-studi
  if(event.data.type==="molis-studio-open-plugin"){const button=entry(event.data.surface);if(button)button.click();else{try{sessionStorage.setItem(KEY,event.data.surface)}catch{}location.reload()}}
  if(event.data.type==="molis-studio-plugin-removed"){entry(event.data.surface)?.remove();[...document.querySelectorAll("[data-work-surface]")].find(el=>el.dataset.workSurface===event.data.surface)?.remove()}});
 let pending=null;try{pending=sessionStorage.getItem(KEY);sessionStorage.removeItem(KEY)}catch{}
+const asked=new URLSearchParams(location.search).get("openSurface");if(valid(asked)){pending=asked;const cleaned=new URL(location.href);cleaned.searchParams.delete("openSurface");history.replaceState(history.state,"",cleaned)}
 if(valid(pending))addEventListener("load",()=>setTimeout(()=>entry(pending)?.click(),0),{once:true});})();`;
 
 /**
@@ -123,7 +127,7 @@ if(valid(pending))addEventListener("load",()=>setTimeout(()=>entry(pending)?.cli
  * The frame fills its stage, which ends above the bottom bar: no viewport-based minimum that would run under the bar.
  */
 export async function builderWorkbenchPanel(ports:CodingSurfacePorts):Promise<string>{
- const source=(ports.routePrefix??'')+'/plugin-builder/studio';
+ const source=(ports.routePrefix??'')+'/plugin-builder/studio?'+FRAME_QUERY;
  return '<section class="desktop-work-surface pb-surface" data-work-surface="plugin-builder" data-work-surface-label="插件创作工作台" hidden>'
   +'<iframe class="pb-studio-frame" src="'+escapeHtml(source)+'" title="插件创作工作台" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#f3f3f1"></iframe>'
   +'<script>'+STUDIO_STAGE_SCRIPT+'</script></section>';

@@ -2,6 +2,7 @@
 export const FLOW_EN: Record<string, string> = {
   "打开插件": "Open a plugin",
   "找不到这个页面：{path}": "This page does not exist: {path}",
+  "项目内引用": "Project reference",
   "AI": "AI",
   "工具与接入": "Tools and connections",
   "提示词": "Prompts",

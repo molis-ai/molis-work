@@ -4,7 +4,7 @@ export const ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID = "io.molis.work.native.artif
 
 export interface ArtifactReferenceUiPrimitives {
   escape(value: string): string;
-  icon(name: "external" | "copy"): string;
+  icon(name: "external" | "copy" | "file"): string;
   text(value: string): string;
 }
 
@@ -43,7 +43,7 @@ export const artifactReferenceUiContribution: UiContribution<ArtifactReferenceUi
     }
     if (isProjectReference(value)) {
       const evidenceQuery = evidenceId ? `?evidence_id=${encodeURIComponent(evidenceId)}` : "";
-      return `<a class="inline-ref" href="/api/project-references/${encodeURIComponent(value)}${evidenceQuery}" target="_blank" rel="noreferrer" data-project-reference>${p.icon("external")}<span>${p.escape(label)}</span></a>`;
+      return `<a class="inline-ref" href="/api/project-references/${encodeURIComponent(value)}${evidenceQuery}" data-project-reference>${p.icon("file")}<span>${p.escape(label)}</span></a>`;
     }
     return `<button class="inline-ref" type="button" data-copy-value="${p.escape(value)}" title="${p.escape(p.text("复制引用"))}">${p.icon("copy")}<span>${p.escape(label)}</span></button>`;
   },

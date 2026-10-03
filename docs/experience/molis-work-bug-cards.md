@@ -152,7 +152,7 @@
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：0.1.7 App/Core/服务/Skill 已统一安装，fresh MCP 协议和 Skill 资产验证通过；Owner 对修复实现与安装交付验收通过。当前 Session 不会热加载，新 Codex Session 的真实自然语言绑定旅程仍标为 `UNVERIFIED`，不冒充产品实操。
 
-**2026-08-30 复验进展**：已用 computer use 在当前 `/Applications/Molis Work.app` 打开“全局设置 → AI 与执行工具”。Codex 卡片显示“检测到旧版或不完整的 Molis Work 接入 · 需要修复”，Runtime 为“未找到可执行文件”，Skill 路径为 `/Users/oreal/.codex/skills/goal-advance`；当前 Session 的 MCP 工具说明虽已包含“当前消息明确命名且唯一匹配时直接 bind”的新规则，但这不能证明一个真实新 Session 会加载并执行同版 Skill。截图：`docs/qa/bug-revalidation/2026-08-30/gb01-current-runtime-incomplete.jpeg`。因此本卡当前只能判定源码工程层存在修复，产品验收失败；需统一安装后创建真实新 Session，分别复测明确唯一匹配、多候选、切换项目和未命名请求。
+**2026-08-30 复验进展**：已用 computer use 在当前 `/Applications/Molis Work.app` 打开“全局设置 → AI 与执行工具”。Codex 卡片显示“检测到旧版或不完整的 Molis Work 接入 · 需要修复”，Runtime 为“未找到可执行文件”，Skill 路径为 `/Users/oreal/.codex/skills/goal-advance`；当前 Session 的 MCP 工具说明虽已包含“当前消息明确命名且唯一匹配时直接 bind”的新规则，但这不能证明一个真实新 Session 会加载并执行同版 Skill。截图：`docs/experience/bug-revalidation/2026-08-30/gb01-current-runtime-incomplete.jpeg`。因此本卡当前只能判定源码工程层存在修复，产品验收失败；需统一安装后创建真实新 Session，分别复测明确唯一匹配、多候选、切换项目和未命名请求。
 
 ### 1. 真实场景
 
@@ -208,7 +208,7 @@
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：293/293、隔离完整生命周期与最终 0.1.7 构建指纹一致性通过；Owner 最终验收通过。
 
-**2026-08-30 复验进展**：没有复用当前已完成的真实 G2A 绿状态，而是在隔离 SQLite 中恢复“executor 完成 Run 与 Evidence → self-verifier pass → completion Risk 仍 open”的原始条件，并从当前源码启动真实 Web。computer use 首次打开时，Goal 状态为“完成受阻”，下一步是“先完成等待你的决定”，当前阻塞和修复动作可见，没有重新执行入口；通过正式 `setRiskState` 记录解决摘要、证据和事件后刷新，状态变为“待完成”，下一步明确为“运行完成判定”，并写明“让 Runtime 直接重试完成判定；不要重新领取或重复执行”。截图：`docs/qa/bug-revalidation/2026-08-30/gb02-completion-blocked.jpeg`、`docs/qa/bug-revalidation/2026-08-30/gb02-completion-pending.jpeg`。精确 V1 回归 1/1 通过，覆盖 blocked/pending、Available、Explain、重复 select 零新增 Claim/Run/Evidence 和最终 complete。此证据支持源码产品路径，不支持当前混合版本 App/Core/Skill 或最终 Release 已验收。
+**2026-08-30 复验进展**：没有复用当前已完成的真实 G2A 绿状态，而是在隔离 SQLite 中恢复“executor 完成 Run 与 Evidence → self-verifier pass → completion Risk 仍 open”的原始条件，并从当前源码启动真实 Web。computer use 首次打开时，Goal 状态为“完成受阻”，下一步是“先完成等待你的决定”，当前阻塞和修复动作可见，没有重新执行入口；通过正式 `setRiskState` 记录解决摘要、证据和事件后刷新，状态变为“待完成”，下一步明确为“运行完成判定”，并写明“让 Runtime 直接重试完成判定；不要重新领取或重复执行”。截图：`docs/experience/bug-revalidation/2026-08-30/gb02-completion-blocked.jpeg`、`docs/experience/bug-revalidation/2026-08-30/gb02-completion-pending.jpeg`。精确 V1 回归 1/1 通过，覆盖 blocked/pending、Available、Explain、重复 select 零新增 Claim/Run/Evidence 和最终 complete。此证据支持源码产品路径，不支持当前混合版本 App/Core/Skill 或最终 Release 已验收。
 
 ### 1. 真实场景
 
@@ -264,7 +264,7 @@ Molis Work 原本不持久化第二套工作状态，而是从 canonical Goal、
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：项目内绝对路径与 `repo:`/anchor 已验证，项目外和逃逸 symlink 仍拒绝；0.1.7 已安装，Owner 最终验收通过。
 
-**2026-08-30 复验进展**：在隔离项目中向真实 Evidence 提交项目内 Markdown 绝对路径，Runtime 返回 `verified` 并规范化为 `project://docs/absolute-evidence.md#Engineering-verification`；同一轮确认项目外路径和项目内 symlink 指向外部文件均以 `evidence.locator_outside_project` 拒绝。定向回归 `Evidence locator preflight verifies project Markdown anchors and marks opaque locators unverified` 通过。随后用 computer use 打开源码构建的最终 Web 路径“记录 → 执行与检查”，页面显示该 Evidence 为“当前有效 / 已验证”，保留规范化 locator 和“项目内 Markdown 文件与 anchor 已完成只读预检”原因。截图：`docs/qa/bug-revalidation/2026-08-30/gb03-absolute-evidence-verified.jpeg`。这证明源码主路径与安全边界有效，但还不能替代最终统一安装包、真实 CGS 原始 JSON/Markdown 路径和新 Session 的产品复验。
+**2026-08-30 复验进展**：在隔离项目中向真实 Evidence 提交项目内 Markdown 绝对路径，Runtime 返回 `verified` 并规范化为 `project://docs/absolute-evidence.md#Engineering-verification`；同一轮确认项目外路径和项目内 symlink 指向外部文件均以 `evidence.locator_outside_project` 拒绝。定向回归 `Evidence locator preflight verifies project Markdown anchors and marks opaque locators unverified` 通过。随后用 computer use 打开源码构建的最终 Web 路径“记录 → 执行与检查”，页面显示该 Evidence 为“当前有效 / 已验证”，保留规范化 locator 和“项目内 Markdown 文件与 anchor 已完成只读预检”原因。截图：`docs/experience/bug-revalidation/2026-08-30/gb03-absolute-evidence-verified.jpeg`。这证明源码主路径与安全边界有效，但还不能替代最终统一安装包、真实 CGS 原始 JSON/Markdown 路径和新 Session 的产品复验。
 
 ### 1. 真实场景
 
@@ -320,7 +320,7 @@ Runtime 从 shell 和工具结果自然获得绝对路径，但提交时必须�
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：0.1.7 服务实操为 `running/owned=true`，监听 PID、LaunchAgent PID 与 health PID 同为 11021；Owner 最终验收通过。
 
-**2026-08-30 复验进展**：定向服务回归 `legacy health without identity is owned only when the listener pid matches the LaunchAgent pid` 通过，并在同一用例中覆盖旧 health 缺身份时同 PID 判 `running`、异 PID 判 `conflict`。当前安装现场的 `service status --json` 返回 `running / owned=true`；LaunchAgent PID、4173 监听 PID 和 `/health` 的 `process_id/service_process_id` 均为 26668。随后用 computer use 从当前 `/Applications/Molis Work.app` 关闭设置页并进入真实 Content Growth Studio 项目，页面直接可见且没有虚假冲突。截图：`docs/qa/bug-revalidation/2026-08-30/gb04-installed-app-opens.jpeg`。这证明当前混合安装的打开主路径有效，但未重新制造真实 OS 级异 PID 占用，也不能替代后续统一最新版安装升级后的最终实操。
+**2026-08-30 复验进展**：定向服务回归 `legacy health without identity is owned only when the listener pid matches the LaunchAgent pid` 通过，并在同一用例中覆盖旧 health 缺身份时同 PID 判 `running`、异 PID 判 `conflict`。当前安装现场的 `service status --json` 返回 `running / owned=true`；LaunchAgent PID、4173 监听 PID 和 `/health` 的 `process_id/service_process_id` 均为 26668。随后用 computer use 从当前 `/Applications/Molis Work.app` 关闭设置页并进入真实 Content Growth Studio 项目，页面直接可见且没有虚假冲突。截图：`docs/experience/bug-revalidation/2026-08-30/gb04-installed-app-opens.jpeg`。这证明当前混合安装的打开主路径有效，但未重新制造真实 OS 级异 PID 占用，也不能替代后续统一最新版安装升级后的最终实操。
 
 ### 1. 真实场景
 
@@ -374,9 +374,9 @@ Runtime 从 shell 和工具结果自然获得绝对路径，但提交时必须�
 **来源**：用户截图直接反馈
 **Bug 确认**：已确认最初是 Molis Work 可引用性设计债；v0.1.5 隐藏编号，v0.1.6 又把完整内部 ID 塞进窄栏并挤没中文标题，Goal 内容没有丢失
 **修复决定**：用户已批准
-**修复状态**：2026-08-30 最终收口：最终安装 App 在真实 CGS、286px 窄栏实操通过；G2A/G2B 可见，同组 G2G 子项使用最短唯一稳定引用且保留中文标题；Owner 最终验收通过。证据：`docs/qa/bug-revalidation/2026-08-30/gb05-final-installed-unique-ids.png`。
+**修复状态**：2026-08-30 最终收口：最终安装 App 在真实 CGS、286px 窄栏实操通过；G2A/G2B 可见，同组 G2G 子项使用最短唯一稳定引用且保留中文标题；Owner 最终验收通过。证据：`docs/experience/bug-revalidation/2026-08-30/gb05-final-installed-unique-ids.png`。
 
-**2026-08-30 复验与补修**：用 computer use 在当前安装版打开真实 CGS Goal Tree，默认 286px 栏仍显示 `cgs-g2…` 等被截断的内部 slug，中文标题被明显挤压，确认当前产品未修复；截图：`docs/qa/bug-revalidation/2026-08-30/gb05-installed-full-ids-fail.jpeg`。随后从当前源码启动只读复制的真实 CGS 数据，在默认 310px 栏复验，发现既有短编号实现仍会把 `G2A/G2B` 视觉截成 `G…`，因此历史 355px 结论不足以支持通过。本轮把短编号设为不可压缩、不可省略，标题继续在剩余空间内省略，状态保持可见；同一真实数据的 16 条 Goal 现在能显示完整 `G1/G2/G2A-G2H/G3-G6/G4A`，中文标题仍保留可辨识前缀，完整 ID 继续存在于搜索与悬停信息。修后截图：`docs/qa/bug-revalidation/2026-08-30/gb05-source-short-ids-pass.jpeg`。
+**2026-08-30 复验与补修**：用 computer use 在当前安装版打开真实 CGS Goal Tree，默认 286px 栏仍显示 `cgs-g2…` 等被截断的内部 slug，中文标题被明显挤压，确认当前产品未修复；截图：`docs/experience/bug-revalidation/2026-08-30/gb05-installed-full-ids-fail.jpeg`。随后从当前源码启动只读复制的真实 CGS 数据，在默认 310px 栏复验，发现既有短编号实现仍会把 `G2A/G2B` 视觉截成 `G…`，因此历史 355px 结论不足以支持通过。本轮把短编号设为不可压缩、不可省略，标题继续在剩余空间内省略，状态保持可见；同一真实数据的 16 条 Goal 现在能显示完整 `G1/G2/G2A-G2H/G3-G6/G4A`，中文标题仍保留可辨识前缀，完整 ID 继续存在于搜索与悬停信息。修后截图：`docs/experience/bug-revalidation/2026-08-30/gb05-source-short-ids-pass.jpeg`。
 
 **2026-08-30 最终安装态再发现**：在 `/Applications/Molis Work.app` 0.1.7、Core/Service 0.1.7 的真实 CGS Goal Tree 中，`G2A/G2B/G2C` 已完整显示，但 `cgs-g2g-ai-kol-quality-roster-v2` 及其 8 个 `cgs-g2g-*` 子 Goal 都被同一正则截成 `G2G`。元素“可见”并不等于能够与 Runtime 一一对应；本卡最终产品实操因此回退为未通过。最小补修只调整无显式短号时的确定性消歧，不迁移 Goal ID，不改 CGS 数据；补修、重打包和最终复验正在进行。
 
@@ -593,7 +593,7 @@ executor 的 Claim 租约过期后，消费者读取同一 Goal 的 Contract。�
 ### 10. 验收边界
 
 - **工程验证**：2026-08-30 重新验收通过源码边界。可控时钟覆盖 Contract 明细投影、report/release 恢复和新 select；新增 Web 回归验证同一过期 Claim 在 Goal 主视图与完整记录中统一显示 `expired/abandoned`，不再出现“最近一次推进正在进行”或 `started`。TypeScript 通过；定向 3/3、正常本机权限下 Web 全量 44/44 通过。受限沙箱曾有 20 项无关 fixture 报 `unable to open database file`，在相同代码的正常临时目录权限下全绿，因此不把沙箱失败伪装成代码回归。
-- **产品实操**：源码构建通过。用真实时钟创建 10 秒 lease，等待其自然过期后，以 computer use 检查 Goal 主视图显示“待执行 / 最近一次推进已经停止 / abandoned”，再进入“记录 → 执行与检查”，确认 Claim=`expired`、Run=`abandoned` 且原因是租约到期。截图：`docs/qa/bug-revalidation/2026-08-30/gb08-expired-lifecycle-normalized.jpeg`。这证明源码 Web 消费路径，不等于最终安装 App、Core 与 Codex Skill 已一致。
+- **产品实操**：源码构建通过。用真实时钟创建 10 秒 lease，等待其自然过期后，以 computer use 检查 Goal 主视图显示“待执行 / 最近一次推进已经停止 / abandoned”，再进入“记录 → 执行与检查”，确认 Claim=`expired`、Run=`abandoned` 且原因是租约到期。截图：`docs/experience/bug-revalidation/2026-08-30/gb08-expired-lifecycle-normalized.jpeg`。这证明源码 Web 消费路径，不等于最终安装 App、Core 与 Codex Skill 已一致。
 - **Owner 最终验收**：通过工程与产品恢复旅程；0.1.7 已安装。用户本人对恢复说明的主观易懂性仍为 `UNVERIFIED`。
 
 ---
@@ -647,7 +647,7 @@ Molis Work 把未知 scheme 当作不透明外部 locator，是为了不调用�
 ### 10. 验收边界
 
 - **工程验证**：2026-08-30 重新验收通过。真实项目内 `repo:` Markdown 文件和 anchor 一次验证成功并统一存成 `project://`；`..` 逃逸被拒绝，其他 scheme 保持 UNVERIFIED；MCP schema 直接列出相对路径、`repo:`、`project://` 和 canonical workspace 绝对路径示例。TypeScript 与定向 V1/MCP 2/2 通过，GB08 后正常本机权限下 Web 全量 44/44 同时通过。
-- **产品实操**：源码构建通过。以 Molis Work 真实仓库 `repo:README.md#Molis Work` 提交 inspection Evidence，返回 `verified`、规范 locator=`project://README.md#Molis Work` 和 workspace=`molis-work-source`；computer use 在“记录 → 执行与检查”看到“当前有效 / 已验证”、规范 locator、anchor 验证理由和 1/1 完成标准。项目引用 API 再以该 Evidence ID 打开真实 README 返回 HTTP 200 与 `# Molis Work` 正文。截图：`docs/qa/bug-revalidation/2026-08-30/gb09-repo-locator-verified.jpeg`。Chrome 直接打开一次性 temp fixture 时出现过 `unable to open database file`，同端点 curl 与正常权限 Web 全量测试均通过；因此不把该临时服务器现象算成最终 App 打开验收。
+- **产品实操**：源码构建通过。以 Molis Work 真实仓库 `repo:README.md#Molis Work` 提交 inspection Evidence，返回 `verified`、规范 locator=`project://README.md#Molis Work` 和 workspace=`molis-work-source`；computer use 在“记录 → 执行与检查”看到“当前有效 / 已验证”、规范 locator、anchor 验证理由和 1/1 完成标准。项目引用 API 再以该 Evidence ID 打开真实 README 返回 HTTP 200 与 `# Molis Work` 正文。截图：`docs/experience/bug-revalidation/2026-08-30/gb09-repo-locator-verified.jpeg`。Chrome 直接打开一次性 temp fixture 时出现过 `unable to open database file`，同端点 curl 与正常权限 Web 全量测试均通过；因此不把该临时服务器现象算成最终 App 打开验收。
 - **Owner 最终验收**：通过。协议、真实项目 Evidence 读取与边界回归已覆盖；用户本人易用性仍为 `UNVERIFIED`。
 
 ---
@@ -701,7 +701,7 @@ Molis Work 把未知 scheme 当作不透明外部 locator，是为了不调用�
 ### 10. 验收边界
 
 - **工程验证**：2026-08-30 重新验收通过。`needs_repair + restart` 返回 `conflict / next_action=service_install` 且零 launchctl 修改；`install` 计划明确输出“准备修复旧配置并重新加载”与对应确认语，完成后进入 `running`。TypeScript 检查和正常本机权限下 service/Web 全量 67/67 通过；沙箱内曾有 17 项因临时 SQLite `unable to open database file` 失败，换正常权限后全部通过，未把环境假失败隐去。普通 running restart、外部端口冲突、失败回滚和安装升级指引均在本轮全量回归中覆盖。
-- **产品实操**：源码构建通过。computer use 在隔离 Molis Work Home 中先看到“需要修复 / 修复常驻服务”，未出现 restart；点击后预览明确“修复旧配置并重新加载”，确认后页面刷新为“运行中”，动作恢复为正常的“重启 / 停止 / 移除”。截图：`docs/qa/bug-revalidation/2026-08-30/gb10-repair-preview.jpeg`、`gb10-repair-completed.jpeg`。此前真实 0.1.3 → 0.1.4 服务恢复链仍是有效补充证据；真实未知/异 PID 监听者场景保持 `UNVERIFIED`。
+- **产品实操**：源码构建通过。computer use 在隔离 Molis Work Home 中先看到“需要修复 / 修复常驻服务”，未出现 restart；点击后预览明确“修复旧配置并重新加载”，确认后页面刷新为“运行中”，动作恢复为正常的“重启 / 停止 / 移除”。截图：`docs/experience/bug-revalidation/2026-08-30/gb10-repair-preview.jpeg`、`gb10-repair-completed.jpeg`。此前真实 0.1.3 → 0.1.4 服务恢复链仍是有效补充证据；真实未知/异 PID 监听者场景保持 `UNVERIFIED`。
 - **Owner 最终验收**：主闭环通过并已进入 0.1.7；最终服务健康。未再次破坏当前 LaunchAgent 制造旧配置，异常分支由隔离实操覆盖。
 
 ---
@@ -756,7 +756,7 @@ Molis Work 把未知 scheme 当作不透明外部 locator，是为了不调用�
 
 - **工程验证**：2026-08-30 重新验收通过。原 actor 到期前续租保持同一 Claim/Run，`expires_at/renewed_at` 与单一 `claim.renewed` 事件一致，幂等重放不重复写；他人、超策略、过期和释放后续租均被拒绝；Contract 返回剩余秒数、临期窗口和 `next_action=renew_claim`；MCP schema、Skill 与 Web 提示均有回归覆盖。定向 V1/MCP 3/3 和 `tsc --noEmit` 通过；GB10 后正常本机权限下 service/Web 全量 67/67 也通过。
 - **安装验证**：v0.1.5 全仓测试在正常文件系统权限下 273/273 通过；GitHub Actions `33256824008` 从 `main@97b971e` 生成 arm64/x64 DMG 与 App ZIP，四个主产物均通过自带 SHA-256 校验。本机已安装云构建 arm64 App 与 0.1.5 Core，修复自有 LaunchAgent 后 `service status=running`、`/health` 正常、根页面 HTTP 200。此层只证明最终二进制与服务已安装并可启动，不代替长任务产品旅程。
-- **产品实操**：源码构建通过。computer use 使用 90 秒真实 Claim 启动 Run `run-a29a0c98-0f01-4479-854f-51c16aed7b9c`；续租前页面显示“租约还剩 2 分钟”，原 actor 调用续租后页面自动更新为“还剩 30 分钟”。记录页仍只有一个 active Claim 和上述 started Run，变更历史新增一条 `claim.renewed`，没有第二个 Run。截图：`docs/qa/bug-revalidation/2026-08-30/gb11-before-renew.jpeg`、`gb11-after-renew.jpeg`、`gb11-renew-event.jpeg`。断线后自然过期仍由 GB08 的产品旅程覆盖，不在本卡重复制造。
+- **产品实操**：源码构建通过。computer use 使用 90 秒真实 Claim 启动 Run `run-a29a0c98-0f01-4479-854f-51c16aed7b9c`；续租前页面显示“租约还剩 2 分钟”，原 actor 调用续租后页面自动更新为“还剩 30 分钟”。记录页仍只有一个 active Claim 和上述 started Run，变更历史新增一条 `claim.renewed`，没有第二个 Run。截图：`docs/experience/bug-revalidation/2026-08-30/gb11-before-renew.jpeg`、`gb11-after-renew.jpeg`、`gb11-renew-event.jpeg`。断线后自然过期仍由 GB08 的产品旅程覆盖，不在本卡重复制造。
 - **Owner 最终验收**：生命周期闭环与 0.1.7 Skill 安装通过；真实新 Codex Session 读取指引及提示打扰程度仍为 `UNVERIFIED`。
 
 ---
@@ -815,7 +815,7 @@ Runtime 已完成所有自己有权完成的复核，却没有一个规范动作
 
 - **工程验证**：2026-08-30 重新验收通过。混合 inspection + `human_decision` Goal 会生成分离的 Runtime 与 `human_approver` obligation；Runtime 部分通过后派生 `waiting_for_human`，Available 不再提供 Runtime Review action，Blocked/Explain 返回 `review.user_approval_required`、criterion、obligation 和 `open_molis_work`。纯 Runtime criterion 的 `inconclusive` 仍可重试；历史混合 obligation 会在下一次安全选择时拆分。新增 Web 回归确认 self/cross/adversarial Review 只能显示为“Runtime 复核”，不得显示“本次用户确认”；定向生命周期/Web 3/3、TypeScript 和 `git diff --check` 通过。另一个既有 Web 测试在受限沙箱中因临时 SQLite 环境找不到决策组，原命令在正常本机权限下通过，未把环境假失败隐去。全量回归将在统一打包前再次执行。
 - **安装验证**：v0.1.5 全仓测试在正常文件系统权限下 273/273 通过；GitHub Actions `33256824008` 的双架构产物与 SHA-256 已复核，本机 0.1.5 App、Core 和 owned Web service 已安装并健康。尚未用真实 mixed Review Goal 完成人工接棒旅程。
-- **产品实操**：源码产品实操通过。computer use 使用隔离 mixed Review Goal 完成 executor、inspection Evidence 与 Runtime self-verifier pass 后，Goal 详情显示 `waiting_for_human`、“先完成等待你的决定”、完成进度 1/2 和唯一剩余的真实 SELECT/DEFER/REJECT 与视觉验收；Runtime Available 为 false，Explain 为 `ready=false / review.user_approval_required`。Inbox 同时保留人工结果确认表单，提示缺少对应通过依据；最近结果明确显示“Runtime 复核 / 已通过 / 它不能代替用户验收 / 复核理由”，不再冒充用户已通过。全程未替用户提交 human verdict。截图：`docs/qa/bug-revalidation/2026-08-30/gb12-waiting-for-human.jpeg`、`gb12-runtime-review-role.jpeg`。
+- **产品实操**：源码产品实操通过。computer use 使用隔离 mixed Review Goal 完成 executor、inspection Evidence 与 Runtime self-verifier pass 后，Goal 详情显示 `waiting_for_human`、“先完成等待你的决定”、完成进度 1/2 和唯一剩余的真实 SELECT/DEFER/REJECT 与视觉验收；Runtime Available 为 false，Explain 为 `ready=false / review.user_approval_required`。Inbox 同时保留人工结果确认表单，提示缺少对应通过依据；最近结果明确显示“Runtime 复核 / 已通过 / 它不能代替用户验收 / 复核理由”，不再冒充用户已通过。全程未替用户提交 human verdict。截图：`docs/experience/bug-revalidation/2026-08-30/gb12-waiting-for-human.jpeg`、`gb12-runtime-review-role.jpeg`。
 - **Owner 最终验收**：产品交接通过；最终安装真实 G4A 已显示 human-only gate 且不重复 Runtime Review。用户本人按钮操作仍 pending，本轮没有模拟通过。
 
 ---
@@ -869,7 +869,7 @@ Molis Work 将 Evidence 设计成跨项目的验收与追溯容器，初衷是�
 ### 10. 验收边界
 
 - **工程验证**：2026-08-30 只读复核当前 CGS 源码与数据：`EvidenceResearchRunV1` 和约 1.6 MB 的真实 ledger 已具备 query、receipt、material、coverage gap 与 budget；`OpportunityV1` 与编辑台仍没有将它们关联并呈现。尚无 CGS 代码改动、测试或数据迁移，因此不能报告修复通过。
-- **产品实操**：computer use 打开当前 4174 CGS 编辑台和真实 OPEN_RESEARCH Opportunity，首屏能看到 4 个引用来源、反证、未知项、平台角度和粗粒度“开放研究”标签，但没有查询词、渠道列表、搜索时间窗、浏览/保留/淘汰漏斗，也没有进入 Research Run 的入口。修复前问题再次确认；截图：`docs/qa/bug-revalidation/2026-08-30/gb13-cgs-opportunity-no-provenance.jpeg`。修复后体验仍为 `UNVERIFIED`。
+- **产品实操**：computer use 打开当前 4174 CGS 编辑台和真实 OPEN_RESEARCH Opportunity，首屏能看到 4 个引用来源、反证、未知项、平台角度和粗粒度“开放研究”标签，但没有查询词、渠道列表、搜索时间窗、浏览/保留/淘汰漏斗，也没有进入 Research Run 的入口。修复前问题再次确认；截图：`docs/experience/bug-revalidation/2026-08-30/gb13-cgs-opportunity-no-provenance.jpeg`。修复后体验仍为 `UNVERIFIED`。
 - **Owner 最终验收**：Molis Work 侧归因与不修决定通过；CGS 产品验收未开始，不能从本轮 Molis Work 包推断已修。
 
 ---
@@ -986,7 +986,7 @@ Molis Work 侧复用现有 decomposition review，新增 `contract_coverage`：�
 
 - **工程验证**：2026-08-30 重新验收通过。父级缺失映射、部分映射和错误后代引用均不能确认收口；完整映射持久化并反向投影到子 Contract；部分覆盖派生 `clarification_blocked / goal.contract_coverage_incomplete`。Risk resolved 的直接写入、Goal Tree 提案和 Web 路径都要求结构化 resolution basis。新增 Web 回归确认 1/1 子 Goal 已完成但父级覆盖仍有缺口时，不得出现“还剩 0 个子 Goal；会自动完成”。定向父子覆盖 2/2、Risk 3/3、TypeScript 和 `git diff --check` 通过；统一打包前仍会执行全量回归。
 - **安装验证**：GitHub Actions `33256824008` 从 `main@97b971e` 构建 v0.1.5 arm64/x64，四个主产物均通过自带 SHA-256；本机云构建 arm64 App 的 bundle 版本为 0.1.5，Core 安装收据指向 `releases/molis-work-0.1.5`，owned LaunchAgent 与 HTTP 健康检查通过。此层不证明 CGS 的父子 Contract 已经完成真实纠偏。
-- **产品实操**：源码产品实操通过。computer use 使用“真实多源研究”父 Goal 与已完成的“三类代表性样本”子 Goal：父 Goal 首页显示 `目标澄清受阻` 和 `goal.contract_coverage_incomplete` 的人类说明；展开完成要求可见 promised output 为“部分覆盖”、criterion 为“仍需父级集成”，父级进度明确写“完成数量不足以证明父级承诺已经实现，不会自动完成”。子 Goal 仍诚实显示“本 Goal 按当前 Contract 已满足”，同时在“对父 Goal 的贡献”标记两项“尚有缺口”。截图：`docs/qa/bug-revalidation/2026-08-30/gb15-parent-coverage-gap.jpeg`、`gb15-child-local-satisfaction.jpeg`。本轮未在 UI 新写 Risk，也未改变真实 CGS Contract。
+- **产品实操**：源码产品实操通过。computer use 使用“真实多源研究”父 Goal 与已完成的“三类代表性样本”子 Goal：父 Goal 首页显示 `目标澄清受阻` 和 `goal.contract_coverage_incomplete` 的人类说明；展开完成要求可见 promised output 为“部分覆盖”、criterion 为“仍需父级集成”，父级进度明确写“完成数量不足以证明父级承诺已经实现，不会自动完成”。子 Goal 仍诚实显示“本 Goal 按当前 Contract 已满足”，同时在“对父 Goal 的贡献”标记两项“尚有缺口”。截图：`docs/experience/bug-revalidation/2026-08-30/gb15-parent-coverage-gap.jpeg`、`gb15-child-local-satisfaction.jpeg`。本轮未在 UI 新写 Risk，也未改变真实 CGS Contract。
 - **Owner 最终验收**：Molis Work 的跨层防误导通过；CGS 对 G2A/G2 的业务 Contract 纠偏未由本仓接管，用户对文案的主观理解仍为 `UNVERIFIED`。
 
 ---
@@ -1370,7 +1370,7 @@ CGS Runtime 用 `molis_work_v1_goal_tree_read(include_legacy=true, proposal_id="
 ### 10. 验收边界
 
 - **工程验证**：源码定向验证通过。V1 回归覆盖 legacy Contract confirm、Candidate reject、Rewire confirm、同键幂等重放，以及 native 等价 deactivation 精确 supersede、反方向 Rewire 保持 pending；新增红灯证明原始 Contract Proposal ID 读不到且 raw/synthetic check 都落到 native not found，绿灯覆盖两种 ID 统一返回 synthetic handle 并运行 Contract 决策预检。MCP 声明明确 raw/synthetic read-check-decide 关系；TypeScript 与本轮定向 3/3 通过。全仓回归仍留到统一打包前运行。
-- **产品实操**：源码产品实操通过。临时 Board 先由源码 Web 显示“Goal 关系 1 / 1 项待处理”；management MCP 先用 `goal_tree_read` 读取 `legacy-rewire:*` 与 `legacy-rewire-item:*`，再把同一 handle 交给 `goal_tree_decide`，读回 `approved / applied / proposed_changes_applied=true`；相同 idempotency key 重放返回 `replayed=true`。SQLite readback 只有 1 条 active relation 和 1 个 `rewire.applied` event。computer use 刷新 Decision Center 后显示“0 项待处理”，最近结果为“Goal 关系 已应用”，并可打开双方 Goal 的同一 relation。针对 Arena 新缺口，隔离的 Draft + legacy Contract fixture 已用 raw ID 预检为零冲突并返回 synthetic handle；computer use 在源码 Decision Center 看到 1 项待处理“目标说明”，展开后能读到确认/退回后果、Contract 影响、理由输入和确认按钮，未点击决定。截图：`docs/qa/bug-revalidation/2026-08-30/gb22-legacy-rewire-pending.jpeg`、`gb22-legacy-rewire-applied.jpeg`。没有写真实 CGS 或 Arena；环境策略不允许复制 Arena SQLite，因此真实对象留给安装后的官方 MCP。
+- **产品实操**：源码产品实操通过。临时 Board 先由源码 Web 显示“Goal 关系 1 / 1 项待处理”；management MCP 先用 `goal_tree_read` 读取 `legacy-rewire:*` 与 `legacy-rewire-item:*`，再把同一 handle 交给 `goal_tree_decide`，读回 `approved / applied / proposed_changes_applied=true`；相同 idempotency key 重放返回 `replayed=true`。SQLite readback 只有 1 条 active relation 和 1 个 `rewire.applied` event。computer use 刷新 Decision Center 后显示“0 项待处理”，最近结果为“Goal 关系 已应用”，并可打开双方 Goal 的同一 relation。针对 Arena 新缺口，隔离的 Draft + legacy Contract fixture 已用 raw ID 预检为零冲突并返回 synthetic handle；computer use 在源码 Decision Center 看到 1 项待处理“目标说明”，展开后能读到确认/退回后果、Contract 影响、理由输入和确认按钮，未点击决定。截图：`docs/experience/bug-revalidation/2026-08-30/gb22-legacy-rewire-pending.jpeg`、`gb22-legacy-rewire-applied.jpeg`。没有写真实 CGS 或 Arena；环境策略不允许复制 Arena SQLite，因此真实对象留给安装后的官方 MCP。
 - **Owner 最终验收**：通过协议与安装交付；不再对真实 CGS 历史 Rewire重复决定。Arena 原 proposal 的新 Session 只读复验仍为 `UNVERIFIED`。
 
 ---
@@ -1538,7 +1538,7 @@ Run report 采用追加式不可变历史，初衷是保留执行者当时的判
 ### 10. 验收边界
 
 - **工程验证**：通过（源码）。capsule/Web/i18n 全量 66/66、TypeScript 通过。回归证明当前 Risk blocker 不会被已释放旧 Run 抢占；无当前 reasons 时 `execution_pending` 保持无阻塞；终态 Run 原文仍完整存在且只用历史标签展示。沙箱内 SQLite 临时目录限制导致 20 项 `SQLITE_CANTOPEN`，同一命令在沙箱外为 66/66，未把环境失败误报为功能失败。
-- **产品实操**：通过（源码服务，独立真实状态 fixture）。Safari computer use 实际看到“待执行”；进展页显示“当时记录：旧范围要求补 Agent 成本、Token 和返工证据。这不是当前阻塞”；展开“当前阻塞”显示“当前没有阻塞项”；记录页显示“当时报告的阻塞”并注明不会自动成为当前阻塞。证据截图：`docs/qa/bug-revalidation/2026-08-30/gb25-historical-blocker.png`。
+- **产品实操**：通过（源码服务，独立真实状态 fixture）。Safari computer use 实际看到“待执行”；进展页显示“当时记录：旧范围要求补 Agent 成本、Token 和返工证据。这不是当前阻塞”；展开“当前阻塞”显示“当前没有阻塞项”；记录页显示“当时报告的阻塞”并注明不会自动成为当前阻塞。证据截图：`docs/experience/bug-revalidation/2026-08-30/gb25-historical-blocker.png`。
 - **Owner 最终验收**：通过。当前事实、历史原文和 supersession 审计边界清晰分离，0.1.7 已安装；用户主观措辞验收仍为 `UNVERIFIED`。
 
 ---
@@ -1650,7 +1650,7 @@ P0 必修。它已让同一未完成 Goal 的真实修正工作脱离生命周�
 ### 10. 验收边界
 
 - **工程验证**：通过。V1/MCP 全量 123/123、Web 全量 46/46、TypeScript 均通过；精确覆盖独立 actor、幂等、非法状态、空依据、旧 Evidence 失效、Review 重开、executor 恢复、旧 Evidence 不可复用、fresh Run/Evidence/Review 闭环、completion Risk 保留和直接关联 facts。新增的 Web 回归同时证明 Risk-only 决定不会遮住 `execution_pending` 的开始入口，而 Proposal、Rewire 与真人验收仍优先。
-- **产品实操**：通过（源码安全副本）。用一条 accepted/closed_leaf/unmet Goal、旧 completed Run、旧 passed Evidence/Review 和直接关联的 open completion Risk 复现 `completion_blocked`；提交 rework 后同一 Goal 变为“待执行”，页面下一步为“开始推进这条 Goal”，可直接“打开 Runtime”，而 Risk 仍显示“缓解 / 阻止完成”、受影响区域、受影响 Goal 和“当前会阻止所有关联 Goal 被标记为完成”。截图：`docs/qa/bug-revalidation/2026-08-30/gb27-rework-execution-pending.png`。
+- **产品实操**：通过（源码安全副本）。用一条 accepted/closed_leaf/unmet Goal、旧 completed Run、旧 passed Evidence/Review 和直接关联的 open completion Risk 复现 `completion_blocked`；提交 rework 后同一 Goal 变为“待执行”，页面下一步为“开始推进这条 Goal”，可直接“打开 Runtime”，而 Risk 仍显示“缓解 / 阻止完成”、受影响区域、受影响 Goal 和“当前会阻止所有关联 Goal 被标记为完成”。截图：`docs/experience/bug-revalidation/2026-08-30/gb27-rework-execution-pending.png`。
 - **Owner 最终验收**：通过。最终安装 Core 对真实 G2D 的只读 Explain 已显示 rework recovery；没有放宽 Risk、删除历史或修改 CGS。新 Codex Session 读取新工具仍为消费端边界。
 
 ---
@@ -1866,7 +1866,7 @@ Molis Work 将 Relation 与 Goal 生命周期分离，初衷是保留历史、�
 ### 10. 验收边界
 
 - **工程验证**：通过（源码）。V1/MCP/Web/i18n 相关全量 178/178，TypeScript 通过。回归覆盖 replacement 生效前旧 Goal 可领取、生效后 Ready/Available 删除可执行入口、blocked/explain 精确指向替代 Goal、select 原子拒绝且不产生 Claim/Run、旧 Goal/关系历史保留，以及停用 relation 后旧 Goal 恢复 `execution_pending`。Web 回归覆盖 `replaced` 状态、新版仍可执行和旧 Contract 可读。
-- **产品实操**：通过（真实 CGS 数据安全副本，源码服务）。源码 Runtime 读回旧 Goal=`replaced`、V2=`waiting_children`；旧 Goal 不在 Ready/Available，select 返回 `goal.replaced`，前后 Claims/Runs 均为 0。Safari computer use 打开旧 G2G 后，顶栏显示“已被替代”，下一步是“转到替代 Goal 继续”，正文明确显示新版 `建立七个平台各 50+ 的高质量 AI KOL 详细基线名单` 和“旧 Contract/历史保留但不再允许 Runtime 领取”；关系页仍可打开替代 Goal并看到 12 条已解除历史关系。截图：`docs/qa/bug-revalidation/2026-08-30/gb31-replaced-goal-retired.png`、`gb31-replacement-relation.png`。
+- **产品实操**：通过（真实 CGS 数据安全副本，源码服务）。源码 Runtime 读回旧 Goal=`replaced`、V2=`waiting_children`；旧 Goal 不在 Ready/Available，select 返回 `goal.replaced`，前后 Claims/Runs 均为 0。Safari computer use 打开旧 G2G 后，顶栏显示“已被替代”，下一步是“转到替代 Goal 继续”，正文明确显示新版 `建立七个平台各 50+ 的高质量 AI KOL 详细基线名单` 和“旧 Contract/历史保留但不再允许 Runtime 领取”；关系页仍可打开替代 Goal并看到 12 条已解除历史关系。截图：`docs/experience/bug-revalidation/2026-08-30/gb31-replaced-goal-retired.png`、`gb31-replacement-relation.png`。
 - **Owner 最终验收**：通过。最终 0.1.10 安装 Core 对真实 CGS 的 Available 只读复验确认旧 G2G 不在可领取项，返回 `work_state=replaced`、active relation 与 V2 replacement；最终安装 App 同时把旧 Goal 保留为“已被替代”。本次未调用 select、未创建 Claim/Run；直接 select 零写入边界由完整 338/338 回归承担。
 
 ---

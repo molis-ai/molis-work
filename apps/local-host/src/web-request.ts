@@ -30,7 +30,7 @@ import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.
 import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import { handleFunctionsHttp } from "./functions-http.js";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { inboxActions, INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
@@ -174,6 +174,8 @@ export async function handleMolisWorkWebRequest(
         boardId: options.boardId,
         projectId: options.project?.project_id,
       });
+      // A web user's call into one surface's own actions, with whatever transport (cancellation) the surface adds.
+      const userActions = (permissions: readonly string[], transport: Partial<ActionCallContext> = {}) => bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user" as const, permissions: [...permissions], ...transport }));
       const shownPlugins = (projectId: string) => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
         catalog => shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId)));
       // A plugin's side panel tab (specs/archive/side-panel D13): the declared `side` view, served for a plugin enabled here.
@@ -398,33 +400,27 @@ export async function handleMolisWorkWebRequest(
         })) return;
         if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, (_input, transport) => ({
           projectId: hostReference.project_id,
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
-            audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS, ...transport })),
+          actions: userActions(LINGGUANG_ACTION_PERMISSIONS, transport),
         }))) return;
         if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, {
           projectId: hostReference.project_id,
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
-            audience: "user", permissions: PAGES_ACTION_PERMISSIONS })),
+          actions: userActions(PAGES_ACTION_PERMISSIONS),
         })) return;
         if (serverOptions.homeDirectory && await handleDatasetNativePluginHttp(request, response, url, (_input, transport) => ({
           projectId: hostReference.project_id,
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
-            audience: "user", permissions: DATASET_ACTION_PERMISSIONS, ...transport })),
+          actions: userActions(DATASET_ACTION_PERMISSIONS, transport),
         }))) return;
         if (serverOptions.homeDirectory && await handleFormNativePluginHttp(request, response, url, (_input, transport) => ({
           projectId: hostReference.project_id,
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
-            audience: "user", permissions: FORM_ACTION_PERMISSIONS, ...transport })),
+          actions: userActions(FORM_ACTION_PERMISSIONS, transport),
         }))) return;
         if (serverOptions.homeDirectory && await handleImagesNativePluginHttp(request, response, url, (_input) => ({
           projectId: hostReference.project_id,
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
-            audience: "user", permissions: IMAGES_ACTION_PERMISSIONS })),
+          actions: userActions(IMAGES_ACTION_PERMISSIONS),
         }))) return;
         if (serverOptions.homeDirectory && await handlePptNativePluginHttp(request, response, url, (_input, transport) => ({
           projectId: hostReference.project_id,
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
-            audience: "user", permissions: PPT_ACTION_PERMISSIONS, ...transport })),
+          actions: userActions(PPT_ACTION_PERMISSIONS, transport),
         }))) return;
         if (serverOptions.homeDirectory && await handleJellyNativePluginHttp(request, response, url, transport =>
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS, ...transport })))) return;
@@ -523,8 +519,8 @@ export async function handleMolisWorkWebRequest(
         if (await handleArtifactNativePluginHttp(request, response, url.pathname, {
           boardId: options.boardId, routePrefix: options.routePrefix ?? "",
           projectTitle: options.project?.display_name ?? "Molis Work",
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
-            audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS })), controlToken,
+          actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
+          pages: userActions(PAGES_ACTION_PERMISSIONS), // "在 Pages 继续" (A3) asks Pages with Pages' own permissions
           desktopShell: isDesktopShellRequest(request, url), pageCsp: PAGE_CSP,
         })) return;
         if (await goalsReadHttp.page(request, response, url, options, serverOptions.homeDirectory, readWebView, bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: WORK_ACTION_PERMISSIONS })), controlToken, goalActions,

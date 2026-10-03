@@ -1,5 +1,6 @@
 import { PERSONAL_PLUGIN_IDS } from "../../plugin-catalog.js";
 import { PLUGIN_EVENT_RECOVERY_CLIENT } from "./plugin-event-recovery.js";
+import { ARTIFACT_IMPORT_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
 
 /** Workbench composes bundled project entries and exact Artifact contributions. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
@@ -269,8 +270,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     const storedPath = sessionStorage.getItem(artifactKey);
     if (storedPath === route("/artifacts") || storedPath?.startsWith(route("/artifacts/"))) artifactPath = storedPath;
   } catch {}
-  const loadArtifacts = async (path = artifactPath || route("/artifacts")) => {
-    if (!artifactRequest && artifactPath === path && detail.childElementCount && !detail.querySelector("[data-artifact-retry]")) {
+  const loadArtifacts = async (path = artifactPath || route("/artifacts"), refresh = false) => {
+    if (!refresh && !artifactRequest && artifactPath === path && detail.childElementCount && !detail.querySelector("[data-artifact-retry]")) {
       const selected = Boolean(detail.querySelector('[data-artifact-id]'));
       document.querySelector('[data-artifact-stage-shell]')?.setAttribute('data-expanded', String(selected));
       const workspace = document.querySelector('[data-artifact-stage-workspace]');
@@ -304,7 +305,40 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       detail.replaceChildren(message, button);
     } finally { if (controller === artifactRequest) artifactRequest = null; }
   };
+  ${ARTIFACT_IMPORT_CLIENT_SCRIPT}
+  // The 成果库's one import entry is a dialog in its directory (specs/artifact-positioning A3).
+  const openImport = (button) => {
+    const dialog = button.closest("header")?.querySelector("[data-artifact-import-dialog]");
+    if (!dialog) return;
+    globalThis.molisWorkBindArtifactImport(dialog.querySelector("[data-artifact-import-form]"));
+    let imported = false;
+    dialog.addEventListener("molis-work:artifact-imported", () => { imported = true; }, { once: true });
+    // A new version shows in the list once the dialog closes, unless "查看这个版本" is already opening it.
+    dialog.addEventListener("close", () => { if (imported && !artifactRequest) void loadArtifacts(artifactPath || route("/artifacts"), true); }, { once: true });
+    dialog.showModal();
+  };
+  // "在 Pages 继续": Pages starts a document from this version and opens it here.
+  const continueInPages = async (button) => {
+    if (button.disabled) return;
+    button.disabled = true;
+    let status = button.parentElement.querySelector("[data-artifact-continue-status]");
+    if (!status) { status = document.createElement("span"); status.dataset.artifactContinueStatus = ""; status.role = "status"; button.after(status); }
+    status.textContent = "";
+    try {
+      const response = await fetch(route("/api/artifacts/continue-in-pages"), { method: "POST",
+        headers: { ...(globalThis.molisWorkControlHeaders?.() || {}), "content-type": "application/json", "x-molis-work-idempotency-key": crypto.randomUUID() },
+        body: JSON.stringify({ reference: JSON.parse(button.dataset.artifactReference) }) });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.document?.id) throw new Error(payload?.error || L("没能在 Pages 打开这一版"));
+      openTabItem?.("pages", payload.document.id, payload.document.title);
+    } catch (error) { status.textContent = error.message; }
+    finally { button.disabled = false; }
+  };
   document.addEventListener("click", event => {
+    const importButton = event.target.closest("[data-artifact-import-open]");
+    if (importButton) { openImport(importButton); return; }
+    const continueButton = event.target.closest('[data-artifact-continue="pages"]');
+    if (continueButton) { void continueInPages(continueButton); return; }
     const retryButton = event.target.closest("[data-artifact-retry]");
     if (retryButton) { void loadArtifacts(retryButton.dataset.artifactRetry); return; }
     const collapse = event.target.closest("[data-artifact-collapse]");

@@ -202,7 +202,7 @@ export function createEventDocumentForms(primitives: GoalsDocumentUiPrimitives) 
     return `<form class="event-form mw-form" data-event-form="closure" hidden>
       <header class="event-form-heading"><h2>${L("显式收尾")}</h2></header>
       <div class="event-form-body"><label><span>${L("结论")}</span><select name="kind"><option value="complete">${L("完成")}</option><option value="cancel">${L("取消")}</option></select></label>
-      <label><span>${L("结果说明")}</span><textarea name="result" rows="2"></textarea></label>
+      <label><span>${L("结果说明")}</span><textarea name="result" rows="2"></textarea></label><fieldset class="closure-deliverables" data-closure-deliverables><legend>${L("交付物")}</legend><p class="form-note">${L("从成果库选这次交出的版本；选中的会记在目标下，之后原对象怎么改都不影响它。")}</p><div data-closure-deliverable-list></div></fieldset>
       <label><span>${L("理由")}</span><textarea name="reason" rows="3" required></textarea></label>
       <input type="hidden" name="expected_config_version" value="${state.config.version}">
       <input type="hidden" name="expected_agreement_version" value="${state.agreement.version}">

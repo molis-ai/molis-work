@@ -202,6 +202,8 @@ test("event document writes planning, report, concern, decision and closure thro
   assert.equal(await evaluate("document.querySelector('[data-current-summary]')?.textContent"), headerAfterWrites);
   assert.notEqual(headerAfterWrites, headerBeforeHistory);
   await openNamedForm("closure");
+  // The closure offers the 成果库's versions as deliverables (artifact-positioning A5); the list finishes loading.
+  await waitDom(`(() => { const list = document.querySelector('[data-event-form="closure"] [data-closure-deliverable-list]'); return Boolean(list?.textContent) && !/正在读取/.test(list.textContent); })()`);
   const versions = await evaluate<{ config: string; agreement: string }>(`({
     config: document.querySelector('[data-event-form="closure"] [name="expected_config_version"]').value,
     agreement: document.querySelector('[data-event-form="closure"] [name="expected_agreement_version"]').value,

@@ -239,7 +239,7 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   const { store, coordinator, get, surface } = await fixture(t);
   const documentPath = "/goals/V1";
   const empty = await (await get(documentPath)).text();
-  assert.doesNotMatch(empty, /artifact-embed|关联结果/);
+  assert.doesNotMatch(empty, /artifact-embed|交付物与输入/);
   const first = coordinator.artifacts.commands.registerVersion(registration()).artifact;
   coordinator.artifacts.commands.registerVersion(registration({ version: 2,
     content: { kind: "inline", payload: { title: "Later report" } } }));
@@ -261,9 +261,9 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   const beforeEdges = ledger.query.list(access);
   const beforeArtifacts = coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID);
   const page = await (await get(documentPath)).text();
-  assert.match(page, /关联结果/);
-  assert.match(page, /v1 · 输入结果/);
-  assert.match(page, /v2 · 产出结果/);
+  assert.match(page, /交付物与输入/);
+  assert.match(page, /v1 · 输入</);
+  assert.match(page, /v2 · 交付物</);
   assert.ok(page.includes(`href="${exactPath(1)}"`));
   assert.ok(page.includes(`href="${exactPath(2)}"`));
   assert.match(page, /v99/);
@@ -271,7 +271,7 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   assert.match(page, /Original report/);
   assert.match(page, /Later report/);
   assert.doesNotMatch(page, /not-for-V1|<script>attack\(\)<\/script>|foreign-project/);
-  assert.match(await (await get(documentPath, "en")).text(), /Linked results/);
+  assert.match(await (await get(documentPath, "en")).text(), /Deliverables and inputs/);
   const opened = await surface(exactPath(1));
   assert.match(await opened.text(), /Original report/);
   assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, { artifact_id: artifactId, version: 1 }), first);
@@ -289,8 +289,8 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   assert.match(changed, /这个版本已归档/);
   ledger.commands.remove(access, "input", "Owner removed the input association");
   const removed = await (await get(documentPath)).text();
-  assert.doesNotMatch(removed, /v1 · 输入结果|Source disconnected/);
-  assert.match(removed, /v2 · 产出结果/);
+  assert.doesNotMatch(removed, /v1 · 输入<|Source disconnected/);
+  assert.match(removed, /v2 · 交付物</);
   const unknown = await get("/goals/missing");
   assert.equal(unknown.status, 404);
   assert.doesNotMatch(await unknown.text(), /artifact-embed|report/);

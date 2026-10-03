@@ -38,7 +38,6 @@ import { createLocalFeedApplication } from "./feed-application.js";
 import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { SystemFunctionsActions } from "./functions-actions.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
-import { releaseBuilderSurface } from "./plugin-builder-surface.js";
 import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { ensureInstalledPlugins, releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { InteractionObserver, goalActionObservation } from './casebook/observer.js';
@@ -232,7 +231,6 @@ export class MolisWorkLocalHost {
           await releaseAgentStudio(runtime.store, runtime.board_id);
           await releaseInstalledPlugins(runtime.store, runtime.board_id);
           await releaseProjectPlugins(runtime.store, runtime.board_id);
-          await releaseBuilderSurface(runtime.store, runtime.board_id);
           runtime.store.close();
           options.onRuntimeClose?.(reference);
         },

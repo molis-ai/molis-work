@@ -100,6 +100,9 @@
 | 2026-10-03 | 合并 #211 Pages 导入恢复 | CI 通过即合并（用户已授权） | 已合并 | be268876 |
 | 2026-10-03 | 「作为 Goal 的输入」怎么记（A4b-2，常规取舍） | 复用 Goal 的绑定资料（`goals.inputs.bind`）；与交付物同一套规则的 `goal.input` 边 | `goal.input` 边，与交付物共用一套处理 | 绑定资料指向活的工作对象，这里要的是成果库里确定的一版；Goal 页「交付物与输入」、成果库「被谁引用」读的也是 `goal.input`。新动作 `goals.artifact_inputs.add/remove/list`，提议规则与交付物相同（非用户调用记 `goal.input.proposal`），两者共用 `deliverable-actions.ts` 里同一套处理 |
 | 2026-10-03 | 入口放在哪（A4b-2，常规取舍） | — | 成果库详情「被谁引用」下的「作为 Goal 的输入」 | 选目标时才读项目的 Goal 目录（`GET /api/goals/directory`）；归档或不可用的版本不给入口，后端也拒绝 |
+| 2026-10-03 | 合并 #212 A4b-2 | CI 通过即合并（用户已授权） | 已合并 | 9b604065 |
+| 2026-10-03 | 侧栏和成果库怎么共用一份渲染（A4b-3a，常规取舍） | 服务端渲染好 HTML 给侧栏；设计系统把同一组函数做成页面脚本 | 页面脚本 | 侧栏还要显示别处交给它的预览（助理的附件、结果），这些只在浏览器里，服务端渲染不到。`FILE_PREVIEW_CLIENT_SCRIPT` 由 `renderFilePreviewHtml` 与它的 Markdown、CSV 两个函数原样拼成，侧栏删掉自己那份；用例逐字比较两边输出 |
+| 2026-10-03 | 侧栏里的成果预览（A4b-3a，常规取舍） | — | 走类型 owner 的预览，与成果库相同 | 只有声明的 owner 且是它生产的版本；拿不到 owner 预览时退回成果库自己的读取 |
 | 2026-10-03 | A1 遗留：Pages 成果的来源种类（常规取舍） | — | 改为 Pages 自己的对象种类 `pages_document` | A1 写成了 `page`，与 Pages 的对象读取、搬动、搜索用的种类不一致，A4b 的「原文已改」与当场固定都按种类找 owner。真实 Home 里还没有 A1 之后的 Pages 成果（A1 刚合入），不需要迁移 |
 | 2026-10-03 | A6 遗留：Goal Frame 选材料的「交付物」来源（常规取舍） | — | 改叫「成果」，英文「交付物」改为 Deliverable | 这个筛选项指成果库，不是 Goal 的交付物；A6 只改了「Artifact」字样，漏了这里 |
 
@@ -239,7 +242,7 @@
 - **在 Pages 继续**：Pages 能读的版本（Markdown、TXT、HTML、CSV、Word、ZIP）在详情里给「在 Pages 继续」：宿主把这一版交给 Pages 现有的文件解析，Pages 新建文档并在工作台打开；ZIP（如 Notion 导出）一次建多篇，打开第一篇。
 - **Pages 的导入入口删掉**：Pages 目录与空态里的「导入」按钮、导入浮层、脚本与样式都删了；它解析文件的能力（`import.preview`、`import` 动作与宿主的材料解析）保留，只作为「在 Pages 继续」的实现。
 
-### A4 每种可见类型的消费方（A4a、A4b-1、A4b-2 已实施，A4b-3 待做）
+### A4 每种可见类型的消费方（A4a、A4b-1、A4b-2、A4b-3a 已实施，A4b-3b 待做）
 
 **A4a（本片）**
 
@@ -256,9 +259,10 @@
 
 **A4b-2（本片）**：成果库详情的「被谁引用」下加「作为 Goal 的输入」，选一个 Goal 就把这一版记为它的输入（`goal.input`）；Goal 页「交付物与输入」与「被谁引用」随之显示。Goals 新动作 `goals.artifact_inputs.add/remove/list`（HTTP `GET/POST /api/goals/:id/artifact-inputs`），与交付物共用同一套规则，包括助理等只能提议。
 
-**A4b-3（下一片）**
+**A4b-3a（本片）**：侧栏「文件」里的成果预览走类型 owner 的预览（`via: "owner"`），与成果库同一份；侧栏的 Markdown、CSV 渲染换成设计系统的同一组函数（页面脚本 `FILE_PREVIEW_CLIENT_SCRIPT`），侧栏表格样式改挂在共用的 `file-preview-table` 上。
 
-- 侧栏文件的成果预览走同一个 owner 预览；侧栏的 Markdown/CSV 渲染与 `renderFilePreviewHtml` 合成一份。
+**A4b-3b（下一片）**
+
 - 其他类型的「从这一版继续」：由能接着做的插件在 manifest 里为成果类型声明 `continue`，替换宿主里专为 Pages 写的那条路由。
 
 ### A7 门禁（已实施）
@@ -300,6 +304,7 @@
 
 ## 6. 进度
 
+- 2026-10-03：A4b-3a 开 PR（分支 `feat/artifact-a4b3-continue-and-side`），做法见上文「A4」A4b-3a。新增 `tests/side-files-artifacts.test.ts`：Pages 文档固定后，侧栏「文件」里的这一版由 Pages 预览（`via: "owner"`，Markdown 带标题与列表），列出的正是固定的那一版；页面脚本版渲染与服务端 `renderFilePreviewHtml` 对 Markdown、CSV、纯文本逐字相同，且不放过 `<b>`、`<script>`。整体构建后侧栏、成果、i18n、整页门禁、设计系统、搜索等 35 个文件 121/121；健康门禁通过。
 - 2026-10-03：A4b-2 开 PR（分支 `feat/artifact-a4b2-goal-inputs`），做法见上文「A4」A4b-2。新增 `tests/goal-artifact-inputs.test.ts`（Goal 目录、记为输入与重放、Goal 页「v2 · 输入」、成果库「被谁引用」、归档版本不给入口且后端拒绝、移除；助理只能提议输入、确认后提议退场、助理不能移除已确认的输入、输入不算交付物）与 `tests/artifact-goal-input.e2e.test.ts`（1440、390：在成果库详情选 Goal、记下后「被谁引用」出现该 Goal，页面不横向溢出）。A5c 的提议用例改为同时登记输入动作的定义（处理器工厂现在一并给出两类），断言不变。整体构建后 Goals、成果、i18n、MCP、目录、整页门禁等 133 个文件 475/475；健康门禁、边界检查通过。
 - 2026-10-03：Pages 恢复自己的导入入口（分支 `feat/pages-import-entry-back`，用户回来后的决定，见 §1）。新增 `tests/pages-import-entry.e2e.test.ts`（1440、390）：导入一个 Markdown 文件成为 Pages 文档并打开，成果库版本数不变，页面不横向溢出。整体构建后 Pages 导入、发布、动作、i18n、整页门禁 57/57，Pages 与目录、样式相关的其余 29 个文件 280/280；健康门禁通过。
 - 2026-10-03：A4b-1 开 PR（分支 `feat/artifact-a4b-source-and-references`），做法见上文「A4」A4b-1。新增 `tests/artifact-source-and-links.test.ts`：Pages 文档固定后不提示改动、给回到原对象的链接；加星不算改动；改正文后提示「原对象之后改过了」且仍显示固定的内容；记为交付物与输入的 Goal 出现在「被谁引用」并能点开；删除文档后提示「原对象已经删除」、不再给链接。比较一开始误报「改过了」：成果库按排好序的键存 payload，Pages 保留自己的键序，`sameArtifactFields` 改为排序后比较。整体构建后相关用例（成果、四个 owner 插件、交付物、收尾表单、i18n、侧栏、目录与 MCP、整页门禁等 104 个文件）564 条 563 通过；1 条是预期变化：A4 的 Pages 预览用例固定的是 Pages 里并不存在的 page-q3，现在如实提示「原对象已经删除」、不给链接，断言随之改；原来对链接地址（`openPlugin=pages`、`openItem`）的检查移到新用例里真实存在的文档上。重跑 15/15；健康门禁、边界检查通过。

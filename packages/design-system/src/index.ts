@@ -36,7 +36,7 @@ export {
 } from "./visual-foundation.js";
 
 export { SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "./select-menu-client.js";
-export { renderFilePreviewHtml, FILE_PREVIEW_STYLES, type FilePreviewContent } from "./file-preview.js";
+export { renderFilePreviewHtml, FILE_PREVIEW_STYLES, FILE_PREVIEW_CLIENT_SCRIPT, type FilePreviewContent } from "./file-preview.js";
 export { ARRIVAL_MOTION_CLIENT_SCRIPT } from "./arrival-motion-client.js";
 export {
   TYPEFACE_STYLES,

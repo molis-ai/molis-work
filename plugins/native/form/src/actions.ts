@@ -1,7 +1,7 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { FORM_DRAFT_QUESTION } from "./prompts.js";
-import { ActionError, defineArtifactPinAction, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { FormRecord, FormQuestionInput, FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { FORM_ARTIFACT_TYPE_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import { promoteForm, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
 import type { FormStore } from "./store.js";
 import { createFormSearchHandlers, formSearchActions } from "./search.js";
@@ -32,6 +32,8 @@ export const formActions = {
   artifactPreview: formArtifactPreview,
   /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
   artifactPin: defineArtifactPinAction("form.artifacts.pin", "form", "问卷", [...write, "artifact:write"]),
+  /** Whether a pinned version still matches the form object it came from (A4b, 「原文已改」); compares content, not revisions. */
+  artifactCompare: defineArtifactCompareAction("form.artifacts.compare", "问卷", read),
   list: define<Record<string, never>, { forms: FormRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "问卷列表", "读取当前项目问卷和 AI 加题可用性", "query", object({}), object({ forms: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { form: FormRecord }>("get", "读取问卷", "读取题目、选项、状态、版本和发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { form: FormRecord }>("create", "新建问卷", "创建当前项目的草稿问卷", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
@@ -122,6 +124,8 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
     })),
     bind(formActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
     bind(formActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bindArtifactCompare(formActions.artifactCompare, FORM_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "questions"])),
     ...createFormSearchHandlers(ports.withStore),
   ];
 }

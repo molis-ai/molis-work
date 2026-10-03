@@ -1,6 +1,6 @@
-import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference } from "./actions.js";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionReference } from "./actions.js";
 import type { ActionSubject } from "./action-subjects.js";
-import type { ArtifactReference } from "../modules/artifacts.js";
+import type { ArtifactReference, ArtifactVersionRecord } from "../modules/artifacts.js";
 
 /**
  * How a work object is pinned into the 成果库 on the spot (specs/artifact-positioning A5): the owner fixes its current
@@ -48,4 +48,60 @@ export async function pinActionSubject(client: ActionClient, caller: ActionCallC
   }
   const owner: ActionReference = { capability_id: selected.capability_id, version: selected.version, provider_id: selected.provider.provider_id };
   return await client.invoke(caller, owner, { subject_id: subject.id }) as ArtifactPinResult;
+}
+
+/**
+ * Whether a pinned version still matches its work object (A4b, 「原文已改」): the owner compares the version's content with
+ * the object as it is now. Revisions alone cannot tell: owners bump them for renames, stars and the pin itself.
+ */
+export const ARTIFACT_COMPARE_INPUT_TYPE = "molis.artifacts.compare.request.v1";
+export const ARTIFACT_COMPARE_OUTPUT_TYPE = "molis.artifacts.compare.v1";
+export type ArtifactCompareState = "same" | "changed" | "missing";
+export interface ArtifactCompareInput { artifact: ArtifactVersionRecord }
+export interface ArtifactCompareResult { state: ArtifactCompareState }
+
+export function defineArtifactCompareAction(capabilityId: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactCompareInput, ArtifactCompareResult> {
+  return { capability_id: capabilityId, version: 1, operation: "query", action: {
+    title: `比较${typeTitle}与原对象`, description: `判断固定下来的这一版${typeTitle}与原对象现在的内容是否相同；不修改数据。`,
+    kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], plugin: false, permissions: [...permissions], subject_kinds: [],
+    input_type: ARTIFACT_COMPARE_INPUT_TYPE, output_type: ARTIFACT_COMPARE_OUTPUT_TYPE,
+    input_schema: { type: "object", properties: { artifact: { type: "object" } }, required: ["artifact"], additionalProperties: false },
+    output_schema: { type: "object", properties: { state: { enum: ["same", "changed", "missing"] } }, required: ["state"], additionalProperties: false } } };
+}
+
+export function isArtifactCompareAction(action: { input_type?: string; output_type?: string }): boolean {
+  return action.input_type === ARTIFACT_COMPARE_INPUT_TYPE && action.output_type === ARTIFACT_COMPARE_OUTPUT_TYPE;
+}
+
+/**
+ * The owner's half: the work object a version was pinned from (origin `pinned`, this owner's type), read as it is now and
+ * compared with the version's content; null when the object is gone.
+ */
+export function bindArtifactCompare(definition: ActionDefinition<ArtifactCompareInput, ArtifactCompareResult>, artifactTypeId: string,
+  current: (objectId: string, caller: ActionCallContext) => unknown | null, same: (payload: unknown, object: unknown) => boolean): ActionHandlerBinding {
+  return { capability_id: definition.capability_id, version: definition.version, execution: "sync", handle: (caller, input) => {
+    const artifact = (input as ArtifactCompareInput).artifact;
+    if (artifact?.artifact_type_id !== artifactTypeId || artifact.origin?.kind !== "pinned") throw new ActionError("actions.input_invalid", "这一版不是这个插件固定下来的");
+    const object = current(artifact.origin.subject.id, caller);
+    return { state: object == null ? "missing" : same(artifact.payload, object) ? "same" : "changed" } satisfies ArtifactCompareResult;
+  } };
+}
+
+/**
+ * The content fields of a pinned payload equal the object's. Both sides go through the JSON round trip the version went
+ * through and are compared with sorted keys: the 成果库 stores payloads canonically, owners keep their own key order.
+ */
+export function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean {
+  const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical)
+    : value && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical((value as Record<string, unknown>)[key])])) : value;
+  const pick = (value: unknown) => JSON.stringify(canonical(fields.map(field => value && typeof value === "object" ? (value as Record<string, unknown>)[field] ?? null : null)));
+  return pick(JSON.parse(JSON.stringify(payload ?? null))) === pick(JSON.parse(JSON.stringify(object ?? null)));
+}
+
+/** An owner's read of one of its objects for a comparison: null when it is gone (its `not_found`), other failures stand. */
+export function objectOrMissing<T>(read: () => T): T | null {
+  try { return read(); } catch (error) {
+    if (/not_found$/u.test(String((error as { code?: unknown }).code ?? ""))) return null;
+    throw error;
+  }
 }

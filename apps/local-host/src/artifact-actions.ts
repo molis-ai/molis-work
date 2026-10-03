@@ -15,6 +15,7 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
     handlers: createArtifactActionHandlers({
       boardId: runtime.board_id, artifacts: runtime.coordinator.artifacts,
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.board_id }).query,
+      goalTitle: goalId => runtime.coordinator.goalQueries.getGoal(runtime.board_id, goalId)?.title ?? null,
       importSources: () => runWithMolisWorkHome(home, documentImportConnectionStatus),
       importConnections: () => documentImportConnections(home),
       importDocument: (input, caller) => runWithMolisWorkHome(home, () => importLocalArtifactDocument({ ...input }, {

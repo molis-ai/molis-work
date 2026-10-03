@@ -1,6 +1,6 @@
 # Artifact 定位与动线梳理，所有插件统一进同一个壳子
 
-状态：核实与排查中（2026-10-02 起）。用户在防腐收尾目标进行中追加，标为严重问题；与[合入后审查](../post-merge-review/spec.md)、[防腐整理](../repository-anti-corruption/spec.md)同一目标推进。本文是这件事唯一的进度与证据记录。
+状态：核实与排查中（2026-10-02 起）。用户在防腐收尾目标进行中追加，标为严重问题；与[合入后审查](../archive/post-merge-review/spec.md)、[防腐整理](../repository-anti-corruption/spec.md)同一目标推进。本文是这件事唯一的进度与证据记录。
 
 ## 0. 任务要求（用户 2026-10-02 原文要点）
 

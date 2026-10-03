@@ -87,7 +87,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     paintQueued = true;
     requestAnimationFrame(() => {
       paintQueued = false;
-      // A cover (settings, the market, capabilities) is what the person looks at: the switcher names it and no
+      // A cover (settings, the market) is what the person looks at: the switcher names it and no
       // Dock entry claims to be current underneath it.
       const cover = document.querySelector('[data-tab-workspace]')?.dataset.exclusive;
       if (cover) {
@@ -278,68 +278,6 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   });
   // The bar's width is the window's; watching it (not the Dock itself) keeps folding from feeding back into itself.
   if (pins && 'ResizeObserver' in window) new ResizeObserver(() => fit()).observe(dock);
-
-  /* 能力 opens in the workbench, in a cover like settings, rather than leaving the page. Its own page runs in a frame,
-     so its filters and details keep working; the frame only drops the page's close chrome, and links that lead out of
-     能力 open at the top. */
-  const capabilitiesFrame = document.querySelector('[data-capabilities-frame]');
-  const capabilitiesLink = dock.querySelector('[data-capabilities-open]');
-  const fitCapabilities = () => {
-    const doc = capabilitiesFrame?.contentDocument;
-    if (!doc?.body) return;
-    doc.documentElement.dataset.workbenchCover = 'capabilities';
-    if (!doc.querySelector('style[data-workbench-cover]')) {
-      const style = doc.createElement('style'); style.dataset.workbenchCover = '';
-      // The page keeps a 44px row for the close chrome it no longer shows; the content takes the whole frame instead.
-      style.textContent = '.project-preferences-chrome,.settings-nav-back{display:none!important}body.settings-page{grid-template-rows:minmax(0,1fr)!important}';
-      doc.head.append(style);
-    }
-    doc.querySelectorAll('a[href]').forEach((link) => {
-      const url = new URL(link.getAttribute('href'), doc.location.href);
-      if (url.origin === location.origin && !url.pathname.startsWith('/capabilities')) link.target = '_top';
-    });
-  };
-  capabilitiesFrame?.addEventListener('load', fitCapabilities);
-  const loadCapabilities = (href) => {
-    if (!capabilitiesFrame || !href) return;
-    if (capabilitiesFrame.getAttribute('src') !== href) capabilitiesFrame.setAttribute('src', href);
-  };
-  const openCapabilities = (href) => {
-    if (!host.setExclusive) { location.href = href; return; }
-    loadCapabilities(href);
-    host.setDirectory?.('root', true, false);
-    host.setExclusive('capabilities');
-  };
-  capabilitiesLink?.addEventListener('click', (event) => {
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1) return;
-    event.preventDefault();
-    openCapabilities(capabilitiesLink.href);
-  });
-  if (capabilitiesLink) host.registerCover?.('capabilities', () => openCapabilities(capabilitiesFrame?.getAttribute('src') || capabilitiesLink.href));
-  // Any link to 能力 in the workbench (a plugin's "connect" link, say) opens in this cover.
-  const capabilitiesAddress = (href) => {
-    const url = new URL(href, location.origin);
-    const prefixed = /^\\/projects\\/[^/]+(\\/capabilities(?:\\/|$).*)$/.exec(url.pathname);
-    if (prefixed) url.pathname = prefixed[1];
-    if (url.origin !== location.origin || !/^\\/capabilities(\\/|$)/.test(url.pathname)) return null;
-    const project = document.body.dataset.projectId;
-    if (project && !url.searchParams.has('project')) url.searchParams.set('project', project);
-    return url.pathname + url.search + url.hash;
-  };
-  document.addEventListener('click', (event) => {
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
-    const link = event.target?.closest?.('a[href]');
-    if (!link || link === capabilitiesLink || link.target === '_blank' || !capabilitiesFrame) return;
-    const href = capabilitiesAddress(link.href);
-    if (!href) return;
-    event.preventDefault();
-    openCapabilities(href);
-  });
-  // A reload that restores the cover restores what it shows.
-  const coverRoot = document.querySelector('[data-tab-workspace]');
-  const restoreCover = () => { if (coverRoot?.dataset.exclusive === 'capabilities' && !capabilitiesFrame?.getAttribute('src')) loadCapabilities(capabilitiesLink?.href); };
-  if (coverRoot) new MutationObserver(restoreCover).observe(coverRoot, { attributes: true, attributeFilter: ['data-exclusive'] });
-  restoreCover();
 
   const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';

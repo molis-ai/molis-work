@@ -65,6 +65,9 @@ test("a global settings page opened directly opens the named project's workbench
   assert.ok([first, second].some((project) => unnamed.pathname === `/projects/${project!.project_id}/`));
   const fetched = await open("/settings/appearance", {});
   assert.equal(fetched.status, 200);
+  // 能力 is part of settings too (S6b); its `project` is the scope the page shows, so it stays in the page's address.
+  assert.deepEqual(landing(await open(`/capabilities/library?project=${first!.project_id}&q=functions`)),
+    { pathname: `/projects/${first!.project_id}/`, settingsPath: `/capabilities/library?project=${first!.project_id}&q=functions`, desktop: null });
   // MCP, connectors and Functions moved to 能力 and still go there.
   const moved = await open("/settings/mcp");
   assert.equal(moved.status, 302);

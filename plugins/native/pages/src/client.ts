@@ -810,7 +810,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (draft) adoptSaved(draft, payload.document); else storeDocument(payload.document);
       if (payload.recovered) showNote(L("已恢复上次成果；当前编辑内容已保留，需要时可再存一版。"), false);
       placed({ verb: "versioned", title: payload.document.title, object: { kind: "pages_document", id: payload.document.id },
-        note: L("第 {version} 版 · 放在这个位置的成果（Artifacts）里；继续编辑不会改变这一版", { version: payload.document.artifact_version }) });
+        note: L("第 {version} 版 · 放在这个位置的成果里；继续编辑不会改变这一版", { version: payload.document.artifact_version }) });
     } catch (error) {
       // A failed response may follow an already committed Artifact. Refresh its
       // durable recovery state while preserving any local edits made in flight.
@@ -822,9 +822,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       throw error;
     } finally { publishing.delete(id); }
   };
-
   ${PAGES_IMPORT_CLIENT_SCRIPT}
-
   // Moved or copied from the placement bar: the list here changed; a document moved away is no longer here to edit.
   window.addEventListener?.("molis:placement-changed", (event) => {
     const detail = event.detail || {};

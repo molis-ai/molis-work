@@ -341,6 +341,12 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     openRequestedFeedRule();
     // An address the project does not have opens here (the server sends it with ?missing=): say so, then forget it.
+    // A plugin the studio just installed opens once its entry is on the page (?openSurface=app-…), then the address forgets it.
+    const askedSurface = new URLSearchParams(location.search).get("openSurface");
+    if (askedSurface && /^app-[a-f0-9-]{36}$/.test(askedSurface)) {
+      const cleaned = new URL(location.href); cleaned.searchParams.delete("openSurface"); history.replaceState(history.state, "", cleaned);
+      setTimeout(() => [...document.querySelectorAll("[data-work-surface-open]")].find((el) => el.dataset.workSurfaceOpen === askedSurface)?.click(), 0);
+    }
     const missingPage = new URLSearchParams(location.search).get("missing");
     if (missingPage) {
       showToast(L("找不到这个页面：{path}").replace("{path}", missingPage), true);

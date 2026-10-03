@@ -8,12 +8,13 @@ import Database from "better-sqlite3";
 import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, PluginRuntimeError, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost, PluginUiAccessError } from "@molis-ai/molis-work-ui-host";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 test("an unknown Runtime plugin cannot turn a Host-only adapter into user authority through consumes", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-host-only-plugin-"));
@@ -27,7 +28,7 @@ test("an unknown Runtime plugin cannot turn a Host-only adapter into user author
   const port = host.client({ project_id: "plugin-test", board_id: DEMO_BOARD_ID, storage_key: file });
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, port.project.project_id),
     board_id: DEMO_BOARD_ID, actor_id: "user", capabilities: port,
-    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), ui: new UiHost(),
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   }));
   const base = createGithubIntegrationPlugin({ provider: {
@@ -64,10 +65,10 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
   const store = new LocalProjectDatabase(file);
   const privateDb = new Database(join(directory, "plugin-private.db"));
   const privateOwner = new SqlitePluginPrivateStorage(privateDb);
-  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const ui = new UiHost();
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID, actor_id: "author",
-    artifacts, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }));
+    artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }));
   let failStart = false;
   let failStop = false;
   const contexts: PluginStartContext[] = [];
@@ -92,7 +93,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
       if (failStart) throw new Error("start failed after UI registration");
       services.storage!.set("visits", String(count));
       services.artifacts.publish({ artifact_id: "hosted-note", version: count, artifact_type_id: "example.note",
-        schema_version: 1, content: { kind: "inline", payload: { visits: count } } });
+        schema_version: 1, content: { kind: "inline", payload: { visits: count } }, ...pinnedArtifact("Visits", { kind: "counter", id: "visits" }, String(count)) });
       return base.start(context);
     }, async stop(context) { assert.ok(context.services); if (failStop) throw new Error("stop failed"); } };
   try {
@@ -146,12 +147,12 @@ test("compatible Host execution and crash recovery use the implementation versio
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
   const privateOwner = new SqlitePluginPrivateStorage(store.db);
-  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const ui = new UiHost();
   const { MemoryPluginRuntimeRepository } = await import("@molis-ai/molis-work-plugin-runtime");
   const repository = new MemoryPluginRuntimeRepository();
   const executor = () => new PluginHostExecutor({ actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID, actor_id: "author",
-    artifacts, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) });
+    artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) });
   const contexts: PluginStartContext[] = [];
   let failStart = false;
   const base = createGithubIntegrationPlugin({ provider: { type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; }, async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; } } });
@@ -174,7 +175,7 @@ test("compatible Host execution and crash recovery use the implementation versio
         kind: "primary-page", label: "Compatible", slots: [], surfaces: [{ surface_id: "main", target_slot_id: "main", format: "html" }] },
         render: () => `<p>${version}</p>` });
       context.services!.artifacts.publish({ artifact_id: "compatible-note", version: count,
-        artifact_type_id: "example.note", schema_version: 1, content: { kind: "inline", payload: { count } } });
+        artifact_type_id: "example.note", schema_version: 1, content: { kind: "inline", payload: { count } }, ...pinnedArtifact("Count", { kind: "counter", id: "count" }, String(count)) });
       return base.start(context);
     },
   });

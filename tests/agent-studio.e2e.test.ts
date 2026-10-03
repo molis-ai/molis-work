@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { ChromeHarness } from './fixtures/plugin-builder-browser.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
+import { STUDIO_HARNESS_PATH, studioHarnessPage } from '../scripts/agent-studio-harness.mjs';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
 import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.js';
 import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
@@ -32,6 +33,8 @@ test('studio: a request becomes a working, published plugin that the person can 
     if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
     const url = new URL(request.url ?? '/', 'http://localhost') /* as the product server does: no port in the base */;
     if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
+    // The studio as the workbench mounts it in its stage (scripts/agent-studio-harness.mts): it has no page of its own.
+    if (url.pathname === STUDIO_HARNESS_PATH) { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); response.end(studioHarnessPage(token)); return; }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     void handleAgentStudioHttp(request, response, url, options, token).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); });
   });
@@ -41,10 +44,12 @@ test('studio: a request becomes a working, published plugin that the person can 
     const page = await browser.page();
     await page.viewport(1440, 900);
     await page.command('Page.enable');
-    // The studio is a frame document of the workbench; opened without the frame marker it sends the person to the workbench.
-    const directStudio = await fetch(origin + '/plugin-builder/studio', { redirect: 'manual' });
-    assert.equal(directStudio.status, 302); assert.equal(directStudio.headers.get('location'), '/?openPlugin=plugin-builder'); await directStudio.text();
-    await page.command('Page.navigate', { url: origin + '/plugin-builder/studio?frame=workbench' });
+    // The studio is drawn in the workbench's stage (specs/artifact-positioning S4): it has no page of its own, framed or not.
+    for (const address of ['/plugin-builder/studio', '/plugin-builder/studio?frame=workbench']) {
+      const direct = await fetch(origin + address, { redirect: 'manual' });
+      assert.equal(direct.status, 404, address); await direct.text();
+    }
+    await page.command('Page.navigate', { url: origin + STUDIO_HARNESS_PATH });
     await page.wait(`[...document.querySelectorAll('[data-as-model] option')].some(o=>o.value.startsWith('fixture'))`);
     // The models and the canvas load separately; wait for the canvas's own empty state instead of reading it at once.
     await page.wait(`/这里会出现你的插件/.test(document.querySelector('[data-as-empty]')?.innerText || '')`);
@@ -184,7 +189,9 @@ test('studio: a request becomes a working, published plugin that the person can 
     await installedPage.wait(`globalThis.__molisPluginReady===true&&!!document.querySelector('[data-pc-open="editor"]')&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
 
     // The standalone page reads the same preview data through the same renderer.
-    const buildId = await page.evaluate<string>(`new URLSearchParams(location.search).get('build')`);
+    // The open plugin is the one chosen in the studio's own picker (in the workbench the address does not name it).
+    const buildId = await page.evaluate<string>(`document.querySelector('[data-as-builds]').value`);
+    assert.match(buildId, /^[a-f0-9-]{36}$/);
     const standalone = await browser.page();
     await standalone.command('Page.enable');
     const directPreview = await fetch(origin + '/plugin-builder/studio/preview/' + buildId, { redirect: 'manual' });

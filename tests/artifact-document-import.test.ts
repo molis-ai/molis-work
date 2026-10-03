@@ -56,13 +56,15 @@ async function fixture(t: test.TestContext) {
 test("document file HTTP import registers, previews, exports, reuses and survives restart", async t => {
   const { store, coordinator, post, get, origin, restart } = await fixture(t);
   const before = store.snapshot(DEMO_BOARD_ID);
-  const page = await get("/artifacts/import");
-  assert.equal(page.status, 200);
-  const form = await page.text();
-  assert.match(form, /data-artifact-import-form/);
+  // The 成果库's one import entry is a dialog in its directory (artifact-positioning A3); there is no import page.
+  const directory = await (await get("/artifacts")).text();
+  assert.match(directory, /data-artifact-import-open/);
+  assert.match(directory, /<dialog[^>]*data-artifact-import-dialog/);
   for (const source of ["notion", "feishu", "lark", "google-docs", "file"]) {
-    assert.ok(form.includes(`value="${source}"`), source);
+    assert.ok(directory.includes(`value="${source}"`), source);
   }
+  const oldPage = await get("/artifacts/import");
+  assert.doesNotMatch(await oldPage.text(), /data-artifact-import-form/);
   const file = { source: "file", filename: "导入验收.md", content: markdown };
   const response = await post(file, "first-file-import");
   assert.equal(response.status, 201);
@@ -85,8 +87,9 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   assert.equal(detail.status, 200);
   const html = await detail.text();
   assert.match(html, /<h1>导入验收<\/h1>/);
-  assert.match(html, /artifact-document-body/);
-  assert.match(html, /保留中文正文和 \*\*Markdown\*\*/);
+  // The imported file's owner previews it (artifact-positioning A4): Markdown rendered read-only.
+  assert.match(html, /data-artifact-business-preview/);
+  assert.match(html, /保留中文正文和 <strong>Markdown<\/strong>/);
   assert.match(html, /&lt;script&gt;importAttack\(\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<script>importAttack\(\)<\/script>/);
   assert.match(html, /原文后续修改不会自动同步/);
@@ -167,7 +170,9 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
     { body: { source: "unsupported" }, status: 400, code: "document.source_invalid" },
     { body: { source: "file", filename: "empty.md", content: " \n\t" }, status: 422, code: "document.empty" },
     { body: { source: "file", filename: "binary.txt", content: "\u0000binary" }, status: 415, code: "document.binary" },
-    { body: { source: "file", filename: "report.pdf", content: "PDF" }, status: 415, code: "document.file_unsupported" },
+    // Any file is accepted (artifact-positioning A3), but one that is not text must come with its original bytes.
+    { body: { source: "file", filename: "report.pdf", content: "PDF" }, status: 400, code: "document.original_invalid" },
+    { body: { source: "file", filename: "report.pdf", original_file: { filename: "report.pdf", mime: "application/pdf", data_base64: "not base64!" } }, status: 413, code: "document.original_invalid" },
     { body: { source: "file", filename: "../report.md", content: "body" }, status: 400, code: "document.filename_invalid" },
     { body: { source: "file", filename: "body.md", content: 42 }, status: 400, code: "document.content_invalid" },
     // This passes a character-count limit but exceeds the actual UTF-8 byte limit.
@@ -372,4 +377,42 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
     const { prefix: _prefix, ...result } = own;
     assert.deepEqual(await response.json(), { ...result, reused: true });
   }
+});
+
+test("any file imports as a 成果 with its original bytes and real media type; a text version continues in Pages", async t => {
+  // specs/artifact-positioning A3: one import entry for any file; Pages starts documents from a version, not its own import.
+  const { coordinator, post, get, origin, headers } = await fixture(t);
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+  const imageResponse = await post({ source: "file", filename: "封面.png", original_file: { filename: "封面.png", mime: "image/png", data_base64: png.toString("base64") } });
+  assert.equal(imageResponse.status, 201);
+  const image = await imageResponse.json() as { artifact_id: string; version: number };
+  const record = coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, image)!;
+  assert.equal(record.media_type, "image/png");
+  assert.equal(record.title, "封面");
+  assert.deepEqual(record.origin, { kind: "imported", file_name: "封面.png" });
+  const file = await fetch(`${origin}/api/artifacts/${encodeURIComponent(image.artifact_id)}/versions/1/file`, { headers: { "accept-language": "zh" } });
+  assert.equal(file.status, 200);
+  assert.equal(file.headers.get("content-type"), "image/png");
+  assert.match(file.headers.get("content-disposition") ?? "", /^inline;/);
+  assert.deepEqual(Buffer.from(await file.arrayBuffer()), png);
+  const detail = await (await get(`/artifacts/${encodeURIComponent(image.artifact_id)}/versions/1`)).text();
+  assert.match(detail, /<img class="file-preview-image"[^>]*src="data:image\/png;base64,/);
+  assert.match(detail, /下载原文件/);
+  assert.doesNotMatch(detail, /data-artifact-continue/, "Pages cannot start a document from an image");
+
+  const textResponse = await post({ source: "file", filename: "接着写.md", content: "# 接着写\n\n从这一版继续。" });
+  const text = await textResponse.json() as { artifact_id: string; version: number };
+  const textDetail = await (await get(`/artifacts/${encodeURIComponent(text.artifact_id)}/versions/1`)).text();
+  assert.match(textDetail, /data-artifact-continue="pages"/);
+  const download = await fetch(`${origin}/api/artifacts/${encodeURIComponent(text.artifact_id)}/versions/1/file`);
+  assert.match(download.headers.get("content-disposition") ?? "", /^attachment;/);
+  assert.equal(await download.text(), "# 接着写\n\n从这一版继续。");
+  const continued = await fetch(origin + "/api/artifacts/continue-in-pages", { method: "POST", headers: headers(), body: JSON.stringify({ reference: text }) });
+  assert.equal(continued.status, 201, await continued.clone().text());
+  const result = await continued.json() as { document: { id: string; title: string }; count: number };
+  assert.equal(result.count, 1);
+  assert.ok(result.document.id);
+  const refused = await fetch(origin + "/api/artifacts/continue-in-pages", { method: "POST", headers: headers(), body: JSON.stringify({ reference: image }) });
+  assert.equal(refused.status, 400);
+  await refused.text();
 });

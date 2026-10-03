@@ -22,13 +22,15 @@ export const datasetManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "storage:private", required: true, reason: "本机数据表库" },
-    { permission: "artifact:write", required: true, reason: "把数据表存成 Artifact" },
+    { permission: "artifact:write", required: true, reason: "把数据表存为成果" },
     ...DATASET_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: true, reason: "数据表动作使用的读取、编辑或模型权限" })),
   ],
   actions: [...Object.values(datasetActions), ...Object.values(datasetContentActions)],
   capabilities: { provides: [], consumes: [] },
   artifacts: {
-    produces: [{ artifact_type_id: DATASET_ARTIFACT_TYPE_ID, schema_version: DATASET_ARTIFACT_SCHEMA_VERSION }],
+    produces: [{ artifact_type_id: DATASET_ARTIFACT_TYPE_ID, schema_version: DATASET_ARTIFACT_SCHEMA_VERSION, title: "数据表",
+      preview: { capability_id: "dataset.artifacts.preview", version: 1 }, pin: { capability_id: "dataset.artifacts.pin", version: 1 },
+      compare: { capability_id: "dataset.artifacts.compare", version: 1 } }],
     consumes: [],
   },
   ui: {

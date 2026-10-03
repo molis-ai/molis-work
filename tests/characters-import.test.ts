@@ -6,6 +6,7 @@ import test from "node:test";
 import { openCharacters, CharacterError } from "@molis-ai/molis-work-module-characters";
 import { CHARACTER_IMPORT_LIMITS, parseCharacterImportSnapshot, parseCharacterContent, type CharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 import { createCharacterDiscovery } from "../apps/local-host/src/character-import-discovery.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 const put = (path: string, body: string | Buffer) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, body); };
 function fixture(t: { after(callback: () => void): void }) {
   const home = mkdtempSync(join(tmpdir(), "molis-character-import-")); t.after(() => rmSync(home, { recursive: true, force: true }));
@@ -177,7 +178,7 @@ test("large imported resources publish through the real Artifact store and survi
       files: [{ path: "SKILL.md", encoding: "utf8", content: "Use the six bundled fixtures." }, ...Array.from({ length: 6 }, (_, index) => ({ path: `assets/${index}.bin`, encoding: "base64" as const, content: binary }))] }] };
   try {
     const { draft } = characterDb.service.import(snapshot, all(snapshot));
-    const result = characterDb.service.publish(draft.character_id, draft.revision, content => artifacts.commands.registerVersion({
+    const result = characterDb.service.publish(draft.character_id, draft.revision, content => artifacts.commands.registerVersion({ ...pinnedArtifact(content.title, { kind: "character", id: content.character_id }),
       board_id: "board", artifact_id: "large-character", version: 1, actor_id: "actor", artifact_type_id: "character.definition.v1", schema_version: 1,
       producer: { plugin_id: "io.molis.work.characters", plugin_version: "1", binding_signature: "official-characters-binding" },
       content: { kind: "inline", payload: JSON.parse(JSON.stringify(content)) },

@@ -24,3 +24,22 @@ test("direct addresses open the workbench: 成果 surface, unknown page notice, 
   assert.match(api.headers.get("content-type") ?? "", /application\/json/);
   await api.text();
 });
+
+// Molis Work's own pages never open a second browser tab (specs/artifact-positioning §4, S7): a new-tab link to one, or
+// window.open of one, opens it here, in this workbench.
+test("a new-tab link or window.open to Molis Work's own page opens it in this workbench", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
+  const { origin, projectId, command, sessionId, navigate, evaluate, waitFor, click } = browser;
+  const prefix = `/projects/${projectId}`;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
+  await waitFor("!!document.querySelector('[data-side-panel]')", 15_000);
+  await evaluate(`(() => { const link = document.createElement('a'); link.id = 'probe-own-page'; link.href = '/settings/models'; link.target = '_blank'; link.textContent = '模型设置';
+    document.querySelector('[data-workspace]').append(link); })()`);
+  await click("#probe-own-page");
+  await waitFor("document.querySelector('[data-tab-workspace]')?.dataset.exclusive === 'settings' && !!document.querySelector('[data-work-surface=settings] [data-settings-panel=models]')", 15_000);
+  assert.equal(await evaluate("location.pathname"), prefix + "/");
+  assert.equal(await evaluate("window.open('/capabilities/library')"), null, "no second window");
+  await waitFor("!!document.querySelector('[data-work-surface=settings] [data-settings-panel=library]')", 15_000);
+  assert.equal(await evaluate("location.pathname"), prefix + "/");
+});

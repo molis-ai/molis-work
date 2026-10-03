@@ -2,10 +2,14 @@ import type {
   ArtifactsApplicationApi,
   ArtifactsCommandApi,
   ArtifactsQueryApi,
+  ProcessItemRecord,
+  ProcessItemsApplicationApi,
+  RecordProcessItemInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 import {
   ArtifactsRepository,
+  PROCESS_ITEM_TABLES,
   type ArtifactsSqliteDatabase,
 } from "./repository.js";
 import {
@@ -49,6 +53,25 @@ export class ArtifactsModule implements ArtifactsApplicationApi {
   }
 }
 
+/**
+ * Process items: the exchange data plugins pass to each other (a file snapshot, a change set, a run's receipt). Same
+ * immutable versions as the 成果库 but its own tables and events, so none of it shows up where people look for 成果.
+ * Each item belongs to the plugin that produced it (specs/artifact-positioning A2).
+ */
+export class ProcessItemsModule implements ProcessItemsApplicationApi {
+  readonly repository: ArtifactsRepository<ProcessItemRecord>;
+  readonly service: ArtifactsService<ProcessItemRecord, RecordProcessItemInput>;
+  readonly query: ProcessItemsApplicationApi["query"];
+  readonly commands: ProcessItemsApplicationApi["commands"];
+
+  constructor(options: Omit<ArtifactsModuleOptions, "kind">) {
+    this.repository = new ArtifactsRepository<ProcessItemRecord>(options.db, PROCESS_ITEM_TABLES);
+    this.service = new ArtifactsService<ProcessItemRecord, RecordProcessItemInput>(this.repository, { ...options, kind: "process_item" });
+    this.query = this.service;
+    this.commands = this.service;
+  }
+}
+
 export {
   artifactContentDigest,
   artifactContentSize,
@@ -66,11 +89,18 @@ export {
   migrateArtifactsSchema,
 } from "./migrations.js";
 export {
+  ARTIFACT_TABLES,
   ARTIFACTS_SCHEMA_SQL,
   ArtifactsRepository,
   createArtifactsSchema,
+  createProcessItemsSchema,
+  PROCESS_ITEM_TABLES,
+  PROCESS_ITEMS_SCHEMA_SQL,
+  versionStoreSchemaSql,
+  type VersionStoreTables,
   mapArtifactIdentity,
   mapArtifactVersion,
+  mapFixedVersion,
   type ArtifactsSqliteDatabase,
   type ArtifactsSqliteStatement,
 } from "./repository.js";
@@ -78,4 +108,5 @@ export {
   ArtifactsService,
   type ArtifactEventInput,
   type ArtifactsServiceOptions,
+  type VersionStoreKind,
 } from "./service.js";

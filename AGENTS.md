@@ -24,6 +24,8 @@ Molis Work：本地优先的工作台，Goals 是权威真相源，插件经统�
 - 结果合同读取兼容、写入严格：回显已存历史的 schema 接受历史取值。
 - 可信身份（actor、项目、安装）从调用上下文来，不从输入读；密钥只给引用。
 - 新的内置插件只走 Plugin Runtime 装配（`apps/local-host/src/project-plugins.ts` 的监督器条目）：不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往 `apps/workbench/src/builtin-plugins.ts` 加构建期条目。现存的旧路径插件名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`，只许减少。
+- 插件只提供内容，挂在工作台的位置（目录、主区、浮层、设置、侧栏）；不出自己的整页、不开第二个浏览器标签页。例外清单见 `specs/artifact-positioning/spec.md` §4，门禁 `tests/shell-page-gate.test.ts`（CI 里跑）。
+- 成果库只收人要留存、引用的固定版本与导入文件：类型在 manifest `artifacts.produces` 声明，带显示名与 owner 的预览动作；交给别的插件的数据是过程项（`process_items.produces`），不进成果库、侧栏文件和搜索。宿主按 manifest 拒绝未声明的写入；门禁 `tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts`（CI 里跑）。
 - `vendor/prologue-sdk/` 只放当前使用的 Prologue 包（最多再加一份在途分支的）；换新包时删掉旧包，旧包从 Git 历史取。
 
 ## 构建与测试

@@ -3,7 +3,8 @@ import type {
   ArtifactMetadata,
   ArtifactReference,
   ArtifactVersionRecord,
-  ArtifactVersionResult,
+  ProcessItemRecord,
+  ProcessItemResult,
 } from "../modules/artifacts.js";
 import type { ContractDescriptor } from "./package.js";
 
@@ -180,7 +181,7 @@ export interface PluginUpstreamUnavailableReason {
  * discovers sources itself and never sees a half-applied change.
  */
 export interface PluginUpstreamReadyInputs {
-  readonly [port: string]: ArtifactVersionRecord;
+  readonly [port: string]: ArtifactVersionRecord | ProcessItemRecord;
 }
 
 /** Input notifications refresh projections; they are not durable business commands. */
@@ -193,7 +194,7 @@ export interface PluginInputDeliveryContext {
 export interface PluginInputsClient {
   status(): PluginInputStatus;
   /** The fixed version currently bound to this port, or null when not ready. */
-  read(port: string): ArtifactVersionRecord | null;
+  read(port: string): ArtifactVersionRecord | ProcessItemRecord | null;
   reference(port: string): ArtifactReference | null;
   /** Selected input group at activation. Undefined means no group was chosen. */
   selectedGroup(): string | undefined;
@@ -207,7 +208,8 @@ export interface PluginOutputPublishInput {
 }
 
 export interface PluginOutputsClient {
-  publish(input: PluginOutputPublishInput): ArtifactVersionResult;
+  /** Records a process item on the port (artifact-positioning A2); a 成果 reaches a port by `select`. */
+  publish(input: PluginOutputPublishInput): ProcessItemResult;
   /** Expose an existing, owned fixed version without copying its content. */
   select(input: { port: string; reference: ArtifactReference; expected_reference: ArtifactReference | null }): ArtifactReference;
   /** Current output selection; null when absent or withdrawn. */
@@ -216,7 +218,7 @@ export interface PluginOutputsClient {
   invalidate(port: string, safe_reason: string): void;
   /** Keep a published reference readable after the producing session ends. */
   retain(reference: ArtifactReference): void;
-  read(reference: ArtifactReference): ArtifactVersionRecord | null;
+  read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
 }
 
 export interface PluginWiringRepository {
@@ -295,7 +297,7 @@ export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefine
       continue;
     }
     if (typeof input.artifact_type_id !== "string" || input.artifact_type_id.trim() === "") {
-      problems.push(`输入端口 ${input.port} 缺少 Artifact 类型`);
+      problems.push(`输入端口 ${input.port} 缺少成果类型`);
       continue;
     }
     if (!Number.isSafeInteger(input.schema_version) || input.schema_version < 1) {
@@ -316,7 +318,7 @@ export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefine
       continue;
     }
     if (typeof output.artifact_type_id !== "string" || output.artifact_type_id.trim() === "") {
-      problems.push(`输出端口 ${output.port} 缺少 Artifact 类型`);
+      problems.push(`输出端口 ${output.port} 缺少成果类型`);
       continue;
     }
     if (!Number.isSafeInteger(output.schema_version) || output.schema_version < 1) {

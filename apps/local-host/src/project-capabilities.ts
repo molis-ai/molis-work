@@ -128,7 +128,7 @@ export function registerProjectCapabilities(
     const reference = { project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path };
     return runPluginDevelopment(input, { board_id: input.board_id, actor_id: input.actor_id,
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: runtime.project_id },
-      artifacts: runtime.coordinator.artifacts, ui: new UiHost(),
+      artifacts: runtime.coordinator.artifacts, processItems: runtime.coordinator.processItems, ui: new UiHost(),
       repository: new SqlitePluginRuntimeRepository(runtime.store.db),
       privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
   });

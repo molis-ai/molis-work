@@ -1,5 +1,6 @@
-import type { UiHostApi, UiSlotDescriptor, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, ARTIFACT_IMPORT_CLIENT_SCRIPT, ARTIFACT_IMPORT_STYLES, renderArtifactImportSurface, type ArtifactBrowserUiModel, type ArtifactImportUiModel, type GoalArtifactEmbed } from "@molis-ai/molis-work-plugin-artifacts";
+import type { UiHostApi, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, ARTIFACT_IMPORT_STYLES, type ArtifactBrowserUiModel, type GoalArtifactEmbed } from "@molis-ai/molis-work-plugin-artifacts";
+import { FILE_PREVIEW_STYLES } from "@molis-ai/molis-work-design-system";
 
 export const ARTIFACT_EMBED_STYLES = `
   .project-reference-dialog { width:min(760px, calc(100vw - 32px)); }
@@ -19,14 +20,7 @@ export const ARTIFACT_EMBED_STYLES = `
   @media(max-width:760px) { .artifact-embed > a { display:inline-flex; align-items:center; min-height:44px; } }
 `;
 
-export interface ArtifactImportWorkbenchRequest extends ArtifactImportUiModel {
-  readonly lang: string;
-  readonly desktopShell: boolean;
-  readonly headHtml: string;
-  readonly iconSpriteHtml: string;
-}
-
-export const ARTIFACT_WORKBENCH_STYLES = `
+export const ARTIFACT_WORKBENCH_STYLES = `${ARTIFACT_IMPORT_STYLES}${FILE_PREVIEW_STYLES}
   .artifact-version-list { display:flex; flex-direction:column; gap:4px; }
   .artifact-import-entry { text-decoration:none; }
   .artifact-version-list .mw-dir-row,
@@ -67,7 +61,6 @@ export const ARTIFACT_WORKBENCH_STYLES = `
 export function createArtifactWorkbenchRenderer(
   host: UiHostApi,
   slots: { readonly directory: UiSlotDescriptor; readonly main: UiSlotDescriptor },
-  document: (request: WorkbenchDocumentRenderRequest) => string,
 ) {
   const mount = (surface: "directory" | "detail" | "embed" | "frame-block", model: ArtifactBrowserUiModel) => host.mount({
     slot: surface === "directory" ? slots.directory : slots.main,
@@ -79,12 +72,5 @@ export function createArtifactWorkbenchRenderer(
     embed: (model: ArtifactBrowserUiModel): string => mount("embed", model),
     goalContext: (items: readonly GoalArtifactEmbed[], model: Omit<ArtifactBrowserUiModel, "view" | "relationship">): string =>
       items.map((item) => mount("embed", { ...model, view: item.view, relationship: item.relationship })).join(""),
-    importPage: (request: ArtifactImportWorkbenchRequest): string => document({
-      lang: request.lang,
-      title: `${request.primitives.text("导入文档")} · ${request.projectTitle} · Molis Work`,
-      head_html: `${request.headHtml}<meta name="molis-work-control-token" content="${request.primitives.escape(request.controlToken)}"><style>${ARTIFACT_IMPORT_STYLES}</style>`,
-      body_attributes: { class: "artifact-import-page", "data-native-desktop": request.desktopShell },
-      body_html: `${request.iconSpriteHtml}${renderArtifactImportSurface(request)}<script>${ARTIFACT_IMPORT_CLIENT_SCRIPT}</script>`,
-    }),
   };
 }

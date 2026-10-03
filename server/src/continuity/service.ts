@@ -81,7 +81,7 @@ export class ContinuityService {
       const goals = await Promise.all(scope.goal_ids.map(id => this.goal(bound,id)));
       const artifacts = await this.artifacts(bound,scope,role !== "owner"); validate();
       return {project:{id:scope.id,title:scope.title,role},goals,artifacts:artifacts.map(a => ({artifact_id:a.artifact_id,version:a.version,
-        title:typeof a.metadata.title === "string" ? a.metadata.title : a.artifact_id,
+        title:a.title,
         plugin_id:a.producer_plugin_id,availability:a.availability,
         content:a.content_kind === "inline" ? (typeof a.payload === "string" ? a.payload : JSON.stringify(a.payload,null,2)) : ""})),members:this.members(projectId)};
     });
@@ -152,6 +152,8 @@ export class ContinuityService {
           owner_actor_id:a.owner_actor_id,producer:{plugin_id:a.producer_plugin_id,plugin_version:a.producer_plugin_version,binding_signature:a.producer_binding_signature},
           content:a.content_kind === "inline" ? {kind:"inline",payload:a.payload} : {kind:"reference",content_ref:`unavailable://${encodeURIComponent(a.artifact_id)}/${a.version}`,digest:a.content_digest,size_bytes:a.size_bytes,available:false},
           expected_digest:a.content_digest,metadata:typeof a.metadata.title === "string" ? {title:a.metadata.title} : {},scope:a.scope,
+          // A 成果 travels with its origin, title and media type; its trace names process items that stay on the source device.
+          origin:a.origin,title:a.title,media_type:a.media_type,trace:[],
           availability:a.availability,lifecycle_state:a.lifecycle_state,supersedes_version:null,
           source_supersedes_version:a.supersedes_version})),
         dependencies:artifacts.map(a => ({plugin_id:a.producer_plugin_id,plugin_version:a.producer_plugin_version,credential_required:a.content_kind === "reference"})),

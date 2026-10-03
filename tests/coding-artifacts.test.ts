@@ -24,7 +24,9 @@ test("Manifest 通过 v2 解析，且端口与产出类型逐项对应", () => {
   assert.ok(parsed.artifacts.consumes.some(entry => entry.artifact_type_id === CHARACTER_ARTIFACT_TYPE && entry.schema_version === 1));
   assert.deepEqual(parsed.agent?.characters, { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "planner", "reviewer", "writer", "builder"] });
 
-  const produced = parsed.artifacts.produces.map((entry) => entry.artifact_type_id).sort();
+  // Only the run report is a 成果; plans, goal context, change sets and diagrams are process items (artifact-positioning A2).
+  assert.deepEqual(parsed.artifacts.produces.map((entry) => entry.artifact_type_id), ["coding.report.v1"]);
+  const produced = [...parsed.artifacts.produces, ...parsed.process_items?.produces ?? []].map((entry) => entry.artifact_type_id).sort();
   assert.deepEqual(produced, [...CODING_ARTIFACT_TYPES].sort());
 
   const outputs = (parsed.ports?.outputs ?? []).map((port) => port.artifact_type_id).sort();

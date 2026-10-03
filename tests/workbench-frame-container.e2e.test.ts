@@ -3,6 +3,7 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createLocalFeedApplication, DEMO_BOARD_ID, GoalProjectApplication, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 test("Goal Frames use outer tabs, preserve references, and isolate project state", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
@@ -26,7 +27,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
     summary: "点进 Frame 后应变成引用卡片。", body: "只验证引用，不打开整页。", occurredAt: now, attention: false,
   });
   const inbox = feed.ensureInboxEntryForFeedItem(DEMO_BOARD_ID, feedItem.item.item_id, "manual");
-  new GoalProjectApplication(store).artifacts.commands.registerVersion({
+  new GoalProjectApplication(store).artifacts.commands.registerVersion({ ...pinnedArtifact("Frame artifact"),
     board_id: DEMO_BOARD_ID, actor_id: "frame-container", artifact_id: "frame-note", version: 1,
     artifact_type_id: "example.note", schema_version: 1,
     producer: { plugin_id: "example.writer", plugin_version: "1.0.0", binding_signature: "fixture" },

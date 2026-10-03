@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { PluginRuntime, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { PluginHostExecutor, LocalProjectDatabase, seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
@@ -15,7 +15,7 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
   const home = mkdtempSync(join(tmpdir(), "plugin-action-route-")), file = join(home, "board.sqlite");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_BOARD_ID);
-  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const action: ActionDefinition<{ value: number }, { doubled: number }> = {
     capability_id: "unknown.double", version: 1, operation: "query", action: {
@@ -38,7 +38,7 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
         routes: [bindPluginActionRoute(context, action, request => request.body as { value: number })] };
     },
   };
-  const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, board_id: DEMO_BOARD_ID, actor_id: "owner", artifacts,
+  const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, board_id: DEMO_BOARD_ID, actor_id: "owner", artifacts, processItems,
     capabilities: { availability: () => ({ available: true }), invoke: async () => 1 as never },
     ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { actions });
   try {

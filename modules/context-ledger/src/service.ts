@@ -95,7 +95,7 @@ export class ContextLedgerService implements ContextLedgerApi {
     if (!sameScope(access.scope, ref.scope)) throw new ContextLedgerError("context.scope_mismatch", "跨分区引用不能进入同一关系记录");
     if (!ref.id.trim() || (ref.version !== null && (!Number.isSafeInteger(ref.version) || ref.version < 1))
       || (ref.module === "artifacts" && ref.version === null)) {
-      throw new ContextLedgerError("context.invalid_reference", "对象引用必须具有有效身份；Artifact 必须指定精确版本");
+      throw new ContextLedgerError("context.invalid_reference", "对象引用必须具有有效身份；成果必须指定精确版本");
     }
   }
 }

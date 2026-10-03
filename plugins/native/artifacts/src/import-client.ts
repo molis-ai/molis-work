@@ -1,8 +1,11 @@
-/** Static script: all request-specific values are escaped into the rendered DOM. */
+/**
+ * Binds the 成果库's import dialog (specs/artifact-positioning A3). The workbench calls it once per dialog it opens;
+ * all request-specific values are escaped into the rendered DOM.
+ */
 export const ARTIFACT_IMPORT_CLIENT_SCRIPT = String.raw`
-(() => {
-  const form = document.querySelector('[data-artifact-import-form]');
-  if (!form) return;
+globalThis.molisWorkBindArtifactImport = (form) => {
+  if (!form || form.dataset.importBound) return;
+  form.dataset.importBound = 'true';
   const messages = JSON.parse(form.dataset.importMessages || '{}');
   const prefix = form.dataset.routePrefix || '';
   const source = form.elements.source;
@@ -28,7 +31,7 @@ export const ARTIFACT_IMPORT_CLIENT_SCRIPT = String.raw`
     file.disabled = !local;
     file.required = local;
     title.disabled = !local;
-    url.placeholder = option.dataset.placeholder;
+    url.placeholder = option.dataset.placeholder || '';
     form.querySelector('[data-import-help]').textContent = option.dataset.help;
     form.querySelector('[data-import-connection-status]').textContent = option.dataset.connected === 'true' ? messages.ready : messages.missing;
     const connector = source.value === 'google-docs' ? 'google-drive' : source.value;
@@ -59,12 +62,20 @@ export const ARTIFACT_IMPORT_CLIENT_SCRIPT = String.raw`
       if (source.value === 'file') {
         const selected = file.files[0];
         if (!selected) throw new Error(messages.fileRequired);
-        if (!/\.(md|markdown|txt|html|htm)$/i.test(selected.name)) throw new Error(messages.fileType);
-        if (selected.size > 2 * 1024 * 1024) throw new Error(messages.fileSize);
-        let content;
-        try { content = new TextDecoder('utf-8', { fatal: true }).decode(await selected.arrayBuffer()); }
-        catch { throw new Error(messages.fileEncoding); }
-        input = { source: 'file', filename: selected.name, content };
+        if (selected.size > 6 * 1024 * 1024) throw new Error(messages.fileSize);
+        const bytes = await selected.arrayBuffer();
+        if (/\.(md|markdown|txt|html|htm)$/i.test(selected.name)) {
+          let content;
+          try { content = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+          catch { throw new Error(messages.fileEncoding); }
+          input = { source: 'file', filename: selected.name, content };
+        } else {
+          // Any other file keeps its original bytes; the 成果 records its real media type.
+          let binary = '';
+          const view = new Uint8Array(bytes);
+          for (let index = 0; index < view.length; index += 0x8000) binary += String.fromCharCode(...view.subarray(index, index + 0x8000));
+          input = { source: 'file', filename: selected.name, original_file: { filename: selected.name, mime: selected.type || 'application/octet-stream', data_base64: btoa(binary) } };
+        }
         if (title.value.trim()) input.title = title.value.trim();
       } else {
         let parsed;
@@ -81,11 +92,9 @@ export const ARTIFACT_IMPORT_CLIENT_SCRIPT = String.raw`
       try {
         response = await fetch(prefix + '/api/artifacts/import', {
           method: 'POST', signal: controller.signal,
-          headers: {
-            'Content-Type': 'application/json',
-            'x-molis-work-control-token': document.querySelector('meta[name="molis-work-control-token"]')?.content || '',
-            'x-molis-work-idempotency-key': requestKey,
-          },
+          headers: { ...(globalThis.molisWorkControlHeaders?.() || {
+            'x-molis-work-control-token': document.querySelector('meta[name="molis-work-control-token"]')?.content || '' }),
+            'Content-Type': 'application/json', 'x-molis-work-idempotency-key': requestKey },
           body,
         });
       } catch { throw new Error(controller.signal.aborted ? messages.timeout : messages.network); }
@@ -112,6 +121,7 @@ export const ARTIFACT_IMPORT_CLIENT_SCRIPT = String.raw`
       fields.hidden = true;
       result.hidden = false;
       form.querySelector('[data-import-result-title]').focus();
+      form.dispatchEvent(new CustomEvent('molis-work:artifact-imported', { bubbles: true, detail: { href } }));
     } catch (failure) {
       error.textContent = failure instanceof Error ? failure.message : messages.failed;
       error.hidden = false;
@@ -131,6 +141,8 @@ export const ARTIFACT_IMPORT_CLIENT_SCRIPT = String.raw`
     updateSource();
     source.focus();
   });
+  form.querySelector('[data-import-result-link]').addEventListener('click', () => form.closest('dialog')?.close());
+  form.querySelector('[data-artifact-import-close]')?.addEventListener('click', () => form.closest('dialog')?.close());
   updateSource();
-})();
+};
 `;

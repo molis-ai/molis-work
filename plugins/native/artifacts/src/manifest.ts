@@ -19,7 +19,7 @@ export const artifactsManifest: PluginManifest = {
   host_api_version: 2,
   plugin_id: ARTIFACTS_PLUGIN_ID,
   version: "1.1.0",
-  name: "Artifacts",
+  name: "成果",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-artifacts-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -27,13 +27,13 @@ export const artifactsManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   actions: ARTIFACT_ACTIONS,
   artifacts: {
-    produces: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],
+    produces: [{ artifact_type_id: "io.molis.work.document", schema_version: 1, title: "导入的文件", preview: { capability_id: "artifacts.documents.preview", version: 1 } }],
     consumes: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],
   },
   ui: {
     contributions: [ARTIFACT_BROWSER_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "browser", slot: "navigator", title: "Artifacts", contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, icon: "package", order: 60 },
+      { view_id: "browser", slot: "navigator", title: "成果", contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, icon: "package", order: 60 },
     ],
   },
 };

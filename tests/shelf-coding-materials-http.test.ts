@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import { LocalProjectDatabase, GoalProjectApplication, DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
@@ -33,7 +33,8 @@ test("Shelf project material confirms current full bytes, preserves original ver
   };
   new CodingSessionStore(store.db).create({ board_id: DEMO_BOARD_ID, session_id: "app", title: "Shelf 固定材料", runtime_id: "prologue", at: new Date().toISOString() });
   // A second connection only reads and archives Artifacts; one Host Runtime owns the project plugins, as in the web server.
-  const artifacts = () => new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
+  // Shelf hands project materials to Coding as process items (artifact-positioning A2).
+  const artifacts = () => new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const starts: AgentStartRequest[] = [];
   const demo = molisWorkHostProjectReference({ databasePath: dbPath, boardId: DEMO_BOARD_ID, projectId: DEMO_BOARD_ID });
   const host = async () => ({ store: await localHost.withProject(demo, runtime => runtime.store), homeDirectory: home, boardId: DEMO_BOARD_ID,

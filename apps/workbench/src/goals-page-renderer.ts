@@ -212,7 +212,7 @@ function renderMolisWorkWeb(
     </div>
     <dialog class="frame-picker mw-dialog" data-frame-picker aria-labelledby="frame-picker-title">
       <header><h2 id="frame-picker-title">${L("添加已有内容")}</h2><button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only" data-frame-picker-close aria-label="${L("关闭")}">${icon("x")}</button></header>
-      <div class="frame-picker-tools mw-input-group"><input class="mw-input" type="search" data-frame-picker-search placeholder="${L("搜索标题或来源")}" aria-label="${L("搜索标题或来源")}" autofocus><select class="mw-select" data-frame-picker-kind aria-label="${L("内容来源")}"><option value="all">${L("全部来源")}</option><option value="feed">Feed</option><option value="inbox">Inbox</option><option value="session">${L("会话")}</option><option value="artifact">${L("交付物")}</option></select></div>
+      <div class="frame-picker-tools mw-input-group"><input class="mw-input" type="search" data-frame-picker-search placeholder="${L("搜索标题或来源")}" aria-label="${L("搜索标题或来源")}" autofocus><select class="mw-select" data-frame-picker-kind aria-label="${L("内容来源")}"><option value="all">${L("全部来源")}</option><option value="feed">Feed</option><option value="inbox">Inbox</option><option value="session">${L("会话")}</option><option value="artifact">${L("成果")}</option></select></div>
       <div class="frame-picker-list mw-scroll" data-frame-picker-list></div>
       <footer><span>${L("添加引用，原内容保持在所属来源。")}</span><button type="button" class="mw-btn mw-btn--secondary" data-frame-picker-close>${L("取消")}</button></footer>
     </dialog>
@@ -306,7 +306,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${defer(renderWorkflowsNativePluginSurface("workbench"))}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
-            <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="Artifacts" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
+            <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="成果" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives)}</section>
             ${settingsSurfaces}
             ${(view.plugin_stages ?? []).map(defer).join("")}

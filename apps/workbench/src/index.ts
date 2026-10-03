@@ -4,7 +4,6 @@ export { createWorkbenchGoalsPageRenderer } from "./goals-page-renderer.js";
 export { renderWorkbenchPlanningRequest } from "./goals-planning-request.js";
 export type { WorkbenchPlanningPageOwners } from "./goals-planning-request.js";
 export type { WorkbenchGoalsPageView, WorkbenchGoalsPageOwners } from "./goals-page-renderer.js";
-export type { ArtifactImportWorkbenchRequest } from "./artifact-ui.js";
 export { ARTIFACT_EMBED_STYLES } from "./artifact-ui.js";
 export type { ArtifactBrowserUiModel } from "@molis-ai/molis-work-plugin-artifacts";
 export { isProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
@@ -151,7 +150,7 @@ export {
   type ModelSettingsModel,
   type ModelSettingsPrimitives,
 } from "./settings-models.js";
-export { BUILTIN_PLUGIN_AGENTS } from "./plugin-catalog.js";
+export { BUILTIN_PLUGIN_AGENTS, artifactTypeDeclarations, type ArtifactTypeDeclaration } from "./plugin-catalog.js";
 
 export { pluginWorkbenchClientAsset } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";

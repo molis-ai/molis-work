@@ -108,7 +108,8 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 判断亮哪颗按钮 | 真实场景 → action_scenes → 绑定与消费 | 只声明标签，或再加 Host 去向白名单 |
 | Agent 做同一件事 | 共同 actions 目录和授权调用 | 重复 handler / 写死 tool-catalog |
 | 给别的插件打招呼 | 仅 app：`events` + `onEvent` | 给 Native 抄 `events:` 块；把正文塞进事件 |
-| 留下可打开的结果 | `artifacts.produces` | 用 Artifact 当页面 RPC |
+| 留下人要留存、引用的结果 | `artifacts.produces`（成果，进成果库） | 用 Artifact 当页面 RPC；把交给别的插件的数据也写成成果 |
+| 把数据交给别的插件 | `process_items.produces` + `ports.outputs`（过程项，不进成果库） | 写进成果库让人看到 |
 | 消费别人产出的类型 | `ports.inputs`（Text stats） | 指定生产者插件 |
 | 拉外部世界 | integration + Signals/Feed | 在 native 里写死 provider |
 

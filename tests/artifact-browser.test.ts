@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
-import { artifactDisplayTitle, readArtifactBrowser } from "@molis-ai/molis-work-plugin-artifacts";
+import { readArtifactBrowser } from "@molis-ai/molis-work-plugin-artifacts";
+import { pinnedArtifact, titleOf } from "./fixtures/artifacts.js";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -19,13 +20,14 @@ const encodedId = encodeURIComponent(artifactId);
 const exactPath = (version: number) => `/artifacts/${encodedId}/versions/${version}`;
 
 function registration(overrides: Partial<RegisterArtifactVersionInput> = {}): RegisterArtifactVersionInput {
-  return {
+  const input = {
     board_id: DEMO_BOARD_ID, actor_id: "report-owner", artifact_id: artifactId, version: 1,
     artifact_type_id: "io.example.report", schema_version: 1,
     producer: { plugin_id: "io.example.writer", plugin_version: "1.0.0", binding_signature: "fixture-publisher" },
-    content: { kind: "inline", payload: { title: "Original report", custom: ["</pre><script>attack()</script>", 7, null] } },
+    content: { kind: "inline" as const, payload: { title: "Original report", custom: ["</pre><script>attack()</script>", 7, null] } },
     metadata: { origin: "plugin-owned-shape", details: { preserved: true } }, ...overrides,
   };
+  return { ...pinnedArtifact(titleOf(input.content, "Original report")), ...input };
 }
 
 async function fixture(t: test.TestContext) {
@@ -54,17 +56,18 @@ async function fixture(t: test.TestContext) {
   return { store, coordinator, get, surface, direct, origin };
 }
 
-test("Artifact display title prefers payload title, then name, then text", () => {
-  assert.equal(artifactDisplayTitle({
-    artifact_id: "feed-capture:item:rule",
-    payload: { title: "Product launch checklist", name: "Ignored name", summary: "Ship the launch notes" },
-  }), "Product launch checklist");
-  assert.equal(artifactDisplayTitle({ artifact_id: "named", payload: { name: "Named result" } }), "Named result");
-  assert.equal(artifactDisplayTitle({ artifact_id: "frame-note", payload: { text: "Frame artifact" } }), "Frame artifact");
-  assert.equal(artifactDisplayTitle({ artifact_id: "raw-id", payload: { count: 1 } }), "raw-id");
-  assert.equal(artifactDisplayTitle({ artifact_id: "raw-id", payload: null }), "raw-id");
-  assert.equal(artifactDisplayTitle({ artifact_id: "fixed-id", payload: { run_id: "r" }, metadata: { title: "固定变更标题" } }), "固定变更标题");
-  assert.equal(artifactDisplayTitle({ artifact_id: "fixed-id", payload: { title: "正文标题" }, metadata: { title: "元数据标题" } }), "正文标题");
+test("the 成果库 shows each version's recorded title and media type, never one guessed from the payload", async (t) => {
+  // specs/artifact-positioning A1: a 成果 records its title and media type; the payload stays the producer's own shape.
+  const { coordinator, surface } = await fixture(t);
+  coordinator.artifacts.commands.registerVersion(registration({ artifact_id: "recorded-title",
+    content: { kind: "inline", payload: { title: "Payload title", name: "Ignored name" } }, title: "Recorded title", media_type: "text/markdown" }));
+  const list = await (await surface("/artifacts")).text();
+  assert.match(list, /Recorded title/);
+  assert.doesNotMatch(list, /Payload title|Ignored name/);
+  const record = coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, { artifact_id: "recorded-title", version: 1 })!;
+  assert.equal(record.title, "Recorded title");
+  assert.equal(record.media_type, "text/markdown");
+  assert.deepEqual(record.origin, { kind: "pinned", subject: { kind: "item", id: "Payload title" }, revision: "1" });
 });
 
 test("Artifact HTTP links exact versions, exports opaque records and preserves existing Goal/Evidence state", async (t) => {
@@ -168,7 +171,7 @@ test("Artifact HTTP keeps unknown and cross-project versions missing and rejects
 
 test("Artifact empty, unavailable, archived and embedded views reflect Module state without inventing consumers", async (t) => {
   const { coordinator, surface } = await fixture(t);
-  assert.match(await (await surface("/artifacts")).text(), /还没有 Artifact/);
+  assert.match(await (await surface("/artifacts")).text(), /还没有成果/);
   assert.doesNotMatch(await (await surface("/artifacts")).text(), /插件明确发布的结果会出现在这里|查看插件发布的结果、来源和原始内容/);
   coordinator.artifacts.commands.registerVersion(registration());
   const query = coordinator.artifacts.query;
@@ -236,7 +239,7 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   const { store, coordinator, get, surface } = await fixture(t);
   const documentPath = "/goals/V1";
   const empty = await (await get(documentPath)).text();
-  assert.doesNotMatch(empty, /artifact-embed|关联结果/);
+  assert.doesNotMatch(empty, /artifact-embed|交付物与输入/);
   const first = coordinator.artifacts.commands.registerVersion(registration()).artifact;
   coordinator.artifacts.commands.registerVersion(registration({ version: 2,
     content: { kind: "inline", payload: { title: "Later report" } } }));
@@ -258,9 +261,9 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   const beforeEdges = ledger.query.list(access);
   const beforeArtifacts = coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID);
   const page = await (await get(documentPath)).text();
-  assert.match(page, /关联结果/);
-  assert.match(page, /v1 · 输入结果/);
-  assert.match(page, /v2 · 产出结果/);
+  assert.match(page, /交付物与输入/);
+  assert.match(page, /v1 · 输入</);
+  assert.match(page, /v2 · 交付物</);
   assert.ok(page.includes(`href="${exactPath(1)}"`));
   assert.ok(page.includes(`href="${exactPath(2)}"`));
   assert.match(page, /v99/);
@@ -268,7 +271,7 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   assert.match(page, /Original report/);
   assert.match(page, /Later report/);
   assert.doesNotMatch(page, /not-for-V1|<script>attack\(\)<\/script>|foreign-project/);
-  assert.match(await (await get(documentPath, "en")).text(), /Linked results/);
+  assert.match(await (await get(documentPath, "en")).text(), /Deliverables and inputs/);
   const opened = await surface(exactPath(1));
   assert.match(await opened.text(), /Original report/);
   assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, { artifact_id: artifactId, version: 1 }), first);
@@ -286,15 +289,16 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   assert.match(changed, /这个版本已归档/);
   ledger.commands.remove(access, "input", "Owner removed the input association");
   const removed = await (await get(documentPath)).text();
-  assert.doesNotMatch(removed, /v1 · 输入结果|Source disconnected/);
-  assert.match(removed, /v2 · 产出结果/);
+  assert.doesNotMatch(removed, /v1 · 输入<|Source disconnected/);
+  assert.match(removed, /v2 · 交付物</);
   const unknown = await get("/goals/missing");
   assert.equal(unknown.status, 404);
   assert.doesNotMatch(await unknown.text(), /artifact-embed|report/);
 });
 
 
-test("Artifact type folds use spoken labels for known types", async t => {
+test("Artifact type folds use the names their owners declare, and an undeclared type its last segment", async t => {
+  // specs/artifact-positioning A4: no table of type names in the 成果库; Feed declares 「捕获的消息」 for its captures.
   const { coordinator, surface } = await fixture(t);
   coordinator.artifacts.commands.registerVersion(registration({
     artifact_id: "goal-delivery",
@@ -307,8 +311,8 @@ test("Artifact type folds use spoken labels for known types", async t => {
     content: { kind: "inline", payload: { title: "Captured item" } },
   }));
   const html = await (await surface("/artifacts")).text();
-  assert.match(html, /<strong>Goal 交付<\/strong>/);
-  assert.match(html, /<strong>Feed 捕获<\/strong>/);
+  assert.match(html, /<strong>delivery<\/strong>/);
+  assert.match(html, /<strong>捕获的消息<\/strong>/);
   assert.doesNotMatch(html, /<strong>io\.molis\.work\.goal\.delivery<\/strong>/);
   assert.doesNotMatch(html, /<strong>io\.molis\.work\.feed\.capture<\/strong>/);
 });
@@ -322,7 +326,7 @@ test("Artifact browser distinguishes no results, unselected versions and missing
   const unselected=await (await surface("/artifacts")).text();
   assert.match(unselected,/<h1>选择一个结果版本<\/h1>/);
   const missing=await (await surface(exactPath(99))).text();
-  assert.match(missing,/找不到这个 Artifact 版本/);
+  assert.match(missing,/找不到这个成果版本/);
   assert.match(missing,/不会自动替换成最新版本/);
 });
 
@@ -330,7 +334,9 @@ test("Artifact browser distinguishes no results, unselected versions and missing
 test("Coding report Artifact reads its fixed body and source, rejects forged ownership and preserves history", async (t) => {
   const { coordinator, surface, direct } = await fixture(t);
   const fixedId = "coding-report:session-fixed:run-original";
+  // A report pins its session at one round (artifact-positioning A1); Coding previews it and the link opens that session (A4).
   const input = registration({ artifact_id: fixedId, artifact_type_id: "coding.report.v1",
+    origin: { kind: "pinned", subject: { kind: "coding_session", id: "session-fixed" }, revision: "run-original" },
     producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.15.0", binding_signature: "official-coding-binding" },
     content: { kind: "inline", payload: { title: "已保存的原报告", run_id: "run-original", source: { session_id: "session-fixed" },
       body_markdown: "## 原任务结果\n固定正文，不能使用后来的会话。\n\n<script>attack()</script>\n\n[危险](javascript:attack())" } } });
@@ -345,66 +351,76 @@ test("Coding report Artifact reads its fixed body and source, rejects forged own
     const html = await response.text();
     assert.match(html, /data-artifact-business-preview/);
     assert.match(html, /原任务结果/);
-    assert.match(html, /在 Coding 打开原报告与会话/);
-    assert.ok(html.includes(`openItem=${encodeURIComponent(fixedId)}`));
+    assert.match(html, /在 Coding 打开原对象/);
+    assert.ok(html.includes("openPlugin=coding") && html.includes("openItem=session-fixed"));
     assert.doesNotMatch(html, /<script>attack\(\)<\/script>|href="javascript:/);
   }
   assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, {artifact_id:fixedId,version:1}), original);
   coordinator.artifacts.commands.registerVersion({...input, artifact_id:"coding-report:session-forged:run-original"});
   const forged = await (await surface(`/artifacts/${encodeURIComponent("coding-report:session-forged:run-original")}/versions/1`)).text();
-  assert.doesNotMatch(forged, /data-artifact-business-preview|在 Coding 打开原报告与会话/);
+  assert.doesNotMatch(forged, /data-artifact-business-preview|在 Coding 打开原对象/);
   coordinator.artifacts.commands.archiveVersion({board_id:DEMO_BOARD_ID,artifact_id:fixedId,version:1,actor_id:"report-owner"});
   const archived = await (await surface(path)).text();
   assert.match(archived, /这个版本已归档/);
   assert.match(archived, /data-artifact-business-preview/, "archiving preserves historical reading");
   coordinator.artifacts.commands.markUnavailable({board_id:DEMO_BOARD_ID,artifact_id:fixedId,version:1,actor_id:"report-owner",reason:"正文来源失效"});
   const unavailable = await (await surface(path)).text();
-  assert.doesNotMatch(unavailable, /data-artifact-business-preview|在 Coding 打开原报告与会话/);
+  assert.doesNotMatch(unavailable, /data-artifact-business-preview|在 Coding 打开原对象/);
 });
 
 
-test("Coding changeset Artifact renders exact original proposals and states, with a validated return to its task", async (t) => {
-  const { coordinator, surface, direct } = await fixture(t);
+test("A Coding changeset is a process item: it never shows in the 成果库, and the 成果库 never renders one", async (t) => {
+  // specs/artifact-positioning A2: change sets are exchange data for Git and Diff, kept in Coding's process items.
+  const { coordinator, surface } = await fixture(t);
   const fixedId = "coding-changeset:session-fixed:run-original";
   const payload = { scope: "run-frozen", run_id: "run-original", applied: false, coverage: "text-reviews",
     origin: { session_id: "session-fixed", runtime_session_id: "sdk", workspace_id: "w", workspace_name: "授权工作区" },
-    files: [false, true].map((applied, i) => ({ path: "cart.mjs", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
-      review: { review_id: `review-${i}`, before_text: `before-${i}\n`, after_text: `after-${i} <script>attack()</script>\n`,
-        decision: applied ? "approved" : "rejected", execution: applied ? "applied" : "not-applied" } })) };
+    files: [{ path: "cart.mjs", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
+      review: { review_id: "review-0", before_text: "before\n", after_text: "after\n", decision: "approved", execution: "applied" } }] };
   const input = registration({ artifact_id: fixedId, artifact_type_id: "coding.changeset.v1",
     producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.20.0", binding_signature: "official-coding-binding" },
     content: { kind: "inline", payload }, metadata: { title: "购物车的固定变更" } });
-  const original = coordinator.artifacts.commands.registerVersion(input).artifact;
+  const recorded = coordinator.processItems.commands.registerVersion(input).artifact;
+  assert.equal(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, { artifact_id: fixedId, version: 1 }), null);
+  assert.deepEqual(coordinator.processItems.query.getArtifactVersion(DEMO_BOARD_ID, { artifact_id: fixedId, version: 1 }), recorded);
+  const list = await (await surface("/artifacts")).text();
+  assert.doesNotMatch(list, /购物车的固定变更|coding-changeset/);
   const path = `/artifacts/${encodeURIComponent(fixedId)}/versions/1`;
-  const opened = await direct(path);
-  assert.equal(opened.status, 302);
-  assert.equal(new URL(opened.headers.get("location")!, "http://x").searchParams.get("openItem"), path);
-  {
-    const response = await surface(path); assert.equal(response.status, 200);
-    const html = await response.text();
-    assert.match(html, /data-artifact-business-preview/);
-    assert.match(html, /<h1>购物车的固定变更<\/h1>/);
-    assert.match(html, /cart.mjs · 修改 1 · 已拒绝 \/ 未执行/);
-    assert.match(html, /cart.mjs · 修改 2 · 已批准 \/ 已执行/);
-    assert.match(html, /after-0 &lt;script&gt;/); assert.match(html, /after-1 &lt;script&gt;/);
-    assert.match(html, /在 Coding 查看固定变更并返回原任务/);
-    assert.ok(html.includes(`openItem=${encodeURIComponent(fixedId)}`));
-    assert.doesNotMatch(html, /<script>attack\(\)<\/script>|data-coding-line=|data-action="diff.show-file"/);
-  }
-  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, { artifact_id: fixedId, version: 1 }), original);
-  const forgeries = [
-    { ...input, artifact_id: "coding-changeset:session-forged:run-original" },
-    { ...input, version: 2 },
-    { ...input, artifact_id: "coding-changeset:session-fixed:wrong-owner", producer: { ...input.producer, plugin_id: "untrusted" }, content: { kind: "inline" as const, payload: { ...payload, run_id: "wrong-owner" } } },
-    { ...input, artifact_id: "coding-changeset:session-fixed:live", content: { kind: "inline" as const, payload: { ...payload, run_id: "live", scope: "current" } } },
-  ];
-  for (const forged of forgeries) {
-    coordinator.artifacts.commands.registerVersion(forged);
-    const html = await (await surface(`/artifacts/${encodeURIComponent(forged.artifact_id)}/versions/${forged.version}`)).text();
-    assert.doesNotMatch(html, /data-artifact-business-preview|在 Coding 查看固定变更并返回原任务/);
-  }
-  coordinator.artifacts.commands.archiveVersion({ board_id: DEMO_BOARD_ID, artifact_id: fixedId, version: 1, actor_id: "report-owner" });
-  const archived = await (await surface(path)).text(); assert.match(archived, /这个版本已归档/); assert.match(archived, /data-artifact-business-preview/);
-  coordinator.artifacts.commands.markUnavailable({ board_id: DEMO_BOARD_ID, artifact_id: fixedId, version: 1, actor_id: "report-owner", reason: "正文不可用" });
-  const unavailable = await (await surface(path)).text(); assert.doesNotMatch(unavailable, /data-artifact-business-preview|在 Coding 查看固定变更并返回原任务/);
+  const response = await surface(path);
+  assert.equal(response.status, 404);
+  const html = await response.text();
+  assert.match(html, /找不到这个/);
+  assert.doesNotMatch(html, /data-artifact-business-preview|在 Coding 查看固定变更并返回原任务|cart\.mjs/);
+  // Coding cannot write it straight into the 成果库: its Manifest declares change sets as process items (A7).
+  assert.throws(() => coordinator.artifacts.commands.registerVersion({ ...input, artifact_id: "coding-changeset:session-fixed:in-library" }), { code: "artifact.type_undeclared" });
+  // Another producer writing the same type into the 成果库 still gets no change set preview of its own.
+  coordinator.artifacts.commands.registerVersion({ ...input, artifact_id: "coding-changeset:session-fixed:in-library",
+    producer: { plugin_id: "com.example.installed", plugin_version: "1.0.0", binding_signature: "installed-binding" } });
+  const direct = await (await surface(`/artifacts/${encodeURIComponent("coding-changeset:session-fixed:in-library")}/versions/1`)).text();
+  assert.doesNotMatch(direct, /data-artifact-business-preview|在 Coding 查看固定变更并返回原任务/);
+});
+
+test("each visible type is previewed by its owner: Pages renders its own version, named as Pages declares it", async (t) => {
+  // specs/artifact-positioning A4: the type's owner declares its display name and preview; the 成果库 renders what it returns.
+  const { coordinator, surface } = await fixture(t);
+  const body = { type: "doc", content: [{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "季度目标" }] },
+    { type: "paragraph", content: [{ type: "text", text: "保持每周发布。<script>attack()</script>" }] }] };
+  coordinator.artifacts.commands.registerVersion(registration({ artifact_id: "pages-page-q3", artifact_type_id: "io.molis.work.pages.document",
+    producer: { plugin_id: "io.molis.work.pages", plugin_version: "1.0.0", binding_signature: "official-pages-binding" },
+    content: { kind: "inline", payload: { title: "季度计划", page_id: "page-q3", goal_id: "", body } },
+    origin: { kind: "pinned", subject: { kind: "pages_document", id: "page-q3" }, revision: "4" }, title: "季度计划", media_type: "application/json" }));
+  const list = await (await surface("/artifacts")).text();
+  assert.match(list, /<strong>文档<\/strong>/, "the group is named as Pages declares the type");
+  const html = await (await surface("/artifacts/pages-page-q3/versions/1")).text();
+  assert.match(html, /data-artifact-business-preview/);
+  assert.match(html, /<h2>季度目标<\/h2>/);
+  assert.match(html, /保持每周发布/);
+  assert.doesNotMatch(html, /<script>attack\(\)<\/script>/);
+  // There is no document page-q3 in Pages: the version stays readable, says the original is gone, and offers no way back (A4b).
+  assert.match(html, /原对象已经删除；这里仍保留固定下来的这一版/);
+  assert.doesNotMatch(html, /在 Pages 打开原对象|openItem=page-q3/);
+  // A version of the type that Pages did not produce gets no Pages preview.
+  coordinator.artifacts.commands.registerVersion(registration({ artifact_id: "pages-forged", artifact_type_id: "io.molis.work.pages.document",
+    content: { kind: "inline", payload: { title: "伪造", body } } }));
+  assert.doesNotMatch(await (await surface("/artifacts/pages-forged/versions/1")).text(), /data-artifact-business-preview/);
 });

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 test("Project navigation preserves the fixed Goal workspace, terminal instance, and camera without writing Goal facts", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -86,7 +87,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   if (!browser) return;
   const { store, projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
   const app = new GoalProjectApplication(store);
-  for (const version of [1, 2]) app.artifacts.commands.registerVersion({
+  for (const version of [1, 2]) app.artifacts.commands.registerVersion({ ...pinnedArtifact(version === 1 ? "Original result" : "Revised result", { kind: "item", id: "review-note" }, String(version)),
     board_id: DEMO_BOARD_ID, actor_id: "fixture", artifact_id: "review-note", version,
     artifact_type_id: "example.note", schema_version: 1,
     producer: { plugin_id: "example.writer", plugin_version: "1.0.0", binding_signature: "fixture" },
@@ -130,7 +131,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   await waitFor("document.querySelector('[data-market-add=artifacts]').dataset.marketMembership === 'added' && !document.querySelector('[data-plugin-tile=artifacts]').classList.contains('is-available')");
   assert.equal(await evaluate("window.__stayedOnPage === true"), true, "adding to this project does not load the page again");
   await waitFor("document.body.dataset.desktopSurface === 'market' && !document.querySelector('[data-market-project]').disabled");
-  await evaluate("(()=>{let q=document.querySelector('[data-market-search]');q.value='Artifacts';q.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  await evaluate("(()=>{let q=document.querySelector('[data-market-search]');q.value='成果';q.dispatchEvent(new Event('input',{bubbles:true}));})()");
   assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-market-plugin]:not([hidden])')].map(x=>x.dataset.marketPlugin)"), ["artifacts"]);
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
   await waitFor("document.querySelector('[data-artifact-directory] .artifact-version-list')");

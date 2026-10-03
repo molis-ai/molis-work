@@ -5,11 +5,13 @@ import type {
   ArtifactIdentityRecord,
   ArtifactListQuery,
   ArtifactReference,
-  ArtifactsCommandApi,
-  ArtifactsQueryApi,
   ArtifactVersionRecord,
-  ArtifactVersionResult,
+  FixedVersionCommandApi,
+  FixedVersionQueryApi,
+  FixedVersionRecord,
+  FixedVersionResult,
   MarkArtifactUnavailableInput,
+  RecordFixedVersionInput,
   RegisterArtifactVersionInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
@@ -17,7 +19,6 @@ import {
   artifactContentDigest,
   artifactContentSize,
   canonicalArtifactJson,
-  normalizeArtifactMetadata,
   normalizeArtifactPayload,
 } from "./content.js";
 import {
@@ -25,50 +26,79 @@ import {
   type ArtifactsErrorFactory,
 } from "./errors.js";
 import { ArtifactsRepository } from "./repository.js";
+import { libraryFields, nonNegativeInteger, normalizedDigest, normalizedMetadata, positiveInteger, requiredText } from "./validation.js";
 
 export interface ArtifactEventInput {
   eventId: string;
   boardId: string;
   actorId: string;
   type: string;
-  objectType: "artifact";
+  objectType: VersionStoreKind;
   objectId: string;
   reason: string;
   payload: Record<string, unknown>;
   at: string;
 }
 
+/** Which store a service writes: the 成果库, or the process items plugins pass between each other. */
+export type VersionStoreKind = "artifact" | "process_item";
+
+const STORE_EVENT_REASONS: Record<VersionStoreKind, { published: string; registered: string; archived: string }> = {
+  artifact: { published: "Plugin 发布了成果", registered: "Plugin 注册了新的成果版本", archived: "成果版本已归档" },
+  process_item: { published: "插件记下了过程项", registered: "插件记下了过程项的新版本", archived: "过程项版本已归档" },
+};
+
 export interface ArtifactsServiceOptions {
+  /** Defaults to the 成果库. */
+  kind?: VersionStoreKind;
   now?: () => string;
   errorFactory?: ArtifactsErrorFactory;
   appendEvent: (input: ArtifactEventInput) => number;
+  /**
+   * Whether the producer declared this type for this store (specs/artifact-positioning A7): a problem to refuse the write
+   * with, or null. The host answers from the Manifests it knows; without it every declared-or-not type is written.
+   */
+  declared?: (producer: { plugin_id: string }, type: { artifact_type_id: string; schema_version: number }, kind: VersionStoreKind) => string | null;
 }
 
-export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi {
+/** A write the host's Manifest check refuses never reaches the store (specs/artifact-positioning A7). */
+function declaredOnly<T extends { producer_plugin_id: string; artifact_type_id: string; schema_version: number }>(normalized: T,
+  declared: ArtifactsServiceOptions["declared"], kind: VersionStoreKind, error: ArtifactsErrorFactory): T {
+  const undeclared = declared?.({ plugin_id: normalized.producer_plugin_id }, normalized, kind);
+  if (undeclared) throw error("artifact.type_undeclared", undeclared, { artifact_type_id: normalized.artifact_type_id, producer_plugin_id: normalized.producer_plugin_id });
+  return normalized;
+}
+
+export class ArtifactsService<
+  R extends FixedVersionRecord = ArtifactVersionRecord,
+  I extends RecordFixedVersionInput = RegisterArtifactVersionInput,
+> implements FixedVersionQueryApi<R>, FixedVersionCommandApi<R, I> {
   private readonly now: () => string;
   private readonly error: ArtifactsErrorFactory;
+  private readonly kind: VersionStoreKind;
 
   constructor(
-    readonly repository: ArtifactsRepository,
+    readonly repository: ArtifactsRepository<R>,
     private readonly options: ArtifactsServiceOptions,
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
     this.error = options.errorFactory ?? defaultArtifactsErrorFactory;
+    this.kind = options.kind ?? "artifact";
   }
 
-  getArtifactVersion(boardId: string, reference: ArtifactReference): ArtifactVersionRecord | null {
+  getArtifactVersion(boardId: string, reference: ArtifactReference): R | null {
     return this.repository.getVersion(boardId, reference.artifact_id, reference.version);
   }
 
-  listArtifactVersions(boardId: string, artifactId: string): ArtifactVersionRecord[] {
+  listArtifactVersions(boardId: string, artifactId: string): R[] {
     return this.repository.listVersions(boardId, artifactId);
   }
 
-  latestArtifactVersion(boardId: string, artifactId: string): ArtifactVersionRecord | null {
+  latestArtifactVersion(boardId: string, artifactId: string): R | null {
     return this.repository.latestVersion(boardId, artifactId);
   }
 
-  listArtifacts(boardId: string, query?: ArtifactListQuery): ArtifactVersionRecord[] {
+  listArtifacts(boardId: string, query?: ArtifactListQuery): R[] {
     return this.repository.listArtifacts(boardId, query);
   }
 
@@ -94,12 +124,12 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     };
   }
 
-  registerVersion(input: RegisterArtifactVersionInput): ArtifactVersionResult {
-    const normalized = this.normalizeRegistration(input);
+  registerVersion(input: I): FixedVersionResult<R> {
+    const normalized = declaredOnly(this.normalizeRegistration(input), this.options.declared, this.kind, this.error);
     return this.repository.immediate(() => {
       const globalIdentity = this.repository.getIdentityById(normalized.artifact_id);
       if (globalIdentity && globalIdentity.board_id !== normalized.board_id) {
-        throw this.error("artifact.board_mismatch", "Artifact ID 已属于另一个 Project", {
+        throw this.error("artifact.board_mismatch", "成果 ID 已属于另一个 Project", {
           artifact_id: normalized.artifact_id,
         });
       }
@@ -113,7 +143,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       );
       if (existing) {
         if (!sameVersion(existing, normalized)) {
-          throw this.error("artifact.version_conflict", "同一 Artifact id + version 已有不同内容", {
+          throw this.error("artifact.version_conflict", "同一成果 id + version 已有不同内容", {
             artifact_id: normalized.artifact_id,
             version: normalized.version,
           });
@@ -127,7 +157,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
 
       const latest = this.repository.latestVersion(normalized.board_id, normalized.artifact_id);
       if (latest && normalized.version <= latest.version) {
-        throw this.error("artifact.version_not_increasing", "Artifact version 必须由 Plugin 严格递增", {
+        throw this.error("artifact.version_not_increasing", "成果版本必须由 Plugin 严格递增", {
           artifact_id: normalized.artifact_id,
           latest_version: latest.version,
           requested_version: normalized.version,
@@ -142,7 +172,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
           normalized.artifact_id,
           normalized.supersedes_version,
         )) {
-          throw this.error("artifact.supersession_missing", "找不到被替代的 Artifact version");
+          throw this.error("artifact.supersession_missing", "找不到被替代的成果版本");
         }
       }
 
@@ -158,16 +188,16 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
         };
         this.repository.insertIdentity(identity);
       }
-      const record: ArtifactVersionRecord = { ...normalized, created_at: at };
+      const record = { ...normalized, created_at: at } as R;
       this.repository.insertVersion(record);
       const observedEventCursor = this.options.appendEvent({
-        eventId: `event:artifact:${record.artifact_id}:${record.version}:registered`,
+        eventId: `event:${this.kind}:${record.artifact_id}:${record.version}:registered`,
         boardId: record.board_id,
         actorId: record.created_by,
-        type: latest ? "artifact.version_registered" : "artifact.published",
-        objectType: "artifact",
+        type: latest ? `${this.kind}.version_registered` : `${this.kind}.published`,
+        objectType: this.kind,
         objectId: `${record.artifact_id}@${record.version}`,
-        reason: latest ? "Plugin 注册了新的 Artifact version" : "Plugin 发布了 Artifact",
+        reason: latest ? STORE_EVENT_REASONS[this.kind].registered : STORE_EVENT_REASONS[this.kind].published,
         payload: {
           artifact_id: record.artifact_id,
           version: record.version,
@@ -182,7 +212,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     });
   }
 
-  markUnavailable(input: MarkArtifactUnavailableInput): ArtifactVersionResult {
+  markUnavailable(input: MarkArtifactUnavailableInput): FixedVersionResult<R> {
     const reason = requiredText(input.reason, "reason", this.error);
     return this.repository.immediate(() => {
       const artifact = this.requireOwnedVersion(input.board_id, input, input.actor_id);
@@ -196,11 +226,11 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       this.repository.markUnavailable(input.artifact_id, input.version, reason);
       const at = this.now();
       const observedEventCursor = this.options.appendEvent({
-        eventId: `event:artifact:${input.artifact_id}:${input.version}:unavailable`,
+        eventId: `event:${this.kind}:${input.artifact_id}:${input.version}:unavailable`,
         boardId: input.board_id,
         actorId: input.actor_id,
-        type: "artifact.unavailable",
-        objectType: "artifact",
+        type: `${this.kind}.unavailable`,
+        objectType: this.kind,
         objectId: `${input.artifact_id}@${input.version}`,
         reason,
         payload: { artifact_id: input.artifact_id, version: input.version },
@@ -214,7 +244,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     });
   }
 
-  archiveVersion(input: ArchiveArtifactVersionInput): ArtifactVersionResult {
+  archiveVersion(input: ArchiveArtifactVersionInput): FixedVersionResult<R> {
     return this.repository.immediate(() => {
       const artifact = this.requireOwnedVersion(input.board_id, input, input.actor_id);
       if (artifact.lifecycle_state === "archived") {
@@ -227,13 +257,13 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       const at = this.now();
       this.repository.archiveVersion(input.artifact_id, input.version, input.actor_id, at);
       const observedEventCursor = this.options.appendEvent({
-        eventId: `event:artifact:${input.artifact_id}:${input.version}:archived`,
+        eventId: `event:${this.kind}:${input.artifact_id}:${input.version}:archived`,
         boardId: input.board_id,
         actorId: input.actor_id,
-        type: "artifact.archived",
-        objectType: "artifact",
+        type: `${this.kind}.archived`,
+        objectType: this.kind,
         objectId: `${input.artifact_id}@${input.version}`,
-        reason: "Artifact version 已归档",
+        reason: STORE_EVENT_REASONS[this.kind].archived,
         payload: { artifact_id: input.artifact_id, version: input.version },
         at,
       });
@@ -245,7 +275,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     });
   }
 
-  private normalizeRegistration(input: RegisterArtifactVersionInput): Omit<ArtifactVersionRecord, "created_at"> {
+  private normalizeRegistration(input: I): Omit<R, "created_at"> {
     const boardId = requiredText(input.board_id, "board_id", this.error);
     const artifactId = requiredText(input.artifact_id, "artifact_id", this.error);
     const actorId = requiredText(input.actor_id, "actor_id", this.error);
@@ -261,7 +291,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     );
     const scope = input.scope ?? "personal";
     if (scope !== "personal" && scope !== "team_project") {
-      throw this.error("artifact.scope_invalid", "Artifact scope 无效");
+      throw this.error("artifact.scope_invalid", "成果 scope 无效");
     }
     if (scope === "team_project" && input.team_share_authorized !== true) {
       throw this.error(
@@ -270,17 +300,17 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       );
     }
 
-    let payload: ArtifactVersionRecord["payload"] = null;
+    let payload: FixedVersionRecord["payload"] = null;
     let contentRef: string | null = null;
     let digest: string;
     let sizeBytes: number;
-    let availability: ArtifactVersionRecord["availability"] = "available";
+    let availability: FixedVersionRecord["availability"] = "available";
     let unavailableReason: string | null = null;
     if (input.content.kind === "inline") {
       try {
         payload = normalizeArtifactPayload(input.content.payload);
       } catch (error) {
-        throw this.error("artifact.payload_invalid", "Artifact inline payload 不是可往返的 JSON", {
+        throw this.error("artifact.payload_invalid", "成果 inline payload 不是可往返的 JSON", {
           cause: error instanceof Error ? error.message : String(error),
         });
       }
@@ -294,7 +324,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       if (input.content.observed_digest) {
         const observed = normalizedDigest(input.content.observed_digest, "content.observed_digest", this.error);
         if (observed !== digest) {
-          throw this.error("artifact.hash_mismatch", "Storage 返回的内容摘要与 Artifact Envelope 不一致");
+          throw this.error("artifact.hash_mismatch", "Storage 返回的内容摘要与 成果 Envelope 不一致");
         }
       }
       if (input.content.available === false) {
@@ -302,16 +332,16 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
         unavailableReason = "Content reference 在注册时不可读取";
       }
     } else {
-      throw this.error("artifact.content_invalid", "Artifact content kind 无效");
+      throw this.error("artifact.content_invalid", "成果 content kind 无效");
     }
     if (input.expected_digest) {
       const expected = normalizedDigest(input.expected_digest, "expected_digest", this.error);
       if (expected !== digest) {
-        throw this.error("artifact.hash_mismatch", "Artifact 内容摘要与 expected_digest 不一致");
+        throw this.error("artifact.hash_mismatch", "成果内容摘要与 expected_digest 不一致");
       }
     }
 
-    return {
+    const base: Omit<FixedVersionRecord, "created_at"> = {
       board_id: boardId,
       artifact_id: artifactId,
       version,
@@ -326,7 +356,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       content_ref: contentRef,
       content_digest: digest,
       size_bytes: sizeBytes,
-      metadata: this.normalizeMetadata(input.metadata),
+      metadata: normalizedMetadata(input.metadata, this.error),
       scope,
       availability,
       unavailable_reason: unavailableReason,
@@ -338,14 +368,16 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       archived_at: null,
       archived_by: null,
     };
+    // The 成果库 also keeps what people see: where the version came from, its title and its real media type (A1).
+    return (this.repository.tables.library ? { ...base, ...libraryFields(input, this.error) } : base) as Omit<R, "created_at">;
   }
 
   private assertIdentity(
     identity: ArtifactIdentityRecord,
-    input: Omit<ArtifactVersionRecord, "created_at">,
+    input: Omit<FixedVersionRecord, "created_at">,
   ): void {
     if (identity.owner_actor_id !== input.created_by) {
-      throw this.error("artifact.not_owner", "只有 Artifact owner 可以注册新 version", {
+      throw this.error("artifact.not_owner", "只有成果 owner 可以注册新 version", {
         owner_actor_id: identity.owner_actor_id,
         actor_id: input.created_by,
       });
@@ -356,24 +388,14 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     ) {
       throw this.error(
         "artifact.producer_mismatch",
-        "Producer binding 已变化，请将结果作为新的 Artifact 处理",
+        "Producer binding 已变化，请将结果作为新的成果处理",
       );
     }
   }
 
-  private normalizeMetadata(value: unknown): ArtifactVersionRecord["metadata"] {
-    try {
-      return normalizeArtifactMetadata(value);
-    } catch (error) {
-      throw this.error("artifact.metadata_invalid", "Artifact metadata 必须是可往返的 JSON 对象", {
-        cause: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  private requireVersion(boardId: string, reference: ArtifactReference): ArtifactVersionRecord {
+  private requireVersion(boardId: string, reference: ArtifactReference): R {
     const artifact = this.repository.getVersion(boardId, reference.artifact_id, reference.version);
-    if (!artifact) throw this.error("artifact.not_found", "找不到 Artifact version");
+    if (!artifact) throw this.error("artifact.not_found", "找不到成果版本");
     return artifact;
   }
 
@@ -381,18 +403,18 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     boardId: string,
     reference: ArtifactReference,
     actorId: string,
-  ): ArtifactVersionRecord {
+  ): R {
     const artifact = this.requireVersion(boardId, reference);
     if (artifact.owner_actor_id !== actorId) {
-      throw this.error("artifact.not_owner", "只有 Artifact owner 可以修改版本状态");
+      throw this.error("artifact.not_owner", "只有成果 owner 可以修改版本状态");
     }
     return artifact;
   }
 }
 
 function sameVersion(
-  existing: ArtifactVersionRecord,
-  requested: Omit<ArtifactVersionRecord, "created_at">,
+  existing: FixedVersionRecord,
+  requested: Omit<FixedVersionRecord, "created_at">,
 ): boolean {
   const {
     created_at: _createdAt,
@@ -412,36 +434,4 @@ function sameVersion(
     ...requestedEnvelope
   } = requested;
   return JSON.stringify(existingEnvelope) === JSON.stringify(requestedEnvelope);
-}
-
-function requiredText(
-  value: unknown,
-  path: string,
-  error: ArtifactsErrorFactory,
-): string {
-  const normalized = typeof value === "string" ? value.trim() : "";
-  if (!normalized) throw error("artifact.input_invalid", `${path} 不能为空`, { path });
-  return normalized;
-}
-
-function positiveInteger(value: unknown, path: string, error: ArtifactsErrorFactory): number {
-  if (!Number.isSafeInteger(value) || Number(value) <= 0) {
-    throw error("artifact.input_invalid", `${path} 必须是正整数`, { path });
-  }
-  return Number(value);
-}
-
-function nonNegativeInteger(value: unknown, path: string, error: ArtifactsErrorFactory): number {
-  if (!Number.isSafeInteger(value) || Number(value) < 0) {
-    throw error("artifact.input_invalid", `${path} 必须是非负整数`, { path });
-  }
-  return Number(value);
-}
-
-function normalizedDigest(value: unknown, path: string, error: ArtifactsErrorFactory): string {
-  const digest = requiredText(value, path, error).toLowerCase();
-  if (!/^sha256:[0-9a-f]{64}$/u.test(digest)) {
-    throw error("artifact.digest_invalid", `${path} 必须是 sha256 digest`, { path });
-  }
-  return digest;
 }

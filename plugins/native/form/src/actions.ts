@@ -1,11 +1,12 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { FORM_DRAFT_QUESTION } from "./prompts.js";
-import { ActionError, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { FormRecord, FormQuestionInput, FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { FORM_ARTIFACT_TYPE_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import { promoteForm, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
 import type { FormStore } from "./store.js";
 import { createFormSearchHandlers, formSearchActions } from "./search.js";
 import { formFillPageFilename, formFillPageHtml, formResultsCsv, formResultsCsvFilename } from "./fillpage.js";
+import { formArtifactPreview, formArtifactPreviewHandler } from "./artifact-preview.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -27,17 +28,23 @@ function define<I, O>(name: string, title: string, description: string, operatio
   return { capability_id: `form.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["form"], input_schema: input, output_schema: output, permissions, ...(name === "questions.ai" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const formActions = {
+  /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
+  artifactPreview: formArtifactPreview,
+  /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
+  artifactPin: defineArtifactPinAction("form.artifacts.pin", "form", "问卷", [...write, "artifact:write"]),
+  /** Whether a pinned version still matches the form object it came from (A4b, 「原文已改」); compares content, not revisions. */
+  artifactCompare: defineArtifactCompareAction("form.artifacts.compare", "问卷", read),
   list: define<Record<string, never>, { forms: FormRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "问卷列表", "读取当前项目问卷和 AI 加题可用性", "query", object({}), object({ forms: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { form: FormRecord }>("get", "读取问卷", "读取题目、选项、状态、版本和发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { form: FormRecord }>("create", "新建问卷", "创建当前项目的草稿问卷", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
   update: define<Edit, { form: FormRecord }>("update", "编辑问卷", "替换指定字段或题目列表；提交读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, questions: { ...array(questionInput), maxItems: 40 } }, ["id"]), changed),
-  publish: define<Identity, { form: FormRecord }>("publish", "开始收集答卷", "开始在这台电脑上收集答卷：本机填写页可以提交，也可以导出填写页文件发给别人，对方生成的答卷文件导回结果；不会生成外网链接，也不发布 Artifact", "command", object(identity, ["id"]), changed),
-  delete: define<Identity, { ok: true }>("delete", "删除问卷", "原子删除问卷和答卷；未完成的 Artifact 发布需先恢复", "command", object(identity, ["id"]), object({ ok: { const: true } })),
+  publish: define<Identity, { form: FormRecord }>("publish", "开始收集答卷", "开始在这台电脑上收集答卷：本机填写页可以提交，也可以导出填写页文件发给别人，对方生成的答卷文件导回结果；不会生成外网链接，也不发布成果", "command", object(identity, ["id"]), changed),
+  delete: define<Identity, { ok: true }>("delete", "删除问卷", "原子删除问卷和答卷；未完成的成果发布需先恢复", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   generate: define<Identity & { prompt: string }, { form: FormRecord }>("questions.add", "按题目加题", "本地追加一题填空，以输入作为题目，不调用模型", "command", object({ ...identity, prompt: { ...text, maxLength: 200 } }, ["id", "prompt"]), changed),
   generateAi: define<Identity & { prompt: string }, { form: FormRecord }>("questions.ai", "AI 拟题并追加", "按明确提示拟一道填空题；调用当前文字模型，失败或问卷变化时不写入", "command", object({ ...identity, prompt: { ...id, maxLength: 2000 } }, ["id", "prompt"]), changed, [...write, "model:invoke"], { cost: "metered" }),
   submit: define<Identity & { answers: Record<string, string>; request_id?: string; source?: "preview" | "fill" }, { submission: FormSubmissionRecord }>("submit", "提交答卷", "按预览版本及题号提交文字答案；多选以换行分隔选项文字。request_id 用于同一次提交恢复", "command", object({ ...identity, answers, request_id: { ...id, maxLength: 200 }, source: { enum: ["preview", "fill"] } }, ["id", "answers"]), object({ submission }), ["form:read", "form:submit"]),
   results: define<{ id: string }, { analysis: { form_id: string; submission_count: number }; submissions: FormSubmissionRecord[] }>("results", "读取答卷", "读取答卷及计数，新增答卷保留提交时题目；旧答卷快照为 null，不重建未知历史", "query", object({ id }), object({ analysis: object({ form_id: id, submission_count: { type: "integer", minimum: 0 } }), submissions: array(submission) })),
-  promote: define<Identity, { form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "问卷存成 Artifact", "发布固定问卷内容或恢复原发布；不包含答卷，后续编辑保留", "command", object(identity, ["id"]), object({ form: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  promote: define<Identity, { form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "问卷存为成果", "发布固定问卷内容或恢复原发布；不包含答卷，后续编辑保留", "command", object(identity, ["id"]), object({ form: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   close: define<Identity, { form: FormRecord }>("close", "停止收集答卷", "停止收集：本机填写页不再接受提交，已有答卷保留；之后可以重新开始收集", "command", object(identity, ["id"]), changed),
   importAnswers: define<{ id: string; files: { name: string; content: string }[] }, { imported: number; skipped: number; rejected: { name: string; reason: string }[] }>("answers.import", "导入答卷文件",
     "导入别人用填写页生成的答卷文件；同一份只算一次，属于其他问卷或内容无效的会列出原因、不写入", "command",
@@ -63,7 +70,11 @@ export interface FormActionPorts {
 export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
+  const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promoteForm(store, id, project(caller), value => ports.publishArtifact!(value, caller),
+    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined }));
+  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "form.unavailable", reason: "当前环境不能发出成果" };
   return [
+    formArtifactPreviewHandler,
     bind(formActions.list, (_, caller) => ports.withStore(store => {
       const ai = ports.modelAvailability(), permitted = formActions.generateAi.action.permissions.every(p => caller.permissions.includes(p))
         && (!caller.allowed_capability_ids || caller.allowed_capability_ids.includes(formActions.generateAi.capability_id));
@@ -111,8 +122,10 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       const submissions = store.listSubmissions(input.id, project(caller));
       return { analysis: { form_id: input.id, submission_count: submissions.length }, submissions };
     })),
-    bind(formActions.promote, (input, caller) => ports.withStore(store => promoteForm(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
-      () => ports.publishArtifact ? { available: true } : { available: false, code: "form.unavailable", reason: "当前环境不能发出 Artifact" }),
+    bind(formActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
+    bind(formActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bindArtifactCompare(formActions.artifactCompare, FORM_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "questions"])),
     ...createFormSearchHandlers(ports.withStore),
   ];
 }

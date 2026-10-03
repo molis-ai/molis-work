@@ -29,7 +29,7 @@ for (const failure of ["before-artifact", "after-artifact", "after-association"]
     t.after(() => db.close());
     if (failure === "after-artifact") db.exec("CREATE TRIGGER fail_publication BEFORE UPDATE OF artifact_version ON pages WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture page write interrupted'); END");
     else if (failure === "after-association") db.exec("CREATE TRIGGER fail_publication BEFORE UPDATE OF publication_pending_json ON pages WHEN NEW.publication_pending_json IS NULL AND OLD.publication_pending_json IS NOT NULL BEGIN SELECT RAISE(ABORT, 'fixture snapshot clear interrupted'); END");
-    else await f.host.withProject(f.ref, runtime => runtime.store.db.exec("CREATE TRIGGER fail_publication BEFORE INSERT ON artifact_versions BEGIN SELECT RAISE(ABORT, 'fixture artifact write interrupted'); END"));
+    else await f.host.withProject(f.ref, runtime => runtime.store.db.exec("CREATE TRIGGER fail_publication BEFORE INSERT ON library_artifact_versions BEGIN SELECT RAISE(ABORT, 'fixture artifact write interrupted'); END"));
     await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: original.version }), /fixture .* interrupted/);
     const failed = (await f.bound.invoke(pagesActions.get, { id: original.id })).document;
     assert.equal(failed.artifact_version, 0); assert.equal(failed.publication_pending!.version, 1);

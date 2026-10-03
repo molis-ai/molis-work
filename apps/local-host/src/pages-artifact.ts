@@ -55,6 +55,9 @@ export function registerPagesArtifactVersion(
         })),
       },
       metadata: { page_id: input.page_id, goal_id: input.goal_id, title: input.title },
+      // A pinned revision of the document (artifact-positioning A1).
+      origin: { kind: "pinned", subject: { kind: "page", id: input.page_id }, revision: String(input.source_version) },
+      title: input.title, media_type: "application/json",
       scope: "personal",
       supersedes_version: input.version > 1 ? input.version - 1 : null,
     });

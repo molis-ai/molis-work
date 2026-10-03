@@ -1,8 +1,10 @@
 import type {
-  ArtifactContentInput, ArtifactMetadata, ArtifactReference, ArtifactVersionRecord, ArtifactVersionResult,
+  ArtifactContentInput, ArtifactMetadata, ArtifactOrigin, ArtifactReference, ArtifactVersionRecord, ArtifactVersionResult,
+  ProcessItemRecord, ProcessItemResult,
 } from "../modules/artifacts.js";
 
-export interface PluginArtifactPublishInput extends ArtifactReference {
+/** What a Plugin writes for one version, in either store; identity, owner and producer come from the Host. */
+export interface PluginProcessItemInput extends ArtifactReference {
   artifact_type_id: string;
   schema_version: number;
   content: ArtifactContentInput;
@@ -10,12 +12,21 @@ export interface PluginArtifactPublishInput extends ArtifactReference {
   supersedes_version?: number | null;
 }
 
+/** A 成果 also says where it came from, what it is called and what its content is (specs/artifact-positioning A1). */
+export interface PluginArtifactPublishInput extends PluginProcessItemInput {
+  origin: ArtifactOrigin;
+  title: string;
+  media_type: string;
+  /** Process items this version was made from. */
+  trace?: ArtifactReference[];
+}
+
 /** Host-bound author surface: project, user and producer identity cannot be supplied by a Plugin. */
 export interface PluginArtifactClient {
   /** Pin a version into the 成果库; the type must be in `artifacts.produces`. */
   publish(input: PluginArtifactPublishInput): ArtifactVersionResult;
-  /** Read one fixed version by reference, whether it is a 成果 or a process item. */
-  read(reference: ArtifactReference): ArtifactVersionRecord | null;
+  /** Read one fixed version by reference, whether it is a 成果 or a process item (only a 成果 has an `origin`). */
+  read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
 }
 
 /**
@@ -24,5 +35,5 @@ export interface PluginArtifactClient {
  * a 成果 can trace back to them (specs/artifact-positioning A2). The type must be in `process_items.produces`.
  */
 export interface PluginProcessItemClient {
-  record(input: PluginArtifactPublishInput): ArtifactVersionResult;
+  record(input: PluginProcessItemInput): ProcessItemResult;
 }

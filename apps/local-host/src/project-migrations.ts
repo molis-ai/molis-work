@@ -325,10 +325,9 @@ export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {
       !continuousActionModelApplied ||
       !currentGoalColumns.some((column) => column.name === "current_contract_revision")
     ) migrateContinuousActionModel(storage);
+    // The 成果库 (library_*) and the process items store; an older project gains both, its old artifact tables are left as they are.
     const artifactsApplied = schema.hasMigration(31);
-    const artifactsTable = schema.hasTable("artifacts");
-    const artifactVersionsTable = schema.hasTable("artifact_versions");
-    if (!artifactsApplied || !artifactsTable || !artifactVersionsTable || !schema.hasTable("process_item_versions")) {
+    if (!artifactsApplied || !schema.hasTable("library_artifact_versions") || !schema.hasTable("process_item_versions")) {
       migrateArtifactsSchema(storage.db as unknown as ArtifactsSqliteDatabase);
     }
     const goalEventFactsApplied = schema.hasMigration(32);

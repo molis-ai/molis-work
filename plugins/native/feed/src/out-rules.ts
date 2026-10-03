@@ -240,6 +240,9 @@ export function registerFeedCaptureVersion(
       feed_item_id: item.item_id,
       rule_id: rule.rule_id,
     },
+    // The message as captured (artifact-positioning A1); a later edit of the item is captured as a new version.
+    origin: { kind: "pinned", subject: { kind: "feed_item", id: item.item_id }, revision: item.revision ?? item.updated_at },
+    title: item.title.trim() || "Feed 捕获", media_type: "application/json",
     ...(supersedes != null ? { supersedes_version: supersedes } : {}),
   });
   try {

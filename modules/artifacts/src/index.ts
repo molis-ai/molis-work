@@ -2,6 +2,9 @@ import type {
   ArtifactsApplicationApi,
   ArtifactsCommandApi,
   ArtifactsQueryApi,
+  ProcessItemRecord,
+  ProcessItemsApplicationApi,
+  RecordProcessItemInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 import {
@@ -55,15 +58,15 @@ export class ArtifactsModule implements ArtifactsApplicationApi {
  * immutable versions as the 成果库 but its own tables and events, so none of it shows up where people look for 成果.
  * Each item belongs to the plugin that produced it (specs/artifact-positioning A2).
  */
-export class ProcessItemsModule implements ArtifactsApplicationApi {
-  readonly repository: ArtifactsRepository;
-  readonly service: ArtifactsService;
-  readonly query: ArtifactsQueryApi;
-  readonly commands: ArtifactsCommandApi;
+export class ProcessItemsModule implements ProcessItemsApplicationApi {
+  readonly repository: ArtifactsRepository<ProcessItemRecord>;
+  readonly service: ArtifactsService<ProcessItemRecord, RecordProcessItemInput>;
+  readonly query: ProcessItemsApplicationApi["query"];
+  readonly commands: ProcessItemsApplicationApi["commands"];
 
   constructor(options: Omit<ArtifactsModuleOptions, "kind">) {
-    this.repository = new ArtifactsRepository(options.db, PROCESS_ITEM_TABLES);
-    this.service = new ArtifactsService(this.repository, { ...options, kind: "process_item" });
+    this.repository = new ArtifactsRepository<ProcessItemRecord>(options.db, PROCESS_ITEM_TABLES);
+    this.service = new ArtifactsService<ProcessItemRecord, RecordProcessItemInput>(this.repository, { ...options, kind: "process_item" });
     this.query = this.service;
     this.commands = this.service;
   }
@@ -97,6 +100,7 @@ export {
   type VersionStoreTables,
   mapArtifactIdentity,
   mapArtifactVersion,
+  mapFixedVersion,
   type ArtifactsSqliteDatabase,
   type ArtifactsSqliteStatement,
 } from "./repository.js";

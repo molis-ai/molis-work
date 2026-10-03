@@ -4,12 +4,15 @@ import type {
   ArtifactConsumerType,
   ArtifactIdentityRecord,
   ArtifactListQuery,
+  ArtifactOrigin,
   ArtifactReference,
-  ArtifactsCommandApi,
-  ArtifactsQueryApi,
   ArtifactVersionRecord,
-  ArtifactVersionResult,
+  FixedVersionCommandApi,
+  FixedVersionQueryApi,
+  FixedVersionRecord,
+  FixedVersionResult,
   MarkArtifactUnavailableInput,
+  RecordFixedVersionInput,
   RegisterArtifactVersionInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
@@ -54,13 +57,16 @@ export interface ArtifactsServiceOptions {
   appendEvent: (input: ArtifactEventInput) => number;
 }
 
-export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi {
+export class ArtifactsService<
+  R extends FixedVersionRecord = ArtifactVersionRecord,
+  I extends RecordFixedVersionInput = RegisterArtifactVersionInput,
+> implements FixedVersionQueryApi<R>, FixedVersionCommandApi<R, I> {
   private readonly now: () => string;
   private readonly error: ArtifactsErrorFactory;
   private readonly kind: VersionStoreKind;
 
   constructor(
-    readonly repository: ArtifactsRepository,
+    readonly repository: ArtifactsRepository<R>,
     private readonly options: ArtifactsServiceOptions,
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
@@ -68,19 +74,19 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     this.kind = options.kind ?? "artifact";
   }
 
-  getArtifactVersion(boardId: string, reference: ArtifactReference): ArtifactVersionRecord | null {
+  getArtifactVersion(boardId: string, reference: ArtifactReference): R | null {
     return this.repository.getVersion(boardId, reference.artifact_id, reference.version);
   }
 
-  listArtifactVersions(boardId: string, artifactId: string): ArtifactVersionRecord[] {
+  listArtifactVersions(boardId: string, artifactId: string): R[] {
     return this.repository.listVersions(boardId, artifactId);
   }
 
-  latestArtifactVersion(boardId: string, artifactId: string): ArtifactVersionRecord | null {
+  latestArtifactVersion(boardId: string, artifactId: string): R | null {
     return this.repository.latestVersion(boardId, artifactId);
   }
 
-  listArtifacts(boardId: string, query?: ArtifactListQuery): ArtifactVersionRecord[] {
+  listArtifacts(boardId: string, query?: ArtifactListQuery): R[] {
     return this.repository.listArtifacts(boardId, query);
   }
 
@@ -106,7 +112,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     };
   }
 
-  registerVersion(input: RegisterArtifactVersionInput): ArtifactVersionResult {
+  registerVersion(input: I): FixedVersionResult<R> {
     const normalized = this.normalizeRegistration(input);
     return this.repository.immediate(() => {
       const globalIdentity = this.repository.getIdentityById(normalized.artifact_id);
@@ -170,7 +176,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
         };
         this.repository.insertIdentity(identity);
       }
-      const record: ArtifactVersionRecord = { ...normalized, created_at: at };
+      const record = { ...normalized, created_at: at } as R;
       this.repository.insertVersion(record);
       const observedEventCursor = this.options.appendEvent({
         eventId: `event:${this.kind}:${record.artifact_id}:${record.version}:registered`,
@@ -194,7 +200,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     });
   }
 
-  markUnavailable(input: MarkArtifactUnavailableInput): ArtifactVersionResult {
+  markUnavailable(input: MarkArtifactUnavailableInput): FixedVersionResult<R> {
     const reason = requiredText(input.reason, "reason", this.error);
     return this.repository.immediate(() => {
       const artifact = this.requireOwnedVersion(input.board_id, input, input.actor_id);
@@ -226,7 +232,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     });
   }
 
-  archiveVersion(input: ArchiveArtifactVersionInput): ArtifactVersionResult {
+  archiveVersion(input: ArchiveArtifactVersionInput): FixedVersionResult<R> {
     return this.repository.immediate(() => {
       const artifact = this.requireOwnedVersion(input.board_id, input, input.actor_id);
       if (artifact.lifecycle_state === "archived") {
@@ -257,7 +263,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     });
   }
 
-  private normalizeRegistration(input: RegisterArtifactVersionInput): Omit<ArtifactVersionRecord, "created_at"> {
+  private normalizeRegistration(input: I): Omit<R, "created_at"> {
     const boardId = requiredText(input.board_id, "board_id", this.error);
     const artifactId = requiredText(input.artifact_id, "artifact_id", this.error);
     const actorId = requiredText(input.actor_id, "actor_id", this.error);
@@ -282,11 +288,11 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       );
     }
 
-    let payload: ArtifactVersionRecord["payload"] = null;
+    let payload: FixedVersionRecord["payload"] = null;
     let contentRef: string | null = null;
     let digest: string;
     let sizeBytes: number;
-    let availability: ArtifactVersionRecord["availability"] = "available";
+    let availability: FixedVersionRecord["availability"] = "available";
     let unavailableReason: string | null = null;
     if (input.content.kind === "inline") {
       try {
@@ -323,7 +329,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       }
     }
 
-    return {
+    const base: Omit<FixedVersionRecord, "created_at"> = {
       board_id: boardId,
       artifact_id: artifactId,
       version,
@@ -350,11 +356,44 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       archived_at: null,
       archived_by: null,
     };
+    if (!this.repository.tables.library) return base as Omit<R, "created_at">;
+    // The 成果库 keeps what people see: where the version came from, its title and its real media type (A1).
+    const library = input as unknown as RegisterArtifactVersionInput;
+    return {
+      ...base,
+      origin: this.normalizeOrigin(library.origin),
+      title: boundedText(library.title, "title", 200, this.error),
+      media_type: mediaType(library.media_type, this.error),
+      trace: this.normalizeTrace(library.trace),
+    } as unknown as Omit<R, "created_at">;
+  }
+
+  private normalizeOrigin(value: unknown): ArtifactOrigin {
+    const origin = value as Partial<ArtifactOrigin> | null | undefined;
+    if (origin?.kind === "pinned") {
+      const subject = (origin as { subject?: { kind?: unknown; id?: unknown } }).subject;
+      return { kind: "pinned", subject: { kind: requiredText(subject?.kind, "origin.subject.kind", this.error),
+        id: requiredText(subject?.id, "origin.subject.id", this.error) },
+        revision: boundedText((origin as { revision?: unknown }).revision, "origin.revision", 200, this.error) };
+    }
+    if (origin?.kind === "imported") {
+      return { kind: "imported", file_name: boundedText((origin as { file_name?: unknown }).file_name, "origin.file_name", 255, this.error) };
+    }
+    throw this.error("artifact.origin_invalid", "成果必须写明来源：固定下来的工作对象，或导入的文件");
+  }
+
+  private normalizeTrace(value: unknown): ArtifactReference[] {
+    if (value === undefined) return [];
+    if (!Array.isArray(value)) throw this.error("artifact.input_invalid", "trace 必须是过程项引用的列表", { path: "trace" });
+    return value.map((item: { artifact_id?: unknown; version?: unknown } | null, index) => ({
+      artifact_id: requiredText(item?.artifact_id, `trace[${index}].artifact_id`, this.error),
+      version: positiveInteger(item?.version, `trace[${index}].version`, this.error),
+    }));
   }
 
   private assertIdentity(
     identity: ArtifactIdentityRecord,
-    input: Omit<ArtifactVersionRecord, "created_at">,
+    input: Omit<FixedVersionRecord, "created_at">,
   ): void {
     if (identity.owner_actor_id !== input.created_by) {
       throw this.error("artifact.not_owner", "只有 Artifact owner 可以注册新 version", {
@@ -373,7 +412,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     }
   }
 
-  private normalizeMetadata(value: unknown): ArtifactVersionRecord["metadata"] {
+  private normalizeMetadata(value: unknown): FixedVersionRecord["metadata"] {
     try {
       return normalizeArtifactMetadata(value);
     } catch (error) {
@@ -383,7 +422,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     }
   }
 
-  private requireVersion(boardId: string, reference: ArtifactReference): ArtifactVersionRecord {
+  private requireVersion(boardId: string, reference: ArtifactReference): R {
     const artifact = this.repository.getVersion(boardId, reference.artifact_id, reference.version);
     if (!artifact) throw this.error("artifact.not_found", "找不到 Artifact version");
     return artifact;
@@ -393,7 +432,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
     boardId: string,
     reference: ArtifactReference,
     actorId: string,
-  ): ArtifactVersionRecord {
+  ): R {
     const artifact = this.requireVersion(boardId, reference);
     if (artifact.owner_actor_id !== actorId) {
       throw this.error("artifact.not_owner", "只有 Artifact owner 可以修改版本状态");
@@ -403,8 +442,8 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
 }
 
 function sameVersion(
-  existing: ArtifactVersionRecord,
-  requested: Omit<ArtifactVersionRecord, "created_at">,
+  existing: FixedVersionRecord,
+  requested: Omit<FixedVersionRecord, "created_at">,
 ): boolean {
   const {
     created_at: _createdAt,
@@ -434,6 +473,21 @@ function requiredText(
   const normalized = typeof value === "string" ? value.trim() : "";
   if (!normalized) throw error("artifact.input_invalid", `${path} 不能为空`, { path });
   return normalized;
+}
+
+function boundedText(value: unknown, path: string, limit: number, error: ArtifactsErrorFactory): string {
+  const text = requiredText(value, path, error);
+  if (text.length > limit) throw error("artifact.input_invalid", `${path} 不能超过 ${limit} 个字符`, { path });
+  return text;
+}
+
+/** A real media type such as `text/markdown`; parameters are not part of what a 成果 records. */
+function mediaType(value: unknown, error: ArtifactsErrorFactory): string {
+  const text = requiredText(value, "media_type", error).toLowerCase();
+  if (!/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/u.test(text)) {
+    throw error("artifact.input_invalid", "media_type 必须是 类型/子类型，例如 text/markdown", { path: "media_type" });
+  }
+  return text;
 }
 
 function positiveInteger(value: unknown, path: string, error: ArtifactsErrorFactory): number {

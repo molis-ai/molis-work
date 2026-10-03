@@ -36,7 +36,7 @@ import type {
 
 export { parsePluginManifest, PluginManifestError, canonicalPluginId, comparePluginVersions, SURFACE_BROWSER_PERMISSION } from "./plugin-manifest.js";
 import { SURFACE_BROWSER_PERMISSION } from "./plugin-manifest.js";
-export type { PluginArtifactClient, PluginArtifactPublishInput, PluginProcessItemClient } from "./plugin-artifacts.js";
+export type { PluginArtifactClient, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput } from "./plugin-artifacts.js";
 export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner } from "./plugin-package.js";
 export * from "./plugin-events.js";
 export * from "./plugin-wiring.js";

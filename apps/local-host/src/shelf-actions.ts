@@ -4,7 +4,7 @@ import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS, createShelfActionHandlers, create
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { SHELF_TEXT_MATERIAL_TYPE, type ShelfTextMaterial, type ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
-import type { ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { readMaterialWebsite } from "./material-web.js";
 import { extractMaterial } from "./material-extraction.js";
@@ -49,7 +49,7 @@ export function shelfProjectActionProvider(runtime: MolisWorkProjectRuntime, hom
 }
 
 /** Joins a personal Shelf copy to the project as a process item other plugins read; the confirming caller owns every version. */
-export function publishShelfMaterial(processItems: ArtifactsApplicationApi, boardId: string, actorId: string, payload: ShelfTextMaterial): { artifact_id: string; version: number } {
+export function publishShelfMaterial(processItems: ProcessItemsApplicationApi, boardId: string, actorId: string, payload: ShelfTextMaterial): { artifact_id: string; version: number } {
   const artifactId = "shelf-material:" + boardId + ":" + payload.source.item_id;
   const latest = processItems.query.latestArtifactVersion(boardId, artifactId);
   if (latest && (latest.owner_actor_id !== actorId || latest.producer_plugin_id !== shelfManifest.plugin_id

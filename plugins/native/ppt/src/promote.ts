@@ -13,6 +13,8 @@ export interface PptPublishArtifactPort {
     record_id: string;
     title: string;
     version: number;
+    /** The record revision this version pins (artifact-positioning A1). */
+    source_version: number;
     content: {
       title: string;
       description: string;
@@ -42,6 +44,7 @@ export function promotePpt(
     record_id: current.id,
     title: intent.content.title,
     version: intent.version,
+    source_version: intent.source_version,
     content: intent.content,
   });
   if (published.artifact_id !== "ppt-" + id || published.version !== intent.version) throw new PptError("ppt.publication_conflict", "Artifact 返回身份与发布意图不一致，原快照已保留");

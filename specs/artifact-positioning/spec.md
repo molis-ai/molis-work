@@ -1,6 +1,6 @@
 # Artifact 定位与动线梳理，所有插件统一进同一个壳子
 
-状态：核实与排查中（2026-10-02 起）。用户在防腐收尾目标进行中追加，标为严重问题；与[合入后审查](../archive/post-merge-review/spec.md)、[防腐整理](../repository-anti-corruption/spec.md)同一目标推进。本文是这件事唯一的进度与证据记录。
+状态：壳子 S1–S7 已合入 main，S4（#197）与 S1b（#198）待合并；成果库 A1–A7 未开始（2026-10-02 起）。用户在防腐收尾目标进行中追加，标为严重问题；与[合入后审查](../archive/post-merge-review/spec.md)、[防腐整理](../repository-anti-corruption/spec.md)同一目标推进。本文是这件事唯一的进度与证据记录。
 
 ## 0. 任务要求（用户 2026-10-02 原文要点）
 
@@ -50,6 +50,8 @@
 | 2026-10-02 | 合并哪些（弹窗，第二批） | #191（推荐）；#188 + #193（推荐）；#186 + #187；#192 | #191；#188 + #193 | 三个均已合入 main（1d287a40、e259b956、65979bf0）；#186、#187、#192 下一批再问 |
 | 2026-10-02 | 能力怎么并进设置（S6b） | 按授权的常规取舍（用户已定「设置并进工作台的设置位置」，S6 方案写明能力就是设置的几个分区） | 能力的四页成为全局设置的四个分区 | 「能力库、服务连接、对外接入、调用记录」取代原来那一行「能力」（打开框的封面）；页面仍由 `/capabilities/<页>` 提供，工作台用 fetch 读入设置面；规则编辑器作为能力库里的内页。框与它的封面删掉。没有项目时 `/capabilities/*` 与设置一样仍是整页（同一条例外） |
 | 2026-10-02 | 合并哪些（弹窗，第三批） | #195 S6b（推荐）；#186 S3 + #187 S5（推荐）；#192 + #194 文档 | #195；#186 + #187 | 文档两个下一批再问 |
+| 2026-10-03 | 旧创作台的 `builder.builds.*` 动作（S1b，弹窗） | 随旧系统一起删（推荐）；删旧系统、给新创作台补上同类能力；先不删旧创作台 | 随旧系统一起删 | 这些动作只作用于旧创作台的草稿，S4 之后没有任何界面显示它们。与旧页面、旧路由、灵感库示例一起删，不留兼容；Home 里的旧草稿与旧生成插件不迁移（用户在 PMR-22 定的「当做没有旧版数据」）。能力目录少约 10 项；新创作台的路由不变 |
+| 2026-10-03 | 合并哪些（弹窗，第四批） | #196 S7 整页门禁（推荐）；#192 + #194 文档 | 两项都选 | 三个均已合入 main（34434590、05ab4511、e9eccf25） |
 
 **待决**：无（「没有项目时的全局设置」已答，见上表）。
 
@@ -120,10 +122,10 @@
 | 片 | 内容 | 对应 |
 | --- | --- | --- |
 | S1 | 删 `renderPluginPageWorkspace` 与它的出口和测试（P9）、炼金术士历史演示记录（P8） | 只删不改；分支 `fix/shell-s1-drop-standalone-pages` |
-| S1b | 删旧的解释器创作台整套（P3、P4）：`/plugin-builder` 整页、旧生成插件独立页，以及只为它们存在的旧实现。新创作台（`agent-*`）只依赖旧包里的 `formula.ts`、`model.ts`、`validation.ts`；`actions`、`activity`、`client`、`generated`、`plugin`、`record-client`、`record-routes`、`records`、`routes`、`spec-board`、`starter`、`store`、`styles`、`ui`、`visuals`、`workflow` 只属旧系统。宿主还从旧系统取 `builderManifest`、`builderUiContribution`、`BUILDER_PROMPTS` 与两个角色（新创作台也用设计者、代码两个角色），要先把插件身份与角色提示词挪到新创作台，再删旧系统与 `tests/plugin-builder-browser.e2e`、`plugin-builder-visual.e2e` 等旧用例 | 大；旧发布记录不迁移、不读 |
+| S1b | 删旧的解释器创作台整套（P3、P4）：`/plugin-builder` 整页、旧生成插件独立页，以及只为它们存在的旧实现。新创作台（`agent-*`）只依赖旧包里的 `formula.ts`、`model.ts`、`validation.ts`；`actions`、`activity`、`client`、`generated`、`plugin`、`record-client`、`record-routes`、`records`、`routes`、`spec-board`、`starter`、`store`、`styles`、`ui`、`visuals`、`workflow` 只属旧系统。宿主还从旧系统取 `builderManifest`、`builderUiContribution`、`BUILDER_PROMPTS` 与两个角色（新创作台也用设计者、代码两个角色），要先把插件身份与角色提示词挪到新创作台，再删旧系统与 `tests/plugin-builder-browser.e2e`、`plugin-builder-visual.e2e` 等旧用例 | 大；旧发布记录不迁移、不读。[#198](https://github.com/molis-ai/molis-work/pull/198)，叠在 S4 上 |
 | S2 | 直达链接打开工作台：`/artifacts`、`/artifacts/<版本>` 改为打开工作台并定位（P1）；未知页面地址打开工作台并提示找不到（P17） | 删 `renderArtifactWorkbenchPage` 整页与只给它用的样式；分支 `fix/shell-s2-direct-links-open-workbench` |
 | S3 | 沙箱框只在工作台里开（P6、P7）。① 已安装生成插件的框内文档去掉自带头条（标题、版本、「回创作台」链接），出错页不再链到创作台整页；② 「单独打开试用」两处改为切到创作台自己的「试用」标签（`data-as-tab="try"`），不开新标签页；③ 「打开插件」「打开 vN」只走现有的 postMessage 让工作台打开，去掉新标签页兜底；④ 顶层直接访问试用与已安装插件地址（`Sec-Fetch-Dest: document`）时打开工作台并定位到该插件面；作为 iframe 加载时照常回框内文档。`agent-studio.e2e` 里顶层打开试用页、已安装页的步骤随之改为经工作台或框内检查 | 中；`agent-surface.ts`、`agent-studio.ts`、工作台初始化（按面打开） |
-| S4 | 创作台去框：创作台作为工作台插件面直接渲染（P5） | 大 |
+| S4 | 创作台去框：创作台作为工作台插件面直接渲染（P5） | 大；[#197](https://github.com/molis-ai/molis-work/pull/197) |
 | S5 | 文件在工作台里预览：Shelf 网页版打开文件（P19）、项目内引用 `/api/project-references/`（P18），浏览器能显示的在标签或侧栏预览，其余下载 | |
 | S6 | 设置并进工作台（P10、P11、P21）。现状：工作台已有设置面，点工作台里的 `/settings/…` 与项目设置链接会在设置面里打开（`settings-directory.ts` 的点击拦截），并支持 `?settings=<分区>`；缺的是 ① 顶层直接访问（地址栏、刷新）设置、项目设置、规划方法页时仍是整页；② `/capabilities/*` 链接与页面没有并进设置面（它们其实就是 connectors、mcp、library 等分区）。方案：设置整页与片段同一条路由，工作台和设置页里的脚本用 `fetch` 读它，所以按浏览器的 `Sec-Fetch-Dest: document`（只有顶层导航才带）判断直接访问，302 到工作台并打开对应分区；全局设置带 `?project=` 时进那个项目，不带时进上次打开的项目；`/capabilities/*` 映射到设置分区并拦截链接。约 16 个用例文件、26 处直接打开设置页的步骤要改。待问用户：一个项目都没有时（首次安装后先配模型），全局设置直接访问去哪 | 最大；含一个待决 |
 | S7 | 门禁：除 §4 例外外没有路由返回完整 HTML；插件内容里不出现自带页面外壳；站内链接不跳出工作台。做法：① 爬取门禁（Node 用例，不开浏览器）：种子 Home 起服务，从进入页和项目工作台出发，按页面导航（`Sec-Fetch-Dest: document`）逐个打开工作台里能点到的本地地址（href 与 GET 表单），跟随跳转；落点只能是工作台、§4 例外、或不是页面（数据、文件）；② 工作台只有一个文档外壳（一个 doctype、html、body），没有整页才有的外壳类名；③ 服务端渲染的工作台里，本地链接不带 `target="_blank"`；④ 产出整页的源码文件列名单（发 `<!doctype html>` 的与调用整页外壳的），新增一处要在名单里写明属于哪条例外 | 守住 S1–S6 |
@@ -160,6 +162,9 @@
 
 ## 6. 进度
 
+- 2026-10-03：S1b 开 [#198](https://github.com/molis-ai/molis-work/pull/198)，叠在 #197 上。删的是旧的解释器创作台整套：插件包里只属旧系统的源码（含 `builder.builds.*` 动作、`/plugin-builder` 整页与 `/records` 路由、灵感库示例与图片），宿主的 `handleBuilderHttp`、`releaseBuilderSurface`，以及工作台里没人用的 `agent.prompts`；还有旧预览脚本和它的替身，旧创作台的 6 个用例文件与 `builder-routes` 夹具。领域用例保留仍适用的 schema 与公式两条。`plugin-builder-surface.ts` 不再出整页，从 S7 的整页产出名单里去掉；README 只写新创作台，必跑用例逐个列出。整体构建后，涉及创作台、生成插件和整页门禁的 41 个用例文件：355 条，355 通过、0 失败（1 条是只在设了环境时才跑的真实 npm 用例，跳过）。`health:check` 通过，基线下降（测试引用包内部 1015 → 979，若干巨大单元变小），`boundary:check` 无错误。
+- 2026-10-03：S4 开 [#197](https://github.com/molis-ai/molis-work/pull/197)，CI 通过、等合并。创作台不再嵌框，直接画在工作台的舞台里：`/plugin-builder/studio` 框内页删掉、不留跳转；客户端随插件包按需加载，打开新装插件、模型设置与卸载都经工作台完成；刚装好的插件带 `?openSurface=` 在工作台启动时打开；打开的构建按项目记在本次会话里，刷新不丢；去掉页面品牌，窄屏在舞台内滚动。预览服务与浏览器用例改用 `scripts/agent-studio-harness.mts`，按工作台的挂法挂载（开发工具，不是产品页）。43 个用例文件 355 条：354 通过、0 失败（1 条跳过）；headless Chrome 1440 与 390 截图，没有横向滚动。附带发现 Dock 切换器把它写成 `plugin-builder`，记 BL-114。
+- 2026-10-03：S7 [#196](https://github.com/molis-ai/molis-work/pull/196) 已合入（34434590），门禁 `tests/shell-page-gate.test.ts` 进 CI，AGENTS.md 加一条硬约束。三条：① 爬取：从进入页和项目工作台按页面导航打开全部本地地址，落点只能是工作台、§4 例外或不是页面；② 工作台只有一个文档外壳，本地链接不开新标签页；③ 整页产出名单，新增一处要先进例外清单（`/artifacts/import` 记为「待 A3」，只许减少）。运行时：工作台里指向本站的新标签页链接与 `window.open` 改在本工作台打开。红检：同一用例在 S6 之前的 main 上报出 15 个自己的整页；突变检验名单一项会点出新增的文件。第四批合并（#196、#192、#194）已完成。
 - 2026-10-02：S6b 开 [#195](https://github.com/molis-ai/molis-work/pull/195) 并已合入。相关用例 599 条 596 通过，3 条失败：2 条是补样式后规则编辑器被设置面的通用规则压成 0 高（已修），1 条是分区列表的预期变化。重跑 51/51。隔离 Home 走查（4305）：1280 规则编辑器与能力库铺满并在内部滚动，390 对外接入按钮 44px、无横向滚动。S7 开 [#196](https://github.com/molis-ai/molis-work/pull/196)（叠在 S6b 上）：整页门禁 3 项接进 CI。红检：S6 之前的 main 上，爬取报出 15 个自己的整页。突变：新增一个发 doctype 的文件，名单失败。运行时守卫：本站页面的新标签页链接与 `window.open` 在本工作台打开（去掉改动时用例失败）。
 - 2026-10-02：S6 [#193](https://github.com/molis-ai/molis-work/pull/193) 已合入。S6b 在做（分支 `fix/shell-s6b-capabilities-in-workbench`）：能力四页成为设置分区；直接访问 `/capabilities/*` 进工作台（`project` 作为范围留在页面地址里）；规则编辑器、对外接入、服务连接的脚本改为按根节点与页面地址绑定，首次打开时按需加载 `/assets/molis-work-capabilities.js`；页面里的 GET 筛选在设置面里就地重载；页面状态（打开的规则、筛选）记进封面的位置，刷新后回来；能力页的样式补进工作台样式表（此前在工作台里打开时没有样式，窄屏 44px 触控高度也因此丢失）；收件箱「判断规则」不再整页跳转；删掉能力框与封面。
 - 2026-10-02：S6 开 [#193](https://github.com/molis-ai/molis-work/pull/193)（依赖 #188）。整体构建后相关 18 个用例文件 37/37；新增 `settings-direct-access` 在 main 上 2 条失败。隔离 Home（`~/.molis-work-qa/s6`，4304）走查，桌面 1280 与 390：全局设置直接访问进项目工作台、没有项目时是整页；项目说明编辑器 Esc 只关编辑器；`/settings/planning/<方法>` 详情「返回」回列表；`/settings/projects` 在设置面打开；删除项目落到进入页；390 规则页无横向滚动。#189、#190 已合入。main（08f6c7a9）全量回归 3758 条：10 条失败，其中 9 条是 #176/#177 漏改的测试（[#191](https://github.com/molis-ai/molis-work/pull/191) 修，11/11），1 条 `remaining-forms-viewport` 为 CDP 超时、单独重跑 6/6，属时序。

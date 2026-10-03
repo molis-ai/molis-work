@@ -43,7 +43,8 @@ test("Alchemist standard MCP shares persisted business state across processes wi
     const { exploration } = await call(reader, "explorations.get", { id: receipt.runId });
     const kept = await call(writer, "cards.keep", { id: exploration.cards[0].id });
     assert.equal(kept.version.revision.actorId, "fixture-owner");
-    assert.deepEqual((await call(reader, "legacy.export")).directions, []);
+    // The old demo record was deleted (specs/artifact-positioning P8): its read-only export is no longer offered.
+    assert.equal(tools.some(tool => tool.name === "alchemist.legacy.export__v1"), false);
     assert.equal((await call(reader, "ideas.version", { id: kept.idea.id, version: 1 })).version.content.title, "证据卡");
     const reply = await call(writer, "conversation.send", { body: "如何验证", context: { kind: "idea", label: "证据卡", ideaId: kept.idea.id, version: 1, panel: "brief" } });
     assert.equal(reply.assistantMessage.responseState, "complete");

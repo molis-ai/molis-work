@@ -2,6 +2,14 @@ import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { L } from "./web-locale.js";
 
+/**
+ * A person's own navigation to a top-level page (address bar, link, refresh, history), as the browser reports it. A page's
+ * fetch() and a frame never carry it, so parts of the workbench that are also served as pages send only these into it.
+ */
+export function isTopLevelNavigation(request: IncomingMessage): boolean {
+  return request.method === "GET" && requestHeader(request, "sec-fetch-mode") === "navigate" && requestHeader(request, "sec-fetch-dest") === "document";
+}
+
 export function requestHeader(request: IncomingMessage, name: string): string | undefined {
   const candidates = [request.headers[name]];
   for (const value of candidates) {

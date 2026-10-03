@@ -2,14 +2,16 @@ import { createConnectorAuthorizationMonitor } from "./connector-authorization-m
 export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
   (() => {
     const createAuthorizationMonitor = ${createConnectorAuthorizationMonitor.toString()};
-    const bind = (root = document) => {
+    // \`page\` is the address the connections were opened at: their own page, or the settings section in the workbench.
+    const ownPage = { address: () => new URL(location.href), replace: (next) => history.replaceState(null, '', next), own: true };
+    const bind = (root = document, page = ownPage) => {
       const box = root.matches?.('[data-connectors-settings]') ? root : root.querySelector('[data-connectors-settings]');
       if (!box || box.dataset.connectorsBound === '1') return;
       box.dataset.connectorsBound = '1';
       const list = box.querySelector('[data-connectors-list]');
       const search = box.querySelector('[data-connectors-search]');
       const category = box.querySelector('[data-connectors-category]');
-      const standalone = () => location.pathname.startsWith('/settings/') || location.pathname === '/capabilities/connections';
+      const standalone = () => !page.own || location.pathname.startsWith('/settings/') || location.pathname === '/capabilities/connections';
       const panelFor = id => [...box.querySelectorAll('[data-connector-detail]')].find(p => p.dataset.connectorDetail === id);
       const stateKey = 'molis-connectors-pending';
       const noticeKey = 'molis-connectors-notice';
@@ -39,7 +41,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       };
       const pageUrl = id => {
         const next = new URL('/capabilities/connections', location.origin);
-        for (const key of ['desktop', 'project']) { const value = new URLSearchParams(location.search).get(key); if (value) next.searchParams.set(key, value); }
+        for (const key of ['desktop', 'project']) { const value = page.address().searchParams.get(key); if (value) next.searchParams.set(key, value); }
         if (id) next.searchParams.set('connector', id);
         return next.pathname + next.search;
       };
@@ -48,7 +50,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         if (!panel) box.querySelectorAll('[data-protocol]').forEach(area => { delete area.dataset.connectionId; });
         list.hidden = Boolean(panel);
         box.querySelectorAll('[data-connector-detail]').forEach(item => { item.hidden = item !== panel; });
-        if (standalone()) history.replaceState(null, '', pageUrl(panel ? id : ''));
+        if (standalone()) page.replace(new URL(pageUrl(panel ? id : ''), location.origin));
         if (focus) requestAnimationFrame(() => (panel?.querySelector('h2') || lastTrigger || search)?.focus());
       };
       const reload = async (id, notice) => {
@@ -311,7 +313,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       box.querySelectorAll('[data-connectors-back]').forEach(button => button.addEventListener('click', () => showDetail('')));
       box.querySelector('[data-connectors-add]')?.addEventListener('click', () => { search.scrollIntoView({ block: 'center', behavior: 'smooth' }); search.focus(); });
       box.addEventListener('keydown', event => { if (event.key === 'Escape' && list.hidden && !['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) { event.preventDefault(); showDetail(''); } });
-      const params = new URLSearchParams(location.search);
+      const params = page.address().searchParams;
       const errorCode = params.get('connection_error');
       const connected = params.get('connected');
       const id = box.dataset.openConnector || params.get('connector') || connected || '';

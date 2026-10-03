@@ -12,8 +12,10 @@ for (const [width, height, scope] of [[1024,400,"global"],[390,500,"global"],[10
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false},sessionId);
     await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},sessionId);
     const prefix=scope==='project'?`/projects/${b.projectId}`:'';
+    // The editor opens in the workbench's settings (specs/artifact-positioning S6).
+    const surface=`[data-work-surface=${scope==='project'?'project-settings':'settings'}]`;
     await navigate(()=>command('Page.navigate',{url:origin+prefix+'/settings/planning/new'},sessionId));
-    await waitFor("document.querySelector('[data-planning-edit-form]')");
+    await waitFor(`!!document.querySelector('${surface} [data-planning-edit-form]')`,15000);
     const bounds = await evaluate<{top:number,bottom:number,rootScroll:boolean}>(`(()=>{const r=document.querySelector('.planning-edit-footer').getBoundingClientRect();return {top:r.top,bottom:r.bottom,rootScroll:document.scrollingElement.scrollHeight>innerHeight+1}})()`);
     assert.ok(bounds.top>=0 && bounds.bottom<=height, JSON.stringify(bounds));
     assert.equal(bounds.rootScroll,false);
@@ -24,7 +26,7 @@ for (const [width, height, scope] of [[1024,400,"global"],[390,500,"global"],[10
     await evaluate(`{const f=document.querySelector('[data-planning-edit-form]');f.elements.name.value='持续交付验收';f.elements.summary.value='验证保存与恢复';f.elements.instructions.value='先确认结果，再记录完成证据。';for(const name of ['steps','coverage_label','coverage_question','dependency_statement','dependency_direction'])f.querySelector('[name='+name+']').value='明确输入与产出';const original=fetch;window.saves=0;window.fetch=(url,options)=>{if(options?.method==='POST'&&String(url).endsWith('/api/settings/planning-methods')){window.saves++;if(window.saves===1)return Promise.reject(new TypeError('Failed to fetch'));return new Promise(resolve=>window.releaseSave=()=>resolve(original(url,options)));}return original(url,options)};}`);
     await click('[data-planning-edit-form] button[type=submit]');
     await waitFor("!document.querySelector('[data-planning-method-error]').hidden");
-    assert.equal(await evaluate("document.querySelector('[name=name]').value"),'持续交付验收');
+    assert.equal(await evaluate("document.querySelector('[data-planning-edit-form] [name=name]').value"),'持续交付验收');
     assert.match(await evaluate<string>("document.querySelector('[data-planning-method-error]').textContent"),/输入已保留/);
     const dir=`${REVIEW_EVIDENCE}/closing-v14`;await mkdir(dir,{recursive:true});
     const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/planning-error-${scope}-${width}.png`,Buffer.from(shot.data,'base64'));
@@ -40,10 +42,12 @@ for (const [width, height, scope] of [[1024,400,"global"],[390,500,"global"],[10
     const methods=(await (await fetch(origin+prefix+'/api/settings/planning-methods')).json()).methods;
     const saved=methods.filter((m:{name:string})=>m.name==='持续交付验收');
     assert.equal(saved.length,1);assert.equal(saved[0].version,1);
-    await b.reloadPage();assert.match(await evaluate<string>("document.querySelector('.settings-content').textContent"),/持续交付验收/);
+    await b.reloadPage();await waitFor(`(document.querySelector('${surface} .settings-content')?.textContent??'').includes('持续交付验收')`,15000);
     await navigate(()=>command('Page.navigate',{url:origin+prefix+'/settings/planning/'+saved[0].method_id+'/edit'},sessionId));
-    await evaluate("document.querySelector('[name=name]').value='取消后不应写入的草稿'");
-    await navigate(()=>click('.planning-edit-footer a'));
+    await waitFor(`!!document.querySelector('${surface} [data-planning-edit-form]')`,15000);
+    await evaluate("document.querySelector('[data-planning-edit-form] [name=name]').value='取消后不应写入的草稿'");
+    await click('.planning-edit-footer a');
+    await waitFor(`!!document.querySelector('${surface} .planning-detail h1')`,15000);
     assert.match(await evaluate<string>("document.querySelector('.planning-detail h1').textContent"),/持续交付验收/);
     const unchanged=(await (await fetch(origin+prefix+'/api/settings/planning-methods')).json()).methods.find((m:{method_id:string})=>m.method_id===saved[0].method_id);
     assert.equal(unchanged.version,1);assert.equal(unchanged.name,'持续交付验收');

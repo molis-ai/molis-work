@@ -22,18 +22,21 @@ for (const width of [1440, 390]) test(`Planning ${width}px copies a template, re
   assert.equal(template.scope, "built_in");
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 1100, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
+  // Planning settings open in the workbench (specs/artifact-positioning S6); a page inside them opens in place, and a save
+  // reloads the workbench on the page it returns to.
   await navigate(() => command("Page.navigate", { url: origin + "/settings/planning" }, sessionId));
   await command("Page.bringToFront", {}, sessionId);
   const dom = (selector: string) => "document.querySelector(" + JSON.stringify(selector) + ")";
-  await waitFor("document.readyState === 'complete' && " + dom('[data-planning-filter="mine"]'));
+  await waitFor("document.readyState === 'complete' && " + dom('[data-work-surface=settings] [data-planning-filter="mine"]'), 15_000);
+  assert.equal(await evaluate("location.pathname"), prefix + "/");
   await click('[data-planning-filter="mine"]');
   assert.equal(await evaluate(dom("[data-planning-filter-empty]") + ".hidden"), false);
   await click('[data-planning-filter="domain"]');
   assert.equal(await evaluate("Array.from(document.querySelectorAll('[data-planning-method]')).filter(x=>!x.hidden).every(x=>x.dataset.kind==='domain')"), true);
-  await navigate(() => click('a[href="/settings/planning/' + id + '"]'));
-  await waitFor("document.readyState === 'complete' && " + dom(".planning-detail"));
-  await navigate(() => click(".planning-detail-header .mw-btn--primary"));
-  await waitFor("document.readyState === 'complete' && " + dom("[data-planning-edit-form]"));
+  await click('a[href="/settings/planning/' + id + '"]');
+  await waitFor(dom("[data-work-surface=settings] .planning-detail"), 15_000);
+  await click(".planning-detail-header .mw-btn--primary");
+  await waitFor(dom("[data-work-surface=settings] [data-planning-edit-form]"), 15_000);
   assert.equal(await evaluate(dom("[data-planning-edit-form]") + ".dataset.saveScope"), "personal");
   const row = '[data-planning-row-list="steps"] [data-planning-row]';
   const count = await evaluate<number>("document.querySelectorAll(" + JSON.stringify(row) + ").length");
@@ -54,7 +57,7 @@ for (const width of [1440, 390]) test(`Planning ${width}px copies a template, re
   assert.deepEqual(await read(globalApi), original);
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await navigate(() => click(submit));
-  await waitFor("document.readyState === 'complete' && " + dom(".planning-detail"));
+  await waitFor("document.readyState === 'complete' && " + dom("[data-work-surface=settings] .planning-detail"), 15_000);
   const saved = (await read(globalApi)).methods.find(x => x.method_id === id)!;
   assert.equal(saved.scope, "personal");
   assert.deepEqual(saved.event_types, template.event_types);
@@ -75,9 +78,10 @@ for (const width of [1440, 390]) test(`Planning ${width}px copies a template, re
   assert.deepEqual(saved.failure_modes, template.failure_modes);
   assert.deepEqual((await read(globalApi)).methods.filter(x => x.method_id !== id), original.methods.filter(x => x.method_id !== id));
   await reloadPage();
+  await waitFor(dom("[data-work-surface=settings] .planning-detail h1"), 15_000);
   assert.equal(await evaluate(dom(".planning-detail h1") + ".textContent"), values.name);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/planning" }, sessionId));
-  await waitFor(dom('[data-adopt-planning-method="' + id + '"]'));
+  await waitFor(dom('[data-work-surface=project-settings] [data-adopt-planning-method="' + id + '"]'), 15_000);
   const projectBefore = await read(projectApi);
   const unconfirmed = await evaluate<{ status: number; error: string }>("(async()=>{const response=await fetch(" + JSON.stringify(projectApi + "/apply") +
     ",{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({method_id:" + JSON.stringify(id) +
@@ -92,7 +96,7 @@ for (const width of [1440, 390]) test(`Planning ${width}px copies a template, re
   assert.deepEqual(await read(projectApi), projectBefore);
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await navigate(() => click(adopt));
-  await waitFor("document.readyState === 'complete' && !" + dom(adopt) + " && " + dom(".planning-composition-row"));
+  await waitFor("document.readyState === 'complete' && !" + dom(adopt) + " && " + dom("[data-work-surface=project-settings] .planning-composition-row"), 15_000);
   const adopted = (await read(projectApi)).methods.find(x => x.method_id === id)!;
   assert.equal(adopted.scope, "project");
   assert.equal(adopted.version, 1);
@@ -110,17 +114,18 @@ for (const width of [1440, 390]) test(`Planning ${width}px copies a template, re
   await waitFor("document.readyState === 'complete' && " + dom("[data-planning-edit-form]"));
   await click('[name="enabled"]');
   await navigate(() => click(submit));
-  await waitFor("document.readyState === 'complete' && " + dom(".planning-detail"));
+  await waitFor("document.readyState === 'complete' && " + dom("[data-work-surface=project-settings] .planning-detail"), 15_000);
   const disabled = (await read(projectApi)).methods.find(x => x.method_id === id)!;
   assert.equal(disabled.enabled, false);
   assert.deepEqual(disabled.event_types, saved.event_types);
   assert.deepEqual(disabled.default_requirements, saved.default_requirements);
   assert.equal(disabled.version, 2);
   assert.deepEqual((await read(globalApi)).methods.find(x => x.method_id === id), saved);
-  await navigate(() => click(".planning-back"));
-  await waitFor(dom(".planning-inactive-section"));
+  await click(".planning-back");
+  await waitFor(dom("[data-work-surface=project-settings] .planning-inactive-section"), 15_000);
   assert.equal((await read(projectApi)).composition!.method_pack_ids.includes(id), false);
   await reloadPage();
+  await waitFor(dom("[data-work-surface=project-settings] .planning-inactive-section"), 15_000);
   assert.ok(await evaluate(dom(".planning-inactive-section") + "?.textContent.includes(" + JSON.stringify(values.name) + ")"));
   const after = store.snapshot(DEMO_BOARD_ID);
   assert.deepEqual(after.goals, before.goals);

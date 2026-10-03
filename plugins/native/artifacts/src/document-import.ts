@@ -4,7 +4,8 @@ import type { ArtifactsApplicationApi, ArtifactJsonValue } from "@molis-ai/molis
 import { artifactsManifest } from "./manifest.js";
 import { artifactVersionPath } from "./browser.js";
 
-export const DOCUMENT_ARTIFACT_TYPE = "io.molis.work.document";
+import { DOCUMENT_ARTIFACT_TYPE } from "./document-type.js";
+export { DOCUMENT_ARTIFACT_TYPE } from "./document-type.js";
 export const DOCUMENT_IMPORT_MAX_BYTES = 2 * 1024 * 1024;
 export const EXTERNAL_DOCUMENT_SOURCES = ["notion", "feishu", "lark", "google-docs"] as const;
 export type ExternalDocumentSource = typeof EXTERNAL_DOCUMENT_SOURCES[number];

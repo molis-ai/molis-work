@@ -1,6 +1,7 @@
 import { ActionError, type ActionAudience, type ActionDefinition, type ActionHandlerBinding, type ActionCallContext } from "./actions.js";
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 import { SEARCH_OPEN_TARGET_SCHEMA, searchRevisionOf, type SearchOpenTarget } from "./search-sources.js";
+import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, type ArtifactVersionRecord } from "../modules/artifacts.js";
 
 /**
  * How a plugin shows its files in the side panel (specs/archive/side-panel §3.3, D11). The plugin keeps its own store; the
@@ -157,4 +158,40 @@ export function fileSourceDeclarationProblems(key: string, action: Record<string
     return [`能力 ${key} 没有兑现文件来源协议 v1：需要规范输入输出、查询类型、对本机用户开放、与角色一致的声明和对应文件种类的打开位置`];
   }
   return [];
+}
+
+/**
+ * A 成果 type's preview (specs/artifact-positioning A4): its owner turns one version into the file the 成果库 and the
+ * side panel show. The Host passes the version it read; the owner only converts its own payload and reads no store.
+ */
+export const ARTIFACT_PREVIEW_INPUT_TYPE = "molis.artifacts.preview.request.v1";
+/** The same shape as a side panel file, under its own type: a preview is not a side panel file source. */
+export const ARTIFACT_PREVIEW_OUTPUT_TYPE = "molis.artifacts.preview.v1";
+export interface ArtifactPreviewInput { artifact: ArtifactVersionRecord }
+
+export function defineArtifactPreviewAction(capabilityId: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPreviewInput, FileContent> {
+  return { capability_id: capabilityId, version: 1, operation: "query", action: {
+    title: `预览${typeTitle}`, description: `把一版${typeTitle}转成可读的文件，供成果库与侧栏预览；不修改数据。`,
+    kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], plugin: false,
+    permissions: [...permissions], subject_kinds: ["artifact"],
+    input_type: ARTIFACT_PREVIEW_INPUT_TYPE, output_type: ARTIFACT_PREVIEW_OUTPUT_TYPE,
+    input_schema: { type: "object", properties: { artifact: { type: "object" } }, required: ["artifact"], additionalProperties: false },
+    output_schema: FILE_CONTENT_OUTPUT_SCHEMA } };
+}
+
+export function isArtifactPreviewAction(action: { input_type?: string; output_type?: string }): boolean {
+  return action.input_type === ARTIFACT_PREVIEW_INPUT_TYPE && action.output_type === ARTIFACT_PREVIEW_OUTPUT_TYPE;
+}
+
+/** The owner's half of a preview: its own payload into Markdown, CSV, text or bytes, checked to be its own type. */
+export function bindArtifactPreview(definition: ActionDefinition<ArtifactPreviewInput, FileContent>, artifactTypeId: string,
+  convert: (artifact: ArtifactVersionRecord) => { media_type: string; text?: string; bytes?: Uint8Array; title?: string }): ActionHandlerBinding {
+  return { capability_id: definition.capability_id, version: definition.version, execution: "sync", handle: (_caller, input) => {
+    const artifact = (input as ArtifactPreviewInput).artifact;
+    if (artifact?.artifact_type_id !== artifactTypeId) throw new ActionError("actions.input_invalid", "这一版不是这个插件能预览的类型");
+    const content = convert(artifact);
+    return fileContentOf({ subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(artifact) }, revision: String(artifact.version),
+      title: content.title ?? artifact.title, media_type: content.media_type,
+      ...(content.text !== undefined ? { text: content.text } : { bytes: content.bytes ?? new Uint8Array() }) });
+  } };
 }

@@ -150,7 +150,7 @@ export {
   type ModelSettingsModel,
   type ModelSettingsPrimitives,
 } from "./settings-models.js";
-export { BUILTIN_PLUGIN_AGENTS } from "./plugin-catalog.js";
+export { BUILTIN_PLUGIN_AGENTS, artifactTypeDeclarations, type ArtifactTypeDeclaration } from "./plugin-catalog.js";
 
 export { pluginWorkbenchClientAsset } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";

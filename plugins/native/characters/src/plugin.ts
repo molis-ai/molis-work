@@ -8,6 +8,7 @@ import { characterBrowserPreview, characterSnapshotPreview, characterFilePreview
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError, bindOwnerPluginAction, referencesAction, searchEntriesPage, subjectContext, type ActionDefinition, type ActionUsage, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { charactersActions, type CharacterLaunchInput } from "./actions.js";
+import { charactersArtifactPreviewHandler } from "./artifact-preview.js";
 
 export interface CharactersPluginPorts {
   imports?: CharactersImportPorts;
@@ -69,7 +70,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       return { content, reference: { artifact_id: record.artifact_id, version: record.version } };
     };
     const a = charactersActions;
-    const handlers = [
+    const handlers = [charactersArtifactPreviewHandler,
       // System search lists the person's own drafts; the reader returns the same current text.
       bindOwnerPluginAction(context, a.searchEntries, input => searchEntriesPage(ports.drafts.list().filter(draft => draft.state !== "tombstoned").map(draft => ({
         subject: { kind: "character", id: draft.character_id }, revision: String(draft.revision), title: draft.title || "未命名角色", summary: "",

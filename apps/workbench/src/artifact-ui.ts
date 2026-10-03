@@ -1,5 +1,6 @@
 import type { UiHostApi, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, ARTIFACT_IMPORT_STYLES, type ArtifactBrowserUiModel, type GoalArtifactEmbed } from "@molis-ai/molis-work-plugin-artifacts";
+import { FILE_PREVIEW_STYLES } from "@molis-ai/molis-work-design-system";
 
 export const ARTIFACT_EMBED_STYLES = `
   .project-reference-dialog { width:min(760px, calc(100vw - 32px)); }
@@ -19,7 +20,7 @@ export const ARTIFACT_EMBED_STYLES = `
   @media(max-width:760px) { .artifact-embed > a { display:inline-flex; align-items:center; min-height:44px; } }
 `;
 
-export const ARTIFACT_WORKBENCH_STYLES = `${ARTIFACT_IMPORT_STYLES}
+export const ARTIFACT_WORKBENCH_STYLES = `${ARTIFACT_IMPORT_STYLES}${FILE_PREVIEW_STYLES}
   .artifact-version-list { display:flex; flex-direction:column; gap:4px; }
   .artifact-import-entry { text-decoration:none; }
   .artifact-version-list .mw-dir-row,

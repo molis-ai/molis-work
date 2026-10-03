@@ -28,7 +28,8 @@ export const datasetManifest: PluginManifest = {
   actions: [...Object.values(datasetActions), ...Object.values(datasetContentActions)],
   capabilities: { provides: [], consumes: [] },
   artifacts: {
-    produces: [{ artifact_type_id: DATASET_ARTIFACT_TYPE_ID, schema_version: DATASET_ARTIFACT_SCHEMA_VERSION }],
+    produces: [{ artifact_type_id: DATASET_ARTIFACT_TYPE_ID, schema_version: DATASET_ARTIFACT_SCHEMA_VERSION, title: "数据表",
+      preview: { capability_id: "dataset.artifacts.preview", version: 1 } }],
     consumes: [],
   },
   ui: {

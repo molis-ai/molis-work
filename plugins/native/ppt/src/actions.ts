@@ -7,6 +7,7 @@ import type { PptRecord, PptSlideInput } from "@molis-ai/molis-work-contracts/mo
 import { promotePpt, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
 import type { PptStore } from "./store.js";
 import { createPptSearchHandlers, pptSearchActions } from "./search.js";
+import { pptArtifactPreview, pptArtifactPreviewHandler } from "./artifact-preview.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -28,6 +29,8 @@ function define<I, O>(name: string, title: string, description: string, operatio
   return { capability_id: `ppt.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["ppt"], input_schema: input, output_schema: output, permissions, ...(name === "outline_ai" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const pptActions = {
+  /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
+  artifactPreview: pptArtifactPreview,
   list: define<Record<string, never>, { presentations: PptRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "演示稿列表", "读取当前项目的演示稿，以及当前调用方能否让模型整理大纲", "query", object({}),
     object({ presentations: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { presentation: PptRecord }>("get", "读取演示稿", "读取幻灯片、配色、版本和发布状态；id 来自列表或创建结果", "query", object({ id }), changed),
@@ -94,6 +97,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
   const modelAvailability = (): ActionAvailability => ports.modelAvailability ? ports.modelAvailability() : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   return [
+    pptArtifactPreviewHandler,
     bind(pptActions.list, (_, caller) => {
       const ai = modelAvailability(), permitted = pptActions.outlineAi.action.permissions.every(p => caller.permissions.includes(p))
         && (!caller.allowed_capability_ids || caller.allowed_capability_ids.includes(pptActions.outlineAi.capability_id));

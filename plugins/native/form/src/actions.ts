@@ -6,6 +6,7 @@ import { promoteForm, type FormPublishArtifactPort, type FormReadArtifactPort } 
 import type { FormStore } from "./store.js";
 import { createFormSearchHandlers, formSearchActions } from "./search.js";
 import { formFillPageFilename, formFillPageHtml, formResultsCsv, formResultsCsvFilename } from "./fillpage.js";
+import { formArtifactPreview, formArtifactPreviewHandler } from "./artifact-preview.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -27,6 +28,8 @@ function define<I, O>(name: string, title: string, description: string, operatio
   return { capability_id: `form.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["form"], input_schema: input, output_schema: output, permissions, ...(name === "questions.ai" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const formActions = {
+  /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
+  artifactPreview: formArtifactPreview,
   list: define<Record<string, never>, { forms: FormRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "问卷列表", "读取当前项目问卷和 AI 加题可用性", "query", object({}), object({ forms: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { form: FormRecord }>("get", "读取问卷", "读取题目、选项、状态、版本和发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { form: FormRecord }>("create", "新建问卷", "创建当前项目的草稿问卷", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
@@ -64,6 +67,7 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   return [
+    formArtifactPreviewHandler,
     bind(formActions.list, (_, caller) => ports.withStore(store => {
       const ai = ports.modelAvailability(), permitted = formActions.generateAi.action.permissions.every(p => caller.permissions.includes(p))
         && (!caller.allowed_capability_ids || caller.allowed_capability_ids.includes(formActions.generateAi.capability_id));

@@ -27,7 +27,7 @@ export const artifactsManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   actions: ARTIFACT_ACTIONS,
   artifacts: {
-    produces: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],
+    produces: [{ artifact_type_id: "io.molis.work.document", schema_version: 1, title: "导入的文件", preview: { capability_id: "artifacts.documents.preview", version: 1 } }],
     consumes: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],
   },
   ui: {

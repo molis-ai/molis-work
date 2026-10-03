@@ -3,6 +3,7 @@ import { PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/module
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
 export { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
 
@@ -278,3 +279,25 @@ export const BUILTIN_PLUGIN_AGENTS: ReadonlyMap<string, {
     return [[entry.manifest.plugin_id, { manifest: agent, prompts, skills }] as const];
   }),
 );
+
+/** A visible 成果 type as its owner declares it (specs/artifact-positioning A4). */
+export interface ArtifactTypeDeclaration {
+  readonly title: string;
+  readonly plugin_id: string;
+  readonly plugin_title: string;
+  /** The owner's surface in the workbench, where its work objects open. */
+  readonly surface: string;
+  readonly preview: ActionDefinition | null;
+}
+
+/** Each declared 成果 type: display name, preview action and owner, from the built-in Manifests. */
+export function artifactTypeDeclarations(): ReadonlyMap<string, ArtifactTypeDeclaration> {
+  const declarations = new Map<string, ArtifactTypeDeclaration>();
+  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const type of entry.manifest.artifacts.produces) {
+    if (!type.title) continue;
+    const preview = type.preview ? entry.manifest.actions?.find(action => action.capability_id === type.preview!.capability_id && action.version === type.preview!.version) ?? null : null;
+    declarations.set(type.artifact_type_id, { title: type.title, plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name,
+      surface: entry.project_plugin_id, preview });
+  }
+  return declarations;
+}

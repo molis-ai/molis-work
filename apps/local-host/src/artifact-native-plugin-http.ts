@@ -7,9 +7,10 @@ import {
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { ExternalDocumentImportError } from "@molis-ai/molis-work-integration-catalog";
-import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
-import { codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
-import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
+import { artifactWorkbench, artifactTypeDeclarations, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
+import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
+import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dateTimeLocale, L } from "./web-locale.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
@@ -21,6 +22,8 @@ export interface ArtifactHttpContext {
   readonly actions: BoundActionClient;
   /** Pages, bound with its own permissions, for "在 Pages 继续". */
   readonly pages?: BoundActionClient;
+  /** A type owner's actions, bound with the permissions its preview declares (A4). */
+  readonly ownerActions?: (permissions: readonly string[]) => BoundActionClient;
   readonly controlToken: string;
   readonly desktopShell: boolean;
   readonly pageCsp: string;
@@ -31,6 +34,26 @@ function escape(value: string): string {
 }
 
 const primitives = { escape, text: (value: string) => escape(L(value)), formatDate: (value: string) => new Date(value).toLocaleString(dateTimeLocale()) };
+
+/**
+ * The owner's preview of a 成果 version (specs/artifact-positioning A4): the type's declared preview action turns the
+ * version into a file, rendered read-only, with a way back to the pinned work object in its owner.
+ */
+async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations: ReadonlyMap<string, ArtifactTypeDeclaration>, context: ArtifactHttpContext) {
+  const declaration = artifact ? declarations.get(artifact.artifact_type_id) : undefined;
+  // Only the type's declared owner previews it, and only versions that owner produced.
+  if (!artifact || artifact.availability !== "available" || !declaration?.preview || !context.ownerActions
+    || artifact.producer_plugin_id !== declaration.plugin_id) return undefined;
+  let content: FileContent;
+  try { content = await context.ownerActions(declaration.preview.action.permissions).invoke(declaration.preview, { artifact }) as FileContent; }
+  catch { return undefined; }
+  const pinned = artifact.origin.kind === "pinned" ? artifact.origin.subject : null;
+  return { body_html: renderFilePreviewHtml(content, primitives),
+    ...(artifact.origin.kind === "imported" ? { notice: "这是导入时保存的版本；原文后续修改不会自动同步。" } : {}),
+    source_href: pinned ? `${context.routePrefix}/?openPlugin=${encodeURIComponent(declaration.surface)}&openItem=${encodeURIComponent(pinned.id)}&openTitle=${encodeURIComponent(artifact.title)}` : "",
+    source_label: pinned ? `在${/^[\x20-\x7e]+$/u.test(declaration.plugin_title) ? ` ${declaration.plugin_title} ` : declaration.plugin_title}打开原对象` : "",
+    plugin_id: declaration.surface, item_id: pinned?.id ?? "" };
+}
 
 export function renderGoalArtifactContext(embeds: GoalArtifactEmbed[]): string {
   // The containing Goal fragment applies its Project prefix once to every local link.
@@ -116,11 +139,8 @@ export function createLocalArtifactHttp() {
         response.end();
         return true;
       }
-      // Coding's change sets are process items now, never in the 成果库; only its run report shows here.
-      const report = codingReportPreview(view.selected);
-      const presentation = report ? { body_html: renderFeedRichText(report.body_markdown),
-        source_href: `${context.routePrefix}/?openPlugin=coding&openItem=${encodeURIComponent(report.reference.artifact_id)}&openTitle=${encodeURIComponent(report.title)}`,
-        source_label: "在 Coding 打开原报告与会话", plugin_id: "coding", item_id: report.reference.artifact_id } : undefined;
+      const declarations = artifactTypeDeclarations();
+      const presentation = await ownerPreview(view.selected, declarations, context);
       const compact = requestHeader(request, "x-molis-work-fragment") === "frame-block";
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
@@ -128,6 +148,7 @@ export function createLocalArtifactHttp() {
       // The directory carries the 成果库's one import entry (A3); its dialog needs the connected document services.
       const available = compact ? null : await context.actions.invoke(artifactsActions.importSources, {});
       response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation,
+        typeTitles: Object.fromEntries([...declarations].map(([type, declaration]) => [type, declaration.title])),
         ...(available ? { importForm: { connectionStatus: available.sources, connections: available.connections } } : {}) }, compact ? "frame-block" : "detail"));
       return true;
     } catch (error) {

@@ -3,8 +3,6 @@ export const ARTIFACT_EN: Record<string, string> = {
   "此项目未启用该插件": "This plugin is not enabled for this project",
   "Coding 固定变更": "Coding saved changes",
   "Coding 执行报告": "Coding execution reports",
-  "在 Coding 打开原报告与会话": "Open the original report and task in Coding",
-  "在 Coding 查看固定变更并返回原任务": "Read saved changes and return to the original task in Coding",
   "这是保存时的文本审查，包含未执行提案；不代表当前文件状态或目标验收。": "These saved text reviews include proposals that were not applied. They do not represent current files or Goal acceptance.",
   "输入结果": "Input result",
   "产出结果": "Output result",

@@ -1,7 +1,7 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash } from "node:crypto";
-import { ActionError, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PagesBody, PagesFolder, PagesRecord, PagesInputSnapshot, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import { ActionError, bindArtifactPreview, defineArtifactPreviewAction, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PAGES_ARTIFACT_TYPE_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_AI_COMMANDS, runPagesAi, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
 import { promotePagesDocument, type PagesPublishArtifactPort, type PagesReadArtifactPort } from "./promote.js";
@@ -58,6 +58,8 @@ export const pagesActions = {
   fileEntries: defineFileEntriesAction("pages.files.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read),
   /** The document as Markdown, the same conversion Pages uses when it hands a page to another plugin. */
   fileContent: defineFileContentAction("pages.files.content", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read),
+  /** A pinned version of a document as Markdown (artifact-positioning A4), for the 成果库 and the side panel. */
+  artifactPreview: defineArtifactPreviewAction("pages.artifacts.preview", "文档", read),
   /** Where a document lives (specs/archive/work-placement): moving keeps its id; copying makes an independent document. */
   move: defineObjectMoveAction("pages.placement.move", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
   copy: defineObjectCopyAction("pages.placement.copy", [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
@@ -140,6 +142,13 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
         folder: document.folder_id && folders.get(document.folder_id) ? [folders.get(document.folder_id)!] : [], media_type: "text/markdown",
         size: null, updated_at: document.updated_at, open: { surface: "pages", id: document.id } }));
     })),
+    bindArtifactPreview(pagesActions.artifactPreview, PAGES_ARTIFACT_TYPE_ID, artifact => {
+      const payload = (artifact.payload ?? {}) as { title?: unknown; body?: unknown };
+      const nodes: Array<Parameters<typeof nodesToMarkdown>[0][number]> = [];
+      nodeFromUnknown(payload.body).forEach(node => { nodes.push(node); });
+      const title = typeof payload.title === "string" && payload.title ? payload.title : artifact.title;
+      return { media_type: "text/markdown", text: `# ${title}\n\n${nodesToMarkdown(nodes).trim()}\n` };
+    }),
     bind(pagesActions.fileContent, (input, caller) => ports.withStore(store => {
       let document: PagesRecord;
       try { document = store.get(input.subject.id, project(caller)); }

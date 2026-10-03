@@ -1,10 +1,11 @@
-import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindArtifactPreview, defineArtifactPreviewAction, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactConsumerType, ArtifactReference, ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
+import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactVersionPath, importedFileOf, type ArtifactBrowserView } from "./browser.js";
 import { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
 import type { ExternalDocumentSource } from "./document-import.js";
+import { DOCUMENT_ARTIFACT_TYPE } from "./document-type.js";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 import { text, id, version, object, array, nullable, reference, consumerTypes, record } from "./action-schemas.js";
@@ -39,6 +40,8 @@ function payloadText(value: unknown, out: string[] = [], budget = { left: 4000 }
   return out;
 }
 export const artifactsActions = {
+  /** An imported file as the 成果库 and side panel show it (artifact-positioning A4): its text, or its original bytes. */
+  preview: defineArtifactPreviewAction("artifacts.documents.preview", "导入的文件", read),
   subject,
   searchEntries,
   fileEntries,
@@ -74,6 +77,12 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => run(input as I, caller),
   });
   return [
+    bindArtifactPreview(artifactsActions.preview, DOCUMENT_ARTIFACT_TYPE, artifact => {
+      const file = importedFileOf(artifact);
+      if (!file) throw new ActionError("artifacts.unavailable", "这一版的内容不可用");
+      const text = /^text\//u.test(file.mime);
+      return { title: file.filename, media_type: file.mime.split(";")[0]!.trim(), ...(text ? { text: file.bytes.toString("utf8") } : { bytes: new Uint8Array(file.bytes) }) };
+    }),
     bind(artifactsActions.subject, (input, caller) => {
       const reference = parseArtifactSubjectId(input.subject_id);
       if (!reference) throw new ActionError("actions.invalid_input", "成果事项必须包含准确的成果 ID 和版本");

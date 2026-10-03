@@ -29,7 +29,8 @@ export const formManifest: PluginManifest = {
   actions: [...Object.values(formActions), ...Object.values(formContentActions)],
   capabilities: { provides: [], consumes: [] },
   artifacts: {
-    produces: [{ artifact_type_id: FORM_ARTIFACT_TYPE_ID, schema_version: FORM_ARTIFACT_SCHEMA_VERSION }],
+    produces: [{ artifact_type_id: FORM_ARTIFACT_TYPE_ID, schema_version: FORM_ARTIFACT_SCHEMA_VERSION, title: "问卷",
+      preview: { capability_id: "form.artifacts.preview", version: 1 } }],
     consumes: [],
   },
   ui: {

@@ -87,8 +87,9 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   assert.equal(detail.status, 200);
   const html = await detail.text();
   assert.match(html, /<h1>导入验收<\/h1>/);
-  assert.match(html, /artifact-document-body/);
-  assert.match(html, /保留中文正文和 \*\*Markdown\*\*/);
+  // The imported file's owner previews it (artifact-positioning A4): Markdown rendered read-only.
+  assert.match(html, /data-artifact-business-preview/);
+  assert.match(html, /保留中文正文和 <strong>Markdown<\/strong>/);
   assert.match(html, /&lt;script&gt;importAttack\(\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<script>importAttack\(\)<\/script>/);
   assert.match(html, /原文后续修改不会自动同步/);
@@ -395,7 +396,7 @@ test("any file imports as a 成果 with its original bytes and real media type; 
   assert.match(file.headers.get("content-disposition") ?? "", /^inline;/);
   assert.deepEqual(Buffer.from(await file.arrayBuffer()), png);
   const detail = await (await get(`/artifacts/${encodeURIComponent(image.artifact_id)}/versions/1`)).text();
-  assert.match(detail, /<img class="artifact-document-image"/);
+  assert.match(detail, /<img class="file-preview-image"[^>]*src="data:image\/png;base64,/);
   assert.match(detail, /下载原文件/);
   assert.doesNotMatch(detail, /data-artifact-continue/, "Pages cannot start a document from an image");
 

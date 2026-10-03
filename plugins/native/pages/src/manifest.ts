@@ -27,7 +27,8 @@ export const pagesManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   actions: [...PAGES_ACTIONS, ...Object.values(pagesContentActions)],
   artifacts: {
-    produces: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION }],
+    produces: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION, title: "文档",
+      preview: { capability_id: "pages.artifacts.preview", version: 1 } }],
     consumes: [],
   },
   ui: {

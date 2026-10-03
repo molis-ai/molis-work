@@ -3,23 +3,11 @@ import { icon } from "@molis-ai/molis-work-design-system";
 import { artifactVersionPath, PAGES_READABLE_FILE, type ArtifactBrowserView } from "./browser.js";
 import { renderArtifactImportDialog, type ArtifactImportUiModel } from "./import-ui.js";
 
-const ARTIFACT_TYPE_LABELS: Record<string, string> = {
-  "coding.report.v1": "Coding 执行报告",
-  "io.molis.work.goal.delivery": "Goal 交付",
-  "io.molis.work.feed.capture": "Feed 捕获",
-  "io.molis.work.document": "导入文档",
-  "io.molis.work.pages.document": "文档",
-  "io.molis.work.ppt.deck": "演示稿",
-  "io.molis.work.form.questionnaire": "问卷",
-  "io.molis.work.dataset.table": "数据表",
-  "character.definition.v1": "角色",
-};
-
-function artifactTypeFoldLabel(typeId: string, p: ArtifactBrowserUiModel["primitives"]): string {
-  const known = ARTIFACT_TYPE_LABELS[typeId];
-  if (known) return p.text(known);
-  const last = typeId.split(".").filter(Boolean).at(-1);
-  return last || typeId;
+/** A type's display name as its owner declares it (artifact-positioning A4); an undeclared type shows its last segment. */
+function artifactTypeLabel(typeId: string, titles: ArtifactBrowserUiModel["typeTitles"], p: ArtifactBrowserUiModel["primitives"]): string {
+  const declared = titles?.[typeId];
+  if (declared) return p.text(declared);
+  return typeId.split(".").filter(Boolean).at(-1) || typeId;
 }
 
 export const ARTIFACT_BROWSER_UI_CONTRIBUTION_ID = "io.molis.work.native.artifacts.browser.v1";
@@ -29,6 +17,8 @@ export interface ArtifactBrowserUiModel {
   readonly routePrefix: string;
   /** Sanitized business content supplied by Host composition, never raw Artifact HTML. */
   readonly presentation?: { readonly notice?: string; readonly body_html: string; readonly source_href: string; readonly source_label: string; readonly plugin_id: string; readonly item_id: string };
+  /** Display names the owners declare for their 成果 types (A4). */
+  readonly typeTitles?: Readonly<Record<string, string>>;
   readonly relationship?: "input" | "output";
   /** The import dialog's connected services; the directory offers the 成果库's one import entry when present (A3). */
   readonly importForm?: Pick<ArtifactImportUiModel, "connections" | "connectionStatus">;
@@ -39,7 +29,7 @@ export interface ArtifactBrowserUiModel {
   };
 }
 
-function directory({ view, routePrefix, primitives: p, importForm }: ArtifactBrowserUiModel): string {
+function directory({ view, routePrefix, primitives: p, importForm, typeTitles }: ArtifactBrowserUiModel): string {
   // The one import entry (specs/artifact-positioning A3): a dialog in the workbench, never a page of its own.
   const importLink = importForm ? `<header class="plugin-stage-chrome artifact-stage-chrome"><button class="mw-btn mw-btn--ghost tree-create artifact-import-entry" type="button" data-artifact-import-open>${icon("plus")}<span>${p.text("导入")}</span></button>${renderArtifactImportDialog({ ...importForm, routePrefix, primitives: p })}</header>` : "";
   if (!view.versions.length) return `${importLink}<p class="artifact-empty mw-empty">${p.text("还没有成果")}</p>`;
@@ -78,7 +68,7 @@ function directory({ view, routePrefix, primitives: p, importForm }: ArtifactBro
       <summary>
         <span class="goal-collection-caret" aria-hidden="true">${icon("chevron-down")}</span>
         <span class="goal-collection-mark is-${tone}" aria-hidden="true">${icon(mark)}</span>
-        <strong>${p.escape(artifactTypeFoldLabel(typeId, p))}</strong>
+        <strong>${p.escape(artifactTypeLabel(typeId, typeTitles, p))}</strong>
         <small>${versions.length}</small>
       </summary>
       <div class="artifact-stage-group-body" role="list">${rows}</div>
@@ -87,7 +77,7 @@ function directory({ view, routePrefix, primitives: p, importForm }: ArtifactBro
   return `${importLink}<nav aria-label="${p.text("成果版本")}" class="mw-dir__list artifact-version-list">${folds}</nav>`;
 }
 
-function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"], routePrefix: string): string {
+function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"], routePrefix: string, ownerPreview = false): string {
   if (artifact.artifact_type_id !== "io.molis.work.document" || artifact.schema_version !== 1
     || artifact.availability !== "available" || artifact.content_kind !== "inline") return "";
   const payload = artifact.payload;
@@ -113,7 +103,7 @@ function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>,
   return `<section class="artifact-document-preview" aria-label="${p.text("文档正文")}">
     ${sourceLink ? `<p class="artifact-document-source">${sourceLink}</p>` : ""}
     ${warnings.length ? `<aside class="artifact-document-warnings"><h2>${p.text("导入说明")}</h2><ul>${warnings.map(warning => `<li>${p.text(warning)}</li>`).join("")}</ul></aside>` : ""}
-    ${actions}${image}${payload.content ? `<h2>${p.text("文档正文")}</h2><div class="artifact-document-body">${p.escape(payload.content)}</div>` : ""}
+    ${actions}${ownerPreview ? "" : `${image}${payload.content ? `<h2>${p.text("文档正文")}</h2><div class="artifact-document-body">${p.escape(payload.content)}</div>` : ""}`}
   </section>`;
 }
 
@@ -129,8 +119,8 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${view.requested ? `<p>${p.text("它可能属于其他项目，或这个版本尚未发布。请返回列表选择；不会自动替换成最新版本。")}</p><a href="${p.escape(routePrefix + "/artifacts")}">${p.text("返回成果列表")}</a>` : ""}</section>`;
   const href = routePrefix + artifactVersionPath(artifact);
   const title = artifact.title;
-  const preview = documentPreview(artifact, p, routePrefix);
-  const notice = model.presentation && artifact.lifecycle_state !== "archived" ? model.presentation.notice ?? "这是保存时的固定报告。阅读不会重新执行任务，也不代表目标验收。" : view.compatibility?.reason === "artifact_unavailable"
+  const preview = documentPreview(artifact, p, routePrefix, Boolean(model.presentation));
+  const notice = model.presentation && artifact.lifecycle_state !== "archived" ? model.presentation.notice ?? "这是固定下来的一版；原对象之后的修改不会改变它。" : view.compatibility?.reason === "artifact_unavailable"
     ? "这个版本的内容不可用；引用和来源信息仍然保留。"
     : view.compatibility?.reason === "artifact_archived"
       ? "这个版本已归档，保留历史信息，不作为可消费的新结果。"
@@ -150,10 +140,10 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${heading}
     ${embedded ? "" : `<div class="artifact-detail-content">`}<p class="artifact-notice">${p.text(embedded && !preview && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice)}</p>
     ${artifact.unavailable_reason ? `<p>${p.escape(artifact.unavailable_reason)}</p>` : ""}
-    ${!embedded && model.presentation ? `<p><a class="mw-btn" href="${p.escape(model.presentation.source_href)}" data-workbench-item-plugin="${p.escape(model.presentation.plugin_id)}" data-workbench-item-id="${p.escape(model.presentation.item_id)}" data-workbench-item-title="${p.escape(title)}">${p.text(model.presentation.source_label)}</a></p><section class="artifact-business-preview mw-prose" data-artifact-business-preview>${model.presentation.body_html}</section>` : ""}
+    ${!embedded && model.presentation ? `${model.presentation.source_href ? `<p><a class="mw-btn" href="${p.escape(model.presentation.source_href)}" data-workbench-item-plugin="${p.escape(model.presentation.plugin_id)}" data-workbench-item-id="${p.escape(model.presentation.item_id)}" data-workbench-item-title="${p.escape(title)}">${p.text(model.presentation.source_label)}</a></p>` : ""}<section class="artifact-business-preview mw-prose" data-artifact-business-preview>${model.presentation.body_html}</section>` : ""}
     ${preview}
     <dl class="artifact-facts">
-      <div><dt>${p.text("结果类型")}</dt><dd>${p.escape(artifact.artifact_type_id)} · Schema ${artifact.schema_version}</dd></div>
+      <div><dt>${p.text("结果类型")}</dt><dd>${p.escape(artifactTypeLabel(artifact.artifact_type_id, model.typeTitles, p))} · ${p.escape(artifact.artifact_type_id)} · Schema ${artifact.schema_version}</dd></div>
       <div><dt>${p.text("来源插件")}</dt><dd>${p.escape(artifact.producer_plugin_id)} · ${p.escape(artifact.producer_plugin_version)}</dd></div>
       <div><dt>${p.text("范围")}</dt><dd>${p.text(artifact.scope === "personal" ? "个人" : "已共享到 Team Project")}</dd></div>
       <div><dt>${p.text("发布时间")}</dt><dd>${p.escape(p.formatDate(artifact.created_at))}</dd></div>

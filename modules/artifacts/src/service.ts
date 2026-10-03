@@ -338,7 +338,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       content_ref: contentRef,
       content_digest: digest,
       size_bytes: sizeBytes,
-      metadata: this.normalizeMetadata(input.metadata),
+      metadata: normalizedMetadata(input.metadata, this.error),
       scope,
       availability,
       unavailable_reason: unavailableReason,
@@ -370,16 +370,6 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
         "artifact.producer_mismatch",
         "Producer binding 已变化，请将结果作为新的成果处理",
       );
-    }
-  }
-
-  private normalizeMetadata(value: unknown): ArtifactVersionRecord["metadata"] {
-    try {
-      return normalizeArtifactMetadata(value);
-    } catch (error) {
-      throw this.error("artifact.metadata_invalid", "成果 metadata 必须是可往返的 JSON 对象", {
-        cause: error instanceof Error ? error.message : String(error),
-      });
     }
   }
 
@@ -424,6 +414,16 @@ function sameVersion(
     ...requestedEnvelope
   } = requested;
   return JSON.stringify(existingEnvelope) === JSON.stringify(requestedEnvelope);
+}
+
+function normalizedMetadata(value: unknown, error: ArtifactsErrorFactory): ArtifactVersionRecord["metadata"] {
+  try {
+    return normalizeArtifactMetadata(value);
+  } catch (cause) {
+    throw error("artifact.metadata_invalid", "成果 metadata 必须是可往返的 JSON 对象", {
+      cause: cause instanceof Error ? cause.message : String(cause),
+    });
+  }
 }
 
 function requiredText(

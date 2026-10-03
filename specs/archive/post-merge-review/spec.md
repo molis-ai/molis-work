@@ -2,7 +2,7 @@
 
 > 归档（2026-10-02）：判定为**已实现**。第一步第 9 节的完成标准全部满足，最终汇报见 §13；修复 PR 均已合入 main（最后一批 #181–#183），用户 10-02 确认未完成项按各条方案进后续。合入后由 #176/#177 引入的 9 条测试失败已由 #191 修复。剩余事项已在统一待办清单：BL-088～104、BL-108～113。
 
-状态：已完成，等最后几个 PR 合入（2026-10-02）。最终汇报见 §13。本文是第一步的唯一进度与证据记录。任务要求见 `docs/prompts/post-merge-functional-review.md`（以 `anti-rot` 分支上的版本为准）；第二步见 `docs/prompts/repository-anti-corruption.md`，以本文交付的 main、行为基线与 spec 梳理结果为起点。
+状态：已完成（2026-10-03 复核：本文提到的 PR 全部已合入 main）。最终汇报见 §13。本文是第一步的唯一进度与证据记录。任务要求见 `docs/prompts/post-merge-functional-review.md`（anti-rot 上的版本已于 2026-10-03 经 #216 合入 main，此后以 main 为准）；第二步见 `docs/prompts/repository-anti-corruption.md`，以本文交付的 main、行为基线与 spec 梳理结果为起点。
 
 ## 1. 范围与基线
 

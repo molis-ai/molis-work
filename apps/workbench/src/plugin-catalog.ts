@@ -294,6 +294,19 @@ export interface ArtifactTypeDeclaration {
   readonly compare: ActionDefinition | null;
 }
 
+/** A plugin that can start new work from a 成果 type (「从这一版继续」, A4b), whether it owns the type or only reads it. */
+export interface ArtifactContinuer { readonly plugin_id: string; readonly plugin_title: string; readonly action: ActionDefinition }
+
+/** For each 成果 type, the built-in plugins that declare they can continue from it. */
+export function artifactContinuers(): ReadonlyMap<string, readonly ArtifactContinuer[]> {
+  const continuers = new Map<string, ArtifactContinuer[]>();
+  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const type of [...entry.manifest.artifacts.produces, ...entry.manifest.artifacts.consumes]) {
+    const declared = type.continue, action = declared ? entry.manifest.actions?.find(item => item.capability_id === declared.capability_id && item.version === declared.version) : undefined;
+    if (action) continuers.set(type.artifact_type_id, [...continuers.get(type.artifact_type_id) ?? [], { plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action }]);
+  }
+  return continuers;
+}
+
 /** Each declared 成果 type: display name, preview and pin actions and owner, from the built-in Manifests. */
 export function artifactTypeDeclarations(): ReadonlyMap<string, ArtifactTypeDeclaration> {
   const declarations = new Map<string, ArtifactTypeDeclaration>();

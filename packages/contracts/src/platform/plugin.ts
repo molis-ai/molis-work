@@ -198,10 +198,12 @@ export interface PluginManifest {
    * names its pin action, defined with `defineArtifactPinAction`.
    * A type pinned from a work object names its compare action (`defineArtifactCompareAction`): whether the version still
    * matches the object, for 「原文已改」 (A4b).
+   * A plugin that can start new work from a version declares `continue` (`defineArtifactContinueAction`) on that type,
+   * whether it produces it or only consumes it (「从这一版继续」, A4b).
    */
   artifacts: {
-    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number } }>;
-    consumes: Array<{ artifact_type_id: string; schema_version: number }>;
+    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
+    consumes: Array<{ artifact_type_id: string; schema_version: number; continue?: { capability_id: string; version: number } }>;
   };
   /** Exchange data this Plugin records for others and reads from them; kept out of the 成果库. A type is either a 成果 type or a process item type. */
   process_items?: {

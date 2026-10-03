@@ -1,8 +1,6 @@
 import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import {agentHostCapabilities as agent} from '@molis-ai/molis-work-contracts/services/agent-host';
 import {projectSettingsCapabilities} from '@molis-ai/molis-work-contracts/modules/projects';
-import {builderAgentManifest} from './roles.js';
-import {BUILDER_ACTIONS} from './actions.js';
 export const BUILDER_PLUGIN_ID='io.molis.work.plugin-builder';
 export const BUILDER_PROJECT_PLUGIN_ID='plugin-builder';
 export const BUILDER_UI_ID='io.molis.work.plugin-builder.ui.v1';
@@ -12,15 +10,6 @@ export const builderManifest:PluginManifest={
  publisher:{publisher_id:'molis',signature:'official-plugin-builder-binding'},entrypoints:[{deployment:'local',entrypoint:'./index.js'}],
  permissions:[{permission:'storage:private',required:true,reason:'保存创作草稿、已发布定义和隔离的试用数据'}],
  capabilities:{provides:[],consumes:[agent.listRuntimes,agent.createSession,agent.readSession,agent.startRun,agent.readRun,agent.controlRun,projectSettingsCapabilities.workspaces].map(x=>x.capability_id)},
- artifacts:{produces:[],consumes:[]},agent:builderAgentManifest,actions:BUILDER_ACTIONS,
- routes:[
-  {route_id:'builder.inspiration-asset',method:'GET',path:'/assets/inspiration-atlas.png'},
-  {route_id:'builder.state',method:'GET',path:'/state'},
-  {route_id:'builder.create',method:'POST',path:'/builds'},
-  {route_id:'builder.read',method:'GET',path:'/builds/:id'},
-  {route_id:'builder.action',method:'POST',path:'/builds/:id/action'},
-  {route_id:'builder.preview',method:'GET',path:'/builds/:id/records'},
-  {route_id:'builder.record',method:'POST',path:'/builds/:id/records'},
- ],
+ artifacts:{produces:[],consumes:[]},
  ui:{contributions:[BUILDER_UI_ID],views:[{view_id:'directory',slot:'navigator',title:'插件创作工作台',contribution_id:BUILDER_UI_ID,icon:'wand',order:57}]},
 };

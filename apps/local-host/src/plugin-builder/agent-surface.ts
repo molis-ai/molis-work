@@ -10,7 +10,7 @@ import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contract
 import { assertContract, createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { prologueModelConfiguration } from '@molis-ai/molis-work-service-agent-host';
 import { resolvePluginComponentCall, escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
-import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderPromptVersion, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, renderAgentStudio, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderPromptVersion, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { openConfiguredModels } from '../configured-models.js';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
@@ -368,18 +368,18 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
 
 /** The agent-built plugin studio. All mutations reach this dispatcher after the shared local HTTP control guard. */
 export async function handleAgentStudioHttp(request: IncomingMessage, response: ServerResponse, url: URL, options: AgentStudioOptions, controlToken: string): Promise<boolean> {
-  const studioPage = url.pathname === '/plugin-builder/studio';
   const preview = /^\/plugin-builder\/studio\/preview\/([a-f0-9-]{36})$/u.exec(url.pathname);
   const api = /^\/api\/plugin-builder\/studio(\/.*)?$/u.exec(url.pathname);
   const installedPage = /^\/plugins\/(io\.molis\.work\.generated\.[a-f0-9-]{36})$/u.exec(url.pathname);
   const installedCall = /^\/api\/plugin-builder\/installed\/(io\.molis\.work\.generated\.[a-f0-9-]{36})\/call$/u.exec(url.pathname);
-  if (!studioPage && !preview && !api && !installedPage && !installedCall) return false;
+  if (!preview && !api && !installedPage && !installedCall) return false;
   const method = request.method ?? 'GET', prefix = options.routePrefix ?? '';
-  // These pages are frame documents: the workbench's stage or the host's own acceptance run asks for them with the frame
-  // marker. Opened directly, they open the workbench at their surface instead (specs/artifact-positioning S3).
+  // These pages are frame documents: the studio's trial or the host's own acceptance run asks for them with the frame
+  // marker. Opened directly, they open the workbench at their surface instead (specs/artifact-positioning S3). The studio
+  // itself is drawn in the workbench's stage (S4) and has no page of its own.
   const framed = url.searchParams.get('frame') === 'workbench';
   const openWorkbench = (query: string) => { response.writeHead(302, { location: prefix + '/?' + query, 'cache-control': 'no-store' }); response.end(); return true; };
-  if ((studioPage || preview) && method === 'GET' && !framed) return openWorkbench('openPlugin=plugin-builder');
+  if (preview && method === 'GET' && !framed) return openWorkbench('openPlugin=plugin-builder');
   try {
     if (installedPage || installedCall) {
       if (!options.homeDirectory) throw new Error('安装插件需要本机数据目录');
@@ -415,7 +415,6 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     if (served && /^(127\.0\.0\.1|localhost|\[::1\]):\d{1,5}$/.test(served)) studio.origin = 'http://' + served;
     else if (url.port) studio.origin = url.origin;
     const factories = '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')(),api:p=>' + literal(prefix + '/api/plugin-builder/studio') + '+p,preview:id=>' + literal(prefix + '/plugin-builder/studio/preview/') + '+id,plugin:id=>' + literal(prefix + '/plugins/') + '+id,components:' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT;
-    if (studioPage && method === 'GET') { html(response, page('插件创作工作台', renderAgentStudio(), factories + ',mode:"studio"});', controlToken)); return true; }
     if (preview && method === 'GET') {
       const build = workflow.store.require(preview[1]!);
       html(response, page(build.title, '<main class="as-preview-page" data-studio-preview="' + escapeHtml(build.id) + '"></main>', factories + ',mode:"preview",acceptance:' + literal(url.searchParams.get('acceptance')) + ',build:' + literal(build.id) + '});', controlToken));

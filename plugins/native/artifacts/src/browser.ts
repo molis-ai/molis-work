@@ -2,7 +2,7 @@ import type {
   ArtifactConsumptionCompatibility, ArtifactConsumerType, ArtifactReference,
   ArtifactsQueryApi, ArtifactVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { ARTIFACT_SUBJECT_KIND, artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, subjectContext, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface ArtifactBrowserView {
@@ -103,20 +103,12 @@ const INLINE_IMAGE = /^image\/(?:png|jpeg|gif|webp|avif)$/u;
  * read into. Null when the version is not an available imported document.
  */
 export function importedFileOf(artifact: ArtifactVersionRecord | null): { filename: string; mime: string; bytes: Buffer; inline: boolean } | null {
-  if (!artifact || artifact.artifact_type_id !== "io.molis.work.document" || artifact.availability !== "available"
-    || artifact.content_kind !== "inline") return null;
-  const payload = artifact.payload as { content?: unknown; format?: unknown; original_file?: { filename?: unknown; mime?: unknown; data_base64?: unknown } } | null;
-  const original = payload?.original_file;
-  if (original && typeof original.filename === "string" && typeof original.mime === "string" && typeof original.data_base64 === "string") {
-    return { filename: original.filename, mime: original.mime, bytes: Buffer.from(original.data_base64, "base64"), inline: INLINE_IMAGE.test(original.mime) };
-  }
-  if (typeof payload?.content !== "string") return null;
-  const text = payload.format === "text";
-  return { filename: `${artifact.title}.${text ? "txt" : "md"}`, mime: `${text ? "text/plain" : "text/markdown"}; charset=utf-8`, bytes: Buffer.from(payload.content, "utf8"), inline: false };
+  const file = importedDocumentFile(artifact);
+  if (!file) return null;
+  const bytes = file.data_base64 !== undefined ? Buffer.from(file.data_base64, "base64") : Buffer.from(file.text ?? "", "utf8");
+  return { filename: file.filename, mime: file.mime, bytes, inline: file.data_base64 !== undefined && INLINE_IMAGE.test(file.mime) };
 }
 
-/** What Pages can start documents from: text it reads, and the Word, CSV and ZIP (e.g. Notion export) files it parses. */
-export const PAGES_READABLE_FILE = /\.(?:md|markdown|txt|html?|csv|docx|zip)$/iu;
 
 export function artifactVersionPath(reference: ArtifactReference): string {
   return `/artifacts/${encodeURIComponent(reference.artifact_id)}/versions/${reference.version}`;

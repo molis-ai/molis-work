@@ -317,28 +317,28 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     dialog.addEventListener("close", () => { if (imported && !artifactRequest) void loadArtifacts(artifactPath || route("/artifacts"), true); }, { once: true });
     dialog.showModal();
   };
-  // "在 Pages 继续": Pages starts a document from this version and opens it here.
-  const continueInPages = async (button) => {
+  // 「从这一版继续」 (A4b): the chosen plugin starts a new object from this version and it opens here.
+  const continueFrom = async (button) => {
     if (button.disabled) return;
     button.disabled = true;
     let status = button.parentElement.querySelector("[data-artifact-continue-status]");
-    if (!status) { status = document.createElement("span"); status.dataset.artifactContinueStatus = ""; status.role = "status"; button.after(status); }
+    if (!status) { status = document.createElement("span"); status.dataset.artifactContinueStatus = ""; status.role = "status"; button.parentElement.append(status); }
     status.textContent = "";
     try {
-      const response = await fetch(route("/api/artifacts/continue-in-pages"), { method: "POST",
+      const response = await fetch(route("/api/artifacts/continue"), { method: "POST",
         headers: { ...(globalThis.molisWorkControlHeaders?.() || {}), "content-type": "application/json", "x-molis-work-idempotency-key": crypto.randomUUID() },
-        body: JSON.stringify({ reference: JSON.parse(button.dataset.artifactReference) }) });
+        body: JSON.stringify({ reference: JSON.parse(button.dataset.artifactReference), plugin_id: button.dataset.artifactContinue }) });
       const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.document?.id) throw new Error(payload?.error || L("没能在 Pages 打开这一版"));
-      openTabItem?.("pages", payload.document.id, payload.document.title);
+      if (!response.ok || !payload?.open?.id) throw new Error(payload?.error || L("没能从这一版继续"));
+      openTabItem?.(payload.open.surface, payload.open.id, payload.open.title);
     } catch (error) { status.textContent = error.message; }
     finally { button.disabled = false; }
   };
   document.addEventListener("click", event => {
     const importButton = event.target.closest("[data-artifact-import-open]");
     if (importButton) { openImport(importButton); return; }
-    const continueButton = event.target.closest('[data-artifact-continue="pages"]');
-    if (continueButton) { void continueInPages(continueButton); return; }
+    const continueButton = event.target.closest("[data-artifact-continue]");
+    if (continueButton) { void continueFrom(continueButton); return; }
     const retryButton = event.target.closest("[data-artifact-retry]");
     if (retryButton) { void loadArtifacts(retryButton.dataset.artifactRetry); return; }
     const collapse = event.target.closest("[data-artifact-collapse]");

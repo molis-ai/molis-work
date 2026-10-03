@@ -22,6 +22,12 @@ export const ARTIFACT_EMBED_STYLES = `
 
 export const ARTIFACT_WORKBENCH_STYLES = `${ARTIFACT_IMPORT_STYLES}${FILE_PREVIEW_STYLES}
   .artifact-version-list { display:flex; flex-direction:column; gap:4px; }
+  /* 「被谁引用」, 「从这一版继续」 and 「作为 Goal 的输入」 (artifact-positioning A4b). */
+  .artifact-links ul { margin:8px 0; padding-left:20px; }
+  .artifact-links li span { margin-left:8px; color:var(--muted); font-size:12px; }
+  .artifact-links-other { color:var(--muted); font-size:12px; }
+  .artifact-continue-actions, .artifact-goal-input form { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+  .artifact-goal-input form select { flex:1 1 200px; min-width:0; }
   .artifact-import-entry { text-decoration:none; }
   .artifact-version-list .mw-dir-row,
   .artifact-version-list .feed-stage-entry { width:100%; }

@@ -17,7 +17,9 @@ const SOURCES = [
 ] as const;
 
 export const ARTIFACT_IMPORT_STYLES = `
-  .artifact-import-dialog { width:min(560px, calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow:auto; overflow-wrap:anywhere; }
+  /* Outranks the design system's dialog.mw-dialog (no padding) and form dialogs (overflow hidden): this one scrolls its own content. */
+  dialog.mw-dialog.artifact-import-dialog { width:min(560px, calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow:auto; overflow-wrap:anywhere; padding:24px; }
+  @media (max-width:520px) { dialog.mw-dialog.artifact-import-dialog { padding:16px; } }
   .artifact-import-dialog header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
   .artifact-import-dialog h2 { margin:0; font-size:18px; line-height:1.4; }
   .artifact-import-intro { color:var(--muted); margin:0 0 20px; }

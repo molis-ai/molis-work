@@ -7,7 +7,7 @@ import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
+import { declaredArtifactTypes, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
 import { withSelectedEventDocument, type WebViewOptions } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
@@ -217,7 +217,8 @@ async function withSelectedGoalDocument(
   const policyBindings = history.bindings.filter(binding => binding.goal_id === null || binding.goal_id === goalId);
   let html: string | undefined;
   if (collection !== "trash") try {
-    const { embeds } = await actions.invoke(artifactsActions.goalEmbeds, { goal_id: goalId });
+    // Every declared 成果 type has an owner that reads it (artifact-positioning A4): none of them is "no compatible plugin".
+    const { embeds } = await actions.invoke(artifactsActions.goalEmbeds, { goal_id: goalId, supported_types: declaredArtifactTypes() });
     html = renderGoalArtifactContext(embeds);
   } catch (error) {
     if (!(error instanceof ActionError) || !["actions.plugin_disabled", "actions.forbidden", "actions.missing"].includes(error.code)) throw error;

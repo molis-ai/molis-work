@@ -20,7 +20,8 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 | services | 何时有 | 做什么 |
 | --- | --- | --- |
 | `storage` | 声明了私人存储 | get/set/delete；可选 `compareAndSet`。需要冲突检测时 Host 没有该方法就拒绝，不要用 get+set 假装原子 |
-| `artifacts` | 一直在 | publish / 按 id+version read。Host 绑定项目、用户、生产者 |
+| `artifacts` | 一直在 | publish 固定一版成果：除内容外必须写 `origin`（`{kind:"pinned", subject:{kind,id}, revision}` 或导入文件 `{kind:"imported", file_name}`）、`title`、真实 `media_type`，可选 `trace`（来自哪些过程项）；按 id+version read 成果或过程项。Host 绑定项目、用户、生产者 |
+| `processItems` | 声明了 `process_items.produces` | `record` 记下交给别的插件的过程项（不进成果库）；端口 `outputs.publish` 也是过程项 |
 | `ui` | 一直在 | register/unregister Manifest 声明过的 contribution |
 | `events` | 声明了 publishes | `publish({ event_type_id, type_version, payload })`。没声明就没有这个 client |
 | `inputs` / `outputs` | 声明了端口 | 输入读绑定和 `selectedGroup`。输出是 `publish`、`invalidate`、`retain`。`scope_key` 由 Host 创建 client 时附上，见 [elements.md](elements.md) |

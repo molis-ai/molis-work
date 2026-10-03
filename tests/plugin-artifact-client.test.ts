@@ -11,6 +11,7 @@ import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-
 import type { PluginArtifactClient, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 test("installed Plugins exchange exact Artifact versions by type, with bound authority and real denied side effects", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-artifacts-"));
@@ -48,7 +49,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     }
     const producer = await author("producer");
     const consumer = await author("consumer");
-    const value = { artifact_id: "plugin-note", version: 1, artifact_type_id: "example.note", schema_version: 1,
+    const value = { ...pinnedArtifact("First", { kind: "note", id: "plugin-note" }), artifact_id: "plugin-note", version: 1, artifact_type_id: "example.note", schema_version: 1,
       content: { kind: "inline" as const, payload: { title: "First", custom: [1, "opaque", null] } },
       board_id: "forged-board", actor_id: "forged-user", scope: "team_project", team_share_authorized: true,
       producer: { plugin_id: "forged", plugin_version: "9.0.0", binding_signature: "forged" } };

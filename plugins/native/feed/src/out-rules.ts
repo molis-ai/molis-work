@@ -1,5 +1,5 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type {
   ArtifactJsonValue,
@@ -240,8 +240,9 @@ export function registerFeedCaptureVersion(
       feed_item_id: item.item_id,
       rule_id: rule.rule_id,
     },
-    // The message as captured (artifact-positioning A1); a later edit of the item is captured as a new version.
-    origin: { kind: "pinned", subject: { kind: "feed_item", id: item.item_id }, revision: String(item.revision ?? item.updated_at) },
+    // The message as captured (artifact-positioning A1): its revision is the captured content, so the same envelope
+    // re-ingested replays the same version and an edited item is captured as a new one.
+    origin: { kind: "pinned", subject: { kind: "feed_item", id: item.item_id }, revision: createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 16) },
     title: item.title.trim() || "Feed 捕获", media_type: "application/json",
     ...(supersedes != null ? { supersedes_version: supersedes } : {}),
   });

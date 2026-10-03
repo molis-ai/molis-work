@@ -21,6 +21,7 @@ import {
 } from "@molis-ai/molis-work-module-goals";
 import {
   ARTIFACTS_SCHEMA_SQL,
+  PROCESS_ITEMS_SCHEMA_SQL,
   migrateArtifactsSchema,
   type ArtifactsSqliteDatabase,
 } from "@molis-ai/molis-work-module-artifacts";
@@ -136,7 +137,7 @@ export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {
 
         ${GOVERNANCE_SCHEMA_SQL}
 
-        ${ARTIFACTS_SCHEMA_SQL}
+        ${ARTIFACTS_SCHEMA_SQL} ${PROCESS_ITEMS_SCHEMA_SQL}
 
         ${CLARIFICATION_SCHEMA_SQL}
 
@@ -325,7 +326,7 @@ export function migrateLocalProjectDatabase(storage: LocalSqliteStorage): void {
     const artifactsApplied = schema.hasMigration(31);
     const artifactsTable = schema.hasTable("artifacts");
     const artifactVersionsTable = schema.hasTable("artifact_versions");
-    if (!artifactsApplied || !artifactsTable || !artifactVersionsTable) {
+    if (!artifactsApplied || !artifactsTable || !artifactVersionsTable || !schema.hasTable("process_item_versions")) {
       migrateArtifactsSchema(storage.db as unknown as ArtifactsSqliteDatabase);
     }
     const goalEventFactsApplied = schema.hasMigration(32);

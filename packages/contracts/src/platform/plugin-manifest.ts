@@ -87,15 +87,18 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   const capabilities = record(manifest.capabilities, "capabilities");
   strings(capabilities.provides, "capabilities.provides");
   strings(capabilities.consumes, "capabilities.consumes");
-  const artifacts = record(manifest.artifacts, "artifacts");
-  for (const key of ["produces", "consumes"] as const) {
-    const types = artifacts[key];
-    if (!Array.isArray(types)) invalid(`artifacts.${key} 必须为数组`);
-    for (const value of types) {
-      const type = record(value, `artifacts.${key}`);
-      if (!text(type.artifact_type_id) || typeof type.schema_version !== "number"
-        || !Number.isSafeInteger(type.schema_version) || type.schema_version < 1) {
-        invalid("成果必须声明 type ID 与正整数 schema_version");
+  for (const field of ["artifacts", "process_items"] as const) {
+    if (field === "process_items" && manifest.process_items === undefined) continue;
+    const declared = record(manifest[field], field);
+    for (const key of ["produces", "consumes"] as const) {
+      const types = declared[key];
+      if (!Array.isArray(types)) invalid(`${field}.${key} 必须为数组`);
+      for (const value of types) {
+        const type = record(value, `${field}.${key}`);
+        if (!text(type.artifact_type_id) || typeof type.schema_version !== "number"
+          || !Number.isSafeInteger(type.schema_version) || type.schema_version < 1) {
+          invalid("类型必须声明 type ID 与正整数 schema_version");
+        }
       }
     }
   }
@@ -380,26 +383,29 @@ function inspectPortPermissions(parsed: PluginManifest): string[] {
     problems.push("声明了输入端口就必须声明 artifact:read 权限");
   }
 
-  // Ports and the Artifact declarations must agree. `artifacts.produces` and
-  // `artifacts.consumes` remain the one security-relevant list the Host checks
-  // at publish time; a port naming a type that is missing there would only fail
-  // on the first publish.
+  // Ports and the type declarations must agree. `artifacts` and `process_items` remain the security-relevant lists the
+  // Host checks at publish time; a port naming a type missing from both would only fail on the first publish.
   const typeKey = (artifactTypeId: string, schemaVersion: number) =>
     `${artifactTypeId}@${schemaVersion}`;
-  const produces = new Set(parsed.artifacts.produces
-    .map((item) => typeKey(item.artifact_type_id, item.schema_version)));
-  const consumes = new Set(parsed.artifacts.consumes
-    .map((item) => typeKey(item.artifact_type_id, item.schema_version)));
+  // A port carries either kind: process items it records, or 成果 it pins and then selects.
+  const keys = (items: ReadonlyArray<{ artifact_type_id: string; schema_version: number }> | undefined) =>
+    new Set((items ?? []).map((item) => typeKey(item.artifact_type_id, item.schema_version)));
+  const pinned = keys(parsed.artifacts.produces), recorded = keys(parsed.process_items?.produces);
+  const produces = new Set([...pinned, ...recorded]);
+  const consumes = new Set([...keys(parsed.artifacts.consumes), ...keys(parsed.process_items?.consumes)]);
+  for (const key of pinned) {
+    if (recorded.has(key)) problems.push(`类型 ${key} 不能既是成果又是过程项`);
+  }
   for (const output of ports.outputs) {
     const key = typeKey(output.artifact_type_id, output.schema_version);
     if (!produces.has(key)) {
-      problems.push(`输出端口 ${output.port} 的类型 ${key} 没有列入 artifacts.produces`);
+      problems.push(`输出端口 ${output.port} 的类型 ${key} 没有列入 artifacts.produces 或 process_items.produces`);
     }
   }
   for (const port of ports.inputs) {
     const key = typeKey(port.artifact_type_id, port.schema_version);
     if (!consumes.has(key)) {
-      problems.push(`输入端口 ${port.port} 的类型 ${key} 没有列入 artifacts.consumes`);
+      problems.push(`输入端口 ${port.port} 的类型 ${key} 没有列入 artifacts.consumes 或 process_items.consumes`);
     }
   }
   return problems;

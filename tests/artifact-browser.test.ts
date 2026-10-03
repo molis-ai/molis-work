@@ -363,48 +363,30 @@ test("Coding report Artifact reads its fixed body and source, rejects forged own
 });
 
 
-test("Coding changeset Artifact renders exact original proposals and states, with a validated return to its task", async (t) => {
-  const { coordinator, surface, direct } = await fixture(t);
+test("A Coding changeset is a process item: it never shows in the 成果库, and the 成果库 never renders one", async (t) => {
+  // specs/artifact-positioning A2: change sets are exchange data for Git and Diff, kept in Coding's process items.
+  const { coordinator, surface } = await fixture(t);
   const fixedId = "coding-changeset:session-fixed:run-original";
   const payload = { scope: "run-frozen", run_id: "run-original", applied: false, coverage: "text-reviews",
     origin: { session_id: "session-fixed", runtime_session_id: "sdk", workspace_id: "w", workspace_name: "授权工作区" },
-    files: [false, true].map((applied, i) => ({ path: "cart.mjs", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
-      review: { review_id: `review-${i}`, before_text: `before-${i}\n`, after_text: `after-${i} <script>attack()</script>\n`,
-        decision: applied ? "approved" : "rejected", execution: applied ? "applied" : "not-applied" } })) };
+    files: [{ path: "cart.mjs", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
+      review: { review_id: "review-0", before_text: "before\n", after_text: "after\n", decision: "approved", execution: "applied" } }] };
   const input = registration({ artifact_id: fixedId, artifact_type_id: "coding.changeset.v1",
     producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.20.0", binding_signature: "official-coding-binding" },
     content: { kind: "inline", payload }, metadata: { title: "购物车的固定变更" } });
-  const original = coordinator.artifacts.commands.registerVersion(input).artifact;
+  const recorded = coordinator.processItems.commands.registerVersion(input).artifact;
+  assert.equal(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, { artifact_id: fixedId, version: 1 }), null);
+  assert.deepEqual(coordinator.processItems.query.getArtifactVersion(DEMO_BOARD_ID, { artifact_id: fixedId, version: 1 }), recorded);
+  const list = await (await surface("/artifacts")).text();
+  assert.doesNotMatch(list, /购物车的固定变更|coding-changeset/);
   const path = `/artifacts/${encodeURIComponent(fixedId)}/versions/1`;
-  const opened = await direct(path);
-  assert.equal(opened.status, 302);
-  assert.equal(new URL(opened.headers.get("location")!, "http://x").searchParams.get("openItem"), path);
-  {
-    const response = await surface(path); assert.equal(response.status, 200);
-    const html = await response.text();
-    assert.match(html, /data-artifact-business-preview/);
-    assert.match(html, /<h1>购物车的固定变更<\/h1>/);
-    assert.match(html, /cart.mjs · 修改 1 · 已拒绝 \/ 未执行/);
-    assert.match(html, /cart.mjs · 修改 2 · 已批准 \/ 已执行/);
-    assert.match(html, /after-0 &lt;script&gt;/); assert.match(html, /after-1 &lt;script&gt;/);
-    assert.match(html, /在 Coding 查看固定变更并返回原任务/);
-    assert.ok(html.includes(`openItem=${encodeURIComponent(fixedId)}`));
-    assert.doesNotMatch(html, /<script>attack\(\)<\/script>|data-coding-line=|data-action="diff.show-file"/);
-  }
-  assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, { artifact_id: fixedId, version: 1 }), original);
-  const forgeries = [
-    { ...input, artifact_id: "coding-changeset:session-forged:run-original" },
-    { ...input, version: 2 },
-    { ...input, artifact_id: "coding-changeset:session-fixed:wrong-owner", producer: { ...input.producer, plugin_id: "untrusted" }, content: { kind: "inline" as const, payload: { ...payload, run_id: "wrong-owner" } } },
-    { ...input, artifact_id: "coding-changeset:session-fixed:live", content: { kind: "inline" as const, payload: { ...payload, run_id: "live", scope: "current" } } },
-  ];
-  for (const forged of forgeries) {
-    coordinator.artifacts.commands.registerVersion(forged);
-    const html = await (await surface(`/artifacts/${encodeURIComponent(forged.artifact_id)}/versions/${forged.version}`)).text();
-    assert.doesNotMatch(html, /data-artifact-business-preview|在 Coding 查看固定变更并返回原任务/);
-  }
-  coordinator.artifacts.commands.archiveVersion({ board_id: DEMO_BOARD_ID, artifact_id: fixedId, version: 1, actor_id: "report-owner" });
-  const archived = await (await surface(path)).text(); assert.match(archived, /这个版本已归档/); assert.match(archived, /data-artifact-business-preview/);
-  coordinator.artifacts.commands.markUnavailable({ board_id: DEMO_BOARD_ID, artifact_id: fixedId, version: 1, actor_id: "report-owner", reason: "正文不可用" });
-  const unavailable = await (await surface(path)).text(); assert.doesNotMatch(unavailable, /data-artifact-business-preview|在 Coding 查看固定变更并返回原任务/);
+  const response = await surface(path);
+  assert.equal(response.status, 404);
+  const html = await response.text();
+  assert.match(html, /找不到这个/);
+  assert.doesNotMatch(html, /data-artifact-business-preview|在 Coding 查看固定变更并返回原任务|cart\.mjs/);
+  // Even written straight into the 成果库 under the same identity, the 成果库 shows no change set preview of its own.
+  coordinator.artifacts.commands.registerVersion({ ...input, artifact_id: "coding-changeset:session-fixed:in-library" });
+  const direct = await (await surface(`/artifacts/${encodeURIComponent("coding-changeset:session-fixed:in-library")}/versions/1`)).text();
+  assert.doesNotMatch(direct, /data-artifact-business-preview|在 Coding 查看固定变更并返回原任务/);
 });

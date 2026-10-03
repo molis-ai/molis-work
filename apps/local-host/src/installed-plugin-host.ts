@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import type { ActionCallContext, ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { ActionService } from '@molis-ai/molis-work-kernel';
-import { ArtifactsModule } from '@molis-ai/molis-work-module-artifacts';
+import { ArtifactsModule, ProcessItemsModule } from '@molis-ai/molis-work-module-artifacts';
 import { AgentBuilderStore, type AgentDesign, type AgentRelease, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import { goalsActions } from '@molis-ai/molis-work-plugin-goals';
 import { createReminderActionHandlers, REMINDER_ACTIONS, SCHEDULE_REMINDER_PROVIDER_ID, createScheduledOperations, createScheduledOperationActionHandlers,
@@ -93,7 +93,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const platform = createPluginPlatform({ board_id: boardId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(),
-    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
     capturePrivateData: id => privateStorage.snapshotInstallationData(id),
     restorePrivateData: (id, snapshot) => privateStorage.restoreInstallationData(id, snapshot as ReturnType<typeof privateStorage.snapshotInstallationData>),

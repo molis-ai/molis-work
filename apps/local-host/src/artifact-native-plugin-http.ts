@@ -6,9 +6,7 @@ import {
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { ExternalDocumentImportError } from "@molis-ai/molis-work-integration-catalog";
 import { artifactWorkbench, renderArtifactImportPage } from "@molis-ai/molis-work-app-workbench";
-import { codingChangeSetPreview, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
-import { compareRunChangeSet, renderDiff } from "@molis-ai/molis-work-plugin-diff";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
 import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
 import { dateTimeLocale, htmlLang, L } from "./web-locale.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
@@ -93,23 +91,11 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
         response.end();
         return true;
       }
-      const report = codingReportPreview(view.selected), changes = codingChangeSetPreview(view.selected);
-      const changesHtml = changes?.change.files.map((file, index) => {
-        const comparison = compareRunChangeSet({ content: changes.change, source_plugin_id: "io.molis.work.coding", content_version: changes.reference.version }, undefined, index);
-        const decisions = { pending: "待审", approved: "已批准", rejected: "已拒绝", cancelled: "已取消", expired: "已过期" };
-        const executions = { applied: "已执行", failed: "执行失败", unknown: "执行结果未知", "not-applied": "未执行" };
-        const status = file.review ? `${L(decisions[file.review.decision])} / ${L(executions[file.review.execution])}` : L("旧版记录");
-        return `<details${index === 0 ? " open" : ""}><summary>${escape(file.path)} · ${L("修改")} ${index + 1} · ${escape(status)}</summary>${renderDiff({ route_prefix: context.routePrefix,
-          view: { ...comparison, files: [] }, primitives: { escape: value => escape(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } })}</details>`;
-      }).join("");
+      // Coding's change sets are process items now, never in the 成果库; only its run report shows here.
+      const report = codingReportPreview(view.selected);
       const presentation = report ? { body_html: renderFeedRichText(report.body_markdown),
         source_href: `${context.routePrefix}/?openPlugin=coding&openItem=${encodeURIComponent(report.reference.artifact_id)}&openTitle=${encodeURIComponent(report.title)}`,
-        source_label: "在 Coding 打开原报告与会话", plugin_id: "coding", item_id: report.reference.artifact_id } : changes ? {
-          body_html: changesHtml || `<p>${escape(L("这一轮没有可读取的文本审查；命令及外部操作请查看原回执"))}</p>`,
-          notice: "这是保存时的文本审查，包含未执行提案；不代表当前文件状态或目标验收。",
-          source_href: `${context.routePrefix}/?openPlugin=coding&openItem=${encodeURIComponent(changes.reference.artifact_id)}&openTitle=${encodeURIComponent(changes.title)}`,
-          source_label: "在 Coding 查看固定变更并返回原任务", plugin_id: "coding", item_id: changes.reference.artifact_id,
-        } : undefined;
+        source_label: "在 Coding 打开原报告与会话", plugin_id: "coding", item_id: report.reference.artifact_id } : undefined;
       const compact = requestHeader(request, "x-molis-work-fragment") === "frame-block";
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",

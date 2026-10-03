@@ -68,15 +68,14 @@ export const codingManifest: PluginManifest = {
       ...Object.values(writerIntegrationCapabilities).map(entry => entry.capability_id),
     ],
   },
+  // The run report is the version people keep; plans, goal context, change sets and diagrams are exchange data.
   artifacts: {
-    produces: [
-      { artifact_type_id: CODING_PLAN_TYPE, schema_version: 1 },
-      { artifact_type_id: CODING_GOAL_CONTEXT_TYPE, schema_version: 1 },
-      { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
-      { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 },
-      { artifact_type_id: CODING_DIAGRAM_TYPE, schema_version: 1 },
-    ],
-    consumes: [CODING_PLAN_TYPE, CHARACTER_ARTIFACT_TYPE, SHELF_TEXT_MATERIAL_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_REPORT_TYPE, CODING_CHANGESET_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+    produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 }],
+    consumes: [CHARACTER_ARTIFACT_TYPE, CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+  },
+  process_items: {
+    produces: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, CODING_DIAGRAM_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+    consumes: [CODING_PLAN_TYPE, SHELF_TEXT_MATERIAL_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
   },
   ports: {
     inputs: [

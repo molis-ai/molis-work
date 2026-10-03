@@ -49,7 +49,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   const material=await request(materialPath); assert.equal(material.status,200);
   assert.deepEqual(material.body.payload.source.artifact.reference,reference);
   const published=await request(materialPath,{expected_fingerprint:material.body.fingerprint}); assert.equal(published.status,200);
-  const saved=app.artifacts.query.getArtifactVersion(boardId,published.body.reference)!;
+  const saved=app.processItems.query.getArtifactVersion(boardId,published.body.reference)!; // project materials are process items (A2)
   assert.equal((saved.payload as any).text,'只改 Shelf 副本，来源保持。'); assert.deepEqual((saved.payload as any).source.artifact.reference,reference);
   const materials=await request('/api/plugins/io.molis.work.coding/sessions/app/materials'); assert.equal(materials.status,200,JSON.stringify(materials.body)); assert.equal(materials.body.materials[0].text,'只改 Shelf 副本，来源保持。');
   const restarted=openShelfStore(home,{disabled:true}); assert.deepEqual(restarted.readFile(item.item_id).item.artifact_source,item.artifact_source);

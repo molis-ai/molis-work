@@ -31,14 +31,24 @@ export interface ArtifactEventInput {
   boardId: string;
   actorId: string;
   type: string;
-  objectType: "artifact";
+  objectType: VersionStoreKind;
   objectId: string;
   reason: string;
   payload: Record<string, unknown>;
   at: string;
 }
 
+/** Which store a service writes: the 成果库, or the process items plugins pass between each other. */
+export type VersionStoreKind = "artifact" | "process_item";
+
+const STORE_EVENT_REASONS: Record<VersionStoreKind, { published: string; registered: string; archived: string }> = {
+  artifact: { published: "Plugin 发布了成果", registered: "Plugin 注册了新的成果版本", archived: "成果版本已归档" },
+  process_item: { published: "插件记下了过程项", registered: "插件记下了过程项的新版本", archived: "过程项版本已归档" },
+};
+
 export interface ArtifactsServiceOptions {
+  /** Defaults to the 成果库. */
+  kind?: VersionStoreKind;
   now?: () => string;
   errorFactory?: ArtifactsErrorFactory;
   appendEvent: (input: ArtifactEventInput) => number;
@@ -47,6 +57,7 @@ export interface ArtifactsServiceOptions {
 export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi {
   private readonly now: () => string;
   private readonly error: ArtifactsErrorFactory;
+  private readonly kind: VersionStoreKind;
 
   constructor(
     readonly repository: ArtifactsRepository,
@@ -54,6 +65,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
     this.error = options.errorFactory ?? defaultArtifactsErrorFactory;
+    this.kind = options.kind ?? "artifact";
   }
 
   getArtifactVersion(boardId: string, reference: ArtifactReference): ArtifactVersionRecord | null {
@@ -161,13 +173,13 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       const record: ArtifactVersionRecord = { ...normalized, created_at: at };
       this.repository.insertVersion(record);
       const observedEventCursor = this.options.appendEvent({
-        eventId: `event:artifact:${record.artifact_id}:${record.version}:registered`,
+        eventId: `event:${this.kind}:${record.artifact_id}:${record.version}:registered`,
         boardId: record.board_id,
         actorId: record.created_by,
-        type: latest ? "artifact.version_registered" : "artifact.published",
-        objectType: "artifact",
+        type: latest ? `${this.kind}.version_registered` : `${this.kind}.published`,
+        objectType: this.kind,
         objectId: `${record.artifact_id}@${record.version}`,
-        reason: latest ? "Plugin 注册了新的成果版本" : "Plugin 发布了成果",
+        reason: latest ? STORE_EVENT_REASONS[this.kind].registered : STORE_EVENT_REASONS[this.kind].published,
         payload: {
           artifact_id: record.artifact_id,
           version: record.version,
@@ -196,11 +208,11 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       this.repository.markUnavailable(input.artifact_id, input.version, reason);
       const at = this.now();
       const observedEventCursor = this.options.appendEvent({
-        eventId: `event:artifact:${input.artifact_id}:${input.version}:unavailable`,
+        eventId: `event:${this.kind}:${input.artifact_id}:${input.version}:unavailable`,
         boardId: input.board_id,
         actorId: input.actor_id,
-        type: "artifact.unavailable",
-        objectType: "artifact",
+        type: `${this.kind}.unavailable`,
+        objectType: this.kind,
         objectId: `${input.artifact_id}@${input.version}`,
         reason,
         payload: { artifact_id: input.artifact_id, version: input.version },
@@ -227,13 +239,13 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       const at = this.now();
       this.repository.archiveVersion(input.artifact_id, input.version, input.actor_id, at);
       const observedEventCursor = this.options.appendEvent({
-        eventId: `event:artifact:${input.artifact_id}:${input.version}:archived`,
+        eventId: `event:${this.kind}:${input.artifact_id}:${input.version}:archived`,
         boardId: input.board_id,
         actorId: input.actor_id,
-        type: "artifact.archived",
-        objectType: "artifact",
+        type: `${this.kind}.archived`,
+        objectType: this.kind,
         objectId: `${input.artifact_id}@${input.version}`,
-        reason: "成果版本已归档",
+        reason: STORE_EVENT_REASONS[this.kind].archived,
         payload: { artifact_id: input.artifact_id, version: input.version },
         at,
       });
@@ -326,7 +338,7 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
       content_ref: contentRef,
       content_digest: digest,
       size_bytes: sizeBytes,
-      metadata: this.normalizeMetadata(input.metadata),
+      metadata: normalizedMetadata(input.metadata, this.error),
       scope,
       availability,
       unavailable_reason: unavailableReason,
@@ -358,16 +370,6 @@ export class ArtifactsService implements ArtifactsQueryApi, ArtifactsCommandApi 
         "artifact.producer_mismatch",
         "Producer binding 已变化，请将结果作为新的成果处理",
       );
-    }
-  }
-
-  private normalizeMetadata(value: unknown): ArtifactVersionRecord["metadata"] {
-    try {
-      return normalizeArtifactMetadata(value);
-    } catch (error) {
-      throw this.error("artifact.metadata_invalid", "成果 metadata 必须是可往返的 JSON 对象", {
-        cause: error instanceof Error ? error.message : String(error),
-      });
     }
   }
 
@@ -412,6 +414,16 @@ function sameVersion(
     ...requestedEnvelope
   } = requested;
   return JSON.stringify(existingEnvelope) === JSON.stringify(requestedEnvelope);
+}
+
+function normalizedMetadata(value: unknown, error: ArtifactsErrorFactory): ArtifactVersionRecord["metadata"] {
+  try {
+    return normalizeArtifactMetadata(value);
+  } catch (cause) {
+    throw error("artifact.metadata_invalid", "成果 metadata 必须是可往返的 JSON 对象", {
+      cause: cause instanceof Error ? cause.message : String(cause),
+    });
+  }
 }
 
 function requiredText(

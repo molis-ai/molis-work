@@ -3,7 +3,6 @@ import { icon } from "@molis-ai/molis-work-design-system";
 import { artifactDisplayTitle, artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
 
 const ARTIFACT_TYPE_LABELS: Record<string, string> = {
-  "coding.changeset.v1": "Coding 固定变更",
   "coding.report.v1": "Coding 执行报告",
   "io.molis.work.goal.delivery": "Goal 交付",
   "io.molis.work.feed.capture": "Feed 捕获",

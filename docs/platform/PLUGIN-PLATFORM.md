@@ -33,7 +33,12 @@
 事件订阅必须点名来源、不许通配符：这是**路由限制**而不是实现依赖，目的是不让第三方插件默默接收别人的事件。
 
 Manifest 内部的一致性由解析器保证，而不是留到运行时才炸：声明输出端口必须同时声明 `artifact:write`
-且把端口类型列进 `artifacts.produces`；输入端口同理对应 `artifact:read` 与 `artifacts.consumes`。
+且把端口类型列进 `process_items.produces`（交给别的插件的过程项）或 `artifacts.produces`（先固定、再选择进端口的成果）；
+输入端口同理对应 `artifact:read` 与 `process_items.consumes` 或 `artifacts.consumes`。一种类型只能是其中一种。
+
+成果与过程项分开存（`specs/artifact-positioning` A2）：成果是人要留存、引用的固定版本，进成果库；过程项是插件之间交换的数据
+（文件快照、变更集、运行回执），记在生产插件名下，不出现在成果库、侧栏文件和搜索里。端口发布（`outputs.publish`）一律记成过程项；
+插件直接记过程项用 `services.processItems.record`，固定成果用 `services.artifacts.publish`；按引用读取两边都能读到。
 
 ## 4. v2 的四条运行机制
 

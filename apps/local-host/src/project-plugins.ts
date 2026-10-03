@@ -4,7 +4,7 @@ import { charactersPluginPorts, codingCharacterPorts } from "./characters-host.j
 import { codingShelfMaterial } from "./coding-shelf-material.js";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { CODING_PLUGIN_ID, CODING_REPORT_TYPE, CODING_PLAN_TYPE, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
@@ -98,12 +98,14 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
   try {
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
     const artifacts = new ArtifactsModule({ db: ports.store.db, appendEvent: event => ports.store.appendEvent(event) });
+    const processItems = new ProcessItemsModule({ db: ports.store.db, appendEvent: event => ports.store.appendEvent(event) });
     const platform = createPluginPlatform({
       board_id: ports.boardId,
       actor_id: ports.actorId,
       db: ports.store.db,
       journal: ports.store,
       artifacts,
+      processItems,
       ui: new UiHost(),
       privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
       capturePrivateData: installId => storage.snapshotInstallationData(installId),
@@ -120,8 +122,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         return ports.characterSpawn(request);
       });
     const shelfPorts: ShelfResultPorts | undefined = ports.homeDirectory ? {
-        references: () => artifacts.query.listArtifacts(ports.boardId).filter(item => item.producer_plugin_id === CODING_PLUGIN_ID
-          && [CODING_REPORT_TYPE, "coding.changeset.v1"].includes(item.artifact_type_id)).map(({ artifact_id, version }) => ({ artifact_id, version })),
+        // Coding's reports are 成果; its change sets are process items. Shelf can take a copy of either.
+        references: () => [...artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: CODING_REPORT_TYPE }),
+          ...processItems.query.listArtifacts(ports.boardId, { artifact_type_id: "coding.changeset.v1" })]
+          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID).map(({ artifact_id, version }) => ({ artifact_id, version })),
         preview: record => codingShelfMaterial(record, ports.boardId, ports.routePrefix ?? ""),
         receive: preview => {
           const shelf = openShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
@@ -137,17 +141,17 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         models: () => ports.execution?.models() ?? Promise.resolve([]),
         sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
         characters: codingCharacterPorts(ports.homeDirectory, ports.actorId, ports.boardId, artifacts.query),
-        materialReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 })
+        materialReferences: () => processItems.query.listArtifacts(ports.boardId, { artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 })
           .filter(item => item.owner_actor_id === ports.actorId && item.producer_plugin_id === "io.molis.work.shelf" && item.lifecycle_state === "active" && item.availability === "available")
           .map(({ artifact_id, version }) => ({ artifact_id, version })),
         reportReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 })
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
           .map(({ artifact_id, version }) => ({ artifact_id, version })),
-        changeSetReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: "coding.changeset.v1", schema_version: 1 })
+        changeSetReferences: () => processItems.query.listArtifacts(ports.boardId, { artifact_type_id: "coding.changeset.v1", schema_version: 1 })
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
           .map(({ artifact_id, version }) => ({ artifact_id, version })),
         // Confirmed plans, so another session can cite one as a fixed material.
-        planReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: CODING_PLAN_TYPE, schema_version: 1 })
+        planReferences: () => processItems.query.listArtifacts(ports.boardId, { artifact_type_id: CODING_PLAN_TYPE, schema_version: 1 })
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
           .map(({ artifact_id, version }) => ({ artifact_id, version })),
       } };

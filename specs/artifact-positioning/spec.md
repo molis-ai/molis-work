@@ -55,6 +55,9 @@
 | 2026-10-03 | 用户外出期间怎么拍板 | — | 用户：「我回来之前都授权你按推荐执行（如有需要我确认的），我回来会告诉你，到时候请总结一下哪些东西是需要我确认结果按你推荐执行的」 | 期间本该弹窗问的事按推荐直接做，逐条在本表标「代为决定」，用户回来时汇总。不可逆、又不是代码合并的事仍然等用户：真实 Home 的数据操作、删别人的分支或工作树、删 vendored 文件、推 Prologue 上游、改仓库设置 |
 | 2026-10-03 | 合并 #197、#198、#199（代为决定） | 按推荐全部合并 | 已合并 | S4 02af2aa1、S1b 8086f612、文档 af9d6d56。#198 在 #197 合入后与 main 冲突，合入 main 后重跑门禁再合 |
 | 2026-10-03 | A6「成果」统一到哪 | 按授权的常规取舍 | 成果库与它的版本一律叫「成果」 | 导航、标签页、插件名、空态与错误提示里的「Artifact(s)」都改成「成果」。Goals 证据类型的「产物」与 Coding 的「产物」面不改：它们指运行产出，A2 之后属于过程项，不是成果。Text Stats 的市场简介原写「查看材料与成果的文本统计」，它统计的是文件快照，改为「统计文件快照的字数、字节与行数」 |
+| 2026-10-03 | 交换数据怎么搬出成果库（A2 实现方式，代为决定） | 并列的过程项存储、同一套版本引擎（推荐）；每个插件自己的私有存储；成果库里打标记过滤 | 并列的过程项存储 | 用户已定「各自 owner、不进版本库，但要能被成果追溯、链接」。私有存储要求跨插件读取改走插件间调用，端口、Coding 材料、Shelf 接收都要重写；打标记是用户没选的「同一个库打标记过滤」。并列存储按生产插件归属、只有它能写，引用形状不变，消费方不用改 |
+| 2026-10-03 | Shelf 交给项目的材料、Coding 的计划与变更集算哪一类（常规取舍） | — | 过程项 | 它们是交给 Coding 与其他 Agent 的材料、交给 Git 与 Diff 的变更，不是人要留存引用的版本；Coding 的执行报告是成果。用户已定的 A2 清单写的是「Files、Diff、Git、Coding 的快照、变更集、回执、计划」，Shelf 材料同理归入 |
+| 2026-10-03 | 合并 #200 A6（代为决定） | 按推荐合并 | 已合并 | cbc12e3e |
 
 **待决**：无（「没有项目时的全局设置」已答，见上表）。
 
@@ -163,8 +166,20 @@
 - **引用关系**：`goal.output`、`goal.input`、助理工作结果、文档引用都指向成果引用 `{ artifact_id, version }`；成果库按这些关系显示「被谁引用」。
 - 身份字段随防腐第二步把 `board_id` 合并为 `project_id`。
 
+### A2 过程项（已实施）
+
+先做 A2 再做 A1：A1 要求每条成果带来源与标题，交换数据若还在成果库就得给它们编造来源，所以先把它们搬出去。
+
+- **存储**：项目库里与成果库并列的过程项存储（`process_items`、`process_item_versions`），用同一套不可变版本引擎（`modules/artifacts` 的仓库按表名参数化，`ProcessItemsModule`），事件另记为 `process_item.*`。每条记生产插件；只有生产插件能写。表随成果库的建表（迁移 31）一起建，缺了就补建，不新增迁移号（恢复检查把 39 当作未来版本）。
+- **声明**：manifest 新增 `process_items.produces/consumes`。一种类型要么是成果、要么是过程项，不能两边都列。端口可以传两种：插件记下的过程项，或固定后再选择的成果（Coding 报告经 `outputs.select` 进 Shelf）。
+- **写**：端口发布（`outputs.publish`）一律记成过程项；端口类型若是成果类型就拒绝，要先固定再选择。插件直接写过程项用 `services.processItems.record`（manifest 声明了 `process_items.produces` 才有）；`services.artifacts.publish` 只写成果。同一个 ID 不能既是成果又是过程项。
+- **读**：按引用读取一个固定版本（`artifacts.read`、端口输入、输入图）在两处都找，引用形状不变（`{artifact_id, version}`），消费方代码不用改。
+- **归类**：Files 的快照、集合、选区，Git 的变更集与回执，Coding 的计划、Goal 上下文、变更集与图，Shelf 交给项目的材料，都是过程项；Coding 的执行报告是成果。成果库不再展示 Coding 变更集（去掉了宿主为它拼的预览与类型名）；侧栏文件与搜索只读成果库，自然看不到过程项。
+- **不留兼容**：已在成果库里的旧交换数据不迁移、不再按过程项读；它们在 A1 收紧成果合同时随旧记录一起不再显示，真实 Home 的清理与防腐第二步的真实 Home 升级一起做，先问用户。
+
 ## 6. 进度
 
+- 2026-10-03：A2 开 PR（分支 `feat/artifact-a2-process-items`）。交换数据搬出成果库，做法见上文「A2 过程项」：并列的过程项存储、manifest 的 `process_items`、端口发布一律记成过程项、按引用读取两边都能读到。六个插件的 manifest 改了归类（Files、Git、Diff、Text Stats、Shelf、Coding）；Coding 的计划、Goal 上下文与变更集改记过程项，执行报告仍是成果；Shelf 交给项目的材料改记过程项；成果库去掉了 Coding 变更集的预览与类型名。顺带修了两处只看 `artifacts` 声明的宿主判断：读 Files 输出前先刷新 Files 的判断（`coding-surface.ts`），和输入图在别的连接提交后重新求值的监视（`plugin-artifact-refresh.ts`，改为也看 `process_item` 事件）；后者漏掉时，切换工作目录后 Diff 不再变成「等待」，由 `files-product-http` 用例发现，用基线工作树对照确认是本分支引入。文档与 `skills/molis-plugin-dev` 写明成果与过程项的区别。用例：断言旧行为的改为新合同（成果库渲染 Coding 变更集的用例改为「变更集是过程项、成果库不显示」；端口同一类型既发布又选择成果的用例拆成成果端口与过程项端口两条，原有检查都保留）；测试夹具里交换数据改写进过程项。整体构建后相关 124 个用例文件 515 条全部通过。合入 main（A6）后：包边界检查里成果仓库「必须有 `CREATE TABLE IF NOT EXISTS artifacts`」的条目改成按表名参数化的写法；巨大单元只许变小，`ArtifactsService`、`openInstalledPlugins`、`migrateLocalProjectDatabase` 各压回原行数，`handleCodingPluginHttp` 的新判断提成独立函数。重跑相关 67 个用例文件 314 条全部通过。
 - 2026-10-03：A6 开 PR（分支 `fix/artifact-a6-naming-and-feed-manifest`）。Feed 的 manifest 声明它写的 `io.molis.work.feed.capture`（常量移到 `identity.ts`，manifest 不再引入带 node:crypto 的模块）；48 个源文件里 126 处中文文案的「Artifact」改成「成果」，导航、标签页与插件名「Artifacts」改成「成果」；断言旧文案的 3 个用例随之更新（预期变化）。整体构建后，相关 119 个用例文件 696 条：692 通过、2 失败、2 跳过。两条失败都已查明并修好：一是模板插值里嵌套的 5 处文案第一遍没改到；二是市场搜「成果」同时命中 Text Stats 的简介（简介本身不准确，已改）。修后重跑这两个文件 13/13。
 - 2026-10-03：S1b 开 [#198](https://github.com/molis-ai/molis-work/pull/198)，叠在 #197 上。删的是旧的解释器创作台整套：插件包里只属旧系统的源码（含 `builder.builds.*` 动作、`/plugin-builder` 整页与 `/records` 路由、灵感库示例与图片），宿主的 `handleBuilderHttp`、`releaseBuilderSurface`，以及工作台里没人用的 `agent.prompts`；还有旧预览脚本和它的替身，旧创作台的 6 个用例文件与 `builder-routes` 夹具。领域用例保留仍适用的 schema 与公式两条。`plugin-builder-surface.ts` 不再出整页，从 S7 的整页产出名单里去掉；README 只写新创作台，必跑用例逐个列出。整体构建后，涉及创作台、生成插件和整页门禁的 41 个用例文件：355 条，355 通过、0 失败（1 条是只在设了环境时才跑的真实 npm 用例，跳过）。`health:check` 通过，基线下降（测试引用包内部 1015 → 979，若干巨大单元变小），`boundary:check` 无错误。
 - 2026-10-03：S4 开 [#197](https://github.com/molis-ai/molis-work/pull/197)，CI 通过、等合并。创作台不再嵌框，直接画在工作台的舞台里：`/plugin-builder/studio` 框内页删掉、不留跳转；客户端随插件包按需加载，打开新装插件、模型设置与卸载都经工作台完成；刚装好的插件带 `?openSurface=` 在工作台启动时打开；打开的构建按项目记在本次会话里，刷新不丢；去掉页面品牌，窄屏在舞台内滚动。预览服务与浏览器用例改用 `scripts/agent-studio-harness.mts`，按工作台的挂法挂载（开发工具，不是产品页）。43 个用例文件 355 条：354 通过、0 失败（1 条跳过）；headless Chrome 1440 与 390 截图，没有横向滚动。附带发现 Dock 切换器把它写成 `plugin-builder`，记 BL-114。

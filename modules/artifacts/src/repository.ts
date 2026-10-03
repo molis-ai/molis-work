@@ -20,8 +20,22 @@ export interface ArtifactsSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export const ARTIFACTS_SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS artifacts (
+/**
+ * One immutable-version store: an identity table and a version table. The 成果库 and the process items plugins pass
+ * between each other use the same engine in separate tables, so exchange data never lands in the 成果库
+ * (specs/artifact-positioning A2).
+ */
+export interface VersionStoreTables {
+  readonly identities: string;
+  readonly versions: string;
+}
+
+export const ARTIFACT_TABLES: VersionStoreTables = { identities: "artifacts", versions: "artifact_versions" };
+export const PROCESS_ITEM_TABLES: VersionStoreTables = { identities: "process_items", versions: "process_item_versions" };
+
+export function versionStoreSchemaSql(t: VersionStoreTables): string {
+  return `
+  CREATE TABLE IF NOT EXISTS ${t.identities} (
     artifact_id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
     owner_actor_id TEXT NOT NULL,
@@ -30,11 +44,11 @@ export const ARTIFACTS_SCHEMA_SQL = `
     created_at TEXT NOT NULL,
     UNIQUE (artifact_id, board_id)
   );
-  CREATE INDEX IF NOT EXISTS artifacts_board_idx
-    ON artifacts(board_id, created_at DESC, artifact_id);
+  CREATE INDEX IF NOT EXISTS ${t.identities}_board_idx
+    ON ${t.identities}(board_id, created_at DESC, artifact_id);
 
-  CREATE TABLE IF NOT EXISTS artifact_versions (
-    artifact_id TEXT NOT NULL REFERENCES artifacts(artifact_id) ON DELETE CASCADE,
+  CREATE TABLE IF NOT EXISTS ${t.versions} (
+    artifact_id TEXT NOT NULL REFERENCES ${t.identities}(artifact_id) ON DELETE CASCADE,
     version INTEGER NOT NULL CHECK (version > 0),
     artifact_type_id TEXT NOT NULL,
     schema_version INTEGER NOT NULL CHECK (schema_version > 0),
@@ -56,22 +70,30 @@ export const ARTIFACTS_SCHEMA_SQL = `
     archived_by TEXT,
     PRIMARY KEY (artifact_id, version),
     FOREIGN KEY (artifact_id, supersedes_version)
-      REFERENCES artifact_versions(artifact_id, version),
+      REFERENCES ${t.versions}(artifact_id, version),
     CHECK (
       (content_kind = 'inline' AND payload_json IS NOT NULL AND content_ref IS NULL)
       OR (content_kind = 'reference' AND payload_json IS NULL AND content_ref IS NOT NULL)
     )
   );
-  CREATE INDEX IF NOT EXISTS artifact_versions_type_idx
-    ON artifact_versions(artifact_type_id, schema_version, scope, lifecycle_state);
+  CREATE INDEX IF NOT EXISTS ${t.versions}_type_idx
+    ON ${t.versions}(artifact_type_id, schema_version, scope, lifecycle_state);
 `;
+}
+
+export const ARTIFACTS_SCHEMA_SQL = versionStoreSchemaSql(ARTIFACT_TABLES);
+export const PROCESS_ITEMS_SCHEMA_SQL = versionStoreSchemaSql(PROCESS_ITEM_TABLES);
 
 export function createArtifactsSchema(db: ArtifactsSqliteDatabase): void {
   db.exec(ARTIFACTS_SCHEMA_SQL);
 }
 
+export function createProcessItemsSchema(db: ArtifactsSqliteDatabase): void {
+  db.exec(PROCESS_ITEMS_SCHEMA_SQL);
+}
+
 export class ArtifactsRepository {
-  constructor(readonly db: ArtifactsSqliteDatabase) {}
+  constructor(readonly db: ArtifactsSqliteDatabase, readonly tables: VersionStoreTables = ARTIFACT_TABLES) {}
 
   immediate<T>(operation: () => T): T {
     return this.db.transaction(operation).immediate();
@@ -85,20 +107,20 @@ export class ArtifactsRepository {
   }
 
   getIdentityById(artifactId: string): ArtifactIdentityRecord | null {
-    const row = this.db.prepare("SELECT * FROM artifacts WHERE artifact_id = ?").get(artifactId) as Row | undefined;
+    const row = this.db.prepare(`SELECT * FROM ${this.tables.identities} WHERE artifact_id = ?`).get(artifactId) as Row | undefined;
     return row ? mapArtifactIdentity(row) : null;
   }
 
   getIdentity(boardId: string, artifactId: string): ArtifactIdentityRecord | null {
     const row = this.db
-      .prepare("SELECT * FROM artifacts WHERE board_id = ? AND artifact_id = ?")
+      .prepare(`SELECT * FROM ${this.tables.identities} WHERE board_id = ? AND artifact_id = ?`)
       .get(boardId, artifactId) as Row | undefined;
     return row ? mapArtifactIdentity(row) : null;
   }
 
   insertIdentity(record: ArtifactIdentityRecord): void {
     this.db.prepare(`
-      INSERT INTO artifacts (
+      INSERT INTO ${this.tables.identities} (
         artifact_id, board_id, owner_actor_id, producer_plugin_id,
         producer_binding_signature, created_at
       ) VALUES (?, ?, ?, ?, ?, ?)
@@ -116,8 +138,8 @@ export class ArtifactsRepository {
     const row = this.db.prepare(`
       SELECT version.*, identity.board_id, identity.owner_actor_id,
              identity.producer_plugin_id, identity.producer_binding_signature
-      FROM artifact_versions version
-      JOIN artifacts identity ON identity.artifact_id = version.artifact_id
+      FROM ${this.tables.versions} version
+      JOIN ${this.tables.identities} identity ON identity.artifact_id = version.artifact_id
       WHERE identity.board_id = ? AND version.artifact_id = ? AND version.version = ?
     `).get(boardId, artifactId, version) as Row | undefined;
     return row ? mapArtifactVersion(row) : null;
@@ -127,8 +149,8 @@ export class ArtifactsRepository {
     return (this.db.prepare(`
       SELECT version.*, identity.board_id, identity.owner_actor_id,
              identity.producer_plugin_id, identity.producer_binding_signature
-      FROM artifact_versions version
-      JOIN artifacts identity ON identity.artifact_id = version.artifact_id
+      FROM ${this.tables.versions} version
+      JOIN ${this.tables.identities} identity ON identity.artifact_id = version.artifact_id
       WHERE identity.board_id = ? AND version.artifact_id = ?
       ORDER BY version.version ASC
     `).all(boardId, artifactId) as Row[]).map(mapArtifactVersion);
@@ -143,8 +165,8 @@ export class ArtifactsRepository {
     return (this.db.prepare(`
       SELECT version.*, identity.board_id, identity.owner_actor_id,
              identity.producer_plugin_id, identity.producer_binding_signature
-      FROM artifact_versions version
-      JOIN artifacts identity ON identity.artifact_id = version.artifact_id
+      FROM ${this.tables.versions} version
+      JOIN ${this.tables.identities} identity ON identity.artifact_id = version.artifact_id
       WHERE identity.board_id = ?
       ORDER BY version.created_at DESC, version.artifact_id, version.version DESC
     `).all(boardId) as Row[])
@@ -158,7 +180,7 @@ export class ArtifactsRepository {
 
   insertVersion(record: ArtifactVersionRecord): void {
     this.db.prepare(`
-      INSERT INTO artifact_versions (
+      INSERT INTO ${this.tables.versions} (
         artifact_id, version, artifact_type_id, schema_version, producer_plugin_version,
         content_kind, payload_json, content_ref, content_digest, size_bytes,
         metadata_json, scope, availability, unavailable_reason, lifecycle_state,
@@ -190,7 +212,7 @@ export class ArtifactsRepository {
 
   markUnavailable(artifactId: string, version: number, reason: string): void {
     this.db.prepare(`
-      UPDATE artifact_versions
+      UPDATE ${this.tables.versions}
       SET availability = 'unavailable', unavailable_reason = ?
       WHERE artifact_id = ? AND version = ?
     `).run(reason, artifactId, version);
@@ -198,7 +220,7 @@ export class ArtifactsRepository {
 
   archiveVersion(artifactId: string, version: number, actorId: string, at: string): void {
     this.db.prepare(`
-      UPDATE artifact_versions
+      UPDATE ${this.tables.versions}
       SET lifecycle_state = 'archived', archived_at = ?, archived_by = ?
       WHERE artifact_id = ? AND version = ?
     `).run(at, actorId, artifactId, version);

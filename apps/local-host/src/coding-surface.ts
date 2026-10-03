@@ -145,6 +145,14 @@ export async function charactersWorkbenchPanel(ports: CodingSurfacePorts): Promi
 }
 
 /** Host dispatches only declared plugin routes, after the normal control guard. */
+/** Files hands its snapshots on as process items (artifact-positioning A2); either declaration list can name them. */
+function readsFilesOutputs(platform: { supervisor: { manifest(pluginId: string): import("@molis-ai/molis-work-contracts/platform/plugin").PluginManifest | undefined } }, pluginId: string): boolean {
+  const files = platform.supervisor.manifest(FILES_PLUGIN_ID), consumer = platform.supervisor.manifest(pluginId);
+  const outputs = [...files?.artifacts.produces ?? [], ...files?.process_items?.produces ?? []];
+  return [...consumer?.artifacts.consumes ?? [], ...consumer?.process_items?.consumes ?? []].some(input =>
+    outputs.some(output => output.artifact_type_id === input.artifact_type_id && output.schema_version === input.schema_version));
+}
+
 export async function handleCodingPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: CodingSurfacePorts): Promise<boolean> {
   const runtimeUpdates = url.pathname === "/api/plugins/runtime/updates" && request.method === "GET";
   const runtimeEvents = isPluginEventManagementPath(url.pathname);
@@ -204,10 +212,7 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   if (!router.match(request.method ?? "GET", url.pathname)) return false;
   // Existing workspace outputs need a settings refresh before their consumers
   // read them. Unrelated plugins must not cause Files reads or publications.
-  const filesOutputs = record.platform.supervisor.manifest(FILES_PLUGIN_ID)?.artifacts.produces ?? [];
-  const consumesFiles = record.platform.supervisor.manifest(pluginId)?.artifacts.consumes.some(input =>
-    filesOutputs.some(output => output.artifact_type_id === input.artifact_type_id && output.schema_version === input.schema_version));
-  if (consumesFiles) {
+  if (readsFilesOutputs(record.platform, pluginId)) {
     await router.dispatch({ method: "GET", pathname: `/api/plugins/${FILES_PLUGIN_ID}/state`, actor_id: ports.actorId, query: {} });
     await record.platform.wiring.drain();
   }

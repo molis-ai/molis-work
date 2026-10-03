@@ -60,8 +60,8 @@ jobs:
       - name: One workbench shell (no standalone pages)
         run: node scripts/run-tests.mjs tests/shell-page-gate.test.ts
 
-      - name: Every 成果 type has an owner preview
-        run: node scripts/run-tests.mjs tests/artifact-type-gate.test.ts
+      - name: 成果 types have owner previews; writes match Manifests; process items stay out of user lists
+        run: node scripts/run-tests.mjs tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts
 
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests

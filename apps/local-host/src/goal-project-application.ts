@@ -3,6 +3,7 @@ import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { ArtifactsModule, ProcessItemsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
+import { builtinTypeDeclared } from "./declared-types.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { EvidenceVerificationModule, type EvidenceSqliteDatabase } from "@molis-ai/molis-work-module-evidence-verification";
 import type { EvidenceVerificationApplicationApi } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
@@ -91,6 +92,7 @@ export class GoalProjectApplication {
       now: () => this.clock().toISOString(),
       errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
       appendEvent: (input) => this.store.appendEvent(input),
+      declared: builtinTypeDeclared,
     });
     this.artifacts = {
       query: artifactsModule.query,
@@ -101,6 +103,7 @@ export class GoalProjectApplication {
       now: () => this.clock().toISOString(),
       errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
       appendEvent: (input) => this.store.appendEvent(input),
+      declared: builtinTypeDeclared,
     });
     this.processItems = { query: processItemsModule.query, commands: processItemsModule.commands };
     this.executionModule = new ExecutionModule({

@@ -81,6 +81,8 @@
 | 2026-10-03 | 助理等的「提议」放在哪（A5c，常规取舍） | — | context ledger 里单独的 `goal.output.proposal` 边 | ledger 只有「有效、已移除」两态。提议用自己的边类型，Goal 页、成果库「被谁引用」只读 `goal.output`，自然不把提议当交付物；确认时写 `goal.output` 并移除提议，拒绝时移除提议 |
 | 2026-10-03 | 谁的调用算提议（A5c，常规取舍） | — | 受众不是「用户」的一律是提议 | 用户已定「助理与 Coding 可提议、用户确认」。助理、Coding、工作流、MCP 的受众都不是 user；它们调用 `goals.deliverables.add/pin` 只记提议（可附理由），不能移除用户已确认的交付物，可以撤回自己的提议 |
 | 2026-10-03 | 收尾表单里提议默认勾不勾（A5c，常规取舍） | — | 不勾，标「助理提议：理由」 | 勾上才是确认。默认勾上等于提交收尾就一并确认，确认不够明确 |
+| 2026-10-03 | 「声明与写入一致」守在哪（A7，常规取舍） | 运行时由宿主拒绝；只靠静态检查 | 运行时：成果库与过程项的写入口按 manifest 拒绝 | 内置插件的写入方散在宿主各处（Pages、问卷、Feed、Coding、演示数据……），静态检查找不全。`ArtifactsService` 加 `declared` 钩子，宿主用内置插件的 manifest 回答：成果只能是 `artifacts.produces` 里的类型，过程项只能是 `process_items.produces` 里的，否则报 `artifact.type_undeclared`。不认识的生产者（安装的插件）放行，它们由 Plugin Runtime 自己的成果与过程项客户端按各自 manifest 检查 |
+| 2026-10-03 | 「交换数据不进用户可见列表」怎么守（A7，常规取舍） | — | 端到端用例：成果库列表、侧栏文件、系统搜索三处 | 同一个项目里记一条过程项、一条同样标题形状的成果作对照：三处都能看到成果、都看不到过程项。A2 已从结构上分开存储，这条防以后有人把过程项接进任何一处 |
 | 2026-10-03 | A1 遗留：Pages 成果的来源种类（常规取舍） | — | 改为 Pages 自己的对象种类 `pages_document` | A1 写成了 `page`，与 Pages 的对象读取、搬动、搜索用的种类不一致，A4b 的「原文已改」与当场固定都按种类找 owner。真实 Home 里还没有 A1 之后的 Pages 成果（A1 刚合入），不需要迁移 |
 | 2026-10-03 | A6 遗留：Goal Frame 选材料的「交付物」来源（常规取舍） | — | 改叫「成果」，英文「交付物」改为 Deliverable | 这个筛选项指成果库，不是 Goal 的交付物；A6 只改了「Artifact」字样，漏了这里 |
 
@@ -235,6 +237,13 @@
 - 「被谁引用」：列出 Goal 输入/交付、助理结果与文档引用（context ledger）。
 - 「作为 Goal 的输入」与其他类型的「从这一版继续」（manifest `continue` 声明）。
 
+### A7 门禁（已实施）
+
+- **类型声明**（A4、A5b 已有，`tests/artifact-type-gate.test.ts`）：每种成果类型有显示名与 owner 的预览动作；固定动作声明在成果类型上、每种对象至多一个 owner。
+- **声明与写入一致**（`tests/artifact-declaration-gate.test.ts`）：宿主按内置插件的 manifest 拒绝未声明的写入，成果与过程项各查各的清单；安装的插件由 Plugin Runtime 的客户端按它自己的 manifest 查。
+- **交换数据不进用户可见列表**（同一文件）：成果库列表、侧栏文件、系统搜索里都没有过程项，有成果作对照。
+- 两个门禁文件在 CI 的同一步里跑；`AGENTS.md` 加一条硬约束。
+
 ### A5 Goal 交付（A5a、A5b、A5c 已实施）
 
 - **交付物是成果引用**：Goal 的交付物是 `goal.output` 关系（context ledger，从 Goal 指向成果的某一版），不再有单独的 `goal.delivery` 类型；演示数据里的 `goal.delivery` 删掉，改成真实的成果加 `goal.output`。`goal.input` 同理指向成果版本。
@@ -267,6 +276,7 @@
 
 ## 6. 进度
 
+- 2026-10-03：A7 开 PR（分支 `feat/artifact-a7-declaration-gates`），做法见上文「A7 门禁」。整体构建后写成果或过程项的相关用例（成果、Coding、Files、Shelf、Feed、角色、Pages 固定、安装插件、插件平台、演示数据等 238 个文件）1168 条 1164 通过、1 条失败：`i18n.test` 三个标签缺英文，是 main 上已知的失败，#207 已修，本分支合入 main 后重跑通过。一条既有用例随门禁调整：`artifact-browser` 原来把 Coding 变更集直接写进成果库再检查不出预览，现在这样写会被拒（新断言），原意（成果库不为别的生产者写入的同类型渲染变更集预览）改用一个安装插件的生产者保留。
 - 2026-10-03：A5c 开 PR（分支 `feat/artifact-a5c-deliverable-proposals`，叠在 A5b [#207] 上），做法见上文「A5 Goal 交付」A5c。新增 `tests/goal-deliverable-proposals.test.ts`：真实的交付物处理器与 ledger，以用户和助理两种身份调用——助理提议附理由、重复返回原提议、提议不是 `goal.output`、用户确认后提议退场、助理不能移除已确认的交付物、助理固定后的新版本也是提议、用户拒绝提议不影响已确认的。整体构建后 Goals、交付物、收尾表单 e2e、MCP、i18n、成果门禁等 13 个文件 71/71。`en.ts` 再删一个无引用的旧文案，行数不增。
 - 2026-10-03：A5b 开 PR（分支 `feat/artifact-a5b-pin-deliverables`），做法见上文「A5 Goal 交付」A5b。整体构建后相关用例（Goals、成果、四个 owner 插件、目录与 MCP、Frame、i18n 共 168 个文件）831 条 826 通过，5 条失败分三类：① 问卷、数据表、演示稿的 MCP 精确工具清单多了 `artifacts.pin`（预期变化，清单补上）；② `i18n.test` 三个标签缺英文：A3 的「在 Pages 继续」「没能在 Pages 打开这一版」与 A5a 的「成果库暂时读不到」一句，main 上同样失败（A3、A5a 的相关用例集没含 i18n，漏了），本片补译；③ `functions-draft-retention` 在 main（99e66669）同样失败，是 S6b（#195）改了 Functions 脚本的宿主参数而这个用例的装配没跟上，单开 [#206](https://github.com/molis-ai/molis-work/pull/206) 修用例装配（断言不变，0/1 → 1/1）。前两类修后重跑 12/12。新增用例：`goal-deliverables` 的当场固定（候选列出、经 Pages 固定出 v1 并记为交付物、来源记对象与修订号、不能固定的种类 400 且不写成果）；`artifact-type-gate` 加固定动作的两条门禁。教训：改了带 `L()` 的界面文案，相关用例集要含 `tests/i18n.test.ts`。
 - 2026-10-03：A5a 开 PR（分支 `feat/artifact-a5-goal-delivery`），做法见上文「A5 Goal 交付」。整体构建后相关用例（goals、goal-event、artifact、演示数据共 70 个文件）258 条 256 通过；2 条是本片引起：Goal 页区块与关系改名的预期变化（断言同强度改为新文案，并加上标签结尾，确保不是旧的「输入结果」）、一个自己装配 Goals 处理器的用例没给交付物端口（manifest 声明了动作就必须有处理器，端口改为必填，用例补上真实 ledger）。修后这批与门禁用例 50/50；健康门禁、边界检查、整页门禁通过。新增 `tests/goal-deliverables.test.ts`（记下、重放、列出、Goal 页显示、拒绝归档与不存在的版本、移除），`goal-event-document.e2e` 断言收尾表单的交付物列表读完。#204 已合入（7abc37e3），本片直接基于 main。

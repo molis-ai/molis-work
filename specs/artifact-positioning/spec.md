@@ -103,6 +103,10 @@
 | 2026-10-03 | 合并 #212 A4b-2 | CI 通过即合并（用户已授权） | 已合并 | 9b604065 |
 | 2026-10-03 | 侧栏和成果库怎么共用一份渲染（A4b-3a，常规取舍） | 服务端渲染好 HTML 给侧栏；设计系统把同一组函数做成页面脚本 | 页面脚本 | 侧栏还要显示别处交给它的预览（助理的附件、结果），这些只在浏览器里，服务端渲染不到。`FILE_PREVIEW_CLIENT_SCRIPT` 由 `renderFilePreviewHtml` 与它的 Markdown、CSV 两个函数原样拼成，侧栏删掉自己那份；用例逐字比较两边输出 |
 | 2026-10-03 | 侧栏里的成果预览（A4b-3a，常规取舍） | — | 走类型 owner 的预览，与成果库相同 | 只有声明的 owner 且是它生产的版本；拿不到 owner 预览时退回成果库自己的读取 |
+| 2026-10-03 | 合并 #213 A4b-3a | CI 通过即合并（用户已授权） | 已合并 | 9d4475e6 |
+| 2026-10-03 | 「从这一版继续」怎么接（A4b-3b，常规取舍） | 宿主为每个插件写一条路由；插件在 manifest 为成果类型声明 `continue` | 声明 `continue` | 协议 `defineArtifactContinueAction`（输入这一版，输出新对象在哪打开），可以声明在自己生产的类型上，也可以声明在只读取的类型上（Pages 接着导入的文本文件）。宿主只有一条 `POST /api/artifacts/continue`，按声明找插件、用它自己的权限调用；删掉专为 Pages 写的 `continue-in-pages` 路由和宿主里那个 Pages 客户端 |
+| 2026-10-03 | 哪些类型没有「从这一版继续」（A4b-3b，常规取舍） | — | Feed 捕获、角色、Coding 执行报告 | 它们是记录而不是可接着编辑的工作：捕获是收到的内容，角色版本由角色插件自己的版本历史管理，报告是一次运行的结果（接着做是在 Coding 里新开任务）。预览、导出、被引用、作为输入对它们照常适用。名单写在门禁里（`tests/artifact-type-gate.test.ts`），新类型不声明就过不了 |
+| 2026-10-03 | 导入文件的格式归谁（A4b-3b，常规取舍） | — | 合同 `modules/artifacts`（`IMPORTED_DOCUMENT_TYPE`、`importedDocumentFile`） | Pages 接着导入的文件要读它，插件之间不能互相 import；什么文件 Pages 读得了（`PAGES_READABLE_FILE`）归 Pages |
 | 2026-10-03 | A1 遗留：Pages 成果的来源种类（常规取舍） | — | 改为 Pages 自己的对象种类 `pages_document` | A1 写成了 `page`，与 Pages 的对象读取、搬动、搜索用的种类不一致，A4b 的「原文已改」与当场固定都按种类找 owner。真实 Home 里还没有 A1 之后的 Pages 成果（A1 刚合入），不需要迁移 |
 | 2026-10-03 | A6 遗留：Goal Frame 选材料的「交付物」来源（常规取舍） | — | 改叫「成果」，英文「交付物」改为 Deliverable | 这个筛选项指成果库，不是 Goal 的交付物；A6 只改了「Artifact」字样，漏了这里 |
 
@@ -242,7 +246,7 @@
 - **在 Pages 继续**：Pages 能读的版本（Markdown、TXT、HTML、CSV、Word、ZIP）在详情里给「在 Pages 继续」：宿主把这一版交给 Pages 现有的文件解析，Pages 新建文档并在工作台打开；ZIP（如 Notion 导出）一次建多篇，打开第一篇。
 - **Pages 的导入入口删掉**：Pages 目录与空态里的「导入」按钮、导入浮层、脚本与样式都删了；它解析文件的能力（`import.preview`、`import` 动作与宿主的材料解析）保留，只作为「在 Pages 继续」的实现。
 
-### A4 每种可见类型的消费方（A4a、A4b-1、A4b-2、A4b-3a 已实施，A4b-3b 待做）
+### A4 每种可见类型的消费方（已实施）
 
 **A4a（本片）**
 
@@ -261,9 +265,7 @@
 
 **A4b-3a（本片）**：侧栏「文件」里的成果预览走类型 owner 的预览（`via: "owner"`），与成果库同一份；侧栏的 Markdown、CSV 渲染换成设计系统的同一组函数（页面脚本 `FILE_PREVIEW_CLIENT_SCRIPT`），侧栏表格样式改挂在共用的 `file-preview-table` 上。
 
-**A4b-3b（下一片）**
-
-- 其他类型的「从这一版继续」：由能接着做的插件在 manifest 里为成果类型声明 `continue`，替换宿主里专为 Pages 写的那条路由。
+**A4b-3b（本片）**：「从这一版继续」。协议 `defineArtifactContinueAction` 与 `bindArtifactContinue`；Pages（自己的文档，以及读得了的导入文件）、问卷、演示稿、数据表各一个，新建对象并带上这一版的内容，这一版和原对象都不变。成果库详情按声明给出「在 X 继续」，点了在工作台里打开新对象。Feed 捕获、角色、Coding 执行报告不提供，理由见 §1，名单在门禁里。
 
 ### A7 门禁（已实施）
 
@@ -304,6 +306,7 @@
 
 ## 6. 进度
 
+- 2026-10-03：A4b-3b 开 PR（分支 `feat/artifact-a4b3b-continue`），做法见上文「A4」A4b-3b。新增 `tests/artifact-continue.test.ts`（Pages、问卷、演示稿、数据表各固定一版再「继续」：新对象带上标题与内容、与原对象不同；未声明的插件被拒）、`tests/artifact-continue.e2e.test.ts`（1440、390：成果库详情点「在 Pages 继续」，在工作台里打开新文档，成果版本数不变）；`artifact-type-gate` 加「每种可见类型都能继续或在例外名单里」；A3 的「在 Pages 继续」用例改走新路由，原来对数量的断言换成在 Pages 列表里核对恰好新建了那一篇。整体构建后成果、四个 owner 插件、i18n、侧栏、目录与 MCP 等 104 个文件 566 条 565 通过；1 条 `ppt-actions.e2e`（390，PowerPoint 下载读到空文件）在 main 上同样偶发（3 次 2 次失败），是用例读下载的时机问题，单开 [#214](https://github.com/molis-ai/molis-work/pull/214) 修（等文件写完再读，断言不变，修后 4/4）；`alchemist-workbench.e2e` 有同样的读法，尚未见失败。健康门禁、边界检查通过；插件开发文档写明 `compare` 与 `continue`。
 - 2026-10-03：A4b-3a 开 PR（分支 `feat/artifact-a4b3-continue-and-side`），做法见上文「A4」A4b-3a。新增 `tests/side-files-artifacts.test.ts`：Pages 文档固定后，侧栏「文件」里的这一版由 Pages 预览（`via: "owner"`，Markdown 带标题与列表），列出的正是固定的那一版；页面脚本版渲染与服务端 `renderFilePreviewHtml` 对 Markdown、CSV、纯文本逐字相同，且不放过 `<b>`、`<script>`。整体构建后侧栏、成果、i18n、整页门禁、设计系统、搜索等 35 个文件 121/121；健康门禁通过。
 - 2026-10-03：A4b-2 开 PR（分支 `feat/artifact-a4b2-goal-inputs`），做法见上文「A4」A4b-2。新增 `tests/goal-artifact-inputs.test.ts`（Goal 目录、记为输入与重放、Goal 页「v2 · 输入」、成果库「被谁引用」、归档版本不给入口且后端拒绝、移除；助理只能提议输入、确认后提议退场、助理不能移除已确认的输入、输入不算交付物）与 `tests/artifact-goal-input.e2e.test.ts`（1440、390：在成果库详情选 Goal、记下后「被谁引用」出现该 Goal，页面不横向溢出）。A5c 的提议用例改为同时登记输入动作的定义（处理器工厂现在一并给出两类），断言不变。整体构建后 Goals、成果、i18n、MCP、目录、整页门禁等 133 个文件 475/475；健康门禁、边界检查通过。
 - 2026-10-03：Pages 恢复自己的导入入口（分支 `feat/pages-import-entry-back`，用户回来后的决定，见 §1）。新增 `tests/pages-import-entry.e2e.test.ts`（1440、390）：导入一个 Markdown 文件成为 Pages 文档并打开，成果库版本数不变，页面不横向溢出。整体构建后 Pages 导入、发布、动作、i18n、整页门禁 57/57，Pages 与目录、样式相关的其余 29 个文件 280/280；健康门禁通过。

@@ -1,9 +1,9 @@
-import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { slidesFromMarkdown } from "./content-actions.js";
 import { PPT_DRAFT_OUTLINE } from "./prompts.js";
-import { PPT_ARTIFACT_TYPE_ID, type PptRecord, type PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_ARTIFACT_TYPE_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { promotePpt, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
 import type { PptStore } from "./store.js";
 import { createPptSearchHandlers, pptSearchActions } from "./search.js";
@@ -35,6 +35,8 @@ export const pptActions = {
   artifactPin: defineArtifactPinAction("ppt.artifacts.pin", "presentation", "演示稿", [...write, "artifact:write"]),
   /** Whether a pinned version still matches the ppt object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("ppt.artifacts.compare", "演示稿", read),
+  /** 「从这一版继续」 (A4b): a new 演示稿 with the content of a pinned version; the version itself is unchanged. */
+  artifactContinue: defineArtifactContinueAction("ppt.artifacts.continue", "演示稿", write),
   list: define<Record<string, never>, { presentations: PptRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "演示稿列表", "读取当前项目的演示稿，以及当前调用方能否让模型整理大纲", "query", object({}),
     object({ presentations: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { presentation: PptRecord }>("get", "读取演示稿", "读取幻灯片、配色、版本和发布状态；id 来自列表或创建结果", "query", object({ id }), changed),
@@ -122,6 +124,14 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
     })),
     bind(pptActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
     bind(pptActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bindArtifactContinue(pptActions.artifactContinue, [PPT_ARTIFACT_TYPE_ID], (artifact, caller) => ports.withStore(store => {
+      const payload = (artifact.payload ?? {}) as Record<string, unknown>, at = project(caller);
+      const created = store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title, project_id: at });
+      // A version the editor cannot take leaves no empty 演示稿 behind.
+      try { store.update(created.id, Object.fromEntries(["description", "color_primary", "color_background", "color_text", "slides"].filter(field => payload[field] !== undefined).map(field => [field, payload[field]])), at); }
+      catch (error) { store.delete(created.id, at); throw error; }
+      return { surface: PPT_PROJECT_PLUGIN_ID, id: created.id, title: created.title };
+    })),
     bindArtifactCompare(pptActions.artifactCompare, PPT_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
       (payload, object) => sameArtifactFields(payload, object, ["title", "description", "color_primary", "color_background", "color_text", "slides"])),
     bind(pptActions.pptx, (input, caller) => ports.withStore(store => {

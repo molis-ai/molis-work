@@ -1,6 +1,6 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon } from "@molis-ai/molis-work-design-system";
-import { artifactVersionPath, PAGES_READABLE_FILE, type ArtifactBrowserView } from "./browser.js";
+import { artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
 import { renderArtifactImportDialog, type ArtifactImportUiModel } from "./import-ui.js";
 
 /** A type's display name as its owner declares it (artifact-positioning A4); an undeclared type shows its last segment. */
@@ -20,6 +20,8 @@ export interface ArtifactBrowserUiModel {
   /** Display names the owners declare for their 成果 types (A4). */
   readonly typeTitles?: Readonly<Record<string, string>>;
   readonly relationship?: "input" | "output";
+  /** The plugins that can start new work from the selected version (A4b, 「从这一版继续」), as the host found them declared. */
+  readonly continuers?: ReadonlyArray<{ plugin_id: string; plugin_title: string }>;
   /** Who refers to the selected version (A4b, 「被谁引用」), read by the host through `artifacts.links`. */
   readonly links?: { readonly goals: ReadonlyArray<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" }>; readonly other: number };
   /** The import dialog's connected services; the directory offers the 成果库's one import entry when present (A3). */
@@ -89,9 +91,7 @@ function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>,
   const original = payload.original_file && typeof payload.original_file === "object" && !Array.isArray(payload.original_file) ? payload.original_file : null;
   const mime = typeof original?.mime === "string" ? original.mime : "";
   const image = /^image\/(?:png|jpeg|gif|webp|avif)$/u.test(mime) ? `<img class="artifact-document-image" src="${p.escape(file)}" alt="${p.escape(artifact.title)}">` : "";
-  const pagesReadable = payload.format !== "file" || (typeof original?.filename === "string" && PAGES_READABLE_FILE.test(original.filename));
-  const actions = `<p class="artifact-document-actions"><a class="mw-btn" href="${p.escape(file)}" download>${p.text(original ? "下载原文件" : "下载正文")}</a>${pagesReadable
-    ? `<button class="mw-btn" type="button" data-artifact-continue="pages" data-artifact-reference="${p.escape(JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version }))}">${p.text("在 Pages 继续")}</button>` : ""}</p>`;
+  const actions = `<p class="artifact-document-actions"><a class="mw-btn" href="${p.escape(file)}" download>${p.text(original ? "下载原文件" : "下载正文")}</a></p>`;
   let sourceLink = "";
   if (typeof payload.source_url === "string" && payload.source_url) {
     try {
@@ -143,6 +143,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${embedded ? "" : `<div class="artifact-detail-content">`}<p class="artifact-notice">${p.text(embedded && !preview && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice)}</p>
     ${artifact.unavailable_reason ? `<p>${p.escape(artifact.unavailable_reason)}</p>` : ""}
     ${!embedded && model.presentation ? `${model.presentation.source_href ? `<p><a class="mw-btn" href="${p.escape(model.presentation.source_href)}" data-workbench-item-plugin="${p.escape(model.presentation.plugin_id)}" data-workbench-item-id="${p.escape(model.presentation.item_id)}" data-workbench-item-title="${p.escape(title)}">${p.text(model.presentation.source_label)}</a></p>` : ""}<section class="artifact-business-preview mw-prose" data-artifact-business-preview>${model.presentation.body_html}</section>` : ""}
+    ${!embedded && model.continuers?.length ? continueActions(model.continuers, artifact, p) : ""}
     ${preview}
     ${!embedded && model.links ? linksSection(model.links, routePrefix, p, artifact) : ""}
     <dl class="artifact-facts">
@@ -158,6 +159,12 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${embedded ? "" : `</div>
       <div class="artifact-actions"><a class="artifact-export" href="${p.escape(routePrefix + "/api" + artifactVersionPath(artifact) + "/export")}" download>${p.text("导出这个版本")}</a><span>${p.text("仅下载本地副本，不会发布或共享。")}</span></div>`}
   </article>`;
+}
+
+/** 「从这一版继续」: one button per plugin that declares it can continue from this type. */
+function continueActions(continuers: NonNullable<ArtifactBrowserUiModel["continuers"]>, artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"]): string {
+  const reference = p.escape(JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version }));
+  return `<p class="artifact-continue-actions">${continuers.map(item => `<button class="mw-btn" type="button" data-artifact-continue="${p.escape(item.plugin_id)}" data-artifact-reference="${reference}">${p.text(`在 ${item.plugin_title} 继续`)}</button>`).join("")}</p>`;
 }
 
 const LINK_ROLES = { input: "输入", deliverable: "交付物", proposed: "提议的交付物" } as const;

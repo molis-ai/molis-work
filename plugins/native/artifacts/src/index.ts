@@ -2,7 +2,7 @@ export { openArtifactProjectReference, ArtifactProjectReferenceError } from "./p
 export type { ArtifactProjectReferencePorts } from "./project-reference.js";
 export { artifactReferenceUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, isProjectReference } from "./reference-ui.js";
 export type { ArtifactReferenceUiPrimitives, ArtifactReferenceUiModel } from "./reference-ui.js";
-export { readArtifactBrowser, matchArtifactBrowserRoute, exportArtifactVersion, artifactVersionPath, importedFileOf, PAGES_READABLE_FILE, ArtifactBrowserError } from "./browser.js";
+export { readArtifactBrowser, matchArtifactBrowserRoute, exportArtifactVersion, artifactVersionPath, importedFileOf, ArtifactBrowserError } from "./browser.js";
 export type { ArtifactBrowserView, ArtifactBrowserRoute } from "./browser.js";
 export { requireArtifactAnalysisRecord, artifactAnalysisContext } from "./browser.js";
 export { artifactBrowserUiContribution, ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } from "./browser-ui.js";

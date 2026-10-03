@@ -1,16 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { randomUUID } from "node:crypto";
-import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
+import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
+import { PAGES_READABLE_FILE } from "@molis-ai/molis-work-plugin-pages";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  ArtifactBrowserError, ArtifactImportError, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, PAGES_READABLE_FILE,
+  ArtifactBrowserError, ArtifactImportError, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf,
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { ExternalDocumentImportError } from "@molis-ai/molis-work-integration-catalog";
-import { artifactWorkbench, artifactTypeDeclarations, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
+import { artifactWorkbench, artifactTypeDeclarations, artifactContinuers, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
-import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { ArtifactCompareResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
+import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactCompareResult, ArtifactContinueResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dateTimeLocale, L } from "./web-locale.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
@@ -20,8 +20,6 @@ export interface ArtifactHttpContext {
   readonly routePrefix: string;
   readonly projectTitle: string;
   readonly actions: BoundActionClient;
-  /** Pages, bound with its own permissions, for "在 Pages 继续". */
-  readonly pages?: BoundActionClient;
   /** A type owner's actions, bound with the permissions its preview declares (A4). */
   readonly ownerActions?: (permissions: readonly string[]) => BoundActionClient;
   readonly controlToken: string;
@@ -90,23 +88,15 @@ export function createLocalArtifactHttp() {
         sendLocalWebJson(response, result.reused ? 200 : 201, { ...result, warnings: result.warnings.map(warning => L(warning)) });
         return true;
       }
-      if (pathname === "/api/artifacts/continue-in-pages" && request.method === "POST") {
-        // "从这一版继续" (A3): Pages starts a document from an imported text version, parsed the way Pages reads files.
-        const body = await readArtifactImportBody(request) as { reference?: { artifact_id?: unknown; version?: unknown } };
+      if (pathname === "/api/artifacts/continue" && request.method === "POST") {
+        // 「从这一版继续」 (A4b): the chosen plugin starts a new object from this version, with its own permissions.
+        const body = await readArtifactImportBody(request) as { reference?: { artifact_id?: unknown; version?: unknown }; plugin_id?: unknown };
         const reference = { artifact_id: String(body.reference?.artifact_id ?? ""), version: Number(body.reference?.version) };
-        const view = await context.actions.invoke(artifactsActions.browser, { reference,
-          supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
-        const file = importedFileOf(view.selected);
-        if (!file || !PAGES_READABLE_FILE.test(file.filename)) { sendLocalWebJson(response, 400, { error: L("Pages 读不了这一版：支持 Markdown、TXT、HTML、CSV、Word 与 ZIP") }); return true; }
-        if (!context.pages) { sendLocalWebJson(response, 404, { error: L("这个项目没有 Pages") }); return true; }
-        const files = [{ name: file.filename, data: file.bytes.toString("base64") }];
-        const prepared = await context.pages.invoke(pagesActions.previewImport, { files });
-        const imported = await context.pages.invoke(pagesActions.import, { files, request_id: randomUUID(),
-          selected_keys: prepared.documents.map(document => document.key) });
-        const document = imported.documents[0];
-        if (!document) { sendLocalWebJson(response, 400, { error: L("这一版没有可以继续的正文") }); return true; }
-        // A ZIP can hold several documents; the first opens, the rest stay in Pages.
-        sendLocalWebJson(response, 201, { document: { id: document.id, title: document.title }, count: imported.documents.length });
+        const view = await context.actions.invoke(artifactsActions.read, { reference });
+        const continuer = view.selected ? artifactContinuers().get(view.selected.artifact_type_id)?.find(item => item.plugin_id === body.plugin_id) : undefined;
+        if (!view.selected || !continuer || !context.ownerActions) { sendLocalWebJson(response, 400, { error: L("这一版不能在这个插件里继续") }); return true; }
+        const result = await context.ownerActions(continuer.action.action.permissions).invoke(continuer.action, { artifact: view.selected }) as ArtifactContinueResult;
+        sendLocalWebJson(response, 201, result);
         return true;
       }
       if (request.method !== "GET") return false;
@@ -161,6 +151,10 @@ export function createLocalArtifactHttp() {
       }
       const declarations = artifactTypeDeclarations();
       const presentation = await ownerPreview(view.selected, declarations, context);
+      // 「从这一版继续」 (A4b): who declares it for this type; Pages only for an imported file it can read.
+      const selected = view.selected, file = importedDocumentFile(selected);
+      const continuers = selected && selected.availability === "available" && selected.lifecycle_state !== "archived" ? (artifactContinuers().get(selected.artifact_type_id) ?? [])
+        .filter(item => !file || item.plugin_id !== PAGES_PLUGIN_ID || PAGES_READABLE_FILE.test(file.filename)).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title })) : [];
       const links = view.selected && route.kind === "detail" ? await context.actions.invoke(artifactsActions.links, { reference: { artifact_id: view.selected.artifact_id, version: view.selected.version } }) : undefined;
       const compact = requestHeader(request, "x-molis-work-fragment") === "frame-block";
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
@@ -168,7 +162,7 @@ export function createLocalArtifactHttp() {
       });
       // The directory carries the 成果库's one import entry (A3); its dialog needs the connected document services.
       const available = compact ? null : await context.actions.invoke(artifactsActions.importSources, {});
-      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}),
+      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}), continuers,
         typeTitles: Object.fromEntries([...declarations].map(([type, declaration]) => [type, declaration.title])),
         ...(available ? { importForm: { connectionStatus: available.sources, connections: available.connections } } : {}) }, compact ? "frame-block" : "detail"));
       return true;

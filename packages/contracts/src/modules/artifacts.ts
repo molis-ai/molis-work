@@ -28,6 +28,24 @@ export interface ArtifactReference {
 
 export const ARTIFACT_SUBJECT_KIND = "artifact";
 
+/**
+ * An imported file or document in the 成果库 (specs/artifact-positioning A3): its type, and its original file as imported
+ * (bytes for any file, or the text of an older text import). The 成果库 shows it; a plugin that continues from it reads it.
+ */
+export const IMPORTED_DOCUMENT_TYPE = "io.molis.work.document";
+export interface ImportedDocumentFile { filename: string; mime: string; data_base64?: string; text?: string }
+export function importedDocumentFile(artifact: Pick<FixedVersionRecord, "artifact_type_id" | "availability" | "content_kind" | "payload"> & { title: string } | null): ImportedDocumentFile | null {
+  if (!artifact || artifact.artifact_type_id !== IMPORTED_DOCUMENT_TYPE || artifact.availability !== "available" || artifact.content_kind !== "inline") return null;
+  const payload = artifact.payload as { content?: unknown; format?: unknown; original_file?: { filename?: unknown; mime?: unknown; data_base64?: unknown } } | null;
+  const original = payload?.original_file;
+  if (original && typeof original.filename === "string" && typeof original.mime === "string" && typeof original.data_base64 === "string") {
+    return { filename: original.filename, mime: original.mime, data_base64: original.data_base64 };
+  }
+  if (typeof payload?.content !== "string") return null;
+  const text = payload.format === "text";
+  return { filename: `${artifact.title}.${text ? "txt" : "md"}`, mime: `${text ? "text/plain" : "text/markdown"}; charset=utf-8`, text: payload.content };
+}
+
 /** A subject names one immutable version, including IDs containing path or version delimiters. */
 export function artifactSubjectId(reference: ArtifactReference): string {
   if (typeof reference.artifact_id !== "string" || !reference.artifact_id.trim()

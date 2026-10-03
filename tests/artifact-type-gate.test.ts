@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isArtifactCompareAction, isArtifactPinAction, isArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isArtifactCompareAction, isArtifactContinueAction, isArtifactPinAction, isArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_CATALOG, artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 
 // specs/artifact-positioning A4/A7: every type a plugin pins into the 成果库 names itself and has a preview from its owner,
@@ -45,4 +45,26 @@ test("a 成果 type has exactly one owner", () => {
   }
   assert.deepEqual([...owners].filter(([, plugins]) => plugins.length > 1), []);
   assert.equal(artifactTypeDeclarations().size, owners.size, "every produced type is declared");
+});
+
+/**
+ * 「从这一版继续」 (A4b): every type people can keep in the 成果库 can be continued somewhere, except records that are not
+ * work to carry on — kept here by name, with why, so a new type cannot slip through.
+ */
+const NO_CONTINUE: Record<string, string> = {
+  "io.molis.work.feed.capture": "捕获的消息是收到的内容记录，不是可以接着编辑的工作",
+  "character.definition.v1": "角色版本由角色插件自己的版本历史管理，固定版本只供引用与回看",
+  "coding.report.v1": "执行报告是一次运行的记录；接着做是在 Coding 里新开任务，不从报告编辑",
+};
+test("every visible 成果 type can be continued from, by a plugin that declares a continue action, or is a named exception", () => {
+  const continued = new Set<string>(), problems: string[] = [];
+  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const type of [...entry.manifest.artifacts.produces, ...entry.manifest.artifacts.consumes]) {
+    if (!type.continue) continue;
+    const action = entry.manifest.actions?.find(item => item.capability_id === type.continue!.capability_id && item.version === type.continue!.version);
+    if (!action || !isArtifactContinueAction(action.action)) problems.push(`${entry.manifest.plugin_id} ${type.artifact_type_id}: ${type.continue.capability_id} is not a continue action`);
+    else continued.add(type.artifact_type_id);
+  }
+  for (const type of artifactTypeDeclarations().keys()) if (!continued.has(type) && !NO_CONTINUE[type]) problems.push(`${type}: nothing continues from it`);
+  for (const type of Object.keys(NO_CONTINUE)) if (continued.has(type) || !artifactTypeDeclarations().has(type)) problems.push(`${type}: stale exception`);
+  assert.deepEqual(problems, []);
 });

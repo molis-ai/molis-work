@@ -23,8 +23,6 @@ const EXCEPTIONS: readonly (readonly [RegExp, string])[] = [
   [/^\/projects\/[^/]+\/side\//, "宿主排版的侧栏文档"],
   [/^\/(?:continuity|im)(?:[/?]|$)/, "协作服务"],
   [/[?&]frame=workbench(?:&|$)/, "沙箱框里的文档"],
-  // Until import moves into the 成果库 overlay (artifact-positioning A3); this entry only goes away.
-  [/^\/projects\/[^/]+\/artifacts\/import(?:[/?]|$)/, "待 A3：成果导入页"],
 ];
 const NAVIGATION = { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document", accept: "text/html" };
 
@@ -147,8 +145,6 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "plugins/native/jelly/src/markdown.ts": "导出：Jelly 的 HTML 文件",
   "plugins/native/pages/src/client.ts": "导出：Pages 的 HTML 文件",
   "plugins/native/ppt/src/client.ts": "打印：PPT 打印框",
-  // Still a page of its own until import moves into the 成果库 overlay (artifact-positioning A3); this list only shrinks.
-  "apps/workbench/src/artifact-ui.ts": "待 A3：成果导入页 /artifacts/import",
 };
 
 test("only the listed source files produce a whole page", () => {

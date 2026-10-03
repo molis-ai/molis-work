@@ -1,14 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
+import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  ArtifactBrowserError, ArtifactImportError, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath,
+  ArtifactBrowserError, ArtifactImportError, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, PAGES_READABLE_FILE,
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { ExternalDocumentImportError } from "@molis-ai/molis-work-integration-catalog";
-import { artifactWorkbench, renderArtifactImportPage } from "@molis-ai/molis-work-app-workbench";
+import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
 import { codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
 import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
-import { dateTimeLocale, htmlLang, L } from "./web-locale.js";
+import { dateTimeLocale, L } from "./web-locale.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
 
@@ -34,7 +36,7 @@ export function renderGoalArtifactContext(embeds: GoalArtifactEmbed[]): string {
 }
 
 /** HTTP composition only: Artifact application owns routing and exact-version reads. */
-export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: string }) {
+export function createLocalArtifactHttp() {
   return async function handleArtifactNativePluginHttp(
     request: IncomingMessage, response: ServerResponse, pathname: string, context: ArtifactHttpContext,
   ): Promise<boolean> {
@@ -46,8 +48,8 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
         if (input.source !== "file" && !EXTERNAL_DOCUMENT_SOURCES.includes(input.source as ArtifactExternalImport["source"])) {
           throw new ArtifactImportError(400, "document.source_invalid", "请选择支持的文档来源");
         }
-        if (input.source === "file" && typeof input.content !== "string") {
-          throw new ArtifactImportError(400, "document.content_invalid", "文件必须是 UTF-8 文本");
+        if (input.source === "file" && typeof input.content !== "string" && input.original_file === undefined) {
+          throw new ArtifactImportError(400, "document.content_invalid", "请选择要导入的文件");
         }
         const saved = input.source === "file"
           ? await context.actions.invoke(artifactsActions.importFile, input as unknown as ArtifactFileImport)
@@ -56,19 +58,39 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
         sendLocalWebJson(response, result.reused ? 200 : 201, { ...result, warnings: result.warnings.map(warning => L(warning)) });
         return true;
       }
-      if (request.method !== "GET") return false;
-      if (pathname === "/artifacts/import") {
-        const available = await context.actions.invoke(artifactsActions.importSources, {});
-        const html = renderArtifactImportPage({
-          ...context, connectionStatus: available.sources, connections: available.connections,
-          lang: htmlLang(), nativeDesktopBootstrapScript: ports.nativeDesktopBootstrapScript, primitives,
-        });
-        response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": context.pageCsp });
-        response.end(html);
+      if (pathname === "/api/artifacts/continue-in-pages" && request.method === "POST") {
+        // "从这一版继续" (A3): Pages starts a document from an imported text version, parsed the way Pages reads files.
+        const body = await readArtifactImportBody(request) as { reference?: { artifact_id?: unknown; version?: unknown } };
+        const reference = { artifact_id: String(body.reference?.artifact_id ?? ""), version: Number(body.reference?.version) };
+        const view = await context.actions.invoke(artifactsActions.browser, { reference,
+          supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
+        const file = importedFileOf(view.selected);
+        if (!file || !PAGES_READABLE_FILE.test(file.filename)) { sendLocalWebJson(response, 400, { error: L("Pages 读不了这一版：支持 Markdown、TXT、HTML、CSV、Word 与 ZIP") }); return true; }
+        const files = [{ name: file.filename, data: file.bytes.toString("base64") }];
+        const prepared = await context.actions.invoke(pagesActions.previewImport, { files });
+        const imported = await context.actions.invoke(pagesActions.import, { files, request_id: randomUUID(),
+          selected_keys: prepared.documents.map(document => document.key) });
+        const document = imported.documents[0];
+        if (!document) { sendLocalWebJson(response, 400, { error: L("这一版没有可以继续的正文") }); return true; }
+        // A ZIP can hold several documents; the first opens, the rest stay in Pages.
+        sendLocalWebJson(response, 201, { document: { id: document.id, title: document.title }, count: imported.documents.length });
         return true;
       }
+      if (request.method !== "GET") return false;
       const route = matchArtifactBrowserRoute(pathname);
       if (!route) return false;
+      if (route.kind === "file") {
+        // A download (S7 exception list): an imported version's original file, or the text it was read into (A3).
+        const view = await context.actions.invoke(artifactsActions.browser, { reference: route.reference,
+          supported_types: [{ artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1 }] });
+        const file = importedFileOf(view.selected);
+        if (!file) { sendLocalWebJson(response, 404, { error: L("这个版本没有可取回的文件") }); return true; }
+        response.writeHead(200, { "content-type": file.mime, "cache-control": "no-store", "x-content-type-options": "nosniff",
+          "content-security-policy": "default-src 'none'; sandbox",
+          "content-disposition": `${file.inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.filename)}` });
+        response.end(file.bytes);
+        return true;
+      }
       if (route.kind === "export") {
         const exported = await context.actions.invoke(artifactsActions.export, { reference: route.reference });
         response.writeHead(200, {
@@ -100,7 +122,10 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
-      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation }, compact ? "frame-block" : "detail"));
+      // The directory carries the 成果库's one import entry (A3); its dialog needs the connected document services.
+      const available = compact ? null : await context.actions.invoke(artifactsActions.importSources, {});
+      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation,
+        ...(available ? { importForm: { connectionStatus: available.sources, connections: available.connections } } : {}) }, compact ? "frame-block" : "detail"));
       return true;
     } catch (error) {
       if (error instanceof ActionError) {

@@ -74,7 +74,7 @@ import {
 import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
-import { createArtifactWorkbenchRenderer, type ArtifactImportWorkbenchRequest } from "./artifact-ui.js";
+import { createArtifactWorkbenchRenderer } from "./artifact-ui.js";
 import { createGoalsContextWorkbenchRenderer } from "./goals-context-ui.js";
 import { createGoalsDecisionResultsWorkbenchRenderer } from "./goals-decision-results-ui.js";
 import { createGoalsDialogsWorkbenchRenderer } from "./goals-dialogs-ui.js";
@@ -91,7 +91,7 @@ import { createGoalsTreeWorkbenchRenderer } from "./goals-tree-ui.js";
 import { createWorkSessionRenderer } from "./work-ui.js";
 
 export { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
-import { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
+import { WORKBENCH_UI_SLOTS } from "./document-shell.js";
 
 
 const INBOX_SURFACE_SLOTS: Readonly<Record<InboxUiSurface, UiSlotDescriptor>> = {
@@ -200,7 +200,7 @@ export const createWorkbenchGoalsFactorsRenderer = createGoalsFactorsWorkbenchRe
 
 export const createWorkbenchGoalsDialogsRenderer = createGoalsDialogsWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.overlay);
 
-export const artifactWorkbench = createArtifactWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS, renderWorkbenchDocument);
+export const artifactWorkbench = createArtifactWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS);
 
 export function createArtifactReferenceRenderer(primitives: ArtifactReferenceUiPrimitives) {
   return (value: string, label = value, evidenceId?: string): string => workbenchUiHost.mount({
@@ -410,16 +410,6 @@ export function renderShelfSettingsContribution(model: ShelfSettingsUiModel): st
 
 export function listWorkbenchUiContributions() {
   return workbenchUiHost.list();
-}
-
-export function renderArtifactImportPage(
-  request: Omit<ArtifactImportWorkbenchRequest, "headHtml" | "iconSpriteHtml"> & { nativeDesktopBootstrapScript: string },
-): string {
-  return artifactWorkbench.importPage({
-    ...request,
-    headHtml: `<script>${THEME_BOOTSTRAP_SCRIPT}${request.nativeDesktopBootstrapScript}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css">`,
-    iconSpriteHtml: renderIconSprite(),
-  });
 }
 
 export function renderExperimentsContribution(): string { return workbenchUiHost.mount({slot:WORKBENCH_UI_SLOTS.main,contribution:{contribution_id:EXPERIMENTS_UI_CONTRIBUTION_ID,surface:"workbench",model:{}}}).html; }

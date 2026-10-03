@@ -78,12 +78,12 @@ export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: 
 
 export type ArtifactBrowserRoute =
   | { readonly kind: "index"; readonly reference: null }
-  | { readonly kind: "detail" | "export"; readonly reference: ArtifactReference };
+  | { readonly kind: "detail" | "export" | "file"; readonly reference: ArtifactReference };
 
 /** Routes require an exact producer-supplied version, never an implicit latest. */
 export function matchArtifactBrowserRoute(pathname: string): ArtifactBrowserRoute | null {
   if (pathname === "/artifacts") return { kind: "index", reference: null };
-  const match = pathname.match(/^\/(api\/)?artifacts\/([^/]+)\/versions\/([^/]+)(\/export)?$/);
+  const match = pathname.match(/^\/(api\/)?artifacts\/([^/]+)\/versions\/([^/]+)(\/export|\/file)?$/);
   if (!match || (Boolean(match[1]) !== Boolean(match[4]))) return null;
   if (!/^[1-9]\d*$/.test(match[3]!) || !Number.isSafeInteger(Number(match[3]))) {
     throw new ArtifactBrowserError(400, "成果版本必须是正整数");
@@ -91,8 +91,32 @@ export function matchArtifactBrowserRoute(pathname: string): ArtifactBrowserRout
   let id: string;
   try { id = decodeURIComponent(match[2]!); }
   catch { throw new ArtifactBrowserError(400, "成果 ID 编码无效"); }
-  return { kind: match[1] ? "export" : "detail", reference: { artifact_id: id, version: Number(match[3]) } };
+  // `/file` hands back an imported file's original bytes (A3); `/export` the version's JSON record.
+  return { kind: match[4] === "/file" ? "file" : match[1] ? "export" : "detail", reference: { artifact_id: id, version: Number(match[3]) } };
 }
+
+/** Inline in the page only for raster images; everything else, SVG included, is a download. */
+const INLINE_IMAGE = /^image\/(?:png|jpeg|gif|webp|avif)$/u;
+
+/**
+ * An imported version's file (specs/artifact-positioning A3): the original bytes when one was kept, else the text it was
+ * read into. Null when the version is not an available imported document.
+ */
+export function importedFileOf(artifact: ArtifactVersionRecord | null): { filename: string; mime: string; bytes: Buffer; inline: boolean } | null {
+  if (!artifact || artifact.artifact_type_id !== "io.molis.work.document" || artifact.availability !== "available"
+    || artifact.content_kind !== "inline") return null;
+  const payload = artifact.payload as { content?: unknown; format?: unknown; original_file?: { filename?: unknown; mime?: unknown; data_base64?: unknown } } | null;
+  const original = payload?.original_file;
+  if (original && typeof original.filename === "string" && typeof original.mime === "string" && typeof original.data_base64 === "string") {
+    return { filename: original.filename, mime: original.mime, bytes: Buffer.from(original.data_base64, "base64"), inline: INLINE_IMAGE.test(original.mime) };
+  }
+  if (typeof payload?.content !== "string") return null;
+  const text = payload.format === "text";
+  return { filename: `${artifact.title}.${text ? "txt" : "md"}`, mime: `${text ? "text/plain" : "text/markdown"}; charset=utf-8`, bytes: Buffer.from(payload.content, "utf8"), inline: false };
+}
+
+/** What Pages can start documents from: text it reads, and the Word, CSV and ZIP (e.g. Notion export) files it parses. */
+export const PAGES_READABLE_FILE = /\.(?:md|markdown|txt|html?|csv|docx|zip)$/iu;
 
 export function artifactVersionPath(reference: ArtifactReference): string {
   return `/artifacts/${encodeURIComponent(reference.artifact_id)}/versions/${reference.version}`;

@@ -51,7 +51,7 @@ export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives)
 
 function renderSettingsNav(
   primitives: SettingsDirectoryPrimitives,
-  groups: readonly { group: string; sections: readonly { id: string; label: string; icon: MolisWorkIcon; kind?: string }[] }[],
+  groups: readonly { group: string; sections: readonly { id: string; label: string; icon: MolisWorkIcon }[] }[],
   preset: string,
   label: string,
   pluginId: string,
@@ -70,7 +70,7 @@ function renderSettingsNav(
       icon: section.icon,
       density: "compact",
       current: section.id === preset,
-      attrs: { "data-settings-section": section.id, ...(section.kind === "cover" ? { "data-settings-cover": section.id } : {}) },
+      attrs: { "data-settings-section": section.id },
     })).join("")}`).join(""),
   });
 }

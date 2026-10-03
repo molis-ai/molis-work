@@ -53,15 +53,19 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   }).then(async response => { if (!response.ok) throw new Error(await response.text()); return response.json(); })`);
   const projectId = created.project.project_id;
   const prefix = `/projects/${projectId}`;
+  // Project settings open in the project's workbench (specs/artifact-positioning S6).
+  const general = "document.querySelector('[data-tab-workspace]')?.dataset.exclusive === 'project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')";
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/general?desktop=1" }, sessionId));
-  await waitFor("document.body.classList.contains('project-preferences-page') && !!document.querySelector('[data-project-rename]')");
+  await waitFor(general, 15_000);
+  assert.equal(await evaluate("location.pathname + location.search"), prefix + "/?desktop=1");
   assert.equal(await evaluate("!!document.querySelector('.project-name-form[data-project-rename]')"), true);
-  assert.equal(await evaluate("document.querySelector('.project-settings-navigation a[href*=workspaces]') != null"), true);
+  assert.equal(await evaluate("document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]') != null"), true);
   assert.equal(await evaluate("document.querySelector('[data-settings-fold=guidance]')"), null);
   await click('[data-project-rename] input');
   await evaluate("document.querySelector('[data-project-rename] input').select()");
   await command("Input.insertText", { text: "项目的新名称" }, sessionId);
   await navigate(() => click('[data-project-rename] button[type=submit]'));
+  await waitFor(general, 15_000);
   assert.equal(await evaluate("document.querySelector('[data-project-rename] input').value"), "项目的新名称");
   await click('[data-project-delete-open]');
   assert.equal(await evaluate("document.querySelector('[data-project-delete-dialog]').open"), true);
@@ -113,9 +117,12 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   assert.deepEqual(await (await fetch(origin + "/api/settings/projects")).json(), { projects: [] });
 });
 
+// Global settings open over the named project's workbench (specs/artifact-positioning S6): moving between categories,
+// into the planning editor and out again stays on that page, and closing settings is back at the work.
 test("global settings retain project context through sections, planning cancel and return", {timeout:60_000}, async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
   const {origin,projectId,sessionId,command,evaluate,click,openGoalFrame,navigate,waitFor}=b;
+  const shown=(selector:string)=>waitFor(`!!document.querySelector('[data-work-surface=settings] ${selector}')`,15_000);
   for(const desktop of [false,true]) {
     await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/${desktop?'?desktop=1':''}`},sessionId));
     await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
@@ -123,20 +130,30 @@ test("global settings retain project context through sections, planning cancel a
     await openGoalFrame('.tree-node[data-select-goal=CORE]');
     await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE'");
     await navigate(()=>command('Page.navigate',{url:`${origin}/settings/appearance?project=${projectId}${desktop?'&desktop=1':''}`},sessionId));
+    await shown('[data-settings-panel=appearance]');
+    const address=`/projects/${projectId}/${desktop?'?desktop=1':''}`;
+    assert.equal(await evaluate('location.pathname + location.search'),address);
     for(const section of ['runtimes','planning']){
-      await navigate(()=>click(`.settings-navigation a[href^="/settings/${section}"]`));
-      assert.equal(await evaluate("new URLSearchParams(location.search).get('project')"),projectId);
-      assert.equal(await evaluate("new URLSearchParams(location.search).get('desktop')"),desktop?'1':null);
+      await click(`[data-directory-panel=settings] [data-settings-section="${section}"]`);
+      await shown(`[data-settings-panel="${section}"]`);
+      assert.equal(await evaluate('location.pathname + location.search'),address);
     }
-    await navigate(()=>click('a[href^="/settings/planning/new"]'));
-    await navigate(()=>click('.planning-edit-footer a'));
-    await navigate(()=>click('.settings-navigation a[href^="/settings/diagnostics"]'));
-    await navigate(()=>click('.settings-nav-back'));
-    assert.equal(await evaluate('location.pathname'),`/projects/${projectId}/`);
+    await click('[data-work-surface=settings] a[href^="/settings/planning/new"]');
+    await shown('[data-planning-edit-form]');
+    await click('.planning-edit-footer a');
+    await waitFor("!document.querySelector('[data-work-surface=settings] [data-planning-edit-form]')",15_000);
+    await click('[data-directory-panel=settings] [data-settings-section="diagnostics"]');
+    await shown('[data-settings-panel="diagnostics"]');
+    await click('[data-cover-close]');
+    assert.equal(await evaluate('location.pathname + location.search'),address);
     await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE' && !document.querySelector('[data-goal-frame-surface]').hidden");
   }
+  // Without a project named, settings open over the project last opened; closing them is back in that workbench.
   await navigate(()=>command('Page.navigate',{url:origin+'/settings/appearance'},sessionId));
-  await navigate(()=>click('.settings-navigation a[href^="/settings/runtimes"]'));
-  await navigate(()=>click('[aria-label="关闭全局设置"]'));
-  assert.equal(await evaluate('location.pathname'),'/');
+  await shown('[data-settings-panel=appearance]');
+  await click('[data-directory-panel=settings] [data-settings-section="runtimes"]');
+  await shown('[data-settings-panel="runtimes"]');
+  await click('[data-cover-close]');
+  await waitFor("!document.querySelector('[data-tab-workspace]')?.dataset.exclusive");
+  assert.equal(await evaluate('location.pathname'),`/projects/${projectId}/`);
 });

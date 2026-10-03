@@ -1,8 +1,8 @@
 /** Functions workbench: purpose, rules, then preview and activation. */
 export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, feedApi } = host;
-  const workbench = document.querySelector("[data-functions=workbench]");
-  if (!workbench) return;
+  const { translate: L, feedApi, root, page } = host;
+  const workbench = root.matches?.("[data-functions=workbench]") ? root : root.querySelector("[data-functions=workbench]");
+  if (!workbench || workbench.dataset.bound === "1") return; workbench.dataset.bound = "1";
   const list = workbench.querySelector("[data-functions=directory]");
   const rowsEl = workbench.querySelector("[data-functions-rows]");
   const empty = workbench.querySelector("[data-functions-empty]");
@@ -815,8 +815,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const closeEditor = () => {
     selected = null;
-    const next = new URL(location.href); next.searchParams.delete("rule"); next.searchParams.delete("key");
-    history.replaceState(null, "", next);
+    const next = page.address(); next.searchParams.delete("rule"); next.searchParams.delete("key");
+    page.replace(next);
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
     list.querySelectorAll("[data-function-id]").forEach((row) => {
@@ -967,8 +967,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     }, 280);
   };
   const remember = (record) => {
-    const next = new URL(location.href); next.searchParams.set("rule", record.id); next.searchParams.delete("key");
-    history.replaceState(null, "", next);
+    const next = page.address(); next.searchParams.set("rule", record.id); next.searchParams.delete("key");
+    page.replace(next);
     const listNote = workbench.querySelector("[data-functions-list-note]");
     if (listNote) listNote.hidden = true;
     records = records.some((item) => item.id === record.id)
@@ -1232,7 +1232,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
           const link = document.createElement("a");
           const connection = new URL("/capabilities/connections", location.origin);
           connection.searchParams.set("connector", "typesafe");
-          const current = new URL(location.href);
+          const current = page.address();
           for (const key of ["project", "desktop"]) if (current.searchParams.has(key)) connection.searchParams.set(key, current.searchParams.get(key));
           link.href = connection.pathname + connection.search;
           link.textContent = L("连接判断服务");
@@ -1289,7 +1289,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     workbench.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: row.dataset.functionId } }));
   });
   void load().then(() => {
-    const params = new URL(location.href).searchParams;
+    const params = page.address().searchParams;
     const id = params.get("rule") || records.find(record => record.function_key === params.get("key"))?.id;
     if (id) workbench.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: id } }));
     else if (params.get("key")) showNote(L("找不到这条判断规则，请从列表重新选择。"), true);

@@ -291,9 +291,10 @@ test("workbench settings directory and standalone settings list the same grouped
   const withGoals = renderSettingsDirectorySection(directoryPrimitives, ["goals"]);
   const sectionOrder = [...withGoals.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]);
   // One list for the cover and the independent page (specs/archive/page-interaction-flow): host pages by group, 角色 after 助理
-  // by its Manifest order, other plugin pages last; 能力 opens its own cover. 记忆 is the person's own (specs/archive/memory-system §10.1).
-  assert.deepEqual(sectionOrder, ["appearance", "memory", "models", "assistant", "characters", "prompts", "runtimes", "capabilities", "diagnostics", "shelf", "planning"]);
-  assert.match(withGoals, /data-settings-section="capabilities"[^>]*data-settings-cover="capabilities"|data-settings-cover="capabilities"[^>]*data-settings-section="capabilities"/);
+  // by its Manifest order, other plugin pages last; 能力 is four of the categories (specs/artifact-positioning S6b). 记忆 is the
+  // person's own (specs/archive/memory-system §10.1).
+  assert.deepEqual(sectionOrder, ["appearance", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "shelf", "planning"]);
+  assert.doesNotMatch(withGoals, /data-settings-cover/);
   assert.deepEqual([...withGoals.matchAll(/class="settings-directory-group"[^>]*>([^<]+)</g)].map((match) => match[1]), ["本机", "个人", "AI", "工具与接入", "系统", "插件"]);
   assert.match(withGoals, />Goals</);
   assert.doesNotMatch(directory, /Gmail|Inbox/);

@@ -39,7 +39,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
   if (!root || !panesEl || !pool) return { apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; },
-    leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
+    leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_COLOR = ${JSON.stringify(Object.fromEntries(MW_PLUGINS.map((plugin) => [plugin.id, `var(--plugin-${plugin.id})`])))};
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())};
   const PLUGIN_TAB_TITLES = ${JSON.stringify({ home: "项目首页", ...pluginTabTitles() })};
@@ -117,15 +117,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         persist();
       }
     } catch {}
-    // A standalone settings page returns to the previously focused workspace,
-    // rather than restoring the persisted exclusive settings surface again.
-    if (paneParams.get("returnToWorkbench") === "1") {
-      ops.setExclusive(state, null);
-      setDirectory("root", true, false);
-      const returnedUrl = new URL(location.href);
-      returnedUrl.searchParams.delete("returnToWorkbench");
-      history.replaceState(history.state, "", returnedUrl);
-    }
+    if (state.exclusive) coverPlace = historyCoverPlace(state.exclusive);
     const requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
     if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem) {
       ops.setExclusive(state, null);
@@ -393,10 +385,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const COVER_OPENERS = {
     settings: '[data-directory-open="settings"]',
     "project-settings": '[data-directory-open="project-settings"]',
-    capabilities: "[data-capabilities-open]",
     market: ':is([data-dock], [data-global-menu], .plugin-stack) [data-plugin-id="market"]',
   };
-  const coverLabel = (kind) => kind === "market" ? L("插件市场") : kind === "project-settings" ? L("项目设置") : kind === "settings" ? L("设置") : kind === "capabilities" ? L("能力") : ops.pluginTitle(kind);
+  const coverLabel = (kind) => kind === "market" ? L("插件市场") : kind === "project-settings" ? L("项目设置") : kind === "settings" ? L("设置") : ops.pluginTitle(kind);
   // The glyph comes from the entry that opened the cover.
   const coverGlyph = (kind) => document.querySelector((COVER_OPENERS[kind] || '[data-plugin-id="' + CSS.escape(kind) + '"]') + " svg")?.cloneNode(true) || null;
   const coverKindOf = (element) => Object.keys(COVER_OPENERS).find((kind) => element.closest(COVER_OPENERS[kind])) || null;
@@ -1424,6 +1415,14 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     syncHistoryButtons();
     announcePlace();
   };
+  /** Where inside a cover restored by a reload the person was (its history entry), so it reopens there, not on its first page. */
+  const historyCoverPlace = (kind) => {
+    const pane = ops.focused(state);
+    const entry = pane ? tabHistory.get(pane.id) : null;
+    const id = String(entry?.stack[entry.index] ?? "");
+    return coverOf(id) === kind ? id.split("|").slice(1).join("|") : "";
+  };
+  const restoredCoverPlace = (kind) => state.exclusive === kind ? coverPlace : "";
   const setExclusive = (surface) => {
     if (surface !== state.exclusive && !historyLock) coverPlace = "";
     ops.setExclusive(state, surface);
@@ -1692,10 +1691,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     stepHistory(event.button === 3 ? -1 : 1);
   });
-  /* Esc steps out of a cover, unless something smaller is open in it (a field being typed in, a menu, a dialog):
-     those take the Esc first. */
+  /* Esc steps out of a cover, unless something smaller is open in it (a field being typed in, a menu, a dialog, a
+     page's own editor marked data-cover-layer) or a save is under way: those take the Esc first. */
   let escapeHadLayer = false;
-  const openLayer = () => Boolean(document.querySelector("dialog[open], :popover-open, details[open][data-project-menu], details[open][data-global-menu], [data-plugin-picker-popover]:not([hidden]), [data-dock-overflow]:not([hidden]), [data-assistant-panel]:not([hidden])"));
+  const openLayer = () => Boolean(document.querySelector("dialog[open], :popover-open, details[open][data-project-menu], details[open][data-global-menu], [data-plugin-picker-popover]:not([hidden]), [data-dock-overflow]:not([hidden]), [data-assistant-panel]:not([hidden]), [data-cover-layer]:not([hidden]), form[aria-busy=true]"));
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") escapeHadLayer = openLayer(); }, true);
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || embedded || !state.exclusive || escapeHadLayer || event.defaultPrevented || editable(event.target)) return;
@@ -2043,7 +2042,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   });
   if (embedded && paneParams.has("paneFeedTask")) requestAnimationFrame(() => setFeedTask?.(paneParams.get("paneFeedTask"), false));
   return { apply, openPlugin, openPluginRecord, openItem, openBeside, openGoalWork, closeItem, addFeedTask, setExclusive, restore, landAtProjectRoot,
-    leavePlugin, closeCover, openCover, registerCover, noteCover, goHistory,
+    leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     exclusive: () => state.exclusive, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
 }`;

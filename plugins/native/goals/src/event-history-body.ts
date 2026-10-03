@@ -166,7 +166,7 @@ function renderLegacyEvidence(item: EvidenceRecord, L: GoalsDocumentUiPrimitives
   const copy = `<button class="inline-ref" type="button" data-copy-value="${escapeHtml(item.locator)}" title="${L("复制引用")}">${escapeHtml(item.locator)}</button>`;
   const reason = item.locator_validation_reason ? ` · ${escapeHtml(item.locator_validation_reason)}` : "";
   const locator = item.locator_status === "verified"
-    ? `<p class="attachment"><a class="inline-ref" href="/api/project-references/${encodeURIComponent(item.locator)}?evidence_id=${encodeURIComponent(item.evidence_id)}" target="_blank" rel="noreferrer" data-project-reference>${escapeHtml(item.locator)}</a>${copy}<small>${escapeHtml(access)}</small></p>`
+    ? `<p class="attachment"><a class="inline-ref" href="/api/project-references/${encodeURIComponent(item.locator)}?evidence_id=${encodeURIComponent(item.evidence_id)}" data-project-reference>${escapeHtml(item.locator)}</a>${copy}<small>${escapeHtml(access)}</small></p>`
     : /^https?:\/\//i.test(item.locator)
       ? `<p class="attachment"><a class="inline-ref" href="${escapeHtml(item.locator)}" target="_blank" rel="noreferrer">${escapeHtml(item.locator)}</a>${copy}<small>${escapeHtml(access)}${reason}</small></p>`
       : `<p class="attachment">${copy}<small>${escapeHtml(access)}${reason}</small></p>`;

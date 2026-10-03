@@ -238,6 +238,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     return '<div class="shelf-preview-inner shelf-doc"><p class="shelf-kicker tone-clay">' + escapeText(L("这次动作没成")) + '</p><h1 class="shelf-title">' + escapeText(item.name) + "</h1><p>" + escapeText(item.failure_reason || L("任务失败")) + '</p><p class="muted">' + escapeText(L("材料还在架子上。原文件没有被改动。")) + "</p>" + back + "</div>";
   };
   const childUrl = (itemId, relative) => fileUrl(itemId) + "?child=" + encodeURIComponent(relative);
+  const download = (item) => Object.assign(document.createElement("a"), { href: fileUrl(item.item_id), download: item.name || "" }).click();
   const folderPane = (item) => {
     const child = selectedChild && selectedChild.item_id === item.item_id
       ? (item.children || []).find((entry) => entry.relative === selectedChild.relative)
@@ -886,10 +887,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       return;
     }
     // A browser cannot place file URLs on the macOS pasteboard.
-    for (const item of picked.filter(hasFile)) {
-      const link = document.createElement("a");
-      link.href = fileUrl(item.item_id); link.download = item.name; link.click();
-    }
+    for (const item of picked.filter(hasFile)) download(item);
     stickyHint = L("浏览器已下载副本；桌面版可直接复制文件。");
     renderBar(lastBarKind);
   };
@@ -1002,7 +1000,9 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (!hasFile(item)) return;
       const opened = invokeNative("shelf_open_path", { path: filePathOf(item) });
       if (opened) { opened.catch(() => {}); return; }
-      window.open(fileUrl(item.item_id), "_blank", "noopener");
+      // The browser previews it in the side panel's file tab (a frame asks its page), never a new tab; with no side panel it downloads.
+      const detail = { tab: "files", target: { subject: { kind: "shelf_item", id: item.item_id }, title: item.name }, focus: true };
+      if (document.dispatchEvent(new CustomEvent("molis:side-open", { detail, cancelable: true }))) window.parent !== window ? window.parent.postMessage({ type: "molis:side-open", ...detail }, location.origin) : download(item);
       return;
     }
     const row = event.target.closest("[data-shelf-clip]");

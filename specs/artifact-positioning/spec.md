@@ -97,6 +97,9 @@
 | 2026-10-03 | 真实 Home 删旧成果表（执行记录） | — | 已完成 | ① `launchctl bootout gui/<uid>/com.adeptify.goalboard.web` 停下常驻服务（KeepAlive，按 pid 停会被拉起；plist 未改，下次登录或 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.adeptify.goalboard.web.plist` 会再启动，但 0.2.0 没有旧表不能用，要等装新版）；确认 4173 不再监听、没有进程打开项目库。② 18 个项目库用 SQLite `.backup` 备份到 `~/.molis-work-backups/2026-10-03-drop-old-artifact-tables/`（148 MB），逐个 `integrity_check` 为 ok，旧表行数与原库一致（13、45、53，其余 0）。③ 每个库一个事务 `DROP TABLE artifact_versions; DROP TABLE artifacts`；之后 18 个库都没有这两张表及其索引，`quick_check` 为 ok。④ 先核对过当前代码不再建、读、改这两张表（只剩 `repository.ts` 一处注释），以后升级不会把它们带回来 |
 | 2026-10-03 | 合并 #210 A4b-1 | CI 通过即合并（用户已授权） | 已合并 | a639242b |
 | 2026-10-03 | Pages 导入怎么恢复（常规取舍，按用户决定执行） | — | 按 A3 之前的样子恢复入口、对话框与脚本 | 解析与 `pages.import` 动作一直留着，只恢复界面；导入对话框的样式放进 `import-client.ts`，由包入口拼进 `PAGES_STYLES`，`styles.ts` 与 `client.ts` 不变大（健康门禁）。导入结果是 Pages 文档，不写成果库 |
+| 2026-10-03 | 合并 #211 Pages 导入恢复 | CI 通过即合并（用户已授权） | 已合并 | be268876 |
+| 2026-10-03 | 「作为 Goal 的输入」怎么记（A4b-2，常规取舍） | 复用 Goal 的绑定资料（`goals.inputs.bind`）；与交付物同一套规则的 `goal.input` 边 | `goal.input` 边，与交付物共用一套处理 | 绑定资料指向活的工作对象，这里要的是成果库里确定的一版；Goal 页「交付物与输入」、成果库「被谁引用」读的也是 `goal.input`。新动作 `goals.artifact_inputs.add/remove/list`，提议规则与交付物相同（非用户调用记 `goal.input.proposal`），两者共用 `deliverable-actions.ts` 里同一套处理 |
+| 2026-10-03 | 入口放在哪（A4b-2，常规取舍） | — | 成果库详情「被谁引用」下的「作为 Goal 的输入」 | 选目标时才读项目的 Goal 目录（`GET /api/goals/directory`）；归档或不可用的版本不给入口，后端也拒绝 |
 | 2026-10-03 | A1 遗留：Pages 成果的来源种类（常规取舍） | — | 改为 Pages 自己的对象种类 `pages_document` | A1 写成了 `page`，与 Pages 的对象读取、搬动、搜索用的种类不一致，A4b 的「原文已改」与当场固定都按种类找 owner。真实 Home 里还没有 A1 之后的 Pages 成果（A1 刚合入），不需要迁移 |
 | 2026-10-03 | A6 遗留：Goal Frame 选材料的「交付物」来源（常规取舍） | — | 改叫「成果」，英文「交付物」改为 Deliverable | 这个筛选项指成果库，不是 Goal 的交付物；A6 只改了「Artifact」字样，漏了这里 |
 
@@ -236,7 +239,7 @@
 - **在 Pages 继续**：Pages 能读的版本（Markdown、TXT、HTML、CSV、Word、ZIP）在详情里给「在 Pages 继续」：宿主把这一版交给 Pages 现有的文件解析，Pages 新建文档并在工作台打开；ZIP（如 Notion 导出）一次建多篇，打开第一篇。
 - **Pages 的导入入口删掉**：Pages 目录与空态里的「导入」按钮、导入浮层、脚本与样式都删了；它解析文件的能力（`import.preview`、`import` 动作与宿主的材料解析）保留，只作为「在 Pages 继续」的实现。
 
-### A4 每种可见类型的消费方（A4a、A4b-1 已实施，A4b-2、A4b-3 待做）
+### A4 每种可见类型的消费方（A4a、A4b-1、A4b-2 已实施，A4b-3 待做）
 
 **A4a（本片）**
 
@@ -251,12 +254,12 @@
 - 成果库详情加「被谁引用」：`artifacts.links` 读 ledger，列出把这一版作为输入、交付物、提议的交付物的 Goal（点开回 Goal），其余引用计数。
 - 门禁：能当场固定的类型必须声明比较动作。
 
-**A4b-2、A4b-3（下一片）**
+**A4b-2（本片）**：成果库详情的「被谁引用」下加「作为 Goal 的输入」，选一个 Goal 就把这一版记为它的输入（`goal.input`）；Goal 页「交付物与输入」与「被谁引用」随之显示。Goals 新动作 `goals.artifact_inputs.add/remove/list`（HTTP `GET/POST /api/goals/:id/artifact-inputs`），与交付物共用同一套规则，包括助理等只能提议。
+
+**A4b-3（下一片）**
 
 - 侧栏文件的成果预览走同一个 owner 预览；侧栏的 Markdown/CSV 渲染与 `renderFilePreviewHtml` 合成一份。
-- 「原文已改，这里仍是这一版」：比较 owner 当前修订号与来源修订号。
-- 「被谁引用」：列出 Goal 输入/交付、助理结果与文档引用（context ledger）。
-- 「作为 Goal 的输入」与其他类型的「从这一版继续」（manifest `continue` 声明）。
+- 其他类型的「从这一版继续」：由能接着做的插件在 manifest 里为成果类型声明 `continue`，替换宿主里专为 Pages 写的那条路由。
 
 ### A7 门禁（已实施）
 
@@ -297,6 +300,7 @@
 
 ## 6. 进度
 
+- 2026-10-03：A4b-2 开 PR（分支 `feat/artifact-a4b2-goal-inputs`），做法见上文「A4」A4b-2。新增 `tests/goal-artifact-inputs.test.ts`（Goal 目录、记为输入与重放、Goal 页「v2 · 输入」、成果库「被谁引用」、归档版本不给入口且后端拒绝、移除；助理只能提议输入、确认后提议退场、助理不能移除已确认的输入、输入不算交付物）与 `tests/artifact-goal-input.e2e.test.ts`（1440、390：在成果库详情选 Goal、记下后「被谁引用」出现该 Goal，页面不横向溢出）。A5c 的提议用例改为同时登记输入动作的定义（处理器工厂现在一并给出两类），断言不变。整体构建后 Goals、成果、i18n、MCP、目录、整页门禁等 133 个文件 475/475；健康门禁、边界检查通过。
 - 2026-10-03：Pages 恢复自己的导入入口（分支 `feat/pages-import-entry-back`，用户回来后的决定，见 §1）。新增 `tests/pages-import-entry.e2e.test.ts`（1440、390）：导入一个 Markdown 文件成为 Pages 文档并打开，成果库版本数不变，页面不横向溢出。整体构建后 Pages 导入、发布、动作、i18n、整页门禁 57/57，Pages 与目录、样式相关的其余 29 个文件 280/280；健康门禁通过。
 - 2026-10-03：A4b-1 开 PR（分支 `feat/artifact-a4b-source-and-references`），做法见上文「A4」A4b-1。新增 `tests/artifact-source-and-links.test.ts`：Pages 文档固定后不提示改动、给回到原对象的链接；加星不算改动；改正文后提示「原对象之后改过了」且仍显示固定的内容；记为交付物与输入的 Goal 出现在「被谁引用」并能点开；删除文档后提示「原对象已经删除」、不再给链接。比较一开始误报「改过了」：成果库按排好序的键存 payload，Pages 保留自己的键序，`sameArtifactFields` 改为排序后比较。整体构建后相关用例（成果、四个 owner 插件、交付物、收尾表单、i18n、侧栏、目录与 MCP、整页门禁等 104 个文件）564 条 563 通过；1 条是预期变化：A4 的 Pages 预览用例固定的是 Pages 里并不存在的 page-q3，现在如实提示「原对象已经删除」、不给链接，断言随之改；原来对链接地址（`openPlugin=pages`、`openItem`）的检查移到新用例里真实存在的文档上。重跑 15/15；健康门禁、边界检查通过。
 - 2026-10-03：A7 开 PR（分支 `feat/artifact-a7-declaration-gates`），做法见上文「A7 门禁」。整体构建后写成果或过程项的相关用例（成果、Coding、Files、Shelf、Feed、角色、Pages 固定、安装插件、插件平台、演示数据等 238 个文件）1168 条 1164 通过、1 条失败：`i18n.test` 三个标签缺英文，是 main 上已知的失败，#207 已修，本分支合入 main 后重跑通过。一条既有用例随门禁调整：`artifact-browser` 原来把 Coding 变更集直接写进成果库再检查不出预览，现在这样写会被拒（新断言），原意（成果库不为别的生产者写入的同类型渲染变更集预览）改用一个安装插件的生产者保留。

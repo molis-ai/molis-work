@@ -35,7 +35,7 @@ export const datasetActions = {
   versions: define<{ id: string }, { versions: DatasetVersionRecord[] }>("versions", "版本列表", "读取当前表的本机快照；保留稳定版本 ID", "query", object({ id }), object({ versions: array(snapshot) })),
   snapshot: define<Identity & { note?: string }, { version: DatasetVersionRecord }>("snapshot", "保存版本", "把当前表保存为可回滚的本机快照", "command", object({ ...identity, note: { ...text, maxLength: 80 } }, ["id"]), object({ version: snapshot })),
   rollback: define<Identity & { version_id: string }, { dataset: DatasetRecord }>("rollback", "回滚版本", "从当前表的指定快照恢复内容；保留发布引用与其他快照", "command", object({ ...identity, version_id: id }, ["id", "version_id"]), changed),
-  promote: define<Identity, { dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布数据表", "把固定表内容存成 Artifact，或恢复上次中断发布；本机快照不进入发布内容", "command", object(identity, ["id"]), object({ dataset: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  promote: define<Identity, { dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布数据表", "把固定表内容存为成果，或恢复上次中断发布；本机快照不进入发布内容", "command", object(identity, ["id"]), object({ dataset: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
   searchEntries: datasetSearchActions.entries,
   subject: datasetSearchActions.subject,
   files: datasetSearchActions.files,
@@ -87,7 +87,7 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
     bind(datasetActions.snapshot, (input, caller) => ports.withStore(store => ({ version: store.saveVersion(input.id, input.note, project(caller), input.expected_version) }))),
     bind(datasetActions.rollback, (input, caller) => ports.withStore(store => ({ dataset: store.rollback(input.id, input.version_id, project(caller), input.expected_version) }))),
     bind(datasetActions.promote, (input, caller) => ports.withStore(store => promoteDataset(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
-      () => ports.publishArtifact ? { available: true } : { available: false, code: "dataset.unavailable", reason: "当前环境不能发出 Artifact" }),
+      () => ports.publishArtifact ? { available: true } : { available: false, code: "dataset.unavailable", reason: "当前环境不能发出成果" }),
     ...createDatasetSearchHandlers(ports.withStore),
     bindObjectMoveHandler(datasetActions.move, input => ports.withStore(store => {
       const dataset = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);

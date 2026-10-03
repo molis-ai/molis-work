@@ -39,7 +39,7 @@ export interface ArtifactBrowserUiModel {
 function directory({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel): string {
   // An explicit target keeps the Workbench's exact-version fragment navigation from intercepting this full page.
   const importLink = `<header class="plugin-stage-chrome artifact-stage-chrome"><a class="mw-btn mw-btn--ghost tree-create artifact-import-entry" href="${p.escape(routePrefix + "/artifacts/import")}" target="_self">${icon("plus")}<span>${p.text("导入文档")}</span></a></header>`;
-  if (!view.versions.length) return `${importLink}<p class="artifact-empty mw-empty">${p.text("还没有 Artifact")}</p>`;
+  if (!view.versions.length) return `${importLink}<p class="artifact-empty mw-empty">${p.text("还没有成果")}</p>`;
   const groups = new Map<string, Array<(typeof view.versions)[number]>>();
   for (const artifact of view.versions) {
     const list = groups.get(artifact.artifact_type_id);
@@ -81,7 +81,7 @@ function directory({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel)
       <div class="artifact-stage-group-body" role="list">${rows}</div>
     </details>`;
   }).join("");
-  return `${importLink}<nav aria-label="${p.text("Artifact 版本")}" class="mw-dir__list artifact-version-list">${folds}</nav>`;
+  return `${importLink}<nav aria-label="${p.text("成果版本")}" class="mw-dir__list artifact-version-list">${folds}</nav>`;
 }
 
 function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"]): string {
@@ -113,9 +113,9 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     <h3><a href="${p.escape(routePrefix + artifactVersionPath(view.requested))}">${p.escape(view.requested.artifact_id)} · v${view.requested.version}</a></h3>
     <p>${p.text("关联的版本不可用或不存在。引用仍然保留，不会替换成最新版本。")}</p></article>`;
   if (!artifact) return `<section class="artifact-empty"${view.requested ? ' role="status"' : ""}>
-    <h1>${p.text(view.requested ? "找不到这个 Artifact 版本" : view.versions.length ? "选择一个结果版本" : "还没有项目成果")}</h1>
+    <h1>${p.text(view.requested ? "找不到这个成果版本" : view.versions.length ? "选择一个结果版本" : "还没有项目成果")}</h1>
     ${!view.requested && !view.versions.length ? `<p>${p.text("项目成果与导入的文档会保存在这里。可以先导入文档，或推进 Goal 后提交成果。")}</p>` : ""}
-    ${view.requested ? `<p>${p.text("它可能属于其他项目，或这个版本尚未发布。请返回列表选择；不会自动替换成最新版本。")}</p><a href="${p.escape(routePrefix + "/artifacts")}">${p.text("返回 Artifact 列表")}</a>` : ""}</section>`;
+    ${view.requested ? `<p>${p.text("它可能属于其他项目，或这个版本尚未发布。请返回列表选择；不会自动替换成最新版本。")}</p><a href="${p.escape(routePrefix + "/artifacts")}">${p.text("返回成果列表")}</a>` : ""}</section>`;
   const href = routePrefix + artifactVersionPath(artifact);
   const title = artifactDisplayTitle(artifact);
   const preview = documentPreview(artifact, p);
@@ -134,7 +134,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
   const versionLabel = `v${artifact.version}${model.relationship ? ` · ${p.text(model.relationship === "input" ? "输入结果" : "产出结果")}` : ""}`;
   const heading = embedded
     ? `<header><h3><a href="${p.escape(href)}">${p.escape(title)}</a></h3><span>${versionLabel}</span></header>`
-    : `<header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-artifact-collapse aria-label="${p.text("返回 Artifact 列表")}" title="${p.text("返回 Artifact 列表")}">${icon("chevron-right")}</button><h1>${p.escape(title)}</h1><span>${versionLabel}</span></header>`;
+    : `<header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-artifact-collapse aria-label="${p.text("返回成果列表")}" title="${p.text("返回成果列表")}">${icon("chevron-right")}</button><h1>${p.escape(title)}</h1><span>${versionLabel}</span></header>`;
   return `<article class="artifact-detail${embedded ? " artifact-embed" : ""}" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
     ${heading}
     ${embedded ? "" : `<div class="artifact-detail-content">`}<p class="artifact-notice">${p.text(embedded && !preview && view.compatibility?.reason === "consumer_missing" ? "没有兼容插件。可打开这个版本查看信息或导出本地副本。" : notice)}</p>
@@ -159,7 +159,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
 export function renderArtifactFrameBlock({ view, primitives: p }: ArtifactBrowserUiModel): string {
   const artifact = view.selected;
   if (!artifact) {
-    return `<article class="frame-reading" data-frame-reading="artifact"><p>${p.text(view.requested ? "找不到这个 Artifact 版本" : view.versions.length ? "选择一个结果版本" : "还没有项目成果")}</p></article>`;
+    return `<article class="frame-reading" data-frame-reading="artifact"><p>${p.text(view.requested ? "找不到这个成果版本" : view.versions.length ? "选择一个结果版本" : "还没有项目成果")}</p></article>`;
   }
   return `<article class="frame-reading" data-frame-reading="artifact" data-artifact-id="${p.escape(artifact.artifact_id)}" data-artifact-version="${artifact.version}">
     <p class="frame-reading-meta">v${artifact.version} · ${p.escape(artifact.artifact_type_id)}</p>
@@ -173,7 +173,7 @@ export function renderArtifactFrameBlock({ view, primitives: p }: ArtifactBrowse
 export const artifactBrowserUiContribution: UiContribution<ArtifactBrowserUiModel> = {
   descriptor: {
     contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.artifacts",
-    kind: "primary-page", navigation_id: "artifacts", label: "Artifacts", slots: [],
+    kind: "primary-page", navigation_id: "artifacts", label: "成果", slots: [],
     surfaces: [
       { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
       { surface_id: "detail", target_slot_id: "workbench.main", format: "declarative-html" },
@@ -187,7 +187,7 @@ export const artifactBrowserUiContribution: UiContribution<ArtifactBrowserUiMode
       case "detail": return detail(model, false);
       case "embed": return detail(model, true);
       case "frame-block": return renderArtifactFrameBlock(model);
-      default: throw new Error(`Artifact UI surface ${surface} 不存在`);
+      default: throw new Error(`成果 UI surface ${surface} 不存在`);
     }
   },
 };

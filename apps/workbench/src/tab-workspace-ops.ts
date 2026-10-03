@@ -38,7 +38,7 @@ export function createTabWorkspaceOps(titles) {
     lingguang: "灵光",
     alchemist: "炼金术士",
     workflows: "工作流程",
-    artifacts: "Artifacts",
+    artifacts: "成果",
   }[plugin] || plugin);
   const pluginOfSurface = (surface) => surface === "goal" ? "goals" : surface === "sources" ? "feed" : surface;
   const countTabs = (state) => state.panes.reduce((sum, pane) => sum + pane.tabs.length, 0);

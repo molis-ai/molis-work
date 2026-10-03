@@ -51,7 +51,7 @@ export const codingManifest: PluginManifest = {
     {
       permission: "artifact:write",
       required: true,
-      reason: "把变更集、报告与图作为 Artifact 发布，带来源与版本",
+      reason: "把变更集、报告与图作为成果发布，带来源与版本",
     },
   ],
   capabilities: {

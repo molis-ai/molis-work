@@ -246,10 +246,13 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         ? treePane.dataset.desktopDirectory
         : "";
     if (settingsKind) {
+      // A reload stays on the category (and the page inside it) the person was on: "<section>" or "<section> <address>".
+      const [section, ...address] = (tabWorkspace?.coverPlace?.(settingsKind) || "").split(" ");
+      const fetchPath = address.join(" ") || undefined;
       setDesktopDirectory(settingsKind, false, false);
       tabWorkspace?.setExclusive(settingsKind);
-      if (settingsKind === "project-settings") void settingsDirectory?.loadProjectSection?.(settingsDirectory?.getProjectActive?.() || "general");
-      else void settingsDirectory?.loadSection?.(settingsDirectory?.getActive?.() || "appearance");
+      if (settingsKind === "project-settings") void settingsDirectory?.loadProjectSection?.(section || settingsDirectory?.getProjectActive?.() || "general", fetchPath);
+      else void settingsDirectory?.loadSection?.(section || settingsDirectory?.getActive?.() || "appearance", fetchPath);
     }
     if (!tabWorkspace && !directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
       goalWorkspaceMode = "graph";

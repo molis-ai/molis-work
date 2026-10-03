@@ -27,6 +27,18 @@ for (const file of sources) {
   if (lines > LIMITS.file) giant[`file ${file}`] = lines;
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   const span = (node) => source.getLineAndCharacterOfPosition(node.getEnd()).line - source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+  // An unnamed function is named by the named function it sits in and its order among the giant ones there, so an edit
+  // above it does not make it look new.
+  const callbacks = {};
+  const ownerOf = (node) => {
+    if (node.name && ts.isIdentifier(node.name)) return node.name.text;
+    if ((ts.isVariableDeclaration(node.parent) || ts.isPropertyAssignment(node.parent)) && ts.isIdentifier(node.parent.name)) return node.parent.name.text;
+    let outer = node.parent;
+    while (outer && !((ts.isFunctionDeclaration(outer) || ts.isMethodDeclaration(outer) || ts.isVariableDeclaration(outer)) && outer.name && ts.isIdentifier(outer.name))) outer = outer.parent;
+    const base = outer ? outer.name.text : "(module)";
+    callbacks[base] = (callbacks[base] ?? 0) + 1;
+    return `${base} callback ${callbacks[base]}`;
+  };
   const visit = (node) => {
     if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
       const name = node.name?.text ?? "(anonymous)";
@@ -37,8 +49,7 @@ for (const file of sources) {
     if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
       const size = span(node);
       if (size > LIMITS.functionLines) {
-        const owner = node.name && ts.isIdentifier(node.name) ? node.name.text
-          : ts.isVariableDeclaration(node.parent) && ts.isIdentifier(node.parent.name) ? node.parent.name.text : `line ${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
+        const owner = ownerOf(node);
         giant[`function ${file}#${owner}`] = Math.max(giant[`function ${file}#${owner}`] ?? 0, size);
       }
     }

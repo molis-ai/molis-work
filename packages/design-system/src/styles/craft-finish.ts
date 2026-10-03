@@ -1693,10 +1693,6 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .immersive-workspace:has(.is-editing-goal) > .workbench-bar { display: none; }
   }
 
-  /* 能力 in the workbench: its page fills the cover, edge to edge on the sheet. */
-  ${WORKBENCH} [data-work-surface="capabilities"]:not([hidden]) { display: block; height: 100%; min-height: 0; padding: 0; }
-  ${WORKBENCH} .capabilities-frame { display: block; width: 100%; height: 100%; border: 0; background: var(--paper); }
-
   /* ─── Board ────────────────────────────────────────────────────────────── */
   ${WORKBENCH} [data-kanban-card] {
     border-radius: 10px; box-shadow: none; border-color: var(--line);

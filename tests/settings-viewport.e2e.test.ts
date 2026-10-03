@@ -36,7 +36,10 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
       assert.deepEqual([await contained(header), await contained(footer)], before);
       assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1 && document.scrollingElement.scrollTop===0'), true);
     };
+    // Project settings open in the workbench (specs/artifact-positioning S6); a save reloads it on the same category.
+    const loaded = (selector: string) => waitFor(`!!document.querySelector('[data-work-surface=project-settings] ${selector}')`, 15000);
     await navigate(() => command('Page.navigate', { url: prefix + '/settings/rules' }, sessionId));
+    await loaded('[data-policy-form]');
     const cursor = b.store.snapshot(DEMO_BOARD_ID).cursor;
     const originalReviewers = await evaluate<string>("document.querySelector('[name=cross_reviewers]').value");
     await fill('[name=cross_reviewers]', '3');
@@ -64,13 +67,16 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
       assert.equal(await evaluate("document.querySelector('[data-policy-cancel]').disabled && document.querySelector('[name=cross_reviewers]').disabled"), true);
     });
     await command('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
+    await loaded('[data-policy-form]');
     assert.equal(await evaluate("document.querySelector('[name=cross_reviewers]').value"), '3');
     assert.ok(b.store.snapshot(DEMO_BOARD_ID).cursor > cursor);
     await b.reloadPage();
+    await loaded('[data-policy-form]');
     assert.equal(await evaluate("document.querySelector('[name=cross_reviewers]').value"), '3');
 
     await navigate(() => command('Page.navigate', { url: prefix + '/settings/guidance' }, sessionId));
     const trigger = '[data-guidance-kind="constraint"]';
+    await loaded(trigger);
     await click(trigger);
     await waitFor("document.activeElement.name === 'content'");
     await scrollFields('.guidance-editor-body', '.guidance-editor > header', '.guidance-editor footer');
@@ -115,6 +121,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     assert.equal(saved.entries[0].kind, 'constraint');
     assert.equal(saved.revisions.length, 1);
     await b.reloadPage();
+    await loaded('.guidance-entry');
     assert.match(await evaluate<string>("document.querySelector('.guidance-entry').textContent"), /用户数据和备份只保存在本机/);
     await click('[data-guidance-action="deactivate"]');
     await waitFor("document.activeElement.name === 'reason'");
@@ -125,6 +132,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     const stopped = await guidance();
     assert.equal(stopped.entries.length, 0);
     assert.equal(stopped.inactive_entries[0].content, content.trim());
+    await loaded('.guidance-inactive > summary');
     await click('.guidance-inactive > summary');
     await click('[data-guidance-action="restore"]');
     await waitFor("document.activeElement.name === 'reason'");

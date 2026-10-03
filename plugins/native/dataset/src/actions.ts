@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DATASET_NAME_COLUMN } from "./prompts.js";
-import { ActionError, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineArtifactPinAction, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { DatasetRecord, DatasetVersionRecord, DatasetColumnInput, DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { promoteDataset, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStore } from "./store.js";
@@ -26,6 +26,8 @@ function define<I, O>(name: string, title: string, description: string, operatio
 export const datasetActions = {
   /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
   artifactPreview: datasetArtifactPreview,
+  /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
+  artifactPin: defineArtifactPinAction("dataset.artifacts.pin", "dataset", "数据表", [...write, "artifact:write"]),
   list: define<Record<string, never>, { datasets: DatasetRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "数据表列表", "读取当前项目数据表及当前 AI 加列可用性", "query", object({}), object({ datasets: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { dataset: DatasetRecord }>("get", "读取数据表", "读取当前项目表格的完整列、行、版本及发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { dataset: DatasetRecord }>("create", "新建数据表", "创建当前项目的草稿数据表", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
@@ -60,6 +62,9 @@ export interface DatasetActionPorts {
 export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
+  const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promoteDataset(store, id, project(caller), value => ports.publishArtifact!(value, caller),
+    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined }));
+  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "dataset.unavailable", reason: "当前环境不能发出成果" };
   return [
     datasetArtifactPreviewHandler,
     bind(datasetActions.list, (_, caller) => ports.withStore(store => {
@@ -90,8 +95,8 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
     bind(datasetActions.versions, (input, caller) => ports.withStore(store => ({ versions: store.listVersions(input.id, project(caller)) }))),
     bind(datasetActions.snapshot, (input, caller) => ports.withStore(store => ({ version: store.saveVersion(input.id, input.note, project(caller), input.expected_version) }))),
     bind(datasetActions.rollback, (input, caller) => ports.withStore(store => ({ dataset: store.rollback(input.id, input.version_id, project(caller), input.expected_version) }))),
-    bind(datasetActions.promote, (input, caller) => ports.withStore(store => promoteDataset(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
-      () => ports.publishArtifact ? { available: true } : { available: false, code: "dataset.unavailable", reason: "当前环境不能发出成果" }),
+    bind(datasetActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
+    bind(datasetActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
     ...createDatasetSearchHandlers(ports.withStore),
     bindObjectMoveHandler(datasetActions.move, input => ports.withStore(store => {
       const dataset = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);

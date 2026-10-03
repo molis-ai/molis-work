@@ -198,7 +198,7 @@ export class MolisWorkLocalHost {
                   permissions: ["inbox:read", "model:invoke", "functions:invoke"] }) }),
             });
             const registry = this.host.actionRegistry(reference);
-            registry.registerProvider(goalsActionProvider(runtime, personalMethods));
+            registry.registerProvider(goalsActionProvider(runtime, personalMethods, this.actionClient(reference)));
             registry.registerProvider(workActionProvider(reference.project_id, this.sessions, this.actionClient(reference)));
             registry.registerProvider(projectWorkspaceActionProvider(reference.project_id, this.sessions,
               () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined));

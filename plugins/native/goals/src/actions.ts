@@ -28,6 +28,7 @@ import type { BoardSnapshot, GoalContractView } from "./goal-entry-contract.js";
 import { goalsBoardActions, createGoalsBoardActionHandlers } from "./board-actions.js";
 import { goalsInputActions, createGoalsInputActionHandlers } from "./input-actions.js";
 import { goalsDeliverableActions, createGoalsDeliverableActionHandlers, type GoalDeliverablePorts } from "./deliverable-actions.js";
+import { boundGoalObjects } from "./input-actions.js";
 import type { LegacyV3ImportPorts } from "./board-v3-import.js";
 import { goalsCollectionAction, createGoalsCollectionActionHandler } from "./collection-action.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
@@ -53,6 +54,8 @@ export const goalsActions = {
   deliverablesAdd: goalsDeliverableActions.add,
   deliverablesRemove: goalsDeliverableActions.remove,
   deliverablesList: goalsDeliverableActions.list,
+  deliverablesPin: goalsDeliverableActions.pin,
+  deliverablesCandidates: goalsDeliverableActions.candidates,
   ...goalsPlanningActions,
   ...goalsGuidanceActions,
   ...goalsLifecycleActions,
@@ -124,11 +127,11 @@ export function createGoalsActionHandlers({ events, boardId, history, planning, 
   collection: GoalsDocumentReadPorts;
   board: LegacyV3ImportPorts;
   /** The 成果库 and context ledger for a Goal's deliverables (artifact-positioning A5), and the owners that pin work objects. */
-  deliverables: Omit<GoalDeliverablePorts, "boardId" | "goalExists">;
+  deliverables: Omit<GoalDeliverablePorts, "boardId" | "goalExists" | "boundObjects">;
 }): ActionHandlerBinding[] {
   const goalExists = (goalId: string) => Boolean(readGoal(goalId) && events.readDirectoryItem(boardId, goalId));
   return [
-    ...createGoalsDeliverableActionHandlers({ ...deliverables, boardId, goalExists }),
+    ...createGoalsDeliverableActionHandlers({ ...deliverables, boardId, goalExists, boundObjects: goalId => boundGoalObjects(collection.inputs.list(boardId), goalId) }),
     ...createGoalsInputActionHandlers(boardId, collection.inputs, goalId => Boolean(readGoal(goalId) && events.readDirectoryItem(boardId, goalId))),
     { ...goalsActions.subject, handle: (_caller, input) => {
       const id = (input as { subject_id: string }).subject_id;

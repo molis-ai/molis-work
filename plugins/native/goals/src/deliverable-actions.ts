@@ -13,6 +13,7 @@ export interface GoalDeliverable {
   recorded_at: string;
 }
 const reference = object({ artifact_id: identifier, version: { type: "integer", minimum: 1 } });
+const subject = object({ kind: identifier, id: identifier });
 const deliverable = object({ goal_id: text, reference, title: text, artifact_type_id: text, recorded_at: text });
 
 /**
@@ -28,6 +29,11 @@ export const goalsDeliverableActions = {
     object({ goal_id: identifier, reference }), object({ removed: boolean })),
   list: goalAction<{ goal_id: string }, { deliverables: GoalDeliverable[] }>("goals.deliverables.list",
     "目标的交付物", "列出目标交付的成果版本", "query", object({ goal_id: identifier }), object({ deliverables: array(deliverable) })),
+  pin: goalAction<{ goal_id: string; subject: { kind: string; id: string } }, { deliverable: GoalDeliverable; replayed: boolean }>("goals.deliverables.pin",
+    "固定并交付", "把一份资料（文档、问卷、演示稿、数据表）的当前内容固定为成果库里的一版，并记为目标的交付物；每次固定都是新的一版，原对象之后仍可修改", "command",
+    object({ goal_id: identifier, subject }), object({ deliverable, replayed: boolean })),
+  candidates: goalAction<{ goal_id: string }, { objects: Array<{ subject: { kind: string; id: string }; title: string }> }>("goals.deliverables.candidates",
+    "可以当场固定的资料", "列出目标绑定的资料里，能当场固定为成果的那些", "query", object({ goal_id: identifier }), object({ objects: array(object({ subject, title: text })) })),
 } as const;
 
 export interface GoalDeliverablePorts {
@@ -36,6 +42,12 @@ export interface GoalDeliverablePorts {
   /** A version in the 成果库 (never a process item); null when it is not there. */
   readArtifact(reference: ArtifactReference): { title: string; artifact_type_id: string; availability: string; lifecycle_state: string } | null;
   readonly ledger: ContextLedgerApi;
+  /** Fixes the object's current revision through its owner, as a new version in the 成果库. */
+  pin(caller: ActionCallContext, subject: { kind: string; id: string }): Promise<ArtifactReference>;
+  /** The kinds of object some owner can pin for this caller. */
+  pinnableKinds(caller: ActionCallContext): Promise<readonly string[]>;
+  /** The Goal's confirmed bound materials (its input bindings). */
+  boundObjects(goalId: string): ReadonlyArray<{ subject: { kind: string; id: string }; title: string }>;
 }
 
 export function createGoalsDeliverableActionHandlers(ports: GoalDeliverablePorts): ActionHandlerBinding[] {
@@ -48,20 +60,34 @@ export function createGoalsDeliverableActionHandlers(ports: GoalDeliverablePorts
     return { goal_id: edge.source.id, reference: ref, title: artifact?.title ?? edge.target.id, artifact_type_id: artifact?.artifact_type_id ?? "", recorded_at: edge.recorded_at };
   };
   const requireGoal = (goalId: string) => { if (!ports.goalExists(goalId)) throw new ActionError("goals.not_found", "找不到这个目标"); };
+  const deliver = (caller: ActionCallContext, goalId: string, ref: ArtifactReference) => {
+    const artifact = ports.readArtifact(ref);
+    if (!artifact) throw new ActionError("goals.deliverable_missing", "成果库里没有这一版");
+    if (artifact.availability !== "available" || artifact.lifecycle_state !== "active") throw new ActionError("goals.deliverable_unavailable", "这一版已归档或不可用，不能作为交付物");
+    const key = keyOf(goalId, ref), at = access(caller);
+    const existing = ports.ledger.query.get(at, key);
+    if (existing?.state === "active") return { deliverable: view(existing)!, replayed: true };
+    const edge = ports.ledger.commands.put(at, { key, type: "goal.output", cause: "goals.deliverable",
+      source: { module: "goals", id: goalId, version: null, scope: at.scope },
+      target: { module: "artifacts", id: ref.artifact_id, version: ref.version, scope: at.scope } });
+    return { deliverable: view(edge)!, replayed: false };
+  };
   return [
     { ...goalsDeliverableActions.add, handle: (caller, input) => {
       const value = input as { goal_id: string; reference: ArtifactReference };
       requireGoal(value.goal_id);
-      const artifact = ports.readArtifact(value.reference);
-      if (!artifact) throw new ActionError("goals.deliverable_missing", "成果库里没有这一版");
-      if (artifact.availability !== "available" || artifact.lifecycle_state !== "active") throw new ActionError("goals.deliverable_unavailable", "这一版已归档或不可用，不能作为交付物");
-      const key = keyOf(value.goal_id, value.reference), at = access(caller);
-      const existing = ports.ledger.query.get(at, key);
-      if (existing?.state === "active") return { deliverable: view(existing)!, replayed: true };
-      const edge = ports.ledger.commands.put(at, { key, type: "goal.output", cause: "goals.deliverable",
-        source: { module: "goals", id: value.goal_id, version: null, scope: at.scope },
-        target: { module: "artifacts", id: value.reference.artifact_id, version: value.reference.version, scope: at.scope } });
-      return { deliverable: view(edge)!, replayed: false };
+      return deliver(caller, value.goal_id, value.reference);
+    } },
+    { ...goalsDeliverableActions.pin, handle: async (caller, input) => {
+      const value = input as { goal_id: string; subject: { kind: string; id: string } };
+      requireGoal(value.goal_id);
+      return deliver(caller, value.goal_id, await ports.pin(caller, value.subject));
+    } },
+    { ...goalsDeliverableActions.candidates, handle: async (caller, input) => {
+      const value = input as { goal_id: string };
+      requireGoal(value.goal_id);
+      const kinds = new Set(await ports.pinnableKinds(caller));
+      return { objects: ports.boundObjects(value.goal_id).filter(item => kinds.has(item.subject.kind)).map(item => ({ subject: item.subject, title: item.title })) };
     } },
     { ...goalsDeliverableActions.remove, handle: (caller, input) => {
       const value = input as { goal_id: string; reference: ArtifactReference };

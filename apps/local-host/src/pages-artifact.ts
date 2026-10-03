@@ -2,7 +2,7 @@ import {
   PAGES_ARTIFACT_SCHEMA_VERSION,
   PAGES_ARTIFACT_TYPE_ID,
 } from "@molis-ai/molis-work-contracts/modules/pages";
-import { PagesError, pagesManifest, parsePagesBody, type PagesPublishArtifactPort, type PagesReadArtifactPort } from "@molis-ai/molis-work-plugin-pages";
+import { PagesError, pagesManifest, parsePagesBody, PAGES_SUBJECT_KIND, type PagesPublishArtifactPort, type PagesReadArtifactPort } from "@molis-ai/molis-work-plugin-pages";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 
 /** Recovery reads the immutable original owner record; it never impersonates its author. */
@@ -56,7 +56,7 @@ export function registerPagesArtifactVersion(
       },
       metadata: { page_id: input.page_id, goal_id: input.goal_id, title: input.title },
       // A pinned revision of the document (artifact-positioning A1).
-      origin: { kind: "pinned", subject: { kind: "page", id: input.page_id }, revision: String(input.source_version) },
+      origin: { kind: "pinned", subject: { kind: PAGES_SUBJECT_KIND, id: input.page_id }, revision: String(input.source_version) },
       title: input.title, media_type: "application/json",
       scope: "personal",
       supersedes_version: input.version > 1 ? input.version - 1 : null,

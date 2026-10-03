@@ -288,16 +288,18 @@ export interface ArtifactTypeDeclaration {
   /** The owner's surface in the workbench, where its work objects open. */
   readonly surface: string;
   readonly preview: ActionDefinition | null;
+  /** The owner's action that pins one of its work objects on the spot (A5), when the type has one. */
+  readonly pin: ActionDefinition | null;
 }
 
-/** Each declared 成果 type: display name, preview action and owner, from the built-in Manifests. */
+/** Each declared 成果 type: display name, preview and pin actions and owner, from the built-in Manifests. */
 export function artifactTypeDeclarations(): ReadonlyMap<string, ArtifactTypeDeclaration> {
   const declarations = new Map<string, ArtifactTypeDeclaration>();
   for (const entry of BUILTIN_PLUGIN_CATALOG) for (const type of entry.manifest.artifacts.produces) {
     if (!type.title) continue;
-    const preview = type.preview ? entry.manifest.actions?.find(action => action.capability_id === type.preview!.capability_id && action.version === type.preview!.version) ?? null : null;
+    const action = (declared?: { capability_id: string; version: number }) => declared ? entry.manifest.actions?.find(item => item.capability_id === declared.capability_id && item.version === declared.version) ?? null : null;
     declarations.set(type.artifact_type_id, { title: type.title, plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name,
-      surface: entry.project_plugin_id, preview });
+      surface: entry.project_plugin_id, preview: action(type.preview), pin: action(type.pin) });
   }
   return declarations;
 }

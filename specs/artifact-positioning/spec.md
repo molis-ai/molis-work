@@ -72,6 +72,12 @@
 | 2026-10-03 | Goal 交付的入口放在哪（A5，常规取舍） | — | 现有的「收尾」表单里加「交付物」一组 | Goal 页已有负责人可用的「收尾」表单（事件文档里的 closure），方案里「没有收尾入口」是错的；在它里面列出成果库里每个成果的最新可用版本供勾选，提交收尾前先记下交付物，不另做浮层 |
 | 2026-10-03 | 交付物的动作形状（A5，常规取舍） | — | `goals.deliverables.add/remove/list`，不做整组 `set` | 每条交付物是一条以 `goal.output:<goal>:<成果版本>` 为键的 ledger 边，加与删天然幂等；整组 `set` 要比较读取时的版本，收尾表单只需要逐条增删 |
 | 2026-10-03 | A5 分两片（常规取舍） | — | A5a 记下与显示已有版本；A5b 当场固定、Agent 提议、`goal.input` | 当场固定要各 owner 声明 `pin` 动作并在浮层里调用；Agent 提议要接待确认流。先让人能在收尾时交付成果库里已有的版本 |
+| 2026-10-03 | 合并 #205 A5a（代为决定） | 按推荐合并 | 已合并 | 99e66669 |
+| 2026-10-03 | 当场固定怎么找到 owner（A5b，常规取舍） | — | 固定协议：`defineArtifactPinAction`（输入 `{subject_id}`，输出 `{artifact, recovered}`），按对象种类发现；manifest 的成果类型声明 `pin` | 与读取对象上下文（`resolveActionSubject`）同一种发现方式，不写插件名单；门禁要求每个固定动作都声明在某个成果类型上、每种对象至多一个 owner。Pages、问卷、演示稿、数据表的固定动作就是各自原有的「存为成果」，换成统一的输入输出 |
+| 2026-10-03 | 网页上固定用谁的权限（A5b，常规取舍） | — | 本机的人用各 owner 固定动作自己的权限 | Goals 的网页入口只带 Goals 权限，嵌套调用 Pages 等会被拒；与 A3「在 Pages 继续」、A4 owner 预览同一做法：只对 `goals.deliverables.pin/candidates` 加上目录里各固定动作声明的权限。Agent、MCP 等调用方不加，仍需自己有 owner 的权限 |
+| 2026-10-03 | 同一内容固定两次怎么办（A5b，常规取舍） | — | 每次固定都是新的一版 | 想按「来源修订号相同就沿用」去重，但各插件完成一次发布会把对象自己的版本号加一，修订号永远对不上；沿用原有「存为成果」的语义。收尾表单里固定过的一项立即变为不可再勾，避免同一次收尾重复固定 |
+| 2026-10-03 | A1 遗留：Pages 成果的来源种类（常规取舍） | — | 改为 Pages 自己的对象种类 `pages_document` | A1 写成了 `page`，与 Pages 的对象读取、搬动、搜索用的种类不一致，A4b 的「原文已改」与当场固定都按种类找 owner。真实 Home 里还没有 A1 之后的 Pages 成果（A1 刚合入），不需要迁移 |
+| 2026-10-03 | A6 遗留：Goal Frame 选材料的「交付物」来源（常规取舍） | — | 改叫「成果」，英文「交付物」改为 Deliverable | 这个筛选项指成果库，不是 Goal 的交付物；A6 只改了「Artifact」字样，漏了这里 |
 
 **待决**：无（「没有项目时的全局设置」已答，见上表）。
 
@@ -239,7 +245,13 @@
 - Goal 页的成果区块改名「交付物与输入」，交付物一条显示「vN · 交付物」；成果库详情里的关系名改为「输入」「交付物」。
 - 演示数据删掉 `goal.delivery` 类型，改为一个导入的文档（两版）加一条 `goal.output` 指向第二版。
 
-**A5b（下一片）**：收尾时当场固定工作对象（manifest 为可见类型声明 `pin`）、助理与 Coding 提议交付物进待确认、`goal.input` 的记下入口。
+**A5b（本片）**：收尾时当场固定 Goal 的资料。
+
+- 固定协议 `defineArtifactPinAction`（`molis.artifacts.pin.request.v1` → `molis.artifacts.pin.v1`），由 `pinActionSubject` 按对象种类找唯一的 owner、以原调用方的权限调用；`pinnableSubjectKinds` 列出当前能固定的种类。Pages、问卷、演示稿、数据表各有一个固定动作，内部就是原来的「存为成果」；manifest 的成果类型声明 `pin`。
+- Goals 新动作 `goals.deliverables.pin`（固定后按 A5a 的规则记为交付物）与 `goals.deliverables.candidates`（Goal 已确认的绑定资料里能固定的那些）。`GET /api/goals/:id/deliverables` 一并返回 `candidates`，`POST` 带 `subject` 即固定并交付。
+- 收尾表单的「交付物」先列 Goal 的资料（「固定当前内容并交付」），再列成果库里的版本。
+
+**A5c（下一片）**：助理与 Coding 提议交付物，用户在收尾表单里确认；`goal.input` 的记下入口。
 
 ## 6. 进度
 

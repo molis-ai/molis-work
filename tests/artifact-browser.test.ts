@@ -405,7 +405,7 @@ test("each visible type is previewed by its owner: Pages renders its own version
   coordinator.artifacts.commands.registerVersion(registration({ artifact_id: "pages-page-q3", artifact_type_id: "io.molis.work.pages.document",
     producer: { plugin_id: "io.molis.work.pages", plugin_version: "1.0.0", binding_signature: "official-pages-binding" },
     content: { kind: "inline", payload: { title: "季度计划", page_id: "page-q3", goal_id: "", body } },
-    origin: { kind: "pinned", subject: { kind: "page", id: "page-q3" }, revision: "4" }, title: "季度计划", media_type: "application/json" }));
+    origin: { kind: "pinned", subject: { kind: "pages_document", id: "page-q3" }, revision: "4" }, title: "季度计划", media_type: "application/json" }));
   const list = await (await surface("/artifacts")).text();
   assert.match(list, /<strong>文档<\/strong>/, "the group is named as Pages declares the type");
   const html = await (await surface("/artifacts/pages-page-q3/versions/1")).text();

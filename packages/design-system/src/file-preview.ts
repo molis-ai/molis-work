@@ -82,3 +82,9 @@ export const FILE_PREVIEW_STYLES = `
   .file-preview-image { max-width:100%; height:auto; border-radius:8px; }
   .file-preview-note, .file-preview-truncated { color:var(--muted); }
 `;
+
+/**
+ * The same renderer for a script in the page (the side panel renders previews other surfaces hand it), built from these
+ * very functions so there is one copy: defines `renderFilePreview(file, { escape, text })`.
+ */
+export const FILE_PREVIEW_CLIENT_SCRIPT = `const renderFilePreview = (() => { ${markdown.toString()}\n${table.toString()}\nreturn ${renderFilePreviewHtml.toString()}; })();`;

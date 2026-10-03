@@ -1,4 +1,5 @@
 import type { SidePanelPrimitives } from "./side-panel.js";
+import { FILE_PREVIEW_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 
 /**
  * The file tab of the side panel (specs/archive/side-panel P3, P8). Lists the file sources plugins declare here and previews
@@ -68,10 +69,10 @@ export const SIDE_FILES_STYLES = String.raw`
 .side-files-body blockquote{padding-left:12px;border-left:3px solid var(--line);color:var(--ink-soft,var(--ink))}
 .side-files-body code{padding:1px 4px;border-radius:4px;background:var(--wash,var(--nav-hover));font:12px var(--font-mono,ui-monospace,monospace)}
 .side-files-body a{color:var(--accent)}
-.side-files-table{overflow:auto;border:1px solid var(--line);border-radius:8px}
-.side-files-table table{border-collapse:collapse;min-width:100%;font-size:12px}
-.side-files-table :is(th,td){padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
-.side-files-table th{position:sticky;top:0;background:var(--paper);font-weight:600}
+.side-files-body .file-preview-table{overflow:auto;border:1px solid var(--line);border-radius:8px}
+.side-files-body .file-preview-table table{border-collapse:collapse;min-width:100%;font-size:12px}
+.side-files-body .file-preview-table :is(th,td){border-width:0 0 1px;padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+.side-files-body .file-preview-table th{position:sticky;top:0;background:var(--paper);font-weight:600}
 .side-files-truncated,.side-files-problem{margin:0 0 12px;padding:8px 12px;border-radius:8px;background:var(--wash,var(--nav-hover));color:var(--ink-soft,var(--ink));font-size:12px}
 .side-files-source{margin:0 0 12px;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
 .side-files-link{padding:0;border:0;background:none;color:var(--accent);font:inherit;text-align:left;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
@@ -139,35 +140,8 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const find=(source,kind,id)=>(entries.get(source)?.items||[]).find(item=>item.subject.kind===kind&&item.subject.id===id);
   const show=(on)=>{preview.hidden=!on;browse.hidden=on&&!wide;};
   const setOpen=(target)=>{openButton.hidden=!target;openButton.dataset.surface=target?.surface||'';openButton.dataset.id=target?.id||'';};
-  const markdown=(text)=>{
-    const inline=(line)=>esc(line).replace(/\x60([^\x60]+)\x60/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*]+)\*/g,'$1<em>$2</em>').replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>');
-    const out=[];let fence=null,listKind=null;
-    const closeList=()=>{if(listKind){out.push('</'+listKind+'>');listKind=null;}};
-    for(const line of String(text).split('\n')){
-      if(/^\x60\x60\x60/.test(line)){if(fence===null){closeList();fence=[];}else{out.push('<pre>'+esc(fence.join('\n'))+'</pre>');fence=null;}continue;}
-      if(fence!==null){fence.push(line);continue;}
-      const heading=/^(#{1,3})\s+(.*)$/.exec(line);if(heading){closeList();out.push('<h'+heading[1].length+'>'+inline(heading[2])+'</h'+heading[1].length+'>');continue;}
-      const bullet=/^\s*[-*+]\s+(.*)$/.exec(line),ordered=/^\s*\d+[.)]\s+(.*)$/.exec(line);
-      if(bullet||ordered){const kind=bullet?'ul':'ol';if(listKind!==kind){closeList();out.push('<'+kind+'>');listKind=kind;}out.push('<li>'+inline((bullet||ordered)[1])+'</li>');continue;}
-      closeList();
-      if(/^>\s?/.test(line)){out.push('<blockquote>'+inline(line.replace(/^>\s?/,''))+'</blockquote>');continue;}
-      if(line.trim())out.push('<p>'+inline(line)+'</p>');
-    }
-    if(fence!==null)out.push('<pre>'+esc(fence.join('\n'))+'</pre>');closeList();
-    return out.join('');
-  };
-  // A CSV reads as a table (first 500 rows); quoted cells may hold commas and line breaks.
-  const table=(text)=>{
-    const rows=[];let row=[],cell='',quoted=false;
-    for(let i=0;i<text.length&&rows.length<501;i++){
-      const c=text[i];
-      if(quoted){if(c==='"'&&text[i+1]==='"'){cell+='"';i++;}else if(c==='"')quoted=false;else cell+=c;continue;}
-      if(c==='"')quoted=true;else if(c===','){row.push(cell);cell='';}else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);rows.push(row);row=[];cell='';}else cell+=c;
-    }
-    if(cell||row.length){row.push(cell);rows.push(row);}
-    const [header=[],...rest]=rows;
-    return '<div class="side-files-table"><table><thead><tr>'+header.map(value=>'<th>'+esc(value)+'</th>').join('')+'</tr></thead><tbody>'+rest.slice(0,500).map(cells=>'<tr>'+cells.map(value=>'<td>'+esc(value)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'+(rest.length>500?'<p class="side-files-truncated">'+esc(L('只显示前 500 行。'))+'</p>':'');
-  };
+  // The shared preview renderer (design system), the same one the 成果库 uses: Markdown, CSV as a table, plain text.
+  ${FILE_PREVIEW_CLIENT_SCRIPT}
   const render=(file,note)=>{
     body.classList.remove('is-frame');
     // Where a handed-over page came from: the page itself opens again in the side panel's browser.
@@ -179,7 +153,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     if(file.encoding==='base64'&&/^image\/(png|jpeg|gif|webp|avif|svg\+xml)$/.test(type)){body.innerHTML=head+'<img alt="'+esc(file.title)+'" src="data:'+type+';base64,'+file.data+'">';return;}
     if(file.encoding==='base64'&&type==='application/pdf'&&file.raw){body.classList.add('is-frame');body.innerHTML=head+'<iframe title="'+esc(file.title)+'" src="'+esc(file.raw)+'"></iframe>';return;}
     if(file.encoding==='base64'){body.innerHTML=head+'<p class="side-files-note">'+esc(L('这种文件（{type}）不能在侧栏里预览，可以在插件中打开。',{type}))+'</p>';return;}
-    body.innerHTML=head+(/markdown/.test(type)?markdown(file.data):type==='text/csv'?table(file.data):'<pre>'+esc(file.data)+'</pre>');
+    body.innerHTML=head+renderFilePreview({...file,truncated:false},{escape:esc,text:L});
   };
   const openFile=async(sourceId,kind,id,fallback)=>{
     const source=sources.find(item=>item.id===sourceId),item=find(sourceId,kind,id)||fallback||null;

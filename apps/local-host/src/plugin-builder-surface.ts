@@ -6,7 +6,7 @@ import {SqlitePluginPrivateStorage} from '@molis-ai/molis-work-plugin-runtime';
 import {UiHost, UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT} from '@molis-ai/molis-work-ui-host';
 import {ArtifactsModule} from '@molis-ai/molis-work-module-artifacts';
 import {escapeHtml,renderIconSprite} from '@molis-ai/molis-work-design-system';
-import {createBuilderPlugin,createGeneratedPlugin,compatibleReleaseVersions,migratableReleaseVersions,BUILDER_PLUGIN_ID,BUILDER_STYLES,BUILDER_CLIENT_FACTORY_SCRIPT,RECORD_CLIENT_FACTORY_SCRIPT,renderBuilder,type BuilderWorkflow,type ChoiceQuestion,type Release,type GeneratedPluginControl} from '@molis-ai/molis-work-plugin-builder';
+import {createBuilderPlugin,createGeneratedPlugin,compatibleReleaseVersions,migratableReleaseVersions,BUILDER_PLUGIN_ID,renderAgentStudio,BUILDER_STYLES,BUILDER_CLIENT_FACTORY_SCRIPT,RECORD_CLIENT_FACTORY_SCRIPT,renderBuilder,type BuilderWorkflow,type ChoiceQuestion,type Release,type GeneratedPluginControl} from '@molis-ai/molis-work-plugin-builder';
 import {createPluginPlatform,type PluginPlatform} from './plugin-platform.js';
 import {nativePluginReleaseArtifact} from './native-plugin-release-artifact.js';
 import type {CodingSurfacePorts as HostSurfacePorts} from './coding-surface.js';
@@ -107,29 +107,11 @@ export async function handleBuilderHttp(request:IncomingMessage,response:ServerR
 export async function releaseBuilderSurface(store:LocalProjectDatabase,boardId:string){const boards=surfaces.get(store),pending=boards?.get(boardId);if(!pending)return;boards!.delete(boardId);const surface=await pending.catch(()=>null);if(!surface)return;for(const platform of [surface.platform,...(await Promise.all([...surface.generated.values()])).map(value=>value.platform)]){await platform.closeCoordination();for(const id of platform.supervisor.enabledPluginIds()){const state=platform.supervisor.state(id);platform.supervisor.revoke(id);if(state?.status==='running'&&state.install_id)await platform.runtime.stop(state.install_id);}}}
 
 /**
- * The studio asks the workbench to open a plugin it installed, through the same rail entry a person would click.
- * A plugin installed since the page loaded has no entry yet, so the page reloads once and then opens it; an
- * uninstalled plugin's entry and stage leave the page at once. A direct address of an installed plugin arrives as
- * `?openSurface=app-<build>` and opens it the same way.
+ * The workbench entry is the agent-built plugin studio, drawn in the plugin's own stage (specs/artifact-positioning S4):
+ * no frame and no page of its own. Its client comes with the plugin's workbench pack and starts when the stage is opened;
+ * only the generated plugin's trial and an installed plugin still run in sandboxed frames.
  */
-const STUDIO_STAGE_SCRIPT=`(()=>{const KEY="molis-studio-open";const valid=s=>typeof s==="string"&&/^app-[a-f0-9-]{36}$/.test(s);
-const entry=s=>[...document.querySelectorAll("[data-work-surface-open]")].find(el=>el.dataset.workSurfaceOpen===s);
-addEventListener("message",event=>{const frame=document.querySelector(".pb-studio-frame");if(event.origin!==location.origin||!frame||event.source!==frame.contentWindow||!valid(event.data?.surface))return;
- if(event.data.type==="molis-studio-open-plugin"){const button=entry(event.data.surface);if(button)button.click();else{try{sessionStorage.setItem(KEY,event.data.surface)}catch{}location.reload()}}
- if(event.data.type==="molis-studio-plugin-removed"){entry(event.data.surface)?.remove();[...document.querySelectorAll("[data-work-surface]")].find(el=>el.dataset.workSurface===event.data.surface)?.remove()}});
-let pending=null;try{pending=sessionStorage.getItem(KEY);sessionStorage.removeItem(KEY)}catch{}
-const asked=new URLSearchParams(location.search).get("openSurface");if(valid(asked)){pending=asked;const cleaned=new URL(location.href);cleaned.searchParams.delete("openSurface");history.replaceState(history.state,"",cleaned)}
-if(valid(pending))addEventListener("load",()=>setTimeout(()=>entry(pending)?.click(),0),{once:true});})();`;
-
-/**
- * The workbench entry opens the agent-built plugin studio. It is a host page (no plugin script runs in it), framed
- * in place and loaded only when the entry is opened; the earlier interpreter-based builder is no longer the entry.
- * The frame fills its stage, which ends above the bottom bar: no viewport-based minimum that would run under the bar.
- */
-export async function builderWorkbenchPanel(ports:CodingSurfacePorts):Promise<string>{
- const source=(ports.routePrefix??'')+'/plugin-builder/studio?'+FRAME_QUERY;
- return '<section class="desktop-work-surface pb-surface" data-work-surface="plugin-builder" data-work-surface-label="插件创作工作台" hidden>'
-  +'<iframe class="pb-studio-frame" src="'+escapeHtml(source)+'" title="插件创作工作台" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#f3f3f1"></iframe>'
-  +'<script>'+STUDIO_STAGE_SCRIPT+'</script></section>';
+export async function builderWorkbenchPanel(_ports:CodingSurfacePorts):Promise<string>{
+ return '<section class="desktop-work-surface pb-surface" data-work-surface="plugin-builder" data-work-surface-label="插件创作工作台" hidden>'+renderAgentStudio()+'</section>';
 }
 

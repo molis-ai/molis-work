@@ -1,6 +1,7 @@
 import { CODING_WORKBENCH_SETUP_SCRIPT } from "./scripts/client/coding-setup.js";
 import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, runCogniaMcpTool } from "@molis-ai/molis-work-plugin-cognia";
-import { builderManifest, builderPrompts, builderUiContribution, BUILDER_STYLES, BUILDER_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
+import { builderManifest, builderPrompts, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
+import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
 import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-images";
 import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, runJellyMcpTool } from "@molis-ai/molis-work-plugin-jelly";
 import { experimentsManifest, EXPERIMENTS_CLIENT_FACTORY_SCRIPT, EXPERIMENTS_STYLES, experimentsUiContribution } from "@molis-ai/molis-work-plugin-experiments";
@@ -89,8 +90,9 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     workbench: {
       order: 1,
       contributions: [builderUiContribution],
-      stylesheet: BUILDER_STYLES,
-      clientFactory: BUILDER_CLIENT_FACTORY_SCRIPT,
+      // The studio is drawn in the plugin's stage; generated plugin parts in its canvas use the plugin components.
+      stylesheet: AGENT_STUDIO_STYLES + PLUGIN_COMPONENT_STYLES,
+      clientFactory: AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT,
     },
   },
   {

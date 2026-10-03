@@ -179,9 +179,12 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
           read("/api/goals/" + encodeURIComponent(currentGoal) + "/deliverables", { deliverables: [] })]);
         if (goalId() !== currentGoal) return;
         const key = (reference) => reference.artifact_id + "@" + reference.version;
-        const chosen = new Set((current.deliverables || []).map(item => key(item.reference)));
-        const rows = [...(current.deliverables || []).map(item => ({ reference: item.reference, title: item.title, type_title: "" })),
-          ...(library.versions || []).filter(item => !chosen.has(key(item.reference)))];
+        const recorded = current.deliverables || [], listed = new Set(recorded.map(item => key(item.reference)));
+        const chosen = new Set(recorded.filter(item => !item.proposed).map(item => key(item.reference)));
+        // Proposals from the assistant, Coding or a workflow stay unticked: ticking one is the person's confirmation.
+        const rows = [...recorded.filter(item => item.proposed).map(item => ({ reference: item.reference, title: item.title, type_title: L("助理提议") + (item.reason ? "：" + item.reason : "") })),
+          ...recorded.filter(item => !item.proposed).map(item => ({ reference: item.reference, title: item.title, type_title: "" })),
+          ...(library.versions || []).filter(item => !listed.has(key(item.reference)))];
         const option = (fieldName, value, checked, title, meta) => {
           const label = document.createElement("label"), input = document.createElement("input"), name = document.createElement("span"), small = document.createElement("small");
           input.type = "checkbox"; input.name = fieldName; input.value = JSON.stringify(value); input.checked = checked; input.dataset.was = String(checked);

@@ -29,6 +29,7 @@ import { goalsBoardActions, createGoalsBoardActionHandlers } from "./board-actio
 import { goalsInputActions, createGoalsInputActionHandlers } from "./input-actions.js";
 import { goalsDeliverableActions, createGoalsDeliverableActionHandlers, type GoalDeliverablePorts } from "./deliverable-actions.js";
 import { boundGoalObjects } from "./input-actions.js";
+export { goalsDeliverableActions, createGoalsDeliverableActionHandlers, type GoalDeliverable, type GoalDeliverablePorts } from "./deliverable-actions.js";
 import type { LegacyV3ImportPorts } from "./board-v3-import.js";
 import { goalsCollectionAction, createGoalsCollectionActionHandler } from "./collection-action.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";

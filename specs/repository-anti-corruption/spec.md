@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：准备中（2026-10-02）。第一步（[合入后功能审查](../post-merge-review/spec.md)）收尾期间先量化现状、做清单与方案；第一步完成并合入后开始结构性改动。
+状态：准备中（2026-10-02）。第一步（[合入后功能审查](../archive/post-merge-review/spec.md)）收尾期间先量化现状、做清单与方案；第一步完成并合入后开始结构性改动。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`，以 `origin/anti-rot` 上的版本为准（用户 2026-10-02 指定）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -8,7 +8,7 @@
 
 ## 0. 现场与范围
 
-- **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../post-merge-review/spec.md#74-跨功能场景清单)。
+- **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。
 - **范围**：全仓 73 个 workspace 包（`apps` 6、`horizontal`、`modules`、`packages`、`plugins/native` 26、`plugins/official-integrations`、`server`、`tooling/plugin-cli`）。每个包都至少做一次结构审查，交出 §5 的包级清单。
 - **在途的其他线**（开工前要重新核对）：`feature/side-shelf`、`feat/plugin-picker-pins`、`docs/archive-project-arrival-flow`、`feature/fix-project-management-freeze`（另一工作树）、Codex 工作树 `~/.codex/worktrees/d62d`。
 

@@ -1,3 +1,4 @@
+import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-design-system";
 /**
  * The agent-built plugin studio: left, the conversation and the real collaboration record; right, the plugin
  * itself, rendered by the host component renderer from the frozen component tree. Everything shown is derived
@@ -5,8 +6,7 @@
  */
 export function renderAgentStudio(): string {
   return '<section class="as-shell" data-agent-studio>'
-    + '<header class="as-top"><a class="as-brand" href="#" aria-label="Molis"><svg aria-hidden="true"><use href="#icon-wand"/></svg><b>Molis</b><span>/</span><span>插件创作工作台</span></a>'
-    + '<div class="as-top-actions"><label class="as-select"><span class="as-sr">我的插件</span><select data-as-builds aria-label="我的插件"></select></label>'
+    + '<header class="as-top"><div class="as-top-actions"><label class="as-select"><span class="as-sr">我的插件</span><select data-as-builds aria-label="我的插件"></select></label>'
     + '<button class="as-icon" type="button" data-as-new aria-label="新建插件" title="新建插件"><svg aria-hidden="true"><use href="#icon-plus"/></svg></button>'
     + '<label class="as-select as-model"><span>模型</span><select data-as-model aria-label="构建使用的模型"></select></label>'
     + '<a class="as-model-setup" data-as-model-setup href="/settings/models" hidden>打开模型设置</a></div></header>'
@@ -27,13 +27,13 @@ export function renderAgentStudio(): string {
 }
 
 export const AGENT_STUDIO_STYLES = String.raw`
+.pb-surface:has(> .as-shell){padding:0!important;min-height:0;overflow:auto}
 .as-shell,.as-preview-page{--as-ground:var(--rail);--as-panel:var(--surface-soft);--as-ink:var(--ink);--as-muted:var(--muted);--as-line:var(--line);--as-paper:var(--paper);--as-fill:var(--control-fill);--as-blue:var(--accent);--as-green:var(--green);--as-amber:var(--amber);--as-red:var(--red);color:var(--as-ink);font:13px/1.65 var(--font);-webkit-font-smoothing:antialiased}
-.as-shell{display:grid;grid-template-columns:clamp(320px,26%,430px) minmax(0,1fr);grid-template-rows:56px minmax(0,1fr);height:100vh;background:var(--as-ground);overflow:hidden}
+.as-shell{display:grid;grid-template-columns:clamp(320px,26%,430px) minmax(0,1fr);grid-template-rows:56px minmax(0,1fr);height:100%;background:var(--as-ground);overflow:hidden}
 .as-shell *,.as-preview-page *{box-sizing:border-box}.as-shell [hidden]{display:none!important}:where(.as-shell) button{font:inherit;color:inherit;cursor:pointer}:where(.as-shell) button:disabled{opacity:.42;cursor:not-allowed}
 .as-shell svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}.as-shell :focus-visible{outline:2px solid var(--as-blue);outline-offset:2px}
 :where(.as-shell) :is(h1,h2,h3,p){margin:0}.as-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 .as-top{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 24px;border-bottom:1px solid var(--as-line);background:var(--as-panel)}
-.as-brand{display:flex;align-items:center;gap:8px;color:inherit;text-decoration:none;font-size:15px}.as-brand b{font-size:17px}.as-brand span{color:var(--as-muted)}.as-brand svg{width:20px;height:20px;color:var(--accent); stroke-width: 1.6; }
 .as-top-actions{display:flex;align-items:center;gap:12px}.as-select{display:flex;align-items:center;gap:8px;color:var(--as-muted);font-size:12px}.as-select>span{white-space:nowrap;flex:none}.as-select select{max-width:220px;font:inherit;color:var(--as-ink);border:1px solid var(--as-line);border-radius:7px;background:var(--as-paper);padding:8px 8px}
 .as-icon{color:inherit;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid var(--as-line);border-radius:7px;background:var(--as-paper)}.as-icon:hover{background:var(--as-fill)}
 .as-left{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--as-line);background:var(--as-panel)}
@@ -107,14 +107,17 @@ html:has(.as-preview-page),body:has(.as-preview-page){margin:0;background:var(--
 .as-install{margin-top:12px;padding-top:12px;border-top:1px solid var(--as-line)}
 .as-dialog{border:1px solid var(--as-line);border-radius:14px;padding:24px 24px;max-width:420px;width:calc(100% - 32px);box-shadow: var(--lift-3);color:var(--as-ink)}.as-dialog::backdrop{background:var(--scrim)}.as-dialog h3{font-size:15px;margin-bottom:8px}.as-dialog ul{margin:8px 0 12px;padding-left:16px}.as-dialog li{margin:4px 0}
 .as-installed-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;max-width:980px;margin:16px auto 0;padding:16px clamp(16px,5%,56px);background:var(--as-paper);border-radius:14px 14px 0 0;border-bottom:1px solid var(--line);font:13px/1.6 var(--font);color:var(--ink)}.as-installed-bar span{color:var(--ink-soft)}.as-installed-bar a{margin-left:auto;color:var(--accent);text-decoration:none}
-@media (max-width:760px){.as-shell{grid-template-columns:minmax(0,1fr);grid-template-rows:56px auto minmax(0,1fr);height:auto;min-height:100vh;overflow:visible}.as-top{padding:0 12px}.as-brand{flex:none}.as-top-actions{flex:1;justify-content:flex-end;gap:8px;min-width:0}.as-select{flex:0 1 auto;min-width:0}.as-select select{width:100%;min-width:0;max-width:none}.as-select:has(select[data-as-model]){flex:0 0 auto}.as-select>span{white-space:nowrap;flex:none}.as-select:has(select[data-as-model]) select{width:112px}.as-brand b{font-size:15px}.as-canvas-head{flex-wrap:wrap;row-gap:4px;padding:8px 0}.as-title{flex:1 1 60%}.as-head-actions{min-width:0}.as-left{border-right:0;border-bottom:1px solid var(--as-line)}.as-feed{max-height:52vh}.as-right{padding:0 12px 12px;min-height:80vh}.as-model span,.as-brand span{display:none}.as-canvas-scroll{padding:24px 16px 96px}}
+@media (max-width:760px){.as-shell{grid-template-columns:minmax(0,1fr);grid-template-rows:56px auto minmax(0,1fr);height:auto;min-height:100%;overflow:visible}.as-top{padding:0 12px}.as-top-actions{flex:1;justify-content:flex-end;gap:8px;min-width:0}.as-select{flex:0 1 auto;min-width:0}.as-select select{width:100%;min-width:0;max-width:none}.as-select:has(select[data-as-model]){flex:0 0 auto}.as-select>span{white-space:nowrap;flex:none}.as-select:has(select[data-as-model]) select{width:112px}.as-canvas-head{flex-wrap:wrap;row-gap:4px;padding:8px 0}.as-title{flex:1 1 60%}.as-head-actions{min-width:0}.as-left{border-right:0;border-bottom:1px solid var(--as-line)}.as-feed{max-height:52vh}.as-right{padding:0 12px 12px;min-height:80vh}.as-model span{display:none}.as-canvas-scroll{padding:24px 16px 96px}}
 @media (prefers-reduced-motion:reduce){.as-shell *{animation:none!important;transition:none!important}}
 `;
 
 /** Browser client; a string so the host can inline it. Receives the host's routes and the component renderer. */
 export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
- const root=document.querySelector(host.mode==='preview'?'[data-studio-preview]':host.mode==='installed'?'[data-installed-plugin]':'[data-agent-studio]');
- if(!root)return;const lifetime=host.mountPluginClient(root);if(!lifetime)return;
+ // In the workbench the studio is drawn in the plugin's stage (host.root); the preview and an installed plugin run in frames.
+ const selector=host.mode==='preview'?'[data-studio-preview]':host.mode==='installed'?'[data-installed-plugin]':'[data-agent-studio]';
+ const root=host.root?(host.root.matches?.(selector)?host.root:host.root.querySelector(selector)):document.querySelector(selector);
+ if(!root)return;
+ const page=host.page||{address:()=>new URL(location.href),replace:next=>history.replaceState(null,'',next)};const lifetime=host.mountPluginClient(root);if(!lifetime)return;
 
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const icon=n=>'<svg aria-hidden="true"><use href="#icon-'+n+'"/></svg>';
@@ -348,7 +351,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
    if(el)frameAt(el,'placed','代码 Agent · 已接上「'+w.title+'」');await wait(560);frameEl.hidden=true;
   }}finally{wiringPlay=false;wiring=null;code.hidden=true;if(!playing)frameEl.hidden=true;renderBoard();}}
  const wait=ms=>lifetime.delay(ms);
- const withBuild=id=>{const here=new URL(location.href);if(id)here.searchParams.set('build',id);else here.searchParams.delete('build');return here.pathname+here.search;};
+ const withBuild=id=>{const here=page.address();if(id)here.searchParams.set('build',id);else here.searchParams.delete('build');return here;};
 const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+CSS.escape(id)+'"]');if(!el)return null;if(el.hidden)return pluginRoot.querySelector('[data-pc-action="'+CSS.escape(id)+'"]');const box=el.getBoundingClientRect();return box.width&&box.height?el:pluginRoot.querySelector('[data-pc-open="'+CSS.escape(id)+'"]')||el;};
  function click(pointer){pointer.removeAttribute('data-click');void pointer.offsetWidth;pointer.setAttribute('data-click','');}
  async function play(){playing=true;const token=++playToken,ui=$('[data-as-pointer="ui"]'),frameEl=$('[data-as-frame]');
@@ -411,15 +414,15 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
    const listed=state.builds.find(x=>x.id===b.id);if(listed&&(listed.phase!==b.phase||(listed.design?.title||listed.title)!==(b.design?.title||b.title))){Object.assign(listed,{phase:b.phase,title:b.title,design:b.design});renderBuilds();}
    schedule();};}
  async function open(id,signal){const ticket=++opening;comparePrevious=false;target=null;preview=null;rendered='';lastView='';seenWired=new Set();firstPaint=true;tab='build';playToken++;playing=false;queue=[];landing=null;picking=null;revealed=new Set();wiredCaps=new Set();wires=[];wiring=null;
-  if(!id){current=null;versions=[];subscribe(null);history.replaceState(null,'',withBuild(null));schedule();return;}
-  const v=await api('/builds/'+id,'GET',undefined,signal);if(ticket!==opening)return;current=v.build;versions=v.versions;current.nodes.forEach(n=>revealed.add(n.id));usedCapabilities(current).forEach(x=>{if(x.done)wiredCaps.add(x.c.id);});subscribe(id);history.replaceState(null,'',withBuild(id));renderBuilds();schedule();}
+  if(!id){current=null;versions=[];subscribe(null);page.replace(withBuild(null));schedule();return;}
+  const v=await api('/builds/'+id,'GET',undefined,signal);if(ticket!==opening)return;current=v.build;versions=v.versions;current.nodes.forEach(n=>revealed.add(n.id));usedCapabilities(current).forEach(x=>{if(x.done)wiredCaps.add(x.c.id);});subscribe(id);page.replace(withBuild(id));renderBuilds();schedule();}
  async function refreshState(signal){state=await api('/state','GET',undefined,signal);renderBuilds();}
  async function run(work){if(busy||!lifetime.alive)return;busy=true;notice='';schedule();try{await work();}catch(e){notice=e.message;}finally{busy=false;schedule();}}
  async function act(action,extra={}){const v=await api('/builds/'+current.id+'/action','POST',{action,revision:current.revision,...extra});if(v.build)current=v.build;if(v.release){versions=(await api('/builds/'+current.id)).versions;notice='';}if(v.deleted){await refreshState();await open(null);}}
  lifetime.listen(root,'click',e=>{const el=e.target.closest('button,a');if(!el||!root.contains(el))return;
   // Framed in the workbench, the plugin opens in place as a workbench stage rather than in a new window.
-  if(el.dataset.asOpenPlugin&&parent!==window){e.preventDefault();parent.postMessage({type:'molis-studio-open-plugin',surface:'app-'+el.dataset.asOpenPlugin},location.origin);return;}
-  if(el.matches('[data-as-model-setup]')){if(parent!==window){e.preventDefault();parent.postMessage({type:'molis-work:open-settings',href:'/settings/models'},location.origin);}return;}
+  if(el.dataset.asOpenPlugin&&(host.openPlugin||parent!==window)){e.preventDefault();if(host.openPlugin)host.openPlugin('app-'+el.dataset.asOpenPlugin);else parent.postMessage({type:'molis-studio-open-plugin',surface:'app-'+el.dataset.asOpenPlugin},location.origin);return;}
+  if(el.matches('[data-as-model-setup]')){if(host.openSettings){e.preventDefault();host.openSettings('/settings/models');}else if(parent!==window){e.preventDefault();parent.postMessage({type:'molis-work:open-settings',href:'/settings/models'},location.origin);}return;}
   if(el.dataset.asExample){input.value=el.dataset.asExample;input.focus();return;}
   if(el.dataset.asOpen){run(()=>open(el.dataset.asOpen));return;}
   if(el.hasAttribute('data-as-catalog')){const which=el.dataset.asCatalog||'components';catalogOpen=catalogOpen===which?'':which;tip.hidden=true;renderBoard();return;}
@@ -437,7 +440,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
   if(el.dataset.asUpgrade){const v=versions.find(x=>x.version===Number(el.dataset.asUpgrade)),inst=installed(current);const go=()=>run(async()=>{await act('upgrade',{version:v.version,grants:{consent:true}});await refreshState();});
    if(covered(v?.permissions,inst?.effects))go();else consent('升级到 v'+v.version+' 需要新的权限',v?.permissions,'确认并升级').then(ok=>{if(ok)go();});return;}
   if(el.hasAttribute('data-as-install-enable')){const inst=installed(current);if(inst)run(async()=>{await act('enable',{version:inst.version});await refreshState();});return;}
-  if(el.hasAttribute('data-as-uninstall')){const inst=installed(current);if(!inst)return;ask('卸载「'+(current.design?.title||'')+'」','卸载后它会从这个项目里移除。它保存的数据可以留着，以后重新安装还能看到。',[['keep','卸载，保留数据',true],['drop','卸载并删除数据'],['cancel','取消']]).then(choice=>{if(choice==='keep'||choice==='drop')run(async()=>{await act('uninstall',{version:inst.version,grants:{keepData:choice==='keep'}});await refreshState();if(parent!==window)parent.postMessage({type:'molis-studio-plugin-removed',surface:'app-'+current.id},location.origin);});});return;}
+  if(el.hasAttribute('data-as-uninstall')){const inst=installed(current);if(!inst)return;ask('卸载「'+(current.design?.title||'')+'」','卸载后它会从这个项目里移除。它保存的数据可以留着，以后重新安装还能看到。',[['keep','卸载，保留数据',true],['drop','卸载并删除数据'],['cancel','取消']]).then(choice=>{if(choice==='keep'||choice==='drop')run(async()=>{await act('uninstall',{version:inst.version,grants:{keepData:choice==='keep'}});await refreshState();if(host.pluginRemoved)host.pluginRemoved('app-'+current.id);else if(parent!==window)parent.postMessage({type:'molis-studio-plugin-removed',surface:'app-'+current.id},location.origin);});});return;}
   if(el.hasAttribute('data-as-remove')){ask('删除「'+(current.design?.title||current.title)+'」这个草稿？','构建目录和试用数据会一起删除，已发布并安装的插件不受影响。',[['remove','删除',true],['cancel','取消']]).then(choice=>{if(choice==='remove')run(()=>act('remove'));});return;}
   if(el.hasAttribute('data-as-new')){run(()=>open(null));input.focus();}
  });
@@ -463,10 +466,30 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
   viewSignal=signal;
   void (async()=>{
    await refreshState(signal);
-   if(!initialized){const id=new URLSearchParams(location.search).get('build');await open(id&&state.builds.some(b=>b.id===id)?id:null,signal);initialized=true;}
+   if(!initialized){const id=page.address().searchParams.get('build');await open(id&&state.builds.some(b=>b.id===id)?id:null,signal);initialized=true;}
    else if(current){const id=current.id,ticket=opening,v=await api('/builds/'+id,'GET',undefined,signal);if(current?.id!==id||opening!==ticket)return;current=v.build;versions=v.versions;current.nodes.forEach(n=>revealed.add(n.id));subscribe(id);}
    schedule();
   })().catch(backgroundError);
   return()=>{source?.close();source=null;playToken++;playing=false;wiringPlay=false;landing=null;picking=null;queue=[];wires=[];wiring=null;lifetime.cancelFrame(frame);frame=0;};
  });
+}`;
+
+/**
+ * The studio as the plugin's own stage in the workbench (specs/artifact-positioning S4): drawn in place, its routes from
+ * the host, and the plugin it installed or the model settings opened through the workbench, not a frame's parent.
+ * A plugin installed since the page loaded has no entry yet: the workbench is opened again with ?openSurface and opens it.
+ */
+export const AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
+ const valid=s=>typeof s==='string'&&/^app-[a-f0-9-]{36}$/.test(s);
+ const entry=s=>[...document.querySelectorAll('[data-work-surface-open]')].find(el=>el.dataset.workSurfaceOpen===s);
+ const openPlugin=s=>{if(!valid(s))return;const button=entry(s);if(button){button.click();return;}const next=new URL(location.href);next.searchParams.set('openSurface',s);location.assign(next.pathname+next.search);};
+ const pluginRemoved=s=>{if(!valid(s))return;entry(s)?.remove();[...document.querySelectorAll('[data-work-surface]')].find(el=>el.dataset.workSurface===s)?.remove();};
+ // The plugin open in the studio is kept for this browser session, so a reload comes back to it (the address is the workbench's).
+ const KEY='molis-work-studio-build:'+(host.projectId?.()||'');
+ const page={address:()=>{const here=new URL(location.origin+'/');try{const id=sessionStorage.getItem(KEY);if(id)here.searchParams.set('build',id);}catch{}return here;},
+  replace:next=>{try{const id=next.searchParams.get('build');if(id)sessionStorage.setItem(KEY,id);else sessionStorage.removeItem(KEY);}catch{}}};
+ (` + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + `)({mountPluginClient:host.mountPluginClient,root:host.root||document.querySelector('[data-work-surface="plugin-builder"]'),mode:'studio',
+  api:p=>host.route('/api/plugin-builder/studio')+p,preview:id=>host.route('/plugin-builder/studio/preview/')+id,plugin:id=>host.route('/plugins/')+id,
+  components:` + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + `,page,openPlugin,pluginRemoved,
+  openSettings:href=>document.dispatchEvent(new CustomEvent('molis-work:open-settings-path',{detail:{href}}))});
 }`;

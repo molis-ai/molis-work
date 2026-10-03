@@ -6,7 +6,30 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     catch { return ""; }
   })();
   const projectPrefix = projectId ? "/projects/" + encodeURIComponent(projectId) : "";
+  const CAPABILITY_SECTIONS = ["library", "connections", "access", "history"];
+  // Where a loaded page was opened from. Pages that keep their state in the address (the open rule, a filter) read and
+  // update this; the cover remembers it, so a reload comes back to it.
+  const pageOf = (root) => ({
+    address: () => new URL(root.dataset.settingsSource || location.href, location.origin),
+    replace: (next) => {
+      const path = next.pathname + next.search + next.hash;
+      root.dataset.settingsSource = path;
+      const kind = root.closest("[data-work-surface]")?.dataset.workSurface;
+      if (kind && root.dataset.settingsPanel) host.noteCover?.(kind, root.dataset.settingsPanel + " " + path);
+    },
+  });
+  // 能力's pages (the rules editor, MCP access, the Functions connection) bring scripts the workbench loads when first needed.
+  let capabilityScripts = null;
+  const ensureCapabilityScripts = (html) => !/data-functions=|data-mcp-access|data-functions-settings/.test(html) ? Promise.resolve()
+    : capabilityScripts ||= new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "/assets/molis-work-capabilities.js";
+      script.onload = () => resolve();
+      script.onerror = () => { capabilityScripts = null; script.remove(); reject(new Error(L("无法加载设置"))); };
+      document.head.append(script);
+    });
   const bindEmbed = (root) => {
+    const page = pageOf(root);
     // Pages whose script reads where it was opened from (a Character's prompts, the diagnostics anchor) get the
     // address the cover loaded, not the workbench's.
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
@@ -20,7 +43,9 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindPlanningSettings?.(root);
     globalThis.molisWorkBindPlanningAdoption?.(root);
     globalThis.molisWorkBindShelfSettings?.(root);
-    globalThis.molisWorkBindConnectorsSettings?.(root);
+    globalThis.molisWorkBindConnectorsSettings?.(root, page);
+    globalThis.molisWorkBindMcpAccess?.(root, page);
+    globalThis.molisWorkBindFunctionsRules?.(root, page);
     document.dispatchEvent(new CustomEvent("molis-work:settings-embed", { detail: { root } }));
   };
   const extractContent = (html) => {
@@ -81,6 +106,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         }
       } else wrap = content;
       wrap.dataset.settingsPanel = section;
+      wrap.dataset.settingsSource = fetchPath || options.sectionPath(section);
       if (fetchPath) {
         const address = new URL(fetchPath, location.origin);
         wrap.dataset.settingsAddress = fetchPath;
@@ -130,6 +156,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         const response = await fetch(path, { headers: { Accept: "text/html" } });
         if (!response.ok) throw new Error(L("无法加载设置"));
         const html = await response.text();
+        await ensureCapabilityScripts(html);
         if (loading !== request) return;
         loadFromHtml(section, html, fetchPath);
       } catch (error) {
@@ -153,8 +180,6 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       const button = event.target.closest("[data-settings-section]");
       if (!button) return;
       event.preventDefault();
-      // 能力 is its own cover, opened from the same list.
-      if (button.dataset.settingsCover) { host.openCover?.(button.dataset.settingsCover); return; }
       void loadSection(button.dataset.settingsSection || options.preset);
       if (matchMedia("(max-width: 600px)").matches) hideDirectory?.();
     });
@@ -167,8 +192,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       kind: "settings",
       preset: "appearance",
       sectionPath: (section) => {
-        const path = section === "planning" ? "/settings/planning" : "/settings/" + section;
-        return projectId ? path + (path.includes("?") ? "&" : "?") + "project=" + encodeURIComponent(projectId) : path;
+        const path = (CAPABILITY_SECTIONS.includes(section) ? "/capabilities/" : "/settings/") + section;
+        return projectId ? path + "?project=" + encodeURIComponent(projectId) : path;
       },
       // A plugin that renders its settings page into this workbench marks it; that page is shown in place.
       local: (section) => document.querySelector('[data-settings-page="' + CSS.escape(section) + '"]'),
@@ -202,8 +227,9 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const globalSectionFromPath = (pathname) => {
     if (pathname.startsWith("/settings/planning")) return "planning";
     if (pathname.startsWith("/settings/runtimes")) return "runtimes";
-    if (pathname.startsWith("/settings/mcp")) return "mcp";
-    if (pathname.startsWith("/settings/connectors")) return "connectors";
+    // 能力: its four pages, and the rules editor inside the library.
+    const capability = /^\\/capabilities(?:\\/([^/?#]+))?/.exec(pathname);
+    if (capability) return CAPABILITY_SECTIONS.includes(capability[1]) ? capability[1] : "library";
     if (pathname.startsWith("/settings/diagnostics")) return "diagnostics";
     // Every project on this machine: reached from its links (onboarding, a page with no project), not listed as a category.
     if (pathname.startsWith("/settings/projects")) return "projects";
@@ -251,8 +277,17 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const url = new URL(href, location.origin);
     if (url.origin !== location.origin) return false;
     // A project page draws root links under its own prefix; a global page named there is still the global page.
-    const pathname = projectPrefix && url.pathname.startsWith(projectPrefix + "/settings/") ? url.pathname.slice(projectPrefix.length) : url.pathname;
-    if (!pathname.startsWith("/settings/")) return false;
+    const global = (path) => /^\\/(settings\\/|capabilities(\\/|$))/.test(path);
+    const unprefixed = projectPrefix && url.pathname.startsWith(projectPrefix + "/") ? url.pathname.slice(projectPrefix.length) : "";
+    let pathname = global(unprefixed) ? unprefixed : url.pathname;
+    if (!global(pathname)) return false;
+    // MCP, connectors and Functions moved to 能力; their old settings addresses open the 能力 page.
+    if (pathname === "/settings/mcp") pathname = "/capabilities/access";
+    else if (pathname === "/settings/connectors" || pathname === "/settings/functions") {
+      if (pathname === "/settings/functions") url.searchParams.set("connector", "typesafe");
+      pathname = "/capabilities/connections";
+    }
+    if (pathname === "/capabilities") pathname = "/capabilities/library";
     const section = globalSectionFromPath(pathname);
     if (!section || !globalSettings) {
       globalSettings ||= bindGlobal();
@@ -269,10 +304,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     return true;
   };
   document.addEventListener("molis-work:open-settings-path", (event) => {
-    openProjectSettingsFromUrl(event.detail?.href || "");
+    const href = event.detail?.href || "";
+    if (!openProjectSettingsFromUrl(href)) openGlobalSettingsFromUrl(href);
   });
   const knownGlobalSection = (section) => [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
-    .some((row) => row.dataset.settingsSection === section && !row.dataset.settingsCover);
+    .some((row) => row.dataset.settingsSection === section);
   // A plugin whose page lives in settings (角色) is opened there, from search, a link or an old tab.
   document.addEventListener("molis-work:open-settings-section", (event) => {
     const section = event.detail?.section;
@@ -330,6 +366,15 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       if (!host.closeCover?.()) { setDirectory?.("root", true, false); setExclusive?.(null); }
       return;
     }
+  });
+  // A page's own filters (能力's scope and search) are GET forms: they load the filtered page in place, not a new page.
+  document.addEventListener("submit", (event) => {
+    const form = event.target;
+    if (event.defaultPrevented || !form.closest?.("[data-work-surface=settings], [data-work-surface=project-settings]")) return;
+    if ((form.getAttribute("method") || "get").toLowerCase() !== "get") return;
+    const url = new URL(form.getAttribute("action") || form.closest("[data-settings-source]")?.dataset.settingsSource || location.href, location.origin);
+    url.search = new URLSearchParams([...new FormData(form, event.submitter)].map(([key, value]) => [key, String(value)])).toString();
+    if (openProjectSettingsFromUrl(url.href) || openGlobalSettingsFromUrl(url.href)) event.preventDefault();
   });
   window.addEventListener("message", (event) => {
     if (event.origin !== location.origin) return;

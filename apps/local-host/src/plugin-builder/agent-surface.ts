@@ -14,7 +14,7 @@ import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderPromptVe
 import type { LocalProjectDatabase } from '../project-database.js';
 import { openConfiguredModels } from '../configured-models.js';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
-import { selectionPorts } from '../plugin-builder-surface.js';
+import { FRAME_QUERY, selectionPorts } from '../plugin-builder-surface.js';
 import { builderSkill } from './skill.js';
 import { buildSources, readPluginPrompts } from './prompts.js';
 import { STABLE_PREVIEW } from './storage.js';
@@ -218,7 +218,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       const key = randomUUID(), trial = { ...build, id: build.id + ':acceptance:' + key };
       accepting.add(trial.id); trials.set(key, { original: build.id, build: trial });
       const reset = async () => { await stopRunner(trial.id); studio.storage.delete(PREVIEW_KEY + STABLE_PREVIEW + trial.id); };
-      try { return await run({ url: studio.origin + (options.routePrefix ?? '') + '/plugin-builder/studio/preview/' + build.id + '?acceptance=' + key, signal, reset, ...(options.browserExecutable ? { executable: options.browserExecutable } : {}) }); }
+      try { return await run({ url: studio.origin + (options.routePrefix ?? '') + '/plugin-builder/studio/preview/' + build.id + '?' + FRAME_QUERY + '&acceptance=' + key, signal, reset, ...(options.browserExecutable ? { executable: options.browserExecutable } : {}) }); }
       finally { trials.delete(key); await reset(); accepting.delete(trial.id); }
     };
     const ports: AgentBuilderPorts = {
@@ -362,7 +362,7 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
     if (!release) return [];
     const surface = 'app-' + release.buildId, label = release.design.title;
     return [{ pluginId: item.plugin_id, surface, label, stage: '<section class="desktop-work-surface pb-surface" data-work-surface="' + surface + '" data-work-surface-label="' + escapeHtml(label) + '" data-installed-plugin="' + escapeHtml(item.plugin_id) + '" hidden>'
-      + '<iframe src="' + escapeHtml(prefix + '/plugins/' + item.plugin_id) + '" title="' + escapeHtml(label) + '" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe></section>' }];
+      + '<iframe src="' + escapeHtml(prefix + '/plugins/' + item.plugin_id + '?' + FRAME_QUERY) + '" title="' + escapeHtml(label) + '" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe></section>' }];
   });
 }
 
@@ -375,6 +375,11 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
   const installedCall = /^\/api\/plugin-builder\/installed\/(io\.molis\.work\.generated\.[a-f0-9-]{36})\/call$/u.exec(url.pathname);
   if (!studioPage && !preview && !api && !installedPage && !installedCall) return false;
   const method = request.method ?? 'GET', prefix = options.routePrefix ?? '';
+  // These pages are frame documents: the workbench's stage or the host's own acceptance run asks for them with the frame
+  // marker. Opened directly, they open the workbench at their surface instead (specs/artifact-positioning S3).
+  const framed = url.searchParams.get('frame') === 'workbench';
+  const openWorkbench = (query: string) => { response.writeHead(302, { location: prefix + '/?' + query, 'cache-control': 'no-store' }); response.end(); return true; };
+  if ((studioPage || preview) && method === 'GET' && !framed) return openWorkbench('openPlugin=plugin-builder');
   try {
     if (installedPage || installedCall) {
       if (!options.homeDirectory) throw new Error('安装插件需要本机数据目录');
@@ -390,16 +395,16 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       }
       if (installedPage && method === 'GET') {
         const release = installed.releaseFor(pluginId);
-        const buildId = release?.buildId;
         if (!release) { sendLocalWebJson(response, 404, { error: '找不到这个插件的已安装版本' }); return true; }
+        if (!framed) return openWorkbench('openSurface=' + encodeURIComponent('app-' + release.buildId));
         const recoveryError = installed.recoveryErrors.get(pluginId);
         if (recoveryError) {
           html(response, page(release.design.title, '<main class="as-preview-page"><h1>插件暂时无法运行</h1><p role="alert">' + escapeHtml(recoveryError)
-            + '</p><a href="' + escapeHtml(prefix + '/plugin-builder/studio?build=' + buildId) + '">在创作台检查安装</a></main>', '', controlToken)); return true;
+            + '</p><p>请在插件创作工作台里检查安装。</p></main>', '', controlToken)); return true;
         }
         const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation, connected: release.design.contract.operations.map(item => item.id) };
-        const body = '<header class="as-installed-bar"><b>' + escapeHtml(release.design.title) + '</b><span>v' + release.version + ' · 数据保存在本机</span><a href="' + escapeHtml(prefix + '/plugin-builder/studio?build=' + buildId) + '">在创作台中修改</a></header>'
-          + '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';
+        // Only the plugin: its name, version and the way back to the studio are the workbench's (tab and stage), not the frame's.
+        const body = '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';
         html(response, page(release.design.title, body, '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')(),mode:"installed",call:' + literal(prefix + '/api/plugin-builder/installed/' + pluginId + '/call') + ',view:' + literal(view) + ',components:' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + '});', controlToken));
         return true;
       }

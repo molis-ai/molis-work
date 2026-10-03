@@ -3,15 +3,17 @@ import { markProjectOpened, pruneProjectArrival } from "./project-arrival.js";
 import { isTopLevelNavigation } from "./web-http.js";
 
 /**
- * Settings are part of the workbench (specs/artifact-positioning S6). A settings address opened directly (the address
- * bar, a bookmark, a reload) opens the project's workbench with that page in its settings; the workbench itself and
- * its scripts read the same addresses with `fetch`, which a page request never is.
+ * Settings, 能力 among them, are part of the workbench (specs/artifact-positioning S6, S6b). A settings address opened
+ * directly (the address bar, a bookmark, a reload) opens the project's workbench with that page in its settings; the
+ * workbench itself and its scripts read the same addresses with `fetch`, which a page request never is.
  */
 const SETTINGS_PATH = /^\/settings(\/|$)/;
+const GLOBAL_SETTINGS_PATH = /^\/(?:settings|capabilities)(\/|$)/;
 
-/** `settingsPrefix` is the project's prefix for one of its own settings pages, empty for a global one. */
+/** `settingsPrefix` is the project's prefix for one of its own settings pages, empty for a global one. On a 能力 page
+ * `project` is the scope it shows, so it stays in the page's address. */
 function sendToWorkbench(response: ServerResponse, routePrefix: string, settingsPrefix: string, asked: URL, desktop: boolean): void {
-  asked.searchParams.delete("project");
+  if (!asked.pathname.startsWith("/capabilities")) asked.searchParams.delete("project");
   asked.searchParams.delete("desktop");
   const settingsPath = encodeURIComponent(settingsPrefix + asked.pathname + asked.search + asked.hash);
   response.writeHead(302, { location: `${routePrefix}/?settingsPath=${settingsPath}${desktop ? "&desktop=1" : ""}`, "cache-control": "no-store" });
@@ -42,7 +44,7 @@ export async function redirectSettingsAddress(request: IncomingMessage, response
     response.end();
     return true;
   }
-  if (!homeDirectory || !isTopLevelNavigation(request) || !SETTINGS_PATH.test(url.pathname)) return false;
+  if (!homeDirectory || !isTopLevelNavigation(request) || !GLOBAL_SETTINGS_PATH.test(url.pathname)) return false;
   const known = await projects();
   const last = pruneProjectArrival(homeDirectory, new Set(known.map((project) => project.project_id))).last_project_id;
   const target = known.find((project) => project.project_id === url.searchParams.get("project"))

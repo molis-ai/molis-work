@@ -363,7 +363,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   });
   document.querySelector('[data-work-surface=artifacts]')?.addEventListener('molis-work:select-item', event => {
     const base = route('/artifacts');
-    const path = event.detail.itemId || base;
+    // A version's own path (/artifacts/ID/versions/N, as search, the side panel and toasts give it) opens in this project.
+    const raw = event.detail.itemId || base, path = !raw.startsWith(base) && raw.startsWith('/artifacts') ? route(raw) : raw;
     if (path !== base && !path.startsWith(base + '/')) return;
     void loadArtifacts(path);
   });

@@ -521,6 +521,7 @@ export async function handleMolisWorkWebRequest(
           projectTitle: options.project?.display_name ?? "Molis Work",
           actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
           pages: userActions(PAGES_ACTION_PERMISSIONS), // "在 Pages 继续" (A3) asks Pages with Pages' own permissions
+          ownerActions: permissions => userActions(permissions), // each 成果 type's owner previews its own versions (A4)
           desktopShell: isDesktopShellRequest(request, url), pageCsp: PAGE_CSP,
         })) return;
         if (await goalsReadHttp.page(request, response, url, options, serverOptions.homeDirectory, readWebView, bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: WORK_ACTION_PERMISSIONS })), controlToken, goalActions,

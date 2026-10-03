@@ -65,6 +65,9 @@
 | 2026-10-03 | Pages 自己的导入怎么处理（A3，代为决定） | 删入口、保留解析作为「在 Pages 继续」（推荐）；连同解析动作一起删；保留 Pages 导入 | 删入口、保留解析 | 用户定了「只从成果库导入」「文本文档从这一版继续进 Pages」。整套删会丢掉 Notion ZIP、Word 一次导入多篇的能力；保留 Pages 导入就有两个入口。保留解析后，导入的 ZIP、Word 也能在 Pages 继续；Pages 的 `import` 动作仍对助理开放，只是没有人用的界面入口 |
 | 2026-10-03 | A3 的文件上限与显示（常规取舍） | — | 单个 6 MB；位图直接显示，其余下载 | 6 MB 沿用原件快照已有的上限；SVG 可带脚本，按下载处理；按类型的预览留给 A4 |
 | 2026-10-03 | 合并 #202 A1（代为决定） | 按推荐合并 | 已合并 | b12fbfc4 |
+| 2026-10-03 | 合并 #203 A3（代为决定） | 按推荐合并 | 已合并 | 4bce367e |
+| 2026-10-03 | 成果预览由谁渲染（A4，常规取舍） | owner 动作给内容、宿主统一只读渲染（推荐）；owner 给 HTML 贡献 | owner 给内容 | 复用侧栏文件已有的内容形状（Markdown、CSV、文本、位图），owner 不写 HTML、不读存储；宿主一处转义渲染，安全面最小 |
+| 2026-10-03 | A4 分两片（常规取舍） | — | A4a 声明与预览，A4b 引用、来源变化、作为输入与继续 | 一片一个主题，先让每种可见类型都有 owner 的预览 |
 
 **待决**：无（「没有项目时的全局设置」已答，见上表）。
 
@@ -202,8 +205,32 @@
 - **在 Pages 继续**：Pages 能读的版本（Markdown、TXT、HTML、CSV、Word、ZIP）在详情里给「在 Pages 继续」：宿主把这一版交给 Pages 现有的文件解析，Pages 新建文档并在工作台打开；ZIP（如 Notion 导出）一次建多篇，打开第一篇。
 - **Pages 的导入入口删掉**：Pages 目录与空态里的「导入」按钮、导入浮层、脚本与样式都删了；它解析文件的能力（`import.preview`、`import` 动作与宿主的材料解析）保留，只作为「在 Pages 继续」的实现。
 
+### A4 每种可见类型的消费方（A4a 已实施，A4b 待做）
+
+**A4a（本片）**
+
+- **类型由 owner 声明**：manifest `artifacts.produces[]` 加 `title`（显示名）与 `preview`（owner 的一个动作，用 `defineArtifactPreviewAction` 定义，输入是宿主读出的这一版，输出是与侧栏文件同形的内容，类型单列为 `molis.artifacts.preview.v1`，不算侧栏文件来源）。owner 只转换自己的 payload，不读任何存储（`bindArtifactPreview` 统一检查类型）。
+- **已声明的八种**：文档（Pages，Markdown）、问卷（题目 Markdown，不含答卷）、演示稿（大纲 Markdown）、数据表（CSV）、捕获的消息（Feed，标题/摘要/来源/原文链接）、角色（说明与工具）、Coding 执行报告（正文 Markdown，身份对不上的报告不预览）、导入的文件（正文或原件）。
+- **成果库按声明显示**：分组名与详情的类型名来自声明，删掉写死的类型表；详情里的预览由 owner 的预览动作给出、宿主用共同的只读渲染（`renderFilePreviewHtml`：Markdown、CSV 表格、文本、位图，转义一切、不出脚本与框）显示，并给「在 <插件> 打开原对象」回到固定下来的那个对象。只有声明的 owner、且这一版是它生产的，才会被预览。宿主为 Coding 报告单独拼预览的代码删掉。Coding 报告的来源改为会话（`coding_session`），修订号是轮次。
+
+**A4b（下一片）**
+
+- 侧栏文件的成果预览走同一个 owner 预览；侧栏的 Markdown/CSV 渲染与 `renderFilePreviewHtml` 合成一份。
+- 「原文已改，这里仍是这一版」：比较 owner 当前修订号与来源修订号。
+- 「被谁引用」：列出 Goal 输入/交付、助理结果与文档引用（context ledger）。
+- 「作为 Goal 的输入」与其他类型的「从这一版继续」（manifest `continue` 声明）。
+
+### A5 Goal 交付（方案，下一片）
+
+- **交付物是成果引用**：Goal 的交付物是 `goal.output` 关系（context ledger，从 Goal 指向成果的某一版），不再有单独的 `goal.delivery` 类型；演示数据里的 `goal.delivery` 删掉，改成真实的成果加 `goal.output`。`goal.input` 同理指向成果版本。
+- **收尾入口**：现在人在工作台里没有收尾的入口（收尾只经 Agent 的 `event_close`）。Goal 页给负责人一个「收尾」按钮，打开浮层：结果、交付物、理由，提交现有的收尾动作（带读取时的约定与配置版本）。Agent 收尾时可以附带提议的交付物，进待确认。
+- **完成时选**：收尾浮层里的「交付物」一步，列出这个项目的成果（按 owner 声明的类型名分组）与可以当场固定的工作对象；选工作对象时调用它 owner 的固定动作（manifest 为可见类型声明 `pin`，如 Pages、问卷、数据表、PPT 的推广动作），固定出的那一版作为交付物。收尾合同不变，交付物由 Goals 的新动作 `goals.deliverables.set` 记下（带读取时的版本，重试幂等）。
+- **Goal 页显示交付物**：Goal 页的成果区块只显示交付物与输入两类，每条显示类型名、标题与版本，点开在成果库；「原文已改」提示沿用 A4b。
+- **提议与确认**：助理与 Coding 可以提议交付物（写成待确认的建议），用户在收尾浮层里确认后才记下。
+
 ## 6. 进度
 
+- 2026-10-03：A4a 开 PR（分支 `feat/artifact-a4-consumers`），做法见上文「A4 每种可见类型的消费方」。八种可见类型都由 owner 声明显示名与预览动作；成果库按声明分组、显示 owner 的预览并给回到原对象的链接；宿主为 Coding 报告单拼的预览删掉。门禁 `tests/artifact-type-gate.test.ts`（每种成果类型有显示名与 owner 预览动作、每种类型只有一个 owner）接进 CI。途中两处：预览动作起初沿用侧栏文件内容的输出类型，被动作目录当成侧栏文件来源拒绝，改为单列的 `molis.artifacts.preview.v1`；成果插件里 `actions → document-import → manifest → actions` 循环引用，文档类型常量挪到叶子模块。用例：类型名改按 owner 声明断言（Feed 的「捕获的消息」、未声明类型取末段）；Coding 报告的来源链接打开会话；导入文件改由 owner 预览渲染；Coding 动作目录按 manifest 比对；新增 Pages 版本由 Pages 预览、非 Pages 生产的同类型不预览。整体构建后相关 276 个用例文件 1327 条：1321 通过、4 失败、2 跳过；4 条都已改（导入的预览标记、循环引用、Coding 目录），重跑 5 个文件 28 条全部通过。
 - 2026-10-03：A3 开 PR（分支 `feat/artifact-a3-import-in-library`），做法见上文「A3 导入只在成果库」。另：成果的 HTTP 入口给「在 Pages 继续」单独绑了一个按 Pages 自己权限调用的动作客户端，不放宽成果入口的权限（首次实测报 `actions.forbidden` 后改的）；网页请求里七处相同的用户动作绑定合成一个 `userActions(权限)`，巨大单元不变大。整页门禁去掉「待 A3」两处。用例：导入页的断言改为目录里的浮层、`/artifacts/import` 不再是页；新增「任何文件」用例（图片原件、真实媒体类型、`/file` 取回、文本在 Pages 继续、图片不能继续）；浏览器用例改为在工作台里开浮层导入（文件框限定在浮层里：工作台里不止一个文件框）。整体构建后相关 41 个用例文件 325 条全部通过。
 - 2026-10-03：A1 开 PR（分支 `feat/artifact-a1-contract`）。每个成果写明来源、标题、真实媒体类型与追溯的过程项，做法与差异见上文「A1 实施与草案的差异」。写入方逐个改：Pages、问卷、数据表、PPT（推广端口带上来源修订号）、Feed 捕获（修订号用捕获内容的摘要，同一封信重复进来仍是同一版）、文档导入、角色、Coding 报告（追溯同轮变更集）、演示数据、接续服务的资产包（导出带上三项，导入缺了就拒绝）、两个示例插件；成果库、搜索、侧栏文件改用记录的标题与媒体类型。`ArtifactsService` 的输入检查拆到 `modules/artifacts/src/validation.ts`（服务文件超过 500 行的上限）；巨大单元一律压回原行数。整体构建后相关 242 个用例文件 1187 条：1179 通过、6 失败、2 跳过；6 条都是夹具与旧合同（迁移只建新表、触发器挂旧表、Feed 修订号、接续资产包、两个示例插件），修后重跑 12 个文件 88 条全部通过，迁移用例单独重跑 2/2。
 - 2026-10-03：A2 开 PR（分支 `feat/artifact-a2-process-items`）。交换数据搬出成果库，做法见上文「A2 过程项」：并列的过程项存储、manifest 的 `process_items`、端口发布一律记成过程项、按引用读取两边都能读到。六个插件的 manifest 改了归类（Files、Git、Diff、Text Stats、Shelf、Coding）；Coding 的计划、Goal 上下文与变更集改记过程项，执行报告仍是成果；Shelf 交给项目的材料改记过程项；成果库去掉了 Coding 变更集的预览与类型名。顺带修了两处只看 `artifacts` 声明的宿主判断：读 Files 输出前先刷新 Files 的判断（`coding-surface.ts`），和输入图在别的连接提交后重新求值的监视（`plugin-artifact-refresh.ts`，改为也看 `process_item` 事件）；后者漏掉时，切换工作目录后 Diff 不再变成「等待」，由 `files-product-http` 用例发现，用基线工作树对照确认是本分支引入。文档与 `skills/molis-plugin-dev` 写明成果与过程项的区别。用例：断言旧行为的改为新合同（成果库渲染 Coding 变更集的用例改为「变更集是过程项、成果库不显示」；端口同一类型既发布又选择成果的用例拆成成果端口与过程项端口两条，原有检查都保留）；测试夹具里交换数据改写进过程项。整体构建后相关 124 个用例文件 515 条全部通过。合入 main（A6）后：包边界检查里成果仓库「必须有 `CREATE TABLE IF NOT EXISTS artifacts`」的条目改成按表名参数化的写法；巨大单元只许变小，`ArtifactsService`、`openInstalledPlugins`、`migrateLocalProjectDatabase` 各压回原行数，`handleCodingPluginHttp` 的新判断提成独立函数。重跑相关 67 个用例文件 314 条全部通过。

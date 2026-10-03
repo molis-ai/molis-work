@@ -5,6 +5,7 @@ import type { DatasetRecord, DatasetVersionRecord, DatasetColumnInput, DatasetRo
 import { promoteDataset, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStore } from "./store.js";
 import { createDatasetSearchHandlers, datasetSearchActions } from "./search.js";
+import { datasetArtifactPreview, datasetArtifactPreviewHandler } from "./artifact-preview.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -23,6 +24,8 @@ function define<I, O>(name: string, title: string, description: string, operatio
   return { capability_id: `dataset.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["dataset"], input_schema: input, output_schema: output, permissions, ...(name === "columns.ai" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const datasetActions = {
+  /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
+  artifactPreview: datasetArtifactPreview,
   list: define<Record<string, never>, { datasets: DatasetRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "数据表列表", "读取当前项目数据表及当前 AI 加列可用性", "query", object({}), object({ datasets: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
   get: define<{ id: string }, { dataset: DatasetRecord }>("get", "读取数据表", "读取当前项目表格的完整列、行、版本及发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { dataset: DatasetRecord }>("create", "新建数据表", "创建当前项目的草稿数据表", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
@@ -58,6 +61,7 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   return [
+    datasetArtifactPreviewHandler,
     bind(datasetActions.list, (_, caller) => ports.withStore(store => {
       const ai = ports.modelAvailability();
       const permitted = datasetActions.generateAi.action.permissions.every(permission => caller.permissions.includes(permission))

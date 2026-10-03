@@ -43,13 +43,13 @@ export function codingReportReference(sessionId: string, runId: string): Artifac
 }
 
 /**
- * The report as a 成果 (artifact-positioning A1): it pins a finished round, which never changes again, and traces to the
+ * The report as a 成果 (artifact-positioning A1): it pins a session at one finished round, and traces to the
  * round's change set when one was kept; the change set itself stays a Coding process item.
  */
 export function codingReportPublication(report: { title: string }, sessionId: string, runId: string, artifacts: Pick<PluginArtifactClient, "read">) {
   const changeSet = codingChangeSetReference(sessionId, runId);
   return { metadata: { title: report.title, session_id: sessionId, run_id: runId },
-    origin: { kind: "pinned" as const, subject: { kind: "coding_run", id: `${sessionId}/${runId}` }, revision: "1" },
+    origin: { kind: "pinned" as const, subject: { kind: "coding_session", id: sessionId }, revision: runId },
     title: report.title, media_type: "application/json", trace: artifacts.read(changeSet) ? [changeSet] : [] };
 }
 

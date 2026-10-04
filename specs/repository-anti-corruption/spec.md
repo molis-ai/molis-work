@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：main 自检已完成（§9，2026-10-03～04）：全量 3,758 个用例 2 个失败，都是本轮新发现、已修（#220、#221），第一步与成果库改造修过的问题没有复发；第一步问题表 5 条状态已更正。成果库补漏（§9.4 第 10–12 条）已收尾。另一会话复查的九条（§9.5）在处理：#234、#236、#237、#238 已合入；#239、#240 第一批全量通过、排队合入；#241–#244 在跑第二批全量。之后按 §5a 门禁先行，开工结构性改动。第一步已完成并归档；同一目标里用户追加的「Artifact 定位与统一外壳」见 [artifact-positioning](../artifact-positioning/spec.md)。
+状态：main 自检已完成（§9，2026-10-03～04）：全量 3,758 个用例 2 个失败，都是本轮新发现、已修（#220、#221），第一步与成果库改造修过的问题没有复发；第一步问题表 5 条状态已更正。成果库补漏（§9.4 第 10–12 条）已收尾。另一会话复查的九条（§9.5）基本做完：#234、#236–#242 已合入，#243、#244、#246 第二批全量通过、排队合入；第三批（需求覆盖账本、成果作插件输入 #247、Casebook 改名 #248、PMR-12 守护 #249）在跑全量。之后按 §5a 门禁先行，开工结构性改动。第一步已完成并归档；同一目标里用户追加的「Artifact 定位与统一外壳」见 [artifact-positioning](../artifact-positioning/spec.md)。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -623,9 +623,9 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | 8 | [#236](https://github.com/molis-ai/molis-work/pull/236)（fc0b1b70）：演示稿只用 `presentation` | 已合入 |
 | 5 | [#237](https://github.com/molis-ai/molis-work/pull/237)：内置插件随宿主升级，删八份名单 | 已合入 |
 | 1 | [#238](https://github.com/molis-ai/molis-work/pull/238)（69f2cd65）：`"web-user"` 收成合同常量 `LOCAL_PERSON_ACTOR_ID`（25 个文件）；`legacyActorId` 由 [#243](https://github.com/molis-ai/molis-work/pull/243) 删（§1 决定） | 已合入；#243 待全量 |
-| 7 | [#239](https://github.com/molis-ai/molis-work/pull/239)：删旧凭据读取与导入。补充（通用环境变量不默认 MiniMax、手册写明、删 BL-082）在 #239 合入后另开 PR | #239 全量通过，排队合入 |
-| 2 | [#240](https://github.com/molis-ai/molis-work/pull/240)：来源表只按当前结构建，删补列、重建、旧游标拷贝；v35 夹具去掉旧的空来源表 | 全量通过，排队合入 |
-| 6 | [#244](https://github.com/molis-ai/molis-work/pull/244)：管理入口（CLI、管理 MCP）一律以本机这个人的身份调用。initialize、import-v3 不收 `actor_id`；event_decide、goal_tree_decide 的身份与出处由宿主固定，参数里带了就拒绝；随后删 V3 导入全链（§1 决定）；Goals README 的动作数更正为 64 / 58 / 6 | 开着，等第二批全量 |
+| 7 | [#239](https://github.com/molis-ai/molis-work/pull/239)（bab13d7a）：删旧凭据读取与导入；补充 [#246](https://github.com/molis-ai/molis-work/pull/246)：通用环境变量不默认 MiniMax、手册写明、删 BL-082 | #239 已合入；#246 第二批全量通过，排队合入 |
+| 2 | [#240](https://github.com/molis-ai/molis-work/pull/240)（46b7ec3f）：来源表只按当前结构建，删补列、重建、旧游标拷贝；v35 夹具去掉旧的空来源表 | 已合入 |
+| 6 | [#244](https://github.com/molis-ai/molis-work/pull/244)：管理入口（CLI、管理 MCP）一律以本机这个人的身份调用。initialize、import-v3 不收 `actor_id`；event_decide、goal_tree_decide 的身份与出处由宿主固定，参数里带了就拒绝；随后删 V3 导入全链（§1 决定）；Goals README 的动作数更正为 64 / 58 / 6 | 第二批全量通过；CI 曾因 `goals-storage-boundaries.test.mjs` 还读已删的导入文件而失败，已修（ed8b91e5），排队合入 |
 
 - 本批验证方式：#237–#240 都动共享核心（插件运行时、宿主、模块、合同），按 10-03 的验证频率合成一个集成分支 `integration/batch-10-04`。整体构建、健康与边界门禁都过，在上面跑一次全量回归，失败先用干净基线比对。全量通过后逐个合入。
 - 第一批全量回归（集成分支 `integration/batch-10-04`）：3,753 个用例，3,745 通过，1 失败，7 跳过（需要真实账号的 live 用例），用时 76 分钟。唯一的失败是 `goal-event-document-history`：v35 旧库夹具里的来源表还是旧 CHECK，#240 不再就地重建它，属于预期变化。改为夹具装载时删掉这张空表，补在 #240；之后装载 v35 夹具的 9 个用例文件 40/40 通过。四个 PR 都贴了结果，按顺序合入。
@@ -635,9 +635,15 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
   - [#243](https://github.com/molis-ai/molis-work/pull/243)：会话执行者必填，删 `legacyActorId`。
   - [#244](https://github.com/molis-ai/molis-work/pull/244)：第 6 条（见上表）。
   - #239 的补充：通用模型环境变量不再默认成 MiniMax，手册写明开发用的环境变量，删 BL-082。#239 合入后另开 PR。
+- 第二批全量回归（集成分支 `integration/batch-10-04b`）：3,748 个用例，3,740 通过，1 失败，7 跳过，用时 76 分钟。唯一的失败是 `goals-document.e2e` 的一次 CDP `Runtime.evaluate` 超时，没有断言失败；同一棵树上单独连跑 3 次都通过，第一批全量里也通过，判为全量负载下的时序问题。已合入：#241（67aa74ef）、#242（d142eb72）；#243、#244、#246 排队。
+- **验证缺口（10-04 发现）**：`scripts/run-tests.mjs` 不带参数时只收 `tests/*.test.ts`，四个 `tests/*.test.mjs`（Goals 查询与存储边界、草稿对话边界、工作台注册边界）只在 CI 里按名字跑。#244 删了导入文件后，第二批全量没发现 `goals-storage-boundaries.test.mjs` 还读它，是 CI 报出来的。之后每批全量另跑 `node --test tests/*.test.mjs`（第三批 10/10）；让全量也带上它们另开小 PR。
+- 第三批（集成分支 `integration/batch-10-04c` = 第二批 + 下面四项）：整体构建一次（修了一处没用到的类型引用），健康与边界门禁通过。59 个相关非浏览器用例文件 418 个用例，2 个失败：`.mjs` 边界用例（已修在 #244），以及新用例的项目没启用成果库（已修）。27 个 Goal / 成果相关浏览器用例 55/55 通过。全量回归在跑。
+  - 只有 V3 导入会写的需求覆盖账本：分支 `refactor/goals-drop-legacy-coverage`（叠在 #244 上，合入后开 PR）。
+  - [#247](https://github.com/molis-ai/molis-work/pull/247)：成果库里固定的一版交给插件作为输入（artifact-positioning 10-04 的决定）。
+  - [#248](https://github.com/molis-ai/molis-work/pull/248)：Casebook 对外合同改名（§1 决定；外部 Casebook 插件要同步）。
+  - [#249](https://github.com/molis-ai/molis-work/pull/249)：PMR-12 守护用例 `assistant-strip-narrow.e2e`。
+- 门禁第二批（§5a）：空 catch、`as unknown as`、旧产品名的计数，以及 contracts 与插件 SDK 的公开 API 快照，加进 `pnpm health:check`（分支 `chore/health-gates-lint-api`）。公开 API 会随前面的合同改动变化，等本批合入后再生成基线开 PR。
 - 本批派生、还没做的：
   - `feed_source_runs` 改成单一主人；
-  - 只有 V3 导入会写的覆盖账本（legacy coverage）；
-  - 其他旧账号导入；
-  - 桌面面板的 reconcile 是否仍在用；
-  - PMR-12 补守护用例。
+  - 其他旧账号导入（核对真实 Home 后再删）；
+  - 桌面面板的 reconcile 是否仍在用。

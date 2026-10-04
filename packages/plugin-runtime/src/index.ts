@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { comparePluginVersions, parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { ActionError, type ActionAvailability, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { assertContributionMatchesManifest, PluginContributionError } from "./contribution.js";
 import { pluginManifestDigest } from "./identity.js";
+import { pluginActionProvider } from "./action-provider.js";
 
 export { SqlitePluginPrivateStorage, PluginPrivateStorageError } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
@@ -174,6 +175,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     deployment: PluginDeployment;
     grants?: string[];
     retain_private_data?: boolean;
+    /** Ships with the Host: an older install moves up to this version, whatever versions the Manifest names. */
+    bundled?: boolean;
   }): PluginLifecycleReceipt {
     const manifest = input.definition.manifest;
     validateManifest(manifest);
@@ -211,6 +214,18 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     this.register(input.definition);
     if (current && current.version !== manifest.version && current.state !== "uninstalled") {
+      // A plugin that ships with the Host follows the Host's version (2026-10-04): its install record moves up with it,
+      // keeping the grants the new Manifest still declares and adding the ones it requires, as a fresh install would.
+      if (input.bundled && comparePluginVersions(manifest.version, current.version) > 0) {
+        if (current.deployment !== input.deployment) throw new PluginRuntimeError("plugin_state_invalid", "已有安装不能通过启动改变部署环境");
+        const declared = new Set(manifest.permissions.map(permission => permission.permission));
+        const required = manifest.permissions.filter(permission => permission.required).map(permission => permission.permission);
+        const upgraded: PluginInstanceRecord = { ...current, version: manifest.version, publisher_id: manifest.publisher.publisher_id,
+          manifest_digest: digest, selected_entrypoint: entrypoint.entrypoint,
+          grants: normalizeGrants(manifest, [...current.grants.filter(permission => declared.has(permission)), ...required]), updated_at: this.now() };
+        this.repository.save(upgraded);
+        return this.receipt("install", upgraded, false);
+      }
       if (!(manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version)) {
         throw new PluginRuntimeError("plugin_upgrade_required", "有新版本可用；请在插件市场确认升级后再启用");
       }
@@ -688,49 +703,8 @@ export class PluginRuntime implements PluginRuntimeApi {
       if ((manifest.actions?.length ?? 0) > 0 || (manifest.action_scenes?.length ?? 0) > 0) {
         const actions = this.options.actions;
         if (!actions) throw new PluginContributionError("plugin_contribution_unredeemed", "宿主未提供系统动作注册服务");
-        const grantAvailability = (permissions: readonly string[], own?: (context: ActionCallContext) => ActionAvailability) =>
-          (context: ActionCallContext): ActionAvailability => {
-            const grants = this.repository.get(record.install_id)?.grants ?? [];
-            if (permissions.some(p => !grants.includes(p))) return { available: false, code: "actions.plugin_permission", reason: "插件缺少能力所需授权" };
-            return own?.(context) ?? { available: true };
-          };
-        this.actionDisposers.set(record.install_id, actions.registry.registerProvider({
-          provider: { provider_id: record.install_id, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
-            ...(actions.project_id ? { project_id: actions.project_id } : {}) },
-          definitions: manifest.actions ?? [], handlers: (contribution.actions ?? []).map(h => ({ ...h,
-            availability: grantAvailability(manifest.actions!.find(d => d.capability_id === h.capability_id && d.version === h.version)!.action.permissions, h.availability) })),
-          scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => {
-            const declaration = manifest.action_scenes!.find(d => d.scene_id === h.scene_id && d.version === h.version)!;
-            const configuration = grantAvailability(declaration.configuration_permissions ?? []);
-            return { ...h, availability: grantAvailability(declaration.permissions, h.availability),
-              configuration_availability: grantAvailability(declaration.configuration_permissions ?? [], h.configuration_availability),
-              ...(h.targets ? { targets: async (caller: ActionCallContext) => {
-                const targets = await h.targets!(caller);
-                const state = configuration(caller);
-                return targets.map(target => {
-                  const activation = grantAvailability(target.activation_permissions ?? [])(caller);
-                  return { ...target, ...(!state.available ? { availability: state } : {}),
-                    ...(!activation.available ? { activation_availability: activation } : {}) };
-                });
-              } } : {}),
-              bind: (caller, binding, options) => {
-                const state = grantAvailability(options?.required_permissions ?? declaration.configuration_permissions ?? [])(caller);
-                if (!state.available) throw new ActionError(state.code, state.reason);
-                return h.bind(caller, binding, options);
-              },
-            };
-          }),
-          availability: () => {
-            const current = this.repository.get(record.install_id);
-            if (!current || current.state !== "running" || !this.contexts.has(record.install_id)) {
-              return { available: false, code: "actions.plugin_unavailable", reason: "插件未运行或已停用" };
-            }
-            if (manifest.permissions.some(p => p.required && !current.grants.includes(p.permission))) {
-              return { available: false, code: "actions.plugin_permission", reason: "插件所需授权已撤销" };
-            }
-            return { available: true };
-          },
-        }));
+        this.actionDisposers.set(record.install_id, actions.registry.registerProvider(pluginActionProvider(manifest, contribution, record.install_id,
+          actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) })));
       }
     } catch (error) {
       const live = this.liveContext(record.install_id);

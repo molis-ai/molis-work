@@ -1,5 +1,5 @@
 import { CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
-import { bindOwnerPluginAction, parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction, parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingRouteActions } from "./route-actions.js";
 import { codingReportSteps } from "./report-steps.js";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -569,7 +569,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     if (busy.has(record.session_id)) return "later";
     busy.add(record.session_id);
     try {
-      const actor = wait.by === "app" ? appData(wait).actor : (() => { try { return String(JSON.parse(context.services?.storage?.get(`last-start:${record.session_id}`) ?? "{}").actor_id ?? "web-user"); } catch { return "web-user"; } })();
+      const actor = wait.by === "app" ? appData(wait).actor : (() => { try { return String(JSON.parse(context.services?.storage?.get(`last-start:${record.session_id}`) ?? "{}").actor_id ?? LOCAL_PERSON_ACTOR_ID); } catch { return LOCAL_PERSON_ACTOR_ID; } })();
       await startRound(execution.sessions.get(boardId, record.session_id), wakeBody(record, wait), actor, api, execution);
       // Taken up here, unless starting the round already took it up.
       await api.invoke(agent.resumeWait, [runtimeId, wait.wait_id, "唤醒后自动开始下一轮"]).catch(() => undefined);

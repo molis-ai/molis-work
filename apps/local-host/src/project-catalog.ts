@@ -64,6 +64,7 @@ import {
   RuntimeContextBindingRepository, RuntimeProjectResolution, RuntimeProjectBindingCommands, createRuntimeProjectSetup, createRuntimeProjectBindingValidation,
 } from "@molis-ai/molis-work-module-private-work-context";
 import { DEMO_BOARD_ID, seedDemoBoard } from "./demo-seed.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 
 
@@ -417,7 +418,7 @@ export class MolisWorkProjectCatalog {
   }
   async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> { return this.projectFiles.createProject(input); }
   /** The personal space exists once it is first used; creating it again returns the same one. */
-  async ensurePersonalSpace(actorId = "web-user"): Promise<MolisWorkProjectRecord> {
+  async ensurePersonalSpace(actorId = LOCAL_PERSON_ACTOR_ID): Promise<MolisWorkProjectRecord> {
     const existing = this.listProjects().find(isPersonalSpace);
     if (existing) return existing;
     try {

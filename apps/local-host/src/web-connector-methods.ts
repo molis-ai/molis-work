@@ -3,7 +3,7 @@ import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
 import { completeMcpAuthorization, inspectMcpConnection, McpConnectionError, startMcpConnection } from "./connector-mcp.js";
 import { handleConnectorApiMethodsHttp } from "./web-connector-api-methods.js";
 import { connectorAuthorizationFailed } from "./connector-authorization-return.js";
-import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, type ConnectorMcpDirectory, type ConnectorMcpTool } from "./connector-mcp-actions.js";
 import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -12,7 +12,7 @@ const PREFIX = "/api/settings/connectors/methods/mcp";
 const CONNECTION = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)\/mcp$/u;
 
 /** The person at this computer, running a tool or reading a resource of their own connection from its settings page. */
-const LOCAL_USER: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [EXTERNAL_MCP_PERMISSION] };
+const LOCAL_USER: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [EXTERNAL_MCP_PERMISSION] };
 
 export async function handleConnectorMethodsHttp(request: IncomingMessage, response: ServerResponse, url: URL, home: string | undefined, localHost: MolisWorkLocalHost): Promise<boolean> {
   const directory = localHost.connectorMcp;

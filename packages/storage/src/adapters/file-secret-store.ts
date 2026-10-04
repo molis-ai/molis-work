@@ -6,18 +6,16 @@
  *  2. darwin + keychain available → master key in Keychain, ciphertext in secrets.json
  *  3. otherwise → install key file (0600) + AES-GCM secrets.json
  *
- * Legacy v0.3 Base64 envelopes are migrated once on open; new puts never use reversible
- * Base64-only envelopes.
+ * Only the current AES-GCM format (file version 2) is read; an older file is refused rather than upgraded
+ * (repository-anti-corruption §9.5 #4: the real Home held no v0.3 envelope on 2026-10-04).
  */
 import fs from "node:fs";
 import path from "node:path";
 import {
   createCipheriv,
   createDecipheriv,
-  createHash,
   randomBytes,
   scryptSync,
-  timingSafeEqual,
 } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
@@ -42,8 +40,6 @@ export interface SecretStore {
   deleteIfPresent(authRef: string): boolean;
   /** Describe active backend (no secrets). */
   backend(): SecretStoreBackendInfo;
-  /** Re-encrypt any legacy v0.3 envelopes; idempotent. */
-  migrateIfNeeded(): SecretStoreMigrationResult;
 }
 
 export type SecretStoreBackendKind =
@@ -61,12 +57,6 @@ export interface SecretStoreBackendInfo {
   formatVersion: number;
 }
 
-export interface SecretStoreMigrationResult {
-  migrated: number;
-  remainingLegacy: number;
-  backend: SecretStoreBackendKind;
-}
-
 const FORMAT_VERSION = 2;
 const ALG = "aes-256-gcm" as const;
 const KEYCHAIN_SERVICE = "com.molis.work.feed.secretstore";
@@ -81,13 +71,6 @@ interface SealedV2 {
   iv: string;
   tag: string;
   ct: string;
-}
-
-/** Legacy v0.3 envelope after base64 decode. */
-interface LegacyEnvelope {
-  salt?: string;
-  h?: string;
-  v: string;
 }
 
 interface SecretsFileV2 {
@@ -394,39 +377,6 @@ function openV2(sealed: string, key: Buffer): string | null {
   }
 }
 
-/** Detect legacy v0.3 Base64 envelope (has base64 plaintext field `v`, no alg). */
-export function isLegacyEnvelope(sealed: string): boolean {
-  try {
-    const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as Record<
-      string,
-      unknown
-    >;
-    if (raw.v === 2 || raw.alg === ALG) return false;
-    return typeof raw.v === "string" && !("ct" in raw);
-  } catch {
-    return false;
-  }
-}
-
-function openLegacy(sealed: string): string | null {
-  try {
-    const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as LegacyEnvelope;
-    if (typeof raw.v !== "string") return null;
-    return Buffer.from(raw.v, "base64").toString("utf8");
-  } catch {
-    return null;
-  }
-}
-
-/** Build a v0.3-style envelope for migration tests only. */
-export function sealLegacyForTest(plaintext: string): string {
-  const salt = randomBytes(8).toString("hex");
-  const h = createHash("sha256").update(salt + plaintext).digest("hex");
-  return Buffer.from(
-    JSON.stringify({ salt, h, v: Buffer.from(plaintext).toString("base64") }),
-  ).toString("base64");
-}
-
 function loadFile(): SecretsFileV2 {
   const p = secretsPath();
   if (!fs.existsSync(p)) {
@@ -441,21 +391,18 @@ function loadFile(): SecretsFileV2 {
   if (!isPlainObject(parsed)) {
     throw new Error("secrets file has invalid structure");
   }
-  if ("entries" in parsed) {
-    if (!isStringRecord(parsed.entries)) {
-      throw new Error("secrets file has invalid structure");
-    }
-    const backend = parsed.backend;
-    return {
-      version: typeof parsed.version === "number" ? parsed.version : FORMAT_VERSION,
-      backend: isSecretStoreBackend(backend) ? backend : "aes-gcm-file",
-      entries: { ...parsed.entries },
-    };
-  }
-  if (!isStringRecord(parsed)) {
+  if (!("entries" in parsed) || !isStringRecord(parsed.entries)) {
     throw new Error("secrets file has invalid structure");
   }
-  return { version: 1, backend: "aes-gcm-file", entries: { ...parsed } };
+  if (parsed.version !== FORMAT_VERSION) {
+    throw new Error(`secrets file format ${String(parsed.version)} is not supported; only ${FORMAT_VERSION} is read`);
+  }
+  const backend = parsed.backend;
+  return {
+    version: FORMAT_VERSION,
+    backend: isSecretStoreBackend(backend) ? backend : "aes-gcm-file",
+    entries: { ...parsed.entries },
+  };
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -481,42 +428,13 @@ function saveFile(file: SecretsFileV2): void {
   atomicWriteFileSync(p, JSON.stringify(payload, null, 2), { mode: 0o600 });
 }
 
-function openAny(sealed: string, key: Buffer): string | null {
-  if (isLegacyEnvelope(sealed)) return openLegacy(sealed);
-  return openV2(sealed, key);
-}
-
-/** Assert ciphertext is not a plain reversible Base64-only envelope. */
-export function assertNotReversibleBase64Only(sealed: string): void {
-  if (isLegacyEnvelope(sealed)) {
-    throw new Error("secret stored as reversible Base64-only envelope");
-  }
-  const opened = openLegacy(sealed);
-  // openLegacy returns for legacy only; for v2 it should be null
-  if (opened !== null && isLegacyEnvelope(sealed)) {
-    throw new Error("secret stored as reversible Base64-only envelope");
-  }
-  // v2 must not embed raw base64 plaintext as sole payload
+/** A new seal must be an AES-GCM v2 envelope, never reversible encoding. */
+function assertSealedV2(sealed: string): void {
   try {
     const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedV2;
-    if (raw.v !== 2 || raw.alg !== ALG) {
-      throw new Error("secret not AES-GCM sealed");
-    }
-  } catch (e) {
-    if (e instanceof Error && e.message.startsWith("secret")) throw e;
-    throw new Error("secret not AES-GCM sealed");
-  }
-}
-
-/**
- * Constant-time-ish compare of two equal-length buffers for tests.
- * Exported only for migration acceptance checks.
- */
-export function safeEqualString(a: string, b: string): boolean {
-  const ba = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ba.length !== bb.length) return false;
-  return timingSafeEqual(ba, bb);
+    if (raw.v === 2 && raw.alg === ALG) return;
+  } catch { /* reported below */ }
+  throw new Error("secret not AES-GCM sealed");
 }
 
 /** Per data-dir store instances so put/get share one master resolution. */
@@ -534,44 +452,12 @@ function cacheKey(): string {
 }
 
 function buildStore(master: ResolvedMaster): SecretStore {
-  const migrateIfNeeded = (): SecretStoreMigrationResult =>
-    withSecretsLock(() => {
-      const file = loadFile();
-      let migrated = 0;
-      let remainingLegacy = 0;
-      const wasLegacyFormat = file.version < FORMAT_VERSION;
-      for (const [ref, sealed] of Object.entries(file.entries)) {
-        if (!isLegacyEnvelope(sealed)) continue;
-        const pt = openLegacy(sealed);
-        if (pt == null) {
-          remainingLegacy += 1;
-          continue;
-        }
-        file.entries[ref] = sealV2(pt, master.key);
-        migrated += 1;
-      }
-      file.backend = master.kind;
-      file.version = FORMAT_VERSION;
-      // Rewrite only when entries were re-sealed or flat v0.3 map needs v2 envelope
-      if (migrated > 0 || wasLegacyFormat) {
-        saveFile(file);
-      }
-      return {
-        migrated,
-        remainingLegacy,
-        backend: master.kind,
-      };
-    });
-
-  // One-shot migrate on construction so get/put always see v2 after open
-  migrateIfNeeded();
-
   return {
     put(authRef, plaintext) {
       withSecretsLock(() => {
         const file = loadFile();
         const sealed = sealV2(plaintext, master.key);
-        assertNotReversibleBase64Only(sealed);
+        assertSealedV2(sealed);
         file.entries[authRef] = sealed;
         file.backend = master.kind;
         file.version = FORMAT_VERSION;
@@ -582,21 +468,7 @@ function buildStore(master: ResolvedMaster): SecretStore {
       const file = loadFile();
       const sealed = file.entries[authRef];
       if (!sealed) return null;
-      const pt = openAny(sealed, master.key);
-      // Lazy migrate single entry if still legacy
-      if (pt != null && isLegacyEnvelope(sealed)) {
-        withSecretsLock(() => {
-          const latest = loadFile();
-          const current = latest.entries[authRef];
-          if (!current || !isLegacyEnvelope(current)) return;
-          const opened = openLegacy(current);
-          if (opened == null) return;
-          latest.entries[authRef] = sealV2(opened, master.key);
-          latest.backend = master.kind;
-          saveFile(latest);
-        });
-      }
-      return pt;
+      return openV2(sealed, master.key);
     },
     delete(authRef) {
       withSecretsLock(() => {
@@ -611,7 +483,7 @@ function buildStore(master: ResolvedMaster): SecretStore {
         const file = loadFile();
         if (Object.hasOwn(file.entries, authRef)) return false;
         const sealed = sealV2(plaintext, master.key);
-        assertNotReversibleBase64Only(sealed);
+        assertSealedV2(sealed);
         file.entries[authRef] = sealed;
         file.backend = master.kind;
         file.version = FORMAT_VERSION;
@@ -637,7 +509,6 @@ function buildStore(master: ResolvedMaster): SecretStore {
         formatVersion: FORMAT_VERSION,
       };
     },
-    migrateIfNeeded,
   };
 }
 
@@ -657,7 +528,6 @@ export function createLazyFileSecretStore(homeDirectory = resolveMolisWorkHome()
     createIfAbsent: (ref, value) => open().createIfAbsent(ref, value),
     deleteIfPresent: (ref) => open().deleteIfPresent(ref),
     backend: () => open().backend(),
-    migrateIfNeeded: () => open().migrateIfNeeded(),
   };
 }
 
@@ -684,7 +554,6 @@ export function createFileSecretStore(): SecretStore {
     createIfAbsent: (ref, value) => runWithMolisWorkHome(home, () => implementation.createIfAbsent(ref, value)),
     deleteIfPresent: (ref) => runWithMolisWorkHome(home, () => implementation.deleteIfPresent(ref)),
     backend: () => implementation.backend(),
-    migrateIfNeeded: () => runWithMolisWorkHome(home, () => implementation.migrateIfNeeded()),
   };
   storeCache.set(key, store);
   return store;

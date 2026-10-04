@@ -51,7 +51,6 @@ const FEED_SOURCES_COLUMNS = `
       origin TEXT NOT NULL CHECK (origin = 'molis_work'),
       config_json TEXT NOT NULL DEFAULT '{}',
       schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
-      cursor_json TEXT NOT NULL DEFAULT '{}',
       credential_ref TEXT,
       account_label TEXT,
       last_sync_at TEXT,
@@ -62,24 +61,12 @@ const FEED_SOURCES_COLUMNS = `
       PRIMARY KEY (board_id, source_id)
 `;
 
-function feedSourcesTableSql(tableName: string, ifNotExists: boolean): string {
-  return `CREATE TABLE ${ifNotExists ? "IF NOT EXISTS " : ""}${tableName} (${FEED_SOURCES_COLUMNS});`;
-}
-
-function feedSourcesIndexSql(): string {
-  return `CREATE INDEX IF NOT EXISTS feed_sources_board_updated_idx
-      ON feed_sources(board_id, updated_at DESC, source_id);`;
-}
-
-/**
- * Owns Source desired state in the existing `feed_sources` table while FD1
- * callers are migrated. `cursor_json` remains only as a legacy migration input;
- * all active cursor reads and writes belong to Listener Host.
- */
+/** Owns Source desired state in the `feed_sources` table. Cursor reads and writes belong to Listener Host. */
 export function migrateSources(db: SourcesSqliteDatabase): void {
   db.exec(`
-    ${feedSourcesTableSql("feed_sources", true)}
-    ${feedSourcesIndexSql()}
+    CREATE TABLE IF NOT EXISTS feed_sources (${FEED_SOURCES_COLUMNS});
+    CREATE INDEX IF NOT EXISTS feed_sources_board_updated_idx
+      ON feed_sources(board_id, updated_at DESC, source_id);
 
     CREATE TABLE IF NOT EXISTS source_events (
       event_id TEXT PRIMARY KEY,
@@ -92,62 +79,6 @@ export function migrateSources(db: SourcesSqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS source_events_project_source_idx
       ON source_events(project_id, source_id, at, event_id);
   `);
-  ensureColumn(db, "feed_sources", "definition_id", "TEXT");
-  ensureColumn(db, "feed_sources", "sync_kind", "TEXT NOT NULL DEFAULT 'manual'");
-  ensureColumn(db, "feed_sources", "config_json", "TEXT NOT NULL DEFAULT '{}'");
-  ensureColumn(db, "feed_sources", "schedule_json", "TEXT NOT NULL DEFAULT '{\"mode\":\"manual\"}'");
-  ensureColumn(db, "feed_sources", "cursor_json", "TEXT NOT NULL DEFAULT '{}'");
-  ensureColumn(db, "feed_sources", "credential_ref", "TEXT");
-  ensureColumn(db, "feed_sources", "account_label", "TEXT");
-  ensureColumn(db, "feed_sources", "last_sync_at", "TEXT");
-  ensureColumn(db, "feed_sources", "last_outcome", "TEXT");
-  ensureColumn(db, "feed_sources", "last_error_code", "TEXT");
-  rebuildFeedSourcesOriginCheck(db);
-  rebuildFeedSourcesSyncKindCheck(db);
-  db.exec("UPDATE feed_sources SET status = 'disconnected' WHERE status = 'imported'");
-}
-
-function rebuildFeedSourcesOriginCheck(db: SourcesSqliteDatabase): void {
-  rebuildFeedSourcesTable(db, "feed_sources__origin_v2", (sql) => !sql.includes("CHECK (origin = 'molis_work')"));
-}
-
-function rebuildFeedSourcesSyncKindCheck(db: SourcesSqliteDatabase): void {
-  rebuildFeedSourcesTable(db, "feed_sources__sync_kind_v2", (sql) => !sql.includes("'connector'"));
-}
-
-function rebuildFeedSourcesTable(
-  db: SourcesSqliteDatabase,
-  stagingTable: string,
-  needed: (sql: string) => boolean,
-): void {
-  const sql = String(
-    (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get() as { sql?: string } | undefined)?.sql ?? "",
-  );
-  if (!sql || !needed(sql)) return;
-  db.pragma("foreign_keys = OFF");
-  try {
-    db.exec(`
-      ${feedSourcesTableSql(stagingTable, false)}
-      INSERT INTO ${stagingTable} (
-        board_id, source_id, kind, definition_id, sync_kind, name, description,
-        status, enabled, item_count, origin, config_json, schedule_json, cursor_json,
-        credential_ref, account_label, last_sync_at, last_outcome, last_error_code,
-        imported_at, updated_at
-      )
-      SELECT
-        board_id, source_id, kind, definition_id, sync_kind, name, description,
-        CASE status WHEN 'imported' THEN 'disconnected' ELSE status END,
-        enabled, item_count, 'molis_work', config_json, schedule_json, cursor_json,
-        credential_ref, account_label, last_sync_at, last_outcome, last_error_code,
-        imported_at, updated_at
-      FROM feed_sources;
-      DROP TABLE feed_sources;
-      ALTER TABLE ${stagingTable} RENAME TO feed_sources;
-      ${feedSourcesIndexSql()}
-    `);
-  } finally {
-    db.pragma("foreign_keys = ON");
-  }
 }
 
 export type AccountSourceCredential = Pick<SourceRecord,
@@ -275,10 +206,10 @@ export class SourcesModule implements SourcesApi {
       this.db.prepare(`
       INSERT INTO feed_sources (
         board_id, source_id, kind, definition_id, sync_kind, name, description,
-        status, enabled, item_count, origin, config_json, schedule_json, cursor_json,
+        status, enabled, item_count, origin, config_json, schedule_json,
         credential_ref, account_label, last_sync_at, last_outcome,
         last_error_code, imported_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(board_id, source_id) DO UPDATE SET
         kind = excluded.kind,
         definition_id = excluded.definition_id,
@@ -451,13 +382,6 @@ function assertStatusTransition(current: SourceStatus, next: SourceStatus): void
   };
   if (!allowed[current]?.includes(next)) {
     throw new SourcesError("source_invalid_transition", `来源不能从 ${current} 变成 ${next}`);
-  }
-}
-
-function ensureColumn(db: SourcesSqliteDatabase, table: string, column: string, definition: string): void {
-  const columns = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
-  if (!columns.some((entry) => entry.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 }
 

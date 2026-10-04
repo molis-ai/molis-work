@@ -76,7 +76,7 @@ test("Jelly uses the selected Connector for local model calls and falls back to 
   const seen = inferenceAt(t, home, "Anthropic结果");
   assert.equal(await createJellyCompletion(home)!("生成"), "Anthropic结果");
   assert.deepEqual(seen.at(-1), { protocol: "anthropic-compatible", endpoint: "http://127.0.0.1:9000/anthropic/v1/messages", model: "anthropic-model", key: "local-test-key" });
-  const emptyHome = join(home, "another-home"); mkdirSync(emptyHome); process.env.MOLIS_WORK_TEXT_API_KEY = "env-test-key"; process.env.MOLIS_WORK_TEXT_API_FORMAT = "anthropic-messages"; process.env.MOLIS_WORK_TEXT_BASE_URL = "https://env.example.com";
+  const emptyHome = join(home, "another-home"); mkdirSync(emptyHome); process.env.MOLIS_WORK_TEXT_API_KEY = "env-test-key"; process.env.MOLIS_WORK_TEXT_API_FORMAT = "anthropic-messages"; process.env.MOLIS_WORK_TEXT_BASE_URL = "https://env.example.com"; process.env.MOLIS_WORK_TEXT_MODEL = "env-model";
   const environment = inferenceAt(t, emptyHome, "Anthropic结果");
   assert.equal(readJellyModelSettings(emptyHome).source, "environment"); assert.equal(await createJellyCompletion(emptyHome)!("生成"), "Anthropic结果");
   assert.equal(environment.at(-1)?.key, "env-test-key"); assert.equal(environment.at(-1)?.endpoint, "https://env.example.com/v1/messages");

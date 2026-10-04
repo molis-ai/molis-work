@@ -4,7 +4,7 @@ import { retainActionAuthority, defineSubjectContextAction, subjectContext, bind
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { createInboxHomeEventsHandler } from "./home-events.js";
 
-export const inboxContentActions = defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox",
+export const inboxContentActions = defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subject_kind: "inbox_entry",
   read_permissions: ["inbox:read", "feed:read"], write_permissions: ["inbox:write", "feed:write"] });
 
 export const inboxSubjectAction = defineSubjectContextAction("inbox.subject.read", "inbox_entry", "Inbox 事项", ["inbox:read"]);

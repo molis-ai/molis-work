@@ -64,7 +64,7 @@ function adapterFor(input: {
     async readSession(): Promise<AgentSessionView> {
       return {
         session: { session_id: "session-1", runtime_id: input.runtimeId },
-        owner: { board_id: BOARD, plugin_id: PLUGIN, install_id: "install-1" },
+        owner: { board_id: BOARD, plugin_id: PLUGIN, install_id: "install-1", actor_id: "tester" },
         title: "任务",
         runs: [],
         latest_run: null,

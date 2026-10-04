@@ -645,5 +645,9 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 - 门禁第二批（§5a）：空 catch、`as unknown as`、旧产品名的计数，以及 contracts 与插件 SDK 的公开 API 快照，加进 `pnpm health:check`（分支 `chore/health-gates-lint-api`）。公开 API 会随前面的合同改动变化，等本批合入后再生成基线开 PR。
 - 本批派生、还没做的：
   - `feed_source_runs` 改成单一主人；
-  - 其他旧账号导入（核对真实 Home 后再删）；
-  - 桌面面板的 reconcile 是否仍在用。
+  - 其他旧账号导入（核对真实 Home 后再删）。
+- 「桌面面板的 reconcile 是否仍在用」已查（10-04）：**仍在用，不能当兼容删**。
+  - Work 插件的终端面板仍存在 `catalog.desktopPanels`（`plugins/native/work/src/http/panels.ts` 打开、列出、标记退出）。
+  - `reconcileLegacySessionCatalog`（`apps/local-host/src/session-migration.ts`）在 MCP、网页会话与运行时面板每次读会话时，把面板与运行时绑定同步进会话库（`registry.migrateLegacy`）。名字带 legacy，其实是活路径。
+  - 产品代码里没有 `openDesktopPanel` 的调用者，只有用例在用。
+  - 处理：记入 §5 包级清单的分层问题。改成显式的「面板 → 会话」投影，改名，去掉 `legacy` 字样，并把 `session_migration_receipts` 与 `legacy_migrated` 的去留一起理清；不在兼容清单里删。

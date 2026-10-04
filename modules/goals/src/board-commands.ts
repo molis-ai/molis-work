@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { GoalsActorWrite as ActorWrite, GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalsActorWrite as ActorWrite } from "@molis-ai/molis-work-contracts/modules/goals";
 import { GoalsCommandContext, requestHash } from "./command-support.js";
 /** Own Board creation and the current Goal pointer alongside Goal lifecycle facts. */
 export class MolisWorkCommands {

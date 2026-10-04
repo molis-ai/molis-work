@@ -27,7 +27,7 @@ test("MCP event directory and trash composition cannot be split by a queued comp
   });
   let competingWrite: Promise<unknown> | undefined;
   try {
-    await client.invoke(initializeBoardCapability, { board_id: boardId, title: "组合入口", actor_id: "user", idempotency_key: "init" });
+    await client.invoke(initializeBoardCapability, { board_id: boardId, title: "组合入口", idempotency_key: "init" });
     await client.invoke(createGoalIntentCapability, makeIntent("first"));
     await host.withProject(reference, ({ coordinator }) => {
       const original = coordinator.goalEvents.listGoals.bind(coordinator.goalEvents);

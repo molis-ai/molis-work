@@ -97,7 +97,7 @@ test("CLI V3 import and MCP share the Host, preserve mapped facts, and reject ov
   const reference = molisWorkHostProjectReference({ databasePath, boardId });
   try {
     const output = await captureCli(() => runV1Cli([
-      "import-v3", "--db", databasePath, "--board-id", boardId, "--actor", "user", "--key", "import",
+      "import-v3", "--db", databasePath, "--board-id", boardId, "--key", "import",
       "--json", JSON.stringify(legacy),
     ], { localHost: host }));
     const report = JSON.parse(output[0]!);

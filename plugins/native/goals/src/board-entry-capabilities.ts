@@ -3,10 +3,10 @@ import type { CreateGoalInput, GoalsApplicationApi, GoalRecord } from "@molis-ai
 import type { BoardSnapshot } from "./goal-entry-contract.js";
 import type { LegacyV3ImportInput, V3ImportReport } from "./board-import-contract.js";
 
+/** The host acts as the person on this machine; no identity is carried in the input. */
 export interface InitializeBoardInput {
   board_id: string;
   title: string;
-  actor_id: string;
   idempotency_key: string;
 }
 export type InitializeBoardOutput = { board_id: string; replayed: boolean; observed_event_cursor: number };
@@ -23,7 +23,6 @@ type CreateGoalCapabilityOutput = ReturnType<GoalsApplicationApi["commands"]["cr
 export interface ImportV3CapabilityInput {
   legacy: LegacyV3ImportInput;
   target_board_id: string;
-  actor_id: string;
   idempotency_key: string;
 }
 

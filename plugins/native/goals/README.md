@@ -29,7 +29,7 @@ Host 注入各 Module 的公开端口。`GoalEventApplication` 连接创建、�
 
 `goalsActions` 当前提供 50 项 project 动作，由 Manifest 声明并在项目动作服务中注册，其中 43 项可按授权供 MCP 使用，7 项仅供受保护的用户操作：
 
-- 本地管理：`goals.board.initialize`、`goals.board.import-v3`，只接受可信 management 用户上下文。CLI/管理 MCP 和 host-only typed 入口薄转发同一动作；普通 MCP/Agent/插件不获管理权。原初始化回执、导入事务与禁止覆盖保持。
+- 本地管理：`goals.board.initialize`、`goals.board.import-v3`，只接受可信 management 用户上下文。CLI/管理 MCP 和 host-only typed 入口薄转发同一动作，身份由宿主定为本机这个人（`LOCAL_PERSON_ACTOR_ID`），输入不带 `actor_id`；普通 MCP/Agent/插件不获管理权。原初始化回执、导入事务与禁止覆盖保持。
 - 目录、创建、便笺：`goals.list`、`goals.create`、`goals.note`。
 - 结构提案：`goals.tree.submit`、`goals.tree.read`、`goals.tree.check`、`goals.tree.decide`。提交只保存提案，检查保存检查结果并回滚预检变更；审批为受保护的用户操作。历史提案保持可读，退役类型不能重新批准。
 - 目标生命周期：`goals.active.set`、`goals.archive.set`、`goals.trash.set`、`goals.trash.list`。当前目标不启动工作；归档须已完成；回收站操作须明确确认，保留阻塞、完整历史及关系恢复结果。
@@ -66,7 +66,7 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
 
 目标树的 typed、CLI、Web 审批、三个普通 MCP 旧名及管理审批共用四个动作，原 Submission/Query/Check/Decision owner 保留幂等、事务、基线冲突及修订语义。新输入只允许 goal/create、relation/create|deactivate；part_of 为子目标到父目标，depends_on 为消费目标到前置目标。修订条目须使用新的稳定 item_id，修订后的提案仍需审批。schema 位于插件，不另维护 MCP 业务 schema。
 
-`goals.tree.decide` 只接受 user audience、goals:decide 及受保护 Host 注入的用户和操作出处；`goalTreeCapabilities.decideGoalTreeProposal` 同样为 host_only，普通 MCP、模型、工作流和插件不能通过自填 authority 获得审批权。管理 `goal_tree_decide` 仅保留薄转发。旧 Runtime 对话自报确认帮助器已删除，历史记录中的 runtime_dialogue 来源仍保留可读。
+`goals.tree.decide` 只接受 user audience、goals:decide 及受保护 Host 注入的用户和操作出处；`goalTreeCapabilities.decideGoalTreeProposal` 同样为 host_only，普通 MCP、模型、工作流和插件不能通过自填 authority 获得审批权。管理 `goal_tree_decide` 与 CLI `goal-tree-decide` 仅保留薄转发：`managementTreeAuthority` 固定本机这个人与 management 出处，调用方只能给对话出处和整组确认，带身份或出处就拒绝；宿主对 `decideGoalTreeProposal`、`recordGoalUserDecisionCapability` 再核一次。旧 Runtime 对话自报确认帮助器已删除，历史记录中的 runtime_dialogue 来源仍保留可读。
 
 旧 MCP 提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经过常驻服务网关保持；typed 旧调用也保留原会话与回执哈希。业务输入不能覆盖该字段。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。Casebook 将新入口映射至原操作记录合同，Web 保留原渠道，单次调用只记录一组尝试和结果。
 

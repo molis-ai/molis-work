@@ -1,5 +1,5 @@
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
-import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { goalsActions, GOALS_PLUGIN_ID, readGoalResumeFacts, readGoalContractCapability } from "@molis-ai/molis-work-plugin-goals";
 import { registerCasebookCapabilities } from './casebook/integration.js';
@@ -33,6 +33,17 @@ export interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
   workspacesFor?: (projectId: string) => readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor?: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
+}
+
+/**
+ * Only the management entries (the CLI and the management MCP) reach the board and decision capabilities, and they act as the
+ * person on this machine: the host fixes that identity and refuses any other carried in the arguments
+ * (repository-anti-corruption §9.5 #6; trusted identity comes from the call context, never from input).
+ */
+function requireLocalPerson(authority: { actor_id: string; actor_kind: string; authority_source: string }, code: string): void {
+  if (authority.actor_id !== LOCAL_PERSON_ACTOR_ID || authority.actor_kind !== "user" || authority.authority_source !== "management") {
+    throw new ActionError(code, "管理入口以本机这个人的身份决定，不接受参数里的身份或出处");
+  }
 }
 
 export function registerProjectCapabilities(
@@ -177,6 +188,7 @@ export function registerProjectCapabilities(
   });
   host.register(goalTreeCapabilities.decideGoalTreeProposal, (runtime, [{ board_id, authority, runtime_actor_id, ...input }], invocation) => {
     checkGoalBoard(runtime, board_id);
+    requireLocalPerson(authority, "goal_tree_proposal.authority_source_invalid");
     return goalAction(runtime, goalsActions.treeDecide, input, { actor_id: authority.actor_id, actor_kind: authority.actor_kind,
       audit_actor_id: runtime_actor_id ?? undefined, user_action: { source: authority.authority_source,
         conversation_ref: authority.conversation_ref, message_ref: authority.message_ref,
@@ -190,13 +202,13 @@ export function registerProjectCapabilities(
     checkGoalBoard(runtime, input.board_id);
     return goalAction(runtime, goalsActions.active, { ...input.goal, idempotency_key: input.write.idempotency_key }, input.write, invocation);
   });
-  const managementIdentity = (runtime: MolisWorkProjectRuntime, actorId: string, key: string) => ({
-    actor_id: actorId, actor_kind: "user" as const, user_action: { source: "management" as const,
+  const managementIdentity = (runtime: MolisWorkProjectRuntime, key: string) => ({
+    actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" as const, user_action: { source: "management" as const,
       conversation_ref: `management:${runtime.board_id}`, message_ref: `management:${key}` },
   });
-  host.register(initializeBoardCapability, (runtime, { board_id, actor_id, ...input }, invocation) => {
+  host.register(initializeBoardCapability, (runtime, { board_id, ...input }, invocation) => {
     checkGoalBoard(runtime, board_id);
-    return goalAction(runtime, goalsActions.initialize, input, managementIdentity(runtime, actor_id, input.idempotency_key), invocation);
+    return goalAction(runtime, goalsActions.initialize, input, managementIdentity(runtime, input.idempotency_key), invocation);
   });
   host.register(snapshotBoardCapability, (runtime, input, invocation) => {
     checkGoalBoard(runtime, input.board_id);
@@ -206,9 +218,9 @@ export function registerProjectCapabilities(
     checkGoalBoard(runtime, input.board_id);
     return goalAction(runtime, goalsActions.contract, { goal_id: input.goal_id }, { actor_id: "local-host" }, invocation);
   });
-  host.register(importV3Capability, (runtime, { target_board_id, actor_id, ...input }, invocation) => {
+  host.register(importV3Capability, (runtime, { target_board_id, ...input }, invocation) => {
     checkGoalBoard(runtime, target_board_id);
-    return goalAction(runtime, goalsActions.importV3, input, managementIdentity(runtime, actor_id, input.idempotency_key), invocation);
+    return goalAction(runtime, goalsActions.importV3, input, managementIdentity(runtime, input.idempotency_key), invocation);
   });
   host.register(projectResumeFactsCapability, async (runtime, input, invocation) => {
     checkGoalBoard(runtime, input.board_id);
@@ -287,6 +299,7 @@ export function registerProjectCapabilities(
     const { board_id, authority, ...payload } = input;
     checkGoalBoard(runtime, board_id);
     if (!authority) throw new ActionError("event_decision.untrusted_actor", "用户决定需要受保护入口提供出处");
+    requireLocalPerson(authority, "event_decision.untrusted_actor");
     return goalAction(runtime, goalsActions.decide, payload, { actor_id: authority.actor_id, actor_kind: authority.actor_kind,
       user_action: { source: authority.authority_source, conversation_ref: authority.conversation_ref, message_ref: authority.message_ref } }, invocation);
   });

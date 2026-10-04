@@ -26,7 +26,6 @@ Home 安装、Runtime 接入、常驻 Web 服务和卸载的实现统一在 `app
 molis-work v1 import-v3 \
   --db .molis-work/imported.db \
   --board-id imported \
-  --actor user \
   --key import-1 \
   --file legacy-goal-board.json
 ```
@@ -44,7 +43,7 @@ init | snapshot | import-v3 | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。
+复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。管理命令以本机这个人的身份写入，参数里不带身份。
 
 ## 项目结构
 

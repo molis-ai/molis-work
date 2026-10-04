@@ -1,4 +1,4 @@
-import { importV3Capability, initializeBoardCapability, goalTreeCapabilities } from "@molis-ai/molis-work-plugin-goals";
+import { importV3Capability, initializeBoardCapability, goalTreeCapabilities, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { createMcpGoalEventHandlers } from "./goal-event-commands.js";
 import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
@@ -30,7 +30,6 @@ export async function dispatchMcpProjectTool(
         result = await client.invoke(initializeBoardCapability, {
           board_id: String(arguments_.board_id),
           title: String(arguments_.title),
-          actor_id: String(arguments_.actor_id),
           idempotency_key: String(arguments_.idempotency_key),
         });
         break;
@@ -44,20 +43,19 @@ export async function dispatchMcpProjectTool(
             "Runtime 不能写入 Goal Tree 决定。请让用户在 Web 或管理入口批准已保存的提案。",
           );
         }
-        const { database_path: _database, web_base_url: _url, ...input } = arguments_;
-        result = await client.invoke(goalTreeCapabilities.decideGoalTreeProposal, [input as unknown as GoalTreeProposalDecideInput]);
+        const { database_path: _database, web_base_url: _url, authority, ...input } = arguments_;
+        const decision = { ...input, authority: managementTreeAuthority(String(input.board_id), String(input.idempotency_key), authority) };
+        result = await client.invoke(goalTreeCapabilities.decideGoalTreeProposal, [decision as unknown as GoalTreeProposalDecideInput]);
         break;
       }
       case "molis_work_v1_import_v3": {
         const payload = arguments_.payload as {
           legacy: LegacyV3ImportInput;
-          actor_id: string;
           idempotency_key: string;
         };
         result = await client.invoke(importV3Capability, {
           legacy: payload.legacy,
           target_board_id: String(arguments_.board_id),
-          actor_id: payload.actor_id,
           idempotency_key: payload.idempotency_key,
         });
         break;

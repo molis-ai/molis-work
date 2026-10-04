@@ -15,7 +15,7 @@ import {conforms} from '../apps/local-host/src/casebook/schema.js';
 async function fixture(t:test.TestContext){
  const dir=mkdtempSync(join(tmpdir(),'casebook-current-'));const host=createMolisWorkLocalHost();
  const ref=molisWorkHostProjectReference({databasePath:join(dir,'test.db'),boardId:'board'});const client=host.client(ref);
- await client.invoke(initializeBoardCapability,{board_id:'board',title:'项目与目标名称不同',actor_id:'user',idempotency_key:'init'});
+ await client.invoke(initializeBoardCapability,{board_id:'board',title:'项目与目标名称不同',idempotency_key:'init'});
  const api=new MolisWorkCasebookIntegration({client,verifyUserAction:()=>true});
  const action=(action:'join'|'pause'|'resume'|'remove',key=action)=>api.setInteractionAuthorization({project_ref:'board',purpose:PURPOSE,include_goal_context:true,action,actor_ref:'test-user',user_action_ref:'isolated-fixture',user_confirmed:true,idempotency_key:key});
  const read=async()=>{const auth=await api.readInteractionAuthorization({project_ref:'board',purpose:PURPOSE}) as {authorization_epoch:string};return api.readInteractionFacts({project_ref:'board',schema_version:VERSION,authorization_epoch:auth.authorization_epoch,after_cursor:0,limit:100});};

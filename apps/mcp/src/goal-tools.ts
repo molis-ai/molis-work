@@ -15,9 +15,8 @@ export const V1_TOOLS: McpToolDefinition[] = [
       properties: {
         ...V1_COMMON,
         ...goalsActions.initialize.action.input_schema.properties as Record<string, unknown>,
-        actor_id: { type: "string" },
       },
-      required: ["board_id", "title", "actor_id", "idempotency_key"],
+      required: ["board_id", "title", "idempotency_key"],
     },
   },
   {
@@ -29,27 +28,25 @@ export const V1_TOOLS: McpToolDefinition[] = [
         ...goalsActions.treeDecide.action.input_schema.properties as Record<string, unknown>,
         ...V1_COMMON,
         runtime_actor_id: V1_STRING,
+        // Who decides is the person on this machine; the caller only points at where the decision came from.
         authority: {
           type: "object",
           properties: {
-            actor_id: V1_STRING,
-            actor_kind: { type: "string", enum: ["user"] },
-            authority_source: { type: "string", enum: ["web", "management"] },
             conversation_ref: V1_STRING,
             message_ref: V1_STRING,
             whole_confirmation_prompted: { type: "boolean" },
             prompted_proposal_id: V1_STRING,
           },
-          required: ["actor_id", "actor_kind", "authority_source", "conversation_ref", "message_ref"],
+          additionalProperties: false,
         },
       },
-      required: ["board_id", "proposal_id", "authority", "idempotency_key"],
+      required: ["board_id", "proposal_id", "idempotency_key"],
     },
   },
   v1PayloadTool(
     "molis_work_v1_import_v3",
     goalsActions.importV3.action.description,
-    { ...goalsActions.importV3.action.input_schema.properties as Record<string, unknown>, actor_id: V1_STRING },
-    ["legacy", "actor_id", "idempotency_key"],
+    goalsActions.importV3.action.input_schema.properties as Record<string, unknown>,
+    ["legacy", "idempotency_key"],
   ),
 ];

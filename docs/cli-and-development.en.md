@@ -26,7 +26,6 @@ Legacy JSON is not a parallel running mode; it can only be written into a brand-
 molis-work v1 import-v3 \
   --db .molis-work/imported.db \
   --board-id imported \
-  --actor user \
   --key import-1 \
   --file legacy-goal-board.json
 ```
@@ -44,7 +43,7 @@ init | snapshot | import-v3 | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-Complex inputs can be passed with `--json` or `--file payload.json`. Old create-goal, Claim/Run, Evidence/Review, and Contract/Candidate/Rewire commands are retired and return an unknown-operation error. Everyday notes, reports, agreements, closure, and resume use MCP or Web; CLI does not provide duplicate event-write commands. CLI is a user/management and local debugging entry, not a fallback for Runtime service failures.
+Complex inputs can be passed with `--json` or `--file payload.json`. Old create-goal, Claim/Run, Evidence/Review, and Contract/Candidate/Rewire commands are retired and return an unknown-operation error. Everyday notes, reports, agreements, closure, and resume use MCP or Web; CLI does not provide duplicate event-write commands. CLI is a user/management and local debugging entry, not a fallback for Runtime service failures. Management commands write as the person on this machine; their arguments carry no identity.
 
 ## Project structure
 

@@ -40,14 +40,14 @@ test("board initialization keeps original receipts and requires trusted manageme
     await assert.rejects(client.invoke({ ...caller, user_action: undefined }, goalsActions.initialize, input), { code: "goals.management_required" });
     await assert.rejects(client.invoke({ ...caller, user_action: { ...caller.user_action!, source: "web" } }, goalsActions.initialize, input), { code: "goals.management_required" });
     await assert.rejects(client.invoke(caller, goalsActions.initialize, { ...input, board_id: "other" } as never), { code: "actions.input_invalid" });
-    await assert.rejects(typed.invoke(initializeBoardCapability, { ...input, board_id: "other", actor_id: caller.actor_id }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(initializeBoardCapability, { ...input, board_id: "other" }), { code: "actions.scope_mismatch" });
     block(goalsActions.initialize.capability_id);
-    await assert.rejects(typed.invoke(initializeBoardCapability, { ...input, board_id: ref.board_id, actor_id: caller.actor_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(initializeBoardCapability, { ...input, board_id: ref.board_id }), { code: "actions.plugin_disabled" });
     assert.equal(await host.withProject(ref, r => r.store.goalsQuery.getBoard(ref.board_id)), null);
     block();
     const old = await host.withProject(ref, r => r.coordinator.initializeBoard({ ...input, board_id: ref.board_id, actor_id: caller.actor_id }));
     assert.deepEqual(await client.invoke(caller, goalsActions.initialize, input), { ...old, replayed: true });
-    assert.deepEqual(await typed.invoke(initializeBoardCapability, { ...input, board_id: ref.board_id, actor_id: caller.actor_id }), { ...old, replayed: true });
+    assert.deepEqual(await typed.invoke(initializeBoardCapability, { ...input, board_id: ref.board_id }), { ...old, replayed: true });
     const snapshot = await bindActionClient(client, () => caller).invoke(goalsActions.snapshot, {});
     assert.equal(snapshot.board.title, input.title);
     assert.equal(snapshot.cursor, old.observed_event_cursor);
@@ -58,7 +58,7 @@ test("board initialization keeps original receipts and requires trusted manageme
       assert.equal(available.available, false);
       assert.equal(!available.available && available.code, "actions.host_only");
     }
-    await assert.rejects(plugin.invoke({ ...initializeBoardCapability, host_only: false }, { ...input, board_id: ref.board_id, actor_id: "fake-user" }), { code: "actions.host_only" });
+    await assert.rejects(plugin.invoke({ ...initializeBoardCapability, host_only: false }, { ...input, board_id: ref.board_id }), { code: "actions.host_only" });
   } finally { await f.close(); }
 });
 
@@ -66,9 +66,9 @@ test("V3 action import preserves mapped records, rolls back partial writes, reje
   const f = await fixture("imported"); const { host, ref, caller, client, typed, block } = f;
   const input = { legacy: { ...legacy, ignored_v3_extension: { note: "retained input compatibility" } }, idempotency_key: "import" };
   try {
-    await assert.rejects(typed.invoke(importV3Capability, { ...input, target_board_id: "foreign", actor_id: caller.actor_id }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(importV3Capability, { ...input, target_board_id: "foreign" }), { code: "actions.scope_mismatch" });
     block(goalsActions.importV3.capability_id);
-    await assert.rejects(typed.invoke(importV3Capability, { ...input, target_board_id: ref.board_id, actor_id: caller.actor_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(importV3Capability, { ...input, target_board_id: ref.board_id }), { code: "actions.plugin_disabled" });
     block();
     await host.withProject(ref, r => r.store.db.exec(`CREATE TEMP TRIGGER reject_import BEFORE INSERT ON events
       WHEN NEW.type = 'v3.imported' BEGIN SELECT RAISE(FAIL, 'reject import'); END`));
@@ -87,7 +87,7 @@ test("V3 action import preserves mapped records, rolls back partial writes, reje
     const collection = await bindActionClient(client, () => caller).invoke(goalsActions.collection, {});
     assert.equal(collection.coverage[0]?.owner_goal_id, imported.goal_id_map.child);
     assert.equal(collection.coverage[0]?.reason, "原原因");
-    await assert.rejects(typed.invoke(importV3Capability, { ...input, target_board_id: ref.board_id, actor_id: caller.actor_id }), /不会覆盖/);
+    await assert.rejects(typed.invoke(importV3Capability, { ...input, target_board_id: ref.board_id }), /不会覆盖/);
     assert.deepEqual(await client.invoke(caller, goalsActions.snapshot, {}), snapshot);
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });

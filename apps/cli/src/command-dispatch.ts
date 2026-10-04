@@ -18,7 +18,6 @@ export async function dispatchCliProjectCommand(
         await client.invoke(initializeBoardCapability, {
           board_id: String(input.board_id),
           title: String(input.title),
-          actor_id: String(input.actor_id),
           idempotency_key: String(input.idempotency_key),
         }),
       );
@@ -52,7 +51,6 @@ export async function dispatchCliProjectCommand(
         await client.invoke(importV3Capability, {
           legacy: input as unknown as LegacyV3ImportInput,
           target_board_id: String(value(args, "--board-id")),
-          actor_id: String(value(args, "--actor")),
           idempotency_key: String(value(args, "--key")),
         }),
       );

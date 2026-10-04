@@ -91,7 +91,7 @@
     "class modules/private-work-context/src/project-binding-commands.ts#RuntimeProjectBindingCommands": 333,
     "class modules/private-work-context/src/session-handoffs.ts#SessionHandoffRepository": 325,
     "class modules/private-work-context/src/session-records.ts#SessionRecordRepository": 320,
-    "class modules/private-work-context/src/session-registry.ts#MolisWorkSessionRegistry": 183,
+    "class modules/private-work-context/src/session-registry.ts#MolisWorkSessionRegistry": 174,
     "class modules/projects/src/repository.ts#ProjectsRepository": 290,
     "file modules/shelf/src/store.ts": 1176,
     "class modules/shelf/src/store.ts#ShelfStore": 748,
@@ -185,6 +185,6 @@
   },
   "testInternalImports": 979,
   "vendoredPrologueSdk": 1,
-  "schemaPatches": 115,
+  "schemaPatches": 112,
   "note": "Only decreases. Regenerate with `node scripts/check-health-gates.mjs --update` in the PR that lowers a number."
 }

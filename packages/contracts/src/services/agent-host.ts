@@ -844,7 +844,6 @@ export interface AgentSessionView {
   checkpoint_busy?: boolean;
   /** Persisted work exists but is not safe to continue automatically. */
   recovery?: { required: true; reason: string };
-  /** Every session records who owns it; a session without an owner is not read as anyone's (repository-anti-corruption §9.5 #1). */
   owner: Pick<AgentCreateSessionInput, "board_id" | "plugin_id" | "install_id" | "actor_id">;
   session: AgentSessionRef;
   title: string;

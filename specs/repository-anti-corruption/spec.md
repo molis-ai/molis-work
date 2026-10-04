@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：main 自检已完成（§9，2026-10-03～04）：全量 3,758 个用例 2 个失败，都是本轮新发现、已修（#220、#221），第一步与成果库改造修过的问题没有复发；第一步问题表 5 条状态已更正。成果库补漏（§9.4 第 10–12 条）已收尾。另一会话复查的九条（§9.5）已做完：#234、#236–#246 已合入；第三批全量通过，#247、#248、#252 排队合入。§4.1「每个库一份当前 schema 加版本」开工：Home 级 17 个库（#255）已在拷贝上演练，等第四批全量后给真实 Home 盖版本号再合入。之后按 §5a 门禁先行，开工结构性改动。第一步已完成并归档；同一目标里用户追加的「Artifact 定位与统一外壳」见 [artifact-positioning](../artifact-positioning/spec.md)。
+状态：§4.1 进行中（2026-10-04）：真实 Home 的 17 个 Home 级库已盖上基线版本；项目库与目录库的基线在第五批集成分支上全量回归，真实 Home 的项目库、目录库重建演练已通过，重建时机待用户定
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -36,6 +36,12 @@
 | 2026-10-04 | 会话执行者核对要解密，怎么办（更正后再问，弹窗） | 在拷贝上解密索引只数条数（推荐）；不核对，保留这处兼容；不核对，直接删 | 不核对，直接删 | 删 `legacyActorId`，会话的执行者改为必填；没写执行者的很早的旧会话，插件读不到（用户已知） |
 | 2026-10-04 | Casebook 对外合同的旧名（待决 6，弹窗） | 改成 Molis Work 的名字（推荐）；保持旧名列入例外；等外部插件下次改版 | 改成 Molis Work 的名字 | `goalboard.casebook.*` 改为 `molis-work.casebook.*`，Schema `$id` 改到 `https://molis-work.dev/contracts/casebook/...`（与已归档的 Casebook v1 合同同一写法），用户动作签名的域名串一并改；不留旧名别名。外部 Casebook 插件要同步，PR 里列出全部新旧 id |
 | 2026-10-04 | 真实 Home 的库（用户在对话里说 "you can touch the database"） | — | 授权动真实 Home 的库 | 用于 §4.1「每个库一份当前 schema 加版本」：按 10-02 的「保留并升级」执行。先整份备份 `~/.molis-work`，确认 4207、4208、4173 都没在跑；每一步先在拷贝上演练、核对，再动原库；只写结构版本号（`PRAGMA user_version`），不改表和数据 |
+| 2026-10-04 | 项目库基线的列序（日常取舍） | 按某个真实库；按代码里的建表语句 | 按建表语句 | 18 个真实项目库有多种列序（Coding 会话表就有 4 种），一份基线对不上全部；真实 Home 按列名搬进新基线库，见 §4.1 演练 |
+| 2026-10-04 | 项目库、目录库里只剩旧数据才用的列与值（日常取舍） | 留着；随基线去掉 | 随基线去掉 | `feed_items.item_type`（只剩 `'feed'`）、`feed_items.linked_goal_id`（关联早在上下文账本，列恒空）、`projects.migrated_from_path`（恒空）；Feed 快照的 `contract_migrations` 与 `markRead` 的类型参数随之去掉 |
+| 2026-10-04 | 目录库的版本记法（日常取舍） | 改用 `user_version`；沿用 `catalog_meta.schema_version` | 沿用，升到 20 | 目录库本来就有版本号和「拒绝更新的版本」；只删 1→19 的升级链，版本不符就拒绝 |
+| 2026-10-04 | Casebook 恢复失败报什么（日常取舍） | 保留缺失迁移的明细；只报代码 | 只报 `project_recovery_unsupported_schema` | 明细说的是缺哪些迁移，基线下没有迁移可缺；外部 Casebook 插件与 #248 的改名一起同步 |
+| 2026-10-04 | Schedule「重装后确认归属」（日常取舍） | 随旧 Builder 导入一起删；保留 | 保留 | 是插件重装后把提醒、定时操作交给新安装的现行流程，不是兼容；用例改成真的重装一次 |
+| 2026-10-04 | 项目库、目录库的一次性搬运工具放哪（日常取舍） | 进仓库；只放会话临时目录 | 只放会话临时目录 | 只用一次（真实 Home 与测试样本），不留产品代码；做法写进 §4.1 与样本 README |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -663,8 +669,50 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
     2. 写入：17 个都盖上，再报告都是当前版本；
     3. 74 张表的行数盖前盖后完全一样；
     4. 新代码逐个打开 17 个库全部成功，行数不变。
-  - **待做（第四批全量通过后）**：整份备份 `~/.molis-work`，确认 4207、4208、4173 都没在跑，对真实 Home `--apply` 并复核，然后合入 #255。真实 Home 盖版本号之前，#255 不能合入。
-  - 记忆账本的「第一版导入」（`migrateLegacy`）没有删：第一版里关掉的记忆列表至今仍被读来判断记忆是否关闭，删了会让这些记忆重新出现。先只读查真实 Home 里这份列表是不是空的，再定。
+  - **真实 Home（10-04 已做）**：
+    1. 4207、4208、4173 都没在监听；Home 里的库没被常驻服务占着（0.2.0 发布版的两个 MCP 进程只转发，没开库）。
+    2. 整份备份到 `~/.molis-work-backups/2026-10-04-store-baselines/`（APFS 克隆；1,326,429 个文件与原 Home 一致，抽查的库逐字节相同）。
+    3. `--apply`：17 个库全部盖上版本 1；connectors 补了一张空表。
+    4. 复核：再跑一次全部报告 current；75 张表（原 74 张 + 补的空表）行数与盖前一样；新代码逐个经基线打开 17 个库全部成功。
+    5. 只读模式打不开没有 `-shm` 的 WAL 库（cognia、jelly、todo、workflows 报错 14），所以没跑只读报告，直接 `--apply`：它只给结构一致的库写版本号，其余原样不动。
+- **第四批全量**（`integration/batch-10-04d` = main + #253、#254、#255）：3,772 个用例，3,760 通过，5 失败，7 跳过，76 分钟。
+  - 4 个失败是 #255 的预期变化：Form、PPT、Images 的用例手工建旧表或删列再期望就地升级，已改成在当前基线上造同样的场景，断言不变；删一条只测「Functions 旧库删列后还能开」的用例。
+  - 第 5 个是 `goal-event-document.e2e` 负载下超时，单独跑通过。上述文件加该 e2e 单独跑 39/39。
+  - #253（4f992391）、#254（acb98817）已合入；#255 排队。
+- 记忆账本的「第一版导入」（10-04 删，分支 `refactor/memory-drop-first-version-import`）：
+  - 只读查真实 Home 的助理库：第一版关掉的记忆 0 条、候选 0 条、开关从没存过，导入早已无事可做。
+  - 删 `MemoryService.migrateLegacy` 与 `LegacyMemoryState`，删宿主每次调用前的 `migrate()` 包装和读助理库的 `readAssistantMemory`，删 `AssistantStore` 只供它用的记忆方法和两条导入用例。记忆是否关闭只看条目自己的事实。
+  - 助理库里的 `assistant_memory_candidates` 表已无人读写，留在助理库基线里，等基线下一版一起去掉。
+- Schedule 的旧 Builder 提醒与定时操作导入（10-04 删，分支 `refactor/schedule-drop-builder-import`）：
+  - 只读查真实 Home 18 个项目库：旧格式提醒 0、旧格式定时操作 0、孤立执行记录 0；只有演示项目（466d6844）剩 2 个旧键和 1 个没导入的旧 Builder 定时任务（每日小结，下次到点 9-28 已过）。删掉读取后，它到点只会记一次「插件不可用」，不影响别的。
+  - 删宿主每次启动的两段读取、两组旧唤醒登记、`pauseLegacyScheduleReminders`、旧唤醒 `board|id` 的引用格式，以及只有导入会留下的「无法恢复的旧执行记录」列表（取消定时操作会连执行记录一起删，所以别处不会产生孤立记录）：列表动作的输出、插件界面、宿主与工作台投影一起去掉。
+  - 「重装后确认归属」保留：它是插件重装后把提醒、定时操作交给新安装的现行流程。原来借旧数据造场景的用例改成真的重装一次，断言不变。
+- §4.1 项目库（分支 `refactor/project-database-baseline`，叠在 #253、#254、#255 与 Schedule 分支上）：
+  - **先只读对照**（真实 Home 18 个项目库 vs 当前代码新建的库）：
+    - 新建库只有 71 张表；真实库另有 21 张由各主人用到时才建的表（插件运行时、Scheduler 与 Schedule、Coding、上下文账本、浏览设置）；
+    - 13 张表结构不同：多数是列序（一处处 `ALTER` 补上），另有来源表多一列 `cursor_json`、运行记录的外键（#240、#253 改的）、6 个库的出站规则少两列、8 个库的 `runs` 多两列旧列；
+    - 16 个库还没有成果库与过程项的表，6 个库没有信号表（新代码打开时才会建）；
+    - Coding 会话表在 18 个库里有 4 种列序。
+    - 结论：一份基线不可能对上所有库，真实 Home 要「按列名搬进新基线库」，不能只盖版本号。
+  - **基线**：`apps/local-host/src/project-database-schema.ts` 把各主人交出的建表语句拼成 `PROJECT_DATABASE_BASELINE`（版本 1）：Goals、执行、依据、治理、成果与过程项、日志、上下文账本、来源、信号、Listener、Attention、Feed 与出站规则、插件运行时五张表组、Scheduler、Schedule 三组、Coding、浏览设置、Casebook。`LocalProjectDatabase` 新库一次建好并写版本；版本不符（包括有表没版本）就拒绝；恢复只看版本。各主人仍用 `IF NOT EXISTS` 建自己的表，在项目库里是空操作；改任何一张表就是新版本。
+  - **删掉**：宿主的迁移链（`project-migrations.ts`、`feed-migrations.ts`、恢复时的迁移明细 `project-recovery-details.ts`）、`SqliteSchema` 与 `schema_migrations`；Goals、治理、执行、依据、成果五个模块的迁移文件；Feed 的合同迁移与迁移收据表（Feed 快照的 `contract_migrations` 字段一起去掉）、八处补列、Goal 关联的一次性搬迁；Attention 的 reason 重建；出站规则、Scheduler、Schedule、Coding、插件事件游标的补列与重建；输入绑定的旧来源搬迁；浏览设置读已退役插件存储的一次性搬迁；Coding 后台任务列表对旧列的容忍。
+  - **随之去掉的死列与死值**：`feed_items.item_type`（只剩 `'feed'`，`'inbox_message'` 是合同迁移前的旧值，`markRead` 的类型参数一起去掉）与 `feed_items.linked_goal_id`（关联早已只在上下文账本里，列恒为空）。
+  - **合同变化**：Casebook 恢复失败只报 `project_recovery_unsupported_schema`（原 `project_recovery_requires_migration` 及其明细没有了，外部 Casebook 插件要同步，与 #248 一起）；Feed 快照少 `contract_migrations`。
+  - **用例**：迁移本身的用例删掉（Goals 迁移 12–15/25/26/30/36、Impact 历史、治理 8、Feed 29、Attention 重建、Artifacts 31 的迁移部分）；借旧库造场景的用例改成在当前基线上造。v35 旧库样本改为「带事件前历史的项目」基线样本（`tests/fixtures/goal-event-history/`），由真实 Home 同样的流程生成一次。新增 `tests/project-database-baseline.test.ts`：基线等于入库的 schema 快照、新项目经宿主打开各插件后不多一张表、版本不符拒绝且不改库。
+  - **演练（真实 Home 的拷贝，取自 10-04 备份）**：
+    1. 用删迁移之前的版本（第四批集成分支）打开一次 18 个库，让当时的全部升级跑完；
+    2. 一次性工具按列名把每张基线表的行搬进按基线新建的库（会话临时目录里的 `rebuild-to-baseline.mjs`，不进仓库）：共 36,214 行，0 个外键问题，18 个库完整性都通过；
+    3. 不进基线的：空的 V3 覆盖账、18 条 Feed 合同迁移收据、671 条迁移编号、1 条旧导入收据；`feed_items.item_type`（全是 `'feed'`）、两处恒空的旧列，以及 `feed_sources.cursor_json`（81 个值，其中非空的 10 个与 Listener 自己表里的游标逐字相同）；
+    4. 补默认值的列只出现在空表或旧代码本来也会补成同样默认值的地方（Coding 归档标记、出站规则、空的插件事件游标表、对话任务归档标记）；
+    5. 新代码打开 18 个重建后的库（普通打开与恢复打开都试），459 个 Goal、431 条 Feed 都读得出来。
+  - **时机（待用户定）**：重建后的项目库，删迁移之前的旧代码打不开（它会按迁移编号重新建表）。已安装的 0.2.0（常驻服务 4173 与两个 MCP 进程）就是旧代码，所以重建要和换新版一起做。
+- §4.1 目录库（分支 `refactor/catalog-drop-migrations`）：
+  - 目录库本来就有版本号（`catalog_meta.schema_version`，现 19）和「拒绝更新的版本」。删 1→19 的升级链：项目插件表的四次重建、数据分类补列、旧导入列的删除、运行时绑定的两次搬迁、模型供应商的两次补列；版本不符就拒绝，不就地升级。卸载前的预览不再容忍缺列的旧目录。
+  - 顺带删恒空的 `projects.migrated_from_path`，版本升到 20。
+  - 用例：删掉 7 条迁移用例；「老目录不建新表」改为「老目录打开时被拒且原样不动」；「迁移时锁超时后服务自己恢复」改为「第一次准备遇到锁、之后自己恢复」（基线下已没有迁移锁，重试逻辑仍在）。
+  - 演练：真实目录库的拷贝只差模型供应商表的列序和项目表上的一条约束；按列名搬进版本 20 的新库，655 行全部搬过，只丢恒空的那一列；新代码打开，18 个项目都在。
+- **第五批**（`integration/batch-10-04e` = 项目库基线分支（含 #253、#254、#255、Schedule）+ 记忆 + 目录库）：整体构建、`typecheck:all`、边界、健康门禁通过（就地补表 72 → 5）；相关用例全过（项目库 227 个里 8 个失败已修：其中 2 条只测迁移 36 导入规则的用例删掉，运行时的同类规则另有用例；目录与记忆 120 个里 1 个已修）。全量在跑。
+  - [#257](https://github.com/molis-ai/molis-work/pull/257)：记忆第一版导入；[#258](https://github.com/molis-ai/molis-work/pull/258)：Schedule 旧导入。
 - 门禁第二批（§5a）：空 catch、`as unknown as`、旧产品名的计数，以及 contracts 与插件 SDK 的公开 API 快照，加进 `pnpm health:check`（分支 `chore/health-gates-lint-api`）。公开 API 会随前面的合同改动变化，等本批合入后再生成基线开 PR。
 - 「其他旧账号导入」已查（10-04）：**不全是兼容，不能直接删**。
   - `importLegacyAccounts`（`apps/local-host/src/web-connector-connections.ts`）每次列出连接时都会做几种「认领」：旧图片密钥、TypeSafe 的 `FUNCTIONS_CREDENTIAL_REF`、各连接器的 `connector:<id>:…`、模型目录的 `model-provider:<id>`，以及各项目来源里的凭据引用。认领后它们出现在设置的「连接」里。

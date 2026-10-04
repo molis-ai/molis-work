@@ -235,7 +235,7 @@ test("Home opens original Inbox items and source groups, completes Inbox, and ke
 });
 
 
-test("Home shortcuts persist per project, open a new browser page, and preserve edits on failure", { timeout: 90_000 }, async t => {
+test("Home shortcuts persist per project, open their destination, and preserve edits on failure", { timeout: 90_000 }, async t => {
   const browser=await openGoalBrowser(t,"seeded");if(!browser)return;
   const {command,sessionId,evaluate,waitFor,navigate,click,origin,projectId,reloadPage,store}=browser;
   const before=store.snapshot(DEMO_BOARD_ID);
@@ -272,10 +272,13 @@ test("Home shortcuts persist per project, open a new browser page, and preserve 
   assert.equal(await evaluate("document.querySelector('[data-directory-shortcuts]')"),null);
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await click('[data-home-shortcut-link]');
-  const targets=await command<{targetInfos:{targetId:string;url:string;openerId?:string}[]}>("Target.getTargets");
-  const opened=targets.targetInfos.find(x=>x.url===target);assert.ok(opened?.openerId,"real new tab opened the stored destination");
-  await command("Target.closeTarget",{targetId:opened.targetId});
+  // Molis Work's own address opens here, never in a second browser tab (specs/artifact-positioning §4, S7).
+  await navigate(()=>click('[data-home-shortcut-link]'));
+  assert.equal(await evaluate("location.href"),target,"the shortcut opened its stored destination");
+  const targets=await command<{targetInfos:{url:string;openerId?:string}[]}>("Target.getTargets");
+  assert.equal(targets.targetInfos.filter(x=>x.openerId&&x.url===target).length,0,"no second tab for an address of Molis Work itself");
+  await navigate(()=>command("Page.navigate",{url},sessionId));
+  await waitFor("document.querySelector('[data-home-shortcut-link]')");
   assert.equal(await evaluate("location.href"),url);
   await click('[data-home-shortcut-edit]');await fill("<img src=x onerror=alert(1)>",target);
   await evaluate("window.__save=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k.startsWith('molis-work:home-shortcuts:'))throw new DOMException('blocked','QuotaExceededError');return window.__save.call(this,k,v)}");

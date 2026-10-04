@@ -114,8 +114,8 @@
     "class packages/kernel/src/action-service.ts#ActionService": 418,
     "function packages/kernel/src/action-service.ts#registerProvider": 155,
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": 420,
-    "file packages/plugin-runtime/src/index.ts": 912,
-    "class packages/plugin-runtime/src/index.ts#PluginRuntime": 691,
+    "file packages/plugin-runtime/src/index.ts": 886,
+    "class packages/plugin-runtime/src/index.ts#PluginRuntime": 664,
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": 592,
     "class packages/plugin-runtime/src/wiring.ts#PluginInputGraph": 552,
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 174,
@@ -185,6 +185,6 @@
   },
   "testInternalImports": 979,
   "vendoredPrologueSdk": 1,
-  "schemaPatches": 112,
+  "schemaPatches": 110,
   "note": "Only decreases. Regenerate with `node scripts/check-health-gates.mjs --update` in the PR that lowers a number."
 }

@@ -175,36 +175,43 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     const entries: PluginSupervisorEntry[] = [
       {
         definition: createCharactersPlugin(charactersPorts),
+        bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createCharactersPlugin>(
           "@molis-ai/molis-work-plugin-characters", "createCharactersPlugin", factory => factory(charactersPorts)),
       },
       {
         definition: createShelfPlugin(shelfPorts),
+        bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createShelfPlugin>(
           "@molis-ai/molis-work-plugin-shelf", "createShelfPlugin", factory => factory(shelfPorts)),
       },
       {
         definition: createCodingPlugin(codingPorts),
+        bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createCodingPlugin>(
           "@molis-ai/molis-work-plugin-coding", "createCodingPlugin", factory => factory(codingPorts)),
       },
       {
         definition: createFilesPlugin(filesPorts),
+        bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createFilesPlugin>(
           "@molis-ai/molis-work-plugin-files", "createFilesPlugin", factory => factory(filesPorts)),
       },
       {
         definition: createDiffPlugin(),
+        bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createDiffPlugin>(
           "@molis-ai/molis-work-plugin-diff", "createDiffPlugin", factory => factory()),
       },
       {
         definition: createGitPlugin(gitPorts),
+        bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createGitPlugin>(
           "@molis-ai/molis-work-plugin-git", "createGitPlugin", factory => factory(gitPorts)),
       },
       {
         definition: createTextStatsPlugin(),
+        bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createTextStatsPlugin>(
           "@molis-ai/molis-work-plugin-text-stats", "createTextStatsPlugin", factory => factory()),
       },

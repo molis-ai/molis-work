@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：main 自检已完成（§9，2026-10-03～04）：全量 3,758 个用例 2 个失败，都是本轮新发现、已修（#220、#221），第一步与成果库改造修过的问题没有复发；第一步问题表 5 条状态已更正。结构性改动尚未开工：先收尾成果库补漏（§9.4 第 10–12 条），再按 §5a 门禁先行开工。第一步已完成并归档；同一目标里用户追加的「Artifact 定位与统一外壳」见 [artifact-positioning](../artifact-positioning/spec.md)。
+状态：main 自检已完成（§9，2026-10-03～04）：全量 3,758 个用例 2 个失败，都是本轮新发现、已修（#220、#221），第一步与成果库改造修过的问题没有复发；第一步问题表 5 条状态已更正。成果库补漏（§9.4 第 10–12 条）已收尾。另一会话复查的九条（§9.5）在处理：#234、#236、#237、#238 已合入；#239、#240 第一批全量通过、排队合入；#241–#244 在跑第二批全量。之后按 §5a 门禁先行，开工结构性改动。第一步已完成并归档；同一目标里用户追加的「Artifact 定位与统一外壳」见 [artifact-positioning](../artifact-positioning/spec.md)。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -30,6 +30,11 @@
 | 2026-10-03 | anti-rot 分支与工作树（弹窗） | #216 合入后三处都删（推荐）；只删工作树与本地分支；先都不删 | 三处都删 | 已执行：#216 合入（592f15bc）后删了工作树 `.claude/worktrees/review-prompts-goal`（无未提交改动）、本地分支 `anti-rot`（无本地独有提交）与远端 `origin/anti-rot` |
 | 2026-10-03 | 场景 9：拷贝真实 Home 用当前 main 打开（弹窗） | 拷到会话临时目录验证（推荐）；等 4173 装新版时一起做；不做 | 拷到会话临时目录验证 | 先确认 4207 没在写，再把 `~/.molis-work` 拷到会话临时目录；用当前 main 在别的端口、文件密钥后端打开这份拷贝走一遍；不碰原 Home、不调模型，做完删拷贝。结果记在 §9.4 第 12 条 |
 | 2026-10-04 | 内置插件安装停在旧版本，删「可从旧版本升级」名单前怎么办（弹窗） | 内置插件随宿主升级（推荐）；在插件市场里逐个确认升级；先不删名单 | 内置插件随宿主升级 | 随宿主发布的内置插件（监督器名单里标 `bundled`）启动时把安装记录升到宿主的版本：保留新 Manifest 仍声明的授权、补上它要求的授权，与新装一致；不再恢复旧发行物。第三方与生成的插件不变 |
+| 2026-10-04 | 没配模型目录时的文字补全兜底（§9.5 第 7 条，弹窗） | 只删旧凭据，环境变量留作开发配置（推荐）；全删，只认模型目录；先不动 | 只删旧凭据，环境变量留作开发配置 | 删掉读 `model:text:api_key` 和导入「文本补全 · 原有密钥」。`MOLIS_WORK_TEXT_*` 与 `MINIMAX_API_KEY` 只作开发与测试的显式配置，写进手册。通用的 `MOLIS_WORK_TEXT_API_KEY` 不再默认成 MiniMax。产品里只有模型目录配置模型 |
+| 2026-10-04 | V3 一次性导入（§9.5 第 6 条附带，弹窗）：早先独立仓库规格特意保留的产品入口（BL-083） | 删掉导入全链（推荐）；保留导入 | 删掉导入全链 | 删 CLI `import-v3`、管理 MCP `import_v3`、宿主能力、Goals 动作与导入实现，BL-083 关闭。只有导入会写的覆盖账本随后单独删。身份修复与之无关，已先做 |
+| 2026-10-04 | 删两处兼容前是否只读核对真实 Home（弹窗） | 只读核对后再删（推荐）；不核对直接删；两处都先保留 | 只读核对后再删 | ② 密钥库：只按格式核对 `feed/secrets.json`（不解密、不输出内容），格式 2、keychain+aes-gcm，27 条全是 AES-GCM，没有 v0.3 信封，可以删。① 会话执行者：执行时发现执行者存在 Prologue 的加密记录里，核对要用真实 Home 的存储密钥在内存里解开会话索引，超出弹窗里说的「拷单个文件只读统计」，没有动手，改为再问（下一行） |
+| 2026-10-04 | 会话执行者核对要解密，怎么办（更正后再问，弹窗） | 在拷贝上解密索引只数条数（推荐）；不核对，保留这处兼容；不核对，直接删 | 不核对，直接删 | 删 `legacyActorId`，会话的执行者改为必填；没写执行者的很早的旧会话，插件读不到（用户已知） |
+| 2026-10-04 | Casebook 对外合同的旧名（待决 6，弹窗） | 改成 Molis Work 的名字（推荐）；保持旧名列入例外；等外部插件下次改版 | 改成 Molis Work 的名字 | `goalboard.casebook.*` 改为 `molis-work.casebook.*`，Schema `$id` 改到 `https://molis-work.dev/contracts/casebook/...`（与已归档的 Casebook v1 合同同一写法），用户动作签名的域名串一并改；不留旧名别名。外部 Casebook 插件要同步，PR 里列出全部新旧 id |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -38,7 +43,7 @@
 3. ~~共享核心的评审方式~~：已定，见上表。
 4. ~~vendored 私有包~~：已定，见上表。
 5. ~~他人的工作树与分支~~：已定，见上表；保留 Codex 工作树 d62d（1,173 个未提交文件）、side-shelf（未审阅的 spec 草稿）、anti-rot（本目标的任务书）、plugin-picker-pins（在做）。
-6. Casebook 外部合同的旧名：`apps/local-host/src/casebook/` 里的 `contract_id` 都是 `goalboard.casebook.*`，JSON Schema 的 `$id` 在 `goalboard.dev` 下。外部 Casebook 插件按这些 id 对接，改名是合同变化，要外部插件同步（§4.1「旧身份与旧名称」）。源码里其余的 `GoalBoard`（如 `project-capabilities.ts` 的 `checkGoalBoard`）只是内部命名，随 `board_id` 合并一起改。
+6. ~~Casebook 外部合同的旧名~~：已定（10-04，见上表）。原记录：`apps/local-host/src/casebook/` 里的 `contract_id` 都是 `goalboard.casebook.*`，JSON Schema 的 `$id` 在 `goalboard.dev` 下。外部 Casebook 插件按这些 id 对接，改名是合同变化，要外部插件同步（§4.1「旧身份与旧名称」）。源码里其余的 `GoalBoard`（如 `project-capabilities.ts` 的 `checkGoalBoard`）只是内部命名，随 `board_id` 合并一起改。
 
 ## 2. 现状度量（§3）
 
@@ -594,12 +599,12 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | # | 发现 | 核实 | 判断与做法 |
 | --- | --- | --- | --- |
 | 1 | 本机网页把所有调用者写成 `"web-user"` | 属实：约 20 个宿主文件各写一份字面量，`agent-host-composition.ts` 还有 `legacyActorId` | 修（第二步，可信身份一节）：身份值不变（已存数据按它记），收成合同里的一个常量，所有调用方引用它；删 `legacyActorId`。多人身份属 §4.19 C 端就绪，不在这里做 |
-| 2 | 来源表 `feed_sources` 有两个主人 | 属实：`modules/sources` 建表，`horizontal/listener-host` 建 `feed_source_runs` 并对 `feed_sources` 加外键、删行；`cursor_json` 标着只给旧数据用、靠就地补列 | 修（分层与边界）：两张表归 `modules/sources`，listener-host 经它的接口读写；删 `cursor_json` 与补列（不留兼容） |
+| 2 | 来源表 `feed_sources` 有两个主人 | 属实：`modules/sources` 建表，`horizontal/listener-host` 建 `feed_source_runs` 并对 `feed_sources` 加外键、删行；`cursor_json` 标着只给旧数据用、靠就地补列 | 修（分层与边界）：删 `cursor_json` 与就地补列、CHECK 重建、旧游标拷贝（不留兼容），见 [#240](https://github.com/molis-ai/molis-work/pull/240)。`feed_source_runs` 改由 `modules/sources` 持有、listener-host 经它的接口读写，另开 PR |
 | 3 | 会话库仍在把 `goalboard_*` 改写成 `molis_work_*` | 属实：`session-schema.ts` 见旧值就整表重建；兼容清单只列了 `session-migration.ts` | 修（清除兼容）：真实 Home 的会话库已是第 6 版、没有旧值（54 条 `legacy_migrated`、2 条 `molis_work_created`），删掉改写；`legacy_migrated` 与 `session_migration_receipts` 一并列入兼容清单 |
 | 4 | 文件密钥库的派生盐是 `"goalboard-feed-secretstore-v1"` | 属实 | **不改值**：它是派生已封存密钥的常量，换了旧密钥就解不开，只能再加一层重新封存（那才是兼容逻辑）。代码里已注明（`Historical key-derivation constant. Changing the string would invalidate existing ciphertext.`），列入 §4 例外。**另发现**：同一文件在打开时把 v0.3 的 Base64 信封重新加密（兼容逻辑），列入兼容清单；删之前先只按格式（不读内容）核对真实 Home 还有没有这种信封 |
 | 5 | 八个内置插件仍列着可以从哪些旧版本升上来 | 属实；真实 Home 的安装记录多是旧版本（Coding 1.32.0 / 1.44.0、Characters 1.2.0、Files 1.1.0、Git 1.3.0 / 1.4.0） | **更正（10-04）**：前一版写「内置插件启动时不查这些名单」不对。读监督器的代码：已装版本在名单里就直接跑新代码、记录不动；不在名单里就恢复当时存下的旧发行物——所以真实 Home 里装着 Coding 1.32.0 的项目很可能跑的是旧 Coding；照原计划删名单，其余项目也会退回旧代码。用户 10-04 弹窗拍板「内置插件随宿主升级」：随宿主发布的内置插件启动时把安装记录升到当前版本、跑当前代码，不再靠名单；然后删名单。第三方与生成的插件仍走升级确认。分支 `feat/bundled-plugins-follow-host` |
 | 6 | CLI 与 MCP 仍能初始化旧看板、导入 v3，执行者来自参数 | 属实：`init`、`import-v3`、`molis_work_v1_initialize`、`molis_work_v1_import_v3`，宿主用参数里的 `actor_id` 做管理身份 | 修（安全不变量，硬约束「可信身份从调用上下文来」）：删 `import-v3` 全链（旧数据导入，按「不留兼容」）；初始化的身份改从调用上下文取，参数里不再收 `actor_id`。MCP 外部调用方会少一个工具、少一个参数，在 PR 里写明 |
-| 7 | 生产用的模型入口没有清单；没有模型目录时仍读环境变量与旧凭据、默认走 MiniMax | 属实（BL-082）；真实 Home 的模型目录里有 1 个已配置的提供方，不走兜底 | 修：写调用链清单（§4.2，十七处宿主绑定都经 `host-complete-text.ts` → Prologue）；删环境变量与 `model:text:api_key` 兜底和默认 MiniMax，没配模型时提示去设置（不留兼容）；用到环境变量的实测脚本改为配模型目录 |
+| 7 | 生产用的模型入口没有清单；没有模型目录时仍读环境变量与旧凭据、默认走 MiniMax | 属实（BL-082）；真实 Home 的模型目录里有 1 个已配置的提供方，不走兜底 | 修，按用户 10-04 的决定（§1）：<br>• 写调用链清单（§4.2，十七处宿主绑定都经 `host-complete-text.ts` 到 Prologue）。<br>• 删 `model:text:api_key` 的读取与导入，见 [#239](https://github.com/molis-ai/molis-work/pull/239)。<br>• 环境变量留作开发与测试的显式配置，写进手册；通用变量不再默认成 MiniMax。<br>• 产品里没配模型时，调用方提示「请先配置可用的文字模型」。<br>• 其他旧账号导入（TypeSafe、图片、旧连接引用）列入兼容清单，核对真实 Home 后再删 |
 | 8 | 演示稿两套种类名 | 属实，方向相反：PPT 动作声明的是 `ppt`，对象、搜索、侧栏、成果来源都用 `presentation` | 修：统一为 `presentation`（动作声明的种类不入库，改它不涉及数据） |
 | 9 | 炼金术士自己的库用了平台在用的表名 | 属实（`workspaces`、`jobs`、`evidence`、`claims`） | **不改**：每个项目单独的 `studio.sqlite`，不与平台库同库，不会冲突；改名要迁移用户数据。只在将来并库时再处理，记入已知命名 |
 
@@ -609,3 +614,30 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 - 第 3 条：分支 `fix/drop-session-name-rewrite`——查下去发现改名只是会话库旧版升级链的一部分（新建的库先建成第 3 版再迁到第 6 版），按「不留兼容」一并删掉，只认第 6 版；全量回归在跑（存储改动按 10-03 的验证频率要跑全量）。
 - 同时发现并修了一处与它无关的时序：`immersive-directory.e2e` 关切换器前 Dock 还在重排，按下与松开不在同一处——[#232](https://github.com/molis-ai/molis-work/pull/232)（268325bd）。
 - 第 5 条：见上表更正与 §1 的决定。
+
+进度（10-04 下午）：
+
+| # | PR | 状态 |
+| --- | --- | --- |
+| 3 | [#234](https://github.com/molis-ai/molis-work/pull/234)（3fa5f40f）：会话库只认第 6 版，删旧版升级链与改名 | 已合入；全量回归在合入前跑过 |
+| 8 | [#236](https://github.com/molis-ai/molis-work/pull/236)（fc0b1b70）：演示稿只用 `presentation` | 已合入 |
+| 5 | [#237](https://github.com/molis-ai/molis-work/pull/237)：内置插件随宿主升级，删八份名单 | 已合入 |
+| 1 | [#238](https://github.com/molis-ai/molis-work/pull/238)（69f2cd65）：`"web-user"` 收成合同常量 `LOCAL_PERSON_ACTOR_ID`（25 个文件）；`legacyActorId` 由 [#243](https://github.com/molis-ai/molis-work/pull/243) 删（§1 决定） | 已合入；#243 待全量 |
+| 7 | [#239](https://github.com/molis-ai/molis-work/pull/239)：删旧凭据读取与导入。补充（通用环境变量不默认 MiniMax、手册写明、删 BL-082）在 #239 合入后另开 PR | #239 全量通过，排队合入 |
+| 2 | [#240](https://github.com/molis-ai/molis-work/pull/240)：来源表只按当前结构建，删补列、重建、旧游标拷贝；v35 夹具去掉旧的空来源表 | 全量通过，排队合入 |
+| 6 | [#244](https://github.com/molis-ai/molis-work/pull/244)：管理入口（CLI、管理 MCP）一律以本机这个人的身份调用。initialize、import-v3 不收 `actor_id`；event_decide、goal_tree_decide 的身份与出处由宿主固定，参数里带了就拒绝；随后删 V3 导入全链（§1 决定）；Goals README 的动作数更正为 64 / 58 / 6 | 开着，等第二批全量 |
+
+- 本批验证方式：#237–#240 都动共享核心（插件运行时、宿主、模块、合同），按 10-03 的验证频率合成一个集成分支 `integration/batch-10-04`。整体构建、健康与边界门禁都过，在上面跑一次全量回归，失败先用干净基线比对。全量通过后逐个合入。
+- 第一批全量回归（集成分支 `integration/batch-10-04`）：3,753 个用例，3,745 通过，1 失败，7 跳过（需要真实账号的 live 用例），用时 76 分钟。唯一的失败是 `goal-event-document-history`：v35 旧库夹具里的来源表还是旧 CHECK，#240 不再就地重建它，属于预期变化。改为夹具装载时删掉这张空表，补在 #240；之后装载 v35 夹具的 9 个用例文件 40/40 通过。四个 PR 都贴了结果，按顺序合入。
+- 第二批（集成分支 `integration/batch-10-04b` = 第一批 + 下面五项）：整体构建一次就过，健康与边界门禁通过。140 个相关非浏览器用例文件里 9 个失败，都是我写的预期变化没跟上：替身会话没写执行者、管理调用者不是本机这个人、旧密钥文件在打开时就被拒绝。已逐个修好，复跑 32/32 通过。全量回归在跑。
+  - [#241](https://github.com/molis-ai/molis-work/pull/241)：工作流站点的对象种类。pages、feed、inbox、lingguang 原来拿站点 id 当种类；`subject_kind` 改为必填，加门禁 `workflow-station-kinds`。
+  - [#242](https://github.com/molis-ai/molis-work/pull/242)：密钥库删 v0.3 信封升级，加用例 `secret-store-format`。
+  - [#243](https://github.com/molis-ai/molis-work/pull/243)：会话执行者必填，删 `legacyActorId`。
+  - [#244](https://github.com/molis-ai/molis-work/pull/244)：第 6 条（见上表）。
+  - #239 的补充：通用模型环境变量不再默认成 MiniMax，手册写明开发用的环境变量，删 BL-082。#239 合入后另开 PR。
+- 本批派生、还没做的：
+  - `feed_source_runs` 改成单一主人；
+  - 只有 V3 导入会写的覆盖账本（legacy coverage）；
+  - 其他旧账号导入；
+  - 桌面面板的 reconcile 是否仍在用；
+  - PMR-12 补守护用例。

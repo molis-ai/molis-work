@@ -25,11 +25,11 @@ test('Characters opens an existing project after its manifest upgrade without lo
   await b.click('[data-directory-panel=settings] [data-settings-section="characters"]');
   await b.waitFor("document.querySelector('[data-character-list]')?.textContent.includes('升级前的角色草稿')");
   const upgraded = repository.get(installed.install.install_id)!;
-  // The current implementation declares compatibility with 1.0.0, so it runs without rewriting the installed record;
-  // changing the recorded version stays an explicit market upgrade.
-  assert.equal(upgraded.version, legacy.version);
-  assert.ok(charactersManifest.upgrade_compatibility?.compatible_from_versions.includes(legacy.version));
-  assert.deepEqual(upgraded.grants, installed.install.grants);
+  // Characters ships with the Host, so the same install moves up to the Host's version on start (2026-10-04) with no
+  // list of versions it may come from; the record says what runs, and the person's grants and drafts stay.
+  assert.equal(upgraded.version, charactersManifest.version);
+  assert.equal(charactersManifest.upgrade_compatibility, undefined);
+  assert.deepEqual(upgraded.grants, [...new Set([...installed.install.grants, ...charactersManifest.permissions.filter(p => p.required).map(p => p.permission)])].sort());
   assert.equal(upgraded.installed_at, installed.install.installed_at);
   assert.equal(personal.service.get(draft.character_id)?.instructions, '保留原有做事方式');
 });

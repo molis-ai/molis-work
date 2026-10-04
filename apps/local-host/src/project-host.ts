@@ -55,7 +55,7 @@ import { configuredModelChoices } from "./configured-models.js";
 import type { HostCapabilityDefinition, LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionSceneClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActionProvider } from "./inbox-actions.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
@@ -385,7 +385,7 @@ export class MolisWorkLocalHost {
 
   private async prepareInstalledPlugins(reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
     if (!this.options.homeDirectory) return;
-    const installed = await ensureInstalledPlugins({ store: runtime.store, boardId: runtime.board_id, homeDirectory: this.options.homeDirectory, actorId: "web-user",
+    const installed = await ensureInstalledPlugins({ store: runtime.store, boardId: runtime.board_id, homeDirectory: this.options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
       routePrefix: this.options.projectRoutePrefix?.(reference.project_id) ?? `/projects/${encodeURIComponent(reference.project_id)}`,
       capabilities: this.host.client(reference),
       actions: { registry: this.host.actionRegistry(reference), client: { ...this.host.actionClient(reference), ...this.host.syncActionClient(reference) }, project_id: reference.project_id,
@@ -396,7 +396,7 @@ export class MolisWorkLocalHost {
 
   private ensureProjectPluginActions(reference: LocalHostProjectReference): Promise<unknown> {
     return this.host.withRuntime(reference, runtime => ensureProjectPlugins({
-      store: runtime.store, boardId: runtime.board_id, actorId: "web-user", homeDirectory: this.options.homeDirectory,
+      store: runtime.store, boardId: runtime.board_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: this.options.homeDirectory,
       goalTitle: id => runtime.coordinator.goalQueries.getGoal(runtime.board_id, id)?.title,
       capabilities: this.host.client(reference),
       actions: { registry: this.host.actionRegistry(reference), client: { ...this.host.actionClient(reference), ...this.host.syncActionClient(reference) }, project_id: reference.project_id },

@@ -11,6 +11,7 @@ import { FeedStoreError } from "./application-errors.js";
 import type { FeedItemRecord, FeedOutRuleMatch, FeedOutRuleRecord } from "./projection.js";
 
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 export { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
 export const FEED_ARTIFACT_PRODUCER = {
   plugin_id: "io.molis.work.native.feed",
@@ -222,7 +223,7 @@ export function registerFeedCaptureVersion(
   artifacts: FeedArtifactProducer,
   item: FeedItemRecord,
   rule: FeedOutRuleRecord,
-  actorId = "web-user",
+  actorId = LOCAL_PERSON_ACTOR_ID,
 ): ArtifactVersionResult {
   const artifactId = feedCaptureArtifactId(item.item_id, rule.rule_id);
   const payload = feedCapturePayload(item);

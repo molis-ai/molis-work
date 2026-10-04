@@ -48,7 +48,6 @@ export const gitManifest: PluginManifest = {
   version: "1.8.0",
   name: "Git",
   kind: "app",
-  upgrade_compatibility: { compatible_from_versions: ["1.7.0", "1.6.0", "1.5.0", "1.4.0", "1.3.0"] },
   publisher: { publisher_id: "molis", signature: "official-git-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [

@@ -2,9 +2,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { AgentDefinitionsError, type AgentDefinitions } from "./agent-definitions.js";
 import { UNREGISTERED_MODEL_CALLS } from "./builtin-instructions.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** The local Web's single person, as every other local write. */
-const WEB_ACTOR = "web-user";
+const WEB_ACTOR = LOCAL_PERSON_ACTOR_ID;
 
 /**
  * `/api/agent-definitions/*`: every registered prompt and role, the person's edits of prompts, their history. Editing

@@ -2,6 +2,7 @@ import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { PagesStore } from "./store.js";
 import { PagesError } from "./error.js";
 import { isDeepStrictEqual } from "node:util";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface PagesPublicationSnapshot { title: string; body: PagesBody; goal_id: string }
 export interface PagesPublicationIntent extends PagesPublicationSnapshot {
@@ -31,7 +32,7 @@ export function promotePagesDocument(
   projectId: string,
   publishArtifact: PagesPublishArtifactPort,
   goalId?: string,
-  options: { actorId: string; expectedVersion?: number; readArtifact?: PagesReadArtifactPort } = { actorId: "web-user" },
+  options: { actorId: string; expectedVersion?: number; readArtifact?: PagesReadArtifactPort } = { actorId: LOCAL_PERSON_ACTOR_ID },
 ): {
   document: ReturnType<PagesStore["get"]>;
   artifact: { artifact_id: string; version: number };

@@ -1,9 +1,9 @@
-import { createFileSecretStore, peekSealedEntry, resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { prologueProtocolFor, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, modelCredentialMetadata, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
+import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
 
 export interface HostTextRequestOptions {
   signal?: AbortSignal;
@@ -61,46 +61,43 @@ export function hostTextGeneration(options: HostTextOptions = {}): HostTextGener
     } finally { opened.storage.close(); }
     if (options.selection) return undefined;
   }
-  // Compatibility for installations that have not configured catalog providers yet.
+  // Development and tests only: an explicit environment key configures a text model when no catalog provider exists
+  // (repository-anti-corruption §1, 2026-10-04). Stored credentials outside the catalog are never read.
   const env = options.env ?? process.env;
-  const environmentKey = env.MOLIS_WORK_TEXT_API_KEY?.trim() || env.MINIMAX_API_KEY?.trim();
-  const legacyRef = "model:text:api_key";
-  if (!environmentKey && (options.env || !runWithMolisWorkHome(home, () => peekSealedEntry(legacyRef)))) return undefined;
+  if (!(env.MOLIS_WORK_TEXT_API_KEY?.trim() || env.MINIMAX_API_KEY?.trim())) return undefined;
   const config: TextConfiguration = { base_url: validateTextModelUrl(env.MOLIS_WORK_TEXT_BASE_URL?.trim() || "https://api.minimaxi.com/anthropic"),
     api_format: (env.MOLIS_WORK_TEXT_API_FORMAT?.trim() || "anthropic-messages") as ModelApiFormat, model_id: env.MOLIS_WORK_TEXT_MODEL?.trim() || "MiniMax-M3" };
   if (!["anthropic-messages", "openai-chat-completions"].includes(config.api_format)) throw new Error("模型接口格式无效");
-  const legacyState = () => {
+  const environmentState = () => {
     if (options.env === undefined) {
       const catalog = openConfiguredModels(home);
       try { if (catalog?.store.list().length) return undefined; }
       finally { catalog?.storage.close(); }
     }
     const key = env.MOLIS_WORK_TEXT_API_KEY?.trim() || env.MINIMAX_API_KEY?.trim();
-    const credential = key ? { available: true, revision: null } : modelCredentialMetadata(home, { credential_ref: legacyRef, base_url: config.base_url });
-    if (!credential.available) return undefined;
+    if (!key) return undefined;
     return { config: { ...config,
       base_url: validateTextModelUrl(env.MOLIS_WORK_TEXT_BASE_URL?.trim() || "https://api.minimaxi.com/anthropic"),
-      api_format: env.MOLIS_WORK_TEXT_API_FORMAT?.trim() || "anthropic-messages", model_id: env.MOLIS_WORK_TEXT_MODEL?.trim() || "MiniMax-M3" },
-      environmentKey: key, revision: credential.revision,
-      credential_snapshot: key ? undefined : runWithMolisWorkHome(home, () => peekSealedEntry(legacyRef)) };
+      api_format: env.MOLIS_WORK_TEXT_API_FORMAT?.trim() || "anthropic-messages", model_id: env.MOLIS_WORK_TEXT_MODEL?.trim() || "MiniMax-M3" }, key };
   };
-  if (!legacyState()) return undefined;
+  if (!environmentState()) return undefined;
   return async (prompt, request) => {
     validatePrompt(prompt); request?.signal?.throwIfAborted();
     assertVisionInput(request, false);
-    const before = legacyState();
+    const before = environmentState();
     if (!before || JSON.stringify(before.config) !== JSON.stringify(config)) throw unavailable();
-    const key = before.environmentKey || (options.env ? undefined : runWithMolisWorkHome(home, () => createFileSecretStore().get(legacyRef))?.trim());
-    if (!key) throw unavailable();
-    const result = await completeTextRequest(config, legacyRef, () => {
-      if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw unavailable();
-      return key;
+    const result = await completeTextRequest(config, ENVIRONMENT_CREDENTIAL, () => {
+      if (JSON.stringify(environmentState()) !== JSON.stringify(before)) throw unavailable();
+      return before.key;
     }, prompt, home, request, options.resolveInference,
-    () => JSON.stringify(legacyState()) !== JSON.stringify(before));
-    if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
+    () => JSON.stringify(environmentState()) !== JSON.stringify(before));
+    if (JSON.stringify(environmentState()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
     return result;
   };
 }
+
+/** Names the environment key to the model runtime; it is not a stored credential. */
+const ENVIRONMENT_CREDENTIAL = "environment:text-model";
 
 function assertVisionInput(request: HostTextRequestOptions | undefined, vision: boolean): void {
   if (request?.images?.length && !vision) throw new ActionError("actions.connection_required", "请在模型设置中选择已声明支持图片的模型，原图未发送");

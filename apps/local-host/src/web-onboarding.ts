@@ -1,4 +1,4 @@
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createContextOnboardingHttp } from "./web-context-onboarding.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -25,8 +25,8 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
     if (await createContextOnboardingHttp({ ...ports, actions: async (home, projectId) => {
       const project = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId));
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
-      return bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"] }));
-    }, homeActions: (_home, signal) => bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user",
+      return bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"] }));
+    }, homeActions: (_home, signal) => bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user",
       permissions: ["todo:read", "todo:write", "model:invoke"], signal })) })(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
     if (request.method === "GET" && url.pathname === "/api/onboarding/status") {
       sendJson(response, 200, molisWorkOnboardingStatus(homeDirectory, projectCount));
@@ -72,7 +72,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
         await ports.withCatalog({ homeDirectory }, async (catalog) => {
           const project = await catalog.createProject({
             display_name: input.projectName,
-            actor_id: "web-user",
+            actor_id: LOCAL_PERSON_ACTOR_ID,
           });
           const projectPath = `/projects/${encodeURIComponent(project.project_id)}/`;
           partialProjectPath = projectPath;
@@ -93,7 +93,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
             why: "把第一次表达的目标保存为可继续澄清的共同事实",
             business_logic: `${onboardingPlanningHint(input.intentFrame)} 先保存用户想看到的结果，再由用户和 Runtime 共同补全范围、拆分与验收，不把推断直接写成已确认目标树。`,
             priority: 50,
-            actor_id: "web-user",
+            actor_id: LOCAL_PERSON_ACTOR_ID,
             actor_kind: "user",
             idempotency_key: `onboarding-root-goal-${project.project_id}`,
             source_kind: "onboarding",
@@ -102,7 +102,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
             ? await catalog.commit(() => catalog.addWorkspaceProject({
                 project_id: project.project_id,
                 canonical_path: input.workspacePath!,
-                actor_id: "web-user",
+                actor_id: LOCAL_PERSON_ACTOR_ID,
                 user_confirmed: true,
               }))
             : null;

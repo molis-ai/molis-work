@@ -77,6 +77,8 @@ export function migrateListenerHost(db: ListenerSqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS listener_deliveries_recovery_idx
       ON listener_deliveries(project_id, source_id, state, updated_at, raw_event_id);
 
+    -- The run ledger belongs to Listener Host and names its Source by id only: the Source table is modules/sources' own, and
+    -- a Source's runs are forgotten explicitly (deleteListenerSourceState), never through another owner's foreign key.
     CREATE TABLE IF NOT EXISTS feed_source_runs (
       board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
       run_id TEXT NOT NULL,
@@ -94,8 +96,7 @@ export function migrateListenerHost(db: ListenerSqliteDatabase): void {
       completed_at TEXT,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (board_id, run_id),
-      UNIQUE (board_id, operation_id),
-      FOREIGN KEY (board_id, source_id) REFERENCES feed_sources(board_id, source_id) ON DELETE CASCADE
+      UNIQUE (board_id, operation_id)
     );
     CREATE INDEX IF NOT EXISTS feed_source_runs_board_source_idx
       ON feed_source_runs(board_id, source_id, started_at DESC);

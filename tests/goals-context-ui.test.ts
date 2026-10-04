@@ -16,7 +16,7 @@ const item = (id: string): GoalsContextItem => ({
     definition_state: "draft", decomposition_state: "abstract", decomposition_review: null,
     outcome: "", why: "", business_logic: "", in_scope: [], out_of_scope: [], constraints: [], required_inputs: [], promised_outputs: [],
     acceptance_criteria: [] },
-  status: "execution_pending", display_status: "continue", passed_criteria: [], relations: [], input_bindings: [], coverage: [],
+  status: "execution_pending", display_status: "continue", passed_criteria: [], relations: [], input_bindings: [],
 });
 const relation = (id: string, type: GoalRelationRecord["type"], from: string, to: string): GoalRelationRecord => ({
   relation_id: id, board_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Reason "<x>',

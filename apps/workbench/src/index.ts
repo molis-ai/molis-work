@@ -51,7 +51,6 @@ export {
   type DecisionEventKind,
   type GoalDocumentCollection,
   type GoalPresentationState,
-  type GoalsCoverageItem,
   type GoalsDecisionEvent,
   type GoalsDecisionGroup,
   type GoalsDocumentView,

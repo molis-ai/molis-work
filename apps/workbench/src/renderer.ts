@@ -335,13 +335,6 @@ const goalsDocumentRenderer = createWorkbenchGoalsDocumentRenderer({
 
 const { renderTrashGoalDocument } = goalsDocumentRenderer;
 
-function renderCoverageHtml(item: WebGoalView): string {
-  if (!item.coverage.length) return "";
-  return `<h3>${L("历史需求覆盖")}</h3><ul>${item.coverage.map((coverage) =>
-    `<li><strong>${escapeHtml(coverage.requirement_id)} · ${escapeHtml(coverage.statement)}</strong><small>${escapeHtml(coverage.disposition)}${coverage.reason ? ` · ${escapeHtml(coverage.reason)}` : ""}</small></li>`
-  ).join("")}</ul>`;
-}
-
 /** The Goal's inputs, followed and fixed, in one list with one 「加输入」 (goal-inputs-html.ts). */
 function renderInputBindingsHtml(item: WebGoalView): string {
   return renderGoalInputsHtml(item, { L, escapeHtml, renderReference });
@@ -361,7 +354,7 @@ function renderGoalDocument(item: WebGoalView, view: MolisWorkWebView, selected:
     artifactHtml: item.artifact_embed_html
       ? `<h3>${L("交付物")}</h3>${item.artifact_embed_html}`
       : "",
-    coverageHtml: `${renderCoverageHtml(item)}${renderInputBindingsHtml(item)}${renderContractCoverage(item, view)}${renderChildProgress(item, view)}`,
+    coverageHtml: `${renderInputBindingsHtml(item)}${renderContractCoverage(item, view)}${renderChildProgress(item, view)}`,
     decisionHtml: renderGoalDecisionHtml(item, view),
     eventDocument: item.event_document ?? null,
   }, selected);

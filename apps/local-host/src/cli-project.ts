@@ -15,7 +15,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   }
   const storage = prepareLocalProjectStorage(
     value(args, "--db") ?? DEFAULT_CLI_DATABASE,
-    operation === "init" || operation === "import-v3" ? "create" : "existing",
+    operation === "init" ? "create" : "existing",
   );
   const { databasePath } = storage;
   if (storage.status === "missing") {

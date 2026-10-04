@@ -1,6 +1,6 @@
 /** MolisWork-owned interaction facts. No business text or arbitrary payload crosses this boundary. */
 import type { ProjectRecoveryDetails } from '../project-recovery-details.js';
-export const CONTRACT = 'goalboard.casebook.interaction-facts';
+export const CONTRACT = 'molis-work.casebook.interaction-facts';
 export const VERSION = '2.0.0';
 export const PURPOSE = 'casebook.interaction-review.v1';
 export const CONTEXT_PURPOSE = 'casebook.goal-context.v1';
@@ -84,7 +84,7 @@ export interface GoalContext {
   source_digest:string;
 }
 export interface ContextEnvelope {
-  contract_id:'goalboard.casebook.goal-context'; schema_version:typeof VERSION; project_ref:string;
+  contract_id:'molis-work.casebook.goal-context'; schema_version:typeof VERSION; project_ref:string;
   authorization_epoch:string; context_authorization_epoch:string; contexts:GoalContext[];
   missing_operation_ids:string[];
 }

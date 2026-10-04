@@ -39,7 +39,7 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
   }
   try {
     await client.invoke(initializeBoardCapability, {
-      board_id: boardId, title: "真实命令链", actor_id: "user", idempotency_key: "init",
+      board_id: boardId, title: "真实命令链", idempotency_key: "init",
     });
     await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath }, "runtime:chain");
     const created = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {

@@ -12,7 +12,6 @@ import {
 import { checkWorkspacePackages, WORKSPACE_PACKAGES } from "./workspace-packages.mjs";
 
 const SOURCE_EXTENSIONS = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
-const LEGACY_HUGE_FILE_LINE_LIMIT = 1_000;
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -149,50 +148,9 @@ function checkDependencyGraph(packages) {
   return { errors, edgeCount: [...graph.values()].reduce((total, edges) => total + edges.length, 0) };
 }
 
-function checkCompatibilityAllowlist(repositoryRoot) {
-  const errors = [];
-  const allowlistPath = path.join(repositoryRoot, "tooling/boundaries/compatibility-allowlist.json");
-  if (!fs.existsSync(allowlistPath)) {
-    return { errors: ["missing tooling/boundaries/compatibility-allowlist.json"], entryCount: 0, hugeFileCount: 0 };
-  }
-
-  const allowlist = readJson(allowlistPath);
-  const entries = Array.isArray(allowlist.entries) ? allowlist.entries : [];
-  const listedPaths = new Set();
-  for (const entry of entries) {
-    if (typeof entry.path !== "string" || entry.path.includes("*") || path.isAbsolute(entry.path)) {
-      errors.push("compatibility allowlist entries require one explicit repository-relative path");
-      continue;
-    }
-    if (listedPaths.has(entry.path)) errors.push(`compatibility allowlist duplicates ${entry.path}`);
-    listedPaths.add(entry.path);
-    if (!fs.existsSync(path.join(repositoryRoot, entry.path))) errors.push(`compatibility allowlist path does not exist: ${entry.path}`);
-    if (typeof entry.removalOwner !== "string" || entry.removalOwner.length === 0) {
-      errors.push(`${entry.path}: missing removalOwner`);
-    }
-    if (!Array.isArray(entry.migrationGoals) || entry.migrationGoals.length === 0) {
-      errors.push(`${entry.path}: missing migrationGoals`);
-    }
-    if (typeof entry.removalCondition !== "string" || entry.removalCondition.length === 0) {
-      errors.push(`${entry.path}: missing removalCondition`);
-    }
-  }
-
-  const legacySources = filesUnder(path.join(repositoryRoot, "src"), (filePath) =>
-    SOURCE_EXTENSIONS.has(path.extname(filePath)),
-  );
-  let hugeFileCount = 0;
-  for (const filePath of legacySources) {
-    const lineCount = fs.readFileSync(filePath, "utf8").split(/\r?\n/u).length;
-    if (lineCount <= LEGACY_HUGE_FILE_LINE_LIMIT) continue;
-    hugeFileCount += 1;
-    const relativePath = path.relative(repositoryRoot, filePath);
-    if (!listedPaths.has(relativePath)) {
-      errors.push(`${relativePath}: ${lineCount} lines requires an explicit compatibility allowlist entry`);
-    }
-  }
-
-  return { errors, entryCount: entries.length, hugeFileCount };
+/** The old root `src/` left the product (PACKAGE-BOUNDARIES.md); nothing may bring it back. */
+function checkNoRootSource(repositoryRoot) {
+  return fs.existsSync(path.join(repositoryRoot, "src")) ? ["root src/ is retired; put code in a workspace package"] : [];
 }
 
 function checkMigratedFeedOwnership(repositoryRoot) {
@@ -431,8 +389,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "modules/goals/src/repository.ts",
     "packages/contracts/src/modules/goals.ts",
     "plugins/native/goals/src/goal-query-application.ts",
-    "tooling/migrations/audit-goal-lifecycle.mjs",
-    "tooling/migrations/README.md",
   ];
   for (const relativePath of [
     "modules/goals/src/risk-commands.ts",
@@ -630,7 +586,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   ) {
     errors.push(`${goalReadApplicationPath}: compatibility composition must not own Goal persistence or bypass Goals Query`);
   }
-  for (const relativePath of ["apps/local-host/sdk/sdk-store.ts", "plugins/native/goals/src/board-v3-import.ts"]) {
+  for (const relativePath of ["apps/local-host/sdk/sdk-store.ts"]) {
     errors.push(...checkGoalStorageOwnership(read(relativePath)).map(error => `${relativePath}: ${error}`));
   }
   errors.push(...checkGoalReadOwnerSql(read("apps/local-host/src/feed-application.ts")).map(error => `apps/local-host/src/feed-application.ts: ${error}`));
@@ -709,7 +665,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "apps/mcp/src/tool-dispatch.ts",
     "apps/cli/src/command-dispatch.ts",
     "apps/local-host/src/demo-seed.ts",
-    "plugins/native/goals/src/board-v3-import.ts",
     "apps/local-host/src/feed-native-plugin-http.ts",
     "plugins/native/feed/src/goal-promotion.ts",
   ]) {
@@ -1416,7 +1371,7 @@ export function checkPackageBoundaries(repositoryRoot) {
   const packages = packageInfos(repositoryRoot);
   const sourceImports = checkSourceImports(repositoryRoot, packages);
   const dependencyGraph = checkDependencyGraph(packages);
-  const compatibility = checkCompatibilityAllowlist(repositoryRoot);
+  const rootSource = checkNoRootSource(repositoryRoot);
   const migratedFeedOwnership = checkMigratedFeedOwnership(repositoryRoot);
   const migratedIntegrationOwnership = checkMigratedIntegrationOwnership(repositoryRoot);
   const migratedFeedUiOwnership = checkMigratedFeedUiOwnership(repositoryRoot);
@@ -1472,7 +1427,7 @@ export function checkPackageBoundaries(repositoryRoot) {
     ...inventory.errors.map((message) => `[workspace-inventory] ${message}`),
     ...sourceImports.errors,
     ...dependencyGraph.errors,
-    ...compatibility.errors.map((message) => `[legacy-compatibility] ${message}`),
+    ...rootSource.map((message) => `[root-source] ${message}`),
     ...migratedFeedOwnership.errors.map((message) => `[feed-owner] ${message}`),
     ...migratedIntegrationOwnership.errors.map((message) => `[integration-owner] ${message}`),
     ...migratedFeedUiOwnership.errors.map((message) => `[feed-ui-owner] ${message}`),
@@ -1491,8 +1446,6 @@ export function checkPackageBoundaries(repositoryRoot) {
     importCount: sourceImports.importCount,
     dependencyEdgeCount: dependencyGraph.edgeCount,
     contractSubpaths: inventory.contractSubpaths,
-    compatibilityAllowlistEntries: compatibility.entryCount,
-    legacyHugeFiles: compatibility.hugeFileCount,
     errors,
   };
 }

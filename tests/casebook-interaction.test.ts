@@ -11,7 +11,7 @@ import {createCasebookUserActionSigner,createCasebookUserActionVerifier} from '.
 
 async function fixture(t:test.TestContext){
  const dir=mkdtempSync(join(tmpdir(),'casebook-invariants-'));const host=createMolisWorkLocalHost();const ref=molisWorkHostProjectReference({databasePath:join(dir,'test.db'),boardId:'board'});const client=host.client(ref);
- await client.invoke(initializeBoardCapability,{board_id:'board',title:'隔离',actor_id:'user',idempotency_key:'init'});
+ await client.invoke(initializeBoardCapability,{board_id:'board',title:'隔离',idempotency_key:'init'});
  const config={secret:randomBytes(32).toString('hex'),audience:'owner'};const sign=createCasebookUserActionSigner(config);
  const api=new MolisWorkCasebookIntegration({client,verifyUserAction:createCasebookUserActionVerifier(config)});
  const request=(action:AuthorizationRequest['action'],key:string):AuthorizationRequest=>{const r={project_ref:'board',purpose:PURPOSE,action,include_goal_context:true as const,actor_ref:'github:1',user_confirmed:true as const,idempotency_key:key};return{...r,user_action_ref:sign(r)};};
@@ -63,7 +63,7 @@ test('recovery refuses missing files, old/future schemas and missing unnumbered 
  const {LocalSqliteStorage}=await import('@molis-ai/molis-work-storage');
  for(const [sql,code] of [["DELETE FROM schema_migrations WHERE migration_id=36",'project_recovery_requires_migration'],["INSERT INTO schema_migrations VALUES(39,'future')",'project_recovery_unsupported_schema'],["ALTER TABLE goal_event_requirements DROP COLUMN source_json",'project_recovery_requires_migration']] as const){
   const ref=molisWorkHostProjectReference({databasePath:join(f.dir,randomBytes(6).toString('hex')+'.db'),boardId:'bad'});
-  await f.host.client(ref).invoke(initializeBoardCapability,{board_id:'bad',title:'坏夹具',actor_id:'user',idempotency_key:'init'});
+  await f.host.client(ref).invoke(initializeBoardCapability,{board_id:'bad',title:'坏夹具',idempotency_key:'init'});
   await f.host.withProject(ref,r=>r.store.db.exec(sql));await f.host.closeProject(ref);
   await assert.rejects(f.host.restoreExistingProject(ref),{code});assert.equal(f.host.status().projects.some(x=>x.storage_key===ref.storage_key),false);
   const check=new LocalSqliteStorage(ref.storage_key,{readonly:true});assert.ok(check.db.open);check.close();

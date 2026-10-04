@@ -3571,7 +3571,6 @@ Object.assign(EN, {
   "可以从空白规划开始。": "You can start from a blank plan.",
   "需要用户验收": "Needs user acceptance",
   "需要你决定": "Needs your decision",
-  "历史需求覆盖": "Historical requirement coverage",
   "这是一条历史用户确认记录，只能查看，不能在这里提交结论。": "This is a historical user confirmation record. You can read it, but you cannot submit a conclusion here.",
   "可阅读": "Readable",
   "可以阅读全部历史。": "The full history is readable.",

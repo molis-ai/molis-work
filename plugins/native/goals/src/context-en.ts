@@ -13,7 +13,6 @@ export const GOALS_CONTEXT_EN: Record<string, string> = {
   "承诺的输出": "Promised outputs",
   "尚未记录输出": "Outputs are not recorded yet",
   "暂无资料绑定": "No bound materials",
-  "暂无需求覆盖记录": "No coverage records",
   "包含范围 ": "In scope ",
   "明确不做 ": "Out of scope ",
   "条件 ID ": "Criterion ID ",

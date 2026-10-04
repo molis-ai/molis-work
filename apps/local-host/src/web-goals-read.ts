@@ -216,12 +216,21 @@ async function withSelectedGoalDocument(
   ]);
   const policyBindings = history.bindings.filter(binding => binding.goal_id === null || binding.goal_id === goalId);
   let html: string | undefined, outputs = 0;
+  let inputs: Array<{ artifact_id: string; version: number; title: string; state: "available" | "unavailable" | "archived" | "missing"; reason: string | null }> = [];
   if (collection !== "trash") try {
     // Every declared 成果 type has an owner that reads it (artifact-positioning A4): none of them is "no compatible plugin".
     const { embeds } = await actions.invoke(artifactsActions.goalEmbeds, { goal_id: goalId, supported_types: declaredArtifactTypes() });
-    html = renderGoalArtifactContext(embeds);
+    // The card under 「完成要求」 is what the Goal hands in; its fixed inputs are listed with the rest of its inputs (五.1).
+    const delivered = embeds.filter(embed => embed.relationship === "output");
+    html = renderGoalArtifactContext(delivered);
     // What the Goal hands in shows on its overview too (F6), not only under 「完成要求」.
-    outputs = embeds.filter(embed => embed.relationship === "output").length;
+    outputs = delivered.length;
+    inputs = embeds.filter(embed => embed.relationship === "input" && embed.view.requested).map(embed => {
+      const selected = embed.view.selected;
+      return { artifact_id: embed.view.requested!.artifact_id, version: embed.view.requested!.version, title: selected?.title ?? embed.view.requested!.artifact_id,
+        state: !selected ? "missing" : selected.availability !== "available" ? "unavailable" : selected.lifecycle_state === "archived" ? "archived" : "available",
+        reason: selected?.unavailable_reason ?? null };
+    });
   } catch (error) {
     if (!(error instanceof ActionError) || !["actions.plugin_disabled", "actions.forbidden", "actions.missing"].includes(error.code)) throw error;
     // An unavailable optional reader must not prevent opening the Goal itself.
@@ -230,7 +239,7 @@ async function withSelectedGoalDocument(
   }
   const decorate = (item: MolisWorkWebView["goals"][number]) =>
     item.goal.goal_id === goalId ? { ...item, relations: relations.relations, policy_bindings: policyBindings, resolved_policy: resolved.policy,
-      ...(html === undefined ? {} : { artifact_embed_html: html, artifact_outputs: outputs }) } : item;
+      ...(html === undefined ? {} : { artifact_embed_html: html, artifact_outputs: outputs, artifact_inputs: inputs }) } : item;
   return {
     ...eventView,
     goals: eventView.goals.map(decorate),

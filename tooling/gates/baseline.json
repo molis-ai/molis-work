@@ -38,7 +38,7 @@
     "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 191,
     "file apps/workbench/src/i18n/en.ts": 3636,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
-    "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 413,
+    "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 394,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2813,
     "file apps/workbench/src/scripts/client/events-primary.ts": 889,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 1025,

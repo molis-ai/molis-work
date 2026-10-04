@@ -354,6 +354,41 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const text = node("span"); text.append(node("strong", title), node("small", detail));
     label.append(input, text); return label;
   };
+  // A Goal takes an input one of two ways (specs/artifact-positioning 五.1, one entry): following the object as it changes, or
+  // a version fixed now in the 成果库. A version that is already in the 成果库 is fixed by nature.
+  const inputMode = () => {
+    const set = node("fieldset", undefined, "placement-goal-mode"); set.append(node("legend", L("目标看哪一版")),
+      choice("mode", "live", L("跟着原文"), L("目标看到的是它现在的样子"), true), choice("mode", "fixed", L("固定这一版"), L("现在存下一版，原文之后再改也不变"), false));
+    return set;
+  };
+  const takeAsInput = async (projectId, goalId, object, fixed) => {
+    if (!fixed && object.kind !== "artifact") { await api("bind-goal", { object, project_id: projectId, goal_id: goalId }); return; }
+    let body = { subject: { kind: object.kind, id: object.id }, used: true };
+    if (object.kind === "artifact") { const [artifact_id, version] = JSON.parse(object.id); body = { reference: { artifact_id, version }, used: true }; }
+    const response = await fetch("/projects/" + encodeURIComponent(projectId) + "/api/goals/" + encodeURIComponent(goalId) + "/artifact-inputs",
+      { method: "POST", headers: { ...headers(), "content-type": "application/json" }, body: JSON.stringify(body) });
+    const value = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(value.error || L("没有记下输入"));
+  };
+  // 「加输入…」 on a Goal: anything this project lists among its files, chosen here and taken one of the two ways.
+  const addGoalInput = async (goalId) => {
+    const read = async (path) => { const response = await fetch(route(path), { headers: headers() }); const value = await response.json().catch(() => ({})); if (!response.ok) throw new Error(value.error || L("读不到项目的内容")); return value; };
+    const entries = [];
+    try {
+      for (const source of (await read("/api/side/files/sources")).sources || []) {
+        try { for (const entry of ((await read("/api/side/files/entries?source=" + encodeURIComponent(source.id))).page || {}).entries || []) if (entry.subject) entries.push({ ...entry, group: source.title }); } catch {}
+      }
+    } catch (error) { card(L("读不到项目的内容"), error.message, [], "error"); return; }
+    if (!entries.length) { card(L("这里还没有可以作为输入的内容"), L("先为这个 Goal 新建一份，或在成果库里导入。"), [], "error"); return; }
+    const rows = entries.slice(0, 80).map((entry, index) => choice("object", JSON.stringify(entry.subject), entry.title, entry.group, index === 0));
+    dialog(L("给这个 Goal 加输入"), L("成果库里的版本本来就是固定的；其余的可以跟着原文，或现在固定一版。"), [...rows, inputMode()], L("加入"), async (data) => {
+      const subject = JSON.parse(String(data.get("object") || "null"));
+      if (!subject) throw new Error(L("先选一项"));
+      await takeAsInput(here(), goalId, { ...subject, project_id: here() }, data.get("mode") === "fixed");
+      invalidate();
+      card(L("已加入这个 Goal 的输入"), data.get("mode") === "fixed" || subject.kind === "artifact" ? L("目标认的是这一版") : L("目标会跟着原文"), [], "done");
+    });
+  };
   const useInProject = async (description) => {
     const all = await loadSpaces();
     const used = new Set(description.associations.filter(link => link.type === "used_in").map(link => link.target.project_id));
@@ -427,9 +462,9 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const rows = found.slice(0, 60).map((goal, index) => choice("goal", goal.project_id + "|" + goal.goal_id, goal.title,
       [several ? nameOf(goal.project_id) : "", bound.has(goal.project_id + "|" + goal.goal_id) ? L("已经关联") : ""].filter(Boolean).join(" · "), index === 0));
     const where = home === "personal" ? L("个人空间") : L("本项目");
-    dialog(L("把《{title}》关联到 Goal", { title: description.title }), L("目标的“资料”里会记下它；它仍放在 {place}，不会复制或移动。", { place: description.location ? description.location.title : where }), rows, L("关联"), async (data) => {
+    dialog(L("把《{title}》关联到 Goal", { title: description.title }), L("目标的“输入”里会记下它；它仍放在 {place}，不会复制或移动。", { place: description.location ? description.location.title : where }), [...rows, inputMode()], L("关联"), async (data) => {
       const [projectId, goalId] = String(data.get("goal") || "").split("|");
-      await api("bind-goal", { object: description.object, project_id: projectId, goal_id: goalId });
+      await takeAsInput(projectId, goalId, description.object, data.get("mode") === "fixed");
       invalidate(); repaint();
       const goal = found.find((entry) => entry.project_id === projectId && entry.goal_id === goalId);
       // The Goal's materials are in its work view, not on the Frame canvas.
@@ -440,7 +475,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
         if (goal) url.searchParams.set("openTitle", goal.title);
         location.assign(url.pathname + url.search);
       };
-      card(L("已关联到 Goal「{goal}」", { goal: goal ? goal.title : "" }), L("目标的“资料”里能打开它；它的存放位置不变"),
+      card(L("已关联到 Goal「{goal}」", { goal: goal ? goal.title : "" }), L("目标的“输入”里能打开它；它的存放位置不变"),
         [{ label: L("打开 Goal"), primary: true, run: openGoal }], "done");
     });
   };
@@ -471,6 +506,19 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       }).catch((error) => { state.textContent = error.message; });
     });
   };
+  document.addEventListener("click", (event) => {
+    const add = event.target.closest && event.target.closest("[data-goal-input-add]");
+    if (add && here()) { event.preventDefault(); void addGoalInput(add.dataset.goalId); }
+    // A fixed input leaves the Goal; the version itself stays in the 成果库.
+    const remove = event.target.closest && event.target.closest("[data-goal-input-remove]");
+    if (remove && here()) {
+      event.preventDefault(); remove.disabled = true;
+      fetch(route("/api/goals/" + encodeURIComponent(remove.dataset.goalId) + "/artifact-inputs"), { method: "POST", headers: { ...headers(), "content-type": "application/json" },
+        body: JSON.stringify({ reference: JSON.parse(remove.dataset.artifactReference), used: false }) })
+        .then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || L("暂时处理不了，请稍后重试")); remove.closest("article")?.remove(); })
+        .catch((error) => { remove.disabled = false; card(L("没能移除"), error.message, [], "error"); });
+    }
+  });
   document.addEventListener("click", async (event) => {
     const button = event.target.closest && event.target.closest("[data-placement-create]");
     if (!button || !here()) return;

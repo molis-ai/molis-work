@@ -13,6 +13,8 @@ export interface GoalsDocumentItem extends GoalsTreeItem {
   input_bindings?: ReadonlyArray<{ state: string; source_type: string }>;
   /** 成果 versions this Goal hands in (artifact-positioning F6); counted in the Goal info entry. */
   artifact_outputs?: number;
+  /** 成果 versions this Goal fixed as inputs; counted with its followed materials as 「输入」. */
+  artifact_inputs?: ReadonlyArray<unknown>;
 }
 export interface GoalsDocumentContext {
   activeGoalId: string | null;

@@ -68,6 +68,9 @@ export const PLACEMENT_STYLES = `
   .placement-goal-material.is-gone strong { color: var(--muted); }
   .placement-goal-material-actions { display: inline-flex; gap: 4px; }
   .placement-goal-hint { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+  .goal-input-mode { display: inline-block; margin-left: 8px; padding: 0 6px; border-radius: 999px; background: var(--surface-soft); color: var(--muted); font-size: 11px; }
+  .placement-goal-mode { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; border: 0; }
+  .placement-goal-mode legend { margin-bottom: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
   @media (max-width: 760px) {
     .placement-toasts { bottom: 84px; }
     .placement-toast { flex-wrap: wrap; }

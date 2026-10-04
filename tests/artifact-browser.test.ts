@@ -239,7 +239,7 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   const { store, coordinator, get, surface } = await fixture(t);
   const documentPath = "/goals/V1";
   const empty = await (await get(documentPath)).text();
-  assert.doesNotMatch(empty, /artifact-embed|交付物与输入/);
+  assert.doesNotMatch(empty, /artifact-embed|data-goal-input-fixed|<h3>交付物<\/h3>/);
   const first = coordinator.artifacts.commands.registerVersion(registration()).artifact;
   coordinator.artifacts.commands.registerVersion(registration({ version: 2,
     content: { kind: "inline", payload: { title: "Later report" } } }));
@@ -261,17 +261,21 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   const beforeEdges = ledger.query.list(access);
   const beforeArtifacts = coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID);
   const page = await (await get(documentPath)).text();
-  assert.match(page, /交付物与输入/);
-  assert.match(page, /v1 · 输入</);
+  // Deliverables are the card under 「完成要求」; inputs, fixed here, are listed with the Goal's other inputs (五.1, one entry).
+  assert.match(page, /<h3>交付物<\/h3>/);
   assert.match(page, /v2 · 交付物</);
-  assert.ok(page.includes(`href="${exactPath(1)}"`));
+  assert.doesNotMatch(page, /v1 · 输入</);
+  assert.ok(page.includes(`data-goal-input-fixed><div><a href="#" data-workbench-item-plugin="artifacts" data-workbench-item-id="${exactPath(1)}"`), "the fixed input opens its version");
+  assert.match(page, /<strong>Original report<\/strong><\/a><span class="goal-input-mode" data-goal-input-mode="fixed">固定的第 1 版<\/span>/);
   assert.ok(page.includes(`href="${exactPath(2)}"`));
   assert.match(page, /v99/);
   assert.match(page, /关联的版本不可用或不存在/);
   assert.match(page, /Original report/);
   assert.match(page, /Later report/);
   assert.doesNotMatch(page, /not-for-V1|<script>attack\(\)<\/script>|foreign-project/);
-  assert.match(await (await get(documentPath, "en")).text(), /Deliverables and inputs/);
+  const english = await (await get(documentPath, "en")).text();
+  assert.match(english, /<h3>Deliverable<\/h3>/);
+  assert.match(english, /Fixed version 1/);
   const opened = await surface(exactPath(1));
   assert.match(await opened.text(), /Original report/);
   assert.deepEqual(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, { artifact_id: artifactId, version: 1 }), first);
@@ -284,12 +288,11 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
     actor_id: "report-owner", reason: "Source disconnected" });
   coordinator.artifacts.commands.archiveVersion({ board_id: DEMO_BOARD_ID, artifact_id: artifactId, version: 2, actor_id: "report-owner" });
   const changed = await (await get(documentPath)).text();
-  assert.match(changed, /这个版本的内容不可用/);
-  assert.match(changed, /Source disconnected/);
+  assert.match(changed, /固定的第 1 版<\/span><small>这一版现在不可用 · Source disconnected<\/small>/);
   assert.match(changed, /这个版本已归档/);
   ledger.commands.remove(access, "input", "Owner removed the input association");
   const removed = await (await get(documentPath)).text();
-  assert.doesNotMatch(removed, /v1 · 输入<|Source disconnected/);
+  assert.doesNotMatch(removed, /data-goal-input-fixed|Source disconnected/);
   assert.match(removed, /v2 · 交付物</);
   const unknown = await get("/goals/missing");
   assert.equal(unknown.status, 404);

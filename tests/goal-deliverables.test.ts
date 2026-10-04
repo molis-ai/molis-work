@@ -48,7 +48,7 @@ test("a Goal records, lists and removes deliverables from the 成果库, and its
   const listed = await (await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/deliverables`)).json() as { deliverables: Array<{ reference: { version: number }; title: string }> };
   assert.deepEqual(listed.deliverables.map(item => [item.reference.version, item.title]), [[2, "计划终稿"]]);
   const page = await (await fetch(`${origin}/api/goals/${encodeURIComponent(goalId)}/document`)).text();
-  assert.match(page, /交付物与输入/);
+  assert.match(page, /<h3>交付物<\/h3>/);
   assert.match(page, /v2 · 交付物/);
 
   // An archived version cannot be handed in; removing keeps the 成果 and leaves no active deliverable.

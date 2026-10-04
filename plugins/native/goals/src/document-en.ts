@@ -82,5 +82,6 @@ export const GOALS_DOCUMENT_EN: Record<string, string> = {
   "未补充原因": "No reason given",
   "查看原始记录标识": "Show the original record identifier",
   "{count} 份": "{count}",
+  "输入": "Inputs",
   "新建或关联": "Create or link",
 };

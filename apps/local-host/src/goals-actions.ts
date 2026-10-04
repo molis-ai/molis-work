@@ -55,7 +55,7 @@ export function bindGoalsWebActions(client: ActionClient, reference: LocalHostPr
         return await client.invoke({ ...caller, user_action: { source: "web", conversation_ref: `web:${reference.board_id}`,
           message_ref: `web-decision:${payload.idempotency_key ?? ""}`, whole_confirmation_prompted: payload.confirm_all_pending === true } }, definition, input) as Output;
       }
-      if ([goalsActions.deliverablesPin.capability_id, goalsActions.deliverablesCandidates.capability_id].includes(definition.capability_id)) {
+      if ([goalsActions.deliverablesPin.capability_id, goalsActions.deliverablesCandidates.capability_id, goalsActions.artifactInputsPin.capability_id].includes(definition.capability_id)) {
         return await client.invoke({ ...caller, permissions: [...new Set([...caller.permissions, ...pinPermissions()])] }, definition, input) as Output;
       }
       if (definition.capability_id !== goalsActions.decide.capability_id) return await client.invoke(caller, definition, input) as Output;

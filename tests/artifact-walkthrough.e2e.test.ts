@@ -37,7 +37,7 @@ for (const width of [1440, 390]) {
 
     // The Goal page's card names the type as Pages declares it, and does not claim no plugin can read it.
     const goal = await evaluate<string>(`fetch(${JSON.stringify(`/projects/${projectId}/goals/V1`)}, { headers: { "x-molis-work-fragment": "goal-document" } }).then(r => r.text())`);
-    const card = goal.slice(goal.indexOf("交付物与输入"));
+    const card = goal.slice(goal.indexOf("<h3>交付物</h3>"));
     assert.match(card, /需求说明/);
     assert.doesNotMatch(card.slice(0, 2000), /没有兼容插件/);
     assert.match(card.slice(0, 2000), /文档 · io\.molis\.work\.pages\.document/);

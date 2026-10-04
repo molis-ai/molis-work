@@ -60,4 +60,5 @@ export interface GoalsDocumentView {
   event_document?: import("./event-document-model.js").GoalEventDocumentView | null;
   artifact_embed_html?: string;
   artifact_outputs?: number;
+  artifact_inputs?: ReadonlyArray<{ artifact_id: string; version: number; title: string; state: "available" | "unavailable" | "archived" | "missing"; reason: string | null }>;
 }

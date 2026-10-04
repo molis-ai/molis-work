@@ -60,6 +60,7 @@ export const goalsActions = {
   artifactInputsAdd: goalsArtifactInputActions.add,
   artifactInputsRemove: goalsArtifactInputActions.remove,
   artifactInputsList: goalsArtifactInputActions.list,
+  artifactInputsPin: goalsArtifactInputActions.pin,
   ...goalsPlanningActions,
   ...goalsGuidanceActions,
   ...goalsLifecycleActions,

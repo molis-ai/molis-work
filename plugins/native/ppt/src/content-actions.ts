@@ -1,10 +1,10 @@
 import { bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PptRecord, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_SUBJECT_KIND, type PptRecord, type PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { PptError } from "./error.js";
 import type { PptStore } from "./store.js";
 
 /** A deck is a workflow content station: it hands its outline on as Markdown and turns Markdown it receives into slides. */
-export const pptContentActions = defineWorkflowContentActions({ id: "ppt", title: "演示稿", icon: "image", create: true,
+export const pptContentActions = defineWorkflowContentActions({ id: "ppt", title: "演示稿", icon: "image", create: true, subject_kind: PPT_SUBJECT_KIND,
   read_permissions: ["ppt:read"], write_permissions: ["ppt:read", "ppt:write"] });
 
 /** The deck as an outline: one `##` per slide, its bullets, notes as a quote. */

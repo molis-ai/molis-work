@@ -3,7 +3,7 @@ import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { slidesFromMarkdown } from "./content-actions.js";
 import { PPT_DRAFT_OUTLINE } from "./prompts.js";
-import { PPT_ARTIFACT_TYPE_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_ARTIFACT_TYPE_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { promotePpt, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
 import type { PptStore } from "./store.js";
 import { createPptSearchHandlers, pptSearchActions } from "./search.js";
@@ -26,13 +26,13 @@ type OutlineInput = Identity & { text?: string; page_id?: string; replace?: bool
 type Edit = Identity & { title?: string; description?: string; color_primary?: string; color_background?: string; color_text?: string; slides?: readonly PptSlideInput[] };
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
   // An action that waits on a model discloses the cost and runs beside the serial queue, like Forms' AI drafting.
-  return { capability_id: `ppt.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["ppt"], input_schema: input, output_schema: output, permissions, ...(name === "outline_ai" ? { scheduling: "concurrent" as const } : {}) } };
+  return { capability_id: `ppt.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: [PPT_SUBJECT_KIND], input_schema: input, output_schema: output, permissions, ...(name === "outline_ai" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const pptActions = {
   /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
   artifactPreview: pptArtifactPreview,
   /** Pins the current revision on the spot, for a Goal handing it in (A5); the same publication as `promote`. */
-  artifactPin: defineArtifactPinAction("ppt.artifacts.pin", "presentation", "演示稿", [...write, "artifact:write"]),
+  artifactPin: defineArtifactPinAction("ppt.artifacts.pin", PPT_SUBJECT_KIND, "演示稿", [...write, "artifact:write"]),
   /** Whether a pinned version still matches the ppt object it came from (A4b, 「原文已改」); compares content, not revisions. */
   artifactCompare: defineArtifactCompareAction("ppt.artifacts.compare", "演示稿", read),
   /** 「从这一版继续」 (A4b): a new 演示稿 with the content of a pinned version; the version itself is unchanged. */
@@ -58,8 +58,8 @@ export const pptActions = {
   outlinePages: define<Record<string, never>, { documents: Array<{ id: string; title: string; updated_at: string | null }> }>("outline_pages", "可做成大纲的文档",
     "列出当前项目里可以拿来生成大纲的 Pages 文档（以调用者自己的权限读取）；Pages 未启用或无权读取时返回空列表与原因", "query", object({}),
     object({ documents: array(object({ id, title: text, updated_at: { type: ["string", "null"] } })), unavailable_reason: { type: ["string", "null"] } }, ["documents"]), [...read, "pages:read"]),
-  move: defineObjectMoveAction("ppt.placement.move", ["presentation"], "演示稿", write),
-  copy: defineObjectCopyAction("ppt.placement.copy", ["presentation"], "演示稿", write),
+  move: defineObjectMoveAction("ppt.placement.move", [PPT_SUBJECT_KIND], "演示稿", write),
+  copy: defineObjectCopyAction("ppt.placement.copy", [PPT_SUBJECT_KIND], "演示稿", write),
   searchEntries: pptSearchActions.entries,
   files: pptSearchActions.files,
   subject: pptSearchActions.subject,
@@ -162,11 +162,11 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
     }, () => modelAvailability()),
     bindObjectMoveHandler(pptActions.move, input => ports.withStore(store => {
       const presentation = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
-      return { subject: { kind: "presentation", id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
+      return { subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
     })),
     bindObjectCopyHandler(pptActions.copy, input => ports.withStore(store => {
       const presentation = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
-      return { subject: { kind: "presentation", id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
+      return { subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
     })),
     ...createPptSearchHandlers(ports.withStore),
   ];

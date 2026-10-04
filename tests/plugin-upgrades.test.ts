@@ -123,7 +123,7 @@ test("a same-version Manifest change is usable only with an exact compatibility 
   assert.equal(deniedRuntime.get(installed.install.install_id).manifest_digest, installed.install.manifest_digest);
 });
 
-test("project market update API reports the installed and target versions without changing the install", async () => {
+test("a bundled plugin's older install moves up when the project starts, so the market has no update pending for it", async () => {
   const directory = mkdtempSync(join(tmpdir(), "plugin-market-upgrade-"));
   const databasePath = join(directory, "project.db");
   seedDemoBoard(databasePath);
@@ -160,17 +160,9 @@ test("project market update API reports the installed and target versions withou
     assert.equal(handled, true);
     assert.equal(response.statusCode, 200);
     const updates = JSON.parse(response.body).updates as Array<{ plugin_id: string; installed_version: string; target_version: string; mode: string; can_upgrade: boolean; project_plugin_id: string }>;
-    const candidate = updates.find(item => item.plugin_id === CODING_PLUGIN_ID);
-    assert.deepEqual(candidate, {
-      plugin_id: CODING_PLUGIN_ID,
-      install_id: oldInstall.install.install_id,
-      installed_version: "0.9.0",
-      target_version: currentDefinition.manifest.version,
-      mode: "unsupported",
-      can_upgrade: false,
-      project_plugin_id: "coding",
-    });
-    assert.equal(new PluginRuntime(new SqlitePluginRuntimeRepository(store.db)).get(oldInstall.install.install_id).version, "0.9.0");
+    // Coding ships with the Host (2026-10-04): its 0.9.0 install moved up to the Host's version when the project started.
+    assert.equal(updates.find(item => item.plugin_id === CODING_PLUGIN_ID), undefined);
+    assert.equal(new PluginRuntime(new SqlitePluginRuntimeRepository(store.db)).get(oldInstall.install.install_id).version, currentDefinition.manifest.version);
   } finally {
     await releaseCodingSurface(store, DEMO_BOARD_ID);
     store.close();

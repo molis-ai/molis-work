@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { bindActionClient, bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pagesActions } from "./actions.js";
+import { pagesActions, PAGES_SUBJECT_KIND } from "./actions.js";
 import { nodeFromUnknown } from "./schema.js";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 
-export const pagesContentActions = defineWorkflowContentActions({ id: "pages", title: "Pages", icon: "note", create: true,
+export const pagesContentActions = defineWorkflowContentActions({ id: "pages", title: "Pages", icon: "note", create: true, subject_kind: PAGES_SUBJECT_KIND,
   read_permissions: ["pages:read"], write_permissions: ["pages:write"] });
 
 export function createPagesContentHandlers(actions: ActionClient) {

@@ -36,6 +36,8 @@ export interface PluginSupervisorEntry {
   deployment?: PluginDeployment;
   /** Defaults to every required permission the Manifest declares. */
   grants?: string[];
+  /** Ships with the Host: an older install upgrades to this version on start instead of restoring its own release. */
+  bundled?: boolean;
   /** Trusted Host adapter for retaining and restoring this Native factory. */
   releaseArtifact?: {
     capture(): string | Promise<string>;
@@ -487,7 +489,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       ? installed.manifest_digest === pluginManifestDigest(manifest)
         || (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(installed.version)
       : comparePluginVersions(manifest.version, installed.version) > 0
-        && (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(installed.version);
+        && (candidate.bundled || (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(installed.version));
     if (directlyUsable) {
       await this.#persistReleaseArtifact(candidate);
       return candidate;
@@ -560,7 +562,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
         const installed = this.#runtime.install({
           definition: entry.definition,
           deployment: entry.deployment ?? "local",
-          grants,
+          grants, ...(entry.bundled ? { bundled: true } : {}),
         });
         installId = installed.install.install_id;
         if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {

@@ -132,6 +132,35 @@ test("an archived compatible Native release remains usable when a later candidat
   }
 });
 
+// A plugin that ships with the Host follows the Host's version (repository-anti-corruption §1, 2026-10-04): an older install
+// moves up on start without any per-version declaration and runs the new code; it does not fall back to its old release.
+test("a bundled Native plugin's older install moves up to the Host's version on start, without per-version declarations", async () => {
+  const db = new Database(":memory:");
+  try {
+    const started: string[] = [];
+    const oldDefinition = definition("1.0.0", started);
+    const firstRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
+    const first = new PluginSupervisor(firstRuntime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
+    await first.start([{ definition: oldDefinition, bundled: true, releaseArtifact: { capture: () => "native-v1", restore: () => oldDefinition } }]);
+    const installId = first.state(PLUGIN_ID)?.install_id;
+    assert.ok(installId);
+    await firstRuntime.stop(installId);
+
+    const candidate = definition("2.0.0", started);
+    assert.equal(candidate.manifest.upgrade_compatibility, undefined, "no list of versions it can come from");
+    const restartedRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
+    const restarted = new PluginSupervisor(restartedRuntime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
+    const report = await restarted.start([{ definition: candidate, bundled: true,
+      releaseArtifact: { capture: () => "native-v2", restore: source => source === "native-v1" ? oldDefinition : candidate } }]);
+    assert.deepEqual(report.running, [PLUGIN_ID]);
+    assert.equal(restartedRuntime.get(installId).version, "2.0.0", "the install record says what runs");
+    assert.equal(restarted.state(PLUGIN_ID)?.install_id, installId, "the same install keeps its data");
+    assert.equal(started.at(-1), "2.0.0", "the new code runs, not the old release");
+  } finally {
+    db.close();
+  }
+});
+
 function restartedRepositoryCount(repository: SqlitePluginRuntimeReleaseArtifactRepository): number {
   return repository.list(PLUGIN_ID, SIGNATURE).length;
 }

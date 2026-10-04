@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { homeSqlitePath, openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   MEMORY_PROVIDER_ID,
@@ -33,7 +33,7 @@ import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
  */
 
 /** This Home's person. Agents, plugins and external clients act on their behalf, so personal memories are theirs. */
-export const LOCAL_PERSON = "web-user";
+export const LOCAL_PERSON = LOCAL_PERSON_ACTOR_ID;
 const RUNTIME = "prologue";
 
 export interface MemoryHost {

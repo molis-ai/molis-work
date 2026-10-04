@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import { setImmediate } from "node:timers/promises";
 import type { ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
@@ -123,14 +124,13 @@ test("images: a second Host process reads live jobs and closing it does not inte
   assert.equal(service.getJob("project-a", job.id).status, "running");
 });
 
-test("images: legacy running data recovers only after the old exclusive runner closes", async (t) => {
+test("images: a job an earlier runner left running recovers only after that runner's exclusive lock closes", async (t) => {
   const { service, home, secrets } = fixture(t, () => new Promise(() => {}));
   const connection = service.saveConnection(connectionInput);
-  const job = service.start("project-a", { request_id: "legacy", connection_id: connection.id, prompt: "legacy" });
+  const job = service.start("project-a", { request_id: "earlier", connection_id: connection.id, prompt: "earlier" });
   await service.close();
   const db = new DatabaseSync(join(home, "images", "images.db"));
-  db.prepare("UPDATE jobs SET status = 'running', runner_id = NULL, finished_at = NULL WHERE id = ?").run(job.id);
-  db.exec("ALTER TABLE jobs DROP COLUMN runner_id");
+  db.prepare("UPDATE jobs SET status = 'running', runner_id = ?, finished_at = NULL WHERE id = ?").run(randomUUID(), job.id);
   db.close();
   const oldLock = new DatabaseSync(join(home, "images", ".runner-lock.db"));
   oldLock.exec("BEGIN EXCLUSIVE");
@@ -230,7 +230,7 @@ test("images: failed store initialization releases the runner even when database
   const originalExec = DatabaseSync.prototype.exec;
   const originalClose = DatabaseSync.prototype.close;
   const execMock = t.mock.method(DatabaseSync.prototype, "exec", function (this: DatabaseSync, sql: string) {
-    if (sql.includes("CREATE TABLE IF NOT EXISTS connections")) throw new Error("injected schema initialization failure");
+    if (sql.includes("CREATE TABLE connections")) throw new Error("injected schema initialization failure");
     return originalExec.call(this, sql);
   });
   let closes = 0;

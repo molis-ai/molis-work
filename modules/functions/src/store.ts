@@ -1,5 +1,5 @@
 import type { ActionSceneBinding, ActionSceneReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openHomeSqliteDatabase, ensureSqliteColumn } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   AGENT_MCP_DESTINATION_ID,
@@ -456,85 +456,67 @@ export class FunctionsStore {
   }
 }
 
+/**
+ * The Functions store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing
+ * ones must already be at its version. Columns keep the order existing stores have them in.
+ */
+export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE functions (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    function_key TEXT NOT NULL UNIQUE,
+    primitive TEXT NOT NULL,
+    status TEXT NOT NULL,
+    version INTEGER,
+    model TEXT NOT NULL,
+    instructions TEXT NOT NULL,
+    criteria_json TEXT NOT NULL,
+    config_hash TEXT NOT NULL,
+    last_preview_json TEXT,
+    samples_json TEXT NOT NULL DEFAULT '[]',
+    published_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    scene_id TEXT,
+    subject_kinds_json TEXT NOT NULL DEFAULT '[]',
+    scene_map_json TEXT NOT NULL DEFAULT '{}',
+    scene_version INTEGER,
+    scene_provider_id TEXT,
+    action_map_json TEXT NOT NULL DEFAULT '{}'
+  );
+  CREATE TABLE function_judgments (
+    judgment_id TEXT PRIMARY KEY,
+    function_key TEXT NOT NULL,
+    function_version INTEGER NOT NULL,
+    subject_kind TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    board_id TEXT NOT NULL DEFAULT '',
+    scene_id TEXT,
+    outcome TEXT NOT NULL,
+    suggested_json TEXT NOT NULL,
+    error_code TEXT,
+    created_at TEXT NOT NULL,
+    scene_provenance_json TEXT,
+    recommended_actions_json TEXT
+  );
+  CREATE INDEX function_judgments_subject_idx
+    ON function_judgments(subject_kind, subject_id, board_id, created_at);
+  CREATE TABLE function_scene_bindings (
+    scene_id TEXT NOT NULL,
+    board_id TEXT NOT NULL DEFAULT '',
+    ref TEXT NOT NULL DEFAULT '',
+    function_key TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    action_binding_json TEXT,
+    binding_revision TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (scene_id, board_id, ref)
+  );
+` };
+
 export function openFunctionsStore(homeDirectory: string): FunctionsStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "functions");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS functions (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      function_key TEXT NOT NULL UNIQUE,
-      primitive TEXT NOT NULL,
-      status TEXT NOT NULL,
-      version INTEGER,
-      model TEXT NOT NULL,
-      instructions TEXT NOT NULL,
-      criteria_json TEXT NOT NULL,
-      config_hash TEXT NOT NULL,
-      last_preview_json TEXT,
-      samples_json TEXT NOT NULL DEFAULT '[]',
-      published_at TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-  ensureSqliteColumn(db, "functions", "samples_json", "TEXT NOT NULL DEFAULT '[]'");
-  ensureSqliteColumn(db, "functions", "scene_id", "TEXT");
-  ensureSqliteColumn(db, "functions", "scene_version", "INTEGER");
-  ensureSqliteColumn(db, "functions", "scene_provider_id", "TEXT");
-  ensureSqliteColumn(db, "functions", "subject_kinds_json", "TEXT NOT NULL DEFAULT '[]'");
-  ensureSqliteColumn(db, "functions", "scene_map_json", "TEXT NOT NULL DEFAULT '{}'");
-  ensureSqliteColumn(db, "functions", "action_map_json", "TEXT NOT NULL DEFAULT '{}'");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS function_judgments (
-      judgment_id TEXT PRIMARY KEY,
-      function_key TEXT NOT NULL,
-      function_version INTEGER NOT NULL,
-      subject_kind TEXT NOT NULL,
-      subject_id TEXT NOT NULL,
-      board_id TEXT NOT NULL DEFAULT '',
-      scene_id TEXT,
-      outcome TEXT NOT NULL,
-      suggested_json TEXT NOT NULL,
-      error_code TEXT,
-      created_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS function_judgments_subject_idx
-      ON function_judgments(subject_kind, subject_id, board_id, created_at);
-    CREATE TABLE IF NOT EXISTS function_scene_bindings (
-      scene_id TEXT NOT NULL,
-      board_id TEXT NOT NULL DEFAULT '',
-      ref TEXT NOT NULL DEFAULT '',
-      function_key TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (scene_id, board_id, ref)
-    );
-  `);
-  migrateSceneBindingRef(db);
-  ensureSqliteColumn(db, "function_judgments", "scene_provenance_json", "TEXT");
-  ensureSqliteColumn(db, "function_judgments", "recommended_actions_json", "TEXT");
-  ensureSqliteColumn(db, "function_scene_bindings", "action_binding_json", "TEXT");
-  ensureSqliteColumn(db, "function_scene_bindings", "binding_revision", "TEXT NOT NULL DEFAULT ''");
+  const db = openBaselineHomeSqlite(homeDirectory, "functions", FUNCTIONS_STORE_BASELINE);
   seedBuiltinFunctions(db);
   return new FunctionsStore(db);
-}
-
-function migrateSceneBindingRef(db: DatabaseSync): void {
-  const columns = db.prepare("PRAGMA table_info(function_scene_bindings)").all() as Array<{ name: string }>;
-  if (columns.some((column) => column.name === "ref")) return;
-  db.exec(`
-    ALTER TABLE function_scene_bindings RENAME TO function_scene_bindings_legacy;
-    CREATE TABLE function_scene_bindings (
-      scene_id TEXT NOT NULL,
-      board_id TEXT NOT NULL DEFAULT '',
-      ref TEXT NOT NULL DEFAULT '',
-      function_key TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (scene_id, board_id, ref)
-    );
-    INSERT INTO function_scene_bindings (scene_id, board_id, ref, function_key, updated_at)
-    SELECT scene_id, board_id, '', function_key, updated_at FROM function_scene_bindings_legacy;
-    DROP TABLE function_scene_bindings_legacy;
-  `);
 }
 
 function mapBinding(row: { scene_id: string; board_id: string; ref?: string; function_key: string }): FunctionSceneBinding {

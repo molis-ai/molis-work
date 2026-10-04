@@ -1,4 +1,4 @@
-import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type {
   DatasetColumn,
@@ -276,36 +276,38 @@ export class DatasetStore {
   }
 }
 
+/**
+ * The dataset store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
+ * must already be at its version. Columns keep the order existing stores have them in.
+ */
+export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE datasets (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL,
+    columns_json TEXT NOT NULL,
+    rows_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    project_id TEXT NOT NULL DEFAULT '',
+    artifact_id TEXT NOT NULL DEFAULT '',
+    artifact_version INTEGER NOT NULL DEFAULT 0,
+    publication_pending_json TEXT
+  );
+  CREATE TABLE dataset_versions (
+    id TEXT PRIMARY KEY,
+    dataset_id TEXT NOT NULL,
+    note TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
+` };
+
 export function openDatasetStore(homeDirectory: string): DatasetStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "dataset");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS datasets (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL DEFAULT '',
-      title TEXT NOT NULL,
-      description TEXT NOT NULL,
-      status TEXT NOT NULL,
-      columns_json TEXT NOT NULL,
-      rows_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      version INTEGER NOT NULL,
-      artifact_id TEXT NOT NULL DEFAULT '',
-      artifact_version INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS dataset_versions (
-      id TEXT PRIMARY KEY,
-      dataset_id TEXT NOT NULL,
-      note TEXT NOT NULL,
-      snapshot_json TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-  `);
-  ensureSqliteColumn(db, "datasets", "project_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "datasets", "artifact_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "datasets", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
-  ensureSqliteColumn(db, "datasets", "publication_pending_json", "TEXT");
-  db.exec("CREATE TABLE IF NOT EXISTS dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id))");
+  const db = openBaselineHomeSqlite(homeDirectory, "dataset", DATASET_STORE_BASELINE);
   return new DatasetStore(db);
 }
 

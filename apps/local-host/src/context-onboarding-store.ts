@@ -1,4 +1,4 @@
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 
@@ -40,13 +40,15 @@ export function contextJourneyId(value: unknown): string {
   if (typeof value !== "string" || !CONTEXT_ID.test(value)) throw new Error("整理标识无效，请重新开始");
   return value;
 }
+/** The context onboarding store's one current schema (repository-anti-corruption §4.1). */
+export const CONTEXT_ONBOARDING_BASELINE: SqliteBaseline = { version: 1, schema: "CREATE TABLE journeys (id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL);" };
 export function withContextJourneys<T>(home: string, run: (store: ContextJourneyStore) => T): T {
   const db = openHomeSqliteDatabase(home, "context-onboarding");
   try { return run(new ContextJourneyStore(db)); } finally { db.close(); }
 }
 class ContextJourneyStore {
   constructor(private readonly db: ReturnType<typeof openHomeSqliteDatabase>) {
-    db.exec("CREATE TABLE IF NOT EXISTS journeys (id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL)");
+    applySqliteBaseline(db, "context-onboarding", CONTEXT_ONBOARDING_BASELINE);
   }
   get(id: string): ContextJourney {
     const row = this.db.prepare("SELECT body FROM journeys WHERE id=?").get(contextJourneyId(id)) as { body: string } | undefined;

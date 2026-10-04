@@ -1,5 +1,5 @@
 import path from "node:path";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -16,18 +16,19 @@ type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 export const AGENT_DEFINITIONS_STORE = "agent-definitions";
 const USES_KEPT = 200;
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS prompt_overrides (
+/** The agent definitions store's one current schema (repository-anti-corruption §4.1). */
+export const AGENT_DEFINITIONS_BASELINE: SqliteBaseline = { version: 1, schema: `
+CREATE TABLE prompt_overrides (
   key TEXT PRIMARY KEY, revision INTEGER NOT NULL, base_version INTEGER NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL, actor_id TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS prompt_history (
+CREATE TABLE prompt_history (
   key TEXT NOT NULL, revision INTEGER NOT NULL, action TEXT NOT NULL, body TEXT, base_version INTEGER NOT NULL, at TEXT NOT NULL, actor_id TEXT NOT NULL,
   PRIMARY KEY (key, revision)
 );
-CREATE TABLE IF NOT EXISTS prompt_uses (
+CREATE TABLE prompt_uses (
   key TEXT NOT NULL, at TEXT NOT NULL, version INTEGER NOT NULL, user_revision INTEGER, caller TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS prompt_uses_by_key ON prompt_uses(key, at);`;
+CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);` };
 
 export class AgentDefinitionsError extends Error {
   constructor(readonly code: "agent_definitions.not_found" | "agent_definitions.invalid" | "agent_definitions.conflict", message: string) {
@@ -53,7 +54,7 @@ export class AgentDefinitions {
   private readonly scopes = new Map<string, Map<string, AgentDefinitionRegistration>>();
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
-    db.exec(SCHEMA);
+    applySqliteBaseline(db, AGENT_DEFINITIONS_STORE, AGENT_DEFINITIONS_BASELINE);
   }
 
   /** Renew one declaration. Installed plugins supply a Host-owned scope so another installation cannot withdraw it. */

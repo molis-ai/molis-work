@@ -1,4 +1,4 @@
-import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type { PptRecord, PptSlide, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import type { PptPublicationIntent, PptPublicationSnapshot } from "./promote.js";
@@ -211,30 +211,32 @@ export class PptStore {
   }
 }
 
+/**
+ * The presentation store's one current schema (repository-anti-corruption §4.1): new stores are created from it,
+ * existing ones must already be at its version. Columns keep the order existing stores have them in.
+ */
+export const PPT_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE presentations (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    color_primary TEXT NOT NULL,
+    color_background TEXT NOT NULL,
+    color_text TEXT NOT NULL,
+    slides_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    project_id TEXT NOT NULL DEFAULT '',
+    artifact_id TEXT NOT NULL DEFAULT '',
+    artifact_version INTEGER NOT NULL DEFAULT 0,
+    publication_pending_json TEXT
+  );
+  CREATE TABLE presentation_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
+` };
+
 export function openPptStore(homeDirectory: string): PptStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "ppt");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS presentations (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL DEFAULT '',
-      title TEXT NOT NULL,
-      description TEXT NOT NULL,
-      color_primary TEXT NOT NULL,
-      color_background TEXT NOT NULL,
-      color_text TEXT NOT NULL,
-      slides_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      version INTEGER NOT NULL,
-      artifact_id TEXT NOT NULL DEFAULT '',
-      artifact_version INTEGER NOT NULL DEFAULT 0
-    );
-  `);
-  ensureSqliteColumn(db, "presentations", "project_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "presentations", "artifact_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "presentations", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
-  ensureSqliteColumn(db, "presentations", "publication_pending_json", "TEXT");
-  db.exec("CREATE TABLE IF NOT EXISTS presentation_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id))");
+  const db = openBaselineHomeSqlite(homeDirectory, "ppt", PPT_STORE_BASELINE);
   return new PptStore(db);
 }
 

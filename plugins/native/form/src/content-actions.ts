@@ -4,7 +4,7 @@ import { FormError } from "./error.js";
 import type { FormStore } from "./store.js";
 
 /** A form is a workflow content station: it hands its questions on as a list, and turns a list it receives into questions. */
-export const formContentActions = defineWorkflowContentActions({ id: "form", title: "问卷", icon: "clipboard", create: true,
+export const formContentActions = defineWorkflowContentActions({ id: "form", title: "问卷", icon: "clipboard", create: true, subject_kind: "form",
   read_permissions: ["form:read"], write_permissions: ["form:read", "form:write"] });
 
 export function formMarkdown(record: FormRecord): string {

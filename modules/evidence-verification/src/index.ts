@@ -51,15 +51,6 @@ export {
   type EvidenceLocatorValidation,
 } from "./locator.js";
 export {
-  evidenceCorrectionsMigrationRequired,
-  migrateEvidenceContractRevisionColumns,
-  migrateEvidenceCorrections,
-  migrateEvidenceLocatorSource,
-  migrateEvidenceLocatorValidation,
-  migrateEvidenceLocatorWorkspace,
-  type EvidenceMigrationDatabase,
-} from "./migrations.js";
-export {
   EVIDENCE_SCHEMA_SQL,
   EvidenceRepository,
   createEvidenceSchema,

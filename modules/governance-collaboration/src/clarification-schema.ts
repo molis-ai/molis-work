@@ -1,6 +1,5 @@
-import type { GovernanceSqliteDatabase } from "./repository.js";
 
-/** Shared unchanged schema for fresh databases and migration 8. */
+/** The clarification tables, as one current schema. */
 export const CLARIFICATION_SCHEMA_SQL = `
         CREATE TABLE clarification_sessions (
           session_id TEXT PRIMARY KEY,
@@ -45,11 +44,3 @@ export const CLARIFICATION_SCHEMA_SQL = `
         CREATE INDEX clarification_turns_session_idx
           ON clarification_turns(session_id, turn_index, turn_id);
 `;
-
-export function migrateClarificationDialogue(db: GovernanceSqliteDatabase): void {
-  db.transaction(() => {
-    db.exec(CLARIFICATION_SCHEMA_SQL);
-    db.prepare("INSERT INTO schema_migrations (migration_id, applied_at) VALUES (8, ?)")
-      .run(new Date().toISOString());
-  }).immediate();
-}

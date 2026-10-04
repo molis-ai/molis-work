@@ -522,25 +522,6 @@ test('an upgrade during subscriber activation hands pending events to the new ve
   assert.equal(rig.bus.cursors(BOARD, FILES)[0]!.delivered_sequence, 2);
 });
 
-test("legacy SQLite cursors remain unbound history and migration rolls back as a unit", () => {
-  const db = new Database(':memory:');
-  const oldTable = `CREATE TABLE plugin_event_cursors (board_id TEXT, subscriber_plugin_id TEXT, source_plugin_id TEXT, event_type_id TEXT, type_version INTEGER,
-    delivered_sequence INTEGER, state TEXT, retry_at TEXT, last_error_code TEXT, updated_at TEXT, PRIMARY KEY(board_id,subscriber_plugin_id,source_plugin_id,event_type_id,type_version))`;
-  try {
-    db.exec(oldTable);
-    db.prepare('INSERT INTO plugin_event_cursors VALUES(?,?,?,?,?,?,?,?,?,?)').run(BOARD, FILES, CODING, CHANGED, 1, 4, 'retry_wait', null, 'old-error', 'old-time');
-    assert.throws(() => new SqlitePluginEventsRepository({ prepare: sql => db.prepare(sql), exec: sql => {
-      if (sql.startsWith('DROP TABLE plugin_event_cursors_legacy')) throw new Error('migration interrupted'); return db.exec(sql);
-    } }), /migration interrupted/);
-    assert.equal((db.prepare('SELECT * FROM plugin_event_cursors').get() as { last_error_code: string }).last_error_code, 'old-error');
-    const repository = new SqlitePluginEventsRepository(db), current = { install_id: 'install', installation_generation: 'new' };
-    assert.equal(repository.cursor(BOARD, FILES, { source_plugin_id: CODING, event_type_id: CHANGED, type_version: 1 }, current), null);
-    assert.deepEqual(repository.listCursors(BOARD), [{ revision: '', board_id: BOARD, subscriber_plugin_id: FILES, subscriber_install_id: '', subscriber_generation: '', source_plugin_id: CODING,
-      event_type_id: CHANGED, type_version: 1, delivered_sequence: 4, state: 'retry_wait', retry_at: null, last_error_code: 'old-error', updated_at: 'old-time' }]);
-    assert.deepEqual(new SqlitePluginEventsRepository(db).listCursors(BOARD), repository.listCursors(BOARD));
-  } finally { db.close(); }
-});
-
 test('a real process killed after subscriber commit leaves an uncertain delivery that restart never replays', { timeout: 15_000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), 'plugin-event-crash-')), file = join(directory, 'events.db');
   const child = spawn(process.execPath, ['--import', 'tsx', fileURLToPath(new URL('./fixtures/plugin-event-crash.ts', import.meta.url)), file], { stdio: ['ignore', 'pipe', 'pipe'] });

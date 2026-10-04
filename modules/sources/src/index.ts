@@ -61,9 +61,11 @@ const FEED_SOURCES_COLUMNS = `
       PRIMARY KEY (board_id, source_id)
 `;
 
-/** Owns Source desired state in the `feed_sources` table. Cursor reads and writes belong to Listener Host. */
-export function migrateSources(db: SourcesSqliteDatabase): void {
-  db.exec(`
+/**
+ * Source desired state in the `feed_sources` table, as one current schema the host composes into the project database
+ * baseline. Cursor reads and writes belong to Listener Host.
+ */
+export const SOURCES_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_sources (${FEED_SOURCES_COLUMNS});
     CREATE INDEX IF NOT EXISTS feed_sources_board_updated_idx
       ON feed_sources(board_id, updated_at DESC, source_id);
@@ -78,8 +80,7 @@ export function migrateSources(db: SourcesSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS source_events_project_source_idx
       ON source_events(project_id, source_id, at, event_id);
-  `);
-}
+`;
 
 export type AccountSourceCredential = Pick<SourceRecord,
   "kind" | "name" | "connection_ref" | "account_label" | "config">;
@@ -161,7 +162,7 @@ export class SourcesModule implements SourcesApi {
   };
 
   constructor(private readonly db: SourcesSqliteDatabase) {
-    migrateSources(db);
+    db.exec(SOURCES_SCHEMA_SQL);
   }
 
   private list(projectId: string): SourceRecord[] {

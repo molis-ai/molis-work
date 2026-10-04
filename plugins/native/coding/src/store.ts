@@ -53,8 +53,8 @@ export class CodingStoreError extends Error {
   }
 }
 
-export function migrateCodingSessions(db: CodingSqliteDatabase): void {
-  db.exec(`
+/** The Coding session tables, as one current schema; the host composes them into the project database baseline. */
+export const CODING_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS coding_sessions (
       board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
       session_id TEXT NOT NULL,
@@ -66,6 +66,10 @@ export function migrateCodingSessions(db: CodingSqliteDatabase): void {
       runtime_session_id TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
+      -- Who holds the unfinished plan steps, as last read: lets a list across projects show what waits on the person.
+      steps_json TEXT,
+      -- Background commands the session left running, as last read: lets the list across projects show and stop them.
+      background_json TEXT,
       PRIMARY KEY (board_id, session_id)
     );
     CREATE INDEX IF NOT EXISTS coding_sessions_board_updated_idx
@@ -78,14 +82,7 @@ export function migrateCodingSessions(db: CodingSqliteDatabase): void {
       PRIMARY KEY (board_id, session_id),
       FOREIGN KEY (board_id, session_id) REFERENCES coding_sessions(board_id, session_id) ON DELETE CASCADE
     );
-  `);
-  const columns = db.prepare("PRAGMA table_info(coding_sessions)").all() as Array<{ name: string }>;
-  if (!columns.some(column => column.name === "archived")) db.exec("ALTER TABLE coding_sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))");
-  // Who holds the unfinished plan steps, as last read: lets a list across projects show what waits on the person.
-  if (!columns.some(column => column.name === "steps_json")) db.exec("ALTER TABLE coding_sessions ADD COLUMN steps_json TEXT");
-  // Background commands the session left running, as last read: lets the list across projects show and stop them.
-  if (!columns.some(column => column.name === "background_json")) db.exec("ALTER TABLE coding_sessions ADD COLUMN background_json TEXT");
-}
+`;
 
 type Row = Record<string, unknown>;
 
@@ -111,7 +108,7 @@ function mapSession(row: Row): CodingSessionRecord {
 
 export class CodingSessionStore {
   constructor(private readonly db: CodingSqliteDatabase) {
-    migrateCodingSessions(db);
+    db.exec(CODING_SCHEMA_SQL);
   }
 
   plan(boardId: string, sessionId: string): CodingPlanDraft | null {

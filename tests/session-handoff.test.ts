@@ -27,7 +27,7 @@ import {
   insertHistoricalRun,
   sessionHandoffGoalContext,
 } from "./historical-sql-fixture.js";
-import { materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
+import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
 
 const WEB_TOKEN = "molis-work-session-handoff-token-0123456789abcdef";
 
@@ -555,7 +555,7 @@ test("event-work handoff package uses current facts and does not force Proposal 
 });
 
 test("current handoff acceptance uses live event requirements; original v35 criteria stay under history", async () => {
-  const fixture = materializeGoalEventV35Fixture("legacy");
+  const fixture = materializeGoalEventHistory("legacy");
   const store = new LocalProjectDatabase(fixture.path);
   const app = new GoalProjectApplication(store);
   const boardId = "goalboard-v1-demo";

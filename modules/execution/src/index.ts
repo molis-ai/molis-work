@@ -37,13 +37,6 @@ export class ExecutionModule implements ExecutionApplicationApi {
 
 export { ExecutionError, type ExecutionErrorFactory } from "./errors.js";
 export {
-  migrateClarifierRoles,
-  migrateExecutionActionColumns,
-  migrateReviewerRunRoles,
-  migrateUnifiedClaimRolesAndExclusivity,
-  type ExecutionMigrationDatabase,
-} from "./migrations.js";
-export {
   EXECUTION_SCHEMA_SQL,
   ExecutionRepository,
   createExecutionSchema,

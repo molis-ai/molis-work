@@ -6,12 +6,12 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
-import { materializeGoalEventV35Fixture, type GoalEventV35Kind } from "./goal-event-v35-fixture.js";
+import { materializeGoalEventHistory, type GoalEventHistoryKind } from "./goal-event-history-fixture.js";
 
 const BOARD = "goalboard-v1-demo";
 
-function openMigrated(kind: GoalEventV35Kind) {
-  const { directory, path } = materializeGoalEventV35Fixture(kind);
+function openHistory(kind: GoalEventHistoryKind) {
+  const { directory, path } = materializeGoalEventHistory(kind);
   const store = new LocalProjectDatabase(path);
   return { directory, path, store, app: new GoalProjectApplication(store) };
 }
@@ -21,103 +21,10 @@ function close(data: { directory: string; store: LocalProjectDatabase }) {
   rmSync(data.directory, { recursive: true, force: true });
 }
 
-test("migration 36 imports completion, human gates and shared risks without fabricating supports", () => {
-  const data = openMigrated("legacy");
-  try {
-    const { app, store } = data;
-    const core = app.goalEvents.readState(BOARD, "CORE");
-    assert.equal(core.owner?.source, "migration");
-    assert.equal(core.work_status, "completed");
-    assert.equal(core.imported_completion?.label, "迁入的历史完成");
-    assert.equal(core.imported_completion?.historical.journal_type, "goal.satisfied");
-    assert.ok((core.imported_completion?.historical.evidence_ids.length ?? 0) > 0);
-    assert.equal(core.closure, null);
-    assert.equal(core.requirements.some((item) => item.currently_satisfied), false);
-    assert.ok(core.requirements.some((item) => item.requirement_id === "CORE-C1"));
-
-    const interfaces = app.goalEvents.readState(BOARD, "INTERFACES");
-    assert.equal(interfaces.work_status, "open");
-    assert.equal(interfaces.can_record, true);
-    const before = interfaces.goal_event_cursor;
-    const note = app.goalEvents.recordNote({
-      board_id: BOARD, goal_id: "INTERFACES", actor_id: "runtime-1", actor_kind: "runtime",
-      body: "活动 Claim 不阻止新记录", idempotency_key: "note-interfaces",
-    });
-    assert.equal(note.recorded, true);
-    assert.ok(app.goalEvents.readState(BOARD, "INTERFACES").goal_event_cursor > before);
-    assert.ok(store.snapshot(BOARD).runs.some((run) => run.goal_id === "INTERFACES" && run.state === "started"));
-
-    const human = app.goalEvents.readState(BOARD, "OLD-HUMAN");
-    const humanReq = human.requirements.find((item) => item.requirement_id === "OLD-HUMAN-C1");
-    assert.equal(humanReq?.human_decision_required, true);
-    assert.equal(humanReq?.origin.kind, "imported_acceptance_criterion");
-
-    const policy = app.goalEvents.readState(BOARD, "OLD-POLICY");
-    const policyReq = policy.requirements.find((item) => item.requirement_id === "imported-policy:OLD-POLICY");
-    assert.equal(policyReq?.human_decision_required, true);
-    assert.equal(policyReq?.origin.kind, "imported_human_approval");
-    assert.ok((policyReq?.origin.policy_binding_ids?.length ?? 0) > 0);
-
-    const risk = app.goalEvents.readState(BOARD, "OLD-RISK");
-    assert.ok(risk.concerns.some((item) => item.concern_id === "imported-risk:OLD-RISK:legacy-completion-risk" && item.blocks_closure));
-
-    const continued = app.goalEvents.resumeWork({
-      board_id: BOARD, goal_id: "CORE", actor_id: "user-1", actor_kind: "user",
-      reason: "明确继续已完成目标", idempotency_key: "reopen-core",
-    });
-    assert.equal(continued.work_status, "open");
-    const after = app.goalEvents.readState(BOARD, "CORE");
-    assert.equal(after.work_status, "open");
-    assert.equal(after.completion_effect, false);
-    assert.equal(after.imported_completion?.label, "迁入的历史完成");
-    assert.equal(after.requirements.find((item) => item.requirement_id === "CORE-C1")?.currently_satisfied, false);
-
-    store.close();
-    const restarted = new LocalProjectDatabase(join(data.directory, "copy.sqlite"));
-    const again = new GoalProjectApplication(restarted);
-    assert.equal(again.goalEvents.readState(BOARD, "CORE").work_status, "open");
-    assert.equal(
-      again.goalEvents.readState(BOARD, "OLD-HUMAN").requirements.filter((item) => item.requirement_id === "OLD-HUMAN-C1").length,
-      1,
-    );
-    restarted.close();
-  } finally {
-    close(data);
-  }
-});
-
-test("migration 36 keeps mixed owner supports and per-goal policy/risk ids", () => {
-  const data = openMigrated("mixed");
-  try {
-    const mixed = data.app.goalEvents.readState(BOARD, "MIXED-OWNER");
-    assert.equal(mixed.owner?.kind, "event_work");
-    assert.notEqual(mixed.owner?.source, "migration");
-    const requirement = mixed.requirements.find((item) => item.requirement_id === "MIXED-C1");
-    assert.equal(requirement?.currently_satisfied, true);
-    assert.equal(requirement?.current_report?.verdict, "supports");
-    const policy = mixed.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER");
-    assert.ok(policy);
-    assert.equal(policy.human_decision_required, true);
-    assert.equal(policy.currently_satisfied, false);
-    assert.equal(policy.user_conclusion, null);
-    assert.ok(mixed.concerns.some((item) => item.concern_id.startsWith("imported-risk:MIXED-OWNER:")));
-    const human = data.app.goalEvents.readState(BOARD, "OLD-HUMAN");
-    assert.ok(human.concerns.some((item) => item.concern_id.startsWith("imported-risk:OLD-HUMAN:")));
-    assert.notEqual(
-      mixed.concerns.find((item) => item.concern_id.includes("mixed-shared-risk"))?.concern_id,
-      human.concerns.find((item) => item.concern_id.includes("mixed-shared-risk"))?.concern_id,
-    );
-  } finally {
-    close(data);
-  }
-});
-
-test("fresh project records migration 36 and createIntent is immediately writable", () => {
+test("a fresh project's createIntent is immediately writable", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-02-fresh-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   try {
-    const applied = store.db.prepare("SELECT 1 FROM schema_migrations WHERE migration_id = 36").get();
-    assert.ok(applied);
     const trusted = store.db.prepare("PRAGMA table_info(goal_event_trusted_decisions)").all() as Array<{ name: string }>;
     assert.ok(trusted.some((column) => column.name === "change_json"));
     const app = new GoalProjectApplication(store);
@@ -142,7 +49,7 @@ test("fresh project records migration 36 and createIntent is immediately writabl
 });
 
 test("imported criterion and policy requirements follow the same user revise and retire rules", () => {
-  const data = openMigrated("legacy");
+  const data = openHistory("legacy");
   try {
     const { app, store } = data;
     const human = app.goalEvents.readState(BOARD, "OLD-HUMAN");
@@ -213,7 +120,7 @@ test("imported criterion and policy requirements follow the same user revise and
 });
 
 test("still-valid same-scope complete approval satisfies imported policy after the real blocker is resolved", () => {
-  const data = openMigrated("approved");
+  const data = openHistory("approved");
   try {
     const { app, store, path } = data;
     const mixed = app.goalEvents.readState(BOARD, "MIXED-OWNER");
@@ -291,7 +198,7 @@ test("still-valid same-scope complete approval satisfies imported policy after t
 });
 
 test("real event closure stays distinct; explicit continue can reuse the same-scope approval", () => {
-  const data = openMigrated("approved-completed");
+  const data = openHistory("approved-completed");
   try {
     const { app } = data;
     const mixed = app.goalEvents.readState(BOARD, "MIXED-OWNER");
@@ -339,120 +246,5 @@ test("real event closure stays distinct; explicit continue can reuse the same-sc
     );
   } finally {
     close(data);
-  }
-});
-
-test("scoped complete approval is reused only while recorded requirement commitments still match", () => {
-  for (const changed of [false, true]) {
-    const { directory, path } = materializeGoalEventV35Fixture("approved");
-    const raw = new DatabaseSync(path);
-    let decisionId = "";
-    let originalStatement = "";
-    try {
-      const criterion = raw.prepare("SELECT statement FROM acceptance_criteria WHERE criterion_id = ?")
-        .get("MIXED-C1") as { statement: string };
-      const decision = raw.prepare("SELECT decision_id, governance_decision_id, event_id FROM goal_event_applied_decisions WHERE goal_id = ?")
-        .get("MIXED-OWNER") as { decision_id: string; governance_decision_id: string; event_id: string };
-      originalStatement = criterion.statement;
-      decisionId = decision.decision_id;
-      const scope = { requirement_ids: ["MIXED-C1"], event_ids: [], concern_ids: [], action: "complete" };
-      const commitment = {
-        outcome: "真实结果继续有效",
-        requirements: [{
-          requirement_id: "MIXED-C1",
-          statement: criterion.statement,
-          human_decision_required: false,
-          bound_type_ids: [],
-        }],
-      };
-      raw.prepare("UPDATE goal_event_applied_decisions SET scope_json = ?, commitment_json = ? WHERE decision_id = ?")
-        .run(JSON.stringify(scope), JSON.stringify(commitment), decision.decision_id);
-      raw.prepare("UPDATE goal_event_trusted_decisions SET scope_json = ? WHERE decision_id = ?")
-        .run(JSON.stringify(scope), decision.governance_decision_id);
-      const event = raw.prepare("SELECT payload_json FROM goal_work_events WHERE event_id = ?")
-        .get(decision.event_id) as { payload_json: string };
-      const payload = { ...JSON.parse(event.payload_json), scope };
-      raw.prepare("UPDATE goal_work_events SET payload_json = ? WHERE event_id = ?").run(JSON.stringify(payload), decision.event_id);
-      raw.prepare("UPDATE events SET payload_json = ? WHERE event_id = ?").run(JSON.stringify(payload), decision.event_id);
-      if (changed) {
-        raw.prepare("UPDATE acceptance_criteria SET statement = ? WHERE criterion_id = ?")
-          .run("结果须含新增的退款核对结论", "MIXED-C1");
-      }
-    } finally {
-      raw.close();
-    }
-    const store = new LocalProjectDatabase(path);
-    try {
-      const state = new GoalProjectApplication(store).goalEvents.readState(BOARD, "MIXED-OWNER");
-      const policy = state.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER");
-      const current = state.requirements.find((item) => item.requirement_id === "MIXED-C1");
-      assert.equal(current?.statement, changed ? "结果须含新增的退款核对结论" : originalStatement);
-      assert.equal(policy?.currently_satisfied, !changed);
-      if (changed) assert.equal(policy?.user_conclusion, null);
-      else assert.equal(policy?.user_conclusion?.decision_id, decisionId);
-    } finally {
-      store.close();
-      rmSync(directory, { recursive: true, force: true });
-    }
-  }
-});
-
-test("direct bound_type_id is part of the current commitment snapshot", () => {
-  for (const originallyBound of [true, false]) {
-    const { directory, path } = materializeGoalEventV35Fixture("approved");
-    const raw = new DatabaseSync(path);
-    let typeId = "";
-    try {
-      const decision = raw.prepare("SELECT * FROM goal_event_applied_decisions WHERE goal_id = ?")
-        .get("MIXED-OWNER") as {
-          decision_id: string;
-          governance_decision_id: string;
-          event_id: string;
-          actor_id: string;
-          recorded_at: string;
-        };
-      typeId = (raw.prepare("SELECT type_id FROM goal_work_events WHERE goal_id = ? AND kind = 'report' LIMIT 1")
-        .get("MIXED-OWNER") as { type_id: string }).type_id;
-      raw.prepare(`
-        INSERT INTO goal_event_requirements (
-          requirement_id, board_id, goal_id, statement, bound_type_id,
-          created_at, created_in_config_version, actor_id, source_json,
-          human_decision_required, current_status, revision, support_valid_after_seq
-        ) VALUES ('B-TYPED', ?, ?, ?, ?, ?, 1, ?, NULL, 0, 'active', 1, 0)
-      `).run("goalboard-v1-demo", "MIXED-OWNER", "需要核对实际付款结果", typeId, decision.recorded_at, decision.actor_id);
-      const scope = { requirement_ids: ["B-TYPED"], event_ids: [], concern_ids: [], action: "complete" };
-      const commitment = {
-        outcome: "真实结果继续有效",
-        requirements: [{
-          requirement_id: "B-TYPED",
-          statement: "需要核对实际付款结果",
-          human_decision_required: false,
-          bound_type_ids: originallyBound ? [typeId] : [],
-        }],
-      };
-      raw.prepare("UPDATE goal_event_applied_decisions SET scope_json = ?, commitment_json = ? WHERE decision_id = ?")
-        .run(JSON.stringify(scope), JSON.stringify(commitment), decision.decision_id);
-      raw.prepare("UPDATE goal_event_trusted_decisions SET scope_json = ? WHERE decision_id = ?")
-        .run(JSON.stringify(scope), decision.governance_decision_id);
-      const event = raw.prepare("SELECT payload_json FROM goal_work_events WHERE event_id = ?")
-        .get(decision.event_id) as { payload_json: string };
-      const payload = { ...JSON.parse(event.payload_json), scope };
-      raw.prepare("UPDATE goal_work_events SET payload_json = ? WHERE event_id = ?").run(JSON.stringify(payload), decision.event_id);
-      raw.prepare("UPDATE events SET payload_json = ? WHERE event_id = ?").run(JSON.stringify(payload), decision.event_id);
-    } finally {
-      raw.close();
-    }
-    const store = new LocalProjectDatabase(path);
-    try {
-      const state = new GoalProjectApplication(store).goalEvents.readState(BOARD, "MIXED-OWNER");
-      const typed = state.requirements.find((item) => item.requirement_id === "B-TYPED");
-      const policy = state.requirements.find((item) => item.requirement_id === "imported-policy:MIXED-OWNER");
-      assert.deepEqual(typed?.bound_type_ids, [typeId]);
-      assert.equal(policy?.currently_satisfied, originallyBound);
-      if (!originallyBound) assert.equal(policy?.user_conclusion, null);
-    } finally {
-      store.close();
-      rmSync(directory, { recursive: true, force: true });
-    }
   }
 });

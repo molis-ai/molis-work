@@ -57,11 +57,11 @@ test('both purpose grants are atomic, background revocation deletes text without
  await assert.rejects(f.api.readGoalContexts(query),{code:'not_authorized'});
  const count=await f.host.withProject(f.ref,r=>r.store.db.prepare('SELECT COUNT(*) n FROM casebook_goal_contexts').get() as {n:number});assert.equal(count.n,0);
 });
-test('recovery refuses missing files, old/future schemas and missing unnumbered upgrades without changing them',async t=>{
+test('recovery refuses missing files and databases at another schema version without changing them',async t=>{
  const f=await fixture(t);const missing=molisWorkHostProjectReference({databasePath:join(f.dir,'absent.db'),boardId:'missing'});
  await assert.rejects(f.host.restoreExistingProject(missing),{code:'project_recovery_missing'});assert.equal(existsSync(missing.storage_key),false);
  const {LocalSqliteStorage}=await import('@molis-ai/molis-work-storage');
- for(const [sql,code] of [["DELETE FROM schema_migrations WHERE migration_id=36",'project_recovery_requires_migration'],["INSERT INTO schema_migrations VALUES(39,'future')",'project_recovery_unsupported_schema'],["ALTER TABLE goal_event_requirements DROP COLUMN source_json",'project_recovery_requires_migration']] as const){
+ for(const [sql,code] of [["PRAGMA user_version = 0",'project_recovery_unsupported_schema'],["PRAGMA user_version = 2",'project_recovery_unsupported_schema']] as const){
   const ref=molisWorkHostProjectReference({databasePath:join(f.dir,randomBytes(6).toString('hex')+'.db'),boardId:'bad'});
   await f.host.client(ref).invoke(initializeBoardCapability,{board_id:'bad',title:'坏夹具',idempotency_key:'init'});
   await f.host.withProject(ref,r=>r.store.db.exec(sql));await f.host.closeProject(ref);
@@ -74,22 +74,12 @@ test('legacy planning remains explicit delegation, not inferred from the current
  const f=await fixture(t);assert.throws(()=>f.api.readPlanningEvents({}),{code:'legacy_planning_provider_required'});
 });
 
-test('compatible Goal facts recover without Task retirement or deletion of retained Task data',async t=>{
+test('a current project recovers with its interaction facts intact and keeps recording',async t=>{
  const f=await fixture(t);
  await f.api.setInteractionAuthorization(f.request('join','join'));
  await f.create('before-recovery');const facts=(await f.read()).facts;
- await f.host.withProject(f.ref,r=>r.store.db.exec(`
-  DELETE FROM schema_migrations WHERE migration_id=38;
-  INSERT INTO schema_migrations VALUES(37,'fixture-history');
-  CREATE TABLE tasks(task_id TEXT PRIMARY KEY, title TEXT, frame_json TEXT);
-  INSERT INTO tasks VALUES('retained-task','保留的旧任务','{"blocks":["keep-me"]}');
- `));
  await f.host.closeProject(f.ref);
  await f.host.restoreExistingProject(f.ref);
  assert.deepEqual((await f.read()).facts,facts);
  await f.create('after-recovery');assert.ok((await f.read()).facts.length>facts.length);
- await f.host.withProject(f.ref,r=>{
-  assert.equal(r.store.db.prepare('SELECT migration_id FROM schema_migrations WHERE migration_id=38').get(),undefined);
-  assert.deepEqual(r.store.db.prepare('SELECT * FROM tasks').all(),[{task_id:'retained-task',title:'保留的旧任务',frame_json:'{"blocks":["keep-me"]}'}]);
- });
 });

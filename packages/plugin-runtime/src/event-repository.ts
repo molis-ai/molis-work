@@ -153,13 +153,9 @@ function toRecord(row: EventRow): PluginEventRecord {
   };
 }
 
-/**
- * Durable event log owned by Plugin Runtime. It stores coordination facts and
- * delivery cursors only; no Goal, Artifact or Provider table is read here.
- */
-export class SqlitePluginEventsRepository implements PluginEventsRepository {
-  constructor(private readonly db: PluginEventsDatabase) {
-    db.exec(`CREATE TABLE IF NOT EXISTS plugin_events (
+/** The plugin event tables, as one current schema; the host composes them into the project database baseline. */
+export const PLUGIN_EVENTS_SCHEMA_SQL = `
+    CREATE TABLE IF NOT EXISTS plugin_events (
       event_id TEXT PRIMARY KEY,
       board_id TEXT NOT NULL,
       sequence INTEGER NOT NULL,
@@ -170,11 +166,11 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
       payload_json TEXT NOT NULL,
       correlation_id TEXT,
       occurred_at TEXT NOT NULL
-    )`);
-    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS plugin_events_board_sequence ON plugin_events (board_id, sequence)");
-    db.exec(`CREATE INDEX IF NOT EXISTS plugin_events_board_type_source
-      ON plugin_events (board_id, event_type_id, type_version, source_plugin_id, sequence)`);
-    const cursorTable = `CREATE TABLE IF NOT EXISTS plugin_event_cursors (
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS plugin_events_board_sequence ON plugin_events (board_id, sequence);
+    CREATE INDEX IF NOT EXISTS plugin_events_board_type_source
+      ON plugin_events (board_id, event_type_id, type_version, source_plugin_id, sequence);
+    CREATE TABLE IF NOT EXISTS plugin_event_cursors (
       board_id TEXT NOT NULL,
       subscriber_plugin_id TEXT NOT NULL,
       subscriber_install_id TEXT NOT NULL,
@@ -189,25 +185,19 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
       last_error_code TEXT,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (board_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version)
-    )`;
-    const columns = db.prepare("PRAGMA table_info(plugin_event_cursors)").all() as Array<{ name: string }>;
-    if (columns.length && !columns.some(column => column.name === "subscriber_generation")) {
-      db.exec("SAVEPOINT plugin_event_cursor_identity");
-      try {
-        db.exec("ALTER TABLE plugin_event_cursors RENAME TO plugin_event_cursors_legacy");
-        db.exec(cursorTable);
-        db.exec(`INSERT INTO plugin_event_cursors SELECT board_id, subscriber_plugin_id, '', '', '', source_plugin_id, event_type_id, type_version,
-          delivered_sequence, state, retry_at, last_error_code, updated_at FROM plugin_event_cursors_legacy`);
-        db.exec("DROP TABLE plugin_event_cursors_legacy");
-        db.exec("RELEASE plugin_event_cursor_identity");
-      } catch (error) { db.exec("ROLLBACK TO plugin_event_cursor_identity"); db.exec("RELEASE plugin_event_cursor_identity"); throw error; }
-    } else db.exec(cursorTable);
-    if (columns.some(column => column.name === "subscriber_generation") && !columns.some(column => column.name === "revision")) {
-      db.exec("ALTER TABLE plugin_event_cursors ADD COLUMN revision TEXT NOT NULL DEFAULT ''");
-    }
-    db.exec(`CREATE TABLE IF NOT EXISTS plugin_event_resolutions (
+    );
+    CREATE TABLE IF NOT EXISTS plugin_event_resolutions (
       resolution_id TEXT PRIMARY KEY, board_id TEXT NOT NULL, subscriber_plugin_id TEXT NOT NULL, record_json TEXT NOT NULL
-    )`);
+    );
+`;
+
+/**
+ * Durable event log owned by Plugin Runtime. It stores coordination facts and
+ * delivery cursors only; no Goal, Artifact or Provider table is read here.
+ */
+export class SqlitePluginEventsRepository implements PluginEventsRepository {
+  constructor(private readonly db: PluginEventsDatabase) {
+    db.exec(PLUGIN_EVENTS_SCHEMA_SQL);
   }
 
   append(record: Omit<PluginEventRecord, "sequence">): PluginEventRecord {

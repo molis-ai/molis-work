@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
+import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
 
 // The immutable v35 dump predates the current demo project ID.
 const DEMO_BOARD_ID = "goalboard-v1-demo";
@@ -22,7 +22,7 @@ function listen(server: Server): Promise<string> {
 }
 
 test("public document timeline is bounded, keeps journal, and does not label self-verification as user", async () => {
-  const fixture = materializeGoalEventV35Fixture("legacy");
+  const fixture = materializeGoalEventHistory("legacy");
   const directory = fixture.directory;
   const databasePath = fixture.path;
   const store = new LocalProjectDatabase(databasePath);

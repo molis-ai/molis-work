@@ -14,7 +14,7 @@ SourcesModule.query 查询项目来源，commands.save/setEnabled/retire 等操�
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | SourcesModule、迁移与来源命令/查询 |
+| [src/index.ts](src/index.ts) | SourcesModule、表结构与来源命令/查询 |
 
 可对照现有调用方 [apps/local-host/src/feed-application.ts](../../apps/local-host/src/feed-application.ts) 阅读装配方式。
 

@@ -14,7 +14,7 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, type SqliteDatabase } from "./sqlite.js";
 
-export { SqliteSchema, LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
+export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
 export { LocalCatalogMetadata } from "./catalog-metadata.js";
 
 export { atomicWriteFileSync } from "./adapters/atomic-write.js";
@@ -32,6 +32,7 @@ export {
   describeSqliteSchema,
   openBaselineHomeSqlite,
   type SqliteBaseline,
+  type SqliteBaselineDatabase,
   type SqliteSchemaShape,
 } from "./sqlite-baseline.js";
 

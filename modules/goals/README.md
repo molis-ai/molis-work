@@ -21,7 +21,6 @@ Native Goals 通过 `GoalsModule.events` 创建意图、保存普通笔记、配
 | [src/planning](src/planning) | 规划与方法库 |
 | [src/event-facts.ts](src/event-facts.ts) | Goal 局部事件配置、上报与读取 |
 | [src/event-state.ts](src/event-state.ts) | 当前约定、状态、决定效果与收尾 |
-| [src/event-workflow-migration.ts](src/event-workflow-migration.ts) | 既有 Goal 一次升级到事件状态，保留原始历史 |
 | [src/planning/event-adoption.ts](src/planning/event-adoption.ts) | 规划来源版本解析、等价合并与 Goal 局部要求实例化 |
 
 可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
@@ -61,7 +60,7 @@ node --import tsx --test --test-concurrency=1 tests/goals-command-module.test.ts
   - 完成只经显式收尾：普通支持不自动完成，无关笔记不重开已完成的 Goal。
   - 关系图合法性、授权与事务在正式入口检查，页面和 MCP 只呈现结果。
   - 历史升级保留原始来源与完成记录；读取已存历史的结果合同接受历史取值。
-- 改动后必跑：`node scripts/run-tests.mjs tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goals-query-facts.test.ts tests/goals-storage-migration.test.ts tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs`
+- 改动后必跑：`node scripts/run-tests.mjs tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goals-query-facts.test.ts tests/goals-storage-schema.test.ts tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs`
 - 相关手册：[docs/modules/goals.md](../../docs/modules/goals.md)、[PRODUCT.md](../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

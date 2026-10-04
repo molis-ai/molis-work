@@ -45,7 +45,7 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
-import { ProjectRecoveryError } from "./project-migrations.js";
+import { ProjectRecoveryError } from "./project-database.js";
 import { LocalHost, LocalHostError, type LocalHostOptions } from "./local-host.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { LocalProjectDatabase } from "./project-database.js";

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DEMO_BOARD_ID, seedDemoBoard } from "../apps/local-host/src/demo-seed.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
-import { goalEventV35Kinds, materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
+import { goalEventHistoryKinds, materializeGoalEventHistory } from "./goal-event-history-fixture.js";
 
 /**
  * Reads echo what is stored. One historical record that an output contract no longer admits makes the whole read
@@ -52,9 +52,9 @@ async function probe(t: test.TestContext, databasePath: string, boardId: string)
   assert.ok(read.size > 10, "the directory must actually be read");
 }
 
-for (const kind of goalEventV35Kinds) {
+for (const kind of goalEventHistoryKinds) {
   test(`every parameterless read accepts the historical v35 ${kind} project`, { timeout: 60_000 }, async t => {
-    const fixture = materializeGoalEventV35Fixture(kind);
+    const fixture = materializeGoalEventHistory(kind);
     t.after(() => rmSync(fixture.directory, { recursive: true, force: true }));
     // The dump predates the Molis Work rename and keeps the board id it was recorded with.
     await probe(t, fixture.path, "goalboard-v1-demo");

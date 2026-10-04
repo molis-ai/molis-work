@@ -9,10 +9,15 @@ export interface PluginRuntimeDatabase {
   };
 }
 
+/** The installation records table, as one current schema; the host composes it into the project database baseline. */
+export const PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL = `
+    CREATE TABLE IF NOT EXISTS plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL);
+`;
+
 /** Installation records owned by Plugin Runtime; no Goal/Artifact/Provider tables are read here. */
 export class SqlitePluginRuntimeRepository implements PluginRuntimeRepository {
   constructor(private readonly db: PluginRuntimeDatabase) {
-    db.exec("CREATE TABLE IF NOT EXISTS plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL)");
+    db.exec(PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL);
   }
   get(installId: string): PluginInstanceRecord | null {
     const row = this.db.prepare("SELECT record_json FROM plugin_runtime_installs WHERE install_id = ?").get(installId) as { record_json: string } | undefined;

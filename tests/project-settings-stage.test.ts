@@ -170,7 +170,6 @@ test("workbench project gear opens a directory of categories and an exclusive se
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
   } as MolisWorkWebView);
@@ -275,7 +274,6 @@ test("project guidance keeps runtime notes on the title hint instead of the page
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
   } as MolisWorkWebView, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, []);

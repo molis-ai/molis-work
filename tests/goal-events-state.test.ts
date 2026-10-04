@@ -1084,7 +1084,7 @@ test("later rejection and human-requirement counter-evidence update current comp
   }
 });
 
-test("upgrading a non-empty v32 event table keeps judgments and readable current reports", () => {
+test("a saved report keeps its judgments and stays the current report across reopening", () => {
   const data = fixture();
   try {
     const created = data.app.goalEvents.createIntent({
@@ -1098,22 +1098,6 @@ test("upgrading a non-empty v32 event table keeps judgments and readable current
     const eventId = saved.events[0]!.event_id;
     const before = data.app.goalEvents.readState(BOARD, created.goal.goal_id).requirements[0]?.current_report;
     assert.equal(before?.verdict, "supports");
-    const db = data.store.db;
-    db.pragma("foreign_keys = OFF");
-    db.transaction(() => {
-      db.exec(`
-        CREATE TABLE goal_work_events_prior (
-          event_id TEXT PRIMARY KEY, board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-          goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-          kind TEXT NOT NULL CHECK(kind IN ('configuration','report')), type_id TEXT, type_version INTEGER, title TEXT NOT NULL,
-          payload_json TEXT NOT NULL, actor_id TEXT NOT NULL, actor_kind TEXT, received_at TEXT NOT NULL, journal_seq INTEGER NOT NULL, config_version INTEGER);
-        INSERT INTO goal_work_events_prior SELECT * FROM goal_work_events WHERE kind IN ('configuration','report');
-        DROP TABLE goal_work_events; ALTER TABLE goal_work_events_prior RENAME TO goal_work_events;
-        CREATE INDEX goal_work_events_goal_seq_idx ON goal_work_events(board_id, goal_id, journal_seq);
-        DELETE FROM schema_migrations WHERE migration_id = 33;
-      `);
-    }).immediate();
-    db.pragma("foreign_keys = ON");
     const prepared = data.app.goalEvents.readEvent(BOARD, created.goal.goal_id, eventId);
     assert.equal(prepared.judgments.length, 1);
     const databasePath = join(data.directory, "project.db");

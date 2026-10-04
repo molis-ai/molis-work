@@ -1,12 +1,11 @@
 /** MolisWork-owned interaction facts. No business text or arbitrary payload crosses this boundary. */
-import type { ProjectRecoveryDetails } from '../project-recovery-details.js';
 export const CONTRACT = 'molis-work.casebook.interaction-facts';
 export const VERSION = '2.0.0';
 export const PURPOSE = 'casebook.interaction-review.v1';
 export const CONTEXT_PURPOSE = 'casebook.goal-context.v1';
 export const RECEIPTS_PURPOSE = 'casebook.operation-receipts.v1';
 export class CasebookError extends Error {
-  constructor(readonly code: string, readonly details?: ProjectRecoveryDetails) { super(code); }
+  constructor(readonly code: string) { super(code); }
 }
 export type AuthorizationAction = 'join' | 'pause' | 'resume' | 'remove';
 export interface AuthorizationRequest {

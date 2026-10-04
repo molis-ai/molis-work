@@ -85,7 +85,6 @@ export {
 export {
   GovernanceEventDecisions,
   GOAL_EVENT_TRUSTED_DECISIONS_SQL,
-  migrateGoalEventTrustedDecisions,
 } from "./event-decisions.js";
 export {
   GovernanceRepository,
@@ -95,21 +94,9 @@ export {
 export {
   GovernanceRecordStore,
 } from "./record-store.js";
-export {
-  governanceLegacySupersessionMigrationRequired,
-  governanceNarrativeMigrationRequired,
-  migrateContractProposals,
-  migrateGoalTreeLegacySupersession,
-  migrateGoalTreeProposalDecisions,
-  migrateGoalTreeProposalNarrative,
-  migrateGoalTreeProposals,
-  migrateGoalTreeSubmittedSession,
-  migrateReviewContractRevisionColumn,
-  migrateRuntimeDialogueAuthority,
-} from "./migrations.js";
 export { assertGovernanceTransition, deriveGoalTreeProposalState } from "./state-machine.js";
 
-export { CLARIFICATION_SCHEMA_SQL, migrateClarificationDialogue } from "./clarification-schema.js";
+export { CLARIFICATION_SCHEMA_SQL } from "./clarification-schema.js";
 
 function governanceQueries(repository: GovernanceRepository): GovernanceQueryApi {
   return {

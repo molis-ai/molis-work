@@ -18,7 +18,6 @@ Host 通过 `EvidenceVerificationModule.query` 查询原始依据及更正，历
 | [src/repository.ts](src/repository.ts) | 历史依据、更正和关联查询 |
 | [src/verification.ts](src/verification.ts) | 历史查询服务与项目引用来源 |
 | [src/locator.ts](src/locator.ts) | 引用预检、项目文件读取与路径边界 |
-| [src/migrations.ts](src/migrations.ts) | 历史表结构升级 |
 
 可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
 

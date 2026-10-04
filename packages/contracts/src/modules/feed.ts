@@ -104,7 +104,7 @@ export interface FeedCommands {
     expectedRevision?: number,
   ): FeedItemRecord;
   restore(projectId: string, itemId: string, expectedRevision?: number): FeedItemRecord;
-  markRead(projectId: string, itemId: string, expectedItemType?: "feed" | "inbox_message"): FeedItemRecord;
+  markRead(projectId: string, itemId: string): FeedItemRecord;
   linkGoal(
     projectId: string,
     itemId: string,
@@ -143,31 +143,8 @@ export interface FeedApi {
   readonly events: FeedEvents;
 }
 
-export interface InfoflowContractMigrationReport {
-  receipt_id: string;
-  schema_version: number;
-  preflight: { feed_items: number; legacy_inbox_messages: number; inbox_entries: number };
-  postflight: {
-    feed_items: number;
-    legacy_inbox_messages: number;
-    inbox_entries: number;
-    orphan_feed_item_entries: number;
-  };
-  rollback_strategy: "sqlite_immediate_transaction";
-  applied_at: string;
-}
-
 export interface FeedModuleDependencies {
   attention: AttentionApi;
-}
-
-export interface FeedContractMigrationReceiptRecord {
-  receipt_id: string;
-  schema_version: number;
-  preflight: Record<string, number>;
-  postflight: Record<string, number>;
-  rollback_strategy: "sqlite_immediate_transaction";
-  applied_at: string;
 }
 
 export class FeedError extends Error {

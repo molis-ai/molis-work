@@ -1,7 +1,3 @@
-import type { GoalLifecycleMigrationDatabase } from "./migrations.js";
-
-export const GOAL_EVENT_FACTS_MIGRATION_ID = 32;
-
 export const GOAL_EVENT_FACTS_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS goal_event_configs (
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
@@ -96,47 +92,3 @@ export const GOAL_EVENT_FACTS_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS goal_work_event_judgments_requirement_idx
     ON goal_work_event_judgments(requirement_id, event_id);
 `;
-
-export function ensureGoalEventRequirementSourceColumn(db: {
-  prepare(sql: string): { all(): unknown[] };
-  exec(sql: string): unknown;
-}): void {
-  const columns = db.prepare("PRAGMA table_info(goal_event_requirements)").all() as Array<{ name: string }>;
-  if (!columns.length) return;
-  if (!columns.some((column) => column.name === "source_json")) {
-    db.exec("ALTER TABLE goal_event_requirements ADD COLUMN source_json TEXT");
-  }
-}
-
-export function ensureGoalEventRequirementCurrentColumns(db: {
-  prepare(sql: string): { all(): unknown[] };
-  exec(sql: string): unknown;
-}): void {
-  const columns = db.prepare("PRAGMA table_info(goal_event_requirements)").all() as Array<{ name: string }>;
-  if (!columns.length) return;
-  if (!columns.some((column) => column.name === "human_decision_required")) {
-    db.exec("ALTER TABLE goal_event_requirements ADD COLUMN human_decision_required INTEGER NOT NULL DEFAULT 0");
-  }
-  if (!columns.some((column) => column.name === "current_status")) {
-    db.exec("ALTER TABLE goal_event_requirements ADD COLUMN current_status TEXT NOT NULL DEFAULT 'active'");
-  }
-  if (!columns.some((column) => column.name === "revision")) {
-    db.exec("ALTER TABLE goal_event_requirements ADD COLUMN revision INTEGER NOT NULL DEFAULT 1");
-  }
-  if (!columns.some((column) => column.name === "support_valid_after_seq")) {
-    db.exec("ALTER TABLE goal_event_requirements ADD COLUMN support_valid_after_seq INTEGER NOT NULL DEFAULT 0");
-  }
-}
-
-export function migrateGoalEventFactsSchema(
-  db: GoalLifecycleMigrationDatabase,
-  now: () => Date = () => new Date(),
-): void {
-  db.transaction(() => {
-    db.exec(GOAL_EVENT_FACTS_SCHEMA_SQL);
-    ensureGoalEventRequirementSourceColumn(db);
-    ensureGoalEventRequirementCurrentColumns(db);
-    db.prepare("INSERT OR IGNORE INTO schema_migrations (migration_id, applied_at) VALUES (?, ?)")
-      .run(GOAL_EVENT_FACTS_MIGRATION_ID, now().toISOString());
-  }).immediate();
-}

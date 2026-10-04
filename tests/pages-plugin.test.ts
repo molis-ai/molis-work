@@ -268,7 +268,6 @@ function emptyView(): MolisWorkWebView {
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
   } as MolisWorkWebView;

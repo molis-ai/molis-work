@@ -199,15 +199,15 @@ function addProjectFeedItem(
     });
     store.db.prepare(`
       INSERT INTO feed_items (
-        board_id, item_id, source_id, item_type, kind, title, summary, body,
+        board_id, item_id, source_id, kind, title, summary, body,
         source_kind, source_label, external_id, url, origin_status, priority,
-        tags_json, author, disposition, linked_goal_id, revision, source_created_at,
+        tags_json, author, disposition, revision, source_created_at,
         source_updated_at, imported_at, updated_at
       ) VALUES (
-        @board_id, @item_id, @source_id, 'feed', @kind, @title,
+        @board_id, @item_id, @source_id, @kind, @title,
         '验证升格、绑定和终端上下文', '正文里包含需要核对的事实\nAuthorization: Bearer runtime-secret-token', @source_kind, @source_label,
         @external_id, 'https://example.com/feed-item?access_token=url-secret-value', 'inbox', 'high', '["rss"]',
-        '测试作者', 'inbox', NULL, 1, @now, @now, @now, @now
+        '测试作者', 'inbox', 1, @now, @now, @now, @now
       )
     `).run({
       board_id: project.board_id,
@@ -1268,14 +1268,14 @@ test("Feed Item actions create one bound Goal and expose its source context to T
       assert.equal(receipt?.source_ref, "feed-item:feed-item-test");
       assert.equal(receipt?.state, "confirmed");
       const item = store.db.prepare(`
-        SELECT disposition, linked_goal_id, read_at FROM feed_items WHERE board_id = ? AND item_id = ?
+        SELECT disposition, read_at FROM feed_items WHERE board_id = ? AND item_id = ?
       `).get(fixture.project.board_id, "feed-item-test") as {
         disposition: string;
-        linked_goal_id: string;
         read_at: string | null;
       };
       assert.equal(item.disposition, "processing");
-      assert.equal(item.linked_goal_id, null, "Feed 不再保存第二份关联事实");
+      assert.equal((store.db.prepare("SELECT name FROM pragma_table_info('feed_items')").all() as Array<{ name: string }>)
+        .some((column) => column.name === "linked_goal_id"), false, "Feed 不再保存第二份关联事实");
       assert.equal(createLocalFeedApplication(store.db).findLinkedGoalItem(fixture.project.board_id, startedBody.goal_id)?.item_id, "feed-item-test");
       assert.equal(item.read_at, readBody.item.read_at);
     } finally {
@@ -1491,11 +1491,10 @@ test("Inbox Message save and start survives a Web restart without duplicating it
   const store = new LocalProjectDatabase(fixture.project.database_path);
   try {
     const item = store.db.prepare(`
-      SELECT disposition, linked_goal_id, read_at FROM feed_items
+      SELECT disposition, read_at FROM feed_items
       WHERE board_id = ? AND item_id = ?
     `).get(fixture.project.board_id, itemId) as {
       disposition: string;
-      linked_goal_id: string;
       read_at: string | null;
     };
     const goal = store.db.prepare(`
@@ -1506,7 +1505,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     const materialCount = store.db.prepare(`
       SELECT COUNT(*) AS count FROM feed_materials WHERE board_id = ? AND item_id = ?
     `).get(fixture.project.board_id, itemId) as { count: number };
-    assert.deepEqual(item, { disposition: "processing", linked_goal_id: null, read_at: null });
+    assert.deepEqual(item, { disposition: "processing", read_at: null });
     assert.equal(createLocalFeedApplication(store.db).findLinkedGoalItem(fixture.project.board_id, goalId, itemId)?.linked_goal_id, goalId);
     assert.equal(goal.title, "处理 Feed Item：需要处理的 Inbox Message");
     assert.equal(bindings.length, 1);

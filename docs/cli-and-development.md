@@ -72,8 +72,8 @@ skills/goal-advance/         Runtime 工作协议
 skills/molis-plugin-dev/     插件开发 Skill（随安装发布，不自动挂 Runtime）
 tests/goal-events-state.test.ts
                              当前要求、决定、完成与继续的状态转换
-tests/goal-event-migration.test.ts
-                             真实旧库升级、原历史和批准的保留
+tests/goal-event-imported-requirements.test.ts
+                             导入的要求、原历史和批准的保留
 tests/goal-tree-event-flow.test.ts
                              有限树提案、用户决定、图与事务边界
 tests/command-entry-chain.test.ts

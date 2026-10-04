@@ -256,7 +256,6 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
     enabled_plugins: ["goals", "inbox", "schedule", "feed", "artifacts"],

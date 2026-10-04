@@ -77,23 +77,13 @@ const INBOX_ENTRIES_COLUMNS = `
       UNIQUE (board_id, subject_type, subject_id, reason)
 `;
 
-function inboxEntriesTableSql(tableName: string, ifNotExists: boolean): string {
-  return `CREATE TABLE ${ifNotExists ? "IF NOT EXISTS " : ""}${tableName} (${INBOX_ENTRIES_COLUMNS});`;
-}
-
-function inboxEntriesIndexesSql(): string {
-  return `
+/** The Inbox tables, as one current schema; the host composes them into the project database baseline. */
+export const ATTENTION_SCHEMA_SQL = `
+    CREATE TABLE IF NOT EXISTS inbox_entries (${INBOX_ENTRIES_COLUMNS});
     CREATE INDEX IF NOT EXISTS inbox_entries_board_status_idx
       ON inbox_entries(board_id, status, updated_at DESC, entry_id);
     CREATE INDEX IF NOT EXISTS inbox_entries_board_subject_idx
       ON inbox_entries(board_id, subject_type, subject_id);
-  `;
-}
-
-export function migrateAttention(db: AttentionSqliteDatabase): void {
-  db.exec(`
-    ${inboxEntriesTableSql("inbox_entries", true)}
-    ${inboxEntriesIndexesSql()}
 
     CREATE TABLE IF NOT EXISTS attention_events (
       event_id TEXT PRIMARY KEY,
@@ -106,30 +96,7 @@ export function migrateAttention(db: AttentionSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS attention_events_project_entry_idx
       ON attention_events(project_id, entry_id, at, event_id);
-  `);
-  rebuildInboxEntriesReasonCheck(db);
-}
-
-function rebuildInboxEntriesReasonCheck(db: AttentionSqliteDatabase): void {
-  const row = db.prepare(
-    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'inbox_entries'",
-  ).get() as { sql?: string } | undefined;
-  if (!row?.sql || row.sql.includes("artifact_out_failed")) return;
-  db.exec(`
-    ${inboxEntriesTableSql("inbox_entries__reason_v2", false)}
-    INSERT INTO inbox_entries__reason_v2 (
-      board_id, entry_id, subject_type, subject_id, reason, status,
-      detail_json, revision, created_at, updated_at, completed_at
-    )
-    SELECT
-      board_id, entry_id, subject_type, subject_id, reason, status,
-      detail_json, revision, created_at, updated_at, completed_at
-    FROM inbox_entries;
-    DROP TABLE inbox_entries;
-    ALTER TABLE inbox_entries__reason_v2 RENAME TO inbox_entries;
-    ${inboxEntriesIndexesSql()}
-  `);
-}
+`;
 
 export class AttentionModule implements AttentionApi {
   readonly query = {
@@ -186,7 +153,7 @@ export class AttentionModule implements AttentionApi {
     private readonly subjects: AttentionSubjectResolver,
     private readonly options: AttentionModuleOptions = {},
   ) {
-    migrateAttention(db);
+    db.exec(ATTENTION_SCHEMA_SQL);
   }
 
   private list(projectId: string): AttentionEntryRecord[] {

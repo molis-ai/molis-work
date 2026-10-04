@@ -52,7 +52,7 @@ export {
   FeedOutRuleStore,
   feedCaptureArtifactId,
   feedOutRuleMatches,
-  migrateFeedOutRules,
+  FEED_OUT_RULES_SCHEMA_SQL,
   parseFeedOutRulePatch,
   parseFeedOutRuleWrite,
 } from "./out-rules.js";

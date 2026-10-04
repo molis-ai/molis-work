@@ -17,7 +17,6 @@ import {
 } from "@molis-ai/molis-work-module-attention-resumption";
 import {
   FeedModule,
-  FeedReceiptStore,
 } from "@molis-ai/molis-work-module-feed";
 
 import {
@@ -28,7 +27,7 @@ import {
   deleteListenerSourceState,
   getListenerRunByOperationId,
   listListenerRuns,
-  migrateListenerHost,
+  LISTENER_HOST_SCHEMA_SQL,
   readListenerCheckpoint,
   recoverInterruptedListenerRuns,
   saveListenerRun,
@@ -50,12 +49,9 @@ export function createLocalFeedApplication(
   options: LocalFeedApplicationOptions = {},
 ): FeedApplication {
   const sources = new SourcesModule(db);
-  const receipts = new FeedReceiptStore(db);
   const journal = new LocalSqliteJournal(db);
-  // Pre-reorg projects already applied Feed migrations 22–29, but those
-  // releases did not have Listener storage. Initialize its owner before
-  // recovery or cursor reads; the migration preserves existing checkpoints.
-  migrateListenerHost(db);
+  // Listener Host's storage is plain functions, so it has no constructor to create its tables; the other owners do.
+  db.exec(LISTENER_HOST_SCHEMA_SQL);
   const goals = createGoalReadServices(db).query;
   let feedItems!: FeedModule;
   let inboxCreated: (entry: { board_id: string; entry_id: string }) => void = () => {};
@@ -112,7 +108,7 @@ export function createLocalFeedApplication(
     }),
   });
   return new FeedApplication({
-    sources, feed: feedItems, attention, receipts, appendEvent,
+    sources, feed: feedItems, attention, appendEvent,
     subscribeInboxCreated: listener => { inboxCreated = listener; },
     outRules: new FeedOutRuleStore(db),
     artifacts: options.artifacts ?? {

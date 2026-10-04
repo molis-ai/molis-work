@@ -31,13 +31,11 @@ export class FeedApplication {
     const feedItems = this.ports.feed.query.list(boardId).map(toLegacyFeedItem);
     const inboxEntries = this.ports.attention.query.list(boardId).map(toLegacyAttentionEntry);
     const runs = this.ports.listener.listRuns(boardId).map(compatibleRun);
-    const contractMigrations = this.ports.receipts.listContractMigrations();
     return {
       sources,
       feed_items: feedItems,
       inbox_entries: inboxEntries,
       runs,
-      contract_migrations: contractMigrations,
       out_rules: this.ports.outRules?.list(boardId) ?? [],
     };
   }
@@ -424,7 +422,7 @@ export class FeedApplication {
 
   markRead(boardId: string, itemId: string): FeedItemRecord {
     return toLegacyFeedItem(this.callFeed(
-      () => this.ports.feed.commands.markRead(boardId, itemId, "feed"),
+      () => this.ports.feed.commands.markRead(boardId, itemId),
     ));
   }
 

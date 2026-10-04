@@ -17,16 +17,6 @@ export const GOAL_IMPACTS_SCHEMA_SQL = `
   CREATE INDEX impacts_surface_idx ON impact_bindings(board_id, surface, state);
 `;
 
-export function migrateGoalImpactHistory(db: GoalsSqliteDatabase, at: string): void {
-  db.transaction(() => {
-    for (const column of ["updated_at", "deactivated_at", "deactivation_reason"]) {
-      db.prepare(`ALTER TABLE impact_bindings ADD COLUMN ${column} TEXT`).run();
-    }
-    db.prepare("UPDATE impact_bindings SET updated_at = created_at WHERE updated_at IS NULL").run();
-    db.prepare("INSERT INTO schema_migrations (migration_id, applied_at) VALUES (5, ?)").run(at);
-  }).immediate();
-}
-
 export class GoalImpactRepository {
   constructor(private readonly db: GoalsSqliteDatabase) {}
 

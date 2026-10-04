@@ -1,4 +1,10 @@
 import type { DatabaseSync } from "node:sqlite";
+
+/** What a baseline needs from a connection: `node:sqlite` and better-sqlite3 both fit. */
+export interface SqliteBaselineDatabase {
+  exec(sql: string): unknown;
+  prepare(sql: string): { get(...params: unknown[]): unknown; all(...params: unknown[]): unknown[] };
+}
 import { homeSqlitePath, openHomeSqliteDatabase } from "./home-sqlite.js";
 
 /** A store on disk at another schema version than the one this build knows (repository-anti-corruption §4.1). */
@@ -22,7 +28,7 @@ export interface SqliteBaseline {
  * `version` in one transaction; the same version is left as it is; anything else — another version, or tables without a
  * version — is refused with the path and both versions, never upgraded in place.
  */
-export function applySqliteBaseline(db: DatabaseSync, path: string, baseline: SqliteBaseline): void {
+export function applySqliteBaseline(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline): void {
   if (!Number.isInteger(baseline.version) || baseline.version < 1) throw new Error("基线版本必须是正整数");
   const found = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
   if (found === baseline.version) return;
@@ -82,7 +88,7 @@ function checkClauses(sql: string): string[] {
  * The structure of a database, independent of how its statements were written or in which order columns were once
  * added (repository-anti-corruption §4.1): used to tell whether a store on disk already is the current baseline.
  */
-export function describeSqliteSchema(db: DatabaseSync): SqliteSchemaShape {
+export function describeSqliteSchema(db: SqliteBaselineDatabase): SqliteSchemaShape {
   const tables = db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
     .all() as Array<{ name: string; sql: string }>;
   const shape: SqliteSchemaShape = { tables: {} };

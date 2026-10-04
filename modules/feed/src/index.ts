@@ -13,7 +13,6 @@ import type {
   FeedItemDisposition,
   FeedItemRecord,
   FeedMaterialRecord,
-  InfoflowContractMigrationReport,
   IngestFeedItemInput,
 } from "@molis-ai/molis-work-contracts/modules/feed";
 
@@ -28,8 +27,6 @@ export const packageDescriptor = {
   capabilities: ["feed.query.v1", "feed.command.v1"],
 } as const;
 
-export const INFOFLOW_SCHEMA_MIGRATION_ID = 29 as const;
-
 type Row = Record<string, unknown>;
 type Statement = {
   all(...params: unknown[]): unknown[];
@@ -39,7 +36,6 @@ type Statement = {
 export interface FeedSqliteDatabase {
   exec(sql: string): void;
   prepare(sql: string): Statement;
-  pragma(sql: string): unknown;
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
@@ -60,15 +56,14 @@ export interface FeedModuleOptions {
 
 export { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
 
-export function migrateFeed(db: FeedSqliteDatabase): void {
-  db.exec(`
+/** The Feed tables, as one current schema; the host composes them into the project database baseline. */
+export const FEED_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_items (
       board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
       item_id TEXT NOT NULL,
       source_id TEXT,
       signal_id TEXT,
       signal_revision INTEGER,
-      item_type TEXT NOT NULL CHECK (item_type IN ('inbox_message', 'feed')),
       kind TEXT NOT NULL,
       title TEXT NOT NULL,
       summary TEXT NOT NULL DEFAULT '',
@@ -82,7 +77,6 @@ export function migrateFeed(db: FeedSqliteDatabase): void {
       tags_json TEXT NOT NULL DEFAULT '[]',
       author TEXT,
       disposition TEXT NOT NULL CHECK (disposition IN ('inbox', 'saved', 'promoted', 'processing', 'archived')),
-      linked_goal_id TEXT,
       read_at TEXT,
       revision INTEGER NOT NULL DEFAULT 1,
       source_created_at TEXT NOT NULL,
@@ -91,10 +85,8 @@ export function migrateFeed(db: FeedSqliteDatabase): void {
       updated_at TEXT NOT NULL,
       PRIMARY KEY (board_id, item_id)
     );
-    CREATE INDEX IF NOT EXISTS feed_items_board_type_updated_idx
-      ON feed_items(board_id, item_type, disposition, source_updated_at DESC);
-    CREATE INDEX IF NOT EXISTS feed_items_board_goal_idx
-      ON feed_items(board_id, linked_goal_id);
+    CREATE INDEX IF NOT EXISTS feed_items_board_updated_idx
+      ON feed_items(board_id, disposition, source_updated_at DESC);
     CREATE UNIQUE INDEX IF NOT EXISTS feed_items_board_source_external_idx
       ON feed_items(board_id, source_id, external_id)
       WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
@@ -134,28 +126,9 @@ export function migrateFeed(db: FeedSqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS feed_item_events_project_item_idx
       ON feed_item_events(project_id, item_id, at, event_id);
 
-    CREATE TABLE IF NOT EXISTS feed_contract_migration_receipts (
-      receipt_id TEXT PRIMARY KEY,
-      schema_version INTEGER NOT NULL,
-      preflight_json TEXT NOT NULL,
-      postflight_json TEXT NOT NULL,
-      rollback_strategy TEXT NOT NULL CHECK (rollback_strategy = 'sqlite_immediate_transaction'),
-      applied_at TEXT NOT NULL
-    );
-  `);
-  ensureColumn(db, "feed_materials", "content_ref", "TEXT");
-  ensureColumn(db, "feed_materials", "content_available", "INTEGER NOT NULL DEFAULT 0");
-  ensureColumn(db, "feed_materials", "content_type", "TEXT");
-  ensureColumn(db, "feed_materials", "character_count", "INTEGER");
-  ensureColumn(db, "feed_materials", "captured_at", "TEXT");
-  ensureColumn(db, "feed_items", "read_at", "TEXT");
-  ensureColumn(db, "feed_items", "signal_id", "TEXT");
-  ensureColumn(db, "feed_items", "signal_revision", "INTEGER");
-  db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS feed_items_board_signal_idx
-      ON feed_items(board_id, signal_id) WHERE signal_id IS NOT NULL
-  `);
-}
+      ON feed_items(board_id, signal_id) WHERE signal_id IS NOT NULL;
+`;
 
 export class FeedModule implements FeedApi {
   private readonly goalLinks: FeedGoalLinks;
@@ -179,11 +152,7 @@ export class FeedModule implements FeedApi {
     ) => this.setDisposition(projectId, itemId, disposition, expectedRevision),
     restore: (projectId: string, itemId: string, expectedRevision?: number) =>
       this.restore(projectId, itemId, expectedRevision),
-    markRead: (
-      projectId: string,
-      itemId: string,
-      expectedItemType?: "feed" | "inbox_message",
-    ) => this.markRead(projectId, itemId, expectedItemType),
+    markRead: (projectId: string, itemId: string) => this.markRead(projectId, itemId),
     linkGoal: (
       projectId: string,
       itemId: string,
@@ -202,21 +171,8 @@ export class FeedModule implements FeedApi {
     private readonly attention: AttentionApi,
     private readonly options: FeedModuleOptions,
   ) {
-    migrateFeed(db);
+    db.exec(FEED_SCHEMA_SQL);
     this.goalLinks = new FeedGoalLinks(options.ledger);
-    this.migrateGoalLinks();
-  }
-
-  private migrateGoalLinks(): void {
-    this.db.transaction(() => {
-      const rows = this.db.prepare(`SELECT board_id, item_id, linked_goal_id, updated_at
-        FROM feed_items WHERE linked_goal_id IS NOT NULL`).all() as Row[];
-      for (const row of rows) {
-        this.goalLinks.set(text(row.board_id), text(row.item_id), text(row.linked_goal_id), text(row.updated_at), true);
-        this.db.prepare("UPDATE feed_items SET linked_goal_id = NULL WHERE board_id = ? AND item_id = ?")
-          .run(row.board_id, row.item_id);
-      }
-    }).immediate();
   }
 
   private list(projectId: string): FeedItemRecord[] {
@@ -344,12 +300,12 @@ export class FeedModule implements FeedApi {
       const itemId = `feeditem-${randomUUID()}`;
       this.db.prepare(`
         INSERT INTO feed_items (
-          board_id, item_id, source_id, signal_id, signal_revision, item_type,
+          board_id, item_id, source_id, signal_id, signal_revision,
           kind, title, summary, body, source_kind, source_label, external_id,
           url, origin_status, priority, tags_json, author, disposition,
-          linked_goal_id, read_at, revision, source_created_at, source_updated_at,
+          read_at, revision, source_created_at, source_updated_at,
           imported_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'feed', ?, ?, ?, ?, ?, ?, ?, ?, 'inbox', ?, ?, ?, 'inbox', NULL, NULL, 1, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'inbox', ?, ?, ?, 'inbox', NULL, 1, ?, ?, ?, ?)
       `).run(
         input.project_id,
         itemId,
@@ -534,19 +490,9 @@ export class FeedModule implements FeedApi {
     }).immediate();
   }
 
-  private markRead(
-    projectId: string,
-    itemId: string,
-    expectedItemType: "feed" | "inbox_message" = "feed",
-  ): FeedItemRecord {
+  private markRead(projectId: string, itemId: string): FeedItemRecord {
     return this.db.transaction(() => {
       const current = this.get(projectId, itemId);
-      if (expectedItemType !== "feed") {
-        throw new FeedError(
-          "feed_read_not_supported",
-          "Inbox Message 使用处理状态，不记录已读状态",
-        );
-      }
       if (current.read_at) return current;
       const at = this.now().toISOString();
       this.db.prepare(`
@@ -695,144 +641,6 @@ export class FeedModule implements FeedApi {
   }
 }
 
-/**
- * Compatibility migration from the former stored inbox_message type. Feed owns
- * the old Feed rows; Attention is updated only through its public migration API.
- */
-export function migrateInfoflowContractV2(
-  db: FeedSqliteDatabase,
-  attention: AttentionApi,
-  now: () => Date = () => new Date(),
-): InfoflowContractMigrationReport {
-  migrateFeed(db);
-  const legacyRows = db.prepare(`
-    SELECT board_id, item_id, source_kind, disposition, imported_at, updated_at
-    FROM feed_items
-    WHERE item_type = 'inbox_message'
-    ORDER BY board_id, item_id
-  `).all() as Array<{
-    board_id: string;
-    item_id: string;
-    source_kind: string;
-    disposition: FeedItemDisposition;
-    imported_at: string;
-    updated_at: string;
-  }>;
-  const preflight = {
-    feed_items: scalarCount(db, "SELECT COUNT(*) AS count FROM feed_items"),
-    legacy_inbox_messages: legacyRows.length,
-    inbox_entries: attention.migrations.countEntries(),
-  };
-  for (const row of legacyRows) {
-    const reason = row.source_kind === "github" || row.source_kind === "gmail"
-      ? "source_rule" as const
-      : "manual" as const;
-    const status: AttentionStatus = row.disposition === "processing"
-      ? "in_progress"
-      : row.disposition === "archived"
-        ? "dismissed"
-        : row.disposition === "saved" || row.disposition === "promoted"
-          ? "done"
-          : "open";
-    attention.migrations.importLegacy({
-      project_id: row.board_id,
-      entry_id: `inboxentry-legacy-${row.item_id}`,
-      subject_type: "feed_item",
-      subject_id: row.item_id,
-      reason,
-      status,
-      detail: { migrated_from: "feed_items.item_type", migration_id: INFOFLOW_SCHEMA_MIGRATION_ID },
-      revision: 1,
-      created_at: row.imported_at,
-      updated_at: row.updated_at,
-      completed_at: status === "done" || status === "dismissed" ? row.updated_at : null,
-    });
-  }
-  db.prepare("UPDATE feed_items SET item_type = 'feed' WHERE item_type = 'inbox_message'").run();
-  db.exec("DROP INDEX IF EXISTS feed_items_board_external_idx");
-  db.exec(`
-    CREATE UNIQUE INDEX IF NOT EXISTS feed_items_board_source_external_idx
-    ON feed_items(board_id, source_id, external_id)
-    WHERE source_id IS NOT NULL AND external_id IS NOT NULL
-  `);
-
-  for (const row of legacyRows) {
-    if (attention.query.findForSubject(row.board_id, "feed_item", row.item_id).length === 0) {
-      throw new Error(`feed_contract_migration_missing_inbox_reference:${row.item_id}`);
-    }
-  }
-  const orphanFeedItemEntries = attention.migrations.listFeedItemReferences()
-    .filter((entry) => !existsFeedItem(db, entry.project_id, entry.subject_id)).length;
-  const postflight = {
-    feed_items: scalarCount(db, "SELECT COUNT(*) AS count FROM feed_items"),
-    legacy_inbox_messages: scalarCount(
-      db,
-      "SELECT COUNT(*) AS count FROM feed_items WHERE item_type = 'inbox_message'",
-    ),
-    inbox_entries: attention.migrations.countEntries(),
-    orphan_feed_item_entries: orphanFeedItemEntries,
-  };
-  if (postflight.feed_items !== preflight.feed_items) {
-    throw new Error("feed_contract_migration_item_count_mismatch");
-  }
-  if (postflight.legacy_inbox_messages !== 0) {
-    throw new Error("feed_contract_migration_legacy_rows_remain");
-  }
-  if (postflight.orphan_feed_item_entries !== 0) {
-    throw new Error("feed_contract_migration_orphan_inbox_reference");
-  }
-  const report: InfoflowContractMigrationReport = {
-    receipt_id: "infoflow-contract-v1",
-    schema_version: INFOFLOW_SCHEMA_MIGRATION_ID,
-    preflight,
-    postflight,
-    rollback_strategy: "sqlite_immediate_transaction",
-    applied_at: now().toISOString(),
-  };
-  db.prepare(`
-    INSERT INTO feed_contract_migration_receipts (
-      receipt_id, schema_version, preflight_json, postflight_json,
-      rollback_strategy, applied_at
-    ) VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(receipt_id) DO UPDATE SET
-      schema_version = excluded.schema_version,
-      preflight_json = excluded.preflight_json,
-      postflight_json = excluded.postflight_json,
-      rollback_strategy = excluded.rollback_strategy,
-      applied_at = excluded.applied_at
-  `).run(
-    report.receipt_id,
-    report.schema_version,
-    JSON.stringify(report.preflight),
-    JSON.stringify(report.postflight),
-    report.rollback_strategy,
-    report.applied_at,
-  );
-  return report;
-}
-
-function ensureColumn(
-  db: FeedSqliteDatabase,
-  table: string,
-  column: string,
-  definition: string,
-): void {
-  const columns = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
-  if (!columns.some((entry) => entry.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
-}
-
-function scalarCount(db: FeedSqliteDatabase, sql: string): number {
-  return Number((db.prepare(sql).get() as { count?: number } | undefined)?.count ?? 0);
-}
-
-function existsFeedItem(db: FeedSqliteDatabase, projectId: string, itemId: string): boolean {
-  return Boolean(db.prepare(
-    "SELECT 1 FROM feed_items WHERE board_id = ? AND item_id = ?",
-  ).get(projectId, itemId));
-}
-
 function normalizeTitle(value: string): string {
   return value.trim().slice(0, 300) || "未命名更新";
 }
@@ -915,7 +723,6 @@ function json<T>(value: unknown, fallback: T): T {
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
-export { FeedReceiptStore } from "./contract-receipts.js";
 
 // Compatibility names for the existing public Feed API; Storage owns the only implementation.
 export { type EvidenceContentStore as FeedEvidenceContentStore, createEvidenceContentStore as createFeedEvidenceContentStore } from "@molis-ai/molis-work-storage";

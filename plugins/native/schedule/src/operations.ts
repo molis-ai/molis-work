@@ -41,16 +41,17 @@ export interface ScheduledOperationExecutor {
   invoke(control: ScheduleWakeupControl): Promise<ScheduledOperationOutcome>;
 }
 
-export function migrateScheduledOperations(db: ScheduleTaskDatabase): void {
-  db.exec(`CREATE TABLE IF NOT EXISTS schedule_operations (
+/** The scheduled operation tables, as one current schema; the host composes them into the project database baseline. */
+export const SCHEDULED_OPERATIONS_SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS schedule_operations (
     board_id TEXT NOT NULL, id TEXT NOT NULL, job_id TEXT NOT NULL UNIQUE, record_json TEXT NOT NULL,
     PRIMARY KEY (board_id, id)
   );
   CREATE TABLE IF NOT EXISTS schedule_operation_occurrences (
     board_id TEXT NOT NULL, operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
     PRIMARY KEY (board_id, operation_id, due_at)
-  );`);
-}
+  );
+`;
 const decode = <T>(row: unknown): T | null => row ? JSON.parse((row as { record_json: string }).record_json) as T : null;
 export function getScheduledOperation(db: ScheduleTaskDatabase, boardId: string, id: string): ScheduledOperation | null {
   return decode(db.prepare("SELECT record_json FROM schedule_operations WHERE board_id = ? AND id = ?").get(boardId, id));
@@ -92,7 +93,7 @@ export function createScheduledOperations(options: {
   link(pluginId: string): string; now?(): number;
 }) {
   const { db, schedule, boardId } = options;
-  migrateScheduledOperations(db);
+  db.exec(SCHEDULED_OPERATIONS_SCHEMA_SQL);
   const describe = (identity: ScheduledOperationIdentity) => {
     if (identity.projectId !== options.projectId || !identity.installationId || !identity.pluginId) throw new Error("定时操作缺少当前项目的插件安装身份");
     const current = options.describe(identity);

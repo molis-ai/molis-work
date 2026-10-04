@@ -126,6 +126,7 @@ export const WORKFLOWS_EN: Record<string, string> = {
   "人看完这一步，自己决定交不交、交什么过去。": "A person reviews this step and decides whether and what to hand over.",
   "工作流程交接": "Workflow handoff",
   "其余 {count} 个插件暂不能串进流程": "{count} other plugins can't join a workflow yet",
+  "{plugins} 只能作为第一站": "{plugins} can only be the first station",
   "Inbox · 工作流程": "Inbox · Workflow",
   "工作流程交过来": "Handed over by a workflow",
   "{plugin} · 第 {n} 站": "{plugin} · station {n}",

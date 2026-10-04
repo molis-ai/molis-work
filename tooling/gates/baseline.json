@@ -175,7 +175,7 @@
     "function plugins/native/work/src/terminal/panels.ts#createTerminalPanels": 365,
     "function plugins/native/work/src/ui/render.ts#renderWorkSessionSurface": 350,
     "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 268,
-    "file plugins/native/workflows/src/client.ts": 1398,
+    "file plugins/native/workflows/src/client.ts": 1387,
     "file plugins/official-integrations/catalog/src/catalog.ts": 1015,
     "function plugins/official-integrations/gmail/src/oauth-pending.ts#createGmailPendingSessions": 215,
     "function plugins/official-integrations/gmail/src/oauth-token-lifecycle.ts#createGmailTokenLifecycle": 213,

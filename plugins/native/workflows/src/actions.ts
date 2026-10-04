@@ -98,6 +98,8 @@ export interface WorkflowStationInfo {
   readonly reason?: string;
   /** Starting a run here can begin from an empty item instead of an existing one. */
   readonly can_start_blank: boolean;
+  /** False for a station that only starts a run: it stands first and is never handed content. */
+  readonly receives?: boolean;
 }
 
 /** Cross-plugin content, bound per call to the caller's own authority. */
@@ -223,12 +225,12 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     if (problem) throw new WorkflowError("workflows.not_ready", `动作「${station.action.title}」的字段映射需要调整：${problem}`);
     return choice;
   };
-  const resolveStation = async (reach: Reach, content: WorkflowContentPorts, station: WorkflowStation) =>
-    isActionStation(station) ? (await resolveAction(reach, station), station) : content.resolveStation(station);
+  const resolveStation = async (reach: Reach, content: WorkflowContentPorts, station: WorkflowStation) => isActionStation(station) ? (await resolveAction(reach, station), station) : content.resolveStation(station);
   const validChain = async (content: WorkflowContentPorts, value: unknown, reach: Reach): Promise<WorkflowChain> => {
     const parsed = parseChain(value);
     if (parsed.stations[0] && isActionStation(parsed.stations[0])) throw new WorkflowError("workflows.invalid", "第一站要选一个能挑出内容的插件，动作只能接在后面");
-    return { ...parsed, stations: await Promise.all(parsed.stations.map(station => resolveStation(reach, content, station))) };
+    const stations = await Promise.all(parsed.stations.map(station => resolveStation(reach, content, station)));
+    return { ...parsed, stations: await sourcesFirst(stations, plugin => labelOf(content, plugin)) };
   };
   const describe = async <T extends WorkflowChain>(content: WorkflowContentPorts, chainValue: T, reach: Reach): Promise<T> => ({ ...chainValue,
     stations: await Promise.all(chainValue.stations.map(async station => {
@@ -453,6 +455,13 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     bind(workflowsActions.judgments, async (_input, _content, _caller, reach) => ({ judgments: workflowJudgmentChoices(await reach.all()) })),
     ...createWorkflowsSearchHandlers(projectId, ports.withStore),
   ];
+}
+
+/** A station that only provides content (the 成果库) starts a run; nothing is handed to it. */
+async function sourcesFirst(stations: WorkflowStation[], labelOf: (plugin: string) => Promise<string>): Promise<WorkflowStation[]> {
+  const late = stations.find((station, index) => index > 0 && !isActionStation(station) && !station.content?.actions.receive);
+  if (late) throw new WorkflowError("workflows.invalid", `「${await labelOf(late.plugin)}」只能作为第一站：它提供内容，不接收交过来的内容`);
+  return stations;
 }
 
 const CONTENT_ROLE: Readonly<Record<string, string>> = { list: "列出内容", read: "读取内容", receive: "接收内容", create: "新建空白内容" };

@@ -8,6 +8,8 @@ export interface WorkflowContentStation {
   readonly icon: string;
   readonly role: WorkflowContentRole;
   readonly protocol: 1;
+  /** `false` on every role of a station that only starts a run; a station that receives says nothing. */
+  readonly receives?: false;
 }
 export interface WorkflowContentBinding {
   readonly provider_id: string;
@@ -53,13 +55,19 @@ export interface WorkflowContentActions {
   readonly receive: ActionDefinition<WorkflowReceiveInput, WorkflowItemRef>;
   readonly create?: ActionDefinition<{ title: string }, WorkflowItemRef>;
 }
+/** A station that only starts a run (the 成果库: its versions are read, never written by a workflow). */
+export type WorkflowSourceContentActions = Omit<WorkflowContentActions, "receive">;
+interface WorkflowStationSpec { id: string; title: string; icon: string; create?: boolean; subject_kind?: string;
+  read_permissions: readonly string[]; write_permissions: readonly string[] }
 
 /**
  * A plugin declares the protocol once; all consumers use these very definitions. `subject_kind` names the kind of object
- * the station's content is (what its reader reads back) when it is not the station's own id.
+ * the station's content is (what its reader reads back) when it is not the station's own id. `receive: false` declares a
+ * station that only starts a run: workflows put it first and never hand content to it.
  */
-export function defineWorkflowContentActions(station: { id: string; title: string; icon: string; create?: boolean; subject_kind?: string;
-  read_permissions: readonly string[]; write_permissions: readonly string[] }): WorkflowContentActions {
+export function defineWorkflowContentActions(station: WorkflowStationSpec & { receive: false }): WorkflowSourceContentActions;
+export function defineWorkflowContentActions(station: WorkflowStationSpec & { receive?: true }): WorkflowContentActions;
+export function defineWorkflowContentActions(station: WorkflowStationSpec & { receive?: boolean }): WorkflowContentActions | WorkflowSourceContentActions {
   const define = <I, O>(role: WorkflowContentRole): ActionDefinition<I, O> => ({
     capability_id: `${station.id}.content.${role}`, version: 1,
     operation: role === "read" || role === "list" ? "query" : "command",
@@ -70,19 +78,20 @@ export function defineWorkflowContentActions(station: { id: string; title: strin
       permissions: role === "read" || role === "list" ? station.read_permissions : station.write_permissions,
       input_schema: WORKFLOW_CONTENT_SCHEMAS[role].input, output_schema: WORKFLOW_CONTENT_SCHEMAS[role].output,
       input_type: `molis.workflow.content.${role}.input.v1`, output_type: `molis.workflow.content.${role}.output.v1`,
-      workflow_content: { id: station.id, title: station.title, icon: station.icon, role, protocol: 1 },
+      workflow_content: { id: station.id, title: station.title, icon: station.icon, role, protocol: 1, ...(station.receive === false ? { receives: false as const } : {}) },
     },
   });
-  return { list: define("list"), read: define("read"), receive: define("receive"), ...(station.create ? { create: define<{ title: string }, WorkflowItemRef>("create") } : {}) };
+  return { list: define("list"), read: define("read"), ...(station.receive === false ? {} : { receive: define<WorkflowReceiveInput, WorkflowItemRef>("receive") }),
+    ...(station.create ? { create: define<{ title: string }, WorkflowItemRef>("create") } : {}) };
 }
 
 export interface WorkflowContentHandlers {
   list(caller: ActionCallContext): readonly WorkflowStartItem[] | Promise<readonly WorkflowStartItem[]>;
   read(input: { item_id: string }, caller: ActionCallContext): WorkflowPayload | Promise<WorkflowPayload>;
-  receive(input: WorkflowReceiveInput, caller: ActionCallContext): WorkflowItemRef | Promise<WorkflowItemRef>;
+  receive?(input: WorkflowReceiveInput, caller: ActionCallContext): WorkflowItemRef | Promise<WorkflowItemRef>;
   create?(input: { title: string }, caller: ActionCallContext): WorkflowItemRef | Promise<WorkflowItemRef>;
 }
-export function bindWorkflowContentHandlers(definitions: WorkflowContentActions, handlers: WorkflowContentHandlers): ActionHandlerBinding[] {
+export function bindWorkflowContentHandlers(definitions: WorkflowContentActions | WorkflowSourceContentActions, handlers: WorkflowContentHandlers): ActionHandlerBinding[] {
   return Object.entries(definitions).map(([role, definition]) => {
     const handler = handlers[role as WorkflowContentRole];
     if (!handler) throw new Error(`工作流内容能力缺少实现：${definition.capability_id}`);

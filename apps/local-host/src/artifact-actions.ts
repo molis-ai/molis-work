@@ -1,4 +1,4 @@
-import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionClient, ActionProviderRegistration, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactsManifest, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
@@ -7,7 +7,7 @@ import { runWithMolisWorkHome, resolveMolisWorkHome } from "@molis-ai/molis-work
 import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";
 import type { MolisWorkProjectRuntime, MolisWorkLocalHostOptions } from "./project-host.js";
 
-export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor">): ActionProviderRegistration {
+export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor">, client?: ActionClient): ActionProviderRegistration {
   const home = options.homeDirectory ?? resolveMolisWorkHome();
   const provider: ActionProviderRegistration["provider"] = { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: runtime.project_id };
   return {
@@ -18,6 +18,15 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.board_id }).query,
       goalTitle: goalId => runtime.coordinator.goalQueries.getGoal(runtime.board_id, goalId)?.title ?? null,
       typeTitle: typeId => artifactTypeDeclarations().get(typeId)?.title ?? null,
+      // The owner's preview, with the caller's own authority; a version the caller may not read through it has no text here.
+      previewText: async (artifact, caller) => {
+        const preview = artifactTypeDeclarations().get(artifact.artifact_type_id)?.preview;
+        if (!preview || !client) return null;
+        try {
+          const content = await client.invoke(caller, preview, { artifact }) as FileContent;
+          return content.encoding === "utf8" ? content.data : null;
+        } catch { return null; }
+      },
       importSources: () => runWithMolisWorkHome(home, documentImportConnectionStatus),
       importConnections: () => documentImportConnections(home),
       importDocument: (input, caller) => runWithMolisWorkHome(home, () => importLocalArtifactDocument({ ...input }, {

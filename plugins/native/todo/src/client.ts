@@ -765,7 +765,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
           name.dataset.workbenchItemId = result.open.id;
           name.dataset.workbenchItemTitle = result.title;
         }
-        row.append(make("span", "todo-link-kind", L("成果")), name);
+        row.append(make("span", "todo-link-kind", L("产出")), name);
         // Moved is not gone: say where it went, in the Assistant's words for the place.
         const state = result.state === "moved" && result.moved_to && result.moved_to.title ? L("已移到「{place}」").replace("{place}", result.moved_to.title) : RESULT_STATE[result.state];
         if (state) row.append(make("small", "todo-muted", state));

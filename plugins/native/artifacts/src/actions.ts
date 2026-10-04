@@ -1,6 +1,6 @@
-import { ActionError, bindArtifactPreview, defineArtifactPreviewAction, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, bindArtifactPreview, defineArtifactPreviewAction, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactConsumerType, ArtifactReference, ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactVersionPath, importedFileOf, type ArtifactBrowserView } from "./browser.js";
 import { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
@@ -64,7 +64,13 @@ export const artifactsActions = {
   projectReference: define<{ reference: string; evidence_id?: string | null }, { filename: string; content_base64: string }>("references.open", "打开项目结果引用", "通过受限读取器读取 project:// 或历史相对路径引用；已验证 Evidence 的原工作区优先，不接受调用者提供目录", "query",
     object({ reference: id, evidence_id: nullable(id) }, ["reference"]), object({ filename: text, content_base64: text }), [...read, "workspace:read"]),
 };
-export const ARTIFACT_ACTIONS: readonly ActionDefinition[] = Object.values(artifactsActions);
+/**
+ * A version in the 成果库 as the first station of a workflow run (artifact-positioning 五.1): any version starts a run with
+ * its text; workflows never hand content to the 成果库.
+ */
+export const artifactsContentActions = defineWorkflowContentActions({ id: "artifacts", title: "成果", icon: "package", receive: false,
+  subject_kind: ARTIFACT_SUBJECT_KIND, read_permissions: read, write_permissions: read });
+export const ARTIFACT_ACTIONS: readonly ActionDefinition[] = [...Object.values(artifactsActions), ...Object.values(artifactsContentActions)];
 export const ARTIFACT_ACTION_PERMISSIONS = [...new Set(ARTIFACT_ACTIONS.flatMap(value => value.action.permissions))];
 export interface ArtifactActionPorts {
   boardId: string;
@@ -78,6 +84,8 @@ export interface ArtifactActionPorts {
   goalTitle?(goalId: string): string | null;
   /** A 成果 type's display name as its owner declares it (the side panel groups by it); null when undeclared. */
   typeTitle?(artifactTypeId: string): string | null;
+  /** A version's text as its type's owner previews it, for a workflow run that starts from it; null when there is none. */
+  previewText?(artifact: ArtifactVersionRecord, caller: ActionExecutionContext): Promise<string | null>;
 }
 /** Who refers to one version (A4b, 「被谁引用」): Goals that take it as input, hand it in, or have it proposed; other links counted. */
 export interface ArtifactReferences {
@@ -147,6 +155,18 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
       const goals = edges.filter(edge => edge.source.module === "goals" && GOAL_ROLES[edge.type])
         .map(edge => ({ goal_id: edge.source.id, title: ports.goalTitle?.(edge.source.id) ?? edge.source.id, role: GOAL_ROLES[edge.type]! }));
       return { goals, other: edges.length - goals.length } satisfies ArtifactReferences;
+    }),
+    ...bindWorkflowContentHandlers(artifactsContentActions, {
+      list: () => ports.artifacts.query.listArtifacts(ports.boardId).filter(record => record.availability === "available" && record.lifecycle_state !== "archived")
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map(record => ({ item_id: artifactSubjectId(record), title: `${record.title} · v${record.version}`, caption: ports.typeTitle?.(record.artifact_type_id) ?? record.artifact_type_id, at: record.created_at })),
+      read: async ({ item_id }, caller) => {
+        const reference = parseArtifactSubjectId(item_id);
+        const record = reference ? ports.artifacts.query.getArtifactVersion(ports.boardId, reference) : null;
+        if (!record || record.availability !== "available") throw new ActionError("actions.subject_unavailable", "这一版不存在或不可用");
+        const text = await ports.previewText?.(record, caller as ActionExecutionContext) ?? importedDocumentFile(record)?.text ?? null;
+        return { title: record.title, body: text ?? record.title, url: artifactVersionPath(record), source: "成果库" };
+      },
     }),
   ];
 }

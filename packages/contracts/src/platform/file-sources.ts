@@ -171,8 +171,8 @@ export interface ArtifactPreviewInput { artifact: ArtifactVersionRecord }
 
 export function defineArtifactPreviewAction(capabilityId: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPreviewInput, FileContent> {
   return { capability_id: capabilityId, version: 1, operation: "query", action: {
-    title: `预览${typeTitle}`, description: `把一版${typeTitle}转成可读的文件，供成果库与侧栏预览；不修改数据。`,
-    kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], plugin: false,
+    title: `预览${typeTitle}`, description: `把一版${typeTitle}转成可读的文件，供成果库与侧栏预览、工作流从这一版起步；不修改数据。`,
+    kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user", "workflow"], plugin: false,
     permissions: [...permissions], subject_kinds: ["artifact"],
     input_type: ARTIFACT_PREVIEW_INPUT_TYPE, output_type: ARTIFACT_PREVIEW_OUTPUT_TYPE,
     input_schema: { type: "object", properties: { artifact: { type: "object" } }, required: ["artifact"], additionalProperties: false },

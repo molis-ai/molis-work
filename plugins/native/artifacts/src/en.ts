@@ -20,6 +20,8 @@ export const ARTIFACT_EN: Record<string, string> = {
   "没有记下输入": "The input was not recorded",
   "还没有目标引用这一版。": "No goal refers to this version yet.",
   "另有其他引用": "Other references",
+  "文档": "Documents",
+  "链接了这一版": "links to this version",
   "助理工作": "Assistant work",
   "从这一版开始": "Started from this version",
   "作为材料": "As material",

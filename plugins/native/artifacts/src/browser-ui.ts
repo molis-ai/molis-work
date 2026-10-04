@@ -189,8 +189,9 @@ function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, route
   const reference = p.escape(JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version }));
   const asInput = usable ? `<details class="artifact-goal-input" data-artifact-goal-input><summary>${p.text("作为 Goal 的输入")}</summary><form data-artifact-goal-input-form data-artifact-reference="${reference}"><select class="mw-select" name="goal" required aria-label="${p.text("选择目标")}"><option value="">${p.text("正在读取目标…")}</option></select><button class="mw-btn" type="submit">${p.text("记为输入")}</button><span data-artifact-goal-input-status role="status"></span></form></details>` : "";
   // Assistant works that started from this version, took it as material or produced it: the Assistant keeps these in its
-  // own store, so the 成果 client reads them once the detail shows. A version is named by its subject or, from a tab, its path.
-  const subjects = p.escape(JSON.stringify([artifactSubjectId(artifact), artifactVersionPath(artifact)]));
+  // own store, so the 成果 client reads them once the detail shows. A version is named by its subject or, from a tab, its path
+  // (with the project's prefix when the tab came from a direct link).
+  const subjects = p.escape(JSON.stringify([...new Set([artifactSubjectId(artifact), artifactVersionPath(artifact), routePrefix + artifactVersionPath(artifact)])]));
   const works = `<div class="artifact-links-works" data-artifact-works="${subjects}" hidden><h3>${p.text("助理工作")}</h3><ul></ul></div>`;
   return `<section class="artifact-links" data-artifact-links><h2>${p.text("被谁引用")}</h2>${goals ? `<ul>${goals}</ul>` : `<p>${p.text("还没有目标引用这一版。")}</p>`}${works}${other}${asInput}</section>`;
 }

@@ -68,7 +68,7 @@ Goals 的这 22 个兼容名称只接受业务字段，管理模式也不能通�
 
 `event_decide` 和 `goal_tree_decide` 仅在受保护的用户Web/管理入口调用，不属于Runtime。Runtime可以提交具体变化、请求或引用已保存的有效决定，不能自填user身份、确认文本或Session字段批准自己。已有仍有效的同范围授权无需重复决定。
 
-受信管理入口使用 `MOLIS_WORK_MCP_AUDIENCE=management`，额外保留 `initialize`、`import_v3`、`snapshot`、`event_decide`、`goal_tree_decide`、`active_goal`。管理调用遵循其显式项目和身份schema。不要把management MCP交给自主Runtime。V3导入保留原字段、关系、coverage和来源，导入后的Goal可立即使用当前状态与笔记；不合成验收承诺。
+受信管理入口使用 `MOLIS_WORK_MCP_AUDIENCE=management`，额外保留 `initialize`、`snapshot`、`event_decide`、`goal_tree_decide`、`active_goal`。管理调用遵循其显式项目schema；身份由宿主定为本机这个人（`web-user`），参数里不收 `actor_id` 或 `authority` 的身份与出处，带了就拒绝。不要把management MCP交给自主Runtime。
 
 旧Claim/select/Run/Evidence/Review、draft dialogue、Contract/Candidate/Dependency/Rewire写工具，以及Available/Ready/Contract/Explain工作入口已退役；旧名字无法通过管理入口继续执行。历史记录仍可阅读，日常工作只使用当前事件路径。
 

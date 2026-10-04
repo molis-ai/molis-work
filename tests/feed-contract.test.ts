@@ -32,7 +32,7 @@ function createLegacyInfoflowDb(databasePath: string): Database.Database {
       item_count INTEGER NOT NULL DEFAULT 0,
       origin TEXT NOT NULL,
       config_json TEXT NOT NULL DEFAULT '{}',
-      cursor_json TEXT NOT NULL DEFAULT '{}',
+      schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
       credential_ref TEXT,
       account_label TEXT,
       last_sync_at TEXT,
@@ -73,12 +73,12 @@ function createLegacyInfoflowDb(databasePath: string): Database.Database {
       ON feed_items(board_id, source_kind, external_id) WHERE external_id IS NOT NULL;
     INSERT INTO feed_sources (
       board_id, source_id, kind, definition_id, sync_kind, name, description,
-      status, enabled, item_count, origin, config_json, cursor_json,
+      status, enabled, item_count, origin, config_json,
       credential_ref, account_label, last_sync_at, last_outcome, last_error_code,
       imported_at, updated_at
     ) VALUES (
       'legacy-board', 'source-github', 'github', 'github', 'github', 'GitHub', '',
-      'active', 1, 1, 'molis-work', '{}', '{"since":"1"}', NULL, '@user', NULL, NULL, NULL,
+      'active', 1, 1, 'molis-work', '{}', NULL, '@user', NULL, NULL, NULL,
       '2026-08-30T00:00:00.000Z', '2026-08-30T00:00:00.000Z'
     );
     INSERT INTO feed_items (
@@ -133,9 +133,6 @@ test("migration 29 reconciles legacy Inbox rows into Feed facts plus Inbox refer
     assert.deepEqual(JSON.parse((db.prepare(
       "SELECT schedule_json FROM feed_sources WHERE source_id = 'source-github'",
     ).get() as { schedule_json: string }).schedule_json), { mode: "manual" });
-    assert.deepEqual(JSON.parse((db.prepare(
-      "SELECT cursor_json FROM feed_sources WHERE source_id = 'source-github'",
-    ).get() as { cursor_json: string }).cursor_json), { since: "1" });
     assert.equal((db.prepare(
       "SELECT COUNT(*) AS count FROM feed_contract_migration_receipts WHERE schema_version = 29",
     ).get() as { count: number }).count, 1);
@@ -156,7 +153,9 @@ test("migration 29 reconciles legacy Inbox rows into Feed facts plus Inbox refer
 test("migration 29 failure rolls schema and data back to the prior trusted state", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-infoflow-rollback-"));
   const db = createLegacyInfoflowDb(join(directory, "legacy.sqlite"));
+  const schema = () => db.prepare("SELECT name, sql FROM sqlite_master ORDER BY name").all();
   try {
+    const schemaBefore = schema();
     assert.throws(() => db.transaction(() => {
       const report = migrateInfoflowContractV2(db);
       db.prepare("INSERT INTO schema_migrations (migration_id, applied_at) VALUES (29, ?)")
@@ -169,7 +168,7 @@ test("migration 29 failure rolls schema and data back to the prior trusted state
     assert.equal(db.prepare(
       "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'inbox_entries'",
     ).get(), undefined);
-    assert.equal((db.pragma("table_info(feed_sources)") as Array<{ name: string }>).some((column) => column.name === "schedule_json"), false);
+    assert.deepEqual(schema(), schemaBefore);
     assert.equal((db.prepare(
       "SELECT COUNT(*) AS count FROM schema_migrations WHERE migration_id = 29",
     ).get() as { count: number }).count, 0);

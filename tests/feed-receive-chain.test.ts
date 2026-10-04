@@ -223,10 +223,8 @@ test("Raw Event becomes one durable Signal and resumes after adapter failure wit
       );
       assert.deepEqual(revisionListener.checkpoint(DEMO_BOARD_ID, sourceId).cursor, { page: 3 });
 
-      const legacyCursor = store.db.prepare(
-        "SELECT cursor_json FROM feed_sources WHERE board_id = ? AND source_id = ?",
-      ).get(DEMO_BOARD_ID, sourceId) as { cursor_json: string };
-      assert.deepEqual(JSON.parse(legacyCursor.cursor_json), {}, "legacy Source row is no longer cursor authority");
+      const sourceColumns = (store.db.pragma("table_info(feed_sources)") as Array<{ name: string }>).map((column) => column.name);
+      assert.equal(sourceColumns.includes("cursor_json"), false, "the Source table holds no cursor; Listener Host owns it");
     } finally {
       store.close();
     }

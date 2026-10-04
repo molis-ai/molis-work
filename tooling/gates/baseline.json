@@ -185,6 +185,6 @@
   },
   "testInternalImports": 979,
   "vendoredPrologueSdk": 1,
-  "schemaPatches": 112,
+  "schemaPatches": 110,
   "note": "Only decreases. Regenerate with `node scripts/check-health-gates.mjs --update` in the PR that lowers a number."
 }

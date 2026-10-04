@@ -1,4 +1,3 @@
-import type Database from "better-sqlite3";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { MolisWorkSessionError } from "./errors.js";
 
@@ -38,22 +37,4 @@ export class HandoffAssociationRepository {
       cause: "work.handoff_target", recorded_at: at });
   }
 
-  migrate(db: Database.Database): void {
-    const version = db.prepare("SELECT value FROM session_meta WHERE key = 'schema_version'").get() as { value: string };
-    if (Number(version.value) >= 5) return;
-    db.transaction(() => {
-      const rows = db.prepare(`SELECT package_id, source_project_id, source_goal_id, target_project_id,
-        target_workspace_id, created_by, created_at, updated_at FROM session_handoffs`).all() as Array<{
-          package_id: string; source_project_id: string; source_goal_id: string; target_project_id: string;
-          target_workspace_id: string | null; created_by: string; created_at: string; updated_at: string;
-        }>;
-      for (const row of rows) {
-        this.recordSource(row.package_id, row.source_project_id, row.source_goal_id, null, row.created_by, row.created_at);
-        this.setTarget(row.package_id, row.target_project_id, row.target_workspace_id, "legacy-session-migration", row.updated_at);
-      }
-      db.prepare(`UPDATE session_handoffs SET source_project_id = '', source_goal_id = '',
-        target_project_id = '', target_workspace_id = NULL`).run();
-      db.prepare("UPDATE session_meta SET value = '5' WHERE key = 'schema_version'").run();
-    }).immediate();
-  }
 }

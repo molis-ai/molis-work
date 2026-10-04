@@ -36,9 +36,6 @@ function renderOccurrence(item: ScheduledOperationOccurrence, p: ScheduleUiPrimi
   return `<article class="schedule-turn"><header><strong>${p.text(occurrenceLabels[item.state])}</strong><time>${p.escape(p.formatDate(item.dueAt))}</time></header><p>${p.escape(item.detail ?? '')}</p>
     ${(item.decisions ?? []).map(decision => `<p>${p.escape(p.formatDate(decision.at))} · ${p.text(decision.decision === 'retry' ? '已确认重试' : '已确认跳过')} · ${p.escape(decision.previousDetail ?? '')}</p>`).join('')}</article>`;
 }
-export function renderOrphanedOperations(items: readonly ScheduledOperationOccurrence[], p: ScheduleUiPrimitives): string {
-  return items.length ? `<details class="goal-collection-fold"><summary><strong>${p.text('无法恢复的旧执行记录')}</strong><small>${items.length}</small></summary><p>${p.text('原功能定义已丢失，这些记录仅供核对，不会自动执行。')}</p>${items.map(item => `<div class="inbox-reference-body"><small>${p.escape(item.operationId)}</small>${renderOccurrence(item, p)}</div>`).join('')}</details>` : '';
-}
 export function renderOperationRecoveryDialog(p: ScheduleUiPrimitives): string {
   return `<dialog class="mw-dialog mw-dialog--form" data-schedule-operation-dialog aria-labelledby="schedule-operation-title"><form class="mw-form mw-dialog__shell" data-schedule-operation-form>
     <header class="mw-form__header"><h2 id="schedule-operation-title">${p.text('核对定时操作')}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-schedule-operation-close aria-label="${p.text('关闭')}">${p.icon('x')}</button></header>

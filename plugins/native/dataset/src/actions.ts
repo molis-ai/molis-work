@@ -53,7 +53,7 @@ export const datasetActions = {
   copy: defineObjectCopyAction("dataset.placement.copy", ["dataset"], "数据表", write),
 };
 /** A table is a workflow content station: it hands its CSV on, and makes a new table from CSV it receives (a form's responses). */
-export const datasetContentActions = defineWorkflowContentActions({ id: "dataset", title: "数据表", icon: "database", create: true,
+export const datasetContentActions = defineWorkflowContentActions({ id: "dataset", title: "数据表", icon: "database", create: true, subject_kind: "dataset",
   read_permissions: ["dataset:read"], write_permissions: ["dataset:read", "dataset:write"] });
 export const DATASET_ACTION_PERMISSIONS = [...new Set(Object.values(datasetActions).flatMap(d => d.action.permissions))];
 export interface DatasetActionPorts {

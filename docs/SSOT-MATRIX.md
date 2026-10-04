@@ -14,7 +14,7 @@
 | 本次重组的完整决策、范围和逐包 Contract | [`specs/molis-work-architecture-reorganization/spec.md`](../specs/molis-work-architecture-reorganization/spec.md) |
 | 分层、部署与端到端调用 | [`docs/system/ARCHITECTURE.md`](system/ARCHITECTURE.md) |
 | 允许和禁止的代码依赖 | [`docs/system/PACKAGE-BOUNDARIES.md`](system/PACKAGE-BOUNDARIES.md) |
-| 旧路径、迁移状态、兼容出口 | [`docs/system/MIGRATION.md`](system/MIGRATION.md) |
+| 兼容逻辑清单与删除进度 | [`specs/repository-anti-corruption`](../specs/repository-anti-corruption/spec.md) §4（迁移期记录已归档到 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md)） |
 | Huge Class 每块职责的唯一迁移 Goal | [`docs/system/HUGE-CLASS-MIGRATION.md`](system/HUGE-CLASS-MIGRATION.md) |
 | 16 个业务事实 owner | [`docs/modules/`](modules/README.md) |
 | 6 个横向运行服务 | [`docs/horizontal/`](horizontal/README.md) |
@@ -170,7 +170,7 @@ Goals 与 Artifacts 是官方签名保护的一等 Plugin。Plugin 之间不依�
 
 1. 新增、删除或改名 package，必须先更新本矩阵与架构 Spec。
 2. Module owner、公开 Contract 或依赖方向变化，必须有明确决策，不能在代码搬迁中顺手改变。
-3. 每个迁移 Goal 同时更新：目标 package README、对应 Module/Service 文档、本矩阵的状态和 [`MIGRATION.md`](system/MIGRATION.md)。
+3. 每个迁移 Goal 同时更新：目标 package README、对应 Module/Service 文档与本矩阵的状态。
 4. `contract-only` 不得被 UI、CLI、MCP 或 Plugin Runtime 宣称为可用功能。
 5. 旧 owner 只有在 caller 清零、行为兼容、数据迁移和回滚证据齐全后才能标为 `retired`。
 

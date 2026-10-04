@@ -47,6 +47,12 @@ export interface ProjectPluginState {
 
 const started = new WeakMap<LocalProjectDatabase, Map<string, { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState> }>>();
 
+/** A project's plugin platform when it is already running; never starts one. */
+export async function runningProjectPlatform(store: LocalProjectDatabase, boardId: string): Promise<PluginPlatform | null> {
+  const opening = started.get(store)?.get(boardId);
+  return opening ? (await opening.ready).platform : null;
+}
+
 /** Drops a project's platform, so a closed project does not keep one alive. */
 export async function releaseProjectPlugins(store: LocalProjectDatabase, boardId: string): Promise<void> {
   const boards = started.get(store);

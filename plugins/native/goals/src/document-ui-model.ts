@@ -11,6 +11,8 @@ export interface GoalsDocumentItem extends GoalsTreeItem {
   event_work?: boolean;
   /** Materials bound to this Goal (Goal-owned receipts); counted in the Goal info entry. */
   input_bindings?: ReadonlyArray<{ state: string; source_type: string }>;
+  /** 成果 versions this Goal hands in (artifact-positioning F6); counted in the Goal info entry. */
+  artifact_outputs?: number;
 }
 export interface GoalsDocumentContext {
   activeGoalId: string | null;

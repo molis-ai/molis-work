@@ -1,67 +1,8 @@
-import { BUILDER_PLUGIN_ID } from "@molis-ai/molis-work-plugin-builder";
-import { pluginInstallationGeneration, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { createScheduledOperationManagement, getScheduledOperation, listScheduledOperationOccurrences, migrateScheduledOperations, runScheduledOperation, saveScheduledOperation, saveScheduledOperationOccurrence,
+import { pluginInstallationGeneration, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { createScheduledOperationManagement, runScheduledOperation,
   type ScheduledOperation, type ScheduledOperationInstallation, type ScheduledOperationOutcome } from "@molis-ai/molis-work-plugin-schedule";
 import type { ScheduleSqliteDatabase, ScheduleService, ScheduleWakeupInput, ScheduleWakeupControl } from "@molis-ai/molis-work-service-scheduler";
 import { createLocalFeedApplication } from "./feed-application.js";
-import { studioStorage } from "./plugin-builder/storage.js";
-
-export const LEGACY_OPERATION_OWNER = BUILDER_PLUGIN_ID;
-export const LEGACY_OPERATION_WAKEUP = "plugin-builder.run.v1";
-const RECORD = "plugin-builder:run:", INDEX = "plugin-builder:runs:", PENDING = "plugin-builder:runs-pending", NAMESPACE = "agent-studio:";
-type LegacyOperation = Omit<ScheduledOperation, "installationId" | "installationGeneration" | "jobOwner" | "state" | "detail">;
-
-/** One-way reader only. Import the complete queue and records before removing any historical key. */
-export function migrateLegacyScheduledOperations(db: ScheduleSqliteDatabase, schedule: ScheduleService): void {
-  migrateScheduledOperations(db);
-  new SqlitePluginPrivateStorage(db);
-  const namespaces = db.prepare("SELECT DISTINCT install_id FROM plugin_private_values WHERE install_id LIKE ? AND (item_key LIKE ? OR item_key = ?)")
-    .all(NAMESPACE + "%", RECORD + "%", PENDING) as Array<{ install_id: string }>;
-  for (const { install_id: namespace } of namespaces) db.transaction(() => {
-    const boardId = namespace.slice(NAMESPACE.length), storage = studioStorage(db, boardId);
-    const rows = db.prepare("SELECT item_key, item_value FROM plugin_private_values WHERE install_id = ? AND item_key LIKE ?")
-      .all(namespace, RECORD + "%") as Array<{ item_key: string; item_value: string }>;
-    const old = rows.map(row => {
-      const run = JSON.parse(row.item_value) as LegacyOperation;
-      if (run.boardId !== boardId || row.item_key !== RECORD + run.id) throw new Error("旧定时操作与存储身份不一致");
-      const job = schedule.get(run.jobId);
-      if (job && (job.plugin_id !== LEGACY_OPERATION_OWNER || job.capability_id !== LEGACY_OPERATION_WAKEUP || job.object_ref !== boardId + "|" + run.id)) throw new Error("旧定时操作与闹钟身份不一致");
-      return { run, job };
-    });
-    // An older process may still own a job. Never migrate its mutable queue out from under it.
-    if (schedule.list(LEGACY_OPERATION_OWNER).some(job => job.capability_id === LEGACY_OPERATION_WAKEUP && job.object_ref.startsWith(boardId + "|") && schedule.isExecuting(job.job_id))) return;
-    const pending = JSON.parse(storage.get(PENDING) ?? "[]") as Array<{ ref: string; dueAt: string }>;
-    for (const { run, job } of old) {
-      const existing = getScheduledOperation(db, boardId, run.id);
-      if (existing && existing.jobId !== run.jobId) throw new Error("旧定时操作与已迁移记录冲突");
-      if (!existing) saveScheduledOperation(db, { ...run, installationId: null, installationGeneration: null,
-        jobOwner: job?.plugin_id ?? LEGACY_OPERATION_OWNER, state: "needs_confirmation", detail: "旧定时操作缺少原安装世代，需要重新确认归属" });
-      if (job) schedule.setEnabled(job.job_id, false, job.plugin_id);
-    }
-    const seen = new Set(listScheduledOperationOccurrences(db, boardId).map(item => item.operationId + "\0" + item.dueAt));
-    for (const item of pending) {
-      if (!item.ref.startsWith(boardId + "|") || !item.ref.slice(boardId.length + 1) || !Number.isFinite(Date.parse(item.dueAt))) throw new Error("旧待执行记录的项目或时间无效，原数据已保留");
-      const id = item.ref.slice(boardId.length + 1), key = id + "\0" + item.dueAt;
-      if (seen.has(key)) continue;
-      const exists = getScheduledOperation(db, boardId, id);
-      saveScheduledOperationOccurrence(db, { boardId, operationId: id, dueAt: item.dueAt, state: exists ? "pending" : "unknown",
-        detail: exists ? null : "旧定时操作定义已不存在；原待执行引用已保留，不能安全运行", startedAt: null, finishedAt: null });
-      seen.add(key);
-    }
-    for (const { run, job } of old) {
-      // A surviving one-shot record whose job was consumed without a durable pending entry is ambiguous.
-      if (job && !job.enabled && run.repeat === "none" && !listScheduledOperationOccurrences(db, boardId, run.id).length) {
-        saveScheduledOperationOccurrence(db, { boardId, operationId: run.id, dueAt: job.next_due_at, state: "unknown",
-          detail: "旧调用已被调度，但没有可核对的派出或结果记录", startedAt: null, finishedAt: null });
-      }
-      storage.delete(RECORD + run.id);
-      const ids = JSON.parse(storage.get(INDEX + run.pluginId) ?? "[]") as string[];
-      const remaining = ids.filter(id => id !== run.id);
-      if (remaining.length) storage.set(INDEX + run.pluginId, JSON.stringify(remaining)); else storage.delete(INDEX + run.pluginId);
-    }
-    storage.delete(PENDING);
-  }).immediate();
-}
 
 export interface InstalledOperationCaller {
   describe(pluginId: string): ScheduledOperationInstallation | null;

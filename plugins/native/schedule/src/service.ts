@@ -60,7 +60,6 @@ export function createScheduleActionPorts(options: {
       return options.reminders.recover(input);
     },
     listOperations: () => options.operations?.list() ?? [],
-    orphanedOccurrences: () => options.operations?.orphanedOccurrences() ?? [],
     recoverOperation: input => {
       if (!options.operations) throw new ScheduleTaskError("schedule_task_invalid", "当前宿主未提供定时操作恢复入口");
       return options.operations.recover(input);

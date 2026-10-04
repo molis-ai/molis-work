@@ -22,7 +22,7 @@ interface MolisWorkWebViewCacheEntry {
 
 export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
 
-type PluginProjection = Pick<MolisWorkWebView, "feed" | "feed_source_catalog" | "feed_connector_auth" | "schedule_jobs" | "schedule_tasks" | "schedule_operations" | "schedule_orphaned_occurrences">;
+type PluginProjection = Pick<MolisWorkWebView, "feed" | "feed_source_catalog" | "feed_connector_auth" | "schedule_jobs" | "schedule_tasks" | "schedule_operations">;
 const emptyFeed = (): FeedSnapshot => ({ sources: [], feed_items: [], inbox_entries: [], runs: [], contract_migrations: [], out_rules: [] });
 
 /** Optional areas disappear when their owner refuses access; unexpected failures must remain visible. */
@@ -84,7 +84,7 @@ export async function cachedMolisWorkWebView(
   ]);
   return { ...base, feed: { ...(feed ?? emptyFeed()), inbox_entries: [...(inbox?.entries ?? [])] },
     feed_source_catalog: feed ? listFeedSourceCatalog() : [], feed_connector_auth: connections,
-    schedule_jobs: schedule?.jobs ?? [], schedule_tasks: schedule?.tasks ?? [], schedule_operations: schedule?.operations ?? [], schedule_orphaned_occurrences: schedule?.orphaned_occurrences ?? [] };
+    schedule_jobs: schedule?.jobs ?? [], schedule_tasks: schedule?.tasks ?? [], schedule_operations: schedule?.operations ?? [] };
 }
 
 export async function withSelectedEventDocument(

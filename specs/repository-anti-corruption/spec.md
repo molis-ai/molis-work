@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：准备中，结构性改动尚未开工（2026-10-03）。第一步已完成并归档；同一目标里用户追加的「Artifact 定位与统一外壳」（[artifact-positioning](../artifact-positioning/spec.md)）壳子 S1–S7 与成果库 A1–A7、A4b 已全部合入 main。下一步：main 自检（本文「main 自检」一节），再按 §5a 门禁先行开始结构性改动。
+状态：main 自检已完成（§9，2026-10-03～04）：全量 3,758 个用例 2 个失败，都是本轮新发现、已修（#220、#221），第一步与成果库改造修过的问题没有复发；第一步问题表 5 条状态已更正。结构性改动尚未开工：先收尾成果库补漏（§9.4 第 10–12 条），再按 §5a 门禁先行开工。第一步已完成并归档；同一目标里用户追加的「Artifact 定位与统一外壳」见 [artifact-positioning](../artifact-positioning/spec.md)。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -28,6 +28,7 @@
 | 2026-10-03 | 验证频率 | — | 用户调整 | 用户 2026-10-03 调整验证频率：小改动攒成一批，整体构建一次，跑这批改动涉及的相关用例（改了什么就跑读它、调它的用例；带 `L()` 文案的加 `tests/i18n.test.ts`，改路由的加所有读这条路由的用例）；全量回归只在大改动时跑（改共享核心 contracts、kernel、modules、local-host 的装配、workbench 外壳，改迁移或存储，改动跨三个以上包，删除整块旧代码，或合入后相关用例意外失败），每个阶段收尾也跑一次全量作为阶段证据。不变的底线：每个 PR 的 CI 必须通过；跑测试前先整体构建；构建与浏览器用例串行；不跳过、不放宽、不删除断言；失败先用干净基线工作树比对 |
 | 2026-10-03 | 推翻 10-02「4173 不停，保持现状」 | 保持现状；备份、停 4173、现在删旧成果表 | 备份、停 4173、现在删 | 成果库改造里用户决定立即删真实 Home 的旧成果表（[artifact-positioning §1](../artifact-positioning/spec.md)）：已 `launchctl bootout` 停下 4173（安装版 0.2.0，没有旧表已不能用，要等装新版）；18 个项目库已备份到 `~/.molis-work-backups/2026-10-03-drop-old-artifact-tables/` 后逐库删掉 `artifacts`、`artifact_versions`。下面 §4.1 第 4 步按此重写 |
 | 2026-10-03 | anti-rot 分支与工作树（弹窗） | #216 合入后三处都删（推荐）；只删工作树与本地分支；先都不删 | 三处都删 | 已执行：#216 合入（592f15bc）后删了工作树 `.claude/worktrees/review-prompts-goal`（无未提交改动）、本地分支 `anti-rot`（无本地独有提交）与远端 `origin/anti-rot` |
+| 2026-10-03 | 场景 9：拷贝真实 Home 用当前 main 打开（弹窗） | 拷到会话临时目录验证（推荐）；等 4173 装新版时一起做；不做 | 拷到会话临时目录验证 | 先确认 4207 没在写，再把 `~/.molis-work` 拷到会话临时目录；用当前 main 在别的端口、文件密钥后端打开这份拷贝走一遍；不碰原 Home、不调模型，做完删拷贝。结果记在 §9.4 第 12 条 |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -414,3 +415,173 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 ## 8. 未验证的范围
 
 尚未开工，暂无。
+
+## 9. main 自检（2026-10-03，main aef917dc）
+
+第二步结构性改动的起点。按用户 10-03 的要求：任务书合入 main 后，逐条复核第一步与成果库改造修过的问题在最新 main 上仍然成立，再对照四份任务要求逐项标出已覆盖、本轮新发现、不适用（第二步还没做的标「待做」并指到本文的计划）。
+
+**方法**：
+
+- 最新 main（aef917dc，含 #219）整体构建后跑全量回归（738 个用例文件），作为本阶段证据，也一次跑过下面每一条的守护用例；
+- 守护用例取自每个修复 PR 改动的测试文件（`gh pr view <N> --json files`）；已删除的用例逐个核对去向；
+- 「交第二步」与「待决」的条目，用命令在 main 上重新量；
+- 界面上的条目以 10-03 的隔离 Home 走查为准（[artifact-positioning §5b](../artifact-positioning/spec.md)）。
+
+### 9.1 回归自检
+
+**全量回归**：3,758 个用例：3,749 通过、2 失败、7 跳过（main aef917dc，10-03 10:47 起）。两个失败都不是旧问题复发，是本轮新发现，都在干净的 main 上复现（3/3 与必现），已修：见 9.4 第 1、2 条（#220、#221）。没有一条第一步或成果库改造修过的问题复发。
+
+**第一步问题表（PMR）**
+
+| 编号 | 当时的处理 | 复核结论 | 证据 |
+| --- | --- | --- | --- |
+| PMR-01 | 已修 #138 | 未复发 | `context-onboarding-blank.e2e`（全量通过） |
+| PMR-02 | 已修 #140 | 未复发 | `announce-guard`、`plugin-notification-bell`、`plugin-event-recovery.e2e`（全量通过） |
+| PMR-03 | 已修 #141 | 未复发 | `characters-appearance`、`creative-tools-plugins`（全量通过） |
+| PMR-04 | 交第二步 | 状态准确：仍有 38 个重复键（共 3,517 个）；另查出约 1,489 个无引用的键（9.4 #1） | 逐键统计脚本，见 9.3 |
+| PMR-05 | 交第二步 | 状态准确：`migrateLegacy` 仍在（15 处） | `git grep -c migrateLegacy` |
+| PMR-06 | 交第二步 | **已不成立**：#170 删了 3 份未用的包，vendored 只剩 `side-panel-memory.tgz`；状态改为「已修（#170）」 | `ls vendor/prologue-sdk/*.tgz` |
+| PMR-07 | 核实中 | **状态不准**：归档 spec §12.2 已量过（首屏 293 KB HTML、6,041 个节点），处理在第二步「浏览器脚本打包、按需渲染」；状态改为「已量，交第二步」，本轮重量见 9.3 | 9.3 首屏体量 |
+| PMR-08 | 交第二步 | 状态准确：`#decision-goal-` 2 处、`feed-start=1` 1 处仍在 | `git grep` |
+| PMR-09 | 交第二步 | 状态准确：`scripts/personal-assistant-public-sources.mts` 仍在 | `ls` |
+| PMR-10 | 已修 #139 | 未复发 | `project-page-links`（全量通过） |
+| PMR-11 | 已关闭 | 不适用 | — |
+| PMR-12 | 核实中 | **状态不准**：助理会话 9-30 已修（c48a8608，在 main）：左栏看不到时对话顶部一行给出状态与暂停、继续、停止；抽屉开着时点对话区先收起抽屉。当时用替身在 800、1440 核对，**没有自动守护用例**（9.4 #9） | `git merge-base --is-ancestor c48a8608 main`；`assistant-dock.ts` 的 `data-assistant-strip` |
+| PMR-13 | 已关闭 | 不适用 | — |
+| PMR-14 | 交第二步 | 状态准确：`assistant-island.ts` 仍是 `L("正在看") + "："` | `git grep` |
+| PMR-15 | 已定，交第二步 | 状态准确：BL-088 未做 | `tests/builtin-plugin-assembly-gate.test.ts` 名单未减 |
+| PMR-16 | 已修 #144 | 未复发 | `system-search`、`todo-actions`（全量通过） |
+| PMR-17 | 已关闭（未复现） | 不适用；第二步重跑场景 1 时留意 | — |
+| PMR-18 | 已修 #146 | 未复发 | `jelly-outside-changes.e2e`（全量通过） |
+| PMR-19 | 已修 #151 | 未复发 | `assistant-business-gateway`、`announce-guard`（全量通过） |
+| PMR-20 | 已修 #145 | 未复发 | `context-onboarding-todo.e2e`（全量通过） |
+| PMR-21 | 已修 #148 | 未复发 | `assistant-undo-refresh.e2e`、`assistant-undo`（全量通过） |
+| PMR-22 | 已修 #153 | 未复发；`jelly-material` 随灵感页一起删除 | `jelly-*` 其余用例（全量通过） |
+| PMR-23 | 已修 #149 | 未复发 | `side-panel-narrow-stage.e2e`（全量通过） |
+| PMR-24 | 已修 #152 | 未复发（提示词 v2 仍在）；真实模型回放不在全量里，未重跑 | `pages-plugin`（全量通过） |
+| PMR-25 | 已修 #154 | 未复发 | `open-plugin-link.e2e`（全量通过） |
+| PMR-26 | 已修 #155 | 未复发 | `todo-actions`（全量通过） |
+| PMR-27 | 已修 #157 | 未复发 | `side-panel-assistant-surface`（#157 加的 3 条，全量通过） |
+| PMR-28 | 已修 #158 | 未复发 | `assistant-business-gateway` 反例（全量通过） |
+| PMR-29 | 已修 #160 | 未复发 | `side-panel-assistant-surface`（全量通过） |
+| PMR-30 | 交 BACKLOG | 状态准确 | BACKLOG |
+| PMR-31 | 已修 #162 | 未复发 | `assistant-origin-name.e2e`（全量通过） |
+| PMR-32 | 交 BACKLOG（BL-104） | 状态准确 | BACKLOG |
+| PMR-33 | 已修 #163 | 未复发 | `agent-built-plugins-agent`（全量通过） |
+| PMR-34 | 修复中（#172） | **状态不准**：#172 已合入（35257cd9），应为「已修」 | `plugin-builder-stage.e2e`（全量通过） |
+| PMR-35 | 修复中（#182） | **状态不准**：#182 已合入（141f6cef），应为「已修」 | `agent-built-plugins-agent`（#182 加的重叠保存用例，全量通过） |
+| PMR-36 | 交后续（BL-113） | 状态准确 | BACKLOG |
+
+**第一步合并缺陷（§4）**
+
+| 项 | 复核结论 | 证据 |
+| --- | --- | --- |
+| 冲突标记 | 仍无 | `git grep` 除 Markdown 与锁文件外 0 处 |
+| `en.ts` 重复键（PMR-04） | 仍然成立，交第二步 | 38 个键重复（共 3,517 个） |
+| Prologue SDK 合成包 | 已收：vendored 只剩一份 `side-panel-memory.tgz`（#170 删了 3 份） | `ls vendor/prologue-sdk/*.tgz` |
+
+**成果库改造（S1–S7、A1–A7、A4b、走查）**
+
+| 片 | 守住它的用例 | 复核结论 |
+| --- | --- | --- |
+| S1 删独立工作区、演示记录（#176） | `shell-page-gate`；`plugin-page-workspace` 随功能删除 | 未复发：`renderPluginPageWorkspace` 0 处 |
+| S1b 删旧创作台（#198） | `agent-studio.e2e`、`plugin-builder-stage.e2e`；旧创作台用例随功能删除 | 未复发：`/plugin-builder` 整页路由 0 处 |
+| S2 直达链接打开工作台（#177） | `shell-direct-links.e2e`、`shell-page-gate` | 未复发 |
+| S3 沙箱框只在工作台里（#186） | `plugin-builder-stage.e2e`、`agent-plugin-identity` | 未复发 |
+| S4 创作台去框（#197） | `agent-studio.e2e`、`plugin-builder-stage.e2e` | 未复发 |
+| S5 文件在工作台里预览（#187） | `shell-file-preview.e2e`、`artifact-reference-ui` | 未复发 |
+| S6、S6b 设置与能力库进工作台（#193、#195） | `settings-direct-access`、`capabilities-in-settings.e2e`、`project-settings-*.e2e`、`functions-draft-retention`（#206 补了用例装配） | 未复发 |
+| S7 整页门禁（#196） | `shell-page-gate`（CI 里跑） | 未复发 |
+| A1 合同（#202） | `artifacts-module`、`artifact-subject-context`、`artifact-browser` | 未复发 |
+| A2 交换数据迁回 owner（#201） | `artifact-type-gate`、`coding-artifacts` 等 Coding 用例 | 未复发 |
+| A3 导入只在成果库（#203）；Pages 恢复自己的导入（#211） | `artifact-document-import`、`artifacts-actions-browser`、`pages-import-entry.e2e` | 未复发：`/artifacts/import` 整页 0 处（只剩 `POST /api/artifacts/import`） |
+| A4a owner 预览（#204） | `artifact-browser`、`artifact-type-gate`、Forms/PPT/Dataset 的 MCP 用例 | 未复发 |
+| A4b-1 原文已改、被谁引用（#210） | `artifact-source-and-links` | 未复发 |
+| A4b-2 作为 Goal 的输入（#212） | `goal-artifact-inputs`、`artifact-goal-input.e2e` | 未复发 |
+| A4b-3a、3b 从这一版继续、侧栏预览（#213、#215） | `artifact-continue`、`artifact-continue.e2e`、`side-files-artifacts`、`artifact-type-gate` | 未复发 |
+| A5a、A5b、A5c Goal 交付、当场固定、提议（#205、#207、#208） | `goal-deliverables`、`goal-deliverable-proposals`、`goal-event-document.e2e`、`goal-events-state` | 未复发 |
+| A6 命名与 Feed 声明（#200） | `artifact-browser`、`immersive-workbench.e2e`、`plugin-declarative-mounting` | 未复发 |
+| A7 声明门禁（#209） | `artifact-declaration-gate`、`artifact-type-gate`（CI 里跑） | 未复发 |
+| 走查发现（#217、#219） | `pin-toast-opens-version.e2e`、`artifact-walkthrough.e2e`（1440、390） | 未复发 |
+| 用例缺陷（#206、#214） | `functions-draft-retention`、`ppt-actions.e2e` | 未复发 |
+
+**已删除的守护用例**：`plugin-page-workspace.test.ts`（S1 删了独立工作区）、`plugin-builder-{browser,visual}.e2e`、`plugin-builder-{presentation,publication,runtime,workflow}.test.ts`（S1b 删了旧创作台）、`jelly-material.test.ts`（PMR-22 自己的修复 #153 去掉了 Jelly 灵感）。都是随被删的功能一起删，没有丢失守护。
+
+### 9.2 对照任务要求的补查
+
+**第一步任务书（main 上的新版）**：新版比归档时的旧版多两条要求——
+
+1. 「本步的修复不新增任何兼容或迁移逻辑」：已覆盖。第一步的修复 PR（#137–#185）里只有 #176 动了带 legacy 字样的文件，且是删除（`legacy-actions.ts` −33 行、`alchemist-legacy.ts` −14 行）。成果库改造的 A1、A2 新表写进现有的建库语句，没有新增迁移步骤。
+2. 场景 9 改为「拷贝一份我（以及同事）正在用的 Home，用当前 main 打开，看能不能正常用」：**未做**，涉及真实 Home 的拷贝，要用户同意（见 §1 待决）。10-03 已经删了真实 Home 的旧成果表、停了 4173，用当前 main 打开时成果库从空开始。
+
+其余各节的完成标准见第一步归档 spec §13.1，复核结论同上表。
+
+**第二步任务书**：
+
+| 节 | 结论 | 指向 |
+| --- | --- | --- |
+| §3 先量化现状 | 已量（10-02），本节 9.3 重量 | §2、§9.3 |
+| §4.1 清除兼容逻辑 | 待做；清单初稿与真实 Home 的步骤已有 | §4（真实 Home 步骤 10-03 重写） |
+| §4.2 调用链文档 | 待做 | — |
+| §4.3 分层与边界 | 待做；已知问题已登记 | §3 N-03、N-12 |
+| §4.4 包级清单 | 初稿 | §5 |
+| §4.5 巨大单元 | 门禁已接（只减不增，181 个）；拆分待做 | `tooling/gates/baseline.json` |
+| §4.6 扩展点与插件平台 | 待做；装配名单冻结 19 个、未减少 | `tests/builtin-plugin-assembly-gate.test.ts` |
+| §4.7 多人并行 | 待做；CODEOWNERS 用户 10-02 已定要加，尚未加；`docs/system/PARALLEL-DEVELOPMENT.md` 不存在 | §1 |
+| §4.8 改需求的便利 | 待做 | — |
+| §4.9 体检报告逐项闭环 | 进行中 | §3、§9.3 |
+| §4.10 新合同全链路 | 部分：成果库的预览、固定、比较、继续协议都有门禁与用例；其余合同待做 | artifact-positioning A4–A7 |
+| §4.11 数据与可靠性 | 待做；真实 Home 旧成果表已删 | §1 |
+| §4.12 卫生与文档 | 部分：vendored 已收到一份；`MIGRATION.md` 未归档；工作树清理按用户决定做了一部分 | §7 |
+| §4.13 门禁 | 第一批已接（健康门禁、整页门禁、成果类型与声明门禁）；静态检查、API 快照、页面资源预算待做 | §5a |
+| §4.14 手册与 Skill | 部分：插件开发 Skill 写明了成果类型的 title、preview、pin、compare、continue | `skills/molis-plugin-dev/elements.md` |
+| §4.15 术语表 | 待做 | — |
+| §4.16 静态检查 | 待做：仓库没有 lint/format 脚本 | `package.json` |
+| §4.17 依赖与 SDK | 待做 | — |
+| §4.18 安全不变量 | 初稿 | §6 |
+| §4.19 C 端就绪方案 | 待做 | — |
+
+**仓库系统整理要求（15 节）**：§1、§2 已覆盖（第一步 spec §1、§7）；§9 前端动线：壳子 S1–S7 与成果库走查覆盖了「插件不出整页、直达打开工作台、对话框与侧栏在工作台里」，其余页面的质感审查待做；§12 测试与预期对齐：第一步回归基线与本轮的 #206、#214（用例装配与下载竞态）覆盖了已发现的，系统性审查待做；§13 Prologue AI 手册与 Skill 已有（`docs/platform/PROLOGUE-AI.md`、`skills/molis-prologue-ai/SKILL.md`），与当前代码的一致性待第二步 §4.14 复核；§3–§8、§10、§11、§14、§15 归第二步，见上表。
+
+**体检报告**：附录 A 的数字见 9.3；§5 的防腐顺序与第二步 §5 相同，第一步「门禁先行」已开始（第一批），其余未开始；§7.5 对在途线的建议：在途线都已合入或删除（见第一步 §13），不再适用。
+
+### 9.3 重新量（main aef917dc，与 10-02 开工时对比）
+
+| 项 | 10-02 | 10-03 | 口径 |
+| --- | --- | --- | --- |
+| 构建期装配的内置插件（R-01） | 19 | 19 | `tests/builtin-plugin-assembly-gate.test.ts` 冻结名单；`project-host.ts` 的 `registerProvider` 26 处 |
+| 宿主 `apps/local-host/src`（R-03） | 367 文件、42,714 行 | 369 文件、42,787 行 | `git ls-files` 的 `.ts`；`*-native-plugin-http.ts` 18 个、`*-actions.ts` 34 个，未变 |
+| 工作台客户端脚本（R-07） | 32 个、14,032 行 | 33 个、14,469 行 | `apps/workbench/src/scripts/client/*.ts` |
+| 插件客户端（R-07） | 26 个、13,086 行 | 25 个、12,842 行 | `plugins/native/*/src/client*.ts` |
+| 空 `catch` | 145 | 142 | 源码（不含测试） |
+| `Error` 子类（R-08） | 116 | 112 | 同上 |
+| `as unknown as`（R-12） | 236 | 236（源码 154、测试 82） | 含测试 |
+| `.impeccable/` 入库文件（R-14） | 1,067 | 1,085 | `git ls-files` |
+| vendored Prologue 包（N-02） | 4 | 1 | `vendor/prologue-sdk/*.tgz` |
+| 旧能力注册（N-12） | 18 个文件、10 处 | 18 个文件、11 处 | `HostCapabilityDefinition` 文件数、`registerCapability` 处数 |
+| 巨大单元（健康门禁） | 181 | 181 | `pnpm health:check` |
+| 测试引用包内部 | 979 | 979 | 同上 |
+| `en.ts` 无引用的键 | — | 约 1,489 | 逐键查源码，见 §5.x |
+
+宿主与工作台客户端仍在小幅增长（成果库改造新增了比较、继续、作为输入等入口），第二步「声明代替名单」与「浏览器脚本打包」要先做。
+
+### 9.4 本轮新发现与处理
+
+| # | 发现 | 处理 |
+| --- | --- | --- |
+| 1 | 全量回归的失败①：`project-home-start` 的首页快捷方式用例在 main 上 3/3 失败。S7（#196）让站内地址不开第二个标签页，用例仍期望开新标签页；预期变化没随改，当时相关用例集漏了它 | 已修：[#220](https://github.com/molis-ai/molis-work/pull/220)（f7d7f1ec），用例改为断言在本页打开、没有第二个标签页，其余断言全部保留 |
+| 2 | 全量回归的失败②：`soft-workbench-refinement` 的字号刻度。成果库导入浮层的标题 18px、结果 16px、提醒 14px 不在刻度上，来自 A3（#203） | 已修：[#221](https://github.com/molis-ai/molis-work/pull/221)（61b805a7） |
+| 3 | 第一步问题表有 5 条状态与事实不符：PMR-06（#170 已删旧包）、PMR-07（已量过）、PMR-12（9-30 已修）、PMR-34（#172 已合）、PMR-35（#182 已合） | 本 PR 在归档 spec 里更正，注明「10-03 main 自检更正」 |
+| 4 | PMR-12 的修复（c48a8608）没有自动守护用例，只在当时用替身核对过 | 第二步补用例：800 宽、左栏收起时，暂停与等确认两种状态下顶部一行显示继续、停止与「去确认」 |
+| 5 | 成果版本的「被谁引用」只列 Goal，助理工作不在里面 | 已补做：[#222](https://github.com/molis-ai/molis-work/pull/222)（3f7a7b00）；从直达链接打开的成果标签记的是带项目前缀的地址，由 [#227](https://github.com/molis-ai/molis-work/pull/227)（ec8429f9）补查 |
+| 6 | 文档引用成果：Pages 没有引用成果版本的节点，也不记反向引用 | 用户拍板「识别正文里的版本链接」：[#225](https://github.com/molis-ai/molis-work/pull/225)（a9cd3f8c，新协议 `molis.artifacts.referrers`） |
+| 7 | Goal 概览看不到交付物（走查 F6） | 已补做：[#223](https://github.com/molis-ai/molis-work/pull/223)（d69f4a27），「Goal 信息」里加「交付物 · N 份」 |
+| 8 | 助理面板的结果栏也叫「成果」，与成果库同名不同义 | 用户拍板改叫「产出」：[#224](https://github.com/molis-ai/molis-work/pull/224)（960acab7） |
+| 9 | 成果版本没有「交给助理 / Coding」 | 用户拍板现在做：[#226](https://github.com/molis-ai/molis-work/pull/226)（ebeca52c），成果详情加两个按钮，把这一版作为材料交给新工作 |
+| 10 | 成果版本不能作为工作流步骤的输入 | 用户拍板现在做：[#228](https://github.com/molis-ai/molis-work/pull/228)，工作流内容协议支持「只能作起点」的站点，成果库声明列出与读取 |
+| 11 | 「存为固定版本」与「放在哪里」重叠；Goal 有两种输入 | 用户拍板「合成一种入口」：Goal 只留一个「加输入」，选对象时再选「跟着原文」或「固定这一版」（进行中） |
+| 12 | 场景 9（拷贝真实 Home 用当前 main 打开）未做 | 用户同意按推荐做：确认 4207 没在写后拷到会话临时目录，用当前 main、文件密钥后端打开走一遍，做完删拷贝（待做） |
+| 13 | 助理底栏「正在看」对从直达链接打开的成果标签显示地址而不是标题（标签本身的名字是对的）：工作台替插件命名打开的对象时没带标签名 | 已修：[#227](https://github.com/molis-ai/molis-work/pull/227)（ec8429f9） |
+| 14 | 常驻服务 4173 停着，要装新版 | 用户操作，见 §7 |
+| 15 | 宿主与工作台客户端仍在增长（9.3） | 第二步「声明代替名单」「浏览器脚本打包」先做 |
+| 16 | `en.ts` 约 1,489 个无引用的键、38 个重复键；演示稿两套种类名 | 已记入 §5.x，第二步处理 |

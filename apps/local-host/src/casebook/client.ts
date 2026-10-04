@@ -39,9 +39,9 @@ export class MolisWorkCasebookClient {
     }
     return body;
   }
-  async listProjects():Promise<{contract_id:'goalboard.casebook.projects';schema_version:'1.0.0';projects:{project_ref:string;project_name:string}[]}>{
+  async listProjects():Promise<{contract_id:'molis-work.casebook.projects';schema_version:'1.0.0';projects:{project_ref:string;project_name:string}[]}>{
     const result=await this.call('projects',{project_ref:''});if(!conforms(result,projectDiscoverySchema))throw new CasebookError('invalid_response');
-    const typed=result as {contract_id:'goalboard.casebook.projects';schema_version:'1.0.0';projects:{project_ref:string;project_name:string}[]};
+    const typed=result as {contract_id:'molis-work.casebook.projects';schema_version:'1.0.0';projects:{project_ref:string;project_name:string}[]};
     if(new Set(typed.projects.map(p=>p.project_ref)).size!==typed.projects.length)throw new CasebookError('invalid_response');return typed;
   }
   async readInteractionAuthorization(input:{project_ref:string;purpose:typeof PURPOSE|typeof CONTEXT_PURPOSE|typeof RECEIPTS_PURPOSE}) {

@@ -1,4 +1,4 @@
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
@@ -10,6 +10,28 @@ export type StoredConnection = Omit<ImageConnection, "has_key">;
 type Row = Record<string, unknown>;
 
 /** Private data only: credentials are owned by the Host secret store. */
+/**
+ * The images store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
+ * must already be at its version.
+ */
+export const IMAGES_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE connections (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, api_format TEXT NOT NULL,
+    base_url TEXT NOT NULL, model TEXT NOT NULL,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
+  CREATE TABLE jobs (
+    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, request_id TEXT NOT NULL,
+    input_hash TEXT NOT NULL, connection_id TEXT NOT NULL, connection_name TEXT NOT NULL,
+    api_format TEXT NOT NULL, model TEXT NOT NULL, prompt TEXT NOT NULL,
+    size TEXT NOT NULL, aspect_ratio TEXT NOT NULL, status TEXT NOT NULL,
+    images_json TEXT NOT NULL, error TEXT NOT NULL,
+    created_at TEXT NOT NULL, finished_at TEXT, runner_id TEXT,
+    UNIQUE (project_id, request_id)
+  );
+  CREATE INDEX jobs_project_created ON jobs(project_id, created_at DESC);
+` };
+
 export class ImagesStore {
   private readonly db: DatabaseSync;
   private readonly runnerLock: DatabaseSync;
@@ -43,29 +65,8 @@ export class ImagesStore {
       throw error;
     }
     try {
-    this.db.exec(`
-      PRAGMA busy_timeout = 5000;
-      BEGIN IMMEDIATE;
-      CREATE TABLE IF NOT EXISTS connections (
-        id TEXT PRIMARY KEY, name TEXT NOT NULL, api_format TEXT NOT NULL,
-        base_url TEXT NOT NULL, model TEXT NOT NULL,
-        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS jobs (
-        id TEXT PRIMARY KEY, project_id TEXT NOT NULL, request_id TEXT NOT NULL,
-        input_hash TEXT NOT NULL, connection_id TEXT NOT NULL, connection_name TEXT NOT NULL,
-        api_format TEXT NOT NULL, model TEXT NOT NULL, prompt TEXT NOT NULL,
-        size TEXT NOT NULL, aspect_ratio TEXT NOT NULL, status TEXT NOT NULL,
-        images_json TEXT NOT NULL, error TEXT NOT NULL,
-        created_at TEXT NOT NULL, finished_at TEXT,
-        UNIQUE (project_id, request_id)
-      );
-      CREATE INDEX IF NOT EXISTS jobs_project_created ON jobs(project_id, created_at DESC);
-    `);
-    if (!(this.db.prepare("PRAGMA table_info(jobs)").all() as Row[]).some(row => row.name === "runner_id")) {
-      this.db.exec("ALTER TABLE jobs ADD COLUMN runner_id TEXT");
-    }
-    this.db.exec("COMMIT");
+    this.db.exec("PRAGMA busy_timeout = 5000;");
+    applySqliteBaseline(this.db, homeSqlitePath(homeDirectory, "images"), IMAGES_STORE_BASELINE);
     this.recoverInterrupted();
     } catch (error) {
       try { this.db.close(); } finally { this.releaseLocks(); }

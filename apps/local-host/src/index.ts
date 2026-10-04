@@ -220,3 +220,9 @@ export { ensureSystemAgentService } from "./system-agent-service.js";
 export { LocalActionGatewayClient } from "./action-gateway.js";
 
 export { createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./search-evidence-runtime.js";
+// Home stores' one current schema each (repository-anti-corruption §4.1); read by scripts/stamp-store-baselines.mjs.
+export { CONNECTORS_BASELINE } from "./connectors-store.js";
+export { CONTEXT_ONBOARDING_BASELINE } from "./context-onboarding-store.js";
+export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
+export { PLACEMENT_BASELINE } from "./placement-actions.js";
+export { ASSISTANT_STORE_BASELINE } from "./assistant/assistant-store.js";

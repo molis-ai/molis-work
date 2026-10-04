@@ -50,7 +50,8 @@ export class AssistantRelations {
   private readonly ledger;
 
   constructor(db: DatabaseSync, now?: () => Date) {
-    this.ledger = createContextLedger(ledgerDatabase(db), {
+    // Its tables are part of the Assistant store's baseline (ASSISTANT_STORE_BASELINE).
+    this.ledger = createContextLedger(ledgerDatabase(db), { initializeSchema: false,
       authorize: access => access.actor_id === ACCESS.actor_id && access.scope.kind === ACCESS.scope.kind && access.scope.id === ACCESS.scope.id,
       ...(now ? { now } : {}),
     });

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, recordGoalUserDecisionCapability, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
@@ -24,7 +24,7 @@ test("user decisions share the action path without granting user authority to mo
     return { available: true };
   } });
   const client = host.actionClient(ref), typed = host.client(ref);
-  const caller: ActionCallContext = { actor_id: "actual-user", actor_kind: "user", project_id: project.project_id, audience: "user",
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", project_id: project.project_id, audience: "user",
     permissions: ["goals:read", "goals:write", "goals:decide"] };
   const goal_id = "USER-DECISION";
   const payload = { goal_id, idempotency_key: "decision", conclusion: "允许发布当前结果", effects: [{ kind: "authorize_action" as const, action: "publish" }], scope: { action: "publish" } };
@@ -57,6 +57,12 @@ test("user decisions share the action path without granting user authority to mo
     assert.equal(availability.available, false); assert.equal(!availability.available && availability.code, "actions.host_only");
     await assert.rejects(plugin.invoke({ ...recordGoalUserDecisionCapability, host_only: false },
       { ...payload, board_id: project.board_id, authority: oldAuthority }, { consumer: undefined }), { code: "actions.host_only" });
+    // The host capability belongs to the management entry, which decides as the person on this machine; another person named
+    // in the input, or another entry's provenance, is refused (repository-anti-corruption §9.5 #6).
+    for (const authority of [hostEventDecisionAuthority("management", project.board_id, "another-person", payload.idempotency_key),
+      hostEventDecisionAuthority("web", project.board_id, LOCAL_PERSON_ACTOR_ID, payload.idempotency_key)]) {
+      await assert.rejects(typed.invoke(recordGoalUserDecisionCapability, { ...payload, board_id: project.board_id, authority }), { code: "event_decision.untrusted_actor" });
+    }
     assert.equal(await cursor(), before, "rejected authority never appends a decision");
 
     const old = await host.withProject(ref, r => r.coordinator.goalEvents.recordTrustedDecision({ ...payload, board_id: project.board_id, authority: oldAuthority }));

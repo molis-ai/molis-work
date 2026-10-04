@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { checkGoalStorageOwnership } from "../scripts/check-package-boundaries.mjs";
 
-test("production Store/import/Web boundaries reject restored Goal schema and coverage SQL", () => {
-  for (const file of ["apps/local-host/sdk/sdk-store.ts", "plugins/native/goals/src/board-v3-import.ts", "apps/local-host/src/board-v3-import.ts", "apps/desktop/launchers/web/server.ts", "apps/local-host/src/web-request.ts"]) {
+test("production Store/Web boundaries reject restored Goal schema and coverage SQL", () => {
+  for (const file of ["apps/local-host/sdk/sdk-store.ts", "apps/desktop/launchers/web/server.ts", "apps/local-host/src/web-request.ts"]) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     assert.deepEqual(checkGoalStorageOwnership(source), [], file);
     for (const sql of ["CREATE TABLE goals (goal_id TEXT)", "ALTER TABLE risks ADD COLUMN treatment_plan TEXT",

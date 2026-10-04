@@ -1,5 +1,3 @@
-import { buildMolisWorkWebView } from "./fixtures/web-view.js";
-
 import assert from "node:assert/strict";
 import { readFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +8,6 @@ import Database from "better-sqlite3";
 import { GoalsQueryService, GoalsRepository, migrateProjectGuidance, migrateProjectGuidanceRevisions, migrateRiskTreatmentPlan } from "@molis-ai/molis-work-module-goals";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { importV3Board } from "@molis-ai/molis-work-app-local-host";
 
 import { materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
 
@@ -75,101 +72,6 @@ for (const migration of [15, 25, 26]) test(`migration ${migration} rolls back it
   } finally { db.close(); }
 });
 
-const legacy = {
-  schema_version: "3.0", goal_id: "old", meta: { title: "导入后的项目", source: { seed: "迁移" } }, root_goal: { constraints: ["无损"] },
-  goals: [{ id: "child", parent: null, one_liner: "保留旧目标", covers: ["a"], inputs: ["原输入"], outputs: ["原输出"] }],
-  coverage_ledger: [
-    { id: "z", requirement: "以后处理", status: "later", owner_goal: null, entry_condition: "下一版本" },
-    { id: "a", requirement: "保留覆盖记录", status: "now", owner_goal: "child", reason: "原理由" },
-    { id: "b", requirement: "不做", status: "out", owner_goal: null },
-    { id: "c", requirement: "尚未分配", status: "now", owner_goal: null },
-  ],
-};
-
-test("real V3 import and Web Query preserve all coverage dispositions, ordering, isolation and rollback", () => {
-  const store = new LocalProjectDatabase(":memory:");
-  try {
-    const c = new GoalProjectApplication(store);
-    importV3Board(store, c, legacy, { target_board_id: "imported", actor_id: "user", idempotency_key: "v3" });
-    const rows = query(store).listLegacyCoverage("imported");
-    assert.deepEqual(rows.map(r => [r.requirement_id, r.disposition, r.blocking, r.owner_goal_id]), [
-      ["imported:v3:a", "covered", false, "imported:v3:child"], ["imported:v3:b", "out", false, null],
-      ["imported:v3:c", "unresolved", true, null], ["imported:v3:z", "deferred", false, null],
-    ]);
-    assert.equal(rows[0]!.reason, "原理由"); assert.equal(rows[3]!.revisit_condition, "下一版本");
-    assert.deepEqual(buildMolisWorkWebView(store, c, { boardId: "imported" }).coverage, rows);
-    assert.deepEqual(query(store).listLegacyCoverage("other"), []);
-    assert.equal(query(store).getGoal("imported", "imported:v3:child")!.definition_state, "draft");
-    c.initializeBoard({ board_id: "other", title: "other", actor_id: "user", idempotency_key: "other" });
-    assert.throws(() => c.goals.commands.importLegacyCoverage("other", [{ ...rows[0]!, requirement_id: "foreign" }]), /Goal 不存在/);
-    assert.deepEqual(query(store).listLegacyCoverage("other"), []);
-    const broken = { ...legacy, coverage_ledger: [...legacy.coverage_ledger, legacy.coverage_ledger[0]!] };
-    assert.throws(() => importV3Board(store, c, broken, { target_board_id: "failed", actor_id: "user", idempotency_key: "broken" }), /UNIQUE/);
-    assert.equal(query(store).getBoard("failed"), null);
-    assert.deepEqual(query(store).listLegacyCoverage("failed"), []);
-    assert.equal(store.db.prepare("SELECT COUNT(*) FROM events WHERE board_id='failed'").pluck().get(), 0);
-  } finally { store.close(); }
-});
-
-test("V3 import adopts migration event ownership so notes work immediately and after reopen", () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-v3-event-import-"));
-  const databasePath = join(directory, "import.db");
-  let store = new LocalProjectDatabase(databasePath);
-  try {
-    const tree = {
-      ...legacy,
-      goals: [
-        { id: "root", parent: null, one_liner: "父目标", covers: [], inputs: ["根输入"], outputs: ["根输出"] },
-        { id: "child", parent: "root", one_liner: "子目标", covers: ["a"], inputs: ["原输入"], outputs: ["原输出"] },
-      ],
-    };
-    let app = new GoalProjectApplication(store);
-    importV3Board(store, app, tree, { target_board_id: "imported", actor_id: "user", idempotency_key: "v3" });
-    const childId = "imported:v3:child";
-    const child = query(store).getGoal("imported", childId)!;
-    assert.equal(child.title, "子目标");
-    assert.equal(child.outcome, "子目标");
-    assert.deepEqual(child.required_inputs, ["原输入"]);
-    assert.deepEqual(child.promised_outputs, ["原输出"]);
-    assert.deepEqual(child.constraints, ["无损"]);
-    assert.equal(child.decomposition_state, "abstract");
-    assert.equal(child.acceptance_criteria.length, 0);
-    assert.equal(store.snapshot("imported").relations[0]?.type, "part_of");
-    assert.equal(query(store).listLegacyCoverage("imported")[0]?.disposition, "covered");
-    assert.equal(app.goalEvents.isEventStateOwner("imported", childId), true);
-    const state = app.goalEvents.readState("imported", childId);
-    assert.equal(state.work_status, "open");
-    assert.equal(state.can_record, true);
-    assert.equal(state.intent.source_kind, "migration");
-    assert.deepEqual(state.requirements, []);
-    const note = app.goalEvents.recordNote({
-      board_id: "imported", goal_id: childId, actor_id: "user", actor_kind: "user",
-      body: "导入后即可记录", idempotency_key: "import-note",
-    });
-    assert.equal(note.recorded, true);
-    store.close();
-    store = new LocalProjectDatabase(databasePath);
-    app = new GoalProjectApplication(store);
-    assert.equal(app.goalEvents.readState("imported", childId).work_status, "open");
-    const replay = app.goalEvents.recordNote({
-      board_id: "imported", goal_id: childId, actor_id: "user", actor_kind: "user",
-      body: "导入后即可记录", idempotency_key: "import-note",
-    });
-    assert.equal(replay.replayed, true);
-    const afterRestart = app.goalEvents.recordNote({
-      board_id: "imported", goal_id: childId, actor_id: "user", actor_kind: "user",
-      body: "重启后仍可记录", idempotency_key: "import-note-2",
-    });
-    assert.equal(afterRestart.recorded, true);
-    assert.throws(
-      () => importV3Board(store, app, tree, { target_board_id: "imported", actor_id: "user", idempotency_key: "v3-again" }),
-      /不会覆盖/,
-    );
-  } finally {
-    if (store.db.open) store.close();
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
 
 test("Host migration 30 rolls back Goals and Execution together, then preserves original revisions across reopen", () => {
   const { directory, path } = materializeGoalEventV35Fixture("approved");
@@ -192,8 +94,6 @@ test("Host migration 30 rolls back Goals and Execution together, then preserves 
     assert.equal(acceptedBefore.accepted_by, "demo-user");
     assert.ok(acceptedBefore.accepted_at);
     const guidanceBefore = query(store).readProjectGuidance(historicalBoardId);
-    importV3Board(store, c, legacy, { target_board_id: "imported", actor_id: "user", idempotency_key: "v3" });
-    const before = store.snapshot("imported");
     // Independent pre-migration schema: captured old DDL with the later revision column removed.
     store.db.pragma("foreign_keys = OFF");
     const rows = store.db.prepare("SELECT * FROM goals").all() as Array<Record<string, unknown>>;
@@ -219,9 +119,6 @@ test("Host migration 30 rolls back Goals and Execution together, then preserves 
       raw.exec("DROP TRIGGER reject_30");
     } finally { raw.close(); }
     store = new LocalProjectDatabase(path);
-    const after = store.snapshot("imported");
-    assert.deepEqual(after.goals, before.goals);
-    assert.deepEqual(after.relations, before.relations);
     const demoAfter = store.snapshot(historicalBoardId);
     for (const key of ["goals", "relations", "risks", "policy_bindings"] as const) assert.deepEqual(demoAfter[key], demoBefore[key], key);
     assert.deepEqual(query(store).readProjectGuidance(historicalBoardId), guidanceBefore);
@@ -231,57 +128,8 @@ test("Host migration 30 rolls back Goals and Execution together, then preserves 
     assert.equal(acceptedRevision.created_at, acceptedBefore.accepted_at);
     assert.deepEqual(acceptedRevision.contract.acceptance_criteria,
       acceptedBefore.acceptance_criteria.map(({ criterion_id: _id, goal_id: _goal, ...criterion }) => criterion));
-    const revision = after.goal_contract_revisions[0]!;
-    assert.equal(revision.revision, 1);
-    assert.equal(revision.changed_by, "migration");
-    assert.equal(revision.created_at, before.goals[0]!.created_at);
-    const c2 = new GoalProjectApplication(store);
-    const viewBefore = buildMolisWorkWebView(store, c2, { boardId: "imported" }).coverage;
     store.close(); store = new LocalProjectDatabase(path);
-    assert.deepEqual(store.snapshot("imported").goal_contract_revisions, after.goal_contract_revisions);
-    assert.deepEqual(query(store).listLegacyCoverage("imported"), viewBefore);
     assert.deepEqual(query(store).readProjectGuidance(historicalBoardId), guidanceBefore);
   } finally { if (store.db.open) store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("V3 final audit failure rolls back the entire import and permits the same request after repair", () => {
-  const store = new LocalProjectDatabase(":memory:");
-  try {
-    const coordinator = new GoalProjectApplication(store);
-    store.db.exec("CREATE TRIGGER reject_v3_import BEFORE INSERT ON events WHEN NEW.type = 'v3.imported' BEGIN SELECT RAISE(ABORT, 'v3 final audit failed'); END");
-    const tree = { ...legacy, goals: [{ ...legacy.goals[0]!, id: "root", parent: null }, { ...legacy.goals[0]!, parent: "root" }] };
-    const request = { target_board_id: "atomic-v3", actor_id: "user", idempotency_key: "atomic-import" };
-    assert.throws(() => importV3Board(store, coordinator, tree, request), /v3 final audit failed/);
-    assert.equal(query(store).getBoard(request.target_board_id), null);
-    for (const table of ["goals", "goal_relations", "coverage_items", "events", "idempotency_records"]) {
-      assert.equal(store.db.prepare(`SELECT COUNT(*) FROM ${table} WHERE board_id = ?`).pluck().get(request.target_board_id), 0, table);
-    }
-    store.db.exec("DROP TRIGGER reject_v3_import");
-    const report = importV3Board(store, coordinator, tree, request);
-    const snapshot = store.snapshot(request.target_board_id);
-    assert.equal(snapshot.goals.length, 2);
-    assert.equal(snapshot.relations.length, 1);
-    assert.equal(query(store).listLegacyCoverage(request.target_board_id).length, 4);
-    assert.equal(query(store).getBoard(request.target_board_id)!.active_goal_id, "atomic-v3:v3:root");
-    const event = store.db.prepare("SELECT seq, payload_json FROM events WHERE board_id = ? AND type = 'v3.imported'").all(request.target_board_id) as Array<{ seq: number; payload_json: string }>;
-    assert.equal(event.length, 1);
-    assert.equal(report.observed_event_cursor, event[0]!.seq);
-    assert.deepEqual(JSON.parse(event[0]!.payload_json), { legacy_goal_id: legacy.goal_id, legacy_schema_version: "3.0" });
-    assert.throws(() => importV3Board(store, coordinator, tree, request), /目标 Board 已存在/);
-    assert.deepEqual(store.snapshot(request.target_board_id), snapshot);
-  } finally { store.close(); }
-});
-
-test("V3 import with no Goals retains a null active pointer and one final import event", () => {
-  const store = new LocalProjectDatabase(":memory:");
-  try {
-    const coordinator = new GoalProjectApplication(store);
-    const report = importV3Board(store, coordinator, { ...legacy, goals: [], coverage_ledger: [] }, {
-      target_board_id: "empty-v3", actor_id: "user", idempotency_key: "empty-import",
-    });
-    assert.deepEqual(report.goal_id_map, {});
-    assert.equal(query(store).getBoard("empty-v3")!.active_goal_id, null);
-    assert.deepEqual(store.snapshot("empty-v3").goals, []);
-    assert.equal(store.db.prepare("SELECT COUNT(*) FROM events WHERE board_id = ? AND type = 'v3.imported'").pluck().get("empty-v3"), 1);
-  } finally { store.close(); }
-});

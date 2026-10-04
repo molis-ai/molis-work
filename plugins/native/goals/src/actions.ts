@@ -30,7 +30,7 @@ import { goalsInputActions, createGoalsInputActionHandlers } from "./input-actio
 import { goalsDeliverableActions, goalsArtifactInputActions, createGoalsDeliverableActionHandlers, type GoalDeliverablePorts } from "./deliverable-actions.js";
 import { boundGoalObjects } from "./input-actions.js";
 export { goalsDeliverableActions, goalsArtifactInputActions, createGoalsDeliverableActionHandlers, type GoalDeliverable, type GoalDeliverablePorts } from "./deliverable-actions.js";
-import type { LegacyV3ImportPorts } from "./board-v3-import.js";
+import type { GoalsBoardPorts } from "./board-actions.js";
 import { goalsCollectionAction, createGoalsCollectionActionHandler } from "./collection-action.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 
@@ -130,7 +130,7 @@ export function createGoalsActionHandlers({ events, boardId, history, planning, 
   readGoal: Parameters<typeof createGoalDocumentActionHandler>[1]["goal"];
   readContract(goalId: string): GoalContractView;
   collection: GoalsDocumentReadPorts;
-  board: LegacyV3ImportPorts;
+  board: GoalsBoardPorts;
   /** The 成果库 and context ledger for a Goal's deliverables (artifact-positioning A5), and the owners that pin work objects. */
   deliverables: Omit<GoalDeliverablePorts, "boardId" | "goalExists" | "boundObjects">;
 }): ActionHandlerBinding[] {

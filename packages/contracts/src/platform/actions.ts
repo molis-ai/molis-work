@@ -574,7 +574,7 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
         if (a.workflow_content !== undefined) {
           const w = a.workflow_content;
           if (!object(w) || !/^[a-z][a-z0-9-]{1,40}$/.test(String(w.id)) || !text(w.title) || !text(w.icon)
-            || w.protocol !== 1 || !["list", "read", "receive", "create"].includes(String(w.role))) {
+            || w.protocol !== 1 || !["list", "read", "receive", "create"].includes(String(w.role)) || (w.receives !== undefined && (w.receives !== false || w.role === "receive"))) {
             problems.push(`能力 ${key} 的工作流内容合同无效`);
           } else {
             const role = w.role as WorkflowContentStation["role"];

@@ -123,8 +123,11 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = String.raw`(host) => {
         // Read again: a plugin still loading the item (a reload) names it while the surfaces are read, and its naming stands.
         const own = read(surface);
         if (!entry || !surface.isConnected || namedItself(own)) return;
+        // The open tab's name, so the Assistant shows 「正在看：需求说明」 rather than the item's address.
+        const tab = [...document.querySelectorAll(".tab-item[data-item-id]")].find((node) => node.dataset.itemId === itemId);
+        const title = tab ? tab.getAttribute("title") || "" : "";
         surface.setAttribute("data-assistant-context", JSON.stringify({ ...(own || {}), plugin_id: (own && own.plugin_id) || entry.plugin_id,
-          object: { kind: entry.kind, id: itemId }, named_by: "workbench" }));
+          object: { kind: entry.kind, id: itemId, ...(title ? { title } : {}) }, named_by: "workbench" }));
       }, 250);
     }, true);
   })();

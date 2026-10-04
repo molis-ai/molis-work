@@ -1,6 +1,6 @@
 import { PERSONAL_PLUGIN_IDS } from "../../plugin-catalog.js";
 import { PLUGIN_EVENT_RECOVERY_CLIENT } from "./plugin-event-recovery.js";
-import { ARTIFACT_IMPORT_CLIENT_SCRIPT, ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT, ARTIFACT_WORKS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACT_IMPORT_CLIENT_SCRIPT, ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT, ARTIFACT_WORKS_CLIENT_SCRIPT, ARTIFACT_HANDOFF_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
 
 /** Workbench composes bundled project entries and exact Artifact contributions. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
@@ -277,6 +277,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       const workspace = document.querySelector('[data-artifact-stage-workspace]');
       if (workspace) workspace.hidden = !selected;
       void loadArtifactWorks();
+      showHandoff();
       return;
     }
     artifactRequest?.abort();
@@ -300,6 +301,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       if (workspace) workspace.hidden = !selected;
       try { sessionStorage.setItem(artifactKey, path); } catch {}
       void loadArtifactWorks();
+      showHandoff();
     } catch (error) {
       if (controller.signal.aborted) return;
       message.textContent = error.message;
@@ -307,7 +309,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       detail.replaceChildren(message, button);
     } finally { if (controller === artifactRequest) artifactRequest = null; }
   };
-  ${ARTIFACT_IMPORT_CLIENT_SCRIPT}${ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT}${ARTIFACT_WORKS_CLIENT_SCRIPT}
+  ${ARTIFACT_IMPORT_CLIENT_SCRIPT}${ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT}${ARTIFACT_WORKS_CLIENT_SCRIPT}${ARTIFACT_HANDOFF_CLIENT_SCRIPT}
   // The 成果库's one import entry is a dialog in its directory (specs/artifact-positioning A3).
   const openImport = (button) => {
     const dialog = button.closest("header")?.querySelector("[data-artifact-import-dialog]");

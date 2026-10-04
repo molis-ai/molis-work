@@ -147,6 +147,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${artifact.unavailable_reason ? `<p>${p.escape(artifact.unavailable_reason)}</p>` : ""}
     ${!embedded && model.presentation ? `${model.presentation.source_href ? `<p><a class="mw-btn" href="${p.escape(model.presentation.source_href)}" data-workbench-item-plugin="${p.escape(model.presentation.plugin_id)}" data-workbench-item-id="${p.escape(model.presentation.item_id)}" data-workbench-item-title="${p.escape(title)}">${p.text(model.presentation.source_label)}</a></p>` : ""}<section class="artifact-business-preview mw-prose" data-artifact-business-preview>${model.presentation.body_html}</section>` : ""}
     ${!embedded && model.continuers?.length ? continueActions(model.continuers, artifact, p) : ""}
+    ${!embedded ? handoffActions(artifact, p) : ""}
     ${preview}
     ${!embedded && model.links ? linksSection(model.links, routePrefix, p, artifact) : ""}
     <dl class="artifact-facts">
@@ -170,6 +171,16 @@ function continueActions(continuers: NonNullable<ArtifactBrowserUiModel["continu
   return `<p class="artifact-continue-actions">${continuers.map(item => `<button class="mw-btn" type="button" data-artifact-continue="${p.escape(item.plugin_id)}" data-artifact-reference="${reference}">${p.text(`在 ${item.plugin_title} 继续`)}</button>`).join("")}</p>`;
 }
 
+/**
+ * 「交给助理 / Coding」 (artifact-positioning 五.1): the version goes to a new work as material, with what the detail shows of
+ * it. Coding is offered only where the project has it; the 成果 client finds out and shows the button.
+ */
+function handoffActions(artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"]): string {
+  if (artifact.availability !== "available" || artifact.lifecycle_state === "archived") return "";
+  const data = `data-artifact-subject="${p.escape(artifactSubjectId(artifact))}" data-artifact-title="${p.escape(artifact.title)}" data-artifact-version="${artifact.version}"`;
+  return `<p class="artifact-continue-actions" data-artifact-handoff ${data}><button class="mw-btn" type="button" data-artifact-hand="assistant">${p.text("交给助理")}</button><button class="mw-btn" type="button" data-artifact-hand="coding" hidden>${p.text("交给 Coding")}</button></p>`;
+}
+
 const LINK_ROLES = { input: "输入", deliverable: "交付物", proposed: "提议的交付物" } as const;
 /** 「被谁引用」: the Goals that use this version, each opening in the workbench, the Assistant's works, and how many other links there are. */
 function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, routePrefix: string, p: ArtifactBrowserUiModel["primitives"], artifact: NonNullable<ArtifactBrowserView["selected"]>): string {
@@ -181,8 +192,9 @@ function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, route
   const reference = p.escape(JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version }));
   const asInput = usable ? `<details class="artifact-goal-input" data-artifact-goal-input><summary>${p.text("作为 Goal 的输入")}</summary><form data-artifact-goal-input-form data-artifact-reference="${reference}"><select class="mw-select" name="goal" required aria-label="${p.text("选择目标")}"><option value="">${p.text("正在读取目标…")}</option></select><button class="mw-btn" type="submit">${p.text("记为输入")}</button><span data-artifact-goal-input-status role="status"></span></form></details>` : "";
   // Assistant works that started from this version, took it as material or produced it: the Assistant keeps these in its
-  // own store, so the 成果 client reads them once the detail shows. A version is named by its subject or, from a tab, its path.
-  const subjects = p.escape(JSON.stringify([artifactSubjectId(artifact), artifactVersionPath(artifact)]));
+  // own store, so the 成果 client reads them once the detail shows. A version is named by its subject or, from a tab, its path
+  // (with the project's prefix when the tab came from a direct link).
+  const subjects = p.escape(JSON.stringify([...new Set([artifactSubjectId(artifact), artifactVersionPath(artifact), routePrefix + artifactVersionPath(artifact)])]));
   const works = `<div class="artifact-links-works" data-artifact-works="${subjects}" hidden><h3>${p.text("助理工作")}</h3><ul></ul></div>`;
   return `<section class="artifact-links" data-artifact-links><h2>${p.text("被谁引用")}</h2>${goals ? `<ul>${goals}</ul>` : `<p>${p.text("还没有目标引用这一版。")}</p>`}${referrers ? `<h3 class="artifact-links-heading">${p.text("文档")}</h3><ul data-artifact-referrers>${referrers}</ul>` : ""}${works}${other}${asInput}</section>`;
 }

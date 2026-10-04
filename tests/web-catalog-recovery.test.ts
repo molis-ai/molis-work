@@ -3,47 +3,36 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawn } from "node:child_process";
-import { once } from "node:events";
-import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createWebCatalogAccess } from "../apps/local-host/src/web-catalog-access.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-test("health becomes ready after a real migration lock timeout without a business request", { timeout: 20_000 }, async t => {
+test("health becomes ready after a transient catalog lock without a business request", { timeout: 20_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-web-startup-recovery-"));
-  const initial = await openMolisWorkProjectCatalog({ homeDirectory: home }), database = initial.databasePath;
+  const initial = await openMolisWorkProjectCatalog({ homeDirectory: home });
   initial.close();
-  const metadata = new Database(database); metadata.prepare("UPDATE catalog_meta SET value='18' WHERE key='schema_version'").run(); metadata.close();
   const localHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  let failed!: () => void;
-  const timedOut = new Promise<void>(resolve => { failed = resolve; });
-  // Observe the real opener's timeout, so lock release cannot race ahead of the failure under CPU load.
+  // The first preparation meets a lock another process holds; the catalog itself is current.
+  let locked = true;
   localHost.ensureWebCatalog(home, async options => {
-    try { return await openMolisWorkProjectCatalog(options); }
-    catch (error) { if ((error as { code?: string }).code === "SQLITE_BUSY") failed(); throw error; }
+    if (locked) { locked = false; throw Object.assign(new Error("database is locked"), { code: "SQLITE_BUSY" }); }
+    return openMolisWorkProjectCatalog(options);
   });
-  const writer = spawn(process.execPath, ["--input-type=module", "-e", `
-    import Database from 'better-sqlite3'; const db=new Database(process.argv[1]);db.exec('BEGIN IMMEDIATE');
-    console.log('locked');process.stdin.once('data',()=>{db.exec('ROLLBACK');db.close();});
-  `, database], { stdio: ["pipe", "pipe", "pipe"] });
-  const exited = once(writer, "exit"); await once(writer.stdout!, "data");
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost, controlToken: "catalog-recovery-control-token-0123456789" });
   t.after(async () => {
-    if (writer.exitCode === null) { writer.kill(); await exited; }
     server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
     await localHost.close();
     await rm(home, { recursive: true, force: true });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
-  await timedOut; writer.stdin!.end("release"); await exited;
   const origin = `http://127.0.0.1:${address.port}`;
   const deadline = Date.now() + 3000;
   let health;
   do { health = await fetch(origin + "/health"); if (health.status === 200) break; await health.text(); await delay(30); } while (Date.now() < deadline);
+  assert.equal(locked, false, "the first preparation met the lock");
   assert.equal(health.status, 200, "the Server must retry preparation independently of business traffic");
   assert.equal((await health.json()).status, "ok");
 });

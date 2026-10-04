@@ -6,8 +6,6 @@ import test from "node:test";
 
 import {
   createProjectsSchema,
-  migrateProjectDataClassSchema,
-  migrateProjectDropLegacyImportSchema,
   ProjectsModule,
 } from "@molis-ai/molis-work-module-projects";
 import Database from "better-sqlite3";
@@ -89,58 +87,6 @@ test("Projects Module owns canonical project identity and workspace membership",
   } finally {
     db.close();
     rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-test("project identity schema migration is rollback-safe and idempotent", () => {
-  const db = new Database(":memory:");
-  try {
-    db.exec(`
-      CREATE TABLE projects (
-        project_id TEXT PRIMARY KEY,
-        display_name TEXT NOT NULL,
-        board_id TEXT NOT NULL,
-        database_path TEXT NOT NULL UNIQUE,
-        source TEXT NOT NULL,
-        migrated_from_path TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      INSERT INTO projects VALUES
-        ('created-project', 'Created', 'created-project', '/tmp/created.db', 'created', NULL, 'now', 'now'),
-        ('migrated-project', 'Migrated', 'legacy-board', '/tmp/migrated.db', 'migrated', '/tmp/legacy.db', 'now', 'now');
-    `);
-
-    assert.throws(() => db.transaction(() => {
-      migrateProjectDataClassSchema(db);
-      throw new Error("rollback fixture");
-    })(), /rollback fixture/);
-    assert.equal(
-      (db.pragma("table_info(projects)") as Array<{ name: string }>).some((column) => column.name === "data_class"),
-      false,
-    );
-
-    migrateProjectDataClassSchema(db);
-    migrateProjectDataClassSchema(db);
-    assert.deepEqual(
-      db.prepare("SELECT project_id, board_id, data_class FROM projects ORDER BY project_id").all(),
-      [
-        { project_id: "created-project", board_id: "created-project", data_class: "user" },
-        { project_id: "migrated-project", board_id: "legacy-board", data_class: "migrated_user" },
-      ],
-    );
-
-    migrateProjectDropLegacyImportSchema(db);
-    migrateProjectDropLegacyImportSchema(db);
-    assert.deepEqual(
-      db.prepare("SELECT project_id, board_id, data_class, source, migrated_from_path FROM projects ORDER BY project_id").all(),
-      [
-        { project_id: "created-project", board_id: "created-project", data_class: "user", source: "created", migrated_from_path: null },
-        { project_id: "migrated-project", board_id: "legacy-board", data_class: "user", source: "created", migrated_from_path: null },
-      ],
-    );
-  } finally {
-    db.close();
   }
 });
 

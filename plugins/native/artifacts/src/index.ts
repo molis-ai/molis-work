@@ -14,6 +14,7 @@ export { renderArtifactImportDialog, ARTIFACT_IMPORT_STYLES } from "./import-ui.
 export type { ArtifactImportUiModel } from "./import-ui.js";
 export { ARTIFACT_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 export { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT } from "./goal-input-client.js";
+export { ARTIFACT_WORKS_CLIENT_SCRIPT } from "./works-client.js";
 export { createPluginArtifactClient, PluginArtifactAccessError } from "./plugin-client.js";
 export { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
 

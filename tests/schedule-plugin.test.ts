@@ -248,7 +248,6 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
     archived_goals: [],
     trashed_goals: [],
     counts: {},
-    coverage: [],
     input_bindings: [],
     policy_bindings: [],
     events: [],

@@ -19,13 +19,16 @@ const at = "2026-08-10T01:02:03.000Z";
 const query = (store: LocalProjectDatabase) => new GoalsQueryService(new GoalsRepository(store.db));
 const schema = (table: string) => baseline.find(row => row.type === "table" && row.name === table)!.sql;
 
-test("fresh Goals tables, indexes, defaults and constraints match the pre-GW6 schema", () => {
+// One intended difference: the V3 requirement ledger (coverage_items) was removed with the V3 import (2026-10-04).
+test("fresh Goals tables, indexes, defaults and constraints match the pre-GW6 schema, without the V3 requirement ledger", () => {
   const store = new LocalProjectDatabase(":memory:");
   try {
+    const expected = baseline.filter(row => row.tbl_name !== "coverage_items");
     const tables = new Set(baseline.map(row => row.tbl_name));
     const actual = (store.db.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name").all() as typeof baseline)
       .filter(row => tables.has(row.tbl_name)).map(row => ({ ...row, sql: row.sql.replace(/\s+/g, " ").trim() }));
-    assert.deepEqual(actual, baseline);
+    assert.deepEqual(actual, expected);
+    assert.equal(store.db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'coverage_items'").get(), undefined);
   } finally { store.close(); }
 });
 

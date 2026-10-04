@@ -49,7 +49,7 @@ export function projectGoalDocument(goal: GoalRecord, input: {
   const {
     goalRiskIds, webRisks, evidenceByGoal, evidenceCorrectionsByGoal, reviewObligationsByGoal,
     reviewsByGoal, impactsByGoal, contractProposalsByGoal, clarificationSessionsByGoal,
-    clarificationTurnsByGoal, coverageByGoal, inputBindingsByGoal, policyBindingsByGoal,
+    clarificationTurnsByGoal, inputBindingsByGoal, policyBindingsByGoal,
     projectPolicyBindings, eventsByObject, relationsByGoal, candidatesByRun,
     goalTreeProposalsByGoal, rewiresByGoal, rewiresByCandidate, createdByGoal,
   } = input.index;
@@ -148,7 +148,6 @@ export function projectGoalDocument(goal: GoalRecord, input: {
     risks: webRisks.filter((item) => riskIds.has(item.risk_id)),
     impacts,
     relations,
-    coverage: coverageByGoal.get(goal.goal_id) ?? [],
     input_bindings: inputBindingsByGoal.get(goal.goal_id) ?? [],
     policy_bindings: visiblePolicyBindings,
     events: goalEvents,

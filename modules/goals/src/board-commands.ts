@@ -54,23 +54,6 @@ export class MolisWorkCommands {
     });
   }
 
-  completeLegacyBoardImport(input: Parameters<GoalsCommandApi["completeLegacyBoardImport"]>[0]): number {
-    return this.context.repository.immediate(() => {
-      this.context.repository.setActiveGoal(input.board_id, input.active_goal_id, input.at);
-      return this.context.repository.appendEvent({
-        eventId: randomUUID(),
-        boardId: input.board_id,
-        actorId: input.actor_id,
-        type: "v3.imported",
-        objectType: "board",
-        objectId: input.board_id,
-        reason: "保留可安全映射的 V3 字段，其余明确要求重新生成",
-        payload: { legacy_goal_id: input.legacy_goal_id, legacy_schema_version: input.legacy_schema_version },
-        at: input.at,
-      });
-    });
-  }
-
   setActiveGoal(
     boardId: string,
     input: { goal_id: string; reason: string },

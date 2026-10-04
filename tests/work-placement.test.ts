@@ -269,7 +269,7 @@ test("the Goals page shows a newly bound material without waiting for the next j
     snapshot_digest: null, state: "confirmed", reason: "", created_by: "web-user", created_at: "2026-09-28T00:00:00.000Z" };
   let bindings: typeof binding[] = [];
   const collection = () => ({ snapshot: { cursor: 7, board: { board_id: "b", title: "B", active_goal_id: null } }, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],
-    counts: {}, coverage: [], input_bindings: bindings, policy_bindings: [], events: [] });
+    counts: {}, input_bindings: bindings, policy_bindings: [], events: [] });
   const actions = { discover: async () => [], invoke: async (definition: { capability_id: string }) => {
     if (definition.capability_id === "goals.collection.read") return collection();
     throw new ActionError("actions.not_found", "not here");

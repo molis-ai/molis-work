@@ -433,6 +433,11 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   }
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert.equal(await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden"), false, "ticking plugins keeps the list open");
+  // Ticking that many plugins refits the Dock (a ResizeObserver, a frame or more later); a press that lands while the bar
+  // still moves releases somewhere else and is no click. Wait until the switcher stays put, then close it.
+  await waitFor(`(() => { const node = document.querySelector('[data-plugin-picker-toggle]'), rect = node.getBoundingClientRect(), at = rect.x + ',' + rect.y + ',' + rect.width;
+    const same = window.__pickerToggle === node && window.__pickerToggleAt === at; window.__pickerToggle = node; window.__pickerToggleAt = at;
+    window.__pickerToggleStill = same ? (window.__pickerToggleStill || 0) + 1 : 0; return window.__pickerToggleStill >= 3; })()`);
   await click("[data-plugin-picker-toggle]");
   await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
   await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);

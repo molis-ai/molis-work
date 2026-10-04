@@ -260,3 +260,28 @@ test("events and wiring survive a host restart on the same database", async () =
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+// One source per input port in the durable store too (artifact-positioning, 2026-10-04): a fixed 成果 version and another
+// plugin's output replace each other, survive reopening, and go with the plugin that is removed.
+test("a port's fixed version and plugin source replace each other durably and leave with the plugin", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-wiring-fixed-"));
+  const path = join(directory, "wiring.sqlite");
+  try {
+    let db = new Database(path);
+    let repository = new SqlitePluginWiringRepository(db);
+    const fixed = { board_id: "b", target_plugin_id: "consumer", target_port: "report", artifact_id: "report", version: 3, actor_id: "web-user", created_at: "2026-10-04T00:00:00.000Z" };
+    const plugin = { board_id: "b", target_plugin_id: "consumer", target_port: "report", source_plugin_id: "producer", source_port: "report",
+      origin: "default" as const, created_at: "2026-10-04T00:00:00.000Z", updated_at: "2026-10-04T00:00:00.000Z" };
+    repository.saveBinding(plugin);
+    repository.saveArtifactBinding(fixed);
+    assert.equal(repository.getBinding("b", "consumer", "report"), null);
+    db.close(); db = new Database(path); repository = new SqlitePluginWiringRepository(db);
+    assert.deepEqual(repository.getArtifactBinding("b", "consumer", "report"), fixed);
+    repository.saveBinding(plugin);
+    assert.equal(repository.getArtifactBinding("b", "consumer", "report"), null);
+    repository.saveArtifactBinding(fixed);
+    repository.deleteBindingsForPlugin("b", "consumer");
+    assert.deepEqual([repository.getArtifactBinding("b", "consumer", "report"), repository.getBinding("b", "consumer", "report")], [null, null]);
+    db.close();
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});

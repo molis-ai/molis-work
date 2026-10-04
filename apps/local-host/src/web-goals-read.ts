@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { availableProjectPluginIds, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
 import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
-import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { declaredArtifactTypes, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
@@ -128,7 +128,7 @@ export function createLocalGoalsReadHttp(ports: {
             ...codingServices,
             store,
             boardId: options.boardId,
-            actorId: "web-user",
+            actorId: LOCAL_PERSON_ACTOR_ID,
             goalTitle: (goalId: string) => coordinator?.goalQueries.getGoal(options.boardId, goalId)?.title,
             escapeHtml,
             translate: (value: string) => value,
@@ -139,7 +139,7 @@ export function createLocalGoalsReadHttp(ports: {
           view = { ...view, plugin_stages: [characterStage.panel, await builderWorkbenchPanel(surfacePorts), ...await codingCompanionStages(surfacePorts, projectConfiguration.plugins)] };
           // Installed execution supplies rail entries and stages independently of opening the authoring studio.
           const installed = await installedPluginStages({ store, boardId: options.boardId, homeDirectory, routePrefix: view.route_prefix,
-            models: async () => await codingServices.execution?.models() ?? [], actorId: "web-user", actions: codingServices.actions,
+            models: async () => await codingServices.execution?.models() ?? [], actorId: LOCAL_PERSON_ACTOR_ID, actions: codingServices.actions,
             ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }).catch(() => []);
           if (installed.length) view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.map(item => item.stage)], plugin_rail: installed.map(({ surface, label }) => ({ surface, label })) };
           if (projectConfiguration.plugins.includes("coding")) {

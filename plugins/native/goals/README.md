@@ -29,7 +29,7 @@ Host 注入各 Module 的公开端口。`GoalEventApplication` 连接创建、�
 
 `goalsActions` 当前提供 50 项 project 动作，由 Manifest 声明并在项目动作服务中注册，其中 43 项可按授权供 MCP 使用，7 项仅供受保护的用户操作：
 
-- 本地管理：`goals.board.initialize`、`goals.board.import-v3`，只接受可信 management 用户上下文。CLI/管理 MCP 和 host-only typed 入口薄转发同一动作，身份由宿主定为本机这个人（`LOCAL_PERSON_ACTOR_ID`），输入不带 `actor_id`；普通 MCP/Agent/插件不获管理权。原初始化回执、导入事务与禁止覆盖保持。
+- 本地管理：`goals.board.initialize`，只接受可信 management 用户上下文。CLI/管理 MCP 和 host-only typed 入口薄转发同一动作，身份由宿主定为本机这个人（`LOCAL_PERSON_ACTOR_ID`），输入不带 `actor_id`；普通 MCP/Agent/插件不获管理权。原初始化回执与禁止覆盖保持。V3 导入已删（2026-10-04，用户决定不留旧数据入口）。
 - 目录、创建、便笺：`goals.list`、`goals.create`、`goals.note`。
 - 结构提案：`goals.tree.submit`、`goals.tree.read`、`goals.tree.check`、`goals.tree.decide`。提交只保存提案，检查保存检查结果并回滚预检变更；审批为受保护的用户操作。历史提案保持可读，退役类型不能重新批准。
 - 目标生命周期：`goals.active.set`、`goals.archive.set`、`goals.trash.set`、`goals.trash.list`。当前目标不启动工作；归档须已完成；回收站操作须明确确认，保留阻塞、完整历史及关系恢复结果。

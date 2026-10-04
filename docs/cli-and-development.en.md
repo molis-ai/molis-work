@@ -18,28 +18,12 @@ Current work is represented by event state and read through `goal_state`. A pare
 
 Goals Module owns graph integrity and structural impact. Reusable candidates come from current event work status rather than old leaf categories. Relation changes use finite Goal Tree proposals and protected user decisions, with no clarifier Claim, Draft Dialogue, or old action token. Regressions include `tests/goal-tree-event-flow.test.ts`, `tests/goal-events-state.test.ts`, and `tests/planning-engine.test.ts`.
 
-## One-time V3 import
-
-Legacy JSON is not a parallel running mode; it can only be written into a brand-new V1 Board through an explicit import:
-
-```bash
-molis-work v1 import-v3 \
-  --db .molis-work/imported.db \
-  --board-id imported \
-  --key import-1 \
-  --file legacy-goal-board.json
-```
-
-Import preserves Goal titles and original outcomes, parent/child structure, scope, inputs/outputs, root constraints, coverage dispositions, and original sources. The same transaction establishes current event ownership, with `goal_state.intent.source_kind=migration`. Imported Goals immediately support ordinary notes through Runtime or Web and remain usable after reopening. Import invents no acceptance requirements, completion, user approval, or dependencies absent from V3. Clarify further deliverables through current agreements and requirements. An existing target Board is never overwritten.
-
-The management MCP exposes `molis_work_v1_import_v3` on the same Coordinator; the Runtime MCP does not expose import.
-
 ## CLI
 
 The public CLI top level provides program install, the persistent service, demo, safe uninstall, and the `molis-work v1 <operation>` management surface:
 
 ```text
-init | snapshot | import-v3 | active-goal
+init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 

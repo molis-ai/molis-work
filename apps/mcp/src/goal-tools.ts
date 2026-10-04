@@ -3,7 +3,6 @@ import type { McpToolDefinition } from "./protocol.js";
 import {
   V1_COMMON,
   V1_STRING,
-  v1PayloadTool,
 } from "./tool-schemas.js";
 
 export const V1_TOOLS: McpToolDefinition[] = [
@@ -43,10 +42,4 @@ export const V1_TOOLS: McpToolDefinition[] = [
       required: ["board_id", "proposal_id", "idempotency_key"],
     },
   },
-  v1PayloadTool(
-    "molis_work_v1_import_v3",
-    goalsActions.importV3.action.description,
-    goalsActions.importV3.action.input_schema.properties as Record<string, unknown>,
-    ["legacy", "idempotency_key"],
-  ),
 ];

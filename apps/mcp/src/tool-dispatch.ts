@@ -1,8 +1,7 @@
-import { importV3Capability, initializeBoardCapability, goalTreeCapabilities, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { initializeBoardCapability, goalTreeCapabilities, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { createMcpGoalEventHandlers } from "./goal-event-commands.js";
 import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import type { LegacyV3ImportInput } from "@molis-ai/molis-work-plugin-goals";
 import type { McpPresentationErrorFactory } from "./query-presentation.js";
 import { canonicalMcpToolName } from "./tool-catalog.js";
 
@@ -46,18 +45,6 @@ export async function dispatchMcpProjectTool(
         const { database_path: _database, web_base_url: _url, authority, ...input } = arguments_;
         const decision = { ...input, authority: managementTreeAuthority(String(input.board_id), String(input.idempotency_key), authority) };
         result = await client.invoke(goalTreeCapabilities.decideGoalTreeProposal, [decision as unknown as GoalTreeProposalDecideInput]);
-        break;
-      }
-      case "molis_work_v1_import_v3": {
-        const payload = arguments_.payload as {
-          legacy: LegacyV3ImportInput;
-          idempotency_key: string;
-        };
-        result = await client.invoke(importV3Capability, {
-          legacy: payload.legacy,
-          target_board_id: String(arguments_.board_id),
-          idempotency_key: payload.idempotency_key,
-        });
         break;
       }
       default:

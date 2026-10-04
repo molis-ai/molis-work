@@ -1,7 +1,6 @@
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { CreateGoalInput, GoalsApplicationApi, GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
-import type { LegacyV3ImportInput, V3ImportReport } from "./board-import-contract.js";
 
 /** The host acts as the person on this machine; no identity is carried in the input. */
 export interface InitializeBoardInput {
@@ -19,19 +18,6 @@ export interface CreateGoalCapabilityInput {
 }
 
 type CreateGoalCapabilityOutput = ReturnType<GoalsApplicationApi["commands"]["createGoal"]>;
-
-export interface ImportV3CapabilityInput {
-  legacy: LegacyV3ImportInput;
-  target_board_id: string;
-  idempotency_key: string;
-}
-
-export const importV3Capability = {
-  capability_id: "io.molis.work.local-host.board.import-v3",
-  host_only: true,
-  version: 1,
-  operation: "command",
-} as HostCapabilityDefinition<ImportV3CapabilityInput, V3ImportReport>;
 
 export const projectResumeFactsCapability = {
   capability_id: "io.molis.work.local-host.project.resume-facts",

@@ -319,7 +319,7 @@ export class LocalMcpServer {
           ? runtimeConnection!.databasePath
           : arguments_.database_path ?? readProductEnv("DATABASE") ?? ".molis-work/molis-work.db",
       ),
-      name === "molis_work_v1_initialize" || name === "molis_work_v1_import_v3" ? "create" : "existing",
+      name === "molis_work_v1_initialize" ? "create" : "existing",
     );
     const { databasePath } = storage;
     if (storage.status === "missing") {

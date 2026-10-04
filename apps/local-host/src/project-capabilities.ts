@@ -3,7 +3,7 @@ import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallCo
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { goalsActions, GOALS_PLUGIN_ID, readGoalResumeFacts, readGoalContractCapability } from "@molis-ai/molis-work-plugin-goals";
 import { registerCasebookCapabilities } from './casebook/integration.js';
-import { importV3Capability, projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability,
+import { projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability,
   goalsEntryCapabilities, goalEntryCompositionCapabilities,
   goalTreeCapabilities,
   readProjectGuidanceCapability, setActiveGoalCapability,
@@ -217,10 +217,6 @@ export function registerProjectCapabilities(
   host.register(readGoalContractCapability, (runtime, input, invocation) => {
     checkGoalBoard(runtime, input.board_id);
     return goalAction(runtime, goalsActions.contract, { goal_id: input.goal_id }, { actor_id: "local-host" }, invocation);
-  });
-  host.register(importV3Capability, (runtime, { target_board_id, ...input }, invocation) => {
-    checkGoalBoard(runtime, target_board_id);
-    return goalAction(runtime, goalsActions.importV3, input, managementIdentity(runtime, input.idempotency_key), invocation);
   });
   host.register(projectResumeFactsCapability, async (runtime, input, invocation) => {
     checkGoalBoard(runtime, input.board_id);

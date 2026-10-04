@@ -139,7 +139,6 @@
 | BL-080 | 19 个构建期装配的内置插件迁到 Plugin Runtime（冻结名单在 `tests/builtin-plugin-assembly-gate.test.ts`） | [代码健康报告 R-01](../docs/prompts/code-health-report-2026-09-30.md)、[plugin-platform-v2](plugin-platform-v2/spec.md) | 明确后续做 | 高 |
 | BL-081 | 旧动作入口：旧 Functions 场景与开关、六组 Native MCP 旧名、判断函数旧 MCP 名、旧函数键 HTTP 别名等「兼容入口薄转发」 | [action-architecture/migration.md](action-architecture/migration.md)、[review-2026-09-28](action-architecture/review-2026-09-28.md) | 明确后续做 | 高 |
 | BL-082 | 文字补全仍读旧凭据 `model:text:api_key`（`apps/local-host/src/host-complete-text.ts`、`web-connector-connections.ts`） | [action-architecture/migration.md](action-architecture/migration.md) | 已知缺口 | 中 |
-| BL-083 | V3 一次性导入入口（CLI `importV3Capability`） | [standalone-repository/legacy-boundary.md](archive/standalone-repository/legacy-boundary.md) | 明确后续做 | 中 |
 | BL-084 | `AssistantSurfaceContext.starters` 读取兼容但已废弃 | [contextual-interaction 决策记录](archive/contextual-interaction/spec.md) | 明确后续做 | 低 |
 | BL-085 | 插件复查遗留：Promote 无 Artifact 口仍写 `goal_id`；Functions 并发锁只覆盖草稿与发布；HTTP 别名、目录面、Workbench 注册手写 | [personal-plugins-review-fixes](archive/personal-plugins-review-fixes/spec.md) | 已知缺口 | 中 |
 | BL-086 | 左侧插件栏（`plugin-rail-items`）在统一底栏改版后是否已成死代码 | [plugin-rail-selection-align](archive/plugin-rail-selection-align/spec.md) | 已知缺口 | 低 |

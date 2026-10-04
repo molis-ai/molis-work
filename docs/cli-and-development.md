@@ -18,28 +18,12 @@ Home 安装、Runtime 接入、常驻 Web 服务和卸载的实现统一在 `app
 
 结构影响与图合法性由 Goals Module 的规划图计算，当前候选读取事件work_status，不读取旧叶子分类。关系变化通过当前有限Goal Tree提案及受保护用户决定处理；不再生成clarifier Claim、Draft Dialogue或旧动作token。回归见 `tests/goal-tree-event-flow.test.ts`、`tests/goal-events-state.test.ts` 和 `tests/planning-engine.test.ts`。
 
-## 一次性 V3 导入
-
-旧 JSON 不是并行运行模式，只能通过显式导入写入一个全新的 V1 Board：
-
-```bash
-molis-work v1 import-v3 \
-  --db .molis-work/imported.db \
-  --board-id imported \
-  --key import-1 \
-  --file legacy-goal-board.json
-```
-
-导入保留Goal标题与原结果、父子结构、范围、inputs/outputs、root constraints、coverage disposition和原始来源。现有事务同时接通当前事件归属，`goal_state.intent.source_kind` 为 `migration`；导入后可立即从Runtime或Web记录普通笔记，重启后仍可继续。不会合成验收要求、完成或用户批准，也不生成原V3没有的依赖。需要进一步明确交付时使用当前约定与要求。目标Board已存在时拒绝覆盖。
-
-management MCP 提供同一 Coordinator 上的 `molis_work_v1_import_v3`；Runtime MCP 不暴露导入。
-
 ## CLI
 
 公开 CLI 顶层提供本体安装、常驻服务、demo、安全卸载，以及 `molis-work v1 <operation>` 管理接口：
 
 ```text
-init | snapshot | import-v3 | active-goal
+init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 

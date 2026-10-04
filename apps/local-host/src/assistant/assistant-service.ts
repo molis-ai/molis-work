@@ -315,7 +315,7 @@ function revisionOf(version: string | number | undefined): string | null {
   return version === undefined || version === null || version === "" ? null : String(version);
 }
 
-const RELATION_WORDS: Record<AssistantWorkObject["relation"], string> = { origin: "起点", material: "材料", result: "成果", session: "专业会话" };
+const RELATION_WORDS: Record<AssistantWorkObject["relation"], string> = { origin: "起点", material: "材料", result: "产出", session: "专业会话" };
 
 /** The work's objects as the model reads them: what each is to the work, and whether it changed since. */
 /**

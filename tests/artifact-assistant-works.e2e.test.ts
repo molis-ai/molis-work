@@ -19,17 +19,21 @@ test("a 成果 version lists the Assistant work that started from it, and opens 
   await waitFor("Boolean(document.querySelector('[data-artifact-links]'))", 15_000);
   // No work refers to it yet: the list stays out of the way.
   assert.equal(await evaluate("document.querySelector('[data-artifact-works]').hidden"), true);
-  // The version is named both ways a work can hold it: by its subject (side panel, search) and by its tab's path.
+  // The version is named every way a work can hold it: by its subject (side panel, search) and by its tab's path, with the
+  // project's prefix when the tab came from a direct link.
   assert.deepEqual(await evaluate("JSON.parse(document.querySelector('[data-artifact-works]').dataset.artifactWorks)"),
-    [JSON.stringify(["pages-brief", 1]), "/artifacts/pages-brief/versions/1"]);
+    [JSON.stringify(["pages-brief", 1]), "/artifacts/pages-brief/versions/1", version]);
+  // The Assistant names the open version by its title, not its address.
+  await evaluate("document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: {} }))");
+  await waitFor("(document.querySelector('[data-assistant-materials]')?.getAttribute('aria-label') || '').includes('正在看：需求说明')", 10_000);
 
-  // The person asks the Assistant while this version's tab is open: the work starts from it. Without a model the round
-  // does not run, but the work and where it started are kept.
+  // The person asks the Assistant while this version's tab is open (here from a direct link, so the tab holds the prefixed
+  // address): the work starts from it. Without a model the round does not run, but the work and where it started are kept.
   await evaluate(`fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/send`)}, { method: "POST",
     headers: { ...(globalThis.molisWorkControlHeaders?.() || {}), "content-type": "application/json" },
     body: JSON.stringify({ text: "把需求说明整理成清单", request_id: "artifact-works-1",
-      context: { source: { surface: "artifacts", title: "成果" }, object: { kind: "artifact", id: "/artifacts/pages-brief/versions/1", title: "需求说明" } } }) }).then(r => r.status)`);
-  const related = await evaluate<Array<{ work_id: string; relation: string }>>(`fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/related?kind=artifact&id=${encodeURIComponent("/artifacts/pages-brief/versions/1")}`)}).then(r => r.json()).then(body => body.works)`);
+      context: { source: { surface: "artifacts", title: "成果" }, object: { kind: "artifact", id: ${JSON.stringify(version)}, title: "需求说明" } } }) }).then(r => r.status)`);
+  const related = await evaluate<Array<{ work_id: string; relation: string }>>(`fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/related?kind=artifact&id=${encodeURIComponent(version)}`)}).then(r => r.json()).then(body => body.works)`);
   assert.equal(related.length, 1);
   assert.equal(related[0]!.relation, "origin");
 

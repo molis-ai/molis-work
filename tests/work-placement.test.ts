@@ -44,7 +44,7 @@ interface Note { id: string; project: string; title: string; body: string; versi
 const reader = defineSubjectContextAction("notes.subject.read", "note", "笔记", ["notes:read"]);
 const mover = defineObjectMoveAction("notes.placement.move", ["note"], "笔记", ["notes:write"]);
 const copier = defineObjectCopyAction("notes.placement.copy", ["note"], "笔记", ["notes:write"]);
-const station = defineWorkflowContentActions({ id: "notes", title: "笔记", icon: "note", create: true, read_permissions: ["notes:read"], write_permissions: ["notes:write"] });
+const station = defineWorkflowContentActions({ id: "notes", title: "笔记", icon: "note", create: true, subject_kind: "note", read_permissions: ["notes:read"], write_permissions: ["notes:write"] });
 const homeReader = defineSubjectContextAction("clips.subject.read", "clip", "剪藏", ["notes:read"], "home");
 
 function notesPlugin(actions: ActionService, notes: Map<string, Note>, projects: readonly string[]) {

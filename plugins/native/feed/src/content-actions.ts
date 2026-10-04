@@ -5,7 +5,7 @@ import type { FeedItemRecord } from "./projection.js";
 import { createFeedHomeEventsHandler } from "./home-events.js";
 import { feedArtifactPreviewHandler } from "./artifact-preview.js";
 
-export const feedContentActions = defineWorkflowContentActions({ id: "feed", title: "Feed", icon: "rss",
+export const feedContentActions = defineWorkflowContentActions({ id: "feed", title: "Feed", icon: "rss", subject_kind: "feed_item",
   read_permissions: ["feed:read"], write_permissions: ["feed:write"] });
 
 export const feedSubjectAction = defineSubjectContextAction("feed.subject.read", "feed_item", "Feed 材料", ["feed:read"]);

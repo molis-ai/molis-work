@@ -455,7 +455,7 @@ export class AgentHost implements AgentHostApi {
     const session = await adapter.readSession(request.session);
     if (request.session.runtime_id !== runtimeId || session.session.runtime_id !== runtimeId || session.session.session_id !== request.session.session_id
       || session.owner.board_id !== request.board_id || session.owner.plugin_id !== request.plugin_id || session.owner.install_id !== request.install_id
-      || (session.owner.actor_id !== undefined || workspace === "none" || workspace === "business") && session.owner.actor_id !== request.actor_id
+      || session.owner.actor_id !== request.actor_id
       || (session.workspace ?? "required") !== workspace) {
       throw new AgentHostError("agent.session_unknown", "执行请求与原会话的身份或工作区方式不一致");
     }

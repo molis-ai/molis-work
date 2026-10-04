@@ -41,6 +41,8 @@ for (const width of [1440, 390]) {
     assert.match(card, /需求说明/);
     assert.doesNotMatch(card.slice(0, 2000), /没有兼容插件/);
     assert.match(card.slice(0, 2000), /文档 · io\.molis\.work\.pages\.document/);
+    // The Goal's overview says what it hands in, without opening 「完成要求」 (F6), and leads there.
+    assert.match(goal, /data-event-reader="requirements" data-goal-deliverables-entry><span>交付物<\/span><span>1 份<\/span>/);
 
     // The import dialog has room around its content (the side panel, which covers a phone screen, is put away first).
     await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");

@@ -215,11 +215,13 @@ async function withSelectedGoalDocument(
     goalActions.invoke(goalsActions.policyResolve, { goal_id: goalId }),
   ]);
   const policyBindings = history.bindings.filter(binding => binding.goal_id === null || binding.goal_id === goalId);
-  let html: string | undefined;
+  let html: string | undefined, outputs = 0;
   if (collection !== "trash") try {
     // Every declared 成果 type has an owner that reads it (artifact-positioning A4): none of them is "no compatible plugin".
     const { embeds } = await actions.invoke(artifactsActions.goalEmbeds, { goal_id: goalId, supported_types: declaredArtifactTypes() });
     html = renderGoalArtifactContext(embeds);
+    // What the Goal hands in shows on its overview too (F6), not only under 「完成要求」.
+    outputs = embeds.filter(embed => embed.relationship === "output").length;
   } catch (error) {
     if (!(error instanceof ActionError) || !["actions.plugin_disabled", "actions.forbidden", "actions.missing"].includes(error.code)) throw error;
     // An unavailable optional reader must not prevent opening the Goal itself.
@@ -228,7 +230,7 @@ async function withSelectedGoalDocument(
   }
   const decorate = (item: MolisWorkWebView["goals"][number]) =>
     item.goal.goal_id === goalId ? { ...item, relations: relations.relations, policy_bindings: policyBindings, resolved_policy: resolved.policy,
-      ...(html === undefined ? {} : { artifact_embed_html: html }) } : item;
+      ...(html === undefined ? {} : { artifact_embed_html: html, artifact_outputs: outputs }) } : item;
   return {
     ...eventView,
     goals: eventView.goals.map(decorate),

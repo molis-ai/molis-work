@@ -24,7 +24,6 @@ import {
 } from "./goal-commands.js";
 import { GuidanceCommands } from "./guidance-commands.js";
 import { ProjectPolicyCommands } from "./policy-commands.js";
-import { LegacyGoalCoverage } from "./legacy-coverage.js";
 import { GoalImpactRepository } from "./impact-repository.js";
 import { ConfirmedRelationCommands } from "./confirmed-relations.js";
 import {
@@ -118,9 +117,7 @@ export class GoalsModule {
     this.commands = {
       saveProjectPolicy: input => projectPolicy.save(input),
       initializeBoard: input => boards.initializeBoard(input),
-      completeLegacyBoardImport: input => boards.completeLegacyBoardImport(input),
       setActiveGoal: (...args) => boards.setActiveGoal(...args),
-      importLegacyCoverage: (boardId, rows) => new LegacyGoalCoverage(context).import(boardId, rows),
       applyConfirmedRelations: input => confirmedRelations.applyConfirmedRelations(input),
       createGoal: (boardId: string, input: CreateGoalInput, write: GoalsActorWrite) =>
         goals.createGoal(boardId, input, write),
@@ -139,7 +136,6 @@ export class GoalsModule {
     this.query = {
       listBoardIds: () => query.listBoardIds(),
       listActivePolicyBindings: (...args) => query.listActivePolicyBindings(...args),
-      listLegacyCoverage: boardId => query.listLegacyCoverage(boardId),
       listPolicyHistory: boardId => query.listPolicyHistory(boardId),
       listGoalRiskLinks: boardId => query.listGoalRiskLinks(boardId),
       listDependencies: (boardId, goalId) => query.listDependencies(boardId, goalId),

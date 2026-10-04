@@ -61,34 +61,12 @@ export function createModelProviderTables(db: ModelProviderSqlite): void {
       prompt_cache TEXT NOT NULL DEFAULT 'off',
       models_json TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      thinking TEXT NOT NULL DEFAULT 'off'
     );
     CREATE INDEX IF NOT EXISTS model_providers_enabled_idx
       ON model_providers(enabled, display_name);
   `);
-  addPromptCacheColumn(db);
-  addThinkingColumn(db);
-}
-
-/**
- * Add `prompt_cache` to a table that predates it.
- *
- * SQLite has no `ADD COLUMN IF NOT EXISTS`, and the table may or may not
- * already have it depending on when the catalog was created — so this asks
- * first and does nothing when it is there. Existing rows default to `off`,
- * which is the mode that behaves as if caching had never been added.
- */
-export function addPromptCacheColumn(db: ModelProviderSqlite): void {
-  const columns = db.prepare("PRAGMA table_info(model_providers)").all() as Array<{ name?: unknown }>;
-  if (columns.some((column) => String(column.name) === "prompt_cache")) return;
-  db.exec("ALTER TABLE model_providers ADD COLUMN prompt_cache TEXT NOT NULL DEFAULT 'off'");
-}
-
-/** Add `thinking` to a table that predates it. Existing rows read as `off`, so nothing starts thinking unasked. */
-export function addThinkingColumn(db: ModelProviderSqlite): void {
-  const columns = db.prepare("PRAGMA table_info(model_providers)").all() as Array<{ name?: unknown }>;
-  if (columns.some((column) => String(column.name) === "thinking")) return;
-  db.exec("ALTER TABLE model_providers ADD COLUMN thinking TEXT NOT NULL DEFAULT 'off'");
 }
 
 /** The reference a provider's key is stored under. Derived, never user supplied. */

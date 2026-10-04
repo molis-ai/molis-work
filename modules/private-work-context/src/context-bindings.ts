@@ -276,33 +276,6 @@ export function createRuntimeContextSuggestionRejectionTable(db: Database.Databa
   `);
 }
 
-export function migrateRuntimeContextBindingEventsForUnbind(db: Database.Database): void {
-  db.exec(`
-    ALTER TABLE runtime_context_binding_events RENAME TO runtime_context_binding_events_v3;
-    CREATE TABLE runtime_context_binding_events (
-      event_id TEXT PRIMARY KEY,
-      binding_id TEXT NOT NULL,
-      runtime_id TEXT NOT NULL,
-      stable_work_context_id TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('context.bound', 'context.rebound', 'context.unbound')),
-      previous_project_id TEXT,
-      project_id TEXT NOT NULL,
-      actor_id TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-    INSERT INTO runtime_context_binding_events (
-      event_id, binding_id, runtime_id, stable_work_context_id, type,
-      previous_project_id, project_id, actor_id, created_at
-    )
-    SELECT event_id, binding_id, runtime_id, stable_work_context_id, type,
-      previous_project_id, project_id, actor_id, created_at
-    FROM runtime_context_binding_events_v3;
-    DROP TABLE runtime_context_binding_events_v3;
-    CREATE INDEX runtime_context_binding_events_context_idx
-      ON runtime_context_binding_events(runtime_id, stable_work_context_id, created_at, event_id);
-  `);
-}
-
 function mapRuntimeContextBinding(row: Record<string, unknown>, projectId: string): RuntimeContextBindingRecord {
   return {
     binding_id: String(row.binding_id),

@@ -1,13 +1,13 @@
 import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PPT_PROJECT_PLUGIN_ID, type PptRecord } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_PROJECT_PLUGIN_ID, PPT_SUBJECT_KIND, type PptRecord } from "@molis-ai/molis-work-contracts/modules/ppt";
 import type { PptStore } from "./store.js";
 
 /** PPT's part in the system search: title, description and every slide's title, bullets and notes. */
 export const pptSearchActions = {
-  entries: defineSearchEntriesAction("ppt.search.entries", [{ kind: "presentation", title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),
-  subject: defineSubjectContextAction("ppt.subject.read", "presentation", "演示稿", ["ppt:read"]),
+  entries: defineSearchEntriesAction("ppt.search.entries", [{ kind: PPT_SUBJECT_KIND, title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),
+  subject: defineSubjectContextAction("ppt.subject.read", PPT_SUBJECT_KIND, "演示稿", ["ppt:read"]),
   /** The side panel's file tab (specs/archive/side-panel): each deck; its preview is the outline `subject` reads. */
-  files: defineFileEntriesAction("ppt.files.entries", [{ kind: "presentation", title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),
+  files: defineFileEntriesAction("ppt.files.entries", [{ kind: PPT_SUBJECT_KIND, title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),
 };
 
 export function pptSearchContent(presentation: PptRecord): string {
@@ -19,10 +19,10 @@ export function createPptSearchHandlers(withStore: <T>(run: (store: PptStore) =>
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   return [
     bindFileEntriesHandler(pptSearchActions.files, caller => withStore(store => store.list(project(caller)).map(presentation => ({
-      subject: { kind: "presentation", id: presentation.id }, revision: String(presentation.version), title: presentation.title || "演示稿", folder: [],
+      subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, revision: String(presentation.version), title: presentation.title || "演示稿", folder: [],
       media_type: "text/markdown", size: null, updated_at: presentation.updated_at, open: { surface: PPT_PROJECT_PLUGIN_ID, id: presentation.id } })))),
     bindSearchEntriesHandler(pptSearchActions.entries, caller => withStore(store => store.list(project(caller)).map(presentation => ({
-      subject: { kind: "presentation", id: presentation.id }, revision: String(presentation.version), title: presentation.title, summary: searchText(presentation.description, 400),
+      subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, revision: String(presentation.version), title: presentation.title, summary: searchText(presentation.description, 400),
       updated_at: presentation.updated_at, content: "context" as const, open: { surface: PPT_PROJECT_PLUGIN_ID, id: presentation.id } })))),
     { ...pptSearchActions.subject, handle: (caller, input) => withStore(store => {
       let presentation: PptRecord;
@@ -31,7 +31,7 @@ export function createPptSearchHandlers(withStore: <T>(run: (store: PptStore) =>
         if ((error as { code?: string })?.code === "ppt.not_found") throw new ActionError("ppt.not_found", "演示稿已删除");
         throw error;
       }
-      return subjectContext({ subject: { kind: "presentation", id: presentation.id }, revision: String(presentation.version), title: presentation.title,
+      return subjectContext({ subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, revision: String(presentation.version), title: presentation.title,
         content: pptSearchContent(presentation), goal_ids: [], session_id: null, open: { surface: PPT_PROJECT_PLUGIN_ID, id: presentation.id } });
     }) },
   ];

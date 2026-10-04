@@ -9,6 +9,7 @@ import {
 import {
   PPT_ARTIFACT_SCHEMA_VERSION,
   PPT_ARTIFACT_TYPE_ID,
+  PPT_SUBJECT_KIND,
 } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { DatasetError, datasetManifest, type DatasetPublishArtifactPort, type DatasetReadArtifactPort, type DatasetPublicationSnapshot } from "@molis-ai/molis-work-plugin-dataset";
 import { FormError, formManifest, type FormPublishArtifactPort, type FormReadArtifactPort, type FormPublicationSnapshot } from "@molis-ai/molis-work-plugin-form";
@@ -130,7 +131,7 @@ export function registerPptArtifactVersion(
       content: { kind: "inline", payload: JSON.parse(JSON.stringify(input.content)) },
       metadata: { presentation_id: input.record_id, title: input.title },
       // A pinned revision of the presentation (artifact-positioning A1); the content is the presentation's JSON snapshot.
-      origin: { kind: "pinned", subject: { kind: "presentation", id: input.record_id }, revision: String(input.source_version) },
+      origin: { kind: "pinned", subject: { kind: PPT_SUBJECT_KIND, id: input.record_id }, revision: String(input.source_version) },
       title: input.title, media_type: "application/json",
       scope: "personal",
       supersedes_version: input.version > 1 ? input.version - 1 : null,

@@ -21,7 +21,6 @@ export const shelfManifest: PluginManifest = {
   host_api_version: 2,
   plugin_id: SHELF_PLUGIN_ID,
   version: "1.6.0",
-  upgrade_compatibility: { compatible_from_versions: ["1.5.0", "1.4.0"] },
   name: "Shelf",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-shelf-binding" },

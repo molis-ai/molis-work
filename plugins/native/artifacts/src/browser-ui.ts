@@ -3,6 +3,8 @@ import { icon } from "@molis-ai/molis-work-design-system";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
 import { renderArtifactImportDialog, type ArtifactImportUiModel } from "./import-ui.js";
+import { renderArtifactPortInputs } from "./port-input-ui.js";
+import type { ArtifactPluginInput } from "./actions.js";
 
 /** A type's display name as its owner declares it (artifact-positioning A4); an undeclared type shows its last segment. */
 function artifactTypeLabel(typeId: string, titles: ArtifactBrowserUiModel["typeTitles"], p: ArtifactBrowserUiModel["primitives"]): string {
@@ -27,6 +29,8 @@ export interface ArtifactBrowserUiModel {
   readonly links?: { readonly goals: ReadonlyArray<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" }>; readonly other: number;
     /** Objects of other plugins that link to the version (a Pages document), each opening in its plugin (五.1). */
     readonly referrers?: ReadonlyArray<{ title: string; open: { surface: string; id: string }; plugin_title: string }> };
+  /** Plugin input ports that take the selected version's type, and what they read now (artifact-positioning, 2026-10-04). */
+  readonly pluginInputs?: ReadonlyArray<ArtifactPluginInput>;
   /** The import dialog's connected services; the directory offers the 成果库's one import entry when present (A3). */
   readonly importForm?: Pick<ArtifactImportUiModel, "connections" | "connectionStatus">;
   readonly primitives: {
@@ -150,6 +154,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${!embedded ? handoffActions(artifact, p) : ""}
     ${preview}
     ${!embedded && model.links ? linksSection(model.links, routePrefix, p, artifact) : ""}
+    ${!embedded && model.pluginInputs?.length ? renderArtifactPortInputs(model.pluginInputs, { artifact_id: artifact.artifact_id, version: artifact.version }, p) : ""}
     <dl class="artifact-facts">
       <div><dt>${p.text("结果类型")}</dt><dd>${p.escape(artifactTypeLabel(artifact.artifact_type_id, model.typeTitles, p))} · ${p.escape(artifact.artifact_type_id)} · Schema ${artifact.schema_version}</dd></div>
       <div><dt>${p.text("来源插件")}</dt><dd>${p.escape(artifact.producer_plugin_id)} · ${p.escape(artifact.producer_plugin_version)}</dd></div>

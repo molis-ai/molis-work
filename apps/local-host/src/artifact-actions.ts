@@ -5,6 +5,8 @@ import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import { readProjectReference } from "@molis-ai/molis-work-module-evidence-verification";
 import { runWithMolisWorkHome, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";
+import { artifactPluginInputs, bindArtifactPluginInput } from "./artifact-plugin-inputs.js";
+import { runningProjectPlatform } from "./project-plugins.js";
 import type { MolisWorkProjectRuntime, MolisWorkLocalHostOptions } from "./project-host.js";
 
 export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor">, client?: ActionClient): ActionProviderRegistration {
@@ -26,6 +28,13 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
           const content = await client.invoke(caller, preview, { artifact }) as FileContent;
           return content.encoding === "utf8" ? content.data : null;
         } catch { return null; }
+      },
+      // Plugin input ports that take a version's type (artifact-positioning, 2026-10-04); only a project whose plugins run has them.
+      pluginInputs: async artifact => artifactPluginInputs(await runningProjectPlatform(runtime.store, runtime.board_id), artifact),
+      bindPluginInput: async (artifact, input, caller) => {
+        const platform = await runningProjectPlatform(runtime.store, runtime.board_id);
+        await caller.beforeEffect();
+        return bindArtifactPluginInput(platform, artifact, input, caller.actor_id, runtime.board_id);
       },
       importSources: () => runWithMolisWorkHome(home, documentImportConnectionStatus),
       importConnections: () => documentImportConnections(home),

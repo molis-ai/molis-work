@@ -1,39 +1,10 @@
-import { AgentBuilderStore, BUILDER_PLUGIN_ID } from "@molis-ai/molis-work-plugin-builder";
+import { AgentBuilderStore } from "@molis-ai/molis-work-plugin-builder";
 import { pluginInstallationGeneration, SqlitePluginRuntimeRepository, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { createScheduleReminders, createScheduleReminderManagement, deliverScheduleReminder, importScheduleReminder, pauseLegacyScheduleReminders, migrateScheduleReminders, type ScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
+import { createScheduleReminders, createScheduleReminderManagement, deliverScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ScheduleService, ScheduleSqliteDatabase, ScheduleWakeupControl, ScheduleWakeupInput } from "@molis-ai/molis-work-service-scheduler";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { studioStorage } from "./plugin-builder/storage.js";
-
-export const LEGACY_REMINDER_OWNER = BUILDER_PLUGIN_ID;
-export const LEGACY_REMINDER_WAKEUP = "plugin-builder.reminder.v1";
-const RECORD = "plugin-builder:reminder:", INDEX = "plugin-builder:reminders:";
-
-/** Read the historical namespace once, preserving the Scheduler's job identity, receipt and due time. */
-export function migrateLegacyReminders(db: ScheduleSqliteDatabase, schedule: ScheduleService): void {
-  migrateScheduleReminders(db);
-  const jobs = schedule.list(LEGACY_REMINDER_OWNER).filter(job => job.capability_id === LEGACY_REMINDER_WAKEUP);
-  for (const job of jobs) db.transaction(() => {
-    const split = job.object_ref.indexOf("|"), boardId = job.object_ref.slice(0, split), id = job.object_ref.slice(split + 1);
-    if (split < 1 || !id) return;
-    const storage = studioStorage(db, boardId), raw = storage.get(RECORD + id);
-    if (!raw) return;
-    const old = JSON.parse(raw) as Omit<ScheduleReminder, "installationId" | "installationGeneration" | "jobOwner">;
-    if (old.id !== id || old.boardId !== boardId || old.jobId !== job.job_id) throw new Error("旧提醒与原闹钟身份不一致");
-    // Legacy Runtime reused both install_id and installed_at on reinstall, so neither proves this job's original owner.
-    importScheduleReminder(db, { ...old, installationId: null, installationGeneration: null, jobOwner: job.plugin_id });
-    schedule.setEnabled(job.job_id, false, job.plugin_id);
-    storage.delete(RECORD + id);
-    const ids = JSON.parse(storage.get(INDEX + old.pluginId) ?? "[]") as string[];
-    const remaining = ids.filter(item => item !== id);
-    if (remaining.length) storage.set(INDEX + old.pluginId, JSON.stringify(remaining)); else storage.delete(INDEX + old.pluginId);
-  }).immediate();
-  pauseLegacyScheduleReminders(db, reminder => {
-    const job = schedule.get(reminder.jobId);
-    if (job && job.plugin_id === reminder.jobOwner) schedule.setEnabled(job.job_id, false, job.plugin_id);
-  });
-}
 
 /** Same-db adapters only: Schedule owns the reminder's product rules and storage. */
 export function hostScheduleReminders(options: { db: ScheduleSqliteDatabase; boardId: string; projectId: string; schedule: ScheduleService; routePrefix?: string; now?(): number }) {

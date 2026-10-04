@@ -20,8 +20,6 @@ export const SCHEDULE_EN: Record<string, string> = {
   "尚未执行": "Not run yet",
   "已确认重试": "Retry confirmed",
   "已确认跳过": "Skip confirmed",
-  "无法恢复的旧执行记录": "Legacy records that cannot be restored",
-  "原功能定义已丢失，这些记录仅供核对，不会自动执行。": "The original operation definition is missing. These records are kept for review and will not run automatically.",
   "核对定时操作": "Review scheduled operation",
   "确认决定": "Confirm decision",
   "任务状态已改变，请返回列表重新选择。": "The task has changed. Return to the list and choose again.",

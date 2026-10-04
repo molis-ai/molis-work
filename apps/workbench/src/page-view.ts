@@ -36,7 +36,6 @@ export interface MolisWorkWebView {
   schedule_jobs?: readonly ScheduleJobView[];
   schedule_tasks?: readonly ScheduleConversationTaskView[];
   schedule_operations?: import("@molis-ai/molis-work-plugin-schedule").ScheduleUiModel["operations"];
-  schedule_orphaned_occurrences?: import("@molis-ai/molis-work-plugin-schedule").ScheduleUiModel["orphaned_occurrences"];
   /** Live authorized status from the Inbox scene owner. */
   inbox_judgment?: import("@molis-ai/molis-work-plugin-inbox").InboxJudgmentSummary;
 }

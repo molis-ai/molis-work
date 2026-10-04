@@ -7,10 +7,10 @@ import {
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { ExternalDocumentImportError } from "@molis-ai/molis-work-integration-catalog";
-import { artifactWorkbench, artifactTypeDeclarations, artifactContinuers, BUILTIN_PLUGIN_CATALOG, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
+import { artifactWorkbench, artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, BUILTIN_PLUGIN_CATALOG, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { ArtifactCompareResult, ArtifactContinueResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dateTimeLocale, L } from "./web-locale.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
@@ -161,7 +161,12 @@ export function createLocalArtifactHttp() {
       const selected = view.selected, file = importedDocumentFile(selected);
       const continuers = selected && selected.availability === "available" && selected.lifecycle_state !== "archived" ? (artifactContinuers().get(selected.artifact_type_id) ?? [])
         .filter(item => !file || item.plugin_id !== PAGES_PLUGIN_ID || PAGES_READABLE_FILE.test(file.filename)).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title })) : [];
-      const links = view.selected && route.kind === "detail" ? await context.actions.invoke(artifactsActions.links, { reference: { artifact_id: view.selected.artifact_id, version: view.selected.version } }) : undefined;
+      const reference = view.selected ? { artifact_id: view.selected.artifact_id, version: view.selected.version } : null;
+      const goals = reference && route.kind === "detail" ? await context.actions.invoke(artifactsActions.links, { reference }) : undefined;
+      // Documents and other objects that link to this version (五.1), each answered by its own plugin; one that cannot answer is left out.
+      const referrers = goals && reference && context.ownerActions ? (await Promise.all(artifactReferrerActions().map(item => context.ownerActions!(item.action.action.permissions)
+        .invoke(item.action, { reference }).then(result => (result as ArtifactReferrersResult).referrers.map(row => ({ ...row, plugin_title: item.plugin_title }))).catch(() => [])))).flat() : [];
+      const links = goals ? { ...goals, referrers } : undefined;
       const compact = requestHeader(request, "x-molis-work-fragment") === "frame-block";
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",

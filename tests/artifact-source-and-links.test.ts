@@ -11,7 +11,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 const controlToken = "artifact-source-links-control-token-0123456789";
 
 // specs/artifact-positioning A4b: a pinned version says whether its work object changed since, and who refers to it.
-test("a pinned document shows when the original changed or was deleted, and which Goals use it", async t => {
+test("a pinned document shows when the original changed or was deleted, and which Goals and documents use it", async t => {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-source-"));
   const databasePath = join(directory, "fixture.db");
   seedDemoBoard(databasePath);
@@ -64,6 +64,15 @@ test("a pinned document shows when the original changed or was deleted, and whic
   const html = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   assert.ok(linked.includes(`href="/goals/V1">${html(v1)}</a><span>交付物</span>`), "the Goal that hands it in");
   assert.ok(linked.includes(`href="/goals/PLATFORM">${html(platform)}</a><span>输入</span>`), "the Goal that takes it as input");
+
+  // A document whose text links to this version is listed too (五.1), and opens in Pages; links to another version are not.
+  const path = `/artifacts/${encodeURIComponent(pinned.artifact_id)}/versions/${pinned.version}`;
+  const citing = (await post("/api/pages", { title: "周报", markdown: `本周交了[季度计划](${origin}${path})。` })).document as { id: string };
+  await post("/api/pages", { title: "别的版本", markdown: `见[第 9 版](${path.replace(/\/\d+$/, "/9")})。` });
+  const cited = await detail(pinned.artifact_id, pinned.version);
+  assert.ok(cited.includes(`data-workbench-item-plugin="pages" data-workbench-item-id="${citing.id}" data-workbench-item-title="周报">周报</a><span>Pages · 链接了这一版</span>`),
+    "the document that links to this version, opening in Pages");
+  assert.doesNotMatch(cited, /别的版本/);
 
   // Deleting the document leaves the version, says so, and no longer offers to open the original.
   await post("/api/pages/" + created.id + "/delete", {});

@@ -3,7 +3,7 @@ import { PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/module
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
 export { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
 
@@ -305,6 +305,12 @@ export function artifactContinuers(): ReadonlyMap<string, readonly ArtifactConti
     if (action) continuers.set(type.artifact_type_id, [...continuers.get(type.artifact_type_id) ?? [], { plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action }]);
   }
   return continuers;
+}
+
+/** The plugins that can say which of their objects link to a 成果 version (「被谁引用」, artifact-positioning 五.1). */
+export function artifactReferrerActions(): readonly ArtifactContinuer[] {
+  return BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.actions ?? []).filter(action => isArtifactReferrersAction(action.action))
+    .map(action => ({ plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action })));
 }
 
 /** Each declared 成果 type: display name, preview and pin actions and owner, from the built-in Manifests. */

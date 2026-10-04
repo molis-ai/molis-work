@@ -140,3 +140,53 @@ export function bindArtifactContinue(definition: ActionDefinition<ArtifactContin
     return { open: await start(artifact, caller) } satisfies ArtifactContinueResult;
   } };
 }
+
+/**
+ * 「被谁引用」 beyond Goals (artifact-positioning 五.1): a plugin whose objects can point at a version in the 成果库 (a Pages
+ * document linking to it) says which of its objects do. The 成果库 asks every plugin that declares it; none is named.
+ */
+export const ARTIFACT_REFERRERS_INPUT_TYPE = "molis.artifacts.referrers.request.v1";
+export const ARTIFACT_REFERRERS_OUTPUT_TYPE = "molis.artifacts.referrers.v1";
+export interface ArtifactReferrersInput { reference: ArtifactReference }
+export interface ArtifactReferrer { subject: { kind: string; id: string }; title: string; open: { surface: string; id: string } }
+export interface ArtifactReferrersResult { referrers: ArtifactReferrer[] }
+
+export function defineArtifactReferrersAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactReferrersInput, ArtifactReferrersResult> {
+  const id = { type: "string", minLength: 1 };
+  const pair = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false };
+  return { capability_id: capabilityId, version: 1, operation: "query", action: {
+    title: `引用这一版的${objectTitle}`, description: `列出链接到成果库里这一版的${objectTitle}；不修改数据。`,
+    kind: "query", scope: "project", audiences: ["user", "agent"], permissions: [...permissions], subject_kinds: [],
+    input_type: ARTIFACT_REFERRERS_INPUT_TYPE, output_type: ARTIFACT_REFERRERS_OUTPUT_TYPE,
+    input_schema: { type: "object", properties: { reference: { type: "object", properties: { artifact_id: id, version: { type: "integer", minimum: 1 } },
+      required: ["artifact_id", "version"], additionalProperties: false } }, required: ["reference"], additionalProperties: false },
+    output_schema: { type: "object", properties: { referrers: { type: "array", items: { type: "object", properties: { subject: pair, title: { type: "string" },
+      open: { type: "object", properties: { surface: id, id }, required: ["surface", "id"], additionalProperties: false } }, required: ["subject", "title", "open"], additionalProperties: false } } },
+      required: ["referrers"], additionalProperties: false } } };
+}
+
+export function isArtifactReferrersAction(action: { input_type?: string; output_type?: string }): boolean {
+  return action.input_type === ARTIFACT_REFERRERS_INPUT_TYPE && action.output_type === ARTIFACT_REFERRERS_OUTPUT_TYPE;
+}
+
+/** The version a link points at, as the 成果库 gives it out (`…/artifacts/<id>/versions/<n>`, with or without a project). */
+export function linkedArtifactVersion(href: string): ArtifactReference | null {
+  let path: string;
+  try { path = new URL(href, "http://molis.invalid").pathname; } catch { return null; }
+  const match = /(?:^|\/)artifacts\/([^/]+)\/versions\/([1-9]\d*)\/?$/.exec(path);
+  if (!match) return null;
+  try { return { artifact_id: decodeURIComponent(match[1]!), version: Number(match[2]) }; } catch { return null; }
+}
+
+/** Whether a structured document (any JSON of nodes, marks and attributes) links to one version anywhere in it. */
+export function linksToArtifactVersion(value: unknown, reference: ArtifactReference): boolean {
+  if (Array.isArray(value)) return value.some(item => linksToArtifactVersion(item, reference));
+  if (!value || typeof value !== "object") return false;
+  for (const [key, item] of Object.entries(value)) {
+    if ((key === "href" || key === "url") && typeof item === "string") {
+      const linked = linkedArtifactVersion(item);
+      if (linked && linked.artifact_id === reference.artifact_id && linked.version === reference.version) return true;
+    } else if (linksToArtifactVersion(item, reference)) return true;
+  }
+  return false;
+}

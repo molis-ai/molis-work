@@ -20,6 +20,8 @@ export const ARTIFACT_EN: Record<string, string> = {
   "没有记下输入": "The input was not recorded",
   "还没有目标引用这一版。": "No goal refers to this version yet.",
   "另有其他引用": "Other references",
+  "文档": "Documents",
+  "链接了这一版": "links to this version",
   "原文已改，这里仍是第 {version} 版。": "The original has changed; this is still version {version}.",
   "原对象已经删除，这里仍保留第 {version} 版。": "The original was deleted; version {version} is kept here.",
   "这是导入时保存的版本；原文后续修改不会自动同步。": "This is the version saved at import; later edits to the original are not synced.",

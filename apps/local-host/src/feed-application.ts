@@ -36,6 +36,7 @@ import {
 } from "@molis-ai/molis-work-service-listener-host";
 import { FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 export interface LocalFeedApplicationOptions {
   artifacts?: FeedArtifactProducer;
   captureJudgment?: FeedApplicationPorts["captureJudgment"];
@@ -93,7 +94,7 @@ export function createLocalFeedApplication(
 
   function appendEvent(...args: Parameters<FeedApplicationPorts["appendEvent"]>): void {
     const [boardId, objectType, objectId, type, reason, payload, at] = args;
-    journal.appendEvent({ eventId: `event-${randomUUID()}`, boardId, actorId: "web-user",
+    journal.appendEvent({ eventId: `event-${randomUUID()}`, boardId, actorId: LOCAL_PERSON_ACTOR_ID,
       objectType, objectId, type, reason, payload, at });
   }
   const artifactsModule = new ArtifactsModule({

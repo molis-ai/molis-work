@@ -4,6 +4,7 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PagesError, pagesManifest, parsePagesBody, PAGES_SUBJECT_KIND, type PagesPublishArtifactPort, type PagesReadArtifactPort } from "@molis-ai/molis-work-plugin-pages";
 import type { GoalProjectApplication } from "./goal-project-application.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Recovery reads the immutable original owner record; it never impersonates its author. */
 export function readPagesArtifactVersion(coordinator: GoalProjectApplication, boardId: string, expectedProjectId: string, actorId: string): PagesReadArtifactPort {
@@ -27,7 +28,7 @@ export function registerPagesArtifactVersion(
   coordinator: GoalProjectApplication,
   boardId: string,
   expectedProjectId = boardId,
-  actorId = "web-user",
+  actorId = LOCAL_PERSON_ACTOR_ID,
 ): PagesPublishArtifactPort {
   return (input) => {
     if (input.project_id !== expectedProjectId) {

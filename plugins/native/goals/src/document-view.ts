@@ -59,4 +59,5 @@ export interface GoalsDocumentView {
   created_by?: string | null;
   event_document?: import("./event-document-model.js").GoalEventDocumentView | null;
   artifact_embed_html?: string;
+  artifact_outputs?: number;
 }

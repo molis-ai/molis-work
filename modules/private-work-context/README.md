@@ -36,10 +36,10 @@ pnpm --filter @molis-ai/molis-work-module-private-work-context typecheck
 pnpm --filter @molis-ai/molis-work-module-private-work-context build
 ```
 
-已有行为示例与回归：[private-work-context-module.test.ts](../../tests/private-work-context-module.test.ts)、[session-ledger-migration.test.ts](../../tests/session-ledger-migration.test.ts)。完成上述构建后运行：
+已有行为示例与回归：[private-work-context-module.test.ts](../../tests/private-work-context-module.test.ts)、[session-associations-atomic.test.ts](../../tests/session-associations-atomic.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/private-work-context-module.test.ts tests/session-ledger-migration.test.ts
+node --import tsx --test --test-concurrency=1 tests/private-work-context-module.test.ts tests/session-associations-atomic.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。

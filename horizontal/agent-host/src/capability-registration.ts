@@ -34,8 +34,6 @@ export interface AgentCapabilityPorts<Context> {
   authority(context: Context, pluginId: string, caller?: HostPluginCaller): AgentStartAuthority | Promise<AgentStartAuthority>;
   /** The board this context belongs to, used to scope the review queue. */
   boardId(context: Context): string;
-  /** Explicit historical owner, never inferred from a request. */
-  legacyActorId?(context: Context): string | undefined;
   /**
    * After an owner's MCP servers were listed, saved or connected/disconnected: what they offer now may be republished
    * (the Host's action directory follows it). A failure here never undoes the change itself.
@@ -103,7 +101,7 @@ export function registerAgentHostCapabilities<Context>(
     if (view.owner?.board_id !== ports.boardId(context)) throw new AgentHostError("agent.session_unknown", "当前项目找不到这条会话");
     const caller = pluginFor(context);
     if (caller && (view.owner.plugin_id !== caller.plugin_id || view.owner.install_id !== caller.install_id
-      || (view.owner.actor_id ?? owners.legacyActorId?.(context.source)) !== caller.actor_id)) throw denied();
+      || view.owner.actor_id !== caller.actor_id)) throw denied();
     await context.invocation.beforeEffect();
     return view;
   };
@@ -190,7 +188,7 @@ export function registerAgentHostCapabilities<Context>(
             if (owner?.board_id !== board) throw new AgentHostError("agent.session_unknown", "当前项目找不到这条会话");
             // The fast path answers the same caller check as a full scoped read.
             if (caller && (owner.plugin_id !== caller.plugin_id || owner.install_id !== caller.install_id
-              || (owner.actor_id ?? owners.legacyActorId?.(context.source)) !== caller.actor_id)) throw denied();
+              || owner.actor_id !== caller.actor_id)) throw denied();
             return status;
           }
           const view = await readScopedSession(context, session);
@@ -340,7 +338,7 @@ export function registerAgentHostCapabilities<Context>(
       const adapter = ports.agentHost(context).adapter(runtimeId);
       if (!adapter.projectWork) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能安排等待");
       await context.invocation.beforeEffect();
-      return adapter.projectWork.queue(ports.boardId(context), input, pluginFor(context)?.actor_id ?? view.owner.actor_id ?? "user");
+      return adapter.projectWork.queue(ports.boardId(context), input, pluginFor(context)?.actor_id ?? view.owner.actor_id);
     }),
     register(agentHostCapabilities.releaseProjectRound, async (context, [runtimeId, workId, note]) => {
       const caller = pluginFor(context);
@@ -355,7 +353,7 @@ export function registerAgentHostCapabilities<Context>(
       if (!adapter.amendStepBoard) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能调整计划图");
       await context.invocation.beforeEffect();
       // The person deciding: the calling plugin's actor, else the session's owner.
-      const actor = pluginFor(context)?.actor_id ?? view.owner.actor_id ?? owners.legacyActorId?.(context.source) ?? "user";
+      const actor = pluginFor(context)?.actor_id ?? view.owner.actor_id;
       return adapter.amendStepBoard(run, amendment, expectedVersion, actor);
     }),
     register(agentHostCapabilities.controlRun, async (context, [session, run, control]) => {

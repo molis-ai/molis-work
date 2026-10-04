@@ -63,7 +63,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
     observe() { throw new Error("Not used by this read fixture"); },
     async control() { throw new Error("Not used by this read fixture"); },
     async readCommandOutput() { throw new Error("Not used by this read fixture"); },
-    async readSession(session) { return { session, owner: { board_id: "board", plugin_id: CODING, install_id: "coding" }, title: "Read", runs: [], latest_run: null }; },
+    async readSession(session) { return { session, owner: { board_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user" }, title: "Read", runs: [], latest_run: null }; },
     async start(request) {
       captured.push(request); const role = request.role!;
       return { ref: { run_id: `r${captured.length}`, session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution,

@@ -1,5 +1,4 @@
 import { preparePagesFileImport } from "./pages-import.js";
-import { migrateLegacyPagesProject } from "./pages-legacy-project.js";
 import { ActionError, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pagesManifest, createPagesActionHandlers, createPagesContentHandlers, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -12,7 +11,7 @@ export function pagesActionProvider(home: string, runtime: MolisWorkProjectRunti
   const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
   const withStore = <T>(run: (store: ReturnType<typeof openPagesStore>) => T): T => {
     const store = openPagesStore(home);
-    try { migrateLegacyPagesProject(home, runtime, store); return run(store); } finally { store.close(); }
+    try { return run(store); } finally { store.close(); }
   };
   return {
     availability: () => {

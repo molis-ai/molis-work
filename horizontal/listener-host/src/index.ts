@@ -101,17 +101,6 @@ export function migrateListenerHost(db: ListenerSqliteDatabase): void {
       ON feed_source_runs(board_id, source_id, started_at DESC);
   `);
 
-  if (tableExists(db, "feed_sources")) {
-    const migratedAt = new Date().toISOString();
-    db.prepare(`
-      INSERT OR IGNORE INTO listener_instances (
-        project_id, source_id, cursor_json, state, attempt, retry_at,
-        last_error_code, lease_owner, lease_expires_at, updated_at
-      )
-      SELECT board_id, source_id, cursor_json, 'idle', 0, NULL, NULL, NULL, NULL, ?
-      FROM feed_sources
-    `).run(migratedAt);
-  }
 }
 
 export function readListenerCheckpoint(
@@ -709,12 +698,6 @@ function assertRunTransition(
   if (!allowed[current].includes(next)) {
     throw new ListenerHostError("listener_delivery_failed", `Listener Run 不能从 ${current} 变成 ${next}`);
   }
-}
-
-function tableExists(db: ListenerSqliteDatabase, table: string): boolean {
-  return Boolean(db.prepare(
-    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-  ).get(table));
 }
 
 function ensureCheckpointRow(

@@ -138,7 +138,6 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     {
       agentHost: () => agentHost,
       authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
-      legacyActorId: () => "web-user",
       boardId: (runtime) => runtime.board_id,
       mcpChanged: (runtime, runtimeId, pluginId, library, owner) => externalMcp.sync(runtime, pluginId, runtimeId, library, owner),
     },

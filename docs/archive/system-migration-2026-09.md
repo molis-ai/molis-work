@@ -1,3 +1,5 @@
+> 归档（2026-10-04，repository-anti-corruption 第二步）：迁移期的旧路径与迁移状态记录，不再维护。现行的兼容清单与删除进度见 [specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4；文中提到的 `tooling/migrations/` 审计脚本与 `tooling/boundaries/compatibility-allowlist.json` 已删除。
+
 # 架构重组迁移矩阵
 
 产品工程归拢：根 src 与 desktop 已退出。启动器位于 apps/desktop/launchers，SDK 兼容源码位于 apps/local-host/sdk，Tauri 配置/资源位于 apps/desktop/src-tauri；构建输出和公开命令不变。下方旧路径为迁移历史。

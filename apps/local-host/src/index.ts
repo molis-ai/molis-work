@@ -151,10 +151,9 @@ export {
 export { readMcpToolPreference, writeMcpToolPreference } from "./mcp-settings-store.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
-export { importV3Board } from "./board-v3-import.js";
 export * from "./project-host.js";
-export { importV3Capability, projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability, createGoalCapability, createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
-export type { CreateGoalCapabilityInput, ImportV3CapabilityInput } from "@molis-ai/molis-work-plugin-goals";
+export { projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability, createGoalCapability, createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
+export type { CreateGoalCapabilityInput } from "@molis-ai/molis-work-plugin-goals";
 export { runLocalPluginDevelopment } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { createLocalPanelHttp } from "./web-panel.js";

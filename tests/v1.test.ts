@@ -9,8 +9,6 @@ import {
   MolisWorkCoordinator,
   MolisWorkV1Error,
   SqliteMolisWorkStore,
-  importV3Board,
-  type LegacyV3ImportInput,
 } from "../apps/local-host/sdk/index.js";
 import { main as runPublicCli } from "../apps/desktop/launchers/cli/main.js";
 import {
@@ -98,7 +96,7 @@ function currentTreeItem(input: {
   };
 }
 
-test("public CLI exposes install, service, demo, uninstall, and Molis Work V1 plus explicit V3 import", async () => {
+test("public CLI exposes install, service, demo, uninstall, and Molis Work V1; the V3 import is gone", async () => {
   const logs: string[] = [];
   const errors: string[] = [];
   const originalLog = console.log;
@@ -111,7 +109,7 @@ test("public CLI exposes install, service, demo, uninstall, and Molis Work V1 pl
     assert.match(logs.join("\n"), /molis-work service/);
     assert.match(logs.join("\n"), /molis-work demo/);
     assert.match(logs.join("\n"), /molis-work uninstall/);
-    assert.match(logs.join("\n"), /import-v3/);
+    assert.doesNotMatch(logs.join("\n"), /import-v3/);
     assert.doesNotMatch(logs.join("\n"), /profiles|strategy|coverage|handoff|replay/);
     assert.equal(await runPublicCli(["profiles"]), 1);
     assert.match(errors.join("\n"), /提供 install、service、demo、uninstall 和 v1/);
@@ -125,7 +123,6 @@ test("public CLI exposes install, service, demo, uninstall, and Molis Work V1 pl
     "MolisWorkCoordinator",
     "MolisWorkV1Error",
     "SqliteMolisWorkStore",
-    "importV3Board",
   ]);
 });
 
@@ -1507,81 +1504,4 @@ test("migrations 28 and 29 recover the pre-0.1.12 marker collision without losin
     (column) => column.name === "schedule_json",
   ));
   migrated.close();
-});
-
-test("V3 import preserves safe structure and explicitly refuses to invent completion semantics", () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-v3-import-"));
-  const store = new SqliteMolisWorkStore(join(directory, "import.db"));
-  const coordinator = new MolisWorkCoordinator(store);
-  const legacy = {
-    schema_version: "3.0",
-    goal_id: "legacy-board",
-    meta: {
-      title: "旧版目标",
-      source: { seed: "交付旧版目标" },
-    },
-    root_goal: {
-      constraints: ["不破坏公开接口"],
-    },
-    coverage_ledger: [
-      {
-        id: "r1",
-        requirement: "核心流程",
-        status: "now",
-        owner_goal: "g2",
-      },
-      {
-        id: "r2",
-        requirement: "未来扩展",
-        status: "later",
-        owner_goal: null,
-        revisit_at: "V1 发布后",
-      },
-    ],
-    goals: [
-      {
-        id: "g1",
-        parent: null,
-        one_liner: "交付旧版目标",
-        covers: [],
-        inputs: [],
-        outputs: ["结果"],
-      },
-      {
-        id: "g2",
-        parent: "g1",
-        one_liner: "完成核心流程",
-        covers: ["r1"],
-        inputs: ["需求"],
-        outputs: ["核心流程"],
-      },
-    ],
-  } satisfies LegacyV3ImportInput;
-  const report = importV3Board(store, coordinator, legacy, {
-    target_board_id: "imported-board",
-    actor_id: "user-1",
-    idempotency_key: "import-v3",
-  });
-  assert.equal(report.board_id, "imported-board");
-  assert.ok(report.regenerate.some((item) => item.includes("业务逻辑")));
-  assert.ok(report.regenerate.some((item) => item.includes("当前约定与可判定要求")));
-  const snapshot = store.snapshot("imported-board");
-  assert.equal(snapshot.goals.length, 2);
-  assert.ok(snapshot.goals.every((goal) => goal.definition_state === "draft"));
-  assert.ok(snapshot.goals.every((goal) => goal.fulfillment_state === "unmet"));
-  assert.equal(snapshot.relations[0]?.type, "part_of");
-  const coverage = store.db
-    .prepare("SELECT disposition FROM coverage_items WHERE board_id = ? ORDER BY requirement_id")
-    .all("imported-board") as Array<{ disposition: string }>;
-  assert.deepEqual(coverage.map((item) => item.disposition), ["covered", "deferred"]);
-  assert.throws(
-    () =>
-      importV3Board(store, coordinator, legacy, {
-        target_board_id: "imported-board",
-        actor_id: "user-1",
-        idempotency_key: "import-v3-again",
-      }),
-    /不会覆盖/,
-  );
-  store.close();
 });

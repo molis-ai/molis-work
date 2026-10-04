@@ -375,3 +375,14 @@ for (const fail of [false, true]) test(`Listener revocation during a provider ${
     assert.equal(recovery.created_count, 1);
   } finally { release.resolve(); store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+// One owner per table (repository-anti-corruption §9.5 #2): Listener Host's run ledger names its Source by id and keeps no
+// foreign key into the Sources module's table; a Source's runs go when Listener Host forgets the Source.
+test("Listener Host's run ledger keeps no foreign key into the Sources table", () => {
+  const directory = mkdtempSync(join(tmpdir(), "listener-runs-owner-"));
+  const store = new LocalProjectDatabase(join(directory, "project.sqlite"));
+  try {
+    const references = (store.db.prepare("SELECT \"table\" FROM pragma_foreign_key_list('feed_source_runs')").all() as Array<{ table: string }>).map(row => row.table);
+    assert.deepEqual([...new Set(references)], ["boards"]);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});

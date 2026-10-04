@@ -40,7 +40,7 @@ export class InteractionContexts {
         contexts.push(value);
       }
     }
-    return {contract_id:'goalboard.casebook.goal-context',schema_version:VERSION,project_ref:this.journal.project,
+    return {contract_id:'molis-work.casebook.goal-context',schema_version:VERSION,project_ref:this.journal.project,
       authorization_epoch:i.epoch,context_authorization_epoch:c.epoch,contexts,missing_operation_ids:missing};
   }
 }

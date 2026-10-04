@@ -15,6 +15,7 @@ import {configureGoalEventsCapability,setGoalEventAgreementCapability} from '@mo
 import {createMolisWorkLocalHost,molisWorkHostProjectReference} from '@molis-ai/molis-work-app-local-host';
 import {MolisWorkCasebookIntegration} from '../apps/local-host/src/casebook/integration.js';
 import {goalsActions,initializeBoardCapability,createGoalIntentCapability,readGoalEventStateCapability,submitGoalEventClosureCapability,goalTreeCapabilities,requestGoalDecisionCapability,recordGoalUserDecisionCapability,hostEventDecisionAuthority} from '@molis-ai/molis-work-plugin-goals';
+import {LOCAL_PERSON_ACTOR_ID} from '@molis-ai/molis-work-contracts/platform/actions';
 const purpose='casebook.operation-receipts.v1' as any;
 test('101 unmet requirements preserve the closure result with explicitly truncated reasons',async t=>{
  const f=await fixture(t);await f.auth('join');await f.create('many');
@@ -33,7 +34,7 @@ test('101 unmet requirements preserve the closure result with explicitly truncat
 async function fixture(t:test.TestContext){
  const dir=mkdtempSync(join(tmpdir(),'casebook-receipts-'));const host=createMolisWorkLocalHost();
  const ref=molisWorkHostProjectReference({databasePath:join(dir,'test.db'),boardId:'board'});const client=host.client(ref);
- await client.invoke(initializeBoardCapability,{board_id:'board',title:'隔离',actor_id:'u',idempotency_key:'init'});
+ await client.invoke(initializeBoardCapability,{board_id:'board',title:'隔离',idempotency_key:'init'});
  const proof={secret:randomBytes(32).toString('hex'),audience:'isolated-receipts'};const sign=createCasebookUserActionSigner(proof),verify=createCasebookUserActionVerifier(proof);
  const api=new MolisWorkCasebookIntegration({client,verifyUserAction:verify});
  const request=(action:string,key=action,p=purpose)=>{const intent={project_ref:'board',purpose:p,action,actor_ref:'u',user_confirmed:true,idempotency_key:key} as any;return{...intent,user_action_ref:sign(intent)};};
@@ -104,11 +105,11 @@ test('receipts reject forged scope, changed payload, invalid cursors and late re
 });
 test('stored decision comparison belongs to its commitment version; proposal success retains native versions',async t=>{
  const f=await fixture(t);await f.auth('join');await f.create('g');
- const decision=await f.client.invoke(recordGoalUserDecisionCapability,{board_id:'board',goal_id:'g',idempotency_key:'decide',authority:hostEventDecisionAuthority('web','board','u','decision-authority'),conclusion:'机密批准',effects:[{kind:'authorize_action',action:'ship'}],scope:{action:'ship'}});
+ const decision=await f.client.invoke(recordGoalUserDecisionCapability,{board_id:'board',goal_id:'g',idempotency_key:'decide',authority:hostEventDecisionAuthority('management','board',LOCAL_PERSON_ACTOR_ID,'decision-authority'),conclusion:'机密批准',effects:[{kind:'authorize_action',action:'ship'}],scope:{action:'ship'}});
  const batch=await f.read();const d=batch.receipts.at(-1).decision;
  assert.equal(d.config_version,decision.decision.config_version);assert.equal(d.agreement_version,decision.decision.agreement_version);assert.match(d.commitment_comparison,/^[a-f0-9]{64}$/);
  const submitted=await f.client.invoke(goalTreeCapabilities.submitGoalTreeProposal,[{board_id:'board',actor_id:'u',idempotency_key:'proposal',summary:'机密',items:[{item_id:'new',kind:'goal',operation:'create',payload:{title:'机密子目标',outcome:'结果',goal_id:'child'},source_refs:['runtime'],reason:'需要',confidence:0.9}]}]);
- const confirmed=await f.client.invoke(goalTreeCapabilities.decideGoalTreeProposal,[{board_id:'board',proposal_id:submitted.proposal.proposal_id,authority:{...hostEventDecisionAuthority('web','board','u','proposal-authority'),whole_confirmation_prompted:true},confirm_all_pending:true,reason:'同意',idempotency_key:'confirm'}]);
+ const confirmed=await f.client.invoke(goalTreeCapabilities.decideGoalTreeProposal,[{board_id:'board',proposal_id:submitted.proposal.proposal_id,authority:{...hostEventDecisionAuthority('management','board',LOCAL_PERSON_ACTOR_ID,'proposal-authority'),whole_confirmation_prompted:true},confirm_all_pending:true,reason:'同意',idempotency_key:'confirm'}]);
  const after=await f.read(),last=after.receipts.at(-1);assert.ok(last.saved.proposal_ref);assert.equal(last.saved.proposal_version,confirmed.proposal.version);assert.equal(last.saved.proposal_state,confirmed.proposal.state);assert.equal(last.saved.applied_item_refs.length,1);assert.equal(JSON.stringify(after).includes('机密'),false);
 });
 

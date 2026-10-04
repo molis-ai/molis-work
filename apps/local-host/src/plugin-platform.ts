@@ -115,6 +115,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     artifacts: {
       read: (reference) => options.processItems.query.getArtifactVersion(options.board_id, reference)
         ?? options.artifacts.query.getArtifactVersion(options.board_id, reference),
+      // Someone can give an input port a fixed version from the 成果库, never a process item.
+      library: (reference) => options.artifacts.query.getArtifactVersion(options.board_id, reference),
     },
   });
   const events = new PluginEventBus({

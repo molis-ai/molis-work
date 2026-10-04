@@ -8,7 +8,8 @@ import { join } from "node:path";
 const home = await mkdtemp(join(tmpdir(), "molis-test-home-"));
 try {
   const targets = process.argv.slice(2);
-  if (!targets.length) targets.push(...(await readdir("tests")).filter(name => name.endsWith(".test.ts")).sort().map(name => `tests/${name}`));
+  // Without arguments: every test file, the `.mjs` boundary checks included (CI also names those separately).
+  if (!targets.length) targets.push(...(await readdir("tests")).filter(name => /\.test\.(ts|mjs)$/.test(name)).sort().map(name => `tests/${name}`));
   const environment = { ...process.env };
   // This is a new test coordinator, including when a test verifies the runner.
   delete environment.NODE_TEST_CONTEXT;

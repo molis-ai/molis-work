@@ -64,7 +64,7 @@ The shortest work path is `goal_intent_create` → `event_note`, with no type or
 
 `event_decide` and `goal_tree_decide` belong to protected user Web/management entries, not Runtime. The Runtime can propose concrete changes and request or cite saved valid decisions; user identities, confirmation text, and Session fields supplied by the Runtime cannot approve its own proposal. Existing authorization does not require another decision while its exact scope remains valid.
 
-Trusted management entries use `MOLIS_WORK_MCP_AUDIENCE=management`, which additionally retains `initialize`, `import_v3`, `snapshot`, `event_decide`, `goal_tree_decide`, and `active_goal`. Management calls follow their explicit project and identity schemas. Never hand management MCP to an autonomous Runtime. V3 import preserves original fields, relations, coverage, and source. Imported Goals immediately support current state and notes without invented acceptance commitments.
+Trusted management entries use `MOLIS_WORK_MCP_AUDIENCE=management`, which additionally retains `initialize`, `snapshot`, `event_decide`, `goal_tree_decide`, and `active_goal`. Management calls follow their explicit project schemas; the host acts as the person on this machine (`web-user`), and an `actor_id` or an identity or provenance inside `authority` is refused. Never hand management MCP to an autonomous Runtime.
 
 Old Claim/select/Run/Evidence/Review, draft dialogue, Contract/Candidate/Dependency/Rewire writes, and Available/Ready/Contract/Explain work entries are retired. Management does not make those old names executable. Historical records remain readable; everyday work uses the current event path.
 

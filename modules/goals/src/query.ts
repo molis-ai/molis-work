@@ -18,7 +18,6 @@ import {
 import { GuidanceCommands } from "./guidance-commands.js";
 import { GoalsRepository } from "./repository.js";
 import { GoalQueryFactsRepository } from "./query-facts-repository.js";
-import { LegacyGoalCoverage } from "./legacy-coverage.js";
 import { hydratePlanningMethodPack } from "./planning/method-packs.js";
 
 export const DEFAULT_GOAL_POLICY: GoalPolicy = {
@@ -51,7 +50,6 @@ export class GoalsQueryService implements GoalsQueryApi {
 
   listActivePolicyBindings(boardId: string, goalId?: string) { return this.repository.listActivePolicyBindings(boardId, goalId); }
   listPolicyHistory(boardId: string) { return this.facts.listPolicyHistory(boardId); }
-  listLegacyCoverage(boardId: string) { return new LegacyGoalCoverage(this.context).list(boardId); }
   listGoalRiskLinks(boardId: string) { return this.repository.listGoalRiskLinks(boardId); }
   listDependencies(boardId: string, goalId: string) { return this.facts.listDependencies(boardId, goalId); }
   listOpenGoalRisks(boardId: string, goalId: string) { return this.facts.listOpenGoalRisks(boardId, goalId); }

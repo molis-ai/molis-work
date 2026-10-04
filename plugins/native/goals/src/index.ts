@@ -10,7 +10,6 @@ export * from "./proposal-client.js";
 export * from "./proposal-ui.js";
 export * from "./proposal-ui-model.js";
 export * from "./board-entry-capabilities.js";
-export * from "./board-import-contract.js";
 export * from "./entry-composition-capabilities.js";
 export * from "./goals-entry-capabilities.js";
 export * from "./goal-event-application.js";
@@ -118,13 +117,12 @@ export { MolisWorkV1Error } from "./errors.js";
 
 export { TRASH_GOAL_STYLES } from "./trash-document-styles.js";
 
-export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsCoverageItem, type GoalsInputBinding } from "./document-view.js";
+export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsInputBinding } from "./document-view.js";
 
 export { countGoalDecisions } from "./decision-groups.js";
 
 export { buildGoalsDocumentCollection, type GoalsDocumentCollectionView } from "./document-collection.js";
 export type { GoalsDocumentReadPorts } from "./document-read-ports.js";
-export * from "./board-v3-import.js";
 export { handleGoalsWebHttp } from "./http/index.js";
 export { handleGoalEventDecisionHttp } from "./http/event-decisions.js";
 export type { GoalsHttpContext } from "./http/types.js";

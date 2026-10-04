@@ -117,7 +117,7 @@ export { MolisWorkV1Error } from "./errors.js";
 
 export { TRASH_GOAL_STYLES } from "./trash-document-styles.js";
 
-export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsCoverageItem, type GoalsInputBinding } from "./document-view.js";
+export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsInputBinding } from "./document-view.js";
 
 export { countGoalDecisions } from "./decision-groups.js";
 

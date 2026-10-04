@@ -1,5 +1,5 @@
 import type { BoardSnapshot } from "./goal-entry-contract.js";
-import type { GoalsCoverageItem, GoalsInputBinding } from "./document-view.js";
+import type { GoalsInputBinding } from "./document-view.js";
 import type { GoalsPolicyBinding } from "./policy-ui-model.js";
 import type { GoalsSafetyRisk } from "./safety-ui-model.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";
@@ -26,7 +26,7 @@ function addGroupedValue<T>(grouped: Map<string, T[]>, key: unknown, value: T): 
 }
 
 export function createGoalDocumentIndex(
-  snapshot: BoardSnapshot, coverage: GoalsCoverageItem[], inputBindings: GoalsInputBinding[],
+  snapshot: BoardSnapshot, inputBindings: GoalsInputBinding[],
   policyBindings: GoalsPolicyBinding[], events: GoalsDecisionEvent[],
   riskLinks: ReturnType<GoalsDocumentReadPorts["goals"]["listGoalRiskLinks"]>,
 ) {
@@ -50,7 +50,6 @@ export function createGoalDocumentIndex(
   const contractProposalsByGoal = groupByKey(snapshot.contract_proposals, (item) => item.goal_id);
   const clarificationSessionsByGoal = groupByKey(snapshot.clarification_sessions, (item) => item.goal_id);
   const clarificationTurnsByGoal = groupByKey(snapshot.clarification_turns, (item) => item.goal_id);
-  const coverageByGoal = groupByKey(coverage, (item) => item.owner_goal_id);
   const inputBindingsByGoal = groupByKey(inputBindings, (item) => item.goal_id);
   const policyBindingsByGoal = groupByKey(policyBindings, (item) => item.goal_id);
   const projectPolicyBindings = policyBindings.filter((item) => item.goal_id == null);
@@ -117,5 +116,5 @@ export function createGoalDocumentIndex(
     }
   }
   const createdByActor = new Map([...createdByGoal].map(([goalId, value]) => [goalId, value.actor]));
-  return { riskGoalIds, goalRiskIds, webRisks, evidenceByGoal, evidenceCorrectionsByGoal, reviewObligationsByGoal, reviewsByGoal, impactsByGoal, contractProposalsByGoal, clarificationSessionsByGoal, clarificationTurnsByGoal, coverageByGoal, inputBindingsByGoal, policyBindingsByGoal, projectPolicyBindings, eventsByObject, relationsByGoal, candidatesByRun, goalTreeProposalsByGoal, rewiresByGoal, rewiresByCandidate, createdByGoal: createdByActor };
+  return { riskGoalIds, goalRiskIds, webRisks, evidenceByGoal, evidenceCorrectionsByGoal, reviewObligationsByGoal, reviewsByGoal, impactsByGoal, contractProposalsByGoal, clarificationSessionsByGoal, clarificationTurnsByGoal, inputBindingsByGoal, policyBindingsByGoal, projectPolicyBindings, eventsByObject, relationsByGoal, candidatesByRun, goalTreeProposalsByGoal, rewiresByGoal, rewiresByCandidate, createdByGoal: createdByActor };
 }

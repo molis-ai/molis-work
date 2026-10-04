@@ -1,6 +1,6 @@
 import type {ResultReason} from './contract.js';
 import {conforms,type Schema} from './schema.js';
-export const RECEIPTS_CONTRACT='goalboard.casebook.operation-receipts';
+export const RECEIPTS_CONTRACT='molis-work.casebook.operation-receipts';
 export const RECEIPTS_VERSION='1.0.0';
 export interface ReceiptReadRequest {project_ref:string;schema_version:typeof RECEIPTS_VERSION;authorization_epoch:string;after_cursor:number;limit:number;}
 export interface ReceiptScope {requirement_refs:string[];event_refs:string[];concern_refs:string[];action_ref:string|null;truncated:boolean;}
@@ -39,7 +39,7 @@ export const operationReceiptSchema=o({receipt_id:s,seq:{type:'integer',minimum:
 export const operationReceiptsSchema={...o({contract_id:{const:RECEIPTS_CONTRACT},schema_version:{const:RECEIPTS_VERSION},project_ref:s,authorization_epoch:s,stream_id:s,exported_at:s,
  cursor:o({after_exclusive:{type:'integer',minimum:0},to_inclusive:{type:'integer',minimum:0},has_more:b}),receipts:arr(operationReceiptSchema,100),
  coverage:o({recording_since:s,paused_windows:{type:'integer',minimum:0},unpersisted_failures:{type:'integer',minimum:0},incomplete_operations:{type:'integer',minimum:0},historical_backfill:{const:false},missing:arr(s,100)})}),
- $schema:'https://json-schema.org/draft/2020-12/schema',$id:'https://goalboard.dev/contracts/casebook/operation-receipts/1.0.0'};
+ $schema:'https://json-schema.org/draft/2020-12/schema',$id:'https://molis-work.dev/contracts/casebook/operation-receipts/1.0.0'};
 export const validReceipt=(value:unknown):value is OperationReceipt=>conforms(value,operationReceiptSchema);
-export interface ConnectionDiagnostics {contract_id:'goalboard.casebook.connection-diagnostics';schema_version:'1.0.0';project_ref:string;observed_at:string;historical_record:false;project_state:'ready'|'not_open';runtime:OperationReceipt['runtime'];available_methods:string[];missing:string[];}
-export const connectionDiagnosticsSchema=o({contract_id:{const:'goalboard.casebook.connection-diagnostics'},schema_version:{const:'1.0.0'},project_ref:s,observed_at:s,historical_record:{const:false},project_state:{enum:['ready','not_open']},runtime:operationReceiptSchema.properties!.runtime!,available_methods:arr(s),missing:arr(s)});
+export interface ConnectionDiagnostics {contract_id:'molis-work.casebook.connection-diagnostics';schema_version:'1.0.0';project_ref:string;observed_at:string;historical_record:false;project_state:'ready'|'not_open';runtime:OperationReceipt['runtime'];available_methods:string[];missing:string[];}
+export const connectionDiagnosticsSchema=o({contract_id:{const:'molis-work.casebook.connection-diagnostics'},schema_version:{const:'1.0.0'},project_ref:s,observed_at:s,historical_record:{const:false},project_state:{enum:['ready','not_open']},runtime:operationReceiptSchema.properties!.runtime!,available_methods:arr(s),missing:arr(s)});

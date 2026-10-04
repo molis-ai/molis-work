@@ -21,6 +21,7 @@ export type PluginWiringErrorCode =
   | "port_type_mismatch"
   | "port_unknown"
   | "port_binding_invalid"
+  | "port_artifact_invalid"
   | "input_group_invalid"
   | "input_group_unknown";
 
@@ -86,6 +87,23 @@ export interface PluginPortBindingInput {
   actor_id: string;
 }
 
+/**
+ * A fixed 成果 version bound to an input port in place of another plugin's output (artifact-positioning, 2026-10-04):
+ * the consumer reads exactly that version until someone changes the port. Only 成果库 versions, never process items.
+ */
+export interface PluginPortArtifactBindingRecord {
+  board_id: string;
+  target_plugin_id: string;
+  target_port: string;
+  artifact_id: string;
+  version: number;
+  actor_id: string;
+  created_at: string;
+}
+
+export type PluginPortArtifactBindingInput = Pick<PluginPortArtifactBindingRecord,
+  "target_plugin_id" | "target_port" | "artifact_id" | "version" | "actor_id">;
+
 export interface PluginInputGroupSelectionRecord {
   board_id: string;
   plugin_id: string;
@@ -138,6 +156,8 @@ export interface PluginInputPortView {
   state: PluginInputPortState;
   origin?: PluginPortBindingOrigin;
   source?: { source_plugin_id: string; source_port: string };
+  /** The fixed 成果 version bound to this port, when that is its source instead of another plugin's output. */
+  artifact?: { artifact_id: string; version: number };
   reason?: string;
   candidates: PluginInputSourceCandidate[];
 }
@@ -228,7 +248,11 @@ export interface PluginWiringRepository {
     targetPluginId: string,
     targetPort: string,
   ): PluginPortBindingRecord | null;
+  /** A port has one source: saving a plugin binding drops a fixed-version binding on the same port, and the reverse. */
   saveBinding(record: PluginPortBindingRecord): void;
+  getArtifactBinding(boardId: string, targetPluginId: string, targetPort: string): PluginPortArtifactBindingRecord | null;
+  saveArtifactBinding(record: PluginPortArtifactBindingRecord): void;
+  /** Removes the port's source of either kind. */
   deleteBinding(boardId: string, targetPluginId: string, targetPort: string): void;
   deleteBindingsForPlugin(boardId: string, pluginId: string): void;
   getInputGroup(boardId: string, pluginId: string): PluginInputGroupSelectionRecord | null;
@@ -252,6 +276,7 @@ export interface PluginWiringRepository {
 export interface PluginWiringApi {
   view(): PluginWiringView;
   bind(input: PluginPortBindingInput): PluginPortBindingRecord;
+  bindArtifact(input: PluginPortArtifactBindingInput): PluginPortArtifactBindingRecord;
   unbind(targetPluginId: string, targetPort: string): void;
   selectInputGroup(pluginId: string, groupId: string): PluginInputGroupSelectionRecord;
   status(pluginId: string): PluginInputStatus;

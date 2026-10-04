@@ -55,7 +55,6 @@ test("plugin rail lists enabled plugins; directory sections stay in the second c
     archived_goals: [],
     trashed_goals: [],
     counts: {},
-    coverage: [],
     input_bindings: [],
     policy_bindings: [],
     events: [],

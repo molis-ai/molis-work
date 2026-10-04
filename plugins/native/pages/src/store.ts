@@ -62,44 +62,6 @@ export class PagesStore {
     this.db.close();
   }
 
-  hasProjectData(projectId: string): boolean {
-    return ["pages", "folders", "page_generations", "page_imports"].some(table => Boolean(this.db.prepare(`SELECT 1 FROM ${table} WHERE project_id = ? LIMIT 1`).get(projectId)));
-  }
-
-  /** Host must prove the old partition belongs uniquely to this project before calling. */
-  migrateProjectScope(previous: string, projectId: string): void {
-    if (previous === projectId) return;
-    normalizeProjectId(previous); normalizeProjectId(projectId);
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
-      const generations = this.generations(previous);
-      if (generations.some(record => record.status === "running" && Date.now() - Date.parse(record.updated_at) < 180_000)) throw new PagesError("pages.legacy_running", "旧文稿仍在生成，请完成后重新打开");
-      for (const table of ["page_generations", "page_imports"]) {
-        const collision = this.db.prepare(`SELECT 1 FROM ${table} a JOIN ${table} b ON a.request_id = b.request_id WHERE a.project_id = ? AND b.project_id = ? LIMIT 1`).get(previous, projectId);
-        if (collision) throw new PagesError("pages.legacy_conflict", "旧文稿请求与当前项目冲突，原数据已保留，请先修复关联");
-      }
-      for (const page of this.list(previous)) {
-        const rewrite = (node: unknown): unknown => {
-          if (Array.isArray(node)) return node.map(rewrite);
-          if (!node || typeof node !== "object") return node;
-          const record = node as Record<string, unknown>;
-          return Object.fromEntries(Object.entries(record).map(([key, value]) => [key,
-            key === "href" && typeof value === "string" && value.startsWith(`/projects/${encodeURIComponent(previous)}/?inbox_entry=`)
-              ? `/projects/${encodeURIComponent(projectId)}/` + value.slice(`/projects/${encodeURIComponent(previous)}/`.length) : rewrite(value)]));
-        };
-        this.db.prepare("UPDATE pages SET project_id = ?, body_json = ?, version = version + 1 WHERE id = ?").run(projectId, JSON.stringify(rewrite(page.body)), page.id);
-      }
-      this.db.prepare("UPDATE folders SET project_id = ? WHERE project_id = ?").run(projectId, previous);
-      this.db.prepare("UPDATE page_imports SET project_id = ? WHERE project_id = ?").run(projectId, previous);
-      for (const record of generations) {
-        const next = { ...record, project_id: projectId, ...(record.status === "running" ? { status: "failed" as const, error: "上次生成已中断，材料已保留，请重试" } : {}) };
-        this.saveGeneration(next);
-      }
-      this.db.prepare("DELETE FROM page_generations WHERE project_id = ?").run(previous);
-      this.db.exec("COMMIT");
-    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
-  }
-
   generation(projectId: string, requestId: string): PagesGenerationRecord | null {
     const row = this.db.prepare("SELECT record_json FROM page_generations WHERE project_id = ? AND request_id = ?")
       .get(projectId, requestId) as { record_json: string } | undefined;

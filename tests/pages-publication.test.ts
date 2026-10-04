@@ -75,28 +75,6 @@ test("old interrupted publication without a snapshot recovers the original owned
   });
 });
 
-test("project partition migration rewrites the editable document link while retaining the already published snapshot exactly", async t => {
-  const f = await fixture(t);
-  const store = openPagesStore(f.home);
-  try {
-    const originalBody = { type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text: "Source", marks: [{ type: "link", attrs: { href: "/projects/legacy-scope/?inbox_entry=entry-1" } }] }] }] };
-    const original = store.create({ project_id: "legacy-scope", title: "Old publication", body: originalBody });
-    store.beginPublication(original.id, "legacy-scope", "owner");
-    await f.host.withProject(f.ref, runtime => registerPagesArtifactVersion(runtime.coordinator, "p", "legacy-scope", "owner")({ project_id: "legacy-scope", page_id: original.id,
-      title: original.title, body: original.body, goal_id: "", version: 1 }));
-    store.migrateProjectScope("legacy-scope", "p");
-    const migrated = store.get(original.id, "p");
-    assert.match(JSON.stringify(migrated.body), /\/projects\/p\//);
-    assert.equal(migrated.publication_pending!.source_version, original.version);
-    const result = await f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: migrated.version });
-    assert.equal(result.recovered, true); assert.equal(result.artifact.version, 1); assert.equal(result.document.publication_pending, undefined);
-    await f.host.withProject(f.ref, runtime => {
-      const published = runtime.coordinator.artifacts.query.listArtifactVersions("p", result.artifact.artifact_id);
-      assert.equal(published.length, 1); assert.deepEqual((published[0]!.payload as any).body, originalBody);
-    });
-  } finally { store.close(); }
-});
-
 test("a conflicting immutable Artifact cannot replace the retained publication snapshot or attach itself to the draft", async t => {
   const f = await fixture(t);
   const original = (await f.bound.invoke(pagesActions.create, { title: "Approved", body: body("Approved snapshot") })).document;

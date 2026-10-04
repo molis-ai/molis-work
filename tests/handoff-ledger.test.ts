@@ -11,7 +11,7 @@ import { SESSION_REGISTRY_SCHEMA_VERSION } from "../modules/private-work-context
 
 const access = { actor_id: "test-reader", scope: { kind: "personal", id: "private-work-context" } as const };
 
-async function fixture(legacy = true) {
+async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-handoff-ledger-"));
   const homeDirectory = join(directory, "home");
   const registry = await openWorkSessionRegistry({ homeDirectory });
@@ -40,77 +40,11 @@ async function fixture(legacy = true) {
     actor_id: "moving-user", user_confirmed: true });
   const databasePath = registry.databasePath;
   registry.close();
-  if (legacy) {
-    const db = new Database(databasePath);
-    try {
-      db.prepare("DELETE FROM context_edges WHERE relation_type LIKE 'handoff.%'").run();
-      db.prepare(`UPDATE session_handoffs SET source_project_id = 'project-original', source_goal_id = 'goal-original',
-        target_project_id = 'project-original', target_workspace_id = 'workspace-original'`).run();
-      db.prepare("UPDATE session_meta SET value = '4' WHERE key = 'schema_version'").run();
-    } finally { db.close(); }
-  }
   return { directory, homeDirectory, databasePath, source, records, draftInput };
 }
 
-test("v4 Handoff migration preserves every state and encrypted content without guessing from the source Session", async () => {
-  const data = await fixture();
-  try {
-    for (let open = 0; open < 2; open++) {
-      const registry = await openWorkSessionRegistry({ homeDirectory: data.homeDirectory });
-      try {
-        assert.equal(registry.get(data.source.session_id).project_id, "project-later");
-        for (const original of data.records) assert.deepEqual(registry.getHandoff(original.package_id), original);
-      } finally { registry.close(); }
-    }
-    const db = new Database(data.databasePath);
-    try {
-      // The v4 sample is upgraded through every later migration, not only the v5 ledger step.
-      assert.equal((db.prepare("SELECT value FROM session_meta WHERE key = 'schema_version'").get() as { value: string }).value, String(SESSION_REGISTRY_SCHEMA_VERSION));
-      for (const row of db.prepare("SELECT source_project_id, source_goal_id, target_project_id, target_workspace_id FROM session_handoffs").all()) {
-        assert.deepEqual(row, { source_project_id: "", source_goal_id: "", target_project_id: "", target_workspace_id: null });
-      }
-      const ledger = createContextLedger(db, { authorize: () => true });
-      for (const original of data.records) {
-        const history = ledger.query.history(access, `handoff.goal:${original.package_id}`);
-        assert.equal(history.length, 1);
-        assert.deepEqual(history[0]?.target, { module: "goals", id: "goal-original", version: null,
-          scope: access.scope, project_id: "project-original" });
-        assert.equal(history[0]?.actor_id, "original-user");
-        assert.equal(history[0]?.recorded_at, original.created_at);
-      }
-      assert.doesNotMatch(JSON.stringify(db.prepare("SELECT * FROM context_edges").all()), /Private Handoff body/);
-    } finally { db.close(); }
-  } finally { await rm(data.directory, { recursive: true, force: true }); }
-});
-
-test("Handoff migration failure leaves all legacy endpoints and version intact for a successful retry", async () => {
-  const data = await fixture();
-  try {
-    await assert.rejects(MolisWorkSessionRegistry.open({ homeDirectory: data.homeDirectory, createLedger: (db) => {
-      const ledger = createContextLedger(db, { authorize: () => true });
-      let writes = 0;
-      return { query: ledger.query, commands: { ...ledger.commands, put: (who, input) => {
-        const result = ledger.commands.put(who, input);
-        if (++writes === 5) throw new Error("migration write failed");
-        return result;
-      } } };
-    } }), /migration write failed/);
-    const db = new Database(data.databasePath);
-    try {
-      assert.deepEqual(db.prepare("SELECT value FROM session_meta WHERE key = 'schema_version'").get(), { value: "4" });
-      for (const row of db.prepare("SELECT source_goal_id, target_workspace_id FROM session_handoffs").all()) {
-        assert.deepEqual(row, { source_goal_id: "goal-original", target_workspace_id: "workspace-original" });
-      }
-      assert.deepEqual(db.prepare("SELECT * FROM context_edges WHERE relation_type LIKE 'handoff.%'").all(), []);
-    } finally { db.close(); }
-    const registry = await openWorkSessionRegistry({ homeDirectory: data.homeDirectory });
-    try { for (const record of data.records) assert.deepEqual(registry.getHandoff(record.package_id), record); }
-    finally { registry.close(); }
-  } finally { await rm(data.directory, { recursive: true, force: true }); }
-});
-
 test("new Handoff pins the supplied Goal version; target edits, removals and failures stay atomic", async () => {
-  const data = await fixture(false);
+  const data = await fixture();
   let fail = false;
   const registry = await MolisWorkSessionRegistry.open({ homeDirectory: data.homeDirectory, createLedger: (db) => {
     const ledger = createContextLedger(db, { authorize: () => true });

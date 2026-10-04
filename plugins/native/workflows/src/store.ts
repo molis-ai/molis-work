@@ -1,4 +1,4 @@
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   WorkflowError,
@@ -159,35 +159,42 @@ export class WorkflowsStore {
   }
 }
 
+/**
+ * The workflow store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing
+ * ones must already be at its version.
+ */
+export const WORKFLOWS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE workflows (
+    workflow_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    chain_json TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX workflows_project ON workflows (project_id, deleted, updated_at);
+  CREATE TABLE instances (
+    instance_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL,
+    current INTEGER NOT NULL,
+    chain_json TEXT NOT NULL,
+    steps_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX instances_workflow ON instances (workflow_id, created_at);
+
+` };
+
 export function openWorkflowsStore(homeDirectory: string): WorkflowsStore {
   const db = openHomeSqliteDatabase(homeDirectory, "workflows");
-  db.exec(`
-    PRAGMA journal_mode = WAL;
-    CREATE TABLE IF NOT EXISTS workflows (
-      workflow_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      chain_json TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      deleted INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE INDEX IF NOT EXISTS workflows_project ON workflows (project_id, deleted, updated_at);
-    CREATE TABLE IF NOT EXISTS instances (
-      instance_id TEXT PRIMARY KEY,
-      workflow_id TEXT NOT NULL,
-      project_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      status TEXT NOT NULL,
-      current INTEGER NOT NULL,
-      chain_json TEXT NOT NULL,
-      steps_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS instances_workflow ON instances (workflow_id, created_at);
-  `);
+  db.exec("PRAGMA journal_mode = WAL;");
+  applySqliteBaseline(db, homeSqlitePath(homeDirectory, "workflows"), WORKFLOWS_STORE_BASELINE);
   return new WorkflowsStore(db);
 }
 

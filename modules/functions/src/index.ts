@@ -13,7 +13,7 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { FunctionsError, assertFunctionKey, assertOptionKey, isPinnedJevModel, suggestFunctionKey } from "./keys.js";
 export { hashChoiceConfig, hashFunctionConfig } from "./hash.js";
-export { openFunctionsStore, FunctionsStore, assertReadyToPublish, assertReadyToEvaluate } from "./store.js";
+export { openFunctionsStore, FunctionsStore, FUNCTIONS_STORE_BASELINE, assertReadyToPublish, assertReadyToEvaluate } from "./store.js";
 export { createFunctionsService, FunctionsService } from "./service.js";
 export type { FunctionsSecretPort, TypeSafeProvider, TypeSafeEvaluateResult } from "./service.js";
 export { createTypeSafeProvider, type TypeSafeExecution, readAnswer, readChoiceAnswer, TYPESAFE_SYSTEMONE_URL } from "./provider.js";

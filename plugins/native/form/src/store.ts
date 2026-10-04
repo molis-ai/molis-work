@@ -1,4 +1,4 @@
-import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type {
   FormOption,
@@ -331,40 +331,42 @@ export class FormStore {
 
 }
 
+/**
+ * The form store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
+ * must already be at its version. Columns keep the order existing stores have them in.
+ */
+export const FORM_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE forms (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL,
+    share_id TEXT,
+    questions_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    project_id TEXT NOT NULL DEFAULT '',
+    artifact_id TEXT NOT NULL DEFAULT '',
+    artifact_version INTEGER NOT NULL DEFAULT 0,
+    publication_pending_json TEXT
+  );
+  CREATE TABLE submissions (
+    id TEXT PRIMARY KEY,
+    form_id TEXT NOT NULL,
+    answers_json TEXT NOT NULL,
+    submitted_at TEXT NOT NULL,
+    form_version INTEGER,
+    questions_json TEXT,
+    request_id TEXT,
+    source TEXT
+  );
+  CREATE UNIQUE INDEX submissions_request ON submissions (form_id, request_id) WHERE request_id IS NOT NULL;
+  CREATE TABLE form_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
+` };
+
 export function openFormStore(homeDirectory: string): FormStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "form");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS forms (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL DEFAULT '',
-      title TEXT NOT NULL,
-      description TEXT NOT NULL,
-      status TEXT NOT NULL,
-      share_id TEXT,
-      questions_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      version INTEGER NOT NULL,
-      artifact_id TEXT NOT NULL DEFAULT '',
-      artifact_version INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS submissions (
-      id TEXT PRIMARY KEY,
-      form_id TEXT NOT NULL,
-      answers_json TEXT NOT NULL,
-      submitted_at TEXT NOT NULL
-    );
-  `);
-  ensureSqliteColumn(db, "forms", "project_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "forms", "artifact_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "forms", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
-  ensureSqliteColumn(db, "forms", "publication_pending_json", "TEXT");
-  ensureSqliteColumn(db, "submissions", "form_version", "INTEGER");
-  ensureSqliteColumn(db, "submissions", "questions_json", "TEXT");
-  ensureSqliteColumn(db, "submissions", "request_id", "TEXT");
-  ensureSqliteColumn(db, "submissions", "source", "TEXT");
-  db.exec("CREATE TABLE IF NOT EXISTS form_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id))");
-  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS submissions_request ON submissions (form_id, request_id) WHERE request_id IS NOT NULL");
+  const db = openBaselineHomeSqlite(homeDirectory, "form", FORM_STORE_BASELINE);
   return new FormStore(db);
 }
 

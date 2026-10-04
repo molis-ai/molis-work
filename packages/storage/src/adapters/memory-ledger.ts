@@ -8,7 +8,8 @@ import type {
   MemoryScope,
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { openHomeSqliteDatabase } from "../home-sqlite.js";
+import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
+import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js";
 
 /**
  * The Host's memory ledger (specs/archive/memory-system §5.1): structured facts about Prologue memory entries, candidates,
@@ -17,55 +18,54 @@ import { openHomeSqliteDatabase } from "../home-sqlite.js";
  */
 export const MEMORY_LEDGER_STORE = "memory";
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS memory_meta (
+/** The memory ledger's one current schema (repository-anti-corruption §4.1). */
+export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 1, schema: `
+CREATE TABLE memory_meta (
   memory_id TEXT PRIMARY KEY, scope TEXT NOT NULL, owner TEXT NOT NULL, body TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS memory_meta_owner ON memory_meta(scope, owner);
-CREATE TABLE IF NOT EXISTS memory_revisions (
+CREATE INDEX memory_meta_owner ON memory_meta(scope, owner);
+CREATE TABLE memory_revisions (
   memory_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (memory_id, version)
 );
-CREATE TABLE IF NOT EXISTS memory_candidates (
+CREATE TABLE memory_candidates (
   candidate_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS memory_candidates_actor ON memory_candidates(actor_id);
-CREATE TABLE IF NOT EXISTS memory_changes (
+CREATE INDEX memory_candidates_actor ON memory_candidates(actor_id);
+CREATE TABLE memory_changes (
   change_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, memory_id TEXT, at TEXT NOT NULL, body TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS memory_changes_actor ON memory_changes(actor_id, at);
-CREATE INDEX IF NOT EXISTS memory_changes_memory ON memory_changes(memory_id);
-CREATE TABLE IF NOT EXISTS memory_prefs (
+CREATE INDEX memory_changes_actor ON memory_changes(actor_id, at);
+CREATE INDEX memory_changes_memory ON memory_changes(memory_id);
+CREATE TABLE memory_prefs (
   actor_id TEXT NOT NULL, key TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, key)
 );
-CREATE TABLE IF NOT EXISTS memory_signal_events (
+CREATE TABLE memory_signal_events (
   event_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, key TEXT NOT NULL, occurrence TEXT NOT NULL, at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS memory_signal_key ON memory_signal_events(actor_id, key);
-CREATE TABLE IF NOT EXISTS memory_uses (
+CREATE INDEX memory_signal_key ON memory_signal_events(actor_id, key);
+CREATE TABLE memory_uses (
   memory_id TEXT NOT NULL, receipt_id TEXT NOT NULL, at TEXT NOT NULL, work_id TEXT, state TEXT NOT NULL, body TEXT NOT NULL,
   PRIMARY KEY (memory_id, receipt_id)
 );
-CREATE INDEX IF NOT EXISTS memory_uses_receipt ON memory_uses(receipt_id);
-CREATE INDEX IF NOT EXISTS memory_uses_work ON memory_uses(work_id);
-CREATE TABLE IF NOT EXISTS memory_owners (
+CREATE INDEX memory_uses_receipt ON memory_uses(receipt_id);
+CREATE INDEX memory_uses_work ON memory_uses(work_id);
+CREATE TABLE memory_owners (
   scope TEXT NOT NULL, owner TEXT NOT NULL, project_id TEXT, title TEXT NOT NULL, subject TEXT, PRIMARY KEY (scope, owner)
 );
-CREATE TABLE IF NOT EXISTS memory_pairs (
+CREATE TABLE memory_pairs (
   pair_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS memory_migrations (
+CREATE TABLE memory_migrations (
   actor_id TEXT NOT NULL, source TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, source)
 );
-`;
+` };
 
 const parse = <T>(row: Record<string, unknown> | undefined): T | null => row ? JSON.parse(String(row.body)) as T : null;
 
 export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedgerPort {
   const db = openHomeSqliteDatabase(options.homeDirectory, MEMORY_LEDGER_STORE);
   db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
-  db.exec(SCHEMA);
-  // Ledgers from before owners carried what they stand for get the column (nothing else changes).
-  if (!(db.prepare("PRAGMA table_info(memory_owners)").all() as Array<{ name: string }>).some(column => column.name === "subject")) db.exec("ALTER TABLE memory_owners ADD COLUMN subject TEXT");
+  try { applySqliteBaseline(db, homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), MEMORY_LEDGER_BASELINE); } catch (error) { db.close(); throw error; }
   let depth = 0;
   const ledger: MemoryLedgerPort = {
     meta: memoryId => parse<MemoryMetaRecord>(db.prepare("SELECT body FROM memory_meta WHERE memory_id=?").get(memoryId)),

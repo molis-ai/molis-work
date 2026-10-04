@@ -643,8 +643,11 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
   - [#248](https://github.com/molis-ai/molis-work/pull/248)：Casebook 对外合同改名（§1 决定；外部 Casebook 插件要同步）。
   - [#249](https://github.com/molis-ai/molis-work/pull/249)：PMR-12 守护用例 `assistant-strip-narrow.e2e`。
 - 门禁第二批（§5a）：空 catch、`as unknown as`、旧产品名的计数，以及 contracts 与插件 SDK 的公开 API 快照，加进 `pnpm health:check`（分支 `chore/health-gates-lint-api`）。公开 API 会随前面的合同改动变化，等本批合入后再生成基线开 PR。
-- 本批派生、还没做的：
-  - 其他旧账号导入（核对真实 Home 后再删）。
+- 「其他旧账号导入」已查（10-04）：**不全是兼容，不能直接删**。
+  - `importLegacyAccounts`（`apps/local-host/src/web-connector-connections.ts`）每次列出连接时都会做几种「认领」：旧图片密钥、TypeSafe 的 `FUNCTIONS_CREDENTIAL_REF`、各连接器的 `connector:<id>:…`、模型目录的 `model-provider:<id>`，以及各项目来源里的凭据引用。认领后它们出现在设置的「连接」里。
+  - 其中至少三种仍由现行流程写入：模型设置按 `model-provider:<id>` 存密钥（`model-provider-store.ts:96`）；Functions / Jev 仍直接读 `FUNCTIONS_CREDENTIAL_REF`（`functions-host.ts`、`experiments-executor.ts`）；Feed 的 GitHub、Gmail 来源注册仍写连接器凭据引用（`plugins/native/feed/src/connector-service.ts`、`connector-source-registration.ts`）。
+  - 所以这里一部分是「活的投影」：把直接存的凭据显示成连接。
+  - 处理：记入 §5 的分层问题。连接只有一个主人：现行流程直接建连接，认领只留给确实只有旧数据的那几种；那时再按格式核对真实 Home、删掉认领。不在兼容清单里直接删。
 - 「桌面面板的 reconcile 是否仍在用」已查（10-04）：**仍在用，不能当兼容删**。
   - Work 插件的终端面板仍存在 `catalog.desktopPanels`（`plugins/native/work/src/http/panels.ts` 打开、列出、标记退出）。
   - `reconcileLegacySessionCatalog`（`apps/local-host/src/session-migration.ts`）在 MCP、网页会话与运行时面板每次读会话时，把面板与运行时绑定同步进会话库（`registry.migrateLegacy`）。名字带 legacy，其实是活路径。

@@ -630,7 +630,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   ) {
     errors.push(`${goalReadApplicationPath}: compatibility composition must not own Goal persistence or bypass Goals Query`);
   }
-  for (const relativePath of ["apps/local-host/sdk/sdk-store.ts", "plugins/native/goals/src/board-v3-import.ts"]) {
+  for (const relativePath of ["apps/local-host/sdk/sdk-store.ts"]) {
     errors.push(...checkGoalStorageOwnership(read(relativePath)).map(error => `${relativePath}: ${error}`));
   }
   errors.push(...checkGoalReadOwnerSql(read("apps/local-host/src/feed-application.ts")).map(error => `apps/local-host/src/feed-application.ts: ${error}`));
@@ -709,7 +709,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "apps/mcp/src/tool-dispatch.ts",
     "apps/cli/src/command-dispatch.ts",
     "apps/local-host/src/demo-seed.ts",
-    "plugins/native/goals/src/board-v3-import.ts",
     "apps/local-host/src/feed-native-plugin-http.ts",
     "plugins/native/feed/src/goal-promotion.ts",
   ]) {

@@ -33,7 +33,7 @@ export function printV1Help(): void {
 
 Operations:
   init | snapshot | goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
-  active-goal | import-v3
+  active-goal
 
 Complex payloads may use --file payload.json instead of --json.
 The SQLite database defaults to ${DEFAULT_CLI_DATABASE}.`);

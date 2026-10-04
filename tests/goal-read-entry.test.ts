@@ -55,7 +55,7 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
     goal_id: goalId, title: goalId, outcome: "保留入口行为", why: "重组", business_logic: "通过公开入口读写",
   });
   try {
-    await client.invoke(initializeBoardCapability, { board_id: boardId, title: "原入口行为", actor_id: "user", idempotency_key: "init" });
+    await client.invoke(initializeBoardCapability, { board_id: boardId, title: "原入口行为", idempotency_key: "init" });
     await client.invoke(createGoalIntentCapability, makeIntent("working"));
     await client.invoke(createGoalIntentCapability, makeIntent("trashed-goal"));
     await composition.setTrashedWithWorkState(boardId, {

@@ -202,7 +202,7 @@ export class MolisWorkLocalHost {
             registry.registerProvider(workActionProvider(reference.project_id, this.sessions, this.actionClient(reference)));
             registry.registerProvider(projectWorkspaceActionProvider(reference.project_id, this.sessions,
               () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined));
-            registry.registerProvider(artifactActionProvider(runtime, options));
+            registry.registerProvider(artifactActionProvider(runtime, options, this.actionClient(reference)));
             for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) registry.registerProvider(provider);
             if (options.homeDirectory) registry.registerProvider(pagesActionProvider(options.homeDirectory, runtime, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) registry.registerProvider(pptActionProvider(options.homeDirectory, runtime, options.completeText, this.actionClient(reference)));

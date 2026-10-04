@@ -2,7 +2,9 @@ import { ActionError, type ActionDefinition, type ActionView, type BoundActionCl
   type WorkflowContentRole, type WorkflowItemRef, type WorkflowPayload, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { WorkflowContentPorts, WorkflowStationInfo } from "./actions.js";
 
-const required: readonly WorkflowContentRole[] = ["list", "read", "receive"];
+// A station that declares it only starts a run (`receives: false`) has no receive; where it may stand is the chain's rule.
+const requiredFor = (views: readonly ActionView[]): readonly WorkflowContentRole[] =>
+  views.some(view => view.action.workflow_content!.receives === false) ? ["list", "read"] : ["list", "read", "receive"];
 const key = (view: ActionView) => `${view.provider.provider_id}\0${view.action.workflow_content!.id}`;
 const definition = (view: ActionView): ActionDefinition => ({ ...view, provider_id: view.provider.provider_id });
 
@@ -28,14 +30,15 @@ export function createWorkflowContentPorts(actions: BoundActionClient): Workflow
       if (roles[role]) throw new ActionError("workflows.ambiguous", "同一站点有多份能力版本，需要明确选择后再使用");
       roles[role] = view;
     }
-    for (const role of required) if (!roles[role]) throw new ActionError("workflows.unavailable", `这个站点缺少已授权的 ${role} 能力`);
+    for (const role of requiredFor(views)) if (!roles[role]) throw new ActionError("workflows.unavailable", `这个站点缺少已授权的 ${role} 能力`);
     return { provider_id: views[0]!.provider.provider_id,
       actions: Object.fromEntries(Object.entries(roles).map(([role, view]) => [role, { capability_id: view.capability_id, version: view.version }])) };
   };
   const resolve = async (plugin: string, saved?: WorkflowContentBinding): Promise<WorkflowContentBinding> => {
     const views = await directory();
     if (saved) {
-      for (const role of required) if (!saved.actions[role]) throw new ActionError("workflows.unavailable", `保存的站点缺少 ${role} 能力引用`);
+      const station = views.filter(view => view.provider.provider_id === saved.provider_id && view.action.workflow_content!.id === plugin);
+      for (const role of requiredFor(station)) if (!saved.actions[role]) throw new ActionError("workflows.unavailable", `保存的站点缺少 ${role} 能力引用`);
       for (const [role, ref] of Object.entries(saved.actions)) {
         const view = views.find(view => view.provider.provider_id === saved.provider_id && view.capability_id === ref.capability_id
           && view.version === ref.version && view.action.workflow_content!.id === plugin && view.action.workflow_content!.role === role);
@@ -54,7 +57,7 @@ export function createWorkflowContentPorts(actions: BoundActionClient): Workflow
   const invoke = async <T>(plugin: string, role: WorkflowContentRole, input: unknown, binding?: WorkflowContentBinding): Promise<T> => {
     const saved = await resolve(plugin, binding);
     const ref = saved.actions[role];
-    if (!ref) throw new ActionError("workflows.unavailable", "这个站点不能从空白开始");
+    if (!ref) throw new ActionError("workflows.unavailable", role === "receive" ? "这个站点只能作为第一站，不接收交过来的内容" : "这个站点不能从空白开始");
     const view = (await directory()).find(view => view.provider.provider_id === saved.provider_id
       && view.capability_id === ref.capability_id && view.version === ref.version);
     if (!view) throw new ActionError("workflows.unavailable", `能力 ${ref.capability_id} 已失效；原引用已保留`);
@@ -71,7 +74,8 @@ export function createWorkflowContentPorts(actions: BoundActionClient): Workflow
       return groups.map(entries => {
         const station = entries[0]!.action.workflow_content!;
         const info: WorkflowStationInfo = { plugin: station.id, label: station.title, icon: station.icon, supported: true,
-          can_start_blank: entries.some(view => view.action.workflow_content!.role === "create" && view.availability.available) };
+          can_start_blank: entries.some(view => view.action.workflow_content!.role === "create" && view.availability.available),
+          receives: !entries.some(view => view.action.workflow_content!.receives === false) };
         try {
           if (groups.filter(other => other[0]!.action.workflow_content!.id === station.id).length > 1) throw new Error("存在多个同名站点，无法自动选择");
           bindingFor(entries);

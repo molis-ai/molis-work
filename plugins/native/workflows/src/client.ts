@@ -4,6 +4,8 @@
  * Views are drawn once and then patched in place, so an edit never resets scroll, focus or the embedded plugin,
  * and motion can say what changed: a station arrives, slides or leaves; a handoff travels down the run's chain.
  */
+import { WORKFLOW_GAP_PICKER_SCRIPT } from "./gap-picker-client.js";
+
 export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const root = document.querySelector('[data-workflows=workbench]');
   if (!root) return;
@@ -438,7 +440,8 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   function insertAt(gap, plugin, { focus = false } = {}) {
     const id = uid();
     if (focus) pendingFocus = id;
-    saveWorkflow({ chain: insertStation(chainOf(), gap, plugin, id), undoable: true });
+    // A station that only provides content (成果) starts the run, wherever it was dropped.
+    saveWorkflow({ chain: insertStation(chainOf(), stationInfo(plugin).receives === false ? 0 : gap, plugin, id), undoable: true });
   }
   function moveTo(from, gap, { focus = false } = {}) {
     const station = state.workflow.stations[from];
@@ -485,21 +488,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     });
     view.querySelectorAll('[data-wf-chain] [data-wf-gap]').forEach((gap) => gap.classList.toggle('is-picking', Number(gap.dataset.wfGap) === state.openGap));
   }
-  function openGapPicker(gap) {
-    const chain = state.workflow;
-    const before = chain.stations[gap - 1]; const after = chain.stations[gap];
-    const heading = before && after ? L('加入到 {a} 和 {b} 之间', { a: label(before), b: label(after) }) : before ? L('加在 {a} 后面', { a: label(before) }) : after ? L('加在 {a} 前面', { a: label(after) }) : L('加入第一站');
-    const others = state.stations.filter((info) => !info.supported);
-    state.openLink = null; state.openGap = gap;
-    pop.dataset.mode = 'gap';
-    pop.innerHTML = '<header class="wf-pop__head"><strong>' + esc(heading) + '</strong></header><div class="wf-pop__list" role="listbox" aria-label="' + esc(heading) + '">'
-      + state.stations.filter((info) => info.supported).map((info) => '<button type="button" class="wf-pop__item" role="option" data-wf-action="insert" data-plugin="' + esc(info.plugin) + '" data-gap="' + gap + '" style="--station-tint:' + tint(info.plugin) + '">'
-        + '<span class="wf-station__icon">' + ico(info.icon) + '</span><span>' + esc(L(info.label)) + '</span></button>').join('')
-      + '</div>' + (others.length ? '<p class="wf-hint" title="' + esc(others.map((info) => L(info.label)).join('、')) + '">' + esc(L('其余 {count} 个插件暂不能串进流程', { count: others.length })) + '</p>' : '');
-    markOpen();
-    placePop(gapButtonOf(gap));
-    pop.querySelector('.wf-pop__item')?.focus();
-  }
+  ${WORKFLOW_GAP_PICKER_SCRIPT}
   let linkTimer = 0;
   function linkFieldsHtml(link) {
     const field = (name, title, value, rows, placeholder) => '<label class="mw-field"><span class="mw-field__label">' + tx(title) + '</span>'

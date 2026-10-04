@@ -7,7 +7,7 @@ import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { actionEffect, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, type ActionCallContext, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { AssistantError, AssistantService } from "./assistant-service.js";
 import type { PersonActions } from "./assistant-coding.js";
@@ -20,7 +20,7 @@ import { memoryHostFor } from "../memory/memory-host.js";
 import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
-const WEB_ACTOR = "web-user";
+const WEB_ACTOR = LOCAL_PERSON_ACTOR_ID;
 /** How long one working-out of the person's grants is reused by the calls that follow it. */
 const PERSON_CONTEXT_REUSE_MS = 2_000;
 

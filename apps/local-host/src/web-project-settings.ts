@@ -5,6 +5,7 @@ import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions, Moli
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
 import { L } from "./web-locale.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
 
@@ -42,7 +43,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
         const projectId = decodeURIComponent(pluginMatch[1]);
         const membership = await withMolisWorkProjectCatalog({ homeDirectory }, async catalog => {
           const plugins = await catalog.commit(() => catalog.addProjectPlugin({
-            project_id: projectId, plugin_id: pluginId, actor_id: "web-user",
+            project_id: projectId, plugin_id: pluginId, actor_id: LOCAL_PERSON_ACTOR_ID,
           }));
           return { plugins, hidden: catalog.listHiddenPlugins(projectId) };
         });
@@ -63,7 +64,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
       try {
         const projectId = decodeURIComponent(pluginMatch[1]);
         const membership = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.commit(() => catalog.removeProjectPlugin({
-          project_id: projectId, plugin_id: pluginId, actor_id: "web-user",
+          project_id: projectId, plugin_id: pluginId, actor_id: LOCAL_PERSON_ACTOR_ID,
         })));
         sendJson(response, 200, { project_id: projectId, ...membership });
       } catch (error) {
@@ -85,7 +86,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
       }
       try {
         await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
-          const project = await catalog.createProject({ display_name: displayName, actor_id: "web-user" });
+          const project = await catalog.createProject({ display_name: displayName, actor_id: LOCAL_PERSON_ACTOR_ID });
           sendJson(response, 201, {
             project: settingsProject(project),
             project_path: `/projects/${encodeURIComponent(project.project_id)}/`,
@@ -108,7 +109,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
       try {
         await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
           if (action === "create") {
-            const result = await catalog.ensureDemoProject({ actor_id: "web-user", user_confirmed: true });
+            const result = await catalog.ensureDemoProject({ actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
             sendJson(response, 200, {
               ...result,
               project: settingsProject(result.project),
@@ -117,7 +118,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
             return;
           }
           if (action === "reset") {
-            const result = await catalog.resetDemoProject({ actor_id: "web-user", user_confirmed: true });
+            const result = await catalog.resetDemoProject({ actor_id: LOCAL_PERSON_ACTOR_ID, user_confirmed: true });
             sendJson(response, 200, {
               ...result,
               project: settingsProject(result.project),
@@ -132,7 +133,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
           }
           const result = await catalog.removeDemoProject({
             project_id: demo.project_id,
-            actor_id: "web-user",
+            actor_id: LOCAL_PERSON_ACTOR_ID,
             delete_confirmed: true,
             idempotency_key: `web-demo-remove-${randomBytes(16).toString("hex")}`,
           });
@@ -165,7 +166,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
           }
           const result = await catalog.deleteProject({
             project_id: projectId,
-            actor_id: "web-user",
+            actor_id: LOCAL_PERSON_ACTOR_ID,
             delete_confirmed: true,
             idempotency_key: deletionKey,
           });
@@ -190,7 +191,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
       }
       try {
         await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
-          const project = await catalog.commit(() => catalog.renameProject(decodeURIComponent(projectRenameMatch[1]), displayName, "web-user"));
+          const project = await catalog.commit(() => catalog.renameProject(decodeURIComponent(projectRenameMatch[1]), displayName, LOCAL_PERSON_ACTOR_ID));
           sendJson(response, 200, { project: settingsProject(project) });
         });
       } catch (error) {

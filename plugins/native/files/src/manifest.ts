@@ -47,7 +47,6 @@ export const filesManifest: PluginManifest = {
   version: "1.5.0",
   name: "Files",
   kind: "app",
-  upgrade_compatibility: { compatible_from_versions: ["1.4.0", "1.3.0", "1.2.0", "1.1.0"] },
   publisher: { publisher_id: "molis", signature: "official-files-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [

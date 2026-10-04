@@ -22,7 +22,6 @@ export const textStatsManifest: PluginManifest = {
   host_api_version: 2,
   plugin_id: TEXT_STATS_PLUGIN_ID,
   version: "1.2.0",
-  upgrade_compatibility: { compatible_from_versions: ["1.1.0"] },
   name: "Text stats",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-text-stats-binding" },

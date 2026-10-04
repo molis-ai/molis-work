@@ -26,8 +26,6 @@ function importLegacyAccounts(homeDirectory: string): void {
   withConnectorConnections(homeDirectory, (connections) => {
     connections.adoptLegacy({ serviceId: "typesafe", displayName: "TypeSafe · 原有密钥",
       credentialRef: FUNCTIONS_CREDENTIAL_REF, authMethod: "token" });
-    connections.adoptLegacy({ serviceId: "model-api", displayName: "文本补全 · 原有密钥",
-      credentialRef: "model:text:api_key", authMethod: "token" });
     for (const service of HOST_CONNECTOR_DIRECTORY) {
       if (service.availability !== "live") continue;
       const ref = authRefFor(service.connector_id);

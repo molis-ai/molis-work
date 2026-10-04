@@ -3,12 +3,10 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 import { memoryHostFor } from "../apps/local-host/src/memory/memory-host.js";
-import { ASSISTANT_STORE_NAME, AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/src/local-owner-permissions.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 
@@ -59,26 +57,4 @@ test("memory is one system.memory provider in the shared directory: the person m
   // Interface signals report as the person.
   const signal = await asPerson.invoke(memoryActions.signal, { event_id: "evt-00000001", signal: "accepted", subject: { capability_id: "pages.polish", label: "润色" } });
   assert.equal(signal.state, "counted");
-});
-
-test("the Assistant's first-version tables in <Home>/assistant move into the platform once when the memory host starts", { timeout: 60_000 }, async t => {
-  const home = await mkdtemp(join(tmpdir(), "molis-memory-migration-"));
-  const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
-  const legacy = new AssistantStore(db);
-  legacy.setMemoryPrefs("web-user", { form: true, use_personal: false, use_project: true, learn_personal: true, learn_project: false });
-  legacy.setMemoryDisabled("web-user", "memory-legacy-1", true);
-  legacy.saveMemoryCandidate("web-user", { candidate_id: "candidate-legacy-1", work_id: "work-1", work_title: "周报", scope: "personal", text: "周报用要点", why: "两次", applies: "写周报时",
-    state: "pending", created_at: new Date().toISOString() });
-  db.close();
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const asPerson = bindActionClient(host.homeActionClient(), () => person);
-  const prefs = await asPerson.invoke(memoryActions.prefs, { scope: "personal" });
-  assert.equal(prefs.prefs.consumers.assistant, false, "use_personal off moved to 助理 can use personal memories: off");
-  assert.equal(prefs.prefs.learn_from_work, true);
-  const { candidates } = await asPerson.invoke(memoryActions.candidates, {});
-  // Moved into Prologue's persistent candidate box (a new id there), with what explains it kept by the Host.
-  assert.deepEqual(candidates.map(item => [item.text, item.why, item.applies.task, item.work?.title]), [["周报用要点", "两次", "写周报时", "周报"]]);
-  assert.notEqual(candidates[0]!.candidate_id, "candidate-legacy-1");
-  assert.deepEqual(memoryHostFor(host)!.service.assistantPrefs("web-user"), { form: true, use_personal: false, use_project: true, learn_personal: true, learn_project: false });
 });

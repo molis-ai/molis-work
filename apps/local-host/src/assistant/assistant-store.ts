@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { applySqliteBaseline, type openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
-import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -329,15 +329,6 @@ export class AssistantStore {
     return Number(this.db.prepare("DELETE FROM assistant_followups WHERE actor_id=? AND followup_id=?").run(actorId, followupId).changes) > 0;
   }
 
-  /**
-   * The first version's memory state, read once by the platform memory (specs/archive/memory-system §2.1.1): the switches as
-   * the person saved them (null when never changed), the switched-off list and every candidate. Read only.
-   */
-  legacyMemory(actorId: string): { prefs: Partial<AssistantMemoryPrefs> | null; disabled: string[]; candidates: AssistantMemoryCandidate[] } {
-    const saved = this.setting(actorId, "memory_prefs");
-    return { prefs: saved ? JSON.parse(saved) as Partial<AssistantMemoryPrefs> : null, disabled: [...this.disabledMemories(actorId)], candidates: this.memoryCandidates(actorId) };
-  }
-
   /** A plain per-person value the Assistant keeps for itself (e.g. how far it has looked for new material). */
   setting(actorId: string, key: string): string | null {
     const row = this.db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key=?").get(actorId, key);
@@ -423,36 +414,6 @@ export class AssistantStore {
   roundsSince(actorId: string, since: string): Array<{ work_id: string; round: StoredRound }> {
     return this.db.prepare("SELECT r.work_id, r.body FROM assistant_rounds r JOIN assistant_works w ON w.work_id=r.work_id WHERE w.actor_id=? ORDER BY r.rowid DESC LIMIT 500").all(actorId)
       .map(row => ({ work_id: String(row.work_id), round: JSON.parse(String(row.body)) as StoredRound })).filter(item => item.round.started_at >= since);
-  }
-
-  memoryPrefs(actorId: string): AssistantMemoryPrefs {
-    const saved = this.setting(actorId, "memory_prefs");
-    return { form: true, use_personal: true, use_project: true, learn_personal: false, learn_project: false, ...(saved ? JSON.parse(saved) as Partial<AssistantMemoryPrefs> : {}) };
-  }
-
-  /** Candidates to keep: one work's, or all of the person's; newest last. */
-  memoryCandidates(actorId: string, workId?: string): AssistantMemoryCandidate[] {
-    const rows = workId ? this.db.prepare("SELECT body FROM assistant_memory_candidates WHERE actor_id=? AND work_id=? ORDER BY rowid").all(actorId, workId)
-      : this.db.prepare("SELECT body FROM assistant_memory_candidates WHERE actor_id=? ORDER BY rowid").all(actorId);
-    return rows.map(row => JSON.parse(String(row.body)) as AssistantMemoryCandidate);
-  }
-
-  saveMemoryCandidate(actorId: string, candidate: AssistantMemoryCandidate): void {
-    this.db.prepare("INSERT INTO assistant_memory_candidates(candidate_id,actor_id,work_id,state,body) VALUES (?,?,?,?,?) ON CONFLICT(candidate_id) DO UPDATE SET state=excluded.state, body=excluded.body")
-      .run(candidate.candidate_id, actorId, candidate.work_id, candidate.state, JSON.stringify(candidate));
-  }
-
-  setMemoryPrefs(actorId: string, prefs: AssistantMemoryPrefs): void { this.setSetting(actorId, "memory_prefs", JSON.stringify(prefs)); }
-
-  disabledMemories(actorId: string): Set<string> {
-    const saved = this.setting(actorId, "memory_disabled");
-    return new Set(saved ? JSON.parse(saved) as string[] : []);
-  }
-
-  setMemoryDisabled(actorId: string, memoryId: string, disabled: boolean): void {
-    const current = this.disabledMemories(actorId);
-    if (disabled) current.add(memoryId); else current.delete(memoryId);
-    this.setSetting(actorId, "memory_disabled", JSON.stringify([...current].sort()));
   }
 
   rules(actorId: string): AssistantRule[] {

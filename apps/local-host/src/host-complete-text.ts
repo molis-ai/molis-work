@@ -61,26 +61,18 @@ export function hostTextGeneration(options: HostTextOptions = {}): HostTextGener
     } finally { opened.storage.close(); }
     if (options.selection) return undefined;
   }
-  // Development and tests only: an explicit environment key configures a text model when no catalog provider exists
-  // (repository-anti-corruption §1, 2026-10-04). Stored credentials outside the catalog are never read.
   const env = options.env ?? process.env;
-  if (!(env.MOLIS_WORK_TEXT_API_KEY?.trim() || env.MINIMAX_API_KEY?.trim())) return undefined;
-  const config: TextConfiguration = { base_url: validateTextModelUrl(env.MOLIS_WORK_TEXT_BASE_URL?.trim() || "https://api.minimaxi.com/anthropic"),
-    api_format: (env.MOLIS_WORK_TEXT_API_FORMAT?.trim() || "anthropic-messages") as ModelApiFormat, model_id: env.MOLIS_WORK_TEXT_MODEL?.trim() || "MiniMax-M3" };
-  if (!["anthropic-messages", "openai-chat-completions"].includes(config.api_format)) throw new Error("模型接口格式无效");
   const environmentState = () => {
     if (options.env === undefined) {
       const catalog = openConfiguredModels(home);
       try { if (catalog?.store.list().length) return undefined; }
       finally { catalog?.storage.close(); }
     }
-    const key = env.MOLIS_WORK_TEXT_API_KEY?.trim() || env.MINIMAX_API_KEY?.trim();
-    if (!key) return undefined;
-    return { config: { ...config,
-      base_url: validateTextModelUrl(env.MOLIS_WORK_TEXT_BASE_URL?.trim() || "https://api.minimaxi.com/anthropic"),
-      api_format: env.MOLIS_WORK_TEXT_API_FORMAT?.trim() || "anthropic-messages", model_id: env.MOLIS_WORK_TEXT_MODEL?.trim() || "MiniMax-M3" }, key };
+    return environmentModel(env);
   };
-  if (!environmentState()) return undefined;
+  const initial = environmentState();
+  if (!initial) return undefined;
+  const { config } = initial;
   return async (prompt, request) => {
     validatePrompt(prompt); request?.signal?.throwIfAborted();
     assertVisionInput(request, false);
@@ -98,6 +90,21 @@ export function hostTextGeneration(options: HostTextOptions = {}): HostTextGener
 
 /** Names the environment key to the model runtime; it is not a stored credential. */
 const ENVIRONMENT_CREDENTIAL = "environment:text-model";
+
+/**
+ * Development and tests only (repository-anti-corruption §1, 2026-10-04): an explicit environment key configures a text model
+ * when no catalog provider exists; stored credentials outside the catalog are never read. `MINIMAX_API_KEY` names MiniMax;
+ * `MOLIS_WORK_TEXT_API_KEY` names no provider, so it configures nothing without its own base URL and model.
+ */
+function environmentModel(env: NodeJS.ProcessEnv): { config: TextConfiguration; key: string } | undefined {
+  const generic = env.MOLIS_WORK_TEXT_API_KEY?.trim(); const key = generic || env.MINIMAX_API_KEY?.trim();
+  const base_url = env.MOLIS_WORK_TEXT_BASE_URL?.trim() || (generic ? "" : "https://api.minimaxi.com/anthropic");
+  const model_id = env.MOLIS_WORK_TEXT_MODEL?.trim() || (generic ? "" : "MiniMax-M3");
+  if (!key || !base_url || !model_id) return undefined;
+  const api_format = (env.MOLIS_WORK_TEXT_API_FORMAT?.trim() || "anthropic-messages") as ModelApiFormat;
+  if (!["anthropic-messages", "openai-chat-completions"].includes(api_format)) throw new Error("模型接口格式无效");
+  return { config: { base_url: validateTextModelUrl(base_url), api_format, model_id }, key };
+}
 
 function assertVisionInput(request: HostTextRequestOptions | undefined, vision: boolean): void {
   if (request?.images?.length && !vision) throw new ActionError("actions.connection_required", "请在模型设置中选择已声明支持图片的模型，原图未发送");

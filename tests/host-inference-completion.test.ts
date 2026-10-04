@@ -8,6 +8,19 @@ type Client = Awaited<ReturnType<Resolver>>;
 const resolver = (completeText: Client["completeText"]): Resolver => async () => ({ completeTextResult: async input => ({ value: await completeText(input), configuredModel: input.model,
   state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 }, reportedModels: [], usage: [] }) } as Client);
 
+// The environment is an explicit development configuration (repository-anti-corruption §1, 2026-10-04): the generic key names
+// no provider, so it is not completed with MiniMax; MINIMAX_API_KEY is MiniMax by name.
+test("an environment key configures a model only with its own endpoint and model; the generic key is not assumed to be MiniMax", async () => {
+  const fail: Resolver = async () => assert.fail("nothing is configured");
+  assert.equal(hostCompleteText({ env: { MOLIS_WORK_TEXT_API_KEY: "fixture-key" }, resolveInference: fail }), undefined);
+  assert.equal(hostCompleteText({ env: { MOLIS_WORK_TEXT_API_KEY: "fixture-key", MOLIS_WORK_TEXT_BASE_URL: "https://model.example/v1" }, resolveInference: fail }), undefined);
+  assert.equal(hostCompleteText({ env: { MOLIS_WORK_TEXT_API_KEY: "fixture-key", MOLIS_WORK_TEXT_MODEL: "chosen-model" }, resolveInference: fail }), undefined);
+  const seen: Array<{ endpoint: string; model: string }> = [];
+  const minimax = hostCompleteText({ env: { MINIMAX_API_KEY: "fixture-key" }, resolveInference: resolver(async input => { seen.push({ endpoint: input.endpoint, model: input.model }); return "ok"; }) })!;
+  assert.equal(await minimax("prompt"), "ok");
+  assert.deepEqual(seen, [{ endpoint: "https://api.minimaxi.com/anthropic/v1/messages", model: "MiniMax-M3" }]);
+});
+
 test("legacy environment models do not imply vision or initialize inference for original images", async () => {
   const complete = hostCompleteText({ env: env(), resolveInference: async () => assert.fail("vision was not declared") })!;
   await assert.rejects(complete("image", { images: [{ root_path: "/unread", relative_path: "image.png" }] }), /已声明支持图片/);

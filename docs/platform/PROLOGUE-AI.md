@@ -142,13 +142,17 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 ## 5. 模型、凭据、上下文
 
 - 模型来自设置里的 `catalog.models` 与服务连接；`hostCompleteText` 发现阶段只读元数据，执行前才解密，派发前与返回后都核对「这次固定的供应商/模型/凭据」没变，变了报 `actions.configuration_changed` 且不提交结果。
-- 已有目录记录或明确选择时，旧的环境变量密钥（`MOLIS_WORK_TEXT_API_KEY`、`MINIMAX_API_KEY`）不能绕过停用；它只是没有配置过目录时的兼容来源。
+- 产品里只有模型目录配置模型；没配时提示去设置。密钥库里目录之外的旧凭据（`model:text:api_key`）不读。
+- 环境变量只给开发与测试用，且仅在 Home 的模型目录为空时生效。已有目录记录或明确选择时，它不能绕过停用。
+  - `MINIMAX_API_KEY`：MiniMax。端点默认 `https://api.minimaxi.com/anthropic`，模型默认 `MiniMax-M3`；实测用 `appkey exec minimax` 注入。
+  - `MOLIS_WORK_TEXT_API_KEY`：不指定供应商，必须同时给 `MOLIS_WORK_TEXT_BASE_URL` 与 `MOLIS_WORK_TEXT_MODEL`，缺一个就不配置（不会默认成 MiniMax）。
+  - 两者都可选配 `MOLIS_WORK_TEXT_API_FORMAT`（`anthropic-messages`，默认；或 `openai-chat-completions`）。`MOLIS_WORK_TEXT_BASE_URL` 也能改 MiniMax 的端点。
 - 业务插件只拿 Host 注入的函数端口；Host 到 Agent Host 的输入才使用 `credential_ref` + `resolveCredential`。插件不拿凭据解析器或明文；日志、事件、错误和产物里不出现密钥。
 - 一次调用只带这次需要的材料，不隐式读整个项目；用户正文是数据不是指令。
 
 ### 原图输入
 
-可信 Local Host 可以给 `hostTextGeneration` 传 `images: [{ root_path, relative_path, label? }]`。根目录及相对路径必须由 Host 从当前已授权材料中解析，不能从模型输出或插件 JSON 直接授权。已配置模型必须声明 `vision: true`；环境变量兼容模型不推定具备视觉能力，也不自动换模型。配置、视觉声明和凭据在实际派出及返回时仍重新核对。
+可信 Local Host 可以给 `hostTextGeneration` 传 `images: [{ root_path, relative_path, label? }]`。根目录及相对路径必须由 Host 从当前已授权材料中解析，不能从模型输出或插件 JSON 直接授权。已配置模型必须声明 `vision: true`；环境变量配置的模型不推定具备视觉能力，也不自动换模型。配置、视觉声明和凭据在实际派出及返回时仍重新核对。
 
 Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Session attachments，按实际字节识别 PNG/JPEG/GIF/WebP，不把 OCR 文本冒充原图。单图最多 32 MiB，每次最多 30 张、合计 128 MiB，还受 Home 共享资源余量约束；超限拒绝整次派出。普通 `resources.stage().publishDurable()` 没有 Host 字节位置，不能用来伪造模型附件。附件不会向模型开放目录或文件工具。
 

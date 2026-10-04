@@ -8,7 +8,7 @@ import { MolisWorkWebServiceManager, RuntimeIntegrationService } from "@molis-ai
 import { createDesktopUninstallService as createLocalUninstallService } from "@molis-ai/molis-work-app-desktop";
 
 for (const owned of [true, false]) {
-  test(`uninstall preview ${owned ? "classifies legacy user data without migrating it" : "refuses a catalog owned by another application"}`, async () => {
+  test(`uninstall preview ${owned ? "classifies user data without changing the catalog" : "refuses a catalog owned by another application"}`, async () => {
     const directory = await mkdtemp(join(tmpdir(), "molis-work-uninstall-catalog-"));
     try {
       const home = join(directory, ".molis-work");
@@ -20,13 +20,13 @@ for (const owned of [true, false]) {
           CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT);
           CREATE TABLE projects (
             project_id TEXT PRIMARY KEY, display_name TEXT, board_id TEXT, database_path TEXT,
-            source TEXT, migrated_from_path TEXT, created_at TEXT, updated_at TEXT
+            source TEXT, data_class TEXT, created_at TEXT, updated_at TEXT
           );
         `);
         db.prepare("INSERT INTO catalog_meta VALUES ('owner', ?)").run(owned ? "molis-work-project-catalog-v1" : "other-app");
-        const insert = db.prepare("INSERT INTO projects VALUES (?, ?, ?, ?, ?, NULL, ?, ?)");
-        insert.run("user-project", "用户项目", "board-user", join(home, "projects", "user.db"), "created", "2026-01-01", "2026-01-01");
-        insert.run("migrated-project", "迁入项目", "board-migrated", join(home, "projects", "migrated.db"), "migrated", "2026-01-02", "2026-01-02");
+        const insert = db.prepare("INSERT INTO projects VALUES (?, ?, ?, ?, 'created', 'user', ?, ?)");
+        insert.run("user-project", "用户项目", "board-user", join(home, "projects", "user.db"), "2026-01-01", "2026-01-01");
+        insert.run("second-project", "第二个项目", "board-second", join(home, "projects", "second.db"), "2026-01-02", "2026-01-02");
       } finally { db.close(); }
       const before = await readFile(databasePath);
       const service = createLocalUninstallService({
@@ -45,7 +45,6 @@ for (const owned of [true, false]) {
       assert.deepEqual(await readFile(databasePath), before);
       const after = new Database(databasePath, { readonly: true });
       try {
-        assert.equal((after.pragma("table_info(projects)") as Array<{ name: string }>).some(column => column.name === "data_class"), false);
         assert.equal((after.prepare("SELECT count(*) AS count FROM projects").get() as { count: number }).count, 2);
       } finally { after.close(); }
     } finally { await rm(directory, { recursive: true, force: true }); }

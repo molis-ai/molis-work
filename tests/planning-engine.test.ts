@@ -415,7 +415,7 @@ test("personal method owner preserves versions and timestamps across reopen and 
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("personal method reads do not create a Home or migrate v8 catalogs; normal open upgrades them", async () => {
+test("personal method reads do not create a Home or touch an older catalog, and opening refuses it unchanged", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "molis-work-personal-upgrade-"));
   try {
     const missingHome = path.join(root, "missing");
@@ -433,10 +433,12 @@ test("personal method reads do not create a Home or migrate v8 catalogs; normal 
       assert.deepEqual(unchanged.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get(), { value: "8" });
       assert.equal(unchanged.prepare("SELECT name FROM sqlite_master WHERE name = 'personal_planning_method_packs'").get(), undefined);
     } finally { unchanged.close(); }
-    const upgraded = await openMolisWorkProjectCatalog({ homeDirectory: root });
-    try { upgraded.personalPlanningMethods.save(customMethod("domain-after-upgrade"), "2026-09-01T01:00:00.000Z"); }
-    finally { upgraded.close(); }
-    assert.equal(readPersonalPlanningMethodPacks(root)[0]?.method_id, "domain-after-upgrade");
+    await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: root }), { code: "catalog.unsupported_schema" });
+    const refused = new Database(databasePath, { readonly: true });
+    try {
+      assert.deepEqual(refused.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get(), { value: "8" });
+      assert.equal(refused.prepare("SELECT name FROM sqlite_master WHERE name = 'personal_planning_method_packs'").get(), undefined);
+    } finally { refused.close(); }
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 

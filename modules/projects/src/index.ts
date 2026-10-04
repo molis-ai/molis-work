@@ -15,13 +15,6 @@ import {
 } from "./project-service.js";
 import {
   createProjectsSchema,
-  migrateProjectDataClassSchema,
-  migrateProjectDropLegacyImportSchema,
-  migrateProjectInboxPluginSchema,
-  migrateProjectOpenPluginSchema,
-  migrateProjectTaskPluginSchema,
-  migrateProjectDropTaskPluginSchema,
-  migrateProjectPluginExclusionSchema,
   ProjectsRepository,
   type ProjectsSqliteDatabase,
   type StoredProjectDeletion,
@@ -150,13 +143,6 @@ export class ProjectsModule implements ProjectsApplicationApi {
 
 export {
   createProjectsSchema,
-  migrateProjectDataClassSchema,
-  migrateProjectDropLegacyImportSchema,
-  migrateProjectInboxPluginSchema,
-  migrateProjectOpenPluginSchema,
-  migrateProjectTaskPluginSchema,
-  migrateProjectDropTaskPluginSchema,
-  migrateProjectPluginExclusionSchema,
   normalizeProjectWorkspace,
   ProjectService,
   ProjectsRepository,

@@ -27,17 +27,11 @@ const record = (overrides: Partial<ModelProviderRecord> = {}): ModelProviderReco
   created_at: "2026-09-20T00:00:00Z", updated_at: "2026-09-20T00:00:00Z", ...overrides,
 });
 
-test("思考档：没选过是关着；打开后保存下来；没有思考字段的格式在保存时拒绝；旧库补列后是关着", () => {
+test("思考档：没选过是关着；打开后保存下来；没有思考字段的格式在保存时拒绝", () => {
   const directory = mkdtempSync(join(tmpdir(), "model-thinking-"));
   const db = new DatabaseSync(join(directory, "catalog.db"));
   try {
-    // A table written before the column existed.
-    db.exec(`CREATE TABLE model_providers (provider_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, base_url TEXT NOT NULL,
-      api_format TEXT NOT NULL, credential_ref TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, prompt_cache TEXT NOT NULL DEFAULT 'off',
-      models_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`);
-    db.exec(`INSERT INTO model_providers VALUES ('old', 'old', 'https://x.test', 'anthropic-messages', 'model-provider:old', 1, 'off', '[]', 'a', 'b')`);
     const store = new ModelProviderStore({ db: db as never, secrets: { put: () => {}, get: () => null, delete: () => {} } });
-    assert.equal(store.get("old")?.thinking, "off", "an old provider never asked to think");
     const base = { provider_id: "minimax", display_name: "minimax", base_url: "https://api.minimaxi.com/anthropic", api_format: "anthropic-messages" as const };
     assert.equal(store.upsert(base).thinking, "off");
     assert.equal(store.upsert({ ...base, thinking: "adaptive" }).thinking, "adaptive");

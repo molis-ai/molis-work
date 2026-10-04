@@ -61,7 +61,7 @@ export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-l
 export { exists } from "./project-file-paths.js";
 export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 
-export { initializeCatalog, assertOwnedCatalog, migrateCatalog, type CatalogDesktopSchema } from "./catalog-migrations.js";
+export { initializeCatalog, assertOwnedCatalog, assertCurrentCatalog, type CatalogDesktopSchema } from "./catalog-schema.js";
 
 export * from "./project-catalog.js";
 export { seedDemoBoard, DEMO_BOARD_ID } from "./demo-seed.js";
@@ -185,7 +185,6 @@ export {
 export {
   ModelProviderError,
   ModelProviderStore,
-  addPromptCacheColumn,
   createModelProviderTables,
   modelCredentialRef,
   type ModelProviderSqlite,

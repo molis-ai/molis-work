@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { LocalCatalogMetadata, LocalSqliteStorage, createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
 import { inspectPromptCacheChoice, type ModelProviderRecord, type ModelRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { ModelProviderStore, type ModelSecretPort } from "./model-provider-store.js";
-import { assertOwnedCatalog } from "./catalog-migrations.js";
+import { assertOwnedCatalog } from "./catalog-schema.js";
 import { catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 

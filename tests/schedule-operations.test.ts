@@ -14,8 +14,7 @@ import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runti
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
 import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.js';
 import { scheduleServiceFor } from '../apps/local-host/src/schedule-runtime.js';
-import { bindInstalledOperationCaller, hostScheduledOperationManagement, migrateLegacyScheduledOperations, LEGACY_OPERATION_OWNER, LEGACY_OPERATION_WAKEUP } from '../apps/local-host/src/schedule-operations.js';
-import { studioStorage } from '../apps/local-host/src/plugin-builder/storage.js';
+import { bindInstalledOperationCaller, hostScheduledOperationManagement } from '../apps/local-host/src/schedule-operations.js';
 import { createLocalFeedApplication } from '../apps/local-host/src/feed-application.js';
 
 const at = '2026-09-28T00:00:00.000Z', DAY = 86_400_000;
@@ -145,59 +144,6 @@ test('lease preparation rolls back together and a failed result commit leaves un
   await schedule.tick(); assert.equal(calls, 1);
 });
 
-function legacy(h: Awaited<ReturnType<typeof harness>>, id: string) {
-  const job = h.schedule.register({ plugin_id: LEGACY_OPERATION_OWNER, capability_id: LEGACY_OPERATION_WAKEUP, object_ref: DEMO_BOARD_ID + '|' + id,
-    title: '旧汇总', due_at: at, recurrence: { kind: 'interval', interval_ms: DAY } });
-  const storage = studioStorage(h.store.db, DEMO_BOARD_ID);
-  const record = { id, boardId: DEMO_BOARD_ID, pluginId: identity.pluginId, pluginTitle: '原插件', operationId: 'summarize', operationTitle: '汇总',
-    input: { text: 'original' }, inbox: true, link: '/original', jobId: job.job_id, repeat: 'daily', at };
-  storage.set('plugin-builder:run:' + id, JSON.stringify(record)); storage.set('plugin-builder:runs:' + identity.pluginId, JSON.stringify([id]));
-  return { job, storage, record };
-}
-
-test('legacy migration preserves all pending work, orphans, original jobs and cadence; live leases and failures leave old data intact', async t => {
-  const h = await harness(t), { job, storage, record } = legacy(h, 'legacy');
-  const pending = Array.from({ length: 60 }, (_, i) => ({ ref: DEMO_BOARD_ID + '|legacy', dueAt: new Date(Date.parse(at) + i * DAY).toISOString() }));
-  storage.set('plugin-builder:runs-pending', JSON.stringify([...pending, pending[0], { ref: DEMO_BOARD_ID + '|orphan', dueAt: at }]));
-  h.store.db.prepare('UPDATE schedule_jobs SET lease_token = ?, lease_until = ? WHERE job_id = ?').run('legacy-worker', new Date(Date.parse(at) + DAY).toISOString(), job.job_id);
-  migrateLegacyScheduledOperations(h.store.db, h.schedule);
-  assert.equal(h.get('legacy'), null); assert.ok(storage.get('plugin-builder:runs-pending'));
-  h.store.db.prepare('UPDATE schedule_jobs SET lease_token = NULL, lease_until = NULL WHERE job_id = ?').run(job.job_id);
-  h.store.db.exec("CREATE TRIGGER reject_occurrence BEFORE INSERT ON schedule_operation_occurrences BEGIN SELECT RAISE(ABORT, 'queue-write-failed'); END");
-  await assert.rejects(async () => migrateLegacyScheduledOperations(h.store.db, h.schedule), /queue-write-failed/);
-  assert.equal(h.get('legacy'), null); assert.equal(h.schedule.get(job.job_id)?.enabled, true); assert.ok(storage.get('plugin-builder:run:legacy'));
-  h.store.db.exec('DROP TRIGGER reject_occurrence');
-  migrateLegacyScheduledOperations(h.store.db, h.schedule); migrateLegacyScheduledOperations(h.store.db, h.schedule);
-  assert.equal(h.occurrences('legacy').length, 60); assert.equal(h.occurrences('orphan')[0]?.state, 'unknown');
-  assert.equal(h.get('legacy').state, 'needs_confirmation'); assert.equal(h.get('legacy').installationId, null);
-  assert.deepEqual(h.get('legacy').input, record.input); assert.equal(h.get('legacy').link, record.link);
-  const after = h.schedule.get(job.job_id)!;
-  assert.deepEqual({ ...after, enabled: job.enabled, updated_at: job.updated_at }, job);
-  assert.equal(storage.get('plugin-builder:runs-pending'), null); assert.equal(storage.get('plugin-builder:run:legacy'), null);
-  await h.schedule.tick(); assert.equal(h.occurrences('legacy').length, 60); assert.equal(h.inbox().length, 0);
-  let calls = 0;
-  t.after(bindInstalledOperationCaller(h.store.db, DEMO_BOARD_ID, { describe: () => descriptor(), async call() { calls++; return { state: 'succeeded', value: 'queued result' }; } }));
-  const manage = hostScheduledOperationManagement({ db: h.store.db, boardId: DEMO_BOARD_ID, schedule: h.schedule });
-  assert.equal(manage.orphanedOccurrences().length, 1);
-  const view = manage.list()[0]!;
-  manage.recover({ operation_id: view.id, decision: 'resume', expected_revision: view.revision, expected_installation_id: identity.installationId, expected_generation: 'first', expected_version: '1.0.0' });
-  h.clock.now = new Date(Date.parse(at) + 60 * DAY);
-  for (let i = 0; i < 60; i++) await h.schedule.tick();
-  assert.equal(calls, 60); assert.equal(h.occurrences('legacy').filter(item => item.state === 'succeeded').length, 60);
-  assert.equal(h.inbox().length, 60, 'each persisted occurrence survives catch-up and has its own result');
-});
-
-test('a cached Host timer retries deferred legacy migration after the old lease ends, before consuming its original job', async t => {
-  const h = await harness(t), { job, storage } = legacy(h, 'deferred');
-  h.store.db.prepare('UPDATE schedule_jobs SET lease_token = ?, lease_until = ? WHERE job_id = ?').run('old-process', new Date(Date.parse(at) + 1000).toISOString(), job.job_id);
-  const cached = scheduleServiceFor(h.store.db, () => h.clock.now);
-  assert.equal(h.get('deferred'), null); assert.ok(storage.get('plugin-builder:run:deferred'));
-  h.clock.now = new Date(Date.parse(at) + 2000);
-  await cached.tick();
-  assert.equal(h.get('deferred').state, 'needs_confirmation'); assert.equal(storage.get('plugin-builder:run:deferred'), null);
-  assert.equal(cached.get(job.job_id)?.next_due_at, at); assert.equal(cached.get(job.job_id)?.last_wakeup, null);
-});
-
 for (const mode of ['before-dispatch', 'after-dispatch', 'after-commit'] as const) test(`real process death ${mode} cannot lose prepared work or replay a dispatched occurrence`, async t => {
   const h = await harness(t), id = h.operations.add(identity, { at, operation: 'summarize' }).scheduleId;
   h.store.db.exec('CREATE TABLE scheduled_test_effects(n INTEGER); INSERT INTO scheduled_test_effects VALUES (0)');
@@ -226,9 +172,13 @@ for (const mode of ['before-dispatch', 'after-dispatch', 'after-commit'] as cons
 });
 
 test('review rechecks installation and operation history, rolls back failed recovery and resumes the original queue with its receipt', async t => {
-  const h = await harness(t), { job } = legacy(h, 'recover');
-  migrateLegacyScheduledOperations(h.store.db, h.schedule);
-  let target = { ...descriptor(), publisher: 'test' }, calls = 0;
+  const h = await harness(t), id = h.operations.add(identity, { at, operation: 'summarize', input: { text: 'original' }, inbox: true, repeat: 'daily' }).scheduleId;
+  const job = h.schedule.get(h.get(id).jobId)!;
+  // The plugin is reinstalled before the first run: the operation waits for the person to hand it to the new installation.
+  h.repository.save(installation('second'));
+  await h.schedule.tick();
+  assert.equal(h.get(id).state, 'needs_confirmation'); assert.equal(h.schedule.get(job.job_id)?.enabled, false);
+  let target = { ...descriptor('second'), publisher: 'test' }, calls = 0;
   const manage = createScheduledOperationManagement({ db: h.store.db, boardId: DEMO_BOARD_ID, schedule: h.schedule, currentInstallation: () => target, now: () => h.clock.now });
   const confirmation = () => { const v = manage.list()[0]!; return { operation_id: v.id, decision: 'resume' as const, expected_revision: v.revision,
     expected_installation_id: target.installationId, expected_generation: target.generation, expected_version: target.version }; };
@@ -238,9 +188,9 @@ test('review rechecks installation and operation history, rolls back failed reco
   const broken = createScheduledOperationManagement({ db: h.store.db, boardId: DEMO_BOARD_ID, currentInstallation: () => target,
     schedule: { ...h.schedule, register(value) { h.schedule.register(value); throw new Error('recovery-write-failed'); } } });
   assert.throws(() => broken.recover(input), /recovery-write-failed/);
-  assert.equal(h.get('recover').state, 'needs_confirmation'); assert.equal(h.schedule.get(job.job_id)?.enabled, false);
+  assert.equal(h.get(id).state, 'needs_confirmation'); assert.equal(h.schedule.get(job.job_id)?.enabled, false);
   manage.recover(input);
-  assert.equal(h.get('recover').installationGeneration, target.generation); assert.equal(h.get('recover').link, '/original');
+  assert.equal(h.get(id).installationGeneration, target.generation); assert.equal(h.get(id).link, '/original-plugin');
   assert.equal(h.schedule.get(job.job_id)?.next_due_at, at);
   assert.throws(() => manage.recover(input), /已变更/, 'duplicate submissions do not rearm a job');
   t.after(bindInstalledOperationCaller(h.store.db, DEMO_BOARD_ID, { describe: () => target, async call() { calls++; return { state: 'succeeded', value: 'restored' }; } }));

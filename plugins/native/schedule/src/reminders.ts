@@ -29,24 +29,9 @@ export function getScheduleReminder(db: ScheduleTaskDatabase, id: string): Sched
   const row = db.prepare("SELECT record_json FROM schedule_plugin_reminders WHERE id = ?").get(id) as { record_json: string } | undefined;
   return row ? JSON.parse(row.record_json) as ScheduleReminder : null;
 }
-/** Used by the Host's legacy reader inside the same transaction that removes the old record. */
-export function importScheduleReminder(db: ScheduleTaskDatabase, reminder: ScheduleReminder): void {
+function saveNewScheduleReminder(db: ScheduleTaskDatabase, reminder: ScheduleReminder): void {
   db.prepare("INSERT INTO schedule_plugin_reminders (id, board_id, plugin_id, installation_id, record_json) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING")
     .run(reminder.id, reminder.boardId, reminder.pluginId, reminder.installationId, JSON.stringify(reminder));
-}
-
-/** Legacy timestamps cannot prove ownership after reinstall. Preserve records and pause their jobs atomically. */
-export function pauseLegacyScheduleReminders(db: ScheduleTaskDatabase, pause: (reminder: ScheduleReminder) => void): void {
-  const rows = db.prepare("SELECT id FROM schedule_plugin_reminders WHERE json_type(record_json, '$.installationGeneration') IS NULL").all() as Array<{ id: string }>;
-  for (const row of rows) {
-    db.transaction(() => {
-      const reminder = getScheduleReminder(db, row.id);
-      if (!reminder || Object.hasOwn(reminder, 'installationGeneration')) return;
-      pause(reminder);
-      db.prepare("UPDATE schedule_plugin_reminders SET record_json = ? WHERE id = ?")
-        .run(JSON.stringify({ ...reminder, installationGeneration: null }), reminder.id);
-    }).immediate();
-  }
 }
 
 /** Product rules and persistence; the Host supplies installation metadata and same-database Scheduler. */
@@ -84,7 +69,7 @@ export function createScheduleReminders(options: {
         const id = randomUUID(), due = new Date(at).toISOString();
         const job = schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_REMINDER_WAKEUP, object_ref: id,
           title: input.text.slice(0, 120), due_at: due, recurrence: repeat === "none" ? { kind: "once" } : { kind: "interval", interval_ms: repeat === "daily" ? DAY : 7 * DAY } });
-        importScheduleReminder(db, { id, boardId: options.boardId, pluginId: identity.pluginId, installationId: identity.installationId,
+        saveNewScheduleReminder(db, { id, boardId: options.boardId, pluginId: identity.pluginId, installationId: identity.installationId,
           installationGeneration: descriptor.generation,
           pluginTitle: descriptor.title, link: descriptor.link, text: input.text, jobId: job.job_id, jobOwner: SCHEDULE_PLUGIN_ID, repeat, at: due });
         return { reminderId: id };
@@ -118,8 +103,7 @@ export function deliverScheduleReminder(db: ScheduleTaskDatabase, input: Schedul
 }): { detail: string } {
   return db.transaction(() => {
     control.beforeEffect();
-    const id = input.capability_id === SCHEDULE_REMINDER_WAKEUP ? input.object_ref : input.object_ref.slice(input.object_ref.indexOf("|") + 1);
-    const record = getScheduleReminder(db, id);
+    const record = getScheduleReminder(db, input.object_ref);
     if (!record || record.jobId !== input.job_id || record.jobOwner !== input.plugin_id) return { detail: "提醒已取消" };
     if (!record.installationId || !record.installationGeneration || !ports.currentInstallation(record)) throw new Error("提醒的原安装身份已不可用，记录已保留；需要重新确认归属后才能恢复");
     ports.deliver(record, input.due_at);

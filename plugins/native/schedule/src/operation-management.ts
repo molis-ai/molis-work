@@ -31,7 +31,6 @@ export function createScheduledOperationManagement(options: {
   };
   return {
     list: () => listScheduledOperations(db, boardId).map(view),
-    orphanedOccurrences: () => listScheduledOperationOccurrences(db, boardId).filter(item => !getScheduledOperation(db, boardId, item.operationId)),
     recover(input: RecoverScheduledOperationInput): ScheduledOperationView {
       return db.transaction(() => {
         const run = getScheduledOperation(db, boardId, input.operation_id);

@@ -27,7 +27,7 @@ Host 注入各 Module 的公开端口。`GoalEventApplication` 连接创建、�
 
 ## 接入与边界
 
-`goalsActions` 当前提供 50 项 project 动作，由 Manifest 声明并在项目动作服务中注册，其中 43 项可按授权供 MCP 使用，7 项仅供受保护的用户操作：
+`goalsActions` 当前提供 64 项 project 动作（2026-10-04 从构建产物数出），由 Manifest 声明并在项目动作服务中注册，其中 58 项可按授权供 MCP 使用，6 项仅供受保护的用户操作：
 
 - 本地管理：`goals.board.initialize`，只接受可信 management 用户上下文。CLI/管理 MCP 和 host-only typed 入口薄转发同一动作，身份由宿主定为本机这个人（`LOCAL_PERSON_ACTOR_ID`），输入不带 `actor_id`；普通 MCP/Agent/插件不获管理权。原初始化回执与禁止覆盖保持。V3 导入已删（2026-10-04，用户决定不留旧数据入口）。
 - 目录、创建、便笺：`goals.list`、`goals.create`、`goals.note`。

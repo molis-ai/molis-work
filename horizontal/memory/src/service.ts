@@ -138,15 +138,6 @@ export interface MemoryLearned {
   memory_id: string | null;
 }
 
-/** The first version's state (the Assistant's own tables, spec §2.1.1), folded in once per person. */
-export interface LegacyMemoryState {
-  /** Only what the person had actually saved; null when they never changed the switches. */
-  prefs: { form?: boolean; use_personal?: boolean; use_project?: boolean; learn_personal?: boolean; learn_project?: boolean } | null;
-  disabled: string[];
-  candidates: Array<{ candidate_id: string; work_id: string; work_title: string; scope: MemoryScope; project_id?: string; text: string; why: string; applies: string;
-    state: MemoryCandidate["state"]; created_at: string; memory_id?: string }>;
-}
-
 export interface MemoryServicePorts {
   backend: MemoryBackendPort;
   ledger: MemoryLedgerPort;
@@ -176,7 +167,6 @@ const DO_NOT_REMEMBER = /(?:不要|别|不用|无需|不必)(?:帮我)?(?:记|�
 /** Words of a standing wish, a correction or a lesson: only rounds with one are worth a model call. */
 const STANDING_WISH = /以后|今后|往后|每次|每回|总是|一律|一直|都要|都用|都别|都不|别再|不要再|下次|下回|记住|习惯|偏好|喜欢|讨厌|统一|规范|约定|规定|改成|应该|不对|always|never|from now on|every time|prefer|going forward|next time/i;
 const MAX_TEXT = 400;
-const LEGACY_SOURCE = "assistant-p8";
 const EXPLICIT_SOURCES: readonly MemorySource[] = ["said", "manual", "accepted", "imported"];
 const KIND_WEIGHT: Record<MemoryKind, number> = { preference: 1, convention: 1, experience: 0.85, fact: 0.75 };
 const SOURCE_WEIGHT: Record<MemorySource, number> = { said: 1, manual: 1, accepted: 0.95, imported: 0.9, auto: 0.85, plugin: 0.8 };
@@ -1128,41 +1118,6 @@ export class MemoryService {
     return { written: written.length, skipped, refused };
   }
 
-  /* ---- the first version, folded in once ---- */
-
-  /**
-   * The Assistant's first-version switches, switched-off list and candidates (spec §2.1.1), moved here once per person.
-   * Safe to repeat: a person already moved is left alone. Memory text stays where it is (Prologue Memory).
-   */
-  migrateLegacy(actorId: string, legacy: LegacyMemoryState): { migrated: boolean; prefs: boolean; disabled: number; candidates: number } {
-    if (this.ports.ledger.migration(actorId, LEGACY_SOURCE)) return { migrated: false, prefs: false, disabled: 0, candidates: 0 };
-    return this.ports.ledger.transaction(() => {
-      const saved = legacy.prefs;
-      if (saved) {
-        const personal = completePrefs("personal", this.ports.ledger.prefs(actorId, PERSONAL_PREFS_KEY));
-        const projects = completePrefs("project", this.ports.ledger.prefs(actorId, PROJECT_DEFAULT_PREFS_KEY));
-        if (typeof saved.form === "boolean") { personal.form = saved.form; projects.form = saved.form; }
-        if (typeof saved.use_personal === "boolean") personal.consumers.assistant = saved.use_personal;
-        if (typeof saved.use_project === "boolean") projects.consumers.assistant = saved.use_project;
-        if (typeof saved.learn_personal === "boolean") personal.learn_from_work = saved.learn_personal;
-        if (typeof saved.learn_project === "boolean") projects.learn_from_work = saved.learn_project;
-        this.ports.ledger.savePrefs(actorId, PERSONAL_PREFS_KEY, personal);
-        this.ports.ledger.savePrefs(actorId, PROJECT_DEFAULT_PREFS_KEY, projects);
-      }
-      for (const old of legacy.candidates) {
-        const owner = old.scope === "project" ? old.project_id ?? "" : actorId;
-        if (!owner) continue;
-        this.ports.ledger.saveCandidate({ candidate_id: old.candidate_id, actor_id: actorId, owner, scope: old.scope, project_id: old.scope === "project" ? owner : null,
-          kind: old.scope === "project" ? "convention" : "preference", text: old.text, applies: old.applies ? { task: old.applies.slice(0, 200) } : {}, basis: "inferred",
-          why: old.why, from: "work", work: { work_id: old.work_id, title: old.work_title }, hold_reason: null, supersedes: null, state: old.state,
-          created_at: old.created_at, memory_id: old.memory_id ?? null });
-      }
-      const body = { disabled: [...new Set(legacy.disabled)], prefs: saved, candidates: legacy.candidates.length };
-      this.ports.ledger.markMigration(actorId, LEGACY_SOURCE, body, this.now().toISOString());
-      return { migrated: true, prefs: !!saved, disabled: body.disabled.length, candidates: legacy.candidates.length };
-    });
-  }
-
   /* ---- internals ---- */
 
   /** An automatic correction: the approver (the gate's policy) is recorded by Prologue's candidate box on the entry. */
@@ -1232,7 +1187,7 @@ export class MemoryService {
   private async located(caller: MemoryCaller, scope: MemoryScope, owner: string): Promise<Located[]> {
     const entries = await this.ports.backend.list(scope, owner);
     const project = scope === "project" ? owner : scope === "character" ? caller.project_id : null;
-    return Promise.all(entries.map(async entry => ({ scope, owner, entry, project, meta: await this.metaFor(caller.actor_id, scope, owner, entry) })));
+    return Promise.all(entries.map(async entry => ({ scope, owner, entry, project, meta: await this.metaFor(scope, owner, entry) })));
   }
 
   private async find(caller: MemoryCaller, memoryId: string): Promise<Located> {
@@ -1245,23 +1200,20 @@ export class MemoryService {
 
   /**
    * An entry's facts, from the entry itself. One written before the facts moved onto entries gets them once: from the
-   * Host ledger where this service kept them first (M1), or, for the first version's entries, from its tags and the
-   * old switched-off list.
+   * Host ledger where this service kept them first (M1), or, for an entry without either, from its tags.
    */
-  private async metaFor(actorId: string, scope: MemoryScope, owner: string, entry: MemoryBackendEntry): Promise<MemoryMetaRecord> {
+  private async metaFor(scope: MemoryScope, owner: string, entry: MemoryBackendEntry): Promise<MemoryMetaRecord> {
     const own = fromEntryMeta({ memory_id: entry.memory_id, scope, owner, meta: entry.meta, ...(entry.paused ? { paused: entry.paused } : {}),
       created_at_ms: entry.created_at_ms, updated_at_ms: entry.updated_at_ms }, this.now());
     if (own) return own;
     let meta = this.ports.ledger.meta(entry.memory_id);
     const at = this.now().toISOString();
     if (!meta) {
-      const legacy = this.ports.ledger.migration(actorId, LEGACY_SOURCE)?.body as { disabled?: string[] } | undefined;
-      const disabled = !!legacy?.disabled?.includes(entry.memory_id);
       const source: MemorySource = entry.tags.includes("accepted-suggestion") ? "accepted" : (MEMORY_SOURCE_TAGS.find(tag => entry.tags.includes(tag)) ?? "said");
       const kind: MemoryKind = MEMORY_KINDS.find(tag => entry.tags.includes(tag)) ?? (scope === "project" ? "convention" : "preference");
       const said = /你说：“(.+)”$/.exec(entry.origin)?.[1];
       meta = { memory_id: entry.memory_id, scope, owner, kind, source, basis: source === "auto" ? "repeated" : "explicit",
-        evidence: said ? [{ kind: "said", text: said, at }] : [], applies: {}, state: disabled ? "disabled" : "active", state_reason: disabled ? "你停用了" : null,
+        evidence: said ? [{ kind: "said", text: said, at }] : [], applies: {}, state: "active", state_reason: null,
         expires_at: null, approved_by: { by: "person" }, plugin_id: null, created_at: at, updated_at: at };
     }
     await this.ports.backend.setMeta({ scope, owner, memory_id: entry.memory_id, meta: toEntryMeta(meta) });

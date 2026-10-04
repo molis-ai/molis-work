@@ -12,25 +12,29 @@ export interface ContextLedgerDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
+/** The context ledger's tables, for a database's baseline to include (repository-anti-corruption §4.1). */
+export const CONTEXT_LEDGER_SCHEMA = `
+  CREATE TABLE context_edges (
+    scope_kind TEXT NOT NULL CHECK (scope_kind IN ('personal', 'team_project')),
+    scope_id TEXT NOT NULL,
+    edge_key TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK (revision > 0),
+    relation_type TEXT NOT NULL,
+    source_json TEXT NOT NULL,
+    target_json TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    cause TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('active', 'removed')),
+    PRIMARY KEY (scope_kind, scope_id, edge_key, revision)
+  );
+  CREATE INDEX context_edges_source_idx ON context_edges
+    (scope_kind, scope_id, relation_type, json_extract(source_json, '$.module'), json_extract(source_json, '$.id'));
+`;
+
+/** For databases that do not have a baseline yet (project databases): creates the ledger's tables when missing. */
 export function createContextLedgerSchema(db: ContextLedgerDatabase): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS context_edges (
-      scope_kind TEXT NOT NULL CHECK (scope_kind IN ('personal', 'team_project')),
-      scope_id TEXT NOT NULL,
-      edge_key TEXT NOT NULL,
-      revision INTEGER NOT NULL CHECK (revision > 0),
-      relation_type TEXT NOT NULL,
-      source_json TEXT NOT NULL,
-      target_json TEXT NOT NULL,
-      actor_id TEXT NOT NULL,
-      cause TEXT NOT NULL,
-      recorded_at TEXT NOT NULL,
-      state TEXT NOT NULL CHECK (state IN ('active', 'removed')),
-      PRIMARY KEY (scope_kind, scope_id, edge_key, revision)
-    );
-    CREATE INDEX IF NOT EXISTS context_edges_source_idx ON context_edges
-      (scope_kind, scope_id, relation_type, json_extract(source_json, '$.module'), json_extract(source_json, '$.id'));
-  `);
+  db.exec(CONTEXT_LEDGER_SCHEMA.replace(/CREATE (TABLE|INDEX) /g, "CREATE $1 IF NOT EXISTS "));
 }
 
 type Row = Record<string, unknown>;

@@ -26,6 +26,14 @@ export {
   openHomeSqliteDatabase,
   type PersonalHomeSqliteStore,
 } from "./home-sqlite.js";
+export {
+  SqliteSchemaVersionError,
+  applySqliteBaseline,
+  describeSqliteSchema,
+  openBaselineHomeSqlite,
+  type SqliteBaseline,
+  type SqliteSchemaShape,
+} from "./sqlite-baseline.js";
 
 export {
   runWithMolisWorkHome,
@@ -42,5 +50,5 @@ export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendI
 export * from "./adapters/search-storage.js";
 
 export { createEvidenceContentStore, type EvidenceContentStore } from "./adapters/evidence-content.js";
-export { openMemoryLedger, MEMORY_LEDGER_STORE } from "./adapters/memory-ledger.js";
+export { openMemoryLedger, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE } from "./adapters/memory-ledger.js";
 export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";

@@ -22,7 +22,7 @@ export type { WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/
 export { WORKFLOWS_ACTIONS, WORKFLOWS_ACTION_PERMISSIONS, createWorkflowsActionHandlers, workflowsActions,
   type WorkflowContentPorts, type WorkflowStationInfo, type WorkflowsActionPorts } from "./actions.js";
 export { workflowsManifest } from "./manifest.js";
-export { openWorkflowsStore, WorkflowsStore } from "./store.js";
+export { openWorkflowsStore, WorkflowsStore, WORKFLOWS_STORE_BASELINE } from "./store.js";
 export type { WorkflowSummary } from "./store.js";
 
 export { createWorkflowContentPorts } from "./content-client.js";

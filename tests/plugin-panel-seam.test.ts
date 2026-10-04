@@ -47,7 +47,6 @@ function baseView(): MolisWorkWebView {
     archived_goals: [],
     trashed_goals: [],
     counts: {},
-    coverage: [],
     input_bindings: [],
     policy_bindings: [],
     events: [],

@@ -43,7 +43,7 @@ export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: 
     route_prefix: options.routePrefix ?? "", demo: Boolean(options.demo),
     active_goal_id: collection.active_goal_id, goals: collection.goals,
     archived_goals: collection.archived_goals, trashed_goals: collection.trashed_goals,
-    counts: collection.counts, coverage: collection.coverage, input_bindings: collection.input_bindings,
+    counts: collection.counts, input_bindings: collection.input_bindings,
     policy_bindings: collection.policy_bindings, events: collection.events,
     ...projection,
   };

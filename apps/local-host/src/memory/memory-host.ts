@@ -1,6 +1,5 @@
-import { existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { homeSqlitePath, openHomeSqliteDatabase, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentMemoryCandidateEntry, AgentMemoryCapability, AgentMemoryEntry } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError, type ActionCallContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -17,12 +16,11 @@ import {
   type MemorySignalReport,
   type MemoryWriteRequest,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { MemoryError, MemoryService, type LegacyMemoryState, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { MemoryError, MemoryService, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { ASSISTANT_STORE_NAME, AssistantStore } from "../assistant/assistant-store.js";
 import { learnFromWork, type MemoryLearningRequest } from "./memory-learning.js";
 import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
 
@@ -91,15 +89,6 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     return memory;
   };
   const service = new MemoryService({ backend: prologueMemoryBackend(store), ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) });
-  // The Assistant's first version kept switches, a switched-off list and candidates in its own library: moved once.
-  let migrated = false;
-  const migrate = () => {
-    if (migrated) return;
-    migrated = true;
-    const legacy = readAssistantMemory(ports.homeDirectory, LOCAL_PERSON);
-    if (legacy) service.migrateLegacy(LOCAL_PERSON, legacy);
-  };
-  const guarded = <T>(work: () => T): T => { migrate(); return work(); };
   const caller = (context: ActionCallContext, work?: { work_id: string; title: string } | null): MemoryCaller => {
     const consumer: MemoryConsumer = context.audience === "plugin" ? "plugin" : context.audience === "mcp" ? "mcp" : context.audience === "user" ? "ui" : "agent";
     return { actor_id: LOCAL_PERSON, project_id: context.project_id, consumer, plugin_id: context.host_plugin?.plugin_id ?? null, work: work ?? null,
@@ -107,30 +96,30 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   };
   const input = <T>(value: unknown) => (value ?? {}) as T;
   const bindings: ActionHandlerBinding[] = [
-    { ...memoryActions.recall, handle: (context, value) => guarded(() => service.recall(caller(context), input<MemoryRecallRequest>(value))) },
-    { ...memoryActions.list, handle: (context, value) => guarded(() => service.list(caller(context), input<MemoryListRequest>(value))) },
-    { ...memoryActions.write, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.write(caller(context), input<MemoryWriteRequest>(value)); } },
-    { ...memoryActions.change, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.change(caller(context), input<MemoryChangeRequest>(value)); } },
-    { ...memoryActions.history, handle: (context, value) => guarded(() => service.history(caller(context), String(input<{ memory_id: string }>(value).memory_id))) },
-    { ...memoryActions.candidates, handle: async (context, value) => { migrate(); return { candidates: await service.candidates(caller(context), input(value)) }; } },
-    { ...memoryActions.accept, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ candidate_id: string; text?: string }>(value);
+    { ...memoryActions.recall, handle: (context, value) => service.recall(caller(context), input<MemoryRecallRequest>(value)) },
+    { ...memoryActions.list, handle: (context, value) => service.list(caller(context), input<MemoryListRequest>(value)) },
+    { ...memoryActions.write, handle: async (context, value) => { await context.beforeEffect(); return service.write(caller(context), input<MemoryWriteRequest>(value)); } },
+    { ...memoryActions.change, handle: async (context, value) => { await context.beforeEffect(); return service.change(caller(context), input<MemoryChangeRequest>(value)); } },
+    { ...memoryActions.history, handle: (context, value) => service.history(caller(context), String(input<{ memory_id: string }>(value).memory_id)) },
+    { ...memoryActions.candidates, handle: async (context, value) => { return { candidates: await service.candidates(caller(context), input(value)) }; } },
+    { ...memoryActions.accept, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ candidate_id: string; text?: string }>(value);
       return service.accept(caller(context), request.candidate_id, request.text !== undefined ? { text: request.text } : {}); } },
-    { ...memoryActions.discard, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.discard(caller(context), input<{ candidate_id: string }>(value).candidate_id); } },
-    { ...memoryActions.changes, handle: (context, value) => guarded(() => ({ changes: service.changes(caller(context), input(value)) })) },
-    { ...memoryActions.undo, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.undo(caller(context), input<{ change_id: string }>(value).change_id); } },
-    { ...memoryActions.prefs, handle: (context, value) => guarded(() => service.prefs(caller(context), input<{ scope?: MemoryScope }>(value).scope)) },
-    { ...memoryActions.savePrefs, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ scope?: MemoryScope; prefs: Partial<MemoryPrefs> }>(value);
+    { ...memoryActions.discard, handle: async (context, value) => { await context.beforeEffect(); return service.discard(caller(context), input<{ candidate_id: string }>(value).candidate_id); } },
+    { ...memoryActions.changes, handle: (context, value) => ({ changes: service.changes(caller(context), input(value)) }) },
+    { ...memoryActions.undo, handle: async (context, value) => { await context.beforeEffect(); return service.undo(caller(context), input<{ change_id: string }>(value).change_id); } },
+    { ...memoryActions.prefs, handle: (context, value) => service.prefs(caller(context), input<{ scope?: MemoryScope }>(value).scope) },
+    { ...memoryActions.savePrefs, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope?: MemoryScope; prefs: Partial<MemoryPrefs> }>(value);
       return service.savePrefs(caller(context), request.scope, request.prefs); } },
-    { ...memoryActions.signal, handle: async (context, value) => { migrate(); await context.beforeEffect(); return service.signal(caller(context), input<MemorySignalReport>(value)); } },
-    { ...memoryActions.pairs, handle: async (context, value) => { migrate(); return { pairs: await service.pairs(caller(context), input(value)) }; } },
-    { ...memoryActions.resolvePair, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ pair_id: string; keep: "a" | "b" | "both" }>(value);
+    { ...memoryActions.signal, handle: async (context, value) => { await context.beforeEffect(); return service.signal(caller(context), input<MemorySignalReport>(value)); } },
+    { ...memoryActions.pairs, handle: async (context, value) => { return { pairs: await service.pairs(caller(context), input(value)) }; } },
+    { ...memoryActions.resolvePair, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ pair_id: string; keep: "a" | "b" | "both" }>(value);
       return service.resolvePair(caller(context), request.pair_id, request.keep); } },
     { ...memoryActions.upkeep, handle: async context => { if (context.audience !== "user") throw new ActionError("memory.forbidden", "只有本人能立即整理"); await context.beforeEffect(); return upkeepNow(); } },
-    { ...memoryActions.preview, handle: async (context, value) => { migrate(); return service.previewScope(caller(context), input<{ scope: MemoryScope }>(value).scope); } },
-    { ...memoryActions.clear, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ scope: MemoryScope; fingerprint: string }>(value);
+    { ...memoryActions.preview, handle: async (context, value) => { return service.previewScope(caller(context), input<{ scope: MemoryScope }>(value).scope); } },
+    { ...memoryActions.clear, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; fingerprint: string }>(value);
       return service.clearScope(caller(context), request.scope, request.fingerprint); } },
-    { ...memoryActions.export, handle: async (context, value) => { migrate(); return { package: await service.exportScope(caller(context), input<{ scope: MemoryScope }>(value).scope) }; } },
-    { ...memoryActions.import, handle: async (context, value) => { migrate(); await context.beforeEffect(); const request = input<{ scope: MemoryScope; package: unknown }>(value);
+    { ...memoryActions.export, handle: async (context, value) => { return { package: await service.exportScope(caller(context), input<{ scope: MemoryScope }>(value).scope) }; } },
+    { ...memoryActions.import, handle: async (context, value) => { await context.beforeEffect(); const request = input<{ scope: MemoryScope; package: unknown }>(value);
       return service.importScope(caller(context), request.scope, request.package); } },
   ];
   // The service's own errors reach every caller as the directory's errors, with the same code and words.
@@ -143,7 +132,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const LEARN_KIND = "memory.learn", UPKEEP_KIND = "memory.upkeep";
   let queueAttached = false;
   const person: MemoryCaller = { actor_id: LOCAL_PERSON, project_id: null, consumer: "ui", person: true };
-  const upkeepNow = async () => { migrate(); return runUpkeep(service, { homeDirectory: ports.homeDirectory, localHost: ports.localHost, caller: person, projects: await ports.projects?.().catch(() => []) ?? [] }); };
+  const upkeepNow = async () => runUpkeep(service, { homeDirectory: ports.homeDirectory, localHost: ports.localHost, caller: person, projects: await ports.projects?.().catch(() => []) ?? [] });
   /** The runtime's queue hangs tasks on a session: upkeep has its own, made once and kept in the ledger. */
   const upkeepSession = async (): Promise<string> => {
     const saved = ledger.migration(LOCAL_PERSON, "upkeep-session")?.body as { session_id?: string } | undefined;
@@ -167,7 +156,6 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     await schedule.enqueue({ key, session_id: await upkeepSession(), kind: UPKEEP_KIND, payload: {}, due_at: when.toISOString(), max_attempts: 2 });
   };
   const runLearning = async (request: MemoryLearningRequest) => {
-    migrate();
     try {
       const outcome = await learnFromWork(service, ports.homeDirectory, request);
       if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn", JSON.stringify(outcome));
@@ -188,7 +176,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   };
   void ports.started?.().then(attachQueue).catch(() => undefined);
   const host: MemoryHost = {
-    get service() { migrate(); return service; },
+    service,
     caller,
     learnLater: async request => {
       const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6);
@@ -249,22 +237,6 @@ const box = async (store: () => Promise<AgentMemoryCapability>) => {
   return candidates;
 };
 const candidateView = (item: AgentMemoryCandidateEntry) => ({ candidate_id: item.candidate_id, text: item.text, state: item.state, ...(item.memory_id ? { memory_id: item.memory_id } : {}) });
-
-/** The first version's state in the Assistant's library, when there is one. Never creates that library. */
-function readAssistantMemory(homeDirectory: string, actorId: string): LegacyMemoryState | null {
-  if (!existsSync(homeSqlitePath(homeDirectory, ASSISTANT_STORE_NAME))) return null;
-  const db = openHomeSqliteDatabase(homeDirectory, ASSISTANT_STORE_NAME);
-  try {
-    const legacy = new AssistantStore(db).legacyMemory(actorId);
-    return {
-      prefs: legacy.prefs,
-      disabled: legacy.disabled,
-      candidates: legacy.candidates.map(candidate => ({ candidate_id: candidate.candidate_id, work_id: candidate.work_id, work_title: candidate.work_title, scope: candidate.scope,
-        ...(candidate.project_id ? { project_id: candidate.project_id } : {}), text: candidate.text, why: candidate.why, applies: candidate.applies, state: candidate.state,
-        created_at: candidate.created_at, ...(candidate.memory_id ? { memory_id: candidate.memory_id } : {}) })),
-    };
-  } finally { db.close(); }
-}
 
 export function asActionError(error: unknown): unknown {
   if (error instanceof MemoryError) return new ActionError(error.code === "memory.not_found" ? "memory.not_found" : error.code, error.message);

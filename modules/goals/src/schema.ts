@@ -60,19 +60,6 @@ export const GOALS_SCHEMA_SQL = `
   );
   CREATE INDEX acceptance_goal_idx ON acceptance_criteria(goal_id);
 
-  CREATE TABLE coverage_items (
-    requirement_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    statement TEXT NOT NULL,
-    disposition TEXT NOT NULL CHECK (disposition IN ('covered', 'deferred', 'out', 'unresolved')),
-    owner_goal_id TEXT REFERENCES goals(goal_id),
-    reason TEXT,
-    revisit_condition TEXT,
-    blocking INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-
   CREATE TABLE goal_relations (
     relation_id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,

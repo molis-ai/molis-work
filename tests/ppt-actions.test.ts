@@ -51,13 +51,13 @@ test("PPT all actions and six legacy tools share records, typed slides, colors a
   const another=await fixture(t);assert.deepEqual((await another.bound.invoke(actions.list,{})).presentations,[]);
 });
 
-test("PPT opens original schema without rewriting slides, colors or artifact references",async t=>{
-  const f=await fixture(t),db=openHomeSqliteDatabase(f.home,'ppt');
+test("PPT reads a stored presentation without rewriting slides, colors or artifact references",async t=>{
+  const f=await fixture(t);
+  await f.bound.invoke(actions.list,{});
+  const db=openHomeSqliteDatabase(f.home,'ppt');
   try{
-    db.exec(`CREATE TABLE presentations (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL,
-      color_primary TEXT NOT NULL,color_background TEXT NOT NULL,color_text TEXT NOT NULL,slides_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,updated_at TEXT NOT NULL,version INTEGER NOT NULL,artifact_id TEXT NOT NULL,artifact_version INTEGER NOT NULL)`);
-    db.prepare('INSERT INTO presentations VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run('old','a','旧演示','旧说明','#123456','#FFFFFF','#000000',JSON.stringify(slides),'2025-01-01','2025-01-02',8,'ppt-old',3);
+    db.prepare(`INSERT INTO presentations (id,project_id,title,description,color_primary,color_background,color_text,slides_json,created_at,updated_at,version,artifact_id,artifact_version)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('old','a','旧演示','旧说明','#123456','#FFFFFF','#000000',JSON.stringify(slides),'2025-01-01','2025-01-02',8,'ppt-old',3);
     const record=(await f.bound.invoke(actions.get,{id:'old'})).presentation;
     assert.deepEqual(record.slides,slides);assert.equal(record.color_background,'#FFFFFF');assert.equal(record.version,8);assert.equal(record.artifact_version,3);
     assert.equal(record.created_at,'2025-01-01');assert.equal(record.publication_pending,undefined);

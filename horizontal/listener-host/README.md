@@ -20,7 +20,7 @@ ListenerHost.run 经 Connector 取得 Raw Event，再调用 Integration Adapter 
 
 ## 接入与边界
 
-装配时须在 Sources 初始化后调用 migrateListenerHost；旧 Feed migration 编号不能证明 Listener 表已存在。Native Feed 负责来源调度用例，Host 管 timer 生命周期；通用 Scheduler 仍是未来设计。
+Listener Host 只拥有自己的表（`listener_instances`、`listener_deliveries`、`feed_source_runs`），按来源 id 指向来源，不对 Sources 的 `feed_sources` 加外键；一个来源的运行记录经 `deleteListenerSourceState` 显式清掉。旧 Feed migration 编号不能证明 Listener 表已存在。Native Feed 负责来源调度用例，Host 管 timer 生命周期；通用 Scheduler 仍是未来设计。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 

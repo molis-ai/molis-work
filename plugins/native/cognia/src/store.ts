@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { contentHash, decodeFile, ignoredPath, linksFor, materialRole, metadata, safeRelativePath } from "./content.js";
 import { COGNIA_LIMITS, requireCognia, stringField, type Domain, type Draft, type ImportEntry, type ImportFile, type Material, type Preview, type Receipt, type Source } from "./types.js";
 interface Staged { path: string; data: string; base_hash: string | null; material: Material }
@@ -129,16 +129,22 @@ export class CogniaStore {
   }
   private transaction<T>(run: () => T): T { this.db.exec("BEGIN IMMEDIATE"); try { const result = run(); this.db.exec("COMMIT"); return result; } catch (error) { this.db.exec("ROLLBACK"); throw error; } }
 }
+/**
+ * The Cognia store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
+ * must already be at its version.
+ */
+export const COGNIA_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE cognia_domains (id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE);
+  CREATE TABLE cognia_sources (id TEXT PRIMARY KEY,body TEXT NOT NULL);
+  CREATE TABLE cognia_materials (id TEXT PRIMARY KEY,source_id TEXT NOT NULL,path TEXT NOT NULL,updated_at TEXT NOT NULL,body TEXT NOT NULL,UNIQUE(source_id,path));
+  CREATE TABLE cognia_versions (material_id TEXT NOT NULL,revision INTEGER NOT NULL,body TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(material_id,revision));
+  CREATE TABLE cognia_previews (id TEXT PRIMARY KEY,body TEXT NOT NULL,expires_at INTEGER NOT NULL,receipt TEXT);
+  CREATE TABLE cognia_drafts (id TEXT PRIMARY KEY,body TEXT NOT NULL,archived INTEGER NOT NULL DEFAULT 0);
+` };
+
 export function openCogniaStore(home: string): CogniaStore {
   const db = openHomeSqliteDatabase(home, "cognia");
-  try { db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
-    CREATE TABLE IF NOT EXISTS cognia_domains (id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE);
-    CREATE TABLE IF NOT EXISTS cognia_sources (id TEXT PRIMARY KEY,body TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS cognia_materials (id TEXT PRIMARY KEY,source_id TEXT NOT NULL,path TEXT NOT NULL,updated_at TEXT NOT NULL,body TEXT NOT NULL,UNIQUE(source_id,path));
-    CREATE TABLE IF NOT EXISTS cognia_versions (material_id TEXT NOT NULL,revision INTEGER NOT NULL,body TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(material_id,revision));
-    CREATE TABLE IF NOT EXISTS cognia_previews (id TEXT PRIMARY KEY,body TEXT NOT NULL,expires_at INTEGER NOT NULL,receipt TEXT);
-    CREATE TABLE IF NOT EXISTS cognia_drafts (id TEXT PRIMARY KEY,body TEXT NOT NULL,archived INTEGER NOT NULL DEFAULT 0);`);
-    const columns = db.prepare("PRAGMA table_info(cognia_drafts)").all() as Array<{ name: string }>;
-    if (!columns.some(c => c.name === "archived")) db.exec("ALTER TABLE cognia_drafts ADD COLUMN archived INTEGER NOT NULL DEFAULT 0");
+  try { db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
+    applySqliteBaseline(db, homeSqlitePath(home, "cognia"), COGNIA_STORE_BASELINE);
     return new CogniaStore(db); } catch(error) { db.close(); throw error; }
 }

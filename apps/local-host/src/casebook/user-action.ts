@@ -28,7 +28,7 @@ function setup(options:CasebookUserActionProofOptions) {
   return {
     now:()=>Math.floor(clock().getTime()/1000),
     mac:(r:CasebookUserActionIntent,issued:number,expires:number)=>createHmac('sha256',secret).update(JSON.stringify([
-      'goalboard.casebook.user-action.v1',audience,issued,expires,r.project_ref,r.actor_ref,r.purpose,r.action,
+      'molis-work.casebook.user-action.v1',audience,issued,expires,r.project_ref,r.actor_ref,r.purpose,r.action,
       r.include_goal_context===true,r.idempotency_key,r.user_confirmed,
     ])).digest('base64url'),
   };

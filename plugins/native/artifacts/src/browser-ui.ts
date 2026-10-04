@@ -145,6 +145,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${artifact.unavailable_reason ? `<p>${p.escape(artifact.unavailable_reason)}</p>` : ""}
     ${!embedded && model.presentation ? `${model.presentation.source_href ? `<p><a class="mw-btn" href="${p.escape(model.presentation.source_href)}" data-workbench-item-plugin="${p.escape(model.presentation.plugin_id)}" data-workbench-item-id="${p.escape(model.presentation.item_id)}" data-workbench-item-title="${p.escape(title)}">${p.text(model.presentation.source_label)}</a></p>` : ""}<section class="artifact-business-preview mw-prose" data-artifact-business-preview>${model.presentation.body_html}</section>` : ""}
     ${!embedded && model.continuers?.length ? continueActions(model.continuers, artifact, p) : ""}
+    ${!embedded ? handoffActions(artifact, p) : ""}
     ${preview}
     ${!embedded && model.links ? linksSection(model.links, routePrefix, p, artifact) : ""}
     <dl class="artifact-facts">
@@ -166,6 +167,16 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
 function continueActions(continuers: NonNullable<ArtifactBrowserUiModel["continuers"]>, artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"]): string {
   const reference = p.escape(JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version }));
   return `<p class="artifact-continue-actions">${continuers.map(item => `<button class="mw-btn" type="button" data-artifact-continue="${p.escape(item.plugin_id)}" data-artifact-reference="${reference}">${p.text(`在 ${item.plugin_title} 继续`)}</button>`).join("")}</p>`;
+}
+
+/**
+ * 「交给助理 / Coding」 (artifact-positioning 五.1): the version goes to a new work as material, with what the detail shows of
+ * it. Coding is offered only where the project has it; the 成果 client finds out and shows the button.
+ */
+function handoffActions(artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"]): string {
+  if (artifact.availability !== "available" || artifact.lifecycle_state === "archived") return "";
+  const data = `data-artifact-subject="${p.escape(artifactSubjectId(artifact))}" data-artifact-title="${p.escape(artifact.title)}" data-artifact-version="${artifact.version}"`;
+  return `<p class="artifact-continue-actions" data-artifact-handoff ${data}><button class="mw-btn" type="button" data-artifact-hand="assistant">${p.text("交给助理")}</button><button class="mw-btn" type="button" data-artifact-hand="coding" hidden>${p.text("交给 Coding")}</button></p>`;
 }
 
 const LINK_ROLES = { input: "输入", deliverable: "交付物", proposed: "提议的交付物" } as const;

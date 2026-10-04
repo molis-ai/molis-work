@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：main 自检已完成（§9，2026-10-03～04）：全量 3,758 个用例 2 个失败，都是本轮新发现、已修（#220、#221），第一步与成果库改造修过的问题没有复发；第一步问题表 5 条状态已更正。成果库补漏（§9.4 第 10–12 条）已收尾。另一会话复查的九条（§9.5）在处理：#234、#236、#237、#238 已合入；#239、#240 第一批全量通过、排队合入；#241–#244 在跑第二批全量。之后按 §5a 门禁先行，开工结构性改动。第一步已完成并归档；同一目标里用户追加的「Artifact 定位与统一外壳」见 [artifact-positioning](../artifact-positioning/spec.md)。
+状态：§4.1 进行中（2026-10-04）：真实 Home 的 17 个 Home 级库已盖上基线版本；项目库与目录库的基线在第五批集成分支上全量回归，真实 Home 的项目库、目录库重建演练已通过，重建时机待用户定
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -35,6 +35,13 @@
 | 2026-10-04 | 删两处兼容前是否只读核对真实 Home（弹窗） | 只读核对后再删（推荐）；不核对直接删；两处都先保留 | 只读核对后再删 | ② 密钥库：只按格式核对 `feed/secrets.json`（不解密、不输出内容），格式 2、keychain+aes-gcm，27 条全是 AES-GCM，没有 v0.3 信封，可以删。① 会话执行者：执行时发现执行者存在 Prologue 的加密记录里，核对要用真实 Home 的存储密钥在内存里解开会话索引，超出弹窗里说的「拷单个文件只读统计」，没有动手，改为再问（下一行） |
 | 2026-10-04 | 会话执行者核对要解密，怎么办（更正后再问，弹窗） | 在拷贝上解密索引只数条数（推荐）；不核对，保留这处兼容；不核对，直接删 | 不核对，直接删 | 删 `legacyActorId`，会话的执行者改为必填；没写执行者的很早的旧会话，插件读不到（用户已知） |
 | 2026-10-04 | Casebook 对外合同的旧名（待决 6，弹窗） | 改成 Molis Work 的名字（推荐）；保持旧名列入例外；等外部插件下次改版 | 改成 Molis Work 的名字 | `goalboard.casebook.*` 改为 `molis-work.casebook.*`，Schema `$id` 改到 `https://molis-work.dev/contracts/casebook/...`（与已归档的 Casebook v1 合同同一写法），用户动作签名的域名串一并改；不留旧名别名。外部 Casebook 插件要同步，PR 里列出全部新旧 id |
+| 2026-10-04 | 真实 Home 的库（用户在对话里说 "you can touch the database"） | — | 授权动真实 Home 的库 | 用于 §4.1「每个库一份当前 schema 加版本」：按 10-02 的「保留并升级」执行。先整份备份 `~/.molis-work`，确认 4207、4208、4173 都没在跑；每一步先在拷贝上演练、核对，再动原库；只写结构版本号（`PRAGMA user_version`），不改表和数据 |
+| 2026-10-04 | 项目库基线的列序（日常取舍） | 按某个真实库；按代码里的建表语句 | 按建表语句 | 18 个真实项目库有多种列序（Coding 会话表就有 4 种），一份基线对不上全部；真实 Home 按列名搬进新基线库，见 §4.1 演练 |
+| 2026-10-04 | 项目库、目录库里只剩旧数据才用的列与值（日常取舍） | 留着；随基线去掉 | 随基线去掉 | `feed_items.item_type`（只剩 `'feed'`）、`feed_items.linked_goal_id`（关联早在上下文账本，列恒空）、`projects.migrated_from_path`（恒空）；Feed 快照的 `contract_migrations` 与 `markRead` 的类型参数随之去掉 |
+| 2026-10-04 | 目录库的版本记法（日常取舍） | 改用 `user_version`；沿用 `catalog_meta.schema_version` | 沿用，升到 20 | 目录库本来就有版本号和「拒绝更新的版本」；只删 1→19 的升级链，版本不符就拒绝 |
+| 2026-10-04 | Casebook 恢复失败报什么（日常取舍） | 保留缺失迁移的明细；只报代码 | 只报 `project_recovery_unsupported_schema` | 明细说的是缺哪些迁移，基线下没有迁移可缺；外部 Casebook 插件与 #248 的改名一起同步 |
+| 2026-10-04 | Schedule「重装后确认归属」（日常取舍） | 随旧 Builder 导入一起删；保留 | 保留 | 是插件重装后把提醒、定时操作交给新安装的现行流程，不是兼容；用例改成真的重装一次 |
+| 2026-10-04 | 项目库、目录库的一次性搬运工具放哪（日常取舍） | 进仓库；只放会话临时目录 | 只放会话临时目录 | 只用一次（真实 Home 与测试样本），不留产品代码；做法写进 §4.1 与样本 README |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -599,7 +606,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | # | 发现 | 核实 | 判断与做法 |
 | --- | --- | --- | --- |
 | 1 | 本机网页把所有调用者写成 `"web-user"` | 属实：约 20 个宿主文件各写一份字面量，`agent-host-composition.ts` 还有 `legacyActorId` | 修（第二步，可信身份一节）：身份值不变（已存数据按它记），收成合同里的一个常量，所有调用方引用它；删 `legacyActorId`。多人身份属 §4.19 C 端就绪，不在这里做 |
-| 2 | 来源表 `feed_sources` 有两个主人 | 属实：`modules/sources` 建表，`horizontal/listener-host` 建 `feed_source_runs` 并对 `feed_sources` 加外键、删行；`cursor_json` 标着只给旧数据用、靠就地补列 | 修（分层与边界）：删 `cursor_json` 与就地补列、CHECK 重建、旧游标拷贝（不留兼容），见 [#240](https://github.com/molis-ai/molis-work/pull/240)。`feed_source_runs` 改由 `modules/sources` 持有、listener-host 经它的接口读写，另开 PR |
+| 2 | 来源表 `feed_sources` 有两个主人 | 属实：`modules/sources` 建表，`horizontal/listener-host` 建 `feed_source_runs` 并对 `feed_sources` 加外键、删行；`cursor_json` 标着只给旧数据用、靠就地补列 | 修（分层与边界）：删 `cursor_json` 与就地补列、CHECK 重建、旧游标拷贝（不留兼容），见 [#240](https://github.com/molis-ai/molis-work/pull/240)。`feed_source_runs` 的处理改了做法（10-04）：运行记录是 Listener Host 的同步账本，留在它那里，只去掉它对来源表的外键。来源只退役不硬删，这条级联从不触发；运行记录本来就由 `deleteListenerSourceState` 显式清理。分支 `refactor/listener-runs-own-table` |
 | 3 | 会话库仍在把 `goalboard_*` 改写成 `molis_work_*` | 属实：`session-schema.ts` 见旧值就整表重建；兼容清单只列了 `session-migration.ts` | 修（清除兼容）：真实 Home 的会话库已是第 6 版、没有旧值（54 条 `legacy_migrated`、2 条 `molis_work_created`），删掉改写；`legacy_migrated` 与 `session_migration_receipts` 一并列入兼容清单 |
 | 4 | 文件密钥库的派生盐是 `"goalboard-feed-secretstore-v1"` | 属实 | **不改值**：它是派生已封存密钥的常量，换了旧密钥就解不开，只能再加一层重新封存（那才是兼容逻辑）。代码里已注明（`Historical key-derivation constant. Changing the string would invalidate existing ciphertext.`），列入 §4 例外。**另发现**：同一文件在打开时把 v0.3 的 Base64 信封重新加密（兼容逻辑），列入兼容清单；删之前先只按格式（不读内容）核对真实 Home 还有没有这种信封 |
 | 5 | 八个内置插件仍列着可以从哪些旧版本升上来 | 属实；真实 Home 的安装记录多是旧版本（Coding 1.32.0 / 1.44.0、Characters 1.2.0、Files 1.1.0、Git 1.3.0 / 1.4.0） | **更正（10-04）**：前一版写「内置插件启动时不查这些名单」不对。读监督器的代码：已装版本在名单里就直接跑新代码、记录不动；不在名单里就恢复当时存下的旧发行物——所以真实 Home 里装着 Coding 1.32.0 的项目很可能跑的是旧 Coding；照原计划删名单，其余项目也会退回旧代码。用户 10-04 弹窗拍板「内置插件随宿主升级」：随宿主发布的内置插件启动时把安装记录升到当前版本、跑当前代码，不再靠名单；然后删名单。第三方与生成的插件仍走升级确认。分支 `feat/bundled-plugins-follow-host` |
@@ -623,9 +630,9 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | 8 | [#236](https://github.com/molis-ai/molis-work/pull/236)（fc0b1b70）：演示稿只用 `presentation` | 已合入 |
 | 5 | [#237](https://github.com/molis-ai/molis-work/pull/237)：内置插件随宿主升级，删八份名单 | 已合入 |
 | 1 | [#238](https://github.com/molis-ai/molis-work/pull/238)（69f2cd65）：`"web-user"` 收成合同常量 `LOCAL_PERSON_ACTOR_ID`（25 个文件）；`legacyActorId` 由 [#243](https://github.com/molis-ai/molis-work/pull/243) 删（§1 决定） | 已合入；#243 待全量 |
-| 7 | [#239](https://github.com/molis-ai/molis-work/pull/239)：删旧凭据读取与导入。补充（通用环境变量不默认 MiniMax、手册写明、删 BL-082）在 #239 合入后另开 PR | #239 全量通过，排队合入 |
-| 2 | [#240](https://github.com/molis-ai/molis-work/pull/240)：来源表只按当前结构建，删补列、重建、旧游标拷贝；v35 夹具去掉旧的空来源表 | 全量通过，排队合入 |
-| 6 | [#244](https://github.com/molis-ai/molis-work/pull/244)：管理入口（CLI、管理 MCP）一律以本机这个人的身份调用。initialize、import-v3 不收 `actor_id`；event_decide、goal_tree_decide 的身份与出处由宿主固定，参数里带了就拒绝；随后删 V3 导入全链（§1 决定）；Goals README 的动作数更正为 64 / 58 / 6 | 开着，等第二批全量 |
+| 7 | [#239](https://github.com/molis-ai/molis-work/pull/239)（bab13d7a）：删旧凭据读取与导入；补充 [#246](https://github.com/molis-ai/molis-work/pull/246)（34ded78f）：通用环境变量不默认 MiniMax、手册写明、删 BL-082 | 已合入 |
+| 2 | [#240](https://github.com/molis-ai/molis-work/pull/240)（46b7ec3f）：来源表只按当前结构建，删补列、重建、旧游标拷贝；v35 夹具去掉旧的空来源表 | 已合入 |
+| 6 | [#244](https://github.com/molis-ai/molis-work/pull/244)（dfe3765e）：管理入口（CLI、管理 MCP）一律以本机这个人的身份调用；删 V3 导入全链；需求覆盖账本另由 [#252](https://github.com/molis-ai/molis-work/pull/252) 删 | #244 已合入；#252 第三批全量通过，排队合入 |
 
 - 本批验证方式：#237–#240 都动共享核心（插件运行时、宿主、模块、合同），按 10-03 的验证频率合成一个集成分支 `integration/batch-10-04`。整体构建、健康与边界门禁都过，在上面跑一次全量回归，失败先用干净基线比对。全量通过后逐个合入。
 - 第一批全量回归（集成分支 `integration/batch-10-04`）：3,753 个用例，3,745 通过，1 失败，7 跳过（需要真实账号的 live 用例），用时 76 分钟。唯一的失败是 `goal-event-document-history`：v35 旧库夹具里的来源表还是旧 CHECK，#240 不再就地重建它，属于预期变化。改为夹具装载时删掉这张空表，补在 #240；之后装载 v35 夹具的 9 个用例文件 40/40 通过。四个 PR 都贴了结果，按顺序合入。
@@ -635,9 +642,85 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
   - [#243](https://github.com/molis-ai/molis-work/pull/243)：会话执行者必填，删 `legacyActorId`。
   - [#244](https://github.com/molis-ai/molis-work/pull/244)：第 6 条（见上表）。
   - #239 的补充：通用模型环境变量不再默认成 MiniMax，手册写明开发用的环境变量，删 BL-082。#239 合入后另开 PR。
-- 本批派生、还没做的：
-  - `feed_source_runs` 改成单一主人；
-  - 只有 V3 导入会写的覆盖账本（legacy coverage）；
-  - 其他旧账号导入；
-  - 桌面面板的 reconcile 是否仍在用；
-  - PMR-12 补守护用例。
+- 第二批全量回归（集成分支 `integration/batch-10-04b`）：3,748 个用例，3,740 通过，1 失败，7 跳过，用时 76 分钟。唯一的失败是 `goals-document.e2e` 的一次 CDP `Runtime.evaluate` 超时，没有断言失败；同一棵树上单独连跑 3 次都通过，第一批全量里也通过，判为全量负载下的时序问题。已合入：#241（67aa74ef）、#242（d142eb72）；#243、#244、#246 排队。
+- **验证缺口（10-04 发现）**：`scripts/run-tests.mjs` 不带参数时只收 `tests/*.test.ts`，四个 `tests/*.test.mjs`（Goals 查询与存储边界、草稿对话边界、工作台注册边界）只在 CI 里按名字跑。#244 删了导入文件后，第二批全量没发现 `goals-storage-boundaries.test.mjs` 还读它，是 CI 报出来的。之后每批全量另跑 `node --test tests/*.test.mjs`（第三批 10/10）；让全量也带上它们另开小 PR。
+- 第三批（集成分支 `integration/batch-10-04c` = 第二批 + 下面四项）：
+  - 整体构建一次，修了一处没用到的类型引用；健康与边界门禁通过。
+  - 相关用例里 2 个失败，都已修：`.mjs` 边界用例（修在 #244）；新用例的项目没启用成果库。27 个 Goal / 成果浏览器用例 55/55 通过。
+  - **全量**：3,752 个用例，3,745 通过，0 失败，7 跳过，用时 78 分钟；`.mjs` 10/10。
+  - 已合入：#249（f1309918）、#250（b106be22，全量也跑 `.mjs`）、#251（a172e540，迁移期工具与 MIGRATION.md 退场）；#247、#248、#252 排队。
+  - [#252](https://github.com/molis-ai/molis-work/pull/252)：只有 V3 导入会写的需求覆盖账本。
+  - [#247](https://github.com/molis-ai/molis-work/pull/247)：成果库里固定的一版交给插件作为输入（artifact-positioning 10-04 的决定）。
+  - [#248](https://github.com/molis-ai/molis-work/pull/248)：Casebook 对外合同改名（§1 决定；外部 Casebook 插件要同步）。
+  - [#249](https://github.com/molis-ai/molis-work/pull/249)：PMR-12 守护用例 `assistant-strip-narrow.e2e`。
+- 第四批（集成分支 `integration/batch-10-04d` = main + 下面三项）：
+  - 整体构建通过；健康门禁就地补表 110 → 72，边界 0 错误。全量在跑。
+  - [#253](https://github.com/molis-ai/molis-work/pull/253)：Listener Host 的运行记录去掉对来源表的外键（第 2 条后半）。
+  - [#254](https://github.com/molis-ai/molis-work/pull/254)：删 Pages 旧项目按 board_id 分区的迁移（§4.0）。
+  - [#255](https://github.com/molis-ai/molis-work/pull/255)：§4.1 第一、二步，Home 级的库各留一份当前 schema 加版本号，见下面一条。
+- §4.1 Home 级的库（#255，用户 10-04 授权动真实 Home 的库）：
+  - **先只读对照**：在拷贝上逐个比真实 Home 的库与当前代码新建的库。差别只有两种：
+    - 列的顺序：pages、forms、datasets、presentations、functions 的列是一处处补上去的，顺序与新建不同；
+    - 用到时才建的表：Todo 整理器的两张表、连接器的授权结果表。
+  - **基线**：17 个库各写一份，列顺序按真实 Home。上下文账本与连接器宿主导出建表语句，由所在库合进去。characters 本来就是版本 1，会话库只认第 6 版，搜索索引是派生库，三者都不改。
+  - **盖版本号**：一次性工具 `scripts/stamp-store-baselines.mjs`。只给结构与基线完全一致的库盖；基线里有、库里还没建过的表建成空表；不一致的原样不动。
+  - **演练（已做）**：只拷这 17 个库的文件到会话临时目录，不碰原 Home。
+    1. 只读报告：17 个都可以盖（connectors 要补一张空表）；
+    2. 写入：17 个都盖上，再报告都是当前版本；
+    3. 74 张表的行数盖前盖后完全一样；
+    4. 新代码逐个打开 17 个库全部成功，行数不变。
+  - **真实 Home（10-04 已做）**：
+    1. 4207、4208、4173 都没在监听；Home 里的库没被常驻服务占着（0.2.0 发布版的两个 MCP 进程只转发，没开库）。
+    2. 整份备份到 `~/.molis-work-backups/2026-10-04-store-baselines/`（APFS 克隆；1,326,429 个文件与原 Home 一致，抽查的库逐字节相同）。
+    3. `--apply`：17 个库全部盖上版本 1；connectors 补了一张空表。
+    4. 复核：再跑一次全部报告 current；75 张表（原 74 张 + 补的空表）行数与盖前一样；新代码逐个经基线打开 17 个库全部成功。
+    5. 只读模式打不开没有 `-shm` 的 WAL 库（cognia、jelly、todo、workflows 报错 14），所以没跑只读报告，直接 `--apply`：它只给结构一致的库写版本号，其余原样不动。
+- **第四批全量**（`integration/batch-10-04d` = main + #253、#254、#255）：3,772 个用例，3,760 通过，5 失败，7 跳过，76 分钟。
+  - 4 个失败是 #255 的预期变化：Form、PPT、Images 的用例手工建旧表或删列再期望就地升级，已改成在当前基线上造同样的场景，断言不变；删一条只测「Functions 旧库删列后还能开」的用例。
+  - 第 5 个是 `goal-event-document.e2e` 负载下超时，单独跑通过。上述文件加该 e2e 单独跑 39/39。
+  - #253（4f992391）、#254（acb98817）已合入；#255 排队。
+- 记忆账本的「第一版导入」（10-04 删，分支 `refactor/memory-drop-first-version-import`）：
+  - 只读查真实 Home 的助理库：第一版关掉的记忆 0 条、候选 0 条、开关从没存过，导入早已无事可做。
+  - 删 `MemoryService.migrateLegacy` 与 `LegacyMemoryState`，删宿主每次调用前的 `migrate()` 包装和读助理库的 `readAssistantMemory`，删 `AssistantStore` 只供它用的记忆方法和两条导入用例。记忆是否关闭只看条目自己的事实。
+  - 助理库里的 `assistant_memory_candidates` 表已无人读写，留在助理库基线里，等基线下一版一起去掉。
+- Schedule 的旧 Builder 提醒与定时操作导入（10-04 删，分支 `refactor/schedule-drop-builder-import`）：
+  - 只读查真实 Home 18 个项目库：旧格式提醒 0、旧格式定时操作 0、孤立执行记录 0；只有演示项目（466d6844）剩 2 个旧键和 1 个没导入的旧 Builder 定时任务（每日小结，下次到点 9-28 已过）。删掉读取后，它到点只会记一次「插件不可用」，不影响别的。
+  - 删宿主每次启动的两段读取、两组旧唤醒登记、`pauseLegacyScheduleReminders`、旧唤醒 `board|id` 的引用格式，以及只有导入会留下的「无法恢复的旧执行记录」列表（取消定时操作会连执行记录一起删，所以别处不会产生孤立记录）：列表动作的输出、插件界面、宿主与工作台投影一起去掉。
+  - 「重装后确认归属」保留：它是插件重装后把提醒、定时操作交给新安装的现行流程。原来借旧数据造场景的用例改成真的重装一次，断言不变。
+- §4.1 项目库（分支 `refactor/project-database-baseline`，叠在 #253、#254、#255 与 Schedule 分支上）：
+  - **先只读对照**（真实 Home 18 个项目库 vs 当前代码新建的库）：
+    - 新建库只有 71 张表；真实库另有 21 张由各主人用到时才建的表（插件运行时、Scheduler 与 Schedule、Coding、上下文账本、浏览设置）；
+    - 13 张表结构不同：多数是列序（一处处 `ALTER` 补上），另有来源表多一列 `cursor_json`、运行记录的外键（#240、#253 改的）、6 个库的出站规则少两列、8 个库的 `runs` 多两列旧列；
+    - 16 个库还没有成果库与过程项的表，6 个库没有信号表（新代码打开时才会建）；
+    - Coding 会话表在 18 个库里有 4 种列序。
+    - 结论：一份基线不可能对上所有库，真实 Home 要「按列名搬进新基线库」，不能只盖版本号。
+  - **基线**：`apps/local-host/src/project-database-schema.ts` 把各主人交出的建表语句拼成 `PROJECT_DATABASE_BASELINE`（版本 1）：Goals、执行、依据、治理、成果与过程项、日志、上下文账本、来源、信号、Listener、Attention、Feed 与出站规则、插件运行时五张表组、Scheduler、Schedule 三组、Coding、浏览设置、Casebook。`LocalProjectDatabase` 新库一次建好并写版本；版本不符（包括有表没版本）就拒绝；恢复只看版本。各主人仍用 `IF NOT EXISTS` 建自己的表，在项目库里是空操作；改任何一张表就是新版本。
+  - **删掉**：宿主的迁移链（`project-migrations.ts`、`feed-migrations.ts`、恢复时的迁移明细 `project-recovery-details.ts`）、`SqliteSchema` 与 `schema_migrations`；Goals、治理、执行、依据、成果五个模块的迁移文件；Feed 的合同迁移与迁移收据表（Feed 快照的 `contract_migrations` 字段一起去掉）、八处补列、Goal 关联的一次性搬迁；Attention 的 reason 重建；出站规则、Scheduler、Schedule、Coding、插件事件游标的补列与重建；输入绑定的旧来源搬迁；浏览设置读已退役插件存储的一次性搬迁；Coding 后台任务列表对旧列的容忍。
+  - **随之去掉的死列与死值**：`feed_items.item_type`（只剩 `'feed'`，`'inbox_message'` 是合同迁移前的旧值，`markRead` 的类型参数一起去掉）与 `feed_items.linked_goal_id`（关联早已只在上下文账本里，列恒为空）。
+  - **合同变化**：Casebook 恢复失败只报 `project_recovery_unsupported_schema`（原 `project_recovery_requires_migration` 及其明细没有了，外部 Casebook 插件要同步，与 #248 一起）；Feed 快照少 `contract_migrations`。
+  - **用例**：迁移本身的用例删掉（Goals 迁移 12–15/25/26/30/36、Impact 历史、治理 8、Feed 29、Attention 重建、Artifacts 31 的迁移部分）；借旧库造场景的用例改成在当前基线上造。v35 旧库样本改为「带事件前历史的项目」基线样本（`tests/fixtures/goal-event-history/`），由真实 Home 同样的流程生成一次。新增 `tests/project-database-baseline.test.ts`：基线等于入库的 schema 快照、新项目经宿主打开各插件后不多一张表、版本不符拒绝且不改库。
+  - **演练（真实 Home 的拷贝，取自 10-04 备份）**：
+    1. 用删迁移之前的版本（第四批集成分支）打开一次 18 个库，让当时的全部升级跑完；
+    2. 一次性工具按列名把每张基线表的行搬进按基线新建的库（会话临时目录里的 `rebuild-to-baseline.mjs`，不进仓库）：共 36,214 行，0 个外键问题，18 个库完整性都通过；
+    3. 不进基线的：空的 V3 覆盖账、18 条 Feed 合同迁移收据、671 条迁移编号、1 条旧导入收据；`feed_items.item_type`（全是 `'feed'`）、两处恒空的旧列，以及 `feed_sources.cursor_json`（81 个值，其中非空的 10 个与 Listener 自己表里的游标逐字相同）；
+    4. 补默认值的列只出现在空表或旧代码本来也会补成同样默认值的地方（Coding 归档标记、出站规则、空的插件事件游标表、对话任务归档标记）；
+    5. 新代码打开 18 个重建后的库（普通打开与恢复打开都试），459 个 Goal、431 条 Feed 都读得出来。
+  - **时机（待用户定）**：重建后的项目库，删迁移之前的旧代码打不开（它会按迁移编号重新建表）。已安装的 0.2.0（常驻服务 4173 与两个 MCP 进程）就是旧代码，所以重建要和换新版一起做。
+- §4.1 目录库（分支 `refactor/catalog-drop-migrations`）：
+  - 目录库本来就有版本号（`catalog_meta.schema_version`，现 19）和「拒绝更新的版本」。删 1→19 的升级链：项目插件表的四次重建、数据分类补列、旧导入列的删除、运行时绑定的两次搬迁、模型供应商的两次补列；版本不符就拒绝，不就地升级。卸载前的预览不再容忍缺列的旧目录。
+  - 顺带删恒空的 `projects.migrated_from_path`，版本升到 20。
+  - 用例：删掉 7 条迁移用例；「老目录不建新表」改为「老目录打开时被拒且原样不动」；「迁移时锁超时后服务自己恢复」改为「第一次准备遇到锁、之后自己恢复」（基线下已没有迁移锁，重试逻辑仍在）。
+  - 演练：真实目录库的拷贝只差模型供应商表的列序和项目表上的一条约束；按列名搬进版本 20 的新库，655 行全部搬过，只丢恒空的那一列；新代码打开，18 个项目都在。
+- **第五批**（`integration/batch-10-04e` = 项目库基线分支（含 #253、#254、#255、Schedule）+ 记忆 + 目录库）：整体构建、`typecheck:all`、边界、健康门禁通过（就地补表 72 → 5）；相关用例全过（项目库 227 个里 8 个失败已修：其中 2 条只测迁移 36 导入规则的用例删掉，运行时的同类规则另有用例；目录与记忆 120 个里 1 个已修）。全量在跑。
+  - [#257](https://github.com/molis-ai/molis-work/pull/257)：记忆第一版导入；[#258](https://github.com/molis-ai/molis-work/pull/258)：Schedule 旧导入。
+- 门禁第二批（§5a）：空 catch、`as unknown as`、旧产品名的计数，以及 contracts 与插件 SDK 的公开 API 快照，加进 `pnpm health:check`（分支 `chore/health-gates-lint-api`）。公开 API 会随前面的合同改动变化，等本批合入后再生成基线开 PR。
+- 「其他旧账号导入」已查（10-04）：**不全是兼容，不能直接删**。
+  - `importLegacyAccounts`（`apps/local-host/src/web-connector-connections.ts`）每次列出连接时都会做几种「认领」：旧图片密钥、TypeSafe 的 `FUNCTIONS_CREDENTIAL_REF`、各连接器的 `connector:<id>:…`、模型目录的 `model-provider:<id>`，以及各项目来源里的凭据引用。认领后它们出现在设置的「连接」里。
+  - 其中至少三种仍由现行流程写入：模型设置按 `model-provider:<id>` 存密钥（`model-provider-store.ts:96`）；Functions / Jev 仍直接读 `FUNCTIONS_CREDENTIAL_REF`（`functions-host.ts`、`experiments-executor.ts`）；Feed 的 GitHub、Gmail 来源注册仍写连接器凭据引用（`plugins/native/feed/src/connector-service.ts`、`connector-source-registration.ts`）。
+  - 所以这里一部分是「活的投影」：把直接存的凭据显示成连接。
+  - 处理：记入 §5 的分层问题。连接只有一个主人：现行流程直接建连接，认领只留给确实只有旧数据的那几种；那时再按格式核对真实 Home、删掉认领。不在兼容清单里直接删。
+- 「桌面面板的 reconcile 是否仍在用」已查（10-04）：**仍在用，不能当兼容删**。
+  - Work 插件的终端面板仍存在 `catalog.desktopPanels`（`plugins/native/work/src/http/panels.ts` 打开、列出、标记退出）。
+  - `reconcileLegacySessionCatalog`（`apps/local-host/src/session-migration.ts`）在 MCP、网页会话与运行时面板每次读会话时，把面板与运行时绑定同步进会话库（`registry.migrateLegacy`）。名字带 legacy，其实是活路径。
+  - 产品代码里没有 `openDesktopPanel` 的调用者，只有用例在用。
+  - 处理：记入 §5 包级清单的分层问题。改成显式的「面板 → 会话」投影，改名，去掉 `legacy` 字样，并把 `session_migration_receipts` 与 `legacy_migrated` 的去留一起理清；不在兼容清单里删。

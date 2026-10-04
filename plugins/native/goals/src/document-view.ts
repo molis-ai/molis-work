@@ -19,18 +19,6 @@ export const GOALS_PRESENTATION_STATES: readonly GoalPresentationState[] = [
   "archived",
 ];
 
-export interface GoalsCoverageItem {
-  requirement_id: string;
-  statement: string;
-  disposition: string;
-  owner_goal_id: string | null;
-  reason: string | null;
-  revisit_condition: string | null;
-  blocking: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export type GoalsInputBinding = Omit<GoalInputBindingRecord, "board_id">;
 
 export interface GoalsDocumentView {
@@ -48,7 +36,6 @@ export interface GoalsDocumentView {
   risks: GoalsSafetyRisk[];
   impacts: ImpactBindingRecord[];
   relations: GoalRelationRecord[];
-  coverage: GoalsCoverageItem[];
   input_bindings: GoalsInputBinding[];
   policy_bindings: GoalsPolicyBinding[];
   events: GoalsDecisionEvent[];

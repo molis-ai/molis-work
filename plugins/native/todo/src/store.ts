@@ -1,4 +1,4 @@
-import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   TODO_STATUSES,
@@ -457,55 +457,71 @@ export class TodoStore {
   }
 }
 
+/**
+ * The Todo store's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are
+ * created from it, existing ones must already be at its version.
+ */
+export const TODO_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE todo_items (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    placement TEXT NOT NULL,
+    project_id TEXT,
+    due_date TEXT,
+    due_time TEXT,
+    planned_date TEXT,
+    remind_at TEXT,
+    important INTEGER NOT NULL DEFAULT 0,
+    waiting_json TEXT,
+    sources_json TEXT NOT NULL DEFAULT '[]',
+    links_json TEXT NOT NULL DEFAULT '[]',
+    edited_fields_json TEXT NOT NULL DEFAULT '[]',
+    archived_at TEXT,
+    completed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    reminder_acknowledged_at TEXT
+  );
+  CREATE INDEX todo_items_project ON todo_items (project_id);
+  CREATE TABLE todo_changes (
+    change_id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL,
+    batch_id TEXT,
+    kind TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    at TEXT NOT NULL,
+    before_json TEXT,
+    after_json TEXT NOT NULL,
+    revision_after INTEGER NOT NULL,
+    reverted_by TEXT
+  );
+  CREATE INDEX todo_changes_item ON todo_changes (item_id);
+  CREATE INDEX todo_changes_batch ON todo_changes (batch_id) WHERE batch_id IS NOT NULL;
+  CREATE TABLE todo_requests (
+    request_id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  -- The organizer's review batches and what it remembers about sources (organize.ts).
+  CREATE TABLE todo_batches (
+    batch_id TEXT PRIMARY KEY, project_id TEXT, origin TEXT NOT NULL, method TEXT NOT NULL, title TEXT NOT NULL,
+    body_json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL,
+    request_id TEXT UNIQUE
+  );
+  CREATE TABLE todo_source_memory (
+    source_key TEXT NOT NULL, fingerprint TEXT NOT NULL, decision TEXT NOT NULL, item_id TEXT, reason TEXT NOT NULL, at TEXT NOT NULL,
+    PRIMARY KEY (source_key, fingerprint)
+  );
+` };
+
 export function openTodoStore(homeDirectory: string, now?: () => Date): TodoStore {
   const db = openHomeSqliteDatabase(homeDirectory, "todo");
-  db.exec(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA busy_timeout = 5000;
-    CREATE TABLE IF NOT EXISTS todo_items (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      notes TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL,
-      placement TEXT NOT NULL,
-      project_id TEXT,
-      due_date TEXT,
-      due_time TEXT,
-      planned_date TEXT,
-      remind_at TEXT,
-      important INTEGER NOT NULL DEFAULT 0,
-      waiting_json TEXT,
-      sources_json TEXT NOT NULL DEFAULT '[]',
-      links_json TEXT NOT NULL DEFAULT '[]',
-      edited_fields_json TEXT NOT NULL DEFAULT '[]',
-      archived_at TEXT,
-      completed_at TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      revision INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS todo_items_project ON todo_items (project_id);
-    CREATE TABLE IF NOT EXISTS todo_changes (
-      change_id TEXT PRIMARY KEY,
-      item_id TEXT NOT NULL,
-      batch_id TEXT,
-      kind TEXT NOT NULL,
-      actor TEXT NOT NULL,
-      at TEXT NOT NULL,
-      before_json TEXT,
-      after_json TEXT NOT NULL,
-      revision_after INTEGER NOT NULL,
-      reverted_by TEXT
-    );
-    CREATE INDEX IF NOT EXISTS todo_changes_item ON todo_changes (item_id);
-    CREATE INDEX IF NOT EXISTS todo_changes_batch ON todo_changes (batch_id) WHERE batch_id IS NOT NULL;
-    CREATE TABLE IF NOT EXISTS todo_requests (
-      request_id TEXT PRIMARY KEY,
-      item_id TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-  `);
-  ensureSqliteColumn(db, "todo_items", "reminder_acknowledged_at", "TEXT");
+  db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
+  applySqliteBaseline(db, homeSqlitePath(homeDirectory, "todo"), TODO_STORE_BASELINE);
   return new TodoStore(db, now);
 }
 

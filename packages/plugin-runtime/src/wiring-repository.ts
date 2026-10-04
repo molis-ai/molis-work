@@ -1,5 +1,6 @@
 import type {
   PluginInputGroupSelectionRecord,
+  PluginPortArtifactBindingRecord,
   PluginPortBindingRecord,
   PluginPortOutputRecord,
   PluginWiringRepository,
@@ -21,6 +22,7 @@ function key(...parts: string[]): string {
 /** Reference repository for tests and project-less reference runs. */
 export class MemoryPluginWiringRepository implements PluginWiringRepository {
   readonly #bindings = new Map<string, PluginPortBindingRecord>();
+  readonly #fixed = new Map<string, PluginPortArtifactBindingRecord>();
   readonly #groups = new Map<string, PluginInputGroupSelectionRecord>();
   readonly #outputs = new Map<string, PluginPortOutputRecord>();
 
@@ -43,14 +45,25 @@ export class MemoryPluginWiringRepository implements PluginWiringRepository {
   }
 
   saveBinding(record: PluginPortBindingRecord): void {
-    this.#bindings.set(
-      key(record.board_id, record.target_plugin_id, record.target_port),
-      { ...record },
-    );
+    const port = key(record.board_id, record.target_plugin_id, record.target_port);
+    this.#fixed.delete(port);
+    this.#bindings.set(port, { ...record });
+  }
+
+  getArtifactBinding(boardId: string, targetPluginId: string, targetPort: string): PluginPortArtifactBindingRecord | null {
+    const record = this.#fixed.get(key(boardId, targetPluginId, targetPort));
+    return record ? { ...record } : null;
+  }
+
+  saveArtifactBinding(record: PluginPortArtifactBindingRecord): void {
+    const port = key(record.board_id, record.target_plugin_id, record.target_port);
+    this.#bindings.delete(port);
+    this.#fixed.set(port, { ...record });
   }
 
   deleteBinding(boardId: string, targetPluginId: string, targetPort: string): void {
     this.#bindings.delete(key(boardId, targetPluginId, targetPort));
+    this.#fixed.delete(key(boardId, targetPluginId, targetPort));
   }
 
   deleteBindingsForPlugin(boardId: string, pluginId: string): void {
@@ -59,6 +72,9 @@ export class MemoryPluginWiringRepository implements PluginWiringRepository {
       if (record.target_plugin_id === pluginId || record.source_plugin_id === pluginId) {
         this.#bindings.delete(mapKey);
       }
+    }
+    for (const [mapKey, record] of [...this.#fixed]) {
+      if (record.board_id === boardId && record.target_plugin_id === pluginId) this.#fixed.delete(mapKey);
     }
   }
 
@@ -118,6 +134,16 @@ export class SqlitePluginWiringRepository implements PluginWiringRepository {
       updated_at TEXT NOT NULL,
       PRIMARY KEY (board_id, target_plugin_id, target_port)
     )`);
+    db.exec(`CREATE TABLE IF NOT EXISTS plugin_port_artifact_bindings (
+      board_id TEXT NOT NULL,
+      target_plugin_id TEXT NOT NULL,
+      target_port TEXT NOT NULL,
+      artifact_id TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      actor_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (board_id, target_plugin_id, target_port)
+    )`);
     db.exec(`CREATE TABLE IF NOT EXISTS plugin_input_groups (
       board_id TEXT NOT NULL,
       plugin_id TEXT NOT NULL,
@@ -159,6 +185,8 @@ export class SqlitePluginWiringRepository implements PluginWiringRepository {
   }
 
   saveBinding(record: PluginPortBindingRecord): void {
+    this.db.prepare(`DELETE FROM plugin_port_artifact_bindings WHERE board_id = ? AND target_plugin_id = ? AND target_port = ?`)
+      .run(record.board_id, record.target_plugin_id, record.target_port);
     this.db.prepare(`INSERT INTO plugin_port_bindings (
       board_id, target_plugin_id, target_port, source_plugin_id, source_port, origin, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -176,16 +204,35 @@ export class SqlitePluginWiringRepository implements PluginWiringRepository {
     );
   }
 
-  deleteBinding(boardId: string, targetPluginId: string, targetPort: string): void {
-    this.db.prepare(`DELETE FROM plugin_port_bindings
+  getArtifactBinding(boardId: string, targetPluginId: string, targetPort: string): PluginPortArtifactBindingRecord | null {
+    const row = this.db.prepare(`SELECT * FROM plugin_port_artifact_bindings
       WHERE board_id = ? AND target_plugin_id = ? AND target_port = ?`)
-      .run(boardId, targetPluginId, targetPort);
+      .get(boardId, targetPluginId, targetPort) as PluginPortArtifactBindingRecord | undefined;
+    return row ? { ...row } : null;
+  }
+
+  saveArtifactBinding(record: PluginPortArtifactBindingRecord): void {
+    this.db.prepare(`DELETE FROM plugin_port_bindings WHERE board_id = ? AND target_plugin_id = ? AND target_port = ?`)
+      .run(record.board_id, record.target_plugin_id, record.target_port);
+    this.db.prepare(`INSERT INTO plugin_port_artifact_bindings (board_id, target_plugin_id, target_port, artifact_id, version, actor_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (board_id, target_plugin_id, target_port) DO UPDATE SET
+        artifact_id = excluded.artifact_id, version = excluded.version, actor_id = excluded.actor_id, created_at = excluded.created_at`).run(
+      record.board_id, record.target_plugin_id, record.target_port, record.artifact_id, record.version, record.actor_id, record.created_at);
+  }
+
+  deleteBinding(boardId: string, targetPluginId: string, targetPort: string): void {
+    for (const table of ["plugin_port_bindings", "plugin_port_artifact_bindings"]) {
+      this.db.prepare(`DELETE FROM ${table} WHERE board_id = ? AND target_plugin_id = ? AND target_port = ?`)
+        .run(boardId, targetPluginId, targetPort);
+    }
   }
 
   deleteBindingsForPlugin(boardId: string, pluginId: string): void {
     this.db.prepare(`DELETE FROM plugin_port_bindings
       WHERE board_id = ? AND (target_plugin_id = ? OR source_plugin_id = ?)`)
       .run(boardId, pluginId, pluginId);
+    this.db.prepare("DELETE FROM plugin_port_artifact_bindings WHERE board_id = ? AND target_plugin_id = ?").run(boardId, pluginId);
   }
 
   getInputGroup(boardId: string, pluginId: string): PluginInputGroupSelectionRecord | null {

@@ -1,5 +1,5 @@
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
-import { ensureSqliteColumn, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { realpathSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import type { PagesBody, PagesFolder, PagesRecord, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
@@ -60,44 +60,6 @@ export class PagesStore {
 
   close(): void {
     this.db.close();
-  }
-
-  hasProjectData(projectId: string): boolean {
-    return ["pages", "folders", "page_generations", "page_imports"].some(table => Boolean(this.db.prepare(`SELECT 1 FROM ${table} WHERE project_id = ? LIMIT 1`).get(projectId)));
-  }
-
-  /** Host must prove the old partition belongs uniquely to this project before calling. */
-  migrateProjectScope(previous: string, projectId: string): void {
-    if (previous === projectId) return;
-    normalizeProjectId(previous); normalizeProjectId(projectId);
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
-      const generations = this.generations(previous);
-      if (generations.some(record => record.status === "running" && Date.now() - Date.parse(record.updated_at) < 180_000)) throw new PagesError("pages.legacy_running", "旧文稿仍在生成，请完成后重新打开");
-      for (const table of ["page_generations", "page_imports"]) {
-        const collision = this.db.prepare(`SELECT 1 FROM ${table} a JOIN ${table} b ON a.request_id = b.request_id WHERE a.project_id = ? AND b.project_id = ? LIMIT 1`).get(previous, projectId);
-        if (collision) throw new PagesError("pages.legacy_conflict", "旧文稿请求与当前项目冲突，原数据已保留，请先修复关联");
-      }
-      for (const page of this.list(previous)) {
-        const rewrite = (node: unknown): unknown => {
-          if (Array.isArray(node)) return node.map(rewrite);
-          if (!node || typeof node !== "object") return node;
-          const record = node as Record<string, unknown>;
-          return Object.fromEntries(Object.entries(record).map(([key, value]) => [key,
-            key === "href" && typeof value === "string" && value.startsWith(`/projects/${encodeURIComponent(previous)}/?inbox_entry=`)
-              ? `/projects/${encodeURIComponent(projectId)}/` + value.slice(`/projects/${encodeURIComponent(previous)}/`.length) : rewrite(value)]));
-        };
-        this.db.prepare("UPDATE pages SET project_id = ?, body_json = ?, version = version + 1 WHERE id = ?").run(projectId, JSON.stringify(rewrite(page.body)), page.id);
-      }
-      this.db.prepare("UPDATE folders SET project_id = ? WHERE project_id = ?").run(projectId, previous);
-      this.db.prepare("UPDATE page_imports SET project_id = ? WHERE project_id = ?").run(projectId, previous);
-      for (const record of generations) {
-        const next = { ...record, project_id: projectId, ...(record.status === "running" ? { status: "failed" as const, error: "上次生成已中断，材料已保留，请重试" } : {}) };
-        this.saveGeneration(next);
-      }
-      this.db.prepare("DELETE FROM page_generations WHERE project_id = ?").run(previous);
-      this.db.exec("COMMIT");
-    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
   }
 
   generation(projectId: string, requestId: string): PagesGenerationRecord | null {
@@ -464,41 +426,41 @@ export class PagesStore {
   }
 }
 
+/**
+ * The Pages store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
+ * must already be at its version. Columns keep the order existing stores have them in.
+ */
+export const PAGES_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+  CREATE TABLE pages (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL,
+    body_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    folder_id TEXT NOT NULL DEFAULT '',
+    starred INTEGER NOT NULL DEFAULT 0,
+    goal_id TEXT NOT NULL DEFAULT '',
+    artifact_id TEXT NOT NULL DEFAULT '',
+    artifact_version INTEGER NOT NULL DEFAULT 0,
+    publication_pending_json TEXT
+  );
+  CREATE TABLE folders (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE page_generations (project_id TEXT NOT NULL, request_id TEXT NOT NULL, updated_at TEXT NOT NULL, record_json TEXT NOT NULL, PRIMARY KEY(project_id, request_id));
+  -- What an edit by an agent or a workflow replaced, kept a while so the person can take that edit back (single use).
+  CREATE TABLE page_changes (change_id TEXT PRIMARY KEY, page_id TEXT NOT NULL, to_version INTEGER NOT NULL, before_json TEXT NOT NULL, created_at TEXT NOT NULL);
+  CREATE TABLE page_imports (project_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, document_ids_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(project_id, request_id));
+` };
+
 export function openPagesStore(homeDirectory: string): PagesStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "pages");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS pages (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL DEFAULT '',
-      title TEXT NOT NULL,
-      body_json TEXT NOT NULL,
-      folder_id TEXT NOT NULL DEFAULT '',
-      starred INTEGER NOT NULL DEFAULT 0,
-      goal_id TEXT NOT NULL DEFAULT '',
-      artifact_id TEXT NOT NULL DEFAULT '',
-      artifact_version INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      version INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS folders (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL DEFAULT '',
-      title TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-  ensureSqliteColumn(db, "pages", "folder_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "pages", "starred", "INTEGER NOT NULL DEFAULT 0");
-  ensureSqliteColumn(db, "pages", "goal_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "pages", "artifact_id", "TEXT NOT NULL DEFAULT ''");
-  ensureSqliteColumn(db, "pages", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
-  ensureSqliteColumn(db, "pages", "publication_pending_json", "TEXT");
-  db.exec("CREATE TABLE IF NOT EXISTS page_generations (project_id TEXT NOT NULL, request_id TEXT NOT NULL, updated_at TEXT NOT NULL, record_json TEXT NOT NULL, PRIMARY KEY(project_id, request_id))");
-  // What an edit by an agent or a workflow replaced, kept a while so the person can take that edit back (single use).
-  db.exec("CREATE TABLE IF NOT EXISTS page_changes (change_id TEXT PRIMARY KEY, page_id TEXT NOT NULL, to_version INTEGER NOT NULL, before_json TEXT NOT NULL, created_at TEXT NOT NULL)");
-  db.exec("CREATE TABLE IF NOT EXISTS page_imports (project_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, document_ids_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(project_id, request_id))");
+  const db = openBaselineHomeSqlite(homeDirectory, "pages", PAGES_STORE_BASELINE);
   const database = realpathSync(homeSqlitePath(homeDirectory, "pages"));
   let attempts = attemptsByDatabase.get(database);
   if (!attempts) attemptsByDatabase.set(database, attempts = new Map());

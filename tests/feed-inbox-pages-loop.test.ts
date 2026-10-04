@@ -62,25 +62,6 @@ test("a failed run cannot complete or fail a retry started in the same milliseco
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
-test("expired legacy generation migrates its snapshot and cannot be resurrected by the old worker", t => {
-  const home = mkdtempSync(join(tmpdir(), "molis-pages-legacy-running-"));
-  const store = openPagesStore(home);
-  let now = Date.parse("2026-09-25T00:00:00Z");
-  t.mock.method(Date, "now", () => now);
-  try {
-    const old = store.beginGeneration(request());
-    now += 180_001;
-    store.migrateProjectScope(old.project_id, "canonical-project");
-    const moved = store.generation("canonical-project", old.request_id)!;
-    assert.equal(moved.status, "failed"); assert.deepEqual(moved.inputs, old.inputs);
-    assert.throws(() => store.completeGeneration(old, { type: "doc" }), /另一次处理/);
-    store.failGeneration(old, "old worker stopped"); assert.equal(store.hasProjectData(old.project_id), false);
-    const resumed = store.beginGeneration(moved);
-    const document = store.completeGeneration(resumed, { type: "doc" });
-    assert.equal(document.project_id, "canonical-project"); assert.equal(store.list("canonical-project").length, 1);
-  } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
-});
-
 test("Pages retries saved input, rejects concurrent generation and preserves later user edits", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-loop-pages-"));
   const store = openPagesStore(home);

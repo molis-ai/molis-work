@@ -29,8 +29,8 @@ const fact=object({channel:{enum:['local-host.capability.v1','web.goal-events.v1
   offered_truncated:bool,source_digest:hash,corrects_fact_id:nullable});
 export const interactionFactsSchema={
   $schema:'https://json-schema.org/draft/2020-12/schema',
-  $id:'https://goalboard.dev/contracts/casebook/interaction-facts/2.0.0',
-  ...object({contract_id:{const:'goalboard.casebook.interaction-facts'},schema_version:{const:'2.0.0'},project_ref:string,
+  $id:'https://molis-work.dev/contracts/casebook/interaction-facts/2.0.0',
+  ...object({contract_id:{const:'molis-work.casebook.interaction-facts'},schema_version:{const:'2.0.0'},project_ref:string,
     authorization_epoch:string,exported_at:string,stream_id:string,
     cursor:object({after_exclusive:{type:'integer',minimum:0},to_inclusive:{type:'integer',minimum:0},has_more:bool}),
     coverage:object({recording_since:string,retained_from_seq:{type:'integer',minimum:1},channels:strings,missing:strings,
@@ -68,11 +68,11 @@ export const authorizationActionSchema:Schema={...authorizationSchema,
    required:[...authorizationSchema.required!,'action_receipt'],properties:{...authorizationSchema.properties!,action_receipt:receipt}}}};
 export const goalContextSchema={
  $schema:'https://json-schema.org/draft/2020-12/schema',
- $id:'https://goalboard.dev/contracts/casebook/goal-context/2.0.0',
- ...object({contract_id:{const:'goalboard.casebook.goal-context'},schema_version:{const:'2.0.0'},project_ref:string,
+ $id:'https://molis-work.dev/contracts/casebook/goal-context/2.0.0',
+ ...object({contract_id:{const:'molis-work.casebook.goal-context'},schema_version:{const:'2.0.0'},project_ref:string,
  authorization_epoch:string,context_authorization_epoch:string,missing_operation_ids:strings,
  contexts:{type:'array',maxItems:200,items:object({context_id:string,operation_id:string,phase:{enum:['before','after']},captured_at:string,
  goal_ref:hash,goal_id:string,goal_title:{type:'string',maxLength:500},title_truncated:bool,contract_revision:{type:'integer',minimum:1},source_digest:hash})}}),
 };
 
-export const projectDiscoverySchema={...object({contract_id:{const:'goalboard.casebook.projects'},schema_version:{const:'1.0.0'},projects:{type:'array',maxItems:100,items:object({project_ref:{type:'string',maxLength:200},project_name:{type:'string',maxLength:500}})}})};
+export const projectDiscoverySchema={...object({contract_id:{const:'molis-work.casebook.projects'},schema_version:{const:'1.0.0'},projects:{type:'array',maxItems:100,items:object({project_ref:{type:'string',maxLength:200},project_name:{type:'string',maxLength:500}})}})};

@@ -1,17 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openConnectorsStore } from "./connectors-store.js";
 
 export type ConnectorAuthorizationState = "pending" | "connected" | "cancelled" | "failed" | "expired";
 const TTL = 10 * 60_000;
 const hash = (state: string) => createHash("sha256").update(state).digest("hex");
-function withAttempts<T>(home: string, run: (db: ReturnType<typeof openHomeSqliteDatabase>) => T): T {
-  const db = openHomeSqliteDatabase(home, "connectors");
-  try {
-    db.exec(`CREATE TABLE IF NOT EXISTS connector_authorization_results (
-      id TEXT PRIMARY KEY, state_hash TEXT UNIQUE NOT NULL, connection_id TEXT NOT NULL,
-      service_id TEXT NOT NULL, status TEXT NOT NULL, expires_at INTEGER NOT NULL)`);
-    return run(db);
-  } finally { db.close(); }
+function withAttempts<T>(home: string, run: (db: ReturnType<typeof openConnectorsStore>) => T): T {
+  const db = openConnectorsStore(home);
+  try { return run(db); } finally { db.close(); }
 }
 /** A read-only UI receipt, separate from the one-use OAuth state and credentials. */
 export function beginConnectorAuthorization(home: string, state: string, connectionId: string, serviceId: string, now = Date.now()) {

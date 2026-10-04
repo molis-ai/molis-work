@@ -1,7 +1,7 @@
 {
   "giantUnits": 181,
   "giant": {
-    "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 262,
+    "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 261,
     "file apps/local-host/src/assistant/assistant-service.ts": 2700,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": 2131,
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": 321,
@@ -73,7 +73,7 @@
     "file modules/feed/src/index.ts": 922,
     "class modules/feed/src/index.ts#FeedModule": 537,
     "class modules/functions/src/service.ts#FunctionsService": 225,
-    "file modules/functions/src/store.ts": 1030,
+    "file modules/functions/src/store.ts": 1012,
     "class modules/functions/src/store.ts#FunctionsStore": 399,
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": 371,
     "class modules/goals/src/event-facts.ts#GoalEventFacts": 576,
@@ -117,7 +117,7 @@
     "file packages/plugin-runtime/src/index.ts": 886,
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": 664,
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": 592,
-    "class packages/plugin-runtime/src/wiring.ts#PluginInputGraph": 552,
+    "class packages/plugin-runtime/src/wiring.ts#PluginInputGraph": 497,
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 174,
     "function packages/storage/src/adapters/search-storage.ts#createSearchOpaqueBlobStore": 164,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 153,
@@ -185,6 +185,6 @@
   },
   "testInternalImports": 979,
   "vendoredPrologueSdk": 1,
-  "schemaPatches": 110,
+  "schemaPatches": 72,
   "note": "Only decreases. Regenerate with `node scripts/check-health-gates.mjs --update` in the PR that lowers a number."
 }

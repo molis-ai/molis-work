@@ -51,18 +51,8 @@ export class TodoOrganizer {
   private readonly db: DatabaseSync;
 
   constructor(private readonly store: TodoStore) {
+    // Its tables are part of the Todo store's baseline (TODO_STORE_BASELINE).
     this.db = store.database();
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS todo_batches (
-        batch_id TEXT PRIMARY KEY, project_id TEXT, origin TEXT NOT NULL, method TEXT NOT NULL, title TEXT NOT NULL,
-        body_json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL,
-        request_id TEXT UNIQUE
-      );
-      CREATE TABLE IF NOT EXISTS todo_source_memory (
-        source_key TEXT NOT NULL, fingerprint TEXT NOT NULL, decision TEXT NOT NULL, item_id TEXT, reason TEXT NOT NULL, at TEXT NOT NULL,
-        PRIMARY KEY (source_key, fingerprint)
-      );
-    `);
   }
 
   list(access: TodoAccess, status: "open" | "all" = "open"): TodoBatch[] {

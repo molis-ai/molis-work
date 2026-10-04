@@ -579,24 +579,9 @@ export interface GoalFactsView {
   project_guidance: ProjectGuidanceEntryRecord[];
 }
 
-/** Retained V3 requirement coverage, distinct from Contract revision coverage. */
-export interface GoalLegacyCoverageRecord {
-  requirement_id: string;
-  board_id: string;
-  statement: string;
-  disposition: "covered" | "deferred" | "out" | "unresolved";
-  owner_goal_id: string | null;
-  reason: string | null;
-  revisit_condition: string | null;
-  blocking: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface GoalsQueryApi {
   listBoardIds(): string[];
   listActivePolicyBindings(boardId: string, goalId?: string): GoalPolicyBindingRecord[];
-  listLegacyCoverage(boardId: string): Array<Omit<GoalLegacyCoverageRecord, "board_id">>;
   listPolicyHistory(boardId: string): GoalPolicyHistoryRecord[];
   listGoalRiskLinks(boardId: string): GoalRiskLinkRecord[];
   listDependencies(boardId: string, goalId: string): GoalDependencyFact[];
@@ -716,13 +701,6 @@ export interface GoalsCommandApi {
     board_id: string; actor_id: string; user_confirmed: boolean;
     policy: GoalPolicy; idempotency_key: string;
   }): { policy_binding_id: string; observed_event_cursor: number; replayed: boolean };
-  /** Internal import port; caller retains the complete V3 import transaction and audit event. */
-  importLegacyCoverage(boardId: string, rows: ReadonlyArray<Omit<GoalLegacyCoverageRecord, "board_id">>): void;
-  /** Finish an existing V3 import transaction; does not accept the imported Draft as live work. */
-  completeLegacyBoardImport(input: {
-    board_id: string; active_goal_id: string | null; actor_id: string; at: string;
-    legacy_goal_id: string; legacy_schema_version: string;
-  }): number;
   validateGoalInput(input: CreateGoalInput): void;
   applyConfirmedRelations(input: ConfirmedRelationBatch): Array<{ relation_id: string }>;
   initializeBoard(input: { board_id: string; title: string; actor_id: string; idempotency_key: string }): { board_id: string; replayed: boolean; observed_event_cursor: number };

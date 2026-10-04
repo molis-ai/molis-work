@@ -70,21 +70,12 @@ test("Form all actions and ten legacy tools share original data, six question ty
   const another = await fixture(t); assert.deepEqual((await another.bound.invoke(actions.list, {})).forms, []);
 });
 
-test("Form upgrades old submissions without inventing historical questions; deletion rolls back all rows on failure", async t => {
+test("Form deletion rolls back all rows on failure", async t => {
   const f = await fixture(t), db = openHomeSqliteDatabase(f.home, "form");
   try {
-    db.exec(`CREATE TABLE forms (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL,
-      share_id TEXT, questions_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, version INTEGER NOT NULL,
-      artifact_id TEXT NOT NULL DEFAULT '', artifact_version INTEGER NOT NULL DEFAULT 0);
-      CREATE TABLE submissions (id TEXT PRIMARY KEY, form_id TEXT NOT NULL, answers_json TEXT NOT NULL, submitted_at TEXT NOT NULL);`);
-    db.prepare("INSERT INTO forms (id,project_id,title,description,status,share_id,questions_json,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .run("historical-form", "a", "Old form", "original description", "published", "original-share", "[]", "2025-01-01", "2025-01-01", 7);
-    const form = {id:"historical-form"};
-    db.prepare("INSERT INTO submissions (id, form_id, answers_json, submitted_at) VALUES (?, ?, ?, ?)").run("legacy", form.id, JSON.stringify({ "deleted-question": "old value" }), "2025-01-01T00:00:00Z");
-    const old = (await f.bound.invoke(actions.results, { id: form.id })).submissions[0]!;
-    const migrated = (await f.bound.invoke(actions.get, { id:form.id })).form;
-    assert.equal(migrated.share_id,"original-share"); assert.equal(migrated.version,7); assert.equal(migrated.title,"Old form");
-    assert.equal(old.questions, null); assert.equal(old.form_version, null); assert.deepEqual(old.answers, { "deleted-question": "old value" });
+    let { form } = await f.bound.invoke(actions.create, { title: "Old form" });
+    form = (await f.bound.invoke(actions.update, { id: form.id, questions, expected_version: form.version })).form;
+    await f.bound.invoke(actions.submit, { id: form.id, answers, expected_version: form.version, request_id: "kept-submission" });
     db.exec("CREATE TRIGGER fail_form_delete BEFORE DELETE ON forms BEGIN SELECT RAISE(ABORT, 'fixture delete failure'); END");
     await assert.rejects(f.bound.invoke(actions.delete, { id: form.id }), /fixture delete failure/);
     assert.equal((await f.bound.invoke(actions.results, { id: form.id })).submissions.length, 1);

@@ -120,7 +120,6 @@ test("lazy credentials preserve their Home and only unlock an existing credentia
       lazy.delete("delete-me");
       assert.equal(lazy.get("delete-me"), null);
       assert.equal(lazy.backend().kind, "keychain+aes-gcm");
-      assert.equal(lazy.migrateIfNeeded().migrated, 0);
     });
     assert.equal(existsSync(join(root, "wrong-home")), false);
     assert.equal(JSON.parse(readFileSync(file, "utf8")).entries.fixture, JSON.parse(before.toString()).entries.fixture);

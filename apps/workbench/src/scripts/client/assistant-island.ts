@@ -1033,7 +1033,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (announcing) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: item.capability_id } }));
     }));
   };
-  const RELATION_LABEL = { origin: "起点", material: "材料", result: "成果", session: "专业会话" };
   // Short on the card; the versions behind it are in its title.
   const objectState = (object) => object.state === "changed" ? L("之后被改过") : object.state === "missing" ? L("已不存在") : object.state === "unavailable" ? L("暂时读不到")
     : object.state === "moved" ? (object.moved_to ? L("已移到") + "「" + object.moved_to.title + "」" : L("在别的项目里")) : "";
@@ -1344,7 +1343,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     });
   }
 
-  /* 成果: what it produced or changed, each a card that opens it or takes it back; work still running elsewhere after it. */
+  /* 产出 (not the 成果库's 成果): what it produced or changed, each a card that opens it or takes it back; work still running elsewhere after it. */
   const renderResults = (work) => {
     const node = blocks.results;
     if (!node) return;
@@ -1408,7 +1407,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (stopped.length) content.append(group(L("停止时仍在执行"), stack(stopped)));
       if (remembered.length) content.append(group(L("记住的事"), stack(remembered)));
       const canUndo = undoable.filter((change) => change.state === "available").length;
-      paintBlock(node, L("成果"), "package", content.children.length ? content : null, canUndo ? canUndo + " " + L("项可撤销") : String(made.length + changes.length + background.length + stopped.length + remembered.length), false);
+      paintBlock(node, L("产出"), "package", content.children.length ? content : null, canUndo ? canUndo + " " + L("项可撤销") : String(made.length + changes.length + background.length + stopped.length + remembered.length), false);
     });
   };
 
@@ -2558,7 +2557,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const materials = Array.isArray(raw.materials) ? raw.materials.filter((item) => item && typeof item.title === "string" && typeof item.text === "string" && item.text)
       .slice(0, 4).map((item) => ({ title: item.title.slice(0, 200), text: item.text.slice(0, 20000) })) : [];
     return { message_id: raw.message_id, purpose: raw.purpose, source, object, text: typeof raw.text === "string" ? raw.text.trim().slice(0, 8000) : "", materials,
-      work_id: typeof raw.work_id === "string" && raw.work_id ? raw.work_id : null };
+      work_id: typeof raw.work_id === "string" && raw.work_id ? raw.work_id : null, executor: raw.executor === "coding" ? "coding" : null };
   };
   /** What a request brings becomes this Send's materials, marked as from that page; its words go into the input. */
   const bring = (message) => {
@@ -2591,6 +2590,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (busy) { showOffer(message, false); return; }
     if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id);
     else if (message.work_id || currentId) await switchTo(null);
+    if (!message.work_id && message.executor === "coding" && codingHere()) { newExecutor = "coding"; paintTarget(); paintSummary(); } // e.g. the 成果库's 「交给 Coding」
     bring(message);
     if (!String(input.value || "").trim()) { setPanel(true); input.focus(); return; }
     requestOverride = "msg-" + message.message_id;

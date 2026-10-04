@@ -43,7 +43,6 @@ export const codingManifest: PluginManifest = {
   name: "Coding",
   kind: "app",
   // Both development lines (1.30–1.32 on main, 1.31–1.44 on the Coding goal branch) continue here without migration.
-  upgrade_compatibility: { compatible_from_versions: ["1.49.0", "1.48.0", "1.47.0", "1.46.0", "1.45.0", "1.44.0", "1.43.0", "1.42.0", "1.41.0", "1.40.0", "1.39.0", "1.38.0", "1.37.0", "1.36.0", "1.35.0", "1.34.0", "1.33.0", "1.32.0", "1.31.0", "1.30.0"] },
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [

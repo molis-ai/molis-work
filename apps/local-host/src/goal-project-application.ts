@@ -39,6 +39,7 @@ import { LocalProjectDatabase } from "./project-database.js";
 import type { BoardSnapshot } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRecord, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ExecutionClaimRecord as ClaimRecord, ExecutionRunRecord as RunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export { projectGoalLifecycle } from "@molis-ai/molis-work-plugin-goals";
 export { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
@@ -178,7 +179,7 @@ export class GoalProjectApplication {
         this.store.appendEvent({
           eventId: `event-${randomUUID()}`,
           boardId: event.project_id,
-          actorId: "web-user",
+          actorId: LOCAL_PERSON_ACTOR_ID,
           objectType: "inbox_entry",
           objectId: event.entry_id,
           type: event.type,

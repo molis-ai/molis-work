@@ -1,5 +1,5 @@
 import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
-import { pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
@@ -40,7 +40,7 @@ export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMe
 
 /** Called only after the local Web request's origin/control-token checks. */
 export function bindGoalsWebActions(client: ActionClient, reference: LocalHostProjectReference): BoundActionClient {
-  const caller: ActionCallContext = { actor_id: "web-user", actor_kind: "user", audience: "user",
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user",
     project_id: reference.project_id, permissions: GOALS_ACTION_PERMISSIONS };
   return {
     discover: async () => client.discover(caller),

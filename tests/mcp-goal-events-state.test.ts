@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkLocalHost, snapshotBoardCapability, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkV1Error, setGoalEventAgreementCapability } from "@molis-ai/molis-work-plugin-goals";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
@@ -98,9 +99,14 @@ test("Runtime state tools record progress and close without applying user identi
     );
 
     management = new MolisWorkServer("management", connection, null, host);
+    // The management entry decides as the person on this machine; it takes no identity from its arguments (§9.5 #6).
+    await assert.rejects(() => management!.callTool("molis_work_v1_event_decide", {
+      database_path: project.database_path, board_id, goal_id, actor_id: "manager", idempotency_key: "mgmt-forged",
+      request_id: asked.decision_request.request_id, selected_option_id: "yes", conclusion: "冒名确认",
+    }), (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.unexpected_field");
     const decided = JSON.parse(await management.callTool("molis_work_v1_event_decide", {
       database_path: project.database_path,
-      board_id, goal_id, actor_id: "manager", idempotency_key: "mgmt-decide",
+      board_id, goal_id, idempotency_key: "mgmt-decide",
       request_id: asked.decision_request.request_id,
       selected_option_id: "yes",
       conclusion: "管理入口确认可以试用",
@@ -108,7 +114,7 @@ test("Runtime state tools record progress and close without applying user identi
       scope: { requirement_ids: ["playable"] },
     }));
     assert.equal(decided.decision.authority_source, "management");
-    assert.equal(decided.decision.actor_id, "manager");
+    assert.equal(decided.decision.actor_id, LOCAL_PERSON_ACTOR_ID);
 
     const ready = JSON.parse(await runtime.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
     const closed = JSON.parse(await runtime.callTool("molis_work_v1_event_close", { goal_id, idempotency_key: "close-1", kind: "complete",
@@ -267,7 +273,7 @@ test("MCP agreement_change request keeps request-time commitment; later related 
     await assert.rejects(
       () => management!.callTool("molis_work_v1_event_decide", {
         database_path: project.database_path,
-        board_id, goal_id, actor_id: "manager", idempotency_key: "approve-stale-mcp",
+        board_id, goal_id, idempotency_key: "approve-stale-mcp",
         request_id: asked.decision_request.request_id,
         selected_option_id: "yes",
         conclusion: "批准之前展示的取消要求",

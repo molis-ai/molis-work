@@ -1,4 +1,4 @@
-import { GOALS_PRESENTATION_STATES, type GoalsCoverageItem, type GoalsInputBinding } from "./document-view.js";
+import { GOALS_PRESENTATION_STATES, type GoalsInputBinding } from "./document-view.js";
 import type { GoalsPolicyBinding } from "./policy-ui-model.js";
 import type { GoalPresentationState } from "./tree-order.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
@@ -7,12 +7,11 @@ import { projectGoalDocument } from "./document-projection.js";
 
 export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, boardId: string) {
   const snapshot = ports.snapshot(boardId);
-  const coverage: GoalsCoverageItem[] = ports.goals.listLegacyCoverage(boardId);
   const inputBindings = ports.inputs.list(boardId)
     .map(({ board_id: _boardId, ...binding }): GoalsInputBinding => binding);
   const policyBindings: GoalsPolicyBinding[] = ports.goals.listPolicyHistory(boardId);
   const events = ports.events(boardId);
-  const index = createGoalDocumentIndex(snapshot, coverage, inputBindings, policyBindings, events, ports.goals.listGoalRiskLinks(boardId));
+  const index = createGoalDocumentIndex(snapshot, inputBindings, policyBindings, events, ports.goals.listGoalRiskLinks(boardId));
   const allGoals = snapshot.goals.map(goal => projectGoalDocument(goal, {
     boardId, snapshot, ports, index,
   }));
@@ -33,7 +32,7 @@ export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, boar
   return {
     snapshot, active_goal_id: activeGoalId,
     goals, archived_goals: archivedGoals, trashed_goals: trashedGoals,
-    counts, coverage, input_bindings: inputBindings, policy_bindings: policyBindings, events,
+    counts, input_bindings: inputBindings, policy_bindings: policyBindings, events,
   };
 }
 

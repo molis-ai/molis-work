@@ -105,6 +105,14 @@ export function createLocalArtifactHttp() {
         sendLocalWebJson(response, 201, result);
         return true;
       }
+      if (pathname === "/api/artifacts/plugin-inputs" && request.method === "POST") {
+        // 「交给插件作为输入」 (artifact-positioning, 2026-10-04): the person gives a plugin input port this version, or puts back its source.
+        const body = await readArtifactImportBody(request) as { reference?: { artifact_id?: unknown; version?: unknown }; plugin_id?: unknown; port?: unknown; restore?: unknown };
+        const result = await context.actions.invoke(artifactsActions.bindPluginInput, { reference: { artifact_id: String(body.reference?.artifact_id ?? ""), version: Number(body.reference?.version) },
+          plugin_id: String(body.plugin_id ?? ""), port: String(body.port ?? ""), restore: body.restore === true });
+        sendLocalWebJson(response, 200, result);
+        return true;
+      }
       if (request.method !== "GET") return false;
       if (pathname === "/api/artifacts/versions") {
         // What a Goal can hand in (A5): the latest available version of each 成果, named as its owner declares the type.
@@ -167,13 +175,16 @@ export function createLocalArtifactHttp() {
       const referrers = goals && reference && context.ownerActions ? (await Promise.all(artifactReferrerActions().map(item => context.ownerActions!(item.action.action.permissions)
         .invoke(item.action, { reference }).then(result => (result as ArtifactReferrersResult).referrers.map(row => ({ ...row, plugin_title: item.plugin_title }))).catch(() => [])))).flat() : [];
       const links = goals ? { ...goals, referrers } : undefined;
+      // 「交给插件作为输入」 (2026-10-04): the input ports of running plugins that take a usable version's type.
+      const pluginInputs = reference && route.kind === "detail" && selected?.availability === "available" && selected.lifecycle_state !== "archived"
+        ? (await context.actions.invoke(artifactsActions.pluginInputs, { reference }).catch(() => ({ inputs: [] }))).inputs : [];
       const compact = requestHeader(request, "x-molis-work-fragment") === "frame-block";
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
       // The directory carries the 成果库's one import entry (A3); its dialog needs the connected document services.
       const available = compact ? null : await context.actions.invoke(artifactsActions.importSources, {});
-      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}), continuers,
+      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}), continuers, pluginInputs,
         typeTitles: Object.fromEntries([...declarations].map(([type, declaration]) => [type, declaration.title])),
         ...(available ? { importForm: { connectionStatus: available.sources, connections: available.connections } } : {}) }, compact ? "frame-block" : "detail"));
       return true;

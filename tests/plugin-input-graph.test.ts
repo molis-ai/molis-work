@@ -636,3 +636,55 @@ test('closing the input graph releases a waiting handler and refuses its late co
   await rig.graph.close(); release.resolve(); await finished.promise;
   rig.graph.evaluateAll(); await rig.graph.drain(); assert.equal(writes, 0);
 });
+
+// A fixed 成果 version given to an input port (artifact-positioning, 2026-10-04): it is delivered as is until someone changes
+// the port; only 成果库 versions of the port's type that can still be read are accepted; a plugin source on the same port
+// replaces it, and unbinding clears either kind.
+test("an input port can be given a fixed 成果 version instead of another plugin's output", async () => {
+  const deliveries: PluginUpstreamReadyInputs[] = [];
+  const projects = portPlugin({ id: PROJECTS, outputs: [{ port: "project", type: PROJECT_TYPE }] });
+  const coding = portPlugin({ id: CODING, inputs: [{ port: "project", type: PROJECT_TYPE }], onReady: (inputs) => { deliveries.push(inputs); } });
+  const runtime = new PluginRuntime(), supervisor = new PluginSupervisor(runtime), store = artifactStore(), library = new Set<string>();
+  const graph = new PluginInputGraph({ boardId: BOARD, lifecycle: supervisor, repository: new MemoryPluginWiringRepository(),
+    artifacts: { read: (reference) => store.read(reference),
+      library: (reference) => library.has(`${reference.artifact_id}@${reference.version}`) ? store.read(reference) : null } });
+  await supervisor.start([projects.definition, coding.definition].map((definition) => ({ definition })));
+  const give = (reference: ArtifactReference, port = "project") => graph.bindArtifact({ target_plugin_id: CODING, target_port: port, ...reference, actor_id: "actor" });
+  const refused = (code: string) => (error: unknown) => error instanceof PluginWiringError && error.code === code;
+  const port = () => graph.view().plugins.find((plugin) => plugin.plugin_id === CODING)!.ports[0]!;
+
+  const pinned = store.put("report", 2); library.add("report@2");
+  const exchanged = store.put("exchange", 1);
+  const otherType = store.put("selection", 1); library.add("selection@1"); store.read(otherType)!.artifact_type_id = FILES_TYPE;
+  assert.throws(() => give(exchanged), refused("port_artifact_invalid"), "a process item is not a 成果 version");
+  assert.throws(() => give(otherType), refused("port_type_mismatch"));
+  assert.throws(() => give(pinned, "missing"), refused("port_unknown"));
+  assert.equal(port().state, "missing");
+
+  give(pinned);
+  graph.evaluate(CODING);
+  await graph.drain();
+  assert.deepEqual(graph.status(CODING), { status: "ready", ports: ["project"] });
+  assert.deepEqual([deliveries.length, deliveries[0]?.project?.artifact_id, deliveries[0]?.project?.version], [1, "report", 2]);
+  assert.deepEqual([port().state, port().artifact, port().source], ["selected", { artifact_id: "report", version: 2 }, undefined]);
+
+  // A version that can no longer be read stops being delivered, and the port says so.
+  store.read(pinned)!.lifecycle_state = "archived";
+  graph.evaluate(CODING);
+  await graph.drain();
+  const status = graph.status(CODING);
+  assert.equal(status.status, "missing");
+  assert.equal(status.status === "missing" && status.reason?.code, "content_unavailable");
+  assert.equal(port().state, "unavailable");
+  store.read(pinned)!.lifecycle_state = "active";
+  assert.throws(() => { store.read(pinned)!.availability = "unavailable"; give(pinned); }, refused("port_artifact_invalid"));
+  store.read(pinned)!.availability = "available";
+
+  // Another plugin's output on the same port replaces the fixed version; unbinding clears whichever is there.
+  graph.bind({ board_id: BOARD, target_plugin_id: CODING, target_port: "project", source_plugin_id: PROJECTS, source_port: "project", origin: "user", actor_id: "actor" });
+  assert.deepEqual([port().artifact, port().source?.source_plugin_id], [undefined, PROJECTS]);
+  give(pinned);
+  assert.deepEqual([port().artifact?.artifact_id, port().source], ["report", undefined]);
+  graph.unbind(CODING, "project");
+  assert.deepEqual([port().state, port().artifact, port().source], ["missing", undefined, undefined]);
+});

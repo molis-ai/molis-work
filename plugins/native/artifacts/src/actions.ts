@@ -28,6 +28,14 @@ function define<I, O>(name: string, title: string, description: string, operatio
   return { capability_id: `artifacts.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
     scope: "project", ...(scheduling ? { scheduling } : {}), audiences: ["user", "agent", "workflow", "mcp"], permissions, subject_kinds: ["artifact"], input_schema: input, output_schema: output } };
 }
+const onlyPeople = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> => ({ ...definition, action: { ...definition.action, audiences: ["user"] } });
+/**
+ * A plugin input port that takes this version's type (artifact-positioning, 2026-10-04), and what it reads now: this very
+ * version, another fixed version, another plugin's output (`source_title`), or nothing.
+ */
+export interface ArtifactPluginInput { plugin_id: string; plugin_title: string; port: string; source: "this" | "another-version" | "plugin" | "none"; source_title: string | null }
+const pluginInputsOutput = object({ inputs: array(object({ plugin_id: text, plugin_title: text, port: text,
+  source: { enum: ["this", "another-version", "plugin", "none"] }, source_title: nullable(text) })) });
 /** System search: the newest available version of each Artifact, by title and the text inside its payload. */
 const searchEntries = defineSearchEntriesAction("artifacts.search.entries", [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
 /** The side panel's file tab (specs/archive/side-panel): the newest available version of each Artifact; previews read `subject`. */
@@ -61,6 +69,12 @@ export const artifactsActions = {
   links: define<{ reference: ArtifactReference }, ArtifactReferences>("links", "这一版被谁引用", "列出把这一版作为输入、交付物或提议交付物的目标，以及其他引用的数量；不修改数据",
     "query", object({ reference }), object({ goals: { type: "array", items: object({ goal_id: { type: "string" }, title: { type: "string" },
       role: { enum: ["input", "deliverable", "proposed"] } }) }, other: { type: "integer", minimum: 0 } })),
+  pluginInputs: define<{ reference: ArtifactReference }, { inputs: ArtifactPluginInput[] }>("plugin_inputs", "可以接这一版的插件输入",
+    "列出已启用插件里能接收这一版类型的输入端口，以及它们现在读的是什么；不修改数据", "query", object({ reference }), pluginInputsOutput),
+  // Changing what another plugin reads is the person's own choice (artifact-positioning, 2026-10-04).
+  bindPluginInput: onlyPeople(define<{ reference: ArtifactReference; plugin_id: string; port: string; restore?: boolean }, { inputs: ArtifactPluginInput[] }>("plugin_inputs.bind",
+    "把这一版交给插件的输入", "让一个插件的输入端口固定读这一版，直到改回原来的来源；restore 为真时改回原来的来源", "command",
+    object({ reference, plugin_id: id, port: id, restore: { type: "boolean" } }, ["reference", "plugin_id", "port"]), pluginInputsOutput, write)),
   projectReference: define<{ reference: string; evidence_id?: string | null }, { filename: string; content_base64: string }>("references.open", "打开项目结果引用", "通过受限读取器读取 project:// 或历史相对路径引用；已验证 Evidence 的原工作区优先，不接受调用者提供目录", "query",
     object({ reference: id, evidence_id: nullable(id) }, ["reference"]), object({ filename: text, content_base64: text }), [...read, "workspace:read"]),
 };
@@ -86,6 +100,10 @@ export interface ArtifactActionPorts {
   typeTitle?(artifactTypeId: string): string | null;
   /** A version's text as its type's owner previews it, for a workflow run that starts from it; null when there is none. */
   previewText?(artifact: ArtifactVersionRecord, caller: ActionExecutionContext): Promise<string | null>;
+  /** Plugin input ports that take the version's type, read from the host's plugin wiring; absent where no plugins run. */
+  pluginInputs?(artifact: ArtifactVersionRecord): Promise<ArtifactPluginInput[]>;
+  /** Give the port this version, or with `restore` its former source; returns the ports as they are afterwards. */
+  bindPluginInput?(artifact: ArtifactVersionRecord, input: { plugin_id: string; port: string; restore: boolean }, caller: ActionExecutionContext): Promise<ArtifactPluginInput[]>;
 }
 /** Who refers to one version (A4b, 「被谁引用」): Goals that take it as input, hand it in, or have it proposed; other links counted. */
 export interface ArtifactReferences {
@@ -93,6 +111,13 @@ export interface ArtifactReferences {
   other: number;
 }
 const GOAL_ROLES: Record<string, ArtifactReferences["goals"][number]["role"]> = { "goal.input": "input", "goal.output": "deliverable", "goal.output.proposal": "proposed" };
+/** A version people can still hand on: in the 成果库, readable and not archived. */
+function requireUsable(ports: ArtifactActionPorts, reference: ArtifactReference): ArtifactVersionRecord {
+  const artifact = ports.artifacts.query.getArtifactVersion(ports.boardId, reference);
+  if (!artifact || artifact.availability !== "available" || artifact.lifecycle_state === "archived") throw new ActionError("actions.subject_unavailable", "这一版不存在或不可用");
+  return artifact;
+}
+
 export function createArtifactActionHandlers(ports: ArtifactActionPorts): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => run(input as I, caller),
@@ -149,6 +174,12 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     bind(artifactsActions.importSources, () => ({ sources: ports.importSources(), connections: ports.importConnections?.() ?? [] })),
     bind(artifactsActions.goalEmbeds, input => ({ embeds: readGoalArtifactEmbeds({ boardId: ports.boardId, goalId: input.goal_id, artifacts: ports.artifacts.query, ledger: ports.ledger, supportedTypes: input.supported_types }) })),
     bind(artifactsActions.projectReference, input => ports.openProjectReference(input)),
+    bind(artifactsActions.pluginInputs, async input => ({ inputs: await ports.pluginInputs?.(requireUsable(ports, input.reference)) ?? [] })),
+    bind(artifactsActions.bindPluginInput, async (input, caller) => {
+      const artifact = requireUsable(ports, input.reference);
+      if (!ports.bindPluginInput) throw new ActionError("artifacts.unavailable", "这里没有运行中的插件，不能改插件的输入");
+      return { inputs: await ports.bindPluginInput(artifact, { plugin_id: input.plugin_id, port: input.port, restore: input.restore === true }, caller) };
+    }),
     bind(artifactsActions.links, (input, caller) => {
       const edges = ports.ledger.list({ actor_id: caller.actor_id, scope: { kind: "personal", id: ports.boardId } }).filter(edge => edge.state === "active"
         && edge.target.module === "artifacts" && edge.target.id === input.reference.artifact_id && edge.target.version === input.reference.version);

@@ -26,6 +26,11 @@ export const ARTIFACT_WORKBENCH_STYLES = `${ARTIFACT_IMPORT_STYLES}${FILE_PREVIE
   .artifact-links ul { margin:8px 0; padding-left:20px; }
   .artifact-links li span { margin-left:8px; color:var(--muted); font-size:12px; }
   .artifact-links-other { color:var(--muted); font-size:12px; }
+  .artifact-port-inputs ul { margin:8px 0; padding:0; list-style:none; display:grid; gap:6px; }
+  .artifact-port-inputs li { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; }
+  .artifact-port-inputs li span, .artifact-port-inputs li small { color:var(--muted); font-size:12px; }
+  .artifact-port-inputs li button { margin-left:auto; }
+  .artifact-port-inputs-status:empty { display:none; }
   .artifact-links-heading, .artifact-links-works h3 { margin:12px 0 0; font-size:12px; font-weight:600; color:var(--muted); }
   .artifact-link-work { padding:0; border:0; background:none; color:var(--accent); font:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
   .artifact-continue-actions, .artifact-goal-input form { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }

@@ -16,6 +16,7 @@ export { ARTIFACT_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
 export { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT } from "./goal-input-client.js";
 export { ARTIFACT_WORKS_CLIENT_SCRIPT } from "./works-client.js";
 export { ARTIFACT_HANDOFF_CLIENT_SCRIPT } from "./handoff-client.js";
+export { ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "./port-input-ui.js";
 export { createPluginArtifactClient, PluginArtifactAccessError } from "./plugin-client.js";
 export { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
 
@@ -33,4 +34,4 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest } from "./manifest.js";
 export { artifactsActions, ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, createArtifactActionHandlers } from "./actions.js";
-export type { ArtifactActionPorts, ArtifactFileImport, ArtifactExternalImport, ArtifactImportResult } from "./actions.js";
+export type { ArtifactActionPorts, ArtifactFileImport, ArtifactExternalImport, ArtifactImportResult, ArtifactPluginInput } from "./actions.js";

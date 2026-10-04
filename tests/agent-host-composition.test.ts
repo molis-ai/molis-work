@@ -63,7 +63,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
     observe() { throw new Error("Not used by this read fixture"); },
     async control() { throw new Error("Not used by this read fixture"); },
     async readCommandOutput() { throw new Error("Not used by this read fixture"); },
-    async readSession(session) { return { session, owner: { board_id: "board", plugin_id: CODING, install_id: "coding" }, title: "Read", runs: [], latest_run: null }; },
+    async readSession(session) { return { session, owner: { board_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user" }, title: "Read", runs: [], latest_run: null }; },
     async start(request) {
       captured.push(request); const role = request.role!;
       return { ref: { run_id: `r${captured.length}`, session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution,
@@ -74,7 +74,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
   });
   const client = localHost.client(reference);
   try {
-    await client.invoke(initializeBoardCapability, { board_id: "board", title: "Guidance", actor_id: "user", idempotency_key: "init" });
+    await client.invoke(initializeBoardCapability, { board_id: "board", title: "Guidance", idempotency_key: "init" });
     const added = await client.invoke(goalsEntryCapabilities.commands.addProjectGuidance, [{ board_id: "board", actor_id: "user", kind: "constraint",
       content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" }]);
     const request: AgentStartRequest = { board_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user", session: { runtime_id: "probe", session_id: "s" },

@@ -8,7 +8,7 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, goalTreeCapabilities } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalTreeProposalItemInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
@@ -32,7 +32,7 @@ test("tree actions preserve proposals, protected authority, atomic materializati
   const caller: ActionCallContext = { actor_id: "runtime:tree", audit_actor_id: "runtime:tree:session", runtime_session_id: "session", actor_kind: "runtime",
     project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
   const client = host.actionClient(ref), typed = host.client(ref), bound = bindActionClient(client, () => caller);
-  const trusted: ActionCallContext = { actor_id: "real-user", actor_kind: "user", project_id: project.project_id, audience: "user",
+  const trusted: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", project_id: project.project_id, audience: "user",
     permissions: ["goals:read", "goals:write", "goals:decide"], user_action: { source: "management", conversation_ref: "conversation://tree",
       message_ref: "message://approve", whole_confirmation_prompted: true } };
   const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.board_id));
@@ -78,6 +78,11 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     assert.equal(plugin.availability(goalTreeCapabilities.decideGoalTreeProposal).available, false);
     await assert.rejects(plugin.invoke({ ...goalTreeCapabilities.decideGoalTreeProposal, host_only: false },
       [{ ...decision, board_id: project.board_id, authority }], { consumer: undefined }), { code: "actions.host_only" });
+    // The host capability belongs to the management entry, which decides as the person on this machine (§9.5 #6).
+    for (const forged of [{ ...authority, actor_id: "another-person" }, { ...authority, authority_source: "web" as const }]) {
+      await assert.rejects(typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision, board_id: project.board_id, authority: forged }]),
+        { code: "goal_tree_proposal.authority_source_invalid" });
+    }
     const before = await snapshot();
     await host.withProject(ref, r => r.store.db.exec(`CREATE TEMP TRIGGER reject_tree_decision BEFORE INSERT ON goal_tree_proposal_decisions
       BEGIN SELECT RAISE(ABORT, 'injected tree decision failure'); END`));

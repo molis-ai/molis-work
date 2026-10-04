@@ -103,7 +103,7 @@ specs/molis-work-architecture-reorganization/spec.md
 - 根 `pnpm` 命令继续验证当前产品；`workspace:*` 命令验证 48 个新 package，`*:all` 命令同时覆盖两者。
 - 新代码只能通过 public entrypoint 调用其他 owner；禁止 deep import、跨 Module Store 和 App 直写业务数据库。
 - `contract-only` 只表示边界存在，不得注册假 Provider、假 Store、UI 入口或伪成功 API。
-- 每个迁移切片同时更新目标 package README、`docs/system/MIGRATION.md` 和对应 Module/Service 文档。
+- 每个迁移切片同时更新目标 package README 和对应 Module/Service 文档。
 - Huge Class 的职责归属和删除门见 [Huge Class 职责迁移图](system/HUGE-CLASS-MIGRATION.md)。
 
 ## 对外 MCP

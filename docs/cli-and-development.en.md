@@ -101,7 +101,7 @@ specs/molis-work-architecture-reorganization/spec.md
 - Root `pnpm` commands continue to verify the current product; `workspace:*` commands verify the 48 new packages, and `*:all` commands cover both.
 - Cross-owner calls use public entrypoints only; deep imports, cross-Module Store access, and App database writes are forbidden.
 - `contract-only` means a real boundary without a fake provider, store, UI entry, or success response.
-- Every migration slice updates its package README, `docs/system/MIGRATION.md`, and the affected Module/Service document.
+- Every migration slice updates its package README and the affected Module/Service document.
 - See the [Huge Class responsibility map](system/HUGE-CLASS-MIGRATION.md) for ownership and removal gates.
 
 ## Frontend and the control catalog

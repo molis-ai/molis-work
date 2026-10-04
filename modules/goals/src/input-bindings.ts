@@ -24,20 +24,7 @@ type BindingRow = GoalInputBindingRecord & { source_edge_key: string | null };
 
 /** Goals owns confirmation receipts; Ledger owns their cross-module source endpoints. */
 export class GoalInputBindings implements GoalInputBindingsApi {
-  constructor(private readonly db: GoalsSqliteDatabase, private readonly ledger: ContextLedgerApi) {
-    db.transaction(() => {
-      const columns = db.prepare("PRAGMA table_info(input_bindings)").all() as Array<{ name: string }>;
-      if (!columns.some((column) => column.name === "source_edge_key")) {
-        db.prepare("ALTER TABLE input_bindings ADD COLUMN source_edge_key TEXT").run();
-      }
-      const legacy = db.prepare("SELECT * FROM input_bindings WHERE source_edge_key IS NULL").all() as BindingRow[];
-      for (const input of legacy) {
-        const key = this.recordSource(input, true);
-        if (key) db.prepare("UPDATE input_bindings SET source_edge_key = ?, source_ref = '' WHERE binding_id = ?")
-          .run(key, input.binding_id);
-      }
-    }).immediate();
-  }
+  constructor(private readonly db: GoalsSqliteDatabase, private readonly ledger: ContextLedgerApi) {}
 
   list(boardId: string): GoalInputBindingRecord[] {
     return (this.db.prepare("SELECT * FROM input_bindings WHERE board_id = ? ORDER BY created_at, binding_id")
@@ -55,7 +42,7 @@ export class GoalInputBindings implements GoalInputBindingsApi {
       throw new GoalsCommandError("goal.not_found", "输入绑定的 Goal 不属于这个 Project");
     }
     this.db.transaction(() => {
-      const edgeKey = this.recordSource(input, false);
+      const edgeKey = this.recordSource(input);
       this.db.prepare(`INSERT INTO input_bindings (
       binding_id, board_id, goal_id, input_name, source_type, source_ref,
       snapshot_digest, state, reason, created_by, created_at, source_edge_key
@@ -74,7 +61,7 @@ export class GoalInputBindings implements GoalInputBindingsApi {
     return { actor_id: actorId, scope: { kind: "personal", id: boardId } };
   }
 
-  private recordSource(input: GoalInputBindingRecord, migration: boolean): string | null {
+  private recordSource(input: GoalInputBindingRecord): string | null {
     if (input.source_type !== "feed_item" || !input.source_ref.startsWith("feed-item:")) return null;
     const id = input.source_ref.slice("feed-item:".length);
     if (!id.trim()) return null;
@@ -83,7 +70,7 @@ export class GoalInputBindings implements GoalInputBindingsApi {
     this.ledger.commands.put(access, {
       key, type: "goal.input", source: { module: "goals", id: input.goal_id, version: null, scope: access.scope },
       target: { module: "feed", id, version: null, scope: access.scope },
-      cause: migration ? "goals.legacy_input_source" : "goals.input_source", recorded_at: input.created_at,
+      cause: "goals.input_source", recorded_at: input.created_at,
     });
     return key;
   }

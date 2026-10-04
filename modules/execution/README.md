@@ -16,7 +16,6 @@ Host 装配 `ExecutionModule.query`，历史读者按原始 ID 查找 Claim/Run�
 | --- | --- |
 | [src/index.ts](src/index.ts) | ExecutionModule 与只读 API |
 | [src/repository.ts](src/repository.ts) | 原始 Claim/Run 查询、表结构与映射 |
-| [src/migrations.ts](src/migrations.ts) | 历史执行数据升级 |
 
 可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
 
@@ -35,10 +34,10 @@ pnpm --filter @molis-ai/molis-work-module-execution typecheck
 pnpm --filter @molis-ai/molis-work-module-execution build
 ```
 
-历史升级与原始记录保留可参考 [goal-event-migration.test.ts](../../tests/goal-event-migration.test.ts)，真实 Host 资源生命周期可参考 [host-entry-consistency.test.ts](../../tests/host-entry-consistency.test.ts)。完成仓库构建后运行：
+导入的要求与原始记录保留可参考 [goal-event-imported-requirements.test.ts](../../tests/goal-event-imported-requirements.test.ts)，真实 Host 资源生命周期可参考 [host-entry-consistency.test.ts](../../tests/host-entry-consistency.test.ts)。完成仓库构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/goal-event-migration.test.ts tests/host-entry-consistency.test.ts
+node --import tsx --test --test-concurrency=1 tests/goal-event-imported-requirements.test.ts tests/host-entry-consistency.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
@@ -53,7 +52,7 @@ node --import tsx --test --test-concurrency=1 tests/goal-event-migration.test.ts
   - 当前 Goal 工作走事件入口，不再创建 Claim 或 Run；只读保护不代表旧执行协议可以继续运行。
   - 历史记录保留原 ID、作者、时间、状态与关联。
   - 历史夹具只验证可读，不为造数据恢复生产写接口。
-- 改动后必跑：`node scripts/run-tests.mjs tests/goal-event-migration.test.ts tests/host-entry-consistency.test.ts tests/v1.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/goal-event-imported-requirements.test.ts tests/host-entry-consistency.test.ts tests/v1.test.ts`
 - 相关手册：[docs/modules/execution.md](../../docs/modules/execution.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

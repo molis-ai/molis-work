@@ -1,4 +1,4 @@
-/** Existing Goals schema. The host owns connection setup and migration ordering. */
+/** The Goals tables, as one current schema; the host composes them into the project database baseline. */
 export const GOALS_SCHEMA_SQL = `
   CREATE TABLE goals (
     goal_id TEXT PRIMARY KEY,

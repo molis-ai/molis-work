@@ -168,8 +168,8 @@ test("Web tree approval reaches action policy, preserves trusted provenance and 
 });
 
 test("historical tree proposals remain readable through the action without reviving retired writes", async () => {
-  const { materializeGoalEventV35Fixture } = await import("./goal-event-v35-fixture.js");
-  const fixture = materializeGoalEventV35Fixture("legacy");
+  const { materializeGoalEventHistory } = await import("./goal-event-history-fixture.js");
+  const fixture = materializeGoalEventHistory("legacy");
   const host = new MolisWorkLocalHost({ completeText: null });
   const ref = molisWorkHostProjectReference({ databasePath: fixture.path, boardId: "goalboard-v1-demo" });
   const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "reader", audience: "agent", project_id: ref.project_id,

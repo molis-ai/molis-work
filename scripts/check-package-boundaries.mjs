@@ -380,7 +380,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "modules/goals/src/lifecycle-archive.ts",
     "modules/goals/src/lifecycle-commands.ts",
     "modules/goals/src/lifecycle-ports.ts",
-    "modules/goals/src/migrations.ts",
     "modules/goals/src/planning/engine.ts",
     "modules/goals/src/planning/goal-graph.ts",
     "modules/goals/src/planning/method-catalog.ts",
@@ -491,17 +490,8 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${storePath}: legacy ${method} implementation must not coexist with Goals migrations`);
     }
   }
-  for (const migration of [
-    "migrateGoalArchiveSchema",
-    "migrateGoalTrashSchema",
-    "migrateGoalLifecycleState",
-    "migrateActiveGoalLifecycle",
-    "migrateGoalContractCoverageSchema",
-    "migratePlanningMethodPacksSchema",
-  ]) {
-    if (!read("apps/local-host/src/project-migrations.ts").includes(migration) || !read("apps/local-host/src/project-database.ts").includes("migrateLocalProjectDatabase")) {
-      errors.push(`${storePath}: startup migration must call public ${migration}`);
-    }
+  if (!read("apps/local-host/src/project-database-schema.ts").includes("GOALS_SCHEMA_SQL") || !read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")) {
+    errors.push(`${storePath}: the project database baseline must compose the public Goals schema`);
   }
 
   if (store.includes("private migratePlanningMethodPacks(")) {
@@ -681,8 +671,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${path.relative(repositoryRoot, relativePath)}: ${lineCount} lines exceeds the migrated owner limit; split by responsibility`);
     }
     if (
-      path.basename(relativePath) !== "migrations.ts"
-      && /\b(?:FROM|INTO|UPDATE|DELETE FROM)\s+(claims|runs|review_obligations)\b/iu.test(source)
+      /\b(?:FROM|INTO|UPDATE|DELETE FROM)\s+(claims|runs|review_obligations)\b/iu.test(source)
     ) {
       errors.push(`${path.relative(repositoryRoot, relativePath)}: lifecycle code must use explicit cross-owner ports`);
     }
@@ -697,7 +686,6 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
     "packages/contracts/src/modules/governance-collaboration.ts",
     "modules/governance-collaboration/src/index.ts",
     "modules/governance-collaboration/src/schema.ts",
-    "modules/governance-collaboration/src/migrations.ts",
     "modules/governance-collaboration/src/repository.ts",
     "modules/governance-collaboration/src/record-store.ts",
     "modules/governance-collaboration/src/goal-tree-records.ts",
@@ -1042,9 +1030,9 @@ function checkArtifactsOwnership(repositoryRoot) {
 
   const store = read("apps/local-host/sdk/sdk-store.ts");
   const coordinator = read("apps/local-host/src/goal-project-application.ts");
-  const projectMigrations = read("apps/local-host/src/project-migrations.ts");
-  if (!read("apps/local-host/src/project-database.ts").includes("migrateLocalProjectDatabase") || !projectMigrations.includes("ARTIFACTS_SCHEMA_SQL") || !projectMigrations.includes("migrateArtifactsSchema")) {
-    errors.push("apps/local-host/sdk/sdk-store.ts: root storage must compose the Artifact owner schema and migration");
+  const projectSchema = read("apps/local-host/src/project-database-schema.ts");
+  if (!read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE") || !projectSchema.includes("ARTIFACTS_SCHEMA_SQL") || !projectSchema.includes("PROCESS_ITEMS_SCHEMA_SQL")) {
+    errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must compose the Artifact owner schema");
   }
   if (!coordinator.includes("ArtifactsModule") || !coordinator.includes("readonly artifacts: ArtifactsApplicationApi")) {
     errors.push("apps/local-host/src/goal-project-application.ts: compatibility composition must expose the public Artifacts API");
@@ -1067,7 +1055,6 @@ function checkArtifactsOwnership(repositoryRoot) {
     "artifact.team_share_not_authorized",
     "consumer_missing",
     "artifact_unavailable",
-    "migrateArtifactsSchema",
   ]) {
     if (!test.includes(required)) {
       errors.push(`${testPath}: missing AR1 coverage for ${required}`);

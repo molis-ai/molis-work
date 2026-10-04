@@ -72,7 +72,7 @@ test("Feed uses Ledger as sole link owner across relink, restart and deletion wi
     assert.equal(h.attention.query.list("project-a")[0]?.status, "in_progress");
     assert.equal(feed.query.findByLinkedGoal("project-a", "goal-1")?.item_id, item.item_id);
     assert.equal(feed.query.findByLinkedGoal("project-b", "goal-1"), null);
-    assert.equal((h.db.prepare("SELECT linked_goal_id FROM feed_items WHERE item_id = ?").get(item.item_id) as { linked_goal_id: null }).linked_goal_id, null);
+    assert.equal((h.db.prepare("SELECT name FROM pragma_table_info('feed_items')").all() as Array<{ name: string }>).some((column) => column.name === "linked_goal_id"), false, "Feed keeps no copy of the link");
     feed.commands.linkGoal("project-a", item.item_id, "goal-2", "promoted");
     assert.equal(feed.query.findByLinkedGoal("project-a", "goal-1"), null);
     const reopened = h.open();
@@ -99,28 +99,5 @@ test("Feed link and Attention changes roll back with Ledger when event persisten
     assert.deepEqual(h.attention.query.list("project-a"), beforeAttention);
     assert.deepEqual(feed.events.list("project-a"), beforeEvents);
     assert.deepEqual(h.ledger.query.history(access, `feed.goal:${item.item_id}`), []);
-  } finally { h.db.close(); }
-});
-
-test("Legacy Feed links migrate atomically, retain missing targets and do not replay on reopen", () => {
-  const h = feedHarness();
-  try {
-    const one = h.ingest("legacy-one");
-    const two = h.ingest("legacy-two");
-    h.db.prepare("UPDATE feed_items SET linked_goal_id = 'missing-goal' WHERE board_id = 'project-a'").run();
-    let writes = 0;
-    const failing: ContextLedgerApi = { query: h.ledger.query, commands: { ...h.ledger.commands,
-      put: (request, input) => { if (++writes === 2) throw new Error("migration interrupted"); return h.ledger.commands.put(request, input); },
-    } };
-    assert.throws(() => h.open(failing), /migration interrupted/);
-    assert.deepEqual(h.ledger.query.list(access), []);
-    assert.equal((h.db.prepare("SELECT COUNT(*) AS count FROM feed_items WHERE linked_goal_id = 'missing-goal'").get() as { count: number }).count, 2);
-    const migrated = h.open();
-    assert.equal(migrated.query.get("project-a", one.item_id).linked_goal_id, "missing-goal");
-    assert.equal(migrated.query.get("project-a", two.item_id).revision, two.revision);
-    assert.equal((h.db.prepare("SELECT COUNT(*) AS count FROM feed_items WHERE linked_goal_id IS NOT NULL").get() as { count: number }).count, 0);
-    h.open();
-    assert.equal(h.ledger.query.history(access, `feed.goal:${one.item_id}`).length, 1);
-    assert.equal(h.ledger.query.history(access, `feed.goal:${one.item_id}`)[0]?.cause, "feed.legacy_goal_link");
   } finally { h.db.close(); }
 });

@@ -34,7 +34,7 @@ function view(): MolisWorkWebView {
     projects: [{ project_id: PROJECT, display_name: "待办" }],
     route_prefix: `/projects/${PROJECT}`,
     demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {}, input_bindings: [], policy_bindings: [], events: [],
-    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], contract_migrations: [], out_rules: [] },
+    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
   } as unknown as MolisWorkWebView;
 }
 

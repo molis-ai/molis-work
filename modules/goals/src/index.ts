@@ -30,15 +30,6 @@ import {
   GoalLifecycleCommands,
   type GoalsLifecycleHooks,
 } from "./lifecycle-commands.js";
-import {
-  migrateActiveGoalLifecycle,
-  migrateGoalArchiveSchema,
-  migrateGoalContractCoverageSchema,
-  migrateGoalLifecycleState,
-  migratePlanningMethodPacksSchema,
-  migrateGoalTrashSchema,
-  type GoalLifecycleMigrationDatabase,
-} from "./migrations.js";
 import { GoalsPlanningEngine } from "./planning/engine.js";
 import { GoalsQueryService } from "./query.js";
 import { GoalEventFacts } from "./event-facts.js";
@@ -166,42 +157,14 @@ export class GoalsModule {
 
 export { GoalsCommandError, type GoalsErrorFactory } from "./errors.js";
 export { GOAL_BOARDS_SCHEMA_SQL, GOALS_SCHEMA_SQL } from "./schema.js";
-export { migrateRiskTreatmentPlan, migrateProjectGuidance, migrateProjectGuidanceRevisions } from "./guidance-migrations.js";
-export { migrateGoalContractRevisionColumn, backfillGoalContractRevisions } from "./revision-migration.js";
-export { GoalImpactRepository, GOAL_IMPACTS_SCHEMA_SQL, migrateGoalImpactHistory } from "./impact-repository.js";
+export { GoalImpactRepository, GOAL_IMPACTS_SCHEMA_SQL } from "./impact-repository.js";
 export {
   GoalLifecycleCommands,
   type GoalsLifecycleHooks,
 } from "./lifecycle-commands.js";
-export {
-  migrateActiveGoalLifecycle,
-  migrateGoalArchiveSchema,
-  migrateGoalContractCoverageSchema,
-  migrateGoalLifecycleState,
-  migratePlanningMethodPacksSchema,
-  migrateGoalTrashSchema,
-  type GoalLifecycleMigrationDatabase,
-};
 export { GoalEventFacts } from "./event-facts.js";
-export {
-  GOAL_EVENT_FACTS_MIGRATION_ID,
-  GOAL_EVENT_FACTS_SCHEMA_SQL,
-  ensureGoalEventRequirementSourceColumn,
-  ensureGoalEventRequirementCurrentColumns,
-  migrateGoalEventFactsSchema,
-} from "./event-facts-schema.js";
-export {
-  GOAL_EVENT_STATE_MIGRATION_ID,
-  GOAL_EVENT_OWNER_CONTINUE_MIGRATION_ID,
-  GOAL_EVENT_AGREEMENT_CHANGE_MIGRATION_ID,
-  GOAL_EVENT_STATE_SCHEMA_SQL,
-  ensureGoalEventDecisionAuthorizationColumns,
-  ensureGoalEventAgreementChangeColumns,
-  migrateGoalEventStateSchema,
-  migrateGoalEventOwnerContinueSource,
-  migrateGoalEventAgreementChange,
-} from "./event-state-schema.js";
-export { migrateGoalEventWorkflow } from "./event-workflow-migration.js";
+export { GOAL_EVENT_FACTS_SCHEMA_SQL } from "./event-facts-schema.js";
+export { GOAL_EVENT_STATE_SCHEMA_SQL } from "./event-state-schema.js";
 export { goalHasEventStateOwner } from "./event-state-repository.js";
 export {
   GoalsPlanningEngine,

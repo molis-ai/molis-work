@@ -4,7 +4,7 @@ import test from "node:test";
 
 import { EvidenceVerificationModule } from "@molis-ai/molis-work-module-evidence-verification";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
+import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
 import { insertHistoricalEvidence, insertHistoricalEvidenceCorrection } from "./historical-sql-fixture.js";
 
 // Locator/file-path reading replacements (do not duplicate here):
@@ -15,7 +15,7 @@ import { insertHistoricalEvidence, insertHistoricalEvidenceCorrection } from "./
 const DEMO_BOARD_ID = "goalboard-v1-demo";
 
 test("Evidence public query reads historical records, corrections and project references", () => {
-  const fixture = materializeGoalEventV35Fixture("legacy");
+  const fixture = materializeGoalEventHistory("legacy");
   const store = new LocalProjectDatabase(fixture.path);
   try {
     const evidence = new EvidenceVerificationModule({ db: store.db });

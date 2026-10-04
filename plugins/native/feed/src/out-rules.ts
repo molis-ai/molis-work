@@ -44,8 +44,8 @@ export interface FeedOutRuleWrite {
 
 type Row = Record<string, unknown>;
 
-export function migrateFeedOutRules(db: FeedPluginSqliteDatabase): void {
-  db.exec(`
+/** The out rules table, as one current schema; the host composes it into the project database baseline. */
+export const FEED_OUT_RULES_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_out_rules (
       board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
       rule_id TEXT NOT NULL,
@@ -54,24 +54,15 @@ export function migrateFeedOutRules(db: FeedPluginSqliteDatabase): void {
       match_json TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
+      function_key TEXT,
+      admission TEXT NOT NULL DEFAULT 'suggest',
+      judgment_json TEXT,
+      revision TEXT,
       PRIMARY KEY (board_id, rule_id)
     );
     CREATE INDEX IF NOT EXISTS feed_out_rules_board_enabled_idx
       ON feed_out_rules(board_id, enabled, created_at, rule_id);
-  `);
-  const columns = db.prepare("PRAGMA table_info(feed_out_rules)").all() as Array<{ name: string }>;
-  if (!columns.some((column) => column.name === "function_key")) {
-    db.exec("ALTER TABLE feed_out_rules ADD COLUMN function_key TEXT");
-  }
-  if (!columns.some((column) => column.name === "admission")) {
-    db.exec("ALTER TABLE feed_out_rules ADD COLUMN admission TEXT NOT NULL DEFAULT 'suggest'");
-  }
-  if (!columns.some(column => column.name === "judgment_json")) db.exec("ALTER TABLE feed_out_rules ADD COLUMN judgment_json TEXT");
-  if (!columns.some(column => column.name === "revision")) db.exec("ALTER TABLE feed_out_rules ADD COLUMN revision TEXT");
-  for (const row of db.prepare("SELECT board_id, rule_id FROM feed_out_rules WHERE revision IS NULL").all() as Row[]) {
-    db.prepare("UPDATE feed_out_rules SET revision = ? WHERE board_id = ? AND rule_id = ? AND revision IS NULL").run(randomUUID(), row.board_id, row.rule_id);
-  }
-}
+`;
 
 export function feedCaptureArtifactId(itemId: string, ruleId: string): string {
   return `feed-capture:${itemId}:${ruleId}`;
@@ -79,7 +70,7 @@ export function feedCaptureArtifactId(itemId: string, ruleId: string): string {
 
 export class FeedOutRuleStore {
   constructor(private readonly db: FeedPluginSqliteDatabase) {
-    migrateFeedOutRules(db);
+    db.exec(FEED_OUT_RULES_SCHEMA_SQL);
   }
 
   list(boardId: string): FeedOutRuleRecord[] {

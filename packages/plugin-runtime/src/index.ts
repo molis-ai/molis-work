@@ -6,14 +6,14 @@ import { assertContributionMatchesManifest, PluginContributionError } from "./co
 import { pluginManifestDigest } from "./identity.js";
 import { pluginActionProvider } from "./action-provider.js";
 
-export { SqlitePluginPrivateStorage, PluginPrivateStorageError } from "./private-storage.js";
+export { SqlitePluginPrivateStorage, PluginPrivateStorageError, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
-export { SqlitePluginRuntimeRepository } from "./repository.js";
+export { SqlitePluginRuntimeRepository, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL } from "./repository.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
 export {
   createPluginRuntimeReleaseArtifact,
   MemoryPluginRuntimeReleaseArtifactRepository,
-  SqlitePluginRuntimeReleaseArtifactRepository,
+  SqlitePluginRuntimeReleaseArtifactRepository, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL,
 } from "./release-artifacts.js";
 export type {
   PluginRuntimeReleaseArtifact,
@@ -28,7 +28,7 @@ export { PluginEventBus } from "./events.js";
 export type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
 export { buildEventContract, PluginEventContractError } from "./event-contract.js";
 export type { PluginEventContract, PluginEventSubscription } from "./event-contract.js";
-export { MemoryPluginEventsRepository, SqlitePluginEventsRepository } from "./event-repository.js";
+export { MemoryPluginEventsRepository, SqlitePluginEventsRepository, PLUGIN_EVENTS_SCHEMA_SQL } from "./event-repository.js";
 export type { PluginEventsDatabase } from "./event-repository.js";
 export { PLUGIN_ROUTE_PREFIX, PluginRouteRouter } from "./routes.js";
 export type { PluginRouteDispatchInput, PluginRouteMatch } from "./routes.js";
@@ -43,7 +43,7 @@ export {
 export type { PluginCapabilityPort, PluginWiringServicesInput } from "./services.js";
 export { PluginInputGraph } from "./wiring.js";
 export type { PluginArtifactReaderPort, PluginInputFailure } from "./wiring.js";
-export { MemoryPluginWiringRepository, SqlitePluginWiringRepository } from "./wiring-repository.js";
+export { MemoryPluginWiringRepository, SqlitePluginWiringRepository, PLUGIN_WIRING_SCHEMA_SQL } from "./wiring-repository.js";
 export type { PluginWiringDatabase } from "./wiring-repository.js";
 export { PluginSupervisor } from "./supervisor.js";
 export type {

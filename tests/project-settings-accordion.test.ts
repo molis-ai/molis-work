@@ -100,7 +100,6 @@ test("workbench project gear links to the standalone settings path", () => {
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
   } as MolisWorkWebView);

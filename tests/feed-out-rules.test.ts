@@ -8,7 +8,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { AttentionModule, migrateAttention } from "@molis-ai/molis-work-module-attention-resumption";
+import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import {
   createLocalFeedApplication,
@@ -316,36 +316,9 @@ test("out-rule CRUD rejects an empty match and can disable a rule", () => {
   }
 });
 
-test("existing Attention databases gain artifact_out_failed without dropping rows", () => {
+test("Attention records an Inbox entry for a failed 成果 output", () => {
   const db = new Database(":memory:");
-  db.exec(`
-    CREATE TABLE boards (board_id TEXT PRIMARY KEY);
-    INSERT INTO boards (board_id) VALUES ('board');
-    CREATE TABLE inbox_entries (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-      entry_id TEXT NOT NULL,
-      subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
-      subject_id TEXT NOT NULL,
-      reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault')),
-      status TEXT NOT NULL CHECK (status IN ('open', 'in_progress', 'done', 'dismissed')),
-      detail_json TEXT NOT NULL DEFAULT '{}',
-      revision INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      completed_at TEXT,
-      PRIMARY KEY (board_id, entry_id),
-      UNIQUE (board_id, subject_type, subject_id, reason)
-    );
-    INSERT INTO inbox_entries VALUES (
-      'board', 'entry-old', 'feed_item', 'item-old', 'manual', 'open', '{}', 1,
-      '2026-09-14T00:00:00.000Z', '2026-09-14T00:00:00.000Z', NULL
-    );
-  `);
-  migrateAttention(db);
-  const sql = (db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'inbox_entries'").get() as { sql: string }).sql;
-  assert.match(sql, /artifact_out_failed/);
-  const kept = db.prepare("SELECT entry_id, reason FROM inbox_entries WHERE entry_id = 'entry-old'").get() as { entry_id: string; reason: string };
-  assert.equal(kept.reason, "manual");
+  db.exec("CREATE TABLE boards (board_id TEXT PRIMARY KEY); INSERT INTO boards (board_id) VALUES ('board');");
   const attention = new AttentionModule(db, { exists: () => true });
   const created = attention.commands.create({
     project_id: "board",

@@ -273,15 +273,15 @@ function insertFeedItem(project: { database_path: string; board_id: string }, it
     `).run({ board_id: project.board_id, now });
     store.db.prepare(`
       INSERT INTO feed_items (
-        board_id, item_id, source_id, item_type, kind, title, summary, body,
+        board_id, item_id, source_id, kind, title, summary, body,
         source_kind, source_label, external_id, url, origin_status, priority,
-        tags_json, author, disposition, linked_goal_id, revision, source_created_at,
+        tags_json, author, disposition, revision, source_created_at,
         source_updated_at, imported_at, updated_at
       ) VALUES (
-        @board_id, @item_id, 'source-inbox-plugin', 'feed', 'article',
+        @board_id, @item_id, 'source-inbox-plugin', 'article',
         '确认对象边界', '摘要不应被 Inbox 复制', '正文里包含需要核对的事实',
         'rss', '测试 RSS', @external_id, 'https://example.com/item',
-        'inbox', 'normal', '[]', '测试作者', 'inbox', NULL, 1, @now, @now, @now, @now
+        'inbox', 'normal', '[]', '测试作者', 'inbox', 1, @now, @now, @now, @now
       )
     `).run({ board_id: project.board_id, item_id: itemId, external_id: `external-${itemId}`, now });
   } finally {

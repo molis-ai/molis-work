@@ -97,7 +97,7 @@ export {
 export {
   CodingSessionStore,
   CodingStoreError,
-  migrateCodingSessions,
+  CODING_SCHEMA_SQL,
   toDirectoryEntries,
   type CodingSessionRecord,
   type CodingSqliteDatabase,

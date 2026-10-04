@@ -55,7 +55,7 @@ export {
   composeScheduledTaskPrompt,
 } from "./reply.js";
 export {
-  migrateScheduleConversationTasks,
+  SCHEDULE_TASKS_SCHEMA_SQL,
   scheduleConversationFingerprint,
   listScheduleConversationTasks,
   getScheduleConversationTask,

@@ -19,17 +19,17 @@ function insertRssFeedItem(store: LocalProjectDatabase, itemId: string): void {
   `).run(DEMO_BOARD_ID, now, now, now);
   store.db.prepare(`
     INSERT INTO feed_items (
-      board_id, item_id, source_id, item_type, kind, title, summary, body,
+      board_id, item_id, source_id, kind, title, summary, body,
       source_kind, source_label, external_id, url, origin_status, priority,
-      tags_json, author, disposition, linked_goal_id, read_at, revision,
+      tags_json, author, disposition, read_at, revision,
       source_created_at, source_updated_at, imported_at, updated_at
-    ) VALUES (?, ?, 'source-rss', 'feed', 'update', '第一条 Feed', '一个真实摘要', '一段正文',
+    ) VALUES (?, ?, 'source-rss', 'update', '第一条 Feed', '一个真实摘要', '一段正文',
       'rss', '少数派', 'external-1', 'https://example.com/item', 'inbox', 'medium',
-      '[]', '作者', 'inbox', NULL, NULL, 1, ?, ?, ?, ?)
+      '[]', '作者', 'inbox', NULL, 1, ?, ?, ?, ?)
   `).run(DEMO_BOARD_ID, itemId, now, now, now, now);
 }
 
-test("migration 29 creates separated Feed and Inbox contracts with persisted read state", () => {
+test("a new project has separated Feed and Inbox tables with persisted read state", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-schema-"));
   const databasePath = join(directory, "molis-work.sqlite");
   try {
@@ -42,16 +42,11 @@ test("migration 29 creates separated Feed and Inbox contracts with persisted rea
       assert.ok(tables.has("feed_sources"));
       assert.ok(tables.has("feed_items"));
       assert.ok(tables.has("feed_materials"));
-      assert.ok(store.db.prepare("SELECT 1 FROM schema_migrations WHERE migration_id = 22").get());
-      assert.ok(store.db.prepare("SELECT 1 FROM schema_migrations WHERE migration_id = 23").get());
-      assert.ok(store.db.prepare("SELECT 1 FROM schema_migrations WHERE migration_id = 24").get());
-      assert.ok(store.db.prepare("SELECT 1 FROM schema_migrations WHERE migration_id = 29").get());
       const feedItemColumns = new Set((store.db.pragma("table_info(feed_items)") as Array<{ name: string }>).map((row) => row.name));
       assert.ok(feedItemColumns.has("read_at"));
       assert.ok(tables.has("feed_source_runs"));
       assert.ok(tables.has("feed_runtime_blobs"));
       assert.ok(tables.has("inbox_entries"));
-      assert.ok(tables.has("feed_contract_migration_receipts"));
       const sourceColumns = new Set((store.db.pragma("table_info(feed_sources)") as Array<{ name: string }>).map((row) => row.name));
       assert.ok(sourceColumns.has("schedule_json"));
       assert.equal(sourceColumns.has("cursor_json"), false);
@@ -105,13 +100,13 @@ test("Attention overlay no longer changes Feed Item type or blocks markRead", ()
       const now = "2026-08-30T02:00:00.000Z";
       store.db.prepare(`
         INSERT INTO feed_items (
-          board_id, item_id, source_id, item_type, kind, title, summary, body,
+          board_id, item_id, source_id, kind, title, summary, body,
           source_kind, source_label, external_id, url, origin_status, priority,
-          tags_json, author, disposition, linked_goal_id, read_at, revision,
+          tags_json, author, disposition, read_at, revision,
           source_created_at, source_updated_at, imported_at, updated_at
-        ) VALUES (?, 'inbox-message-1', NULL, 'feed', 'github_issue', ?, ?, NULL,
+        ) VALUES (?, 'inbox-message-1', NULL, 'github_issue', ?, ?, NULL,
           'github', 'GitHub', 'issue-1', 'https://example.com/issues/1', 'open', 'high',
-          '[]', 'octocat', 'inbox', NULL, NULL, 1, ?, ?, ?, ?)
+          '[]', 'octocat', 'inbox', NULL, 1, ?, ?, ?, ?)
       `).run(DEMO_BOARD_ID, "需要处理的 Issue", "这是一条待判断消息", now, now, now, now);
       const feed = createLocalFeedApplication(store.db);
       feed.ensureInboxEntryForFeedItem(DEMO_BOARD_ID, "inbox-message-1", "source_rule", { source_id: "github" });

@@ -1,6 +1,5 @@
 import { conforms, projectDiscoverySchema, authorizationSchema, authorizationActionSchema, goalContextSchema } from './schema.js';
 import { createHash } from 'node:crypto';
-import { parseProjectRecoveryDetails } from '../project-recovery-details.js';
 import { CasebookError, CONTRACT, VERSION, type ReadRequest, type AuthorizationRequest, type Envelope, type PURPOSE, type CONTEXT_PURPOSE, type RECEIPTS_PURPOSE, type ContextRequest, type ContextEnvelope } from './contract.js';
 import {RECEIPTS_CONTRACT,RECEIPTS_VERSION,operationReceiptsSchema,connectionDiagnosticsSchema,type ReceiptReadRequest,type ReceiptEnvelope,type ConnectionDiagnostics} from './receipts-contract.js';
 
@@ -32,10 +31,9 @@ export class MolisWorkCasebookClient {
     let body:unknown;
     try { body=JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new CasebookError('invalid_response'); }
     if(!response.ok) {
-      const codes=new Set(['not_authorized','capability_unavailable','invalid_request','unsupported_schema_version','unknown_field','cursor_gap','idempotency_conflict','authorization_state_conflict','source_unavailable','project_recovery_missing','project_recovery_requires_migration','project_recovery_unsupported_schema','project_recovery_board_missing']);
+      const codes=new Set(['not_authorized','capability_unavailable','invalid_request','unsupported_schema_version','unknown_field','cursor_gap','idempotency_conflict','authorization_state_conflict','source_unavailable','project_recovery_missing','project_recovery_unsupported_schema','project_recovery_board_missing']);
       const code=(body as {code?:unknown})?.code;
-      const details=code==='project_recovery_requires_migration'?parseProjectRecoveryDetails((body as {details?:unknown}).details):undefined;
-      throw new CasebookError(typeof code==='string' && codes.has(code)?code:'source_unavailable',details);
+      throw new CasebookError(typeof code==='string' && codes.has(code)?code:'source_unavailable');
     }
     return body;
   }
@@ -104,7 +102,6 @@ export { CasebookError, CONTRACT, VERSION, PURPOSE, CONTEXT_PURPOSE, RECEIPTS_PU
 export {RECEIPTS_CONTRACT,RECEIPTS_VERSION,operationReceiptsSchema,connectionDiagnosticsSchema} from './receipts-contract.js';
 export type {ReceiptReadRequest,ReceiptEnvelope,OperationReceipt,ConnectionDiagnostics} from './receipts-contract.js';
 export type { Envelope, ReadRequest, AuthorizationRequest } from './contract.js';
-export type { ProjectRecoveryDetails } from '../project-recovery-details.js';
 
 export { createCasebookUserActionSigner, createCasebookUserActionVerifier } from './user-action.js';
 export type { CasebookUserActionIntent, CasebookUserActionProofOptions } from './user-action.js';

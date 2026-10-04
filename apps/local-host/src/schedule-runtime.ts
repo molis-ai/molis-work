@@ -17,9 +17,9 @@ import {
   prepareScheduledOperation,
   reconcileScheduledOperations,
   handleScheduleTaskWakeup,
-  migrateScheduleConversationTasks,
-  migrateScheduleReminders,
-  migrateScheduledOperations,
+  SCHEDULE_TASKS_SCHEMA_SQL,
+  SCHEDULE_REMINDERS_SCHEMA_SQL,
+  SCHEDULED_OPERATIONS_SCHEMA_SQL,
   rescheduleEnabledConversationTasks,
   type ScheduledTaskRunner,
 } from "@molis-ai/molis-work-plugin-schedule";
@@ -83,13 +83,13 @@ export function bindScheduledTaskRunner(db: ScheduleSqliteDatabase, runner: Sche
 
 export function scheduleServiceFor(db: ScheduleSqliteDatabase, now?: () => Date): ScheduleService {
   ensureHostWakeups();
-  migrateScheduleConversationTasks(db);
+  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
   const inner = createScheduleService(db, {
     wakeupIndex,
     ...(now ? { now } : {}),
   });
-  migrateScheduleReminders(db);
-  migrateScheduledOperations(db);
+  db.exec(SCHEDULE_REMINDERS_SCHEMA_SQL);
+  db.exec(SCHEDULED_OPERATIONS_SCHEMA_SQL);
   return {
     ...inner,
     async tick(at) {

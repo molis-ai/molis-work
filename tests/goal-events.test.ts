@@ -527,7 +527,7 @@ test("retries replay without duplicates; reused keys conflict; stale config vers
   }
 });
 
-test("existing non-empty databases upgrade idempotently; fresh databases get the same event capability", () => {
+test("a project keeps its Goals and journal across reopening, and a fresh project has the same event capability", () => {
   const data = fixture();
   try {
     const originalGoal = data.module.query.getGoal(BOARD, GOAL);
@@ -537,24 +537,8 @@ test("existing non-empty databases upgrade idempotently; fresh databases get the
     const originalGoalCount = Number(data.store.db.prepare("SELECT COUNT(*) AS count FROM goals").get()?.count);
     data.store.close();
 
-    const raw = new Database(data.databasePath);
-    raw.pragma("foreign_keys = OFF");
-    raw.exec(`
-      DROP TABLE IF EXISTS goal_work_event_judgments;
-      DROP TABLE IF EXISTS goal_work_events;
-      DROP TABLE IF EXISTS goal_event_requirement_bindings;
-      DROP TABLE IF EXISTS goal_event_requirements;
-      DROP TABLE IF EXISTS goal_event_types;
-      DROP TABLE IF EXISTS goal_event_config_versions;
-      DROP TABLE IF EXISTS goal_event_configs;
-      DELETE FROM schema_migrations WHERE migration_id = 32;
-    `);
-    raw.pragma("foreign_keys = ON");
-    raw.close();
-
     const upgraded = new LocalProjectDatabase(data.databasePath);
     try {
-      assert.equal(upgraded.db.prepare("SELECT migration_id FROM schema_migrations WHERE migration_id = 32").get()?.migration_id, 32);
       assert.ok(upgraded.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'goal_work_events'").get());
       const module = openModule(upgraded);
       assert.equal(module.query.getGoal(BOARD, GOAL)?.title, originalGoal?.title);
@@ -578,7 +562,6 @@ test("existing non-empty databases upgrade idempotently; fresh databases get the
 
     const upgradedAgain = new LocalProjectDatabase(data.databasePath);
     try {
-      assert.equal(upgradedAgain.db.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE migration_id = 32").get()?.count, 1);
       const module = openModule(upgradedAgain);
       assert.equal(module.events.readConfig(BOARD, GOAL).version, 1);
       assert.equal(module.events.listEvents(BOARD, GOAL).events.filter((item) => item.kind === "report").length, 1);
@@ -594,7 +577,7 @@ test("existing non-empty databases upgrade idempotently; fresh databases get the
     const freshPath = join(freshDir, "fresh.db");
     const fresh = new LocalProjectDatabase(freshPath);
     try {
-      assert.equal(fresh.db.prepare("SELECT migration_id FROM schema_migrations WHERE migration_id = 32").get()?.migration_id, 32);
+      assert.ok(fresh.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'goal_work_events'").get());
       const module = openModule(fresh);
       module.commands.initializeBoard({
         board_id: BOARD, title: "新库", actor_id: "user-1", idempotency_key: "fresh-board",

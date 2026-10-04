@@ -63,7 +63,6 @@ test("plugin rail lists enabled plugins; directory sections stay in the second c
       feed_items: [],
       inbox_entries: [],
       runs: [],
-      contract_migrations: [],
       out_rules: [],
     },
   } as MolisWorkWebView;

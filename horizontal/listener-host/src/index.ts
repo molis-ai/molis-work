@@ -40,8 +40,8 @@ export interface ListenerSqliteDatabase {
 export { ListenerHostError } from "@molis-ai/molis-work-contracts/services/listener-host";
 import { ListenerHostError } from "@molis-ai/molis-work-contracts/services/listener-host";
 
-export function migrateListenerHost(db: ListenerSqliteDatabase): void {
-  db.exec(`
+/** The listener tables, as one current schema; the host composes them into the project database baseline. */
+export const LISTENER_HOST_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS listener_instances (
       project_id TEXT NOT NULL,
       source_id TEXT NOT NULL,
@@ -100,9 +100,7 @@ export function migrateListenerHost(db: ListenerSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS feed_source_runs_board_source_idx
       ON feed_source_runs(board_id, source_id, started_at DESC);
-  `);
-
-}
+`;
 
 export function readListenerCheckpoint(
   db: ListenerSqliteDatabase,
@@ -243,7 +241,7 @@ export class ListenerHost implements ListenerHostApi {
       ) => void | Promise<void>;
     } = {},
   ) {
-    migrateListenerHost(db);
+    db.exec(LISTENER_HOST_SCHEMA_SQL);
   }
 
   checkpoint(projectId: string, sourceId: string): ListenerCheckpoint {

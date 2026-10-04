@@ -131,8 +131,8 @@ interface WakeupRow {
   detail: string | null;
 }
 
-export function migrateScheduleService(db: ScheduleSqliteDatabase): void {
-  db.exec(`
+/** The scheduler tables, as one current schema; the host composes them into the project database baseline. */
+export const SCHEDULER_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS schedule_jobs (
       job_id TEXT PRIMARY KEY,
       plugin_id TEXT NOT NULL,
@@ -152,12 +152,7 @@ export function migrateScheduleService(db: ScheduleSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS schedule_jobs_due_idx
       ON schedule_jobs(enabled, next_due_at);
-  `);
-  const columns = db.prepare("PRAGMA table_info(schedule_jobs)").all() as Array<{ name: string }>;
-  if (!columns.some((column) => column.name === "lease_token")) {
-    db.exec("ALTER TABLE schedule_jobs ADD COLUMN lease_token TEXT");
-  }
-  db.exec(`
+
     CREATE TABLE IF NOT EXISTS schedule_wakeups (
       wakeup_id TEXT PRIMARY KEY,
       job_id TEXT NOT NULL,
@@ -168,11 +163,10 @@ export function migrateScheduleService(db: ScheduleSqliteDatabase): void {
       detail TEXT,
       FOREIGN KEY (job_id) REFERENCES schedule_jobs(job_id)
     );
-  `);
-}
+`;
 
 export function scheduleFingerprint(db: ScheduleSqliteDatabase): string {
-  migrateScheduleService(db);
+  db.exec(SCHEDULER_SCHEMA_SQL);
   const jobs = db.prepare(
     "SELECT COUNT(*) AS n, COALESCE(MAX(updated_at), '') AS updated FROM schedule_jobs",
   ).get() as { n: number; updated: string };
@@ -187,7 +181,7 @@ export function bindScheduleCaller<T extends { plugin_id?: string }>(pluginId: s
 }
 
 export function createScheduleService(db: ScheduleSqliteDatabase, options: ScheduleServiceOptions) {
-  migrateScheduleService(db);
+  db.exec(SCHEDULER_SCHEMA_SQL);
   const wakeupIndex = options.wakeupIndex;
   const now = options.now ?? (() => new Date());
   const leaseMs = options.leaseMs ?? SCHEDULE_LEASE_MS;

@@ -10,7 +10,7 @@ import { goalsActions, readGoalEventStateCapability, listGoalEventsCapability, l
   snapshotBoardCapability, readGoalContractCapability } from "@molis-ai/molis-work-plugin-goals";
 import { goalContextCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { bindActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { materializeGoalEventV35Fixture, goalEventV35Kinds } from "./goal-event-v35-fixture.js";
+import { materializeGoalEventHistory, goalEventHistoryKinds } from "./goal-event-history-fixture.js";
 import { readTestGoalCollection } from "./fixtures/web-view.js";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 
@@ -139,8 +139,8 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
 });
 
 test("query contracts retain migrated completion, human requirements and original v35 event payloads", async () => {
-  for (const kind of goalEventV35Kinds) {
-    const fixture = materializeGoalEventV35Fixture(kind);
+  for (const kind of goalEventHistoryKinds) {
+    const fixture = materializeGoalEventHistory(kind);
     const host = new MolisWorkLocalHost({ homeDirectory: fixture.directory, completeText: null });
     const ref = molisWorkHostProjectReference({ databasePath: fixture.path, boardId: "goalboard-v1-demo" });
     const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "migration-reader", audience: "user",

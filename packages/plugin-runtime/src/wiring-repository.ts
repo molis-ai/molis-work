@@ -117,13 +117,9 @@ export class MemoryPluginWiringRepository implements PluginWiringRepository {
   }
 }
 
-/**
- * Durable wiring owned by Plugin Runtime: who is connected to whom, which input
- * group the user picked, and each output port's current version.
- */
-export class SqlitePluginWiringRepository implements PluginWiringRepository {
-  constructor(private readonly db: PluginWiringDatabase) {
-    db.exec(`CREATE TABLE IF NOT EXISTS plugin_port_bindings (
+/** The port wiring tables, as one current schema; the host composes them into the project database baseline. */
+export const PLUGIN_WIRING_SCHEMA_SQL = `
+    CREATE TABLE IF NOT EXISTS plugin_port_bindings (
       board_id TEXT NOT NULL,
       target_plugin_id TEXT NOT NULL,
       target_port TEXT NOT NULL,
@@ -133,8 +129,8 @@ export class SqlitePluginWiringRepository implements PluginWiringRepository {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (board_id, target_plugin_id, target_port)
-    )`);
-    db.exec(`CREATE TABLE IF NOT EXISTS plugin_port_artifact_bindings (
+    );
+    CREATE TABLE IF NOT EXISTS plugin_port_artifact_bindings (
       board_id TEXT NOT NULL,
       target_plugin_id TEXT NOT NULL,
       target_port TEXT NOT NULL,
@@ -143,15 +139,15 @@ export class SqlitePluginWiringRepository implements PluginWiringRepository {
       actor_id TEXT NOT NULL,
       created_at TEXT NOT NULL,
       PRIMARY KEY (board_id, target_plugin_id, target_port)
-    )`);
-    db.exec(`CREATE TABLE IF NOT EXISTS plugin_input_groups (
+    );
+    CREATE TABLE IF NOT EXISTS plugin_input_groups (
       board_id TEXT NOT NULL,
       plugin_id TEXT NOT NULL,
       group_id TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (board_id, plugin_id)
-    )`);
-    db.exec(`CREATE TABLE IF NOT EXISTS plugin_port_outputs (
+    );
+    CREATE TABLE IF NOT EXISTS plugin_port_outputs (
       board_id TEXT NOT NULL,
       plugin_id TEXT NOT NULL,
       port TEXT NOT NULL,
@@ -161,7 +157,16 @@ export class SqlitePluginWiringRepository implements PluginWiringRepository {
       scope_key TEXT,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (board_id, plugin_id, port)
-    )`);
+    );
+`;
+
+/**
+ * Durable wiring owned by Plugin Runtime: who is connected to whom, which input
+ * group the user picked, and each output port's current version.
+ */
+export class SqlitePluginWiringRepository implements PluginWiringRepository {
+  constructor(private readonly db: PluginWiringDatabase) {
+    db.exec(PLUGIN_WIRING_SCHEMA_SQL);
   }
 
   listBindings(boardId: string, targetPluginId?: string): PluginPortBindingRecord[] {

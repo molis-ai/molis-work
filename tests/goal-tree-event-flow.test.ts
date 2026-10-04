@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { buildDecisionGroups, hostEventDecisionAuthority, pendingDecisionCount } from "@molis-ai/molis-work-plugin-goals";
-import { materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
+import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
 
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-02-tree-"));
@@ -132,7 +132,7 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
 });
 
 test("original v35 pending Candidate, self-review and open Risks stay history with zero current pending decisions", () => {
-  const fixture = materializeGoalEventV35Fixture("legacy");
+  const fixture = materializeGoalEventHistory("legacy");
   const store = new LocalProjectDatabase(fixture.path);
   try {
     const app = new GoalProjectApplication(store);

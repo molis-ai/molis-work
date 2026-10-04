@@ -43,8 +43,6 @@ export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } fr
 export { createMolisWorkNpmPackageDirectory } from "./installer/npm-package.js";
 export { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
 
-export { migrateLocalProjectDatabase } from "./project-migrations.js";
-export { migrateFeedTables, migrateInfoflowContractV2 } from "./feed-migrations.js";
 
 export { LocalProjectDatabase } from "./project-database.js";
 

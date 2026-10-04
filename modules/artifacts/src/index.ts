@@ -85,10 +85,6 @@ export {
   type ArtifactsErrorFactory,
 } from "./errors.js";
 export {
-  ARTIFACTS_MIGRATION_ID,
-  migrateArtifactsSchema,
-} from "./migrations.js";
-export {
   ARTIFACT_TABLES,
   ARTIFACTS_SCHEMA_SQL,
   ArtifactsRepository,

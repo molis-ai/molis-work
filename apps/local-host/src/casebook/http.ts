@@ -1,5 +1,4 @@
-import { ProjectRecoveryError } from '../project-migrations.js';
-import { parseProjectRecoveryDetails } from '../project-recovery-details.js';
+import { ProjectRecoveryError } from '../project-database.js';
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { MolisWorkLocalHost } from '../project-host.js';
@@ -84,8 +83,7 @@ export async function handleCasebookHttp(request:IncomingMessage,response:Server
     sendLocalWebJson(response,200,result);return true;
   } catch(error) {
     if(error instanceof ProjectRecoveryError) {
-      const details=error.code==='project_recovery_requires_migration'?parseProjectRecoveryDetails(error.details):undefined;
-      sendLocalWebJson(response,503,{code:error.code,...(details?{details}:{})});return true;
+      sendLocalWebJson(response,503,{code:error.code});return true;
     }
     return fail(error instanceof CasebookError?error.code:'source_unavailable',error instanceof CasebookError?400:503);
   }

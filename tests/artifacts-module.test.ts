@@ -8,7 +8,8 @@ import {
   ArtifactsModule,
   canonicalArtifactJson,
   createArtifactsSchema,
-  migrateArtifactsSchema,
+  ARTIFACTS_SCHEMA_SQL,
+  PROCESS_ITEMS_SCHEMA_SQL,
   type ArtifactEventInput,
   type ArtifactsSqliteDatabase,
 } from "@molis-ai/molis-work-module-artifacts";
@@ -244,7 +245,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
   }
 });
 
-test("Artifact reference digest mismatch and schema migration are rollback-safe and idempotent", () => {
+test("Artifact reference digest mismatch is rollback-safe, and the owner schema creates only the current tables", () => {
   const { db, module } = createHarness();
   try {
     expectCode(
@@ -265,10 +266,9 @@ test("Artifact reference digest mismatch and schema migration are rollback-safe 
     db.close();
   }
 
-  const migrationDb = new Database(":memory:");
+  const schemaDb = new Database(":memory:");
   try {
-    migrationDb.exec(`
-      CREATE TABLE schema_migrations (migration_id INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+    schemaDb.exec(`
       CREATE TABLE boards (
         board_id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
@@ -277,20 +277,16 @@ test("Artifact reference digest mismatch and schema migration are rollback-safe 
         updated_at TEXT NOT NULL
       );
     `);
-    migrateArtifactsSchema(migrationDb as unknown as ArtifactsSqliteDatabase);
-    migrateArtifactsSchema(migrationDb as unknown as ArtifactsSqliteDatabase);
+    schemaDb.exec(ARTIFACTS_SCHEMA_SQL);
+    schemaDb.exec(PROCESS_ITEMS_SCHEMA_SQL);
     // The 成果库 (A1) and the process items store (A2); the pre-A1 tables are no longer created.
-    const tables = migrationDb.prepare(`
+    const tables = schemaDb.prepare(`
       SELECT name FROM sqlite_master
       WHERE type = 'table' AND name IN ('artifacts', 'artifact_versions', 'library_artifacts', 'library_artifact_versions', 'process_items', 'process_item_versions')
       ORDER BY name
     `).all().map((row) => row.name);
     assert.deepEqual(tables, ["library_artifact_versions", "library_artifacts", "process_item_versions", "process_items"]);
-    assert.equal(
-      migrationDb.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE migration_id = 31").get().count,
-      1,
-    );
   } finally {
-    migrationDb.close();
+    schemaDb.close();
   }
 });

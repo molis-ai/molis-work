@@ -35,14 +35,6 @@ export const GOAL_EVENT_TRUSTED_DECISIONS_SQL = `
     ON goal_event_trusted_decisions(board_id, goal_id, recorded_at);
 `;
 
-export function migrateGoalEventTrustedDecisions(db: GovernanceSqliteDatabase): void {
-  db.exec(GOAL_EVENT_TRUSTED_DECISIONS_SQL);
-  const columns = db.prepare("PRAGMA table_info(goal_event_trusted_decisions)").all() as Array<{ name: string }>;
-  if (columns.length && !columns.some((column) => column.name === "change_json")) {
-    db.exec("ALTER TABLE goal_event_trusted_decisions ADD COLUMN change_json TEXT");
-  }
-}
-
 export class GovernanceEventDecisions implements GovernanceEventDecisionApi {
   private readonly provenance: GovernanceProvenance;
 

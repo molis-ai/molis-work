@@ -72,8 +72,8 @@ skills/goal-advance/         Runtime working protocol
 skills/molis-plugin-dev/     Plugin authoring skill (ships with install; not auto-linked to Runtimes)
 tests/goal-events-state.test.ts
                              Current requirements, decisions, completion, and resume transitions
-tests/goal-event-migration.test.ts
-                             Real database upgrades, original history, and approval preservation
+tests/goal-event-imported-requirements.test.ts
+                             Imported requirements, original history, and approval preservation
 tests/goal-tree-event-flow.test.ts
                              Finite tree proposals, user decisions, graph and transaction boundaries
 tests/command-entry-chain.test.ts

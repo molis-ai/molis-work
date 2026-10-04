@@ -424,7 +424,7 @@ export class TodoStore {
     const relation = input.kind === "todo" ? input.relation ?? "related" : null;
     if (relation !== null && !RELATIONS.includes(relation)) throw invalid("关系无效");
     const outcome = input.kind === "outcome" ? input.outcome ?? "draft" : null;
-    if (outcome !== null && outcome !== "draft" && outcome !== "done") throw invalid("成果状态无效");
+    if (outcome !== null && outcome !== "draft" && outcome !== "done") throw invalid("产出状态无效");
     return { link_id: crypto.randomUUID(), kind: input.kind, subject: { kind: subject.kind, id: subject.id }, title, relation, outcome,
       open: normalizeOpen(input.open), added_at: this.now().toISOString() };
   }

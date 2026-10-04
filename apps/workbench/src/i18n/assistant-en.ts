@@ -270,6 +270,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "起点": "Start",
   "材料": "Material",
   "成果": "Result",
+  "产出": "Output",
   "专业会话": "Agent session",
   "已被修改": "Changed",
   "现为版本": "now version",

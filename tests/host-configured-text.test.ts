@@ -231,31 +231,20 @@ test("two configured Homes keep account credentials separate even under another 
   } finally { await hostB.close(); catalogB.close(); }
 }));
 
-test("legacy stored key remains usable only without catalog configuration and respects disconnect during a request", async () => fixture(async f => {
+// Only the model catalog configures text models, or an explicit environment key in development (repository-anti-corruption
+// §1, 2026-10-04): a key stored outside the catalog under the old reference is never read.
+test("a key stored outside the model catalog is never read; the catalog configures the model", async () => fixture(async f => {
   const secrets = runWithMolisWorkHome(f.home, () => createFileSecretStore());
   secrets.put("model:text:api_key", "legacy-fixture-key");
   process.env.MOLIS_WORK_TEXT_BASE_URL = f.modelOrigin + "/v1/chat/completions";
   process.env.MOLIS_WORK_TEXT_API_FORMAT = "openai-chat-completions";
-  const legacy = hostCompleteText({ homeDirectory: f.home })!;
-  assert.equal(await legacy("old installation"), "模型读取到了全局配置。");
-  assert.equal(f.requests[0]!.url, "/v1/chat/completions");
-  let enter!: () => void, release!: () => void;
-  const entered = new Promise<void>(resolve => { enter = resolve; });
-  const resumed = new Promise<void>(resolve => { release = resolve; });
-  f.answer(async () => { enter(); await resumed; return { choices: [{ message: { content: "late legacy" } }] }; });
-  const pending = legacy("revoke while pending");
-  const rejected = assert.rejects(pending, { code: "actions.configuration_changed" });
-  await entered; secrets.delete("model:text:api_key"); release(); await rejected;
   assert.equal(hostCompleteText({ homeDirectory: f.home }), undefined);
-  secrets.put("model:text:api_key", "legacy-restored-fixture-key");
-  const imported = withConnectorConnections(f.home, store => store.adoptLegacy({ serviceId: "model-api", displayName: "旧文本连接", credentialRef: "model:text:api_key", authMethod: "token" }));
-  assert.ok(imported);
-  withConnectorConnections(f.home, store => store.disconnect(imported.connection_id));
-  secrets.put("model:text:api_key", "bytes-do-not-override-disconnect");
-  assert.equal(hostCompleteText({ homeDirectory: f.home }), undefined);
+  assert.equal(f.requests.length, 0, "nothing is sent with the old key");
   configure(f);
-  await assert.rejects(legacy("must use new configuration"), { code: "actions.connection_required" });
-  assert.equal(f.requests.length, 2);
+  const complete = hostCompleteText({ homeDirectory: f.home })!;
+  assert.ok(complete, "a catalog provider configures the model");
+  await complete("new installation");
+  assert.equal(f.requests.length, 1);
 }));
 
 test("a saved connection cannot send its credential to a changed provider origin", async t => fixture(async f => {

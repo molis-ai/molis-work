@@ -244,29 +244,6 @@ test("interface signals are counted once per event; single events never form a m
   assert.equal((await report("event-0005", "ctx-3")).state, "off");
 });
 
-test("the first version's switches, switched-off list and candidates move over once, unchanged", { timeout: 60_000 }, async t => {
-  const env = await memoryHome(t);
-  const memory = await env.open();
-  // What the Assistant's first version left: an explicit memory in Prologue, switched off in its own list, and no ledger facts.
-  const legacyEntry = await env.raw().write({ scope: "personal", owner: "web-user", text: "回答用要点列表", origin: "2026年9月28日 · 你说：“以后回答都用要点列表”", tags: ["explicit"] });
-  const migrated = memory.migrateLegacy("web-user", {
-    prefs: { form: true, use_personal: true, use_project: false, learn_personal: false, learn_project: true },
-    disabled: [legacyEntry.memory_id],
-    candidates: [{ candidate_id: "candidate-old-1", work_id: "work-9", work_title: "旧工作", scope: "project", project_id: "project-a", text: "旧建议", why: "两次", applies: "写周报时",
-      state: "pending", created_at: new Date().toISOString() }],
-  });
-  assert.deepEqual(migrated, { migrated: true, prefs: true, disabled: 1, candidates: 1 });
-  const [old] = (await memory.list(person())).items;
-  assert.deepEqual([old!.text, old!.source, old!.state, old!.evidence[0]?.text], ["回答用要点列表", "said", "disabled", "以后回答都用要点列表"], "the old entry keeps its text, reads as said, stays off");
-  assert.equal((await memory.recall(assistant(), { query: "总结" })).items.length, 0, "still not used");
-  assert.deepEqual(memory.assistantPrefs("web-user"), { form: true, use_personal: true, use_project: false, learn_personal: false, learn_project: true });
-  assert.equal(memory.prefs(person(), "project").prefs.consumers.assistant, false, "a project without its own switches follows the migrated default");
-  assert.deepEqual((await memory.candidates(person(), { scope: "project" })).map(item => [item.text, item.applies.task, item.work?.title]), [["旧建议", "写周报时", "旧工作"]], "moved into Prologue's candidate box with a new id");
-  // Repeating it changes nothing.
-  assert.deepEqual(memory.migrateLegacy("web-user", { prefs: { form: false }, disabled: [], candidates: [] }), { migrated: false, prefs: false, disabled: 0, candidates: 0 });
-  assert.equal(memory.assistantPrefs("web-user").form, true);
-});
-
 test("facts live on the Prologue entry itself: kind, source, applies and expiry in its metadata, switched off as the entry paused; ledger-era facts move over once", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();

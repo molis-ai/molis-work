@@ -21,7 +21,7 @@ export const ARTIFACT_IMPORT_STYLES = `
   dialog.mw-dialog.artifact-import-dialog { width:min(560px, calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow:auto; overflow-wrap:anywhere; padding:24px; }
   @media (max-width:520px) { dialog.mw-dialog.artifact-import-dialog { padding:16px; } }
   .artifact-import-dialog header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
-  .artifact-import-dialog h2 { margin:0; font-size:18px; line-height:1.4; }
+  .artifact-import-dialog h2 { margin:0; font-size:15px; font-weight:var(--weight-title, 600); line-height:1.4; }
   .artifact-import-intro { color:var(--muted); margin:0 0 20px; }
   .artifact-import-form fieldset { border:0; padding:0; margin:0; min-width:0; }
   .artifact-import-form label { display:grid; gap:8px; margin-bottom:20px; font-weight:600; }
@@ -34,10 +34,10 @@ export const ARTIFACT_IMPORT_STYLES = `
   .artifact-import-form [hidden] { display:none !important; }
   .artifact-import-status { margin:16px 0 0; color:var(--muted); }
   .artifact-import-error { margin:16px 0 0; padding:12px; border-left:3px solid currentColor; color:var(--ink); background:var(--rail); }
-  .artifact-import-result h3 { margin:0 0 12px; font-size:16px; }
+  .artifact-import-result h3 { margin:0 0 12px; font-size:15px; }
   .artifact-import-result-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:20px; }
   .artifact-import-warnings { padding:12px 16px; margin:16px 0; background:var(--rail); border-radius:7px; }
-  .artifact-import-warnings h4 { margin:0 0 8px; font-size:14px; }
+  .artifact-import-warnings h4 { margin:0 0 8px; font-size:13px; }
   .artifact-import-warnings ul { margin:0; padding-left:24px; }
   @media(max-width:600px) { .artifact-import-form input, .artifact-import-form select { font-size:16px; } }
 `;

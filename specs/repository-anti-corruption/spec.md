@@ -599,7 +599,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | # | 发现 | 核实 | 判断与做法 |
 | --- | --- | --- | --- |
 | 1 | 本机网页把所有调用者写成 `"web-user"` | 属实：约 20 个宿主文件各写一份字面量，`agent-host-composition.ts` 还有 `legacyActorId` | 修（第二步，可信身份一节）：身份值不变（已存数据按它记），收成合同里的一个常量，所有调用方引用它；删 `legacyActorId`。多人身份属 §4.19 C 端就绪，不在这里做 |
-| 2 | 来源表 `feed_sources` 有两个主人 | 属实：`modules/sources` 建表，`horizontal/listener-host` 建 `feed_source_runs` 并对 `feed_sources` 加外键、删行；`cursor_json` 标着只给旧数据用、靠就地补列 | 修（分层与边界）：删 `cursor_json` 与就地补列、CHECK 重建、旧游标拷贝（不留兼容），见 [#240](https://github.com/molis-ai/molis-work/pull/240)。`feed_source_runs` 改由 `modules/sources` 持有、listener-host 经它的接口读写，另开 PR |
+| 2 | 来源表 `feed_sources` 有两个主人 | 属实：`modules/sources` 建表，`horizontal/listener-host` 建 `feed_source_runs` 并对 `feed_sources` 加外键、删行；`cursor_json` 标着只给旧数据用、靠就地补列 | 修（分层与边界）：删 `cursor_json` 与就地补列、CHECK 重建、旧游标拷贝（不留兼容），见 [#240](https://github.com/molis-ai/molis-work/pull/240)。`feed_source_runs` 的处理改了做法（10-04）：运行记录是 Listener Host 的同步账本，留在它那里，只去掉它对来源表的外键。来源只退役不硬删，这条级联从不触发；运行记录本来就由 `deleteListenerSourceState` 显式清理。分支 `refactor/listener-runs-own-table` |
 | 3 | 会话库仍在把 `goalboard_*` 改写成 `molis_work_*` | 属实：`session-schema.ts` 见旧值就整表重建；兼容清单只列了 `session-migration.ts` | 修（清除兼容）：真实 Home 的会话库已是第 6 版、没有旧值（54 条 `legacy_migrated`、2 条 `molis_work_created`），删掉改写；`legacy_migrated` 与 `session_migration_receipts` 一并列入兼容清单 |
 | 4 | 文件密钥库的派生盐是 `"goalboard-feed-secretstore-v1"` | 属实 | **不改值**：它是派生已封存密钥的常量，换了旧密钥就解不开，只能再加一层重新封存（那才是兼容逻辑）。代码里已注明（`Historical key-derivation constant. Changing the string would invalidate existing ciphertext.`），列入 §4 例外。**另发现**：同一文件在打开时把 v0.3 的 Base64 信封重新加密（兼容逻辑），列入兼容清单；删之前先只按格式（不读内容）核对真实 Home 还有没有这种信封 |
 | 5 | 八个内置插件仍列着可以从哪些旧版本升上来 | 属实；真实 Home 的安装记录多是旧版本（Coding 1.32.0 / 1.44.0、Characters 1.2.0、Files 1.1.0、Git 1.3.0 / 1.4.0） | **更正（10-04）**：前一版写「内置插件启动时不查这些名单」不对。读监督器的代码：已装版本在名单里就直接跑新代码、记录不动；不在名单里就恢复当时存下的旧发行物——所以真实 Home 里装着 Coding 1.32.0 的项目很可能跑的是旧 Coding；照原计划删名单，其余项目也会退回旧代码。用户 10-04 弹窗拍板「内置插件随宿主升级」：随宿主发布的内置插件启动时把安装记录升到当前版本、跑当前代码，不再靠名单；然后删名单。第三方与生成的插件仍走升级确认。分支 `feat/bundled-plugins-follow-host` |
@@ -644,7 +644,6 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
   - [#249](https://github.com/molis-ai/molis-work/pull/249)：PMR-12 守护用例 `assistant-strip-narrow.e2e`。
 - 门禁第二批（§5a）：空 catch、`as unknown as`、旧产品名的计数，以及 contracts 与插件 SDK 的公开 API 快照，加进 `pnpm health:check`（分支 `chore/health-gates-lint-api`）。公开 API 会随前面的合同改动变化，等本批合入后再生成基线开 PR。
 - 本批派生、还没做的：
-  - `feed_source_runs` 改成单一主人；
   - 其他旧账号导入（核对真实 Home 后再删）。
 - 「桌面面板的 reconcile 是否仍在用」已查（10-04）：**仍在用，不能当兼容删**。
   - Work 插件的终端面板仍存在 `catalog.desktopPanels`（`plugins/native/work/src/http/panels.ts` 打开、列出、标记退出）。

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, initializeBoardCapability } from "@molis-ai/molis-work-plugin-goals";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 
@@ -15,7 +15,8 @@ async function fixture(boardId: string) {
   let denied: string | undefined;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, view) =>
     view.capability_id === denied ? { available: false, code: "actions.plugin_disabled", reason: "管理动作已停用" } : { available: true } });
-  const caller: ActionCallContext = { actor_id: "original-owner", actor_kind: "user", audience: "user", project_id: ref.project_id,
+  // The management entries act as the person on this machine (§9.5 #6).
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: ref.project_id,
     permissions: ["goals:read", "goals:write"], user_action: { source: "management", conversation_ref: "local-cli", message_ref: "explicit-command" } };
   return { home, ref, host, caller, client: host.actionClient(ref), typed: host.client(ref), block: (id?: string) => { denied = id; },
     close: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };

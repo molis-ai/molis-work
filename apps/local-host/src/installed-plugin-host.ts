@@ -1,11 +1,8 @@
-import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import type { ActionCallContext, ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ArtifactsModule, ProcessItemsModule } from '@molis-ai/molis-work-module-artifacts';
-import { AgentBuilderStore, type AgentDesign, type AgentRelease, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
-import { goalsActions } from '@molis-ai/molis-work-plugin-goals';
+import { AgentBuilderStore, type AgentRelease, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import { createReminderActionHandlers, REMINDER_ACTIONS, SCHEDULE_REMINDER_PROVIDER_ID, createScheduledOperations, createScheduledOperationActionHandlers,
   SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
@@ -20,8 +17,8 @@ import { STABLE_PREVIEW, studioStorage } from './plugin-builder/storage.js';
 import { installedSignature, releaseVersion, sandboxedPluginDefinition } from './plugin-builder/installed.js';
 import { exposeInstalledPlugin, exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { bindInstalledOperationCaller } from './schedule-operations.js';
-import { hostCapabilities, type CapabilityImplementations } from './plugin-builder/capabilities.js';
-import { CATALOG_VERSION, capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
+import type { CapabilityImplementations } from './plugin-builder/capabilities.js';
+import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { hostNetwork } from './plugin-builder/network.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
@@ -113,25 +110,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       throw new SandboxError('CAPABILITY_DENIED', '插件的安装执行身份已失效');
     }
   };
-  const caller = (identity: Readonly<SandboxIdentity>, definition: ActionDefinition, permission: string): ActionCallContext => ({
-    actor_id: 'plugin:' + identity.pluginId, actor_kind: 'runtime', project_id: actions.project_id, audience: 'plugin', plugin_install_id: identity.installationId,
-    permissions: [permission], allowed_actions: [{ capability_id: definition.capability_id, version: definition.version }] });
-  const goals: CapabilityImplementations['goals'] = {
-    async list(identity, control) {
-      const page = await actions.client.invoke({ ...caller(identity, goalsActions.list, 'goals:read'), signal: control?.signal, validate_authority: () => control?.beforeEffect?.() }, goalsActions.list, { limit: 100 }) as { goals: Array<{ goal_id: string; title: string; work_status: string }> };
-      return page.goals.map(goal => ({ id: goal.goal_id, title: goal.title, status: goal.work_status }));
-    },
-    async note(identity, input, control) {
-      const title = titleOf(identity.pluginId);
-      const result = await actions.client.invoke({ ...caller(identity, goalsActions.note, 'goals:write'), signal: control?.signal, validate_authority: () => control?.beforeEffect?.(),
-        ...(title ? { audit_actor_id: '插件「' + title + '」' } : {}) }, goalsActions.note, { goal_id: input.goalId, body: input.text, idempotency_key: randomUUID() }) as { recorded?: unknown };
-      return { recorded: result.recorded === true };
-    },
-  };
-  const capabilityFor = (design: AgentDesign | null | undefined, live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']> => {
-    const current = catalogCapabilities({ actions, catalog, live, author: titleOf });
-    return design?.catalog === CATALOG_VERSION ? current : hostCapabilities({ goals, current }, live);
-  };
+  const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']> =>
+    catalogCapabilities({ actions, catalog, live, author: titleOf });
   const secrets = pluginSecrets(homeDirectory, boardId, storage);
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
   const schedule = scheduleServiceFor(store.db);
@@ -189,7 +169,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     const key = JSON.stringify([release.pluginId, release.buildId, release.version]), prior = definitions.get(key);
     // Runtime retains immutable implementations across version switches; rollback must reuse the same object.
     if (prior) return prior.value;
-    const capability = capabilityFor(release.design, () => true);
+    const capability = capabilityFor(() => true);
     const guard = (context: Parameters<typeof capability.call>[0]) => ({ ...context, beforeEffect: async () => {
       await context.beforeEffect?.(); context.signal.throwIfAborted(); assertInstalled(context.identity);
     } });

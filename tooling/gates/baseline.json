@@ -12,11 +12,11 @@
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 292,
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 541,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 185,
-    "function apps/local-host/src/installed-plugin-host.ts#openInstalledPlugins": 222,
+    "function apps/local-host/src/installed-plugin-host.ts#openInstalledPlugins": 205,
     "class apps/local-host/src/installer/runtime-integration.ts#RuntimeIntegrationService": 341,
     "class apps/local-host/src/local-host.ts#LocalHost": 582,
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 201,
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 193,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 196,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 188,
     "function apps/local-host/src/project-capabilities.ts#registerProjectCapabilities": 270,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": 293,
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": 368,
@@ -170,7 +170,7 @@
   "testInternalImports": 957,
   "vendoredPrologueSdk": 1,
   "schemaPatches": 0,
-  "compatMarkerTotal": 56,
+  "compatMarkerTotal": 53,
   "compatMarkers": {
     "apps/local-host/src/casebook/contract.ts": 1,
     "apps/local-host/src/casebook/journal.ts": 2,
@@ -179,8 +179,6 @@
     "apps/local-host/src/casebook/schema.ts": 1,
     "apps/local-host/src/material-pdf-worker.ts": 1,
     "apps/local-host/src/pdf-document-parser.ts": 1,
-    "apps/local-host/src/plugin-builder/agent-surface.ts": 1,
-    "apps/local-host/src/plugin-builder/capabilities.ts": 1,
     "apps/local-host/src/plugin-builder/installed.ts": 3,
     "apps/workbench/src/i18n/en.ts": 1,
     "apps/workbench/src/scripts/client/global-search.ts": 2,
@@ -188,8 +186,7 @@
     "plugins/native/artifacts/src/actions.ts": 1,
     "plugins/native/feed/src/application-projection.ts": 5,
     "plugins/native/feed/src/application.ts": 28,
-    "plugins/native/goals/src/planning-presentation.ts": 1,
-    "plugins/native/plugin-builder/src/agent-studio.ts": 1
+    "plugins/native/goals/src/planning-presentation.ts": 1
   },
   "note": "Only decreases. Regenerate with `node scripts/check-health-gates.mjs --update` in the PR that lowers a number."
 }

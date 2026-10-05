@@ -29,7 +29,6 @@ export class GoalReadApplication {
   }
 
   listPolicyHistory(boardId: string) { return this.goals.listPolicyHistory(boardId); }
-  listGoalRiskLinks(boardId: string) { return this.goals.listGoalRiskLinks(boardId); }
   listWorkEventGoalLinks(boardId: string) { return this.goals.listWorkEventGoalLinks(boardId); }
 
   getResolvedGoalPolicy(input: { board_id: string; goal_id: string }): GoalPolicy {
@@ -49,7 +48,6 @@ export class GoalReadApplication {
       goal: goalFacts.goal,
       parent_contract_coverage: goalFacts.parent_contract_coverage,
       relations: goalFacts.relations,
-      risks: goalFacts.risks,
       resolved_policy: goalFacts.resolved_policy,
       goal_tree_proposals: this.ports.goalTreeProposals(boardId, goalId),
       project_guidance: goalFacts.project_guidance,

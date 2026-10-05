@@ -2,7 +2,7 @@ import { text, identifier, count, boolean, object, array, nullable, enumeration 
 import { planningImpactSchema, planningGraphIssueSchema } from "./planning-action-schemas.js";
 
 const strings = array(text), maybeText = nullable(text), record = { type: "object", additionalProperties: true };
-const affected = object({ object_type: enumeration(["goal", "relation", "risk", "policy", "candidate", "rewire"]), object_id: text });
+const affected = object({ object_type: enumeration(["goal", "relation"]), object_id: text });
 const explanation = object({ problem: text, expected_effect: text, non_goals: strings, depends_on_item_ids: strings });
 export const treeNarrativeSchema = object({ why_now: text, problem: text, main_path: strings, expected_effect: text, non_goals: strings });
 const provenance = { item_id: text, source_refs: strings, reason: text, explanation: nullable(explanation),
@@ -27,8 +27,8 @@ const decision = object({ decision_id: text, board_id: text, proposal_id: text, 
   conversation_ref: text, message_ref: text, reason: text, revision_proposal_id: maybeText,
   materialized_objects: array(affected), created_at: text });
 const storedItem = object({ item_id: text, proposal_id: text, board_id: text, ordinal: count,
-  kind: enumeration(["goal", "contract", "relation", "dependency", "risk", "policy", "candidate", "rewire"]),
-  operation: enumeration(["create", "update", "deactivate"]), payload: record, source_refs: strings, reason: text,
+  kind: enumeration(["goal", "relation"]),
+  operation: enumeration(["create", "deactivate"]), payload: record, source_refs: strings, reason: text,
   explanation: nullable(explanation), confidence: { type: "number" }, affected_objects: array(affected),
   baseline_versions: array(object({ ...affected.properties as Record<string, object>, exists: boolean, version: text })),
   requires_user_confirmation: boolean, state: enumeration(["pending", "conflict", "superseded", "approved", "applied", "rejected", "dismissed"]),

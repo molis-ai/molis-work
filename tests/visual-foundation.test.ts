@@ -395,7 +395,6 @@ test("visual foundation makes the default Goal view an action-led Focus", () => 
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-focus-criteria/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-now-blockers--clear/);
   assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"\] \.goal-factor-nav/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"\] \.risk-state-preview/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-focus-layout \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /@container \(min-width: 720px\)[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(220px, 250px\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /@media \(min-width: 761px\) \{[\s\S]*data-density="compact"[\s\S]*\.goal-now,[\s\S]*\.goal-focus-criteria,[\s\S]*\.goal-focus-context \{[\s\S]*padding: 12px 16px 16px;/); // spacing scale

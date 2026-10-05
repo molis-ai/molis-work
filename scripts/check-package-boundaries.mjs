@@ -333,7 +333,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const coordinatorPath = "apps/local-host/src/goal-project-application.ts";
   const coordinator = read(coordinatorPath);
-  errors.push(...checkDraftProposalOwnerSql(read("modules/goals/src/goal-commands.ts")));
   if (!coordinator.includes('from "@molis-ai/molis-work-module-goals"')) {
     errors.push(`${coordinatorPath}: Goal application composition must use the Goals Module public entrypoint`);
   }
@@ -461,7 +460,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   if (coordinator.includes("  decideContractProposal(")) {
     errors.push(`${coordinatorPath}: retired decideContractProposal facade must stay deleted`);
   }
-  for (const match of coordinator.matchAll(/UPDATE goals SET[\s\S]{0,500}?(?:archived_at|trashed_at|validity_state|fulfillment_state|current_contract_revision)/giu)) {
+  for (const match of coordinator.matchAll(/UPDATE goals SET[\s\S]{0,500}?(?:archived_at|trashed_at|validity_state|fulfillment_state)/giu)) {
     errors.push(`${coordinatorPath}: Goal lifecycle state writes must use GoalsModule.lifecycle (${match[0].split(/\r?\n/u)[0]})`);
   }
   const reconciliationPath = "plugins/native/goals/src/lifecycle-application.ts";
@@ -1212,22 +1211,16 @@ export function checkGoalQueryCapabilityAdapters(source) {
 }
 
 export function checkGoalReadOwnerSql(source) {
-  return /\b(?:FROM|JOIN|UPDATE|INTO)\s+["`\[]?(?:goals|goal_relations|goal_risks|risks|policy_bindings|goal_contract_revisions|project_guidance_entries|project_guidance_revisions|planning_method_packs|coverage_items|coverage_contract_revisions|acceptance_criteria|goal_trash_records|goal_trash_relation_records)\b/iu.test(source)
+  return /\b(?:FROM|JOIN|UPDATE|INTO)\s+["`\[]?(?:goals|goal_relations|policy_bindings|project_guidance_entries|project_guidance_revisions|planning_method_packs|acceptance_criteria|goal_trash_records|goal_trash_relation_records)\b/iu.test(source)
     ? ["Goal-owned fact SQL must remain behind the public Goals Query/Command API"] : [];
 }
 
 export function checkGoalStorageOwnership(source) {
-  const tables = "(?:goals|goal_relations|goal_risks|risks|policy_bindings|goal_contract_revisions|project_guidance_entries|project_guidance_revisions|planning_method_packs|coverage_items|coverage_contract_revisions|acceptance_criteria|goal_trash_records|goal_trash_relation_records|input_bindings|impact_bindings)";
+  const tables = "(?:goals|goal_relations|policy_bindings|project_guidance_entries|project_guidance_revisions|planning_method_packs|acceptance_criteria|goal_trash_records|goal_trash_relation_records|input_bindings)";
   const ddl = new RegExp(`\\b(?:CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?|ALTER\\s+TABLE\\s+|DROP\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?)["\x60\\[]?${tables}\\b`, "iu");
   const index = new RegExp(`\\bCREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?\\S+\\s+ON\\s+["\x60\\[]?${tables}\\b`, "iu");
   return [...checkGoalReadOwnerSql(source), ...(ddl.test(source) || index.test(source)
     ? ["Goal schema and migration SQL must remain in the Goals owner; Host only composes public migrations"] : [])];
-}
-
-export function checkDraftProposalOwnerSql(goalCommands) {
-  return /\b(?:FROM|INTO|UPDATE)\s+contract_proposals\b/iu.test(goalCommands)
-    ? ["modules/goals/src/goal-commands.ts: Draft proposal supersession must call Governance records, not its table"]
-    : [];
 }
 
 export function checkDraftDialogueOwnership(coordinator, host) {

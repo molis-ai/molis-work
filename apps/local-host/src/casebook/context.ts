@@ -15,7 +15,8 @@ export class InteractionContexts {
     if(!interaction || interaction.state!=='active' || interaction.epoch!==epoch || !context || context.state!=='active') return;
     const body={context_id:randomUUID(),operation_id:operation,phase,captured_at:new Date().toISOString(),
       goal_ref:goalRef,goal_id:goal.goal_id,goal_title:goal.title.slice(0,500),title_truncated:goal.title.length>500,
-      contract_revision:goal.current_contract_revision};
+      // The export contract keeps this field; a Goal's description is never revised, so it is always the first.
+      contract_revision:1};
     const projected={...body,source_digest:digest(body)};
     if(!conforms(projected,goalContextSchema.properties!.contexts!.items!)) throw new CasebookError('source_projection_invalid');
     this.journal.db.prepare('INSERT OR IGNORE INTO casebook_goal_contexts VALUES (?,?,?,?,?,?)')

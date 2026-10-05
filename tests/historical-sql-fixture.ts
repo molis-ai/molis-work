@@ -15,54 +15,6 @@ const DEFAULT_POLICY_JSON = JSON.stringify({
   max_lease_seconds: 1800,
 });
 
-/** Temporary historical Risk row plus Goal links. Production Risk writers are retired. */
-export function insertHistoricalRisk(
-  db: SqlDatabase,
-  input: {
-    risk_id: string;
-    board_id: string;
-    goal_ids: readonly string[];
-    description: string;
-    probability?: string;
-    impact?: string;
-    trigger?: string;
-    treatment?: string;
-    treatment_plan?: string;
-    blocking_mode?: string;
-    revisit_condition?: string;
-    owner?: string;
-    state?: string;
-    affected_surfaces?: readonly string[];
-    created_at?: string;
-  },
-): void {
-  const at = input.created_at ?? "2026-09-01T01:00:00.000Z";
-  db.prepare(`
-    INSERT INTO risks (
-      risk_id, board_id, description, probability, impact, affected_surfaces_json, trigger, treatment,
-      treatment_plan, blocking_mode, revisit_condition, owner, state, resolution_basis_json, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
-  `).run(
-    input.risk_id,
-    input.board_id,
-    input.description,
-    input.probability ?? "low",
-    input.impact ?? "high",
-    JSON.stringify(input.affected_surfaces ?? []),
-    input.trigger ?? "fixture condition",
-    input.treatment ?? "mitigate",
-    input.treatment_plan ?? "",
-    input.blocking_mode ?? "none",
-    input.revisit_condition ?? "",
-    input.owner ?? "runtime",
-    input.state ?? "open",
-    at,
-    at,
-  );
-  const link = db.prepare("INSERT INTO goal_risks (goal_id, risk_id) VALUES (?, ?)");
-  for (const goalId of input.goal_ids) link.run(goalId, input.risk_id);
-}
-
 /** Temporary historical Policy binding. Production Policy writers are retired. */
 export function insertHistoricalPolicy(
   db: SqlDatabase,
@@ -108,7 +60,7 @@ export function sessionHandoffGoalContext(
   return {
     board: history.board,
     goal: history.goal,
-    risks: history.risks,
+    goal_event_cursor: app.goalEvents.readState(boardId, goalId).goal_event_cursor,
     event_work,
     event_facts: state
       ? {

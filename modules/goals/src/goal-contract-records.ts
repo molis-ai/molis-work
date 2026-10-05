@@ -24,10 +24,6 @@ export function insertInitialGoalContract(context: GoalsCommandContext, input: {
     goal.priority ?? 0, definition === "accepted" ? actorId : null, definition === "accepted" ? at : null, at, at);
   insertGoalCriteria(context, goalId, goal);
   const created = context.requireGoal(boardId, goalId);
-  context.repository.db.prepare(`INSERT INTO goal_contract_revisions (
-    goal_id, board_id, revision, contract_json, effect, source_proposal_id, changed_by, reason, created_at
-  ) VALUES (?, ?, 1, ?, 'metadata', ?, ?, ?, ?)`).run(goalId, boardId,
-    sqliteJson(contractInputFromGoal(created)), input.source_proposal_id, actorId, input.revision_reason, at);
   return created;
 }
 

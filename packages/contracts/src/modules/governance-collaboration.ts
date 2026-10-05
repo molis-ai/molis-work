@@ -87,16 +87,15 @@ export interface GovernanceProvenanceApi {
 export type GoalTreeProposalState =
   | "pending" | "superseded" | "approved" | "partially_applied"
   | "rejected" | "dismissed" | "closed";
-export type GoalTreeProposalItemKind =
-  | "goal" | "contract" | "relation" | "dependency" | "risk" | "policy"
-  | "candidate" | "rewire";
-export type GoalTreeProposalOperation = "create" | "update" | "deactivate";
+/** A structure proposal creates new Goals and creates or retires relations between them. */
+export type GoalTreeProposalItemKind = "goal" | "relation";
+export type GoalTreeProposalOperation = "create" | "deactivate";
 export type GoalTreeProposalItemState =
   | "pending" | "conflict" | "superseded" | "approved" | "applied"
   | "rejected" | "dismissed";
 export type GoalTreeProposalDecisionAction = "confirm" | "reject" | "revise";
 export type GoalTreeProposalDecisionState = "confirmed" | "rejected" | "revised" | "conflict";
-export type ProposalAffectedObjectType = "goal" | "relation" | "risk" | "policy" | "candidate" | "rewire";
+export type ProposalAffectedObjectType = "goal" | "relation";
 
 export interface ProposalAffectedObject {
   object_type: ProposalAffectedObjectType;

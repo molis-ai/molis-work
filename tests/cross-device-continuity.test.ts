@@ -66,7 +66,7 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
     const first=await phone.get(path);
     assert.equal(first.goals.length,1);assert.equal(first.goals[0].title,'完成真实接续');
     assert.match(first.artifacts[0].content,/实际固定成果正文/);assert.doesNotMatch(JSON.stringify(first),/PRIVATE|never-export|database_path/);
-    const command={command_id:randomUUID(),project_id:projectId,goal_id:goalId,cursor:first.goals[0].cursor,revision:first.goals[0].revision,summary:'手机已核对成果',next_step:'桌面继续验证',next_actor:'桌面用户'};
+    const command={command_id:randomUUID(),project_id:projectId,goal_id:goalId,cursor:first.goals[0].cursor,summary:'手机已核对成果',next_step:'桌面继续验证',next_actor:'桌面用户'};
     drop=true;
     assert.equal((await phone.request('/continuity/api'+path+'/progress',command)).status,503);
     const committed=await desktop.get(path);assert.equal(committed.goals[0].summary,command.summary);

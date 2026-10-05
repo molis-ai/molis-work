@@ -1,7 +1,6 @@
 import type { BoardSnapshot } from "./goal-entry-contract.js";
 import type { GoalsInputBinding } from "./document-view.js";
 import type { GoalsPolicyBinding } from "./policy-ui-model.js";
-import type { GoalsSafetyRisk } from "./safety-ui-model.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 
@@ -28,21 +27,8 @@ function addGroupedValue<T>(grouped: Map<string, T[]>, key: unknown, value: T): 
 export function createGoalDocumentIndex(
   snapshot: BoardSnapshot, inputBindings: GoalsInputBinding[],
   policyBindings: GoalsPolicyBinding[], events: GoalsDecisionEvent[],
-  riskLinks: ReturnType<GoalsDocumentReadPorts["goals"]["listGoalRiskLinks"]>,
   workEventLinks: ReturnType<GoalsDocumentReadPorts["goals"]["listWorkEventGoalLinks"]>,
 ) {
-  const riskGoalIds = new Map<string, string[]>();
-  const goalRiskIds = new Map<string, string[]>();
-  for (const row of riskLinks) {
-    const riskId = row.risk_id;
-    const goalId = row.goal_id;
-    addGroupedValue(riskGoalIds, riskId, goalId);
-    addGroupedValue(goalRiskIds, goalId, riskId);
-  }
-  const webRisks: GoalsSafetyRisk[] = snapshot.risks.map((risk) => ({
-    ...risk,
-    goal_ids: riskGoalIds.get(risk.risk_id) ?? [],
-  }));
   const inputBindingsByGoal = groupByKey(inputBindings, (item) => item.goal_id);
   const policyBindingsByGoal = groupByKey(policyBindings, (item) => item.goal_id);
   const projectPolicyBindings = policyBindings.filter((item) => item.goal_id == null);
@@ -78,15 +64,5 @@ export function createGoalDocumentIndex(
     }
     for (const goalId of touchedGoalIds) addGroupedValue(goalTreeProposalsByGoal, goalId, proposal);
   }
-  const createdByGoal = new Map<string, { revision: number; actor: string }>();
-  for (const revision of snapshot.goal_contract_revisions ?? []) {
-    const actor = revision.changed_by.trim();
-    if (!actor) continue;
-    const current = createdByGoal.get(revision.goal_id);
-    if (!current || revision.revision < current.revision) {
-      createdByGoal.set(revision.goal_id, { revision: revision.revision, actor });
-    }
-  }
-  const createdByActor = new Map([...createdByGoal].map(([goalId, value]) => [goalId, value.actor]));
-  return { riskGoalIds, goalRiskIds, webRisks, inputBindingsByGoal, policyBindingsByGoal, projectPolicyBindings, eventsByObject, workEventsByGoal, relationsByGoal, goalTreeProposalsByGoal, createdByGoal: createdByActor };
+  return { inputBindingsByGoal, policyBindingsByGoal, projectPolicyBindings, eventsByObject, workEventsByGoal, relationsByGoal, goalTreeProposalsByGoal };
 }

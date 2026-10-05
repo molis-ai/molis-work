@@ -10,7 +10,7 @@ const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp
 const renderer = createWorkbenchGoalsMomentumRenderer({ translate: L, escapeHtml, icon, currentLocale,
   renderVisibleGoalStatus: item => `<span>${item.display_status}</span>` });
 const item = (id: string, title = id): GoalsMomentumItem => ({ goal: { goal_id: id, title, priority: 1, created_at: "2026-08-01", updated_at: "2026-09-05", fulfillment_state: "unmet", acceptance_criteria: [] },
-  status: "execution_pending", work_state: "execution_pending", display_status: "continue", relations: [], reasons: [], risks: [], events: [] });
+  status: "execution_pending", work_state: "execution_pending", display_status: "continue", relations: [], reasons: [], events: [] });
 const relation = (id: string, type: GoalRelationRecord["type"], from: string, to: string): GoalRelationRecord => ({
   relation_id: id, board_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: 'Provider "result" <safe>',
   created_by: "user", created_at: "2026-09-05", deactivated_at: null });

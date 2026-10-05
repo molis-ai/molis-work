@@ -19,7 +19,7 @@ export function renderGoalEventDocument(
   const goalId = escapeHtml(goal.goal_id);
   const owned = isEventStateOwner(item, doc);
   const state = doc?.state;
-  const judgment = currentJudgment(state, L, doc);
+  const judgment = currentJudgment(state, L);
   const stale = state?.progress_summary?.stale
     ? `<span class="overview-timestamp">${L("摘要尚未跟上更新")}</span>`
     : state?.progress_summary
@@ -103,7 +103,7 @@ export function renderGoalEventDocument(
   </article>`;
 }
 
-function currentJudgment(state: GoalEventStateView | undefined, L: GoalsDocumentUiPrimitives["translate"], doc?: GoalEventDocumentView | null): { lead: string; action?: string; form?: string; reader?: string } {
+function currentJudgment(state: GoalEventStateView | undefined, L: GoalsDocumentUiPrimitives["translate"]): { lead: string; action?: string; form?: string; reader?: string } {
   if (!state) return { lead: L("正在读取当前事实") };
   if (!state.owner) return { lead: L("阅读原来的说明、要求和历史。这里不能写入。") };
   if (state.work_status === "completed") return { lead: state.closure?.result || state.agreement.outcome || L("已有完成结论") };
@@ -114,8 +114,6 @@ function currentJudgment(state: GoalEventStateView | undefined, L: GoalsDocument
   if (concern) return { lead: L("待解决：{text}", { text: concern.title }), action: L("查看问题与风险"), form: "concern" };
   const unmet = state.closure && !state.closure.completion_applied ? state.closure.unmet_reasons[0] : null;
   if (unmet) return { lead: unmet.message, action: L("查看完成要求"), reader: "requirements" };
-  const risk = doc?.risks.find((item) => (item.state === "open" || item.state === "triggered") && (item.blocking_mode === "completion" || item.blocking_mode === "invalidate_on_trigger"));
-  if (risk) return { lead: L("待解决：{text}", { text: risk.description }), action: L("查看目标与要求"), reader: "description" };
   const human = state.requirements.find((item) => item.human_decision_required && item.user_conclusion?.verdict !== "accepted");
   if (human) return { lead: L("待你验收：{text}", { text: human.statement }), action: L("查看完成要求"), reader: "requirements" };
   const requirement = state.requirements.find((item) => !item.currently_satisfied);

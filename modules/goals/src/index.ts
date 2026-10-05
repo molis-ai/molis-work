@@ -116,17 +116,12 @@ export class GoalsModule {
       listBoardIds: () => query.listBoardIds(),
       listActivePolicyBindings: (...args) => query.listActivePolicyBindings(...args),
       listPolicyHistory: boardId => query.listPolicyHistory(boardId),
-      listGoalRiskLinks: boardId => query.listGoalRiskLinks(boardId),
       listWorkEventGoalLinks: boardId => query.listWorkEventGoalLinks(boardId),
       listDependencies: (boardId, goalId) => query.listDependencies(boardId, goalId),
-      listOpenGoalRisks: (boardId, goalId) => query.listOpenGoalRisks(boardId, goalId),
       activeReplacement: (boardId, goalId) => query.activeReplacement(boardId, goalId),
-      listLifecycleEvents: boardId => query.listLifecycleEvents(boardId),
-      listContractRevisions: boardId => query.listContractRevisions(boardId),
       getRelation: (boardId, relationId) => query.getRelation(boardId, relationId),
       policyBindingState: (boardId, bindingId) => query.policyBindingState(boardId, bindingId),
       criterionGoalId: criterionId => query.criterionGoalId(criterionId),
-      policyBindingVersion: (boardId, bindingId, mode) => query.policyBindingVersion(boardId, bindingId, mode),
       getBoard: (boardId: string) => query.getBoard(boardId),
       getGoal: (boardId: string, goalId: string) => query.getGoal(boardId, goalId),
       hasGoalIdentity: goalId => query.hasGoalIdentity(goalId),
@@ -137,7 +132,6 @@ export class GoalsModule {
       resolvePolicy: (boardId: string, goalId: string, strengthen?: Partial<GoalPolicy>) =>
         query.resolvePolicy(boardId, goalId, strengthen),
       readGoal: (boardId: string, goalId: string) => query.readGoal(boardId, goalId),
-      getRisk: (boardId: string, riskId: string) => this.repository.getRisk(boardId, riskId),
       readProjectGuidance: (boardId: string) => query.readProjectGuidance(boardId),
     };
   }
@@ -178,7 +172,6 @@ export {
   TASK_CONTEXT_METHOD_IDS,
   compilePlanningMethodInstructions,
   composePlanningMethodPacks,
-  hydratePlanningMethodPack,
   loadBuiltinPlanningMethodPacks,
   mergedCoverageRules,
   methodPacksForReview,

@@ -1,6 +1,6 @@
 import type { GoalMomentumGoalInput, GoalMomentumRelationInput, GoalMomentumView, GoalMomentumEdge, GoalMomentumNode, GoalMomentumGroup, GoalMomentumAction } from "./momentum-model.js";
 import { compareGoal, uniqueSorted, insertSorted, assignDependencyRows } from "./momentum-layout.js";
-import { time, windowStart, goalActivityTimes, firstSatisfiedAt, firstBlockingAt, cadenceFor } from "./momentum-cadence.js";
+import { time, windowStart, goalActivityTimes, firstSatisfiedAt, cadenceFor } from "./momentum-cadence.js";
 
 // Read-only presentation: queue hints never authorize Claim/Run or update facts.
 export function buildGoalMomentumView(
@@ -175,12 +175,10 @@ export function buildGoalMomentumView(
     const downstreamOpenCount = downstreamGoalIds.filter((consumerId) => !byId.get(consumerId)?.completed).length;
     const blocked = goal.display_status === "blocked";
     const activity = goalActivityTimes(goal);
-    const historySufficient = activity.length > 0 || firstSatisfiedAt(goal) !== null || firstBlockingAt(goal) !== null;
+    const historySufficient = activity.length > 0 || firstSatisfiedAt(goal) !== null;
     const createdAt = time(goal.created_at);
-    const blockingAt = firstBlockingAt(goal);
-    const freshness = blockingAt === null ? activity : [...activity, blockingAt];
     const stale = !goal.completed && historySufficient && createdAt !== null && createdAt < staleStart &&
-      freshness.every((activityAt) => activityAt < staleStart || activityAt > nowMs);
+      activity.every((activityAt) => activityAt < staleStart || activityAt > nowMs);
     return {
       ...goal,
       level: levels.get(goal.goal_id) ?? 0,

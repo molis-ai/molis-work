@@ -170,7 +170,7 @@ export class GoalProjectApplication {
       errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
       attention: this.goalDecisionAttention,
     });
-    this.goalTreeInputs = new GoalTreeInputReader({ query: this.goalsModule.query, commands: this.goals.commands,
+    this.goalTreeInputs = new GoalTreeInputReader({ commands: this.goals.commands,
       errorFactory: (code, message) => new MolisWorkV1Error(code, message) });
     this.goalTreeFacts = new GoalTreeFactMaterializer(
       { commands: this.goals.commands, query: this.goalsModule.query },

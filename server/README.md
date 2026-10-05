@@ -34,7 +34,7 @@ node apps/server/dist/main.js members --state /absolute/server-state
 node apps/server/dist/main.js authorize --state /absolute/server-state --member MEMBER_ID --project PROJECT_ID --control-token-file /absolute/molis-home/config/web-control-token --host-url http://127.0.0.1:4173
 ```
 
-该命令调用原 `/api/settings/mcp/actions`，不另存授权目录。每位成员的 client 是 `runtime:cross-device:<member-id>`。只读成员获得四个读取动作，协作成员加 `goals.progress.record`；精确 provider 和版本固定在 `CONTINUITY_ACTIONS`。每条更新单独回执，错误会报告已应用条数，可修复后重跑。
+该命令调用原 `/api/settings/mcp/actions`，不另存授权目录。每位成员的 client 是 `runtime:cross-device:<member-id>`。只读成员获得三个读取动作，协作成员加 `goals.progress.record`；精确 provider 和版本固定在 `CONTINUITY_ACTIONS`。每条更新单独回执，错误会报告已应用条数，可修复后重跑。
 
 网页中撤回项目访问立即阻断接续入口、取消等待请求并关闭事件流。本机管理员还可清除同成员原 Host grants：在上述 authorize 命令追加 `--revoke`。不能把控制令牌发送到手机，或把本机 Host 暴露到公网。
 

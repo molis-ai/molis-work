@@ -40,9 +40,9 @@ export function projectGoalDocument(goal: GoalRecord, input: {
 }): GoalsDocumentView {
   const { boardId, ports } = input;
   const {
-    goalRiskIds, webRisks, inputBindingsByGoal, policyBindingsByGoal,
+    inputBindingsByGoal, policyBindingsByGoal,
     projectPolicyBindings, eventsByObject, workEventsByGoal, relationsByGoal,
-    goalTreeProposalsByGoal, createdByGoal,
+    goalTreeProposalsByGoal,
   } = input.index;
   const event = ports.eventWork.readState(boardId, goal.goal_id);
   const eventOwned = Boolean(event.owner);
@@ -67,7 +67,6 @@ export function projectGoalDocument(goal: GoalRecord, input: {
     left.created_at.localeCompare(right.created_at) ||
     left.policy_binding_id.localeCompare(right.policy_binding_id)
   );
-  const riskIds = new Set(goalRiskIds.get(goal.goal_id) ?? []);
   const goalTreeProposals = goalTreeProposalsByGoal.get(goal.goal_id) ?? [];
   const goalTreeProposalIds = goalTreeProposals.map((item) => item.proposal_id);
   const goalTreeProposalItemIds = goalTreeProposals.flatMap((item) => item.items.map((child) => child.item_id));
@@ -75,7 +74,6 @@ export function projectGoalDocument(goal: GoalRecord, input: {
   const relatedObjectIds = new Set<string>([
     goal.goal_id,
     ...relations.map((item) => item.relation_id),
-    ...riskIds,
     ...goalTreeProposalIds,
     ...goalTreeProposalItemIds,
     ...visiblePolicyBindingIds,
@@ -92,12 +90,11 @@ export function projectGoalDocument(goal: GoalRecord, input: {
     main_action_label: current.main_action_label,
     action_summary: current.action_summary,
     event_work: eventOwned,
-    risks: webRisks.filter((item) => riskIds.has(item.risk_id)),
     relations,
     input_bindings: inputBindingsByGoal.get(goal.goal_id) ?? [],
     policy_bindings: visiblePolicyBindings,
     events: goalEvents,
     resolved_policy: resolvedPolicy,
-    created_by: createdByGoal.get(goal.goal_id) ?? goal.accepted_by,
+    created_by: event.owner?.adopted_by ?? goal.accepted_by,
   };
 }

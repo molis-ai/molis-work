@@ -23,16 +23,13 @@ export * from "./goal-tree-materialization-conflicts.js";
 export * from "./goal-tree-materialization.js";
 export * from "./goal-tree-check.js";
 export * from "./proposal-normalizer.js";
-export * from "./proposal-item-validation.js";
 export * from "./goal-tree-inputs.js";
 export * from "./goal-tree-materialization-order.js";
 export * from "./goal-tree-contract.js";
 export * from "./policy-ui.js";
 export * from "./policy-ui-model.js";
 export { GOALS_POLICY_EN } from "./policy-en.js";
-export * from "./safety-ui.js";
 export * from "./safety-ui-model.js";
-export * from "./risk-presentation.js";
 export * from "./tree-order.js";
 export { GOALS_SAFETY_EN } from "./safety-en.js";
 export * from "./policy-client.js";
@@ -98,7 +95,7 @@ export const packageDescriptor = {
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2","goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8","goal-reorg-gw4","goal-reorg-gw5","goal-reorg-ex4"],
   ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["goals.event-application.v1", "goals.policy-ui.v1", "goals.safety-ui.v1", "goals.relation-ui.v1", "goals.tree-ui.v1", "goals.momentum-ui.v1", "goals.document-ui.v1", "goals.context-ui.v1", "goals.planning-ui.v1", "goals.status-ui.v1", "goals.factors-ui.v1", "goals.dialogs-ui.v1", "goals.document-routes.v1"],
+  capabilities: ["goals.event-application.v1", "goals.policy-ui.v1", "goals.relation-ui.v1", "goals.tree-ui.v1", "goals.momentum-ui.v1", "goals.document-ui.v1", "goals.context-ui.v1", "goals.planning-ui.v1", "goals.status-ui.v1", "goals.factors-ui.v1", "goals.dialogs-ui.v1", "goals.document-routes.v1"],
 } as const;
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;

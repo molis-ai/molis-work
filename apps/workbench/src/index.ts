@@ -28,7 +28,6 @@ export {
   GOAL_TREE_STATUS_ORDER,
   GOALS_PRESENTATION_STATES,
   GOALS_RELATION_LABELS,
-  goalRiskStateEffect,
   goalTreeProposalNeedsDecision,
   goalTreeReferenceLabel,
   goalTreeReferenceLabels,
@@ -41,8 +40,6 @@ export {
   PLANNING_SETTINGS_STYLES,
   resolveGoalsPageRoute,
   resolveGoalsReadRoute,
-  RISK_STATE_LABELS,
-  RISK_TREATMENT_LABELS,
   sortGoalTreeItems,
   TRASH_GOAL_STYLES,
   unsatisfiedOutgoingDependencies,
@@ -57,7 +54,6 @@ export {
   type GoalsPlanningPrimitives,
   type GoalsPolicyBinding,
   type GoalsPolicyItem,
-  type GoalsSafetyRisk,
 } from "@molis-ai/molis-work-plugin-goals";
 export { createWorkbenchGoalsFragmentRenderer, type GoalsFragmentRenderers } from "./goals-fragment-renderer.js";
 export {

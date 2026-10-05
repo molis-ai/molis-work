@@ -1,7 +1,6 @@
-import type { GoalFactsView, ProjectGuidanceView, GoalsActorWrite, GoalsBoardRecord, GoalContractRevisionRecord, PlanningMethodPack, ProjectGuidanceEntryRecord, GoalRecord, GoalRelationRecord, RiskRecord, GoalRiskLinkRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalFactsView, ProjectGuidanceView, GoalsActorWrite, GoalsBoardRecord, PlanningMethodPack, ProjectGuidanceEntryRecord, GoalRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { StoredModuleEvent } from "@molis-ai/molis-work-contracts/platform/storage";
 
 /** Existing full project snapshot; every record is defined by its fact owner. */
 export interface BoardSnapshot {
@@ -9,10 +8,6 @@ export interface BoardSnapshot {
   board: GoalsBoardRecord;
   goals: GoalRecord[];
   relations: GoalRelationRecord[];
-  risks: RiskRecord[];
-  goal_risks: GoalRiskLinkRecord[];
-  goal_contract_revisions: GoalContractRevisionRecord[];
-  lifecycle_events: StoredModuleEvent[];
   planning_method_packs: PlanningMethodPack[];
   project_guidance: ProjectGuidanceEntryRecord[];
   goal_tree_proposals: GoalTreeProposalRecord[];

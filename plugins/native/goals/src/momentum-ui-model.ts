@@ -1,13 +1,11 @@
 import type { GoalsTreeItem, GoalsTreeView } from "./tree-ui-model.js";
-import type { GoalMomentumGoalInput } from "./momentum-model.js";
 
 export interface GoalsMomentumItem extends GoalsTreeItem {
   goal: GoalsTreeItem["goal"] & { updated_at: string; outcome?: string; decomposition_state?: string };
   work_state?: string;
   event_work?: boolean;
   reasons?: Array<{ code: string; severity: string; message: string }>;
-  risks: GoalMomentumGoalInput["risks"];
-  events: GoalMomentumGoalInput["events"];
+  events: Array<{ type: string; at: string; payload?: unknown }>;
 }
 export type GoalsMomentumBoardView = GoalsTreeView<GoalsMomentumItem>;
 export interface GoalsMomentumUiPrimitives {

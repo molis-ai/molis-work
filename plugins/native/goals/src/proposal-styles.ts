@@ -4,7 +4,6 @@ export const GOALS_DECISION_COMMON_STYLES = `  .decision-record { min-width: 0; 
   .decision-record-heading > small { min-width: 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; text-align: right; }
   .decision-kind { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 11px; font-weight: 400; letter-spacing: .04em; }
   .decision-new { margin-left: 4px; padding: 4px 8px; border-radius: 9px; color: var(--ink); background: var(--nav-hover); font-size: 11px; font-weight: 400; letter-spacing: 0; }
-  .decision-kind--risk { color: var(--amber); }
   .decision-record-body { padding: 12px 16px; }
   .decision-record-body > h3 { margin: 0; font-size: 17px; line-height: 1.4; }
   .decision-record-body p { margin: 4px 0; color: var(--muted); }

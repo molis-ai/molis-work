@@ -3,7 +3,7 @@ import { goalAction } from "./action-contract.js";
 import { text, count, boolean, array, object, nullable, enumeration } from "./event-action-schemas.js";
 import { boardSnapshotSchema } from "./snapshot-action-schemas.js";
 import { goalPolicySchema, goalPolicyBindingSchema } from "./configuration-actions.js";
-import { goalRiskSchema, goalRecordSchema } from "./goal-record-schema.js";
+import { goalRecordSchema } from "./goal-record-schema.js";
 import { GOALS_PRESENTATION_STATES } from "./document-view.js";
 import { buildGoalsDocumentCollection, type GoalsDocumentCollectionView } from "./document-collection.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
@@ -18,7 +18,6 @@ const events = array(object({ seq: count, event_id: text, actor_id: text, type: 
 const itemFields = { goal: goalRecordSchema, status: enumeration(GOALS_PRESENTATION_STATES),
   display_status: enumeration(["continue", "in_progress", "blocked", "waiting_user", "waiting", "completed"]),
   status_label: text, main_action_label: text, action_summary: text, event_work: boolean,
-  risks: array(object({ ...goalRiskSchema.properties as Record<string, ActionSchema>, goal_ids: array(text) })),
   relations: snapshot.relations!, input_bindings: inputs, policy_bindings: policies,
   events, resolved_policy: goalPolicySchema, created_by: nullable(text) };
 const items = array(object(itemFields, Object.keys(itemFields).filter(key => key !== "created_by")));

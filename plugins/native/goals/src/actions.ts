@@ -143,7 +143,7 @@ export function createGoalsActionHandlers({ events, boardId, history, planning, 
       const goal = readGoal(id);
       if (!goal || !events.readDirectoryItem(boardId, id)) throw new ActionError("actions.subject_unavailable", "当前目标已不存在或已归档");
       const state = events.readState(boardId, id);
-      return subjectContext({ subject: { kind: "goal", id }, revision: `${goal.current_contract_revision}:${state.goal_event_cursor}`, title: goal.title,
+      return subjectContext({ subject: { kind: "goal", id }, revision: `${goal.updated_at}:${state.goal_event_cursor}`, title: goal.title,
         content: [state.intent.title, state.intent.why, state.intent.business_logic, goal.outcome, `当前工作状态：${state.work_status}`, state.progress_summary?.summary, state.progress_summary?.next_step].filter(Boolean).join("\n\n"), goal_ids: [id], session_id: null,
         open: { surface: "goals", id } });
     } },
@@ -159,7 +159,7 @@ export function createGoalsActionHandlers({ events, boardId, history, planning, 
           const goal = readGoal(item.goal_id);
           if (!goal) continue;
           const state = events.readState(boardId, item.goal_id);
-          entries.push({ subject: { kind: "goal", id: item.goal_id }, revision: `${goal.current_contract_revision}:${state.goal_event_cursor}`, title: goal.title,
+          entries.push({ subject: { kind: "goal", id: item.goal_id }, revision: `${goal.updated_at}:${state.goal_event_cursor}`, title: goal.title,
             summary: searchText(state.progress_summary?.summary ?? item.next_hint, 400), updated_at: item.updated_at, content: "context", open: { surface: "goals", id: item.goal_id } });
         }
         after = page.next_cursor ?? undefined;

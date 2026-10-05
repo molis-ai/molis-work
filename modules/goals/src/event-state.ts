@@ -182,7 +182,6 @@ export class GoalEventState {
       next_actor: input.next_actor ?? null,
       ...(input.source ? { source: input.source } : {}),
       ...(input.expected_goal_cursor === undefined ? {} : { expected_goal_cursor: input.expected_goal_cursor }),
-      ...(input.expected_contract_revision === undefined ? {} : { expected_contract_revision: input.expected_contract_revision }),
     });
     return this.mutate(input, "record_goal_progress", hash, (goal, actorKind) => {
       const summary = requiredText(this.error, input.summary, "event_progress.summary_required", "进展摘要需要原文");
@@ -190,8 +189,7 @@ export class GoalEventState {
         throw this.context.error("event_progress.invalid_cursor", "摘要必须依据当前 Goal 已存在的事件游标");
       }
       const maxCursor = this.facts.maxGoalCursor(goal.board_id, goal.goal_id);
-      if (input.expected_goal_cursor !== undefined && input.expected_goal_cursor !== maxCursor
-        || input.expected_contract_revision !== undefined && input.expected_contract_revision !== goal.current_contract_revision) {
+      if (input.expected_goal_cursor !== undefined && input.expected_goal_cursor !== maxCursor) {
         throw this.context.error("event_progress.stale_goal", "原目标已变化，请重新查看目标和拟记录内容后再确认");
       }
       if (input.source && !parseGoalProgressSource(input.source)) {

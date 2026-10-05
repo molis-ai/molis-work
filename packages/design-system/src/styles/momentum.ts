@@ -580,7 +580,6 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .decision-record-heading,
   html[data-resolved-theme="dark"] .decision-details > summary,
   html[data-resolved-theme="dark"] .decision-reason,
-  html[data-resolved-theme="dark"] .risk-resolution-fields,
   html[data-resolved-theme="dark"] .decision-record > footer.decision-actions,
   html[data-resolved-theme="dark"] .decision-results > header {
     border-color: var(--line);
@@ -598,13 +597,6 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .decision-details > summary,
   html[data-resolved-theme="dark"] .decision-kind,
   html[data-resolved-theme="dark"] .risk-decision > footer.decision-actions a { color: var(--blue-dark); }
-  html[data-resolved-theme="dark"] .risk-decision-fact p,
-  html[data-resolved-theme="dark"] .risk-decision-fact small { color: var(--ink-soft); }
-  html[data-resolved-theme="dark"] .risk-state-preview {
-    border-color: var(--blue);
-    background: color-mix(in srgb, var(--blue-soft) 58%, var(--paper));
-    color: var(--ink-soft);
-  }
   html[data-resolved-theme="dark"] .decision-actions button:disabled {
     border-color: var(--line) !important;
     background: var(--page) !important;
@@ -630,8 +622,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .goal-factor-nav button small { background: var(--line); color: var(--muted); }
   html[data-resolved-theme="dark"] .goal-factor-nav button[aria-selected="true"] small { background: var(--nav-hover); color: var(--ink); }
   html[data-resolved-theme="dark"] .relation-group > header,
-  html[data-resolved-theme="dark"] .relation-actions,
-  html[data-resolved-theme="dark"] .risk-actions { background: var(--rail); }
+  html[data-resolved-theme="dark"] .relation-actions { background: var(--rail); }
   html[data-resolved-theme="dark"] .relation-kind { background: var(--line); color: var(--ink-soft); }
   html[data-resolved-theme="dark"] .relation-authority,
   html[data-resolved-theme="dark"] .relation-live-preview { border-color: color-mix(in srgb, var(--blue), var(--line) 68%); background: color-mix(in srgb, var(--blue-soft) 72%, var(--paper)); }

@@ -25,7 +25,6 @@ function goal(
     updated_at: "2026-07-01T00:00:00.000Z",
     completed: false,
     reasons: [],
-    risks: [],
     events: [],
     ...overrides,
   };
@@ -159,7 +158,7 @@ test("dependency cycles and dangling relations remain visible with integrity dia
   assert.equal(view.selected_goal_id, "A");
 });
 
-test("cadence uses the first work event, satisfaction and blocking facts without inventing missing history", () => {
+test("cadence uses the first work event and applied closures without inventing missing history", () => {
   const view = buildGoalMomentumView(
     [
       goal("STARTED", {
@@ -181,14 +180,8 @@ test("cadence uses the first work event, satisfaction and blocking facts without
       goal("BLOCKED", {
         work_state: "completion_blocked",
         display_status: "blocked",
-        risks: [{
-          risk_id: "risk-1",
-          state: "open",
-          blocking_mode: "completion",
-          created_at: "2026-08-30T08:00:00.000Z",
-          updated_at: "2026-08-30T08:00:00.000Z",
-        }],
-        events: [{ type: "risk.created", at: "2026-08-30T08:00:00.000Z" }],
+        events: [{ type: "goal.event_state.concern_opened", at: "2026-08-30T08:00:00.000Z" },
+          { type: "goal.event_state.closure_submitted", at: "2026-08-30T09:00:00.000Z", payload: { operation: "closure_submitted", completion_applied: false } }],
       }),
       goal("STALE", { events: [{ type: "goal.work_event.reported", at: "2026-08-01T08:00:00.000Z" }] }),
       goal("UNKNOWN"),
@@ -201,15 +194,14 @@ test("cadence uses the first work event, satisfaction and blocking facts without
     {
       started: view.cadence[7].started,
       completed: view.cadence[7].completed,
-      blockers: view.cadence[7].new_blockers,
       stalled: view.cadence[7].stalled,
       incomplete: view.cadence[7].history_incomplete,
     },
-    { started: 1, completed: 1, blockers: 1, stalled: 1, incomplete: 1 },
+    { started: 1, completed: 1, stalled: 1, incomplete: 1 },
   );
   assert.equal(view.cadence[7].buckets.find((bucket) => bucket.date === "2026-08-28")?.started, 1);
   assert.equal(view.cadence[7].buckets.find((bucket) => bucket.date === "2026-08-29")?.completed, 1);
-  assert.equal(view.cadence[7].buckets.find((bucket) => bucket.date === "2026-08-30")?.blockers, 1);
+  assert.equal(view.cadence[7].buckets.find((bucket) => bucket.date === "2026-08-30")?.completed, 0, "a closure that was not applied does not complete");
 });
 
 test("action queue explains decision, finish, high-impact start, ordinary start and stale tiers", () => {

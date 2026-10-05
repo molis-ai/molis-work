@@ -8,13 +8,6 @@ export async function handleGoalDecisionsHttp(context: GoalsHttpContext): Promis
   );
   if (context.method === "POST" && goalTreeProposalMatch) {
     const body = await context.readBody();
-    if (Array.isArray(body.risk_repairs)) {
-      context.respond(400, {
-        error: "结构提案不再接受风险修订。历史风险条目仍可阅读；新结构只提交 goal/create 与 relation/create|deactivate。",
-        code: "goal_tree_proposal.kind_retired",
-      });
-      return true;
-    }
     if (body.decisions != null && !Array.isArray(body.decisions)) {
       context.respond( 400, { error: "decisions 必须是条目决定列表" });
       return true;

@@ -715,14 +715,13 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       return { report_goal: report.goal, reference, title: report.title, recorded: null, current };
     }
     const body = bodyOf(request);
-    const cursor = body.expected_goal_cursor, revision = body.expected_contract_revision;
-    if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0
-      || typeof revision !== "number" || !Number.isSafeInteger(revision) || revision < 1) throw new Error("请先查看原目标当前版本，再确认记录进展");
+    const cursor = body.expected_goal_cursor;
+    if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0) throw new Error("请先查看原目标当前版本，再确认记录进展");
     // The original Goal transaction checks replay first, then versions and write.
     // Nothing is derived from a browser-supplied report, Goal id, or source body.
     return api!.invoke(goalProgressCapabilities.record, {
       goal_id: goalId, actor_id: actorId, actor_kind: "user", idempotency_key: idempotencyKey,
-      based_on_cursor: cursor, expected_goal_cursor: cursor, expected_contract_revision: revision,
+      based_on_cursor: cursor, expected_goal_cursor: cursor,
       summary: text(body.summary, "进展内容", 10000),
       ...(body.next_step ? { next_step: text(body.next_step, "下一步", 10000) } : {}),
       source: { ...reference, title: report.title, origin: { plugin_id: "coding", item_id: reference.artifact_id } },

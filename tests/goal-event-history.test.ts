@@ -116,7 +116,7 @@ test("mixed document history keeps next_cursor when a work fetch window is full"
     readState: () => ({}),
     isEventStateOwner: () => true,
   };
-  const snapshot = { relations: [], goal_risks: [] };
+  const snapshot = { relations: [] };
   const input = { boardId: "b", goalId: "g", ports, snapshot, events: [] };
   const first = listGoalDocumentHistory({ ...input, query: { limit: 100 } } as never);
   assert.equal(first.items.length, 100);

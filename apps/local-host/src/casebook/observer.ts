@@ -129,7 +129,7 @@ export class InteractionObserver {
  }
  private condition(goal:string|null,tag:Ticket['tag']):Condition{
   const current=goal?this.store.goalsQuery.getGoal(this.journal.board,goal):null;
-  return{goal_ref:goal?tag('reference',goal):null,contract_revision:current?.current_contract_revision??null,action_condition:null,progress:null,display_status:null};
+  return{goal_ref:goal?tag('reference',goal):null,contract_revision:current?1:null,action_condition:null,progress:null,display_status:null};
  }
  private capture(epoch:string,operation:string,phase:'before'|'after',goal:string|null,tag:Ticket['tag']){
   if(!goal)return;const contexts=new InteractionContexts(this.journal);if(contexts.authorization.scope()?.state!=='active')return;

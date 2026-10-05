@@ -1,12 +1,11 @@
 import { allGoalViews } from "./proposal-ui-model.js";
-import { goalRiskStateEffect, RISK_STATE_LABELS } from "./risk-presentation.js";
 import type { GoalsDecisionView, GoalsDecisionEvent } from "./decision-view.js";
 import type { GoalsSafetyItem } from "./safety-ui-model.js";
 import type { GoalsDecisionPresentationPrimitives } from "./decision-common-ui.js";
 
 export interface RecentDecisionResult {
   event: GoalsDecisionEvent;
-  kind: "risk" | "goalTree";
+  kind: "goalTree";
   kindLabel: string;
   state: string;
   title: string;
@@ -17,7 +16,6 @@ export interface RecentDecisionResult {
 }
 
 export function createGoalsDecisionResults(L: GoalsDecisionPresentationPrimitives["translate"]) {
-const riskStateEffect = (blockingMode: Parameters<typeof goalRiskStateEffect>[1], state: Parameters<typeof goalRiskStateEffect>[2]) => goalRiskStateEffect(L, blockingMode, state);
 
 function eventPayload(event: GoalsDecisionEvent): Record<string, unknown> {
   return event.payload != null && typeof event.payload === "object" && !Array.isArray(event.payload)
@@ -43,44 +41,12 @@ function recentDecisionResults(view: GoalsDecisionView): RecentDecisionResult[] 
   const seen = new Set<string>();
   const allGoals = allGoalViews(view);
   const goalById = new Map(allGoals.map((item) => [item.goal.goal_id, item]));
-  const riskById = new Map(view.snapshot.risks.map((risk) => [risk.risk_id, risk]));
   const goalTreeById = new Map(view.snapshot.goal_tree_proposals.map((proposal) => [proposal.proposal_id, proposal]));
 
   for (const event of view.events) {
     if (results.length >= 6) break;
     const seenKey = `${event.object_type}:${event.object_id}`;
     if (seen.has(seenKey)) continue;
-    if (["risk.open", "risk.triggered", "risk.resolved", "risk.accepted", "risk.expired"].includes(event.type)) {
-      const risk = riskById.get(event.object_id);
-      if (!risk) continue;
-      seen.add(seenKey);
-      const payload = eventPayload(event);
-      const linkedGoalIds = stringList(payload.linked_goal_ids);
-      const goalIds = linkedGoalIds.length
-        ? linkedGoalIds
-        : allGoals.filter((item) => item.risks.some((candidate) => candidate.risk_id === risk.risk_id)).map((item) => item.goal.goal_id);
-      const links = goalIds
-        .map((goalId) => goalById.get(goalId))
-        .filter((item): item is GoalsSafetyItem => Boolean(item))
-        .map((item) => ({
-          href: goalResultHref(item, `risk-${risk.risk_id}`),
-          label: L("查看「{title}」中的风险", { title: item.goal.title }),
-        }));
-      const stateEffect = riskStateEffect(risk.blocking_mode, risk.state);
-      results.push({
-        event,
-        kind: "risk",
-        kindLabel: L("风险处理"),
-        state: L(RISK_STATE_LABELS[risk.state]),
-        title: risk.description,
-        effects: [L("历史结果：{state}。{effect}", {
-              state: L(RISK_STATE_LABELS[risk.state]),
-              effect: stateEffect,
-            })],
-        links,
-      });
-      continue;
-    }
     if (event.type === "goal_tree_proposal.decided") {
       const proposal = goalTreeById.get(event.object_id);
       if (!proposal) continue;

@@ -12,7 +12,6 @@ import { goalContextCapabilities } from "@molis-ai/molis-work-contracts/modules/
 import { bindActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materializeGoalEventHistory, goalEventHistoryKinds } from "./goal-event-history-fixture.js";
 import { readTestGoalCollection } from "./fixtures/web-view.js";
-import { assertActionInput } from "@molis-ai/molis-work-kernel";
 
 test("Goals query actions preserve full bodies, cursor order, scope and live policy for typed consumers", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-query-actions-"));
@@ -38,12 +37,6 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     const snapshot = await actions.invoke(goalsActions.snapshot, {});
     assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(board_id)));
     assert.deepEqual(await typed.invoke(snapshotBoardCapability, { board_id }), snapshot);
-    // Saved contract revisions keep decomposition_review as null until a review exists; the snapshot contract must accept them.
-    const goal = (snapshot as { goals: Array<Record<string, unknown>> }).goals.find(row => row.goal_id === goal_id)!;
-    const saved = { goal_id, title: goal.title, outcome: goal.outcome, why: goal.why, business_logic: goal.business_logic, in_scope: [], out_of_scope: [], constraints: [],
-      required_inputs: [], promised_outputs: [], decomposition_review: null, acceptance_criteria: [] };
-    assert.doesNotThrow(() => assertActionInput(goalsActions.snapshot.action.output_schema, { ...snapshot, goal_contract_revisions: [{ goal_id, board_id, revision: 1,
-      contract: saved, effect: "metadata", source_proposal_id: null, changed_by: "user", reason: "初始合同", created_at: new Date().toISOString() }] }));
     const contract = await actions.invoke(goalsActions.contract, { goal_id });
     assert.deepEqual(contract, await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(board_id, goal_id)));
     assert.deepEqual(await typed.invoke(readGoalContractCapability, { board_id, goal_id }), contract);
@@ -189,39 +182,23 @@ test("records written by earlier versions still read through the action contract
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "legacy-reader", audience: "user",
     project_id: project.project_id, permissions: ["goals:read", "goals:write"] }));
-  const goal_id = "LEGACY-GOAL", board_id = project.board_id, at = "2026-09-01T00:00:00.000Z";
+  const goal_id = "LEGACY-GOAL", board_id = project.board_id;
   try {
     await actions.invoke(goalsActions.create, { goal_id, title: "早期记录", outcome: "仍然能打开", idempotency_key: "create" });
-    // What earlier versions left behind: an agent's own wording for a decision method (in the criterion and in the saved
-    // contract revision) and for a review status, a proposal in an older format, and a project method pack saved before
-    // instructions, event types and default requirements existed.
+    // What earlier versions left behind: an agent's own wording for a decision method and for a review status.
     await host.withProject(ref, r => {
       r.store.db.prepare(`INSERT INTO acceptance_criteria (criterion_id, goal_id, statement, decision_method, pass_condition, target_json, required_evidence_json)
         VALUES ('legacy-criterion', ?, '试玩一局', 'playtest', '三分钟内能进球', NULL, '[]')`).run(goal_id);
       r.store.db.prepare(`UPDATE goals SET decomposition_review_json = '{"status":"closed_leaf","method_pack_ids":[],"coverage":[],"open_goal_ids":[],"next_step":""}'
         WHERE goal_id = ?`).run(goal_id);
-      r.store.db.prepare(`UPDATE goal_contract_revisions SET contract_json = json_set(contract_json, '$.acceptance_criteria',
-        json('[{"statement":"场景跑通","decision_method":"scenario","pass_condition":"无报错"}]')) WHERE goal_id = ?`).run(goal_id);
-      const pack = { method_id: "legacy-pack", name: "早期方法", kind: "custom", summary: "旧版保存的方法", applies_to: [], domain_tags: [], enabled: true,
-        confidence: 0.6, source_refs: [], required_coverage: [{ area: "scope", label: "范围", question: "做什么" }], steps: ["拆分"],
-        dependency_rules: [{ rule_id: "r1", statement: "先定范围", direction_hint: "scope → work" }], evidence_requirements: [], completion_checks: [],
-        failure_modes: [], scope: "project", version: 1, created_at: at, updated_at: at };
-      r.store.db.prepare(`INSERT INTO planning_method_packs (board_id, method_id, version, enabled, pack_json, created_at, updated_at)
-        VALUES (?, 'legacy-pack', 1, 1, ?, ?, ?)`).run(board_id, JSON.stringify(pack), at, at);
     });
     const snapshot = await actions.invoke(goalsActions.snapshot, {}) as {
       goals: Array<{ goal_id: string; acceptance_criteria: Array<{ decision_method: string }>; decomposition_review: { status: string } | null }>;
-      goal_contract_revisions: Array<{ goal_id: string; contract: { acceptance_criteria: Array<{ decision_method: string }> } }>;
-      planning_method_packs: Array<{ method_id: string; instructions: string; event_types: unknown[]; default_requirements: unknown[] }>;
     };
     // Read and shown as recorded, not rewritten.
     const legacy = snapshot.goals.find(row => row.goal_id === goal_id)!;
     assert.deepEqual(legacy.acceptance_criteria.map(row => row.decision_method), ["playtest"]);
     assert.equal(legacy.decomposition_review?.status, "closed_leaf");
-    assert.equal(snapshot.goal_contract_revisions.find(row => row.goal_id === goal_id)!.contract.acceptance_criteria[0]!.decision_method, "scenario");
-    const pack = snapshot.planning_method_packs.find(row => row.method_id === "legacy-pack")!;
-    assert.ok(pack.instructions.includes("拆分"), "instructions are compiled from the pack's own steps");
-    assert.deepEqual([pack.event_types, pack.default_requirements], [[], []]);
     assert.equal((await actions.invoke(goalsActions.collection, {})).goals.find(row => row.goal.goal_id === goal_id)!.goal.acceptance_criteria[0]!.decision_method, "playtest");
     // New criteria are held to the known methods.
     await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(board_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",

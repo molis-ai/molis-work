@@ -293,7 +293,7 @@ function readDecisionDeepLinkBrowserState(
         const targetDetail = [...document.querySelectorAll("[data-feed-detail]")]
           .find((detail) => detail.dataset.feedDetail === targetEntryId);
         const form = targetDetail?.querySelector(
-          "[data-human-review-form], [data-goal-tree-decision-form], [data-contract-decision-form], [data-candidate-decision-form], [data-rewire-decision-form], [data-risk-state-form]",
+          "[data-goal-tree-decision-form]",
         );
         const submit = form?.querySelector('button[type="submit"]');
         const pane = document.querySelector("[data-document-pane]");
@@ -1169,7 +1169,7 @@ test("Web explains incomplete product decomposition and shows who owns each prod
         idempotency_key: "web-decomposition-propose",
       }),
       (error: unknown) => error instanceof Error && (
-        (error as { code?: string }).code === "goal_tree_proposal.kind_retired"
+        (error as { code?: string }).code === "goal_tree_proposal.kind_invalid"
         || String(error).includes("只能是 goal")
       ),
     );

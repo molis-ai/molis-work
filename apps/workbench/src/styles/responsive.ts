@@ -37,17 +37,6 @@ export const RESPONSIVE_STYLES = `
     .relation-form > footer { align-items: stretch; flex-direction: column; }
     .relation-form > footer button { align-self: flex-end; }
     .relation-editor-action { display: none; }
-    .risk-facts, .risk-form, .risk-state-form { grid-template-columns: 1fr; }
-    .risk-facts { padding-left: 16px; }
-    .risk-fact-wide, .risk-form-wide, .risk-goal-picker { grid-column: 1; }
-    .risk-record > header > div { grid-template-columns: 1fr; }
-    .risk-record .risk-state { margin-bottom: 4px; }
-    .risk-effect, .risk-resolution, .risk-readonly { margin-left: 16px; }
-    .risk-actions > details > summary, .risk-form, .risk-state-form { padding-left: 16px; }
-    .risk-goal-options { grid-template-columns: 1fr; }
-    .risk-form footer, .risk-state-form footer { align-items: stretch; flex-direction: column; }
-    .risk-form footer button, .risk-state-form footer button { align-self: flex-end; }
-    .risk-resolution-fields { grid-template-columns: 1fr; }
     .goal-now > header, .goal-now-body { grid-template-columns: 1fr; display: grid; }
     .goal-now > header { gap: 8px; }
     .goal-now > header .goal-status { justify-self: start; }
@@ -167,7 +156,6 @@ export const RESPONSIVE_STYLES = `
     .decision-guidance > section { border-right: 0; border-bottom: 1px solid var(--line); }
     .decision-guidance > section:last-child { border-bottom: 0; }
     .decision-scenario dl > div { grid-template-columns: 1fr; gap: 4px; }
-    .risk-decision-details > div { grid-template-columns: 1fr; gap: 4px; }
     .decision-receipt { grid-template-columns: 1fr; }
     .decision-result { grid-template-columns: auto minmax(0, 1fr); }
     .decision-result-links { grid-column: 2; justify-items: start; }
@@ -181,7 +169,7 @@ ${GOALS_PROPOSAL_MOBILE_STYLES}
     .decision-actions { justify-content: flex-end; }
     .field-row--split, .goal-choice-list { grid-template-columns: 1fr; }
     .relation-field-heading, .relation-field > legend { grid-template-columns: 1fr; gap: 8px; }
-    .dialog-body input:not([type=checkbox]), .dialog-body textarea, .dialog-body select, .policy-form input:not([type=checkbox]), .policy-form textarea, .policy-form select, .draft-contract-form input:not([type=radio]), .draft-contract-form textarea, .draft-contract-form select, .draft-aux-form input, .draft-aux-form textarea, .draft-aux-form select, .relation-form input, .relation-form textarea, .relation-form select, .relation-deactivate-form textarea, .risk-form input:not([type=checkbox]), .risk-form textarea, .risk-form select, .risk-state-form textarea, .risk-state-form select { font-size: 16px; }
+    .dialog-body input:not([type=checkbox]), .dialog-body textarea, .dialog-body select, .policy-form input:not([type=checkbox]), .policy-form textarea, .policy-form select, .draft-contract-form input:not([type=radio]), .draft-contract-form textarea, .draft-contract-form select, .draft-aux-form input, .draft-aux-form textarea, .draft-aux-form select, .relation-form input, .relation-form textarea, .relation-form select, .relation-deactivate-form textarea { font-size: 16px; }
     .create-dialog { width: 100vw; max-width: none; height: 100vh; max-height: none; margin: 0; border-radius: 0; }
     .dialog-shell { max-height: 100vh; height: 100%; }
   }

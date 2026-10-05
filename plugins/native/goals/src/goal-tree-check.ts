@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import type { GoalsQueryApi, GoalsPlanningApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GovernanceApplicationApi, GoalTreeProposalCheckInput, GoalTreeProposalCheckResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
-import { goalTreeProposalItemValidationIssues } from "./proposal-item-validation.js";
 import { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import { GoalTreeMaterializationApplication } from "./goal-tree-materialization.js";
 
@@ -46,23 +45,13 @@ export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "c
       const conflictItemIdSet = new Set<string>();
       for (const item of proposal.items) {
         if (item.state !== "pending" && item.state !== "conflict") continue;
-        const validationIssue = goalTreeProposalItemValidationIssues(item)[0];
         const baselineConflicts = item.baseline_versions.flatMap((baseline) => {
-          const current = this.ports.query.baselines.forBaseline(input.board_id, baseline, item);
+          const current = this.ports.query.baselines.objectVersion(input.board_id, baseline);
           return baseline.exists === current.exists && baseline.version === current.version
             ? []
             : [{ object: { object_type: baseline.object_type, object_id: baseline.object_id }, baseline, current }];
         });
-        const conflict = validationIssue
-          ? {
-              code: validationIssue.code,
-              field: validationIssue.field,
-              message: validationIssue.message,
-              recovery: validationIssue.recovery,
-            }
-          : baselineConflicts.length > 0
-            ? { objects: baselineConflicts }
-            : null;
+        const conflict = baselineConflicts.length > 0 ? { objects: baselineConflicts } : null;
         if (conflict) conflictItemIdSet.add(item.item_id);
         this.ports.governance.records.setGoalTreeItemCheck(
           canonicalProposalId,

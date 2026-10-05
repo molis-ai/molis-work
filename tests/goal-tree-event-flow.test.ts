@@ -121,7 +121,7 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
         idempotency_key: "tree-risk",
       }),
       (error: unknown) => error instanceof Error && (
-        (error as { code?: string }).code === "goal_tree_proposal.kind_retired"
+        (error as { code?: string }).code === "goal_tree_proposal.kind_invalid"
         || String(error).includes("只能是 goal")
       ),
     );
@@ -131,22 +131,3 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
   }
 });
 
-test("open Risks of a project with earlier history raise no current pending decisions", () => {
-  const fixture = materializeGoalEventHistory("legacy");
-  const store = new LocalProjectDatabase(fixture.path);
-  try {
-    const app = new GoalProjectApplication(store);
-    const before = store.snapshot("goalboard-v1-demo");
-    assert.equal(before.risks.find((item) => item.risk_id === "RISK-FIRST-RESTART")?.description, "用户接入 Runtime 后没有新开会话，误以为安装失败");
-    for (const goal of before.goals) {
-      assert.equal(app.goalEvents.readState("goalboard-v1-demo", goal.goal_id).pending_decisions.length, 0);
-    }
-    const view = buildMolisWorkWebView(store, app, { databasePath: fixture.path, boardId: "goalboard-v1-demo", demo: true });
-    assert.equal(pendingDecisionCount(view), 0);
-    assert.deepEqual(buildDecisionGroups(view), []);
-    assert.deepEqual(store.snapshot("goalboard-v1-demo"), before);
-  } finally {
-    store.close();
-    rmSync(fixture.directory, { recursive: true, force: true });
-  }
-});

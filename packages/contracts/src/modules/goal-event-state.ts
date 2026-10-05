@@ -252,7 +252,6 @@ export interface RecordGoalProgressSummaryInput {
   source?: GoalProgressArtifactSource;
   /** When supplied, compare inside the same transaction after idempotency replay. */
   expected_goal_cursor?: number;
-  expected_contract_revision?: number;
   board_id: string;
   goal_id: string;
   actor_id: string;

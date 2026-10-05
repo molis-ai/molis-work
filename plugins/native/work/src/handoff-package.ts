@@ -10,8 +10,6 @@ export function buildSessionHandoffPackage(input: {
   timeline: readonly SessionTimelineEvent[];
 }): string {
   const { goal, event_work: eventWork, event_facts: eventFacts } = input.goal_contract;
-  const historicalRisks = input.goal_contract.risks
-    .map((risk) => `${risk.description}；状态：${risk.state}；处理：${risk.treatment_plan}`);
   const timeline = minimalSessionContext(input.timeline);
   const resumeRequired = eventFacts?.resume_required === true;
   const currentStatus = eventFacts?.work_status
@@ -76,7 +74,6 @@ export function buildSessionHandoffPackage(input: {
     "",
     ...(historicalAcceptance.length > 0 ? historicalAcceptance : ["- 无"]),
     "",
-    listSection("历史 Risk", historicalRisks),
     "## 最近 Session 上下文",
     "",
     ...(timeline.length > 0

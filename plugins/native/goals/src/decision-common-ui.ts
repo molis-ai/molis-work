@@ -1,7 +1,6 @@
-export type DecisionEventKind = "risk" | "goalTree";
+export type DecisionEventKind = "goalTree";
 
 const HANDLED_DECISION_EVENT_TYPES: Record<DecisionEventKind, ReadonlySet<string>> = {
-  risk: new Set(["risk.open", "risk.triggered", "risk.resolved", "risk.accepted", "risk.expired"]),
   goalTree: new Set(["goal_tree_proposal.decided"]),
 };
 

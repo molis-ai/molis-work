@@ -20,13 +20,6 @@ export function goalMomentumInput(item: GoalsMomentumItem): GoalMomentumGoalInpu
     updated_at: item.goal.updated_at,
     completed: item.goal.fulfillment_state === "satisfied" || item.status === "archived" || item.work_state === "archived",
     reasons: (item.reasons ?? []).map((reason) => ({ code: reason.code })),
-    risks: item.risks.map((risk) => ({
-      risk_id: risk.risk_id,
-      state: risk.state,
-      blocking_mode: risk.blocking_mode,
-      created_at: risk.created_at,
-      updated_at: risk.updated_at,
-    })),
     events: item.events.map((event) => ({ type: event.type, at: event.at, payload: event.payload })),
   };
 }

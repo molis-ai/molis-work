@@ -181,7 +181,7 @@ export class GoalTreeProposalNormalizer {
   } {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       throw this.errorFactory(
-        "goal_tree_proposal.kind_retired",
+        "goal_tree_proposal.kind_invalid",
         `第 ${itemIndex + 1} 个条目只能是 goal（create）或 relation（part_of/depends_on 的 create/deactivate）`,
       );
     }
@@ -189,7 +189,7 @@ export class GoalTreeProposalNormalizer {
     this.rejectUnknownKeys(raw, GOAL_TREE_ITEM_KEYS, "goal_tree_proposal.payload_unknown", `第 ${itemIndex + 1} 个条目`);
     if (raw.kind !== "goal" && raw.kind !== "relation") {
       throw this.errorFactory(
-        "goal_tree_proposal.kind_retired",
+        "goal_tree_proposal.kind_invalid",
         `第 ${itemIndex + 1} 个条目只能是 goal（create）或 relation（part_of/depends_on 的 create/deactivate）`,
       );
     }

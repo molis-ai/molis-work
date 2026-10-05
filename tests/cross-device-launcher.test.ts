@@ -53,7 +53,7 @@ test('compiled standalone launcher starts headless, restores a real Catalog proj
     for(const cookie of [ownerCookie,memberCookie]){
       assert.deepEqual((await (await fetch(origin+'/continuity/api/session',{headers:{cookie}})).json()).projects,[]);
       for(const suffix of ['', '/assets','/events'])assert.equal((await fetch(origin+'/continuity/api/projects/'+scope.id+suffix,{headers:{cookie}})).status,403);
-      assert.equal((await post('/projects/'+scope.id+'/progress',{command_id:randomUUID(),project_id:scope.id,goal_id:'old-goal',cursor:1,revision:1,summary:'must not write',next_step:'',next_actor:''},cookie)).status,403);
+      assert.equal((await post('/projects/'+scope.id+'/progress',{command_id:randomUUID(),project_id:scope.id,goal_id:'old-goal',cursor:1,summary:'must not write',next_step:'',next_actor:''},cookie)).status,403);
     }
     assert.equal((await post('/connect',{code:unusedCode,display_name:'Old invitation',device_label:'Denied'})).status,401);
     server.child.kill('SIGTERM');assert.equal(await server.exited,0,server.errors());server=undefined;

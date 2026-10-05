@@ -32,7 +32,7 @@ export class GoalTreeFactMaterializer {
     _at: string,
   ): ProposalAffectedObject {
     if (item.kind !== "goal" || item.operation !== "create") {
-      throw this.errorFactory("goal_tree_proposal.kind_retired", "结构提案只能落地新 Goal 或关系");
+      throw this.errorFactory("goal_tree_proposal.item_operation_invalid", "结构提案只能新增 Goal");
     }
     const goal = this.inputs.goalTreeGoalInput(item);
     const goalId = this.inputs.goalTreeTargetGoalId(item, goal);

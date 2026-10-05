@@ -15,7 +15,7 @@ export interface GoalTreeSubmissionPorts {
   attention?: Pick<GoalDecisionAttentionSync, "settleProposal">;
 }
 
-/** Submit a proposal, never materialize its suggested Goal/Relation/Risk changes. */
+/** Submit a proposal, never materialize its suggested Goal and relation changes. */
 export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationApi, "submitGoalTreeProposal"> {
   private readonly normalizer: GoalTreeProposalNormalizer;
   constructor(private readonly ports: GoalTreeSubmissionPorts) {
@@ -147,7 +147,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
       });
       for (const [index, item] of items.entries()) {
         const baselineVersions = item.affected_objects.map((object) =>
-          this.ports.query.baselines.objectVersion(input.board_id, object, item),
+          this.ports.query.baselines.objectVersion(input.board_id, object),
         );
         this.ports.governance.records.insertGoalTreeProposalItem({
           item_id: item.item_id,

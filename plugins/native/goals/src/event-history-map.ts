@@ -143,7 +143,6 @@ export function relatedHistoryObjectIds(snapshot: BoardSnapshot, goalId: string)
   for (const relation of snapshot.relations) {
     if (relation.from_goal_id === goalId || relation.to_goal_id === goalId) ids.add(relation.relation_id);
   }
-  for (const link of snapshot.goal_risks) if (link.goal_id === goalId) ids.add(link.risk_id);
   return ids;
 }
 

@@ -84,7 +84,6 @@ import { createGoalsPlanningWorkbenchRenderer } from "./goals-planning-ui.js";
 import { createGoalsPolicyWorkbenchRenderer } from "./goals-policy-ui.js";
 import { createGoalsProposalWorkbenchRenderer } from "./goals-proposal-ui.js";
 import { createGoalsRelationWorkbenchRenderer } from "./goals-relation-ui.js";
-import { createGoalsSafetyWorkbenchRenderer } from "./goals-safety-ui.js";
 import { createGoalsStatusWorkbenchRenderer } from "./goals-status-ui.js";
 import { createGoalsTreeWorkbenchRenderer } from "./goals-tree-ui.js";
 import { createWorkSessionRenderer } from "./work-ui.js";
@@ -179,7 +178,6 @@ export const createWorkbenchGoalsProposalRenderer = createGoalsProposalWorkbench
 
 export const createWorkbenchGoalsPolicyRenderer = createGoalsPolicyWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 
-export const createWorkbenchGoalsSafetyRenderer = createGoalsSafetyWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 
 export const createWorkbenchGoalsRelationRenderer = createGoalsRelationWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS.main);
 

@@ -35,7 +35,7 @@ import { CASEBOOK_SCHEMA_SQL } from "./casebook/journal.js";
  * when they open (`IF NOT EXISTS`), which is a no-op here; changing any of them means a new version.
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: 3,
+  version: 4,
   schema: [
     GOAL_BOARDS_SCHEMA_SQL,
     GOALS_SCHEMA_SQL,

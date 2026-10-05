@@ -18,13 +18,6 @@ export interface GoalMomentumGoalInput {
   updated_at: string;
   completed: boolean;
   reasons: Array<{ code: string }>;
-  risks: Array<{
-    risk_id: string;
-    state: string;
-    blocking_mode: string;
-    created_at: string;
-    updated_at: string;
-  }>;
   events: GoalMomentumEventInput[];
 }
 
@@ -75,14 +68,12 @@ export interface GoalMomentumCadenceBucket {
   date: string;
   started: number;
   completed: number;
-  blockers: number;
 }
 
 export interface GoalMomentumCadence {
   days: 7 | 30;
   started: number;
   completed: number;
-  new_blockers: number;
   stalled: number;
   history_incomplete: number;
   buckets: GoalMomentumCadenceBucket[];

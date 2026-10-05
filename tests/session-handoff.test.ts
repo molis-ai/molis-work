@@ -21,7 +21,6 @@ import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/ser
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import {
-  insertHistoricalRisk,
   sessionHandoffGoalContext,
 } from "./historical-sql-fixture.js";
 import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
@@ -59,14 +58,6 @@ function createContract(databasePath: string, boardId: string, goalId: string) {
       requirement_id: `${goalId}-criterion`,
       statement: "目标 Session 收到 Handoff",
     }],
-  });
-  insertHistoricalRisk(store.db, {
-    risk_id: `${goalId}-risk`,
-    board_id: boardId,
-    goal_ids: [goalId],
-    description: "历史交接风险",
-    treatment_plan: "只读保留",
-    state: "resolved",
   });
   return { store, contract: sessionHandoffGoalContext(coordinator, boardId, goalId) };
 }
@@ -146,7 +137,7 @@ test("Handoff package uses the canonical Goal and a minimal Session context, the
         `handoff.goal:${prepared.handoff.package_id}`);
       assert.equal(edge?.target.id, goalId);
       assert.equal(edge?.target.project_id, boardId);
-      assert.equal(edge?.target.version, 1, "Native Work must pin the Contract revision used to build this package");
+      assert.equal(edge?.target.version, contract.goal_event_cursor, "Native Work must pin the Goal version used to build this package");
     } finally { relationDb.close(); }
 
     const edited = `${prepared.handoff.content}\n\n用户补充：先运行定向测试。`;
@@ -661,8 +652,7 @@ test("completed Goal handoff names the public resume tool and keeps the historic
     assert.match(current, /必须显式继续/);
     assert.doesNotMatch(content, /resumeWork\(/);
     assert.doesNotMatch(current, /## 当前 Run|有效 Evidence|待检查角色/);
-    assert.match(historical, /## 历史 Risk/);
-    assert.match(historical, /历史交接风险/);
+    assert.match(historical, /## 历史验收标准/);
     assert.equal(openContract.goal.goal_id, goalId);
   } finally {
     registry.close();

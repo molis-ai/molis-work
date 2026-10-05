@@ -23,7 +23,6 @@ function baseView(): MolisWorkWebView {
       cursor: 0,
       goals: [],
       relations: [],
-      risks: [],
       goal_tree_proposals: [],
       planning_method_packs: [],
     },

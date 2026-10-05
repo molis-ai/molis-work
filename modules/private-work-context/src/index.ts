@@ -30,7 +30,7 @@ export const packageDescriptor = {
     "encrypted-content-store",
     "session-events",
     "session-handoff-facts",
-    "legacy-session-migration",
+    "panel-and-binding-sessions",
     "runtime-context-bindings",
   ],
 } as const;

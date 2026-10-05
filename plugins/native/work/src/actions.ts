@@ -19,7 +19,7 @@ export interface WorkSessionDirectory {
 const text = { type: "string" }, nullable = { type: ["string", "null"] };
 const sessionProperties = { session_id: text, runtime_id: text, native_runtime_session_id: nullable, project_id: nullable,
   current_goal_id: nullable, workspace_id: nullable, workspace_path: nullable, title: nullable,
-  status: { enum: ["discovered", "active", "closed"] }, provenance: { enum: ["molis_work_created", "runtime_discovered", "explicitly_linked", "legacy_migrated"] },
+  status: { enum: ["discovered", "active", "closed"] }, provenance: { enum: ["molis_work_created", "runtime_discovered", "explicitly_linked"] },
   runtime_workspace_hint: nullable, created_at: text, updated_at: text };
 export const publicWorkSessionSchema = { type: "object", properties: sessionProperties, required: Object.keys(sessionProperties), additionalProperties: false };
 const sessionInput = { type: "object", properties: { session_id: { type: "string", minLength: 1 } }, required: ["session_id"], additionalProperties: false };

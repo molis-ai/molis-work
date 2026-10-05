@@ -138,7 +138,7 @@ export { sendLocalWebJson, readLocalWebBody, authorizeLocalWebRequest, type Loca
 export { createLocalWebAssets } from "./web-assets.js";
 
 export * from "./web-session.js";
-export { reconcileLegacySessionCatalog } from "./session-migration.js";
+export { panelSessionInput, recordDesktopPanelSessions } from "./panel-sessions.js";
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
 export { readMcpToolPreference } from "./mcp-settings-store.js";

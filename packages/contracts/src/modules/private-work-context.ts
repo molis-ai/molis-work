@@ -78,8 +78,7 @@ export type PrivateWorkContextMetadata = Record<string, unknown>;
 export type WorkSessionProvenance =
   | "molis_work_created"
   | "runtime_discovered"
-  | "explicitly_linked"
-  | "legacy_migrated";
+  | "explicitly_linked";
 
 export type WorkSessionStatus = "discovered" | "active" | "closed";
 
@@ -218,7 +217,7 @@ export interface CreateWorkSessionInput {
   workspace_id?: string | null;
   workspace_path?: string | null;
   title?: string | null;
-  provenance?: Exclude<WorkSessionProvenance, "runtime_discovered" | "legacy_migrated">;
+  provenance?: Exclude<WorkSessionProvenance, "runtime_discovered">;
   metadata?: PrivateWorkContextMetadata;
   correlation_ttl_seconds?: number;
 }
@@ -315,7 +314,8 @@ export interface UpdateWorkSessionHandoffDraftInput extends Omit<CreateWorkSessi
   package_id: string;
 }
 
-export interface LegacyWorkSessionPanelInput {
+/** A desktop panel as its Session records it. */
+export interface WorkSessionPanelInput {
   panel_id: string;
   project_id: string;
   goal_id: string;
@@ -330,31 +330,19 @@ export interface LegacyWorkSessionPanelInput {
   updated_at: string;
 }
 
-export interface LegacyRuntimeContextBindingInput {
-  binding_id: string;
+/** A Runtime's binding to a project as its Session records it. */
+export interface WorkSessionBindingInput {
   runtime_id: string;
   stable_work_context_id: string;
   project_id: string;
   bound_by: string;
-  created_at: string;
-  updated_at: string;
 }
 
-export interface LegacyWorkSessionMigrationInput {
-  panels: LegacyWorkSessionPanelInput[];
-  bindings: LegacyRuntimeContextBindingInput[];
-  before_step?: (step: "after_panels" | "after_bindings" | "before_commit") => void;
-}
-
-export interface LegacyWorkSessionMigrationReport {
-  created_sessions: number;
-  reused_sessions: number;
-  receipts_written: number;
-  session_ids: string[];
-}
-
-export interface LegacySessionMigrationApi {
-  migrateLegacy(input: LegacyWorkSessionMigrationInput): LegacyWorkSessionMigrationReport;
+/** A desktop panel and a Runtime binding write their Session when they are written; nothing is copied at read time. */
+export interface WorkSessionSurfaceApi {
+  recordPanelSession(panel: WorkSessionPanelInput): WorkSessionRecord;
+  /** `panelSurfaceId` names the panel whose work context the binding is; such a binding shares that panel's Session. */
+  recordBindingSession(binding: WorkSessionBindingInput, panelSurfaceId?: string | null): WorkSessionRecord;
 }
 
 export interface WorkSessionQueryApi {
@@ -402,7 +390,7 @@ export interface WorkSessionHandoffDestinationInput {
 }
 
 /** Public fact operations; excludes opening storage, SQL and repository internals. */
-export interface WorkSessionApi extends WorkSessionQueryApi, WorkSessionCommandApi {}
+export interface WorkSessionApi extends WorkSessionQueryApi, WorkSessionCommandApi, WorkSessionSurfaceApi {}
 
 
 export interface PrivateWorkContextApplicationApi {

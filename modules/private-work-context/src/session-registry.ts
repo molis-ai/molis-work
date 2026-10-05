@@ -19,18 +19,18 @@ import type {
   MolisWorkSessionGoalLink,
   MolisWorkSessionHandoffRecord,
   MolisWorkSessionRecord,
-  LegacySessionMigrationInput,
-  LegacySessionMigrationReport,
   LinkNativeRuntimeSessionInput,
   ReassignWorkspaceSessionsInput,
   SessionListFilter,
   SetMolisWorkSessionStatusInput,
   UpdateSessionAssociationsInput,
   UpdateSessionHandoffDraftInput,
+  WorkSessionBindingInput,
+  WorkSessionPanelInput,
 } from "./contract-aliases.js";
 import { SessionEventRepository } from "./session-events.js";
 import { SessionHandoffRepository } from "./session-handoffs.js";
-import { LegacySessionMigrator } from "./session-migration.js";
+import { SessionSurfaceRecorder } from "./session-surfaces.js";
 import { SessionRecordRepository } from "./session-records.js";
 import { initializeOrValidateSessionSchema } from "./session-schema.js";
 
@@ -43,7 +43,7 @@ export interface MolisWorkSessionRegistryOptions {
 /**
  * Compatibility facade for the Private Work Context owner.
  *
- * Persistence, events, handoffs and legacy migration live in separate owner
+ * Persistence, events, handoffs and the panel/binding Sessions live in separate owner
  * components; callers keep the established API while their imports move to the
  * package public entrypoint.
  */
@@ -57,7 +57,7 @@ export class MolisWorkSessionRegistry implements WorkSessionApi {
     private readonly sessions: SessionRecordRepository,
     private readonly eventsRepository: SessionEventRepository,
     private readonly handoffs: SessionHandoffRepository,
-    private readonly migration: LegacySessionMigrator,
+    private readonly surfaces: SessionSurfaceRecorder,
     readonly messages: SessionMessageApi,
   ) {
     this.homeDirectory = homeDirectory;
@@ -88,7 +88,7 @@ export class MolisWorkSessionRegistry implements WorkSessionApi {
         const events = new SessionEventRepository(db, now, contentStore, sessions);
         const messages = new SessionMessageRepository(db, now, contentStore, sessions, events);
         return new MolisWorkSessionRegistry(db, homeDirectory, sessions, events, handoffs,
-          new LegacySessionMigrator(db, now, sessions), messages);
+          new SessionSurfaceRecorder(db, now, sessions), messages);
       }).immediate();
       registry.handoffs.recoverInterrupted();
       return registry;
@@ -217,7 +217,13 @@ export class MolisWorkSessionRegistry implements WorkSessionApi {
     return this.handoffs.cancel(packageId);
   }
 
-  migrateLegacy(input: LegacySessionMigrationInput): LegacySessionMigrationReport {
-    return this.migration.migrate(input);
+  /** A desktop panel writes its Session when the panel is written. */
+  recordPanelSession(panel: WorkSessionPanelInput): MolisWorkSessionRecord {
+    return this.surfaces.recordPanel(panel);
+  }
+
+  /** A Runtime binding writes its Session when it is bound; a panel's binding shares the panel's Session. */
+  recordBindingSession(binding: WorkSessionBindingInput, panelSurfaceId: string | null = null): MolisWorkSessionRecord {
+    return this.surfaces.recordBinding(binding, panelSurfaceId);
   }
 }

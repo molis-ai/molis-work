@@ -6,7 +6,7 @@ import type {
 import { MolisWorkSessionError } from "./errors.js";
 
 export const SESSION_REGISTRY_OWNER = "molis-work-session-registry-v1";
-export const SESSION_REGISTRY_SCHEMA_VERSION = 6;
+export const SESSION_REGISTRY_SCHEMA_VERSION = 7;
 
 function isOwnedSessionRegistry(owner: unknown): boolean {
   return owner === SESSION_REGISTRY_OWNER;
@@ -34,7 +34,7 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
           title TEXT,
           status TEXT NOT NULL CHECK (status IN ('discovered', 'active', 'closed')),
           provenance TEXT NOT NULL CHECK (provenance IN (
-            'molis_work_created', 'runtime_discovered', 'explicitly_linked', 'legacy_migrated'
+            'molis_work_created', 'runtime_discovered', 'explicitly_linked'
           )),
           metadata_json TEXT NOT NULL,
           created_at TEXT NOT NULL,
@@ -49,12 +49,6 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
           ON sessions(correlation_token) WHERE correlation_token IS NOT NULL;
         CREATE INDEX sessions_project_idx ON sessions(project_id, updated_at, session_id);
         CREATE INDEX sessions_workspace_idx ON sessions(workspace_id, updated_at, session_id);
-        CREATE TABLE session_migration_receipts (
-          source_id TEXT PRIMARY KEY,
-          session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
-          source_fingerprint TEXT NOT NULL,
-          migrated_at TEXT NOT NULL
-        );
         ${sessionEventsSchema()}
         ${sessionHandoffsSchema()}
         CREATE TABLE session_messages (

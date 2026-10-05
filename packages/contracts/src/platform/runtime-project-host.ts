@@ -1,6 +1,5 @@
 import type { ProjectRecord, DeleteProjectInput, ProjectDeletionResult } from "../modules/projects.js";
 import type { AliasDesktopPanelSessionInput, DesktopPanelRecord } from "./app-host.js";
-import type { LegacySessionMigrationApi } from "../modules/private-work-context.js";
 import type {
   RuntimeWorkContext, RuntimeProjectSuggestionClue, MolisWorkRuntimeContextResolution,
   BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, MolisWorkRuntimeContextUnbindResult,
@@ -51,7 +50,6 @@ export interface RuntimeProjectCatalogProvider {
 
 export interface RuntimePanelCatalogApi {
   aliasPanelSession(input: AliasDesktopPanelSessionInput): DesktopPanelRecord;
-  reconcileSessions(registry: LegacySessionMigrationApi): void;
 }
 
 export interface RuntimePanelCatalogProvider {

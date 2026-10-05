@@ -6,7 +6,7 @@ export interface McpRuntimeContextPorts {
   catalogs: RuntimeProjectCatalogProvider;
   connection: RuntimeProjectConnectionState;
   requireHost(context: McpToolCallContext): MolisWorkRuntimeContextHost;
-  presentResolution(resolution: MolisWorkRuntimeContextResolution, host: MolisWorkRuntimeContextHost, reconcileLegacy?: boolean): Promise<string>;
+  presentResolution(resolution: MolisWorkRuntimeContextResolution, host: MolisWorkRuntimeContextHost, bound?: boolean): Promise<string>;
 }
 
 /** Named tool conversions over the Host's public catalog scope; no binding algorithm or Store. */

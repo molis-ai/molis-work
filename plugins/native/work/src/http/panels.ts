@@ -12,7 +12,10 @@ interface PanelSpawnSpec {
 interface WorkPanelHost {
   panels: DesktopPanelApi;
   preferredWorkspacePath(projectId: string): string | null;
+  /** Reads each panel's Session id. */
   sessionIds(panelIds: readonly string[]): Promise<Map<string, string>>;
+  /** A panel write records its Session at once; returns each panel's Session id. */
+  recordSessions(panels: readonly DesktopPanelRecord[]): Promise<Map<string, string>>;
   spawn(panel: DesktopPanelRecord, sessionId: string | null): PanelSpawnSpec;
 }
 
@@ -140,7 +143,7 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
           actor_id: "desktop-user",
           user_confirmed: true,
         });
-        const sessionIds = await host.sessionIds([panel.panel_id]);
+        const sessionIds = await host.recordSessions([panel]);
         respond(200, {
           panel,
           spawn: host.spawn(panel, sessionIds.get(panel.panel_id) ?? null),
@@ -155,6 +158,7 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
           return true;
         }
         host.panels.close(panelId, "desktop-user");
+        await host.recordSessions([{ ...panel, status: "exited" }]);
         context.kill(panelId);
         respond(200, { closed: true, panel_id: panelId });
         return true;
@@ -166,7 +170,9 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
           respond(404, { error: "找不到这个终端面板" });
           return true;
         }
-        respond(200, { panel: host.panels.markExited(panelId) });
+        const exited = host.panels.markExited(panelId);
+        await host.recordSessions([exited]);
+        respond(200, { panel: exited });
         return true;
       }
       if (method === "POST" && reopenMatch) {
@@ -184,7 +190,7 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
           return true;
         }
         const opened = host.panels.markOpen(panelId);
-        const sessionIds = await host.sessionIds([opened.panel_id]);
+        const sessionIds = await host.recordSessions([opened]);
         respond(200, {
           panel: opened,
           spawn: host.spawn(opened, sessionIds.get(opened.panel_id) ?? null),

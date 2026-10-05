@@ -453,10 +453,12 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         assert.equal(note.recorded, true);
         const state = await firstMcp.call("molis_work_v1_action_goals.state.read__v1", {
           goal_id: started.goal.goal_id,
-        }) as { work_status: string; goal_url: string };
+        }) as { work_status: string };
         assert.equal(state.work_status, "open");
+        // Action results carry IDs; the Goal's page comes from the bound context's template.
+        const context = await firstMcp.call("molis_work_v1_context_resolve", {}) as { connection: { goal_url_template: string } };
         assert.equal(
-          state.goal_url,
+          context.connection.goal_url_template.replace("{goal_id}", encodeURIComponent(started.goal.goal_id)),
           `${origin}/projects/${encodeURIComponent(created.project.project_id)}/goals/${encodeURIComponent(started.goal.goal_id)}`,
         );
         return { goalId: started.goal.goal_id, noteId: note.event_id };

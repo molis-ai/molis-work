@@ -19,7 +19,6 @@ export const FORM_EN: Record<string, string> = {
   "按题目加题": "Add this question",
   "AI 拟题加题": "Suggest and add with AI",
   "当前没有可用的文字模型，请检查模型设置和服务连接。": "No text model is available. Check model settings and service connections.",
-  "历史答卷未保存题目快照；名称参考当前问卷，未知题目保留原题号。": "This older response has no question snapshot. Labels use the current form; unknown questions retain their original IDs.",
   "标记已发布": "Mark as published",
   "发布状态保存在本机，不会生成外网填写链接。": "Publication status is local; it does not create a public response link.",
   "新建问卷": "New form",

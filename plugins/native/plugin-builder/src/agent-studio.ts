@@ -151,7 +151,6 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  // Capabilities being connected: shown ticked on the capability board only once the code agent has carried them in.
  let wiredCaps=new Set(),wires=[],wiring=null,wiringPlay=false;
  // Parts are UI catalog components; builds from before keep their old names, which map onto the catalog.
- const LEGACY={heading:'frame',text:'card',list:'directory',cards:'card',reader:'accordion',chat:'card',matrix:'table',notice:'alert'},catalogKind=k=>LEGACY[k]||k;
  const GROUPS=['版面','展示','录入','操作','浮层','反馈'];let catalogOpen='';
  // The capability board: what this plugin uses from the project's unified action directory, and the whole directory.
  const CAP_ICON={platform:'sparkles',plugin:'package',mcp:'network'},CAP_SOURCES=[['platform','平台'],['plugin','已安装插件'],['mcp','MCP 与连接器']];
@@ -163,7 +162,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  // A build stopped on a question for the person is waiting for them, not paused.
  const phaseOf=b=>!b.active&&(b.pendingPlugins?.length||b.pendingPart)?'等你决定':PHASE[b.phase]||b.phase;
  const AGENT={design:'主线设计',ui:'UI Agent',code:'代码 Agent',host:'宿主检查'};
- const componentName=kind=>(state.components.find(c=>c.kind===catalogKind(kind))||{}).name||kind;
+ const componentName=kind=>(state.components.find(c=>c.kind===kind)||{}).name||kind;
  const active=b=>!!b?.active;
  const EXAMPLES=[['读书笔记','记录读过的书、评分和一句话感受，按状态筛选'],['每日复盘','每天写下完成了什么、卡在哪里、明天最重要的一件事'],['小组报名表','收集报名人的姓名、联系方式和时间段，能看到已报名名单']];
  function selection(s){if(!s)return '';if(s.source==='jev')return '<span class="as-chip jev">Jev · '+s.candidates.length+' 选 1'+(s.elapsedMs!=null?' · '+s.elapsedMs+'ms':'')+'</span>';if(s.source==='design')return '<span class="as-chip rule">UI Agent</span>';if(s.source==='user')return '<span class="as-chip user">你选择</span>';return '<span class="as-chip rule">'+(s.candidates.length===1?'唯一合法':'规则选择')+'</span>';}
@@ -279,8 +278,8 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  function renderBoard(){if(!lifetime.alive)return;
   const b=current,board=$('[data-as-board]'),panel=$('[data-as-catalog-panel]');board.hidden=!b?.design;if(board.hidden){tip.hidden=true;panel.hidden=true;return;}
   // Only what has landed counts as placed; a part still waiting its turn is not on the page yet.
-  const placed=b.nodes.filter(n=>revealed.has(n.id)),parts=new Map();for(const n of placed)parts.set(catalogKind(n.kind),(parts.get(catalogKind(n.kind))||0)+1);
-  const inside=usedSlots(),legal=new Set((b.pendingPart?.candidates||[]).map(catalogKind)),used=c=>parts.get(c.kind)||(c.use!=='part'&&inside.has(c.kind)?1:0);
+  const placed=b.nodes.filter(n=>revealed.has(n.id)),parts=new Map();for(const n of placed)parts.set(n.kind,(parts.get(n.kind)||0)+1);
+  const inside=usedSlots(),legal=new Set((b.pendingPart?.candidates||[])),used=c=>parts.get(c.kind)||(c.use!=='part'&&inside.has(c.kind)?1:0);
   const item=c=>{const n=used(c);return '<button type="button" class="as-part" data-kind="'+esc(c.kind)+'"'+(n?' data-used':'')+(c.use==='catalog'&&!n?' data-catalog':'')+(c.kind===picking?' data-picking':'')+(legal.has(c.kind)?' data-legal data-as-part="'+esc(c.kind)+'"':'')+' aria-label="'+esc(c.name+' '+c.catalog+'：'+c.description)+'">'+icon(c.icon||'frame')+'<b>'+esc(c.name)+'</b>'+(n?'<i class="as-part-check" aria-hidden="true">'+(n>1&&c.use==='part'?n:'✓')+'</i>':'')+'</button>';};
   const total=state.components.length,inUse=state.components.filter(used).length,caps=usedCapabilities(b),directory=(state.capabilities||[]).filter(c=>c.offered);
   const html='<span class="as-board-label">'+icon('frame')+'规格板<small>已放入 '+placed.length+'/'+b.design.parts.length+' · 用到 '+inUse+'/'+total+'</small></span>'+state.components.filter(c=>c.use==='part').map(item).join('')
@@ -305,7 +304,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  function showTip(button){
   if(button.dataset.cap){const cap=capabilityOf(button.dataset.cap),use=usedCapabilities(current).find(x=>x.c.id===cap.id);tip.innerHTML='<b>'+esc(cap.title)+' · '+esc(cap.source?.title||'平台')+'</b><p>'+esc(cap.description||'')+'</p><p>'+esc(cap.effect==='read'?'只读取':'会写入，安装时需要你授权；试用时用替身')+'</p>'+(use?'<ul>'+use.ops.map(o=>'<li>'+esc(o)+'</li>').join('')+'</ul>':'')+(()=>{const s=[...(current?.steps||[])].reverse().find(x=>x.agent==='design'&&x.action==='place'&&x.selection?.choice===cap.id)?.selection;return s&&s.candidates.length>1?'<p>'+selection(s)+' 从 '+s.candidates.map(capabilityTitle).map(esc).join('、')+' 中选定</p>':'';})();
    const area=canvas.getBoundingClientRect(),box=button.getBoundingClientRect();tip.style.left=Math.round(Math.max(8,Math.min(area.width-240,box.left-area.left+box.width/2-116)))+'px';tip.hidden=false;return;}
-  const c=state.components.find(x=>x.kind===button.dataset.kind);if(!c)return;const used=(current?.nodes||[]).filter(n=>catalogKind(n.kind)===c.kind&&revealed.has(n.id));
+  const c=state.components.find(x=>x.kind===button.dataset.kind);if(!c)return;const used=(current?.nodes||[]).filter(n=>n.kind===c.kind&&revealed.has(n.id));
   tip.innerHTML='<b>'+esc(c.name)+' · '+esc(c.catalog)+'</b><p>'+esc(c.description)+'</p><p>'+esc(c.use==='part'?'可以作为一个组件放进插件':c.use==='inside'?'在组件里面用：字段、筛选、状态、提示':'UI 目录里有，生成的插件暂未用到')+'</p>'+(used.length?'<ul>'+used.map(n=>'<li>'+esc(n.props.title||n.purpose)+'</li>').join('')+'</ul>':'')+(button.hasAttribute('data-legal')?'<p class="as-tip-legal">点一下，用它放入这个组件</p>':'');
   const area=canvas.getBoundingClientRect(),box=button.getBoundingClientRect();tip.style.left=Math.round(Math.max(8,Math.min(area.width-240,box.left-area.left+box.width/2-116)))+'px';tip.hidden=false;}
  let lastView='',comparePrevious=false;
@@ -360,7 +359,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
    const id=queue[0],node=current?.nodes.find(n=>n.id===id);if(!node){queue.shift();continue;}
    const name=componentName(node.kind),step=[...current.steps].reverse().find(s=>s.agent==='ui'&&s.target===id),by=step?.selection?.source==='jev'?' · Jev '+step.selection.candidates.length+' 选 1':step?.selection?.source==='user'?' · 你选的':'';
    // 1. Take the part from the spec board.
-   picking=catalogKind(node.kind);renderBoard();const part=$('[data-as-board] [data-kind="'+CSS.escape(picking)+'"]');
+   picking=node.kind;renderBoard();const part=$('[data-as-board] [data-kind="'+CSS.escape(picking)+'"]');
    if(part){part.scrollIntoView({block:'nearest',inline:'center'});aim(ui,part,'取出「'+name+'」'+by,'above');await wait(620);click(ui);await wait(240);}
    if(token!==playToken)break;
    // 2. Carry it to its place: the spot opens, framed, before the part shows.

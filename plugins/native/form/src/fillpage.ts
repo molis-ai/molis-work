@@ -99,12 +99,12 @@ export function formFillPageFilename(title: string): string {
 export function formResultsCsv(form: FormRecord, submissions: readonly FormSubmissionRecord[]): string {
   const columns = new Map<string, string>();
   for (const question of form.questions) columns.set(question.id, question.title || question.id);
-  for (const submission of submissions) for (const question of submission.questions ?? []) if (!columns.has(question.id)) columns.set(question.id, question.title || question.id);
+  for (const submission of submissions) for (const question of submission.questions) if (!columns.has(question.id)) columns.set(question.id, question.title || question.id);
   const cell = (value: string) => /[",\r\n]/u.test(value) || /^[=+\-@]/u.test(value) ? '"' + (/^[=+\-@]/u.test(value) ? "'" : "") + value.replaceAll('"', '""') + '"' : value;
   const source = { preview: "试填", fill: "本机填写页", file: "答卷文件" } as const;
   const header = ["提交时间", "来源", ...columns.values()].map(cell).join(",");
   const rows = [...submissions].sort((a, b) => a.submitted_at.localeCompare(b.submitted_at)).map(submission => [
-    submission.submitted_at, source[submission.source ?? "preview"], ...[...columns.keys()].map(id => String(submission.answers[id] ?? "").replaceAll("\n", "；")),
+    submission.submitted_at, source[submission.source], ...[...columns.keys()].map(id => String(submission.answers[id] ?? "").replaceAll("\n", "；")),
   ].map(cell).join(","));
   return "\ufeff" + [header, ...rows].join("\r\n") + "\r\n";
 }

@@ -129,26 +129,21 @@ test("images: a job an earlier runner left running recovers only after that runn
   const connection = service.saveConnection(connectionInput);
   const job = service.start("project-a", { request_id: "earlier", connection_id: connection.id, prompt: "earlier" });
   await service.close();
+  const earlierRunner = randomUUID();
   const db = new DatabaseSync(join(home, "images", "images.db"));
-  db.prepare("UPDATE jobs SET status = 'running', runner_id = ?, finished_at = NULL WHERE id = ?").run(randomUUID(), job.id);
+  db.prepare("UPDATE jobs SET status = 'running', runner_id = ?, finished_at = NULL WHERE id = ?").run(earlierRunner, job.id);
   db.close();
-  const oldLock = new DatabaseSync(join(home, "images", ".runner-lock.db"));
-  oldLock.exec("BEGIN EXCLUSIVE");
-  try { assert.throws(() => new ImagesService({ homeDirectory: home, secrets }), { code: "images.already_open" }); }
-  finally { oldLock.close(); }
+  const earlierLock = new DatabaseSync(join(home, "images", "runners", earlierRunner + ".db"));
+  earlierLock.exec("BEGIN EXCLUSIVE");
+  try {
+    const alongside = new ImagesService({ homeDirectory: home, secrets });
+    try { assert.equal(alongside.getJob("project-a", job.id).status, "running", "a live runner's job is not interrupted"); }
+    finally { await alongside.close(); }
+  } finally { earlierLock.close(); }
   const restarted = new ImagesService({ homeDirectory: home, secrets });
   try {
     assert.equal(restarted.getJob("project-a", job.id).status, "interrupted");
     assert.equal(restarted.listConnections()[0]!.id, connection.id);
-    // An old executable must also be excluded while the new runner is alive.
-    const module = new URL("node:sqlite").href;
-    const script = `import { DatabaseSync } from ${JSON.stringify(module)};
-      const lock = new DatabaseSync(${JSON.stringify(join(home, "images", ".runner-lock.db"))});
-      try { lock.exec('BEGIN EXCLUSIVE'); process.stdout.write('unexpected'); }
-      catch (error) { process.stdout.write(String(error.errcode)); }
-      finally { lock.close(); }`;
-    const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", timeout: 10_000 });
-    assert.equal(child.status, 0, child.stderr); assert.equal(child.stdout, "5");
   } finally { await restarted.close(); }
 });
 
@@ -240,7 +235,7 @@ test("images: failed store initialization releases the runner even when database
     if (closes === 1) throw new Error("injected constructor cleanup failure");
   });
   assert.throws(() => new ImagesStore(home), /injected constructor cleanup failure/u);
-  assert.equal(closes, 3);
+  assert.equal(closes, 2, "the database and the runner lock both close");
   execMock.mock.restore();
   closeMock.mock.restore();
   const store = new ImagesStore(home);

@@ -2,7 +2,7 @@ import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type Sqlit
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
-import { chmodSync, mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { ImagesError } from "./error.js";
 
@@ -35,24 +35,12 @@ export const IMAGES_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 export class ImagesStore {
   private readonly db: DatabaseSync;
   private readonly runnerLock: DatabaseSync;
-  private readonly compatibilityLock: DatabaseSync;
   private readonly runnerId = randomUUID();
   private readonly runnerDirectory: string;
 
   constructor(homeDirectory: string) {
     const directory = join(homeDirectory, "images");
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    const lockPath = join(directory, ".runner-lock.db");
-    this.compatibilityLock = new DatabaseSync(lockPath);
-    try { chmodSync(lockPath, 0o600); } catch { /* Some volumes do not support Unix modes. */ }
-    try {
-      // New runners share a read lock. An old binary's lifetime EXCLUSIVE lock
-      // cannot overlap: it would incorrectly interrupt every running job.
-      this.compatibilityLock.exec("PRAGMA busy_timeout = 0; BEGIN; SELECT COUNT(*) FROM sqlite_schema");
-    } catch {
-      this.compatibilityLock.close();
-      throw new ImagesError("images.already_open", "旧版图片服务仍在运行，请关闭旧版进程后重试。", 409);
-    }
     this.runnerDirectory = join(directory, "runners");
     let runnerLock: DatabaseSync | undefined;
     try {
@@ -61,7 +49,7 @@ export class ImagesStore {
       this.runnerLock.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
       this.db = openHomeSqliteDatabase(homeDirectory, "images");
     } catch (error) {
-      try { runnerLock?.close(); } finally { this.compatibilityLock.close(); }
+      runnerLock?.close();
       throw error;
     }
     try {
@@ -79,7 +67,7 @@ export class ImagesStore {
   }
 
   private releaseLocks(): void {
-    try { this.runnerLock.close(); } finally { this.compatibilityLock.close(); }
+    this.runnerLock.close();
     // The ID is never reused. A crashed runner's file is removed during recovery.
     try { rmSync(join(this.runnerDirectory, this.runnerId + ".db"), { force: true }); } catch { /* Safe to retain an unlocked file. */ }
   }
@@ -90,25 +78,22 @@ export class ImagesStore {
       const owners = this.db.prepare("SELECT DISTINCT runner_id FROM jobs WHERE status = 'running'").all() as Row[];
       for (const { runner_id: owner } of owners) {
         if (owner === this.runnerId) continue;
-        // Legacy jobs had no owner. The shared compatibility lock excludes an
-        // old live runner before those records can be recovered.
+        // Every job names the runner that holds it; that runner's exclusive lock proves it is still alive.
+        if (!/^[a-f0-9-]{36}$/u.test(String(owner))) throw new Error("Invalid Images runner identity");
+        const path = join(this.runnerDirectory, String(owner) + ".db");
         let probe: DatabaseSync | undefined;
-        const path = owner === null ? null : join(this.runnerDirectory, String(owner) + ".db");
-        if (owner !== null && !/^[a-f0-9-]{36}$/u.test(String(owner))) throw new Error("Invalid Images runner identity");
         try {
-          if (path) {
-            probe = new DatabaseSync(path);
-            probe.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
-          }
-          this.db.prepare("UPDATE jobs SET status = 'interrupted', error = ?, finished_at = ? WHERE status = 'running' AND runner_id IS ?")
-            .run("本机执行进程已停止，未自动重新生成。请先检查厂商用量，再决定是否重试。", new Date().toISOString(), owner as string | null);
+          probe = new DatabaseSync(path);
+          probe.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
+          this.db.prepare("UPDATE jobs SET status = 'interrupted', error = ?, finished_at = ? WHERE status = 'running' AND runner_id = ?")
+            .run("本机执行进程已停止，未自动重新生成。请先检查厂商用量，再决定是否重试。", new Date().toISOString(), String(owner));
         } catch (error) {
           // Only SQLITE_BUSY proves another runner holds this lock. I/O errors
           // must not be mistaken for process death.
           if (!(error && typeof error === "object" && "errcode" in error && error.errcode === 5)) throw error;
           continue;
         } finally { probe?.close(); }
-        if (path) { try { rmSync(path, { force: true }); } catch { /* No live owner; retaining it is harmless. */ } }
+        try { rmSync(path, { force: true }); } catch { /* No live owner; retaining it is harmless. */ }
       }
       this.db.exec("COMMIT");
     } catch (error) { this.db.exec("ROLLBACK"); throw error; }

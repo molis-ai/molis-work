@@ -66,14 +66,6 @@ test("visual foundation keeps Light, Dark, and System as local presentation choi
   assert.match(VISUAL_FOUNDATION_STYLES, /data-navigation-pending="true"/);
 });
 
-test("dependency proposal records use semantic colors in both themes", () => {
-  const stylesheet = renderMolisWorkWorkbenchStylesheet();
-  assert.match(stylesheet, /\.dependency-proposal \{[^}]*background: var\(--paper\);[^}]*color: var\(--ink\);/);
-  assert.match(stylesheet, /\.dependency-rationale div \{[^}]*border-top: 1px solid var\(--line\);/);
-  assert.match(stylesheet, /\.dependency-evidence \{[^}]*border-top: 1px solid var\(--line\);/);
-  assert.doesNotMatch(stylesheet, /\.dependency-proposal \{[^}]*background: #fff;/);
-});
-
 // Soft Workbench (DESIGN.md → Primary): graphite action in both themes, and no `!important` skin that
 // would stop a disabled or hovered primary from showing its own state.
 test("primary and danger buttons keep semantic foregrounds across Light and Dark", () => {

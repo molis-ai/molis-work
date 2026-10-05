@@ -14,12 +14,12 @@ export const REQUIRED_RELEASE_SKILL_FILES = [
   "skills/molis-plugin-dev/SKILL.md",
 ] as const;
 
-export const LEGACY_LAUNCHER_HEADER = "#!/usr/bin/env node\n// molis-work-home-launcher-v1";
+export const NODE_LAUNCHER_HEADER = "#!/usr/bin/env node\n// molis-work-home-launcher-v1";
 
 export const BUNDLED_NODE_LAUNCHER_HEADER = "#!/bin/sh\n# molis-work-home-launcher-v2";
 
 export const OWNED_LAUNCHER_HEADERS = [
-  LEGACY_LAUNCHER_HEADER,
+  NODE_LAUNCHER_HEADER,
   BUNDLED_NODE_LAUNCHER_HEADER,
 ] as const;
 

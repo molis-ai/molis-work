@@ -1,4 +1,4 @@
-import { GOALS_DEPENDENCY_PROPOSAL_STYLES, GOALS_DECISION_COMMON_STYLES, GOALS_LEGACY_CONTRACT_STYLES, GOALS_PROPOSAL_STYLES, GOALS_CANDIDATE_STYLES, GOALS_EVENT_DOCUMENT_STYLES } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_DECISION_COMMON_STYLES, GOALS_PROPOSAL_STYLES, GOALS_EVENT_DOCUMENT_STYLES } from "@molis-ai/molis-work-plugin-goals";
 export const MORE_STYLES = `
   .runtime-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line-strong); border-radius: 5px; overflow: hidden; }
   .runtime-grid > section { min-width: 0; min-height: 174px; padding: 12px 16px; border-right: 1px solid var(--line-strong); }
@@ -10,27 +10,13 @@ export const MORE_STYLES = `
   .runtime-facts dt, .policy-list dt { color: var(--muted); }
   .runtime-facts dd, .policy-list dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
   .runtime-note { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
-  .ref-stack, .review-list { display: grid; gap: 8px; margin-top: 8px; }
+  .ref-stack { display: grid; gap: 8px; margin-top: 8px; }
   .inline-ref { width: fit-content; max-width: 100%; padding: 0; border: 0; background: transparent; color: var(--blue-dark); display: inline-flex; align-items: center; gap: 4px; cursor: pointer; text-decoration: none; }
   .inline-ref:hover span { text-decoration: underline; }
   .inline-ref svg { flex: 0 0 auto; font-size: 13px; }
   .inline-ref span { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
-  .review-row { display: flex; align-items: flex-start; gap: 8px; }
-  .review-row > span:last-child { min-width: 0; display: grid; gap: 4px; }
-  .review-row small { color: var(--muted); overflow-wrap: anywhere; }
   .record-id { min-width: 0; padding: 0; border: 0; background: transparent; color: var(--blue-dark); font: inherit; font-size: 11px; cursor: pointer; overflow-wrap: anywhere; text-align: left; }
   .record-id:hover { text-decoration: underline; }
-  .human-verdict-prefill { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 12px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)); border-radius: 8px; background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
-  .human-verdict-prefill > span { color: var(--accent); }
-  .human-verdict-prefill strong { display: block; margin-bottom: 4px; }
-  .human-verdict-prefill p { margin: 0; color: var(--muted); }
-  .human-verdict-prefill dl { margin: 8px 0 0; display: grid; gap: 8px; }
-  .human-verdict-prefill dl div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; }
-  .human-verdict-prefill dt { color: var(--muted); }
-  .human-verdict-prefill dd { margin: 0; overflow-wrap: anywhere; }
-  .review-state { flex: 0 0 8px; width: 8px; height: 8px; margin-top: 8px; border-radius: 50%; background: var(--amber); }
-  .review-state--satisfied { background: var(--green); }
-  .review-state--waived { background: var(--faint); }
   .relation-layout { display: grid; grid-template-columns: 1fr; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
   .relation-group { min-width: 0; border-bottom: 1px solid var(--line); }
   .relation-group:last-child { border-bottom: 0; }
@@ -130,12 +116,6 @@ export const MORE_STYLES = `
   .relation-editor-empty { margin-top: 12px; padding: 12px 12px; border: 1px dashed var(--line-strong); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; color: var(--muted); }
   .relation-editor-empty > span { display: grid; }
   .relation-editor-empty svg { width: 16px; height: 16px; }
-${GOALS_DEPENDENCY_PROPOSAL_STYLES}
-  .contract-list { border-top: 1px solid var(--line); }
-  .contract-list section { min-width: 0; padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 138px minmax(0, 1fr); gap: 16px; align-items: start; }
-  .contract-list h3 { margin: 0; font-size: 13px; }
-  .contract-list .doc-list, .contract-list .empty-row { margin-top: 0; }
-  .contract-list .doc-list { min-width: 0; overflow-wrap: anywhere; }
   .scope-gaps { margin-top: 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--page); }
   .scope-gaps > summary { min-height: 46px; padding: 12px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; list-style: none; cursor: pointer; }
   .scope-gaps > summary::-webkit-details-marker { display: none; }
@@ -145,7 +125,6 @@ ${GOALS_DEPENDENCY_PROPOSAL_STYLES}
   .scope-gaps > summary small { color: var(--muted); font-size: 12px; font-weight: 400; }
   .scope-gaps > summary > svg { flex: 0 0 auto; color: var(--blue); transition: transform 130ms var(--ease-quint); }
   .scope-gaps[open] > summary > svg { transform: rotate(180deg); }
-  .scope-gaps > .contract-list { padding: 0 12px 8px; border-top: 1px solid var(--line); background: var(--paper); }
   .risk-register { min-width: 0; padding: 16px 0; border-bottom: 1px solid var(--line); }
   .safety-subheading { margin-bottom: 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
   .safety-subheading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
@@ -211,10 +190,6 @@ ${GOALS_DEPENDENCY_PROPOSAL_STYLES}
   .risk-resolution-fields label { min-width: 0; display: grid; gap: 4px; }
   .risk-resolution-fields label > span { font-size: 11px; font-weight: 400; }
   .risk-resolution-fields textarea { width: 100%; min-width: 0; padding: 8px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--paper); resize: vertical; }
-  .risk-decision-link { min-height: 50px; padding: 8px 16px 8px 56px; border-top: 1px solid var(--line); color: var(--blue-dark); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; text-decoration: none; }
-  .risk-decision-link:hover { background: var(--nav-hover); }
-  .risk-decision-link > span { min-width: 0; display: grid; }
-  .risk-decision-link small { color: var(--muted); }
   .risk-goal-picker { border: 1px solid var(--line); border-radius: 5px; background: var(--page); }
   .risk-goal-picker > summary { min-height: 45px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .risk-goal-picker > summary > span { min-width: 0; display: grid; }
@@ -368,7 +343,6 @@ ${GOALS_DEPENDENCY_PROPOSAL_STYLES}
   .criterion-editor-row > header { min-height: 39px; padding: 8px 12px 8px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; background: var(--page); }
   .criterion-editor-row > header .mw-btn { min-height: 28px; }
   .criterion-editor-grid { padding: 12px 12px 12px; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(160px, .7fr); gap: 12px 16px; }
-  .criterion-pass { grid-column: 1; }
   .draft-contract-form > .form-error { margin-top: 12px; }
   .draft-contract-form > footer { padding-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .draft-contract-form > footer > span { color: var(--muted); font-size: 12px; }
@@ -422,9 +396,7 @@ ${GOALS_DEPENDENCY_PROPOSAL_STYLES}
   .decision-owner-link small { color: var(--muted); font-size: 11px; }
   .decision-stack { display: grid; gap: 12px; }
 ${GOALS_DECISION_COMMON_STYLES}
-${GOALS_LEGACY_CONTRACT_STYLES}
 ${GOALS_PROPOSAL_STYLES}
-${GOALS_CANDIDATE_STYLES}
 ${GOALS_EVENT_DOCUMENT_STYLES}
   .decision-reason { padding: 12px 16px; border-top: 1px solid var(--line); background: var(--page); display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: start; gap: 12px; }
   .decision-reason > span { padding-top: 8px; font-weight: 400; }
@@ -446,19 +418,9 @@ ${GOALS_EVENT_DOCUMENT_STYLES}
   .risk-decision-details > div { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; }
   .risk-decision-details dt { color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); }
   .risk-decision-details dd { margin: 0; overflow-wrap: anywhere; }
-  .risk-decision-choice { padding: 12px 16px; border-top: 1px solid var(--line); display: grid; grid-template-columns: minmax(220px, .7fr) minmax(0, 1fr); align-items: end; gap: 16px; }
-  .risk-decision-choice label { display: grid; gap: 4px; }
-  .risk-decision-choice label > span { font-size: 11px; font-weight: 400; }
-  .risk-decision-choice select { width: 100%; min-height: 36px; padding: 8px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--paper); }
-  .risk-decision-choice select[aria-invalid="true"], .decision-reason textarea[aria-invalid="true"] { border-color: var(--red); outline: 1px solid var(--red); outline-offset: -1px; }
-  .risk-decision-choice .risk-state-preview { min-height: 36px; }
+  .decision-reason textarea[aria-invalid="true"] { border-color: var(--red); outline: 1px solid var(--red); outline-offset: -1px; }
   .risk-decision > footer.decision-actions { justify-content: space-between; align-items: center; }
   .risk-decision > footer.decision-actions a { color: var(--blue-dark); font-size: 12px; font-weight: 400; text-decoration: none; }
-  .decision-link-row { padding: 12px 16px; border-top: 1px solid var(--line); background: var(--page); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-  .decision-link-row span { color: var(--muted); font-size: 12px; }
-  .decision-link-row a { flex: 0 0 auto; color: var(--blue-dark); font-weight: 400; text-decoration: none; }
-  .review-context { padding: 0 16px 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
-  .review-context h4 { margin: 12px 0 8px; font-size: 12px; }
   .decision-receipt { margin: 16px 0 4px; padding: 12px 16px; border: 1px solid color-mix(in srgb, var(--green), var(--line) 65%); background: var(--green-soft); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; }
   .decision-receipt strong, .decision-receipt span { display: block; }
   .decision-receipt span { color: var(--muted); font-size: 12px; }

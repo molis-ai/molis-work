@@ -3219,7 +3219,6 @@ Object.assign(EN, {
   "原 Goal 已不可用": "Original Goal unavailable",
   "Molis Work 正在等待你完成与这个 Goal 相关的判断。": "Molis Work is waiting for you to make a decision related to this Goal.",
   "Goal 已归档、删除或当前无法读取；决定引用仍保留。": "The Goal was archived, deleted, or cannot currently be read. The decision reference remains.",
-  "Inbox · 兼容引用": "Inbox · Legacy reference",
   "仅 Feed": "Feed only",
   "其他类型": "Other types",
   "全部时间": "Any time",

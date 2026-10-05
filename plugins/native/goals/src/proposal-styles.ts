@@ -1,41 +1,9 @@
-/** Existing decision component CSS. Workbench retains cascade order and media-query placement. */
-export const GOALS_DEPENDENCY_PROPOSAL_STYLES = `  .dependency-history { margin-top: 16px; }
-  .dependency-history > h3 { margin: 0; font-size: 13px; }
-  .dependency-history > h3 span { color: var(--muted); font-weight: 400; }
-  .dependency-history > p { margin: 4px 0 8px; color: var(--muted); font-size: 12px; }
-  .dependency-proposal-list { width: 100%; min-width: 0; margin-top: 8px; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
-  .dependency-proposal { min-width: 0; padding: 12px 12px; border-bottom: 1px solid var(--line); background: var(--paper); color: var(--ink); }
-  .dependency-proposal:last-child { border-bottom: 0; }
-  .dependency-proposal > header { display: flex; align-items: center; gap: 8px; }
-  .dependency-action, .dependency-state { font-size: 11px; font-weight: 400; }
-  .dependency-action { color: var(--blue-dark); }
-  .dependency-action--deactivate { color: var(--red); }
-  .dependency-state { margin-left: auto; color: var(--muted); }
-  .dependency-state--pending { color: var(--amber); }
-  .dependency-state--applied { color: var(--green); }
-  .dependency-state--rejected { color: var(--red); }
-  .dependency-direction { margin: 8px 0 8px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
-  .dependency-direction > span { display: grid; justify-items: center; color: var(--muted); font-size: 11px; }
-  .dependency-direction > span svg { font-size: 15px; }
-  .dependency-goal { min-width: 0; padding: 0; border: 0; background: transparent; display: grid; text-align: left; color: var(--ink); cursor: pointer; }
-  .dependency-goal:hover strong { color: var(--blue-dark); text-decoration: underline; }
-  .dependency-goal strong, .dependency-goal small { white-space: normal; overflow-wrap: anywhere; }
-  .dependency-goal small { color: var(--muted); font-size: 11px; }
-  .dependency-rationale { margin: 0; display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
-  .dependency-rationale div { min-width: 0; padding: 8px 0; border-top: 1px solid var(--line); }
-  .dependency-rationale dt { color: var(--muted); font-size: 11px; }
-  .dependency-rationale dd { margin: 1px 0 0; overflow-wrap: anywhere; }
-  .dependency-evidence { min-width: 0; padding-top: 8px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: start; gap: 8px 12px; }
-  .dependency-evidence > strong { color: var(--muted); font-size: 11px; }
-  .dependency-evidence .inline-ref, .dependency-evidence > .empty-row { min-width: 0; width: 100%; max-width: 100%; grid-column: 2; margin: 0; align-items: flex-start; text-align: left; }
-  .dependency-evidence .inline-ref span { min-width: 0; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }`;
-
+/** Decision component CSS. Workbench retains cascade order and media-query placement. */
 export const GOALS_DECISION_COMMON_STYLES = `  .decision-record { min-width: 0; margin: 0; padding: 0; border: 1px solid var(--line-strong); border-radius: 5px; overflow: hidden; background: var(--paper); }
   .decision-record-heading { min-height: 40px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--page); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .decision-record-heading > small { min-width: 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; text-align: right; }
   .decision-kind { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 11px; font-weight: 400; letter-spacing: .04em; }
   .decision-new { margin-left: 4px; padding: 4px 8px; border-radius: 9px; color: var(--ink); background: var(--nav-hover); font-size: 11px; font-weight: 400; letter-spacing: 0; }
-  .decision-kind--rewire { color: var(--ink-soft); }
   .decision-kind--risk { color: var(--amber); }
   .decision-record-body { padding: 12px 16px; }
   .decision-record-body > h3 { margin: 0; font-size: 17px; line-height: 1.4; }
@@ -66,31 +34,7 @@ export const GOALS_DECISION_COMMON_STYLES = `  .decision-record { min-width: 0; 
   .decision-details { border-top: 1px solid var(--line); }
   .decision-details > summary { min-height: 40px; padding: 8px 16px; color: var(--ink); background: var(--page); display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 400; cursor: pointer; }
   .decision-details > summary svg { transition: transform 130ms var(--ease-quint); }
-  .decision-details[open] > summary svg { transform: rotate(180deg); }
-  .decision-key-fact { margin-top: 12px !important; padding: 8px 12px; border-left: 2px solid var(--blue); background: var(--nav-hover); color: var(--ink) !important; }`;
-
-export const GOALS_LEGACY_CONTRACT_STYLES = `  .rewire-decision .dependency-proposal-list { margin-top: 8px; }
-  .contract-proposal > header { padding: 12px 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; background: var(--nav-hover); border-bottom: 1px solid var(--line); }
-  .contract-proposal > header strong { font-size: 15px; }
-  .contract-proposal > header p { color: var(--muted); }
-  .contract-proposal > header > span { color: var(--muted); font-size: 11px; white-space: nowrap; }
-  .contract-diff-list { padding: 0 16px; }
-  .contract-diff-row { display: grid; grid-template-columns: 130px minmax(0, 1fr) minmax(210px, .72fr); gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); align-items: start; }
-  .contract-diff-row h4 { margin: 1px 0 0; font-size: 13px; }
-  .contract-diff-copy { min-width: 0; }
-  .contract-diff-copy small, .proposal-source > span { color: var(--muted); font-size: 11px; }
-  .contract-diff-copy p { margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
-  .contract-diff-copy p:last-child { margin-bottom: 0; }
-  .proposal-source { min-width: 0; display: grid; gap: 4px; padding-left: 12px; border-left: 1px solid var(--line); color: var(--muted); }
-  .proposal-source > span { color: var(--ink); font-weight: 400; }
-  .proposal-source > small { overflow-wrap: anywhere; }
-  .proposal-refs { min-width: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; }
-  .proposal-refs .inline-ref { font-size: 11px; }
-  .proposal-appendix { margin: 0 16px; padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 16px; }
-  .proposal-appendix > strong { font-size: 13px; }
-  .proposal-appendix .doc-list { margin: 0; }
-  .proposal-prerequisite > div { min-width: 0; }
-  .proposal-prerequisite p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }`;
+  .decision-details[open] > summary svg { transform: rotate(180deg); }`;
 
 export const GOALS_PROPOSAL_STYLES = `  .goal-tree-proposal-summary { margin-top: 12px; padding: 12px 12px; border-left: 2px solid var(--blue); background: var(--nav-hover); display: grid; gap: 4px; }
   .goal-tree-proposal-summary > small { color: var(--ink-soft); font-size: 11px; font-weight: 400; }
@@ -128,29 +72,6 @@ export const GOALS_PROPOSAL_STYLES = `  .goal-tree-proposal-summary { margin-top
   .goal-tree-proposal-item-error { margin-top: 8px; padding: 8px 8px; border: 1px solid color-mix(in srgb, var(--red) 32%, var(--line)); background: var(--red-soft); }
   .goal-tree-proposal-item-error > strong { color: var(--red); font-size: 11px; }
   .goal-tree-proposal-item-error > p { margin: 4px 0 0; color: var(--ink); font-size: 11px; }
-  .goal-tree-risk-repair { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-  .goal-tree-risk-repair > h4 { margin: 0; color: var(--ink); font-size: 13px; }
-  .goal-tree-risk-repair > p { margin: 4px 0 8px; color: var(--muted); font-size: 11px; }
-  .goal-tree-risk-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; background: var(--paper); }
-  .goal-tree-risk-options label { min-width: 0; padding: 8px 12px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; cursor: pointer; }
-  .goal-tree-risk-options label:nth-child(2n) { border-right: 0; }
-  .goal-tree-risk-options label:nth-last-child(-n+2) { border-bottom: 0; }
-  .goal-tree-risk-options label:has(input:checked) { color: var(--ink); background: var(--nav-active); }
-  .goal-tree-risk-options input { margin-top: 4px; accent-color: var(--blue); }
-  .goal-tree-risk-options span { min-width: 0; display: grid; }
-  .goal-tree-risk-options strong { font-size: 12px; }
-  .goal-tree-risk-options small { font-size: 11px; line-height: 1.45; }
-  .goal-tree-risk-plan-editor { margin-top: 8px; border-top: 1px solid var(--line); }
-  .goal-tree-risk-plan-editor > summary { min-height: 38px; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
-  .goal-tree-risk-plan-editor > summary > span { min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: 11px; font-weight: 400; }
-  .goal-tree-risk-plan-editor > summary small { color: var(--muted); font-size: 11px; font-weight: 400; }
-  .goal-tree-risk-plan-editor > summary svg { flex: 0 0 auto; transition: transform 130ms var(--ease-quint); }
-  .goal-tree-risk-plan-editor[open] > summary svg { transform: rotate(180deg); }
-  .goal-tree-risk-plan { padding: 4px 0 8px; display: grid; gap: 4px; }
-  .goal-tree-risk-plan > span { color: var(--ink); font-size: 12px; font-weight: 400; }
-  .goal-tree-risk-plan > span small { margin-left: 4px; font-weight: 400; }
-  .goal-tree-risk-plan textarea { width: 100%; min-width: 0; padding: 8px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--paper); resize: vertical; }
-  .goal-tree-risk-repair > .form-error { margin: 8px 0 0; }
   .goal-tree-proposal-conflict { margin: 12px 0 0; padding: 8px 12px; color: var(--red); background: var(--red-soft); }
   .goal-tree-proposal-details { padding: 0 16px 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
   .goal-tree-proposal-details > section { min-width: 0; padding-top: 12px; }
@@ -160,40 +81,6 @@ export const GOALS_PROPOSAL_STYLES = `  .goal-tree-proposal-summary { margin-top
   .goal-tree-proposal-acceptance li { margin: 4px 0; padding-left: 4px; }
   .goal-tree-proposal-acceptance li small { display: block; color: var(--muted); }`;
 
-export const GOALS_CANDIDATE_STYLES = `  .candidate-title { padding: 16px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-  .decision-record-body .candidate-title { margin: 12px 0 0; padding: 12px 0; border-top: 1px solid var(--line); }
-  .candidate-title > div { min-width: 0; }
-  .candidate-title small { color: var(--muted); font-size: 11px; font-weight: 400; letter-spacing: .06em; text-transform: uppercase; }
-  .candidate-title h3 { margin: 4px 0 4px; font-size: 17px; line-height: 1.35; letter-spacing: -.015em; }
-  .candidate-title p { margin: 0; color: var(--muted); }
-  .candidate-title > span { flex: 0 0 auto; padding: 4px 8px; border-radius: 3px; color: var(--amber); background: var(--amber-soft); font-size: 11px; font-weight: 400; }
-  .candidate-contract { margin: 0; padding: 0 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
-  .candidate-contract > div { min-width: 0; padding: 12px 0; border-bottom: 1px solid var(--line); }
-  .candidate-contract dt { margin-bottom: 4px; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); }
-  .candidate-contract dd { margin: 0; overflow-wrap: anywhere; }
-  .candidate-contract .doc-list, .candidate-contract .empty-row { margin: 0; }
-  .candidate-wide { grid-column: 1 / -1; }
-  .candidate-acceptance { margin: 4px 0 0; padding-left: 16px; }
-  .candidate-acceptance li { margin: 4px 0; padding-left: 4px; }
-  .candidate-acceptance li small { display: block; color: var(--muted); }`;
-
-export const GOALS_PROPOSAL_MOBILE_STYLES = `    .candidate-title { display: grid; }
-    .candidate-title > span { justify-self: start; }
-    .candidate-contract { grid-template-columns: 1fr; }
-    .goal-tree-proposal-details { grid-template-columns: 1fr; }
-    .goal-tree-risk-options { grid-template-columns: 1fr; }
-    .goal-tree-risk-options label { border-right: 0; }
-    .goal-tree-risk-options label:nth-last-child(-n+2) { border-bottom: 1px solid var(--line); }
-    .goal-tree-risk-options label:last-child { border-bottom: 0; }
-    .goal-tree-risk-plan textarea { font-size: 16px; }
-    .candidate-wide { grid-column: 1; }
+export const GOALS_PROPOSAL_MOBILE_STYLES = `    .goal-tree-proposal-details { grid-template-columns: 1fr; }
     .goal-tree-proposal-acceptance { grid-column: 1; }`;
 
-export const GOALS_LEGACY_PROPOSAL_MOBILE_STYLES = `    .contract-proposal > header { display: grid; }
-    .contract-diff-row, .proposal-appendix { grid-template-columns: 1fr; gap: 8px; }
-    .proposal-source { padding: 8px 0 0; border-left: 0; border-top: 1px dashed var(--line); }
-    .dependency-direction, .dependency-rationale { grid-template-columns: 1fr; }
-    .dependency-direction > span { grid-auto-flow: column; justify-content: start; gap: 4px; }
-    .dependency-direction > span svg { transform: rotate(90deg); }
-    .dependency-evidence { grid-template-columns: 1fr; }
-    .dependency-evidence .inline-ref, .dependency-evidence > .empty-row { grid-column: 1; }`;

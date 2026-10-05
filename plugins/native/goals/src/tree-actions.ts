@@ -7,14 +7,14 @@ type Input<Key extends keyof GoalTreeApplicationApi> = Omit<Parameters<GoalTreeA
   "board_id" | "actor_id" | "submitted_session_id" | "runtime_actor_id" | "authority">;
 type Output<Key extends keyof GoalTreeApplicationApi> = ReturnType<GoalTreeApplicationApi[Key]>;
 const decide = goalAction<Input<"decideGoalTreeProposal">, Output<"decideGoalTreeProposal">>("goals.tree.decide", "审批结构提案",
-  "保存用户通过受保护入口作出的逐项或整组决定；整组确认全有或全无。历史提案仅供阅读，结构变化须提交新提案。实际用户和操作出处由 Host 提供", "command", schema.treeDecideInputSchema, schema.treeDecisionResultSchema);
+  "保存用户通过受保护入口作出的逐项或整组决定；整组确认全有或全无。实际用户和操作出处由 Host 提供", "command", schema.treeDecideInputSchema, schema.treeDecisionResultSchema);
 export const goalsTreeActions = {
   treeSubmit: goalAction<Input<"submitGoalTreeProposal">, Output<"submitGoalTreeProposal">>("goals.tree.submit", "提交结构提案",
     "提交新目标及父子或依赖关系的待确认提案；提交不会创建正式目标，不需要 Run。五项及以上变化须提供整份 narrative 和逐项 explanation。用户通过 Web 或管理入口审批后落地", "command", schema.treeSubmitInputSchema, schema.treeSubmitResultSchema),
   treeRead: goalAction<Input<"listGoalTreeProposals">, Output<"listGoalTreeProposals">>("goals.tree.read", "读取结构提案",
-    "读取当前项目的原生及历史提案；可按提案 ID 或根目标筛选，历史原始 ID 和 legacy 映射 ID 均可读取。历史条目不能通过新审批落地", "query", schema.treeReadInputSchema, schema.treeReadResultSchema),
+    "读取当前项目的结构提案；可按提案 ID 或根目标筛选", "query", schema.treeReadInputSchema, schema.treeReadResultSchema),
   treeCheck: goalAction<Input<"checkGoalTreeProposal">, Output<"checkGoalTreeProposal">>("goals.tree.check", "检查结构提案",
-    "检查原生提案的事实基线及目标关系约束，保存检查结果；预检回滚正式目标和关系变更。历史提案不支持新检查，请提交新的目标或关系提案", "command", schema.treeCheckInputSchema, schema.treeCheckResultSchema),
+    "检查提案的事实基线及目标关系约束，保存检查结果；预检回滚正式目标和关系变更", "command", schema.treeCheckInputSchema, schema.treeCheckResultSchema),
   treeDecide: { ...decide, action: { ...decide.action, audiences: ["user"] as const, permissions: ["goals:decide"] } },
 } as const;
 

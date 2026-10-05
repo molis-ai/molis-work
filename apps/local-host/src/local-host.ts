@@ -103,7 +103,7 @@ export class LocalHost<Runtime> {
     assertActive();
   }, settled: (caller, action, outcome) => this.options.actionSettled?.(caller, action, outcome) });
   private readonly invocationRuntimes = new WeakMap<ActionCallContext, Runtime>();
-  /** A restriction on legacy SDK adapters, independent of their existing action audience. */
+  /** Callers that reached a Host capability through a plugin SDK adapter; restricted independently of the action audience. */
   private readonly pluginCapabilityCallers = new WeakSet<ActionCallContext>();
   private readonly executionScope = new AsyncLocalStorage<{ entry: RuntimeEntry<Runtime>; runtime: Runtime; active: boolean }>();
   private readonly entries = new Map<string, RuntimeEntry<Runtime>>();
@@ -551,7 +551,7 @@ export class LocalHost<Runtime> {
     return await operation;
   }
 
-  /** Compatibility composition port while legacy callers move to capabilities. */
+  /** Direct composition port for Host code that works inside one project's runtime. */
   async withRuntime<Result>(
     reference: LocalHostProjectReference,
     operation: (runtime: Runtime) => Result | Promise<Result>,

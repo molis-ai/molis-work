@@ -13,7 +13,7 @@ import { MODEL_STAND_IN_PREFIX, studioCapability } from '@molis-ai/molis-work-pl
 import { isMcpToolCapability } from '../mcp-tool-actions.js';
 import { latestCapability, type ModelGenerateInput, type CapabilityImplementations } from './capabilities.js';
 
-/** Designs made against this catalog call real actions with their real schemas; older designs keep the studio's own list. */
+/** The catalog version a design records: designs call real actions with their real schemas. */
 export const CATALOG_VERSION = 'actions/1';
 export const PLATFORM_PROVIDER_ID = 'plugin-platform';
 /** The project's action service; `inspect` is the host's metadata-only directory (it prepares the project's plugins first). */

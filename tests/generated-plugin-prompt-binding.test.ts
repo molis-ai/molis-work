@@ -85,7 +85,7 @@ test('installed and authoring model calls bind their own release through the rea
   assert.equal(systems.length, calls, 'another installed version cannot authorize a prompt absent from this release');
   const registry = agentDefinitionsFor(home, builtinRegistrations), key = pluginId + '/summary';
   registry.save(key, 'PERSONAL_EDIT', null, 'person');
-  const preview = one.capabilityFor(v1.design, () => true);
+  const preview = one.capabilityFor(() => true);
   const previewContext = { identity: { projectId: DEMO_BOARD_ID, pluginId, installationId: STABLE_PREVIEW + draft.id, namespace: 'preview' as const }, signal: new AbortController().signal };
   assert.deepEqual(await preview.call(previewContext, 'model.generate', { prompt: 'summary', input: 'material' }), { text: 'GENERATED' });
   assert.match(systems.at(-1)!, /AUTHORING_DEFAULT/); assert.doesNotMatch(systems.at(-1)!, /RELEASE_ONE|RELEASE_TWO|PERSONAL_EDIT/);

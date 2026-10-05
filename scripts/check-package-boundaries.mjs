@@ -73,7 +73,7 @@ function checkSourceImports(repositoryRoot, packages) {
   let sourceFileCount = 0;
   let importCount = 0;
 
-  const productDirectories = ["apps/desktop/launchers", "apps/local-host/sdk"];
+  const productDirectories = ["apps/desktop/launchers"];
   const productManifest = readJson(path.join(repositoryRoot, "package.json"));
   const product = {
     name: productManifest.name, path: ".", root: repositoryRoot, kind: "app",
@@ -477,28 +477,8 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     errors.push(`${coordinatorPath}: retired lifecycle reconciliation construction must stay deleted`);
   }
 
-  const storePath = "apps/local-host/sdk/sdk-store.ts";
-  const store = read(storePath);
-  for (const method of [
-    "migrateGoalArchive",
-    "migrateGoalTrash",
-    "migrateLifecycleState",
-    "migrateActiveGoalLifecycle",
-    "migrateContractCoverageAndRiskResolution",
-  ]) {
-    if (store.includes(`private ${method}(`)) {
-      errors.push(`${storePath}: legacy ${method} implementation must not coexist with Goals migrations`);
-    }
-  }
   if (!read("apps/local-host/src/project-database-schema.ts").includes("GOALS_SCHEMA_SQL") || !read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")) {
-    errors.push(`${storePath}: the project database baseline must compose the public Goals schema`);
-  }
-
-  if (store.includes("private migratePlanningMethodPacks(")) {
-    errors.push(`${storePath}: legacy Planning migration must not coexist with Goals migrations`);
-  }
-  if (/\b(?:SELECT|INSERT INTO|UPDATE|DELETE FROM)\s+planning_method_packs\b/iu.test(store)) {
-    errors.push(`${storePath}: Planning method persistence must use GoalsRepository`);
+    errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must compose the public Goals schema");
   }
 
   for (const relativePath of [
@@ -538,20 +518,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     errors.push(`${coordinatorPath}: retired availability query path must stay deleted`);
   }
 
-  const storeQuerySlices = [
-    ["getGoal", "listGoals", "new GoalsRepository"],
-    ["listGoals", "listTrashedGoals", "this.goalsQuery.listGoals"],
-    ["listTrashedGoals", "listPlanningMethodPacks", "this.goalsQuery.listTrashedGoals"],
-    ["activePolicyRows", "activePolicyRowsForBoard", "listActivePolicyBindings"],
-  ];
-  for (const [method, nextMethod, expectedCall] of storeQuerySlices) {
-    const start = store.indexOf(`  ${method}(`);
-    const end = store.indexOf(`  ${nextMethod}(`, start + method.length + 3);
-    if (start < 0 || end < 0 || !store.slice(start, end).includes(expectedCall)) {
-      errors.push(`${storePath}: ${method} must delegate Goal reads through the Goals public owner`);
-    }
-  }
-
   const queryTest = read("tests/goals-query-module.test.ts");
   if (
     !queryTest.includes('from "@molis-ai/molis-work-module-goals"')
@@ -575,9 +541,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     || /\bthis\.(?:db|store)\b/u.test(goalReadApplication)
   ) {
     errors.push(`${goalReadApplicationPath}: compatibility composition must not own Goal persistence or bypass Goals Query`);
-  }
-  for (const relativePath of ["apps/local-host/sdk/sdk-store.ts"]) {
-    errors.push(...checkGoalStorageOwnership(read(relativePath)).map(error => `${relativePath}: ${error}`));
   }
   errors.push(...checkGoalReadOwnerSql(read("apps/local-host/src/feed-application.ts")).map(error => `apps/local-host/src/feed-application.ts: ${error}`));
   errors.push(...checkGoalQueryCapabilityAdapters(read("apps/local-host/src/project-capabilities.ts"))
@@ -748,28 +711,10 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
     `\\b(?:CREATE TABLE IF NOT EXISTS|FROM|INTO|UPDATE|DELETE FROM)\\s+(?:${governanceTables})\\b`,
     "giu",
   );
-  for (const relativePath of [coordinatorPath, "apps/local-host/sdk/sdk-store.ts"]) {
+  for (const relativePath of [coordinatorPath]) {
     const source = read(relativePath);
     for (const match of source.matchAll(directGovernanceSql)) {
       errors.push(`${relativePath}: direct Governance SQL must use the owning Module public entrypoint (${match[0]})`);
-    }
-  }
-
-  const legacyTypes = read("apps/local-host/sdk/sdk-types.ts");
-  for (const typeName of [
-    "ReviewObligationRecord",
-    "ReviewRecord",
-    "ContractProposalRecord",
-    "CandidateGoalRecord",
-    "RewireRecord",
-    "GoalTreeProposalRecord",
-  ]) {
-    const typeAlias = new RegExp(
-      `export type ${typeName}\\s*=\\s*[\\s\\S]{0,160}governance-collaboration`,
-      "u",
-    );
-    if (!typeAlias.test(legacyTypes)) {
-      errors.push(`apps/local-host/sdk/sdk-types.ts: ${typeName} must remain a public Governance Contract alias`);
     }
   }
 
@@ -1028,7 +973,6 @@ function checkArtifactsOwnership(repositoryRoot) {
     errors.push(`${pluginPath}: Native Plugin entrypoint must not own Artifact facts or construct its Repository`);
   }
 
-  const store = read("apps/local-host/sdk/sdk-store.ts");
   const coordinator = read("apps/local-host/src/goal-project-application.ts");
   const projectSchema = read("apps/local-host/src/project-database-schema.ts");
   if (!read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE") || !projectSchema.includes("ARTIFACTS_SCHEMA_SQL") || !projectSchema.includes("PROCESS_ITEMS_SCHEMA_SQL")) {
@@ -1038,7 +982,7 @@ function checkArtifactsOwnership(repositoryRoot) {
     errors.push("apps/local-host/src/goal-project-application.ts: compatibility composition must expose the public Artifacts API");
   }
   const directArtifactSql = /\b(?:CREATE TABLE(?: IF NOT EXISTS)?|FROM|INTO|UPDATE|DELETE FROM)\s+(artifacts|artifact_versions)\b/giu;
-  for (const relativePath of ["apps/local-host/src/goal-project-application.ts", "apps/local-host/sdk/sdk-store.ts", "apps/local-host/sdk/sdk-types.ts"]) {
+  for (const relativePath of ["apps/local-host/src/goal-project-application.ts"]) {
     const source = read(relativePath);
     for (const match of source.matchAll(directArtifactSql)) {
       errors.push(`${relativePath}: direct ${match[1]} SQL must stay inside modules/artifacts`);

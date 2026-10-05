@@ -5,11 +5,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import {
-  MolisWorkCoordinator,
-  MolisWorkV1Error,
-  SqliteMolisWorkStore,
-} from "../apps/local-host/sdk/index.js";
+import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { main as runPublicCli } from "../apps/desktop/launchers/cli/main.js";
 import {
   ProjectReferenceError,
@@ -30,8 +27,8 @@ const execFileAsync = promisify(execFile);
 function fixture(start = "2026-08-15T00:00:00.000Z") {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-v1-"));
   let now = new Date(start);
-  const store = new SqliteMolisWorkStore(join(directory, "molis-work.db"));
-  const coordinator = new MolisWorkCoordinator(store, () => now);
+  const store = new LocalProjectDatabase(join(directory, "molis-work.db"));
+  const coordinator = new GoalProjectApplication(store, () => now);
   coordinator.initializeBoard({
     board_id: "board-1",
     title: "产品目标",
@@ -48,7 +45,7 @@ function fixture(start = "2026-08-15T00:00:00.000Z") {
 }
 
 function createLeaf(
-  coordinator: MolisWorkCoordinator,
+  coordinator: GoalProjectApplication,
   goalId: string,
   priority = 0,
 ) {
@@ -118,12 +115,6 @@ test("public CLI exposes install, service, demo, uninstall, and Molis Work V1; t
     console.error = originalError;
   }
 
-  const publicApi = await import("../apps/local-host/sdk/index.js");
-  assert.deepEqual(Object.keys(publicApi).sort(), [
-    "MolisWorkCoordinator",
-    "MolisWorkV1Error",
-    "SqliteMolisWorkStore",
-  ]);
 });
 
 test("fresh SQLite authority creates a usable board and reopens idempotently", () => {
@@ -137,7 +128,7 @@ test("fresh SQLite authority creates a usable board and reopens idempotently", (
   assert.equal(store.db.pragma("journal_mode", { simple: true }), "wal");
   store.close();
 
-  const reopened = new SqliteMolisWorkStore(path);
+  const reopened = new LocalProjectDatabase(path);
   assert.equal(reopened.db.pragma("user_version", { simple: true }), 1);
   assert.equal(reopened.snapshot("board-1").board.title, "产品目标");
   reopened.close();
@@ -420,7 +411,7 @@ test("only satisfied Goals can be archived and restoration preserves completion 
   assert.equal(archived.goal.acceptance_criteria.length, 1);
   assert.equal(archived.active_goal_cleared, true);
   assert.equal(store.snapshot("board-1").board.active_goal_id, null);
-  assert.ok(store.getGoal("archive-target")?.archived_at);
+  assert.ok(store.goalsQuery.getGoal("board-1", "archive-target")?.archived_at);
 
   setNow("2026-08-15T02:00:00.000Z");
   const restored = coordinator.goals.lifecycle.setArchived(
@@ -538,7 +529,7 @@ test("Goal trash preserves history, deactivates only active relations, and resto
   assert.ok(
     afterTrash.goals.find((goal) => goal.goal_id === "trash-target")?.acceptance_criteria.length,
   );
-  assert.ok(store.getGoal("trash-target")?.trashed_at);
+  assert.ok(store.goalsQuery.getGoal("board-1", "trash-target")?.trashed_at);
   assert.equal(coordinator.listTrashedGoals("board-1").some((item) => item.goal_id === "trash-target"), true);
   assert.throws(
     () =>
@@ -632,7 +623,7 @@ test("Goal trash protects active work and rolls the whole deletion transaction b
   assert.equal(blocked.status, "blocked");
   assert.deepEqual(blocked.blocking_claim_ids, ["trash-active-work-claim"]);
   assert.deepEqual(blocked.blocking_run_ids, ["trash-active-work-run"]);
-  assert.equal(store.getGoal("trash-active-work")?.trashed_at, null);
+  assert.equal(store.goalsQuery.getGoal("board-1", "trash-active-work")?.trashed_at, null);
   assert.equal(store.snapshot("board-1").relations.find((item) => item.relation_id === relationId)?.state, "active");
 
   store.db.prepare(`
@@ -658,7 +649,7 @@ test("Goal trash protects active work and rolls the whole deletion transaction b
       ),
     /injected trash relation failure/,
   );
-  assert.equal(store.getGoal("trash-active-work")?.trashed_at, null);
+  assert.equal(store.goalsQuery.getGoal("board-1", "trash-active-work")?.trashed_at, null);
   assert.equal(store.snapshot("board-1").relations.find((item) => item.relation_id === relationId)?.state, "active");
   assert.equal(
     store.db.prepare("SELECT COUNT(*) AS count FROM goal_trash_records WHERE goal_id = ?").get("trash-active-work").count,
@@ -934,7 +925,7 @@ test("Goal Tree create payload rejects retired acceptance_criteria fields before
     }),
     (error: unknown) => error instanceof MolisWorkV1Error && error.code === "goal_tree_proposal.payload_unknown",
   );
-  assert.equal(store.getGoal("criterion-conflicting-goal"), null);
+  assert.equal(store.goalsQuery.getGoal("board-1", "criterion-conflicting-goal"), null);
   store.close();
 });
 

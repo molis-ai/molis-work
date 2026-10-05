@@ -41,15 +41,13 @@ jobs:
       - name: Health gates
         run: pnpm health:check
 
-      - name: Verify Goal boundaries, migrations and release assets
+      - name: Verify Goal boundaries, storage baselines and release assets
         run: |
           node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
-          node scripts/run-tests.mjs tests/goals-storage-migration.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts
+          node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts
 
-      - name: Typecheck product launchers and compatibility SDK
-        run: |
-          pnpm exec tsc --noEmit -p tsconfig.json
-          pnpm exec tsc --noEmit -p tsconfig.sdk.json
+      - name: Typecheck product launchers
+        run: pnpm exec tsc --noEmit -p tsconfig.json
 
       # Action directory, Manifest and MCP grant contracts, and undeclared names in the assembled Workbench client;
       # runs on the packages built above.

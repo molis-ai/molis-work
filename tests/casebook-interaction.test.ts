@@ -61,7 +61,7 @@ test('recovery refuses missing files and databases at another schema version wit
  const f=await fixture(t);const missing=molisWorkHostProjectReference({databasePath:join(f.dir,'absent.db'),boardId:'missing'});
  await assert.rejects(f.host.restoreExistingProject(missing),{code:'project_recovery_missing'});assert.equal(existsSync(missing.storage_key),false);
  const {LocalSqliteStorage}=await import('@molis-ai/molis-work-storage');
- for(const [sql,code] of [["PRAGMA user_version = 0",'project_recovery_unsupported_schema'],["PRAGMA user_version = 2",'project_recovery_unsupported_schema']] as const){
+ for(const [sql,code] of [["PRAGMA user_version = 0",'project_recovery_unsupported_schema'],["PRAGMA user_version = 99",'project_recovery_unsupported_schema']] as const){
   const ref=molisWorkHostProjectReference({databasePath:join(f.dir,randomBytes(6).toString('hex')+'.db'),boardId:'bad'});
   await f.host.client(ref).invoke(initializeBoardCapability,{board_id:'bad',title:'坏夹具',idempotency_key:'init'});
   await f.host.withProject(ref,r=>r.store.db.exec(sql));await f.host.closeProject(ref);

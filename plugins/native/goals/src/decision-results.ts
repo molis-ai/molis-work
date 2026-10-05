@@ -1,7 +1,5 @@
-import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { allGoalViews } from "./proposal-ui-model.js";
 import { goalRiskStateEffect, RISK_STATE_LABELS } from "./risk-presentation.js";
-import { GOALS_RELATION_LABELS as RELATION_LABELS } from "./relation-presentation.js";
 import type { GoalsDecisionView, GoalsDecisionEvent } from "./decision-view.js";
 import type { GoalsSafetyItem } from "./safety-ui-model.js";
 import type { GoalsDecisionPresentationPrimitives } from "./decision-common-ui.js";
@@ -45,11 +43,7 @@ function recentDecisionResults(view: GoalsDecisionView): RecentDecisionResult[] 
   const seen = new Set<string>();
   const allGoals = allGoalViews(view);
   const goalById = new Map(allGoals.map((item) => [item.goal.goal_id, item]));
-  const relationById = new Map(view.snapshot.relations.map((relation) => [relation.relation_id, relation]));
   const riskById = new Map(view.snapshot.risks.map((risk) => [risk.risk_id, risk]));
-  const rewireById = new Map(view.snapshot.rewires.map((rewire) => [rewire.rewire_id, rewire]));
-  const contractById = new Map(view.snapshot.contract_proposals.map((proposal) => [proposal.proposal_id, proposal]));
-  const candidateById = new Map(view.snapshot.candidates.map((candidate) => [candidate.candidate_id, candidate]));
   const goalTreeById = new Map(view.snapshot.goal_tree_proposals.map((proposal) => [proposal.proposal_id, proposal]));
   const reviewById = new Map(view.snapshot.reviews.map((review) => [review.review_id, review]));
   const reviewObligationById = new Map(
@@ -88,102 +82,6 @@ function recentDecisionResults(view: GoalsDecisionView): RecentDecisionResult[] 
               effect: stateEffect,
             })],
         links,
-      });
-      continue;
-    }
-    if (event.type === "rewire.applied" || event.type === "rewire.rejected") {
-      const rewire = rewireById.get(event.object_id);
-      if (!rewire) continue;
-      seen.add(seenKey);
-      const payload = eventPayload(event);
-      const addedIds = stringList(rewire.impact.added_relation_ids ?? payload.added_relation_ids);
-      const deactivatedIds = stringList(rewire.impact.deactivated_relation_ids ?? payload.deactivated_relation_ids);
-      const addedRiskIds = stringList(rewire.impact.added_risk_ids ?? payload.added_risk_ids);
-      const added = addedIds.map((id) => relationById.get(id)).filter((item): item is GoalRelationRecord => Boolean(item));
-      const deactivated = deactivatedIds.map((id) => relationById.get(id)).filter((item): item is GoalRelationRecord => Boolean(item));
-      const relationEffect = (relation: GoalRelationRecord, action: "add" | "deactivate"): string => {
-        const from = goalById.get(relation.from_goal_id)?.goal.title ?? relation.from_goal_id;
-        const to = goalById.get(relation.to_goal_id)?.goal.title ?? relation.to_goal_id;
-        const labels = RELATION_LABELS[relation.type] ?? { out: relation.type, in: relation.type };
-        const summary = L("{from} → {type} → {to}", { from, type: L(labels.out), to });
-        return action === "add"
-          ? L("已新增关系：{relation}", { relation: summary })
-          : L("已解除关系：{relation}", { relation: summary });
-      };
-      const effects = event.type === "rewire.rejected"
-        ? [L("这次调整未采用，现有 Goal 关系没有改变。")]
-        : [
-            ...added.map((relation) => relationEffect(relation, "add")),
-            ...deactivated.map((relation) => relationEffect(relation, "deactivate")),
-            ...(addedRiskIds.length ? [L("同时新增了 {count} 项风险。", { count: addedRiskIds.length })] : []),
-          ];
-      if (event.type === "rewire.applied" && effects.length === 0) {
-        effects.push(L("这次决定已记录，但没有新增或解除 Goal 关系，也没有新增风险。"));
-      }
-      const affectedGoalIds = [...new Set([
-        ...added.flatMap((relation) => [relation.from_goal_id, relation.to_goal_id]),
-        ...deactivated.flatMap((relation) => [relation.from_goal_id, relation.to_goal_id]),
-        String(rewire.proposal.formal_goal_id ?? ""),
-      ].filter(Boolean))];
-      const relationIdsByGoal = new Map<string, string>();
-      for (const relation of [...added, ...deactivated]) {
-        if (!relationIdsByGoal.has(relation.from_goal_id)) relationIdsByGoal.set(relation.from_goal_id, relation.relation_id);
-        if (!relationIdsByGoal.has(relation.to_goal_id)) relationIdsByGoal.set(relation.to_goal_id, relation.relation_id);
-      }
-      const links = affectedGoalIds
-        .map((goalId) => goalById.get(goalId))
-        .filter((item): item is GoalsSafetyItem => Boolean(item))
-        .map((item) => ({
-          href: goalResultHref(item, relationIdsByGoal.has(item.goal.goal_id)
-            ? `relation-${relationIdsByGoal.get(item.goal.goal_id)}`
-            : `goal-factor-panel-relations-${item.goal.goal_id}`),
-          label: L("查看「{title}」中的关系", { title: item.goal.title }),
-        }));
-      results.push({
-        event,
-        kind: "rewire",
-        kindLabel: L("Goal 关系"),
-        state: event.type === "rewire.applied" ? L("已应用") : L("未采用"),
-        title: event.type === "rewire.applied" ? L("Goal 关系调整已应用") : L("Goal 关系调整未采用"),
-        effects,
-        links,
-      });
-      continue;
-    }
-    if (event.type === "contract_proposal.approved" || event.type === "contract_proposal.rejected") {
-      const proposal = contractById.get(event.object_id);
-      if (!proposal) continue;
-      seen.add(seenKey);
-      const goal = goalById.get(proposal.goal_id);
-      results.push({
-        event,
-        kind: "contract",
-        kindLabel: L("目标说明"),
-        state: event.type.endsWith("approved") ? L("已确认") : L("已退回"),
-        title: proposal.proposed_goal.title,
-        effects: [event.type.endsWith("approved")
-          ? L("目标、范围和完成标准已成为正式依据；满足其他条件后可以开始。")
-          : L("这份修改没有写入正式目标；修改意见已保留。")],
-        links: goal ? [{ href: goalResultHref(goal, `goal-description-${goal.goal.goal_id}`), label: L("查看「{title}」的目标说明", { title: goal.goal.title }) }] : [],
-      });
-      continue;
-    }
-    if (event.type === "candidate.approved" || event.type === "candidate.rejected") {
-      const candidate = candidateById.get(event.object_id);
-      if (!candidate) continue;
-      seen.add(seenKey);
-      const createdGoalId = String(candidate.decision?.formal_goal_id ?? candidate.proposed_goal.goal_id ?? "");
-      const goal = goalById.get(createdGoalId);
-      results.push({
-        event,
-        kind: "candidate",
-        kindLabel: L("新发现的工作"),
-        state: event.type.endsWith("approved") ? L("已加入") : L("未加入"),
-        title: candidate.proposed_goal.title,
-        effects: [event.type.endsWith("approved")
-          ? L("这项工作已经成为独立 Goal；如果还要调整关系，会继续出现在待决定中。")
-          : L("这项工作没有加入 Goal Tree；你的意见已保留。")],
-        links: goal ? [{ href: goalResultHref(goal, `goal-description-${goal.goal.goal_id}`), label: L("查看新 Goal「{title}」", { title: goal.goal.title }) }] : [],
       });
       continue;
     }

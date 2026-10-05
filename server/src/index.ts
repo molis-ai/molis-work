@@ -5,7 +5,7 @@ export const packageDescriptor = {
   migrationGoals: ["goal-reorg-f2"], ssot: "docs/SSOT-MATRIX.md",
 } as const;
 
-export { openServerDatabase, transaction } from "./database.js";
+export { openServerDatabase, transaction, SERVER_DATABASE_BASELINE } from "./database.js";
 export type { ServerDatabase } from "./database.js";
 export { Identity, memberClientId } from "./identity.js";
 export type { Session, Member, Role } from "./identity.js";

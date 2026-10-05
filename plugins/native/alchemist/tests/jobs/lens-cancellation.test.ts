@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { marketLensCompatibilityKey } from "../../src/studio/domain/research/lens.js";
 import { SqliteExplorationRepository } from "../../src/studio/server/db/exploration-repository.js";
 import { SqliteIdeaRepository } from "../../src/studio/server/db/idea-repository.js";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { openDatabase } from "../../src/studio/server/db/open-database.js";
 import { SqliteResearchRepository } from "../../src/studio/server/db/research-repository.js";
 import { createJobHandlers } from "../../src/studio/server/jobs/job-handlers.js";
@@ -22,7 +22,7 @@ describe("Lens cancellation", () => {
     const temp = createTempDatabase();
     const database = openDatabase(temp.path);
     try {
-      migrate(database);
+      applyStudioBaseline(database, ":memory:");
       seedResearchIdea(database);
       const now = "2026-07-31T10:00:00.000Z";
       const clock = { now: () => now };

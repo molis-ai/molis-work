@@ -4,11 +4,9 @@ import type {
   GoalTreeProposalItemProvenanceInput, GoalTreeProposalItemRecord,
 } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { GovernanceError, type GovernanceErrorFactory } from "./errors.js";
-import { legacyProposalView } from "./legacy-proposal-view.js";
 
 /** Confirmation provenance belongs to Governance; a locator is not automatically a Ledger edge. */
 export class GovernanceProvenance implements GovernanceProvenanceApi {
-  readonly legacyProposalView = legacyProposalView;
   constructor(private readonly error: GovernanceErrorFactory = (code, message, details) => new GovernanceError(code, message, details)) {}
 
   normalizeProposalSource(input: Pick<GoalTreeProposalItemProvenanceInput, "source_refs" | "reason" | "confidence" | "requires_user_confirmation">,

@@ -20,12 +20,6 @@
     "molis-work-mcp": "./dist/mcp/server.js",
     "molis-work-web": "./dist/web/server.js"
   },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
   "files": [
     "dist",
     "vendor",
@@ -41,14 +35,14 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "pnpm build:migrated-packages && pnpm clean && tsc -p tsconfig.json && tsc -p tsconfig.sdk.json && pnpm build:pty-client && node apps/local-host/tooling/write-build-manifest.mjs .",
+    "build": "pnpm build:migrated-packages && pnpm clean && tsc -p tsconfig.json && pnpm build:pty-client && node apps/local-host/tooling/write-build-manifest.mjs .",
     "build:migrated-packages": "pnpm workspace:build",
     "boundary:check": "pnpm --filter @molis-ai/molis-work-test-kit build && node scripts/check-package-boundaries.mjs",
     "health:check": "node scripts/check-health-gates.mjs",
     "boundary:test": "pnpm --filter @molis-ai/molis-work-test-kit test && node --test tests/workbench-registration-boundaries.test.mjs",
     "build:all": "pnpm build && pnpm boundary:check && pnpm workspace:build",
     "build:pty-client": "esbuild apps/workbench/src/terminal-client.ts --bundle --format=iife --platform=browser --outfile=dist/web/pty-client.js --loader:.css=text",
-    "typecheck": "pnpm build:migrated-packages && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.sdk.json",
+    "typecheck": "pnpm build:migrated-packages && tsc --noEmit -p tsconfig.json",
     "typecheck:all": "pnpm typecheck && pnpm boundary:check && pnpm workspace:typecheck",
     "test": "pnpm build && pnpm test:run",
     "test:run": "node scripts/run-tests.mjs",

@@ -1,4 +1,4 @@
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;
 PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
 CREATE TABLE boards (
@@ -686,49 +686,6 @@ CREATE TABLE reviews (
     submitted_at TEXT NOT NULL
   );
 INSERT INTO reviews VALUES('review-3c52c9fe-13b8-41ce-92d2-725de601ae6f','goalboard-v1-demo','CORE','obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6',NULL,'runtime-core','pass','["evidence-3aaba898-2eb4-4565-acbb-13cccced105f"]','生命周期测试通过','2026-09-10T07:03:28.550Z');
-CREATE TABLE candidates (
-    candidate_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    submitted_by TEXT NOT NULL,
-    discovered_in_run_id TEXT REFERENCES runs(run_id),
-    proposed_goal_json TEXT NOT NULL,
-    proposed_relations_json TEXT NOT NULL DEFAULT '[]',
-    proposed_impacts_json TEXT NOT NULL DEFAULT '[]',
-    proposed_risks_json TEXT NOT NULL DEFAULT '[]',
-    blocking_mode TEXT NOT NULL CHECK (blocking_mode IN ('none', 'current_run', 'dependent_claims')),
-    state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'rejected', 'dismissed', 'superseded')),
-    decision_json TEXT,
-    created_at TEXT NOT NULL,
-    decided_at TEXT
-  );
-INSERT INTO candidates VALUES('candidate-b0050ab4-1d01-4556-ac3d-fa0053f69ce2','goalboard-v1-demo','runtime-interface','run-65ec112f-54fe-499a-a41d-b5fc73d14f85','{"title":"让旧数据升级前先看到安全说明","outcome":"用户在升级前知道哪些内容会保留、哪些需要重新整理","why":"旧版数据和当前规则并不完全对应，直接迁移可能让用户误以为缺失内容仍然有效","business_logic":"用户升级时先看到每类旧数据的处理结果；能安全保留的内容明确列出，不能可靠迁移的内容提示重新整理，不会静默丢失或伪造。","acceptance_criteria":[{"statement":"升级报告逐项说明可迁移内容和需要重建的内容","decision_method":"automated_check","pass_condition":"迁移样例没有未解释字段"}]}','[]','[]','[]','none','pending',NULL,'2026-09-10T07:03:28.555Z',NULL);
-CREATE TABLE rewires (
-    rewire_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    candidate_id TEXT REFERENCES candidates(candidate_id),
-    proposal_json TEXT NOT NULL,
-    impact_json TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('pending', 'confirmed', 'rejected', 'applied')),
-    created_at TEXT NOT NULL,
-    decided_at TEXT
-  );
-CREATE TABLE contract_proposals (
-    proposal_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    submitted_by TEXT NOT NULL,
-    discovered_in_run_id TEXT NOT NULL REFERENCES runs(run_id),
-    proposed_goal_json TEXT NOT NULL,
-    field_sources_json TEXT NOT NULL,
-    review_policy_json TEXT NOT NULL,
-    proposed_impacts_json TEXT NOT NULL DEFAULT '[]',
-    proposed_risks_json TEXT NOT NULL DEFAULT '[]',
-    dependency_rewire_ids_json TEXT NOT NULL DEFAULT '[]',
-    state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'rejected', 'superseded')),
-    decision_json TEXT,
-    created_at TEXT NOT NULL,
-    decided_at TEXT
-  );
 CREATE TABLE goal_tree_proposals (
     proposal_id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
@@ -739,7 +696,6 @@ CREATE TABLE goal_tree_proposals (
     state TEXT NOT NULL CHECK (state IN ('pending', 'superseded', 'approved', 'partially_applied', 'rejected', 'dismissed', 'closed')),
     version INTEGER NOT NULL,
     supersedes_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
-    supersedes_legacy_proposal_id TEXT,
     base_event_cursor INTEGER NOT NULL,
     summary TEXT NOT NULL,
     narrative_json TEXT,
@@ -1526,14 +1482,10 @@ CREATE INDEX evidence_goal_idx ON evidence(goal_id, result);
 CREATE INDEX evidence_corrections_goal_idx
     ON evidence_corrections(board_id, goal_id, created_at, correction_id);
 CREATE INDEX reviews_obligation_idx ON reviews(obligation_id, verdict);
-CREATE INDEX contract_proposals_goal_idx
-    ON contract_proposals(board_id, goal_id, state, created_at);
 CREATE INDEX goal_tree_proposals_board_idx
     ON goal_tree_proposals(board_id, root_goal_id, state, created_at DESC, proposal_id);
 CREATE INDEX goal_tree_proposals_supersedes_idx
     ON goal_tree_proposals(supersedes_proposal_id);
-CREATE INDEX goal_tree_proposals_supersedes_legacy_idx
-    ON goal_tree_proposals(supersedes_legacy_proposal_id);
 CREATE INDEX goal_tree_proposal_items_proposal_idx
     ON goal_tree_proposal_items(proposal_id, ordinal, item_id);
 CREATE INDEX goal_tree_proposal_items_board_idx

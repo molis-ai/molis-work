@@ -1,4 +1,4 @@
-import type { GoalTreeProposalRecord, ContractProposalRecord, CandidateGoalRecord, RewireRecord, ReviewRecord, ReviewObligationRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalRecord, ReviewRecord, ReviewObligationRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { RiskRecord, GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsSafetyItem } from "./safety-ui-model.js";
 export interface GoalsDecisionEvent {
@@ -17,8 +17,7 @@ export interface GoalsDecisionView<T extends GoalsSafetyItem = GoalsSafetyItem> 
   archived_goals: T[];
   events: GoalsDecisionEvent[];
   snapshot: {
-    goal_tree_proposals: GoalTreeProposalRecord[]; contract_proposals: ContractProposalRecord[];
-    candidates: CandidateGoalRecord[]; rewires: RewireRecord[];
+    goal_tree_proposals: GoalTreeProposalRecord[];
     risks: RiskRecord[]; relations: GoalRelationRecord[];
     reviews: ReviewRecord[]; review_obligations: ReviewObligationRecord[];
     runs: Array<{ run_id: string; goal_id: string }>;

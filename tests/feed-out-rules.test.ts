@@ -99,8 +99,8 @@ test("out-rule judgment records a suggestion without admitting the Feed Item", a
       match: { contains: "launch" },
       judgment: fixture.reference,
     });
-    assert.throws(() => data.feed.updateOutRule(DEMO_BOARD_ID, rule.rule_id, { name: " ", function_key: "replacement" }));
-    assert.throws(() => data.feed.updateOutRule(DEMO_BOARD_ID, "missing-rule", { function_key: "replacement" }));
+    assert.throws(() => data.feed.updateOutRule(DEMO_BOARD_ID, rule.rule_id, { name: " " }));
+    assert.throws(() => data.feed.updateOutRule(DEMO_BOARD_ID, "missing-rule", { name: "替换" }));
     assert.deepEqual(data.feed.listOutRules(DEMO_BOARD_ID)[0]?.judgment, fixture.reference);
     const ingested = data.feed.ingestItem({
       source: data.source,
@@ -285,7 +285,6 @@ test("source_rule Attention can coexist with a successful out capture", () => {
 test("out-rule CRUD rejects an empty match and can disable a rule", () => {
   const data = harness();
   try {
-    assert.throws(() => data.feed.createOutRule(DEMO_BOARD_ID, { name: "缺少判断服务", match: { contains: "launch" }, function_key: "unavailable" }), /请通过动作服务/);
     assert.equal(data.feed.listOutRules(DEMO_BOARD_ID).length, 0);
     assert.throws(
       () => data.feed.createOutRule(DEMO_BOARD_ID, { name: "空规则", match: {} }),
@@ -373,10 +372,11 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   assert.ok(directory.choices.some(choice => choice.reference.capability_id === "functions.published.system_admit_inbox"));
   assert.doesNotMatch(page, /data-feed-add-out-rule-function-key/);
 
+  const published = (key: string) => ({ capability_id: `functions.published.${key}`, version: 1, provider_id: "system.functions" });
   const unpublished = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: "坏判断", contains: "launch", function_key: "not_a_published_function" }),
+    body: JSON.stringify({ name: "坏判断", contains: "launch", judgment: published("not_a_published_function") }),
   });
   assert.equal(unpublished.status, 400);
   const emptyAfterUnpublished = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
@@ -385,7 +385,7 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const mismatched = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: "首页判断", contains: "launch", function_key: "system_pick_home_dock" }),
+    body: JSON.stringify({ name: "首页判断", contains: "launch", judgment: published("system_pick_home_dock") }),
   });
   assert.equal(mismatched.status, 400);
   const emptyAfterMismatch = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
@@ -394,11 +394,11 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const bound = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: "发布判断", contains: "launch", function_key: "system_admit_inbox" }),
+    body: JSON.stringify({ name: "发布判断", contains: "launch", judgment: published("system_admit_inbox") }),
   });
   assert.equal(bound.status, 201);
-  const boundBody = await bound.json() as { rule: { rule_id: string; function_key: string | null } };
-  assert.equal(boundBody.rule.function_key, "system_admit_inbox");
+  const boundBody = await bound.json() as { rule: { rule_id: string; judgment: unknown } };
+  assert.deepEqual(boundBody.rule.judgment, published("system_admit_inbox"));
   const deletedBound = await webFetch(`${origin}${prefix}/api/feed/out-rules/${encodeURIComponent(boundBody.rule.rule_id)}`, {
     method: "DELETE",
   });
@@ -500,7 +500,7 @@ test("Feed rule validation cannot overwrite a rule edited while its selected cap
     const ready = new Promise<void>(resolve => { entered = resolve; });
     service.registerProvider({ provider: { provider_id: "fixture.feed", title: "Feed", kind: "plugin", project_id: DEMO_BOARD_ID },
       definitions: Object.values(feedRuleActions), handlers: createFeedRuleHandlers(data.feed, DEMO_BOARD_ID, item => item, {
-        legacyReference: () => null, catalog: async () => ({ choices: [], usages: [] }), recommendations: async () => ({ recommendations: [] }),
+        catalog: async () => ({ choices: [], usages: [] }), recommendations: async () => ({ recommendations: [] }),
         preview: async () => ({ status: "ok", suggested_behavior_ids: [] }),
         validate: async reference => { entered(); await new Promise<void>(resolve => { release = resolve; }); return reference; },
       }) });

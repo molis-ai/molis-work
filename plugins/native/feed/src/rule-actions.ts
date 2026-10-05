@@ -11,9 +11,9 @@ const id = { type: "string", minLength: 1 };
 const match = { type: "object", properties: { contains: { type: "string", maxLength: 200 }, source_id: text, source_kind: text }, additionalProperties: false };
 const reference = { type: "object", properties: { capability_id: id, version: { type: "integer", minimum: 1 }, provider_id: id }, required: ["capability_id", "version", "provider_id"], additionalProperties: false };
 const fields = { name: { type: "string", minLength: 1, maxLength: 80 }, match, enabled: { type: "boolean" },
-  function_key: { type: ["string", "null"] }, judgment: { anyOf: [reference, { type: "null" }] }, admission: { enum: ["suggest", "inbox"] } };
+  judgment: { anyOf: [reference, { type: "null" }] }, admission: { enum: ["suggest", "inbox"] } };
 const rule = { type: "object", properties: { ...fields, board_id: id, rule_id: id, created_at: text, updated_at: text, revision: id },
-  required: ["board_id", "rule_id", "name", "match", "enabled", "function_key", "admission", "created_at", "updated_at"] };
+  required: ["board_id", "rule_id", "name", "match", "enabled", "judgment", "admission", "revision", "created_at", "updated_at"] };
 const object = (properties: Record<string, unknown>, required: string[] = []): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const result = { type: "object", properties: { rule }, required: ["rule"] };
 function define<I, O>(suffix: string, title: string, description: string, input_schema: ActionSchema, output_schema: ActionSchema, write = false, permissions?: string[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
@@ -46,7 +46,6 @@ export const feedRuleActions = {
 
 export interface FeedRuleJudgmentSelection {
   validate(reference: ActionReference, caller: ActionCallContext): Promise<ActionReference>;
-  legacyReference(key: string): ActionReference | null;
   catalog(caller: ActionCallContext): Promise<FeedJudgmentCatalog>;
   recommendations(caller: ActionCallContext): Promise<FeedCaptureRecommendations>;
   preview(reference: ActionReference, content: string, caller: ActionCallContext): Promise<{ status: "ok" | "needs_review"; suggested_behavior_ids: string[] }>;
@@ -54,19 +53,11 @@ export interface FeedRuleJudgmentSelection {
 export function createFeedRuleHandlers(feed: FeedApplication, boardId: string, hydrate: (item: FeedItemRecord) => FeedItemRecord, judgments?: FeedRuleJudgmentSelection): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (args: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({ ...definition, handle: (caller, input) => handle(input as I, caller) });
   const select = async (next: FeedOutRuleRecord, patch: Partial<FeedOutRuleWrite>, caller: ActionCallContext, current?: FeedOutRuleRecord) => {
-    const changed = "judgment" in patch || "function_key" in patch;
+    const changed = "judgment" in patch;
     if (next.enabled && next.admission === "inbox" && (!current || changed || "match" in patch || "admission" in patch || patch.enabled === true)
       && !caller.permissions.includes("inbox:write")) throw new ActionError("actions.forbidden", "启用自动入箱需要 Inbox 写入权限");
-    if ("judgment" in patch && "function_key" in patch) throw new ActionError("actions.input_invalid", "请选择判断能力或兼容函数键，不要同时设置两者");
-    if ("judgment" in patch) {
-      next.judgment = patch.judgment ?? null;
-      next.function_key = next.judgment?.provider_id === "system.functions" ? next.judgment.capability_id.replace(/^functions\.published\./, "") : null;
-    } else if ("function_key" in patch) {
-      next.judgment = next.function_key ? judgments?.legacyReference(next.function_key) ?? null : null;
-      if (next.function_key && !next.judgment) throw new ActionError("actions.binding_invalid", "请选择已发布的判断规则");
-    }
-    if ((changed || (next.enabled && !current?.enabled)) && (next.judgment || next.function_key)) {
-      if (!next.judgment || !judgments) throw new ActionError("actions.binding_invalid", "判断能力不可用，请重新选择");
+    if ((changed || (next.enabled && !current?.enabled)) && next.judgment) {
+      if (!judgments) throw new ActionError("actions.binding_invalid", "判断能力不可用，请重新选择");
       next.judgment = await judgments.validate(next.judgment, caller);
     }
     return next;
@@ -104,7 +95,7 @@ export function createFeedRuleHandlers(feed: FeedApplication, boardId: string, h
       const snapshot = feed.snapshot(boardId);
       if (!snapshot.sources.some(source => source.source_id === args.source_id)) throw new FeedStoreError("feed_invalid_transition", "请选择当前项目的来源");
       const rule: FeedOutRuleRecord = { board_id: boardId, rule_id: "preview", name: "preview", enabled: true,
-        match: { source_id: args.source_id, contains: args.contains?.trim() ?? "" }, function_key: null, admission: "suggest", created_at: "", updated_at: "" };
+        match: { source_id: args.source_id, contains: args.contains?.trim() ?? "" }, judgment: null, revision: "preview", admission: "suggest", created_at: "", updated_at: "" };
       return { samples: snapshot.feed_items.filter(item => item.source_id === args.source_id)
         .sort((a, b) => b.source_updated_at.localeCompare(a.source_updated_at)).slice(0, 5).map(item => {
           const original = hydrate(item);

@@ -555,7 +555,6 @@ export const GAP_EN: Record<string, string> = {
   "正在读取事项…": "Loading items…",
   "事项暂时无法完整读取": "Some items could not be fully loaded",
   "已绑定判断能力": "Judgment bound",
-  "原判断规则不可用": "The original judgment rule is unavailable",
   "AI 会按这段描述判断消息；试跑使用能力服务中配置的模型。": "AI judges messages by this description. Trial runs use the model configured in Capabilities.",
   "判断能力": "Judgment",
   "请选择判断能力": "Choose a judgment",

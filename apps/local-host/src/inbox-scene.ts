@@ -3,7 +3,7 @@ import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { hydrateFeedItemContent } from "./feed-content.js";
 import { ActionError, type ActionView, type ActionClient, type ActionSceneBinding, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
+import { publishedFunctionAction, publishedFunctionKey } from "@molis-ai/molis-work-module-functions";
 import { createInboxSceneHandler, inboxNextScene, inboxSceneBindingId, type InboxActionPorts, type InboxJudgmentSubject } from "@molis-ai/molis-work-plugin-inbox";
 import type { FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { withFunctionsService, type FunctionsHostOptions } from "./functions-host.js";
@@ -14,23 +14,12 @@ export interface InboxSceneServices { actions: ActionClient; scenes: ActionScene
 export function createLocalInboxScene(home: string, projectId: string, boardId: string, feed: FeedApplication, services: InboxSceneServices) {
   const read = <T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions);
   const published = () => read(service => service.list().filter(rule => rule.status === "published" && rule.version));
-  const legacyKey = (binding: ActionSceneBinding) => binding.function.provider_id !== "system.functions" ? "" : published().find(rule => {
-    const ref = publishedFunctionAction(rule);
-    return ref.capability_id === binding.function.capability_id && ref.version === binding.function.version;
-  })?.function_key ?? "";
   const bindingFor = (functionKey: string, version: number): ActionSceneBinding => ({
     binding_id: inboxSceneBindingId(projectId), scene_id: inboxNextScene.scene_id, scene_version: inboxNextScene.version,
     project_id: projectId, function: { capability_id: `functions.published.${functionKey}`, version, provider_id: "system.functions" }, enabled: true,
     title: "Inbox 下一步", href: `/projects/${encodeURIComponent(projectId)}/`,
   });
-  const binding = (): ActionSceneBinding | null => read(service => {
-    const current = service.actionSceneBinding(INBOX_NEXT_SCENE_ID, boardId);
-    if (current) return current;
-    const old = service.sceneBinding(INBOX_NEXT_SCENE_ID, boardId);
-    if (!old) return null;
-    const rule = service.list().find(rule => rule.function_key === old.function_key);
-    return { ...bindingFor(old.function_key, rule?.version ?? 1), revision: service.sceneBindingRevision(INBOX_NEXT_SCENE_ID, boardId) };
-  });
+  const binding = (): ActionSceneBinding | null => read(service => service.actionSceneBinding(INBOX_NEXT_SCENE_ID, boardId));
   const resolve = (entryId: string) => {
     const entry = feed.getInboxEntry(boardId, entryId);
     const subject = entry.subject_type === "feed_item" ? runWithMolisWorkHome(home, () => hydrateFeedItemContent(feed.getFeedItem(boardId, entry.subject_id))) : null;
@@ -39,10 +28,10 @@ export function createLocalInboxScene(home: string, projectId: string, boardId: 
   };
   const subjectRevision = (subject: InboxJudgmentSubject) => createHash("sha256").update(JSON.stringify(subject)).digest("hex");
   const handler = createInboxSceneHandler({ projectId, binding, resolve,
-    save: (value, options) => { read(service => service.saveActionSceneBinding(boardId, value, legacyKey(value), options?.expected_revision)); },
+    save: (value, options) => { read(service => service.saveActionSceneBinding(boardId, value, options?.expected_revision)); },
     record: (subject, value, result) => {
       const judgment = read(service => service.recordSceneJudgment({
-        function_key: legacyKey(value) || value.function.capability_id, function_version: value.function.version,
+        function_key: publishedFunctionKey(value.function) ?? value.function.capability_id, function_version: value.function.version,
         subject: { kind: "inbox_entry", id: subject.entry_id, board_id: boardId }, scene_id: INBOX_NEXT_SCENE_ID,
         scene_provenance: { binding_id: value.binding_id, binding_revision: value.revision!, function: value.function, subject_revision: subjectRevision(subject) },
         outcome: result.status, suggested_behavior_ids: result.suggested_behavior_ids, error_code: result.error_code ?? null,
@@ -61,7 +50,7 @@ export function createLocalInboxScene(home: string, projectId: string, boardId: 
       const current = binding();
       const usage = (await services.scenes.usages(caller)).find(usage => usage.scene_id === INBOX_NEXT_SCENE_ID && usage.binding_id === inboxSceneBindingId(projectId));
       const selected = capabilities.find(action => action.capability_id === current?.function.capability_id && action.version === current.function.version && action.provider.provider_id === current.function.provider_id);
-      return { function_key: current?.enabled ? legacyKey(current) || null : null,
+      return { function_key: current?.enabled ? publishedFunctionKey(current.function) : null,
         functions: published().filter(rule => capabilities.some(action => action.provider.provider_id === "system.functions" && action.capability_id === publishedFunctionAction(rule).capability_id && action.version === rule.version))
           .map(rule => ({ function_key: rule.function_key, name: rule.name })),
         capabilities, binding: current,

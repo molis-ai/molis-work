@@ -19,6 +19,6 @@ export type { TypeSafeProvider, TypeSafeEvaluateResult } from "./service.js";
 export { createTypeSafeProvider, type TypeSafeExecution, readAnswer, readChoiceAnswer, TYPESAFE_SYSTEMONE_URL } from "./provider.js";
 export { seedBuiltinFunctions } from "./builtin.js";
 
-export { functionsActions, publishedFunctionAction, functionsActionProvider, publishedFunctionProvider } from "./actions.js";
+export { functionsActions, publishedFunctionAction, publishedFunctionKey, functionsActionProvider, publishedFunctionProvider } from "./actions.js";
 export type { FunctionsActionPorts } from "./actions.js";
 export { functionAuthoringActions, functionContextActions } from "./authoring-actions.js";

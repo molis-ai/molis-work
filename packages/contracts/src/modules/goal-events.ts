@@ -107,7 +107,7 @@ export type GoalEventRequirementSource =
   | { kind: "create_input" }
   | {
       kind: "imported_acceptance_criterion";
-      decision_method: string;
+      decision_method: GoalAcceptanceCriterion["decision_method"];
       pass_condition: string;
     }
   | {

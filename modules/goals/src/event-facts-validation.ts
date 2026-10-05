@@ -1,4 +1,5 @@
 import {
+  goalDecisionMethods,
   goalEventFieldFormats,
   goalEventJudgmentVerdicts,
   goalEventSemanticFamilies,
@@ -271,9 +272,12 @@ function normalizeRequirementSource(error: EventFactsError, source: GoalEventReq
   assertAllowedKeys(error, source, REQUIREMENT_SOURCE_KEYS, "局部要求来源");
   if (source.kind === "create_input") return { kind: "create_input" };
   if (source.kind === "imported_acceptance_criterion") {
+    if (!(goalDecisionMethods as readonly string[]).includes(String(source.decision_method))) {
+      throw error("event_config.invalid_requirement_source", `导入的验收条件判断方式只能是 ${goalDecisionMethods.join("、")} 之一`);
+    }
     return {
       kind: "imported_acceptance_criterion",
-      decision_method: String(source.decision_method ?? ""),
+      decision_method: source.decision_method,
       pass_condition: String(source.pass_condition ?? ""),
     };
   }

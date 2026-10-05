@@ -1,8 +1,7 @@
-import { isRuntimeMcpTool, isRuntimeContextMcpTool, MCP_TOOLS, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
+import { isPlatformMcpTool, isRuntimeContextMcpTool, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { RuntimeProjectConnection } from "./runtime-project-connection.js";
-import { assertRuntimeOrdinaryToolInput } from "./mcp-event-identity.js";
 import type { AssembledMcpCatalog } from "./mcp-catalog.js";
 
 type MolisWorkMcpToolCallContext = McpToolCallContext;
@@ -19,17 +18,12 @@ function homeScoped(name: string, catalog: AssembledMcpCatalog | undefined): boo
 }
 
 function runtimeSurface(name: string, catalog: AssembledMcpCatalog | undefined): boolean {
-  return isRuntimeMcpTool(name) || (catalog?.tools.some((tool) => tool.name === name) ?? false);
-}
-
-function isPlatformMcpTool(name: string): boolean {
-  return MCP_TOOLS.some((tool) => tool.name === name);
+  return isRuntimeContextMcpTool(name) || (catalog?.tools.some((tool) => tool.name === name) ?? false);
 }
 
 export function assertMcpToolAllowed(
   state: McpAuthorityState,
   name: string,
-  arguments_: Record<string, unknown>,
   callContext: MolisWorkMcpToolCallContext,
   catalog?: AssembledMcpCatalog,
 ): void {
@@ -38,7 +32,7 @@ export function assertMcpToolAllowed(
     if (!known) {
       throw new MolisWorkV1Error("mcp.tool_unknown", `未知 MCP 方法：${name}`);
     }
-    if (state.audience === "runtime" && isPlatformMcpTool(name) && !isRuntimeMcpTool(name)) {
+    if (state.audience === "runtime" && isPlatformMcpTool(name) && !isRuntimeContextMcpTool(name)) {
       throw new MolisWorkV1Error(
         "mcp.authority_denied",
         `MCP 权限拒绝：${name} 只允许用户或管理入口调用；Runtime 应使用当前事件工具，或把决定交给用户`,
@@ -56,11 +50,6 @@ export function assertMcpToolAllowed(
   if (homeScoped(name, catalog)) {
     requireMcpRuntimeContextHost(state, callContext);
     return;
-  }
-  // Registered actions validate their own business schema and receive authority separately.
-  // Legacy event payload/actor heuristics must not reject an unrelated plugin's declared fields.
-  if (catalog?.entries.find(entry => entry.definition.name === name)?.source !== "action") {
-    assertRuntimeOrdinaryToolInput(name, arguments_, catalog?.home_scoped_names ?? new Set());
   }
   if (!state.connectionState.explicit) {
     const host = requireMcpRuntimeContextHost(state, callContext);

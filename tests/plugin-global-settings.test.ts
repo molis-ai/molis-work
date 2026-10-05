@@ -334,22 +334,14 @@ test("MCP settings page is a Host global section, not a Functions settings-page"
   const html = renderMolisWorkSettings({
     section: "mcp",
     runtimes: [],
-    mcp_tools: [{
-      name: "molis_work_v1_functions_invoke",
-      description: "调用一个已发布判断函数。",
-      group_id: "functions",
-      group_title: "Functions",
-      enabled: true,
-      effect: "write",
-    }],
     projects: [],
     web_service: webService,
     diagnostics,
   });
   assert.match(html, /data-settings-section="mcp"/);
   assert.match(html, /data-mcp-settings/);
-  assert.match(html, /data-mcp-group="functions"/);
-  assert.match(html, /data-mcp-tool="molis_work_v1_functions_invoke"/);
+  // Every capability reaches a client as an action tool granted under External access; no per-tool switch list.
+  assert.doesNotMatch(html, /data-mcp-group|data-mcp-tool=/);
   assert.match(html, /href="\/capabilities\/library"/);
   assert.doesNotMatch(html, /href="\/settings\/connectors"/);
   // /settings/functions is only a redirect to Capabilities → Connections now; the page points at Runtime access instead.

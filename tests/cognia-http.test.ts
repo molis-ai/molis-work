@@ -1,4 +1,4 @@
-import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { assembleMcpCatalog } from "../apps/local-host/src/mcp-catalog.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -13,10 +13,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { handleCogniaNativePluginHttp } from "../apps/local-host/src/cognia-native-plugin-http.js";
-import { NATIVE_MCP_PLUGIN_REGISTRATIONS } from "../apps/local-host/src/mcp-native-plugins.js";
 import { BUILTIN_PLUGIN_CATALOG } from "../apps/workbench/src/plugin-catalog.js";
 import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/src/plugin-workbench.js";
-import { runCogniaMcpTool, COGNIA_PLUGIN_ID } from "../plugins/native/cognia/src/index.js";
+import { COGNIA_PLUGIN_ID } from "../plugins/native/cognia/src/index.js";
 import { PERSONAL_HOME_SQLITE_STORES } from "../packages/storage/src/home-sqlite.js";
 
 test("HTTP preview/commit roundtrip, concurrent retry, malformed JSON, downloads and missing model", async t => {
@@ -47,48 +46,43 @@ test("HTTP preview/commit roundtrip, concurrent retry, malformed JSON, downloads
   assert.equal((await(await fetch(url+'?q=Original')).json()).materials.length,1);
 });
 
-test("Cognia registers as personal workspace, Home cleanup and opt-in read-only MCP",async()=>{
+test("Cognia registers as personal workspace, Home cleanup and read-only Home actions",async()=>{
   const entry=BUILTIN_PLUGIN_CATALOG.find(e=>e.project_plugin_id==='cognia');assert.equal(entry?.personal,true);assert.equal(entry?.manifest.plugin_id,COGNIA_PLUGIN_ID);assert.ok(BUILTIN_PLUGIN_WORKBENCH.some(e=>e.project_plugin_id==='cognia'));assert.ok(PERSONAL_HOME_SQLITE_STORES.includes('cognia'));
-  const registration=NATIVE_MCP_PLUGIN_REGISTRATIONS.find(e=>e.source.project_plugin_id==='cognia');assert.ok(registration);assert.ok(!assembleMcpCatalog({ audience: 'runtime', enabled_project_plugins: null, preference: { version: 1, overrides: {} } }).entries.some(row => row.plugin_id === COGNIA_PLUGIN_ID));assert.ok(registration?.source.exports.every(e=>e.effect==='read'&&e.scope==='home'));assert.deepEqual(registration?.source.exports.map(e=>e.tool_id),['search','read']);
+  for (const action of [cogniaActions.search, cogniaActions.read]) { assert.equal(action.operation, 'query'); assert.equal(action.action.scope, 'home'); }
+  assert.ok(!assembleMcpCatalog({ audience: 'runtime' }).entries.some(row => row.action?.provider.plugin_id === COGNIA_PLUGIN_ID), 'no Cognia tool without a grant');
   const home = await mkdtemp(join(tmpdir(), 'cognia-mcp-')), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "mcp-test", project_id: null, audience: "mcp", permissions: COGNIA_ACTION_PERMISSIONS }));
   try {
     const { material } = await actions.invoke(cogniaActions.createMaterial, { title: 'Reference', body: 'Exact body' });
-    const found = JSON.parse(await runCogniaMcpTool(actions, { tool_id: 'search', arguments: { query: 'Exact' } })); assert.equal(found.materials[0].id, material.id);
-    assert.equal(JSON.parse(await runCogniaMcpTool(actions, { tool_id: 'read', arguments: { id: material.id, revision: 1 } })).material.body, 'Exact body');
-    await assert.rejects(runCogniaMcpTool(actions, { tool_id: 'read', arguments: { id: '/etc/passwd' } }), /不存在/);
-    await assert.rejects(runCogniaMcpTool(actions, { tool_id: 'write', arguments: {} }), /未知/);
+    const found = await actions.invoke(cogniaActions.search, { query: 'Exact' }); assert.equal(found.materials[0]!.id, material.id);
+    assert.equal((await actions.invoke(cogniaActions.read, { id: material.id, revision: 1 })).material.body, 'Exact body');
+    await assert.rejects(actions.invoke(cogniaActions.read, { id: '/etc/passwd' }), /不存在/);
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("production legacy MCP names use Home actions without project binding and immediately honor their existing switch", async () => {
+test("Cognia action tools run as Home actions without project binding and disappear when the grant is revoked", async () => {
   const { MolisWorkServer } = await import("../apps/desktop/launchers/mcp/server.js");
-  const { mkdir, writeFile } = await import("node:fs/promises");
-  const home = await mkdtemp(join(tmpdir(), "cognia-legacy-mcp-"));
+  const home = await mkdtemp(join(tmpdir(), "cognia-mcp-actions-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const owner = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS }));
-  const server = new MolisWorkServer("runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: "cognia-legacy-test", host_declares_stable: true }, webBaseUrl: "http://127.0.0.1:4173" });
-  const name = "molis_work_v1_cognia_search";
+  const server = new MolisWorkServer("runtime", null, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: "cognia-mcp-test", host_declares_stable: true }, webBaseUrl: "http://127.0.0.1:4173" });
+  const name = hostActionToolName(cogniaActions.search), readName = hostActionToolName(cogniaActions.read);
   const list = async () => (await server.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }) as any).result.tools.map((tool: { name: string }) => tool.name);
   const call = async (tool: string, args: object) => (await server.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: tool, arguments: args } }) as any).result;
   try {
     assert.ok(!(await list()).includes(name));
-    const { material } = await owner.invoke(cogniaActions.createMaterial, { title: "Legacy shared", body: "Actual Home evidence" });
-    await mkdir(join(home, "config"), { recursive: true });
-    const settings = join(home, "config", "mcp-tools.json");
-    await writeFile(settings, JSON.stringify({ version: 1, overrides: { [name]: true, molis_work_v1_cognia_read: true } }));
+    const { material } = await owner.invoke(cogniaActions.createMaterial, { title: "Shared", body: "Actual Home evidence" });
     const views = await host.inspectActions({ actor_id: "runtime:codex", project_id: null, audience: "mcp", permissions: [] });
-    for (const action of [cogniaActions.search, cogniaActions.read]) {
-      const view = views.find(view => view.capability_id === action.capability_id)!;
-      await writeMcpActionGrant(home, createMcpActionGrant("runtime:codex", null, view, true));
-    }
+    const grant = (action: typeof cogniaActions.search | typeof cogniaActions.read, enabled: boolean) =>
+      writeMcpActionGrant(home, createMcpActionGrant("runtime:codex", null, views.find(view => view.capability_id === action.capability_id)!, enabled));
+    await grant(cogniaActions.search, true); await grant(cogniaActions.read, true);
     assert.ok((await list()).includes(name));
     const searched = await call(name, { query: "Actual Home" }); assert.equal(searched.isError, false, JSON.stringify(searched));
     assert.equal(JSON.parse(searched.content[0].text).materials[0].id, material.id);
-    const read = await call("molis_work_v1_cognia_read", { id: material.id, revision: 1 }); assert.equal(read.isError, false, JSON.stringify(read));
+    const read = await call(readName, { id: material.id, revision: 1 }); assert.equal(read.isError, false, JSON.stringify(read));
     assert.equal(JSON.parse(read.content[0].text).material.body, "Actual Home evidence");
-    await writeFile(settings, JSON.stringify({ version: 1, overrides: { [name]: false } }));
+    await grant(cogniaActions.search, false);
     assert.ok(!(await list()).includes(name));
-    const denied = await call(name, { query: "Actual Home" }); assert.equal(denied.isError, true); assert.match(denied.content[0].text, /mcp.tool_disabled/);
+    const denied = await call(name, { query: "Actual Home" }); assert.equal(denied.isError, true); assert.doesNotMatch(denied.content[0].text, /Actual Home evidence/);
   } finally { await server.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

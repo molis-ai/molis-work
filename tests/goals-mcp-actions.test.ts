@@ -12,10 +12,10 @@ import { PURPOSE, VERSION } from "../apps/local-host/src/casebook/contract.js";
 import { createGoalIntentCapability, goalsActions, recordGoalNoteCapability } from "@molis-ai/molis-work-plugin-goals";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
-import { writeMcpActionGrant, writeMcpToolPreference } from "../apps/local-host/src/mcp-settings-store.js";
+import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 
-test("formal Goals MCP aliases use client grants and shared Host while preserving historical Session authors and receipts", { timeout: 60_000 }, async () => {
+test("Goals MCP action tools use client grants and the shared Host, and record the Session as author with replayable receipts", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-mcp-aliases-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Legacy Goals", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
@@ -31,7 +31,7 @@ test("formal Goals MCP aliases use client grants and shared Host while preservin
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
   const clientId = "runtime:legacy-goals", session = "legacy-thread", auditActor = `${clientId}:${session}`;
   const context = { runtime_id: "legacy-goals", stable_work_context_id: session, host_declares_stable: true };
-  const aliases = { create: "molis_work_v1_goal_intent_create", list: "molis_work_v1_goal_list", note: "molis_work_v1_event_note", state: "molis_work_v1_goal_state", events: "molis_work_v1_event_list", event: "molis_work_v1_event_read" };
+  const aliases = { create: "molis_work_v1_action_goals.create__v1", list: "molis_work_v1_action_goals.list__v1", note: "molis_work_v1_action_goals.note__v1", state: "molis_work_v1_action_goals.state.read__v1", events: "molis_work_v1_action_goals.events.list__v1", event: "molis_work_v1_action_goals.events.read__v1" };
   const sdk = new Client({ name: "not-the-authorized-client", version: "1" });
   const casebook = new MolisWorkCasebookIntegration({ client: host.client(ref), verifyUserAction: () => true });
   await casebook.setInteractionAuthorization({ project_ref: project.project_id, purpose: PURPOSE, action: "join", actor_ref: "fixture-user",
@@ -50,7 +50,7 @@ test("formal Goals MCP aliases use client grants and shared Host while preservin
     const sessionId = registry.explicitlyLinkSession({ runtime_id: context.runtime_id, native_runtime_session_id: session,
       actor_id: "user", user_confirmed: true, project_id: project.project_id }).session_id;
     registry.close();
-    // These are real pre-migration records with the old session actor, not new adapter output used as its own oracle.
+    // Records the same Session wrote earlier through the Host, not adapter output used as its own oracle.
     const input = { goal_id: "HISTORICAL-GOAL", title: "迁移前目标", outcome: "保留回执", idempotency_key: "historical-create" };
     const createdBefore = await host.client(ref).invoke(createGoalIntentCapability, {
       ...input, board_id: project.board_id, actor_id: auditActor, actor_kind: "runtime", source_kind: "runtime",
@@ -71,7 +71,7 @@ test("formal Goals MCP aliases use client grants and shared Host while preservin
     await sdk.connect(transport).catch(error => { throw new Error(String(error) + errors); });
     const names = async () => (await sdk.listTools()).tools.map(tool => tool.name);
     for (const alias of Object.values(aliases)) assert.equal((await names()).includes(alias), false);
-    assert.equal((await sdk.callTool({ name: aliases.create, arguments: input })).isError, true, "default legacy switch cannot grant writes");
+    assert.equal((await sdk.callTool({ name: aliases.create, arguments: input })).isError, true, "a project binding grants no writes");
     await grantGoalsMcp(host, home, project, clientId);
     const tools = (await sdk.listTools()).tools;
     for (const alias of Object.values(aliases)) assert.ok(tools.some(tool => tool.name === alias));
@@ -86,8 +86,8 @@ test("formal Goals MCP aliases use client grants and shared Host while preservin
       assert.equal(content[0]?.type, "text");
       return JSON.parse(content[0]!.text!) as T;
     }
-    const replay = await call<typeof createdBefore & { goal_url: string }>(aliases.create, input);
-    assert.deepEqual(replay, { ...createdBefore, replayed: true, goal_url: `${origin}/projects/${project.project_id}/goals/${input.goal_id}` });
+    const replay = await call<typeof createdBefore>(aliases.create, input);
+    assert.deepEqual(replay, { ...createdBefore, replayed: true });
     assert.deepEqual(await call(aliases.note, noteInput), { ...noteBefore, replayed: true });
     const newInput = { ...noteInput, body: "迁移后原文", idempotency_key: "after-migration" };
     const note = await call<typeof noteBefore>(aliases.note, newInput);
@@ -98,27 +98,27 @@ test("formal Goals MCP aliases use client grants and shared Host while preservin
     assert.equal((stored.payload as { body: string }).body, newInput.body);
     assert.ok(policies.includes(clientId), "policy receives the grant principal, never the historical author");
     assert.equal(policies.includes(auditActor), false);
-    const listed = await call<{ goals: Array<{ goal_id: string; goal_url: string }> }>(aliases.list, {});
-    assert.ok(listed.goals.some(goal => goal.goal_id === input.goal_id && goal.goal_url === replay.goal_url));
+    const listed = await call<{ goals: Array<{ goal_id: string }> }>(aliases.list, {});
+    assert.ok(listed.goals.some(goal => goal.goal_id === input.goal_id));
     const observations = await facts();
     assert.equal(observations.length, 14, "each actual business invocation has one attempt and one resolved result");
     assert.ok(observations.every(fact => fact.channel === "local-host.capability.v1"));
     assert.equal(observations.filter(fact => fact.kind === "result" && fact.capability.endsWith(".note") && fact.saved?.event_refs.length === 1).length, 4);
-    const state = await call<{ goal_id: string; goal_url: string; intent: { title: string } }>(aliases.state, { goal_id: input.goal_id });
-    assert.equal(state.goal_id, input.goal_id); assert.equal(state.goal_url, replay.goal_url); assert.equal(state.intent.title, input.title);
+    const state = await call<{ goal_id: string; intent: { title: string } }>(aliases.state, { goal_id: input.goal_id });
+    assert.equal(state.goal_id, input.goal_id); assert.equal(state.intent.title, input.title);
     const eventPage = await call<{ events: Array<{ event_id: string }>; next_cursor: number | null }>(aliases.events, { goal_id: input.goal_id, limit: 1 });
     assert.equal(eventPage.events.length, 1); assert.ok(eventPage.next_cursor);
     const read = await call<typeof stored>(aliases.event, { goal_id: input.goal_id, event_id: note.event_id });
     assert.deepEqual(read, stored);
-    assert.equal((await facts()).length, 20, "three query aliases are each observed exactly once");
-    const configuredInput = { goal_id: input.goal_id, expected_version: 0, idempotency_key: "legacy-config", types: [{ type_id: "work", version: 1,
+    assert.equal((await facts()).length, 20, "three query actions are each observed exactly once");
+    const configuredInput = { goal_id: input.goal_id, expected_version: 0, idempotency_key: "mcp-config", types: [{ type_id: "work", version: 1,
       name: "工作", purpose: "保留原文", fields: [{ field_id: "body", name: "正文", purpose: "历史", format: "text", required: true }] }] };
-    const configured = await call<{ event_id: string; replayed: boolean }>("molis_work_v1_event_configure", configuredInput);
-    assert.deepEqual(await call("molis_work_v1_event_configure", configuredInput), { ...configured, replayed: true });
+    const configured = await call<{ event_id: string; replayed: boolean }>("molis_work_v1_action_goals.events.configure__v1", configuredInput);
+    assert.deepEqual(await call("molis_work_v1_action_goals.events.configure__v1", configuredInput), { ...configured, replayed: true });
     const reportInput = { goal_id: input.goal_id, idempotency_key: "legacy-report", events: [{ type_id: "work", type_version: 1, title: "旧名称报告", fields: { body: "Session 作者保持" } }] };
-    const reported = await call<{ events: Array<{ actor_id: string; payload: { body: string } }>; replayed: boolean }>("molis_work_v1_event_report", reportInput);
+    const reported = await call<{ events: Array<{ actor_id: string; payload: { body: string } }>; replayed: boolean }>("molis_work_v1_action_goals.events.report__v1", reportInput);
     assert.equal(reported.events[0]?.actor_id, auditActor); assert.equal(reported.events[0]?.payload.body, "Session 作者保持");
-    assert.deepEqual(await call("molis_work_v1_event_report", reportInput), { ...reported, replayed: true });
+    assert.deepEqual(await call("molis_work_v1_action_goals.events.report__v1", reportInput), { ...reported, replayed: true });
     assert.equal((await facts()).filter(fact => fact.capability.endsWith(".report")).length, 4);
     const inspect = await openWorkSessionRegistry({ homeDirectory: home });
     try {
@@ -128,10 +128,6 @@ test("formal Goals MCP aliases use client grants and shared Host while preservin
     for (const field of ["actor_id", "audit_actor_id", "runtime_session_id", "database_path", "board_id"]) {
       assert.equal((await sdk.callTool({ name: aliases.note, arguments: { ...newInput, [field]: "forged" } })).isError, true);
     }
-    await writeMcpToolPreference(home, { [aliases.note]: false });
-    assert.equal((await names()).includes(aliases.note), false);
-    assert.equal((await names()).includes(hostActionToolName(goalsActions.note)), true);
-    await writeMcpToolPreference(home, {});
     const caller = { actor_id: clientId, project_id: project.project_id, audience: "mcp" as const, permissions: [] };
     const noteView = (await host.inspectActions(caller, ref)).find(view => view.capability_id === goalsActions.note.capability_id)!;
     const started = new Promise<void>(resolve => { entered = resolve; });
@@ -155,12 +151,12 @@ test("formal Goals MCP aliases use client grants and shared Host while preservin
     // In production these are separate processes on the same resident service; in one process they share its Host (one Runtime owner per Home).
     const other = new LocalMcpServer(withCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path,
       boardId: project.board_id, webBaseUrl: origin }, { homeDirectory: home, runtimeContext: { ...context, runtime_id: "stranger" } }, host, origin);
-    try { await assert.rejects(other.callTool(aliases.list, {}), { code: "mcp.tool_disabled" }); } finally { await other.close(); }
+    try { await assert.rejects(other.callTool(aliases.list, {}), { code: "mcp.tool_unknown" }, "a client without grants is not shown the action"); } finally { await other.close(); }
     const management = new LocalMcpServer(withCatalog, "management", { projectId: project.project_id, databasePath: project.database_path,
       boardId: project.board_id, webBaseUrl: origin }, { homeDirectory: home, runtimeContext: context }, host, origin);
     try {
       assert.ok(JSON.parse(await management.callTool(aliases.list, {})).goals.some((goal: { goal_id: string }) => goal.goal_id === input.goal_id));
-      await assert.rejects(management.callTool(aliases.create, { ...input, database_path: project.database_path, actor_id: "user" }), { code: "mcp.unexpected_field" });
+      await assert.rejects(management.callTool(aliases.create, { ...input, database_path: project.database_path, actor_id: "user" }), { code: "actions.input_invalid" });
     } finally { await management.close(); }
   } finally {
     release?.(); await pending?.catch(() => undefined); await sdk.close();

@@ -111,7 +111,6 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
   assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
   assert.equal(lingguangManifest.ui.views?.[0]?.slot, "island");
-  assert.equal(lingguangManifest.mcp_exports, undefined);
 });
 
 test("工作台挂上灵光空态、确认框和快记区", () => {

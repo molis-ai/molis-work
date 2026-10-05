@@ -107,6 +107,8 @@ export interface ActionMetadata {
   readonly plugin?: false;
   /** Provider owns transaction/conflict safety across awaits; Host still tracks lifetime. Default is serial. */
   readonly scheduling?: "concurrent";
+  /** `session`: a Runtime may call it only from a stable Session, which becomes the author of what it records. */
+  readonly authorship?: "session";
   /** Declarative limits shared by every entry; cancellation uses signal + beforeEffect. */
   readonly execution?: ActionExecutionPolicy;
   readonly audiences: readonly ActionAudience[];
@@ -481,7 +483,7 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
         const a = raw.action;
         if (!object(a) || !text(a.title) || !text(a.description)
           || !["query", "judgment", "operation", "navigation"].includes(String(a.kind))
-          || !["home", "project"].includes(String(a.scope)) || (a.scheduling !== undefined && a.scheduling !== "concurrent") || !strings(a.permissions) || !strings(a.subject_kinds)
+          || !["home", "project"].includes(String(a.scope)) || (a.scheduling !== undefined && a.scheduling !== "concurrent") || (a.authorship !== undefined && a.authorship !== "session") || !strings(a.permissions) || !strings(a.subject_kinds)
           || !strings(a.audiences) || a.audiences.length === 0
           || !a.audiences.every(v => ["user", "agent", "workflow", "mcp", "plugin"].includes(v))
           || (a.effect !== undefined && !["read", "write", "irreversible"].includes(String(a.effect))) || (a.plugin !== undefined && a.plugin !== false)

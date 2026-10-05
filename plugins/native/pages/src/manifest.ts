@@ -4,7 +4,6 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_UI_CONTRIBUTION_ID } from "./ui.js";
-import { PAGES_MCP_EXPORTS } from "./mcp.js";
 import { pagesMethods } from "./methods.js";
 
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID };
@@ -40,5 +39,4 @@ export const pagesManifest: PluginManifest = {
       { view_id: "directory", slot: "navigator", title: "Pages", contribution_id: PAGES_UI_CONTRIBUTION_ID, icon: "note", order: 56 },
     ],
   },
-  mcp_exports: [...PAGES_MCP_EXPORTS],
 };

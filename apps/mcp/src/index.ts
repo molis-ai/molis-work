@@ -1,14 +1,12 @@
 export { createMcpContextPresenter } from "./context-presentation.js";
 export type { McpContextPresentationPorts } from "./context-presentation.js";
-export { mcpWebUrl, mcpGoalContractResponse } from "./goal-presentation.js";
-export { LEGACY_GOALS_MCP, callLegacyGoalsMcp } from "./goal-action-aliases.js";
+export { mcpWebUrl } from "./goal-presentation.js";
 
 export { handleMcpMessage } from "./protocol.js";
 export { mcpRuntimeSessionActivity } from "./session-activity.js";
 export { createMcpRuntimeContextHandlers } from "./runtime-context-tools.js";
 export type { McpRuntimeContextPorts } from "./runtime-context-tools.js";
-export { planningMethodResponse } from "./query-presentation.js";
-export type { McpPresentationErrorFactory } from "./query-presentation.js";
+export type { McpPresentationErrorFactory } from "./goal-presentation.js";
 export { createMcpGoalEventHandlers } from "./goal-event-commands.js";
 export { EVENT_TOOLS } from "./goal-event-tools.js";
 export { buildMcpResumeView } from "./resume-view.js";
@@ -17,10 +15,8 @@ export {
   MCP_TOOLS,
   RUNTIME_MCP_TOOLS,
   MCP_SERVER_INFO,
-  isRuntimeMcpTool,
   isPlatformMcpTool,
   isRuntimeContextMcpTool,
-  canonicalMcpToolName,
 } from "./tool-catalog.js";
 export type { McpProtocolPorts, McpToolCallContext, McpToolDefinition, McpToolResult } from "./protocol.js";
 export { createActionMcpPorts, actionMcpToolName, actionMcpToolDefinition } from "./action-tools.js";

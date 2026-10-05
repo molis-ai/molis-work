@@ -508,8 +508,6 @@ export const GAP_EN: Record<string, string> = {
   "找不到原能力、版本或提供方。": "The original capability, version, or provider cannot be found.",
   "所选项目已不存在。原授权记录仍保留，可在此撤销。": "This project no longer exists. Its access records are retained and can be revoked here.",
   "选择客户端，决定它可以读取什么、执行哪些操作。": "Select a client and choose what it can read and do.",
-  "旧版工具（全局开关）": "Legacy tools (global switches)",
-  "这些开关影响所有客户端。插件和判断工具还须取得上方对应动作的授权；旧平台工具继续沿用原权限规则。": "These switches affect all clients. Plugin and judgment tools also require the corresponding action grants above. Legacy platform tools still use their original access rules.",
 
   "授权此能力": "Authorize capability",
   "更新授权": "Update access",

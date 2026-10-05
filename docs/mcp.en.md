@@ -30,42 +30,37 @@ This MCP process starts "not connected to a project" and opens no Board. The uni
 - After the user explicitly asks to create a named project in the current conversation, the Skill calls `molis_work_v1_context_create_and_bind` with `user_confirmed=true`, the project name, and an idempotency key. It creates the project DB and binds it only under `~/.molis-work`; a failure leaves no orphan project.
 - When the user asks to view projects, the Skill calls `molis_work_v1_context_list_projects`; it doesn't expose database paths and changes nothing.
 - When the user explicitly asks to unbind only the current work entry, the Skill calls `molis_work_v1_context_unbind` with `user_confirmed=true`. It doesn't delete the project, DB, or other Runtimes' bindings.
-- Deleting a project and its DB is a separate confirmation: after the user names the project and confirms deletion, the Skill calls `molis_work_v1_project_delete` with `delete_confirmed=true` and an idempotency key. It refuses while the project has a valid Claim or unfinished Run; on success it returns a deletion receipt and the Runtime can no longer use the old connection.
+- Deleting a project and its DB is a separate confirmation: after the user names the project and confirms deletion, the Skill calls `molis_work_v1_project_delete` with `delete_confirmed=true` and an idempotency key. On success it returns a deletion receipt and the Runtime can no longer use the old connection.
 
 Web is an optional viewing and user-confirmation surface, not a prerequisite for project connection or Goal work. Browsing does not bind the Runtime. Project Settings manages Session associations and workspace memberships, not directory defaults. Project creation, Runtime configuration, unlinking and deletion each retain their own authorization.
 
 ## Current tools
 
-Names below omit `molis_work_v1_`. The current MCP schema defines each tool's actual input.
+`molis-work-mcp` has two kinds of tools:
 
-| Purpose | Runtime tools |
+- **Connection tools** (platform tools, named with the `molis_work_v1_` prefix): `context_resolve`, `context_list_projects`, `context_reject_suggestion`, `context_bind`, `context_unbind`, `context_create_and_bind`, `project_delete`.
+- **Action tools**: every action in the system's single capability registry, named `molis_work_v1_action_<action>__v<version>`, for example `molis_work_v1_action_goals.list__v1`. Goals, judgment rules and every plugin reach MCP only this way.
+
+An action tool appears only after the user grants that action to this client for its scope (Home-wide or a project). In **Capabilities → External access**, choose the client and scope, search by name or provider, review the required permissions, and grant or revoke each action. A grant binds the exact capability version and provider; discovery and every call check the latest grants, so the next call after a revocation is refused, though a client may need to refresh its own tool list. Binding a project grants no action.
+
+Common Goals actions:
+
+| Purpose | Actions |
 | --- | --- |
-| Project connection | `context_resolve`, `context_list_projects`, `context_reject_suggestion`, `context_bind`, `context_unbind`, `context_create_and_bind`, `project_delete` |
-| Discovery, creation, and state | `goal_list`, `goal_intent_create`, `goal_state` |
-| Everyday records and history | `event_note`, `event_configure`, `event_report`, `event_progress`, `event_list`, `event_read` |
-| Agreements, decisions, and closure | `event_concern`, `event_decision_request`, `event_cite_decision`, `event_agree`, `event_close`, `event_resume` |
-| Structure proposals | `goal_tree_propose`, `goal_tree_read`, `goal_tree_check` |
-| Optional planning | `planning_methods`, `planning_method_save`, `planning_analyze_change`, `planning_graph_check` |
-| Project guidance | `project_guidance_get`, `project_guidance_add`, `project_guidance_update` |
-| Trash and restore | `goal_trash`, `goal_trash_list`, `goal_restore` |
-| Judgment functions | `functions_list`, `functions_describe`, `functions_invoke` |
+| Find, create and read state | `goals.list`, `goals.create`, `goals.state.read` |
+| Notes and history | `goals.note`, `goals.events.configure`, `goals.events.report`, `goals.progress.record`, `goals.events.list`, `goals.events.read` |
+| Agreement, decisions and closure | `goals.concerns.apply`, `goals.decisions.request`, `goals.decisions.cite`, `goals.agreement.set`, `goals.closure.submit`, `goals.work.resume` |
+| Tree proposals | `goals.tree.submit`, `goals.tree.read`, `goals.tree.check` |
+| Optional planning | `goals.planning.catalog` (catalog without instructions), `goals.planning.read` (instructions by `method_ids`), `goals.planning.save`, `goals.planning.impact`, `goals.planning.graph.check` |
+| Project guidance | `goals.guidance.read`, `goals.guidance.add`, `goals.guidance.update` |
+| Trash | `goals.trash.set` (`trashed` true moves to trash, false restores), `goals.trash.list` |
 
-The only outbound process is `molis-work-mcp`. New action tools come from the shared system registry. In **Capabilities → External access**, select a client and a global or project scope, search capabilities, inspect required permissions, then authorize or revoke each action. Grants pin the capability version, provider and accepted permissions; all sessions of the same client share them, while projects remain separate. Changed or missing capabilities retain their records for review or revocation, including records for deleted projects. System queries requiring no extra permissions are available by default and can also be revoked per client.
+Action input holds business fields only: the project, the operator and the creation channel come from the connection and Session, so `board_id`, database paths, Web URLs, `actor_id` / `actor_kind` / `runtime_actor_id` and `source_kind` are not accepted. For a Runtime write, the host records the Session as the audit author (`runtime:<runtime_id>:<session>`); without a stable Session identity the write is refused.
 
-New actions check current grants during discovery and actual dispatch. Revocation affects the next call on an existing connection, although the client may need to refresh its tool list. If a save response is lost, use **Refresh to confirm status** before continuing. The existing `~/.molis-work/config/mcp-tools.json` remains the configuration owner.
+The shortest path is `goals.create` → `goals.note`, with no type or planning. Use `goals.events.configure` / `goals.events.report` for structured results. A report may hold several facts and progress; the batch is saved only when all of it is valid, and the receipt returns current state, gaps and cursors.
 
-**Legacy tools (global switches)** controls whether compatibility names are exposed; it does not grant action permissions. Functions, Pages, Forms, Dataset, PPT, Cognia and Jelly aliases now require their corresponding action grants. Goals aliases `goal_intent_create`, `goal_list` and `event_note` require `goals.create`, `goals.list` and `goals.note`, respectively. The query aliases `goal_state`, `event_list` and `event_read` require `goals.state.read`, `goals.events.list` and `goals.events.read`. The nine work aliases event_configure/report/progress/concern/decision_request/cite_decision/agree/close/resume also forward to their exact actions. All 15 require a current project connection and explicit grants; see the [Goals plugin](../plugins/native/goals/README.md). The production MCP process forwards these calls to the same Home's running system service; opening a management page is unnecessary. Trusted user decisions now pass through `goals.decisions.record` from protected Web/management adapters. This user-only action cannot be granted to an ordinary MCP client. Other platform tools, planning and tree operations remain under migration. `agent.mcp` governs the opposite direction, when a plugin Agent calls external MCP. See [Plugin development](platform/PLUGIN-DEVELOPMENT.md#对外-mcp) (Chinese).
+The person's decisions are written only from the protected Web interface or the trusted management entry, never by a Runtime. A Runtime may submit concrete changes and request or cite saved decisions; it cannot fill in a user identity, confirmation text or Session fields to approve itself. The trusted management entry uses `MOLIS_WORK_MCP_AUDIENCE=management` and has the extra platform tools `initialize`, `event_decide` and `goal_tree_decide`; the host sets its identity to the person on this machine (`web-user`).
 
-These 15 Goals aliases accept business fields only, including in management mode. They cannot select an arbitrary database or author; bind a trusted project connection and grant the exact actions first. Legacy writes retain their Host-derived Runtime Session author and original idempotency domain. Public action tools retain their client-level author. Retry through the original tool and Session context rather than replaying the same request under another identity.
+When the service is unavailable, report the failure; do not switch databases, change URLs or fall back to the CLI. `mcp.context_refresh_required` only asks for a read-only `context_resolve`: when it returns bound, retry with the original idempotency_key; otherwise follow project selection.
 
-Ordinary Runtime tools reject overrides for `board_id`, database paths, Web URLs, or `actor_id` / `actor_kind` / `runtime_actor_id`, even when the supplied value matches the current connection. Trash tools also use finite top-level fields rather than the old `payload` envelope. Project-selection tools and `project_delete` retain their own explicit project and confirmation arguments; those confirmations cannot authorize agreement or tree changes.
-
-The shortest work path is `goal_intent_create` → `event_note`, with no type or plan required. Use `event_configure` / `event_report` for structured results. A report can contain multiple facts and progress; the whole batch must be valid, and the receipt includes current state, gaps, and cursors. `event_close` closes explicitly, and only `completion_applied=true` establishes completion. `event_resume` requires a reason to continue completed or cancelled work. Ordinary notes and unrelated reports do not reopen it automatically. Valid counterevidence may invalidate the effect of an earlier completion while preserving its history.
-
-`event_decide` and `goal_tree_decide` belong to protected user Web/management entries, not Runtime. The Runtime can propose concrete changes and request or cite saved valid decisions; user identities, confirmation text, and Session fields supplied by the Runtime cannot approve its own proposal. Existing authorization does not require another decision while its exact scope remains valid.
-
-Trusted management entries use `MOLIS_WORK_MCP_AUDIENCE=management`, which additionally retains `initialize`, `snapshot`, `event_decide`, `goal_tree_decide`, and `active_goal`. Management calls follow their explicit project schemas; the host acts as the person on this machine (`web-user`), and an `actor_id` or an identity or provenance inside `authority` is refused. Never hand management MCP to an autonomous Runtime.
-
-Old Claim/select/Run/Evidence/Review, draft dialogue, Contract/Candidate/Dependency/Rewire writes, and Available/Ready/Contract/Explain work entries are retired. Management does not make those old names executable. Historical records remain readable; everyday work uses the current event path.
-
-If the service is unavailable, report the failure without switching databases, rewriting URLs or falling back to CLI. `mcp.context_refresh_required` asks for read-only resolution: retry unchanged with the same idempotency key only after `bound`; otherwise follow project selection. An older-reader version error is different from a connection-cache refresh and follows its returned diagnosis. See the complete [Runtime Skill](../skills/goal-advance/SKILL.md).
+Plugins do not register separate MCP tools: the actions a plugin declares in its Manifest are its external capabilities. See [Plugin development](platform/PLUGIN-DEVELOPMENT.md).

@@ -182,7 +182,7 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
         projectId, boardId: projectId, databasePath: join(home, `${projectId}.sqlite`), webBaseUrl: origin,
       }, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: projectId, host_declares_stable: true } }, host);
       try {
-        const result = JSON.parse(await mcp.callTool("molis_work_v1_functions_invoke", { function_key: published[0]!.function_key, input: projectId }));
+        const result = JSON.parse(await mcp.callTool("molis_work_v1_action_functions.invoke__v1", { function_key: published[0]!.function_key, input: projectId }));
         assert.equal(result.data.choice, "yes");
       } finally { await mcp.close(); }
     }

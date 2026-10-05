@@ -14,7 +14,7 @@ Home 安装、Runtime 接入、常驻 Web 服务和卸载的实现统一在 `app
 
 ## 当前Goal、父目标与依赖
 
-当前工作由事件状态表示，公开读取使用 `goal_state`。父目标按自己的当前约定、报告、要求和适用阻塞判断完成，子目标数量不构成完成证明。未完成依赖影响正式完成，但不禁止记录普通笔记或部分结果。
+当前工作由事件状态表示，公开读取使用 `goals.state.read`。父目标按自己的当前约定、报告、要求和适用阻塞判断完成，子目标数量不构成完成证明。未完成依赖影响正式完成，但不禁止记录普通笔记或部分结果。
 
 结构影响与图合法性由 Goals Module 的规划图计算，当前候选读取事件work_status，不读取旧叶子分类。关系变化通过当前有限Goal Tree提案及受保护用户决定处理；不再生成clarifier Claim、Draft Dialogue或旧动作token。回归见 `tests/goal-tree-event-flow.test.ts`、`tests/goal-events-state.test.ts` 和 `tests/planning-engine.test.ts`。
 
@@ -81,8 +81,8 @@ tests/command-entry-chain.test.ts
 tests/host-entry-consistency.test.ts
                              组合调用、并发排队与Host资源生命周期
 tests/mcp.test.ts            MCP audience、权限与连接回归
-tests/plugin-outbound-mcp.test.ts
-                             插件对外 MCP 登记、合成目录、闸门与分发
+tests/mcp-action-catalog.test.ts
+                             对外 MCP 目录：平台工具加已授权的动作
 tests/web.test.ts            Web 数据与交互回归
 tests/desktop-tui.test.ts    第三栏启动、面板与本机 PTY 回归
 tests/i18n.test.ts           界面语言回归
@@ -108,7 +108,7 @@ specs/molis-work-architecture-reorganization/spec.md
 
 ## 对外 MCP
 
-对外只有 `molis-work-mcp`。插件登记、人开闸、Host 合成目录。写插件的顺序和要素取舍见 [molis-plugin-dev Skill](../skills/molis-plugin-dev/SKILL.md)。作者步骤见 [Plugin 开发 · 对外 MCP](platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。Runtime Skill 协议见 [MCP 接入](mcp.md)。
+对外只有 `molis-work-mcp`：连接工具，加上每个已授权的动作。写插件的顺序和要素取舍见 [molis-plugin-dev Skill](../skills/molis-plugin-dev/SKILL.md)。作者步骤见 [Plugin 开发 · 对外 MCP](platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。Runtime Skill 协议见 [MCP 接入](mcp.md)。
 
 ### 调用链
 
@@ -116,32 +116,27 @@ specs/molis-work-architecture-reorganization/spec.md
 molis-work-mcp
   apps/desktop/launchers/mcp/server.ts     进程入口
   apps/local-host/src/mcp-server.ts        装配、实时发现、按 catalog entry 分发
-  apps/local-host/src/mcp-catalog.ts       动作目录 + 尚待迁移的旧平台/插件名称
-  apps/local-host/src/mcp-settings-store.ts  {home}/config/mcp-tools.json
+  apps/local-host/src/mcp-catalog.ts       平台工具 + 已授权且可用的动作
+  apps/local-host/src/mcp-settings-store.ts  {home}/config/mcp-tools.json（只存动作授权）
   apps/local-host/src/mcp-authority.ts     list/call 同闸
-  apps/local-host/src/action-gateway.ts    公共动作及判断别名 → 常驻 Web Host
-  apps/local-host/src/mcp-native-plugins.ts 尚待收敛的历史 Native 插件适配表
-  apps/mcp                                 平台 schema、协议、连接工具、项目工具分发
-  plugins/*/src/mcp.ts 或 contribution.mcp 只认 tool_id
+  apps/local-host/src/action-gateway.ts    动作 → 常驻 Web Host
+  apps/mcp                                 平台 schema、协议、连接工具、管理工具分发
 ```
 
-每次 `tools/list` 和 `tools/call` 读取当前目录及授权；已连接的客户端也会看到变化，调用时再次校验。当前不主动发送 `tools/list_changed`。正式 launcher 有明确 Runtime Home 时，从同一 Home 的常驻服务取得公共动作；服务离线保留上下文工具，业务调用不会退回本地执行或自动重试。
+每次 `tools/list` 和 `tools/call` 读取当前目录及授权；已连接的客户端也会看到变化，调用时再次校验。当前不主动发送 `tools/list_changed`。正式 launcher 有明确 Runtime Home 时，从同一 Home 的常驻服务取得动作；服务离线时只保留连接工具。
 
 `tools/call` 按目录条目的 `source` 分发：
 
 | source | 走到 |
 | --- | --- |
-| `action` | 同一 ActionClient；正式 stdio 通过本机通道进入常驻 Host 的注册表和执行队列 |
-| `system` | 判断函数旧名称薄映射到同一动作、同一授权和同一 ActionClient |
-| `plugin` | 历史参数/结果适配器，内部也调用授权 ActionClient；正式 stdio 使用常驻 Host |
+| `action` | 同一 ActionClient；正式 stdio 通过本机通道进入常驻 Host 的注册表和执行队列。Runtime 的写入以会话身份为审计作者，成功的 Goals 写入记进会话活动 |
 | `platform` 且是连接工具 | `apps/mcp` 的 runtime-context handlers |
-| 其余 `platform` | Host 注入身份后 `dispatchMcpProjectTool` |
+| 其余 `platform`（管理入口） | Host 注入身份后 `dispatchMcpProjectTool` |
 
 ### 改哪里
 
-- **新增业务能力**：由插件声明动作合同和处理器，经过 SDK/Runtime 注册到同一目录；声明 MCP audience 后由公共动作适配器导出。无需增加 Native 适配表、MCP 总表或公开名称分支。账号和个人成果仍须遵守实际 owner 合同，不能用模型参数注入可信身份。
-- **历史工具**：旧连接 / Goals / 事件仍在 `apps/mcp`。六组 Native 兼容名称已共用动作授权和转发，历史表只保留参数/结果适配，不再计算权限或打开业务 Store。兼容声明的 required_actions 覆盖其完整调用范围，开关不代替授权；新插件无需加入此表。
-- **授权与设置页**：偏好及精确客户端动作授权在 `mcp-settings-store.ts`；管理入口在系统“能力 → 对外接入”。旧名称开关保留兼容含义，不能绕过对应动作授权。判断 invoke 旧名称也须授权 `functions.invoke`，旧规则、版本和历史保持。
+- **新增业务能力**：由插件声明动作合同和处理器，经过 SDK/Runtime 注册到同一目录；动作的 `audiences` 含 `mcp` 就会出现在授权列表里。无需 MCP 总表、按名称的分支或单独的 MCP 登记。账号和个人成果仍须遵守实际 owner 合同。
+- **授权与设置页**：精确的客户端动作授权在 `mcp-settings-store.ts`；管理入口在系统「能力 → 对外接入」。没有按工具名称的开关。
 
 `agent.mcp` 是插件内 Agent 调外部 MCP，方向相反，不要复用。
 

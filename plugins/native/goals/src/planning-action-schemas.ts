@@ -16,6 +16,10 @@ export const planningMethodInputSchema = object({ ...methodFields, version, inst
 export const planningMethodSchema = object({ ...methodFields, version, instructions: text, event_types: eventTypes, default_requirements: defaultRequirements,
   scope: scopes, created_at: text, updated_at: text, overridden_scopes: array(scopes) },
   [...Object.keys(methodFields), "version", "instructions", "event_types", "default_requirements", "scope", "created_at", "updated_at"]);
+/** A method without its instructions: what a catalog lists before the instructions are read. */
+export const planningMethodSummarySchema = object({ ...methodFields, version, event_types: eventTypes, default_requirements: defaultRequirements,
+  scope: scopes, created_at: text, updated_at: text, overridden_scopes: array(scopes) },
+  [...Object.keys(methodFields), "version", "event_types", "default_requirements", "scope", "created_at", "updated_at"]);
 export const planningCompositionSchema = object({ method_pack_ids: strings, method_names: strings,
   method_paths: array(object({ method_id: text, method_name: text, kind: kinds, steps: strings, instructions: text })),
   required_coverage: coverage, dependency_rules: dependencies, evidence_requirements: strings, completion_checks: strings, failure_modes: strings });

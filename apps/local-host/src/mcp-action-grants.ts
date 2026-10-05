@@ -1,6 +1,6 @@
 import { ActionError, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionMcpToolName } from "@molis-ai/molis-work-app-mcp";
-import { isMcpToolEnabled, type McpActionGrant, type McpToolPreference } from "./mcp-settings-store.js";
+import type { McpActionGrant, McpToolPreference } from "./mcp-settings-store.js";
 
 /** Internal runtimes cannot be impersonated by external MCP runtime: identities. */
 export const actionClientAudience = (clientId: string) => clientId.startsWith("agent:") ? "agent" as const : "mcp" as const;
@@ -31,11 +31,11 @@ export function resolveMcpActionContext(caller: ActionCallContext, catalog: read
   const accepted = catalog.filter(view => {
     if (!view.action.audiences.includes(caller.audience === "agent" ? "agent" : "mcp") || (view.provider.project_id && view.provider.project_id !== caller.project_id)) return false;
     const publicSystem = view.provider.kind === "system" && view.action.permissions.length === 0;
-    const records = (preference.action_grants ?? []).filter(grant => grant.client_id === caller.actor_id
+    const records = preference.action_grants.filter(grant => grant.client_id === caller.actor_id
       && grant.project_id === (view.action.scope === "home" ? null : caller.project_id)
       && grant.capability_id === view.capability_id && grant.version === view.version && grant.provider_id === view.provider.provider_id);
     const granted = records.some(grant => matches(grant, view, caller));
-    return ((publicSystem && !records.length) || granted) && isMcpToolEnabled(hostActionToolName(view), true, preference.overrides);
+    return (publicSystem && !records.length) || granted;
   });
   return { ...caller, permissions: [...new Set(accepted.flatMap(view => view.action.permissions))],
     allowed_actions: accepted.map(view => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })),

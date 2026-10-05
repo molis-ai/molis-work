@@ -110,6 +110,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
       assert.deepEqual(calls, ["guidance", "session", "resume"]);
       assert.equal(presented.connection.project_id, project.project_id);
       assert.equal(presented.connection.project_url, `http://127.0.0.1:4173/projects/${project.project_id}`);
+      assert.equal(presented.connection.goal_url_template, `http://127.0.0.1:4173/projects/${project.project_id}/goals/{goal_id}`);
       assert.deepEqual(presented.session_registry, { status: "unavailable", message: "secondary Session unavailable", session: null });
       assert.deepEqual(presented.resume, { focus: null, next_goals: [], auto_claimed: false });
       assert.equal(presented.runtime_prompt_prefix, presented.project_guidance.runtime_prompt_prefix);

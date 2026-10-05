@@ -25,7 +25,7 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
   async function wire(name: string, args: object) {
     const response = await server.handleMessage({
       jsonrpc: "2.0", id: ++requestId, method: "tools/call",
-      params: { name: `molis_work_v1_${name}`, arguments: args, _meta: { threadId: "skill-session" } },
+      params: { name: name.startsWith("context_") ? `molis_work_v1_${name}` : `molis_work_v1_action_${name}__v1`, arguments: args, _meta: { threadId: "skill-session" } },
     });
     return response!.result as { isError: boolean; content: Array<{ text: string }> };
   }
@@ -45,30 +45,30 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
     const permissionsCatalog = await openMolisWorkProjectCatalog({ homeDirectory: host.homeDirectory });
     try { await grantGoalsMcp(null, host.homeDirectory, permissionsCatalog.getProject(connected.connection.project_id)); }
     finally { permissionsCatalog.close(); }
-    const created = await call<{ goal: { goal_id: string }; replayed: boolean }>("goal_intent_create", {
+    const created = await call<{ goal: { goal_id: string }; replayed: boolean }>("goals.create", {
       goal_id: "skill-goal", title: "交付一份可读取的结果说明", outcome: "用户可以读取完整说明",
       idempotency_key: "start",
     });
     assert.equal(created.replayed, false);
-    const note = await call<{ recorded: boolean; event_id: string }>("event_note", {
+    const note = await call<{ recorded: boolean; event_id: string }>("goals.note", {
       goal_id: created.goal.goal_id, body: "只交付这份说明，不加其他功能", idempotency_key: "note",
     });
     assert.equal(note.recorded, true);
     await server.close();
     server = new MolisWorkServer("runtime", null, host);
     assert.equal((await call<{ status: string }>("context_resolve", {})).status, "bound");
-    const replayedIntent = await call<{ replayed: boolean; goal: { goal_id: string } }>("goal_intent_create", {
+    const replayedIntent = await call<{ replayed: boolean; goal: { goal_id: string } }>("goals.create", {
       goal_id: "skill-goal", title: "交付一份可读取的结果说明", outcome: "用户可以读取完整说明",
       idempotency_key: "start",
     });
     assert.equal(replayedIntent.replayed, true);
     assert.equal(replayedIntent.goal.goal_id, created.goal.goal_id);
-    const replayedNote = await call<{ replayed: boolean; event_id: string }>("event_note", {
+    const replayedNote = await call<{ replayed: boolean; event_id: string }>("goals.note", {
       goal_id: created.goal.goal_id, body: "只交付这份说明，不加其他功能", idempotency_key: "note",
     });
     assert.equal(replayedNote.replayed, true);
     assert.equal(replayedNote.event_id, note.event_id);
-    const state = await call<{ work_status: string }>("goal_state", { goal_id: created.goal.goal_id });
+    const state = await call<{ work_status: string }>("goals.state.read", { goal_id: created.goal.goal_id });
     assert.equal(state.work_status, "open");
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: host.homeDirectory });
     try {

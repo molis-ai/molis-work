@@ -21,7 +21,8 @@ export interface GoalTreeSemanticReview extends GoalChangeImpact {
   structural_validation: "passed";
   status: "required" | "not_required";
   next_action: "review_affected_subgraph" | "continue";
-  review_tool: "molis_work_v1_planning_analyze_change";
+  /** The action that reviews the affected part of the Goal tree (Goals planning impact). */
+  review_action: { capability_id: "goals.planning.impact"; version: 1 };
   canonical_changes_require_new_user_confirmation: true;
 }
 

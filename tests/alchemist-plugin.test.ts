@@ -18,7 +18,6 @@ test("炼金术士是个人侧栏插件，舞台挂载完整工作面", () => {
   assert.equal(alchemistManifest.kind, "native");
   assert.equal(alchemistManifest.ui.views?.[0]?.slot, "navigator");
   assert.equal(alchemistManifest.ui.views?.[0]?.icon, "zap");
-  assert.equal(alchemistManifest.mcp_exports, undefined);
   const html = renderAlchemistWorkbench({ primitives });
   assert.match(html, /data-alchemist="workbench"/);
   assert.doesNotMatch(html, /<iframe|Founder Lab|app-shell/);

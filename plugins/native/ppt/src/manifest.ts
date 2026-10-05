@@ -8,7 +8,6 @@ import {
 import { PPT_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pptActions, PPT_ACTION_PERMISSIONS } from "./actions.js";
 import { pptContentActions } from "./content-actions.js";
-import { PPT_MCP_EXPORTS } from "./mcp.js";
 
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID };
 
@@ -41,5 +40,4 @@ export const pptManifest: PluginManifest = {
       { view_id: "directory", slot: "navigator", title: "PPT", contribution_id: PPT_UI_CONTRIBUTION_ID, icon: "presentation", order: 59 },
     ],
   },
-  mcp_exports: [...PPT_MCP_EXPORTS],
 };

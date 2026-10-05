@@ -52,7 +52,6 @@ import { CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plu
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
-import { handleLocalMcpSettingsHttp } from "./web-mcp-settings.js";
 import { handleMcpActionSettingsHttp } from "./web-mcp-action-settings.js";
 import { handleLocalConnectorsSettingsHttp } from "./web-connectors-settings.js";
 import { CONNECTOR_ACCOUNT_PERMISSIONS } from "./connector-account-actions.js";
@@ -62,8 +61,6 @@ import { listConnectorConnectionViews } from "./web-connector-connections.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { selectedTypeSafeConnection } from "./typesafe-connection.js";
 import { listConnectorSettingsCards } from "./connector-directory.js";
-import { listMcpSettingsEntries } from "./mcp-catalog.js";
-import { readMcpToolPreference } from "./mcp-settings-store.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
 import { codingBackgroundTasks } from "./coding-background-tasks.js";
@@ -246,16 +243,6 @@ export async function handleLocalCatalogWebRequest(
         api_format: "anthropic-messages", credential_ref: "", enabled: true, prompt_cache: "off", models: [], created_at: "", updated_at: "",
       } satisfies ModelProviderRecord } : {}),
     })) : undefined;
-    const mcp_tools = section === "mcp" && serverOptions.homeDirectory
-      ? listMcpSettingsEntries(await readMcpToolPreference(serverOptions.homeDirectory)).map((row) => ({
-        name: row.definition.name,
-        description: row.definition.description,
-        group_id: row.group_id,
-        group_title: row.group_title,
-        enabled: row.enabled,
-        effect: row.effect,
-      }))
-      : [];
     const membership = await pluginMembership(contextProject?.project_id ?? null);
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
@@ -275,7 +262,6 @@ export async function handleLocalCatalogWebRequest(
       enabled_plugins: membership.plugins,
       hidden_plugins: membership.hidden,
       runtimes,
-      mcp_tools,
       mcp_access,
       connectors: section === "connectors" ? listConnectorSettingsCards() : [],
       connector_connections: section === "connectors" && serverOptions.homeDirectory
@@ -369,7 +355,6 @@ export async function handleLocalCatalogWebRequest(
   if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory,
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: CONNECTOR_ACCOUNT_PERMISSIONS })))) return;
-  if (await handleLocalMcpSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;
   if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts)) return;

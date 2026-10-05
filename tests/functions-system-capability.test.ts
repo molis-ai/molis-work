@@ -30,7 +30,6 @@ import {
   suggestedAuthoringBehaviors,
   visibleFeedDispositionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
-import { mcpPublicToolName } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   FunctionsError,
   createFunctionsService,
@@ -48,9 +47,6 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
-const LIST = mcpPublicToolName("functions", "list");
-const DESCRIBE = mcpPublicToolName("functions", "describe");
-const INVOKE = mcpPublicToolName("functions", "invoke");
 
 function memorySecrets(initial: Record<string, string> = {}) {
   const map = new Map(Object.entries(initial));
@@ -602,7 +598,6 @@ test("app plugins must redeem declared behavior handlers", () => {
     action_scenes: [],
     ui: { contributions: [], views: [] },
     behaviors: [{ behavior_id: "pin", title: "挂到 Goal", effect: "write" as const, subject_kinds: ["inbox_entry"] }],
-    mcp_exports: [],
     routes: [],
     function_scenes: [],
   };

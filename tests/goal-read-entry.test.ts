@@ -4,9 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { mcpGoalContractResponse } from "@molis-ai/molis-work-app-mcp";
 import {
-  createGoalEntryCompositionClient,
   createGoalIntentCapability,
   readGoalEventStateCapability,
 } from "@molis-ai/molis-work-plugin-goals";
@@ -16,18 +14,6 @@ import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 
-const createError = (code: string, message: string) => new MolisWorkV1Error(code, message);
-
-test("Goal contract presentation preserves the project URL and wire content", () => {
-  const response = mcpGoalContractResponse({ goal_path: "/goals/g", opaque: { retained: true } },
-    "https://example.com/base", "项目/a", createError);
-  assert.deepEqual(response, { goal_path: "/goals/g", opaque: { retained: true },
-    goal_url: "https://example.com/projects/%E9%A1%B9%E7%9B%AE%2Fa/goals/g" });
-  assert.throws(() => mcpGoalContractResponse({ goal_path: "/goals/g" }, "invalid", null, createError),
-    (error: unknown) => error instanceof MolisWorkV1Error && error.code === "web.url_invalid"
-      && error.message === "无效的 Molis Work Web 地址: invalid");
-});
-
 test("CLI and MCP active Goal capabilities preserve rejection, canonical replay, current Goal state and restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-read-entry-"));
   const databasePath = join(directory, "project.db");
@@ -35,7 +21,6 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
   const host = createMolisWorkLocalHost({ clock: () => new Date("2026-09-05T01:00:00Z") });
   const reference = molisWorkHostProjectReference({ databasePath, boardId });
   const client = host.client(reference);
-  const composition = createGoalEntryCompositionClient(client);
   const runtimeHost = { homeDirectory: directory, runtimeContext: { runtime_id: "codex", stable_work_context_id: "read-entry", host_declares_stable: true } };
   const management = new MolisWorkServer("management", null, null, host);
   const runtime = new MolisWorkServer("runtime", { databasePath, boardId, projectId: reference.project_id, webBaseUrl: "https://example.com" }, runtimeHost, host);
@@ -58,9 +43,9 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
     await client.invoke(initializeBoardCapability, { board_id: boardId, title: "原入口行为", idempotency_key: "init" });
     await client.invoke(createGoalIntentCapability, makeIntent("working"));
     await client.invoke(createGoalIntentCapability, makeIntent("trashed-goal"));
-    await composition.setTrashedWithWorkState(boardId, {
+    await host.withProject(reference, ({ coordinator }) => coordinator.goals.lifecycle.setTrashed(boardId, {
       goal_id: "trashed-goal", trashed: true, reason: "回收站 Goal 不能成为当前目标",
-    }, { actor_id: "user", idempotency_key: "trash-working" });
+    }, { actor_id: "user", idempotency_key: "trash-working" }));
     const before = await snapshot();
     await assert.rejects(cli("active-goal", { board_id: boardId, goal_id: "missing", reason: "不存在", actor_id: "user", idempotency_key: "denied-missing" }),
       (error: unknown) => error instanceof MolisWorkV1Error && error.code === "goal.not_found");
@@ -75,24 +60,23 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
     const request = { database_path: databasePath, board_id: boardId,
       payload: { ...input, board_id: "forged-board", idempotency_key: "active-mcp", legacy_note: "preserved" } };
     const beforeUnbound = await snapshot();
-    await assert.rejects(management.callTool("molis_work_v1_active_goal", request));
+    await assert.rejects(management.callTool("molis_work_v1_action_goals.active.set__v1", request));
     assert.deepEqual(await snapshot(), beforeUnbound);
     await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath });
     const active = { goal_id: input.goal_id, reason: input.reason, idempotency_key: "active-mcp" };
-    const mcpSelected = JSON.parse(await runtime.callTool("molis_work_v1_active_goal", active));
+    const mcpSelected = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.active.set__v1", active));
     const afterMcp = await snapshot();
-    assert.deepEqual(JSON.parse(await runtime.callTool("molis_work_v1_active_goal", active)), { ...mcpSelected, replayed: true });
+    assert.deepEqual(JSON.parse(await runtime.callTool("molis_work_v1_action_goals.active.set__v1", active)), { ...mcpSelected, replayed: true });
     assert.deepEqual(await snapshot(), afterMcp);
-    await assert.rejects(runtime.callTool("molis_work_v1_active_goal", { ...active, reason: "different reason" }));
-    await assert.rejects(runtime.callTool("molis_work_v1_active_goal", { ...active, legacy_note: "unregistered field" }));
-    await assert.rejects(runtime.callTool("molis_work_v1_active_goal", { ...active, board_id: "foreign" }));
+    await assert.rejects(runtime.callTool("molis_work_v1_action_goals.active.set__v1", { ...active, reason: "different reason" }));
+    await assert.rejects(runtime.callTool("molis_work_v1_action_goals.active.set__v1", { ...active, legacy_note: "unregistered field" }));
+    await assert.rejects(runtime.callTool("molis_work_v1_action_goals.active.set__v1", { ...active, board_id: "foreign" }));
     assert.deepEqual(await snapshot(), afterMcp);
     const publicState = await client.invoke(readGoalEventStateCapability, { board_id: boardId, goal_id: "working" });
-    const mcpState = JSON.parse(await runtime.callTool("molis_work_v1_goal_state", { goal_id: "working" })) as GoalEventStateView & { goal_url: string };
+    const mcpState = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id: "working" })) as GoalEventStateView;
     assert.equal(publicState.work_status, "open");
     assert.equal(mcpState.work_status, publicState.work_status);
     assert.equal(mcpState.owner?.kind, publicState.owner?.kind);
-    assert.equal(mcpState.goal_url, `https://example.com/projects/${encodeURIComponent(reference.project_id)}/goals/working`);
     await host.close();
     const restarted = createMolisWorkLocalHost();
     try { assert.deepEqual(await restarted.client(reference).invoke(snapshotBoardCapability, { board_id: boardId }), afterMcp); }

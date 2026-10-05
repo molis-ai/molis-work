@@ -8,7 +8,7 @@ import { AgentBuilderStore, type AgentDesign, type AgentRelease, type AgentBuild
 import { goalsActions } from '@molis-ai/molis-work-plugin-goals';
 import { createReminderActionHandlers, REMINDER_ACTIONS, SCHEDULE_REMINDER_PROVIDER_ID, createScheduledOperations, createScheduledOperationActionHandlers,
   SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
-import { SqlitePluginPrivateStorage, pluginInstallationGeneration } from '@molis-ai/molis-work-plugin-runtime';
+import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import type { LocalProjectDatabase } from './project-database.js';
@@ -139,7 +139,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const scheduledInstallation = (pluginId: string) => {
     const record = recordFor(pluginId), release = releaseFor(pluginId);
     return record?.state === 'running' && release && approvedFor(pluginId)
-      ? { installationId: record.install_id, generation: pluginInstallationGeneration(record), version: record.version, title: release.design.title, operations: release.design.contract.operations } : null;
+      ? { installationId: record.install_id, generation: record.installation_generation, version: record.version, title: release.design.title, operations: release.design.contract.operations } : null;
   };
   const scheduledRuns = createScheduledOperations({ db: store.db, boardId, projectId: actions.project_id, schedule,
     describe: identity => { const current = scheduledInstallation(identity.pluginId); return current?.installationId === identity.installationId ? current : null; },

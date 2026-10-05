@@ -8,14 +8,14 @@ import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.j
 import { scheduleServiceFor } from '../apps/local-host/src/schedule-runtime.js';
 import { createLocalFeedApplication } from '../apps/local-host/src/feed-application.js';
 import { createScheduleReminders, deliverScheduleReminder, getScheduleReminder, reminderActions, SCHEDULE_REMINDER_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
-import { pluginInstallationGeneration, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
+import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { studioStorage } from '../apps/local-host/src/plugin-builder/storage.js';
 import { deliverHostReminder, hostScheduleReminders } from '../apps/local-host/src/schedule-reminders.js';
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from '../apps/local-host/src/project-host.js';
 
 function installation(install_id = 'install-1', plugin_id = 'io.molis.work.generated.a', installed_at = '2026-01-01T00:00:00.000Z'): PluginInstanceRecord {
-  return { install_id, plugin_id, version: '1.0.0', publisher_id: 'test', publisher_signature: 'test', manifest_digest: 'test',
+  return { install_id, installation_generation: install_id + '@' + installed_at, plugin_id, version: '1.0.0', publisher_id: 'test', publisher_signature: 'test', manifest_digest: 'test',
     deployment: 'local', selected_entrypoint: './plugin.mjs', grants: ['storage:private'], execution: 'sandbox', state: 'running', recovery_count: 0,
     last_error_code: null, installed_at, updated_at: installed_at, uninstalled_at: null, retain_private_data: false };
 }
@@ -29,7 +29,7 @@ test('a plugin reminder reaches the Inbox at its time, under the plugin\'s name,
     const schedule = scheduleServiceFor(store.db, () => new Date(clock));
     new SqlitePluginRuntimeRepository(store.db).save(installation());
     const reminders = createScheduleReminders({ db: store.db, boardId: DEMO_BOARD_ID, projectId: 'p', schedule, now: () => clock,
-      describe: identity => ({ title: '论语日课', link: '/plugins/' + identity.pluginId, generation: pluginInstallationGeneration(installation()) }) });
+      describe: identity => ({ title: '论语日课', link: '/plugins/' + identity.pluginId, generation: installation().installation_generation }) });
     const plugin = { projectId: 'p', installationId: 'install-1', pluginId: 'io.molis.work.generated.a', namespace: 'installed' as const };
     const other = { ...plugin, installationId: 'install-2', pluginId: 'io.molis.work.generated.b' };
 
@@ -89,7 +89,7 @@ test('reminder registration, cancellation and Inbox delivery roll back on real p
   try {
     const schedule = scheduleServiceFor(store.db, () => new Date(clock)), identity = { projectId: 'p', installationId: 'install-1', pluginId: installation().plugin_id };
     new SqlitePluginRuntimeRepository(store.db).save(installation());
-    const options = { db: store.db, boardId: DEMO_BOARD_ID, projectId: 'p', schedule, now: () => clock, describe: () => ({ title: '插件', link: '/plugin', generation: pluginInstallationGeneration(installation()) }) };
+    const options = { db: store.db, boardId: DEMO_BOARD_ID, projectId: 'p', schedule, now: () => clock, describe: () => ({ title: '插件', link: '/plugin', generation: installation().installation_generation }) };
     const reminders = createScheduleReminders(options);
     store.db.exec("CREATE TRIGGER refuse_reminder BEFORE INSERT ON schedule_plugin_reminders BEGIN SELECT RAISE(ABORT, 'disk-write-failed'); END");
     assert.throws(() => reminders.add(identity, { at: new Date(clock).toISOString(), text: 'fail' }), /disk-write-failed/);

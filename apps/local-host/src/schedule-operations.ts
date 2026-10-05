@@ -1,4 +1,4 @@
-import { pluginInstallationGeneration, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { createScheduledOperationManagement, runScheduledOperation,
   type ScheduledOperation, type ScheduledOperationInstallation, type ScheduledOperationOutcome } from "@molis-ai/molis-work-plugin-schedule";
 import type { ScheduleSqliteDatabase, ScheduleService, ScheduleWakeupInput, ScheduleWakeupControl } from "@molis-ai/molis-work-service-scheduler";
@@ -17,7 +17,7 @@ export function hostScheduledOperationManagement(options: { db: ScheduleSqliteDa
     if (!target || entry?.controller.signal.aborted) return null;
     const records = repository.list().filter(record => record.plugin_id === pluginId && record.state === 'running');
     const record = records.length === 1 ? records[0] : null;
-    return record && record.install_id === target.installationId && pluginInstallationGeneration(record) === target.generation && record.version === target.version
+    return record && record.install_id === target.installationId && record.installation_generation === target.generation && record.version === target.version
       ? { ...target, publisher: record.publisher_id } : null;
   } });
 }
@@ -36,7 +36,7 @@ export function runHostScheduledOperation(db: ScheduleSqliteDatabase, input: Sch
   return runScheduledOperation(db, input, control, {
     currentInstallation(run) {
       const record = run.installationId ? repository.get(run.installationId) : null;
-      return !!record && record.plugin_id === run.pluginId && record.state !== "uninstalled" && pluginInstallationGeneration(record) === run.installationGeneration;
+      return !!record && record.plugin_id === run.pluginId && record.state !== "uninstalled" && record.installation_generation === run.installationGeneration;
     },
     executor(run) {
       const entry = callers.get(db)?.get(run.boardId), target = entry?.caller.describe(run.pluginId);

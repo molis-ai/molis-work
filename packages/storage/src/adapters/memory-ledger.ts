@@ -2,28 +2,23 @@ import type {
   MemoryCandidateRecord,
   MemoryChangeRecord,
   MemoryLedgerPort,
-  MemoryMetaRecord,
   MemoryPrefs,
   MemoryRevision,
-  MemoryScope,
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
 import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js";
 
 /**
- * The Host's memory ledger (specs/archive/memory-system §5.1): structured facts about Prologue memory entries, candidates,
- * recent changes, switches, interface-signal counts and uses. The text of a memory lives in Prologue Memory; the
- * ledger keeps an earlier version's text only as that entry's history, and forgets it with the entry.
+ * The Host's memory ledger (specs/archive/memory-system §5.1): what the platform knows around Prologue memory entries —
+ * history, notes on candidates, recent changes, switches, interface-signal counts, uses, owners, pairs and per-person
+ * markers. The text and facts of a memory live on its Prologue entry; the ledger keeps an earlier version's text only as
+ * that entry's history, and forgets it with the entry.
  */
 export const MEMORY_LEDGER_STORE = "memory";
 
 /** The memory ledger's one current schema (repository-anti-corruption §4.1). */
-export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 1, schema: `
-CREATE TABLE memory_meta (
-  memory_id TEXT PRIMARY KEY, scope TEXT NOT NULL, owner TEXT NOT NULL, body TEXT NOT NULL
-);
-CREATE INDEX memory_meta_owner ON memory_meta(scope, owner);
+export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 2, schema: `
 CREATE TABLE memory_revisions (
   memory_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (memory_id, version)
 );
@@ -55,8 +50,8 @@ CREATE TABLE memory_owners (
 CREATE TABLE memory_pairs (
   pair_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL
 );
-CREATE TABLE memory_migrations (
-  actor_id TEXT NOT NULL, source TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, source)
+CREATE TABLE memory_markers (
+  actor_id TEXT NOT NULL, key TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, key)
 );
 ` };
 
@@ -68,15 +63,7 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
   try { applySqliteBaseline(db, homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), MEMORY_LEDGER_BASELINE); } catch (error) { db.close(); throw error; }
   let depth = 0;
   const ledger: MemoryLedgerPort = {
-    meta: memoryId => parse<MemoryMetaRecord>(db.prepare("SELECT body FROM memory_meta WHERE memory_id=?").get(memoryId)),
-    metas: (scope: MemoryScope, owner: string) => db.prepare("SELECT body FROM memory_meta WHERE scope=? AND owner=?").all(scope, owner)
-      .map(row => JSON.parse(String(row.body)) as MemoryMetaRecord),
-    saveMeta: record => {
-      db.prepare("INSERT INTO memory_meta(memory_id,scope,owner,body) VALUES (?,?,?,?) ON CONFLICT(memory_id) DO UPDATE SET scope=excluded.scope, owner=excluded.owner, body=excluded.body")
-        .run(record.memory_id, record.scope, record.owner, JSON.stringify(record));
-    },
     forget: memoryId => ledger.transaction(() => {
-      db.prepare("DELETE FROM memory_meta WHERE memory_id=?").run(memoryId);
       db.prepare("DELETE FROM memory_revisions WHERE memory_id=?").run(memoryId);
       db.prepare("DELETE FROM memory_uses WHERE memory_id=?").run(memoryId);
       // Recent changes stay (what happened, when), but no longer carry the deleted text.
@@ -150,13 +137,13 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       db.prepare("INSERT INTO memory_pairs(pair_id,actor_id,state,body) VALUES (?,?,?,?) ON CONFLICT(pair_id) DO UPDATE SET state=excluded.state, body=excluded.body")
         .run(pair.pair_id, actorId, pair.state, JSON.stringify(pair));
     },
-    migration: (actorId, source) => {
-      const row = db.prepare("SELECT at, body FROM memory_migrations WHERE actor_id=? AND source=?").get(actorId, source);
+    marker: (actorId, key) => {
+      const row = db.prepare("SELECT at, body FROM memory_markers WHERE actor_id=? AND key=?").get(actorId, key);
       return row ? { at: String(row.at), body: JSON.parse(String(row.body)) as unknown } : null;
     },
-    markMigration: (actorId, source, body, at) => {
-      db.prepare("INSERT INTO memory_migrations(actor_id,source,at,body) VALUES (?,?,?,?) ON CONFLICT(actor_id,source) DO UPDATE SET at=excluded.at, body=excluded.body")
-        .run(actorId, source, at, JSON.stringify(body));
+    setMarker: (actorId, key, body, at) => {
+      db.prepare("INSERT INTO memory_markers(actor_id,key,at,body) VALUES (?,?,?,?) ON CONFLICT(actor_id,key) DO UPDATE SET at=excluded.at, body=excluded.body")
+        .run(actorId, key, at, JSON.stringify(body));
     },
     transaction: <T>(work: () => T): T => {
       if (depth > 0) return work();

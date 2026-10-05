@@ -36,7 +36,7 @@ Molis Work：本地优先的工作台，Goals 是权威真相源，插件经统�
 - 跑测试：`node scripts/run-tests.mjs <文件…>`；浏览器用例需要本机 Chrome。判断是否自己引入的失败，用干净的基线工作树（`git worktree add --detach`）跑同一批文件对比。
 - 测试截图默认写入已忽略的 `.impeccable/qa/review/`；要刷新仓库里的评审截图才设 `MOLIS_WORK_REVIEW_EVIDENCE=1`。
 - 不为变绿而跳过、放宽或删除断言；先分清产品回归、预期变化、测试缺陷、环境与时序。
-- `pnpm health:check`（CI 里也跑）：巨大单元、测试引用包内部、vendored SDK 份数、就地补表、spec 状态句只许减少。改小了就在同一个 PR 里 `node scripts/check-health-gates.mjs --update` 更新 `tooling/gates/baseline.json`；不要靠更新基线放过变大的。
+- `pnpm health:check`（CI 里也跑）：巨大单元、测试引用包内部、vendored SDK 份数、就地补表、spec 状态句只许减少；源码里的兼容标记（`legacy`、`compat`、`@deprecated`、`backfill`）按文件计数，也只许减少，新文件从零开始——要么删掉旧路径，要么把保留的机制写进 `specs/repository-anti-corruption` 再更新基线。改小了就在同一个 PR 里 `node scripts/check-health-gates.mjs --update` 更新 `tooling/gates/baseline.json`；不要靠更新基线放过变大的。
 
 ## 协作
 

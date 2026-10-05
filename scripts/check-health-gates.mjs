@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Repository health gates (specs/repository-anti-corruption §5a): numbers that may only go down.
+// Repository health gates (specs/repository-anti-corruption §5a): numbers that may only go down, including the
+// anti-backflow count of compatibility markers per file (§4.1).
 // Measures the working tree, compares with tooling/gates/baseline.json and fails on any growth.
 // `--update` rewrites the baseline; a change that lowers a number should update it in the same PR.
 import { execFileSync } from "node:child_process";
@@ -72,7 +73,17 @@ const vendored = tracked.filter((file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test
 let schemaPatches = 0;
 for (const file of sources) schemaPatches += (read(file).match(/ALTER TABLE|ensureSqliteColumn\(/g) ?? []).length;
 
-// 5. specs/ root: only work in progress and current norms, each with a status line.
+// 5. Compatibility code coming back (§4.1 "no compat logic"): words that keep an old shape alive, counted per source
+// file. A file may only lose them and a new file starts with none; a kept mechanism is recorded in the spec and stays in
+// the baseline. Scene "compatible" alone is ordinary vocabulary; identifiers built on it (compatibleRun) are counted.
+const COMPAT_MARKERS = /[Ll]egacy|LEGACY|\b[Cc]ompat(?![a-z])|\bcompatible(?=[A-Z])|@deprecated|[Bb]ackfill/g;
+const compatMarkers = {};
+for (const file of sources) {
+  const count = (read(file).match(COMPAT_MARKERS) ?? []).length;
+  if (count) compatMarkers[file] = count;
+}
+
+// 6. specs/ root: only work in progress and current norms, each with a status line.
 const specProblems = [];
 for (const entry of readdirSync(path.join(root, "specs"), { withFileTypes: true })) {
   if (!entry.isDirectory() || entry.name === "archive") continue;
@@ -81,10 +92,12 @@ for (const entry of readdirSync(path.join(root, "specs"), { withFileTypes: true 
   if (!/^状态：/m.test(readFileSync(spec, "utf8").split("\n").slice(0, 8).join("\n"))) specProblems.push(`${entry.name}: no status line near the top`);
 }
 
-const measured = { giantUnits: Object.keys(giant).length, giant, testInternalImports: internalImports, vendoredPrologueSdk: vendored, schemaPatches };
+const compatTotal = Object.values(compatMarkers).reduce((sum, count) => sum + count, 0);
+const measured = { giantUnits: Object.keys(giant).length, giant, testInternalImports: internalImports, vendoredPrologueSdk: vendored, schemaPatches,
+  compatMarkerTotal: compatTotal, compatMarkers };
 if (update) {
   writeFileSync(baselinePath, JSON.stringify({ ...measured, note: "Only decreases. Regenerate with `node scripts/check-health-gates.mjs --update` in the PR that lowers a number." }, null, 2) + "\n");
-  console.log(`baseline written: ${measured.giantUnits} giant units, ${internalImports} test internal imports, ${vendored} vendored SDK, ${schemaPatches} schema patches`);
+  console.log(`baseline written: ${measured.giantUnits} giant units, ${internalImports} test internal imports, ${vendored} vendored SDK, ${schemaPatches} schema patches, ${compatTotal} compat markers`);
   process.exit(0);
 }
 
@@ -98,16 +111,21 @@ for (const [unit, size] of Object.entries(giant)) {
 if (internalImports > baseline.testInternalImports) errors.push(`tests reach into package internals ${baseline.testInternalImports} → ${internalImports}; import the public entry instead`);
 if (vendored > 2) errors.push(`vendor/prologue-sdk holds ${vendored} packages; keep the current one and at most one in flight`);
 if (schemaPatches > baseline.schemaPatches) errors.push(`in-place schema patches ${baseline.schemaPatches} → ${schemaPatches}; change the baseline schema instead`);
+for (const [file, count] of Object.entries(compatMarkers)) {
+  const before = baseline.compatMarkers?.[file] ?? 0;
+  if (count > before) errors.push(`compatibility markers in ${file} ${before} → ${count}; delete the old path instead of keeping it (a kept mechanism is recorded in specs/repository-anti-corruption)`);
+}
 errors.push(...specProblems.map((problem) => `specs/${problem}`));
 
 const lowered = [
   measured.giantUnits < baseline.giantUnits && "giant units",
   internalImports < baseline.testInternalImports && "test internal imports",
   schemaPatches < baseline.schemaPatches && "schema patches",
+  compatTotal < (baseline.compatMarkerTotal ?? Infinity) && "compat markers",
 ].filter(Boolean);
 if (errors.length) {
   console.error("Health gates failed:\n- " + errors.join("\n- "));
   process.exit(1);
 }
-console.log(`Health gates passed (${measured.giantUnits} giant units, ${internalImports} test internal imports, ${vendored} vendored SDK, ${schemaPatches} schema patches).`
+console.log(`Health gates passed (${measured.giantUnits} giant units, ${internalImports} test internal imports, ${vendored} vendored SDK, ${schemaPatches} schema patches, ${compatTotal} compat markers).`
   + (lowered.length ? ` Lower than the baseline: ${lowered.join(", ")}; update it with --update.` : ""));

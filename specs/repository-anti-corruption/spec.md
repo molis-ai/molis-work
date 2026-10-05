@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：§4.1 进行中（2026-10-04）：真实 Home 的 17 个 Home 级库已盖上基线版本；项目库与目录库的基线在第五批集成分支上全量回归，真实 Home 的项目库、目录库重建演练已通过，重建时机待用户定
+状态：§4.1 收尾中（2026-10-05）：兼容逻辑按片删除到 #282，工作室目录前能力与 `board_id` 统一在途；真实 Home 维护三待栈合入后做；进度见 §4.1 末尾的「进度（10-04 夜至 10-05）」
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -319,6 +319,30 @@
    7. 4173 换成新版（重新安装或指向新构建）再启动，由用户决定时机。
 
 真实 Home 要先按用户的决定备份、升级或重建，才能删兼容代码（§4.1「真实 Home 的安全」）。
+
+进度（10-04 夜至 10-05）：
+
+| PR | 合入 | 内容 |
+| --- | --- | --- |
+| [#260](https://github.com/molis-ai/molis-work/pull/260)、[#261](https://github.com/molis-ai/molis-work/pull/261) | ffed8174、cadb7db9 | 项目库、目录库各一份当前 schema 加版本号，版本不符就拒绝（真实 Home 10-04 已按列名重建：项目库 v1、目录库 v20） |
+| [#262](https://github.com/molis-ai/molis-work/pull/262) | 222b633c | 删 0.1.x 根 SDK，根包不再导出代码 |
+| [#263](https://github.com/molis-ai/molis-work/pull/263) | df025f2a | 删治理旧提案三张表与只读投影 |
+| [#264](https://github.com/molis-ai/molis-work/pull/264)、[#265](https://github.com/molis-ai/molis-work/pull/265) | 2a96bc37、0e903150 | 炼金术士工作室库、服务端库各一份当前 schema；删最后一个就地补列工具 |
+| [#266](https://github.com/molis-ai/molis-work/pull/266)、[#267](https://github.com/molis-ai/molis-work/pull/267) | 9e4c5b92、ebb499e0 | 插件安装记录必带 generation 与 execution；记忆旁表与助理库 v2 |
+| [#268](https://github.com/molis-ai/molis-work/pull/268) | b1a791ee | 删事件模型之前的旧历史（运行、领取、依据、评审等）连表带显示 |
+| [#269](https://github.com/molis-ai/molis-work/pull/269)、[#274](https://github.com/molis-ai/molis-work/pull/274) | aab032d0、ef89d8e8 | MCP 只留一套工具（平台工具加授权动作）；打包发布用例改读 `goal_url_template` |
+| [#270](https://github.com/molis-ai/molis-work/pull/270) | 7b946cfc | 已删功能的残留与被叫作 legacy 的现行路径 |
+| [#271](https://github.com/molis-ai/molis-work/pull/271) | 2b1ad795 | （他人会话）工作事件挂到 Goal；完成以收尾为准 |
+| [#272](https://github.com/molis-ai/molis-work/pull/272) | 7325a3a2 | Goals 存储去掉风险、合同修订与退役提案条目（项目库 v4） |
+| [#273](https://github.com/molis-ai/molis-work/pull/273)、[#275](https://github.com/molis-ai/molis-work/pull/275) | 81592458、7ac6fc4a | 凭据只在连接表：模型、图片、TypeSafe（C1）；宿主连接器、Feed 固定来源、Gmail 安装与 Notion 旧槽（C2） |
+| [#277](https://github.com/molis-ai/molis-work/pull/277) | 合入 | 会话表为唯一来源：面板与运行时绑定写会话，删读取时的复制（会话库 v7） |
+| [#278](https://github.com/molis-ai/molis-work/pull/278) | 合入 | 判断方式四种、复审状态两种、规则只剩「需要用户验收」 |
+| [#279](https://github.com/molis-ai/molis-work/pull/279) | 2a8fffcd | 场景绑定一套模型（Functions v2、项目库 v5、内置首页规则种子带 Inbox offer 键） |
+| [#280](https://github.com/molis-ai/molis-work/pull/280)、[#281](https://github.com/molis-ai/molis-work/pull/281)、[#282](https://github.com/molis-ai/molis-work/pull/282) | 合入 / 排队 | 宿主声明的工作入口改名；没人调用的兼容面；Form v2 与工作室零件类型 |
+
+- 全量回归：batch K（C2 栈顶）3,685 个用例 3,674 过、4 败（均为 C2 预期变化或缺 #274，已修，重跑通过）；batch L（#277–#282 栈顶）3,680 个用例 3,659 过、13 败（11 个是本栈自己的用例仍用旧字段，已修；2 个是负载超时，单独重跑通过；受影响的 32 个用例在栈顶重跑全过）。
+- 在途：工作室只走统一目录（sweep C）、`board_id` 统一第一片 B1（项目库 v6、Functions v3），二者在 batch M 全量回归中；防回流门禁（按文件计兼容标记）等栈合入后更新基线。
+- 真实 Home 维护三（栈合入后一次做，先在拷贝上演练）：脚本与步骤见会话临时目录 `apply-real-home-maintenance3.mjs` 与 `real-home-maintenance-plan.md`，结果补在这里。
 
 ## 5. 包级清单（§4.4）
 

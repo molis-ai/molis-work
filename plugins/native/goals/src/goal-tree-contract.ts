@@ -8,7 +8,6 @@ export interface GoalTreeProposalListQuery {
   board_id: string;
   proposal_id?: string;
   root_goal_id?: string;
-  include_legacy?: boolean;
 }
 
 export interface GoalTreeProposalListResult {

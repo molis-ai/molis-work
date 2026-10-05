@@ -8,7 +8,7 @@ import type {
 } from "../../src/studio/domain/kernel/ports.js";
 import { SqliteDirectionRepository } from "../../src/studio/server/db/direction-repository.js";
 import { SqliteExplorationRepository } from "../../src/studio/server/db/exploration-repository.js";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { openDatabase } from "../../src/studio/server/db/open-database.js";
 import { createJobHandlers } from "../../src/studio/server/jobs/job-handlers.js";
 import { LocalWorker } from "../../src/studio/server/jobs/local-worker.js";
@@ -100,7 +100,7 @@ describe("createExplorationService", () => {
 function createFixture(runtime: AiRuntimePort = new FixtureAiRuntimeAdapter()) {
   const temp = createTempDatabase();
   const database = openDatabase(temp.path);
-  migrate(database);
+  applyStudioBaseline(database, ":memory:");
   const now = "2026-07-31T09:00:00.000Z";
   database
     .prepare("INSERT INTO workspaces (id, name, created_at) VALUES (?, ?, ?)")

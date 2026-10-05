@@ -4,7 +4,7 @@ import test from "node:test";
 import { checkGoalStorageOwnership } from "../scripts/check-package-boundaries.mjs";
 
 test("production Store/Web boundaries reject restored Goal schema and coverage SQL", () => {
-  for (const file of ["apps/local-host/sdk/sdk-store.ts", "apps/desktop/launchers/web/server.ts", "apps/local-host/src/web-request.ts"]) {
+  for (const file of ["apps/desktop/launchers/web/server.ts", "apps/local-host/src/web-request.ts"]) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     assert.deepEqual(checkGoalStorageOwnership(source), [], file);
     for (const sql of ["CREATE TABLE goals (goal_id TEXT)", "ALTER TABLE risks ADD COLUMN treatment_plan TEXT",

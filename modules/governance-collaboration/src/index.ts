@@ -67,14 +67,11 @@ export { GovernanceError, type GovernanceErrorFactory } from "./errors.js";
 export { GovernanceProvenance } from "./provenance.js";
 export {
   json as governanceJson,
-  mapCandidate,
-  mapContractProposal,
   mapGoalTreeProposal,
   mapGoalTreeProposalDecision,
   mapGoalTreeProposalItem,
   mapReview,
   mapReviewObligation,
-  mapRewire,
   parseJson as parseGovernanceJson,
 } from "./mappers.js";
 export {
@@ -100,8 +97,6 @@ export { CLARIFICATION_SCHEMA_SQL } from "./clarification-schema.js";
 
 function governanceQueries(repository: GovernanceRepository): GovernanceQueryApi {
   return {
-      hasCandidateBootstrap: (boardId, candidateId, goalId, proposalId) =>
-        repository.hasCandidateBootstrap(boardId, candidateId, goalId, proposalId),
       listLifecycleEvents: boardId => repository.listLifecycleEvents(boardId),
       eventCursor: (boardId) => repository.eventCursor(boardId),
       snapshot: (boardId) => repository.snapshot(boardId),
@@ -110,10 +105,6 @@ function governanceQueries(repository: GovernanceRepository): GovernanceQueryApi
       listReviewObligations: (boardId, goalId) =>
         repository.listReviewObligations(boardId, goalId),
       listReviews: (boardId, goalId) => repository.listReviews(boardId, goalId),
-      getCandidate: (boardId, candidateId) => repository.getCandidate(boardId, candidateId),
-      getContractProposal: (boardId, proposalId) =>
-        repository.getContractProposal(boardId, proposalId),
-      getRewire: (boardId, rewireId) => repository.getRewire(boardId, rewireId),
       getGoalTreeProposal: (boardId, proposalId) =>
         repository.getGoalTreeProposal(boardId, proposalId),
       listGoalTreeProposals: (boardId) => repository.listGoalTreeProposals(boardId),

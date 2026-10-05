@@ -1,7 +1,8 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it } from "vitest";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
+import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { openDatabase, type SqliteDatabase } from "../../src/studio/server/db/open-database.js";
 import { createTempDatabase, type TempDatabase } from "./helpers/temp-database.js";
 
@@ -15,12 +16,12 @@ afterEach(() => {
   temporary = undefined;
 });
 
-describe("SQLite migrations", () => {
+describe("SQLite baseline", () => {
   it("creates explicit product tables and no universal node table", () => {
     temporary = createTempDatabase();
     database = openDatabase(temporary.path);
 
-    migrate(database);
+    applyStudioBaseline(database, temporary.path);
 
     const tables = database
       .prepare(
@@ -57,7 +58,6 @@ describe("SQLite migrations", () => {
       "research_playbook_revisions",
       "research_playbook_rules",
       "runtime_settings",
-      "schema_migrations",
       "source_fetches",
       "source_settings",
       "supply_signals",
@@ -72,25 +72,16 @@ describe("SQLite migrations", () => {
     expect(database.pragma("journal_mode", { simple: true })).toBe("wal");
   });
 
-  it("is idempotent and records the applied migration once", () => {
+  it("opens a database at the same version as it is and refuses another version", () => {
     temporary = createTempDatabase();
     database = openDatabase(temporary.path);
 
-    migrate(database);
-    migrate(database);
+    applyStudioBaseline(database, temporary.path);
+    applyStudioBaseline(database, temporary.path);
+    expect(database.pragma("user_version", { simple: true })).toBe(1);
 
-    const rows = database.prepare("SELECT version FROM schema_migrations ORDER BY version").all();
-    expect(rows).toEqual([
-      { version: 1 },
-      { version: 2 },
-      { version: 3 },
-      { version: 4 },
-      { version: 5 },
-      { version: 6 },
-      { version: 7 },
-      { version: 8 },
-      { version: 9 },
-      { version: 10 },
-    ]);
+    database.pragma("user_version = 2");
+    expect(() => applyStudioBaseline(database!, temporary!.path)).toThrow(SqliteSchemaVersionError);
+    expect(database.pragma("user_version", { simple: true })).toBe(2);
   });
 });

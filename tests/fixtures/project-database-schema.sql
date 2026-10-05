@@ -1,4 +1,4 @@
--- The project database baseline, version 1 (repository-anti-corruption §4.1): the schema a new project database gets.
+-- The project database baseline, version 2 (repository-anti-corruption §4.1): the schema a new project database gets.
 -- Generated from PROJECT_DATABASE_BASELINE; a change to any owner's tables means a new version and a new snapshot.
 CREATE TABLE acceptance_criteria (
     criterion_id TEXT PRIMARY KEY,
@@ -25,21 +25,6 @@ CREATE TABLE boards (
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-CREATE TABLE candidates (
-    candidate_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    submitted_by TEXT NOT NULL,
-    discovered_in_run_id TEXT REFERENCES runs(run_id),
-    proposed_goal_json TEXT NOT NULL,
-    proposed_relations_json TEXT NOT NULL DEFAULT '[]',
-    proposed_impacts_json TEXT NOT NULL DEFAULT '[]',
-    proposed_risks_json TEXT NOT NULL DEFAULT '[]',
-    blocking_mode TEXT NOT NULL CHECK (blocking_mode IN ('none', 'current_run', 'dependent_claims')),
-    state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'rejected', 'dismissed', 'superseded')),
-    decision_json TEXT,
-    created_at TEXT NOT NULL,
-    decided_at TEXT
-  );
 CREATE TABLE casebook_goal_contexts (
  board TEXT NOT NULL, interaction_epoch TEXT NOT NULL, context_epoch TEXT NOT NULL,
  operation_id TEXT NOT NULL, phase TEXT NOT NULL, body TEXT NOT NULL,
@@ -143,23 +128,6 @@ CREATE TABLE context_edges (
     recorded_at TEXT NOT NULL,
     state TEXT NOT NULL CHECK (state IN ('active', 'removed')),
     PRIMARY KEY (scope_kind, scope_id, edge_key, revision)
-  );
-CREATE TABLE contract_proposals (
-    proposal_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    submitted_by TEXT NOT NULL,
-    discovered_in_run_id TEXT NOT NULL REFERENCES runs(run_id),
-    proposed_goal_json TEXT NOT NULL,
-    field_sources_json TEXT NOT NULL,
-    review_policy_json TEXT NOT NULL,
-    proposed_impacts_json TEXT NOT NULL DEFAULT '[]',
-    proposed_risks_json TEXT NOT NULL DEFAULT '[]',
-    dependency_rewire_ids_json TEXT NOT NULL DEFAULT '[]',
-    state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'rejected', 'superseded')),
-    decision_json TEXT,
-    created_at TEXT NOT NULL,
-    decided_at TEXT
   );
 CREATE TABLE coverage_contract_revisions (
     parent_goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
@@ -624,7 +592,6 @@ CREATE TABLE goal_tree_proposals (
     state TEXT NOT NULL CHECK (state IN ('pending', 'superseded', 'approved', 'partially_applied', 'rejected', 'dismissed', 'closed')),
     version INTEGER NOT NULL,
     supersedes_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
-    supersedes_legacy_proposal_id TEXT,
     base_event_cursor INTEGER NOT NULL,
     summary TEXT NOT NULL,
     narrative_json TEXT,
@@ -1012,16 +979,6 @@ CREATE TABLE reviews (
     reasoning TEXT NOT NULL,
     submitted_at TEXT NOT NULL
   );
-CREATE TABLE rewires (
-    rewire_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    candidate_id TEXT REFERENCES candidates(candidate_id),
-    proposal_json TEXT NOT NULL,
-    impact_json TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('pending', 'confirmed', 'rejected', 'applied')),
-    created_at TEXT NOT NULL,
-    decided_at TEXT
-  );
 CREATE TABLE risks (
     risk_id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
@@ -1186,8 +1143,6 @@ CREATE INDEX coding_sessions_board_updated_idx
       ON coding_sessions(board_id, updated_at DESC, session_id);
 CREATE INDEX context_edges_source_idx ON context_edges
     (scope_kind, scope_id, relation_type, json_extract(source_json, '$.module'), json_extract(source_json, '$.id'));
-CREATE INDEX contract_proposals_goal_idx
-    ON contract_proposals(board_id, goal_id, state, created_at);
 CREATE INDEX coverage_contract_revisions_child_idx
     ON coverage_contract_revisions(child_goal_id, child_contract_revision);
 CREATE INDEX events_board_idx ON events(board_id, seq);
@@ -1250,8 +1205,6 @@ CREATE INDEX goal_tree_proposals_board_idx
     ON goal_tree_proposals(board_id, root_goal_id, state, created_at DESC, proposal_id);
 CREATE INDEX goal_tree_proposals_supersedes_idx
     ON goal_tree_proposals(supersedes_proposal_id);
-CREATE INDEX goal_tree_proposals_supersedes_legacy_idx
-    ON goal_tree_proposals(supersedes_legacy_proposal_id);
 CREATE INDEX goal_work_event_judgments_requirement_idx
     ON goal_work_event_judgments(requirement_id, event_id);
 CREATE INDEX goal_work_events_goal_seq_idx

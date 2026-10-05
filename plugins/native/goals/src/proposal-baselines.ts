@@ -1,13 +1,12 @@
 import { createHash } from "node:crypto";
 import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GovernanceQueryApi, GoalTreeProposalItemRecord, ProposalAffectedObject, ProposalObjectVersion } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalItemRecord, ProposalAffectedObject, ProposalObjectVersion } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 type ItemChange = Pick<GoalTreeProposalItemRecord, "kind" | "operation">;
 
 /** Existing proposal versions composed from owner facts, not copied persistence. */
 export class GoalTreeBaselineQuery {
-  constructor(private readonly goals: Pick<GoalsQueryApi, "snapshot" | "policyBindingVersion">,
-    private readonly governance: Pick<GovernanceQueryApi, "snapshot">) {}
+  constructor(private readonly goals: Pick<GoalsQueryApi, "snapshot" | "policyBindingVersion">) {}
 
   objectVersion(boardId: string, object: ProposalAffectedObject, item?: ItemChange): ProposalObjectVersion {
     if (object.object_type === "policy") {
@@ -20,8 +19,6 @@ export class GoalTreeBaselineQuery {
       case "goal": current = goalFacts.goals.find(goal => goal.goal_id === object.object_id) ?? null; break;
       case "relation": current = goalFacts.relations.find(relation => relation.relation_id === object.object_id) ?? null; break;
       case "risk": current = goalFacts.risks.find(risk => risk.risk_id === object.object_id) ?? null; break;
-      case "candidate": current = this.governance.snapshot(boardId).candidates.find(candidate => candidate.candidate_id === object.object_id) ?? null; break;
-      case "rewire": current = this.governance.snapshot(boardId).rewires.find(rewire => rewire.rewire_id === object.object_id) ?? null; break;
     }
     return { object_type: object.object_type, object_id: object.object_id, exists: current != null,
       version: current == null ? "absent" : item ? `semantic-v1:${requestHash(semanticObject(current, object, item))}` : requestHash(current) };

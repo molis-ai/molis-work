@@ -211,9 +211,6 @@ test("records written by earlier versions still read through the action contract
         confidence: 0.6, source_refs: [], required_coverage: [{ area: "scope", label: "范围", question: "做什么" }], steps: ["拆分"],
         dependency_rules: [{ rule_id: "r1", statement: "先定范围", direction_hint: "scope → work" }], evidence_requirements: [], completion_checks: [],
         failure_modes: [], scope: "project", version: 1, created_at: at, updated_at: at };
-      const submitted = { title: "旧提案", outcome: "o", why: "w", business_logic: "b", acceptance_criteria: [], source_refs: ["doc#1"], review_policy: "human" };
-      r.store.db.prepare(`INSERT INTO candidates (candidate_id, board_id, submitted_by, proposed_goal_json, blocking_mode, state, created_at)
-        VALUES ('legacy-candidate', ?, 'agent', ?, 'none', 'pending', ?)`).run(board_id, JSON.stringify(submitted), at);
       r.store.db.prepare(`INSERT INTO planning_method_packs (board_id, method_id, version, enabled, pack_json, created_at, updated_at)
         VALUES (?, 'legacy-pack', 1, 1, ?, ?, ?)`).run(board_id, JSON.stringify(pack), at, at);
     });
@@ -221,14 +218,12 @@ test("records written by earlier versions still read through the action contract
       goals: Array<{ goal_id: string; acceptance_criteria: Array<{ decision_method: string }>; decomposition_review: { status: string } | null }>;
       goal_contract_revisions: Array<{ goal_id: string; contract: { acceptance_criteria: Array<{ decision_method: string }> } }>;
       planning_method_packs: Array<{ method_id: string; instructions: string; event_types: unknown[]; default_requirements: unknown[] }>;
-      candidates: Array<{ candidate_id: string; proposed_goal: Record<string, unknown> }>;
     };
     // Read and shown as recorded, not rewritten.
     const legacy = snapshot.goals.find(row => row.goal_id === goal_id)!;
     assert.deepEqual(legacy.acceptance_criteria.map(row => row.decision_method), ["playtest"]);
     assert.equal(legacy.decomposition_review?.status, "closed_leaf");
     assert.equal(snapshot.goal_contract_revisions.find(row => row.goal_id === goal_id)!.contract.acceptance_criteria[0]!.decision_method, "scenario");
-    assert.deepEqual(snapshot.candidates.find(row => row.candidate_id === "legacy-candidate")!.proposed_goal.source_refs, ["doc#1"]);
     const pack = snapshot.planning_method_packs.find(row => row.method_id === "legacy-pack")!;
     assert.ok(pack.instructions.includes("拆分"), "instructions are compiled from the pack's own steps");
     assert.deepEqual([pack.event_types, pack.default_requirements], [[], []]);

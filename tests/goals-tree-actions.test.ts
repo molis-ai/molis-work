@@ -166,23 +166,3 @@ test("Web tree approval reaches action policy, preserves trusted provenance and 
     assert.deepEqual(await snapshot(), beforeConflict, "whole confirmation does not partially create the parent or relation");
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
-
-test("historical tree proposals remain readable through the action without reviving retired writes", async () => {
-  const { materializeGoalEventHistory } = await import("./goal-event-history-fixture.js");
-  const fixture = materializeGoalEventHistory("legacy");
-  const host = new MolisWorkLocalHost({ completeText: null });
-  const ref = molisWorkHostProjectReference({ databasePath: fixture.path, boardId: "goalboard-v1-demo" });
-  const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "reader", audience: "agent", project_id: ref.project_id,
-    permissions: ["goals:read", "goals:write"] }));
-  try {
-    const before = await host.withProject(ref, r => r.store.snapshot(ref.board_id));
-    const read = await actions.invoke(goalsActions.treeRead, {});
-    const candidate = read.proposals.find(p => p.origin === "legacy_candidate"); assert.ok(candidate);
-    assert.equal(candidate.proposal_id, "legacy-candidate:candidate-b0050ab4-1d01-4556-ac3d-fa0053f69ce2");
-    assert.equal(candidate.state, "pending");
-    assert.deepEqual((await actions.invoke(goalsActions.treeRead, { proposal_id: "candidate-b0050ab4-1d01-4556-ac3d-fa0053f69ce2" })).proposals, [candidate]);
-    assert.deepEqual((await actions.invoke(goalsActions.treeRead, { proposal_id: candidate.proposal_id })).proposals, [candidate]);
-    await assert.rejects(actions.invoke(goalsActions.treeCheck, { proposal_id: candidate.proposal_id, idempotency_key: "retired" }), { code: "goal_tree_proposal.kind_retired" });
-    assert.deepEqual(await host.withProject(ref, r => r.store.snapshot(ref.board_id)), before);
-  } finally { await host.close(); await rm(fixture.directory, { recursive: true, force: true }); }
-});

@@ -1022,7 +1022,7 @@ function checkPrivateWorkContextOwnership(repositoryRoot) {
     "modules/private-work-context/src/context-bindings.ts",
     "modules/private-work-context/src/session-events.ts",
     "modules/private-work-context/src/session-handoffs.ts",
-    "modules/private-work-context/src/session-migration.ts",
+    "modules/private-work-context/src/session-surfaces.ts",
     "modules/private-work-context/src/session-records.ts",
     "modules/private-work-context/src/session-registry.ts",
     "modules/private-work-context/src/session-schema.ts",

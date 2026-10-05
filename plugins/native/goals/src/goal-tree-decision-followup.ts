@@ -78,7 +78,7 @@ export class GoalTreeDecisionFollowup {
     });
     for (const [index, revision] of revisions.entries()) {
       const item = revision.revised_item;
-      const baselineVersions = item.affected_objects.map((object) => this.ports.query.baselines.objectVersion(boardId, object, item));
+      const baselineVersions = item.affected_objects.map((object) => this.ports.query.baselines.objectVersion(boardId, object));
       this.ports.governance.records.insertGoalTreeProposalItem({
         item_id: item.item_id,
         proposal_id: proposalId,

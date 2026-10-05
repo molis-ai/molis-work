@@ -1,4 +1,4 @@
--- The project database baseline, version 3 (repository-anti-corruption §4.1): the schema a new project database gets.
+-- The project database baseline, version 4 (repository-anti-corruption §4.1): the schema a new project database gets.
 -- Generated from PROJECT_DATABASE_BASELINE; a change to any owner's tables means a new version and a new snapshot.
 CREATE TABLE acceptance_criteria (
     criterion_id TEXT PRIMARY KEY,
@@ -205,18 +205,6 @@ CREATE TABLE feed_sources (
       updated_at TEXT NOT NULL,
       PRIMARY KEY (board_id, source_id)
 );
-CREATE TABLE goal_contract_revisions (
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    revision INTEGER NOT NULL,
-    contract_json TEXT NOT NULL,
-    effect TEXT NOT NULL CHECK (effect IN ('metadata', 'revalidate', 'rework')),
-    source_proposal_id TEXT,
-    changed_by TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (goal_id, revision)
-  );
 CREATE TABLE goal_event_agreements (
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
@@ -421,11 +409,6 @@ CREATE TABLE goal_relations (
     created_at TEXT NOT NULL,
     deactivated_at TEXT
   );
-CREATE TABLE goal_risks (
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    risk_id TEXT NOT NULL REFERENCES risks(risk_id) ON DELETE CASCADE,
-    PRIMARY KEY (goal_id, risk_id)
-  );
 CREATE TABLE goal_trash_records (
     trash_record_id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
@@ -466,8 +449,8 @@ CREATE TABLE goal_tree_proposal_items (
     proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('goal', 'contract', 'relation', 'dependency', 'risk', 'policy', 'candidate', 'rewire')),
-    operation TEXT NOT NULL CHECK (operation IN ('create', 'update', 'deactivate')),
+    kind TEXT NOT NULL CHECK (kind IN ('goal', 'relation')),
+    operation TEXT NOT NULL CHECK (operation IN ('create', 'deactivate')),
     payload_json TEXT NOT NULL,
     source_refs_json TEXT NOT NULL,
     reason TEXT NOT NULL,
@@ -540,7 +523,6 @@ CREATE TABLE goals (
     decomposition_state TEXT NOT NULL CHECK (decomposition_state IN ('abstract', 'frontier_open', 'closed_leaf', 'closed_compound')),
     validity_state TEXT NOT NULL CHECK (validity_state IN ('valid', 'needs_revalidation', 'invalidated')),
     fulfillment_state TEXT NOT NULL CHECK (fulfillment_state IN ('unmet', 'satisfied')),
-    current_contract_revision INTEGER NOT NULL DEFAULT 1,
     trashed_at TEXT,
     trashed_by TEXT,
     archived_at TEXT,
@@ -846,24 +828,6 @@ CREATE TABLE project_guidance_revisions (
     created_at TEXT NOT NULL,
     UNIQUE(guidance_id, revision)
   );
-CREATE TABLE risks (
-    risk_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    description TEXT NOT NULL,
-    probability TEXT NOT NULL,
-    impact TEXT NOT NULL,
-    affected_surfaces_json TEXT NOT NULL DEFAULT '[]',
-    trigger TEXT NOT NULL,
-    treatment TEXT NOT NULL,
-    treatment_plan TEXT NOT NULL DEFAULT '',
-    blocking_mode TEXT NOT NULL CHECK (blocking_mode IN ('none', 'claim', 'completion', 'invalidate_on_trigger')),
-    revisit_condition TEXT NOT NULL,
-    owner TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('open', 'triggered', 'resolved', 'accepted', 'expired')),
-    resolution_basis_json TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
 CREATE TABLE schedule_conversation_tasks (
       task_id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -1003,8 +967,6 @@ CREATE INDEX feed_source_runs_board_source_idx
       ON feed_source_runs(board_id, source_id, started_at DESC);
 CREATE INDEX feed_sources_board_updated_idx
       ON feed_sources(board_id, updated_at DESC, source_id);
-CREATE INDEX goal_contract_revisions_board_idx
-    ON goal_contract_revisions(board_id, goal_id, revision DESC);
 CREATE INDEX goal_event_applied_decisions_goal_idx
     ON goal_event_applied_decisions(board_id, goal_id, recorded_at);
 CREATE INDEX goal_event_closures_goal_idx

@@ -50,7 +50,6 @@ test("Goal document tabs retry lazy loading, restore selection, and keep the cur
   const after = store.snapshot(DEMO_BOARD_ID);
   assert.deepEqual(after.goals, before.goals);
   assert.deepEqual(after.relations, before.relations);
-  assert.deepEqual(after.runs, before.runs);
 });
 
 test("late completed document response never replaces the newer selected Goal", { timeout: 60_000 }, async t => {
@@ -89,7 +88,6 @@ test("late completed document response never replaces the newer selected Goal", 
   assert.equal(await evaluate("location.pathname"), "/goals/V1");
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).relations, before.relations);
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
 });
 
 test("public document clients isolate requests and keep Host callbacks, failure recovery and both pane layouts", { timeout: 60_000 }, async t => {
@@ -181,7 +179,7 @@ test("public document clients isolate requests and keep Host callbacks, failure 
   assert.deepEqual(result.errors, ["无法读取这条 Goal 正文"]);
   assert.deepEqual(result.caches, Array(5).fill("no-store"));
   const after = store.snapshot(DEMO_BOARD_ID);
-  for (const key of ["goals", "relations", "risks", "claims", "runs", "evidence"] as const) assert.deepEqual(after[key], before[key]);
+  for (const key of ["goals", "relations"] as const) assert.deepEqual(after[key], before[key]);
 });
 
 test("switching Goals while a document is loading still keeps the later selection after the old response arrives", { timeout: 60_000 }, async t => {
@@ -217,5 +215,5 @@ test("switching Goals while a document is loading still keeps the later selectio
   await evaluate("__releaseDocumentResponse(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert.equal(await evaluate("document.querySelector('[data-goal-event-document]').dataset.goalView"), "V1");
   const after = store.snapshot(DEMO_BOARD_ID);
-  for (const key of ["goals", "relations", "risks", "claims", "runs", "evidence"] as const) assert.deepEqual(after[key], before[key]);
+  for (const key of ["goals", "relations"] as const) assert.deepEqual(after[key], before[key]);
 });

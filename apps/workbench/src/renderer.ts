@@ -52,7 +52,6 @@ import {
   createWorkbenchGoalsPolicyRenderer,
   createWorkbenchGoalsProposalRenderer,
   createWorkbenchGoalsRelationRenderer,
-  createWorkbenchGoalsSafetyRenderer,
   createWorkbenchGoalsStatusRenderer,
   createWorkbenchGoalsTreeRenderer,
   renderProjectOperations,
@@ -268,10 +267,6 @@ const { renderChildProgress, renderContractCoverage } = createWorkbenchGoalsCont
   subsectionHeading, explainWorkState, explainParentCompletion,
 });
 
-const { renderRiskWorkbench } = createWorkbenchGoalsSafetyRenderer({
-  translate: L, escapeHtml, formatDate, icon, currentLocale, renderReference, renderList,
-});
-
 const { renderProjectPolicyDocument, renderPolicyEditor } = createWorkbenchGoalsPolicyRenderer({
   translate: L, escapeHtml, formatDate, icon, currentLocale, defaultPolicy: DEFAULT_GOAL_POLICY,
 });
@@ -323,7 +318,6 @@ const goalsFactorsRenderer = createWorkbenchGoalsFactorsRenderer({ translate: L,
 function renderGoalFactors(item: WebGoalView, view: MolisWorkWebView): string {
   return goalsFactorsRenderer(item, {
     relationsHtml: renderRelations(item, view, Boolean(item.event_document?.state.owner)),
-    risksHtml: renderRiskWorkbench(item, view, true, false),
     policyHtml: renderPolicyEditor(item),
   });
 }

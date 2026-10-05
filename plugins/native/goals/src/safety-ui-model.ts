@@ -1,12 +1,9 @@
-import type { RiskRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalDisplayStatus, GoalPresentationState } from "./tree-order.js";
 
-export interface GoalsSafetyRisk extends RiskRecord { goal_ids: string[]; }
 export interface GoalsSafetyItem {
   goal: { goal_id: string; title: string; archived_at: string | null; trashed_at?: string | null; priority: number; created_at: string };
   status: GoalPresentationState;
   display_status?: GoalDisplayStatus;
-  risks: GoalsSafetyRisk[];
 }
 export interface GoalsSafetyView { goals: GoalsSafetyItem[]; archived_goals: GoalsSafetyItem[]; }
 export interface GoalsSafetyUiPrimitives {

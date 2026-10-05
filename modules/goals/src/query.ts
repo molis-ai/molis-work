@@ -12,13 +12,11 @@ import type {
 
 import {
   GoalsCommandContext,
-  requestHash,
   type GoalsCommandContextOptions,
 } from "./command-support.js";
 import { GuidanceCommands } from "./guidance-commands.js";
 import { GoalsRepository } from "./repository.js";
 import { GoalQueryFactsRepository } from "./query-facts-repository.js";
-import { hydratePlanningMethodPack } from "./planning/method-packs.js";
 
 export const DEFAULT_GOAL_POLICY: GoalPolicy = {
   goal_mode: "preferred",
@@ -50,25 +48,11 @@ export class GoalsQueryService implements GoalsQueryApi {
 
   listActivePolicyBindings(boardId: string, goalId?: string) { return this.repository.listActivePolicyBindings(boardId, goalId); }
   listPolicyHistory(boardId: string) { return this.facts.listPolicyHistory(boardId); }
-  listGoalRiskLinks(boardId: string) { return this.repository.listGoalRiskLinks(boardId); }
   listDependencies(boardId: string, goalId: string) { return this.facts.listDependencies(boardId, goalId); }
-  listOpenGoalRisks(boardId: string, goalId: string) { return this.facts.listOpenGoalRisks(boardId, goalId); }
   activeReplacement(boardId: string, goalId: string) { return this.facts.activeReplacement(boardId, goalId); }
 
   getBoard(boardId: string): GoalsBoardRecord | null {
     return this.repository.getBoard(boardId);
-  }
-
-  policyBindingVersion(boardId: string, bindingId: string, mode: "legacy" | "semantic-v1"): { exists: boolean; version: string } {
-    const current = this.repository.db.prepare("SELECT * FROM policy_bindings WHERE board_id = ? AND policy_binding_id = ?")
-      .get(boardId, bindingId) as Record<string, unknown> | undefined;
-    if (!current) return { exists: false, version: "absent" };
-    // Old baselines include serialized policy_json verbatim, including whitespace.
-    // Parsing it here would invalidate saved proposals even when no fact changed.
-    const version = mode === "legacy" ? requestHash(current) : `semantic-v1:${requestHash(Object.fromEntries(
-      Object.entries(current).filter(([key]) => !["created_at", "updated_at", "decided_at", "deactivated_at"].includes(key)),
-    ))}`;
-    return { exists: true, version };
   }
 
   getGoal(boardId: string, goalId: string): GoalRecord | null {
@@ -84,12 +68,6 @@ export class GoalsQueryService implements GoalsQueryApi {
     return this.repository.getRelation(boardId, relationId);
   }
 
-  listContractRevisions(boardId: string) { return this.repository.listContractRevisions(boardId); }
-  listLifecycleEvents(boardId: string) { return this.repository.listLifecycleEvents(boardId); }
-
-  getRisk(boardId: string, riskId: string) {
-    return this.repository.getRisk(boardId, riskId);
-  }
 
   policyBindingState(boardId: string, bindingId: string): "active" | "replaced" | "withdrawn" | null {
     const row = this.repository.db.prepare("SELECT state FROM policy_bindings WHERE board_id = ? AND policy_binding_id = ?")
@@ -133,11 +111,9 @@ export class GoalsQueryService implements GoalsQueryApi {
       observed_event_cursor: this.repository.eventCursor(boardId),
       goals: this.repository.listGoals(boardId),
       relations: this.repository.listRelations(boardId),
-      risks: this.repository.listRisks(boardId),
-      goal_risks: this.repository.listGoalRiskLinks(boardId),
       policy_bindings: this.repository.listActivePolicyBindings(boardId),
       // Packs saved before later fields existed are completed on the way out, as the planning engine does.
-      planning_method_packs: this.repository.listPlanningMethodPacks(boardId).map(hydratePlanningMethodPack),
+      planning_method_packs: this.repository.listPlanningMethodPacks(boardId),
       project_guidance: this.repository.listProjectGuidanceEntries(boardId),
     };
   }
@@ -152,11 +128,6 @@ export class GoalsQueryService implements GoalsQueryApi {
     const snapshot = this.snapshot(boardId);
     const goal = snapshot.goals.find((candidate) => candidate.goal_id === goalId);
     if (!goal) throw this.context.error("goal.not_found", `找不到这个 Goal: ${goalId}`);
-    const riskIds = new Set(
-      snapshot.goal_risks
-        .filter((link) => link.goal_id === goalId)
-        .map((link) => link.risk_id),
-    );
     const parentContractCoverage = snapshot.relations
       .filter((relation) =>
         relation.state === "active" &&
@@ -188,7 +159,6 @@ export class GoalsQueryService implements GoalsQueryApi {
       relations: snapshot.relations.filter((relation) =>
         relation.from_goal_id === goalId || relation.to_goal_id === goalId
       ),
-      risks: snapshot.risks.filter((risk) => riskIds.has(risk.risk_id)),
       resolved_policy: resolveGoalPolicy(
         snapshot.policy_bindings.filter((binding) =>
           binding.goal_id == null || binding.goal_id === goalId

@@ -14,9 +14,6 @@ export class GoalTreeMaterializationConflicts {
     boardId: string,
     item: GoalTreeProposalItemRecord,
   ): Record<string, unknown> | null {
-    if (item.kind !== "goal" && item.kind !== "relation") {
-      return { code: "goal_tree_proposal.kind_retired", message: "历史结构条目不能从新 check/decide 落地", kind: item.kind };
-    }
     const onBoard = (goalId: string) => this.goals.query.getGoal(boardId, goalId);
     if (item.kind === "goal") {
       const payload = this.inputs.goalTreePayloadRecord(item.payload, "Goal 条目");

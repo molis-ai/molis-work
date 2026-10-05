@@ -3,11 +3,11 @@ import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/mo
 import type { GoalTreeApplicationApi, GoalTreeProposalListQuery, GoalTreeProposalListResult } from "./goal-tree-contract.js";
 import { GoalTreeBaselineQuery } from "./proposal-baselines.js";
 
-/** Native and historical proposals share one read view, never a second record store. */
+/** Structure proposals read through one view, never a second record store. */
 export class GoalTreeQueryApplication implements Pick<GoalTreeApplicationApi, "listGoalTreeProposals"> {
   readonly baselines: GoalTreeBaselineQuery;
   constructor(private readonly ports: {
-    goals: Pick<GoalsQueryApi, "getBoard" | "getGoal" | "snapshot" | "policyBindingVersion">;
+    goals: Pick<GoalsQueryApi, "getBoard" | "getGoal" | "snapshot">;
     governance: Pick<GovernanceApplicationApi, "query" | "provenance">;
     errorFactory: (code: string, message: string) => Error;
   }) {

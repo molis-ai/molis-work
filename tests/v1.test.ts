@@ -7,7 +7,6 @@ import { GoalProjectApplication, LocalProjectDatabase, PROJECT_DATABASE_BASELINE
 import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { main as runPublicCli } from "../apps/desktop/launchers/cli/main.js";
 import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
-import { insertHistoricalRisk } from "./historical-sql-fixture.js";
 
 function fixture(start = "2026-08-15T00:00:00.000Z") {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-v1-"));
@@ -445,17 +444,6 @@ test("Goal trash preserves history, deactivates only active relations, and resto
     { actor_id: "user-1", idempotency_key: "trash-inactive-relation-deactivate" },
   );
 
-  insertHistoricalRisk(store.db, {
-    risk_id: "trash-history-risk",
-    board_id: "board-1",
-    goal_ids: ["trash-target"],
-    description: "恢复时可能错误激活已经停用的 Relation",
-    probability: "medium",
-    impact: "Goal Tree 会重现过时关系",
-    trigger: "恢复没有区分删除前状态",
-    revisit_condition: "关系 roundtrip 测试通过",
-    owner: "user-1",
-  });
   coordinator.setActiveGoal(
     "board-1",
     { goal_id: "trash-target", reason: "验证回收站清除当前 Goal" },
@@ -476,7 +464,6 @@ test("Goal trash preserves history, deactivates only active relations, and resto
 
   const afterTrash = store.snapshot("board-1");
   assert.ok(afterTrash.goals.some((goal) => goal.goal_id === "trash-target" && goal.trashed_at));
-  assert.ok(afterTrash.risks.some((item) => item.risk_id === "trash-history-risk"));
   assert.equal(afterTrash.relations.find((item) => item.relation_id === activeRelation)?.state, "inactive");
   assert.equal(afterTrash.relations.find((item) => item.relation_id === inactiveRelation)?.state, "inactive");
   assert.ok(

@@ -44,7 +44,6 @@
     "capabilities": [
       "goals.event-application.v1",
       "goals.policy-ui.v1",
-      "goals.safety-ui.v1",
       "goals.relation-ui.v1",
       "goals.tree-ui.v1",
       "goals.momentum-ui.v1",

@@ -17,7 +17,7 @@ export const REASON_CODES = [...new Set([
   'goal_tree_proposal.decision_item_not_found', 'goal_tree_proposal.decisions_required',
   'goal_tree_proposal.whole_confirmation_ambiguous', 'goal_tree_proposal.whole_confirmation_conflict',
   'goal_tree_proposal.whole_confirmation_mixed', 'goal_tree_proposal.whole_confirmation_requires_pristine_proposal',
-  'goal_tree_proposal.kind_retired', 'goal_tree_proposal.use_event_agree',
+  'goal_tree_proposal.kind_invalid', 'goal_tree_proposal.use_event_agree',
   // Current event application/state producer literals; reviewed export allowlist, never runtime patterns.
   "event.not_found",
   "event_agreement.change_mismatch",

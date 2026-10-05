@@ -5,7 +5,6 @@ import type {
   GoalRecord,
   GoalRelationRecord,
   PlanningMethodPack,
-  RiskRecord,
 } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalEventApplication } from "./goal-event-application.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";
@@ -40,7 +39,6 @@ export interface GoalEventDocumentView {
     promised_outputs: string[];
   };
   relations: GoalRelationRecord[];
-  risks: RiskRecord[];
   planning_methods: PlanningMethodPack[];
   transfer: {
     available: boolean;
@@ -150,7 +148,6 @@ export function createGoalEventDocumentView(input: {
   ports: GoalEventDocumentPorts;
   snapshot: BoardSnapshot;
   relations: readonly GoalRelationRecord[];
-  risks: readonly RiskRecord[];
   events?: readonly GoalsDecisionEvent[];
   planning_methods?: readonly PlanningMethodPack[];
 }): GoalEventDocumentView {
@@ -178,7 +175,6 @@ export function createGoalEventDocumentView(input: {
       promised_outputs: [...input.goal.promised_outputs],
     },
     relations: [...input.relations],
-    risks: [...input.risks],
     planning_methods: [...(input.planning_methods ?? [])],
     transfer: transferFor(owned, state.work_status),
     types: state.config.types,

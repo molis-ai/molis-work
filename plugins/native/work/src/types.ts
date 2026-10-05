@@ -1,4 +1,4 @@
-import type { GoalRecord, RiskRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type {
   WorkSessionEventKind as SessionTimelineKind,
   WorkSessionEventSource as SessionEventSource,
@@ -19,7 +19,8 @@ export type { RuntimeSessionAdapterResult } from "@molis-ai/molis-work-contracts
 export interface SessionHandoffGoalContext {
   board: { board_id: string };
   goal: GoalRecord;
-  risks: readonly RiskRecord[];
+  /** The Goal's event cursor when the handoff was prepared: the version a handoff records for its Goal. */
+  goal_event_cursor: number;
   event_work: boolean;
   event_facts: {
     work_status: string;

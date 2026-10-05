@@ -227,7 +227,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!goalChoice){region.textContent='下一轮不关联目标。';return;}
     const goal=goalChoice.snapshot.goal,heading=document.createElement('h3'),body=document.createElement('p');
     heading.textContent=goal.title;body.textContent=goalChoice.snapshot.state.agreement.outcome || goal.outcome;region.append(heading,body);
-    const versions=document.createElement('p');versions.textContent=codingGoalVersionLabel({contract_revision:goal.current_contract_revision,agreement_version:goalChoice.snapshot.state.agreement.version});region.append(versions);
+    const versions=document.createElement('p');versions.textContent=codingGoalVersionLabel({agreement_version:goalChoice.snapshot.state.agreement.version});region.append(versions);
     const sections=[['为什么',goal.why],['业务逻辑',goal.business_logic],['范围',goal.in_scope.join('\\n')],['不包含',goal.out_of_scope.join('\\n')],['约束',goal.constraints.join('\\n')],['必需输入',goal.required_inputs.join('\\n')],['承诺产物',goal.promised_outputs.join('\\n')],['验收条件',goal.acceptance_criteria.map(item=>item.statement+'；通过条件：'+item.pass_condition+'；判断方式：'+item.decision_method).join('\\n')]];
     for(const [title,value] of sections.filter(item=>item[1])){const label=document.createElement('strong'),content=document.createElement('p');label.textContent=title;content.textContent=value;content.style.whiteSpace='pre-wrap';region.append(label,content);}
     const requirements=goalChoice.snapshot.state.requirements;
@@ -746,9 +746,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         for(const item of goal.acceptance_criteria)add('p','验收条件：'+item.statement+'；通过条件：'+item.pass_condition+'；判断方式：'+item.decision_method);
         for(const requirement of state.requirements)add('p',requirement.statement+(requirement.human_decision_required?'（需要真人判断）':''));
         if(state.progress_summary)add('p','已有进展：'+state.progress_summary.summary);
-        if(state.goal_event_cursor!==value.report_goal.goal_event_cursor || goal.current_contract_revision!==value.report_goal.contract_revision)add('p','原目标在本轮开始后已有更新。请按上方当前要求核对，再决定这份历史报告能够说明什么。');
+        if(state.goal_event_cursor!==value.report_goal.goal_event_cursor)add('p','原目标在本轮开始后已有更新。请按上方当前要求核对，再决定这份历史报告能够说明什么。');
       }
-      q('[data-coding-progress-source]').textContent=value.reference.artifact_id+' v'+value.reference.version+'\\n原目标：'+value.report_goal.goal_id+'\\n报告依据：'+codingGoalVersionLabel(value.report_goal)+' / 事件 '+value.report_goal.goal_event_cursor+(value.current?'\\n此次确认：'+codingGoalVersionLabel({contract_revision:value.current.goal.current_contract_revision,agreement_version:value.current.state.agreement.version})+' / 事件 '+value.current.state.goal_event_cursor:'');
+      q('[data-coding-progress-source]').textContent=value.reference.artifact_id+' v'+value.reference.version+'\\n原目标：'+value.report_goal.goal_id+'\\n报告依据：'+codingGoalVersionLabel(value.report_goal)+' / 事件 '+value.report_goal.goal_event_cursor+(value.current?'\\n此次确认：'+codingGoalVersionLabel({agreement_version:value.current.state.agreement.version})+' / 事件 '+value.current.state.goal_event_cursor:'');
     }
     for(const selector of ['[data-coding-progress-summary]','[data-coding-progress-next]'])q(selector).readOnly=Boolean(recorded);
     q('[data-coding-progress-save]').disabled=!value || Boolean(recorded) || progressSaving || !q('[data-coding-progress-summary]').value.trim();
@@ -1448,7 +1448,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   lifetime.listen(q('[data-coding-progress-form]'),'submit',async event=>{
     event.preventDefault();const view=progressView;if(!view?.preview?.current || progressSaving || q('[data-coding-progress-save]').disabled)return;
     rememberProgressDraft();const currentGoal=view.preview.current;
-    const body={summary:q('[data-coding-progress-summary]').value,next_step:q('[data-coding-progress-next]').value,expected_goal_cursor:currentGoal.state.goal_event_cursor,expected_contract_revision:currentGoal.goal.current_contract_revision};
+    const body={summary:q('[data-coding-progress-summary]').value,next_step:q('[data-coding-progress-next]').value,expected_goal_cursor:currentGoal.state.goal_event_cursor};
     progressSaving=true;renderProgress();q('[data-coding-progress-status]').textContent='正在记录到原目标…';
     try{const recorded=await api('/sessions/'+encodeURIComponent(view.id)+'/runs/'+encodeURIComponent(view.runId)+'/report/progress','POST',body);
       if(progressView===view){view.preview.recorded=recorded;view.preview.current=null;try{sessionStorage.removeItem(progressDraftKey(view.id,view.runId));}catch{}}

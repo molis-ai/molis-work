@@ -31,7 +31,6 @@ test("plugin rail lists enabled plugins; directory sections stay in the second c
       cursor: 0,
       goals: [],
       relations: [],
-      risks: [],
       goal_tree_proposals: [],
       planning_method_packs: [],
     },

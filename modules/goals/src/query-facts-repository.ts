@@ -2,9 +2,8 @@ import type {
   GoalDependencyFact,
   GoalPolicyHistoryRecord,
   GoalReplacementFact,
-  RiskRecord,
 } from "@molis-ai/molis-work-contracts/modules/goals";
-import { mapRisk, rowJson, rowText, type GoalsSqliteDatabase } from "./repository.js";
+import { rowJson, rowText, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;
 
@@ -42,16 +41,6 @@ export class GoalQueryFactsRepository {
       fulfillment_state: rowText(row.fulfillment_state) as GoalDependencyFact["fulfillment_state"],
       validity_state: rowText(row.validity_state) as GoalDependencyFact["validity_state"],
     }));
-  }
-
-  listOpenGoalRisks(boardId: string, goalId: string): RiskRecord[] {
-    return (this.db.prepare(`
-      SELECT r.* FROM risks r
-      JOIN goal_risks gr ON gr.risk_id = r.risk_id
-      JOIN goals g ON g.goal_id = gr.goal_id
-      WHERE g.board_id = ? AND gr.goal_id = ? AND r.state IN ('open', 'triggered')
-      ORDER BY r.risk_id
-    `).all(boardId, goalId) as Row[]).map(mapRisk);
   }
 
   activeReplacement(boardId: string, goalId: string): GoalReplacementFact | null {

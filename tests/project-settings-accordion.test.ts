@@ -68,7 +68,6 @@ test("workbench project gear links to the standalone settings path", () => {
       cursor: 0,
       goals: [],
       relations: [],
-      risks: [],
       goal_tree_proposals: [],
       planning_method_packs: [],
     },

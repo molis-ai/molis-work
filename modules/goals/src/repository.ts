@@ -1,17 +1,12 @@
-import type { StoredModuleEvent } from "@molis-ai/molis-work-contracts/platform/storage";
 import type {
-  AcceptedRiskFacts,
-  GoalContractRevisionRecord,
   GoalAcceptanceCriterion,
   GoalPolicyBindingRecord,
   GoalRecord,
   GoalRelationRecord,
-  GoalRiskLinkRecord,
   GoalsBoardRecord,
   PlanningMethodPack,
   ProjectGuidanceEntryRecord,
   ProjectGuidanceRevisionRecord,
-  RiskRecord,
 } from "@molis-ai/molis-work-contracts/modules/goals";
 
 type Row = Record<string, unknown>;
@@ -54,15 +49,6 @@ export interface GoalsIdempotencyInput {
 
 export class GoalsRepository {
   constructor(readonly db: GoalsSqliteDatabase) {}
-
-  listLifecycleEvents(boardId: string): StoredModuleEvent[] {
-    return (this.db.prepare(`SELECT seq, type, object_type, object_id, payload_json, at FROM events
-      WHERE board_id = ? AND type IN ('goal.rework_requested', 'goal.reopened', 'goal.satisfied', 'goal.auto_satisfied', 'risk.created', 'risk.updated', 'risk.resolved', 'risk.accepted', 'contract.revision_applied') ORDER BY seq`)
-      .all(boardId) as Row[]).map(row => ({
-      seq: Number(row.seq ?? 0), type: text(row.type), object_type: text(row.object_type), object_id: text(row.object_id),
-      payload: parseJson<Record<string, unknown>>(row.payload_json, {}), at: text(row.at),
-    }));
-  }
 
   immediate<T>(operation: () => T): T {
     return this.db.transaction(operation).immediate();
@@ -147,46 +133,6 @@ export class GoalsRepository {
     return (rows as Row[]).map(mapRelation);
   }
 
-  listRisks(boardId: string): RiskRecord[] {
-    return (this.db
-      .prepare("SELECT * FROM risks WHERE board_id = ? ORDER BY created_at, risk_id")
-      .all(boardId) as Row[]).map(mapRisk);
-  }
-
-  listGoalRiskLinks(boardId: string): GoalRiskLinkRecord[] {
-    return (this.db.prepare(`
-      SELECT goal_risk.goal_id, goal_risk.risk_id
-      FROM goal_risks goal_risk
-      JOIN goals goal ON goal.goal_id = goal_risk.goal_id
-      WHERE goal.board_id = ?
-      ORDER BY goal_risk.goal_id, goal_risk.risk_id
-    `).all(boardId) as Row[]).map((row) => ({
-      goal_id: text(row.goal_id),
-      risk_id: text(row.risk_id),
-    }));
-  }
-
-  insertOpenRisk(facts: AcceptedRiskFacts, at: string): void {
-    this.db.prepare(`INSERT INTO risks (
-      risk_id, board_id, description, probability, impact, affected_surfaces_json, trigger, treatment,
-      treatment_plan, blocking_mode, revisit_condition, owner, state, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)`).run(
-      facts.risk_id, facts.board_id, facts.description, facts.probability, facts.impact, sqliteJson(facts.affected_surfaces),
-      facts.trigger, facts.treatment, facts.treatment_plan, facts.blocking_mode, facts.revisit_condition, facts.owner, at, at);
-    const link = this.db.prepare("INSERT INTO goal_risks (goal_id, risk_id) VALUES (?, ?)");
-    for (const goalId of facts.goal_ids) link.run(goalId, facts.risk_id);
-  }
-
-  listContractRevisions(boardId: string): GoalContractRevisionRecord[] {
-    return (this.db.prepare("SELECT * FROM goal_contract_revisions WHERE board_id = ? ORDER BY goal_id, revision")
-      .all(boardId) as Row[]).map(row => ({
-      goal_id: text(row.goal_id), board_id: text(row.board_id), revision: Math.max(1, number(row.revision) || 1),
-      contract: parseJson<GoalContractRevisionRecord["contract"]>(row.contract_json, {} as GoalContractRevisionRecord["contract"]),
-      effect: text(row.effect) as GoalContractRevisionRecord["effect"], source_proposal_id: nullableText(row.source_proposal_id),
-      changed_by: text(row.changed_by), reason: text(row.reason), created_at: text(row.created_at),
-    }));
-  }
-
 
   replacePolicyBinding(input: {
     board_id: string; goal_id: string | null; policy_binding_id: string;
@@ -268,19 +214,6 @@ export class GoalsRepository {
       .prepare("SELECT * FROM goal_relations WHERE board_id = ? AND relation_id = ?")
       .get(boardId, relationId) as Row | undefined;
     return row ? mapRelation(row) : null;
-  }
-
-  getRisk(boardId: string, riskId: string): RiskRecord | null {
-    const row = this.db
-      .prepare("SELECT * FROM risks WHERE board_id = ? AND risk_id = ?")
-      .get(boardId, riskId) as Row | undefined;
-    return row ? mapRisk(row) : null;
-  }
-
-  listRiskGoalIds(riskId: string): string[] {
-    return (this.db
-      .prepare("SELECT goal_id FROM goal_risks WHERE risk_id = ? ORDER BY goal_id")
-      .all(riskId) as Row[]).map((row) => text(row.goal_id));
   }
 
   listProjectGuidanceEntries(
@@ -391,7 +324,6 @@ function mapGoal(row: Row, criteria: Row[]): GoalRecord {
     decomposition_state: text(row.decomposition_state) as GoalRecord["decomposition_state"],
     validity_state: text(row.validity_state) as GoalRecord["validity_state"],
     fulfillment_state: text(row.fulfillment_state) as GoalRecord["fulfillment_state"],
-    current_contract_revision: number(row.current_contract_revision),
     trashed_at: nullableText(row.trashed_at),
     trashed_by: nullableText(row.trashed_by),
     archived_at: nullableText(row.archived_at),
@@ -429,27 +361,6 @@ function mapRelation(row: Row): GoalRelationRecord {
     created_by: text(row.created_by),
     created_at: text(row.created_at),
     deactivated_at: nullableText(row.deactivated_at),
-  };
-}
-
-export function mapRisk(row: Row): RiskRecord {
-  return {
-    risk_id: text(row.risk_id),
-    board_id: text(row.board_id),
-    description: text(row.description),
-    probability: text(row.probability),
-    impact: text(row.impact),
-    affected_surfaces: parseJson(row.affected_surfaces_json, []),
-    trigger: text(row.trigger),
-    treatment: text(row.treatment) as RiskRecord["treatment"],
-    treatment_plan: text(row.treatment_plan),
-    blocking_mode: text(row.blocking_mode) as RiskRecord["blocking_mode"],
-    revisit_condition: text(row.revisit_condition),
-    owner: text(row.owner),
-    state: text(row.state) as RiskRecord["state"],
-    resolution_basis: parseJson(row.resolution_basis_json, null),
-    created_at: text(row.created_at),
-    updated_at: text(row.updated_at),
   };
 }
 

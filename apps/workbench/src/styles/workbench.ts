@@ -125,94 +125,6 @@ export const MORE_STYLES = `
   .scope-gaps > summary small { color: var(--muted); font-size: 12px; font-weight: 400; }
   .scope-gaps > summary > svg { flex: 0 0 auto; color: var(--blue); transition: transform 130ms var(--ease-quint); }
   .scope-gaps[open] > summary > svg { transform: rotate(180deg); }
-  .risk-register { min-width: 0; padding: 16px 0; border-bottom: 1px solid var(--line); }
-  .safety-subheading { margin-bottom: 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-  .safety-subheading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
-  .safety-subheading > span { flex: 0 0 auto; color: var(--muted); font-size: 11px; }
-  .risk-list { border: 1px solid var(--line-strong); border-radius: 6px; overflow: hidden; }
-  .risk-record { scroll-margin-top: 16px; border-bottom: 1px solid var(--line-strong); background: var(--paper); }
-  .risk-record:last-child { border-bottom: 0; }
-  .risk-record > header { min-width: 0; padding: 12px 16px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 12px; }
-  .risk-record-icon { width: 30px; height: 30px; border-radius: 5px; color: var(--amber); background: var(--amber-soft); display: grid; place-items: center; }
-  .risk-record-icon svg { width: 16px; height: 16px; }
-  .risk-record > header > div { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 8px; }
-  .risk-record h4 { min-width: 0; margin: 0; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
-  .risk-record header small { grid-column: 1 / -1; color: var(--faint); font-size: 11px; overflow-wrap: anywhere; }
-  .risk-record .risk-state { width: fit-content; padding: 4px 8px; border-radius: 3px; color: var(--amber); background: var(--amber-soft); font-size: 11px; white-space: nowrap; }
-  .risk-record .risk-state--triggered { color: var(--red); background: var(--red-soft); }
-  .risk-record .risk-state--resolved { color: var(--green); background: var(--green-soft); }
-  .risk-record .risk-state--accepted, .risk-record .risk-state--expired { color: var(--muted); background: var(--rail); }
-  .risk-facts { margin: 0; padding: 0 16px 8px 56px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
-  .risk-facts > div { min-width: 0; padding: 8px 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; }
-  .risk-facts dt { color: var(--muted); font-size: 11px; }
-  .risk-facts dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
-  .risk-fact-wide { grid-column: 1 / -1; }
-  .risk-linked-goals { display: flex; flex-wrap: wrap; gap: 4px 16px; }
-  .risk-linked-goals a { min-width: min(100%, 210px); display: grid; color: inherit; text-decoration: none; }
-  .risk-linked-goals a:hover strong { color: var(--blue-dark); text-decoration: underline; }
-  .risk-linked-goals small { color: var(--faint); font-size: 11px; }
-  .risk-effect { margin: 0 16px 12px 56px; padding: 8px 12px; border-left: 2px solid var(--blue); background: var(--page); color: var(--muted); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
-  .risk-effect--triggered { border-left-color: var(--red); background: var(--red-soft); color: var(--red); }
-  .risk-effect > svg { margin-top: 1px; color: inherit; }
-  .risk-effect > span { display: grid; gap: 1px; }
-  .risk-effect strong { color: var(--ink); font-size: 11px; }
-  .risk-resolution { margin: 0 16px 12px 56px; padding: 8px 12px; border-left: 2px solid var(--green); background: var(--green-soft); }
-  .risk-resolution > strong { font-size: 11px; }
-  .risk-resolution > p { margin: 4px 0 8px; }
-  .risk-resolution dl { margin: 0; display: grid; gap: 8px; }
-  .risk-resolution dl > div { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 8px; }
-  .risk-resolution dt { color: var(--muted); font-size: 11px; }
-  .risk-resolution dd { margin: 0; overflow-wrap: anywhere; }
-  .risk-resolution--unrecorded { border-left-color: var(--amber); background: var(--amber-soft); }
-  .risk-readonly { margin: 0 16px 12px 56px; color: var(--muted); font-size: 11px; }
-  .risk-actions { border-top: 1px solid var(--line); background: var(--page); }
-  .risk-actions > details { border-bottom: 1px solid var(--line); }
-  .risk-actions > details:last-child { border-bottom: 0; }
-  .risk-actions summary, .risk-create > summary, .risk-goal-picker > summary { list-style: none; cursor: pointer; }
-  .risk-actions summary::-webkit-details-marker, .risk-create > summary::-webkit-details-marker, .risk-goal-picker > summary::-webkit-details-marker { display: none; }
-  .risk-actions > details > summary { min-height: 43px; padding: 8px 16px 8px 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .risk-actions > details > summary:hover, .risk-create > summary:hover { background: var(--nav-hover); }
-  .risk-actions summary > span { display: inline-flex; align-items: center; gap: 8px; }
-  .risk-actions summary > span > svg { color: var(--muted); }
-  .risk-actions summary > svg, .risk-create > summary > svg, .risk-goal-picker > summary > svg { color: var(--muted); transition: transform 130ms var(--ease-quint); }
-  .risk-actions details[open] > summary > svg, .risk-create[open] > summary > svg, .risk-goal-picker[open] > summary > svg { transform: rotate(180deg); }
-  .risk-form, .risk-state-form { padding: 12px 16px 16px 56px; border-top: 1px solid var(--line); background: var(--paper); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
-  .risk-form label, .risk-state-form label { min-width: 0; display: grid; gap: 4px; }
-  .risk-form label > span, .risk-state-form label > span { color: var(--ink); font-size: 11px; font-weight: 400; }
-  .risk-form label small { color: var(--muted); font-weight: 400; }
-  .risk-form input:not([type=checkbox]), .risk-form textarea, .risk-form select, .risk-state-form textarea, .risk-state-form select { width: 100%; min-width: 0; padding: 8px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--paper); resize: vertical; }
-  .risk-form-wide, .risk-goal-picker { grid-column: 1 / -1; }
-  .risk-form footer, .risk-state-form footer { padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-  .risk-form footer > span { color: var(--muted); font-size: 11px; }
-  .risk-state-preview { min-width: 0; margin: 0; padding: 8px 12px; border-left: 2px solid var(--blue); background: var(--page); color: var(--muted); font-size: 11px; }
-  .risk-resolution-fields { padding: 12px 16px; border-top: 1px solid var(--line); background: var(--page); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-  .risk-resolution-fields[hidden] { display: none; }
-  .risk-resolution-fields label { min-width: 0; display: grid; gap: 4px; }
-  .risk-resolution-fields label > span { font-size: 11px; font-weight: 400; }
-  .risk-resolution-fields textarea { width: 100%; min-width: 0; padding: 8px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--paper); resize: vertical; }
-  .risk-goal-picker { border: 1px solid var(--line); border-radius: 5px; background: var(--page); }
-  .risk-goal-picker > summary { min-height: 45px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .risk-goal-picker > summary > span { min-width: 0; display: grid; }
-  .risk-goal-picker > summary small { color: var(--muted); font-size: 11px; font-weight: 400; }
-  .risk-goal-picker > div { padding: 8px; border-top: 1px solid var(--line); }
-  .risk-goal-search { position: relative; display: block !important; }
-  .risk-goal-search > svg { position: absolute; left: 9px; top: 9px; z-index: 1; color: var(--muted); pointer-events: none; }
-  .risk-goal-search input { padding-left: 32px !important; }
-  .risk-goal-options { max-height: 180px; margin-top: 8px; overflow: auto; scrollbar-width: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; }
-  .risk-goal-options::-webkit-scrollbar { display: none; }
-  .risk-goal-options > label { padding: 8px 8px; border-radius: 4px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; cursor: pointer; }
-  .risk-goal-options > label:hover { background: var(--nav-hover); }
-  .risk-goal-options > label[hidden] { display: none; }
-  .risk-goal-options input { accent-color: var(--blue); }
-  .risk-goal-options span { min-width: 0; display: grid; }
-  .risk-goal-options strong, .risk-goal-options small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .risk-goal-options small { color: var(--faint); font-size: 11px; font-weight: 400; }
-  .risk-create { margin-top: 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--page); }
-  .risk-create > summary { min-height: 52px; padding: 8px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
-  .risk-create > summary > span:nth-child(2) { min-width: 0; display: grid; }
-  .risk-create > summary small { color: var(--muted); font-size: 11px; }
-  .risk-create > .risk-form { padding-left: 16px; }
-  .risk-empty { margin: 0; padding: 12px 16px; border: 1px dashed var(--line-strong); color: var(--muted); background: var(--page); }
   .fact-row { display: flex; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
   .fact-row:last-child { border-bottom: 0; }
   .fact-icon { flex: 0 0 auto; margin-top: 4px; color: var(--blue); }
@@ -405,19 +317,6 @@ ${GOALS_EVENT_DOCUMENT_STYLES}
   .decision-record > footer.decision-actions { padding: 12px 16px 12px; border-top: 1px solid var(--line); justify-content: flex-end; background: var(--page); }
   .decision-actions { display: flex; gap: 8px; }
   .decision-actions .mw-btn:disabled { cursor: not-allowed; }
-  .risk-state { color: var(--amber); font-size: 11px; font-weight: 400; }
-  .risk-state--triggered { color: var(--red); }
-  .risk-goal-links { padding: 12px 16px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 16px; }
-  .risk-goal-links > span { color: var(--muted); font-size: 11px; font-weight: 400; }
-  .risk-goal-links > div { min-width: 0; display: flex; flex-wrap: wrap; gap: 8px 16px; }
-  .risk-goal-links .decision-owner-link { min-width: min(100%, 220px); }
-  .risk-goal-links .decision-owner-link strong { font-size: 13px; }
-  .risk-decision-fact { margin-top: 12px; padding: 12px 12px; border-left: 2px solid var(--amber); background: var(--amber-soft); }
-  .risk-decision-fact p, .risk-decision-fact small { display: block; margin: 4px 0 0; color: var(--amber); }
-  .risk-decision-details { margin: 0; padding: 0 16px; }
-  .risk-decision-details > div { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; }
-  .risk-decision-details dt { color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); }
-  .risk-decision-details dd { margin: 0; overflow-wrap: anywhere; }
   .decision-reason textarea[aria-invalid="true"] { border-color: var(--red); outline: 1px solid var(--red); outline-offset: -1px; }
   .risk-decision > footer.decision-actions { justify-content: space-between; align-items: center; }
   .risk-decision > footer.decision-actions a { color: var(--blue-dark); font-size: 12px; font-weight: 400; text-decoration: none; }

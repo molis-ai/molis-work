@@ -36,7 +36,7 @@ export const goalsEventActions = {
       work_status: stateProperties.work_status!, gaps: stateProperties.gaps!, progress_summary: nullable(progress), completion_effect: boolean, can_record: boolean })),
   progress: action<BusinessInput<RecordGoalProgressSummaryInput>, GoalEventProgressResult>("goals.progress.record", "记录目标进展", "记录基于当前目标事件游标的进展与下一步；事务内核对预期 Goal 版本。可附成果引用，引用不代表成果内容已验证", "command",
     object({ ...base, based_on_cursor: count, summary: identifier, next_step: text, next_actor: text,
-      source: artifactSource, expected_goal_cursor: count, expected_contract_revision: count }, [...required, "based_on_cursor", "summary"]),
+      source: artifactSource, expected_goal_cursor: count }, [...required, "based_on_cursor", "summary"]),
     goalProgressResultSchema),
   concern: action<BusinessInput<ApplyGoalConcernInput>, GoalEventConcernResult>("goals.concerns.apply", "处理目标问题", "提出问题须填标题、说明和影响范围；解决/撤销须引用问题后的实际事件或用户决定，接受风险须引用适用的用户决定", "command",
     object({ ...base, action: enumeration(goalEventConcernActions), concern_id: text, title: text, statement: text, scope: partialScope,

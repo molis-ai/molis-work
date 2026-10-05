@@ -17,7 +17,6 @@ export const GOALS_SCHEMA_SQL = `
     decomposition_state TEXT NOT NULL CHECK (decomposition_state IN ('abstract', 'frontier_open', 'closed_leaf', 'closed_compound')),
     validity_state TEXT NOT NULL CHECK (validity_state IN ('valid', 'needs_revalidation', 'invalidated')),
     fulfillment_state TEXT NOT NULL CHECK (fulfillment_state IN ('unmet', 'satisfied')),
-    current_contract_revision INTEGER NOT NULL DEFAULT 1,
     trashed_at TEXT,
     trashed_by TEXT,
     archived_at TEXT,
@@ -33,21 +32,6 @@ export const GOALS_SCHEMA_SQL = `
   CREATE INDEX goals_ready_idx ON goals(board_id, definition_state, decomposition_state, validity_state, fulfillment_state);
   CREATE INDEX goals_trash_idx ON goals(board_id, trashed_at);
   CREATE INDEX goals_archive_idx ON goals(board_id, archived_at);
-
-  CREATE TABLE goal_contract_revisions (
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    revision INTEGER NOT NULL,
-    contract_json TEXT NOT NULL,
-    effect TEXT NOT NULL CHECK (effect IN ('metadata', 'revalidate', 'rework')),
-    source_proposal_id TEXT,
-    changed_by TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (goal_id, revision)
-  );
-  CREATE INDEX goal_contract_revisions_board_idx
-    ON goal_contract_revisions(board_id, goal_id, revision DESC);
 
   CREATE TABLE acceptance_criteria (
     criterion_id TEXT PRIMARY KEY,
@@ -102,31 +86,6 @@ export const GOALS_SCHEMA_SQL = `
   );
   CREATE INDEX goal_trash_relation_records_relation_idx
     ON goal_trash_relation_records(relation_id, restored_at);
-
-  CREATE TABLE risks (
-    risk_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    description TEXT NOT NULL,
-    probability TEXT NOT NULL,
-    impact TEXT NOT NULL,
-    affected_surfaces_json TEXT NOT NULL DEFAULT '[]',
-    trigger TEXT NOT NULL,
-    treatment TEXT NOT NULL,
-    treatment_plan TEXT NOT NULL DEFAULT '',
-    blocking_mode TEXT NOT NULL CHECK (blocking_mode IN ('none', 'claim', 'completion', 'invalidate_on_trigger')),
-    revisit_condition TEXT NOT NULL,
-    owner TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('open', 'triggered', 'resolved', 'accepted', 'expired')),
-    resolution_basis_json TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-
-  CREATE TABLE goal_risks (
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    risk_id TEXT NOT NULL REFERENCES risks(risk_id) ON DELETE CASCADE,
-    PRIMARY KEY (goal_id, risk_id)
-  );
 
   CREATE TABLE policy_bindings (
     policy_binding_id TEXT PRIMARY KEY,

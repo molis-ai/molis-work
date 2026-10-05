@@ -70,7 +70,7 @@ test("every static renderer label has an English translation", () => {
     "../plugins/native/goals/src/event-document-forms.ts",
     "../plugins/native/goals/src/event-document-client.ts",
     "../plugins/native/goals/src/event-history-body.ts",
-    "../plugins/native/goals/src/risk-decision-ui.ts", "../plugins/native/goals/src/decision-common-ui.ts",
+    "../plugins/native/goals/src/decision-common-ui.ts",
     "../plugins/native/goals/src/tree-ui.ts", "../plugins/native/goals/src/kanban-ui.ts", "../plugins/native/goals/src/policy-ui.ts",
     "../plugins/native/goals/src/project-policy-client.ts",
     "../plugins/native/work/src/ui/render.ts",

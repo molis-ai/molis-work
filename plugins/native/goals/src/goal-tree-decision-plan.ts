@@ -1,6 +1,5 @@
-import type { GoalsQueryApi, GoalsPlanningApi, GoalRecord, PlanningGraphIssue } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalsQueryApi, GoalsPlanningApi, PlanningGraphIssue } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalTreeProposalRecord, GoalTreeProposalItemRecord, GoalTreeProposalDecideInput, GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import { goalTreeProposalItemValidationIssues, goalTreeRiskDescription } from "./proposal-item-validation.js";
 import type { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import type { GoalTreeInputReader } from "./goal-tree-inputs.js";
 import type { GoalTreeDecisionNormalizer } from "./goal-tree-decision-inputs.js";
@@ -110,51 +109,6 @@ export class GoalTreeDecisionPlan {
       }
     }
 
-    for (const decision of decisions) {
-      if (decision.decision !== "confirm") continue;
-      const item = itemsById.get(decision.item_id)!;
-      const issue = goalTreeProposalItemValidationIssues(item)[0];
-      if (issue) {
-        throw this.ports.errorFactory(
-          issue.code,
-          `方案中的风险「${goalTreeRiskDescription(item)}」暂时不能采用：${issue.message}${issue.recovery}当前 Goal Tree 没有改变。`,
-        );
-      }
-    }
-
-    const confirmedItems = decisions
-      .filter((decision) => decision.decision === "confirm")
-      .map((decision) => itemsById.get(decision.item_id)!);
-    if (proposal.root_goal_id) {
-      const rootGoal = this.requireGoalOnBoard(input.board_id, proposal.root_goal_id);
-      const companionContract = this.ports.inputs.requireDraftRiskLifecycleContract(
-        input.board_id,
-        rootGoal,
-        confirmedItems,
-      );
-      if (companionContract) {
-        const dependentItems = [
-          companionContract,
-          ...confirmedItems.filter((item) => this.ports.inputs.isRiskLifecycleChange(input.board_id, item)),
-        ];
-        for (const item of dependentItems) {
-          const baselineConflicts = this.ports.query.baselines.itemConflicts(input.board_id, item);
-          const materializationConflict = this.ports.conflicts.read(input.board_id, item);
-          if (baselineConflicts.length > 0 || materializationConflict) {
-            throw this.ports.errorFactory(
-              "goal_tree_proposal.risk_goal_atomic_conflict",
-              "Risk 生命周期变更和承载它的 Goal Contract 必须一起成功；当前事实已经变化，请先刷新并修订整份提案",
-            );
-          }
-        }
-      }
-    } else if (confirmedItems.some((item) => this.ports.inputs.isRiskLifecycleChange(input.board_id, item))) {
-      throw this.ports.errorFactory(
-        "goal_tree_proposal.risk_goal_root_required",
-        "Risk 生命周期变更必须归属于一条明确的 Goal；请重新提交带 root_goal_id 的提案",
-      );
-    }
-
     const planningIssues = this.ports.goals.planning.proposalGraphIssues(
       input.board_id,
       decisions
@@ -171,11 +125,6 @@ export class GoalTreeDecisionPlan {
     }
 
     return { decisions, itemsById, planningConflicts };
-  }
-  private requireGoalOnBoard(boardId: string, goalId: string): GoalRecord {
-    const goal = this.ports.goals.query.getGoal(boardId, goalId);
-    if (!goal) throw this.ports.errorFactory("goal.not_found", `Goal 不存在: ${goalId}`);
-    return goal;
   }
   private requiredText(value: string, code: string, message: string): string {
     const text = value.trim();

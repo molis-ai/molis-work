@@ -10,7 +10,6 @@ import {
   BUILTIN_PLANNING_METHOD_PACKS,
   GoalsModule,
   composePlanningMethodPacks,
-  hydratePlanningMethodPack,
   loadBuiltinPlanningMethodPacks,
   normalizePlanningMethodPack,
   resolvePlanningMethodPacks,
@@ -287,30 +286,6 @@ test("software planning establishes project and module SSOTs before parallel imp
   assert.match(software.instructions, /提供者与消费者.*保持并行/);
   assert.ok(software.completion_checks.some((check) => /只有一个所有者/.test(check)));
   assert.ok(software.failure_modes.some((mode) => /UI、API、数据库/.test(mode)));
-});
-
-test("legacy method packs receive current dependency guidance without a data migration", () => {
-  const software = BUILTIN_PLANNING_METHOD_PACKS.find((pack) => pack.method_id === "domain-software-development")!;
-  const legacy = {
-    ...software,
-    scope: "project" as const,
-    version: 1,
-    steps: ["确定用户行为和系统边界", "实现功能"],
-    dependency_rules: [{
-      rule_id: "legacy-contract",
-      statement: "消费者实现依赖提供者契约。",
-      direction_hint: "consumer depends_on provider contract",
-    }],
-    instructions: undefined,
-  } as unknown as typeof software;
-
-  const hydrated = hydratePlanningMethodPack(legacy);
-  assert.equal(hydrated.steps, legacy.steps);
-  assert.match(hydrated.instructions, /项目级 SSOT/);
-  assert.match(hydrated.instructions, /横向共享能力/);
-  assert.match(hydrated.instructions, /模块实现/);
-  assert.match(hydrated.instructions, /consumer depends_on provider contract/);
-  assert.match(hydrated.instructions, /召回相应主题的方法/);
 });
 
 test("project planning composition keeps method paths separate and merges their checks", () => {

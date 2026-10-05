@@ -6,6 +6,9 @@ import { buildGoalMomentumView } from "./momentum-view.js";
 
 export const GOALS_MOMENTUM_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.momentum.v1";
 
+const closureApplied = (payload: unknown) =>
+  Boolean(payload && typeof payload === "object" && (payload as { completion_applied?: unknown }).completion_applied === true);
+
 function createMomentumRenderer(primitives: GoalsMomentumUiPrimitives) {
   const { translate: L, escapeHtml, icon, renderVisibleGoalStatus } = primitives;
   function renderGoalMomentum(view: GoalsMomentumBoardView, selectedGoalId: string, items: readonly GoalsMomentumItem[]): string {
@@ -22,14 +25,8 @@ function createMomentumRenderer(primitives: GoalsMomentumUiPrimitives) {
       updated_at: item.goal.updated_at,
       completed: item.goal.fulfillment_state === "satisfied" || item.status === "archived" || item.work_state === "archived",
       reasons: (item.reasons ?? []).map((reason) => ({ code: reason.code })),
-      risks: item.risks.map((risk) => ({
-        risk_id: risk.risk_id,
-        state: risk.state,
-        blocking_mode: risk.blocking_mode,
-        created_at: risk.created_at,
-        updated_at: risk.updated_at,
-      })),
-      events: item.events.map((event) => ({ type: event.type, at: event.at })),
+      events: item.events.map((event) => ({ type: event.type, at: event.at,
+        ...(event.type === "goal.event_state.closure_submitted" ? { completion_applied: closureApplied(event.payload) } : {}) })),
     })),
     view.snapshot.relations,
     selectedGoalId,

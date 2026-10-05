@@ -169,7 +169,8 @@ function uniquePlanningStrings(...groups: readonly (readonly string[])[]): strin
   return [...values];
 }
 
-function legacyInstructionSource(pack: PlanningInstructionSource & { method_id?: string }): PlanningInstructionSource {
+/** A project pack that refines a built-in method compiles its instructions from both. */
+function baselineInstructionSource(pack: PlanningInstructionSource & { method_id?: string }): PlanningInstructionSource {
   const baseline = pack.method_id
     ? BUILTIN_PLANNING_METHOD_PACKS.find((candidate) => candidate.method_id === pack.method_id)
     : undefined;
@@ -188,24 +189,6 @@ function legacyInstructionSource(pack: PlanningInstructionSource & { method_id?:
     evidence_requirements: uniquePlanningStrings(baseline.evidence_requirements, pack.evidence_requirements),
     completion_checks: uniquePlanningStrings(baseline.completion_checks, pack.completion_checks),
     failure_modes: uniquePlanningStrings(baseline.failure_modes, pack.failure_modes),
-  };
-}
-
-/** Hydrates JSON rows created before planning packs had a canonical body. */
-export function hydratePlanningMethodPack(pack: PlanningMethodPack): PlanningMethodPack {
-  const storedInstructions = typeof (pack as { instructions?: unknown }).instructions === "string"
-    ? (pack as { instructions: string }).instructions.trim()
-    : "";
-  const baseline = pack.method_id
-    ? BUILTIN_PLANNING_METHOD_PACKS.find((candidate) => candidate.method_id === pack.method_id)
-    : undefined;
-  return {
-    ...pack,
-    instructions: storedInstructions || compilePlanningMethodInstructions(legacyInstructionSource(pack)),
-    event_types: Array.isArray(pack.event_types) ? pack.event_types : (baseline?.event_types ?? []),
-    default_requirements: Array.isArray(pack.default_requirements)
-      ? pack.default_requirements
-      : (baseline?.default_requirements ?? []),
   };
 }
 
@@ -255,7 +238,7 @@ export function normalizePlanningMethodPack(
     })),
     default_requirements: (input.default_requirements ?? []).map((requirement) => ({ ...requirement })),
     instructions: input.instructions?.trim()
-      || compilePlanningMethodInstructions(legacyInstructionSource(normalizedFields)),
+      || compilePlanningMethodInstructions(baselineInstructionSource(normalizedFields)),
   };
   const issues = validatePlanningMethodPack(normalized);
   if (issues.length) throw new Error(issues.join("；"));
@@ -268,7 +251,7 @@ export function resolvePlanningMethodPacks(
 ): ResolvedPlanningMethodPack[] {
   const grouped = new Map<string, PlanningMethodPack[]>();
   for (const rawPack of [...BUILTIN_PLANNING_METHOD_PACKS, ...personal, ...project]) {
-    const pack = hydratePlanningMethodPack(rawPack);
+    const pack = rawPack;
     grouped.set(pack.method_id, [...(grouped.get(pack.method_id) ?? []), pack]);
   }
   return [...grouped.values()].map((versions) => {

@@ -80,9 +80,8 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
         revise_requirements: [{ requirement_id: "human-original", statement: "用户确认新安装说明清楚", human_decision_required: true }] });
     });
     const changed = (await request("/goals/original")).body;
-    assert.equal(changed.snapshot.goal.current_contract_revision, original.snapshot.goal.current_contract_revision);
     assert.equal(changed.snapshot.state.agreement.version, 2);
-    assert.match(changed.material.title, /工作约定 v2 · 目标合同修订 r1/);
+    assert.match(changed.material.title, /工作约定 v2$/);
     assert.match(changed.material.text, /用户确认新安装说明清楚/);
     assert.match(changed.material.text, /只评审更新后的安装说明/);
     assert.equal((await pick(original)).status, 400, "stale preview rejected at confirmation");
@@ -98,7 +97,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.equal(report.body.report.goal.goal_id, "original");
     assert.deepEqual(report.body.report.goal.reference, original.reference);
     assert.equal(report.body.report.goal.agreement_version, 1, "historical ownership uses the frozen agreement, not current agreement 2");
-    assert.match(report.body.report.body_markdown, /工作约定 v1 · 目标合同修订 r1/);
+    assert.match(report.body.report.body_markdown, /工作约定 v1 · 目标事件 \d+/);
     const catalog = await request("/reports");
     assert.equal(catalog.status, 200);
     assert.equal(catalog.body.reports.length, 1, "only saved reports, not every terminal run");
@@ -113,13 +112,12 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     const progressPath = `${sessionPath}/runs/run-1/report/progress`;
     const progressPreview = (await request(progressPath)).body;
     assert.equal(progressPreview.current.goal.goal_id, "original");
-    const progressInput = (view: any) => ({ expected_goal_cursor: view.current.state.goal_event_cursor,
-      expected_contract_revision: view.current.goal.current_contract_revision, summary: "已完成只读评审，数量边界仍待用户确认。",
+    const progressInput = (view: any) => ({ expected_goal_cursor: view.current.state.goal_event_cursor, summary: "已完成只读评审，数量边界仍待用户确认。",
       next_step: "由用户阅读固定报告后决定下一步。", goal_id: "next", actor_id: "intruder", source: { artifact_id: "forged", version: 99 } });
     await note("original", "after-progress-preview");
     assert.equal((await request(progressPath, "POST", progressInput(progressPreview))).status, 400, "a change after preview requires a fresh review");
     const freshProgress = (await request(progressPath)).body, confirmed = progressInput(freshProgress);
-    assert.equal((await request(progressPath, "POST", { ...confirmed, expected_contract_revision: confirmed.expected_contract_revision + 1 })).status, 400, "contract revision is checked in the original write transaction");
+    assert.equal((await request(progressPath, "POST", { ...confirmed, expected_goal_cursor: confirmed.expected_goal_cursor + 1 })).status, 400, "the Goal version is checked in the original write transaction");
     const results = await Promise.all([request(progressPath, "POST", confirmed), request(progressPath, "POST", confirmed)]);
     for (const result of results) assert.equal(result.status, 200, JSON.stringify(result.body));
     assert.equal(results[0].body.event_id, results[1].body.event_id, "concurrent confirmations share the original Goal receipt");
@@ -179,7 +177,6 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     assert.equal(starts.at(-1)?.text_materials?.[0]?.text, latest.material.text);
     const revisedReport = (await request(`${sessionPath}/runs/run-5/report`, "POST")).body;
     assert.equal(revisedReport.report.goal.agreement_version, 2);
-    assert.equal(revisedReport.report.goal.contract_revision, 1);
     assert.deepEqual(revisedReport.report.goal.reference, latest.reference);
     const countBeforeOutput = await host.withProject(ref, ({ coordinator }) => coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID).length);
     const revisedOutputPath = `${sessionPath}/runs/run-5/report/output`;

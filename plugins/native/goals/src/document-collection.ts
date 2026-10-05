@@ -11,7 +11,7 @@ export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, boar
     .map(({ board_id: _boardId, ...binding }): GoalsInputBinding => binding);
   const policyBindings: GoalsPolicyBinding[] = ports.goals.listPolicyHistory(boardId);
   const events = ports.events(boardId);
-  const index = createGoalDocumentIndex(snapshot, inputBindings, policyBindings, events, ports.goals.listGoalRiskLinks(boardId));
+  const index = createGoalDocumentIndex(snapshot, inputBindings, policyBindings, events);
   const allGoals = snapshot.goals.map(goal => projectGoalDocument(goal, {
     boardId, snapshot, ports, index,
   }));

@@ -224,7 +224,6 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
       cursor: 0,
       goals: [],
       relations: [],
-      risks: [],
       goal_tree_proposals: [],
       planning_method_packs: [],
     },

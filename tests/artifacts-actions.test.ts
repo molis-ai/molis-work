@@ -9,7 +9,8 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, artifactsActions as a, type ArtifactImportResult } from "@molis-ai/molis-work-plugin-artifacts";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { projectActionAvailability } from "../apps/local-host/src/project-action-availability.js";
 import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
@@ -98,7 +99,7 @@ test("external Artifact import checks live authority and plugin state after fetc
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   process.env.MOLIS_WORK_ENCRYPTION_KEY = Buffer.alloc(32, 19).toString("base64");
   resetSecretStoreCache();
-  runWithMolisWorkHome(home, () => createFileSecretStore().put("connector:google-drive:token", "fixture-only-token"));
+  withConnectorConnections(home, store => store.createToken({ serviceId: "google-drive", displayName: "Google Drive", token: "fixture-only-token" }));
   let enabled = true;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
     actionAvailability: () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "已停用" } });

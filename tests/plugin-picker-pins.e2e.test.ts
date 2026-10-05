@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
+import { createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean, layoutFindings } from "./fixtures/layout-audit.js";
 
@@ -246,6 +247,10 @@ test("a plugin that cannot change in place still brings the page back once, with
 test("Feed comes in place: its pages fill, its source directory joins the directory and answers; and it goes again, and comes again", async t => {
   const b = await openPicker(t);
   if (!b) return;
+  // A project's Feed has no sources until some are added; two public ones for its directory to list, page and filter away.
+  const sources = createLocalFeedSourceService(b.store.db, b.store.goalsQuery.listBoardIds()[0]!);
+  sources.register({ kind: "web_query", query: "进场" });
+  sources.register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "plugin-picker" });
   const { evaluate, press, settled, stayed, waitFor, click } = b;
   type Feed = { section: boolean; rows: number; details: number; header: number; choices: number; panels: string[] };
   const feed = () => evaluate<Feed>(`({
@@ -262,7 +267,7 @@ test("Feed comes in place: its pages fill, its source directory joins the direct
     // The page's click handler is asynchronous: what a click does is read a moment after it.
     const wait = () => new Promise(resolve => setTimeout(resolve, 150));
     const rows = () => [...document.querySelectorAll('[data-source-list] [data-source-entry-id]')];
-    document.querySelector('[data-source-filter="public"]').click(); await wait();
+    document.querySelector('[data-source-filter="account"]').click(); await wait();
     const hidden = rows().every(row => row.hidden);
     const empty = document.querySelector('[data-source-empty]').hidden === false;
     const count = document.querySelector('[data-source-result-count]').textContent;

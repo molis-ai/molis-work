@@ -37,8 +37,7 @@ async function fixture(t: test.TestContext) {
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: 'model-api', displayName: 'Plugin model', token: 'explicit-plugin-model-key' }));
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, 'model-api', origin));
-  catalog.models.upsert({ provider_id: 'fixture', display_name: 'Fixture', base_url: origin + '/v1', api_format: 'openai-chat-completions', models: [{ model_id: 'fixed-model', enabled: true }] });
-  catalog.models.selectConnection('fixture', connection.credential_ref!);
+  catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: 'fixture', display_name: 'Fixture', base_url: origin + '/v1', api_format: 'openai-chat-completions', models: [{ model_id: 'fixed-model', enabled: true }] });
   const adapter = await createPrologueNodeAdapter({ app: { appId: 'plugin-model-test', appVersion: '1.0.0' }, storageRoot: join(home, 'owner-runtime') });
   const service = new ActionService();
   let beforeResolve = async () => {};

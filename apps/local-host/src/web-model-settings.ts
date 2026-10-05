@@ -4,7 +4,6 @@ import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { testConfiguredModel } from "./model-provider-test.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { listConnectorConnectionViews } from "./web-connector-connections.js";
 
 /** Global settings reuse the catalog's configuration and Host-owned secret store. */
 export async function handleModelSettingsHttp(
@@ -56,37 +55,30 @@ export async function handleModelSettingsHttp(
         if (apiKey && apiKey.length < 8) throw new Error("API Key 太短");
         const alreadyStored = Boolean(catalog.models.get(providerId) && catalog.models.hasCredential(providerId));
         if (!apiKey && !requestedConnection && !alreadyStored) throw new Error("请填写 API Key，或选择一条已保存的连接");
-        if (homeDirectory) {
-          const known = listConnectorConnectionViews(homeDirectory, "model-api");
-          const selectedId = requestedConnection
-            || known.find((entry) => withConnectorConnections(homeDirectory, (store) =>
-              store.require(entry.connection_id).credential_ref === catalog.models.get(providerId)?.credential_ref))?.connection_id;
-          if (selectedId) withConnectorConnections(homeDirectory, (store) => {
-            const connection = store.require(selectedId, "model-api");
-            if (requestedConnection && store.state(connection) !== "connected") throw new Error("所选连接不可用");
-            store.assertTarget(selectedId, "model-api", body.base_url as string);
-          });
-        }
-        const provider = catalog.models.upsert({
+        const input = {
           provider_id: providerId, display_name: body.display_name as string, base_url: body.base_url as string,
           api_format: body.api_format as ModelApiFormat, enabled: body.enabled as boolean,
           prompt_cache: body.prompt_cache as ModelPromptCacheMode, models,
           ...(body.thinking === undefined ? {} : { thinking: body.thinking as ModelThinkingMode }),
-        });
-        if (requestedConnection) {
-          if (!homeDirectory) throw new Error("本机连接库不可用");
-          const connection = withConnectorConnections(homeDirectory, (store) => store.require(requestedConnection, "model-api"));
-          if (!connection.credential_ref || connection.disconnected_at) throw new Error("所选连接不可用");
-          catalog.models.selectConnection(providerId, connection.credential_ref);
-        } else if (apiKey) {
-          if (!homeDirectory) throw new Error("本机连接库不可用");
-          const connection = withConnectorConnections(homeDirectory, (store) => store.createToken({
-            serviceId: "model-api", displayName: (body.display_name as string).trim() || "模型", token: apiKey,
-          }));
-          if (!connection.credential_ref) throw new Error("新连接没有保存密钥");
-          withConnectorConnections(homeDirectory, (store) => store.assertTarget(connection.connection_id, "model-api", body.base_url as string));
-          catalog.models.selectConnection(providerId, connection.credential_ref);
-        }
+        };
+        // Refused before a new key becomes a connection, so a rejected form leaves nothing behind.
+        catalog.models.check(input);
+        if (!homeDirectory && (apiKey || requestedConnection)) throw new Error("本机连接库不可用");
+        // The key lives in a model-api connection: a typed key becomes a new one, otherwise the chosen or current one is used.
+        const credentialRef = homeDirectory ? withConnectorConnections(homeDirectory, (store) => {
+          if (apiKey) {
+            const created = store.createToken({ serviceId: "model-api", displayName: input.display_name.trim() || "模型", token: apiKey });
+            store.assertTarget(created.connection_id, "model-api", input.base_url);
+            return created.credential_ref ?? undefined;
+          }
+          const current = catalog.models.get(providerId)?.credential_ref;
+          const connection = requestedConnection ? store.require(requestedConnection, "model-api")
+            : store.list("model-api").find((row) => row.credential_ref === current);
+          if (requestedConnection && (!connection?.credential_ref || store.state(connection) !== "connected")) throw new Error("所选连接不可用");
+          if (connection) store.assertTarget(connection.connection_id, "model-api", input.base_url);
+          return connection?.credential_ref ?? undefined;
+        }) : undefined;
+        const provider = catalog.models.upsert({ ...input, ...(credentialRef ? { credential_ref: credentialRef } : {}) });
         return { provider: catalog.models.get(providerId) ?? provider,
           health: catalog.models.health().find((entry) => entry.provider_id === providerId) };
       });

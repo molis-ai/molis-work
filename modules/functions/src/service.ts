@@ -1,6 +1,5 @@
 import {
   AGENT_MCP_DESTINATION_ID,
-  FUNCTIONS_CREDENTIAL_REF,
   NOUL_POSITIVE_THRESHOLD,
   filterSuggestedBehaviorIds,
   functionFitsScene,
@@ -15,7 +14,6 @@ import {
   type FunctionsOutcome,
   type FunctionsPreviewRecord,
   type FunctionsPrimitive,
-  type FunctionsSecretPort,
   type FunctionsSettingsStatus,
   type JudgmentRecord,
   type TypeSafeEvaluateResult,
@@ -24,11 +22,12 @@ import {
 import { FunctionsError } from "./keys.js";
 import { FunctionsStore, assertReadyToEvaluate, assertReadyToPublish } from "./store.js";
 
-export type { FunctionsSecretPort, TypeSafeProvider, TypeSafeEvaluateResult };
+export type { TypeSafeProvider, TypeSafeEvaluateResult };
 
 export interface FunctionsServiceOptions {
   readonly store: FunctionsStore;
-  readonly secrets: FunctionsSecretPort;
+  /** The TypeSafe key of the connection the Home chose for Functions; null when there is none. */
+  readonly credential: () => string | null;
   readonly env?: NodeJS.Dict<string>;
   readonly provider?: TypeSafeProvider;
 }
@@ -41,13 +40,13 @@ const missingProvider: TypeSafeProvider = {
 
 export class FunctionsService {
   private readonly store: FunctionsStore;
-  private readonly secrets: FunctionsSecretPort;
+  private readonly credential: () => string | null;
   private readonly env: NodeJS.Dict<string>;
   private readonly provider: TypeSafeProvider;
 
   constructor(options: FunctionsServiceOptions) {
     this.store = options.store;
-    this.secrets = options.secrets;
+    this.credential = options.credential;
     this.env = options.env ?? {};
     this.provider = options.provider ?? missingProvider;
   }
@@ -112,20 +111,8 @@ export class FunctionsService {
 
   settingsStatus(): FunctionsSettingsStatus {
     if (envKey(this.env)) return { has_credential: true, source: "env" };
-    if (this.secrets.get(FUNCTIONS_CREDENTIAL_REF)?.trim()) return { has_credential: true, source: "ui" };
+    if (this.credential()?.trim()) return { has_credential: true, source: "ui" };
     return { has_credential: false, source: "none" };
-  }
-
-  saveCredential(apiKey: string): FunctionsSettingsStatus {
-    const value = apiKey.trim();
-    if (!value) throw new FunctionsError("functions.invalid", "请填写 TypeSafe API Key");
-    this.secrets.put(FUNCTIONS_CREDENTIAL_REF, value);
-    return this.settingsStatus();
-  }
-
-  clearCredential(): FunctionsSettingsStatus {
-    this.secrets.delete(FUNCTIONS_CREDENTIAL_REF);
-    return this.settingsStatus();
   }
 
   async preview(id: string, input: string, expectedUpdatedAt?: string, signal?: AbortSignal, beforeSave?: () => Promise<void>): Promise<FunctionRecord> {
@@ -259,7 +246,7 @@ export class FunctionsService {
   private resolveApiKey(): string {
     const fromEnv = envKey(this.env);
     if (fromEnv) return fromEnv;
-    const stored = this.secrets.get(FUNCTIONS_CREDENTIAL_REF)?.trim() ?? "";
+    const stored = this.credential()?.trim() ?? "";
     if (stored) return stored;
     throw new FunctionsError("functions.provider_not_configured", "还没有配置 TypeSafe API Key");
   }

@@ -28,7 +28,7 @@ function provider(api_format: ModelApiFormat) {
   return {
     provider: {
       provider_id: "p", display_name: "p", base_url: "https://example.test",
-      api_format, credential_ref: "model-provider:p", enabled: true, models: [],
+      api_format, credential_ref: "connector-connection:fixture:token", enabled: true, models: [],
       created_at: "2026-09-20T00:00:00Z", updated_at: "2026-09-20T00:00:00Z",
     },
     model: { model_id: "m", enabled: true },

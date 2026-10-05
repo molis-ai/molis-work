@@ -40,8 +40,7 @@ test('installed and authoring model calls bind their own release through the rea
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: 'model-api', displayName: 'Fixture', token: 'local-fixture' }));
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, 'model-api', origin));
-  catalog.models.upsert({ provider_id: 'fixture', display_name: 'Fixture', base_url: origin + '/v1', api_format: 'openai-chat-completions', models: [{ model_id: 'fixture', enabled: true }] });
-  catalog.models.selectConnection('fixture', connection.credential_ref!);
+  catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: 'fixture', display_name: 'Fixture', base_url: origin + '/v1', api_format: 'openai-chat-completions', models: [{ model_id: 'fixture', enabled: true }] });
   const adapter = await createPrologueNodeAdapter({ app: { appId: 'prompt-binding', appVersion: '1.0.0' }, storageRoot: join(home, 'runtime') });
   const unbind = bindPrologueInference(home, adapter.inference);
   const stores: LocalProjectDatabase[] = [];

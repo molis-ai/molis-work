@@ -7,7 +7,7 @@ import test from "node:test";
 
 import { DatabaseSync } from "node:sqlite";
 import type { ModelProviderRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
-import { ModelProviderStore } from "@molis-ai/molis-work-app-local-host";
+import { ModelProviderStore, createModelProviderTables } from "@molis-ai/molis-work-app-local-host";
 import { AgentReviewQueue, createPrologueNodeAdapter, prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { renderModelSettingsDocument, type ModelSettingsPrimitives } from "@molis-ai/molis-work-app-workbench";
 
@@ -23,7 +23,7 @@ const p: ModelSettingsPrimitives = {
 };
 const record = (overrides: Partial<ModelProviderRecord> = {}): ModelProviderRecord => ({
   provider_id: "minimax", display_name: "minimax", base_url: "https://api.minimaxi.com/anthropic", api_format: "anthropic-messages",
-  credential_ref: "model-provider:minimax", enabled: true, models: [{ model_id: "MiniMax-M3", enabled: true }],
+  credential_ref: "connector-connection:fixture:token", enabled: true, models: [{ model_id: "MiniMax-M3", enabled: true }],
   created_at: "2026-09-20T00:00:00Z", updated_at: "2026-09-20T00:00:00Z", ...overrides,
 });
 
@@ -31,8 +31,10 @@ test("思考档：没选过是关着；打开后保存下来；没有思考字�
   const directory = mkdtempSync(join(tmpdir(), "model-thinking-"));
   const db = new DatabaseSync(join(directory, "catalog.db"));
   try {
-    const store = new ModelProviderStore({ db: db as never, secrets: { put: () => {}, get: () => null, delete: () => {} } });
-    const base = { provider_id: "minimax", display_name: "minimax", base_url: "https://api.minimaxi.com/anthropic", api_format: "anthropic-messages" as const };
+    createModelProviderTables(db as never);
+    const store = new ModelProviderStore({ db: db as never, secrets: { get: () => null } });
+    const base = { provider_id: "minimax", display_name: "minimax", base_url: "https://api.minimaxi.com/anthropic", api_format: "anthropic-messages" as const,
+      credential_ref: "connector-connection:fixture:token" };
     assert.equal(store.upsert(base).thinking, "off");
     assert.equal(store.upsert({ ...base, thinking: "adaptive" }).thinking, "adaptive");
     assert.equal(store.upsert(base).thinking, "adaptive", "saving without the field keeps the choice");

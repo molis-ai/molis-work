@@ -172,7 +172,7 @@ test("global HTTP published invocation uses the same system handler and separate
 
 test("system judgments use the selected TypeSafe account and a disconnected selection never falls back to an older key", async () => {
   const { resetSecretStoreCache, runWithMolisWorkHome, createLazyFileSecretStore } = await import("@molis-ai/molis-work-storage");
-  const { FUNCTIONS_CREDENTIAL_REF } = await import("@molis-ai/molis-work-contracts/modules/functions");
+  const OLD_FIXED_SLOT = "plugin:io.molis.work.functions:typesafe"; // where the key lived before connections
   const { withConnectorConnections } = await import("../apps/local-host/src/connector-connection-store.ts");
   const { bindTypeSafeConnection } = await import("../apps/local-host/src/typesafe-connection.ts");
   const home = await mkdtemp(join(tmpdir(), "functions-account-"));
@@ -187,7 +187,7 @@ test("system judgments use the selected TypeSafe account and a disconnected sele
   } } satisfies TypeSafeProvider };
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: options });
   try {
-    runWithMolisWorkHome(home, () => createLazyFileSecretStore(home).put(FUNCTIONS_CREDENTIAL_REF, "fixture-old-key"));
+    runWithMolisWorkHome(home, () => createLazyFileSecretStore(home).put(OLD_FIXED_SLOT, "fixture-old-key"));
     const [first, second] = withConnectorConnections(home, store => [
       store.createToken({ serviceId: "typesafe", displayName: "Account A", token: "fixture-account-a" }),
       store.createToken({ serviceId: "typesafe", displayName: "Account B", token: "fixture-account-b" }),

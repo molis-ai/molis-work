@@ -25,7 +25,7 @@ function provider(overrides: Partial<ModelProviderRecord> = {}): ModelProviderRe
     display_name: "minimax",
     base_url: "https://api.minimaxi.com/anthropic",
     api_format: "anthropic-messages",
-    credential_ref: "model-provider:minimax",
+    credential_ref: "connector-connection:fixture:token",
     enabled: true,
     models: [{ model_id: "MiniMax-M3", context_tokens: 1_000_000, vision: true, enabled: true }],
     created_at: "2026-09-19T00:00:00Z",

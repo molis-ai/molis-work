@@ -88,6 +88,7 @@ export { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-sour
 export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 
 export * from "./connector-credentials.js";
+export { withConnectorConnections } from "./connector-connection-store.js";
 export * from "./github-oauth.js";
 
 export * from "./gmail-oauth.js";
@@ -182,7 +183,6 @@ export {
   ModelProviderError,
   ModelProviderStore,
   createModelProviderTables,
-  modelCredentialRef,
   type ModelProviderSqlite,
   type ModelProviderStoreOptions,
   type ModelSecretPort,

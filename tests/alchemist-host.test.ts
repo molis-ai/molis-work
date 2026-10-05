@@ -104,8 +104,7 @@ async function configuredAi(t: test.TestContext, endpoint = "http://127.0.0.1:1"
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "model-api", displayName: "Alchemist test", token: "explicit-test-secret" }));
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", endpoint));
-  catalog.models.upsert({ provider_id: "fixture", display_name: "显式测试 Provider", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "model", enabled: true }] });
-  catalog.models.selectConnection("fixture", connection.credential_ref!);
+  catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "显式测试 Provider", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "model", enabled: true }] });
   const host = new MolisWorkLocalHost({ homeDirectory: home }); ensureSystemAgentService(host, home);
   t.after(async () => {
     await host.close(); catalog.close(); resetSecretStoreCache();

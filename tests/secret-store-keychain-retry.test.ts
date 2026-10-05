@@ -6,8 +6,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createFileSecretStore, createLazyFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { FUNCTIONS_CREDENTIAL_REF } from "@molis-ai/molis-work-contracts/modules/functions";
+import { createFileSecretStore, createLazyFileSecretStore, openBaselineHomeSqlite, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { CONNECTORS_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/src/functions-host.ts";
 import { functionsActions } from "@molis-ai/molis-work-module-functions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -130,9 +130,20 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
   { skip: process.platform !== "darwin" }, () => withKeychainFixture(async ({ home, calls }) => {
     const file = join(home, "feed", "secrets.json");
     const sealed = JSON.parse(readFileSync(file, "utf8"));
-    sealed.entries[FUNCTIONS_CREDENTIAL_REF] = sealed.entries.fixture;
+    // A TypeSafe connection bound for Functions, written without unlocking anything: its key is the sealed fixture.
+    const typeSafe = { id: "22222222-2222-4222-8222-222222222222", ref: "connector-connection:22222222-2222-4222-8222-222222222222:token" };
+    sealed.entries[typeSafe.ref] = sealed.entries.fixture;
     sealed.entries["model:text:api_key"] = sealed.entries.fixture;
     writeFileSync(file, JSON.stringify(sealed));
+    const connectors = openBaselineHomeSqlite(home, "connectors", CONNECTORS_BASELINE);
+    try {
+      const at = new Date().toISOString();
+      connectors.prepare(`INSERT INTO connector_connections (connection_id,service_id,display_name,account_label,auth_method,credential_ref,
+        refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at) VALUES (?,'typesafe','TypeSafe',NULL,'token',?,NULL,NULL,'managed',NULL,?,?)`)
+        .run(typeSafe.id, typeSafe.ref, at, at);
+      connectors.prepare("INSERT INTO connector_bindings (scope_id,plugin_id,slot_id,connection_id,updated_at) VALUES ('home','functions','typesafe',?,?)")
+        .run(typeSafe.id, at);
+    } finally { connectors.close(); }
     const before = readFileSync(file);
     const setup = { env: { TYPESAFE_API_KEY: "synthetic-env-credential" }, provider: {
       async evaluate() { return { primitive: "choice" as const, choice: "yes", noul: null, score: null,

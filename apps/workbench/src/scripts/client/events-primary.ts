@@ -1,6 +1,6 @@
 /** AP3 Workbench client segment: events-primary. */
 export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("aria-invalid");
-        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-risk-error], [data-impact-error], [data-policy-error]");
+        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-risk-error], [data-policy-error]");
         if (factorError) factorError.hidden = true;
       }
       if (handleTreeStatusChange(changed)) return;
@@ -9,10 +9,10 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     document.addEventListener("input", (event) => {
       const changed = event.target?.nodeType === 1 ? event.target : null;
       if (!changed) return;
-      const changedFactorForm = changed.closest("[data-relation-form], [data-risk-create-form], [data-risk-edit-form], [data-impact-create-form], [data-impact-edit-form], [data-policy-form]");
+      const changedFactorForm = changed.closest("[data-relation-form], [data-risk-create-form], [data-risk-edit-form], [data-policy-form]");
       if (changedFactorForm) {
         changed.removeAttribute("aria-invalid");
-        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-risk-error], [data-impact-error], [data-policy-error]");
+        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-risk-error], [data-policy-error]");
         if (factorError) factorError.hidden = true;
       }
     });

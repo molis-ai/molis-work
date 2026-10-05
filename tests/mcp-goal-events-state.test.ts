@@ -136,7 +136,7 @@ test("Runtime state tools record progress and close without applying user identi
     const persisted = await host.client(molisWorkHostProjectReference({
       databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
     })).invoke(snapshotBoardCapability, { board_id });
-    assert.equal(persisted.claims.length, 0);
+    assert.equal("claims" in persisted, false, "the retired claim protocol has no state");
 
     const progressEvent = JSON.parse(await runtime.callTool("molis_work_v1_event_read", { goal_id, event_id: progress.event_id,
     }));

@@ -238,16 +238,6 @@ ${GOALS_DEPENDENCY_PROPOSAL_STYLES}
   .risk-create > summary small { color: var(--muted); font-size: 11px; }
   .risk-create > .risk-form { padding-left: 16px; }
   .risk-empty { margin: 0; padding: 12px 16px; border: 1px dashed var(--line-strong); color: var(--muted); background: var(--page); }
-  .impact-create > summary { list-style: none; cursor: pointer; }
-  .impact-create > summary::-webkit-details-marker { display: none; }
-  .impact-create > summary:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
-  .impact-create > summary:hover { background: var(--nav-hover); }
-  .impact-create > summary > svg { color: var(--muted); transition: transform 130ms var(--ease-quint); }
-  .impact-create[open] > summary > svg { transform: rotate(180deg); }
-  .impact-create { margin: 0; border: 0; border-top: 1px solid var(--line-strong); border-radius: 0; background: var(--page); }
-  .impact-create > summary { min-height: 52px; padding: 8px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
-  .impact-create > summary > span:nth-child(2) { min-width: 0; display: grid; }
-  .impact-create > summary small { color: var(--muted); font-size: 11px; }
   .fact-row { display: flex; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
   .fact-row:last-child { border-bottom: 0; }
   .fact-icon { flex: 0 0 auto; margin-top: 4px; color: var(--blue); }

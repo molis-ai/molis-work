@@ -79,8 +79,7 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
       try {
         const snapshot = store.snapshot(project.board_id);
         assert.equal(snapshot.goals.filter((item) => item.goal_id === created.goal.goal_id).length, 1);
-        assert.equal(snapshot.claims.length, 0);
-        assert.equal(snapshot.runs.length, 0);
+        assert.equal("claims" in snapshot || "runs" in snapshot, false, "the retired claim/run protocol has no state");
         const notes = new GoalProjectApplication(store).goalEvents.listEvents(project.board_id, created.goal.goal_id).events.filter(
           (item) => item.kind === "system" && item.payload.operation === "observation_note",
         );

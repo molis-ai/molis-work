@@ -14,7 +14,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/service.ts](src/service.ts) | `MemoryService`：列出、召回、写入门、修改与移动、候选、最近变动与撤销、界面信号、第一版迁移 |
+| [src/service.ts](src/service.ts) | `MemoryService`：列出、召回、写入门、修改与移动、候选、最近变动与撤销、界面信号、整理与维护 |
 | [src/prefs.ts](src/prefs.ts) | 开关的默认值、补全与使用方权限 |
 | [src/text.ts](src/text.ts) | 召回关键词、同文判断、秘密形状与像指令的文字（确定性规则） |
 
@@ -45,7 +45,7 @@ pnpm --filter @molis-ai/molis-work-service-memory build
   - 模型只提议不批准：自动写入由确定性的写入门决定，规则版本写进来源与最近变动。
   - 单次行为、仅靠推断的内容、背景事实、像指令的文字、形似秘密的文字都不会被自动写入；推断不能覆盖用户明确说过的。
   - 停用、暂停、过期、不适用的记忆不会被召回；某使用方的开关关掉后它拿不到记忆。
-  - 删除后存储、旁表（事实、历史、使用记录）、最近变动的正文、重启之后都不再带出该条。
+  - 删除后存储、旁表（历史、使用记录）、最近变动的正文、重启之后都不再带出该条。
   - 个人记忆的出处不写项目里的工作名；个人记忆只归本人。
 - 改动后必跑：`node scripts/run-tests.mjs tests/memory-service.test.ts tests/memory-actions.test.ts tests/assistant-memory.test.ts`
 - 相关手册：[specs/archive/memory-system/spec.md](../../specs/archive/memory-system/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

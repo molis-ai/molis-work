@@ -35,7 +35,6 @@ export const NOUL_POSITIVE_THRESHOLD = 0.5;
 
 export const FUNCTIONS_PLUGIN_ID = "io.molis.work.functions";
 export const FUNCTIONS_PROJECT_PLUGIN_ID = "functions";
-export const FUNCTIONS_CREDENTIAL_REF = "plugin:io.molis.work.functions:typesafe";
 export const FUNCTIONS_DEFAULT_MODEL = "jev-latest";
 export const FUNCTIONS_MAX_SAMPLES = 8;
 
@@ -244,12 +243,6 @@ export interface FunctionSceneBinding {
   readonly function_key: string;
   readonly board_id: string | null;
   readonly ref: string | null;
-}
-
-export interface FunctionsSecretPort {
-  put(ref: string, plaintext: string): void;
-  get(ref: string): string | null;
-  delete(ref: string): boolean | void;
 }
 
 export interface TypeSafeEvaluateResult {

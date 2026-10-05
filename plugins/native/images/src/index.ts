@@ -14,6 +14,5 @@ export * from "./en.js";
 export * from "./routes.js";
 
 export * from "./actions.js";
-export * from "./credential-references.js";
 export { IMAGES_STORE_BASELINE } from "./store.js";
 export type { ImageGeneration, ImageProviderRequest } from "./providers.js";

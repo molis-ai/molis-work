@@ -5,7 +5,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { imagesActions as actions, IMAGES_ACTION_PERMISSIONS, ImagesService, type ImageJob } from "@molis-ai/molis-work-plugin-images";
+import { imagesActions as actions, IMAGES_ACTION_PERMISSIONS, type ImageJob } from "@molis-ai/molis-work-plugin-images";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
 import { createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
@@ -86,42 +86,42 @@ test('Images action cancellation and Host shutdown preserve terminal jobs withou
   assert.equal((await client.invoke(actions.get,{id:b.id})).job.status,'interrupted');assert.equal(calls,before);
 });
 
-test('Images adopts existing credential references without decrypting or copying them during discovery', async t => {
+test('Images discovery never decrypts the chosen connection key, and generation sends it once unchanged', async t => {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = 'file'; resetSecretStoreCache();
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
   const f = await fixture(t);
   const secrets = runWithMolisWorkHome(f.home, () => createFileSecretStore());
-  const legacy = new ImagesService({ homeDirectory: f.home, secrets });
   // The provider is a real local server: image requests go through the runtime's own network path (including its DNS checks), not a fetch stub.
   const authorizations: string[] = [];
   const server = createServer(async (req, res) => { for await (const _ of req) { /* drain */ } authorizations.push(String(req.headers.authorization ?? ''));
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ data: [{ b64_json: PNG }] })); });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
   const address = server.address(); assert.ok(address && typeof address === 'object');
-  const connection = legacy.saveConnection({ name: '旧版服务', api_format: 'openai-images', base_url: `http://127.0.0.1:${address.port}/v1`, model: 'existing-model', api_key: 'existing-fixture-image-key' });
-  await legacy.close();
-  const sealed = () => runWithMolisWorkHome(f.home, () => peekSealedEntry(`images:${connection.id}`));
+  const account = withConnectorConnections(f.home, store => store.createToken({ serviceId: 'image-api', displayName: '图片账号', token: 'existing-fixture-image-key' }));
+  const { connection } = await f.global.invoke(actions.saveConnection, { name: '已有服务', api_format: 'openai-images',
+    base_url: `http://127.0.0.1:${address.port}/v1`, model: 'existing-model', auth_connection_id: account.connection_id });
+  const sealed = () => runWithMolisWorkHome(f.home, () => peekSealedEntry(account.credential_ref!));
   const original = sealed(); assert.ok(original);
   const get = t.mock.method(secrets, 'get', () => { throw new Error('Discovery must not decrypt'); });
   const list = await f.global.invoke(actions.connections, {});
   assert.equal(get.mock.callCount(), 0);
   assert.equal(list.connections[0]!.id, connection.id); assert.equal(list.connections[0]!.available, true);
   assert.equal(list.auth_connections.length, 1);
-  assert.equal(list.connections[0]!.auth_connection_id, list.auth_connections[0]!.connection_id);
+  assert.equal(list.connections[0]!.auth_connection_id, account.connection_id);
   assert.equal(sealed(), original);
   assert.doesNotMatch(JSON.stringify(list), /existing-fixture-image-key|credential_ref|api_key/);
   get.mock.restore();
-  const { job } = await f.client.invoke(actions.start, { connection_id: connection.id, request_id: 'legacy-key', prompt: 'legacy image' });
+  const { job } = await f.client.invoke(actions.start, { connection_id: connection.id, request_id: 'chosen-key', prompt: 'chosen image' });
   const ended = await terminal(f.client, job.id);
   assert.equal(ended.status, 'succeeded', ended.error);
-  assert.deepEqual(authorizations, ['Bearer existing-fixture-image-key'], 'the adopted credential reaches the provider once, unchanged');
+  assert.deepEqual(authorizations, ['Bearer existing-fixture-image-key'], 'the chosen credential reaches the provider once, unchanged');
   assert.equal(sealed(), original);
-  withConnectorConnections(f.home, store => store.disconnect(list.auth_connections[0]!.connection_id));
+  withConnectorConnections(f.home, store => store.disconnect(account.connection_id));
   const revoked = await f.global.invoke(actions.connections, {});
   assert.equal(revoked.connections[0]!.available, false);
-  assert.equal(revoked.connections[0]!.auth_connection_id, list.auth_connections[0]!.connection_id);
-  assert.equal(revoked.auth_connections.length, 1, 'Discovery must not recreate disconnected legacy accounts');
+  assert.equal(revoked.connections[0]!.auth_connection_id, account.connection_id);
+  assert.equal(revoked.auth_connections.length, 1, 'a disconnected account stays listed as disconnected, not recreated');
 });
 
 test('Images names a busy Home execution service instead of blaming the provider or network',async t=>{

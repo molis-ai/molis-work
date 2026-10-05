@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { LocalSqliteStorage, LocalCatalogMetadata, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COGNIA_ACTION_PERMISSIONS, cogniaActions as actions } from "@molis-ai/molis-work-plugin-cognia";
-import { ModelProviderStore } from "../apps/local-host/src/model-provider-store.js";
+import { ModelProviderStore, createModelProviderTables } from "../apps/local-host/src/model-provider-store.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/src/project-catalog-contract.js";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
 import { createCogniaProloguePort } from "../apps/local-host/src/cognia-prologue.js";
@@ -25,7 +25,7 @@ function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   mkdirSync(join(home, "projects"));
   const db = new LocalSqliteStorage(join(home, "projects", "catalog.db"));
-  const metadata = new LocalCatalogMetadata(db.db); metadata.create(); metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION); db.close();
+  const metadata = new LocalCatalogMetadata(db.db); metadata.create(); metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION); createModelProviderTables(db.db); db.close();
   const secrets = runWithMolisWorkHome(home, () => createFileSecretStore());
   const models = <T>(run: (store: ModelProviderStore) => T): T => {
     const db = new LocalSqliteStorage(join(home, "projects", "catalog.db"));
@@ -33,7 +33,7 @@ function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
   };
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "model-api", displayName: "Cognia account", token: "cognia-fixture-secret" }));
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", endpoint));
-  models(store => { store.upsert({ provider_id: "cognia-test", display_name: "Cognia model", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] }); store.selectConnection("cognia-test", connection.credential_ref!); });
+  models(store => { store.upsert({ credential_ref: connection.credential_ref!, provider_id: "cognia-test", display_name: "Cognia model", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] }); });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   ensureSystemAgentService(host, home);
   const bound = bindActionClient(host.homeActionClient(), () => ({ actor_id: "trusted-cognia-user", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS }));

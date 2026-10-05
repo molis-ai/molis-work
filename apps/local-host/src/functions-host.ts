@@ -1,16 +1,14 @@
 import { createPrologueTypeSafeProvider } from "./typesafe-prologue.js";
 import { selectedTypeSafeConnection, typeSafeCredential, typeSafeConfiguration } from "./typesafe-connection.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { createLazyFileSecretStore, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import {
-  FUNCTIONS_CREDENTIAL_REF,
   HOME_DOCK_SCENE_ID,
   type FunctionsSettingsStatus,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   createFunctionsService,
   openFunctionsStore,
-  type FunctionsSecretPort,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
@@ -23,7 +21,8 @@ const legacyHomeChoices = Object.fromEntries(["inbox.done", "inbox.dismiss"].map
 ]));
 
 export interface FunctionsHostOptions {
-  readonly secrets?: FunctionsSecretPort;
+  /** A test's own key; otherwise the key is the TypeSafe connection bound for Functions. */
+  readonly credential?: () => string | null;
   readonly provider?: TypeSafeProvider;
   readonly env?: NodeJS.Dict<string>;
 }
@@ -31,12 +30,12 @@ export interface FunctionsHostOptions {
 /** Discovery inspects configuration without unlocking the user's Keychain. Execution resolves the secret. */
 export function functionsCredentialConfigured(home: string, options: FunctionsHostOptions = {}): boolean {
   if ((options.env ?? process.env).TYPESAFE_API_KEY?.trim()) return true;
-  if (options.secrets) return !!options.secrets.get(FUNCTIONS_CREDENTIAL_REF)?.trim();
+  if (options.credential) return !!options.credential()?.trim();
   const selected = selectedTypeSafeConnection(home, "functions");
   const ref = selected ? withConnectorConnections(home, store => {
     const connection = store.get(selected.connection_id);
     return connection && connection.service_id === "typesafe" && !connection.disconnected_at ? connection.credential_ref : null;
-  }) : FUNCTIONS_CREDENTIAL_REF;
+  }) : null;
   return !!ref && runWithMolisWorkHome(home, () => peekSealedEntry(ref) !== null);
 }
 
@@ -45,11 +44,8 @@ export function functionsConnectionStatus(home: string, options: FunctionsHostOp
   return { has_credential: configured, source: (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : configured ? "ui" : "none" };
 }
 
-function functionsSecrets(home: string, options: FunctionsHostOptions): FunctionsSecretPort {
-  if (options.secrets) return options.secrets;
-  const base = createLazyFileSecretStore(home);
-  return { get: ref => ref === FUNCTIONS_CREDENTIAL_REF ? typeSafeCredential(home, "functions") : base.get(ref),
-    put: (ref, value) => base.put(ref, value), delete: ref => base.delete(ref) };
+function functionsCredential(home: string, options: FunctionsHostOptions): () => string | null {
+  return options.credential ?? (() => typeSafeCredential(home, "functions"));
 }
 
 export function withFunctionsService<T>(
@@ -62,11 +58,11 @@ export function withFunctionsService<T>(
     store.migrateSceneReferences(HOME_DOCK_SCENE_ID, legacyHomeChoices);
     return run(createFunctionsService({
       store,
-      secrets: functionsSecrets(homeDirectory, options),
+      credential: functionsCredential(homeDirectory, options),
       env: options.env ?? process.env,
       provider: options.provider ?? createPrologueTypeSafeProvider(homeDirectory, {
-        resolveCredential: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() || functionsSecrets(homeDirectory, options).get(FUNCTIONS_CREDENTIAL_REF)?.trim() || null,
-        configuration: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : options.secrets ? "custom" : typeSafeConfiguration(homeDirectory, "functions"),
+        resolveCredential: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() || functionsCredential(homeDirectory, options)()?.trim() || null,
+        configuration: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : options.credential ? "custom" : typeSafeConfiguration(homeDirectory, "functions"),
       }),
     }));
   } finally {
@@ -84,11 +80,11 @@ export async function withFunctionsServiceAsync<T>(
     store.migrateSceneReferences(HOME_DOCK_SCENE_ID, legacyHomeChoices);
     return await run(createFunctionsService({
       store,
-      secrets: functionsSecrets(homeDirectory, options),
+      credential: functionsCredential(homeDirectory, options),
       env: options.env ?? process.env,
       provider: options.provider ?? createPrologueTypeSafeProvider(homeDirectory, {
-        resolveCredential: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() || functionsSecrets(homeDirectory, options).get(FUNCTIONS_CREDENTIAL_REF)?.trim() || null,
-        configuration: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : options.secrets ? "custom" : typeSafeConfiguration(homeDirectory, "functions"),
+        resolveCredential: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() || functionsCredential(homeDirectory, options)()?.trim() || null,
+        configuration: () => (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : options.credential ? "custom" : typeSafeConfiguration(homeDirectory, "functions"),
       }),
     }));
   } finally {

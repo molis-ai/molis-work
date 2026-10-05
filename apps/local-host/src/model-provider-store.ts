@@ -17,10 +17,10 @@ import {
  * Where configured model providers live.
  *
  * The records sit in the Home catalog because a provider is a property of this
- * installation, not of one project. The **key never touches this table**: it
- * goes to the secret store under `credential_ref`, and the table only carries
- * that reference. Anything that reads providers — settings, logs, exports —
- * therefore cannot leak a credential.
+ * installation, not of one project. The **key never touches this table**: it is
+ * held by a `model-api` service connection, and `credential_ref` is that
+ * connection's reference. Anything that reads providers — settings, logs,
+ * exports — therefore cannot leak a credential.
  */
 
 export interface ModelProviderSqlite {
@@ -32,11 +32,9 @@ export interface ModelProviderSqlite {
   };
 }
 
-/** The slice of the Host's secret store this needs. */
+/** The slice of the Host's secret store this needs: it reads a connection's key, never writes one. */
 export interface ModelSecretPort {
-  put(authRef: string, plaintext: string): void;
   get(authRef: string): string | null;
-  delete(authRef: string): void;
 }
 
 export class ModelProviderError extends Error {
@@ -67,11 +65,6 @@ export function createModelProviderTables(db: ModelProviderSqlite): void {
     CREATE INDEX IF NOT EXISTS model_providers_enabled_idx
       ON model_providers(enabled, display_name);
   `);
-}
-
-/** The reference a provider's key is stored under. Derived, never user supplied. */
-export function modelCredentialRef(providerId: string): string {
-  return `model-provider:${providerId}`;
 }
 
 const API_FORMATS: readonly ModelApiFormat[] = ["anthropic-messages", "openai-chat-completions"];
@@ -112,12 +105,21 @@ function mapProvider(row: Row): ModelProviderRecord {
   };
 }
 
+export interface ModelProviderInput {
+  provider_id: string;
+  display_name: string;
+  base_url: string;
+  api_format: ModelApiFormat;
+  enabled?: boolean;
+  prompt_cache?: ModelPromptCacheMode;
+  thinking?: ModelThinkingMode;
+  models?: readonly ModelRecord[];
+}
+
 export interface ModelProviderStoreOptions {
   db: ModelProviderSqlite;
   secrets: ModelSecretPort;
   now?: () => Date;
-  /** The catalog owner has already prepared these tables. */
-  initializeSchema?: boolean;
 }
 
 export class ModelProviderStore {
@@ -129,13 +131,6 @@ export class ModelProviderStore {
     this.#db = options.db;
     this.#secrets = options.secrets;
     this.#now = options.now ?? (() => new Date());
-    if (options.initializeSchema !== false) createModelProviderTables(this.#db);
-  }
-
-  /** Read existing credential references without schema writes or secret access. */
-  static inspectCredentialReferences(db: Pick<ModelProviderSqlite, "prepare">): Array<Pick<ModelProviderRecord, "provider_id" | "display_name" | "credential_ref">> {
-    if (!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'model_providers'").get()) return [];
-    return db.prepare("SELECT provider_id, display_name, credential_ref FROM model_providers").all() as Array<Pick<ModelProviderRecord, "provider_id" | "display_name" | "credential_ref">>;
   }
 
   list(): ModelProviderRecord[] {
@@ -151,16 +146,37 @@ export class ModelProviderStore {
     return row ? mapProvider(row) : null;
   }
 
-  upsert(input: {
-    provider_id: string;
-    display_name: string;
-    base_url: string;
-    api_format: ModelApiFormat;
-    enabled?: boolean;
-    prompt_cache?: ModelPromptCacheMode;
-    thinking?: ModelThinkingMode;
-    models?: readonly ModelRecord[];
-  }): ModelProviderRecord {
+  /** Save a provider. A new one names its connection's `credential_ref`; an existing one keeps its own unless given another. */
+  upsert(input: ModelProviderInput & { credential_ref?: string }): ModelProviderRecord {
+    const existing = this.get(input.provider_id);
+    const record = this.check(input);
+    const credentialRef = input.credential_ref?.trim() || existing?.credential_ref;
+    if (!credentialRef) throw new ModelProviderError("model-provider.invalid", "请填写 API Key，或选择一条已保存的连接");
+    record.credential_ref = credentialRef;
+    this.#db.prepare(`
+      INSERT INTO model_providers
+        (provider_id, display_name, base_url, api_format, credential_ref, enabled, prompt_cache, thinking, models_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(provider_id) DO UPDATE SET
+        display_name = excluded.display_name,
+        base_url = excluded.base_url,
+        api_format = excluded.api_format,
+        credential_ref = excluded.credential_ref,
+        enabled = excluded.enabled,
+        prompt_cache = excluded.prompt_cache,
+        thinking = excluded.thinking,
+        models_json = excluded.models_json,
+        updated_at = excluded.updated_at
+    `).run(
+      record.provider_id, record.display_name, record.base_url, record.api_format,
+      record.credential_ref, record.enabled ? 1 : 0, record.prompt_cache, record.thinking,
+      JSON.stringify(record.models), record.created_at, record.updated_at,
+    );
+    return record;
+  }
+
+  /** The record `upsert` would write, without its credential; throws what `upsert` would refuse. Writes nothing. */
+  check(input: ModelProviderInput): ModelProviderRecord {
     if (!PROVIDER_ID.test(input.provider_id)) {
       throw new ModelProviderError("model-provider.invalid", `供应商 id 不合法：${input.provider_id}`);
     }
@@ -205,7 +221,7 @@ export class ModelProviderStore {
       display_name: input.display_name.trim() === "" ? input.provider_id : input.display_name.trim(),
       base_url: input.base_url.trim().replace(/\/+$/u, ""),
       api_format: input.api_format,
-      credential_ref: existing?.credential_ref ?? modelCredentialRef(input.provider_id),
+      credential_ref: existing?.credential_ref ?? "",
       enabled: input.enabled ?? existing?.enabled ?? true,
       prompt_cache: promptCache,
       thinking,
@@ -213,62 +229,14 @@ export class ModelProviderStore {
       created_at: existing?.created_at ?? at,
       updated_at: at,
     };
-    this.#db.prepare(`
-      INSERT INTO model_providers
-        (provider_id, display_name, base_url, api_format, credential_ref, enabled, prompt_cache, thinking, models_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(provider_id) DO UPDATE SET
-        display_name = excluded.display_name,
-        base_url = excluded.base_url,
-        api_format = excluded.api_format,
-        enabled = excluded.enabled,
-        prompt_cache = excluded.prompt_cache,
-        thinking = excluded.thinking,
-        models_json = excluded.models_json,
-        updated_at = excluded.updated_at
-    `).run(
-      record.provider_id, record.display_name, record.base_url, record.api_format,
-      record.credential_ref, record.enabled ? 1 : 0, record.prompt_cache, record.thinking,
-      JSON.stringify(record.models), record.created_at, record.updated_at,
-    );
     return record;
   }
 
-  /**
-   * Remove a provider **and its key**.
-   *
-   * Deleting the row alone would leave the secret behind with nothing pointing
-   * at it: invisible in settings, still on disk, and re-adopted by the next
-   * provider that happens to take the same id.
-   */
+  /** Remove a provider. Its key belongs to the connection, which stays in Connectors. */
   remove(providerId: string): boolean {
-    const existing = this.get(providerId);
-    if (existing === null) return false;
-    // If secret deletion fails, retain the visible row so the user can retry.
-    if (existing.credential_ref === modelCredentialRef(providerId)) this.#secrets.delete(existing.credential_ref);
+    if (this.get(providerId) === null) return false;
     this.#db.prepare("DELETE FROM model_providers WHERE provider_id = ?").run(providerId);
     return true;
-  }
-
-  setCredential(providerId: string, plaintext: string): void {
-    const existing = this.get(providerId);
-    if (existing === null) {
-      throw new ModelProviderError("model-provider.unknown", `找不到供应商：${providerId}`);
-    }
-    if (plaintext.trim() === "") {
-      throw new ModelProviderError("model-provider.invalid", "API Key 不能是空的");
-    }
-    if (existing.credential_ref !== modelCredentialRef(providerId)) throw new ModelProviderError("model-provider.invalid", "请在 Connectors 中更换所选连接的密钥");
-    this.#secrets.put(existing.credential_ref, plaintext.trim());
-  }
-
-  selectConnection(providerId: string, credentialRef: string): void {
-    if (!this.get(providerId)) throw new ModelProviderError("model-provider.unknown", `找不到供应商：${providerId}`);
-    if (!/^(?:connector-connection:|model-provider:)/u.test(credentialRef) || !this.#secrets.get(credentialRef)?.trim()) {
-      throw new ModelProviderError("model-provider.invalid", "所选连接不可用");
-    }
-    this.#db.prepare("UPDATE model_providers SET credential_ref = ?, updated_at = ? WHERE provider_id = ?")
-      .run(credentialRef, this.#now().toISOString(), providerId);
   }
 
   /** Whether a key is really stored. Asked of the secret store, never cached on the row. */

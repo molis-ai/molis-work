@@ -1,7 +1,6 @@
 import { createFileSecretStore, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { openConnectorsStore } from "./connectors-store.js";
 import { ConnectorConnectionStore, type ConnectorConnectionSecrets } from "@molis-ai/molis-work-service-connector-host";
-import { inspectImageCredentialReferences } from "@molis-ai/molis-work-plugin-images";
 import { invalidateConnectorRequests } from "./connector-lifecycle.js";
 
 export { ConnectorConnectionStore, ConnectorConnectionError } from "@molis-ai/molis-work-service-connector-host";
@@ -19,16 +18,4 @@ export function withConnectorConnections<T>(homeDirectory: string, operation: (s
     };
     return operation(new ConnectorConnectionStore(db, secrets, undefined, id => invalidateConnectorRequests(homeDirectory, id)));
   } finally { db.close(); }
-}
-
-/** Adopt image credential references without opening the runner or decrypting keys. */
-export function adoptLegacyImageConnections(homeDirectory: string): void {
-  const references = inspectImageCredentialReferences(homeDirectory);
-  if (!references.length) return;
-  withConnectorConnections(homeDirectory, store => {
-    for (const reference of references) store.adoptLegacy({
-      serviceId: "image-api", displayName: `${reference.name.slice(0, 90)} · 原有密钥`,
-      credentialRef: reference.credential_ref, authMethod: "token",
-    });
-  });
 }

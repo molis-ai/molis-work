@@ -10,9 +10,7 @@ import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { HOST_CONNECTOR_DIRECTORY } from "./connector-directory.js";
 import { authRefFor } from "./connector-credentials.js";
 import { connectorCredentialStatus } from "./connector-credentials.js";
-import { adoptLegacyImageConnections, ConnectorConnectionError, withConnectorConnections } from "./connector-connection-store.js";
-import { FUNCTIONS_CREDENTIAL_REF } from "@molis-ai/molis-work-contracts/modules/functions";
-import { ModelProviderStore } from "./model-provider-store.js";
+import { ConnectorConnectionError, withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 
 import { refreshFeedConnectionState } from "./connector-source-state.js";
@@ -22,10 +20,7 @@ const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
 
 /** Makes old Host-owned tokens visible without moving or exposing their bytes. */
 function importLegacyAccounts(homeDirectory: string): void {
-  adoptLegacyImageConnections(homeDirectory);
   withConnectorConnections(homeDirectory, (connections) => {
-    connections.adoptLegacy({ serviceId: "typesafe", displayName: "TypeSafe · 原有密钥",
-      credentialRef: FUNCTIONS_CREDENTIAL_REF, authMethod: "token" });
     for (const service of HOST_CONNECTOR_DIRECTORY) {
       if (service.availability !== "live") continue;
       const ref = authRefFor(service.connector_id);
@@ -60,11 +55,6 @@ function importLegacyAccounts(homeDirectory: string): void {
     if (!existsSync(catalogPath)) return;
     const catalog = new LocalSqliteStorage(catalogPath, { readonly: true });
     try {
-      for (const provider of ModelProviderStore.inspectCredentialReferences(catalog.db)) {
-        if (!provider.credential_ref.startsWith("model-provider:")) continue;
-        connections.adoptLegacy({ serviceId: "model-api", displayName: `${provider.display_name} · 原有密钥`,
-          credentialRef: provider.credential_ref, authMethod: "token" });
-      }
       const root = resolve(homeDirectory, "projects") + sep;
       for (const databasePath of listProjectDatabasePaths(catalog.db)) {
         const projectPath = resolve(databasePath);

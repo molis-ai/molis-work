@@ -174,10 +174,8 @@ export class MolisWorkProjectCatalog {
     const db = storage.db;
     this.commit = createCatalogCommit(db, () => this.assertCurrentSchema());
     this.personalPlanningMethods = new PersonalPlanningMethods(db);
-    this.models = new ModelProviderStore({ db, initializeSchema: false, secrets: {
-      put: (ref, value) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().put(ref, value)),
+    this.models = new ModelProviderStore({ db, secrets: {
       get: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().get(ref)),
-      delete: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().delete(ref)),
     } });
     this.homeDirectory = homeDirectory;
     this.projectsDirectory = path.join(homeDirectory, "projects");

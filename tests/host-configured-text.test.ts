@@ -67,9 +67,8 @@ function configure(f: Parameters<Parameters<typeof fixture>[0]>[0], providerId =
     const value = store.createToken({ serviceId: "model-api", displayName: providerId, token: `${providerId}-fixture-key` });
     store.assertTarget(value.connection_id, "model-api", f.modelOrigin); return value;
   });
-  f.catalog.models.upsert({ provider_id: providerId, display_name: providerId, base_url: f.modelOrigin + "/v1", api_format: format,
+  f.catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: providerId, display_name: providerId, base_url: f.modelOrigin + "/v1", api_format: format,
     prompt_cache: format === "anthropic-messages" ? "required" : "off", models: [{ model_id: `${providerId}-model`, enabled: true }] });
-  f.catalog.models.selectConnection(providerId, connection.credential_ref!);
   return connection;
 }
 

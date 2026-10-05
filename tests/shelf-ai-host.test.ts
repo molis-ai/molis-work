@@ -46,9 +46,8 @@ async function fixture(run: (f: {
     const connection = store.createToken({ serviceId: "model-api", displayName: "Shelf fixture", token: "local-fixture-only" });
     store.assertTarget(connection.connection_id, "model-api", origin); return connection;
   });
-  catalog.models.upsert({ provider_id: "fixture", display_name: "Fixture", api_format: "openai-chat-completions", base_url: origin + "/v1", prompt_cache: "off",
+  catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "Fixture", api_format: "openai-chat-completions", base_url: origin + "/v1", prompt_cache: "off",
     models: [{ model_id: "text", enabled: true }, { model_id: "vision", enabled: true, vision: true }] });
-  catalog.models.selectConnection("fixture", connection.credential_ref!);
   const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS }));
   try { await run({ home, catalog, host, actions, requests, answer(next) { handler = async request => next(request); } }); }
   finally {

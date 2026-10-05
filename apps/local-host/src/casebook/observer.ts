@@ -54,7 +54,7 @@ export function goalActionObservation(capability: HostCapabilityDescriptor, inpu
  const actorId = caller.audit_actor_id ?? caller.actor_id;
  const actorKind = caller.actor_kind === undefined ? (caller.audience === 'user' ? 'user' : 'runtime') : caller.actor_kind;
  return { capability: { capability_id: `io.molis.work.goals.events.${suffix}`, version: 1, operation: capability.operation },
-  // Legacy decide inputs held the author under authority; keep persisted request-key comparisons compatible.
+  // A decision's author travels under authority, as the decide command takes it.
   input: { ...obj(input), board_id: boardId, ...(suffix === 'decide'
    ? { authority: { actor_id: actorId, actor_kind: actorKind } }
    : { actor_id: actorId, actor_kind: actorKind }) } };

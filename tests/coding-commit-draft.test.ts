@@ -48,15 +48,13 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.draft-test", appVersion: "1.0.0" }, storageRoot: join(home, "owner-runtime") });
   const options = { homeDirectory: home, env: { MOLIS_WORK_TEXT_API_KEY: "test-only", MOLIS_WORK_TEXT_BASE_URL: `http://127.0.0.1:${address.port}`,
     MOLIS_WORK_TEXT_API_FORMAT: "anthropic-messages", MOLIS_WORK_TEXT_MODEL: "fixture" }, resolveInference: async () => adapter.inference };
-  // A draft's instruction is always one its plugin registered; this fixture plugin registers its own.
-  const fixturePlugin = "io.molis.work.draft-fixture";
-  agentDefinitionsFor(home, builtinRegistrations).register({ owner_id: fixturePlugin, roles: [],
-    source: { kind: "plugin", plugin_id: fixturePlugin, plugin_version: "1.0.0", title: "起草样例", origin: "generated", state: "enabled" },
-    prompts: [{ prompt_id: "draft-fixture.rules", version: 1, kind: "instruction", title: "提交说明", purpose: "p", used_by: ["起草样例"], body: "只写提交说明。WRITE_RULES" }] });
+  // A draft's instruction is always one its plugin registered: here Form's, so Coding's own prompts stay unused below.
+  const fixturePlugin = "io.molis.work.form", fixturePrompt = "form.draft-question";
+  const rules = agentDefinitionsFor(home, builtinRegistrations).prompt(`${fixturePlugin}/${fixturePrompt}`).default_body.split("\n")[0]!.slice(0, 20);
   const before = await readdir(home), refs: string[] = [];
   try {
     for (let index = 0; index < 2; index++) {
-      const result = await draftText(options, { purpose: "起草 git 提交说明", prompt: "draft-fixture.rules", material: "### 第 4 轮\nMATERIAL_BODY" },
+      const result = await draftText(options, { purpose: "起草 git 提交说明", prompt: fixturePrompt, material: "### 第 4 轮\nMATERIAL_BODY" },
         { pluginId: fixturePlugin, onProgress: event => { if (event.type === "started") refs.push(event.run_ref.id); } });
       assert.equal(result.text, "feat: 裸名字也能用 @ 引用\n\n- 放行不带 . 和 / 的名字");
       assert.deepEqual(result.usage, { input: 120, output: 30 });
@@ -64,11 +62,11 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
     assert.equal(bodies.length, 2); assert.equal(new Set(refs).size, 2);
     for (const body of bodies) {
       assert.equal((body.tools ?? []).length, 0);
-      assert.match(JSON.stringify(body.system), /WRITE_RULES/);
+      assert.ok(JSON.stringify(body.system).includes(rules), "the registered instruction is the system text");
       assert.match(JSON.stringify(body.messages), /MATERIAL_BODY/);
     }
     assert.deepEqual(await readdir(home), before, "no per-draft runtime or directory is created");
-    await assert.rejects(draftText(options, { purpose: "p", prompt: "draft-fixture.rules", material: "" }, { pluginId: fixturePlugin }), /为空或过长/);
+    await assert.rejects(draftText(options, { purpose: "p", prompt: fixturePrompt, material: "" }, { pluginId: fixturePlugin }), /为空或过长/);
     assert.equal(bodies.length, 2);
 
     const definitions = agentDefinitionsFor(home, builtinRegistrations), pluginId = "io.molis.work.coding";

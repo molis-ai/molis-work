@@ -41,7 +41,7 @@ export interface MolisWorkSessionRegistryOptions {
 }
 
 /**
- * Compatibility facade for the Private Work Context owner.
+ * Facade for the Private Work Context owner.
  *
  * Persistence, events, handoffs and the panel/binding Sessions live in separate owner
  * components; callers keep the established API while their imports move to the
@@ -217,13 +217,7 @@ export class MolisWorkSessionRegistry implements WorkSessionApi {
     return this.handoffs.cancel(packageId);
   }
 
-  /** A desktop panel writes its Session when the panel is written. */
-  recordPanelSession(panel: WorkSessionPanelInput): MolisWorkSessionRecord {
-    return this.surfaces.recordPanel(panel);
-  }
-
-  /** A Runtime binding writes its Session when it is bound; a panel's binding shares the panel's Session. */
-  recordBindingSession(binding: WorkSessionBindingInput, panelSurfaceId: string | null = null): MolisWorkSessionRecord {
-    return this.surfaces.recordBinding(binding, panelSurfaceId);
-  }
+  /** Sessions are written with their surface: a desktop panel's own, and a Runtime binding's (a panel's binding shares the panel's). */
+  recordPanelSession(panel: WorkSessionPanelInput): MolisWorkSessionRecord { return this.surfaces.recordPanel(panel); }
+  recordBindingSession(binding: WorkSessionBindingInput, panelSurfaceId: string | null = null): MolisWorkSessionRecord { return this.surfaces.recordBinding(binding, panelSurfaceId); }
 }

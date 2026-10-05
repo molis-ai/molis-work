@@ -144,10 +144,7 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
           user_confirmed: true,
         });
         const sessionIds = await host.recordSessions([panel]);
-        respond(200, {
-          panel,
-          spawn: host.spawn(panel, sessionIds.get(panel.panel_id) ?? null),
-        });
+        respond(200, { panel, spawn: host.spawn(panel, sessionIds.get(panel.panel_id) ?? null) });
         return true;
       }
       if (method === "DELETE" && panelMatch) {
@@ -191,10 +188,7 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
         }
         const opened = host.panels.markOpen(panelId);
         const sessionIds = await host.recordSessions([opened]);
-        respond(200, {
-          panel: opened,
-          spawn: host.spawn(opened, sessionIds.get(opened.panel_id) ?? null),
-        });
+        respond(200, { panel: opened, spawn: host.spawn(opened, sessionIds.get(opened.panel_id) ?? null) });
         return true;
       }
       return false;

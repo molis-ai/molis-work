@@ -6,12 +6,8 @@ CREATE TABLE memory_changes (
   change_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, memory_id TEXT, at TEXT NOT NULL, body TEXT NOT NULL
 );
 
-CREATE TABLE memory_meta (
-  memory_id TEXT PRIMARY KEY, scope TEXT NOT NULL, owner TEXT NOT NULL, body TEXT NOT NULL
-);
-
-CREATE TABLE memory_migrations (
-  actor_id TEXT NOT NULL, source TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, source)
+CREATE TABLE memory_markers (
+  actor_id TEXT NOT NULL, key TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, key)
 );
 
 CREATE TABLE memory_owners (
@@ -44,8 +40,6 @@ CREATE INDEX memory_candidates_actor ON memory_candidates(actor_id);
 CREATE INDEX memory_changes_actor ON memory_changes(actor_id, at);
 
 CREATE INDEX memory_changes_memory ON memory_changes(memory_id);
-
-CREATE INDEX memory_meta_owner ON memory_meta(scope, owner);
 
 CREATE INDEX memory_signal_key ON memory_signal_events(actor_id, key);
 

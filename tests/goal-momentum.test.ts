@@ -172,13 +172,16 @@ test("cadence uses the first work event and applied closures without inventing m
         status: "satisfied",
         work_state: "satisfied",
         display_status: "completed",
-        events: [{ type: "goal.event_state.closure_submitted", at: "2026-08-29T11:00:00.000Z", completion_applied: true }],
+        events: [
+          { type: "goal.event_state.closure_submitted", at: "2026-08-28T10:00:00.000Z", payload: { operation: "closure_submitted", completion_applied: false } },
+          { type: "goal.event_state.closure_submitted", at: "2026-08-29T11:00:00.000Z", payload: { operation: "closure_submitted", completion_applied: true } },
+        ],
       }),
       goal("BLOCKED", {
         work_state: "completion_blocked",
         display_status: "blocked",
         events: [{ type: "goal.event_state.concern_opened", at: "2026-08-30T08:00:00.000Z" },
-          { type: "goal.event_state.closure_submitted", at: "2026-08-30T09:00:00.000Z", completion_applied: false }],
+          { type: "goal.event_state.closure_submitted", at: "2026-08-30T09:00:00.000Z", payload: { operation: "closure_submitted", completion_applied: false } }],
       }),
       goal("STALE", { events: [{ type: "goal.work_event.reported", at: "2026-08-01T08:00:00.000Z" }] }),
       goal("UNKNOWN"),

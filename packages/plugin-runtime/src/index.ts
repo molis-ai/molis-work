@@ -20,7 +20,7 @@ export type {
   PluginRuntimeReleaseArtifactDatabase,
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
-export { pluginManifestDigest, pluginInstallationGeneration } from "./identity.js";
+export { pluginManifestDigest } from "./identity.js";
 export { loadDevelopmentPlugin } from "./development-loader.js";
 export { assertContributionMatchesManifest, PluginContributionError, viewContributionId } from "./contribution.js";
 export { resolvePluginActivation } from "./resolution.js";
@@ -187,7 +187,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const installId = installIdentity(manifest);
     const current = this.repository.get(installId);
     if (input.definition.execution === "sandbox" && input.grants === undefined) throw new PluginRuntimeError("plugin_grant_denied", "生成插件安装需要明确授权清单");
-    if (current && (current.execution ?? "host") !== (input.definition.execution ?? "host")) throw new PluginRuntimeError("plugin_definition_conflict", "不能改变已安装插件的执行信任边界");
+    if (current && current.execution !== (input.definition.execution ?? "host")) throw new PluginRuntimeError("plugin_definition_conflict", "不能改变已安装插件的执行信任边界");
     const digest = pluginManifestDigest(manifest);
     if (current && current.version === manifest.version && current.manifest_digest !== digest) {
       const compatibleSameVersion = current.state !== "uninstalled"
@@ -305,7 +305,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       const target = input.definition.manifest;
       validateManifest(target);
       const current = this.requireInstall(input.install_id);
-      if ((current.execution ?? "host") !== (input.definition.execution ?? "host")) throw new PluginRuntimeError("plugin_definition_conflict", "不能在升级时改变执行信任边界");
+      if (current.execution !== (input.definition.execution ?? "host")) throw new PluginRuntimeError("plugin_definition_conflict", "不能在升级时改变执行信任边界");
       if (rollbackCode && current.execution !== "sandbox") throw new PluginRuntimeError("plugin_state_invalid", "代码回滚只适用于隔离的生成插件");
       if (current.state === "uninstalled" || current.state === "quarantined") {
         throw new PluginRuntimeError("plugin_state_invalid", `Plugin 当前状态 ${current.state} 不允许升级`);

@@ -21,7 +21,6 @@ export const GAP_EN: Record<string, string> = {
   "这条通知已处理或不再可用，请关闭后查看列表。": "This notification has been handled or is no longer available. Close this dialog and check the list.",
   "无法确认处理结果，请重新读取后核对。": "The outcome could not be confirmed. Refresh and review it before proceeding.",
   "插件运行平台已关闭": "The plugin runtime has closed.",
-  "历史订阅缺少可信安装身份，只能保留查看": "This historical subscription has no verified installation identity and is read-only.",
   "原订阅插件尚未运行，请先恢复插件": "The original subscriber is not running. Restore the plugin first.",
   "插件已重新安装，不能接管旧安装的事件": "The plugin was reinstalled and cannot take over the previous installation's events.",
   "当前插件版本已不再订阅此事件": "The current plugin version no longer subscribes to this event.",

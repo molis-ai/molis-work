@@ -229,7 +229,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
         "宿主没有冻结角色定义，不能在没有角色 Prompt 的情况下起跑",
       );
     }
-    const state = emptyStreamState();
+    const state = emptyStreamState(ref.run_id);
     state.turns.push({ turn_id: "user-1", kind: "user", text: request.task, at });
 
     const view: AgentRunView = {
@@ -326,7 +326,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
   ): Promise<AgentCommandOutput> {
     const matches: AgentCommandOutput[] = [];
     for (const record of this.#runs.values()) {
-      if (record.view.ref.session_id !== session.session_id || ref.run_id && ref.run_id !== record.view.ref.run_id) continue;
+      if (record.view.ref.session_id !== session.session_id || ref.run_id !== record.view.ref.run_id) continue;
       for (const receipt of record.state.receipts) if (receipt.ref.call_id === ref.call_id) {
         matches.push({ ...structuredClone(receipt), ref: { ...receipt.ref, run_id: record.view.ref.run_id } });
       }

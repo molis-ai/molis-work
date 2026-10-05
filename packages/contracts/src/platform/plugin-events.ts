@@ -119,11 +119,10 @@ export interface PluginEventSubscriberIdentity {
 export type PluginEventCursorState = "idle" | "delivering" | "retry_wait" | "quarantined";
 
 export interface PluginEventCursorRecord {
-  /** Changes on every persisted transition; empty only on migrated history. */
+  /** Changes on every persisted transition. */
   revision: string;
   board_id: string;
   subscriber_plugin_id: string;
-  /** Empty only for unbound legacy cursors whose installation cannot be proven. */
   subscriber_install_id: string;
   subscriber_generation: string;
   source_plugin_id: string;

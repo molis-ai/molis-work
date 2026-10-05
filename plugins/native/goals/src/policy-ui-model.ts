@@ -1,6 +1,6 @@
 import type { GoalPolicy } from "@molis-ai/molis-work-contracts/modules/goals";
 
-/** Existing Web projection; its legacy scope strings are not Module binding scopes. */
+/** The Web projection of a rule binding; its scope strings are the page's, not the Module's binding scopes. */
 export interface GoalsPolicyBinding {
   policy_binding_id: string;
   goal_id: string | null;

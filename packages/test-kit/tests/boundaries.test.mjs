@@ -110,7 +110,7 @@ test("rejects imports back into the legacy root implementation", () => {
       importer,
       specifier: "@molis-ai/molis-work/v1/store",
       sourceFile: "apps/local-host/src/index.ts",
-    }).has("legacy-root-import"),
+    }).has("root-package-import"),
   );
 });
 

@@ -39,7 +39,8 @@ export interface FeedSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export interface FeedLegacyEvent {
+/** The project journal's record of an item change; the journal keeps its own event names. */
+export interface FeedJournalEvent {
   project_id: string;
   item_id: string;
   type: string;
@@ -51,7 +52,7 @@ export interface FeedLegacyEvent {
 export interface FeedModuleOptions {
   ledger: ContextLedgerApi;
   now?: () => Date;
-  eventSink?: (event: FeedLegacyEvent) => void;
+  eventSink?: (event: FeedJournalEvent) => void;
 }
 
 export { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
@@ -616,7 +617,7 @@ export class FeedModule implements FeedApi {
     projectId: string,
     itemId: string,
     type: FeedEvent["type"],
-    legacyType: string,
+    journalType: string,
     reason: string,
     payload: Record<string, unknown>,
     at: string,
@@ -633,7 +634,7 @@ export class FeedModule implements FeedApi {
       JSON.stringify(payload),
       at,
     );
-    this.options.eventSink?.({ project_id: projectId, item_id: itemId, type: legacyType, reason, payload, at });
+    this.options.eventSink?.({ project_id: projectId, item_id: itemId, type: journalType, reason, payload, at });
   }
 
   private now(): Date {

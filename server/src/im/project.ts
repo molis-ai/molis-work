@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { ImDatabase } from './types.js';
 import { ImError } from './errors.js';
 import type { ImReads } from './reads.js';
-/** Project access is the sole membership authority. Legacy rooms remain unbound. */
+/** Project access is the sole membership authority of a project's room; rooms members create stay unbound. */
 export function ensureProjectRoom(db: ImDatabase, reads: ImReads, projectId: string, memberId: string) {
   return db.transaction(() => {
     const project = db.prepare(`SELECT p.id,p.title,p.owner_id FROM mw_projects p

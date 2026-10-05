@@ -17,7 +17,7 @@ export function startIm(factories: {
   if (!root)
     return;
   root.querySelector<HTMLElement>('[data-action="minimize"]')!.hidden = parent === window;
-  root.querySelector<HTMLElement>('.im-legacy-directory')!.hidden = Boolean(new URLSearchParams(location.search).get('project'));
+  root.querySelector<HTMLElement>('.im-room-directory')!.hidden = Boolean(new URLSearchParams(location.search).get('project'));
   const v = factories.createViews(root, factories.createMessageFormat), { q, escape: e, icon } = v;
   const dialog = document.querySelector<HTMLDialogElement>('[data-dialog]')!;
   const dialogBody = dialog.querySelector<HTMLElement>('[data-dialog-body]')!;

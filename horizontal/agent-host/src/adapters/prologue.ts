@@ -805,7 +805,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     ref: AgentCommandOutputRef,
   ): Promise<AgentCommandOutput> {
     const record = await this.#loadSession(session.session_id);
-    if (ref.run_id && !record.runs.some(run => run.run_id === ref.run_id)) throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于所选会话");
+    if (!record.runs.some(run => run.run_id === ref.run_id)) throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于所选会话");
     if (!this.#runtime.readCommandOutput) throw new PrologueAdapterError("agent.capability_unavailable", "这个 Runtime 没有接通命令回执");
     return this.#runtime.readCommandOutput(session.session_id, ref);
   }

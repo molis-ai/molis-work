@@ -361,7 +361,6 @@ test("CLI command receipts with reused call ids require a run and never cross se
   const next = await adapter.start({ session, plugin_id: PLUGIN, task: "next", role_id: "reader", directory: { canonical_path: DIRECTORY, realpath_verified: true },
     role: { role_id: "reader", version: 1, execution: "read-only", prompts: [], host_tools: [] } });
   receipt("second output");
-  await assert.rejects(adapter.readCommandOutput(session, { call_id: "same-call" }), /多次执行/);
   assert.equal((await adapter.readCommandOutput(session, { call_id: "same-call", run_id: handle.ref.run_id })).stdout, "first output");
   assert.equal((await adapter.readCommandOutput(session, { call_id: "same-call", run_id: next.ref.run_id })).stdout, "second output");
   await assert.rejects(adapter.readCommandOutput({ ...session, session_id: "foreign" }, { call_id: "same-call", run_id: handle.ref.run_id }), /没有/);

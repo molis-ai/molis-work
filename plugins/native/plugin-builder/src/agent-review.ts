@@ -1,6 +1,6 @@
 import { PLUGIN_COMPONENT_PROP_KEYS, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentBuild } from './agent-model.js';
-import { parseModelJson } from './validation.js';
+import { parseModelJson } from './model-json.js';
 
 /** Model observations remain advice. Only located, expressible presentation findings can request a repair. */
 export function acceptPresentationReview(output: string, build: AgentBuild, screenshots: string[]) {

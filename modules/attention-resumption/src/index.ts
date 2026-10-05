@@ -35,7 +35,8 @@ export interface AttentionSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export interface AttentionLegacyEvent {
+/** The project journal's record of an entry change; the journal keeps its own event names. */
+export interface AttentionJournalEvent {
   project_id: string;
   entry_id: string;
   type: string;
@@ -46,7 +47,7 @@ export interface AttentionLegacyEvent {
 
 export interface AttentionModuleOptions {
   now?: () => Date;
-  eventSink?: (event: AttentionLegacyEvent) => void;
+  eventSink?: (event: AttentionJournalEvent) => void;
 }
 
 export const ATTENTION_STATUS_TRANSITIONS: Readonly<

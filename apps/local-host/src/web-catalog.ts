@@ -21,8 +21,6 @@ import { TODO_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-todo";
 import { handleTodoNativePluginHttp } from "./todo-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
-import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
-import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { handleFunctionsHttp } from "./functions-http.js";
@@ -97,15 +95,6 @@ export async function handleLocalCatalogWebRequest(
   if (await handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
   if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: ["functions:invoke", "functions:manage"] })),
-  })) return;
-  if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, async (input, transport) => {
-    const projectId = input.query.get("project_id") ?? input.body.project_id;
-    if (typeof projectId !== "string" || !projectId.trim()) throw new ActionError("actions.project_required", "请选择项目");
-    const project = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.getProject(projectId));
-    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
-    return { projectId: project.project_id,
-      actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference.project_id,
-        audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS, ...transport })) };
   })) return;
   if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, async input => {
     const projectId = input.query.get("project_id") ?? input.body.project_id;

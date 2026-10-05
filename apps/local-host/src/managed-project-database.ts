@@ -26,7 +26,7 @@ export async function initializeProjectDatabase(
 export function validateManagedBoard(databasePath: string, expectedBoardId: string): void {
   const board = readManagedBoard(databasePath, false);
   if (board.boardId !== expectedBoardId) {
-    throw new MolisWorkProjectCatalogError("catalog.legacy_invalid", "新项目数据库的 board_id 与 project_id 不一致");
+    throw new MolisWorkProjectCatalogError("catalog.database_invalid", "新项目数据库的 board_id 与 project_id 不一致");
   }
 }
 
@@ -39,13 +39,13 @@ export function readManagedBoard(
     const boardIds = store.goalsQuery.listBoardIds();
     if (boardIds.length !== 1 || typeof boardIds[0] !== "string" || !boardIds[0]) {
       throw new MolisWorkProjectCatalogError(
-        "catalog.legacy_invalid",
+        "catalog.database_invalid",
         `项目数据库必须恰好包含一个 Board: ${databasePath}`,
       );
     }
     const boardId = boardIds[0];
     if (!store.integrityCheck()) {
-      throw new MolisWorkProjectCatalogError("catalog.legacy_invalid", `SQLite 完整性校验失败: ${databasePath}`);
+      throw new MolisWorkProjectCatalogError("catalog.database_invalid", `SQLite 完整性校验失败: ${databasePath}`);
     }
     const snapshot = store.snapshot(boardId);
     if (checkpoint) store.checkpoint();

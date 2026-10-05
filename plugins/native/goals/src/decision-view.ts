@@ -12,6 +12,12 @@ export interface GoalsDecisionEvent {
   payload: unknown;
   at: string;
 }
+/** A closure counts as completion only when it applied; a saved report with unmet requirements did not. */
+export function isAppliedGoalCompletion(event: Pick<GoalsDecisionEvent, "type"> & { payload?: unknown }): boolean {
+  if (event.type !== "goal.event_state.closure_submitted") return false;
+  const payload = event.payload;
+  return typeof payload === "object" && payload !== null && (payload as { completion_applied?: unknown }).completion_applied === true;
+}
 export interface GoalsDecisionView<T extends GoalsSafetyItem = GoalsSafetyItem> {
   goals: T[];
   archived_goals: T[];

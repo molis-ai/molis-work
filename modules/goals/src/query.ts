@@ -51,6 +51,7 @@ export class GoalsQueryService implements GoalsQueryApi {
   listActivePolicyBindings(boardId: string, goalId?: string) { return this.repository.listActivePolicyBindings(boardId, goalId); }
   listPolicyHistory(boardId: string) { return this.facts.listPolicyHistory(boardId); }
   listGoalRiskLinks(boardId: string) { return this.repository.listGoalRiskLinks(boardId); }
+  listWorkEventGoalLinks(boardId: string) { return this.facts.listWorkEventGoalLinks(boardId); }
   listDependencies(boardId: string, goalId: string) { return this.facts.listDependencies(boardId, goalId); }
   listOpenGoalRisks(boardId: string, goalId: string) { return this.facts.listOpenGoalRisks(boardId, goalId); }
   activeReplacement(boardId: string, goalId: string) { return this.facts.activeReplacement(boardId, goalId); }

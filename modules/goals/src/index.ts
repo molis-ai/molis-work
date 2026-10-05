@@ -116,6 +116,7 @@ export class GoalsModule {
       listBoardIds: () => query.listBoardIds(),
       listActivePolicyBindings: (...args) => query.listActivePolicyBindings(...args),
       listPolicyHistory: boardId => query.listPolicyHistory(boardId),
+      listWorkEventGoalLinks: boardId => query.listWorkEventGoalLinks(boardId),
       listDependencies: (boardId, goalId) => query.listDependencies(boardId, goalId),
       activeReplacement: (boardId, goalId) => query.activeReplacement(boardId, goalId),
       getRelation: (boardId, relationId) => query.getRelation(boardId, relationId),

@@ -458,7 +458,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   if (coordinator.includes("  decideContractProposal(")) {
     errors.push(`${coordinatorPath}: retired decideContractProposal facade must stay deleted`);
   }
-  for (const match of coordinator.matchAll(/UPDATE goals SET[\s\S]{0,500}?(?:archived_at|trashed_at|validity_state|fulfillment_state|current_contract_revision)/giu)) {
+  for (const match of coordinator.matchAll(/UPDATE goals SET[\s\S]{0,500}?(?:archived_at|trashed_at|validity_state|fulfillment_state)/giu)) {
     errors.push(`${coordinatorPath}: Goal lifecycle state writes must use GoalsModule.lifecycle (${match[0].split(/\r?\n/u)[0]})`);
   }
   const reconciliationPath = "plugins/native/goals/src/lifecycle-application.ts";

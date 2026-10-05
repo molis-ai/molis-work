@@ -469,7 +469,6 @@ export class MemoryService {
       const meta: MemoryMetaRecord = { ...target.meta, kind: input.kind, applies: input.applies, source: input.source, basis: input.basis, approved_by: input.approved_by,
         evidence: [...target.meta.evidence, ...input.evidence].slice(-6), expires_at: input.expires_at ?? target.meta.expires_at, state: "active", state_reason: null, updated_at: at };
       this.ports.ledger.transaction(() => {
-        this.ensureRevision(target!, before);
         this.ports.ledger.addRevision(updated.memory_id, { version: updated.version, text, kind: input.kind, applies: input.applies, change: "replaced", by: automatic ? "policy" : "person", at });
       });
       await this.saveFacts({ ...target, entry: updated }, meta);
@@ -525,10 +524,8 @@ export class MemoryService {
         const meta: MemoryMetaRecord = { ...located.meta, ...(request.kind ? { kind: request.kind } : {}), ...(request.applies ? { applies: request.applies } : {}),
           ...(request.expires_at !== undefined ? { expires_at: request.expires_at } : {}), updated_at: at };
         if (text && text !== entry.text) {
-          const before = entry.version;
           entry = await this.ports.backend.update({ scope, owner, memory_id: entry.memory_id, text });
           this.ports.ledger.transaction(() => {
-            this.ensureRevision(located, before);
             this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text, kind: meta.kind, applies: meta.applies, change: "edited", by, at });
           });
         }
@@ -551,11 +548,9 @@ export class MemoryService {
       case "restore": {
         const revision = this.ports.ledger.revisions(located.entry.memory_id).find(one => one.version === request.version);
         if (!revision) throw new MemoryError("memory.not_found", "没有这个历史版本");
-        const before = located.entry.version;
         const entry = await this.ports.backend.update({ scope, owner, memory_id: located.entry.memory_id, text: revision.text });
         const meta: MemoryMetaRecord = { ...located.meta, kind: revision.kind, applies: revision.applies, updated_at: at };
         this.ports.ledger.transaction(() => {
-          this.ensureRevision(located, before);
           this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: revision.text, kind: revision.kind, applies: revision.applies, change: "restored", by, at });
         });
         await this.saveFacts({ scope, owner, entry }, meta, located.meta);
@@ -677,7 +672,6 @@ export class MemoryService {
       const entry = sameText(target.entry.text, text) ? target.entry : await this.ports.backend.update({ scope: record.scope, owner: record.owner, memory_id: target.entry.memory_id, text });
       const meta: MemoryMetaRecord = { ...target.meta, ...facts, evidence: [...target.meta.evidence, ...facts.evidence].slice(-6), state: "active", state_reason: null, updated_at: at };
       if (entry.version !== before) this.ports.ledger.transaction(() => {
-        this.ensureRevision(target, before);
         this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text, kind: meta.kind, applies: meta.applies, change: "replaced", by: "person", at });
       });
       await this.saveFacts({ ...target, entry }, meta, target.meta);
@@ -965,14 +959,14 @@ export class MemoryService {
       // The model only finds candidates for the person, and only when this scope changed since it last looked.
       const fingerprint = located.map(one => `${one.entry.memory_id}:${one.entry.version}:${one.meta.state}`).sort().join("|");
       const tidyKey = `tidy:${where.scope}:${where.owner}`;
-      if (options.tidy && active().length >= 2 && (this.ports.ledger.migration(caller.actor_id, tidyKey)?.body as { fingerprint?: string } | undefined)?.fingerprint !== fingerprint) {
+      if (options.tidy && active().length >= 2 && (this.ports.ledger.marker(caller.actor_id, tidyKey)?.body as { fingerprint?: string } | undefined)?.fingerprint !== fingerprint) {
         const byId = new Map(active().map(one => [one.entry.memory_id, one]));
         const found = await options.tidy(active().slice(-60).map(one => ({ memory_id: one.entry.memory_id, text: one.entry.text.slice(0, 200), kind: one.meta.kind, source: one.meta.source }))).catch(() => null);
         if (found) {
           report.tidied = true;
           for (const [x, y] of found.duplicates.slice(0, 20)) { const a = byId.get(x), b = byId.get(y); if (a && b && a !== b && similarity(a.entry.text, b.entry.text) >= 0.3) await handleDuplicate(a, b, "意思相同"); }
           for (const conflict of found.conflicts.slice(0, 20)) { const a = byId.get(conflict.a), b = byId.get(conflict.b); if (a && b && a !== b) raise(a, b, "conflict", conflict.why.slice(0, 200) || "两条说法相反"); }
-          this.ports.ledger.markMigration(caller.actor_id, tidyKey, { fingerprint: located.filter(one => !mergedAway.has(one.entry.memory_id)).map(one => `${one.entry.memory_id}:${one.entry.version}:${one.meta.state}`).sort().join("|") }, at);
+          this.ports.ledger.setMarker(caller.actor_id, tidyKey, { fingerprint: located.filter(one => !mergedAway.has(one.entry.memory_id)).map(one => `${one.entry.memory_id}:${one.entry.version}:${one.meta.state}`).sort().join("|") }, at);
         }
       }
       // Automatic ones not used for 90 days are switched off (after merging, so a merged one counts its provenances once).
@@ -981,13 +975,13 @@ export class MemoryService {
         if (now.getTime() - Date.parse(used) > 90 * day) { await turnOff(one, "disabled", "90 天没有用到", "auto_disabled", { action: "enable" }); report.unused += 1; }
       }
     }
-    this.ports.ledger.markMigration(caller.actor_id, "upkeep", report, at);
+    this.ports.ledger.setMarker(caller.actor_id, "upkeep", report, at);
     return report;
   }
 
   /** When upkeep last ran, and what it did. */
   lastUpkeep(actorId: string): MemoryUpkeepReport | null {
-    return (this.ports.ledger.migration(actorId, "upkeep")?.body as MemoryUpkeepReport | undefined) ?? null;
+    return (this.ports.ledger.marker(actorId, "upkeep")?.body as MemoryUpkeepReport | undefined) ?? null;
   }
 
   /** Pairs waiting for the person in the caller's scopes: both still there and in effect. */
@@ -1187,7 +1181,12 @@ export class MemoryService {
   private async located(caller: MemoryCaller, scope: MemoryScope, owner: string): Promise<Located[]> {
     const entries = await this.ports.backend.list(scope, owner);
     const project = scope === "project" ? owner : scope === "character" ? caller.project_id : null;
-    return Promise.all(entries.map(async entry => ({ scope, owner, entry, project, meta: await this.metaFor(scope, owner, entry) })));
+    // Every entry this service writes carries its facts; one without them is not the platform's and stays out of sight.
+    return entries.flatMap(entry => {
+      const meta = fromEntryMeta({ memory_id: entry.memory_id, scope, owner, meta: entry.meta, ...(entry.paused ? { paused: entry.paused } : {}),
+        created_at_ms: entry.created_at_ms, updated_at_ms: entry.updated_at_ms }, this.now());
+      return meta ? [{ scope, owner, entry, project, meta }] : [];
+    });
   }
 
   private async find(caller: MemoryCaller, memoryId: string): Promise<Located> {
@@ -1198,30 +1197,6 @@ export class MemoryService {
     throw new MemoryError("memory.not_found", "这条记忆不在这里（可能已删除，或属于别的项目）");
   }
 
-  /**
-   * An entry's facts, from the entry itself. One written before the facts moved onto entries gets them once: from the
-   * Host ledger where this service kept them first (M1), or, for an entry without either, from its tags.
-   */
-  private async metaFor(scope: MemoryScope, owner: string, entry: MemoryBackendEntry): Promise<MemoryMetaRecord> {
-    const own = fromEntryMeta({ memory_id: entry.memory_id, scope, owner, meta: entry.meta, ...(entry.paused ? { paused: entry.paused } : {}),
-      created_at_ms: entry.created_at_ms, updated_at_ms: entry.updated_at_ms }, this.now());
-    if (own) return own;
-    let meta = this.ports.ledger.meta(entry.memory_id);
-    const at = this.now().toISOString();
-    if (!meta) {
-      const source: MemorySource = entry.tags.includes("accepted-suggestion") ? "accepted" : (MEMORY_SOURCE_TAGS.find(tag => entry.tags.includes(tag)) ?? "said");
-      const kind: MemoryKind = MEMORY_KINDS.find(tag => entry.tags.includes(tag)) ?? (scope === "project" ? "convention" : "preference");
-      const said = /你说：“(.+)”$/.exec(entry.origin)?.[1];
-      meta = { memory_id: entry.memory_id, scope, owner, kind, source, basis: source === "auto" ? "repeated" : "explicit",
-        evidence: said ? [{ kind: "said", text: said, at }] : [], applies: {}, state: "active", state_reason: null,
-        expires_at: null, approved_by: { by: "person" }, plugin_id: null, created_at: at, updated_at: at };
-    }
-    await this.ports.backend.setMeta({ scope, owner, memory_id: entry.memory_id, meta: toEntryMeta(meta) });
-    if (meta.state !== "active") await this.ports.backend.pause({ scope, owner, memory_id: entry.memory_id, reason: pauseReason(meta.state, meta.state_reason) });
-    if (!this.ports.ledger.revisions(entry.memory_id).length) this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text: entry.text, kind: meta.kind, applies: meta.applies, change: "created", by: "person", at });
-    return meta;
-  }
-
   /** Keep changed facts on the entry: its metadata, and paused or not. */
   private async saveFacts(located: { scope: MemoryScope; owner: string; entry: MemoryBackendEntry }, meta: MemoryMetaRecord, before?: MemoryMetaRecord): Promise<void> {
     const where = { scope: located.scope, owner: located.owner, memory_id: located.entry.memory_id };
@@ -1229,12 +1204,6 @@ export class MemoryService {
     const was = before?.state ?? (located.entry.paused ? "paused" : "active");
     if (meta.state === "active" && was !== "active") await this.ports.backend.resume(where);
     else if (meta.state !== "active" && (was !== meta.state || before?.state_reason !== meta.state_reason)) await this.ports.backend.pause({ ...where, reason: pauseReason(meta.state, meta.state_reason) });
-  }
-
-  /** History holds every version; an entry that predates the ledger gets its current version recorded before it changes. */
-  private ensureRevision(located: Located, version: number): void {
-    if (this.ports.ledger.revisions(located.entry.memory_id).some(one => one.version === version)) return;
-    this.ports.ledger.addRevision(located.entry.memory_id, { version, text: located.entry.text, kind: located.meta.kind, applies: located.meta.applies, change: "created", by: "person", at: located.meta.created_at });
   }
 
   private async purge(located: Located): Promise<void> {
@@ -1307,8 +1276,6 @@ export class MemoryService {
     }
   }
 }
-
-const MEMORY_SOURCE_TAGS: readonly MemorySource[] = ["said", "manual", "accepted", "imported", "auto"];
 
 /** One fingerprint for what a clear will remove across its Prologue scopes (a single scope keeps Prologue's own). */
 function joinedFingerprint(parts: ReadonlyArray<{ scope: MemoryScope; owner: string; count: number; fingerprint: string }>): string {

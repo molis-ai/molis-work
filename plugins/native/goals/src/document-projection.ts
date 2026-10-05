@@ -41,7 +41,7 @@ export function projectGoalDocument(goal: GoalRecord, input: {
   const { boardId, ports } = input;
   const {
     inputBindingsByGoal, policyBindingsByGoal,
-    projectPolicyBindings, eventsByObject, relationsByGoal,
+    projectPolicyBindings, eventsByObject, workEventsByGoal, relationsByGoal,
     goalTreeProposalsByGoal,
   } = input.index;
   const event = ports.eventWork.readState(boardId, goal.goal_id);
@@ -78,9 +78,10 @@ export function projectGoalDocument(goal: GoalRecord, input: {
     ...goalTreeProposalItemIds,
     ...visiblePolicyBindingIds,
   ]);
-  const goalEvents = [...relatedObjectIds]
-    .flatMap((objectId) => eventsByObject.get(objectId) ?? [])
-    .sort((left, right) => right.seq - left.seq);
+  const goalEvents = [
+    ...[...relatedObjectIds].flatMap((objectId) => eventsByObject.get(objectId) ?? []),
+    ...(workEventsByGoal.get(goal.goal_id) ?? []),
+  ].sort((left, right) => right.seq - left.seq);
   return {
     goal,
     status: current.status,

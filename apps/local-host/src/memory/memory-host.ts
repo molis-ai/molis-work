@@ -135,11 +135,11 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const upkeepNow = async () => runUpkeep(service, { homeDirectory: ports.homeDirectory, localHost: ports.localHost, caller: person, projects: await ports.projects?.().catch(() => []) ?? [] });
   /** The runtime's queue hangs tasks on a session: upkeep has its own, made once and kept in the ledger. */
   const upkeepSession = async (): Promise<string> => {
-    const saved = ledger.migration(LOCAL_PERSON, "upkeep-session")?.body as { session_id?: string } | undefined;
+    const saved = ledger.marker(LOCAL_PERSON, "upkeep-session")?.body as { session_id?: string } | undefined;
     if (saved?.session_id) return saved.session_id;
     const session = await ports.agentHost.adapter(RUNTIME).createSession({ board_id: MEMORY_PROVIDER_ID, plugin_id: MEMORY_PROVIDER_ID, install_id: MEMORY_PROVIDER_ID,
       actor_id: LOCAL_PERSON, workspace: "none", role_id: "memory-upkeep", title: "记忆整理" });
-    ledger.markMigration(LOCAL_PERSON, "upkeep-session", { session_id: session.session_id }, new Date().toISOString());
+    ledger.setMarker(LOCAL_PERSON, "upkeep-session", { session_id: session.session_id }, new Date().toISOString());
     return session.session_id;
   };
   /** Next upkeep: at four in the morning local time (today's when that has not passed and today's has not run yet). */

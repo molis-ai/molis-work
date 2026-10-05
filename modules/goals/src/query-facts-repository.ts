@@ -2,6 +2,7 @@ import type {
   GoalDependencyFact,
   GoalPolicyHistoryRecord,
   GoalReplacementFact,
+  GoalWorkEventLinkRecord,
 } from "@molis-ai/molis-work-contracts/modules/goals";
 import { rowJson, rowText, type GoalsSqliteDatabase } from "./repository.js";
 
@@ -27,6 +28,11 @@ export class GoalQueryFactsRepository {
       reason: rowText(row.reason),
       created_at: rowText(row.created_at),
     }));
+  }
+
+  listWorkEventGoalLinks(boardId: string): GoalWorkEventLinkRecord[] {
+    return (this.db.prepare("SELECT event_id, goal_id FROM goal_work_events WHERE board_id = ? ORDER BY journal_seq")
+      .all(boardId) as Row[]).map(row => ({ goal_id: rowText(row.goal_id), event_id: rowText(row.event_id) }));
   }
 
   listDependencies(boardId: string, goalId: string): GoalDependencyFact[] {

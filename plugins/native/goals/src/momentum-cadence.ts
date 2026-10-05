@@ -1,4 +1,5 @@
 import type { GoalMomentumGoalInput, GoalMomentumCadence, GoalMomentumCadenceBucket } from "./momentum-model.js";
+import { isAppliedGoalCompletion } from "./decision-view.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ACTIVE_RISK_STATES = new Set(["open", "triggered"]);
@@ -37,9 +38,10 @@ function firstWorkStart(goal: GoalMomentumGoalInput): number | null {
   return starts[0] ?? null;
 }
 
+/** A Goal is satisfied when an explicit closure first applied completion. */
 export function firstSatisfiedAt(goal: GoalMomentumGoalInput): number | null {
   const events = goal.events
-    .filter((event) => event.type === "goal.satisfied")
+    .filter(isAppliedGoalCompletion)
     .map((event) => time(event.at))
     .filter((value): value is number => value !== null)
     .sort((left, right) => left - right);

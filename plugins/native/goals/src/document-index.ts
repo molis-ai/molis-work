@@ -29,6 +29,7 @@ export function createGoalDocumentIndex(
   snapshot: BoardSnapshot, inputBindings: GoalsInputBinding[],
   policyBindings: GoalsPolicyBinding[], events: GoalsDecisionEvent[],
   riskLinks: ReturnType<GoalsDocumentReadPorts["goals"]["listGoalRiskLinks"]>,
+  workEventLinks: ReturnType<GoalsDocumentReadPorts["goals"]["listWorkEventGoalLinks"]>,
 ) {
   const riskGoalIds = new Map<string, string[]>();
   const goalRiskIds = new Map<string, string[]>();
@@ -46,6 +47,10 @@ export function createGoalDocumentIndex(
   const policyBindingsByGoal = groupByKey(policyBindings, (item) => item.goal_id);
   const projectPolicyBindings = policyBindings.filter((item) => item.goal_id == null);
   const eventsByObject = groupByKey(events, (item) => item.object_id);
+  // Work events are journaled under their own id; Goals' work-event facts name the Goal each belongs to.
+  const workEventGoalIds = new Map(workEventLinks.map((link) => [link.event_id, link.goal_id]));
+  const workEventsByGoal = groupByKey(events, (item) =>
+    item.object_type === "goal_work_event" ? workEventGoalIds.get(item.object_id) : null);
   const relationsByGoal = new Map<string, typeof snapshot.relations>();
   for (const relation of snapshot.relations) {
     addGroupedValue(relationsByGoal, relation.from_goal_id, relation);
@@ -83,5 +88,5 @@ export function createGoalDocumentIndex(
     }
   }
   const createdByActor = new Map([...createdByGoal].map(([goalId, value]) => [goalId, value.actor]));
-  return { riskGoalIds, goalRiskIds, webRisks, inputBindingsByGoal, policyBindingsByGoal, projectPolicyBindings, eventsByObject, relationsByGoal, goalTreeProposalsByGoal, createdByGoal: createdByActor };
+  return { riskGoalIds, goalRiskIds, webRisks, inputBindingsByGoal, policyBindingsByGoal, projectPolicyBindings, eventsByObject, workEventsByGoal, relationsByGoal, goalTreeProposalsByGoal, createdByGoal: createdByActor };
 }

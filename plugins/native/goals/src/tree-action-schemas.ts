@@ -35,8 +35,8 @@ const storedItem = object({ item_id: text, proposal_id: text, board_id: text, or
   conflict: nullable(record), decision: nullable(decision), materialized_objects: array(affected),
   revision_proposal_id: maybeText, supersedes_item_id: maybeText, created_at: text, updated_at: text });
 export const treeProposalSchema = object({ proposal_id: text, board_id: text,
-  origin: enumeration(["native"]), root_goal_id: maybeText,
-  submitted_by: text, discovered_in_run_id: maybeText, submitted_session_id: maybeText,
+  root_goal_id: maybeText,
+  submitted_by: text, submitted_session_id: maybeText,
   state: enumeration(["pending", "superseded", "approved", "partially_applied", "rejected", "dismissed", "closed"]), version: count,
   supersedes_proposal_id: maybeText, base_event_cursor: count, summary: text, narrative: nullable(treeNarrativeSchema), decision: nullable(record),
   created_at: text, updated_at: text, decided_at: maybeText, items: array(storedItem), decisions: array(decision) });

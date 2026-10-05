@@ -70,7 +70,7 @@ test("the 成果库 shows each version's recorded title and media type, never on
   assert.deepEqual(record.origin, { kind: "pinned", subject: { kind: "item", id: "Payload title" }, revision: "1" });
 });
 
-test("Artifact HTTP links exact versions, exports opaque records and preserves existing Goal/Evidence state", async (t) => {
+test("Artifact HTTP links exact versions, exports opaque records and preserves existing Goal state", async (t) => {
   const { store, coordinator, get, surface, direct, origin } = await fixture(t);
   const first = coordinator.artifacts.commands.registerVersion(registration()).artifact;
   const second = coordinator.artifacts.commands.registerVersion(registration({ version: 2,
@@ -135,9 +135,6 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
   assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID), versions);
   const after = store.snapshot(DEMO_BOARD_ID);
   assert.deepEqual(after.goals, before.goals);
-  assert.deepEqual(after.evidence, before.evidence);
-  assert.deepEqual(after.runs, before.runs);
-  assert.deepEqual(after.reviews, before.reviews);
 });
 
 test("Artifact HTTP keeps unknown and cross-project versions missing and rejects malformed exact references", async (t) => {
@@ -282,7 +279,7 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID), beforeArtifacts);
   assert.deepEqual(ledger.query.list(access), beforeEdges);
   const after = store.snapshot(DEMO_BOARD_ID);
-  for (const field of ["goals", "evidence", "runs", "reviews"] as const) assert.deepEqual(after[field], before[field]);
+  assert.deepEqual(after.goals, before.goals);
 
   coordinator.artifacts.commands.markUnavailable({ board_id: DEMO_BOARD_ID, artifact_id: artifactId, version: 1,
     actor_id: "report-owner", reason: "Source disconnected" });

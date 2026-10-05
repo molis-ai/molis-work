@@ -60,7 +60,7 @@ export * from "./document-ui.js";
 export { GOALS_EVENT_DOCUMENT_STYLES } from "./event-document-styles.js";
 export { GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "./event-document-client.js";
 export { createGoalEventDocumentView, eventDirectoryPresentation, listGoalDocumentHistory, findHistoryIndexItem } from "./event-document-model.js";
-export { mergeGoalHistoryItems, pageHistoryItems, mapLegacyHistoryItems, mapJournalHistoryItems, isNewWorkJournalType, mixedPageIsStable } from "./event-history-map.js";
+export { mergeGoalHistoryItems, pageHistoryItems, mapJournalHistoryItems, isNewWorkJournalType, mixedPageIsStable } from "./event-history-map.js";
 export { renderHistoryItemBody, renderWorkEventBody, formatEventTime } from "./event-history-body.js";
 export * from "./context-ui-model.js";
 export * from "./context-ui.js";
@@ -105,10 +105,9 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { GoalTreeDecisionNormalizer, type NormalizedGoalTreeProposalDecision } from "./goal-tree-decision-inputs.js";
 export { GoalTreeDecisionFollowup } from "./goal-tree-decision-followup.js";
 export { GoalTreeDecisionApplication } from "./goal-tree-decision.js";
-export { explainGoalDecision, type HumanDecisionKind, type DecisionCopy } from "./decision-copy.js";
 export { createGoalsDecisionPresentation, type GoalsDecisionPresentationPrimitives, type DecisionEventKind } from "./decision-common-ui.js";
 
-export { GoalReadApplication, projectGoalLifecycle } from "./goal-query-application.js";
+export { GoalReadApplication } from "./goal-query-application.js";
 export { GoalDecisionAttentionSync } from "./goal-decision-attention.js";
 
 export { readMolisWorkSnapshot, type MolisWorkSnapshotPorts } from "./board-snapshot-query.js";

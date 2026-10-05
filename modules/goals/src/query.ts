@@ -86,7 +86,6 @@ export class GoalsQueryService implements GoalsQueryApi {
 
   listContractRevisions(boardId: string) { return this.repository.listContractRevisions(boardId); }
   listLifecycleEvents(boardId: string) { return this.repository.listLifecycleEvents(boardId); }
-  listCoverageRevisions(boardId: string) { return this.repository.listCoverageRevisions(boardId); }
 
   getRisk(boardId: string, riskId: string) {
     return this.repository.getRisk(boardId, riskId);

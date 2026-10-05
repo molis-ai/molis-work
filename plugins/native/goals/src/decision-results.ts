@@ -6,7 +6,7 @@ import type { GoalsDecisionPresentationPrimitives } from "./decision-common-ui.j
 
 export interface RecentDecisionResult {
   event: GoalsDecisionEvent;
-  kind: "risk" | "rewire" | "goalTree" | "contract" | "candidate" | "review";
+  kind: "risk" | "goalTree";
   kindLabel: string;
   state: string;
   title: string;
@@ -45,10 +45,6 @@ function recentDecisionResults(view: GoalsDecisionView): RecentDecisionResult[] 
   const goalById = new Map(allGoals.map((item) => [item.goal.goal_id, item]));
   const riskById = new Map(view.snapshot.risks.map((risk) => [risk.risk_id, risk]));
   const goalTreeById = new Map(view.snapshot.goal_tree_proposals.map((proposal) => [proposal.proposal_id, proposal]));
-  const reviewById = new Map(view.snapshot.reviews.map((review) => [review.review_id, review]));
-  const reviewObligationById = new Map(
-    view.snapshot.review_obligations.map((obligation) => [obligation.obligation_id, obligation]),
-  );
 
   for (const event of view.events) {
     if (results.length >= 6) break;
@@ -82,36 +78,6 @@ function recentDecisionResults(view: GoalsDecisionView): RecentDecisionResult[] 
               effect: stateEffect,
             })],
         links,
-      });
-      continue;
-    }
-    if (event.type === "review.submitted") {
-      const review = reviewById.get(event.object_id);
-      if (!review) continue;
-      seen.add(seenKey);
-      const goal = goalById.get(review.goal_id);
-      const runtimeReview = reviewObligationById.get(review.obligation_id)?.role !== "human_approver";
-      const verdictLabels: Record<string, string> = {
-        pass: L("已通过"),
-        needs_changes: L("需要修改"),
-        fail: L("未通过"),
-        inconclusive: L("证据不足"),
-      };
-      results.push({
-        event,
-        kind: "review",
-        kindLabel: runtimeReview ? L("Runtime 复核") : L("结果确认"),
-        state: verdictLabels[review.verdict] ?? review.verdict,
-        title: goal?.goal.title ?? review.goal_id,
-        effects: [runtimeReview
-          ? review.verdict === "pass"
-            ? L("本次 Runtime 复核已通过；它不能代替用户验收，Goal 是否完成仍由全部完成条件共同决定。")
-            : L("本次 Runtime 复核没有通过；后续工作会保留检查者的判断和依据。")
-          : review.verdict === "pass"
-            ? L("本次用户确认已通过；Goal 是否完成仍由全部完成条件共同决定。")
-            : L("本次结果没有确认通过；后续工作会保留你的判断和依据。")],
-        links: goal ? [{ href: goalResultHref(goal, `goal-requirements-${goal.goal.goal_id}`), label: L("查看「{title}」的完成情况", { title: goal.goal.title }) }] : [],
-        reasonLabel: runtimeReview ? L("复核理由") : undefined,
       });
       continue;
     }

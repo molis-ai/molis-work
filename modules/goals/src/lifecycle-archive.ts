@@ -8,16 +8,12 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/goals";
 
 import { GoalsCommandContext, requestHash } from "./command-support.js";
-import type { GoalArchiveHooks } from "./lifecycle-ports.js";
 import { rowText } from "./repository.js";
 
 type Row = Record<string, unknown>;
 
 export class GoalArchiveCommands {
-  constructor(
-    private readonly context: GoalsCommandContext,
-    private readonly hooks: GoalArchiveHooks,
-  ) {}
+  constructor(private readonly context: GoalsCommandContext) {}
 
   setArchived(
     boardId: string,
@@ -111,8 +107,6 @@ export class GoalArchiveCommands {
         deactivated_relation_ids: [],
         restored_relation_ids: [],
         pending_relation_ids: [],
-        blocking_claim_ids: [],
-        blocking_run_ids: [],
       });
       if (input.trashed && goal.trashed_at) {
         const at = this.context.now().toISOString();
@@ -135,20 +129,6 @@ export class GoalArchiveCommands {
 
       const now = this.context.now().toISOString();
       if (input.trashed) {
-        const blocking = this.hooks.blockingWork?.(boardId, input.goal_id, now) ?? {
-          claim_ids: [],
-          run_ids: [],
-        };
-        if (blocking.claim_ids.length > 0 || blocking.run_ids.length > 0) {
-          const outcome = {
-            ...emptyResult("blocked"),
-            blocking_claim_ids: blocking.claim_ids,
-            blocking_run_ids: blocking.run_ids,
-            observed_event_cursor: this.context.repository.eventCursor(boardId),
-          };
-          this.context.remember(boardId, write.actor_id, "set_goal_trashed", write.idempotency_key, hash, outcome, now);
-          return { ...outcome, replayed: false };
-        }
         const activeRelations = this.context.repository.db.prepare(`
           SELECT relation_id FROM goal_relations
           WHERE board_id = ? AND state = 'active'
@@ -202,8 +182,6 @@ export class GoalArchiveCommands {
           deactivated_relation_ids: deactivatedRelationIds,
           restored_relation_ids: [],
           pending_relation_ids: [],
-          blocking_claim_ids: [],
-          blocking_run_ids: [],
           observed_event_cursor: cursor,
         };
         this.context.remember(boardId, write.actor_id, "set_goal_trashed", write.idempotency_key, hash, outcome, now);
@@ -280,8 +258,6 @@ export class GoalArchiveCommands {
         deactivated_relation_ids: [],
         restored_relation_ids: restoredRelationIds,
         pending_relation_ids: pendingRelationIds,
-        blocking_claim_ids: [],
-        blocking_run_ids: [],
         observed_event_cursor: cursor,
       };
       this.context.remember(boardId, write.actor_id, "set_goal_trashed", write.idempotency_key, hash, outcome, now);

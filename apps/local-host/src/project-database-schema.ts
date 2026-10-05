@@ -3,13 +3,10 @@ import {
   GOAL_BOARDS_SCHEMA_SQL,
   GOAL_EVENT_FACTS_SCHEMA_SQL,
   GOAL_EVENT_STATE_SCHEMA_SQL,
-  GOAL_IMPACTS_SCHEMA_SQL,
   GOAL_INPUT_BINDINGS_SCHEMA_SQL,
   GOALS_SCHEMA_SQL,
 } from "@molis-ai/molis-work-module-goals";
-import { EXECUTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-execution";
-import { EVIDENCE_SCHEMA_SQL } from "@molis-ai/molis-work-module-evidence-verification";
-import { CLARIFICATION_SCHEMA_SQL, GOVERNANCE_SCHEMA_SQL } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GOVERNANCE_SCHEMA_SQL } from "@molis-ai/molis-work-module-governance-collaboration";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { SOURCES_SCHEMA_SQL } from "@molis-ai/molis-work-module-sources";
@@ -38,18 +35,14 @@ import { CASEBOOK_SCHEMA_SQL } from "./casebook/journal.js";
  * when they open (`IF NOT EXISTS`), which is a no-op here; changing any of them means a new version.
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: 2,
+  version: 3,
   schema: [
     GOAL_BOARDS_SCHEMA_SQL,
     GOALS_SCHEMA_SQL,
     GOAL_INPUT_BINDINGS_SCHEMA_SQL,
-    GOAL_IMPACTS_SCHEMA_SQL,
     GOAL_EVENT_FACTS_SCHEMA_SQL,
     GOAL_EVENT_STATE_SCHEMA_SQL,
-    EXECUTION_SCHEMA_SQL,
-    EVIDENCE_SCHEMA_SQL,
     GOVERNANCE_SCHEMA_SQL,
-    CLARIFICATION_SCHEMA_SQL,
     ARTIFACTS_SCHEMA_SQL,
     PROCESS_ITEMS_SCHEMA_SQL,
     LOCAL_JOURNAL_SCHEMA_SQL,

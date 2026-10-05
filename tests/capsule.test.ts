@@ -50,11 +50,9 @@ function goal(goalId: string, title: string, fulfillmentState: "unmet" | "satisf
 function webGoal(
   record: GoalRecord,
   workState: WebGoalView["work_state"],
-  options: Partial<WebGoalView> = {},
+  { humanDecision = false, ...options }: Partial<WebGoalView> & { humanDecision?: boolean } = {},
 ): WebGoalView {
-  const hasHumanDecision = options.review_obligations?.some((item) =>
-    item.role === "human_approver" && item.state === "pending"
-  ) ?? false;
+  const hasHumanDecision = humanDecision;
   const displayStatus: GoalDisplayStatus = record.fulfillment_state === "satisfied"
     ? "completed"
     : hasHumanDecision
@@ -84,7 +82,7 @@ function webGoal(
         status: displayStatus === "in_progress" ? "active" as const : displayStatus === "blocked" ? "blocked" as const : "ready" as const,
         target_type: hasHumanDecision ? "review_obligation" : "goal",
         target_id: hasHumanDecision
-          ? options.review_obligations?.find((item) => item.role === "human_approver" && item.state === "pending")?.obligation_id ?? record.goal_id
+          ? `decision-${record.goal_id}`
           : record.goal_id,
         reasons: [],
       };
@@ -120,13 +118,7 @@ function webGoal(
     reasons: [],
     active_claim_actor: null,
     active_claim: null,
-    claims: [],
-    runs: [],
-    evidence: [],
-    review_obligations: [],
-    reviews: [],
     risks: [],
-    impacts: [],
     relations: [],
     input_bindings: [],
     policy_bindings: [],
@@ -140,8 +132,6 @@ function webGoal(
       human_approval: false,
       max_lease_seconds: 1800,
     },
-    passed_criteria: [],
-    pending_reviews: [],
     ...options,
   };
 }
@@ -159,18 +149,7 @@ function view(goals: WebGoalView[], activeGoalId: string | null): MolisWorkWebVi
       cursor: 9,
       goals: goals.map((item) => item.goal),
       relations: [],
-      impacts: [],
       risks: [],
-      claims: goals.flatMap((item) => item.claims),
-      runs: goals.flatMap((item) => item.runs),
-      evidence: goals.flatMap((item) => item.evidence),
-      review_obligations: goals.flatMap((item) => item.review_obligations),
-      reviews: goals.flatMap((item) => item.reviews),
-      candidates: [],
-      contract_proposals: [],
-      rewires: [],
-      clarification_sessions: [],
-      clarification_turns: [],
       goal_tree_proposals: [],
       planning_method_packs: [],
     },
@@ -197,32 +176,13 @@ function ready(record: GoalRecord, _nextAction?: string): { goal_id: string } {
   return directoryItem(record);
 }
 
-function activeRun(goalId: string, startedAt: string, actorId = "runtime-a") {
-  return {
-    run_id: `run-${goalId}`,
-    board_id: "board-capsule",
-    goal_id: goalId,
-    claim_id: `claim-${goalId}`,
-    actor_id: actorId,
-    role: "executor" as const,
-    state: "started" as const,
-    block_reason: null,
-    output_refs: [],
-    discovery_refs: [],
-    started_at: startedAt,
-    ended_at: null,
-  };
-}
-
-test("capsule projects a real active Run as Working", () => {
+test("capsule projects in-progress work as Working", () => {
   const record = goal("working-goal", "实现真实状态胶囊");
-  const item = webGoal(record, "executing", {
-    runs: [activeRun(record.goal_id, "2026-08-24T09:00:00.000Z")],
-  });
+  const item = webGoal(record, "executing");
   const result = buildCapsuleSnapshot(view([item], record.goal_id), [], new Date("2026-08-24T09:03:00.000Z"));
   assert.equal(result.state.kind, "working");
   assert.equal(result.state.goal_title, record.title);
-  assert.equal(result.state.status_since, "2026-08-24T09:00:00.000Z");
+  assert.equal(result.state.status_since, null);
   assert.equal(result.state.action_path, "/projects/project-capsule/goals/working-goal");
   assert.equal(result.state.menu_bar_title, "进行中");
   assert.equal(result.default_tab, "in_progress");
@@ -246,9 +206,7 @@ test("capsule ignores a stale current Goal and shows the real running Goal", () 
   const staleRecord = goal("stale-goal", "上次查看的目标");
   const liveRecord = goal("live-goal", "真正正在推进的目标");
   const stale = webGoal(staleRecord, "execution_pending");
-  const live = webGoal(liveRecord, "executing", {
-    runs: [activeRun(liveRecord.goal_id, "2026-08-24T09:02:00.000Z")],
-  });
+  const live = webGoal(liveRecord, "executing");
 
   const result = buildCapsuleSnapshot(
     view([stale, live], staleRecord.goal_id),
@@ -291,45 +249,11 @@ test("capsule does not present an unclaimed prerequisite blocker as current work
   assert.deepEqual(result.tabs.map((tab) => tab.kind), ["continue", "blocked"]);
 });
 
-test("capsule never replaces a current blocker with a released Run's historical reason", () => {
-  const record = goal("historical-run-blocker", "范围已经纠偏的目标");
-  const historicalRun = {
-    ...activeRun(record.goal_id, "2026-08-24T08:30:00.000Z"),
-    state: "completed" as const,
-    block_reason: "旧范围要求补 Agent 成本和返工证据",
-    ended_at: "2026-08-24T08:45:00.000Z",
-  };
-  const item = webGoal(record, "execution_blocked", {
-    runs: [historicalRun],
-    reasons: [{
-      code: "risk.blocks_completion",
-      severity: "blocker",
-      subject_type: "risk",
-      subject_id: "current-coverage-risk",
-      message: "当前仍需处理来源覆盖风险",
-      remediation: "先处理当前覆盖风险，再重新完成。",
-    }],
-  });
-
-  const result = buildCapsuleSnapshot(
-    view([item], record.goal_id),
-    [],
-    new Date("2026-08-24T09:03:00.000Z"),
-  );
-
-  assert.equal(result.state.kind, "blocked");
-  assert.doesNotMatch(result.state.blocker ?? "", /Agent 成本和返工证据/);
-});
-
 test("capsule keeps an active current Goal focused and reports other running work", () => {
   const focusedRecord = goal("focused-live-goal", "用户正在关注的工作");
   const newerRecord = goal("newer-live-goal", "稍后启动的并行工作");
-  const focused = webGoal(focusedRecord, "executing", {
-    runs: [activeRun(focusedRecord.goal_id, "2026-08-24T09:00:00.000Z")],
-  });
-  const newer = webGoal(newerRecord, "executing", {
-    runs: [activeRun(newerRecord.goal_id, "2026-08-24T09:02:00.000Z", "runtime-b")],
-  });
+  const focused = webGoal(focusedRecord, "executing");
+  const newer = webGoal(newerRecord, "executing");
 
   const result = buildCapsuleSnapshot(
     view([focused, newer], focusedRecord.goal_id),
@@ -351,22 +275,8 @@ test("capsule shows work needing the user before unrelated running work when foc
   const staleRecord = goal("stale-ready-goal", "已经不在工作的当前目标");
   const decisionRecord = goal("needs-user-goal", "确认关键结果");
   const liveRecord = goal("background-live-goal", "并行推进其他工作");
-  const decision = webGoal(decisionRecord, "review_pending", {
-    review_obligations: [{
-      obligation_id: "needs-user-review",
-      board_id: "board-capsule",
-      goal_id: decisionRecord.goal_id,
-      role: "human_approver",
-      required_count: 1,
-      independence_rule: "user",
-      criterion_scope: ["needs-user-goal-done"],
-      state: "pending",
-      created_at: "2026-08-24T09:02:30.000Z",
-    }],
-  });
-  const live = webGoal(liveRecord, "executing", {
-    runs: [activeRun(liveRecord.goal_id, "2026-08-24T09:02:00.000Z")],
-  });
+  const decision = webGoal(decisionRecord, "review_pending", { humanDecision: true });
+  const live = webGoal(liveRecord, "executing");
 
   const result = buildCapsuleSnapshot(
     view([webGoal(staleRecord, "execution_pending"), decision, live], staleRecord.goal_id),
@@ -387,19 +297,7 @@ test("capsule shows work needing the user before unrelated running work when foc
 
 test("capsule prioritizes a pending user decision and deep-links to that Goal", () => {
   const record = goal("decision-goal", "确认胶囊信息结构");
-  const item = webGoal(record, "review_pending", {
-    review_obligations: [{
-      obligation_id: "human-decision",
-      board_id: "board-capsule",
-      goal_id: record.goal_id,
-      role: "human_approver",
-      required_count: 1,
-      independence_rule: "user",
-      criterion_scope: ["decision-goal-done"],
-      state: "pending",
-      created_at: "2026-08-24T09:04:00.000Z",
-    }],
-  });
+  const item = webGoal(record, "review_pending", { humanDecision: true });
   const result = buildCapsuleSnapshot(view([item], record.goal_id), [], new Date("2026-08-24T09:05:00.000Z"));
   assert.equal(result.state.kind, "needs_you");
   assert.match(result.state.current, /轮到你决定/);
@@ -446,28 +344,7 @@ test("capsule groups every actionable Goal into one horizontal status tab", () =
 });
 
 test("capsule shows a real completion briefly, then the authoritative next actionable Goal", () => {
-  const completed = webGoal(goal("completed-goal", "完成胶囊状态链", "satisfied"), "satisfied", {
-    evidence: [{
-      evidence_id: "evidence-complete",
-      board_id: "board-capsule",
-      goal_id: "completed-goal",
-      criterion_ids: ["completed-goal-done"],
-      producer_actor_id: "runtime-a",
-      run_id: "run-complete",
-      review_id: null,
-      kind: "test",
-      locator: "test://capsule",
-      locator_status: "unverified",
-      locator_validation_reason: "测试夹具中的不透明 locator",
-      locator_checked_at: null,
-      locator_workspace_id: null,
-      digest: "三种真实状态已经通过检查",
-      captured_at: "2026-08-24T09:09:59.000Z",
-      result: "passed",
-      lifecycle_state: "effective",
-      correction: null,
-    }],
-  });
+  const completed = webGoal(goal("completed-goal", "完成胶囊状态链", "satisfied"), "satisfied");
   const nextRecord = goal("next-goal", "补齐恢复与发布");
   const next = webGoal(nextRecord, "execution_pending");
   const currentView = view([completed, next], "completed-goal");
@@ -489,7 +366,6 @@ test("capsule shows a real completion briefly, then the authoritative next actio
     new Date("2026-08-24T09:10:06.000Z"),
   );
   assert.equal(justCompleted.state.kind, "complete");
-  assert.equal(justCompleted.state.just_completed, "三种真实状态已经通过检查");
   assert.equal(justCompleted.state.action_path, "/projects/project-capsule/goals/completed-goal");
   assert.equal(justCompleted.state.menu_bar_title, "已完成");
   assert.equal(justCompleted.default_tab, "completed");

@@ -75,8 +75,8 @@ export const artifactsActions = {
   bindPluginInput: onlyPeople(define<{ reference: ArtifactReference; plugin_id: string; port: string; restore?: boolean }, { inputs: ArtifactPluginInput[] }>("plugin_inputs.bind",
     "把这一版交给插件的输入", "让一个插件的输入端口固定读这一版，直到改回原来的来源；restore 为真时改回原来的来源", "command",
     object({ reference, plugin_id: id, port: id, restore: { type: "boolean" } }, ["reference", "plugin_id", "port"]), pluginInputsOutput, write)),
-  projectReference: define<{ reference: string; evidence_id?: string | null }, { filename: string; content_base64: string }>("references.open", "打开项目结果引用", "通过受限读取器读取 project:// 或历史相对路径引用；已验证 Evidence 的原工作区优先，不接受调用者提供目录", "query",
-    object({ reference: id, evidence_id: nullable(id) }, ["reference"]), object({ filename: text, content_base64: text }), [...read, "workspace:read"]),
+  projectReference: define<{ reference: string }, { filename: string; content_base64: string }>("references.open", "打开项目结果引用", "通过受限读取器读取当前工作区里的 project:// 或相对路径引用；不接受调用者提供目录", "query",
+    object({ reference: id }, ["reference"]), object({ filename: text, content_base64: text }), [...read, "workspace:read"]),
 };
 /**
  * A version in the 成果库 as the first station of a workflow run (artifact-positioning 五.1): any version starts a run with
@@ -93,7 +93,7 @@ export interface ArtifactActionPorts {
   importDocument(input: ArtifactFileImport | ArtifactExternalImport, caller: ActionExecutionContext): Promise<ArtifactImportResult>;
   importSources(): Record<string, boolean>;
   importConnections?(): ConnectorConnectionView[];
-  openProjectReference(input: { reference: string; evidence_id?: string | null }): Promise<{ filename: string; content_base64: string }>;
+  openProjectReference(input: { reference: string }): Promise<{ filename: string; content_base64: string }>;
   /** A Goal's title for 「被谁引用」, read by the host; null when the Goal is gone. */
   goalTitle?(goalId: string): string | null;
   /** A 成果 type's display name as its owner declares it (the side panel groups by it); null when undeclared. */

@@ -34,14 +34,6 @@
       "types": "./dist/modules/context-ledger.d.ts",
       "import": "./dist/modules/context-ledger.js"
     },
-    "./modules/evidence-verification": {
-      "types": "./dist/modules/evidence-verification.d.ts",
-      "import": "./dist/modules/evidence-verification.js"
-    },
-    "./modules/execution": {
-      "types": "./dist/modules/execution.d.ts",
-      "import": "./dist/modules/execution.js"
-    },
     "./modules/dataset": {
       "types": "./dist/modules/dataset.d.ts",
       "import": "./dist/modules/dataset.js"

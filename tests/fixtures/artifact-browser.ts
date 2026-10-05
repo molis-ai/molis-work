@@ -6,35 +6,25 @@ import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-hos
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
-import { insertHistoricalEvidence } from "../historical-sql-fixture.js";
 import { pinnedArtifact } from "./artifacts.js";
 
 const directory = mkdtempSync(join(tmpdir(), "molis-work-ar3-browser-"));
 const databasePath = join(directory, "fixture.db");
-writeFileSync(join(directory, "result.txt"), "AR3 browser fixture: 原始结果内容，打开不会改变 Goal 或 Evidence。\n");
+writeFileSync(join(directory, "result.txt"), "AR3 browser fixture: 原始结果内容，打开不会改变 Goal。\n");
 seedDemoBoard(databasePath);
 const store = new LocalProjectDatabase(databasePath);
 const coordinator = new GoalProjectApplication(store);
 coordinator.goals.commands.createGoal(DEMO_BOARD_ID, {
   goal_id: "AR3-REFERENCE", title: "结果引用迁移验收（测试数据）", outcome: "点击结果文件，读取原始内容",
-  why: "确认重组没有改变已有操作", business_logic: "打开文件不改变 Goal 与 Evidence 状态",
+  why: "确认重组没有改变已有操作", business_logic: "打开文件不改变 Goal 状态",
   definition_state: "accepted", decomposition_state: "closed_leaf",
   acceptance_criteria: [{ criterion_id: "AR3-REF-C1", statement: "结果文件可以打开", decision_method: "inspection",
     pass_condition: "读到原始中文内容", required_evidence: ["artifact"] }],
 }, { actor_id: "fixture-user", idempotency_key: "fixture-goal" });
 for (const [key, locator] of [["file", "project://result.txt"], ["opaque", "artifact://opaque-reference-ar3"], ["external", "https://example.com/report"]]) {
-  insertHistoricalEvidence(store.db, {
-    evidence_id: `fixture-${key}`,
-    board_id: DEMO_BOARD_ID,
-    goal_id: "AR3-REFERENCE",
-    producer_actor_id: "fixture-user",
-    criterion_ids: ["AR3-REF-C1"],
-    kind: "artifact",
-    locator,
-    result: "inconclusive",
-    locator_workspace_id: "fixture-workspace",
-    locator_workspace_root: directory,
-  });
+  coordinator.goalInputs.register({ binding_id: `fixture-${key}`, board_id: DEMO_BOARD_ID, goal_id: "AR3-REFERENCE", input_name: `结果引用 ${key}`,
+    source_type: "reference", source_ref: locator, snapshot_digest: null, state: "confirmed", reason: "fixture", created_by: "fixture-user",
+    created_at: new Date().toISOString() });
 }
 for (const [artifact_id, version, title] of [
   ["架构迁移核对报告（测试数据）", 1, "原始结果：目标、证据和引用保持不变"],

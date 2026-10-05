@@ -275,13 +275,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     document.addEventListener("click", async (event) => {
       const target = event.target?.nodeType === 1 ? event.target : null;
       if (!target) return;
-      const humanReviewJump = target.closest("[data-human-review-jump]");
-      if (humanReviewJump) {
-        const reviewForm = humanReviewJump.closest(".human-review-list")?.querySelector("[data-human-review-form]");
-        reviewForm?.scrollIntoView({ block: "start" });
-        requestAnimationFrame(() => reviewForm?.querySelector('[name="verdict"]')?.focus({ preventScroll: true }));
-        return;
-      }
       const activeProjectMenu = target.closest("[data-project-menu]");
       projectMenus.forEach((menu) => {
         if (menu.open && menu !== activeProjectMenu) menu.open = false;

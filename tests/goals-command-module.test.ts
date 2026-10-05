@@ -11,7 +11,6 @@ import {
 
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { insertHistoricalClaim, insertHistoricalRun } from "./historical-sql-fixture.js";
 
 function acceptedGoal(goalId: string, title: string, outcome: string) {
   return {

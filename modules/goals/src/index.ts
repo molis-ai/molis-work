@@ -9,7 +9,6 @@ import type {
   GoalsLifecycleApi,
   GoalsQueryApi,
   GoalsActorWrite,
-  GoalsImpactApi,
   GoalPolicy,
   UpdateProjectGuidanceInput,
 } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -24,12 +23,8 @@ import {
 } from "./goal-commands.js";
 import { GuidanceCommands } from "./guidance-commands.js";
 import { ProjectPolicyCommands } from "./policy-commands.js";
-import { GoalImpactRepository } from "./impact-repository.js";
 import { ConfirmedRelationCommands } from "./confirmed-relations.js";
-import {
-  GoalLifecycleCommands,
-  type GoalsLifecycleHooks,
-} from "./lifecycle-commands.js";
+import { GoalLifecycleCommands } from "./lifecycle-commands.js";
 import { GoalsPlanningEngine } from "./planning/engine.js";
 import { GoalsQueryService } from "./query.js";
 import { GoalEventFacts } from "./event-facts.js";
@@ -61,8 +56,7 @@ export const packageDescriptor = {
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
-export interface GoalsModuleHooks
-  extends Pick<GoalsLifecycleHooks, "blockingWork"> {
+export interface GoalsModuleHooks {
   validateRelationGraph?(boardId: string, input: AddGoalRelationInput): GoalRelationGraphIssue | null;
 }
 
@@ -71,7 +65,6 @@ export interface GoalsModuleOptions extends GoalsCommandContextOptions {
 }
 
 export class GoalsModule {
-  readonly impacts: GoalsImpactApi;
   readonly repository: GoalsRepository;
   readonly commands: GoalsCommandApi;
   readonly lifecycle: GoalsLifecycleApi;
@@ -86,18 +79,13 @@ export class GoalsModule {
   ) {
     this.repository = new GoalsRepository(db);
     const context = new GoalsCommandContext(this.repository, options);
-    const impactQuery = new GoalImpactRepository(db);
-    this.impacts = {
-      list: (boardId) => impactQuery.list(boardId),
-      get: (boardId, bindingId) => impactQuery.get(boardId, bindingId),
-    };
     const query = new GoalsQueryService(this.repository, options);
     this.planning = new GoalsPlanningEngine(
       context,
       options.personalPlanningMethodPacks,
     );
     this.events = new GoalEventFacts(context);
-    const lifecycle = new GoalLifecycleCommands(context, hooks);
+    const lifecycle = new GoalLifecycleCommands(context);
     const goals = new GoalCommands(context, {
       validateRelationGraph: hooks.validateRelationGraph,
     });
@@ -134,7 +122,6 @@ export class GoalsModule {
       activeReplacement: (boardId, goalId) => query.activeReplacement(boardId, goalId),
       listLifecycleEvents: boardId => query.listLifecycleEvents(boardId),
       listContractRevisions: boardId => query.listContractRevisions(boardId),
-      listCoverageRevisions: boardId => query.listCoverageRevisions(boardId),
       getRelation: (boardId, relationId) => query.getRelation(boardId, relationId),
       policyBindingState: (boardId, bindingId) => query.policyBindingState(boardId, bindingId),
       criterionGoalId: criterionId => query.criterionGoalId(criterionId),
@@ -157,11 +144,7 @@ export class GoalsModule {
 
 export { GoalsCommandError, type GoalsErrorFactory } from "./errors.js";
 export { GOAL_BOARDS_SCHEMA_SQL, GOALS_SCHEMA_SQL } from "./schema.js";
-export { GoalImpactRepository, GOAL_IMPACTS_SCHEMA_SQL } from "./impact-repository.js";
-export {
-  GoalLifecycleCommands,
-  type GoalsLifecycleHooks,
-} from "./lifecycle-commands.js";
+export { GoalLifecycleCommands } from "./lifecycle-commands.js";
 export { GoalEventFacts } from "./event-facts.js";
 export { GOAL_EVENT_FACTS_SCHEMA_SQL } from "./event-facts-schema.js";
 export { GOAL_EVENT_STATE_SCHEMA_SQL } from "./event-state-schema.js";
@@ -231,18 +214,12 @@ export { createPersonalPlanningMethodSchema, PersonalPlanningMethods, readPerson
 /** Read-only Module assembly; callers do not construct Goals repositories. */
 export function createGoalReadServices(db: GoalsSqliteDatabase): {
   query: GoalsQueryApi;
-  impacts: GoalsImpactApi;
   events: Pick<GoalEventFactsApi, "readConfig" | "listEvents" | "listLatestEvents" | "listLatestTimeline" | "listLatestReports" | "readEvent" | "readCurrentRequirements" | "isEventStateOwner" | "readWorkState">;
 } {
   const repository = new GoalsRepository(db);
   const context = new GoalsCommandContext(repository);
-  const impacts = new GoalImpactRepository(db);
   return {
     query: new GoalsQueryService(repository),
-    impacts: {
-      list: (boardId) => impacts.list(boardId),
-      get: (boardId, bindingId) => impacts.get(boardId, bindingId),
-    },
     events: new GoalEventFacts(context),
   };
 }

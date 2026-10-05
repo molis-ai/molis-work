@@ -21,17 +21,7 @@ function createMomentumRenderer(primitives: GoalsMomentumUiPrimitives) {
       created_at: item.goal.created_at,
       updated_at: item.goal.updated_at,
       completed: item.goal.fulfillment_state === "satisfied" || item.status === "archived" || item.work_state === "archived",
-      acceptance_criteria_count: item.goal.acceptance_criteria.length,
-      passed_criteria_count: item.passed_criteria.length,
       reasons: (item.reasons ?? []).map((reason) => ({ code: reason.code })),
-      runs: item.runs.map((run) => ({
-        role: run.role,
-        state: run.state,
-        started_at: run.started_at,
-        ended_at: run.ended_at,
-      })),
-      evidence: item.evidence.map((evidence) => ({ captured_at: evidence.captured_at })),
-      reviews: item.reviews.map((review) => ({ submitted_at: review.submitted_at })),
       risks: item.risks.map((risk) => ({
         risk_id: risk.risk_id,
         state: risk.state,

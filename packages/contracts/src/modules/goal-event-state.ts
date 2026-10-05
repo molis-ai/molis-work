@@ -54,7 +54,6 @@ export const goalEventSystemOperations = [
   "event_owner_continued",
   "observation_note",
   "intent_created",
-  "legacy_completion_imported",
 ] as const;
 export type GoalEventSystemOperation = (typeof goalEventSystemOperations)[number];
 
@@ -65,7 +64,7 @@ export interface GoalEventStateOwnerView {
   kind: "event_work";
   adopted_at: string;
   adopted_by: string;
-  source: "intent" | "configuration" | "continue" | "migration";
+  source: "intent" | "configuration" | "continue";
 }
 
 export interface GoalEventScope {
@@ -495,32 +494,7 @@ export type GoalEventSystemPayload =
   | {
       operation: "intent_created";
       source_kind: "web" | "onboarding" | "feed" | "runtime" | "tree";
-    }
-  | {
-      operation: "legacy_completion_imported";
-      journal_type: string | null;
-      journal_seq: number | null;
-      journal_at: string | null;
-      evidence_ids: string[];
-      review_ids: string[];
-      contract_accepted_at: string | null;
-      contract_accepted_by: string | null;
     };
-
-export interface GoalEventImportedCompletion {
-  source: "legacy_fulfillment";
-  imported_at: string;
-  label: "迁入的历史完成";
-  historical: {
-    journal_type: string | null;
-    journal_seq: number | null;
-    journal_at: string | null;
-    evidence_ids: string[];
-    review_ids: string[];
-    contract_accepted_at: string | null;
-    contract_accepted_by: string | null;
-  };
-}
 
 export interface RecordGoalNoteInput {
   board_id: string;
@@ -541,5 +515,4 @@ export interface GoalEventWorkStateView {
   applied_decisions: GoalEventAppliedDecisionView[];
   current_decisions: GoalEventAppliedDecisionView[];
   closure: GoalEventClosureView | null;
-  imported_completion: GoalEventImportedCompletion | null;
 }

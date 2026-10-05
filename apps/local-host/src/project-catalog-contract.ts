@@ -22,7 +22,6 @@ export class MolisWorkProjectCatalogError extends Error {
       | "catalog.project_not_found"
       | "catalog.legacy_invalid"
       | "catalog.project_storage_invalid"
-      | "catalog.project_active_work"
       | "catalog.delete_confirmation_required"
       | "catalog.deletion_idempotency_conflict"
       | "catalog.demo_confirmation_required"

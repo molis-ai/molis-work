@@ -21,7 +21,7 @@ function listen(server: Server): Promise<string> {
   });
 }
 
-test("public document timeline is bounded, keeps journal, and does not label self-verification as user", async () => {
+test("public document timeline is bounded and keeps the journal", async () => {
   const fixture = materializeGoalEventHistory("legacy");
   const directory = fixture.directory;
   const databasePath = fixture.path;
@@ -39,16 +39,8 @@ test("public document timeline is bounded, keeps journal, and does not label sel
     assert.ok(coreBefore.items.length <= 1, "limit must bound mixed history");
 
     const snapshot = store.snapshot(DEMO_BOARD_ID);
-    const review = snapshot.reviews.find((item) => item.goal_id === "CORE");
-    assert.ok(review);
-    const obligation = snapshot.review_obligations.find((item) => item.obligation_id === review.obligation_id);
-    assert.equal(obligation?.role, "self_verifier");
     const coreHistory = await page("CORE", { limit: "100" });
-    const mappedReview = coreHistory.items.find((item) => item.original_id === review.review_id);
-    assert.ok(mappedReview);
-    assert.equal(mappedReview.source, "legacy_review");
-    assert.equal(mappedReview.actor_id, review.actor_id);
-    assert.notEqual(mappedReview.actor_kind, "user");
+    assert.ok(coreHistory.items.every((item) => item.source === "event_work" || item.source === "journal"));
 
     const fragment = await (await fetch(origin + "/api/goals/V1/document")).text();
     const renderedIds = [...fragment.matchAll(/data-timeline-item="([^"]+)"/g)].map((match) => match[1]);
@@ -89,19 +81,19 @@ test("public document timeline is bounded, keeps journal, and does not label sel
     const second = await page("CORE", { limit: "2", before_cursor: first.next_cursor ?? "" });
     assert.ok(first.items.length <= 2 && second.items.length <= 2);
     assert.equal(second.items.filter((item) => first.items.some((prior) => prior.item_id === item.item_id)).length, 0);
-    const body = await fetch(`${origin}/api/goals/CORE/history/${encodeURIComponent(mappedReview.item_id)}`);
+    const record = coreHistory.items.find((item) => item.source === "journal");
+    assert.ok(record, "the Goal's journal records stay in its history");
+    const body = await fetch(`${origin}/api/goals/CORE/history/${encodeURIComponent(record.item_id)}`);
     assert.equal(body.status, 200);
     const payload = await body.json() as { html: string; item: { original_id: string; source: string; actor_id: string } };
-    assert.equal(payload.item.source, "legacy_review");
-    assert.equal(payload.item.original_id, review.review_id);
-    assert.equal(payload.item.actor_id, review.actor_id);
-    assert.match(payload.html, /生命周期测试通过/);
-    assert.match(payload.html, new RegExp(review.actor_id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    const byOriginal = await fetch(`${origin}/api/goals/CORE/history/${encodeURIComponent(review.review_id)}`);
+    assert.equal(payload.item.source, "journal");
+    assert.equal(payload.item.original_id, record.original_id);
+    assert.match(payload.html, new RegExp(record.actor_id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    const byOriginal = await fetch(`${origin}/api/goals/CORE/history/${encodeURIComponent(record.original_id)}`);
     assert.equal(byOriginal.status, 200);
     const originalPayload = await byOriginal.json() as { html: string; item: { original_id: string; source: string } };
-    assert.equal(originalPayload.item.original_id, review.review_id);
-    assert.equal(originalPayload.item.source, "legacy_review");
+    assert.equal(originalPayload.item.original_id, record.original_id);
+    assert.equal(originalPayload.item.source, "journal");
     assert.equal(originalPayload.html, payload.html);
 
     const refresh = await fetch(`${origin}/api/board/refresh?view=current&goal_id=CORE`);

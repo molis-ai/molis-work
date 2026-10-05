@@ -202,12 +202,12 @@ export const createWorkbenchGoalsDialogsRenderer = createGoalsDialogsWorkbenchRe
 export const artifactWorkbench = createArtifactWorkbenchRenderer(workbenchUiHost, WORKBENCH_UI_SLOTS);
 
 export function createArtifactReferenceRenderer(primitives: ArtifactReferenceUiPrimitives) {
-  return (value: string, label = value, evidenceId?: string): string => workbenchUiHost.mount({
+  return (value: string, label = value): string => workbenchUiHost.mount({
     slot: WORKBENCH_UI_SLOTS.main,
     contribution: {
       contribution_id: ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID,
       surface: "reference",
-      model: { value, label, evidenceId, primitives },
+      model: { value, label, primitives },
     },
   }).html;
 }

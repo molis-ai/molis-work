@@ -6,7 +6,6 @@ export interface GoalsTreeItem {
   created_by?: string | null;
   status: GoalPresentationState;
   display_status: GoalDisplayStatus;
-  passed_criteria: string[];
   relations: GoalRelationRecord[];
 }
 export interface GoalsTreeView<T extends GoalsTreeItem = GoalsTreeItem> {

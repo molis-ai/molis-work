@@ -22,7 +22,7 @@ import { COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./c
 import { codingHistoryDigest, historySummaryMaterial, nextHistoryMode, summaryDigest } from "./history-digest.js";
 import { asAttachment, delegationViewOf, isDelegation } from "./delegation-view.js";
 import { OPEN_WAIT, appData, holdReason, waitViewOf, wakeBodyOf } from "./waits.js";
-import { CodingCooperationStore, DELEGATION_ENDED, DELEGATION_STATE_LABEL, MAX_DELEGATION_HOPS, type CodingDelegation } from "./cooperation.js";
+import { DELEGATION_ENDED, MAX_DELEGATION_HOPS } from "./cooperation.js";
 import { attachMentions, readWorkspaceFileCapability, symbolsIn, workspaceFileIndex } from "./mentions.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint, summaryCache } from "./session-window.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
@@ -220,7 +220,6 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   });
   const busy = new Set<string>();
   const summaries = summaryCache();
-  const cooperation = () => new CodingCooperationStore(context.services!.storage!);
   const fileIndexes = new Map<string, { at: number; value: Promise<{ files: string[]; truncated: boolean }> }>();
   const sessionTitle = (execution: CodingExecutionPorts) => (id: string) => { try { return execution.sessions.get(boardId, id).title; } catch { return undefined; } };
   /** Every fixed output of this project's Coding sessions, with the session it came from. */
@@ -231,9 +230,6 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     try { const record = execution.sessions.get(boardId, id); return { session_id: id, title: record.title, state: record.state, updated_at: record.updated_at }; }
     catch { return { session_id: id, title: null, state: null, updated_at: null }; }
   };
-  /** A delegation from before delegations went by letter: shown as it was, changed no more. */
-  const legacyView = (execution: CodingExecutionPorts, delegation: CodingDelegation) =>
-    ({ ...delegation, legacy: true as const, state_label: DELEGATION_STATE_LABEL[delegation.state], from: sideOf(execution, delegation.from_session), to: sideOf(execution, delegation.to_session) });
   /** The page's view of one delegation letter; the two ends are named as this project's Coding sessions. */
   const delegationView = (execution: CodingExecutionPorts, letter: AgentSessionMessage, letters: AgentSessionMessage[]) =>
     delegationViewOf(letter, letters, { codingOf: runtime => execution.sessions.byRuntimeSession(boardId, runtime)?.session_id ?? null, sideOf: id => sideOf(execution, id) });
@@ -252,7 +248,6 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   };
   /** The delegation named, as this session sees it; an action against an older revision is refused. */
   const delegationOf = async (record: CodingSessionRecord, api: Capabilities, execution: CodingExecutionPorts, id: string, expected: unknown) => {
-    if (cooperation().get(id)) throw new Error("这是迁移前的委派记录，只读，不能再操作");
     const letters = record.runtime_session_id ? await api.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id]) : [];
     const letter = letters.find(one => one.message_id === id && isDelegation(one));
     if (!letter) throw new Error("找不到这个委派");
@@ -1147,7 +1142,6 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     // Sessions working together: what this session delegated, what it was created for, and the sessions they touch.
     route("coding.delegations", async (request, api, execution) => {
       const record = selected(request, execution);
-      const legacy = cooperation().forSession(record.session_id);
       const mine = record.runtime_session_id;
       let letters = mine ? await api!.invoke(agent.readMessages, [record.runtime_id, mine]) : [];
       // A delegation whose receiving session is gone has failed; recorded once, then shown as such.
@@ -1155,10 +1149,9 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
         && !execution.sessions.byRuntimeSession(boardId, letter.to_session));
       for (const letter of gone) await api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, letter.message_id, "cancel", { event: "failed", note: "接收委派的会话已不存在" }]).catch(() => undefined);
       if (gone.length) letters = await api!.invoke(agent.readMessages, [record.runtime_id, mine!]);
-      const outgoing = [...letters.filter(letter => isDelegation(letter) && letter.from_session === mine).reverse().map(letter => delegationView(execution, letter, letters)),
-        ...legacy.outgoing.map(item => legacyView(execution, item))];
+      const outgoing = letters.filter(letter => isDelegation(letter) && letter.from_session === mine).reverse().map(letter => delegationView(execution, letter, letters));
       const received = letters.filter(letter => isDelegation(letter) && letter.to_session === mine).at(-1);
-      const incoming = received ? delegationView(execution, received, letters) : legacy.incoming ? legacyView(execution, legacy.incoming) : null;
+      const incoming = received ? delegationView(execution, received, letters) : null;
       const referenced = [...new Set(savedMaterials(context, record.session_id).flatMap(ref => /^coding-(report|changeset|plan):/.test(ref.artifact_id) ? [decodeURIComponent(ref.artifact_id.split(":")[1]!)] : []))]
         .filter(id => id !== record.session_id);
       const outputsBySession = new Map<string, Array<{ reference: { artifact_id: string; version: number }; kind: string }>>();
@@ -1182,7 +1175,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       const mine = await runtimeSessionOf(record, api!, execution, request.actor_id);
       // How far the work has been passed on: one more than the delegation this session was created for.
       const letters = await api!.invoke(agent.readMessages, [record.runtime_id, mine]);
-      const hops = letters.filter(letter => isDelegation(letter) && letter.to_session === mine).at(-1)?.hops ?? cooperation().forSession(record.session_id).incoming?.hops ?? 0;
+      const hops = letters.filter(letter => isDelegation(letter) && letter.to_session === mine).at(-1)?.hops ?? 0;
       if (hops + 1 > MAX_DELEGATION_HOPS) throw new Error(`委派最多转交 ${MAX_DELEGATION_HOPS} 层；这个会话本身已是第 ${hops} 层委派`);
       const at = new Date().toISOString();
       const target = execution.sessions.create({ board_id: boardId, session_id: crypto.randomUUID(), title: "委派：" + title, runtime_id: "prologue", at });

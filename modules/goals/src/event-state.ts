@@ -85,7 +85,6 @@ export class GoalEventState {
       applied_decisions: applied,
       current_decisions: currentEffectiveDecisions(applied),
       closure: this.records.latestClosure(boardId, goalId),
-      imported_completion: this.records.latestImportedCompletion(boardId, goalId),
     };
   }
 
@@ -93,7 +92,7 @@ export class GoalEventState {
     board_id: string;
     goal_id: string;
     actor_id: string;
-    source: "intent" | "configuration" | "continue" | "migration";
+    source: "intent" | "configuration" | "continue";
     outcome?: string;
   }): void {
     const at = this.context.now().toISOString();

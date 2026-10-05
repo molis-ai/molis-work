@@ -57,7 +57,7 @@ node --import tsx --test --test-concurrency=1 tests/goal-tree-event-flow.test.ts
   - Runtime 不能用自填的 `actor_kind=user`、`user_confirmed` 或对话摘要作为授权；不同范围的授权不能互相复用。
   - 跨 owner 写入走实际的决定事务，UI 与 MCP 不另写批准或完成规则。
   - 历史 self-verifier 不能展示为用户验收，旧决定不能变成当前任意变更的授权。
-- 改动后必跑：`node scripts/run-tests.mjs tests/governance-collaboration-module.test.ts tests/governance-provenance.test.ts tests/draft-dialogue-application.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/governance-collaboration-module.test.ts tests/governance-provenance.test.ts`
 - 相关手册：[docs/modules/governance-collaboration.md](../../docs/modules/governance-collaboration.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

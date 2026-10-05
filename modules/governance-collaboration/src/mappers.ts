@@ -2,8 +2,6 @@ import type {
   GoalTreeProposalDecisionRecord,
   GoalTreeProposalItemRecord,
   GoalTreeProposalRecord,
-  ReviewObligationRecord,
-  ReviewRecord,
 } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 export type GovernanceRow = Record<string, unknown>;
@@ -31,31 +29,6 @@ export function optionalText(value: unknown): string | null {
 
 function number(value: unknown): number {
   return Number(value ?? 0);
-}
-
-export function mapReviewObligation(row: GovernanceRow): ReviewObligationRecord {
-  return {
-    obligation_id: text(row.obligation_id),
-    board_id: text(row.board_id),
-    goal_id: text(row.goal_id),
-    contract_revision: Math.max(1, number(row.contract_revision) || 1),
-    role: text(row.role) as ReviewObligationRecord["role"],
-    required_count: number(row.required_count),
-    independence_rule: text(row.independence_rule),
-    criterion_scope: parseJson<string[]>(row.criterion_scope_json, []),
-    state: text(row.state) as ReviewObligationRecord["state"],
-    created_at: text(row.created_at),
-  };
-}
-
-export function mapReview(row: GovernanceRow): ReviewRecord {
-  return {
-    review_id: text(row.review_id), board_id: text(row.board_id), goal_id: text(row.goal_id),
-    obligation_id: text(row.obligation_id), claim_id: optionalText(row.claim_id),
-    actor_id: text(row.actor_id), verdict: text(row.verdict) as ReviewRecord["verdict"],
-    evidence_refs: parseJson<string[]>(row.evidence_refs_json, []),
-    reasoning: text(row.reasoning), submitted_at: text(row.submitted_at),
-  };
 }
 
 export function mapGoalTreeProposalDecision(row: GovernanceRow): GoalTreeProposalDecisionRecord {
@@ -100,9 +73,8 @@ export function mapGoalTreeProposal(
   decisions: GoalTreeProposalDecisionRecord[],
 ): GoalTreeProposalRecord {
   return {
-    proposal_id: text(row.proposal_id), board_id: text(row.board_id), origin: "native",
+    proposal_id: text(row.proposal_id), board_id: text(row.board_id),
     root_goal_id: optionalText(row.root_goal_id), submitted_by: text(row.submitted_by),
-    discovered_in_run_id: optionalText(row.discovered_in_run_id),
     submitted_session_id: optionalText(row.submitted_session_id),
     state: text(row.state) as GoalTreeProposalRecord["state"], version: number(row.version),
     supersedes_proposal_id: optionalText(row.supersedes_proposal_id),

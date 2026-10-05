@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { EN, L, htmlLang, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "@molis-ai/molis-work-app-local-host";
-import { explainGoalDecision } from "@molis-ai/molis-work-plugin-goals";
 import { createGoalStateExplainer, type GoalPresentationState } from "@molis-ai/molis-work-plugin-goals";
 const { explainWorkState } = createGoalStateExplainer(L);
 
@@ -47,7 +46,6 @@ test("every static renderer label has an English translation", () => {
     "../apps/workbench/src/onboarding-renderer.ts",
     "../apps/workbench/src/settings-navigation.ts", "../apps/workbench/src/settings-renderer.ts",
     "../apps/workbench/src/project-settings-stage.ts",
-    "../apps/workbench/src/human-review-renderer.ts",
     "../apps/workbench/src/focus-sections.ts", "../apps/workbench/src/project-settings-pages.ts",
     "../apps/workbench/src/immersive-shell.ts", "../apps/workbench/src/project-home.ts",
     "../apps/workbench/src/settings-directory.ts",
@@ -147,21 +145,6 @@ test("work state labels stay concise and professional", () => {
   assert.equal(explainWorkState("trashed").label, "回收站");
   assert.equal(explainWorkState("archived").label, "已归档");
 });
-
-test("all five decision types start with the user's question and explain missing evidence", () => {
-  const kinds = ["contract", "candidate", "rewire", "review", "risk"] as const;
-  for (const kind of kinds) {
-    const zh = explainGoalDecision(kind, L);
-    assert.match(zh.question, /[？?]$/);
-    assert.match(zh.insufficientEvidence, /不能可靠|不能可靠判断/);
-    runWithLocale("en", () => {
-      const en = explainGoalDecision(kind, L);
-      assert.match(en.question, /\?$/);
-      assert.match(en.insufficientEvidence, /not enough evidence/i);
-    });
-  }
-});
-
 
 test("Host request locales stay isolated across interleaved async rendering and rejected work", async () => {
   let enteredChinese!: () => void;

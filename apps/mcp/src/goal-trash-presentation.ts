@@ -8,16 +8,6 @@ export function presentGoalTrashResult<T extends GoalTrashResult>(
   work_state: GoalTrashPlacementView;
   next_action: { kind: string; message: string } | null;
 } {
-  if (result.status === "blocked") {
-    return {
-      ...result,
-      work_state: workState,
-      next_action: {
-        kind: "finish_active_work",
-        message: "这条 Goal 仍有未结束的工作；先在当前工作流结束或继续它，再由用户重新确认删除。",
-      },
-    };
-  }
   if (result.pending_relation_ids.length > 0) {
     return {
       ...result,

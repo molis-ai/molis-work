@@ -10,13 +10,6 @@ export function buildSessionHandoffPackage(input: {
   timeline: readonly SessionTimelineEvent[];
 }): string {
   const { goal, event_work: eventWork, event_facts: eventFacts } = input.goal_contract;
-  const historicalRuns = input.goal_contract.runs
-    .map((run) => `${run.run_id} · ${run.state} · ${run.role} · ${run.actor_id} · ${run.started_at}`);
-  const historicalEvidence = input.goal_contract.evidence
-    .map((item) => `${item.result} · ${item.kind}: ${item.locator}`);
-  const outputRefs = input.goal_contract.runs
-    .flatMap((run) => run.output_refs)
-    .filter((item, index, items) => item && items.indexOf(item) === index);
   const historicalRisks = input.goal_contract.risks
     .map((risk) => `${risk.description}；状态：${risk.state}；处理：${risk.treatment_plan}`);
   const timeline = minimalSessionContext(input.timeline);
@@ -83,9 +76,6 @@ export function buildSessionHandoffPackage(input: {
     "",
     ...(historicalAcceptance.length > 0 ? historicalAcceptance : ["- 无"]),
     "",
-    listSection("历史 Run", historicalRuns),
-    listSection("历史 Evidence", historicalEvidence),
-    listSection("产物与输出引用", outputRefs),
     listSection("历史 Risk", historicalRisks),
     "## 最近 Session 上下文",
     "",

@@ -15,17 +15,7 @@ export interface GoalMomentumGoalInput {
   created_at: string;
   updated_at: string;
   completed: boolean;
-  acceptance_criteria_count: number;
-  passed_criteria_count: number;
   reasons: Array<{ code: string }>;
-  runs: Array<{
-    role: string;
-    state: string;
-    started_at: string;
-    ended_at: string | null;
-  }>;
-  evidence: Array<{ captured_at: string }>;
-  reviews: Array<{ submitted_at: string }>;
   risks: Array<{
     risk_id: string;
     state: string;

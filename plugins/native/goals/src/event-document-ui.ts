@@ -106,7 +106,7 @@ export function renderGoalEventDocument(
 function currentJudgment(state: GoalEventStateView | undefined, L: GoalsDocumentUiPrimitives["translate"], doc?: GoalEventDocumentView | null): { lead: string; action?: string; form?: string; reader?: string } {
   if (!state) return { lead: L("正在读取当前事实") };
   if (!state.owner) return { lead: L("阅读原来的说明、要求和历史。这里不能写入。") };
-  if (state.work_status === "completed") return { lead: state.imported_completion?.label || state.closure?.result || state.agreement.outcome || L("已有完成结论") };
+  if (state.work_status === "completed") return { lead: state.closure?.result || state.agreement.outcome || L("已有完成结论") };
   if (state.work_status === "cancelled") return { lead: L("已取消，不会被普通记录自动恢复。") };
   const pending = state.pending_decisions[0];
   if (pending) return { lead: pending.question, action: L("作出决定"), form: "decision" };

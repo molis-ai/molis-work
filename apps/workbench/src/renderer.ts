@@ -233,8 +233,8 @@ function formatDate(value: string | null | undefined): string {
 
 const artifactReferenceRenderer = createArtifactReferenceRenderer({ escape: escapeHtml, icon, text: L });
 
-function renderReference(value: string, label = value, evidenceId?: string): string {
-  return artifactReferenceRenderer(value, label, evidenceId);
+function renderReference(value: string, label = value): string {
+  return artifactReferenceRenderer(value, label);
 }
 
 function renderList(values: string[], empty: string): string {
@@ -268,7 +268,7 @@ const { renderChildProgress, renderContractCoverage } = createWorkbenchGoalsCont
   subsectionHeading, explainWorkState, explainParentCompletion,
 });
 
-const { renderRiskWorkbench, renderImpactWorkbench } = createWorkbenchGoalsSafetyRenderer({
+const { renderRiskWorkbench } = createWorkbenchGoalsSafetyRenderer({
   translate: L, escapeHtml, formatDate, icon, currentLocale, renderReference, renderList,
 });
 
@@ -324,7 +324,6 @@ function renderGoalFactors(item: WebGoalView, view: MolisWorkWebView): string {
   return goalsFactorsRenderer(item, {
     relationsHtml: renderRelations(item, view, Boolean(item.event_document?.state.owner)),
     risksHtml: renderRiskWorkbench(item, view, true, false),
-    impactsHtml: renderImpactWorkbench(item, true, false),
     policyHtml: renderPolicyEditor(item),
   });
 }

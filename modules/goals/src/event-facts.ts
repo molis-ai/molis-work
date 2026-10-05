@@ -503,7 +503,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
     board_id: string;
     goal_id: string;
     actor_id: string;
-    source: "intent" | "configuration" | "continue" | "migration";
+    source: "intent" | "configuration" | "continue";
     outcome?: string;
   }): void {
     this.state.adoptOwner(input);

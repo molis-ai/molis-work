@@ -14,10 +14,10 @@ const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { 
 const shapeOf = (path: string) => { const db = new DatabaseSync(path, { readOnly: true }); try { return describeSqliteSchema(db); } finally { db.close(); } };
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of every owner's creation
-// statements. The fixture is that schema as of version 2: changing any owner's tables means a new version and a new
+// statements. The fixture is that schema as of version 3: changing any owner's tables means a new version and a new
 // fixture, never a silent drift.
-test("the project database baseline is version 2 and every owner's current tables", () => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 2);
+test("the project database baseline is version 3 and every owner's current tables", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 3);
   assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(readFileSync(new URL("./fixtures/project-database-schema.sql", import.meta.url), "utf8")));
 });
 

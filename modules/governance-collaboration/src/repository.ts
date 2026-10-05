@@ -1,21 +1,15 @@
-import type { StoredModuleEvent } from "@molis-ai/molis-work-contracts/platform/storage";
 import type {
   GoalTreeProposalDecisionRecord,
   GoalTreeProposalItemRecord,
   GoalTreeProposalRecord,
   GovernanceSnapshot,
-  ReviewObligationRecord,
-  ReviewRecord,
 } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 import {
   json,
-  parseJson,
   mapGoalTreeProposal,
   mapGoalTreeProposalDecision,
   mapGoalTreeProposalItem,
-  mapReview,
-  mapReviewObligation,
   text,
   type GovernanceRow,
 } from "./mappers.js";
@@ -37,15 +31,6 @@ export interface GovernanceSqliteDatabase {
 export class GovernanceRepository {
   constructor(private readonly db: GovernanceSqliteDatabase) {}
 
-  listLifecycleEvents(boardId: string): StoredModuleEvent[] {
-    return (this.db.prepare(`SELECT seq, type, object_type, object_id, payload_json, at FROM events
-      WHERE board_id = ? AND type IN ('review.submitted') ORDER BY seq`)
-      .all(boardId) as GovernanceRow[]).map(row => ({
-      seq: Number(row.seq ?? 0), type: text(row.type), object_type: text(row.object_type), object_id: text(row.object_id),
-      payload: parseJson<Record<string, unknown>>(row.payload_json, {}), at: text(row.at),
-    }));
-  }
-
   immediate<T>(operation: () => T): T {
     return this.db.transaction(operation).immediate();
   }
@@ -58,31 +43,8 @@ export class GovernanceRepository {
 
   snapshot(boardId: string): GovernanceSnapshot {
     return {
-      review_obligations: this.listReviewObligations(boardId),
-      reviews: this.listReviews(boardId),
       goal_tree_proposals: this.listGoalTreeProposals(boardId),
     };
-  }
-
-  getReviewObligation(boardId: string, obligationId: string): ReviewObligationRecord | null {
-    const row = this.db.prepare(
-      "SELECT * FROM review_obligations WHERE board_id = ? AND obligation_id = ?",
-    ).get(boardId, obligationId) as GovernanceRow | undefined;
-    return row ? mapReviewObligation(row) : null;
-  }
-
-  listReviewObligations(boardId: string, goalId?: string): ReviewObligationRecord[] {
-    const rows = goalId
-      ? this.db.prepare("SELECT * FROM review_obligations WHERE board_id = ? AND goal_id = ? ORDER BY created_at, obligation_id").all(boardId, goalId)
-      : this.db.prepare("SELECT * FROM review_obligations WHERE board_id = ? ORDER BY created_at, obligation_id").all(boardId);
-    return (rows as GovernanceRow[]).map(mapReviewObligation);
-  }
-
-  listReviews(boardId: string, goalId?: string): ReviewRecord[] {
-    const rows = goalId
-      ? this.db.prepare("SELECT * FROM reviews WHERE board_id = ? AND goal_id = ? ORDER BY submitted_at, review_id").all(boardId, goalId)
-      : this.db.prepare("SELECT * FROM reviews WHERE board_id = ? ORDER BY submitted_at, review_id").all(boardId);
-    return (rows as GovernanceRow[]).map(mapReview);
   }
 
   getGoalTreeProposal(boardId: string, proposalId: string): GoalTreeProposalRecord | null {

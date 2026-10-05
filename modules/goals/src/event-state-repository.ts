@@ -10,7 +10,6 @@ import type {
   GoalEventDecisionOption,
   GoalEventDecisionPurpose,
   GoalEventDecisionRequestView,
-  GoalEventImportedCompletion,
   GoalEventProgressSummaryView,
   GoalEventScope,
   GoalEventStateOwnerView,
@@ -60,7 +59,7 @@ export class GoalEventStateRepository {
     boardId: string;
     goalId: string;
     actorId: string;
-    source: "intent" | "configuration" | "continue" | "migration";
+    source: "intent" | "configuration" | "continue";
     at: string;
   }): void {
     this.db.prepare(`
@@ -403,30 +402,6 @@ export class GoalEventStateRepository {
     );
   }
 
-  latestImportedCompletion(boardId: string, goalId: string): GoalEventImportedCompletion | null {
-    const row = this.db.prepare(`
-      SELECT payload_json, received_at FROM goal_work_events
-      WHERE board_id = ? AND goal_id = ? AND kind = 'system'
-        AND payload_json LIKE '%"legacy_completion_imported"%'
-      ORDER BY journal_seq DESC LIMIT 1
-    `).get(boardId, goalId) as Row | undefined;
-    if (!row) return null;
-    const payload = rowJson<Record<string, unknown>>(row.payload_json, {});
-    return {
-      source: "legacy_fulfillment",
-      imported_at: rowText(row.received_at),
-      label: "迁入的历史完成",
-      historical: {
-        journal_type: payload.journal_type == null ? null : String(payload.journal_type),
-        journal_seq: payload.journal_seq == null ? null : Number(payload.journal_seq),
-        journal_at: payload.journal_at == null ? null : String(payload.journal_at),
-        evidence_ids: Array.isArray(payload.evidence_ids) ? payload.evidence_ids.map(String) : [],
-        review_ids: Array.isArray(payload.review_ids) ? payload.review_ids.map(String) : [],
-        contract_accepted_at: payload.contract_accepted_at == null ? null : String(payload.contract_accepted_at),
-        contract_accepted_by: payload.contract_accepted_by == null ? null : String(payload.contract_accepted_by),
-      },
-    };
-  }
 
   latestClosure(boardId: string, goalId: string): GoalEventClosureView | null {
     const row = this.db.prepare(`

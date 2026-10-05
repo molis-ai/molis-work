@@ -11,13 +11,8 @@ export function goalTreeProposalNeedsDecision(proposal: GoalTreeProposalRecord):
 export function goalTreeProposalAttentionGoalId(
   proposal: GoalTreeProposalRecord,
   goalExists: (goalId: string) => boolean,
-  runGoalId?: (runId: string) => string | null,
 ): string | null {
   if (proposal.root_goal_id && goalExists(proposal.root_goal_id)) return proposal.root_goal_id;
-  if (proposal.discovered_in_run_id && runGoalId) {
-    const goalId = runGoalId(proposal.discovered_in_run_id);
-    if (goalId && goalExists(goalId)) return goalId;
-  }
   for (const proposalItem of proposal.items) {
     const owner = [
       proposalItem.payload.goal_id,
@@ -33,7 +28,6 @@ export function goalTreeProposalOwnerGoalId<T extends GoalsSafetyItem>(proposal:
   return goalTreeProposalAttentionGoalId(
     proposal,
     (goalId) => Boolean(findGoalView(view, goalId)),
-    (runId) => view.snapshot.runs.find((item) => item.run_id === runId)?.goal_id ?? null,
   );
 }
 
@@ -52,7 +46,7 @@ export function buildDecisionGroups<T extends GoalsSafetyItem>(view: GoalsDecisi
     return created;
   };
   view.snapshot.goal_tree_proposals
-    .filter((proposal) => proposal.origin === "native" && goalTreeProposalNeedsDecision(proposal))
+    .filter((proposal) => goalTreeProposalNeedsDecision(proposal))
     .forEach((proposal) => ensure(goalTreeProposalOwnerGoalId(proposal, view)).goalTreeProposals.push(proposal));
   return [...groups.values()]
     .filter((group) => group.goalTreeProposals.length > 0)
@@ -60,7 +54,7 @@ export function buildDecisionGroups<T extends GoalsSafetyItem>(view: GoalsDecisi
 }
 
 export function pendingDecisionCount<T extends GoalsSafetyItem>(view: GoalsDecisionView<T>): number {
-  return view.snapshot.goal_tree_proposals.filter((item) => item.origin === "native" && goalTreeProposalNeedsDecision(item)).length;
+  return view.snapshot.goal_tree_proposals.filter((item) => goalTreeProposalNeedsDecision(item)).length;
 }
 
 export function decisionGroupCount<T extends GoalsSafetyItem>(group: GoalsDecisionGroup<T>): number {

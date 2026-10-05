@@ -10,8 +10,7 @@ import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/
 /** Owner-level projection fixture. Actual HTTP authorization is tested through the real Host. */
 export function readTestGoalCollection(store: LocalProjectDatabase, app: GoalProjectApplication, boardId: string) {
   return buildGoalsDocumentCollection({ snapshot: id => store.snapshot(id), events: id => store.readEventsDescending(id),
-    goals: app.goalQueries, inputs: app.goalInputs, eventWork: app.goalEvents,
-    projectGoalLifecycle: (snapshot, id) => app.projectGoalLifecycle(snapshot, id) }, boardId);
+    goals: app.goalQueries, inputs: app.goalInputs, eventWork: app.goalEvents }, boardId);
 }
 export function buildMolisWorkWebView(store: LocalProjectDatabase, app: GoalProjectApplication,
   options: Omit<WebViewOptions, "databasePath"> & { databasePath?: string }) {

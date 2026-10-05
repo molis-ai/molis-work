@@ -37,18 +37,6 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
       refreshBoard();
     };
 
-    const describeTrashBlock = (result) => {
-      const claims = Array.isArray(result.blocking_claim_ids) ? result.blocking_claim_ids : [];
-      const runs = Array.isArray(result.blocking_run_ids) ? result.blocking_run_ids : [];
-      const records = [
-        claims.length ? L("历史 Claim：") + claims.join(currentLocale() === "en" ? ", " : "、") : "",
-        runs.length ? L("历史 Run：") + runs.join(currentLocale() === "en" ? ", " : "、") : "",
-      ].filter(Boolean).join("；");
-      return L("现在无法移入回收站：这条 Goal 仍有未结束的历史活动记录。") +
-        (records ? records + "。" : "") +
-        L("这些历史活动结束后才能移入回收站。");
-    };
-
     const submitGoalTrashForm = async () => {
       if (!trashIntent || !trashForm || !trashError || !trashSubmit || trashPending) return;
       const reason = String(new FormData(trashForm).get("reason") || "").trim();
@@ -74,11 +62,6 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || L("操作失败"));
-        if (result.status === "blocked") {
-          trashError.textContent = describeTrashBlock(result);
-          trashError.hidden = false;
-          return;
-        }
         const expected = intent.trashed
           ? ["trashed", "already_trashed"]
           : ["restored", "already_active"];

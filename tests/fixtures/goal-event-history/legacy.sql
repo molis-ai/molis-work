@@ -1,4 +1,4 @@
-PRAGMA user_version = 2;
+PRAGMA user_version = 3;
 PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
 CREATE TABLE boards (
@@ -194,25 +194,6 @@ CREATE TABLE policy_bindings (
     created_at TEXT NOT NULL
   );
 INSERT INTO policy_bindings VALUES('legacy-explicit-human','goalboard-v1-demo','OLD-POLICY','goal','{"human_approval":true}','active','migration-user','用户明确要求完成前亲自验收','2026-09-10T07:03:28.561Z');
-CREATE TABLE coverage_contract_revisions (
-    parent_goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    child_goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    parent_contract_revision INTEGER NOT NULL,
-    child_contract_revision INTEGER NOT NULL,
-    recorded_at TEXT NOT NULL,
-    PRIMARY KEY (parent_goal_id, child_goal_id, parent_contract_revision)
-  );
-INSERT INTO coverage_contract_revisions VALUES('V1','PLATFORM',1,1,'2026-09-10T07:03:28.510Z');
-INSERT INTO coverage_contract_revisions VALUES('V1','WORKSPACE',1,1,'2026-09-10T07:03:28.512Z');
-INSERT INTO coverage_contract_revisions VALUES('V1','ADOPTION',1,1,'2026-09-10T07:03:28.513Z');
-INSERT INTO coverage_contract_revisions VALUES('PLATFORM','CORE',1,1,'2026-09-10T07:03:28.514Z');
-INSERT INTO coverage_contract_revisions VALUES('PLATFORM','INTERFACES',1,1,'2026-09-10T07:03:28.515Z');
-INSERT INTO coverage_contract_revisions VALUES('WORKSPACE','WEB',1,1,'2026-09-10T07:03:28.524Z');
-INSERT INTO coverage_contract_revisions VALUES('WORKSPACE','GRAPH',1,1,'2026-09-10T07:03:28.525Z');
-INSERT INTO coverage_contract_revisions VALUES('WORKSPACE','DESKTOP',1,1,'2026-09-10T07:03:28.526Z');
-INSERT INTO coverage_contract_revisions VALUES('ADOPTION','RELEASE',1,1,'2026-09-10T07:03:28.527Z');
-INSERT INTO coverage_contract_revisions VALUES('ADOPTION','ONBOARDING',1,1,'2026-09-10T07:03:28.527Z');
-INSERT INTO coverage_contract_revisions VALUES('ADOPTION','DOCS',1,1,'2026-09-10T07:03:28.528Z');
 CREATE TABLE project_guidance_entries (
     guidance_id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
@@ -272,17 +253,6 @@ CREATE TABLE input_bindings (
     reason TEXT NOT NULL,
     created_by TEXT NOT NULL,
     created_at TEXT NOT NULL
-  );
-CREATE TABLE impact_bindings (
-    binding_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    surface TEXT NOT NULL,
-    access TEXT NOT NULL CHECK (access IN ('read', 'write', 'decide', 'exclusive')),
-    input_snapshot TEXT,
-    state TEXT NOT NULL CHECK (state IN ('proposed', 'confirmed', 'inactive')),
-    reason TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    deactivated_at TEXT, deactivation_reason TEXT
   );
 CREATE TABLE goal_event_configs (
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
@@ -373,7 +343,6 @@ CREATE TABLE goal_work_events (
     journal_seq INTEGER NOT NULL,
     config_version INTEGER
   );
-INSERT INTO goal_work_events VALUES('gevt-9871aa76-2ff3-494f-ae6f-24e1708abac1','goalboard-v1-demo','CORE','system',NULL,NULL,'迁入的历史完成','{"operation":"legacy_completion_imported","journal_type":"goal.satisfied","journal_seq":40,"journal_at":"2026-09-10T07:03:28.550Z","evidence_ids":["evidence-3aaba898-2eb4-4565-acbb-13cccced105f"],"review_ids":["review-3c52c9fe-13b8-41ce-92d2-725de601ae6f"],"contract_accepted_at":"2026-09-10T07:03:28.505Z","contract_accepted_by":"demo-user"}','migration:36',NULL,'2026-10-04T20:13:22.249Z',47,NULL);
 INSERT INTO goal_work_events VALUES('gevt-9d876ebd-9ef4-4594-a512-5ed6930a24f6','goalboard-v1-demo','OLD-RISK','system',NULL,NULL,'迁入完成阻塞：付款记录存在遗漏，结果未确认','{"operation":"concern_opened","concern_id":"imported-risk:OLD-RISK:legacy-completion-risk","title":"付款记录存在遗漏，结果未确认","statement":"付款记录存在遗漏，结果未确认；全部付款记录可读取","scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"blocks_closure":true}','migration:36',NULL,'2026-10-04T20:13:22.249Z',48,NULL);
 CREATE TABLE goal_work_event_judgments (
     event_id TEXT NOT NULL REFERENCES goal_work_events(event_id) ON DELETE CASCADE,
@@ -385,27 +354,27 @@ CREATE TABLE goal_event_state_owners (
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     owner TEXT NOT NULL CHECK (owner = 'event_work'),
-    source TEXT NOT NULL CHECK (source IN ('intent', 'configuration', 'continue', 'migration')),
+    source TEXT NOT NULL CHECK (source IN ('intent', 'configuration', 'continue')),
     adopted_at TEXT NOT NULL,
     adopted_by TEXT NOT NULL,
     PRIMARY KEY (goal_id)
   );
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','ADOPTION','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','AUTO-CONNECT','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','CORE','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','DESKTOP','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','DOCS','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','GRAPH','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','INTERFACES','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','OLD-HUMAN','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','OLD-POLICY','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','OLD-RISK','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','ONBOARDING','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','PLATFORM','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','RELEASE','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','V1','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','WEB','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
-INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','WORKSPACE','event_work','migration','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','ADOPTION','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','AUTO-CONNECT','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','CORE','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','DESKTOP','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','DOCS','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','GRAPH','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','INTERFACES','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','OLD-HUMAN','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','OLD-POLICY','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','OLD-RISK','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','ONBOARDING','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','PLATFORM','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','RELEASE','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','V1','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','WEB','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
+INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','WORKSPACE','event_work','intent','2026-10-04T20:13:22.249Z','migration:36');
 CREATE TABLE goal_event_agreements (
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
@@ -548,113 +517,11 @@ INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','RELEASE','open','
 INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','V1','open','2026-10-04T20:13:22.249Z');
 INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','WEB','open','2026-10-04T20:13:22.249Z');
 INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','WORKSPACE','open','2026-10-04T20:13:22.249Z');
-CREATE TABLE claims (
-    claim_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    actor_id TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('clarifier', 'executor', 'self_verifier', 'cross_reviewer', 'adversarial_reviewer', 'revalidator')),
-    contract_revision INTEGER NOT NULL DEFAULT 1,
-    action_kind TEXT,
-    action_target_id TEXT,
-    state TEXT NOT NULL CHECK (state IN ('active', 'released', 'expired', 'revoked')),
-    capabilities_json TEXT NOT NULL DEFAULT '[]',
-    goal_mode_attestation INTEGER NOT NULL DEFAULT 0,
-    resolved_policy_json TEXT NOT NULL,
-    claimed_at TEXT NOT NULL,
-    expires_at TEXT NOT NULL,
-    renewed_at TEXT,
-    released_at TEXT,
-    release_reason TEXT
-  );
-INSERT INTO claims VALUES('claim-dc5985a4-4a90-4aaa-880a-28f896f96e14','goalboard-v1-demo','CORE','runtime-core','executor',1,'execute','CORE','released','[]',0,'{"goal_mode":"preferred","required_capabilities":[],"self_verification":true,"cross_reviewers":0,"adversarial_reviewers":0,"human_approval":false,"max_lease_seconds":1800}','2026-09-10T07:03:28.540Z','2026-09-10T07:33:28.540Z',NULL,'2026-09-10T07:03:28.545Z','执行结果与当前 Contract revision 的必要 Evidence 已齐全，自动释放 Claim');
-INSERT INTO claims VALUES('claim-c44fe62b-c4bf-4b0e-9d14-3f302a74c45b','goalboard-v1-demo','INTERFACES','runtime-interface','executor',1,'execute','INTERFACES','active','[]',0,'{"goal_mode":"preferred","required_capabilities":[],"self_verification":true,"cross_reviewers":0,"adversarial_reviewers":0,"human_approval":false,"max_lease_seconds":1800}','2026-09-10T07:03:28.554Z','2026-09-10T07:33:28.554Z',NULL,NULL,NULL);
-CREATE TABLE runs (
-    run_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    claim_id TEXT NOT NULL REFERENCES claims(claim_id),
-    actor_id TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('clarifier', 'executor', 'self_verifier', 'cross_reviewer', 'adversarial_reviewer', 'revalidator')),
-    state TEXT NOT NULL CHECK (state IN ('started', 'blocked', 'completed', 'failed', 'abandoned')),
-    block_reason TEXT,
-    output_refs_json TEXT NOT NULL DEFAULT '[]',
-    discovery_refs_json TEXT NOT NULL DEFAULT '[]',
-    started_at TEXT NOT NULL,
-    ended_at TEXT
-  );
-INSERT INTO runs VALUES('run-45ec1136-7bbf-4740-9e6b-1689e672c7af','goalboard-v1-demo','CORE','claim-dc5985a4-4a90-4aaa-880a-28f896f96e14','runtime-core','executor','completed',NULL,'["tests/v1.test.ts"]','[]','2026-09-10T07:03:28.541Z','2026-09-10T07:03:28.543Z');
-INSERT INTO runs VALUES('run-65ec112f-54fe-499a-a41d-b5fc73d14f85','goalboard-v1-demo','INTERFACES','claim-c44fe62b-c4bf-4b0e-9d14-3f302a74c45b','runtime-interface','executor','started',NULL,'[]','[]','2026-09-10T07:03:28.554Z',NULL);
-CREATE TABLE evidence (
-    evidence_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    contract_revision INTEGER NOT NULL DEFAULT 1,
-    criterion_ids_json TEXT NOT NULL,
-    producer_actor_id TEXT NOT NULL,
-    run_id TEXT REFERENCES runs(run_id),
-    review_id TEXT,
-    kind TEXT NOT NULL,
-    locator TEXT NOT NULL,
-    locator_status TEXT NOT NULL DEFAULT 'unverified' CHECK (locator_status IN ('verified', 'unverified')),
-    locator_validation_reason TEXT NOT NULL DEFAULT '历史 Evidence 未进行 locator 预检',
-    locator_checked_at TEXT,
-    locator_workspace_id TEXT,
-    locator_workspace_root TEXT,
-    digest TEXT,
-    captured_at TEXT NOT NULL,
-    result TEXT NOT NULL CHECK (result IN ('passed', 'failed', 'inconclusive')),
-    historical_unmapped INTEGER NOT NULL DEFAULT 0
-  );
-INSERT INTO evidence VALUES('evidence-3aaba898-2eb4-4565-acbb-13cccced105f','goalboard-v1-demo','CORE',1,'["CORE-C1"]','runtime-core','run-45ec1136-7bbf-4740-9e6b-1689e672c7af',NULL,'test','command://pnpm-test','unverified','不透明或外部 locator 已保留为 UNVERIFIED；Molis Work 不会调用自定义协议','2026-09-10T07:03:28.545Z',NULL,NULL,NULL,'2026-09-10T07:03:28.545Z','passed',0);
-CREATE TABLE evidence_corrections (
-    correction_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    target_evidence_id TEXT NOT NULL UNIQUE REFERENCES evidence(evidence_id),
-    action TEXT NOT NULL CHECK (action IN ('supersede', 'retract')),
-    replacement_evidence_id TEXT REFERENCES evidence(evidence_id),
-    actor_id TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    CHECK (
-      (action = 'supersede' AND replacement_evidence_id IS NOT NULL) OR
-      (action = 'retract' AND replacement_evidence_id IS NULL)
-    )
-  );
-CREATE TABLE review_obligations (
-    obligation_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    contract_revision INTEGER NOT NULL DEFAULT 1,
-    role TEXT NOT NULL CHECK (role IN ('self_verifier', 'cross_reviewer', 'adversarial_reviewer', 'human_approver')),
-    required_count INTEGER NOT NULL,
-    independence_rule TEXT NOT NULL,
-    criterion_scope_json TEXT NOT NULL DEFAULT '[]',
-    state TEXT NOT NULL CHECK (state IN ('pending', 'satisfied', 'waived')),
-    created_at TEXT NOT NULL
-  );
-INSERT INTO review_obligations VALUES('obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6','goalboard-v1-demo','CORE',1,'self_verifier',1,'executor_allowed','["CORE-C1"]','satisfied','2026-09-10T07:03:28.539Z');
-INSERT INTO review_obligations VALUES('obligation-efabfe3f-c602-454e-8f3b-13d48ec76a68','goalboard-v1-demo','INTERFACES',1,'self_verifier',1,'executor_allowed','["INTERFACES-C1"]','pending','2026-09-10T07:03:28.553Z');
-CREATE TABLE reviews (
-    review_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    obligation_id TEXT NOT NULL REFERENCES review_obligations(obligation_id),
-    claim_id TEXT REFERENCES claims(claim_id),
-    actor_id TEXT NOT NULL,
-    verdict TEXT NOT NULL CHECK (verdict IN ('pass', 'fail', 'needs_changes', 'inconclusive')),
-    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
-    reasoning TEXT NOT NULL,
-    submitted_at TEXT NOT NULL
-  );
-INSERT INTO reviews VALUES('review-3c52c9fe-13b8-41ce-92d2-725de601ae6f','goalboard-v1-demo','CORE','obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6',NULL,'runtime-core','pass','["evidence-3aaba898-2eb4-4565-acbb-13cccced105f"]','生命周期测试通过','2026-09-10T07:03:28.550Z');
 CREATE TABLE goal_tree_proposals (
     proposal_id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
     root_goal_id TEXT REFERENCES goals(goal_id) ON DELETE SET NULL,
     submitted_by TEXT NOT NULL,
-    discovered_in_run_id TEXT REFERENCES runs(run_id) ON DELETE SET NULL,
     submitted_session_id TEXT,
     state TEXT NOT NULL CHECK (state IN ('pending', 'superseded', 'approved', 'partially_applied', 'rejected', 'dismissed', 'closed')),
     version INTEGER NOT NULL,
@@ -724,40 +591,6 @@ CREATE TABLE goal_event_trusted_decisions (
     change_json TEXT,
     recorded_at TEXT NOT NULL
   );
-CREATE TABLE clarification_sessions (
-          session_id TEXT PRIMARY KEY,
-          board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-          goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-          claim_id TEXT REFERENCES claims(claim_id),
-          run_id TEXT REFERENCES runs(run_id),
-          rough_idea TEXT NOT NULL,
-          state TEXT NOT NULL CHECK (state IN ('clarifying', 'proposal_ready', 'closed')),
-          current_understanding TEXT,
-          next_question TEXT,
-          proposal_summary TEXT,
-          created_by TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL,
-          closed_at TEXT
-        );
-CREATE TABLE clarification_turns (
-          turn_id TEXT PRIMARY KEY,
-          session_id TEXT NOT NULL REFERENCES clarification_sessions(session_id) ON DELETE CASCADE,
-          board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-          goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-          run_id TEXT REFERENCES runs(run_id),
-          actor_id TEXT NOT NULL,
-          turn_index INTEGER NOT NULL,
-          turn_kind TEXT NOT NULL CHECK (turn_kind IN ('rough_idea', 'user_answer')),
-          user_message TEXT NOT NULL,
-          current_understanding TEXT,
-          known_facts_json TEXT NOT NULL DEFAULT '[]',
-          assumptions_json TEXT NOT NULL DEFAULT '[]',
-          next_question TEXT,
-          proposal_summary TEXT,
-          created_at TEXT NOT NULL,
-          UNIQUE(session_id, turn_index)
-        );
 CREATE TABLE library_artifacts (
     artifact_id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
@@ -938,20 +771,10 @@ INSERT INTO events VALUES(30,'350f3de8-5eab-49f0-a7fd-b32c4a36fe94','goalboard-v
 INSERT INTO events VALUES(31,'f5dcb3fd-64d7-43fc-8ec6-7463b65de061','goalboard-v1-demo','demo-user','relation.added','relation','relation-26184b19-74b6-4509-a239-b2c3d9ef3b67','README 的演示必须来自已经走通的首次体验','{"from_goal_id":"DOCS","to_goal_id":"ONBOARDING","type":"depends_on","reason":"README 的演示必须来自已经走通的首次体验"}','2026-09-10T07:03:28.530Z');
 INSERT INTO events VALUES(32,'b21fc594-b94e-41e2-b420-2088badc84a3','goalboard-v1-demo','demo-user','risk.created','risk','RISK-FIRST-RESTART','登记 Goal 风险','{"goal_ids":["RELEASE"],"blocking_mode":"none"}','2026-09-10T07:03:28.532Z');
 INSERT INTO events VALUES(33,'123a51e2-5d73-4cfc-ba4f-2fe994fb5d2d','goalboard-v1-demo','demo-user','goal.trashed','goal','AUTO-CONNECT','这会替用户猜项目；当前方案只展示历史候选，并再次询问用户','{"trash_record_id":"trash-c5c4a4b4-7cc5-45b5-94a4-dcd93556680b","deactivated_relation_ids":[],"active_goal_cleared":false}','2026-09-10T07:03:28.538Z');
-INSERT INTO events VALUES(34,'9ac6436e-6193-426d-9208-534abf925c48','goalboard-v1-demo','runtime-core','claim.created','claim','claim-dc5985a4-4a90-4aaa-880a-28f896f96e14','Runtime 自主领取 Ready Goal','{"goal_id":"CORE","role":"executor","contract_revision":1,"action_id":"action-c49a463513edc5552c80bf42","action_kind":"execute","action_target_id":"CORE","expires_at":"2026-09-10T07:33:28.540Z"}','2026-09-10T07:03:28.540Z');
-INSERT INTO events VALUES(35,'03f3d7d7-99e5-424b-8a55-c6967e697d9f','goalboard-v1-demo','runtime-core','run.started','run','run-45ec1136-7bbf-4740-9e6b-1689e672c7af','开始执行已领取的 Goal','{"goal_id":"CORE","claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14"}','2026-09-10T07:03:28.541Z');
-INSERT INTO events VALUES(36,'94f6f65e-fd15-4176-8d9a-36543c6ee525','goalboard-v1-demo','runtime-core','run.completed','run','run-45ec1136-7bbf-4740-9e6b-1689e672c7af','Run 状态变为 completed','{"output_refs":["tests/v1.test.ts"],"discovery_refs":[]}','2026-09-10T07:03:28.543Z');
-INSERT INTO events VALUES(37,'bb8084ad-7694-4ad2-9d09-90c2967683d6','goalboard-v1-demo','runtime-core','evidence.submitted','evidence','evidence-3aaba898-2eb4-4565-acbb-13cccced105f','提交验收证据','{"goal_id":"CORE","criterion_ids":["CORE-C1"],"result":"passed"}','2026-09-10T07:03:28.545Z');
-INSERT INTO events VALUES(38,'c0ed775f-0744-4e63-aaf9-474b20ee0ef6','goalboard-v1-demo','runtime-core','claim.auto_released','claim','claim-dc5985a4-4a90-4aaa-880a-28f896f96e14','执行结果与当前 Contract revision 的必要 Evidence 已齐全，自动释放 Claim','{"goal_id":"CORE","contract_revision":1,"action_kind":"execute","action_target_id":"CORE"}','2026-09-10T07:03:28.545Z');
-INSERT INTO events VALUES(39,'b9e7acac-d342-4735-9d89-39daf111a505','goalboard-v1-demo','runtime-core','review.submitted','review','review-3c52c9fe-13b8-41ce-92d2-725de601ae6f','生命周期测试通过','{"goal_id":"CORE","obligation_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","verdict":"pass"}','2026-09-10T07:03:28.550Z');
 INSERT INTO events VALUES(40,'9de43170-634c-44ee-9013-f69d22c3eb9e','goalboard-v1-demo','runtime-core','goal.satisfied','goal','CORE','当前 Contract revision 的执行、依据、复核和风险门禁均已满足','{"auto":true,"contract_revision":1,"active_goal_cleared":false}','2026-09-10T07:03:28.550Z');
-INSERT INTO events VALUES(41,'b0f649f8-0dbf-4314-b74e-0d8956b42ae2','goalboard-v1-demo','runtime-interface','claim.created','claim','claim-c44fe62b-c4bf-4b0e-9d14-3f302a74c45b','Runtime 自主领取 Ready Goal','{"goal_id":"INTERFACES","role":"executor","contract_revision":1,"action_id":"action-083e1c32b3407ac07d61709a","action_kind":"execute","action_target_id":"INTERFACES","expires_at":"2026-09-10T07:33:28.554Z"}','2026-09-10T07:03:28.554Z');
-INSERT INTO events VALUES(42,'a7ad3df3-d2bf-420a-bdf6-921f7aa97e91','goalboard-v1-demo','runtime-interface','run.started','run','run-65ec112f-54fe-499a-a41d-b5fc73d14f85','开始执行已领取的 Goal','{"goal_id":"INTERFACES","claim_id":"claim-c44fe62b-c4bf-4b0e-9d14-3f302a74c45b"}','2026-09-10T07:03:28.554Z');
-INSERT INTO events VALUES(43,'f6adf6f5-9ff2-45a8-b0ce-39b3379b1b24','goalboard-v1-demo','runtime-interface','candidate.submitted','candidate','candidate-b0050ab4-1d01-4556-ac3d-fa0053f69ce2','澄清或执行中发现了 Goal 之外的新工作，等待用户决定','{"blocking_mode":"none"}','2026-09-10T07:03:28.555Z');
 INSERT INTO events VALUES(44,'0a7bbc6e-88f6-4a94-87c7-944be0ff82e4','goalboard-v1-demo','migration-user','goal.created','goal','OLD-HUMAN','创建新 Goal','{"definition_state":"draft","decomposition_state":"abstract"}','2026-09-10T07:03:28.560Z');
 INSERT INTO events VALUES(45,'488bf575-5e66-484a-a26f-163e0097098a','goalboard-v1-demo','migration-user','goal.created','goal','OLD-POLICY','创建新 Goal','{"definition_state":"draft","decomposition_state":"abstract"}','2026-09-10T07:03:28.560Z');
 INSERT INTO events VALUES(46,'7c1558b1-e478-47b3-9f27-0c1954fc8a6d','goalboard-v1-demo','migration-user','goal.created','goal','OLD-RISK','创建新 Goal','{"definition_state":"draft","decomposition_state":"abstract"}','2026-09-10T07:03:28.561Z');
-INSERT INTO events VALUES(47,'gevt-9871aa76-2ff3-494f-ae6f-24e1708abac1','goalboard-v1-demo','migration:36','goal.event_state.legacy_completion_imported','goal_work_event','gevt-9871aa76-2ff3-494f-ae6f-24e1708abac1','迁入的历史完成','{"operation":"legacy_completion_imported","journal_type":"goal.satisfied","journal_seq":40,"journal_at":"2026-09-10T07:03:28.550Z","evidence_ids":["evidence-3aaba898-2eb4-4565-acbb-13cccced105f"],"review_ids":["review-3c52c9fe-13b8-41ce-92d2-725de601ae6f"],"contract_accepted_at":"2026-09-10T07:03:28.505Z","contract_accepted_by":"demo-user"}','2026-10-04T20:13:22.249Z');
 INSERT INTO events VALUES(48,'gevt-9d876ebd-9ef4-4594-a512-5ed6930a24f6','goalboard-v1-demo','migration:36','goal.event_state.concern_opened','goal_work_event','gevt-9d876ebd-9ef4-4594-a512-5ed6930a24f6','迁入完成阻塞：付款记录存在遗漏，结果未确认','{"operation":"concern_opened","concern_id":"imported-risk:OLD-RISK:legacy-completion-risk","title":"付款记录存在遗漏，结果未确认","statement":"付款记录存在遗漏，结果未确认；全部付款记录可读取","scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"blocks_closure":true}','2026-10-04T20:13:22.249Z');
 CREATE TABLE context_edges (
     scope_kind TEXT NOT NULL CHECK (scope_kind IN ('personal', 'team_project')),
@@ -1396,14 +1219,10 @@ CREATE INDEX goal_trash_records_goal_idx
 CREATE INDEX goal_trash_relation_records_relation_idx
     ON goal_trash_relation_records(relation_id, restored_at);
 CREATE INDEX policies_scope_idx ON policy_bindings(board_id, goal_id, state);
-CREATE INDEX coverage_contract_revisions_child_idx
-    ON coverage_contract_revisions(child_goal_id, child_contract_revision);
 CREATE INDEX project_guidance_board_idx
     ON project_guidance_entries(board_id, position, guidance_id);
 CREATE INDEX project_guidance_revisions_board_idx
     ON project_guidance_revisions(board_id, guidance_id, revision DESC);
-CREATE INDEX impacts_goal_idx ON impact_bindings(board_id, goal_id, state);
-CREATE INDEX impacts_surface_idx ON impact_bindings(board_id, surface, state);
 CREATE INDEX goal_event_types_goal_idx
     ON goal_event_types(board_id, goal_id, type_id, type_version);
 CREATE INDEX goal_event_requirements_goal_idx
@@ -1426,15 +1245,6 @@ CREATE INDEX goal_event_requirement_conclusions_latest_idx
     ON goal_event_requirement_conclusions(board_id, goal_id, requirement_id, journal_seq);
 CREATE INDEX goal_event_closures_goal_idx
     ON goal_event_closures(board_id, goal_id, recorded_at);
-CREATE INDEX claims_board_state_idx ON claims(board_id, state, expires_at);
-CREATE INDEX claims_goal_idx ON claims(goal_id, state);
-CREATE INDEX claims_action_idx ON claims(board_id, action_kind, action_target_id, state);
-CREATE UNIQUE INDEX claims_one_active_per_goal ON claims(goal_id) WHERE state = 'active';
-CREATE UNIQUE INDEX runs_one_nonterminal_per_claim ON runs(claim_id) WHERE state IN ('started', 'blocked');
-CREATE INDEX evidence_goal_idx ON evidence(goal_id, result);
-CREATE INDEX evidence_corrections_goal_idx
-    ON evidence_corrections(board_id, goal_id, created_at, correction_id);
-CREATE INDEX reviews_obligation_idx ON reviews(obligation_id, verdict);
 CREATE INDEX goal_tree_proposals_board_idx
     ON goal_tree_proposals(board_id, root_goal_id, state, created_at DESC, proposal_id);
 CREATE INDEX goal_tree_proposals_supersedes_idx
@@ -1447,13 +1257,6 @@ CREATE INDEX goal_tree_proposal_decisions_item_idx
     ON goal_tree_proposal_decisions(proposal_id, item_id, created_at, decision_id);
 CREATE INDEX goal_event_trusted_decisions_goal_idx
     ON goal_event_trusted_decisions(board_id, goal_id, recorded_at);
-CREATE UNIQUE INDEX clarification_one_open_session_per_goal
-          ON clarification_sessions(goal_id)
-          WHERE state != 'closed';
-CREATE INDEX clarification_sessions_goal_idx
-          ON clarification_sessions(board_id, goal_id, updated_at DESC, session_id);
-CREATE INDEX clarification_turns_session_idx
-          ON clarification_turns(session_id, turn_index, turn_id);
 CREATE INDEX library_artifacts_board_idx
     ON library_artifacts(board_id, created_at DESC, artifact_id);
 CREATE INDEX library_artifact_versions_type_idx

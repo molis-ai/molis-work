@@ -135,7 +135,6 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
         board_id: input.board_id,
         root_goal_id: effectiveRootGoalId,
         submitted_by: actorId,
-        discovered_in_run_id: null,
         submitted_session_id: input.submitted_session_id?.trim() || null,
         state: "pending",
         version,
@@ -171,12 +170,10 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
           updated_at: now,
         });
       }
-      if (previous?.origin === "native") {
-        this.ports.governance.records.supersedeGoalTreeProposal(previous.proposal_id, now);
-      }
+      if (previous) this.ports.governance.records.supersedeGoalTreeProposal(previous.proposal_id, now);
       const cursor = this.ports.governance.records.recordGoalTreeSubmission({
         board_id: input.board_id, proposal_id: proposalId, actor_id: actorId,
-        root_goal_id: effectiveRootGoalId, discovered_in_run_id: null,
+        root_goal_id: effectiveRootGoalId,
         base_event_cursor: baseEventCursor, version, supersedes_proposal_id: canonicalSupersedesProposalId,
         item_ids: items.map(item => item.item_id), at: now,
       });

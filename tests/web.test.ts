@@ -827,7 +827,7 @@ test("Goal Tree disambiguates Goals that share the same compact Runtime referenc
   assert.equal(new Set(labels.values()).size, labels.size, "rendered Goal references must be unique");
 });
 
-test("completed Goal presentation closes criteria without inventing Evidence", () => {
+test("Goal presentation closes criteria from the Goal result alone", () => {
   const item = {
     status: "satisfied",
     goal: {
@@ -837,16 +837,12 @@ test("completed Goal presentation closes criteria without inventing Evidence", (
         { criterion_id: "ROOT-C2" },
       ],
     },
-    passed_criteria: [],
   } as unknown as Parameters<typeof displayedPassedCriterionIds>[0];
 
   assert.deepEqual(displayedPassedCriterionIds(item), ["ROOT-C1", "ROOT-C2"]);
-  assert.deepEqual(item.passed_criteria, [], "presentation must not fabricate canonical Evidence facts");
-
   item.status = "execution_pending";
   item.goal.fulfillment_state = "unmet";
-  item.passed_criteria = ["ROOT-C1", "UNKNOWN"];
-  assert.deepEqual(displayedPassedCriterionIds(item), ["ROOT-C1"]);
+  assert.deepEqual(displayedPassedCriterionIds(item), []);
 });
 
 test("Web health identifies the process serving the response", async () => {

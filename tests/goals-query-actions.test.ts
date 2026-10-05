@@ -138,7 +138,7 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("query contracts retain migrated completion, human requirements and original v35 event payloads", async () => {
+test("query contracts read the completion, human requirements and event payloads of projects with earlier history", async () => {
   for (const kind of goalEventHistoryKinds) {
     const fixture = materializeGoalEventHistory(kind);
     const host = new MolisWorkLocalHost({ homeDirectory: fixture.directory, completeText: null });
@@ -148,9 +148,6 @@ test("query contracts retain migrated completion, human requirements and origina
     try {
       const snapshot = await actions.invoke(goalsActions.snapshot, {});
       assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(ref.board_id)));
-      assert.ok(snapshot.claims.length > 0);
-      assert.ok(snapshot.runs.length > 0);
-      assert.ok(snapshot.evidence.length > 0);
       const collection = await actions.invoke(goalsActions.collection, {});
       assert.deepEqual(collection, await host.withProject(ref, r => readTestGoalCollection(r.store, r.coordinator, ref.board_id)));
       assert.deepEqual(await actions.invoke(goalsActions.snapshot, {}), snapshot, "collection reads must not write history or attention");
@@ -160,8 +157,6 @@ test("query contracts retain migrated completion, human requirements and origina
       }
       const core = await actions.invoke(goalsActions.state, { goal_id: "CORE" });
       assert.equal(core.work_status, "completed");
-      assert.equal(core.imported_completion?.historical.journal_type, "goal.satisfied");
-      assert.ok(core.imported_completion!.historical.evidence_ids.length > 0);
       assert.equal(core.closure, null);
       const human = await actions.invoke(goalsActions.state, { goal_id: "OLD-HUMAN" });
       assert.equal(human.requirements.find(item => item.requirement_id === "OLD-HUMAN-C1")?.human_decision_required, true);
@@ -173,7 +168,7 @@ test("query contracts retain migrated completion, human requirements and origina
         assert.equal(document.description.title, goal.title);
         if (goal.goal_id === "CORE") {
           assert.equal(document.transfer.kind, "reopen_event_completed");
-          assert.ok(document.timeline.items.some(item => item.source !== "event_work"), "migrated history remains in the document");
+          assert.ok(document.timeline.items.some(item => item.source !== "event_work"), "the journal's earlier records remain in the document");
         }
         assert.equal(state.work_status, goal.work_status);
         const page = await actions.invoke(goalsActions.events, { goal_id: goal.goal_id, limit: 100 });

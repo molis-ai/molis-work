@@ -260,28 +260,6 @@ test("ports must agree with the Artifact permissions and declarations they rely 
   }, "没有列入 artifacts.consumes");
 });
 
-test("behaviors, function_scenes and judgment_subjects are inspected on schema 2", () => {
-  const input = v2Manifest();
-  input.behaviors = [{
-    behavior_id: "open",
-    title: "打开",
-    effect: "read",
-    subject_kinds: ["feed_item"],
-  }];
-  input.function_scenes = [{
-    scene_id: "home.dock",
-    title: "首页卡底",
-    subject_kinds: ["home_event"],
-  }];
-  input.judgment_subjects = [{ subject_kind: "feed_item", title: "Feed 消息" }];
-  const parsed = parsePluginManifest(input);
-  assert.equal(parsed.behaviors?.[0]?.behavior_id, "open");
-  assert.equal(parsed.function_scenes?.[0]?.scene_id, "home.dock");
-  rejects((manifest) => {
-    manifest.behaviors = [{ behavior_id: "Open", title: "打开", effect: "read", subject_kinds: ["feed_item"] }];
-  }, "behavior_id 不合法");
-});
-
 test("embedded plugin dependencies are explicit v2 IDs, not implicit grants or self links", () => {
   const input = v2Manifest();
   const ui = input.ui as Record<string, unknown>;

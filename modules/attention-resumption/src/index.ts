@@ -10,7 +10,6 @@ import type {
   AttentionSubjectResolver,
   AttentionSubjectType,
   CreateAttentionEntryInput,
-  LegacyAttentionEntryInput,
 } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 
 export const packageDescriptor = {
@@ -140,12 +139,6 @@ export class AttentionModule implements AttentionApi {
 
   readonly events = {
     list: (projectId: string, entryId?: string) => this.listEvents(projectId, entryId),
-  };
-
-  readonly migrations = {
-    countEntries: () => this.countEntries(),
-    importLegacy: (entry: LegacyAttentionEntryInput) => this.importLegacy(entry),
-    listFeedItemReferences: () => this.listFeedItemReferences(),
   };
 
   constructor(
@@ -292,50 +285,6 @@ export class AttentionModule implements AttentionApi {
           WHERE project_id = ? AND entry_id = ? ORDER BY at, event_id
         `).all(projectId, entryId);
     return (rows as Row[]).map(mapAttentionEvent);
-  }
-
-  private countEntries(): number {
-    return Number((this.db.prepare(
-      "SELECT COUNT(*) AS count FROM inbox_entries",
-    ).get() as { count?: number } | undefined)?.count ?? 0);
-  }
-
-  private importLegacy(entry: LegacyAttentionEntryInput): AttentionEntryRecord {
-    assertShape(entry);
-    this.db.prepare(`
-      INSERT OR IGNORE INTO inbox_entries (
-        board_id, entry_id, subject_type, subject_id, reason, status,
-        detail_json, revision, created_at, updated_at, completed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      entry.project_id,
-      entry.entry_id,
-      entry.subject_type,
-      entry.subject_id,
-      entry.reason,
-      entry.status,
-      JSON.stringify(entry.detail),
-      entry.revision,
-      entry.created_at,
-      entry.updated_at,
-      entry.completed_at,
-    );
-    return this.findForSubject(
-      entry.project_id,
-      entry.subject_type,
-      entry.subject_id,
-    ).find((candidate) => candidate.reason === entry.reason)!;
-  }
-
-  private listFeedItemReferences(): Array<{ project_id: string; subject_id: string }> {
-    return (this.db.prepare(`
-      SELECT board_id, subject_id FROM inbox_entries
-      WHERE subject_type = 'feed_item'
-      ORDER BY board_id, subject_id
-    `).all() as Array<{ board_id: string; subject_id: string }>).map((row) => ({
-      project_id: row.board_id,
-      subject_id: row.subject_id,
-    }));
   }
 
   private appendEvent(

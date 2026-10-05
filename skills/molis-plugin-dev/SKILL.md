@@ -76,7 +76,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 4. UI 槽 + contribution。槽只有 `navigator` | `stage` | `settings` | `island` | `side`。列表详情用 `renderPluginStageShell`。视觉、客户端：[ui.md](ui.md)。
 5. HTTP：第三方走 Manifest `routes`，Host 挂 `/api/plugins/<plugin_id>/`。一等 Native 由 Host 注入短名路径（`/api/feed/`、`/api/pages/`），插件包自管 route table。未声明/未接线的路径到不了插件。
 6. 浏览器客户端：Pages 族在插件包 `CLIENT_FACTORY_SCRIPT`，Workbench pack 注入。Feed/Inbox 的点击在 `apps/workbench/src/scripts/client/navigation-*.ts`。只出静态 HTML 不够。
-7. 注册 `actions` 和实际处理器，让 UI、编排和授权 MCP 共用同一实现；旧 HTTP 路由只转发到这些动作。不要再声明已废弃的 `behaviors`。
+7. 注册 `actions` 和实际处理器，让 UI、编排和授权 MCP 共用同一实现；旧 HTTP 路由只转发到这些动作。
 8. 消费判断：注册 `action_scenes`，按 [host.md](host.md#接到统一判断场景) 兑现真实绑定、上下文准备和结果消费。兼容场景来自合同，使用位置来自真实配置；新增场景不再修改 Host 白名单。判断规则归系统模块 `modules/functions`，编辑器在「能力」（`apps/workbench/src/functions`），不是插件。
 9. 可搜索内容：每种对象一个读取器，再声明一个搜索来源（`defineSearchEntriesAction`），按版本列出条目。不写索引、不调用搜索服务。见 [search.md](search.md)。
 10. 对外调用：新注册动作按 `audiences` 和真实授权进入共同 MCP 目录，不另写业务处理器或工具总表。旧 `mcp_exports` 只用于存量兼容入口。schema 不接收可信身份；声明 mcp 入口不授予权限，外部客户端在「能力 → 对外接入」逐客户端授权。

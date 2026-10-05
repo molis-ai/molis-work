@@ -39,7 +39,6 @@ import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { liveHostFunctionAuthoringCatalog } from "../apps/local-host/src/behavior-catalog.ts";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectHomeEvents } from "../apps/workbench/src/home-flow.ts";
-import { assertContributionMatchesManifest, PluginContributionError } from "@molis-ai/molis-work-plugin-runtime";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
@@ -333,7 +332,6 @@ test("Feed and Inbox declare scenes without naming the Functions plugin implemen
     assert.ok(feedManifest.actions?.some((row) => row.capability_id === capability));
   }
   assert.equal(inboxManifest.action_scenes?.[0]?.scene_id, "inbox.next");
-  assert.equal(inboxManifest.function_scenes, undefined);
   assert.equal(inboxManifest.plugin_id.includes("functions"), false);
 });
 
@@ -472,40 +470,6 @@ test("home dock HTTP binds a published function at the scene without executing w
   });
   assert.equal(unbound.status, 200);
   assert.equal((await unbound.json() as { function_key: string | null }).function_key, null);
-});
-
-test("undeclared behavior handlers are refused", () => {
-  assert.throws(
-    () => assertContributionMatchesManifest(feedManifest, {
-      kind: "app",
-      views: [],
-      behaviors: [{ behavior_id: "invented", handle: () => undefined }],
-    }),
-    (error: unknown) => error instanceof PluginContributionError && error.message.includes("invented"),
-  );
-});
-
-test("app plugins must redeem declared behavior handlers", () => {
-  const manifest = {
-    ...feedManifest,
-    kind: "app" as const,
-    plugin_id: "io.molis.work.demo-dock",
-    actions: [],
-    action_scenes: [],
-    ui: { contributions: [], views: [] },
-    behaviors: [{ behavior_id: "pin", title: "挂到 Goal", effect: "write" as const, subject_kinds: ["inbox_entry"] }],
-    routes: [],
-    function_scenes: [],
-  };
-  assert.throws(
-    () => assertContributionMatchesManifest(manifest, { kind: "app", views: [] }),
-    (error: unknown) => error instanceof PluginContributionError && String(error.message).includes("pin"),
-  );
-  assertContributionMatchesManifest(manifest, {
-    kind: "app",
-    views: [],
-    behaviors: [{ behavior_id: "pin", handle: () => undefined }],
-  });
 });
 
 test("FunctionsError still surfaces from the Module", () => {

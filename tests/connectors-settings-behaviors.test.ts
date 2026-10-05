@@ -98,11 +98,10 @@ function agentBehaviorIds(catalog: ReturnType<typeof liveHostFunctionAuthoringCa
   return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.behavior_ids ?? [];
 }
 
-test("GitHub Integration Manifest is schema 2; its account check is the connector action, not a legacy behavior", () => {
+test("GitHub Integration Manifest is schema 2; its account check is the connector action", () => {
   const parsed = parsePluginManifest(githubIntegrationManifest);
   assert.equal(parsed.schema_version, 2);
   assert.equal(parsed.host_api_version, 2);
-  assert.equal(parsed.behaviors, undefined);
   assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
 });
 

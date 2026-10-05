@@ -379,7 +379,7 @@ function blockFor(id: string): Node {
   if (id === "bullet_list") return s.nodes.bullet_list.create(null, s.nodes.list_item.create(null, paragraphNode()));
   if (id === "ordered_list") return s.nodes.ordered_list.create({ order: 1 }, s.nodes.list_item.create(null, paragraphNode()));
   if (id === "task_list") return s.nodes.task_list.create(null, s.nodes.task_item.create({ checked: false }, paragraphNode()));
-  if (id === "callout") return s.nodes.callout.create({ tone: "info" }, paragraphNode());
+  if (id === "callout") return s.nodes.callout.create({ tone: "cyan" }, paragraphNode());
   if (id === "blockquote") return s.nodes.blockquote.create(null, paragraphNode());
   if (id === "code_block") return s.nodes.code_block.create();
   if (id === "toggle") return s.nodes.toggle.create({ open: true }, [paragraphNode(), paragraphNode()]);

@@ -345,7 +345,7 @@ test("已经选中一块时，按住 Shift 再点另一块会扩到那一块", (
 
   const callout = pagesSchema.node("doc", null, [
     para("甲"),
-    pagesSchema.node("callout", { tone: "info" }, [para("乙"), para("丙")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [para("乙"), para("丙")]),
     para("丁"),
   ]);
   let calloutPos = -1;
@@ -387,7 +387,7 @@ test("文末按下方向键会多出一个空段落", () => {
   assert.equal(continuePastEnd(firstEnd), null);
 
   const callout = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [text("甲")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [text("甲")]),
   ]);
   const inside = EditorState.create({ schema: pagesSchema, doc: callout, selection: TextSelection.create(callout, 3) });
   const after = inside.apply(continuePastEnd(inside)!);
@@ -418,7 +418,7 @@ test("文首按上方向键会在上面多出一个空段落", () => {
   assert.equal(continueBeforeStart(second), null);
 
   const callout = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [text("甲")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [text("甲")]),
   ]);
   const inside = EditorState.create({ schema: pagesSchema, doc: callout, selection: TextSelection.create(callout, 2) });
   const above = inside.apply(continueBeforeStart(inside)!);
@@ -516,7 +516,7 @@ test("点到正文下面的空白会落到一个空段落", () => {
   assert.equal(below.doc.child(1).textContent, "");
 
   const callout = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [text("甲")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [text("甲")]),
   ]);
   const inside = EditorState.create({ schema: pagesSchema, doc: callout });
   const after = inside.apply(focusBelowContent(inside)!);
@@ -856,14 +856,14 @@ test("拖拽右移嵌进上一个容器，左移再提出来", () => {
   assert.equal(run(flatState, moveRow(b.pos, 1, 0)).ok, false);
 
   const noted = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "warn" }, [para("内")]),
+    pagesSchema.node("callout", { tone: "orange" }, [para("内")]),
     para("外"),
   ]);
   const outer = row(noted, "外");
   const intoCallout = previewDrop(noted, outer.pos, dragRows(noted).findIndex((entry) => entry.pos === outer.pos), 5);
   assert.equal(intoCallout?.doc.childCount, 1);
   assert.equal(intoCallout?.doc.child(0).type.name, "callout");
-  assert.equal(intoCallout?.doc.child(0).attrs.tone, "warn");
+  assert.equal(intoCallout?.doc.child(0).attrs.tone, "orange");
   assert.deepEqual(intoCallout?.doc.child(0).content.content.map((node) => node.textContent), ["内", "外"]);
   assert.equal(previewDrop(noted, dragRows(noted)[0].pos, 1, 1), null);
 
@@ -929,7 +929,7 @@ test("拖拽右移嵌进上一个容器，左移再提出来", () => {
   assert.equal(inside?.doc.child(0).child(0).lastChild?.type.name, "code_block");
 
   const boxed = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [para("内")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [para("内")]),
     para("外"),
   ]);
   const inner = row(boxed, "内");
@@ -977,7 +977,7 @@ test("多块选择一起移动、复制和删除，选中父块时不重复处�
   assert.equal(run(pagesState(flat), moveSpan(at(flat, "b"), at(flat, "c"), 1, 0)).ok, false);
 
   const noted = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [para("内")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [para("内")]),
     para("甲"),
     para("乙"),
   ]);
@@ -995,7 +995,7 @@ test("多块选择一起移动、复制和删除，选中父块时不重复处�
   assert.equal(cleared.state.doc.child(0).content.size, 0);
 
   const boxed = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "warn" }, [para("内")]),
+    pagesSchema.node("callout", { tone: "orange" }, [para("内")]),
     para("外"),
   ]);
   const roots = spanRoots(boxed, dragRows(boxed)[0].pos, at(boxed, "内"));
@@ -1267,7 +1267,7 @@ test("敲 --- 或代码围栏会变成对应的块，代码块边缘的方向键
   assert.ok(markdownBlock(ruleMid, 2, 5) === null);
 
   const ruleCallout = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [
+    pagesSchema.node("callout", { tone: "cyan" }, [
       pagesSchema.node("paragraph", null, [pagesSchema.text("---甲")]),
     ]),
     pagesSchema.node("paragraph", null, [pagesSchema.text("丙")]),
@@ -1275,7 +1275,7 @@ test("敲 --- 或代码围栏会变成对应的块，代码块边缘的方向键
   const ruleInside = EditorState.create({ schema: pagesSchema, doc: ruleCallout });
   const ruleNested = ruleInside.apply(markdownBlock(ruleInside, 2, 5)!);
   assert.equal(ruleNested.doc.child(0).type.name, "callout");
-  assert.equal(ruleNested.doc.child(0).attrs.tone, "info");
+  assert.equal(ruleNested.doc.child(0).attrs.tone, "cyan");
   assert.equal(ruleNested.doc.child(0).child(0).type.name, "horizontal_rule");
   assert.equal(ruleNested.doc.child(0).child(1).textContent, "甲");
   assert.equal(ruleNested.doc.child(1).textContent, "丙");
@@ -1303,14 +1303,14 @@ test("敲 --- 或代码围栏会变成对应的块，代码块边缘的方向键
   assert.ok(markdownBlock(insideWord, 2, 5) === null);
 
   const callout = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [
+    pagesSchema.node("callout", { tone: "cyan" }, [
       pagesSchema.node("paragraph", null, [pagesSchema.text("```ts甲")]),
     ]),
   ]);
   const inside = EditorState.create({ schema: pagesSchema, doc: callout });
   const nested = inside.apply(markdownBlock(inside, 2, 7)!);
   assert.equal(nested.doc.child(0).type.name, "callout");
-  assert.equal(nested.doc.child(0).attrs.tone, "info");
+  assert.equal(nested.doc.child(0).attrs.tone, "cyan");
   assert.equal(nested.doc.child(0).child(0).type.name, "code_block");
   assert.equal(nested.doc.child(0).textContent, "甲");
 
@@ -1541,14 +1541,14 @@ test("敲 > 空格变成引用，连续的引用行粘在同一块里", () => {
   assert.ok(markdownBlock(EditorState.create({ schema: pagesSchema, doc: mid }), 2, 4) === null);
 
   const callout = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [
+    pagesSchema.node("callout", { tone: "cyan" }, [
       pagesSchema.node("paragraph", null, [pagesSchema.text("> 甲")]),
     ]),
   ]);
   const inside = EditorState.create({ schema: pagesSchema, doc: callout });
   const nested = inside.apply(markdownBlock(inside, 2, 4)!);
   assert.equal(nested.doc.child(0).type.name, "callout");
-  assert.equal(nested.doc.child(0).attrs.tone, "info");
+  assert.equal(nested.doc.child(0).attrs.tone, "cyan");
   assert.equal(nested.doc.child(0).child(0).type.name, "blockquote");
   assert.equal(nested.doc.child(0).textContent, "甲");
 
@@ -1618,7 +1618,7 @@ test("空行回车和行首退格能离开引用、Callout，不拆掉折叠块�
   assert.equal(out.state.doc.child(1).type.name, "paragraph");
 
   const noted = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [para("注意")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [para("注意")]),
   ]);
   const callout = run(caret(noted, 2), unwrapAtStart);
   assert.equal(callout.state.doc.child(0).type.name, "paragraph");
@@ -1800,7 +1800,7 @@ test("Cmd+/ 打开光标所在块的菜单，Tab 留在编辑器里", () => {
   assert.equal(blockMenuTarget(doc, second + 1), second);
   assert.equal(blockMenuTarget(doc, doc.content.size), null);
   const callout = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [text("甲")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [text("甲")]),
   ]);
   assert.equal(blockMenuTarget(callout, 2), 1);
   const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
@@ -1874,7 +1874,7 @@ test("划过整块时按块选中，半句仍是文字", () => {
   assert.deepEqual(blockSpanFromRange(items, firstText, secondEnd), { anchor: itemA, head: itemB });
 
   const callout = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [para("甲"), para("乙")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [para("甲"), para("乙")]),
   ]);
   let inside = -1;
   let insideEnd = -1;
@@ -1996,7 +1996,7 @@ test("斜杠换的是光标下这一行，列表里的其他项还在", () => {
   assert.equal(one.doc.child(0).type.name, "heading");
 
   const noted = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [para("内"), para("外")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [para("内"), para("外")]),
   ]);
   const inWai = pagesState(noted).apply(
     pagesState(noted).tr.setSelection(TextSelection.create(noted, 2 + para("内").nodeSize + 1)),
@@ -2079,7 +2079,7 @@ test("斜杠在嵌套块和半句话里都能换块，代码和表格里保持�
     ]),
   ]);
   const inTask = atEnd(task, "写到一半 /清");
-  const callout = pagesSchema.nodes.callout.create({ tone: "info" }, para(""));
+  const callout = pagesSchema.nodes.callout.create({ tone: "cyan" }, para(""));
   const tasked = inTask.apply(applySlash(inTask, callout)!);
   assert.equal(tasked.doc.child(0).type.name, "task_list");
   assert.equal(tasked.doc.child(0).child(0).attrs.checked, true);
@@ -2282,7 +2282,7 @@ test("多选的连续几行能一起转换，隔着别的容器或表格时不�
   assert.equal(inside.doc.child(0).child(0).type.name, "bullet_list");
   assert.deepEqual(inside.doc.child(0).child(0).content.content.map((node) => node.textContent), ["内", "外"]);
 
-  const callout = pagesSchema.node("callout", { tone: "info" }, [para("内")]);
+  const callout = pagesSchema.node("callout", { tone: "cyan" }, [para("内")]);
   const mixed = pagesSchema.node("doc", null, [callout, para("外")]);
   const mixedState = EditorState.create({ schema: pagesSchema, doc: mixed });
   assert.equal(turnSpanInto(mixedState, 1, callout.nodeSize, "heading2"), null);
@@ -2425,14 +2425,14 @@ test("打完 [ ] 或 [x] 会变成待办，后面的字还在", () => {
   assert.ok(markdownTask(EditorState.create({ schema: pagesSchema, doc: listed }), 3, 6) === null);
 
   const callout = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [
+    pagesSchema.node("callout", { tone: "cyan" }, [
       pagesSchema.node("paragraph", null, [pagesSchema.text("[ ] 甲")]),
     ]),
   ]);
   const inside = EditorState.create({ schema: pagesSchema, doc: callout });
   const nested = inside.apply(markdownTask(inside, 2, 6)!);
   assert.equal(nested.doc.child(0).type.name, "callout");
-  assert.equal(nested.doc.child(0).attrs.tone, "info");
+  assert.equal(nested.doc.child(0).attrs.tone, "cyan");
   assert.equal(nested.doc.child(0).child(0).type.name, "task_list");
   assert.equal(nested.doc.child(0).textContent, "甲");
 
@@ -2560,7 +2560,7 @@ test("转换为：按行拆开与合并，正文和行内 mark 都带过去", ()
   assert.equal(code?.[0].textContent, "一\n二");
   assert.equal(code?.[0].firstChild?.marks.length, 0);
 
-  const back = convertedBlocks("paragraph", pagesSchema.node("callout", { tone: "info" }, [
+  const back = convertedBlocks("paragraph", pagesSchema.node("callout", { tone: "cyan" }, [
     pagesSchema.node("paragraph", null, [pagesSchema.text("提示")]),
   ]));
   assert.deepEqual(back?.map((node) => [node.type.name, node.textContent]), [["paragraph", "提示"]]);
@@ -3983,7 +3983,7 @@ test("Esc 把光标提成整块选中，再按不重复选", () => {
 test("Esc 和 Mod-A 先选当前块，再选包着它的容器", () => {
   const text = (value: string) => pagesSchema.node("paragraph", null, [pagesSchema.text(value)]);
   const callout = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [text("甲"), text("乙")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [text("甲"), text("乙")]),
   ]);
   const inCallout = pagesState(callout).apply(pagesState(callout).tr.setSelection(TextSelection.create(callout, 2)));
   const calloutLine = run(inCallout, selectEnclosingBlock);
@@ -4154,7 +4154,7 @@ test("选中几块再按回车，空段落开在最后一块下面", () => {
   assert.ok(insertAfterSpan(state, 0, 0) === null);
 
   const callout = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [para("甲"), para("乙")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [para("甲"), para("乙")]),
     para("丙"),
   ]);
   let paraA = -1;
@@ -4166,7 +4166,7 @@ test("选中几块再按回车，空段落开在最后一块下面", () => {
   const inside = EditorState.create({ schema: pagesSchema, doc: callout });
   const nested = inside.apply(insertAfterSpan(inside, paraA, paraB)!);
   assert.equal(nested.doc.child(0).type.name, "callout");
-  assert.equal(nested.doc.child(0).attrs.tone, "info");
+  assert.equal(nested.doc.child(0).attrs.tone, "cyan");
   assert.equal(nested.doc.child(0).childCount, 3);
   assert.equal(nested.doc.child(0).child(2).textContent, "");
   assert.equal(nested.doc.child(1).textContent, "丙");
@@ -4220,7 +4220,7 @@ test("选中几块再粘贴，换成贴进来的块", () => {
   assert.ok(replaceSpanWithNodes(state, 0, 0, [para("甲")]) === null);
 
   const callout = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [para("甲")]),
+    pagesSchema.node("callout", { tone: "cyan" }, [para("甲")]),
     para("乙"),
   ]);
   let inside = -1;
@@ -4788,32 +4788,27 @@ test("格式条只在整段都是同一种列表时亮起", () => {
   assert.equal(listKindAt(plain), null);
 });
 
-test("Callout 的图标和颜色各自独立，四个旧色调渲染不变", () => {
-  // The four tones every existing document and template was written with.
-  const legacy: Array<[string, string, string]> = [
-    ["info", "cyan", "info"],
-    ["warn", "orange", "alert"],
-    ["success", "green", "check"],
-    ["plain", "gray", "idea"],
-  ];
-  for (const [stored, hue, icon] of legacy) {
-    assert.equal(safePagesCalloutTone(stored), hue, stored + " 应折到 " + hue);
-    assert.equal(calloutIconFor("", stored), icon, stored + " 的默认图标不该变");
-    const node = pagesSchema.node("callout", { tone: stored }, [pagesSchema.node("paragraph")]);
+test("Callout 的图标和颜色各自独立，四个色调各有默认图标", () => {
+  const defaults: Array<[string, string]> = [["cyan", "info"], ["orange", "alert"], ["green", "check"], ["gray", "idea"]];
+  for (const [hue, icon] of defaults) {
+    assert.equal(safePagesCalloutTone(hue), hue);
+    assert.equal(calloutIconFor("", hue), icon, hue + " 的默认图标不该变");
+    const node = pagesSchema.node("callout", { tone: hue }, [pagesSchema.node("paragraph")]);
     const dom = pagesSchema.nodes.callout.spec.toDOM?.(node) as [string, Record<string, string>, unknown];
     assert.equal(dom[1]["data-pages-callout"], hue);
     assert.equal(dom[1]["data-pages-icon"], icon);
   }
+  assert.equal(pagesSchema.nodes.callout.create().attrs.tone, "cyan", "新建的 Callout 直接用调色板里的色");
 
   assert.equal(safePagesCalloutTone("purple"), "purple", "调色板里的九个色应直接可用");
   assert.equal(safePagesCalloutTone("chartreuse"), "cyan", "不认的色退回默认");
   assert.equal(safePagesCalloutIcon("star"), "star");
   assert.equal(safePagesCalloutIcon("skull"), "", "不在图标表里的一律作废");
-  assert.equal(calloutIconFor("star", "warn"), "star", "选过图标后不再跟着色调走");
-  assert.equal(calloutIconFor("skull", "warn"), "alert", "作废的图标回落到色调默认");
+  assert.equal(calloutIconFor("star", "orange"), "star", "选过图标后不再跟着色调走");
+  assert.equal(calloutIconFor("skull", "orange"), "alert", "作废的图标回落到色调默认");
 
   const doc = pagesSchema.node("doc", null, [
-    pagesSchema.node("callout", { tone: "info" }, [pagesSchema.node("paragraph", null, [pagesSchema.text("注意")])]),
+    pagesSchema.node("callout", { tone: "cyan" }, [pagesSchema.node("paragraph", null, [pagesSchema.text("注意")])]),
   ]);
   const state = pagesState(doc);
 
@@ -4896,7 +4891,7 @@ test("占位按块型和它的容器给词，写了字就不再提示", () => {
     ["空代码", empty("code_block"), "写代码"],
     ["列表项", pagesSchema.node("bullet_list", null, [wrap("list_item")]), "列表项"],
     ["待办项", pagesSchema.node("task_list", null, [wrap("task_item", empty("paragraph"), { checked: false })]), "待办事项"],
-    ["Callout", wrap("callout", empty("paragraph"), { tone: "info" }), "想强调的话"],
+    ["Callout", wrap("callout", empty("paragraph"), { tone: "cyan" }), "想强调的话"],
     ["Toggle", wrap("toggle", empty("paragraph"), { open: true }), "折叠起来的内容"],
   ];
 
@@ -5173,7 +5168,7 @@ test("WI3 块进 schema，十份模板都能被内核吃进去", () => {
   const sample = {
     type: "doc",
     content: [
-      { type: "callout", attrs: { tone: "info" }, content: [{ type: "paragraph" }] },
+      { type: "callout", attrs: { tone: "cyan" }, content: [{ type: "paragraph" }] },
       { type: "task_list", content: [{ type: "task_item", attrs: { checked: false }, content: [{ type: "paragraph" }] }] },
       { type: "code_block" },
       { type: "table", content: [{ type: "table_row", content: [{ type: "table_cell", content: [{ type: "paragraph" }] }] }] },

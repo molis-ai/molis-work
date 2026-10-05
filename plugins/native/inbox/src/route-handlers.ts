@@ -16,7 +16,7 @@ export interface InboxRouteHandlerPorts {
   renderWorkbench?(): string | Promise<string>;
 }
 
-/** HTTP adapts presentation and legacy parameters; validation and business work belong to actions. */
+/** HTTP adapts presentation and path parameters; validation and business work belong to actions. */
 export function createInboxRouteHandlers(options: InboxRouteHandlerPorts): Record<string, InboxPluginRouteHandler> {
   const run = async <Input, Output>(definition: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<Input, Output>, input: Input) => {
     const body = await options.actions.invoke(definition, input);

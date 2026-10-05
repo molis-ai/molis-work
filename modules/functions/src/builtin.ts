@@ -12,6 +12,7 @@ import {
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
   type ChoiceCriterion,
+  type FunctionSceneMap,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { hashFunctionConfig } from "./hash.js";
 
@@ -30,8 +31,9 @@ const INBOX_NEXT_CRITERIA: readonly ChoiceCriterion[] = [
   { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" },
 ];
 
-export function seedBuiltinFunctions(db: DatabaseSync): void {
-  seedChoice(db, {
+/** Seeds the built-in rules once. `sceneMaps` gives a rule's option targets that only the host can name (by function key). */
+export function seedBuiltinFunctions(db: DatabaseSync, sceneMaps: Readonly<Record<string, FunctionSceneMap>> = {}): void {
+  seedChoice(db, sceneMaps, {
     id: "builtin-system_pick_home_dock",
     name: "首页事项处理建议",
     function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY,
@@ -40,7 +42,7 @@ export function seedBuiltinFunctions(db: DatabaseSync): void {
     scene_id: HOME_DOCK_SCENE_ID,
     subject_kinds: ["inbox_entry"],
   });
-  seedChoice(db, {
+  seedChoice(db, sceneMaps, {
     id: "builtin-system_admit_inbox",
     name: "是否进 Inbox",
     function_key: SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
@@ -49,7 +51,7 @@ export function seedBuiltinFunctions(db: DatabaseSync): void {
     scene_id: FEED_CAPTURE_SCENE_ID,
     subject_kinds: ["feed_item"],
   });
-  seedChoice(db, {
+  seedChoice(db, sceneMaps, {
     id: "builtin-system_pick_inbox_next",
     name: "挑 Inbox 下一步",
     function_key: SYSTEM_INBOX_NEXT_FUNCTION_KEY,
@@ -60,7 +62,7 @@ export function seedBuiltinFunctions(db: DatabaseSync): void {
   });
 }
 
-function seedChoice(db: DatabaseSync, input: {
+function seedChoice(db: DatabaseSync, sceneMaps: Readonly<Record<string, FunctionSceneMap>>, input: {
   id: string;
   name: string;
   function_key: string;
@@ -96,8 +98,8 @@ function seedChoice(db: DatabaseSync, input: {
   db.prepare(`
     INSERT INTO functions (
       id, name, function_key, primitive, status, version, model, instructions, criteria_json,
-      scene_id, subject_kinds_json, config_hash, last_preview_json, samples_json, published_at, created_at, updated_at
-    ) VALUES (?, ?, ?, 'choice', 'published', 1, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?)
+      scene_id, subject_kinds_json, scene_map_json, config_hash, last_preview_json, samples_json, published_at, created_at, updated_at
+    ) VALUES (?, ?, ?, 'choice', 'published', 1, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?)
   `).run(
     input.id,
     input.name,
@@ -107,6 +109,7 @@ function seedChoice(db: DatabaseSync, input: {
     JSON.stringify(input.criteria),
     input.scene_id,
     kindsJson,
+    JSON.stringify(sceneMaps[input.function_key] ?? {}),
     config_hash,
     JSON.stringify(preview),
     now,

@@ -447,9 +447,10 @@ export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
   );
 ` };
 
-export function openFunctionsStore(homeDirectory: string): FunctionsStore {
+/** `builtinSceneMaps`: option targets of built-in rules that only the host can name, written when they are first seeded. */
+export function openFunctionsStore(homeDirectory: string, options: { builtinSceneMaps?: Readonly<Record<string, FunctionSceneMap>> } = {}): FunctionsStore {
   const db = openBaselineHomeSqlite(homeDirectory, "functions", FUNCTIONS_STORE_BASELINE);
-  seedBuiltinFunctions(db);
+  seedBuiltinFunctions(db, options.builtinSceneMaps);
   return new FunctionsStore(db);
 }
 

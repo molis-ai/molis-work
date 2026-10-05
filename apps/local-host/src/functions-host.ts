@@ -2,12 +2,20 @@ import { createPrologueTypeSafeProvider } from "./typesafe-prologue.js";
 import { selectedTypeSafeConnection, typeSafeCredential, typeSafeConfiguration } from "./typesafe-connection.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import type { FunctionsSettingsStatus } from "@molis-ai/molis-work-contracts/modules/functions";
+import { SYSTEM_HOME_DOCK_FUNCTION_KEY, type FunctionsSettingsStatus } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   createFunctionsService,
   openFunctionsStore,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
+import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
+
+// The built-in Home rule recommends the native Inbox's own offers: its keys name that owner, never whichever installed
+// plugin happens to declare an identical offer_id.
+const BUILTIN_SCENE_MAPS = { [SYSTEM_HOME_DOCK_FUNCTION_KEY]: Object.fromEntries(["inbox.done", "inbox.dismiss"].map(offer_id => [offer_id,
+  subjectOfferChoiceKey({ capability_id: "inbox.actions.prepare", version: 1, provider_id: "io.molis.work.inbox" },
+    { offer_id, title: offer_id, action: { capability_id: "inbox.entry.status", version: 1 } }),
+])) };
 
 export interface FunctionsHostOptions {
   /** A test's own key; otherwise the key is the TypeSafe connection bound for Functions. */
@@ -42,7 +50,7 @@ export function withFunctionsService<T>(
   run: (service: ReturnType<typeof createFunctionsService>) => T,
   options: FunctionsHostOptions = {},
 ): T {
-  const store = openFunctionsStore(homeDirectory);
+  const store = openFunctionsStore(homeDirectory, { builtinSceneMaps: BUILTIN_SCENE_MAPS });
   try {
     return run(createFunctionsService({
       store,
@@ -63,7 +71,7 @@ export async function withFunctionsServiceAsync<T>(
   run: (service: ReturnType<typeof createFunctionsService>) => Promise<T>,
   options: FunctionsHostOptions = {},
 ): Promise<T> {
-  const store = openFunctionsStore(homeDirectory);
+  const store = openFunctionsStore(homeDirectory, { builtinSceneMaps: BUILTIN_SCENE_MAPS });
   try {
     return await run(createFunctionsService({
       store,

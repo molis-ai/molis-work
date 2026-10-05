@@ -92,13 +92,8 @@ export class GovernanceProposalOperationStore {
     this.repository.appendEvent({
       event_id: randomUUID(), board_id: input.board_id, actor_id: input.actor_id,
       type: "goal_tree_proposal.checked", object_type: "goal_tree_proposal", object_id: input.proposal_id,
-      reason: input.origin === "legacy_contract_proposal"
-        ? conflict ? "当前 Runtime 检查到历史 Contract Proposal 不能安全决定" : "当前 Runtime 检查到历史 Contract Proposal 可以安全决定"
-        : conflict ? "当前 Runtime 检查到部分 Goal Tree 提案条目不再满足当前校验或基准" : "当前 Runtime 检查到 Goal Tree 提案的各条目基准仍有效",
-      payload: {
-        ...(input.origin === "legacy_contract_proposal" ? { origin: input.origin, raw_proposal_id: input.raw_proposal_id } : {}),
-        conflict_item_ids: input.conflict_item_ids, planning_issue_codes: input.planning_issue_codes,
-      },
+      reason: conflict ? "当前 Runtime 检查到部分 Goal Tree 提案条目不再满足当前校验或基准" : "当前 Runtime 检查到 Goal Tree 提案的各条目基准仍有效",
+      payload: { conflict_item_ids: input.conflict_item_ids, planning_issue_codes: input.planning_issue_codes },
       at: input.at,
     });
     return this.repository.eventCursor(input.board_id);

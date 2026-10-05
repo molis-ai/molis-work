@@ -1,12 +1,9 @@
 import type {
-  CandidateGoalRecord,
-  ContractProposalRecord,
   GoalTreeProposalDecisionRecord,
   GoalTreeProposalItemRecord,
   GoalTreeProposalRecord,
   ReviewObligationRecord,
   ReviewRecord,
-  RewireRecord,
 } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 export type GovernanceRow = Record<string, unknown>;
@@ -61,46 +58,6 @@ export function mapReview(row: GovernanceRow): ReviewRecord {
   };
 }
 
-export function mapCandidate(row: GovernanceRow): CandidateGoalRecord {
-  return {
-    candidate_id: text(row.candidate_id), board_id: text(row.board_id),
-    submitted_by: text(row.submitted_by), discovered_in_run_id: optionalText(row.discovered_in_run_id),
-    proposed_goal: parseJson(row.proposed_goal_json, {} as CandidateGoalRecord["proposed_goal"]),
-    proposed_relations: parseJson(row.proposed_relations_json, []),
-    proposed_impacts: parseJson(row.proposed_impacts_json, []),
-    proposed_risks: parseJson(row.proposed_risks_json, []),
-    blocking_mode: text(row.blocking_mode) as CandidateGoalRecord["blocking_mode"],
-    state: text(row.state) as CandidateGoalRecord["state"],
-    decision: parseJson(row.decision_json, null), created_at: text(row.created_at),
-    decided_at: optionalText(row.decided_at),
-  };
-}
-
-export function mapContractProposal(row: GovernanceRow): ContractProposalRecord {
-  return {
-    proposal_id: text(row.proposal_id), board_id: text(row.board_id), goal_id: text(row.goal_id),
-    submitted_by: text(row.submitted_by), discovered_in_run_id: text(row.discovered_in_run_id),
-    proposed_goal: parseJson(row.proposed_goal_json, {} as ContractProposalRecord["proposed_goal"]),
-    field_sources: parseJson(row.field_sources_json, []),
-    review_policy: parseJson(row.review_policy_json, {} as ContractProposalRecord["review_policy"]),
-    proposed_impacts: parseJson(row.proposed_impacts_json, []),
-    proposed_risks: parseJson(row.proposed_risks_json, []),
-    dependency_rewire_ids: parseJson(row.dependency_rewire_ids_json, []),
-    state: text(row.state) as ContractProposalRecord["state"],
-    decision: parseJson(row.decision_json, null), created_at: text(row.created_at),
-    decided_at: optionalText(row.decided_at),
-  };
-}
-
-export function mapRewire(row: GovernanceRow): RewireRecord {
-  return {
-    rewire_id: text(row.rewire_id), board_id: text(row.board_id), candidate_id: optionalText(row.candidate_id),
-    proposal: parseJson(row.proposal_json, {}), impact: parseJson(row.impact_json, {}),
-    state: text(row.state) as RewireRecord["state"], created_at: text(row.created_at),
-    decided_at: optionalText(row.decided_at),
-  };
-}
-
 export function mapGoalTreeProposalDecision(row: GovernanceRow): GoalTreeProposalDecisionRecord {
   return {
     decision_id: text(row.decision_id), board_id: text(row.board_id),
@@ -148,7 +105,7 @@ export function mapGoalTreeProposal(
     discovered_in_run_id: optionalText(row.discovered_in_run_id),
     submitted_session_id: optionalText(row.submitted_session_id),
     state: text(row.state) as GoalTreeProposalRecord["state"], version: number(row.version),
-    supersedes_proposal_id: optionalText(row.supersedes_proposal_id) ?? optionalText(row.supersedes_legacy_proposal_id),
+    supersedes_proposal_id: optionalText(row.supersedes_proposal_id),
     base_event_cursor: number(row.base_event_cursor), summary: text(row.summary),
     narrative: parseJson(row.narrative_json, null), decision: parseJson(row.decision_json, null),
     created_at: text(row.created_at), updated_at: text(row.updated_at),

@@ -1,14 +1,10 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type {
-  CreateGoalInput,
   GoalChangeImpact,
   GoalEventTrustedAuthority,
   GoalEventTrustedDecisionRecord,
-  GoalPolicy,
   PlanningGraphIssue,
   RecordGoalUserDecisionInput,
-  RiskBlockingMode,
-  RiskRecord,
 } from "./goals.js";
 
 export type { GoalEventTrustedAuthority, GoalEventTrustedDecisionRecord, RecordGoalUserDecisionInput };
@@ -135,7 +131,6 @@ export type ClarificationFactInput = Pick<ClarificationFact, "statement" | "sour
 export type ClarificationAssumptionInput = Pick<ClarificationAssumption, "statement"> &
   Partial<Pick<ClarificationAssumption, "source_refs" | "confidence">>;
 
-export type LegacyGovernanceSnapshot = Pick<GovernanceSnapshot, "contract_proposals" | "candidates" | "rewires">;
 
 export type ClarificationSessionState = "clarifying" | "proposal_ready" | "closed";
 
@@ -177,87 +172,9 @@ export interface ClarificationTurnRecord {
 export interface GovernanceProvenanceApi {
   normalizeProposalSource(input: Pick<GoalTreeProposalItemProvenanceInput, "source_refs" | "reason" | "confidence" | "requires_user_confirmation">, index: number): Pick<GoalTreeProposalItemRecord, "source_refs" | "reason" | "confidence"> & { requires_user_confirmation: true };
   validateEventDecisionAuthority(authority: GoalEventTrustedAuthority): GoalEventTrustedAuthority;
-  legacyProposalView(snapshot: LegacyGovernanceSnapshot): GoalTreeProposalRecord[];
 }
 
-export interface ContractProposalImpact {
-  surface: string;
-  access: "read" | "write" | "decide" | "exclusive";
-  input_snapshot?: string | null;
-  reason: string;
-}
-
-export interface ContractProposalRisk {
-  risk_id: string;
-  description: string;
-  probability: string;
-  impact: string;
-  affected_surfaces: string[];
-  trigger: string;
-  treatment: RiskRecord["treatment"];
-  treatment_plan?: string;
-  blocking_mode: RiskBlockingMode;
-  revisit_condition: string;
-  owner: string;
-}
-
-export interface ContractProposalRecord {
-  proposal_id: string;
-  board_id: string;
-  goal_id: string;
-  submitted_by: string;
-  discovered_in_run_id: string;
-  proposed_goal: CreateGoalInput;
-  field_sources: ContractFieldSource[];
-  review_policy: GoalPolicy;
-  proposed_impacts: ContractProposalImpact[];
-  proposed_risks: ContractProposalRisk[];
-  dependency_rewire_ids: string[];
-  state: "pending" | "approved" | "rejected" | "superseded";
-  decision: Record<string, unknown> | null;
-  created_at: string;
-  decided_at: string | null;
-}
-
-export interface CandidateGoalRecord {
-  candidate_id: string;
-  board_id: string;
-  submitted_by: string;
-  discovered_in_run_id: string | null;
-  proposed_goal: CreateGoalInput;
-  proposed_relations: Array<Record<string, unknown>>;
-  proposed_impacts: Array<Record<string, unknown>>;
-  proposed_risks: Array<Record<string, unknown>>;
-  blocking_mode: "none" | "current_run" | "dependent_claims";
-  state: "pending" | "approved" | "rejected" | "dismissed" | "superseded";
-  decision: Record<string, unknown> | null;
-  created_at: string;
-  decided_at: string | null;
-}
-
-export interface RewireRecord {
-  rewire_id: string;
-  board_id: string;
-  candidate_id: string | null;
-  proposal: {
-    formal_goal_id?: string;
-    proposal_kind?: "candidate" | "dependency";
-    submitted_by?: string;
-    discovered_in_run_id?: string | null;
-    blocking_mode?: "none" | "current_run";
-    relations?: Array<Record<string, unknown>>;
-    impacts?: Array<Record<string, unknown>>;
-    risks?: Array<Record<string, unknown>>;
-    [key: string]: unknown;
-  };
-  impact: Record<string, unknown>;
-  state: "pending" | "confirmed" | "rejected" | "applied";
-  created_at: string;
-  decided_at: string | null;
-}
-
-export type GoalTreeProposalOrigin =
-  | "native" | "legacy_contract_proposal" | "legacy_candidate" | "legacy_rewire";
+export type GoalTreeProposalOrigin = "native";
 export type GoalTreeProposalState =
   | "pending" | "superseded" | "approved" | "partially_applied"
   | "rejected" | "dismissed" | "closed";
@@ -490,9 +407,7 @@ export interface GoalTreeItemOwner {
 export type NewNativeGoalTreeProposal = Omit<
   GoalTreeProposalRecord,
   "origin" | "items" | "decisions" | "decision" | "decided_at"
-> & {
-  supersedes_legacy_proposal_id?: string | null;
-};
+>;
 
 export type NewNativeGoalTreeProposalItem = Omit<
   GoalTreeProposalItemRecord,
@@ -502,30 +417,22 @@ export type NewNativeGoalTreeProposalItem = Omit<
 export interface GovernanceSnapshot {
   review_obligations: ReviewObligationRecord[];
   reviews: ReviewRecord[];
-  candidates: CandidateGoalRecord[];
-  contract_proposals: ContractProposalRecord[];
-  rewires: RewireRecord[];
   goal_tree_proposals: GoalTreeProposalRecord[];
 }
 
 export interface GovernanceQueryApi {
-  hasCandidateBootstrap(boardId: string, candidateId: string, goalId: string, proposalId: string): boolean;
   listLifecycleEvents(boardId: string): import("../platform/storage.js").StoredModuleEvent[];
   eventCursor(boardId: string): number;
   snapshot(boardId: string): GovernanceSnapshot;
   getReviewObligation(boardId: string, obligationId: string): ReviewObligationRecord | null;
   listReviewObligations(boardId: string, goalId?: string): ReviewObligationRecord[];
   listReviews(boardId: string, goalId?: string): ReviewRecord[];
-  getCandidate(boardId: string, candidateId: string): CandidateGoalRecord | null;
-  getContractProposal(boardId: string, proposalId: string): ContractProposalRecord | null;
-  getRewire(boardId: string, rewireId: string): RewireRecord | null;
   getGoalTreeProposal(boardId: string, proposalId: string): GoalTreeProposalRecord | null;
   listGoalTreeProposals(boardId: string): GoalTreeProposalRecord[];
 }
 
 /**
  * Current Goal Tree persistence and the atomic decision boundary.
- * Historical Candidate/Contract/Rewire rows are read through query, not this write port.
  */
 export interface GovernanceRecordsApi {
   executeGoalTreeDecision<TTransition>(input: {
@@ -561,7 +468,7 @@ export interface GovernanceRecordsApi {
   recordGoalTreeCheck(input: {
     board_id: string; proposal_id: string; actor_id: string; conflict_item_ids: string[];
     planning_issue_codes: string[]; at: string;
-  } & ({ origin: "native" } | { origin: "legacy_contract_proposal"; raw_proposal_id: string })): number;
+  }): number;
   executeGoalTreeSubmission(input: {
     board_id: string; actor_id: string; idempotency_key: string; request_hash: string;
   }, operation: () => { proposal: GoalTreeProposalRecord; observed_event_cursor: number }): {

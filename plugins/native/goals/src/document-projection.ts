@@ -48,10 +48,10 @@ export function projectGoalDocument(goal: GoalRecord, input: {
   const { boardId, snapshot, ports } = input;
   const {
     goalRiskIds, webRisks, evidenceByGoal, evidenceCorrectionsByGoal, reviewObligationsByGoal,
-    reviewsByGoal, impactsByGoal, contractProposalsByGoal, clarificationSessionsByGoal,
+    reviewsByGoal, impactsByGoal, clarificationSessionsByGoal,
     clarificationTurnsByGoal, inputBindingsByGoal, policyBindingsByGoal,
-    projectPolicyBindings, eventsByObject, relationsByGoal, candidatesByRun,
-    goalTreeProposalsByGoal, rewiresByGoal, rewiresByCandidate, createdByGoal,
+    projectPolicyBindings, eventsByObject, relationsByGoal,
+    goalTreeProposalsByGoal, createdByGoal,
   } = input.index;
   const event = ports.eventWork.readState(boardId, goal.goal_id);
   const eventOwned = Boolean(event.owner);
@@ -92,8 +92,6 @@ export function projectGoalDocument(goal: GoalRecord, input: {
   const riskIds = new Set(goalRiskIds.get(goal.goal_id) ?? []);
   const evidenceCorrectionIds = (evidenceCorrectionsByGoal.get(goal.goal_id) ?? [])
     .map((item) => item.correction_id);
-  const contractProposalIds = (contractProposalsByGoal.get(goal.goal_id) ?? [])
-    .map((item) => item.proposal_id);
   const clarificationSessionIds = (clarificationSessionsByGoal.get(goal.goal_id) ?? [])
     .map((item) => item.session_id);
   const clarificationTurnIds = (clarificationTurnsByGoal.get(goal.goal_id) ?? [])
@@ -113,22 +111,12 @@ export function projectGoalDocument(goal: GoalRecord, input: {
     ...evidenceCorrectionIds,
     ...reviewObligations.map((item) => item.obligation_id),
     ...reviews.map((item) => item.review_id),
-    ...contractProposalIds,
     ...clarificationSessionIds,
     ...clarificationTurnIds,
     ...goalTreeProposalIds,
     ...goalTreeProposalItemIds,
     ...visiblePolicyBindingIds,
   ]);
-  const candidateIds = new Set(runs.flatMap((item) =>
-    (candidatesByRun.get(item.run_id) ?? []).map((candidate) => candidate.candidate_id)
-  ));
-  candidateIds.forEach((id) => relatedObjectIds.add(id));
-  const relatedRewireIds = new Set((rewiresByGoal.get(goal.goal_id) ?? []).map((item) => item.rewire_id));
-  for (const candidateId of candidateIds) {
-    for (const rewire of rewiresByCandidate.get(candidateId) ?? []) relatedRewireIds.add(rewire.rewire_id);
-  }
-  relatedRewireIds.forEach((id) => relatedObjectIds.add(id));
   const goalEvents = [...relatedObjectIds]
     .flatMap((objectId) => eventsByObject.get(objectId) ?? [])
     .sort((left, right) => right.seq - left.seq);

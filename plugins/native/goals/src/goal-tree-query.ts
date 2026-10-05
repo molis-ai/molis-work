@@ -11,7 +11,7 @@ export class GoalTreeQueryApplication implements Pick<GoalTreeApplicationApi, "l
     governance: Pick<GovernanceApplicationApi, "query" | "provenance">;
     errorFactory: (code: string, message: string) => Error;
   }) {
-    this.baselines = new GoalTreeBaselineQuery(ports.goals, ports.governance.query);
+    this.baselines = new GoalTreeBaselineQuery(ports.goals);
   }
 
   readNative(boardId: string, proposalId: string) {
@@ -29,15 +29,9 @@ export class GoalTreeQueryApplication implements Pick<GoalTreeApplicationApi, "l
       throw this.ports.errorFactory("goal.not_found", `Goal 不存在: ${input.root_goal_id}`);
     }
     const snapshot = this.ports.governance.query.snapshot(input.board_id);
-    const proposals = [
-      ...snapshot.goal_tree_proposals,
-      ...(input.include_legacy === false ? [] : this.ports.governance.provenance.legacyProposalView(snapshot)),
-    ].filter(proposal => {
-      if (!input.proposal_id || proposal.proposal_id === input.proposal_id) return true;
-      if (proposal.origin === "native") return false;
-      const separator = proposal.proposal_id.indexOf(":");
-      return separator >= 0 && proposal.proposal_id.slice(separator + 1) === input.proposal_id;
-    }).filter(proposal => !input.root_goal_id || proposal.root_goal_id === input.root_goal_id)
+    const proposals = snapshot.goal_tree_proposals
+      .filter(proposal => !input.proposal_id || proposal.proposal_id === input.proposal_id)
+      .filter(proposal => !input.root_goal_id || proposal.root_goal_id === input.root_goal_id)
       .sort((left, right) => right.created_at.localeCompare(left.created_at) || left.proposal_id.localeCompare(right.proposal_id));
     return { observed_event_cursor: this.ports.governance.query.eventCursor(input.board_id), proposals };
   }

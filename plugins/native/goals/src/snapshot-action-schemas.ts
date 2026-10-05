@@ -45,25 +45,6 @@ const goalInput = object({ goal_id: text, title: text, outcome: text, why: text,
     pass_condition: text, target: nullable(record), required_evidence: strings }, ["statement", "decision_method", "pass_condition"])) },
   ["title", "outcome", "why", "business_logic", "acceptance_criteria"]);
 /** A goal as it was submitted in a proposal. Earlier proposal formats carried fields since dropped (source_refs, review_policy); they are read as recorded. */
-const submittedGoal: ActionSchema = { ...goalInput, additionalProperties: true };
-const candidate = object({ candidate_id: text, board_id: text, submitted_by: text, discovered_in_run_id: maybeText, proposed_goal: submittedGoal,
-  proposed_relations: array(record), proposed_impacts: array(record), proposed_risks: array(record), blocking_mode: enumeration(["none", "current_run", "dependent_claims"]),
-  state: enumeration(["pending", "approved", "rejected", "dismissed", "superseded"]), decision: nullable(record), created_at: text, decided_at: maybeText });
-const proposalRisk = object({ risk_id: text, description: text, probability: text, impact: text, affected_surfaces: strings,
-  trigger: text, treatment: enumeration(["accept", "mitigate", "avoid", "defer"]), treatment_plan: text,
-  blocking_mode: enumeration(["none", "claim", "completion", "invalidate_on_trigger"]), revisit_condition: text, owner: text },
-  ["risk_id", "description", "probability", "impact", "affected_surfaces", "trigger", "treatment", "blocking_mode", "revisit_condition", "owner"]);
-const contractProposal = object({ proposal_id: text, board_id: text, goal_id: text, submitted_by: text, discovered_in_run_id: text, proposed_goal: submittedGoal,
-  field_sources: array(object({ field: enumeration(["title", "outcome", "why", "business_logic", "in_scope", "out_of_scope", "constraints", "required_inputs", "promised_outputs", "priority", "acceptance_criteria", "review_policy"]),
-    source_kind: enumeration(["user_answer", "repository_fact", "document_fact", "runtime_inference"]), source_refs: strings, confidence: number, rationale: text,
-    status: { const: "proposed" }, requires_user_confirmation: { const: true } })), review_policy: goalPolicySchema,
-  proposed_impacts: array(object({ surface: text, access: enumeration(["read", "write", "decide", "exclusive"]), input_snapshot: maybeText, reason: text }, ["surface", "access", "reason"])),
-  proposed_risks: array(proposalRisk), dependency_rewire_ids: strings, state: enumeration(["pending", "approved", "rejected", "superseded"]),
-  decision: nullable(record), created_at: text, decided_at: maybeText });
-const rewire = object({ rewire_id: text, board_id: text, candidate_id: maybeText,
-  proposal: { ...object({ formal_goal_id: text, proposal_kind: enumeration(["candidate", "dependency"]), submitted_by: text, discovered_in_run_id: maybeText,
-    blocking_mode: enumeration(["none", "current_run"]), relations: array(record), impacts: array(record), risks: array(record) }, []), additionalProperties: true },
-  impact: record, state: enumeration(["pending", "confirmed", "rejected", "applied"]), created_at: text, decided_at: maybeText });
 const clarification = object({ session_id: text, board_id: text, goal_id: text, claim_id: maybeText, run_id: maybeText, rough_idea: text,
   state: enumeration(["clarifying", "proposal_ready", "closed"]), current_understanding: maybeText, next_question: maybeText, proposal_summary: maybeText,
   created_by: text, created_at: text, updated_at: text, closed_at: maybeText });
@@ -73,7 +54,7 @@ const turn = object({ turn_id: text, session_id: text, board_id: text, goal_id: 
   assumptions: array(object({ statement: text, source_refs: strings, confidence: number, requires_user_confirmation: { const: true } })),
   next_question: maybeText, proposal_summary: maybeText, created_at: text });
 const historical = { impacts: array(impact), claims: array(claim), runs: array(run), evidence: array(evidence), evidence_corrections: array(correction),
-  review_obligations: array(obligation), reviews: array(review), candidates: array(candidate), contract_proposals: array(contractProposal), rewires: array(rewire),
+  review_obligations: array(obligation), reviews: array(review),
   clarification_sessions: array(clarification), clarification_turns: array(turn), goal_tree_proposals: array(treeProposalSchema) };
 export const boardSnapshotSchema = object({ cursor: count, board, goals: array(goalRecordSchema), relations: array(goalRelationSchema), risks: array(goalRiskSchema),
   goal_risks: array(object({ goal_id: text, risk_id: text })), ...historical,

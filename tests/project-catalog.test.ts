@@ -234,7 +234,6 @@ test("demo data is classified, idempotently opened, reset, and removable without
           demoSnapshot.goals.find((goal) => goal.goal_id === "INTERFACES")?.title,
           "让不同 AI 对话看到同一项目进度",
         );
-        assert.equal(demoSnapshot.candidates.length, 0);
         const demoApp = new GoalProjectApplication(demoStore);
         assert.equal(demoApp.goalEvents.isEventStateOwner(DEMO_BOARD_ID, "CORE"), true);
         assert.match(

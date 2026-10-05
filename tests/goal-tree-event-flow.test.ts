@@ -131,13 +131,12 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
   }
 });
 
-test("original v35 pending Candidate, self-review and open Risks stay history with zero current pending decisions", () => {
+test("original v35 self-review and open Risks stay history with zero current pending decisions", () => {
   const fixture = materializeGoalEventHistory("legacy");
   const store = new LocalProjectDatabase(fixture.path);
   try {
     const app = new GoalProjectApplication(store);
     const before = store.snapshot("goalboard-v1-demo");
-    assert.equal(before.candidates.find((item) => item.candidate_id === "candidate-b0050ab4-1d01-4556-ac3d-fa0053f69ce2")?.state, "pending");
     assert.equal(before.review_obligations.find((item) => item.obligation_id === "obligation-efabfe3f-c602-454e-8f3b-13d48ec76a68")?.state, "pending");
     assert.equal(before.risks.find((item) => item.risk_id === "RISK-FIRST-RESTART")?.description, "用户接入 Runtime 后没有新开会话，误以为安装失败");
     for (const goal of before.goals) {

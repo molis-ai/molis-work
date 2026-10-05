@@ -32,17 +32,9 @@ export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "c
     const proposalView = this.ports.query.listGoalTreeProposals({
       board_id: input.board_id,
       proposal_id: proposalId,
-      include_legacy: true,
     }).proposals[0];
     if (!proposalView) {
       throw this.ports.errorFactory("goal_tree_proposal.not_found", `找不到 Goal Tree 提案: ${proposalId}`);
-    }
-    if (proposalView.origin !== "native") {
-      throw this.ports.errorFactory(
-        "goal_tree_proposal.kind_retired",
-        "历史提案不能从新 check 落地；请读取历史后提交新的 Goal/关系提案",
-        { proposal_id: proposalView.proposal_id },
-      );
     }
     const canonicalProposalId = proposalView.proposal_id;
     const hash = requestHash({ board_id: input.board_id, proposal_id: canonicalProposalId, actor_id: actorId });
@@ -106,7 +98,6 @@ export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "c
       const cursor = this.ports.governance.records.recordGoalTreeCheck({
         board_id: input.board_id, proposal_id: canonicalProposalId, actor_id: actorId,
         conflict_item_ids: conflictItemIds, planning_issue_codes: planningIssues.map(issue => issue.code), at: now,
-        origin: "native",
       });
       const outcome: GoalTreeProposalCheckResult = {
         proposal: this.ports.query.readNative(input.board_id, canonicalProposalId),

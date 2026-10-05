@@ -35,7 +35,7 @@ const storedItem = object({ item_id: text, proposal_id: text, board_id: text, or
   conflict: nullable(record), decision: nullable(decision), materialized_objects: array(affected),
   revision_proposal_id: maybeText, supersedes_item_id: maybeText, created_at: text, updated_at: text });
 export const treeProposalSchema = object({ proposal_id: text, board_id: text,
-  origin: enumeration(["native", "legacy_contract_proposal", "legacy_candidate", "legacy_rewire"]), root_goal_id: maybeText,
+  origin: enumeration(["native"]), root_goal_id: maybeText,
   submitted_by: text, discovered_in_run_id: maybeText, submitted_session_id: maybeText,
   state: enumeration(["pending", "superseded", "approved", "partially_applied", "rejected", "dismissed", "closed"]), version: count,
   supersedes_proposal_id: maybeText, base_event_cursor: count, summary: text, narrative: nullable(treeNarrativeSchema), decision: nullable(record),
@@ -43,7 +43,7 @@ export const treeProposalSchema = object({ proposal_id: text, board_id: text,
 export const treeSubmitInputSchema = object({ root_goal_id: maybeText, summary: identifier, narrative: nullable(treeNarrativeSchema),
   items: { ...array(treeItemInputSchema), minItems: 1 }, base_event_cursor: count, supersedes_proposal_id: maybeText,
   idempotency_key: identifier }, ["summary", "items", "idempotency_key"]);
-export const treeReadInputSchema = object({ proposal_id: text, root_goal_id: text, include_legacy: boolean }, []);
+export const treeReadInputSchema = object({ proposal_id: text, root_goal_id: text }, []);
 export const treeCheckInputSchema = object({ proposal_id: identifier, idempotency_key: identifier });
 export const treeDecideInputSchema = object({ proposal_id: identifier, decisions: array(treeItemDecisionSchema), reason: text,
   confirm_all_pending: boolean, idempotency_key: identifier }, ["proposal_id", "idempotency_key"]);

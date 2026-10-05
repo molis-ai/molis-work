@@ -63,17 +63,6 @@ export class GoalReadApplication {
       evidence_corrections: snapshot.evidence_corrections.filter((item) => item.goal_id === goalId),
       review_obligations: snapshot.review_obligations.filter((item) => item.goal_id === goalId),
       reviews: snapshot.reviews.filter((item) => item.goal_id === goalId),
-      candidates: snapshot.candidates.filter((item) =>
-        item.discovered_in_run_id != null && runs.some((run) => run.run_id === item.discovered_in_run_id),
-      ),
-      contract_proposals: snapshot.contract_proposals.filter((item) => item.goal_id === goalId),
-      rewires: snapshot.rewires.filter((item) =>
-        (item.proposal.relations ?? []).some((relation) => {
-          const fromGoalId = String(relation.from_goal_id ?? "");
-          const toGoalId = String(relation.to_goal_id ?? "");
-          return fromGoalId === goalId || toGoalId === goalId;
-        }),
-      ),
       clarification_sessions: clarificationSessions,
       clarification_turns: snapshot.clarification_turns.filter((item) =>
         clarificationSessionIds.has(item.session_id),

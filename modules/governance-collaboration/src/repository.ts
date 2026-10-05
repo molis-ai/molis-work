@@ -1,27 +1,21 @@
 import type { StoredModuleEvent } from "@molis-ai/molis-work-contracts/platform/storage";
 import type {
-  CandidateGoalRecord,
-  ContractProposalRecord,
   GoalTreeProposalDecisionRecord,
   GoalTreeProposalItemRecord,
   GoalTreeProposalRecord,
   GovernanceSnapshot,
   ReviewObligationRecord,
   ReviewRecord,
-  RewireRecord,
 } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 import {
   json,
   parseJson,
-  mapCandidate,
-  mapContractProposal,
   mapGoalTreeProposal,
   mapGoalTreeProposalDecision,
   mapGoalTreeProposalItem,
   mapReview,
   mapReviewObligation,
-  mapRewire,
   text,
   type GovernanceRow,
 } from "./mappers.js";
@@ -62,35 +56,10 @@ export class GovernanceRepository {
     return Number(row?.cursor ?? 0);
   }
 
-  hasCandidateBootstrap(
-    boardId: string,
-    candidateId: string,
-    goalId: string,
-    proposalId: string,
-  ): boolean {
-    const proposal = this.getGoalTreeProposal(boardId, proposalId);
-    return (proposal?.items ?? []).some((item) => {
-      if (item.state !== "applied" || item.kind !== "goal" || item.operation !== "create") return false;
-      return item.affected_objects.some(
-        (object) => object.object_type === "candidate" && object.object_id === candidateId,
-      ) && item.baseline_versions.some(
-        (baseline) =>
-          baseline.object_type === "candidate" &&
-          baseline.object_id === candidateId &&
-          baseline.exists,
-      ) && item.materialized_objects.some(
-        (object) => object.object_type === "goal" && object.object_id === goalId,
-      );
-    });
-  }
-
   snapshot(boardId: string): GovernanceSnapshot {
     return {
       review_obligations: this.listReviewObligations(boardId),
       reviews: this.listReviews(boardId),
-      candidates: this.listCandidates(boardId),
-      contract_proposals: this.listContractProposals(boardId),
-      rewires: this.listRewires(boardId),
       goal_tree_proposals: this.listGoalTreeProposals(boardId),
     };
   }
@@ -114,39 +83,6 @@ export class GovernanceRepository {
       ? this.db.prepare("SELECT * FROM reviews WHERE board_id = ? AND goal_id = ? ORDER BY submitted_at, review_id").all(boardId, goalId)
       : this.db.prepare("SELECT * FROM reviews WHERE board_id = ? ORDER BY submitted_at, review_id").all(boardId);
     return (rows as GovernanceRow[]).map(mapReview);
-  }
-
-  getCandidate(boardId: string, candidateId: string): CandidateGoalRecord | null {
-    const row = this.db.prepare("SELECT * FROM candidates WHERE board_id = ? AND candidate_id = ?")
-      .get(boardId, candidateId) as GovernanceRow | undefined;
-    return row ? mapCandidate(row) : null;
-  }
-
-  listCandidates(boardId: string): CandidateGoalRecord[] {
-    return (this.db.prepare("SELECT * FROM candidates WHERE board_id = ? ORDER BY created_at DESC, candidate_id")
-      .all(boardId) as GovernanceRow[]).map(mapCandidate);
-  }
-
-  getContractProposal(boardId: string, proposalId: string): ContractProposalRecord | null {
-    const row = this.db.prepare("SELECT * FROM contract_proposals WHERE board_id = ? AND proposal_id = ?")
-      .get(boardId, proposalId) as GovernanceRow | undefined;
-    return row ? mapContractProposal(row) : null;
-  }
-
-  listContractProposals(boardId: string): ContractProposalRecord[] {
-    return (this.db.prepare("SELECT * FROM contract_proposals WHERE board_id = ? ORDER BY created_at DESC, proposal_id")
-      .all(boardId) as GovernanceRow[]).map(mapContractProposal);
-  }
-
-  getRewire(boardId: string, rewireId: string): RewireRecord | null {
-    const row = this.db.prepare("SELECT * FROM rewires WHERE board_id = ? AND rewire_id = ?")
-      .get(boardId, rewireId) as GovernanceRow | undefined;
-    return row ? mapRewire(row) : null;
-  }
-
-  listRewires(boardId: string): RewireRecord[] {
-    return (this.db.prepare("SELECT * FROM rewires WHERE board_id = ? ORDER BY created_at DESC, rewire_id")
-      .all(boardId) as GovernanceRow[]).map(mapRewire);
   }
 
   getGoalTreeProposal(boardId: string, proposalId: string): GoalTreeProposalRecord | null {

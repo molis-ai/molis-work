@@ -68,28 +68,11 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
         previous = this.ports.query.listGoalTreeProposals({
           board_id: input.board_id,
           proposal_id: supersedesProposalId,
-          include_legacy: true,
         }).proposals[0] ?? null;
         if (!previous) {
           throw this.ports.errorFactory(
             "goal_tree_proposal.not_found",
             `找不到 Goal Tree 提案: ${supersedesProposalId}`,
-          );
-        }
-        if (previous.origin !== "native" && previous.origin !== "legacy_contract_proposal") {
-          throw this.ports.errorFactory(
-            "goal_tree_proposal.legacy_supersession_unsupported",
-            `supersedes_proposal_id=${supersedesProposalId} 指向 ${previous.origin}；当前只支持修订 native Proposal 或 legacy Contract Proposal。Candidate 请用 candidate item 晋升，Rewire 只会在等价关系变更确认落地后自动关闭。`,
-            {
-              path: "supersedes_proposal_id",
-              received_value: supersedesProposalId,
-              resolved_proposal_id: previous.proposal_id,
-              origin: previous.origin,
-              allowed_origins: ["native", "legacy_contract_proposal"],
-              next_action: previous.origin === "legacy_candidate"
-                ? "promote_candidate_with_candidate_item"
-                : "submit_equivalent_relation_change_without_supersedes_handle",
-            },
           );
         }
         if (previous.state !== "pending") {
@@ -106,10 +89,6 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
         }
       }
       const canonicalSupersedesProposalId = previous?.proposal_id ?? null;
-      const supersedesNativeProposalId = previous?.origin === "native" ? previous.proposal_id : null;
-      const supersedesLegacyProposalId = previous?.origin === "legacy_contract_proposal"
-        ? previous.proposal_id
-        : null;
       const effectiveRootGoalId = rootGoalId ?? previous?.root_goal_id ?? null;
       if (effectiveRootGoalId) this.requireGoalOnBoard(input.board_id, effectiveRootGoalId);
       if (!previous && items.some((item) => item.supersedes_item_id)) {
@@ -160,8 +139,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
         submitted_session_id: input.submitted_session_id?.trim() || null,
         state: "pending",
         version,
-        supersedes_proposal_id: supersedesNativeProposalId,
-        supersedes_legacy_proposal_id: supersedesLegacyProposalId,
+        supersedes_proposal_id: canonicalSupersedesProposalId,
         base_event_cursor: baseEventCursor,
         summary,
         narrative,

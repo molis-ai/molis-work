@@ -26,53 +26,6 @@ export const GOVERNANCE_SCHEMA_SQL = `
   );
   CREATE INDEX reviews_obligation_idx ON reviews(obligation_id, verdict);
 
-  CREATE TABLE candidates (
-    candidate_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    submitted_by TEXT NOT NULL,
-    discovered_in_run_id TEXT REFERENCES runs(run_id),
-    proposed_goal_json TEXT NOT NULL,
-    proposed_relations_json TEXT NOT NULL DEFAULT '[]',
-    proposed_impacts_json TEXT NOT NULL DEFAULT '[]',
-    proposed_risks_json TEXT NOT NULL DEFAULT '[]',
-    blocking_mode TEXT NOT NULL CHECK (blocking_mode IN ('none', 'current_run', 'dependent_claims')),
-    state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'rejected', 'dismissed', 'superseded')),
-    decision_json TEXT,
-    created_at TEXT NOT NULL,
-    decided_at TEXT
-  );
-
-  CREATE TABLE rewires (
-    rewire_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    candidate_id TEXT REFERENCES candidates(candidate_id),
-    proposal_json TEXT NOT NULL,
-    impact_json TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('pending', 'confirmed', 'rejected', 'applied')),
-    created_at TEXT NOT NULL,
-    decided_at TEXT
-  );
-
-  CREATE TABLE contract_proposals (
-    proposal_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    submitted_by TEXT NOT NULL,
-    discovered_in_run_id TEXT NOT NULL REFERENCES runs(run_id),
-    proposed_goal_json TEXT NOT NULL,
-    field_sources_json TEXT NOT NULL,
-    review_policy_json TEXT NOT NULL,
-    proposed_impacts_json TEXT NOT NULL DEFAULT '[]',
-    proposed_risks_json TEXT NOT NULL DEFAULT '[]',
-    dependency_rewire_ids_json TEXT NOT NULL DEFAULT '[]',
-    state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'rejected', 'superseded')),
-    decision_json TEXT,
-    created_at TEXT NOT NULL,
-    decided_at TEXT
-  );
-  CREATE INDEX contract_proposals_goal_idx
-    ON contract_proposals(board_id, goal_id, state, created_at);
-
   CREATE TABLE goal_tree_proposals (
     proposal_id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
@@ -83,7 +36,6 @@ export const GOVERNANCE_SCHEMA_SQL = `
     state TEXT NOT NULL CHECK (state IN ('pending', 'superseded', 'approved', 'partially_applied', 'rejected', 'dismissed', 'closed')),
     version INTEGER NOT NULL,
     supersedes_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
-    supersedes_legacy_proposal_id TEXT,
     base_event_cursor INTEGER NOT NULL,
     summary TEXT NOT NULL,
     narrative_json TEXT,
@@ -96,8 +48,6 @@ export const GOVERNANCE_SCHEMA_SQL = `
     ON goal_tree_proposals(board_id, root_goal_id, state, created_at DESC, proposal_id);
   CREATE INDEX goal_tree_proposals_supersedes_idx
     ON goal_tree_proposals(supersedes_proposal_id);
-  CREATE INDEX goal_tree_proposals_supersedes_legacy_idx
-    ON goal_tree_proposals(supersedes_legacy_proposal_id);
 
   CREATE TABLE goal_tree_proposal_items (
     item_id TEXT PRIMARY KEY,

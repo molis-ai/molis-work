@@ -129,7 +129,7 @@ test("fresh SQLite authority creates a usable board and reopens idempotently", (
   store.close();
 
   const reopened = new LocalProjectDatabase(path);
-  assert.equal(reopened.db.pragma("user_version", { simple: true }), 1);
+  assert.equal(reopened.db.pragma("user_version", { simple: true }), 2);
   assert.equal(reopened.snapshot("board-1").board.title, "产品目标");
   reopened.close();
 });

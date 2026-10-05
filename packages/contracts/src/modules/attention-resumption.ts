@@ -90,20 +90,10 @@ export interface AttentionEvents {
   list(projectId: string, entryId?: string): AttentionEvent[];
 }
 
-export interface LegacyAttentionEntryInput extends AttentionEntryRecord {}
-
-/** Narrow migration surface used only while old inbox_message rows are reconciled. */
-export interface AttentionMigrationApi {
-  countEntries(): number;
-  importLegacy(entry: LegacyAttentionEntryInput): AttentionEntryRecord;
-  listFeedItemReferences(): Array<{ project_id: string; subject_id: string }>;
-}
-
 export interface AttentionApi {
   readonly query: AttentionQuery;
   readonly commands: AttentionCommands;
   readonly events: AttentionEvents;
-  readonly migrations: AttentionMigrationApi;
 }
 
 export class AttentionError extends Error {

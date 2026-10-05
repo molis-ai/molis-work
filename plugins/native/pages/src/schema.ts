@@ -114,14 +114,14 @@ const nodes = {
     }, 0],
   } satisfies NodeSpec,
   callout: {
-    attrs: noted({ tone: { default: "info" }, icon: { default: "" } }),
+    attrs: noted({ tone: { default: "cyan" }, icon: { default: "" } }),
     content: "block+",
     group: "block",
     defining: true,
     parseDOM: [{
       tag: "aside[data-pages-callout]",
       getAttrs: (dom) => ({
-        tone: (dom as HTMLElement).getAttribute("data-pages-callout") || "info",
+        tone: (dom as HTMLElement).getAttribute("data-pages-callout") || "cyan",
         icon: safePagesCalloutIcon((dom as HTMLElement).getAttribute("data-pages-icon")),
         note: (dom as HTMLElement).getAttribute("data-pages-note") || "",
       }),

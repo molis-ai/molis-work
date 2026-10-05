@@ -79,7 +79,7 @@ Native：构建期装配，Host 注入 HTML primitives。
 - 兑现：运行实例提供 `bindings`、`bind`、`consume`；需要时提供 `prepare` 和 `failed`。绑定数据保留在原业务 owner。消费前核对业务对象；共同内核负责绑定修订、提供方实例和权限重查。
 - 发现：Host 场景客户端根据注册合同判断兼容性，并从真实绑定反查使用位置。新场景无需更新 Host ID 名单。完整系统管理 UI 与部分旧编辑器尚在迁移，不能把注册成功等同于所有产品入口完成。
 
-`behaviors` 已废弃，内置插件均已移除；`function_scenes` 和 `judgment_subjects` 只是兼容声明，不兑现实际场景消费。可调用能力用 `actions`，消费判断用 `action_scenes`；Home、Inbox、Feed 的判断都已走共同场景。详情见 [Host 接线](host.md#接到统一判断场景) 和 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#统一动作与消费场景)。
+Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-10 删除）。可调用能力用 `actions`，消费判断用 `action_scenes`；Home、Inbox、Feed 的判断都已走共同场景。详情见 [Host 接线](host.md#接到统一判断场景) 和 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#统一动作与消费场景)。
 
 ## MCP（对外贡献）
 

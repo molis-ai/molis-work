@@ -33,8 +33,7 @@ export class SessionAssociationRepository {
         const first = this.ledger.query.history(access(), latest.key)[0]!;
         return { link_id: latest.key, session_id: sessionId, goal_id: latest.target.id,
           relation: latest.state === "active" ? "current" : "history", linked_by: first.actor_id,
-          created_at: first.recorded_at, ended_at: latest.state === "active" || latest.cause === "work.legacy_end_unknown"
-            ? null : latest.recorded_at };
+          created_at: first.recorded_at, ended_at: latest.state === "active" ? null : latest.recorded_at };
       }).sort((a, b) => Number(b.relation === "current") - Number(a.relation === "current")
         || (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0)
         || (a.link_id < b.link_id ? 1 : a.link_id > b.link_id ? -1 : 0));

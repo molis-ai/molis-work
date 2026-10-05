@@ -43,7 +43,7 @@ function numbered(items: readonly string[]) {
   };
 }
 
-function callout(tone: "info" | "warn" | "success" | "plain", ...blocks: unknown[]) {
+function callout(tone: "cyan" | "orange" | "green" | "gray", ...blocks: unknown[]) {
   return { type: "callout" as const, attrs: { tone }, content: blocks };
 }
 
@@ -113,7 +113,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     body: doc([
       toc(),
       heading(2, "信息"),
-      callout("info", paragraph("时间、地点、主持写在下面。")),
+      callout("cyan", paragraph("时间、地点、主持写在下面。")),
       bullets(["时间：", "地点 / 链接：", "主持："]),
       heading(2, "出席"),
       bullets(["出席：", "缺席："]),
@@ -148,7 +148,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     icon: "flag",
     body: doc([
       heading(2, "目标"),
-      callout("info", paragraph("做成之后，外面会看见什么。")),
+      callout("cyan", paragraph("做成之后，外面会看见什么。")),
       heading(2, "团队"),
       bullets(["角色与人"]),
       heading(2, "里程碑"),
@@ -164,7 +164,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     icon: "file",
     body: doc([
       heading(2, "背景"),
-      callout("plain", paragraph("为什么现在做。")),
+      callout("gray", paragraph("为什么现在做。")),
       heading(2, "用户故事"),
       bullets(["作为……，我想……，以便……"]),
       heading(2, "验收"),
@@ -192,7 +192,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     icon: "user",
     body: doc([
       heading(2, "对象"),
-      callout("info", paragraph("先写清对方是谁，再问。")),
+      callout("cyan", paragraph("先写清对方是谁，再问。")),
       bullets(["姓名 / 角色：", "场景："]),
       heading(2, "问题"),
       numbered(["最近一次碰到这事是什么时候？", "当时怎么处理的？"]),
@@ -221,7 +221,7 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
     icon: "alert",
     body: doc([
       heading(2, "经过"),
-      callout("warn", paragraph("按时间写下发生了什么。")),
+      callout("orange", paragraph("按时间写下发生了什么。")),
       heading(2, "根因"),
       bullets(["真正导致问题的原因"]),
       heading(2, "改进"),

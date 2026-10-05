@@ -229,7 +229,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
         "宿主没有冻结角色定义，不能在没有角色 Prompt 的情况下起跑",
       );
     }
-    const state = emptyStreamState();
+    const state = emptyStreamState(ref.run_id);
     state.turns.push({ turn_id: "user-1", kind: "user", text: request.task, at });
 
     const view: AgentRunView = {

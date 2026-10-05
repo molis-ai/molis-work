@@ -2,23 +2,12 @@ import { createPrologueTypeSafeProvider } from "./typesafe-prologue.js";
 import { selectedTypeSafeConnection, typeSafeCredential, typeSafeConfiguration } from "./typesafe-connection.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import {
-  HOME_DOCK_SCENE_ID,
-  type FunctionsSettingsStatus,
-} from "@molis-ai/molis-work-contracts/modules/functions";
+import type { FunctionsSettingsStatus } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   createFunctionsService,
   openFunctionsStore,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
-import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
-
-// Historical aliases are translated to the original native Inbox owner, never
-// whichever installed plugin happens to declare an identical offer_id today.
-const legacyHomeChoices = Object.fromEntries(["inbox.done", "inbox.dismiss"].map(offer_id => [offer_id,
-  subjectOfferChoiceKey({ capability_id: "inbox.actions.prepare", version: 1, provider_id: "io.molis.work.inbox" },
-    { offer_id, title: offer_id, action: { capability_id: "inbox.entry.status", version: 1 } }),
-]));
 
 export interface FunctionsHostOptions {
   /** A test's own key; otherwise the key is the TypeSafe connection bound for Functions. */
@@ -55,7 +44,6 @@ export function withFunctionsService<T>(
 ): T {
   const store = openFunctionsStore(homeDirectory);
   try {
-    store.migrateSceneReferences(HOME_DOCK_SCENE_ID, legacyHomeChoices);
     return run(createFunctionsService({
       store,
       credential: functionsCredential(homeDirectory, options),
@@ -77,7 +65,6 @@ export async function withFunctionsServiceAsync<T>(
 ): Promise<T> {
   const store = openFunctionsStore(homeDirectory);
   try {
-    store.migrateSceneReferences(HOME_DOCK_SCENE_ID, legacyHomeChoices);
     return await run(createFunctionsService({
       store,
       credential: functionsCredential(homeDirectory, options),

@@ -328,7 +328,7 @@ export class FeedApplication {
       let item: FeedItemRecord;
       try { item = this.getFeedItem(queued.board_id, queued.item_id); }
       catch (error) { if (error instanceof FeedStoreError && error.code === "feed_item_not_found") continue; throw error; }
-      const ruleIds = this.listOutRules(item.board_id).filter(rule => (rule.judgment || rule.function_key) && feedOutRuleMatches(rule, item)).map(rule => rule.rule_id);
+      const ruleIds = this.listOutRules(item.board_id).filter(rule => rule.judgment && feedOutRuleMatches(rule, item)).map(rule => rule.rule_id);
       await this.ports.captureJudgment?.({ board_id: item.board_id, item_id: item.item_id, rule_ids: ruleIds }, caller);
       await this.ports.homeJudgment?.({ kind: "feed_item", id: item.item_id, board_id: item.board_id }, caller);
     }
@@ -359,7 +359,6 @@ export class FeedApplication {
   }
 
   saveOutRuleCreate(rule: FeedOutRuleRecord): FeedOutRuleRecord {
-    if (rule.function_key && !rule.judgment) throw new FeedStoreError("feed_invalid_transition", "请通过动作服务选择可用的判断能力");
     return this.requireOutRules().saveCreate(rule);
   }
 
@@ -376,7 +375,6 @@ export class FeedApplication {
   }
 
   updateOutRule(boardId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
-    if (patch.function_key && !patch.judgment) throw new FeedStoreError("feed_invalid_transition", "请通过动作服务选择可用的判断能力");
     const current = this.requireOutRules().get(boardId, ruleId);
     return this.saveOutRuleUpdate(this.prepareOutRuleUpdate(boardId, ruleId, patch), current.revision);
   }
@@ -393,7 +391,7 @@ export class FeedApplication {
     if (rule.admission === "inbox" && (judgment.outcome === "needs_review" || judgment.suggested_behavior_ids.includes("inbox.admit"))) {
       const admission = this.ensureInboxEntryForFeedItem(item.board_id, item.item_id, "source_rule", {
         rule_id: rule.rule_id, rule_name: rule.name, judgment_id: judgment.judgment_id,
-        function_key: rule.function_key, function_version: judgment.function_version, needs_review: judgment.outcome === "needs_review",
+        function_key: judgment.function_key, function_version: judgment.function_version, needs_review: judgment.outcome === "needs_review",
       });
       if (admission.created) createdEntry = admission.entry.entry_id;
     }
@@ -450,7 +448,7 @@ export class FeedApplication {
     const matched = rules.filter((rule) => feedOutRuleMatches(rule, item));
     if (matched.length === 0) return;
     for (const rule of matched) {
-      if (rule.admission === "inbox" && !rule.function_key && !rule.judgment) {
+      if (rule.admission === "inbox" && !rule.judgment) {
         this.ensureInboxEntryForFeedItem(item.board_id, item.item_id, "source_rule", { rule_id: rule.rule_id, rule_name: rule.name });
       }
     }

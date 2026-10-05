@@ -78,7 +78,7 @@ test("system configuration writes Home, Inbox and existing Feed rules through th
       if (sceneId !== "feed.capture") {
         await assert.rejects(host.actionClient(reference).invoke({ ...caller, validate_authority: action => {
           if (action.capability_id === publishedFunctionAction(record).capability_id) withFunctionsService(home,
-            service => service.saveActionSceneBinding(reference.board_id, { ...originalBinding, enabled: false }, record.function_key), functions);
+            service => service.saveActionSceneBinding(reference.board_id, { ...originalBinding, enabled: false }), functions);
         } }, functionContextActions.configure, configure(record.id, target, true)), { code: "functions.conflict" });
         assert.equal((await readTarget()).binding?.enabled, false);
       } else {

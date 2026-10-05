@@ -22,7 +22,7 @@
   - 执行只经 Host 的 Prologue 能力；Agent 挂载的规范来自 `skills/molis-plugin-dev`（设计、体验、界面、复查与代码按阶段挂载，各不超过 20000 字）。
   - Agent 写的代码由 Local Host 做类型检查、打包并在 plugin-sandbox 里试跑（`apps/local-host/src/plugin-builder/build-checks.ts`），通过后才发布。
   - 再次编辑产生新草稿，不影响正在使用的版本；新版本新增的权限或联网域名要用户重新确认；回滚只回退代码版本、不回退数据（agent-built-plugins spec）。
-  - 费用、时限和频率取自 Action 提供方的 `execution` 声明；目录适配不再按 `model.generate` 名称推断。收费能力不能用于页面自动触发的 query，旧生成物保留必要的输入输出转换。
+  - 费用、时限和频率取自 Action 提供方的 `execution` 声明；目录适配不再按 `model.generate` 名称推断。收费能力不能用于页面自动触发的 query。生成插件只走统一目录：目录之前的工作室能力清单（`goals.*`、`reminders.*`、`schedules.*` 的旧形状）和直接写在代码里的模型要求都已删除（2026-10，防腐第二步）。
   - 不执行模型给出的 HTML 或 JavaScript，不自动连接外部账号。
 - 改动后必跑：`node scripts/run-tests.mjs tests/plugin-builder-domain.test.ts tests/agent-built-plugins-agent.test.ts tests/agent-built-plugins-authoring.test.ts tests/agent-built-plugins-capabilities.test.ts tests/agent-built-plugins-catalog.test.ts tests/agent-built-plugins-checks.test.ts tests/agent-built-plugins-components.test.ts tests/agent-built-plugins-dependencies.test.ts tests/agent-built-plugins-network.test.ts tests/agent-built-plugins-reminders.test.ts tests/agent-built-plugins-workbench.test.ts tests/agent-built-plugins-workflow.test.ts tests/generated-plugin-prompt-binding.test.ts tests/generated-plugin-prompts.test.ts tests/installed-plugin-execution.test.ts tests/installed-plugin-host.test.ts tests/installed-plugin-policy.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/agent-studio.e2e.test.ts tests/plugin-builder-stage.e2e.test.ts tests/plugin-builder-diagnostics.e2e.test.ts`

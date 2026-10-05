@@ -37,7 +37,7 @@ test("a generated plugin's prompts are read from its source, and every model cal
 
 function release(version: number, prompts: AgentRelease["prompts"]): AgentRelease {
   return { buildId: "b1", pluginId: "io.molis.work.generated.b1", version, nodes: [], manifest: { version: 1, pluginId: "io.molis.work.generated.b1", revision: "r", effects: {} },
-    directory: "", bundlePath: "", packagePath: "", permissions: {}, publishedAt: "2026-09-28T00:00:00.000Z", ...(prompts ? { prompts } : {}),
+    directory: "", bundlePath: "", packagePath: "", permissions: {}, publishedAt: "2026-09-28T00:00:00.000Z", prompts,
     design: { title: "笔记助手", contract: { operations: [{ id: "notes.summarize", effects: { capabilities: ["model.generate"] } }] } } as unknown as AgentRelease["design"] };
 }
 
@@ -77,9 +77,6 @@ test("installing registers a generated plugin's prompts; the person's edit runs,
     assert.equal(again.effective, "user");
     assert.equal(again.source.kind === "plugin" && again.source.state, "disabled");
 
-    const legacy = generatedRegistration(release(1, undefined), [], "enabled", "1.0.0");
-    assert.equal(legacy.prompts.length, 0);
-    assert.match(legacy.notes?.[0] ?? "", /登记 Prompt 之前/);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 

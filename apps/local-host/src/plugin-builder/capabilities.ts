@@ -1,57 +1,17 @@
 /**
- * Host side of the platform capabilities generated plugins may declare (catalog: `STUDIO_CAPABILITIES`).
- * The broker has already checked the id against the installation's grants; this layer checks the input and the
- * output against legacy schemas and translates old Goals shapes. Current capabilities execute through ActionService.
+ * Host side of the capabilities generated plugins call: execution limits and policy bindings for entries of the
+ * project's action catalog. The platform's own `model.generate` is implemented by `generate`.
  */
 import type { ActionCallContext, ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
-import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { assertMatches, SandboxError, type SandboxLimits, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
-import { studioCapability, type StudioCapability } from '@molis-ai/molis-work-plugin-builder';
+import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxLimits } from '@molis-ai/molis-work-plugin-sandbox';
 
 export interface CapabilityImplementations {
-  /**
-   * A tool-less model call on the model the person configured, with one of the plugin's declared prompts (by id, as
-   * the person left it) or, from plugins generated before prompts were declared, inline instructions.
-   */
+  /** A tool-less model call on the model the person configured, with one of the plugin's declared prompts (by id, as the person left it). */
   generate(pluginId: string, input: ModelGenerateInput, signal: AbortSignal, beforeDispatch?: () => void | Promise<void>, caller?: PluginModelCaller): Promise<{ text: string }>;
-  /** The project's goals, reached through the Goals plugin's own actions as this plugin installation. */
-  goals?: {
-    list(identity: Readonly<SandboxIdentity>, control?: SandboxServiceContext): Promise<Array<{ id: string; title: string; status: string }>>;
-    note(identity: Readonly<SandboxIdentity>, input: { goalId: string; text: string }, control?: SandboxServiceContext): Promise<{ recorded: boolean }>;
-  };
 }
-type CapabilityService = NonNullable<SandboxServices['capability']>;
-export interface ModelGenerateInput { prompt?: string; instructions?: string; input: string }
+export interface ModelGenerateInput { prompt: string; input: string }
 export type PluginModelCaller = Pick<ActionCallContext, 'project_id' | 'plugin_install_id'>;
-
-function known(id: string): StudioCapability {
-  const capability = studioCapability(id);
-  if (!capability) throw new SandboxError('CAPABILITY_DENIED', '平台没有这个能力：' + id);
-  return capability;
-}
-
-/** Stand-ins only: tests, contract examples and sandbox checks. */
-export function standInCapabilities(): CapabilityService {
-  return { async call(_context, id, input) { const capability = known(id); assertMatches(capability.input, input); return capability.standIn(input); } };
-}
-
-/** Older releases keep their Goals input/output shapes; all other calls use the unified provider. */
-export function hostCapabilities(options: { goals?: CapabilityImplementations['goals']; current: CapabilityService }, live: (identity: Readonly<SandboxIdentity>) => boolean): CapabilityService {
-  return {
-    async call(context, id, input) {
-      const capability = known(id); assertMatches(capability.input, input);
-      if (!live(context.identity) || capability.writes && context.identity.namespace !== 'installed') return capability.standIn(input);
-      let output: SandboxJson;
-      if (id === 'goals.list' || id === 'goals.note') {
-        const goals = options.goals;
-        if (!goals) throw new SandboxError('CAPABILITY_UNAVAILABLE', '这个项目还不能提供目标能力');
-        output = (id === 'goals.list' ? await goals.list(context.identity, context) : await goals.note(context.identity, input as { goalId: string; text: string }, context)) as unknown as SandboxJson;
-      } else output = await options.current.call(context, id, input);
-      assertMatches(capability.output, output);
-      return output;
-    },
-  };
-}
 
 export interface CapabilityExecution {
   id: string; version?: number; provider_id?: string; offered?: boolean; installed?: boolean;

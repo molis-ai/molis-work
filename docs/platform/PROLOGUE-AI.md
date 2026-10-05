@@ -85,7 +85,7 @@ Coding 页面 → plugins/native/coding/src/routes.ts
 
 **动作定义**：写明 `model:invoke` 权限；等模型的动作一律 `scheduling: "concurrent"`，否则它会占住整个项目的串行队列（门禁 `tests/action-model-scheduling.test.ts`）。
 
-提供方还应在 `action.execution` 声明实际时限、费用类别和必要调用频率；这些事实经同一目录到达插件、Agent、Workflow 与 MCP，Kernel 执行明确声明的限额。生成插件的 `model.generate` 声明 120 秒、metered、每身份每分钟 20 次；旧生成物也进入同一 ActionService。Agent 的工具入口可以设置更短的上限。Native 的直接生成与 Coding/Images/Alchemist/Experiments 的后台启动都由提供方声明 metered，表示可能消耗计量额度；读取历史、配置和取消不因此标为收费。后台启动的 Action 返回后，任务自己的预算、取消和恢复继续有效，不能把整个任务时长填成处理器时限。计费未知保持 unknown，Action 超时不等于外部请求未执行，也不授权自动重试。完整字段语义见 [插件开发手册](./PLUGIN-DEVELOPMENT.md)。
+提供方还应在 `action.execution` 声明实际时限、费用类别和必要调用频率；这些事实经同一目录到达插件、Agent、Workflow 与 MCP，Kernel 执行明确声明的限额。生成插件的 `model.generate` 声明 120 秒、metered、每身份每分钟 20 次。Agent 的工具入口可以设置更短的上限。Native 的直接生成与 Coding/Images/Alchemist/Experiments 的后台启动都由提供方声明 metered，表示可能消耗计量额度；读取历史、配置和取消不因此标为收费。后台启动的 Action 返回后，任务自己的预算、取消和恢复继续有效，不能把整个任务时长填成处理器时限。计费未知保持 unknown，Action 超时不等于外部请求未执行，也不授权自动重试。完整字段语义见 [插件开发手册](./PLUGIN-DEVELOPMENT.md)。
 
 ```ts
 message: define("conversation.message", "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
@@ -119,7 +119,7 @@ modelAvailability: () => model() ? { available: true } : { available: false, cod
 
 **提示词登记与用户修改**：插件在 `src/prompts.ts` 用 `defineInstructionPrompt` 声明 owner、稳定 id、版本、用途、使用位置和默认正文，从包入口导出指令列表，在 `apps/workbench/src/builtin-plugins.ts` 的同一插件项声明 `instructions`；Host 从共同目录派生登记。插件端口接收 `InstructedPrompt`，调用传 `instructed(LINGGUANG_CONVERSATION, JSON.stringify(materials))`；Host 经 `resolveModelPrompt` 读取有效正文并记使用版本，之后才交给共享推理入口。用户材料与本次参数属于 data，不拼入可编辑的默认指令。材料中的指令不授予任何权限；超长先拒绝（灵光 18 万字符、Pages 10 万）。
 
-生成插件声明 `export const prompts = [...]`，调用 `model.generate` 能力时传 `{ prompt: id, input }` 指定一段正文。Host 的 `plugin-builder/model.ts` 解析当前指令/用户覆盖，继续调用同一 `hostTextGeneration`；只有旧发布物保留 inline instructions 的读取兼容，新生成代码须用声明的 prompt。安装、停用、启用、版本切换、卸载与恢复的登记属于 `installed-plugin-host.ts`，不依赖打开创作台。设计与编码阶段则由 Builder 的 prompt 端口取有效正文，运行版本包含用户修订号。
+生成插件声明 `export const prompts = [...]`，调用 `model.generate` 能力时传 `{ prompt: id, input }` 指定一段正文。Host 的 `plugin-builder/model.ts` 解析当前指令/用户覆盖，继续调用同一 `hostTextGeneration`；不接受写在代码里的 instructions。安装、停用、启用、版本切换、卸载与恢复的登记属于 `installed-plugin-host.ts`，不依赖打开创作台。设计与编码阶段则由 Builder 的 prompt 端口取有效正文，运行版本包含用户修订号。
 
 Cognia 同时保留已登记的知识角色与回答指令：角色作为共享单次推理的 system 输入，回答指令与固定资料作为正文。可编辑的提示词必须真实进入调用，不能只有登记页面。`tests/cognia-prologue.test.ts` 与 `tests/plugin-model-generation.test.ts` 经真实 SDK 和本地 HTTP 核对用户覆盖、工具边界、取消和撤权；`tests/installed-plugin-host.test.ts` 核对真实安装生命周期。
 

@@ -78,10 +78,10 @@ test('a plugin calls real actions as itself, only when live; writes stay stand-i
   await service.call(context('installed'), 'goals.note', {});
   assert.deepEqual(calls.at(-1), { id: 'goals.note', actor: 'plugin:io.molis.work.generated.x', audit: '插件「进展日志」' }, 'the plugin writes as itself, named for people');
   await assert.rejects(service.call(context('installed'), 'goals.trash', {}), /没有开放给插件的能力/);
-  assert.deepEqual(await service.call(context('installed'), 'model.generate', { instructions: '总结', input: '今天' }), { text: '真实回答' });
+  assert.deepEqual(await service.call(context('installed'), 'model.generate', { prompt: 'summary', input: '今天' }), { text: '真实回答' });
   assert.deepEqual(generated, ['io.molis.work.generated.x:今天']);
-  for (let index = 1; index < 20; index++) await service.call(context('installed'), 'model.generate', { instructions: '总结', input: '今天' });
-  await assert.rejects(service.call(context('installed'), 'model.generate', { instructions: '总结', input: '今天' }), /次数太多/);
+  for (let index = 1; index < 20; index++) await service.call(context('installed'), 'model.generate', { prompt: 'summary', input: '今天' });
+  await assert.rejects(service.call(context('installed'), 'model.generate', { prompt: 'summary', input: '今天' }), /次数太多/);
   live = false;
   assert.deepEqual(await service.call(context('installed'), 'goals.list', {}), { goals: [] }, 'checks and acceptance get a valid stand-in');
 });
@@ -95,7 +95,7 @@ test('a stand-in is a valid value for the capability\'s output', async () => {
   assert.deepEqual(sampleFromSchema({ type: 'array', items: entry }), [{ entry_id: '示例', title: '示例', notes: [] }]);
   const { actions } = project();
   const model = (await capabilityCatalog(actions, 'web-user')).find(entry => entry.id === 'model.generate')!;
-  assert.deepEqual(standIn(model, { instructions: 'x', input: '间隔复习比集中复习记得更久' }), { text: '［模型替身］间隔复习比集中复习记得更久' }, 'the studio keeps its fixed stand-in');
+  assert.deepEqual(standIn(model, { prompt: 'x', input: '间隔复习比集中复习记得更久' }), { text: '［模型替身］间隔复习比集中复习记得更久' }, 'the studio keeps its fixed stand-in');
 });
 
 test('the designer sees the capabilities that bear on the request in full, the ones in use always, and the rest summarised by source', async () => {

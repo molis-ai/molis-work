@@ -21,7 +21,6 @@ export { atomicWriteFileSync } from "./adapters/atomic-write.js";
 
 export {
   PERSONAL_HOME_SQLITE_STORES,
-  ensureSqliteColumn,
   homeSqlitePath,
   openHomeSqliteDatabase,
   type PersonalHomeSqliteStore,

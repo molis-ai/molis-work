@@ -14,7 +14,8 @@ export interface MolisWorkRuntimeContextHost {
   webBaseUrl?: string;
   molisWorkSessionId?: string | null;
   nativeRuntimeSessionId?: string | null;
-  legacyWorkContextId?: string | null;
+  /** The work entry the host declared (`MOLIS_WORK_WORK_CONTEXT_ID`: a desktop panel, an integration check); the Session is routed by it. */
+  hostWorkContextId?: string | null;
   goalId?: string | null;
   /**
    * Host-only non-authoritative hints for a fresh Session. They may rank

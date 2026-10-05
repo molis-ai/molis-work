@@ -183,7 +183,6 @@ test("stale Molis Work or surface IDs cannot override a conflicting native Runti
       runtime_id: "codex",
       molis_work_session_id: stale.session_id,
       native_runtime_session_id: active.native_runtime_session_id,
-      legacy_work_context_id: null,
       surface_id: stale.surface_id,
       goal_id: null,
       runtime_context: {

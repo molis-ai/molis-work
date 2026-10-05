@@ -53,7 +53,6 @@ export interface RuntimeSessionHostSignals {
   runtime_id: string;
   molis_work_session_id: string | null;
   native_runtime_session_id: string | null;
-  legacy_work_context_id: string | null;
   surface_id: string | null;
   goal_id: string | null;
   runtime_context: RuntimeWorkContext;
@@ -299,7 +298,7 @@ export interface CreateWorkSessionHandoffDraftInput {
   source_session_id: string;
   source_project_id: string;
   source_goal_id: string;
-  /** Exact revision used for a new package; omitted for legacy/unknown snapshots. */
+  /** The Goal event cursor the package was made from; null while the Goal has no events. */
   source_goal_version?: number | null;
   target_runtime_id: string;
   target_project_id: string;

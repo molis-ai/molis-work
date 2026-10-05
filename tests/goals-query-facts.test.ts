@@ -26,16 +26,16 @@ test("public Query preserves complete rule history and Runtime dependency/replac
     const rule = store.db.prepare(`INSERT INTO policy_bindings
       (policy_binding_id, board_id, goal_id, scope, policy_json, state, created_by, reason, created_at)
       VALUES (?, ?, ?, 'goal', ?, ?, 'historical-user', ?, ?)`);
-    for (const [id, state, count] of [["rule-z", "withdrawn", 3], ["rule-a", "replaced", 1], ["rule-m", "active", 2]] as const) {
-      rule.run(id, "query-main", "subject", JSON.stringify({ cross_reviewers: count }), state, `reason:${id}`, at);
+    for (const [id, state, human_approval] of [["rule-z", "withdrawn", true], ["rule-a", "replaced", true], ["rule-m", "active", false]] as const) {
+      rule.run(id, "query-main", "subject", JSON.stringify({ human_approval }), state, `reason:${id}`, at);
     }
-    rule.run("rule-foreign", "query-other", "foreign", '{"cross_reviewers":9}', "active", "foreign", at);
-    const expectedHistory = [["rule-a", "replaced", 1], ["rule-m", "active", 2], ["rule-z", "withdrawn", 3]].map(([id, state, count]) => ({
-      policy_binding_id: id, goal_id: "subject", scope: "goal", policy: { cross_reviewers: count },
+    rule.run("rule-foreign", "query-other", "foreign", '{"human_approval":true}', "active", "foreign", at);
+    const expectedHistory = [["rule-a", "replaced", true], ["rule-m", "active", false], ["rule-z", "withdrawn", true]].map(([id, state, human_approval]) => ({
+      policy_binding_id: id, goal_id: "subject", scope: "goal", policy: { human_approval },
       state, created_by: "historical-user", reason: `reason:${id}`, created_at: at,
     }));
     assert.deepEqual(goals.query.listPolicyHistory("query-main"), expectedHistory);
-    assert.equal(goals.query.resolvePolicy("query-main", "subject").cross_reviewers, 2, "Historical rules must not affect current policy");
+    assert.equal(goals.query.resolvePolicy("query-main", "subject").human_approval, false, "Historical and foreign rules must not affect current policy");
 
     const relation = store.db.prepare(`INSERT INTO goal_relations
       (relation_id, board_id, from_goal_id, to_goal_id, type, state, reason, created_by, created_at)

@@ -326,7 +326,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
   ): Promise<AgentCommandOutput> {
     const matches: AgentCommandOutput[] = [];
     for (const record of this.#runs.values()) {
-      if (record.view.ref.session_id !== session.session_id || ref.run_id && ref.run_id !== record.view.ref.run_id) continue;
+      if (record.view.ref.session_id !== session.session_id || ref.run_id !== record.view.ref.run_id) continue;
       for (const receipt of record.state.receipts) if (receipt.ref.call_id === ref.call_id) {
         matches.push({ ...structuredClone(receipt), ref: { ...receipt.ref, run_id: record.view.ref.run_id } });
       }

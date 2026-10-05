@@ -9,7 +9,7 @@ export function goalAction<Input, Output>(id: string, title: string, description
     permissions: [operation === "query" ? "goals:read" : "goals:write"], subject_kinds: ["goal"], input_schema: input, output_schema: output } };
 }
 
-/** Trusted transport identity; business inputs cannot replace it. Null preserves unknown legacy classification. */
+/** Trusted transport identity; business inputs cannot replace it. An unknown kind stays unknown rather than inferred. */
 export function goalActor(caller: ActionCallContext) {
   return { actor_id: caller.audit_actor_id ?? caller.actor_id,
     actor_kind: caller.actor_kind === undefined ? (caller.audience === "user" ? "user" as const : "runtime" as const) : caller.actor_kind ?? undefined };

@@ -48,11 +48,16 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.draft-test", appVersion: "1.0.0" }, storageRoot: join(home, "owner-runtime") });
   const options = { homeDirectory: home, env: { MOLIS_WORK_TEXT_API_KEY: "test-only", MOLIS_WORK_TEXT_BASE_URL: `http://127.0.0.1:${address.port}`,
     MOLIS_WORK_TEXT_API_FORMAT: "anthropic-messages", MOLIS_WORK_TEXT_MODEL: "fixture" }, resolveInference: async () => adapter.inference };
+  // A draft's instruction is always one its plugin registered; this fixture plugin registers its own.
+  const fixturePlugin = "io.molis.work.draft-fixture";
+  agentDefinitionsFor(home, builtinRegistrations).register({ owner_id: fixturePlugin, roles: [],
+    source: { kind: "plugin", plugin_id: fixturePlugin, plugin_version: "1.0.0", title: "起草样例", origin: "generated", state: "enabled" },
+    prompts: [{ prompt_id: "draft-fixture.rules", version: 1, kind: "instruction", title: "提交说明", purpose: "p", used_by: ["起草样例"], body: "只写提交说明。WRITE_RULES" }] });
   const before = await readdir(home), refs: string[] = [];
   try {
     for (let index = 0; index < 2; index++) {
-      const result = await draftText(options, { purpose: "起草 git 提交说明", instructions: "只写提交说明。WRITE_RULES", material: "### 第 4 轮\nMATERIAL_BODY" },
-        { onProgress: event => { if (event.type === "started") refs.push(event.run_ref.id); } });
+      const result = await draftText(options, { purpose: "起草 git 提交说明", prompt: "draft-fixture.rules", material: "### 第 4 轮\nMATERIAL_BODY" },
+        { pluginId: fixturePlugin, onProgress: event => { if (event.type === "started") refs.push(event.run_ref.id); } });
       assert.equal(result.text, "feat: 裸名字也能用 @ 引用\n\n- 放行不带 . 和 / 的名字");
       assert.deepEqual(result.usage, { input: 120, output: 30 });
     }
@@ -63,7 +68,7 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
       assert.match(JSON.stringify(body.messages), /MATERIAL_BODY/);
     }
     assert.deepEqual(await readdir(home), before, "no per-draft runtime or directory is created");
-    await assert.rejects(draftText(options, { purpose: "p", instructions: "i", material: "" }), /为空或过长/);
+    await assert.rejects(draftText(options, { purpose: "p", prompt: "draft-fixture.rules", material: "" }, { pluginId: fixturePlugin }), /为空或过长/);
     assert.equal(bodies.length, 2);
 
     const definitions = agentDefinitionsFor(home, builtinRegistrations), pluginId = "io.molis.work.coding";
@@ -71,7 +76,6 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
     const key = `${pluginId}/${named.prompt}`;
     assert.equal(definitions.uses(key).length, 0);
     await assert.rejects(draftText(options, named), { code: "actions.host_context_missing" });
-    await assert.rejects(draftText(options, { ...named, instructions: "ambiguous" }, { pluginId }), /不能同时/);
     await assert.rejects(draftText(options, { ...named, prompt: "missing" }, { pluginId }), { code: "agent_definitions.not_found" });
     await assert.rejects(draftText(options, named, { pluginId: "io.molis.work.jelly" }), { code: "agent_definitions.not_found" });
     for (const stop of ["cancel", "revoke"] as const) {

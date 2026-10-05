@@ -746,7 +746,7 @@ export interface AgentRunUsage {
   compaction?: { recorded_calls: number; incomplete: boolean };
   tokens: AgentTokenCount;
   cost_usd?: number;
-  /** Per-field provenance; absent on legacy runtimes. Unknown numeric placeholders must not be displayed. */
+  /** Per-field provenance; absent when the runtime reports none. Unknown numeric placeholders must not be displayed. */
   coverage?: Record<"input" | "output" | "cached_input" | "cache_creation" | "cost_usd", AgentUsageCoverage>;
   /** Missing, interrupted or estimated scope; known subtotals remain readable with this warning. */
   unavailable_reason?: string;
@@ -759,8 +759,8 @@ export interface AgentRunUsage {
 
 export interface AgentCommandOutputRef {
   call_id: string;
-  /** Required for unambiguous product links; legacy callers may omit it. */
-  run_id?: string;
+  /** The run that produced it: a call id is only unique within its run. */
+  run_id: string;
 }
 
 export interface AgentCommandOutput {
@@ -1444,10 +1444,8 @@ export interface AgentHostApi {
 /** What to draft: the purpose in a few words, how to write it, and the material it is drawn from. */
 export interface AgentDraftTextRequest {
   purpose: string;
-  /** Registered instruction owned by the trusted calling Plugin. Use this for new calls. */
-  prompt?: string;
-  /** Legacy inline instruction; cannot be combined with prompt. */
-  instructions?: string;
+  /** Registered instruction owned by the trusted calling Plugin. */
+  prompt: string;
   material: string;
   model_selection?: { provider_id: string; model_id: string };
 }

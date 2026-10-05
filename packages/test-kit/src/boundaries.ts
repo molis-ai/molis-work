@@ -22,7 +22,7 @@ export type BoundaryViolationCode =
   | "cross-module-implementation"
   | "deep-import"
   | "horizontal-reverse-dependency"
-  | "legacy-root-import"
+  | "root-package-import"
   | "platform-reverse-dependency"
   | "plugin-implementation-import"
   | "production-test-kit-dependency"
@@ -129,9 +129,9 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
   if (specifier === "@molis-ai/molis-work" || specifier.startsWith("@molis-ai/molis-work/")) {
     violations.push(
       violation(
-        "legacy-root-import",
+        "root-package-import",
         observation,
-        "New workspace packages must not import the legacy root implementation; add or consume an explicit public Contract",
+        "The root package exports no code; import an explicit public Contract instead",
       ),
     );
   }

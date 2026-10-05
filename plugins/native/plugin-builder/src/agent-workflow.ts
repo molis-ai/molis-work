@@ -8,7 +8,7 @@ import { AgentBuilderStore } from './agent-store.js';
 import { BUILDER_PROMPTS, type BuilderPromptName } from './agent-prompts.js';
 import { capabilityCandidates, focusCatalog, usedCapabilities, withinBudget, type CatalogEntry } from './agent-catalog.js';
 import { contractEffects, validateAgentDesign } from './agent-validation.js';
-import { parseModelJson } from './validation.js';
+import { parseModelJson } from './model-json.js';
 import { expandDesign, normalizeProposal } from './agent-authoring.js';
 import { presentationTask, presentationReviewTask, acceptPresentation } from './agent-presentation.js';
 import { proposalSketch, experienceTask, acceptExperience } from './agent-experience.js';

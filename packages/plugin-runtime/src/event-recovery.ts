@@ -26,7 +26,6 @@ function recoveryView(ports: RecoveryPorts, cursor: PluginEventCursorRecord): Pl
     subscription.event_type_id === cursor.event_type_id && subscription.type_version === cursor.type_version
       && subscription.from_plugin_ids.has(cursor.source_plugin_id));
   const reason = ports.closed ? "插件运行平台已关闭"
-    : !cursor.subscriber_install_id || !cursor.subscriber_generation ? "历史订阅缺少可信安装身份，只能保留查看"
     : !current?.running ? "原订阅插件尚未运行，请先恢复插件"
     : current.install_id !== cursor.subscriber_install_id || current.installation_generation !== cursor.subscriber_generation
       ? "插件已重新安装，不能接管旧安装的事件"

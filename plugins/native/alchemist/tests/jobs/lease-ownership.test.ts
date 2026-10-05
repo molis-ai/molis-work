@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { createTempDatabase } from "../db/helpers/temp-database.js";
 import { openDatabase } from "../../src/studio/server/db/open-database.js";
-import { migrate } from "../../src/studio/server/db/migrate.js";
+import { applyStudioBaseline } from "../../src/studio/server/db/schema.js";
 import { SqliteJobRunner } from "../../src/studio/server/jobs/sqlite-job-runner.js";
 import { LocalWorker } from "../../src/studio/server/jobs/local-worker.js";
 import { createJobHandlers } from "../../src/studio/server/jobs/job-handlers.js";
@@ -11,7 +11,7 @@ import { createExplorationService } from "../../src/studio/server/services/creat
 import { FixtureAiRuntimeAdapter } from "../../src/studio/server/runtime/fixture-ai-runtime.js";
 
 function fixture() {
-  const temp = createTempDatabase(), first = openDatabase(temp.path); migrate(first);
+  const temp = createTempDatabase(), first = openDatabase(temp.path); applyStudioBaseline(first, ":memory:");
   const second = openDatabase(temp.path);
   let sequence = 0;
   const clock = { now: () => new Date().toISOString() };

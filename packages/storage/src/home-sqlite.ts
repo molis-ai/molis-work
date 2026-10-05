@@ -41,14 +41,3 @@ export function openHomeSqliteDatabase(homeDirectory: string, storeName: string)
   return db;
 }
 
-export function ensureSqliteColumn(
-  db: DatabaseSync,
-  table: string,
-  column: string,
-  definition: string,
-): void {
-  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
-  if (!columns.some((item) => item.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
-}

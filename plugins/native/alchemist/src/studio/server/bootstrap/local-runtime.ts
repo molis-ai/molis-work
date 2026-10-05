@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import type { Hono } from "hono";
 import { createApp } from "../app.js";
 import type { ApiDependencies } from "../api/dependencies.js";
@@ -14,9 +14,8 @@ import { SqliteDirectionRepository } from "../db/direction-repository.js";
 import { SqliteExplorationRepository } from "../db/exploration-repository.js";
 import { SqliteIdeaRepository } from "../db/idea-repository.js";
 import { SqliteMemoryRepository } from "../db/memory-repository.js";
-import { LATEST_SCHEMA_VERSION, migrate } from "../db/migrate.js";
+import { applyStudioBaseline } from "../db/schema.js";
 import { openDatabase, type SqliteDatabase } from "../db/open-database.js";
-import { createPreMigrationBackup } from "../db/pre-migration-backup.js";
 import { SqlitePulseRepository } from "../db/pulse-repository.js";
 import { SqliteResearchRepository } from "../db/research-repository.js";
 import { SqliteSettingsRepository } from "../db/settings-repository.js";
@@ -74,14 +73,7 @@ export interface LocalRuntime {
 export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   mkdirSync(dirname(options.databasePath), { recursive: true });
   const database = openDatabase(options.databasePath);
-  const migrationBackup = createPreMigrationBackup({
-    database,
-    databasePath: options.databasePath,
-    backupDirectory: join(dirname(options.databasePath), "backups"),
-    latestSchemaVersion: LATEST_SCHEMA_VERSION,
-    now: new Date().toISOString(),
-  });
-  migrate(database);
+  applyStudioBaseline(database, options.databasePath);
   const clock = { now: () => new Date().toISOString() };
   const idFactory = { next: (prefix: string) => `${prefix}_${randomUUID()}` };
   seedLocalIdentity(database, clock.now());
@@ -91,21 +83,6 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     generate: input => options.ai.generate({ ...input, actorId: actorId() }) };
 
   const activity = new SqliteActivityRepository(database);
-  if (migrationBackup) {
-    activity.create({
-      id: idFactory.next("activity"),
-      workspaceId: "workspace-local",
-      kind: "workspace.migration_backup_created",
-      targetKind: "workspace",
-      targetId: "workspace-local",
-      payload: {
-        filename: migrationBackup.filename,
-        fromVersion: migrationBackup.fromVersion,
-        toVersion: migrationBackup.toVersion,
-      },
-      createdAt: clock.now(),
-    });
-  }
   const calibration = new SqliteCalibrationRepository(database);
   const directions = new SqliteDirectionRepository(database);
   const conversations = new SqliteConversationRepository(database);

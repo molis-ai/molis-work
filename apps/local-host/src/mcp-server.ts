@@ -235,7 +235,7 @@ export class LocalMcpServer {
       // Every Runtime call carries its Session when there is one (a receipt query finds the write it made); an action whose
       // records are authored by a Session refuses a call without one.
       // A Home action called from a bound project still runs in that project's context (e.g. a judgment records where it was asked).
-      const runtimeCall = this.audience === "runtime" && this.runtimeContextHost ? callContext : undefined;
+      const runtimeCall = this.runtimeContextHost ? callContext : undefined;
       const actions = await this.authorizedActions(runtimeCall, entry.action?.action.authorship === "session");
       const result = await actions.ports.callTool(name, arguments_, callContext);
       if (entry.action && this.runtimeConnection === connection && typeof result !== "string" && result.structuredContent) {

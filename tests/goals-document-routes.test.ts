@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { once } from "node:events";
-import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { resolveGoalsReadRoute, resolveGoalsPageRoute, type GoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchGoalsFragmentRenderer, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsReadRequest, renderWorkbenchGoalsPageRequest,
@@ -117,7 +117,7 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
   const directory = await mkdtemp(join(tmpdir(), "molis-work-document-route-"));
   const databasePath = join(directory, "fixture.db");
   seedDemoBoard(databasePath);
-  const server = createMolisWorkWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory, controlToken: "route-test-control-0123456789abcdef" });
+  const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken: "route-test-control-0123456789abcdef" });
   t.after(async () => { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await rm(directory, { recursive: true, force: true }); });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");

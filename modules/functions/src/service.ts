@@ -157,7 +157,7 @@ export class FunctionsService {
     if (context.record_history !== false) this.store.recordJudgment({
       function_key: current.function_key,
       function_version: current.version!,
-      subject: { kind: "mcp_invoke", id: current.function_key, ...(context.project_id ? { board_id: context.project_id } : {}) },
+      subject: { kind: "mcp_invoke", id: current.function_key, ...(context.project_id ? { project_id: context.project_id } : {}) },
       scene_id: null,
       outcome,
       suggested_behavior_ids: suggested,
@@ -183,24 +183,24 @@ export class FunctionsService {
     return this.store.recordJudgment(input);
   }
 
-  actionSceneBinding(sceneId: string, boardId: string) {
-    return this.store.getActionSceneBinding(sceneId, boardId);
+  actionSceneBinding(sceneId: string, projectId: string) {
+    return this.store.getActionSceneBinding(sceneId, projectId);
   }
 
-  saveActionSceneBinding(boardId: string, binding: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneBinding, expectedRevision?: string | null) {
-    return this.store.setActionSceneBinding(boardId, binding, expectedRevision);
+  saveActionSceneBinding(projectId: string, binding: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneBinding, expectedRevision?: string | null) {
+    return this.store.setActionSceneBinding(projectId, binding, expectedRevision);
   }
 
   listJudgments(): JudgmentRecord[] {
     return this.store.listJudgments();
   }
 
-  latestSceneJudgments(boardId: string, sceneId: string): JudgmentRecord[] {
-    return this.store.latestSceneJudgments(boardId, sceneId);
+  latestSceneJudgments(projectId: string, sceneId: string): JudgmentRecord[] {
+    return this.store.latestSceneJudgments(projectId, sceneId);
   }
 
-  latestJudgment(kind: JudgmentRecord["subject"]["kind"], id: string, boardId?: string, sceneId?: string | null): JudgmentRecord | null {
-    return this.store.latestJudgment(kind, id, boardId, sceneId);
+  latestJudgment(kind: JudgmentRecord["subject"]["kind"], id: string, projectId?: string, sceneId?: string | null): JudgmentRecord | null {
+    return this.store.latestJudgment(kind, id, projectId, sceneId);
   }
 
   publish(id: string, expectedUpdatedAt?: string, scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference): FunctionRecord {

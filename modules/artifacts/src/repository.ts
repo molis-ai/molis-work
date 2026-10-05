@@ -46,15 +46,15 @@ export function versionStoreSchemaSql(t: VersionStoreTables): string {
   return `
   CREATE TABLE IF NOT EXISTS ${t.identities} (
     artifact_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     owner_actor_id TEXT NOT NULL,
     producer_plugin_id TEXT NOT NULL,
     producer_binding_signature TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    UNIQUE (artifact_id, board_id)
+    UNIQUE (artifact_id, project_id)
   );
   CREATE INDEX IF NOT EXISTS ${t.identities}_board_idx
-    ON ${t.identities}(board_id, created_at DESC, artifact_id);
+    ON ${t.identities}(project_id, created_at DESC, artifact_id);
 
   CREATE TABLE IF NOT EXISTS ${t.versions} (
     artifact_id TEXT NOT NULL REFERENCES ${t.identities}(artifact_id) ON DELETE CASCADE,
@@ -116,10 +116,10 @@ export class ArtifactsRepository<R extends FixedVersionRecord = ArtifactVersionR
     return this.db.transaction(operation).immediate();
   }
 
-  eventCursor(boardId: string): number {
+  eventCursor(projectId: string): number {
     const row = this.db
-      .prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE board_id = ?")
-      .get(boardId) as Row | undefined;
+      .prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ?")
+      .get(projectId) as Row | undefined;
     return Number(row?.cursor ?? 0);
   }
 
@@ -128,22 +128,22 @@ export class ArtifactsRepository<R extends FixedVersionRecord = ArtifactVersionR
     return row ? mapArtifactIdentity(row) : null;
   }
 
-  getIdentity(boardId: string, artifactId: string): ArtifactIdentityRecord | null {
+  getIdentity(projectId: string, artifactId: string): ArtifactIdentityRecord | null {
     const row = this.db
-      .prepare(`SELECT * FROM ${this.tables.identities} WHERE board_id = ? AND artifact_id = ?`)
-      .get(boardId, artifactId) as Row | undefined;
+      .prepare(`SELECT * FROM ${this.tables.identities} WHERE project_id = ? AND artifact_id = ?`)
+      .get(projectId, artifactId) as Row | undefined;
     return row ? mapArtifactIdentity(row) : null;
   }
 
   insertIdentity(record: ArtifactIdentityRecord): void {
     this.db.prepare(`
       INSERT INTO ${this.tables.identities} (
-        artifact_id, board_id, owner_actor_id, producer_plugin_id,
+        artifact_id, project_id, owner_actor_id, producer_plugin_id,
         producer_binding_signature, created_at
       ) VALUES (?, ?, ?, ?, ?, ?)
     `).run(
       record.artifact_id,
-      record.board_id,
+      record.project_id,
       record.owner_actor_id,
       record.producer_plugin_id,
       record.producer_binding_signature,
@@ -151,42 +151,42 @@ export class ArtifactsRepository<R extends FixedVersionRecord = ArtifactVersionR
     );
   }
 
-  getVersion(boardId: string, artifactId: string, version: number): R | null {
+  getVersion(projectId: string, artifactId: string, version: number): R | null {
     const row = this.db.prepare(`
-      SELECT version.*, identity.board_id, identity.owner_actor_id,
+      SELECT version.*, identity.project_id, identity.owner_actor_id,
              identity.producer_plugin_id, identity.producer_binding_signature
       FROM ${this.tables.versions} version
       JOIN ${this.tables.identities} identity ON identity.artifact_id = version.artifact_id
-      WHERE identity.board_id = ? AND version.artifact_id = ? AND version.version = ?
-    `).get(boardId, artifactId, version) as Row | undefined;
+      WHERE identity.project_id = ? AND version.artifact_id = ? AND version.version = ?
+    `).get(projectId, artifactId, version) as Row | undefined;
     return row ? this.map(row) : null;
   }
 
-  listVersions(boardId: string, artifactId: string): R[] {
+  listVersions(projectId: string, artifactId: string): R[] {
     return (this.db.prepare(`
-      SELECT version.*, identity.board_id, identity.owner_actor_id,
+      SELECT version.*, identity.project_id, identity.owner_actor_id,
              identity.producer_plugin_id, identity.producer_binding_signature
       FROM ${this.tables.versions} version
       JOIN ${this.tables.identities} identity ON identity.artifact_id = version.artifact_id
-      WHERE identity.board_id = ? AND version.artifact_id = ?
+      WHERE identity.project_id = ? AND version.artifact_id = ?
       ORDER BY version.version ASC
-    `).all(boardId, artifactId) as Row[]).map(row => this.map(row));
+    `).all(projectId, artifactId) as Row[]).map(row => this.map(row));
   }
 
-  latestVersion(boardId: string, artifactId: string): R | null {
-    const versions = this.listVersions(boardId, artifactId);
+  latestVersion(projectId: string, artifactId: string): R | null {
+    const versions = this.listVersions(projectId, artifactId);
     return versions.at(-1) ?? null;
   }
 
-  listArtifacts(boardId: string, query: ArtifactListQuery = {}): R[] {
+  listArtifacts(projectId: string, query: ArtifactListQuery = {}): R[] {
     return (this.db.prepare(`
-      SELECT version.*, identity.board_id, identity.owner_actor_id,
+      SELECT version.*, identity.project_id, identity.owner_actor_id,
              identity.producer_plugin_id, identity.producer_binding_signature
       FROM ${this.tables.versions} version
       JOIN ${this.tables.identities} identity ON identity.artifact_id = version.artifact_id
-      WHERE identity.board_id = ?
+      WHERE identity.project_id = ?
       ORDER BY version.created_at DESC, version.artifact_id, version.version DESC
-    `).all(boardId) as Row[])
+    `).all(projectId) as Row[])
       .map(row => this.map(row))
       .filter((record) =>
         (!query.artifact_type_id || record.artifact_type_id === query.artifact_type_id)
@@ -248,7 +248,7 @@ export class ArtifactsRepository<R extends FixedVersionRecord = ArtifactVersionR
 
 export function mapArtifactIdentity(row: Row): ArtifactIdentityRecord {
   return {
-    board_id: String(row.board_id),
+    project_id: String(row.project_id),
     artifact_id: String(row.artifact_id),
     owner_actor_id: String(row.owner_actor_id),
     producer_plugin_id: String(row.producer_plugin_id),
@@ -270,7 +270,7 @@ export function mapArtifactVersion(row: Row): ArtifactVersionRecord {
 export function mapFixedVersion(row: Row): FixedVersionRecord {
   const contentKind = String(row.content_kind) as FixedVersionRecord["content_kind"];
   return {
-    board_id: String(row.board_id),
+    project_id: String(row.project_id),
     artifact_id: String(row.artifact_id),
     version: Number(row.version),
     artifact_type_id: String(row.artifact_type_id),

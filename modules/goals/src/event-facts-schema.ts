@@ -1,26 +1,26 @@
 export const GOAL_EVENT_FACTS_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS goal_event_configs (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     current_version INTEGER NOT NULL,
     updated_at TEXT NOT NULL,
     updated_by TEXT NOT NULL,
-    PRIMARY KEY (board_id, goal_id)
+    PRIMARY KEY (project_id, goal_id)
   );
 
   CREATE TABLE IF NOT EXISTS goal_event_config_versions (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     version INTEGER NOT NULL,
     actor_id TEXT NOT NULL,
     adopted_planning_json TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
     config_event_id TEXT NOT NULL,
-    PRIMARY KEY (board_id, goal_id, version)
+    PRIMARY KEY (project_id, goal_id, version)
   );
 
   CREATE TABLE IF NOT EXISTS goal_event_types (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     type_id TEXT NOT NULL,
     type_version INTEGER NOT NULL,
@@ -32,14 +32,14 @@ export const GOAL_EVENT_FACTS_SCHEMA_SQL = `
     created_at TEXT NOT NULL,
     created_in_config_version INTEGER NOT NULL,
     actor_id TEXT NOT NULL,
-    PRIMARY KEY (board_id, goal_id, type_id, type_version)
+    PRIMARY KEY (project_id, goal_id, type_id, type_version)
   );
   CREATE INDEX IF NOT EXISTS goal_event_types_goal_idx
-    ON goal_event_types(board_id, goal_id, type_id, type_version);
+    ON goal_event_types(project_id, goal_id, type_id, type_version);
 
   CREATE TABLE IF NOT EXISTS goal_event_requirements (
     requirement_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     statement TEXT NOT NULL,
     bound_type_id TEXT,
@@ -53,21 +53,21 @@ export const GOAL_EVENT_FACTS_SCHEMA_SQL = `
     support_valid_after_seq INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS goal_event_requirements_goal_idx
-    ON goal_event_requirements(board_id, goal_id, requirement_id);
+    ON goal_event_requirements(project_id, goal_id, requirement_id);
 
   CREATE TABLE IF NOT EXISTS goal_event_requirement_bindings (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     type_id TEXT NOT NULL,
     requirement_id TEXT NOT NULL,
     created_in_config_version INTEGER NOT NULL,
     created_at TEXT NOT NULL,
-    PRIMARY KEY (board_id, goal_id, type_id, requirement_id)
+    PRIMARY KEY (project_id, goal_id, type_id, requirement_id)
   );
 
   CREATE TABLE IF NOT EXISTS goal_work_events (
     event_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     kind TEXT NOT NULL CHECK (kind IN ('configuration', 'report', 'system')),
     type_id TEXT,
@@ -81,7 +81,7 @@ export const GOAL_EVENT_FACTS_SCHEMA_SQL = `
     config_version INTEGER
   );
   CREATE INDEX IF NOT EXISTS goal_work_events_goal_seq_idx
-    ON goal_work_events(board_id, goal_id, journal_seq);
+    ON goal_work_events(project_id, goal_id, journal_seq);
 
   CREATE TABLE IF NOT EXISTS goal_work_event_judgments (
     event_id TEXT NOT NULL REFERENCES goal_work_events(event_id) ON DELETE CASCADE,

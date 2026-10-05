@@ -65,7 +65,7 @@ function safeErrorCode(error: unknown): string {
  * outcomes that could not be confirmed; external effects are never blindly replayed.
  */
 export class PluginEventBus implements PluginEventBusApi {
-  readonly #boardId: string;
+  readonly #projectId: string;
   readonly #lifecycle: PluginHostLifecycle;
   readonly #repository: PluginEventsRepository;
   readonly #now: () => Date;
@@ -77,13 +77,13 @@ export class PluginEventBus implements PluginEventBusApi {
   #closed = false;
 
   constructor(input: {
-    boardId: string;
+    projectId: string;
     lifecycle: PluginHostLifecycle;
     repository: PluginEventsRepository;
     now?: () => Date;
     createId?: () => string;
   }) {
-    this.#boardId = input.boardId;
+    this.#projectId = input.projectId;
     this.#lifecycle = input.lifecycle;
     this.#repository = input.repository;
     this.#now = input.now ?? (() => new Date());
@@ -102,7 +102,7 @@ export class PluginEventBus implements PluginEventBusApi {
     input: PluginEventPublishInput,
   ): PluginEventPublishResult {
     const installation = this.#lifecycle.installation(identity.plugin_id);
-    if (this.#closed || identity.board_id !== this.#boardId || !installation?.running || installation.install_id !== identity.install_id) {
+    if (this.#closed || identity.project_id !== this.#projectId || !installation?.running || installation.install_id !== identity.install_id) {
       throw new PluginEventError("event_identity_invalid", "事件发布者的项目或安装身份已失效");
     }
     const contract = this.#lifecycle.contract(identity.plugin_id);
@@ -136,7 +136,7 @@ export class PluginEventBus implements PluginEventBusApi {
 
     const record = this.#repository.append({
       event_id: this.#createId(),
-      board_id: this.#boardId,
+      project_id: this.#projectId,
       event_type_id: input.event_type_id,
       type_version: input.type_version,
       source_plugin_id: identity.plugin_id,
@@ -160,7 +160,7 @@ export class PluginEventBus implements PluginEventBusApi {
 
     const ref: PluginEventRef = {
       event_id: record.event_id,
-      board_id: record.board_id,
+      project_id: record.project_id,
       sequence: record.sequence,
       event_type_id: record.event_type_id,
       type_version: record.type_version,
@@ -170,8 +170,8 @@ export class PluginEventBus implements PluginEventBusApi {
     return { accepted: true, ref };
   }
 
-  revoke(boardId: string, pluginId: string): void {
-    if (boardId !== this.#boardId) return;
+  revoke(projectId: string, pluginId: string): void {
+    if (projectId !== this.#projectId) return;
     const controllers = this.#controllers.get(pluginId);
     if (controllers) {
       for (const controller of [...controllers]) {
@@ -185,35 +185,35 @@ export class PluginEventBus implements PluginEventBusApi {
   /** Stop accepting work before the database owner closes its connection. */
   async close(): Promise<void> {
     this.#closed = true;
-    for (const pluginId of [...this.#controllers.keys()]) this.revoke(this.#boardId, pluginId);
+    for (const pluginId of [...this.#controllers.keys()]) this.revoke(this.#projectId, pluginId);
     await this.drain();
   }
 
   /** Administrative Host seam; never handed to plugin event clients. */
-  recoveries(boardId: string) {
-    return boardId === this.#boardId ? readEventRecoveries({ boardId, lifecycle: this.#lifecycle,
+  recoveries(projectId: string) {
+    return projectId === this.#projectId ? readEventRecoveries({ projectId, lifecycle: this.#lifecycle,
       repository: this.#repository, closed: this.#closed }) : [];
   }
 
-  recoveryHistory(boardId: string) {
-    return boardId === this.#boardId ? this.#repository.resolutions(boardId) : [];
+  recoveryHistory(projectId: string) {
+    return projectId === this.#projectId ? this.#repository.resolutions(projectId) : [];
   }
 
-  recover(boardId: string, actorId: string, input: PluginEventRecoveryInput) {
-    if (boardId !== this.#boardId) throw new PluginEventError("event_identity_invalid", "事件不属于当前项目");
-    const result = resolveEventRecovery({ boardId, lifecycle: this.#lifecycle, repository: this.#repository,
+  recover(projectId: string, actorId: string, input: PluginEventRecoveryInput) {
+    if (projectId !== this.#projectId) throw new PluginEventError("event_identity_invalid", "事件不属于当前项目");
+    const result = resolveEventRecovery({ projectId, lifecycle: this.#lifecycle, repository: this.#repository,
       closed: this.#closed, now: this.#now, busy: (plugin, source) => this.#tails.has(`${plugin}\u0000${source}`) }, actorId, input);
-    this.#resume(boardId);
+    this.#resume(projectId);
     return result;
   }
 
   /** Replay everything a subscriber has not acknowledged. Safe to call repeatedly. */
-  async resume(boardId: string): Promise<number> {
-    return this.#resume(boardId);
+  async resume(projectId: string): Promise<number> {
+    return this.#resume(projectId);
   }
 
-  #resume(boardId: string): number {
-    if (this.#closed || boardId !== this.#boardId) return 0;
+  #resume(projectId: string): number {
+    if (this.#closed || projectId !== this.#projectId) return 0;
     let queued = 0;
     for (const subscriberPluginId of this.#lifecycle.enabledPluginIds()) {
       const generation = this.#lifecycle.generation(subscriberPluginId);
@@ -235,9 +235,9 @@ export class PluginEventBus implements PluginEventBusApi {
       for (const sourcePluginId of subscription.from_plugin_ids) {
         if (onlySource !== undefined && sourcePluginId !== onlySource) continue;
         const source = { source_plugin_id: sourcePluginId, event_type_id: subscription.event_type_id, type_version: subscription.type_version };
-        const cursor = this.#cursor(pluginId, source, identity, this.#repository.latestSequence(this.#boardId));
+        const cursor = this.#cursor(pluginId, source, identity, this.#repository.latestSequence(this.#projectId));
         if (cursor.state === "quarantined") continue;
-        for (const record of this.#repository.list(this.#boardId, { ...source, since_sequence: cursor.delivered_sequence })) {
+        for (const record of this.#repository.list(this.#projectId, { ...source, since_sequence: cursor.delivered_sequence })) {
           records.set(record.event_id, record);
         }
       }
@@ -261,13 +261,13 @@ export class PluginEventBus implements PluginEventBusApi {
     };
   }
 
-  log(boardId: string, query?: PluginEventLogQuery): PluginEventRecord[] {
-    return boardId === this.#boardId ? this.#repository.list(boardId, query) : [];
+  log(projectId: string, query?: PluginEventLogQuery): PluginEventRecord[] {
+    return projectId === this.#projectId ? this.#repository.list(projectId, query) : [];
   }
 
-  cursors(boardId: string, subscriberPluginId?: string): PluginEventCursorRecord[] {
-    return boardId === this.#boardId
-      ? this.#repository.listCursors(boardId, subscriberPluginId)
+  cursors(projectId: string, subscriberPluginId?: string): PluginEventCursorRecord[] {
+    return projectId === this.#projectId
+      ? this.#repository.listCursors(projectId, subscriberPluginId)
       : [];
   }
 
@@ -310,13 +310,13 @@ export class PluginEventBus implements PluginEventBusApi {
   async #deliver(envelope: Envelope): Promise<void> {
     const { subscriber_plugin_id: pluginId, record } = envelope;
     if (!this.#current(envelope)) return;
-    const cursor = this.#repository.cursor(this.#boardId, pluginId, record, envelope.identity);
+    const cursor = this.#repository.cursor(this.#projectId, pluginId, record, envelope.identity);
     if (!cursor || cursor.delivered_sequence >= record.sequence || cursor.state === "quarantined") return;
     if (cursor.state === "delivering") {
       this.#saveCursor(envelope, { advance: false, state: "quarantined", code: "subscriber_outcome_unknown" });
       return;
     }
-    const [first] = this.#repository.list(this.#boardId, {
+    const [first] = this.#repository.list(this.#projectId, {
         source_plugin_id: record.source_plugin_id,
         event_type_id: record.event_type_id,
         type_version: record.type_version,
@@ -375,7 +375,7 @@ export class PluginEventBus implements PluginEventBusApi {
       if (controller.signal.aborted || !this.#current(envelope) || !subscriber!.active()) throw new PluginEventError("event_delivery_revoked", "事件订阅的安装或执行身份已失效");
     };
     const context: PluginEventDeliveryContext = {
-      board_id: this.#boardId,
+      project_id: this.#projectId,
       plugin_id: pluginId,
       install_id: subscriber.install_id,
       installation_generation: envelope.identity.installation_generation,
@@ -415,9 +415,9 @@ export class PluginEventBus implements PluginEventBusApi {
   }
 
   #cursor(pluginId: string, source: PluginEventSubscribeSource, identity: PluginEventSubscriberIdentity, start: number): PluginEventCursorRecord {
-    const existing = this.#repository.cursor(this.#boardId, pluginId, source, identity);
+    const existing = this.#repository.cursor(this.#projectId, pluginId, source, identity);
     if (existing) return existing;
-    const created: PluginEventCursorRecord = { revision: randomUUID(), board_id: this.#boardId, subscriber_plugin_id: pluginId,
+    const created: PluginEventCursorRecord = { revision: randomUUID(), project_id: this.#projectId, subscriber_plugin_id: pluginId,
       subscriber_install_id: identity.install_id, subscriber_generation: identity.installation_generation,
       source_plugin_id: source.source_plugin_id, event_type_id: source.event_type_id, type_version: source.type_version,
       delivered_sequence: start, state: "idle", retry_at: null, last_error_code: null, updated_at: this.#now().toISOString() };
@@ -430,14 +430,14 @@ export class PluginEventBus implements PluginEventBusApi {
     outcome: { advance: boolean; state: PluginEventCursorRecord["state"]; code: string | null },
   ): void {
     const { subscriber_plugin_id: pluginId, record, identity } = envelope;
-    const existing = this.#repository.cursor(this.#boardId, pluginId, {
+    const existing = this.#repository.cursor(this.#projectId, pluginId, {
       source_plugin_id: record.source_plugin_id,
       event_type_id: record.event_type_id,
       type_version: record.type_version,
     }, identity);
     this.#repository.saveCursor({
       revision: randomUUID(),
-      board_id: this.#boardId,
+      project_id: this.#projectId,
       subscriber_plugin_id: pluginId,
       subscriber_install_id: identity.install_id,
       subscriber_generation: identity.installation_generation,
@@ -472,7 +472,7 @@ export class PluginEventBus implements PluginEventBusApi {
   ): void {
     const failure: PluginEventDeliveryFailure = {
       code,
-      board_id: this.#boardId,
+      project_id: this.#projectId,
       subscriber_plugin_id: pluginId,
       source_plugin_id: record.source_plugin_id,
       event_id: record.event_id,

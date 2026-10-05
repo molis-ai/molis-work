@@ -30,7 +30,7 @@ const SIGNATURE = installedSignature('');
 
 export interface InstalledPluginHostOptions {
   store: LocalProjectDatabase;
-  boardId: string;
+  projectId: string;
   homeDirectory: string;
   actorId?: string;
   routePrefix?: string;
@@ -46,29 +46,29 @@ const hosts = new WeakMap<LocalProjectDatabase, Map<string, { home: string; acto
 
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {
   const boards = hosts.get(options.store) ?? new Map(); hosts.set(options.store, boards);
-  const identity = { home: resolve(options.homeDirectory), actor: options.actorId ?? 'web-user', project: options.actions?.project_id ?? options.boardId };
-  const existing = boards.get(options.boardId);
+  const identity = { home: resolve(options.homeDirectory), actor: options.actorId ?? 'web-user', project: options.actions?.project_id ?? options.projectId };
+  const existing = boards.get(options.projectId);
   if (existing) {
     if (existing.home !== identity.home || existing.actor !== identity.actor || existing.project !== identity.project) throw new Error('安装运行入口的 Home、用户或项目身份不一致');
     return existing.ready;
   }
   const ready = openInstalledPlugins(options);
-  const entry = { ...identity, ready }; boards.set(options.boardId, entry);
-  ready.catch(() => { if (boards.get(options.boardId) === entry) boards.delete(options.boardId); });
+  const entry = { ...identity, ready }; boards.set(options.projectId, entry);
+  ready.catch(() => { if (boards.get(options.projectId) === entry) boards.delete(options.projectId); });
   return ready;
 }
 
-export async function releaseInstalledPlugins(store: LocalProjectDatabase, boardId: string): Promise<void> {
-  const boards = hosts.get(store), entry = boards?.get(boardId);
+export async function releaseInstalledPlugins(store: LocalProjectDatabase, projectId: string): Promise<void> {
+  const boards = hosts.get(store), entry = boards?.get(projectId);
   if (!entry) return;
   // Keep the owner visible until its processes and registrations are gone.
   try { await (await entry.ready).close(); }
-  finally { if (boards?.get(boardId) === entry) boards.delete(boardId); }
+  finally { if (boards?.get(projectId) === entry) boards.delete(projectId); }
 }
 
 async function openInstalledPlugins(options: InstalledPluginHostOptions) {
-  const { store, boardId, homeDirectory } = options, storage = studioStorage(store.db, boardId), releases = new AgentBuilderStore(storage);
-  const actions = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, project_id: boardId }; })();
+  const { store, projectId, homeDirectory } = options, storage = studioStorage(store.db, projectId), releases = new AgentBuilderStore(storage);
+  const actions = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, project_id: projectId }; })();
   const readCatalog = () => capabilityCatalog(actions, options.actorId ?? 'web-user');
   let catalogPending: Promise<CatalogCapability[]> | undefined, exposureRevision = 0;
   const catalog = (): Promise<CatalogCapability[]> => {
@@ -89,7 +89,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     return catalogPending;
   };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
-  const platform = createPluginPlatform({ board_id: boardId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(),
+  const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(),
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
     capturePrivateData: id => privateStorage.snapshotInstallationData(id),
@@ -106,22 +106,22 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   let closed = false;
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
     const record = recordFor(identity.pluginId);
-    if (closed || identity.namespace !== 'installed' || identity.projectId !== boardId || !record || record.install_id !== identity.installationId || record.state !== 'running') {
+    if (closed || identity.namespace !== 'installed' || identity.projectId !== projectId || !record || record.install_id !== identity.installationId || record.state !== 'running') {
       throw new SandboxError('CAPABILITY_DENIED', '插件的安装执行身份已失效');
     }
   };
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']> =>
     catalogCapabilities({ actions, catalog, live, author: titleOf });
-  const secrets = pluginSecrets(homeDirectory, boardId, storage);
+  const secrets = pluginSecrets(homeDirectory, projectId, storage);
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
   const schedule = scheduleServiceFor(store.db);
-  const reminders = hostScheduleReminders({ db: store.db, boardId, projectId: actions.project_id, schedule, routePrefix: options.routePrefix ?? '' });
+  const reminders = hostScheduleReminders({ db: store.db, projectId, schedule, routePrefix: options.routePrefix ?? '' });
   const scheduledInstallation = (pluginId: string) => {
     const record = recordFor(pluginId), release = releaseFor(pluginId);
     return record?.state === 'running' && release && approvedFor(pluginId)
       ? { installationId: record.install_id, generation: record.installation_generation, version: record.version, title: release.design.title, operations: release.design.contract.operations } : null;
   };
-  const scheduledRuns = createScheduledOperations({ db: store.db, boardId, projectId: actions.project_id, schedule,
+  const scheduledRuns = createScheduledOperations({ db: store.db, projectId, schedule,
     describe: identity => { const current = scheduledInstallation(identity.pluginId); return current?.installationId === identity.installationId ? current : null; },
     link: pluginId => (options.routePrefix ?? '') + '/plugins/' + pluginId });
   const generate = options.generate ?? createPluginModelGeneration({ homeDirectory,
@@ -182,7 +182,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     return value;
   };
   const covered = (next: SandboxEffects, approved: SandboxEffects) => Object.entries(next).every(([key, values]) => (values as string[]).every(value => ((approved as Record<string, string[]>)[key] ?? []).includes(value)));
-  const promptScope = (installationId: string) => JSON.stringify([actions.project_id, boardId, installationId]);
+  const promptScope = (installationId: string) => JSON.stringify([actions.project_id, projectId, installationId]);
   const registerPrompts = (release: AgentRelease, state: 'enabled' | 'disabled') =>
     registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, releaseVersion(release.version)), promptScope(recordFor(release.pluginId)!.install_id));
   const lifecycle: AgentBuilderPorts['lifecycle'] = async (action, release, grants) => {
@@ -258,7 +258,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         else throw new Error(report.failed[0]?.message ?? report.blocked[0]?.message ?? '安装插件未能恢复');
       } catch (error) { recoveryErrors.set(record.plugin_id, error instanceof Error ? error.message : String(error)); }
     }
-    stopScheduledRuns = bindInstalledOperationCaller(store.db, boardId, { describe: scheduledInstallation, async call(run, control) {
+    stopScheduledRuns = bindInstalledOperationCaller(store.db, projectId, { describe: scheduledInstallation, async call(run, control) {
       const response = await platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + run.pluginId + '/call', actor_id: 'scheduled-plugin:' + run.pluginId,
         execution: { signal: control.signal, beforeEffect: async () => control.beforeEffect() }, body: { operation: run.operationId, input: run.input } });
       const body = response?.body as { value?: unknown; error?: unknown; outcome?: string } | undefined;

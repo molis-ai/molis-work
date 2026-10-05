@@ -93,10 +93,10 @@ test("published rules become versioned system actions without a project, preserv
     await assert.rejects(client.invoke(caller, definition, { content: "no credential" }), { code: "actions.connection_required" });
     assert.equal(calls.value, beforeDenied);
     options.env.TYPESAFE_API_KEY = "fixture-provider-credential";
-    const project = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "board-a", projectId: "project-a" });
+    const project = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-a" });
     await host.actionClient(project).invoke({ ...caller, project_id: "project-a" }, definition, { content: "project content" });
     const history = withFunctionsService(home, service => service.listJudgments(), options);
-    assert.equal(history.filter(row => row.function_key === records[0]!.function_key && row.subject.board_id === "project-a").length, 1);
+    assert.equal(history.filter(row => row.function_key === records[0]!.function_key && row.subject.project_id === "project-a").length, 1);
     await host.close();
     await assert.rejects(client.invoke(caller, definition, { content: "closed" }), { code: "host.closed" });
     host = new MolisWorkLocalHost({ homeDirectory: home, functions: options });

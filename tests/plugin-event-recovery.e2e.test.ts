@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { SqlitePluginEventsRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -27,11 +27,11 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   const source = installs.find(record => record.plugin_id === "io.molis.work.coding")!;
   const subscriber = installs.find(record => record.plugin_id === "io.molis.work.files")!;
   assert.ok(source && subscriber);
-  const event = repository.append({ event_id: `browser-event-${randomUUID()}`, board_id: DEMO_BOARD_ID,
+  const event = repository.append({ event_id: `browser-event-${randomUUID()}`, project_id: DEMO_PROJECT_ID,
     source_plugin_id: source.plugin_id, source_install_id: source.install_id, event_type_id: CODING_FILE_CHANGED_EVENT,
     type_version: 1, payload: { project_id: projectId, path: ["example.txt"] }, correlation_id: null, occurred_at: new Date().toISOString() });
   // A real persisted interrupted delivery, as left by a Host crash, with no fake HTTP responses on the happy path.
-  const cursor = { revision: randomUUID(), board_id: DEMO_BOARD_ID, subscriber_plugin_id: subscriber.plugin_id,
+  const cursor = { revision: randomUUID(), project_id: DEMO_PROJECT_ID, subscriber_plugin_id: subscriber.plugin_id,
     subscriber_install_id: subscriber.install_id, subscriber_generation: subscriber.installation_generation!,
     source_plugin_id: source.plugin_id, event_type_id: CODING_FILE_CHANGED_EVENT, type_version: 1,
     delivered_sequence: event.sequence - 1, state: "quarantined" as const, retry_at: null,
@@ -39,7 +39,7 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   repository.saveCursor(cursor);
   const denied = await fetch(origin + endpoint + "/recover", { method: "POST", headers: { origin, "content-type": "application/json" }, body: "{}" });
   assert.equal(denied.status, 403, "Runtime management requires the local control token");
-  assert.deepEqual(repository.resolutions(DEMO_BOARD_ID), []);
+  assert.deepEqual(repository.resolutions(DEMO_PROJECT_ID), []);
   // A second project, so the market's destination can point away from this project when the bell's row is pressed.
   const other = await evaluate<{ status: number; id: string }>(`fetch('/api/settings/projects',{method:'POST',headers:molisWorkControlHeaders(),
     body:JSON.stringify({display_name:'另一个项目',user_confirmed:true})}).then(async response=>({status:response.status,id:(await response.json()).project?.project_id}))`);
@@ -72,7 +72,7 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   await waitFor("document.querySelector('[data-plugin-event-dialog]').open");
   assert.equal(await evaluate("document.querySelector('[data-plugin-event-form] input:checked')"), null, "retry is never preselected");
   await click('[data-plugin-event-cancel]');
-  assert.equal(repository.listCursors(DEMO_BOARD_ID).find(row => row.subscriber_plugin_id === subscriber.plugin_id && row.event_type_id === CODING_FILE_CHANGED_EVENT)!.revision, cursor.revision);
+  assert.equal(repository.listCursors(DEMO_PROJECT_ID).find(row => row.subscriber_plugin_id === subscriber.plugin_id && row.event_type_id === CODING_FILE_CHANGED_EVENT)!.revision, cursor.revision);
 
   await click('[data-plugin-event-open]');
   await evaluate("document.querySelector('[data-plugin-event-form] textarea').value='已核对文件内容，原通知无需再次处理。'");
@@ -82,7 +82,7 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   await waitFor("document.querySelector('[data-plugin-event-error]').textContent.includes('已变化')");
   assert.equal(await evaluate("document.querySelector('[data-plugin-event-dialog]').open"), true);
   assert.equal(await evaluate("document.querySelector('[data-plugin-event-form] textarea').value"), "已核对文件内容，原通知无需再次处理。");
-  assert.deepEqual(repository.resolutions(DEMO_BOARD_ID), []);
+  assert.deepEqual(repository.resolutions(DEMO_PROJECT_ID), []);
 
   // Fail the read that 重新读取 starts: arming on the click keeps the notifications reader's periodic read from taking the failure.
   await evaluate(`(() => {
@@ -115,9 +115,9 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
   await click('[data-plugin-event-form] [type="submit"]');
   await waitFor("!document.querySelector('[data-plugin-event-dialog]').open && document.querySelector('[data-plugin-events-status]').textContent==='没有待核对的通知。'");
   assert.equal(await evaluate("document.querySelector('[data-assistant-attention]').hidden"), true, "the list's read clears the bell at once");
-  const history = repository.resolutions(DEMO_BOARD_ID);
+  const history = repository.resolutions(DEMO_PROJECT_ID);
   assert.equal(history.length, 1); assert.equal(history[0]!.decision, "skip");
   assert.equal(history[0]!.actor_id, "web-user"); assert.equal(history[0]!.event_id, event.event_id);
-  assert.equal(repository.listCursors(DEMO_BOARD_ID).find(row => row.subscriber_plugin_id === subscriber.plugin_id && row.event_type_id === CODING_FILE_CHANGED_EVENT)!.delivered_sequence, event.sequence);
+  assert.equal(repository.listCursors(DEMO_PROJECT_ID).find(row => row.subscriber_plugin_id === subscriber.plugin_id && row.event_type_id === CODING_FILE_CHANGED_EVENT)!.delivered_sequence, event.sequence);
   assert.equal(await evaluate("document.querySelector('[data-plugin-events-history]').hidden"), false);
 });

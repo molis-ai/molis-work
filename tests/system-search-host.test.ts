@@ -30,8 +30,8 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     await catalog.createProject({ display_name: "搜索项目甲", actor_id: "owner" }),
     await catalog.createProject({ display_name: "搜索项目乙", actor_id: "owner" }),
   ]);
-  const refA = molisWorkHostProjectReference({ databasePath: a.database_path, boardId: a.board_id, projectId: a.project_id });
-  const refB = molisWorkHostProjectReference({ databasePath: b.database_path, boardId: b.board_id, projectId: b.project_id });
+  const refA = molisWorkHostProjectReference({ databasePath: a.database_path, projectId: a.project_id });
+  const refB = molisWorkHostProjectReference({ databasePath: b.database_path, projectId: b.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const token = resolveWebControlToken({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });

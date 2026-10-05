@@ -23,7 +23,7 @@ export function createFeedSourceSyncGuard(feed: FeedApplication, source: FeedSou
       authority.signal?.throwIfAborted();
       await authority.beforeEffect?.();
       authority.signal?.throwIfAborted();
-      const current = feed.getSource(source.board_id, source.source_id);
+      const current = feed.getSource(source.project_id, source.source_id);
       if (sourceDeletedAt(current)) throw new FeedDomainError("来源已删除，本次拉取结果未提交", "feed_source_not_found");
       if (!current.enabled || current.status === "paused" || current.status === "disconnected") {
         throw new FeedDomainError("来源已暂停或断开，本次拉取结果未提交", "feed_source_paused");

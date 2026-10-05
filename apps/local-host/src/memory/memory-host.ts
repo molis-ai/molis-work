@@ -137,7 +137,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const upkeepSession = async (): Promise<string> => {
     const saved = ledger.marker(LOCAL_PERSON, "upkeep-session")?.body as { session_id?: string } | undefined;
     if (saved?.session_id) return saved.session_id;
-    const session = await ports.agentHost.adapter(RUNTIME).createSession({ board_id: MEMORY_PROVIDER_ID, plugin_id: MEMORY_PROVIDER_ID, install_id: MEMORY_PROVIDER_ID,
+    const session = await ports.agentHost.adapter(RUNTIME).createSession({ project_id: MEMORY_PROVIDER_ID, plugin_id: MEMORY_PROVIDER_ID, install_id: MEMORY_PROVIDER_ID,
       actor_id: LOCAL_PERSON, workspace: "none", role_id: "memory-upkeep", title: "记忆整理" });
     ledger.setMarker(LOCAL_PERSON, "upkeep-session", { session_id: session.session_id }, new Date().toISOString());
     return session.session_id;

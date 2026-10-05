@@ -56,7 +56,7 @@ test("a method a Plugin offers for business work is declared with business tools
 test("a round lists the methods its scope can use; one the person chose goes with that round only, and a round may read one itself", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "assistant-methods-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "方法实操", actor_id: "owner" }));
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const requests: string[] = [];
   t.mock.method(globalThis, "fetch", async (url: unknown, init: RequestInit) => {

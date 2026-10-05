@@ -127,7 +127,7 @@ export function createProjectWork(runtime: Runtime, store: ProjectWorkStore, liv
       return { items, overlaps };
     },
     /** The graph's id, so a round can read it with board-read. */
-    async boardId(project: string) { return (await board(project)).id; },
+    async projectId(project: string) { return (await board(project)).id; },
     /** A round begins: its own item, or the one it waited as. */
     async begin(project: string, input: { session: ExactRef<"session">; run_id: string; title: string; task: string; directory: string; paths: string[]; queued?: string }): Promise<string> {
       return serial(project, async () => {
@@ -191,12 +191,12 @@ export function createProjectWork(runtime: Runtime, store: ProjectWorkStore, liv
 }
 
 /** The other work under way in the project, as a round reads it at its start; nothing when there is none. */
-export function projectWorkDigest(boardId: string, items: readonly AgentProjectWork[], own: string, overlaps: readonly AgentProjectWorkOverlap[], canSend = false): string {
+export function projectWorkDigest(projectId: string, items: readonly AgentProjectWork[], own: string, overlaps: readonly AgentProjectWorkOverlap[], canSend = false): string {
   const others = items.filter(work => work.session_id !== own && ["running", "waiting"].includes(work.state));
   if (!others.length) return "";
   const line = (work: AgentProjectWork) => `- 会话「${work.title.slice(0, 40)}」（session ${work.session_id}）${work.state === "running" ? "进行中" : "等待开始"}：${work.task.split("\n")[0]!.slice(0, 80)}`
     + `${work.paths.length ? "；范围：" + work.paths.slice(0, 8).join("、") : ""}（目录 ${work.directory}）`;
-  return [`项目里其他会话正在做的事（第 ${boardId} 号项目任务图，宿主在这一轮开始时读取；可以用 board-read 读这张图看最新状态，但不能改它）：`,
+  return [`项目里其他会话正在做的事（第 ${projectId} 号项目任务图，宿主在这一轮开始时读取；可以用 board-read 读这张图看最新状态，但不能改它）：`,
     ...others.slice(0, 12).map(line),
     ...(overlaps.length ? ["和这一轮登记的范围重叠：", ...overlaps.map(overlap => `- 会话「${overlap.work.title.slice(0, 40)}」也在改 ${overlap.paths.join("、")}`),
       "改这些文件之前先告诉用户重叠在哪里；不要替用户决定谁先谁后。"] : []),

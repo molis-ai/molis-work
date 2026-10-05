@@ -16,7 +16,7 @@ import { readPersonalPlanningMethodPacks } from "../apps/local-host/src/personal
 test("planning actions preserve complete methods, project versions, live policy and restart state", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-planning-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Planning", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let blocked = false;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) =>
     blocked && action.capability_id.startsWith("goals.planning.")
@@ -41,10 +41,10 @@ test("planning actions preserve complete methods, project versions, live policy 
     assert.deepEqual(applied.method.event_types, source.event_types);
     assert.deepEqual(applied.method.default_requirements, source.default_requirements);
     const { scope: _scope, version: _version, created_at: _created, updated_at: _updated, overridden_scopes: _overrides, ...method } = source as ResolvedPlanningMethodPack;
-    const saved = await typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [{ board_id: project.board_id, actor_id: caller.actor_id,
+    const saved = await typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [{ project_id: project.project_id, actor_id: caller.actor_id,
       user_confirmed: true, method: { ...method, enabled: false, instructions: "项目独立正文" } }]);
     assert.equal(saved.method.version, source.version + 1);
-    const read = await typed.invoke(goalEntryCompositionCapabilities.readPlanningComposition, [project.board_id]);
+    const read = await typed.invoke(goalEntryCompositionCapabilities.readPlanningComposition, [project.project_id]);
     assert.equal(read.methods.find(m => m.method_id === method_id)?.instructions, "项目独立正文");
     assert.equal(read.composition.method_pack_ids.includes(method_id), false);
     await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.validateBoardGraph, ["another-board"]), { code: "actions.scope_mismatch" });
@@ -52,15 +52,15 @@ test("planning actions preserve complete methods, project versions, live policy 
     await bound.invoke( goalsActions.create, { goal_id: "PLAN-GOAL", title: "规划影响", idempotency_key: "create" });
     const impact = await bound.invoke( goalsActions.planningImpact, { changed_goal_ids: ["PLAN-GOAL"] });
     assert.deepEqual(impact.changed_goal_ids, ["PLAN-GOAL"]);
-    assert.deepEqual(await typed.invoke(goalsEntryCapabilities.planning.analyzeChange, [project.board_id, ["PLAN-GOAL"]]), impact);
+    assert.deepEqual(await typed.invoke(goalsEntryCapabilities.planning.analyzeChange, [project.project_id, ["PLAN-GOAL"]]), impact);
     const graph = await bound.invoke( goalsActions.planningGraph, {});
     assert.deepEqual(graph.issues, []);
-    assert.deepEqual(await typed.invoke(goalsEntryCapabilities.planning.validateBoardGraph, [project.board_id]), graph);
+    assert.deepEqual(await typed.invoke(goalsEntryCapabilities.planning.validateBoardGraph, [project.project_id]), graph);
     blocked = true;
-    await assert.rejects(typed.invoke(goalEntryCompositionCapabilities.readPlanningComposition, [project.board_id]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.analyzeChange, [project.board_id, ["PLAN-GOAL"]]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.validateBoardGraph, [project.board_id]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [{ board_id: project.board_id, actor_id: caller.actor_id,
+    await assert.rejects(typed.invoke(goalEntryCompositionCapabilities.readPlanningComposition, [project.project_id]), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.analyzeChange, [project.project_id, ["PLAN-GOAL"]]), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.validateBoardGraph, [project.project_id]), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(goalsEntryCapabilities.planning.saveProjectMethod, [{ project_id: project.project_id, actor_id: caller.actor_id,
       user_confirmed: true, method }]), { code: "actions.plugin_disabled" });
     await host.close();
     const reopened = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -123,7 +123,7 @@ test("applying a personal override preserves executable Goal event configuration
     c.personalPlanningMethods.save({ ...source, name: "我的工程方法", instructions: "先记录真实交付，再验证结果。" }, new Date().toISOString());
     return c.createProject({ display_name: "Personal planning", actor_id: "user" });
   });
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, planningMethods: () => readPersonalPlanningMethodPacks(home) });
   const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:planner", project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] }));
   try {
@@ -154,7 +154,7 @@ test("personal saves from both Web routes refresh open projects without restarti
     await c.createProject({ display_name: "One", actor_id: "user" }),
     await c.createProject({ display_name: "Two", actor_id: "user" }),
   ]);
-  const refs = projects.map(project => molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path }));
+  const refs = projects.map(project => molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }));
   let opens = 0, closes = 0, denyPersonalSave = false;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, onRuntimeOpen: () => opens++, onRuntimeClose: () => closes++,
     actionAvailability: (_caller, action) => denyPersonalSave && action.capability_id === personalPlanningActions.save.capability_id
@@ -189,7 +189,7 @@ test("personal saves from both Web routes refresh open projects without restarti
     const projectPath = `/projects/${projects[0]!.project_id}`;
     // Populate the real page cache before changing a Home-only fact (no project event cursor moves).
     assert.equal((await fetch(origin + projectPath + "/goals/frozen")).status, 200);
-    const cursorBefore = await host.withProject(refs[0]!, r => r.store.eventCursor(refs[0]!.board_id));
+    const cursorBefore = await host.withProject(refs[0]!, r => r.store.eventCursor(refs[0]!.project_id));
     const updated = { ...method, name: "Second personal version", instructions: "New instructions for future adoption", default_requirements: method.default_requirements.map(r => ({ ...r, statement: "New requirement text" })) };
     denyPersonalSave = true;
     const deniedPersonalSave = await save(projectPath, updated);
@@ -208,7 +208,7 @@ test("personal saves from both Web routes refresh open projects without restarti
     const document = await client.invoke(goalsActions.document, { goal_id: "frozen" });
     assert.deepEqual(document.state.config, frozen.config);
     assert.equal(document.planning_methods.find(m => m.method_id === method.method_id)?.version, second.version);
-    assert.equal(await host.withProject(refs[0]!, r => r.store.eventCursor(refs[0]!.board_id)), cursorBefore);
+    assert.equal(await host.withProject(refs[0]!, r => r.store.eventCursor(refs[0]!.project_id)), cursorBefore);
     const html = await (await fetch(origin + projectPath + "/goals/frozen")).text();
     assert.match(html, /Second personal version/, "cached page must offer the current personal template");
     assert.equal((await save(projectPath, { ...updated, name: "" })).status, 400);

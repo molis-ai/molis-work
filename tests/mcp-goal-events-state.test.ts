@@ -45,12 +45,11 @@ test("Runtime state tools record progress and close without applying user identi
     };
     const connection = {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     };
     runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
-    const board_id = project.board_id;
+    const project_id = project.project_id;
     const created = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.create__v1", { title: "内部试用故事", outcome: "玩家能走完开场", idempotency_key: "intent-state",
     }));
     const goal_id = created.goal.goal_id as string;
@@ -100,12 +99,12 @@ test("Runtime state tools record progress and close without applying user identi
     management = new MolisWorkServer("management", connection, null, host);
     // The management entry decides as the person on this machine; it takes no identity from its arguments (§9.5 #6).
     await assert.rejects(() => management!.callTool("molis_work_v1_event_decide", {
-      database_path: project.database_path, board_id, goal_id, actor_id: "manager", idempotency_key: "mgmt-forged",
+      database_path: project.database_path, project_id, goal_id, actor_id: "manager", idempotency_key: "mgmt-forged",
       request_id: asked.decision_request.request_id, selected_option_id: "yes", conclusion: "冒名确认",
     }), (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.unexpected_field");
     const decided = JSON.parse(await management.callTool("molis_work_v1_event_decide", {
       database_path: project.database_path,
-      board_id, goal_id, idempotency_key: "mgmt-decide",
+      project_id, goal_id, idempotency_key: "mgmt-decide",
       request_id: asked.decision_request.request_id,
       selected_option_id: "yes",
       conclusion: "管理入口确认可以试用",
@@ -133,8 +132,8 @@ test("Runtime state tools record progress and close without applying user identi
     assert.equal(reopened.applied_decisions[0]?.authority_source, "management");
 
     const persisted = await host.client(molisWorkHostProjectReference({
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
-    })).invoke(snapshotBoardCapability, { board_id });
+      databasePath: project.database_path, projectId: project.project_id,
+    })).invoke(snapshotBoardCapability, { project_id });
     assert.equal("claims" in persisted, false, "the retired claim protocol has no state");
 
     const progressEvent = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.read__v1", { goal_id, event_id: progress.event_id,
@@ -172,14 +171,13 @@ test("Runtime agree unknown field and omitted close version are rejected with no
     await grantGoalsMcp(host, homeDirectory, project);
     runtime = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-unknown", host_declares_stable: true },
     }, host);
-    const board_id = project.board_id;
+    const project_id = project.project_id;
     const created = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.create__v1", { title: "未知字段", outcome: "原结果", idempotency_key: "intent-unknown",
     }));
     const goal_id = created.goal.goal_id as string;
@@ -224,7 +222,6 @@ test("MCP agreement_change request keeps request-time commitment; later related 
     await grantGoalsMcp(host, homeDirectory, project);
     const connection = {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     };
@@ -233,7 +230,7 @@ test("MCP agreement_change request keeps request-time commitment; later related 
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-stale", host_declares_stable: true },
     }, host);
     management = new MolisWorkServer("management", connection, null, host);
-    const board_id = project.board_id;
+    const project_id = project.project_id;
     const created = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.create__v1", { title: "精确授权", outcome: "用户能完成真实购买", idempotency_key: "intent-stale-mcp",
     }));
     const goal_id = created.goal.goal_id as string;
@@ -260,9 +257,9 @@ test("MCP agreement_change request keeps request-time commitment; later related 
     // The management entry lists no Goals actions; it decides through its own tools only.
     await assert.rejects(management.callTool("molis_work_v1_action_goals.agreement.set__v1", { goal_id }), { code: "mcp.tool_unknown" });
     // This trusted user change is fixture setup; the management MCP below still proves stale approval rejection.
-    await host.client(molisWorkHostProjectReference({ projectId: project.project_id, boardId: board_id, databasePath: project.database_path }))
+    await host.client(molisWorkHostProjectReference({ projectId: project_id, databasePath: project.database_path }))
       .invoke(setGoalEventAgreementCapability, {
-      board_id, goal_id, actor_id: "manager", actor_kind: "user", idempotency_key: "revise-stale-mcp",
+      project_id, goal_id, actor_id: "manager", actor_kind: "user", idempotency_key: "revise-stale-mcp",
       expected_config_version: beforeRevise.config.version,
       expected_agreement_version: beforeRevise.agreement.version,
       revise_requirements: [{ requirement_id: "r-five", statement: "真实购买并处理退货" }],
@@ -271,7 +268,7 @@ test("MCP agreement_change request keeps request-time commitment; later related 
     await assert.rejects(
       () => management!.callTool("molis_work_v1_event_decide", {
         database_path: project.database_path,
-        board_id, goal_id, idempotency_key: "approve-stale-mcp",
+        project_id, goal_id, idempotency_key: "approve-stale-mcp",
         request_id: asked.decision_request.request_id,
         selected_option_id: "yes",
         conclusion: "批准之前展示的取消要求",

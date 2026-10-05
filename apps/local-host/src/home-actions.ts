@@ -24,7 +24,7 @@ const empty = { type: "object", properties: {}, additionalProperties: false };
 const text = { type: "string" };
 const subjectSchema = ACTION_SUBJECT_SCHEMA;
 const judgmentProperties = { judgment_id: text, function_key: text, function_version: { type: "integer" },
-  subject: { type: "object", properties: { kind: { type: "string", minLength: 1 }, id: text, board_id: text }, required: ["kind", "id", "board_id"] },
+  subject: { type: "object", properties: { kind: { type: "string", minLength: 1 }, id: text, project_id: text }, required: ["kind", "id", "project_id"] },
   scene_id: { const: HOME_DOCK_SCENE_ID }, outcome: { enum: ["ok", "needs_review"] },
   suggested_behavior_ids: { type: "array", items: text }, error_code: { type: ["string", "null"] }, created_at: text };
 const resultSchema = { type: "object", properties: { judgments: { type: "array", items: { type: "object", properties: judgmentProperties, required: Object.keys(judgmentProperties) } } }, required: ["judgments"] };
@@ -66,13 +66,13 @@ export const HOME_ACTION_PERMISSIONS = ["home:read", "home:write", "feed:read", 
 export const homeDockBindingId = (project: string) => `${HOME_DOCK_SCENE_ID}:${project}`;
 
 /** Home owns its consumption contract; Functions remains the owner of saved bindings and history. */
-export function homeActionProvider(home: string, projectId: string, boardId: string, services: InboxSceneServices, onRecorded: (judgment: JudgmentRecord, caller: ActionCallContext) => void): ActionProviderRegistration {
+export function homeActionProvider(home: string, projectId: string, services: InboxSceneServices, onRecorded: (judgment: JudgmentRecord, caller: ActionCallContext) => void): ActionProviderRegistration {
   const read = <T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions);
   const published = () => read(service => service.list().filter(rule => rule.status === "published" && rule.version));
   const bindingFor = (key: string, version: number): ActionSceneBinding => ({ binding_id: homeDockBindingId(projectId), scene_id: HOME_DOCK_SCENE_ID,
     scene_version: 1, project_id: projectId, function: { capability_id: `functions.published.${key}`, version, provider_id: "system.functions" }, enabled: true,
     title: "首页下一步", href: `/projects/${encodeURIComponent(projectId)}/` });
-  const binding = (): ActionSceneBinding | null => read(service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, boardId));
+  const binding = (): ActionSceneBinding | null => read(service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, projectId));
   const resolve = async (subject: HomeSubject, caller: ActionCallContext): Promise<HomeSubjectContext> => {
     const { context, reader } = await resolveActionSubject(services.actions, caller, subject);
     // Pin both original reader identity and the actual content. The owner revision
@@ -134,7 +134,7 @@ export function homeActionProvider(home: string, projectId: string, boardId: str
     const fn = directory.find(action => action.capability_id === value.function.capability_id && action.version === value.function.version)!;
     if (subjectOfferCompatibilityReason(fn, directory)) throw new ActionError("actions.binding_changed", "规则引用的动作选项已失效，请重新配置");
     const judgment = read(service => service.recordSceneJudgment({ function_key: publishedFunctionKey(value.function) ?? value.function.capability_id,
-      function_version: value.function.version, subject: { kind: state.kind, id: state.id, board_id: boardId }, scene_id: HOME_DOCK_SCENE_ID,
+      function_version: value.function.version, subject: { kind: state.kind, id: state.id, project_id: projectId }, scene_id: HOME_DOCK_SCENE_ID,
       outcome: result.status, suggested_behavior_ids: result.status === "ok" ? selected : [], error_code: result.error_code ?? null,
       scene_provenance: { binding_id: value.binding_id, binding_revision: value.revision!, function: value.function, subject_revision: state.revision,
         offer_request_id: state.request_id, offer_revision: offerRevision(chosen) },
@@ -149,7 +149,7 @@ export function homeActionProvider(home: string, projectId: string, boardId: str
     bind: (caller, value, options) => {
       if (!caller.permissions.includes("home:write")) throw new ActionError("actions.forbidden", "缺少首页规则配置权限");
       if (value.binding_id !== homeDockBindingId(projectId)) throw new ActionError("actions.binding_invalid", "首页只接受当前项目的绑定");
-      read(service => service.saveActionSceneBinding(boardId, value, options?.expected_revision));
+      read(service => service.saveActionSceneBinding(projectId, value, options?.expected_revision));
     },
     prepare: async (caller, event) => {
       const subject = event as HomeSubject;
@@ -209,7 +209,7 @@ export function homeActionProvider(home: string, projectId: string, boardId: str
         const usage = (await services.scenes.usages(caller)).find(value => value.scene_id === HOME_DOCK_SCENE_ID && value.binding_id === homeDockBindingId(projectId));
         if (!usage?.enabled || !usage.availability.available) return { judgments: [] };
         if (!sameBinding(binding(), usage)) return { judgments: [] };
-        const candidates = read(service => service.latestSceneJudgments(boardId, HOME_DOCK_SCENE_ID));
+        const candidates = read(service => service.latestSceneJudgments(projectId, HOME_DOCK_SCENE_ID));
         const judgments: JudgmentRecord[] = [];
         const readers = new Map<string, ActionReference>();
         const selectedOffers = new Map<string, HomeActionOffer[]>();
@@ -252,9 +252,9 @@ export function homeActionProvider(home: string, projectId: string, boardId: str
     ] };
 }
 
-export function createHomeJudgmentTrigger(options: { scenes: ActionSceneClient; context(): ActionCallContext; boardId: string }) {
-  return async (event: HomeSubject & { board_id: string }, explicitCaller?: ActionCallContext): Promise<void> => {
-    if (event.board_id !== options.boardId) throw new ActionError("actions.scope_mismatch", "首页事件不属于当前项目");
+export function createHomeJudgmentTrigger(options: { scenes: ActionSceneClient; context(): ActionCallContext; projectId: string }) {
+  return async (event: HomeSubject & { project_id: string }, explicitCaller?: ActionCallContext): Promise<void> => {
+    if (event.project_id !== options.projectId) throw new ActionError("actions.scope_mismatch", "首页事件不属于当前项目");
     const caller = explicitCaller ?? options.context();
     const usage = (await options.scenes.usages(caller)).find(value => value.scene_id === HOME_DOCK_SCENE_ID && value.binding_id === homeDockBindingId(caller.project_id!));
     if (!usage?.enabled || !usage.availability.available) return;

@@ -15,7 +15,7 @@ export async function dispatchCliProjectCommand(
     case "init":
       print(
         await client.invoke(initializeBoardCapability, {
-          board_id: String(input.board_id),
+          project_id: String(input.project_id),
           title: String(input.title),
           idempotency_key: String(input.idempotency_key),
         }),
@@ -36,14 +36,14 @@ export async function dispatchCliProjectCommand(
     case "active-goal":
       print(
         await client.invoke(setActiveGoalCapability, {
-          board_id: String(input.board_id),
+          project_id: String(input.project_id),
           goal: { goal_id: String(input.goal_id), reason: String(input.reason) },
           write: { actor_id: String(input.actor_id), idempotency_key: String(input.idempotency_key) },
         }),
       );
       break;
     case "snapshot":
-      print(await client.invoke(snapshotBoardCapability, { board_id: String(input.board_id) }));
+      print(await client.invoke(snapshotBoardCapability, { project_id: String(input.project_id) }));
       break;
     default:
       throw new Error(`未知 V1 operation: ${operation}`);

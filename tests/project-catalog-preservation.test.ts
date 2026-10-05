@@ -16,16 +16,16 @@ async function withHome(run: (home: string) => Promise<void>) {
 }
 function snapshot(project: ProjectRecord) {
   const store = new LocalProjectDatabase(project.database_path);
-  try { return store.snapshot(project.board_id); } finally { store.close(); }
+  try { return store.snapshot(project.project_id); } finally { store.close(); }
 }
 function mark(project: ProjectRecord) {
   const store = new LocalProjectDatabase(project.database_path);
   try {
-    new GoalProjectApplication(store).goals.commands.createGoal(project.board_id, {
+    new GoalProjectApplication(store).goals.commands.createGoal(project.project_id, {
       goal_id: "retained-content", title: "已保存的正文", outcome: "故障恢复后仍可读", why: "验证数据保留",
       business_logic: "使用真实项目写入", definition_state: "draft", decomposition_state: "abstract", acceptance_criteria: [],
     }, { actor_id: "user", idempotency_key: "retained-content" });
-    return store.snapshot(project.board_id);
+    return store.snapshot(project.project_id);
   } finally { store.close(); }
 }
 function createdEvents(database: string, id: string) {

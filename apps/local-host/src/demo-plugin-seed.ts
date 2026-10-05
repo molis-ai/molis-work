@@ -2,7 +2,7 @@ import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
-import { DEMO_BOARD_ID } from "./demo-seed.js";
+import { DEMO_PROJECT_ID } from "./demo-seed.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { createLocalFeedApplication } from "./feed-application.js";
@@ -29,12 +29,12 @@ const AT = {
 } as const;
 
 /** Project-db facts for Feed, Inbox and Artifacts. Safe to call more than once. */
-export function seedDemoPluginSurfaces(databasePath: string, boardId = DEMO_BOARD_ID): void {
+export function seedDemoPluginSurfaces(databasePath: string, projectId = DEMO_PROJECT_ID): void {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    if (!store.goalsQuery.getBoard(boardId)) return;
+    if (!store.goalsQuery.getBoard(projectId)) return;
     const feed = createLocalFeedApplication(store.db);
-    const sources = createLocalFeedSourceService(store.db, boardId);
+    const sources = createLocalFeedSourceService(store.db, projectId);
     const rss = sources.register({ kind: "rss", definition_id: "solidot" }).source;
     const youtube = sources.register({
       kind: "youtube_channel",
@@ -57,7 +57,7 @@ export function seedDemoPluginSurfaces(databasePath: string, boardId = DEMO_BOAR
       last_sync_at: AT.github,
       last_outcome: "completed",
       last_error_code: null,
-    }, boardId);
+    }, projectId);
     const gmail = upsertConnectorSource(feed, {
       source_id: DEMO_GMAIL_SOURCE_ID,
       kind: "gmail",
@@ -70,10 +70,10 @@ export function seedDemoPluginSurfaces(databasePath: string, boardId = DEMO_BOAR
       last_outcome: "failed",
       last_error_code: "auth_required",
       config: { scope: "in:inbox" },
-    }, boardId);
+    }, projectId);
 
-    if (!feed.listOutRules(boardId).some((rule) => rule.name === DEMO_OUT_RULE_NAME)) {
-      feed.createOutRule(boardId, {
+    if (!feed.listOutRules(projectId).some((rule) => rule.name === DEMO_OUT_RULE_NAME)) {
+      feed.createOutRule(projectId, {
         name: DEMO_OUT_RULE_NAME,
         match: { contains: "目标树", source_id: rss.source_id },
         enabled: true,
@@ -144,22 +144,22 @@ export function seedDemoPluginSurfaces(databasePath: string, boardId = DEMO_BOAR
       tags: ["网页查询"],
     });
 
-    if (rssArticle.created) feed.addToInbox(boardId, rssArticle.item.item_id);
+    if (rssArticle.created) feed.addToInbox(projectId, rssArticle.item.item_id);
     if (youtubeItem.created) {
-      const stored = feed.ensureInboxEntryForFeedItem(boardId, youtubeItem.item.item_id, "manual");
-      feed.setInboxEntryStatus(boardId, stored.entry.entry_id, "dismissed", stored.entry.revision);
+      const stored = feed.ensureInboxEntryForFeedItem(projectId, youtubeItem.item.item_id, "manual");
+      feed.setInboxEntryStatus(projectId, stored.entry.entry_id, "dismissed", stored.entry.revision);
     }
     if (queryItem.created) {
-      const stored = feed.ensureInboxEntryForFeedItem(boardId, queryItem.item.item_id, "manual");
-      feed.setInboxEntryStatus(boardId, stored.entry.entry_id, "done", stored.entry.revision);
+      const stored = feed.ensureInboxEntryForFeedItem(projectId, queryItem.item.item_id, "manual");
+      feed.setInboxEntryStatus(projectId, stored.entry.entry_id, "done", stored.entry.revision);
     }
     if (githubReview.created === false) {
-      feed.ensureInboxEntryForFeedItem(boardId, githubReview.item.item_id, "source_rule", {
+      feed.ensureInboxEntryForFeedItem(projectId, githubReview.item.item_id, "source_rule", {
         source_id: DEMO_GITHUB_SOURCE_ID,
       });
     }
     feed.createInboxEntry({
-      boardId,
+      projectId,
       subjectType: "source_fault",
       subjectId: gmail.source_id,
       reason: "source_fault",
@@ -169,7 +169,7 @@ export function seedDemoPluginSurfaces(databasePath: string, boardId = DEMO_BOAR
       },
     });
 
-    seedDemoDeliverable(store, boardId);
+    seedDemoDeliverable(store, projectId);
   } finally {
     store.close();
   }
@@ -285,12 +285,12 @@ function upsertConnectorSource(
     last_error_code: string | null;
     config?: Record<string, unknown>;
   },
-  boardId: string,
+  projectId: string,
 ): FeedSourceRecord {
-  const existing = feed.snapshot(boardId).sources.find((source) => source.source_id === input.source_id);
+  const existing = feed.snapshot(projectId).sources.find((source) => source.source_id === input.source_id);
   if (existing) return existing;
   return feed.upsertSource({
-    board_id: boardId,
+    project_id: projectId,
     source_id: input.source_id,
     kind: input.kind,
     definition_id: input.kind,
@@ -349,18 +349,18 @@ function ingestOnce(
  * CORE's deliverable (specs/artifact-positioning A5): a real 成果 — an imported record, two versions — that the Goal
  * hands in through a `goal.output` link to the second version, not a type of its own.
  */
-function seedDemoDeliverable(store: LocalProjectDatabase, boardId: string): void {
+function seedDemoDeliverable(store: LocalProjectDatabase, projectId: string): void {
   const coordinator = new GoalProjectApplication(store);
   const producer = { plugin_id: artifactsManifest.plugin_id, plugin_version: artifactsManifest.version, binding_signature: artifactsManifest.publisher.signature };
   for (const [version, title, content] of [[1, "生命周期记录已接通", "从约定、报告到收尾形成完整记录"], [2, "可用的生命周期记录", "约定要求已有支持事实，演示收尾"]] as const) {
-    coordinator.artifacts.commands.registerVersion({ board_id: boardId, actor_id: DEMO_ACTOR, artifact_id: DEMO_CORE_ARTIFACT_ID, version,
+    coordinator.artifacts.commands.registerVersion({ project_id: projectId, actor_id: DEMO_ACTOR, artifact_id: DEMO_CORE_ARTIFACT_ID, version,
       artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1, producer, metadata: { origin: "demo-seed", goal_id: "CORE" },
       content: { kind: "inline", payload: { source: "file", source_id: `生命周期记录.md:v${version}`, source_url: null, title, content: `# ${title}\n\n${content}\n`, format: "markdown", warnings: [] } },
       origin: { kind: "imported", file_name: "生命周期记录.md" }, title, media_type: "text/markdown", ...(version > 1 ? { supersedes_version: version - 1 } : {}) });
   }
-  const scope = { kind: "personal" as const, id: boardId };
+  const scope = { kind: "personal" as const, id: projectId };
   const delivered = { artifact_id: DEMO_CORE_ARTIFACT_ID, version: 2 };
-  createContextLedger(store.db, { authorize: access => access.scope.kind === "personal" && access.scope.id === boardId }).commands.put({ actor_id: DEMO_ACTOR, scope }, {
+  createContextLedger(store.db, { authorize: access => access.scope.kind === "personal" && access.scope.id === projectId }).commands.put({ actor_id: DEMO_ACTOR, scope }, {
     key: `goal.output:CORE:${artifactSubjectId(delivered)}`, type: "goal.output", cause: "goals.deliverable",
     source: { module: "goals", id: "CORE", version: null, scope }, target: { module: "artifacts", id: delivered.artifact_id, version: delivered.version, scope } });
 }

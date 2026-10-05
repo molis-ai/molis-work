@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_BOARD_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
@@ -19,7 +19,7 @@ test("a judgment link hands content on only for the ticked results and records w
   seedDemoBoard(dbPath);
   const db = new LocalProjectDatabase(dbPath);
   const feed = createLocalFeedApplication(db.db);
-  const source = createLocalFeedSourceService(db.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
+  const source = createLocalFeedSourceService(db.db, DEMO_PROJECT_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
   feed.ingestItem({ source, externalId: "urgent", title: "客户投诉", summary: "需要处理", body: "需要今天处理的投诉", occurredAt: new Date().toISOString(), attention: false });
   feed.ingestItem({ source, externalId: "noise", title: "例行通知", summary: "无关", body: "例行的系统通知", occurredAt: new Date().toISOString(), attention: false });
   const judged: string[] = [];
@@ -36,7 +36,7 @@ test("a judgment link hands content on only for the ticked results and records w
   }, functions);
   judged.length = 0;
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions, completeText: null });
-  const reference = molisWorkHostProjectReference({ databasePath: dbPath, boardId: DEMO_BOARD_ID, projectId: PROJECT });
+  const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: DEMO_PROJECT_ID });
   const caller = { actor_id: "test-user", project_id: PROJECT, audience: "user" as const, permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, "functions:invoke"] };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
   const pages = () => { const store = openPagesStore(home); try { return store.list(PROJECT); } finally { store.close(); } };

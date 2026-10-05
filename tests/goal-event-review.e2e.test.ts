@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("event document pointer path covers requirement form, concern body, note, selection and resume", { timeout: 90_000 }, async (t) => {
@@ -8,7 +8,7 @@ test("event document pointer path covers requirement form, concern body, note, s
   if (!browser) return;
   const { store, origin, sessionId, command, evaluate, waitFor, click, navigate } = browser;
   const app = new GoalProjectApplication(store);
-  const actor = { board_id: DEMO_BOARD_ID, actor_id: "review-runtime", actor_kind: "runtime" as const };
+  const actor = { project_id: DEMO_PROJECT_ID, actor_id: "review-runtime", actor_kind: "runtime" as const };
   const created = app.goalEvents.createIntent({
     ...actor, goal_id: "independent-ui", title: "隔离验收：首次使用与重启接续",
     outcome: "用户能创建项目、保存工作，并在重新打开后继续", idempotency_key: "review-ui-create",
@@ -25,7 +25,7 @@ test("event document pointer path covers requirement form, concern body, note, s
       ],
     }],
   });
-  const configured = app.goalEvents.readState(DEMO_BOARD_ID, goalId);
+  const configured = app.goalEvents.readState(DEMO_PROJECT_ID, goalId);
   app.goalEvents.setAgreement({
     ...base, idempotency_key: "review-ui-requirement",
     expected_config_version: configured.config.version,
@@ -40,7 +40,7 @@ test("event document pointer path covers requirement form, concern body, note, s
   });
   app.goalEvents.recordProgress({
     ...base, idempotency_key: "review-ui-progress",
-    based_on_cursor: app.goalEvents.readState(DEMO_BOARD_ID, goalId).observed_event_cursor,
+    based_on_cursor: app.goalEvents.readState(DEMO_PROJECT_ID, goalId).observed_event_cursor,
     summary: "首次使用已接通，重启后的接续是当前缺口。", next_step: "重启隔离服务并读回当前目标与原报告", next_actor: "当前 Runtime",
   });
   const concern = app.goalEvents.applyConcern({
@@ -49,7 +49,7 @@ test("event document pointer path covers requirement form, concern body, note, s
     scope: { requirement_ids: ["restart"] }, blocks_closure: true,
   });
   const visible = (selector: string) => evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});return Boolean(e && e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden')})()`);
-  const history = () => app.goalEvents.listEvents(DEMO_BOARD_ID, goalId, { limit: 100 }).events;
+  const history = () => app.goalEvents.listEvents(DEMO_PROJECT_ID, goalId, { limit: 100 }).events;
   async function openGoal() {
     await navigate(() => command("Page.navigate", { url: `${origin}/goals/${goalId}` }, sessionId));
     if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
@@ -65,7 +65,7 @@ test("event document pointer path covers requirement form, concern body, note, s
     await waitFor(`!document.querySelector('[data-event-reader-root]').hidden`);
   }
   async function submitSuccess(selector: string) {
-    const before = app.goalEvents.readState(DEMO_BOARD_ID, goalId).goal_event_cursor;
+    const before = app.goalEvents.readState(DEMO_PROJECT_ID, goalId).goal_event_cursor;
     await click(selector);
     await waitFor(
       `document.querySelector("[data-goal-event-document]")?.dataset.goalView === ${JSON.stringify(goalId)} && Number(document.querySelector("[data-goal-event-document]")?.dataset.goalEventCursor) > ${before} && document.querySelector("[data-document-pane]")?.getAttribute("aria-busy") !== "true"`,
@@ -97,10 +97,10 @@ test("event document pointer path covers requirement form, concern body, note, s
   await openGoal();
   await click('[data-record-menu] > summary');
   await click('[data-record-menu] [data-event-form-open="note"]');
-  const beforeNote = app.goalEvents.readState(DEMO_BOARD_ID, goalId).observed_event_cursor;
+  const beforeNote = app.goalEvents.readState(DEMO_PROJECT_ID, goalId).observed_event_cursor;
   await fillField('[data-event-form="note"] [name="note"]', "补充说明：明天继续核对重启后的历史读取。");
   await submitSuccess('[data-event-form="note"] button[type="submit"]');
-  assert.ok(app.goalEvents.readState(DEMO_BOARD_ID, goalId).observed_event_cursor > beforeNote);
+  assert.ok(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).observed_event_cursor > beforeNote);
 
   await openGoal();
   const selection = await evaluate(`document.querySelectorAll('[data-timeline-item]')[2].dataset.timelineItem`) as string;
@@ -139,7 +139,7 @@ test("event document pointer path covers requirement form, concern body, note, s
   const secondCount = history().filter((event) => event.kind === "system" && event.payload.operation === "progress_summary").length;
   assert.equal(firstCount, beforeRetry + 1);
   assert.equal(secondCount, firstCount);
-  assert.equal(app.goalEvents.readState(DEMO_BOARD_ID, goalId).progress_summary?.summary, "写入成功但读回断线");
+  assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).progress_summary?.summary, "写入成功但读回断线");
 
   await planning();
   await click('.detail-toolbar [data-event-back]');
@@ -149,10 +149,10 @@ test("event document pointer path covers requirement form, concern body, note, s
   await evaluate(`(() => { const f=document.querySelector('[data-event-form="closure"]'); f.querySelector('[name="kind"]').value='complete'; })()`);
   await fillField('[data-event-form="closure"] [name="reason"]', "Concern 仍开着，完成应被挡住");
   await fillField('[data-event-form="closure"] [name="result"]', "还不能完成");
-  const beforeBlocked = app.goalEvents.readState(DEMO_BOARD_ID, goalId);
+  const beforeBlocked = app.goalEvents.readState(DEMO_PROJECT_ID, goalId);
   const beforeBlockedCursor = beforeBlocked.goal_event_cursor;
   await submitSuccess('[data-event-form="closure"] button[type="submit"]');
-  const blocked = app.goalEvents.readState(DEMO_BOARD_ID, goalId);
+  const blocked = app.goalEvents.readState(DEMO_PROJECT_ID, goalId);
   assert.equal(blocked.work_status, "open");
   assert.equal(blocked.closure?.completion_applied, false);
   assert.ok(blocked.closure?.unmet_reasons.length);
@@ -162,13 +162,13 @@ test("event document pointer path covers requirement form, concern body, note, s
   await evaluate(`(() => { document.querySelector('[data-event-form="closure"] [name="kind"]').value='cancel'; })()`);
   await fillField('[data-event-form="closure"] [name="reason"]', "核对取消后的显式继续入口");
   await submitSuccess('[data-event-form="closure"]:not([hidden]) button[type="submit"]');
-  assert.equal(app.goalEvents.readState(DEMO_BOARD_ID, goalId).work_status, "cancelled");
+  assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).work_status, "cancelled");
   await waitFor(`document.querySelector('[data-event-form-open="resume"]') && document.querySelector('[data-event-form-open="resume"]').getClientRects().length > 0`);
   assert.equal(await visible('[data-event-form-open="resume"]'), true);
   await click('[data-event-form-open="resume"]');
   await fillField('[data-event-form="resume"] [name="reason"]', "继续核对完成闭环");
   await submitSuccess('[data-event-form="resume"] button[type="submit"]');
-  assert.equal(app.goalEvents.readState(DEMO_BOARD_ID, goalId).work_status, "open");
+  assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID, goalId).work_status, "open");
   const cancelHistory = history().filter((event) => event.kind === "system" && event.payload.operation === "closure_submitted" && event.payload.kind === "cancel");
   assert.ok(cancelHistory.length >= 1);
 });

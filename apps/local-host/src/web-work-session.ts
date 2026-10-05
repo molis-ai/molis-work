@@ -12,7 +12,7 @@ import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./we
 export function createLocalWorkSessionHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner, sessionProjectOperationsData: ReturnType<typeof createSessionProjectOperations>) {
   return async function handleSessions(
     request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined,
-    options: { boardId: string; project: WebProjectNavigation | null; projects: WebProjectNavigation[] },
+    options: { projectId: string; project: WebProjectNavigation | null; projects: WebProjectNavigation[] },
     sessionResources: Promise<SessionRuntimeResources>, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>,
     actions: BoundActionClient,
   ): Promise<boolean> {

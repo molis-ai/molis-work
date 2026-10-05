@@ -54,10 +54,10 @@ test("real Prologue HTTP dispatch rechecks persisted action grants after DNS pre
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.mcp-dispatch", appVersion: "1.0.0" }, reviewQueue: new AgentReviewQueue(),
     storageRoot: join(home, "runtime"), modelConfiguration: async () => null, resolveCredential: () => null });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const directory = createExternalMcpDirectory({ localHost: host, homeDirectory: home });
   try {
-    const owner = { board_id: project.board_id, plugin_id: "io.molis.work.coding" }, library = adapter.mcpLibrary!;
+    const owner = { project_id: project.project_id, plugin_id: "io.molis.work.coding" }, library = adapter.mcpLibrary!;
     const saved = await library.save(owner, { expected_version: 0, label: "写笔记", transport: "http", enabled: true, timeout_ms: 5000,
       endpoint: `http://localhost:${address.port}/mcp`, auth: { kind: "none" } });
     await library.control(owner, saved.id, "connect");

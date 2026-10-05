@@ -22,20 +22,20 @@ export const readGoalContractCapability = {
   capability_id: "io.molis.work.local-host.goals.contract",
   version: 1,
   operation: "query",
-} as HostCapabilityDefinition<{ board_id: string; goal_id: string }, GoalContractView>;
+} as HostCapabilityDefinition<{ project_id: string; goal_id: string }, GoalContractView>;
 
 export const readProjectGuidanceCapability = {
   capability_id: "io.molis.work.local-host.project.guidance",
   version: 1,
   operation: "query",
-} as HostCapabilityDefinition<{ board_id: string }, ProjectGuidanceView>;
+} as HostCapabilityDefinition<{ project_id: string }, ProjectGuidanceView>;
 
 export const setActiveGoalCapability = {
   capability_id: "io.molis.work.local-host.goals.set-active",
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<{
-  board_id: string;
+  project_id: string;
   goal: { goal_id: string; reason: string };
   write: GoalsActorWrite;
 }, { active_goal_id: string; replayed: boolean; observed_event_cursor: number }>;

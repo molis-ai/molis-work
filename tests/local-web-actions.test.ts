@@ -15,7 +15,7 @@ import { HOME_TALK_PERMISSIONS } from "../apps/local-host/src/home-talk-actions.
 test("real Home HTTP and capability library use installed plugin grants without a Host permission list", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "home-local-grants-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "未知插件权限", actor_id: "owner" }));
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const token = resolveWebControlToken({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
@@ -87,7 +87,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
 test("scene-only plugins obtain local-user discovery and configuration from their own installation grants", async () => {
   const home = await mkdtemp(join(tmpdir(), "scene-only-grants-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "仅消费场景", actor_id: "owner" }));
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const scene = { scene_id: "scene-only.review", version: 1, title: "审核位置", description: "插件自有消费场景", trigger: "提交审核", scope: "project" as const,
     permissions: ["scene-only:read"], configuration_permissions: ["scene-only:configure"], subject_kinds: [],

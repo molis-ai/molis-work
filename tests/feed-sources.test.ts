@@ -15,7 +15,7 @@ import { createFeedSourceRuntime, type FeedSourceRuntime } from "@molis-ai/molis
 import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
 import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-app-local-host";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
@@ -80,7 +80,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
           async shutdown() {},
         };
       };
-      const service = createLocalFeedSourceService(store.db, DEMO_BOARD_ID, runtimeFactory);
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory);
       const definition = listFeedSourceCatalog()[0]!;
       const firstRegistration = service.register({ kind: "rss", definition_id: definition.id });
       assert.equal(firstRegistration.registered, true);
@@ -102,7 +102,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
       });
       assert.equal(replay.replayed, true);
       assert.equal(executeCount, 1, "terminal replay must not call the provider again");
-      assert.equal(service.feed.snapshot(DEMO_BOARD_ID).feed_items.length, 1);
+      assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1);
 
       // Fail the final journal write after material, Source, and Run writes.
       // A real SQLite failure must roll the entire public-result commit back.
@@ -114,11 +114,11 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
         service.sync(rollbackSource.source_id, { idempotencyKey: "source-rollback-0001" }),
         (error: unknown) => error instanceof FeedDomainError && error.code === "feed_source_sync_interrupted",
       );
-      const afterFailure = service.feed.getSource(DEMO_BOARD_ID, rollbackSource.source_id);
+      const afterFailure = service.feed.getSource(DEMO_PROJECT_ID, rollbackSource.source_id);
       assert.equal(afterFailure.item_count, 0);
       assert.equal(afterFailure.last_sync_at, null);
-      assert.equal(service.feed.snapshot(DEMO_BOARD_ID).feed_items.length, 1, "the new material must roll back");
-      const interruptedRun = service.feed.snapshot(DEMO_BOARD_ID).runs.find((run) => run.source_id === rollbackSource.source_id);
+      assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1, "the new material must roll back");
+      const interruptedRun = service.feed.snapshot(DEMO_PROJECT_ID).runs.find((run) => run.source_id === rollbackSource.source_id);
       assert.equal(interruptedRun?.phase, "interrupted");
       assert.equal(interruptedRun?.outcome, null);
       store.db.exec("DROP TRIGGER reject_source_completion");
@@ -129,7 +129,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
       assert.equal(retried.source.item_count, 1);
       const retriedReplay = await service.sync(rollbackSource.source_id, { idempotencyKey: "source-rollback-0001" });
       assert.equal(retriedReplay.replayed, true);
-      assert.equal(service.feed.snapshot(DEMO_BOARD_ID).feed_items.length, 2);
+      assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 2);
 
       service.setEnabled(firstRegistration.source.source_id, false);
       await assert.rejects(
@@ -151,7 +151,7 @@ test("custom RSS registration rejects private and catalog-shadowing URLs before 
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
-      const service = createLocalFeedSourceService(store.db, DEMO_BOARD_ID);
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
       assert.throws(
         () => service.register({ kind: "custom_rss", feed_url: "http://127.0.0.1/feed.xml" }),
         FeedDomainError,
@@ -207,7 +207,7 @@ test("RSS sync persists feed identity and validators, then treats 304 as a succe
     try {
       const seenHeaders: Headers[] = [];
       let fetchCount = 0;
-      const service = createLocalFeedSourceService(store.db, DEMO_BOARD_ID, (db, source) =>
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, (db, source) =>
         createFeedSourceRuntime({
           db,
           sourceCursor: source?.cursor,
@@ -240,7 +240,7 @@ test("RSS sync persists feed identity and validators, then treats 304 as a succe
         }));
       const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
       const first = await service.sync(source.source_id, { idempotencyKey: "rss-http-sync-0001" }).catch((error) => {
-        const failed = service.feed.getSource(DEMO_BOARD_ID, source.source_id);
+        const failed = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
         assert.fail(`first RSS sync failed with ${failed.last_error_code}: ${String(error)}`);
       });
       assert.equal(first.created, 1);
@@ -262,7 +262,7 @@ test("RSS sync persists feed identity and validators, then treats 304 as a succe
         final_url: listFeedSourceCatalog()[0]!.feed_url,
         validator: "etag",
       });
-      assert.equal(service.feed.snapshot(DEMO_BOARD_ID).feed_items.length, 1);
+      assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1);
       assert.equal(readRssHttpState(second.source.cursor).feed_title, "Product Signals");
     } finally {
       store.close();
@@ -285,7 +285,7 @@ test("RSS transient failures preserve history and become actionable only after t
     const store = new LocalProjectDatabase(databasePath);
     try {
       let recover = false;
-      const service = createLocalFeedSourceService(store.db, DEMO_BOARD_ID, () => ({
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, () => ({
         intelligenceCollect: {
           async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
             if (!recover) throw Object.assign(new Error("temporary provider failure"), { code: "feed_unavailable" });
@@ -307,10 +307,10 @@ test("RSS transient failures preserve history and become actionable only after t
           service.sync(source.source_id, { idempotencyKey: `rss-recovery-000${attempt}` }),
           (error: unknown) => error instanceof FeedDomainError && error.code === "feed_source_sync_interrupted",
         );
-        const current = service.feed.getSource(DEMO_BOARD_ID, source.source_id);
+        const current = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
         assert.equal(readRssHttpState(current.cursor).consecutive_failures, attempt);
         assert.equal(current.status, attempt < 3 ? "active" : "error");
-        const faults = service.feed.listInboxEntries(DEMO_BOARD_ID).filter(
+        const faults = service.feed.listInboxEntries(DEMO_PROJECT_ID).filter(
           (entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id,
         );
         assert.equal(faults.length, attempt < 3 ? 0 : 1);
@@ -321,7 +321,7 @@ test("RSS transient failures preserve history and become actionable only after t
       assert.equal(recovered.run.outcome, "completed");
       assert.equal(recovered.source.status, "active");
       assert.equal(readRssHttpState(recovered.source.cursor).consecutive_failures, 0);
-      const fault = service.feed.listInboxEntries(DEMO_BOARD_ID).find(
+      const fault = service.feed.listInboxEntries(DEMO_PROJECT_ID).find(
         (entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id,
       );
       assert.equal(fault?.status, "done");
@@ -340,7 +340,7 @@ test("RSS parse failures immediately create a configuration recovery reference",
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
-      const service = createLocalFeedSourceService(store.db, DEMO_BOARD_ID, () => ({
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, () => ({
         intelligenceCollect: {
           async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
             const base = createCompletedIntentResultFixtureV1(request);
@@ -374,7 +374,7 @@ test("RSS parse failures immediately create a configuration recovery reference",
       const result = await service.sync(source.source_id, { idempotencyKey: "rss-parse-fault-0001" });
       assert.equal(result.run.error_code, "feed_parse_failed");
       assert.equal(result.source.status, "error");
-      const fault = service.feed.listInboxEntries(DEMO_BOARD_ID).find(
+      const fault = service.feed.listInboxEntries(DEMO_PROJECT_ID).find(
         (entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id,
       );
       assert.deepEqual(fault?.detail, {
@@ -400,7 +400,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
     const store = new LocalProjectDatabase(databasePath);
     try {
       let now = new Date("2026-08-30T09:00:00.000Z");
-      const service = createLocalFeedSourceService(store.db, DEMO_BOARD_ID, undefined, () => now);
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => now);
       const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
       const scheduled = service.configureSchedule(source.source_id, {
         mode: "interval",
@@ -418,7 +418,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
       let release!: () => void;
       const gate = new Promise<void>((resolve) => { release = resolve; });
       const keys: string[] = [];
-      const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_BOARD_ID, async (_candidate, key) => {
+      const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async (_candidate, key) => {
         dispatches += 1;
         keys.push(key);
         await gate;
@@ -433,7 +433,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
       const completed = await firstTick;
       assert.equal(completed.completed, 1);
       assert.match(keys[0]!, /^scheduled-[a-f0-9]{32}$/);
-      const afterFirst = service.feed.getSource(DEMO_BOARD_ID, source.source_id);
+      const afterFirst = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
       assert.equal(afterFirst.schedule.mode === "interval" ? afterFirst.schedule.next_pull_at : null, "2026-08-30T09:30:00.000Z");
 
       now = new Date("2026-08-30T10:20:00.000Z");
@@ -441,7 +441,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
       assert.equal(catchup.due, 1);
       assert.equal(dispatches, 2, "sleep recovery performs one catch-up pull, not every missed slot");
       assert.notEqual(keys[0], keys[1], "different planned slots keep different idempotency identities");
-      const afterCatchup = service.feed.getSource(DEMO_BOARD_ID, source.source_id);
+      const afterCatchup = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
       assert.equal(afterCatchup.schedule.mode === "interval" ? afterCatchup.schedule.next_pull_at : null, "2026-08-30T10:30:00.000Z");
     } finally {
       store.close();
@@ -459,16 +459,16 @@ test("non-retryable scheduled source failures create one actionable Inbox refere
     const store = new LocalProjectDatabase(databasePath);
     try {
       let now = new Date("2026-08-30T09:00:00.000Z");
-      const service = createLocalFeedSourceService(store.db, DEMO_BOARD_ID, undefined, () => now);
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => now);
       const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
       service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
       now = new Date("2026-08-30T09:05:00.000Z");
-      const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_BOARD_ID, async () => {
+      const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async () => {
         throw Object.assign(new Error("需要重新授权"), { code: "connector_needs_auth" });
       }, () => now);
       const result = await scheduler.tick(now);
       assert.equal(result.failed, 1);
-      const fault = service.feed.snapshot(DEMO_BOARD_ID).inbox_entries.find(
+      const fault = service.feed.snapshot(DEMO_PROJECT_ID).inbox_entries.find(
         (entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id,
       );
       assert.ok(fault);
@@ -496,7 +496,7 @@ test("source lifecycle keeps secrets out of configuration and honors explicit hi
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
-      const service = createLocalFeedSourceService(store.db, DEMO_BOARD_ID);
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
       const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
       const updated = service.update(source.source_id, {
         name: "Product RSS",
@@ -515,8 +515,8 @@ test("source lifecycle keeps secrets out of configuration and honors explicit hi
       });
       const retained = service.delete(source.source_id, "retain_history");
       assert.equal(retained.enabled, false);
-      assert.equal(service.feed.snapshot(DEMO_BOARD_ID).sources.some((item) => item.source_id === source.source_id), false);
-      assert.equal(service.feed.snapshot(DEMO_BOARD_ID).feed_items.length, 1);
+      assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).sources.some((item) => item.source_id === source.source_id), false);
+      assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1);
 
       const replacement = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
       service.feed.ingestItem({
@@ -528,7 +528,7 @@ test("source lifecycle keeps secrets out of configuration and honors explicit hi
         attention: { reason: "source_rule", detail: { rule: "test" } },
       });
       service.delete(replacement.source_id, "delete_local_history");
-      const snapshot = service.feed.snapshot(DEMO_BOARD_ID);
+      const snapshot = service.feed.snapshot(DEMO_PROJECT_ID);
       assert.equal(snapshot.feed_items.some((item) => item.source_id === replacement.source_id), false);
       assert.equal(snapshot.inbox_entries.some((entry) => entry.subject_type === "feed_item"), false);
       assert.equal(JSON.stringify(snapshot).includes("token"), false);
@@ -547,7 +547,7 @@ test("Gmail source configuration accepts only incrementally enforceable range pr
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
-      const sourceService = createLocalFeedSourceService(store.db, DEMO_BOARD_ID);
+      const sourceService = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
       const gmail = gmailSource(store.db);
       assert.equal(gmail.config.scope, "in:inbox is:unread");
       const configured = sourceService.update(gmail.source_id, { scope: "is:starred" });
@@ -581,7 +581,7 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
   try { gmailSource(seeded.db); } finally { seeded.close(); }
   const server = createMolisWorkWebServer({
     databasePath,
-    boardId: DEMO_BOARD_ID,
+    projectId: DEMO_PROJECT_ID,
     homeDirectory: join(directory, "home"),
     controlToken,
   });

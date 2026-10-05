@@ -12,6 +12,6 @@ export function createCliGoalTreeHandlers(application: GoalTreeApplicationApi | 
       application.checkGoalTreeProposal(input as unknown as Parameters<GoalTreeApplicationApi["checkGoalTreeProposal"]>[0]),
     // The CLI decides as the person on this machine; an identity in the payload is not read.
     "goal-tree-decide": async ({ authority, ...input }: Record<string, unknown>) =>
-      application.decideGoalTreeProposal({ ...input, authority: managementTreeAuthority(String(input.board_id), String(input.idempotency_key), authority) } as unknown as Parameters<GoalTreeApplicationApi["decideGoalTreeProposal"]>[0]),
+      application.decideGoalTreeProposal({ ...input, authority: managementTreeAuthority(String(input.project_id), String(input.idempotency_key), authority) } as unknown as Parameters<GoalTreeApplicationApi["decideGoalTreeProposal"]>[0]),
   };
 }

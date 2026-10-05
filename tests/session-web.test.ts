@@ -22,7 +22,7 @@ test("plugin rail lists enabled plugins; directory sections stay in the second c
   const view = {
     snapshot: {
       board: {
-        board_id: "board-root-directory",
+        project_id: "board-root-directory",
         title: "根目录一致性",
         active_goal_id: null,
         created_at: "2026-08-31T00:00:00.000Z",

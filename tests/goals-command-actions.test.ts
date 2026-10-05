@@ -14,11 +14,11 @@ import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/action
 test("Goals work actions keep atomic reports, original receipts, user authority, and completion rules", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-command-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Commands", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let denied: string | undefined;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, view) => view.capability_id === denied
     ? { available: false, code: "actions.plugin_disabled", reason: "操作停用" } : { available: true } });
-  const actor_id = "runtime:commands:session", actor_kind = "runtime" as const, board_id = project.board_id, goal_id = "COMMAND-GOAL";
+  const actor_id = "runtime:commands:session", actor_kind = "runtime" as const, project_id = project.project_id, goal_id = "COMMAND-GOAL";
   const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:commands", audit_actor_id: actor_id,
     actor_kind, audience: "agent", project_id: project.project_id, permissions: ["goals:read", "goals:write"] }));
   const typed = host.client(ref);
@@ -29,7 +29,7 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     const configure = { goal_id, expected_version: 0, idempotency_key: "config", types: [{ type_id: "work", version: 1, name: "交付",
       purpose: "保留事实", fields: [{ field_id: "body", name: "正文", purpose: "原文", format: "longtext" as const, required: true }] }],
       requirement_bindings: [{ type_id: "work", requirement_id: "human" }] };
-    const oldConfig = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.configure({ ...configure, board_id, actor_id, actor_kind }));
+    const oldConfig = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.configure({ ...configure, project_id, actor_id, actor_kind }));
     assert.deepEqual(await actions.invoke(goalsActions.configure, configure), { ...JSON.parse(JSON.stringify(oldConfig)), replayed: true });
     await assert.rejects(actions.invoke(goalsActions.configure, { ...configure, idempotency_key: "stale-config" }), /版本/);
     const report = { goal_id, idempotency_key: "report", events: [{ type_id: "work", type_version: 1, title: "实际正文",
@@ -38,7 +38,7 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     await assert.rejects(actions.invoke(goalsActions.report, { ...report, idempotency_key: "bad-batch",
       events: [...report.events, { ...report.events[0]!, type_id: "missing" }] }));
     assert.equal((await state()).goal_event_cursor, before, "an invalid batch must not partially save its first fact");
-    const recorded = await typed.invoke(reportGoalEventsCapability, { ...report, board_id, actor_id, actor_kind });
+    const recorded = await typed.invoke(reportGoalEventsCapability, { ...report, project_id, actor_id, actor_kind });
     assert.equal(recorded.events.length, 1); assert.equal(recorded.events[0]?.actor_id, actor_id);
     assert.equal(recorded.events[0]?.payload.body, "旧回执和原文保留");
     assert.equal(recorded.completion_effect, false);
@@ -70,8 +70,8 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     await assert.rejects(actions.invoke(goalsActions.citeDecision, { goal_id, decision_id: "fabricated", idempotency_key: "fake" }));
     const incomplete = await actions.invoke(goalsActions.close, { goal_id, kind: "complete", reason: "申请收尾", idempotency_key: "blocked", ...versions });
     assert.equal(incomplete.completion_applied, false); assert.ok(incomplete.unmet_reasons.length > 0);
-    const decision = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.recordTrustedDecision({ board_id, goal_id,
-      authority: hostEventDecisionAuthority("web", board_id, "real-user", "accept"), idempotency_key: "accept", request_id: asked.decision_request.request_id,
+    const decision = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.recordTrustedDecision({ project_id, goal_id,
+      authority: hostEventDecisionAuthority("web", project_id, "real-user", "accept"), idempotency_key: "accept", request_id: asked.decision_request.request_id,
       selected_option_id: "yes", conclusion: "接受交付", effects: [{ kind: "accept_requirements" }], scope: { requirement_ids: ["human"] } }));
     const cited = await actions.invoke(goalsActions.citeDecision, { goal_id, idempotency_key: "cite", decision_id: decision.decision.decision_id, scope: { requirement_ids: ["human"] } });
     assert.equal(cited.decision.actor_id, "real-user", "citing preserves the original decision maker");
@@ -87,7 +87,7 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
       new_requirements: [{ requirement_id: "extra", statement: "补充说明" }] });
     assert.equal(agreed.agreement.version, now.agreement.version + 1);
     const beforeDenied = (await state()).goal_event_cursor;
-    await assert.rejects(typed.invoke(configureGoalEventsCapability, { ...configure, board_id: "foreign", actor_id }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(configureGoalEventsCapability, { ...configure, project_id: "foreign", actor_id }), { code: "actions.scope_mismatch" });
     for (const [capability, action] of [
       [configureGoalEventsCapability, goalsActions.configure], [reportGoalEventsCapability, goalsActions.report],
       [recordGoalProgressCapability, goalsActions.progress], [applyGoalConcernCapability, goalsActions.concern],
@@ -96,7 +96,7 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
       [resumeGoalEventWorkCapability, goalsActions.resume],
     ] as const) {
       denied = action.capability_id;
-      await assert.rejects(typed.invoke<unknown, unknown>(capability, { goal_id, board_id, actor_id, actor_kind, idempotency_key: "denied" } as never), { code: "actions.plugin_disabled" });
+      await assert.rejects(typed.invoke<unknown, unknown>(capability, { goal_id, project_id, actor_id, actor_kind, idempotency_key: "denied" } as never), { code: "actions.plugin_disabled" });
     }
     denied = goalsActions.progress.capability_id;
     await assert.rejects(typed.invoke(goalProgressCapabilities.record, { ...progress, actor_id, actor_kind }), { code: "actions.plugin_disabled" });
@@ -106,7 +106,7 @@ test("Goals work actions keep atomic reports, original receipts, user authority,
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     try {
-      const replay = await restarted.client(ref).invoke(reportGoalEventsCapability, { ...report, board_id, actor_id, actor_kind });
+      const replay = await restarted.client(ref).invoke(reportGoalEventsCapability, { ...report, project_id, actor_id, actor_kind });
       assert.equal(replay.replayed, true); assert.equal(replay.events[0]?.event_id, recorded.events[0]?.event_id);
       assert.equal(replay.goal_event_cursor, beforeDenied, "retry after restart must not append another report");
       assert.deepEqual(await restarted.client(ref).invoke(goalProgressCapabilities.receipt, { ...receiptQuery, actor_id }), receipt);

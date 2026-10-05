@@ -25,7 +25,7 @@ import {
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
-  DEMO_BOARD_ID,
+  DEMO_PROJECT_ID,
   LocalProjectDatabase,
   PluginHostExecutor,
   seedDemoBoard,
@@ -153,8 +153,8 @@ function harness(definitions: (register: Harness) => PluginDefinition[]): Harnes
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) });
 
   const invoked: string[] = [];
-  const executor = new PluginHostExecutor({ actions: pluginActions(store, DEMO_BOARD_ID),
-    board_id: DEMO_BOARD_ID,
+  const executor = new PluginHostExecutor({ actions: pluginActions(store, DEMO_PROJECT_ID),
+    project_id: DEMO_PROJECT_ID,
     actor_id: "tester",
     artifacts,
     processItems,
@@ -164,16 +164,16 @@ function harness(definitions: (register: Harness) => PluginDefinition[]): Harnes
   const runtime = new PluginRuntime(undefined, executor);
   const supervisor = new PluginSupervisor(runtime);
   const wiring = new PluginInputGraph({
-    boardId: DEMO_BOARD_ID,
+    projectId: DEMO_PROJECT_ID,
     lifecycle: supervisor,
     repository: new MemoryPluginWiringRepository(),
     artifacts: {
-      read: (reference) => processItems.query.getArtifactVersion(DEMO_BOARD_ID, reference)
-        ?? artifacts.query.getArtifactVersion(DEMO_BOARD_ID, reference),
+      read: (reference) => processItems.query.getArtifactVersion(DEMO_PROJECT_ID, reference)
+        ?? artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, reference),
     },
   });
   const events = new PluginEventBus({
-    boardId: DEMO_BOARD_ID,
+    projectId: DEMO_PROJECT_ID,
     lifecycle: supervisor,
     repository: new MemoryPluginEventsRepository(),
   });
@@ -305,7 +305,7 @@ test("publishing on an output port feeds a bound consumer a real Artifact versio
       { definition: definitionFor(rig, consumer) },
     ]);
     rig.wiring.bind({
-      board_id: DEMO_BOARD_ID,
+      project_id: DEMO_PROJECT_ID,
       target_plugin_id: CONSUMER,
       target_port: "payload",
       source_plugin_id: PRODUCER,
@@ -348,7 +348,7 @@ test("invalidating an output withdraws it from the consumer", async () => {
       { definition: definitionFor(rig, manifestFor({ id: CONSUMER, inputs: ["payload"] })) },
     ]);
     rig.wiring.bind({
-      board_id: DEMO_BOARD_ID,
+      project_id: DEMO_PROJECT_ID,
       target_plugin_id: CONSUMER,
       target_port: "payload",
       source_plugin_id: PRODUCER,
@@ -409,16 +409,16 @@ test("a 成果 port carries a pinned version by selection: exact identity, no co
     consumer.artifacts.produces.push({ artifact_type_id: REPORT, schema_version: 1 });
     consumer.permissions.push({ permission: "artifact:write", required: true, reason: "发布自己的成果" });
     await rig.supervisor.start([{ definition: definitionFor(rig, producer) }, { definition: definitionFor(rig, consumer) }]);
-    rig.wiring.bind({ board_id: DEMO_BOARD_ID, target_plugin_id: CONSUMER, target_port: "report", source_plugin_id: PRODUCER, source_port: "report", origin: "user", actor_id: "tester" });
+    rig.wiring.bind({ project_id: DEMO_PROJECT_ID, target_plugin_id: CONSUMER, target_port: "report", source_plugin_id: PRODUCER, source_port: "report", origin: "user", actor_id: "tester" });
     const services = rig.services[PRODUCER]!, outputs = services.outputs!;
     const fixed = { artifact_id: "fixed-report-one", version: 1 };
     const original = services.artifacts.publish({ ...fixed, artifact_type_id: REPORT, schema_version: 1, content: { kind: "inline", payload: { note: "不可改写的原报告" } }, ...pinnedArtifact("原报告") });
-    const count = rig.artifacts.query.listArtifacts(DEMO_BOARD_ID).length;
+    const count = rig.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length;
     assert.deepEqual(outputs.select({ port: "report", reference: fixed, expected_reference: null }), fixed);
     await rig.wiring.drain();
     assert.deepEqual(rig.services[CONSUMER]!.inputs!.reference("report"), fixed);
     assert.deepEqual(rig.services[CONSUMER]!.artifacts.read(fixed), original.artifact);
-    assert.equal(rig.artifacts.query.listArtifacts(DEMO_BOARD_ID).length, count, "selection does not copy the report");
+    assert.equal(rig.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, count, "selection does not copy the report");
     assert.deepEqual(outputs.select({ port: "report", reference: fixed, expected_reference: null }), fixed, "lost-response retry is harmless");
     assert.throws(() => outputs.publish({ port: "report", content: { kind: "inline", payload: { note: "直接写进端口" } } }), /请先固定再选择/,
       "a 成果 reaches a port only after it is pinned");
@@ -426,7 +426,7 @@ test("a 成果 port carries a pinned version by selection: exact identity, no co
     assert.throws(() => outputs.select({ port: "report", reference: foreign, expected_reference: fixed }), /自己的/);
     const wrong = services.artifacts.publish({ artifact_id: "other-kind", version: 1, artifact_type_id: "other.type", schema_version: 1, content: { kind: "inline", payload: {} }, ...pinnedArtifact("另一种成果") }).artifact;
     assert.throws(() => outputs.select({ port: "report", reference: wrong, expected_reference: fixed }), /类型/);
-    rig.artifacts.commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: "tester", ...fixed });
+    rig.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "tester", ...fixed });
     assert.throws(() => outputs.select({ port: "report", reference: fixed, expected_reference: null }), /artifact_archived/);
   } finally { rig.close(); }
 });
@@ -441,11 +441,11 @@ test("a process item port keeps its own version sequence: selecting an older ver
       { definition: definitionFor(rig, producer) },
       { definition: definitionFor(rig, manifestFor({ id: CONSUMER, inputs: ["payload"], outputs: ["other"] })) },
     ]);
-    rig.wiring.bind({ board_id: DEMO_BOARD_ID, target_plugin_id: CONSUMER, target_port: "payload", source_plugin_id: PRODUCER, source_port: "payload", origin: "user", actor_id: "tester" });
+    rig.wiring.bind({ project_id: DEMO_PROJECT_ID, target_plugin_id: CONSUMER, target_port: "payload", source_plugin_id: PRODUCER, source_port: "payload", origin: "user", actor_id: "tester" });
     const outputs = rig.services[PRODUCER]!.outputs!;
     const first = outputs.publish({ port: "payload", content: { kind: "inline", payload: { note: "端口第一版" } } }).artifact;
     assert.equal(first.version, 1);
-    assert.equal(rig.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, first), null, "port values never land in the 成果库");
+    assert.equal(rig.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, first), null, "port values never land in the 成果库");
     const second = outputs.publish({ port: "payload", content: { kind: "inline", payload: { note: "下一版" } } }).artifact;
     assert.equal(second.version, 2);
     assert.throws(() => outputs.select({ port: "payload", reference: first, expected_reference: first }), /已变化/);

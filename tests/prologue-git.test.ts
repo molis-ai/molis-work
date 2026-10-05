@@ -9,7 +9,7 @@ test("worktree creation with a missing dispatch receipt remains unknown after re
   const root=await mkdtemp(path.join(tmpdir(),"worktree-uncertain-"));let queue=new AgentReviewQueue(),calls=0;
   const make=()=>createPrologueNodeAdapter({app:{appId:"molis.worktree.unknown",appVersion:"1.0.0"},storageRoot:path.join(root,"sdk"),reviewQueue:queue,modelConfiguration:async()=>{throw new Error("no model for directory preparation");}});
   let adapter=await make();
-  const intent={board_id:"b",workspace_id:"w",operation_id:"worktree-unknown",operation_kind:"git-worktree" as const,document:{kind:"tool-operation" as const,tool:"git-worktree-create",summary:"prepare",fields:[{label:"directory",value:root}]}};
+  const intent={project_id:"b",workspace_id:"w",operation_id:"worktree-unknown",operation_kind:"git-worktree" as const,document:{kind:"tool-operation" as const,tool:"git-worktree-create",summary:"prepare",fields:[{label:"directory",value:root}]}};
   const execution={check:async()=>{},execute:async()=>{calls++;await writeFile(path.join(root,"created"),"created once");throw Object.assign(new Error("lost receipt"),{code:"EFFECT_RECONCILE_REQUIRED"});}};
   try {
     const request=await adapter.gitReviews!.prepare(intent,execution);
@@ -31,7 +31,7 @@ test("Git uses the SDK's durable effect receipt and blocks redispatch after an u
     adapter = await createPrologueNodeAdapter({ app: { appId: "molis.git.test", appVersion: "1.0.0" }, storageRoot: path.join(root, "sdk"), reviewQueue: queue,
       modelConfiguration: async () => { throw new Error("manual Git operations must not request a model"); } });
   };
-  const intent = { board_id: "board", workspace_id: "workspace", operation_id: "operation-uncertain",
+  const intent = { project_id: "board", workspace_id: "workspace", operation_id: "operation-uncertain",
     document: { kind: "git-index" as const, action: "stage" as const, workspace_name: "fixture",
       files: [{ path: "note", before_text: "before", after_text: "after", before_mode: "100644" as const, after_mode: "100644" as const }] } };
   try {
@@ -75,7 +75,7 @@ for (const applied of [false, true]) test(`Git recovery ${applied ? 'retains unc
     const diff = await readWorkspaceGit({ kind: 'diff', workspace_id: 'workspace', path: ['note'], side: 'worktree' }, grants);
     assert.equal(diff.outcome, 'diff'); if (diff.outcome !== 'diff') throw new Error('missing diff');
     const prepared = await prepareGitIndex({ workspace_id: 'workspace', path: ['note'], action: 'stage', revision: diff.revision }, async () => grants);
-    const intent = { board_id: 'board', workspace_id: 'workspace', operation_id: 'unknown-operation', document: { kind: 'git-index' as const, action: 'stage' as const, workspace_name: 'fixture', files: prepared.files } };
+    const intent = { project_id: 'board', workspace_id: 'workspace', operation_id: 'unknown-operation', document: { kind: 'git-index' as const, action: 'stage' as const, workspace_name: 'fixture', files: prepared.files } };
     await start();
     const request = await adapter.gitReviews!.prepare(intent, { check: prepared.check, execute: async () => {
       calls++; if (applied) await prepared.execute();
@@ -137,7 +137,7 @@ test("integration with an uncertain write retains its original review and blocks
   let queue = new AgentReviewQueue(), calls = 0;
   const make = () => createPrologueNodeAdapter({ app: { appId: "molis.integration.unknown", appVersion: "1.0.0" }, storageRoot: path.join(root, "sdk"), reviewQueue: queue, modelConfiguration: async () => { throw new Error("manual operation"); } });
   let adapter = await make();
-  const intent = { board_id: "b", workspace_id: "w", operation_id: "integration-original", operation_kind: "git-integration" as const,
+  const intent = { project_id: "b", workspace_id: "w", operation_id: "integration-original", operation_kind: "git-integration" as const,
     document: { kind: "git-integration" as const, target_directory: root, source: { session_id: "s", run_id: "r", subagent_id: "child", branch: "branch", base_commit: "base", directory: root + "/child" },
       files: [{ path: "created", before_text: null, after_text: "once", before_mode: null, after_mode: "100644" as const }] } };
   const execution = { check: async () => {}, execute: async () => { calls++; await writeFile(path.join(root, "created"), "once"); throw Object.assign(new Error("write result uncertain"), { code: "EFFECT_RECONCILE_REQUIRED" }); } };
@@ -163,7 +163,7 @@ test("after a restart, review refreshes bring earlier Git operations back once a
   const original = fs.readFileSync;
   try {
     for (const operation_id of ["operation-one", "operation-two", "operation-three"]) {
-      const request = await adapter.gitReviews!.prepare({ board_id: "board", workspace_id: "workspace", operation_id,
+      const request = await adapter.gitReviews!.prepare({ project_id: "board", workspace_id: "workspace", operation_id,
         document: { kind: "git-index", action: "stage", workspace_name: "fixture", files: [{ path: operation_id, before_text: "a", after_text: "b", before_mode: "100644", after_mode: "100644" }] } },
         { check: async () => {}, execute: async () => {} });
       await queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "tester" });

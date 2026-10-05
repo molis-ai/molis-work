@@ -66,9 +66,9 @@ test("an approved effect is released only after the Host records the decision", 
   const ledger = pendingLedger();
   const { queue, bridge } = bridgeFor(ledger.port);
 
-  const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
   assert.equal(request.review_id, "prologue:pending-1");
-  assert.equal(request.board_id, BOARD);
+  assert.equal(request.project_id, BOARD);
   assert.deepEqual(queue.list(BOARD, "pending").map((item) => item.review_id), ["prologue:pending-1"]);
   assert.deepEqual(ledger.answers, [], "只是摆到审查面上，还没有答复执行主人");
 
@@ -86,7 +86,7 @@ test("an approved effect is released only after the Host records the decision", 
 test("a rejected effect tells Prologue deny and never consumes an approval", async () => {
   const ledger = pendingLedger();
   const { queue, bridge } = bridgeFor(ledger.port);
-  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
 
   const receipt = await bridge.decide({
     review_id: "prologue:pending-1",
@@ -103,7 +103,7 @@ test("a rejected effect tells Prologue deny and never consumes an approval", asy
 test("deciding twice is refused, so a replayed decision cannot authorize a second effect", async () => {
   const ledger = pendingLedger();
   const { bridge } = bridgeFor(ledger.port);
-  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
 
   await bridge.decide({ review_id: "prologue:pending-1", decision: "approve", actor_id: "tester" });
   await assert.rejects(
@@ -117,7 +117,7 @@ test("the execution owner decides whether the effect was authorized, not our rec
   // The user approved here, but Prologue reports it did not authorize.
   const ledger = pendingLedger({ authorized: false });
   const { bridge } = bridgeFor(ledger.port);
-  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
 
   const receipt = await bridge.decide({
     review_id: "prologue:pending-1",
@@ -132,7 +132,7 @@ test("the execution owner decides whether the effect was authorized, not our rec
 test("a failure answering the execution owner is reported, not swallowed", async () => {
   const ledger = pendingLedger({ throwOnAnswer: "连接执行主人失败" });
   const { bridge } = bridgeFor(ledger.port);
-  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
 
   const receipt = await bridge.decide({
     review_id: "prologue:pending-1",
@@ -148,7 +148,7 @@ test("failed durable rejection feedback does not wake the SDK or pretend the dec
   const ledger = pendingLedger(), queue = new AgentReviewQueue({ now: () => new Date("2026-09-19T00:00:00.000Z") });
   const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port,
     recordDecision: async (_pending, receipt) => { assert.equal(receipt.note, "修改第 2 行"); throw new Error("反馈保存失败"); } });
-  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
   const receipt = await bridge.decide({ review_id: "prologue:pending-1", decision: "reject", actor_id: "user", note: "修改第 2 行" });
   assert.equal(receipt.status, "rejected"); assert.equal(receipt.delivery_error, "反馈保存失败");
   assert.equal(receipt.effect_settled, false); assert.deepEqual(ledger.answers, []);
@@ -158,7 +158,7 @@ test("failed durable rejection feedback does not wake the SDK or pretend the dec
 test("a pending the execution owner already closed cannot be approved here", async () => {
   const ledger = pendingLedger();
   const { bridge } = bridgeFor(ledger.port);
-  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
 
   // Prologue expires it while the user is looking at the review.
   ledger.pending.state = "expired";
@@ -174,7 +174,7 @@ test("a closed pending is never mirrored onto the review surface", () => {
   const ledger = pendingLedger({ state: "cancelled" });
   const { queue, bridge } = bridgeFor(ledger.port);
   assert.throws(
-    () => bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document }),
+    () => bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document }),
     (error: unknown) => error instanceof PrologueApprovalError
       && error.code === "agent.pending_not_open",
   );
@@ -184,7 +184,7 @@ test("a closed pending is never mirrored onto the review surface", () => {
 test("deferring leaves the effect unauthorized and still answerable", async () => {
   const ledger = pendingLedger();
   const { queue, bridge } = bridgeFor(ledger.port);
-  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
 
   await bridge.defer("prologue:pending-1");
   assert.deepEqual(ledger.answers, [], "稍后处理不关闭原 SDK pending");
@@ -204,7 +204,7 @@ test("Host dispatch reaches the original exact SDK pending once and does not cla
   const ledger = pendingLedger();
   const seen: unknown[] = [];
   const { queue, bridge } = bridgeFor({ ...ledger.port, async answer(ref, answer) { seen.push(ref); return ledger.port.answer(ref, answer); } });
-  const input = { pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit" as const, document };
+  const input = { pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit" as const, document };
   const request = bridge.mirror(input);
   const result = await queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "user" });
   assert.deepEqual(seen, [{ kind: "pending", id: "pending-1", revision: 1 }]);
@@ -219,7 +219,7 @@ test("Host dispatch reaches the original exact SDK pending once and does not cla
 test("a stale pending cancels only its own review, and a mismatched origin never enters the queue", async () => {
   const ledger = pendingLedger();
   const { queue, bridge } = bridgeFor(ledger.port);
-  const input = { pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit" as const, document };
+  const input = { pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit" as const, document };
   const first = bridge.mirror(input);
   queue.request({ ...first, review_id: "sibling" });
   ledger.pending.state = "cancelled";
@@ -232,7 +232,7 @@ test("a stale pending cancels only its own review, and a mismatched origin never
 test("failed deny delivery remains visible and cannot be mistaken for an SDK denial", async () => {
   const ledger = pendingLedger({ throwOnAnswer: "拒绝答复连接中断" });
   const { bridge } = bridgeFor(ledger.port);
-  const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
   const receipt = await bridge.decide({ review_id: request.review_id, decision: "reject", actor_id: "user" });
   assert.equal(receipt.status, "rejected");
   assert.equal(receipt.effect_error, null);
@@ -243,7 +243,7 @@ test("failed deny delivery remains visible and cannot be mistaken for an SDK den
 test("an open restored pending without a live waiter cannot receive approval", async () => {
   const ledger = pendingLedger();
   const { queue, bridge } = bridgeFor({ ...ledger.port, canAnswer: async () => false });
-  const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+  const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
   await assert.rejects(queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "user" }), /原执行已中断/);
   assert.equal(queue.receipt(request.review_id)?.status, "cancelled");
   assert.deepEqual(ledger.answers, []);
@@ -252,7 +252,7 @@ test("an open restored pending without a live waiter cannot receive approval", a
 test("a missing immutable review cannot become a generic approvable tool summary", async () => {
   const ledger = pendingLedger();
   const { queue, bridge } = bridgeFor({ ...ledger.port, document: async () => { throw new Error("review resource unavailable"); } });
-  await assert.rejects(bridge.mirrorPending({ pendingRef: ledger.pending.ref, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN } }), /resource unavailable/);
+  await assert.rejects(bridge.mirrorPending({ pendingRef: ledger.pending.ref, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN } }), /resource unavailable/);
   assert.deepEqual(queue.list(BOARD), []);
 });
 
@@ -269,7 +269,7 @@ test("approval must be durably recorded before SDK answer; a storage failure nev
         if (fail) throw new Error("decision storage unavailable");
         persisted = true;
       }, now: () => new Date("2026-09-19T00:00:00.000Z") });
-    const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+    const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
     const receipt = await bridge.decide({ review_id: request.review_id, decision: "approve", actor_id: "tester" });
     assert.equal(receipt.effect_settled, false);
     assert.deepEqual(ledger.answers, fail ? [] : ["allow"]);
@@ -295,7 +295,7 @@ test("withdrawn and expired reviews retain their original receipt without restor
       recordRequest: async (_pending, request) => { recorded.push({ request }); },
       recordDecision: async (_pending, receipt) => { recorded.push({ receipt }); },
     });
-    const request = await bridge.mirrorPending({ pendingRef: ledger.pending.ref, owner: { board_id: BOARD, plugin_id: PLUGIN }, run: RUN });
+    const request = await bridge.mirrorPending({ pendingRef: ledger.pending.ref, owner: { project_id: BOARD, plugin_id: PLUGIN }, run: RUN });
     assert.deepEqual(recorded, [{ request }]);
     now = new Date(state === "expired" ? "2026-09-19T02:00:00.000Z" : "2026-09-19T00:10:00.000Z");
     if (state === "no-waiter") ledger.port.canAnswer = async () => false;
@@ -323,7 +323,7 @@ test("a repeated decision on an ended pending never redelivers prior approval or
       const bridge = new PrologueApprovalBridge({ queue, pendings: ledger.port,
         recordDecision: async (_pending, receipt) => { deliveries.push(receipt.status); },
         now: () => new Date("2026-09-19T00:00:00.000Z") });
-      const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { board_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
+      const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document });
       await bridge.decide({ review_id: request.review_id, decision, actor_id: "tester", note: "This feedback is delivered exactly once." });
       const receipt = queue.receipt(request.review_id);
       if (closed) ledger.pending.state = "settled";

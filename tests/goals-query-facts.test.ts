@@ -12,7 +12,7 @@ test("public Query preserves complete rule history and Runtime dependency/replac
     const coordinator = new GoalProjectApplication(store);
     const goals = new GoalsModule(store.db, {});
     for (const board of ["query-main", "query-other"]) coordinator.initializeBoard({
-      board_id: board, title: board, actor_id: "user", idempotency_key: `init:${board}`,
+      project_id: board, title: board, actor_id: "user", idempotency_key: `init:${board}`,
     });
     for (const id of ["subject", "dep-a", "dep-z", "replacement-a", "replacement-z", "foreign"]) {
       goals.commands.createGoal(id === "foreign" ? "query-other" : "query-main", {
@@ -24,7 +24,7 @@ test("public Query preserves complete rule history and Runtime dependency/replac
     const at = "2026-09-01T01:00:00.000Z";
     // Historical rows deliberately include inactive rules and equal timestamps.
     const rule = store.db.prepare(`INSERT INTO policy_bindings
-      (policy_binding_id, board_id, goal_id, scope, policy_json, state, created_by, reason, created_at)
+      (policy_binding_id, project_id, goal_id, scope, policy_json, state, created_by, reason, created_at)
       VALUES (?, ?, ?, 'goal', ?, ?, 'historical-user', ?, ?)`);
     for (const [id, state, human_approval] of [["rule-z", "withdrawn", true], ["rule-a", "replaced", true], ["rule-m", "active", false]] as const) {
       rule.run(id, "query-main", "subject", JSON.stringify({ human_approval }), state, `reason:${id}`, at);
@@ -38,7 +38,7 @@ test("public Query preserves complete rule history and Runtime dependency/replac
     assert.equal(goals.query.resolvePolicy("query-main", "subject").human_approval, false, "Historical and foreign rules must not affect current policy");
 
     const relation = store.db.prepare(`INSERT INTO goal_relations
-      (relation_id, board_id, from_goal_id, to_goal_id, type, state, reason, created_by, created_at)
+      (relation_id, project_id, from_goal_id, to_goal_id, type, state, reason, created_by, created_at)
       VALUES (?, 'query-main', ?, ?, ?, ?, 'historical relation', 'user', ?)`);
     relation.run("dependency-z", "subject", "dep-z", "depends_on", "active", at);
     relation.run("dependency-a", "subject", "dep-a", "depends_on", "active", at);
@@ -57,7 +57,7 @@ test("public Query preserves complete rule history and Runtime dependency/replac
     assert.equal(goals.query.activeReplacement("query-other", "subject"), null);
 
     const before = store.snapshot("query-main");
-    const view = buildMolisWorkWebView(store, coordinator, { boardId: "query-main" });
+    const view = buildMolisWorkWebView(store, coordinator, { projectId: "query-main" });
     assert.deepEqual(view.policy_bindings, expectedHistory, "The real Web view must carry inactive rules and original ordering");
     const after = store.snapshot("query-main");
     assert.deepEqual(after.goals, before.goals);

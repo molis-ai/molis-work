@@ -19,11 +19,11 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
   const { evaluate, command, sessionId, waitFor, click, navigate, reloadPage, homeDirectory, projectId, localHost, store } = b;
   assert.ok(projectId && localHost);
-  const ref = { project_id: projectId, board_id: store.goalsQuery.listBoardIds()[0]!, storage_key: b.databasePath };
+  const ref = { project_id: projectId, project_id: store.goalsQuery.listProjectIds()[0]!, storage_key: b.databasePath };
   const clients: Client[] = []; t.after(async () => { await Promise.all(clients.map(client => client.close())); });
   const connect = async (identity: string) => {
     const client = new Client({ name: "browser-grant-test", version: "1" }); clients.push(client);
-    const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), homeDirectory, projectId, identity, b.databasePath, ref.board_id], stderr: "pipe" });
+    const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), homeDirectory, projectId, identity, b.databasePath, ref.project_id], stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
     try { await client.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return client;

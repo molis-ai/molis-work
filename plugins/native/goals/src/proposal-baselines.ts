@@ -6,8 +6,8 @@ import type { GoalTreeProposalItemRecord, ProposalAffectedObject, ProposalObject
 export class GoalTreeBaselineQuery {
   constructor(private readonly goals: Pick<GoalsQueryApi, "snapshot">) {}
 
-  objectVersion(boardId: string, object: ProposalAffectedObject): ProposalObjectVersion {
-    const goalFacts = this.goals.snapshot(boardId);
+  objectVersion(projectId: string, object: ProposalAffectedObject): ProposalObjectVersion {
+    const goalFacts = this.goals.snapshot(projectId);
     const current = object.object_type === "goal"
       ? goalFacts.goals.find(goal => goal.goal_id === object.object_id) ?? null
       : goalFacts.relations.find(relation => relation.relation_id === object.object_id) ?? null;
@@ -15,9 +15,9 @@ export class GoalTreeBaselineQuery {
       version: current == null ? "absent" : `semantic-v1:${requestHash(semanticObject(current, object))}` };
   }
 
-  itemConflicts(boardId: string, item: GoalTreeProposalItemRecord) {
+  itemConflicts(projectId: string, item: GoalTreeProposalItemRecord) {
     return item.baseline_versions.flatMap(baseline => {
-      const current = this.objectVersion(boardId, baseline);
+      const current = this.objectVersion(projectId, baseline);
       return baseline.exists === current.exists && baseline.version === current.version ? [] : [{
         object: { object_type: baseline.object_type, object_id: baseline.object_id }, baseline, current,
       }];
@@ -31,7 +31,7 @@ function semanticObject(current: unknown, object: ProposalAffectedObject): unkno
   if (object.object_type === "goal") {
     return {
       goal_id: record.goal_id,
-      board_id: record.board_id,
+      project_id: record.project_id,
       trashed_at: record.trashed_at,
       archived_at: record.archived_at,
     };

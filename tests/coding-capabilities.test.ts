@@ -25,7 +25,6 @@ async function fixture(workspaceFor?: (projectId: string) => ProjectWorkspaceRef
   const host = new MolisWorkLocalHost(workspaceFor === undefined ? {} : { workspaceFor });
   const reference = molisWorkHostProjectReference({
     databasePath: join(directory, "project.db"),
-    boardId: "board-a",
     projectId: "project-a",
   });
   return { directory, host, reference, client: host.client(reference) };

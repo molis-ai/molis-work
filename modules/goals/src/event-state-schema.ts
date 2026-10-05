@@ -1,6 +1,6 @@
 export const GOAL_EVENT_STATE_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS goal_event_state_owners (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     owner TEXT NOT NULL CHECK (owner = 'event_work'),
     source TEXT NOT NULL CHECK (source IN ('intent', 'configuration', 'continue')),
@@ -9,22 +9,22 @@ export const GOAL_EVENT_STATE_SCHEMA_SQL = `
     PRIMARY KEY (goal_id)
   );
   CREATE INDEX IF NOT EXISTS goal_event_state_owners_board_idx
-    ON goal_event_state_owners(board_id, goal_id);
+    ON goal_event_state_owners(project_id, goal_id);
 
   CREATE TABLE IF NOT EXISTS goal_event_agreements (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     version INTEGER NOT NULL,
     outcome TEXT NOT NULL,
     actor_id TEXT NOT NULL,
     created_at TEXT NOT NULL,
     event_id TEXT,
-    PRIMARY KEY (board_id, goal_id, version)
+    PRIMARY KEY (project_id, goal_id, version)
   );
 
   CREATE TABLE IF NOT EXISTS goal_event_progress_summaries (
     summary_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     event_id TEXT NOT NULL,
     summary_text TEXT NOT NULL,
@@ -35,11 +35,11 @@ export const GOAL_EVENT_STATE_SCHEMA_SQL = `
     recorded_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS goal_event_progress_summaries_goal_idx
-    ON goal_event_progress_summaries(board_id, goal_id, recorded_at);
+    ON goal_event_progress_summaries(project_id, goal_id, recorded_at);
 
   CREATE TABLE IF NOT EXISTS goal_event_concerns (
     concern_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     event_id TEXT NOT NULL,
     title TEXT NOT NULL,
@@ -55,11 +55,11 @@ export const GOAL_EVENT_STATE_SCHEMA_SQL = `
     updated_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS goal_event_concerns_goal_idx
-    ON goal_event_concerns(board_id, goal_id, status);
+    ON goal_event_concerns(project_id, goal_id, status);
 
   CREATE TABLE IF NOT EXISTS goal_event_decision_requests (
     request_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     event_id TEXT NOT NULL,
     question TEXT NOT NULL,
@@ -72,11 +72,11 @@ export const GOAL_EVENT_STATE_SCHEMA_SQL = `
     created_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS goal_event_decision_requests_goal_idx
-    ON goal_event_decision_requests(board_id, goal_id, status);
+    ON goal_event_decision_requests(project_id, goal_id, status);
 
   CREATE TABLE IF NOT EXISTS goal_event_applied_decisions (
     decision_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     governance_decision_id TEXT NOT NULL,
     request_id TEXT,
@@ -95,10 +95,10 @@ export const GOAL_EVENT_STATE_SCHEMA_SQL = `
     recorded_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS goal_event_applied_decisions_goal_idx
-    ON goal_event_applied_decisions(board_id, goal_id, recorded_at);
+    ON goal_event_applied_decisions(project_id, goal_id, recorded_at);
 
   CREATE TABLE IF NOT EXISTS goal_event_requirement_conclusions (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     requirement_id TEXT NOT NULL,
     decision_id TEXT NOT NULL,
@@ -106,14 +106,14 @@ export const GOAL_EVENT_STATE_SCHEMA_SQL = `
     verdict TEXT NOT NULL CHECK (verdict IN ('accepted', 'rejected')),
     received_at TEXT NOT NULL,
     journal_seq INTEGER NOT NULL,
-    PRIMARY KEY (board_id, goal_id, requirement_id, decision_id)
+    PRIMARY KEY (project_id, goal_id, requirement_id, decision_id)
   );
   CREATE INDEX IF NOT EXISTS goal_event_requirement_conclusions_latest_idx
-    ON goal_event_requirement_conclusions(board_id, goal_id, requirement_id, journal_seq);
+    ON goal_event_requirement_conclusions(project_id, goal_id, requirement_id, journal_seq);
 
   CREATE TABLE IF NOT EXISTS goal_event_closures (
     closure_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     event_id TEXT NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('complete', 'cancel')),
@@ -130,10 +130,10 @@ export const GOAL_EVENT_STATE_SCHEMA_SQL = `
     recorded_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS goal_event_closures_goal_idx
-    ON goal_event_closures(board_id, goal_id, recorded_at);
+    ON goal_event_closures(project_id, goal_id, recorded_at);
 
   CREATE TABLE IF NOT EXISTS goal_event_work_status (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     work_status TEXT NOT NULL CHECK (work_status IN ('open', 'completed', 'cancelled')),
     updated_at TEXT NOT NULL,

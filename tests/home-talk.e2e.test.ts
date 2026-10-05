@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
@@ -25,11 +25,11 @@ test("Home sends the actual text and subject to an explicit Session; drafts and 
   const first = resources.registry.createSession({ runtime_id: "codex", native_runtime_session_id: "first-unrelated", project_id: projectId, title: "其他工作会话", actor_id: "browser-test", user_confirmed: true });
   const chosen = resources.registry.createSession({ runtime_id: "codex", native_runtime_session_id: "chosen-target", project_id: projectId, current_goal_id: "review-goal", title: "登录问题排查", actor_id: "browser-test", user_confirmed: true });
   const feed = createLocalFeedApplication(store.db);
-  const source = createLocalFeedSourceService(store.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "home-talk-browser" }).source;
+  const source = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "home-talk-browser" }).source;
   const item = feed.ingestItem({ source, externalId: "talk-browser", title: "用户反馈：重新登录后还是看不到项目", summary: "需要核对登录流程", body: "这条材料的正文含有需要保留的上下文。\n请结合实际问题分析。", occurredAt: new Date().toISOString(), attention: false }).item;
   const item2 = feed.ingestItem({ source, externalId: "talk-browser-2", title: "另一条材料", summary: "另一个事项", body: "第二份独立正文", occurredAt: new Date().toISOString(), attention: false }).item;
   await feed.flushPendingJudgments();
-  await localHost.withProject(molisWorkHostProjectReference({ databasePath: browser.databasePath, boardId: DEMO_BOARD_ID, projectId }), () => undefined);
+  await localHost.withProject(molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId: DEMO_PROJECT_ID, projectId }), () => undefined);
   const event = (id: string) => `[data-home-subject-kind="feed_item"][data-home-subject-id="${id}"]`;
   const textarea = '[data-home-talk-form] textarea';
   const send = '[data-home-talk-form] [type=submit]';
@@ -121,7 +121,7 @@ test("Home sends the actual text and subject to an explicit Session; drafts and 
     assert.deepEqual(await evaluate("[...document.querySelectorAll('[name=talk-session]')].map(e=>({id:e.value,selected:e.checked}))"), [{ id: chosen.session_id, selected: true }]);
     await screenshot("mobile-exact-session");
     await click('[data-home-close-talk]'); await click('[data-home-close-event]');
-    feed.linkGoal(DEMO_BOARD_ID, item2.item_id, "goal-without-session", "processing");
+    feed.linkGoal(DEMO_PROJECT_ID, item2.item_id, "goal-without-session", "processing");
     await open(item2.item_id); await waitFor("!!document.querySelector('[data-talk-action=new]')");
     await click('[data-talk-action=new]');
     await waitFor("!!document.querySelector('[data-talk-action=sessions]')");

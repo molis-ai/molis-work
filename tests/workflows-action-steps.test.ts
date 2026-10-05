@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { DEMO_BOARD_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { WORKFLOWS_ACTION_PERMISSIONS, openWorkflowsStore, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
 import { SCHEDULE_ACTION_PERMISSIONS, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { defineAction, definePlugin } from "../packages/plugin-sdk/src/index.js";
@@ -22,11 +22,11 @@ test("a workflow step runs any registered action — even one the Host never hea
   const dbPath = join(home, "project.db");
   seedDemoBoard(dbPath);
   const seed = new LocalProjectDatabase(dbPath);
-  const source = createLocalFeedSourceService(seed.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
+  const source = createLocalFeedSourceService(seed.db, DEMO_PROJECT_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
   createLocalFeedApplication(seed.db).ingestItem({ source, externalId: "bug", title: "导出失败", summary: "客户反馈", body: "客户的周报导出一直失败。", occurredAt: new Date().toISOString(), attention: false });
   seed.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const reference = molisWorkHostProjectReference({ databasePath: dbPath, boardId: DEMO_BOARD_ID, projectId: PROJECT });
+  const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: DEMO_PROJECT_ID });
 
   // A plugin the Host code knows nothing about: its manifest and handler are all it takes.
   const tickets: { title: string; detail: string; priority: string }[] = [];

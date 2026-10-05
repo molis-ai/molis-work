@@ -119,7 +119,7 @@ test("production settings HTTP -> shared connection -> Lingguang action actually
     assert.equal(f.requests[0]!.headers.authorization, "Bearer http-model-fixture-key");
     assert.equal(f.requests[0]!.body.model, "settings-model");
     assert.match(f.requests[0]!.body.messages[0].content, /本轮材料/);
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: LINGGUANG_ACTION_PERMISSIONS };
     await http(`/api/settings/connectors/connections/${connection.connection_id}`, undefined, 200, "DELETE");
     const directory = await host.actionClient(ref).discover(caller);
@@ -167,7 +167,7 @@ for (const change of ["disconnect", "disable", "replace-model", "replace-key", "
     const resumed = new Promise<void>(resolve => { release = resolve; });
     f.answer(async () => { entered(); await resumed; return { choices: [{ message: { content: "stale" } }] }; });
     const host = f.host;
-    const ref = molisWorkHostProjectReference({ databasePath: join(f.home, "project.sqlite"), projectId: "a", boardId: "a" });
+    const ref = molisWorkHostProjectReference({ databasePath: join(f.home, "project.sqlite"), projectId: "a" });
     const caller = { actor_id: "test", project_id: "a", audience: "user" as const, permissions: LINGGUANG_ACTION_PERMISSIONS };
     const client = host.actionClient(ref);
     const { spark } = await client.invoke(caller, lingguangActions.create, { body: "材料" });
@@ -266,7 +266,7 @@ test("Dataset uses the configured model connection, keeps local columns offline 
   const connection = configure(f);
   const host = f.host;
   try {
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: DATASET_ACTION_PERMISSIONS };
     const client = host.actionClient(ref);
     assert.equal((await client.discover(caller)).find(row => row.capability_id === datasetActions.generateAi.capability_id)!.availability.available, true);
@@ -300,7 +300,7 @@ test("Form uses the configured model connection, keeps local questions offline a
   const connection = configure(f);
   const host = f.host;
   try {
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: FORM_ACTION_PERMISSIONS };
     const client = host.actionClient(ref);
     assert.equal((await client.discover(caller)).find(row => row.capability_id === formActions.generateAi.capability_id)!.availability.available, true);

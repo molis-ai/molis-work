@@ -60,7 +60,7 @@ test("Host inspection exposes metadata without execution rights; exact scope and
   const home = await mkdtemp(join(tmpdir(), "mcp-grant-queue-"));
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const action = view(), newer = view("project", 2), reference = { project_id: "a", board_id: "a", storage_key: "memory:a" };
+  const action = view(), newer = view("project", 2), reference = { project_id: "a", storage_key: "memory:a" };
   let writes = 0;
   const dispose = host.actionRegistry(reference).registerProvider({ provider: action.provider, definitions: [action, newer],
     handlers: [action, newer].map(def => ({ capability_id: def.capability_id, version: def.version, handle: () => ++writes })) });

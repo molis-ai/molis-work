@@ -8,13 +8,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID } from '@molis-ai/molis-work-app-local-host';
+import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { openShelfStore } from '@molis-ai/molis-work-module-shelf';
 
 test('real browser creates a Feed → Shelf action workflow, maps fields, and writes the original material', { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, 'seeded', undefined, null);
   if (!b) return;
-  const source = createLocalFeedSourceService(b.store.db, DEMO_BOARD_ID).register({
+  const source = createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({
     kind: 'research_library', repository: 'molis-ai/research-library', research_source: 'workflow-review',
   }).source;
   const feed = createLocalFeedApplication(b.store.db);
@@ -87,7 +87,7 @@ test('unknown plugin long results survive a late navigation response and render 
   const b = await openGoalBrowser(t, 'seeded', undefined, null);
   if (!b) return;
   const { command, sessionId, click, waitFor, evaluate } = b;
-  const source = createLocalFeedSourceService(b.store.db, DEMO_BOARD_ID).register({
+  const source = createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({
     kind: 'research_library', repository: 'molis-ai/research-library', research_source: 'long-result',
   }).source;
   const item = createLocalFeedApplication(b.store.db).ingestItem({ source, externalId: 'long-result', title: '长结果材料', summary: '真实工作流输入',
@@ -109,7 +109,7 @@ test('unknown plugin long results survive a late navigation response and render 
     publisher: { publisher_id: 'test', signature: 'test' }, entrypoints: [{ deployment: 'local', entrypoint: './index.js' }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [action.definition] },
     async start() { return { kind: 'app', actions: [action.handler] }; } });
-  const reference = molisWorkHostProjectReference({ databasePath: b.databasePath, boardId: DEMO_BOARD_ID, projectId: b.projectId });
+  const reference = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId: DEMO_PROJECT_ID });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(b.store.db), undefined,
     { actions: { registry: b.localHost!.actionRegistry(reference), project_id: b.projectId } });
   const installed = runtime.install({ definition: plugin, deployment: 'local', grants: [] }).install;

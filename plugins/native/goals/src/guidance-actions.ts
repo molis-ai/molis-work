@@ -4,14 +4,14 @@ import type { AddProjectGuidanceInput, AddProjectGuidanceResult, UpdateProjectGu
 import { goalAction, goalActor } from "./action-contract.js";
 import { text, identifier, count, boolean, object, array, enumeration } from "./event-action-schemas.js";
 
-type AddInput = Omit<AddProjectGuidanceInput, "board_id" | "actor_id">;
-type UpdateInput = Omit<UpdateProjectGuidanceInput, "board_id" | "actor_id">;
+type AddInput = Omit<AddProjectGuidanceInput, "project_id" | "actor_id">;
+type UpdateInput = Omit<UpdateProjectGuidanceInput, "project_id" | "actor_id">;
 export interface GoalsGuidanceActionPorts {
   commands: Pick<GoalsCommandApi, "addProjectGuidance" | "updateProjectGuidance">;
-  read(boardId: string): ProjectGuidanceView;
+  read(projectId: string): ProjectGuidanceView;
 }
 const kind = enumeration(["context", "requirement", "constraint", "convention", "workflow", "quality_bar"]);
-const common = { guidance_id: text, board_id: text, revision: count, active: boolean, kind, content: text,
+const common = { guidance_id: text, project_id: text, revision: count, active: boolean, kind, content: text,
   content_hash: text, source_refs: array(text), confirmation_summary: text, reason: text, created_at: text };
 export const projectGuidanceEntrySchema = object({ ...common, position: count, created_by: text, updated_by: text, updated_at: text });
 const entry = projectGuidanceEntrySchema;
@@ -28,10 +28,10 @@ export const goalsGuidanceActions = {
     object({ entry, revision, observed_event_cursor: count, replayed: boolean })),
 } as const;
 
-export function createGoalsGuidanceActionHandlers(ports: GoalsGuidanceActionPorts, boardId: string): ActionHandlerBinding[] {
+export function createGoalsGuidanceActionHandlers(ports: GoalsGuidanceActionPorts, projectId: string): ActionHandlerBinding[] {
   return [
-    { ...goalsGuidanceActions.guidanceRead, handle: () => ports.read(boardId) },
-    { ...goalsGuidanceActions.guidanceAdd, handle: (caller, input) => ports.commands.addProjectGuidance({ ...input as AddInput, board_id: boardId, actor_id: goalActor(caller).actor_id }) },
-    { ...goalsGuidanceActions.guidanceUpdate, handle: (caller, input) => ports.commands.updateProjectGuidance({ ...input as UpdateInput, board_id: boardId, actor_id: goalActor(caller).actor_id }) },
+    { ...goalsGuidanceActions.guidanceRead, handle: () => ports.read(projectId) },
+    { ...goalsGuidanceActions.guidanceAdd, handle: (caller, input) => ports.commands.addProjectGuidance({ ...input as AddInput, project_id: projectId, actor_id: goalActor(caller).actor_id }) },
+    { ...goalsGuidanceActions.guidanceUpdate, handle: (caller, input) => ports.commands.updateProjectGuidance({ ...input as UpdateInput, project_id: projectId, actor_id: goalActor(caller).actor_id }) },
   ];
 }

@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, DEMO_BOARD_ID, GoalProjectApplication, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, DEMO_PROJECT_ID, GoalProjectApplication, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Immersive directories resize and retain compact, operable Goal, Feed and Session lists", { timeout: 90_000 }, async t => {
@@ -14,8 +14,8 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   for (const plugin_id of ["feed", "sessions"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "directory-test" });
   const other = await catalog.createProject({ display_name: "另一项目", actor_id: "directory-test" });
   catalog.close();
-  new GoalProjectApplication(store).goalEvents.createIntent({ board_id: DEMO_BOARD_ID, goal_id: "long-child", parent_goal_id: "CORE", actor_id: "directory-test", actor_kind: "user", title: "迁移 Execution Claim / Run 生命周期并保留现有 Runtime 与 Goal 的完整关联", outcome: "验证多层目录中的长标题不会挤压状态标记。", idempotency_key: "long-child" });
-  const before = store.snapshot(DEMO_BOARD_ID);
+  new GoalProjectApplication(store).goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, goal_id: "long-child", parent_goal_id: "CORE", actor_id: "directory-test", actor_kind: "user", title: "迁移 Execution Claim / Run 生命周期并保留现有 Runtime 与 Goal 的完整关联", outcome: "验证多层目录中的长标题不会挤压状态标记。", idempotency_key: "long-child" });
+  const before = store.snapshot(DEMO_PROJECT_ID);
   const registry = await openWorkSessionRegistry({ homeDirectory });
   const session = registry.createSession({ runtime_id: "codex", project_id: projectId!, current_goal_id: "CORE", title: "完成 Molis Work 架构、代码与文档重组，保留已有项目工作过程", user_confirmed: true, actor_id: "directory-test" });
   registry.createSession({ runtime_id: "claude-code", project_id: projectId!, current_goal_id: "WEB", title: "检查目录与工作区交互", user_confirmed: true, actor_id: "directory-test" });
@@ -206,7 +206,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
 
   const feed = createLocalFeedApplication(store.db);
   const now = new Date().toISOString();
-  const source = feed.upsertSource({ board_id: DEMO_BOARD_ID, source_id: "directory-rss", kind: "rss", definition_id: "rss", sync_kind: "manual", name: "产品观察", description: "目录验证", status: "active", enabled: true, item_count: 0, origin: "molis_work", config: {}, schedule: { mode: "manual" }, cursor: null, credential_ref: null, account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now });
+  const source = feed.upsertSource({ project_id: DEMO_PROJECT_ID, source_id: "directory-rss", kind: "rss", definition_id: "rss", sync_kind: "manual", name: "产品观察", description: "目录验证", status: "active", enabled: true, item_count: 0, origin: "molis_work", config: {}, schedule: { mode: "manual" }, cursor: null, credential_ref: null, account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now });
   const item = feed.ingestItem({ source, externalId: "first", title: "从首次使用观察中找到下一步值得改进的地方", summary: "完整保留消息来源和正文，再决定如何推进。", body: "这条消息用于验证在真实目录中打开和阅读内容。", occurredAt: now, attention: false });
   feed.ingestItem({ source, externalId: "second", title: "终端与目标信息应当如何配合", summary: "切换工作时保留上下文，让记录留在正确的目标里。", body: "第二条目录内容。", occurredAt: now, attention: false });
   await reloadPage();
@@ -310,7 +310,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-collapsed')"), false);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "shelf");
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=shelf]')"), null);
-  const coreTitle = store.snapshot(DEMO_BOARD_ID).goals.find((goal) => goal.goal_id === "CORE")!.title;
+  const coreTitle = store.snapshot(DEMO_PROJECT_ID).goals.find((goal) => goal.goal_id === "CORE")!.title;
   await click("[data-global-search-open]");
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open === true");
   await evaluate("(()=>{const input=document.querySelector('[data-global-search]');input.focus();input.value=" + JSON.stringify(coreTitle) + ";input.dispatchEvent(new Event('input',{bubbles:true}));})()");
@@ -347,8 +347,8 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && document.querySelector('[data-goal-stage-list] .tree-node[data-select-goal=\"long-child\"]')?.getClientRects().length > 0");
   await click('[data-select-goal="long-child"]');
   await waitFor("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).runs, before.runs);
   assert.deepEqual(await evaluate("window.__uiErrors"), []);
 });
 

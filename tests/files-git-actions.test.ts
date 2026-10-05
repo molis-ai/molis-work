@@ -24,12 +24,12 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
       ? { available: false, code: "actions.plugin_disabled", reason: "已停用" } : { available: true },
     workspacesFor: async () => { if (++reads === pauseAt) { enter(); await barrier; } return [workspace]; },
   });
-  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project", boardId: "board" });
+  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "board" });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"],
     validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "已撤权"); } };
   const client = host.actionClient(reference), bound = bindActionClient(client, () => caller);
   try {
-    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ board_id: "board", title: "Workspace actions", actor_id: caller.actor_id, idempotency_key: "init" }));
+    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "board", title: "Workspace actions", actor_id: caller.actor_id, idempotency_key: "init" }));
     const directory = await client.discover(caller);
     // Actions that need the Host review backend: staging, its results, and commit/branch/push/PR with their log.
     const reviewActions = [gitActions.prepareIndex.capability_id, gitActions.results.capability_id, gitActions.saveResult.capability_id,

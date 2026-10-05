@@ -28,16 +28,16 @@ function characterPublication(content: CharacterContent) {
 export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefinition {
   return { manifest: charactersManifest, async start(context) {
     for (const permission of charactersManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
-    const boardId = context.board_id, artifacts = context.services?.artifacts;
-    if (!boardId || !artifacts) throw new Error("角色的项目发布入口尚未装配");
+    const projectId = context.project_id, artifacts = context.services?.artifacts;
+    if (!projectId || !artifacts) throw new Error("角色的项目发布入口尚未装配");
     const publications = (): ArtifactVersionRecord[] => ports.references().flatMap(ref => {
       const record = artifacts.read(ref);
-      if (!record || !("origin" in record) || record.board_id !== boardId || record.owner_actor_id !== ports.actorId
+      if (!record || !("origin" in record) || record.project_id !== projectId || record.owner_actor_id !== ports.actorId
         || record.producer_plugin_id !== CHARACTER_PLUGIN_ID || record.producer_binding_signature !== CHARACTER_PUBLISHER_SIGNATURE
         || record.artifact_type_id !== CHARACTER_ARTIFACT_TYPE || record.schema_version !== 1) return [];
       // An invalid owned publication is an error, not permission to overwrite its identity/version.
       const content = parseCharacterContent(record.payload);
-      if (content.source.owner_actor_id !== ports.actorId || record.artifact_id !== `character:${boardId}:${content.character_id}`) throw new Error("角色发布的来源或身份不一致");
+      if (content.source.owner_actor_id !== ports.actorId || record.artifact_id !== `character:${projectId}:${content.character_id}`) throw new Error("角色发布的来源或身份不一致");
       return [record];
     });
     const body = (request: PluginRouteRequest): Record<string, unknown> => {
@@ -100,7 +100,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
         await validateActions(draft.action_tools);
         await beforeWrite();
         const result = ports.publish(input.id, input.expected_revision, content => {
-          const artifact_id = `character:${boardId}:${content.character_id}`;
+          const artifact_id = `character:${projectId}:${content.character_id}`;
           const existing = publications().filter(record => record.artifact_id === artifact_id).sort((a, b) => b.version - a.version);
           const same = existing.find(record => record.lifecycle_state === "active" && record.availability === "available"
             && JSON.stringify(parseCharacterContent(record.payload)) === JSON.stringify(content));

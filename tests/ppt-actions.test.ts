@@ -11,8 +11,8 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local
 async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "ppt-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "legacy-board", projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: ref.board_id, title: "PPT", actor_id: "owner", idempotency_key: "init" }));
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "legacy-board" });
+  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "PPT", actor_id: "owner", idempotency_key: "init" }));
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PPT_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };
@@ -42,7 +42,7 @@ test("PPT actions share records, typed slides, colors and export", async t => {
   const exported=await f.bound.invoke(actions.export,{id,expected_version:originalVersion});
   assert.equal(exported.filename,'季度演示.json');assert.equal(exported.mime_type,'application/json');assert.deepEqual(JSON.parse(exported.content),presentation);
   const published=await invoke("promote",{id,expected_version:originalVersion});
-  await f.host.withProject(f.ref,runtime=>assert.deepEqual((runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id,published.artifact)!.payload as any).slides,slides));
+  await f.host.withProject(f.ref,runtime=>assert.deepEqual((runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id,published.artifact)!.payload as any).slides,slides));
   const store=openPptStore(f.home);let foreign:string;
   try{foreign=store.create({project_id:'b'}).id;}finally{store.close();}
   for(const action of [actions.get,actions.export,actions.delete])await assert.rejects(f.bound.invoke(action,{id:foreign}),{code:'ppt.not_found'});
@@ -83,12 +83,12 @@ test("PPT fixed publication survives partial success, actor isolation, restart a
   const restored=await f.bound.invoke(actions.promote,{id});
   assert.equal(restored.recovered,true);assert.equal(restored.artifact.version,1);assert.equal(restored.presentation.title,'Later edit');assert.deepEqual(restored.presentation.slides,slides);
   await f.host.withProject(f.ref,runtime=>{
-    const original=runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id,restored.artifact)!;
+    const original=runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id,restored.artifact)!;
     assert.equal((original.payload as any).title,'Original snapshot');assert.equal((original.payload as any).slides.length,1);
-    assert.equal(runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id,{...restored.artifact,version:2}),null);
+    assert.equal(runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id,{...restored.artifact,version:2}),null);
   });
   const next=await f.bound.invoke(actions.promote,{id});assert.equal(next.artifact.version,2);
-  await f.host.withProject(f.ref,runtime=>assert.deepEqual((runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id,next.artifact)!.payload as any).slides,slides));
+  await f.host.withProject(f.ref,runtime=>assert.deepEqual((runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id,next.artifact)!.payload as any).slides,slides));
 });
 
 test("PPT outline: pasted Markdown becomes slides locally; the model path needs a text model", async t => {

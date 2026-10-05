@@ -15,7 +15,7 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "能力范围", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: {} } });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: "capabilities-ui-test-control-token" });
   let enabled = true, calls = 0;
@@ -35,8 +35,8 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
       scene_version: inboxNextScene.version, project_id: project.project_id, function: definition, enabled: true, title: "实际入箱绑定" });
     const store = openFunctionsStore(home);
     try {
-      for (const [key, board] of [["global-record", undefined], ["selected-record", project.board_id], ["other-record", "other-project"]] as const) {
-        store.recordJudgment({ function_key: key, function_version: 1, subject: { kind: "mcp_invoke", id: key, ...(board ? { board_id: board } : {}) },
+      for (const [key, board] of [["global-record", undefined], ["selected-record", project.project_id], ["other-record", "other-project"]] as const) {
+        store.recordJudgment({ function_key: key, function_version: 1, subject: { kind: "mcp_invoke", id: key, ...(board ? { project_id: board } : {}) },
           scene_id: null, outcome: "ok", suggested_behavior_ids: [], error_code: null });
       }
     } finally { store.close(); }

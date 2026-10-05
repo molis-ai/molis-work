@@ -54,7 +54,7 @@ export function createLocalFeedApplication(
   db.exec(LISTENER_HOST_SCHEMA_SQL);
   const goals = createGoalReadServices(db).query;
   let feedItems!: FeedModule;
-  let inboxCreated: (entry: { board_id: string; entry_id: string }) => void = () => {};
+  let inboxCreated: (entry: { project_id: string; entry_id: string }) => void = () => {};
   const attention = new AttentionModule(db, {
     exists: (projectId, subjectType, subjectId) => {
       if (subjectType === "feed_item") return feedItems.query.exists(projectId, subjectId);
@@ -72,7 +72,7 @@ export function createLocalFeedApplication(
   }, {
     eventSink: (event) => {
       appendEvent(event.project_id, "inbox_entry", event.entry_id, event.type, event.reason, event.payload, event.at);
-      if (event.type === "inbox_entry.created") inboxCreated({ board_id: event.project_id, entry_id: event.entry_id });
+      if (event.type === "inbox_entry.created") inboxCreated({ project_id: event.project_id, entry_id: event.entry_id });
     },
   });
   feedItems = new FeedModule(db, attention, {
@@ -89,15 +89,15 @@ export function createLocalFeedApplication(
   });
 
   function appendEvent(...args: Parameters<FeedApplicationPorts["appendEvent"]>): void {
-    const [boardId, objectType, objectId, type, reason, payload, at] = args;
-    journal.appendEvent({ eventId: `event-${randomUUID()}`, boardId, actorId: LOCAL_PERSON_ACTOR_ID,
+    const [projectId, objectType, objectId, type, reason, payload, at] = args;
+    journal.appendEvent({ eventId: `event-${randomUUID()}`, projectId, actorId: LOCAL_PERSON_ACTOR_ID,
       objectType, objectId, type, reason, payload, at });
   }
   const artifactsModule = new ArtifactsModule({
     db: db as unknown as ArtifactsSqliteDatabase,
     appendEvent: (input) => journal.appendEvent({
       eventId: input.eventId,
-      boardId: input.boardId,
+      projectId: input.projectId,
       actorId: input.actorId,
       type: input.type,
       objectType: input.objectType,
@@ -113,20 +113,20 @@ export function createLocalFeedApplication(
     outRules: new FeedOutRuleStore(db),
     artifacts: options.artifacts ?? {
       registerVersion: (input) => artifactsModule.commands.registerVersion(input),
-      latestVersion: (boardId, artifactId) => artifactsModule.query.latestArtifactVersion(boardId, artifactId),
+      latestVersion: (projectId, artifactId) => artifactsModule.query.latestArtifactVersion(projectId, artifactId),
     },
     captureJudgment: options.captureJudgment,
     inboxJudgment: options.inboxJudgment,
     homeJudgment: options.homeJudgment,
     transaction: (operation) => db.transaction(operation).immediate(),
     listener: {
-      listRuns: (boardId) => listListenerRuns(db, boardId),
-      getRunByOperationId: (boardId, operationId) => getListenerRunByOperationId(db, boardId, operationId),
+      listRuns: (projectId) => listListenerRuns(db, projectId),
+      getRunByOperationId: (projectId, operationId) => getListenerRunByOperationId(db, projectId, operationId),
       saveRun: (run) => saveListenerRun(db, run),
-      recoverInterruptedRuns: (boardId) => recoverInterruptedListenerRuns(db, boardId),
-      checkpoint: (boardId, sourceId, at) => readListenerCheckpoint(db, boardId, sourceId, at),
-      writeCursor: (boardId, sourceId, cursor, at) => writeListenerCursor(db, boardId, sourceId, cursor, at),
-      deleteSourceState: (boardId, sourceId) => deleteListenerSourceState(db, boardId, sourceId),
+      recoverInterruptedRuns: (projectId) => recoverInterruptedListenerRuns(db, projectId),
+      checkpoint: (projectId, sourceId, at) => readListenerCheckpoint(db, projectId, sourceId, at),
+      writeCursor: (projectId, sourceId, cursor, at) => writeListenerCursor(db, projectId, sourceId, cursor, at),
+      deleteSourceState: (projectId, sourceId) => deleteListenerSourceState(db, projectId, sourceId),
     },
   });
 }

@@ -29,7 +29,7 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
     receive: async ({ payload, context }, caller) => {
       const now = new Date().toISOString();
       const source = feed.snapshot(board).sources.find(source => source.source_id === "workflow-handoffs") ?? feed.upsertSource({
-        board_id: board, source_id: "workflow-handoffs", kind: "workflow", definition_id: null, sync_kind: "manual",
+        project_id: board, source_id: "workflow-handoffs", kind: "workflow", definition_id: null, sync_kind: "manual",
         name: "工作流程", description: "工作流程交给 Feed 或 Inbox 的内容", status: "active", enabled: true, origin: "molis_work",
         config: {}, schedule: { mode: "manual" }, credential_ref: null, account_label: null, last_sync_at: null,
         last_outcome: null, last_error_code: null, imported_at: now, updated_at: now, item_count: 0, cursor: null,

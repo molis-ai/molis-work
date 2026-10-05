@@ -270,13 +270,13 @@ export class FunctionsStore {
     return record;
   }
 
-  getActionSceneBinding(sceneId: string, boardId: string): ActionSceneBinding | null {
-    const row = this.db.prepare("SELECT action_binding_json, binding_revision FROM function_scene_bindings WHERE scene_id = ? AND board_id = ?")
-      .get(sceneId, boardId) as { action_binding_json: string; binding_revision: string } | undefined;
+  getActionSceneBinding(sceneId: string, projectId: string): ActionSceneBinding | null {
+    const row = this.db.prepare("SELECT action_binding_json, binding_revision FROM function_scene_bindings WHERE scene_id = ? AND project_id = ?")
+      .get(sceneId, projectId) as { action_binding_json: string; binding_revision: string } | undefined;
     return row ? { ...JSON.parse(row.action_binding_json) as ActionSceneBinding, revision: row.binding_revision } : null;
   }
 
-  setActionSceneBinding(boardId: string, binding: ActionSceneBinding, expectedRevision?: string | null): ActionSceneBinding {
+  setActionSceneBinding(projectId: string, binding: ActionSceneBinding, expectedRevision?: string | null): ActionSceneBinding {
     const reference: ActionSceneBinding = { binding_id: binding.binding_id, scene_id: binding.scene_id, scene_version: binding.scene_version,
       project_id: binding.project_id, function: { capability_id: binding.function.capability_id, version: binding.function.version,
         ...(binding.function.provider_id ? { provider_id: binding.function.provider_id } : {}) },
@@ -284,15 +284,15 @@ export class FunctionsStore {
     const revision = crypto.randomUUID();
     const at = new Date().toISOString();
     const json = JSON.stringify(reference);
-    const written = expectedRevision === undefined ? this.db.prepare(`INSERT INTO function_scene_bindings (scene_id, board_id, action_binding_json, binding_revision, updated_at)
-      VALUES (?, ?, ?, ?, ?) ON CONFLICT(scene_id, board_id) DO UPDATE SET
+    const written = expectedRevision === undefined ? this.db.prepare(`INSERT INTO function_scene_bindings (scene_id, project_id, action_binding_json, binding_revision, updated_at)
+      VALUES (?, ?, ?, ?, ?) ON CONFLICT(scene_id, project_id) DO UPDATE SET
       action_binding_json=excluded.action_binding_json, binding_revision=excluded.binding_revision, updated_at=excluded.updated_at`)
-      .run(binding.scene_id, boardId, json, revision, at)
-      : expectedRevision === null ? this.db.prepare(`INSERT INTO function_scene_bindings (scene_id, board_id, action_binding_json, binding_revision, updated_at)
-        VALUES (?, ?, ?, ?, ?) ON CONFLICT(scene_id, board_id) DO NOTHING`).run(binding.scene_id, boardId, json, revision, at)
+      .run(binding.scene_id, projectId, json, revision, at)
+      : expectedRevision === null ? this.db.prepare(`INSERT INTO function_scene_bindings (scene_id, project_id, action_binding_json, binding_revision, updated_at)
+        VALUES (?, ?, ?, ?, ?) ON CONFLICT(scene_id, project_id) DO NOTHING`).run(binding.scene_id, projectId, json, revision, at)
         : this.db.prepare(`UPDATE function_scene_bindings SET action_binding_json = ?, binding_revision = ?, updated_at = ?
-          WHERE scene_id = ? AND board_id = ? AND binding_revision = ?`)
-          .run(json, revision, at, binding.scene_id, boardId, expectedRevision);
+          WHERE scene_id = ? AND project_id = ? AND binding_revision = ?`)
+          .run(json, revision, at, binding.scene_id, projectId, expectedRevision);
     if (written.changes !== 1 && written.changes !== 1n) throw new FunctionsError("functions.conflict", "配置已变化，请刷新后再试");
     return { ...reference, revision };
   }
@@ -323,7 +323,7 @@ export class FunctionsStore {
     };
     this.db.prepare(`
       INSERT INTO function_judgments (
-        judgment_id, function_key, function_version, subject_kind, subject_id, board_id,
+        judgment_id, function_key, function_version, subject_kind, subject_id, project_id,
         scene_id, outcome, suggested_json, error_code, created_at, scene_provenance_json, recommended_actions_json
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -332,7 +332,7 @@ export class FunctionsStore {
       record.function_version,
       record.subject.kind,
       record.subject.id,
-      record.subject.board_id ?? "",
+      record.subject.project_id ?? "",
       record.scene_id,
       record.outcome,
       JSON.stringify(record.suggested_behavior_ids),
@@ -351,28 +351,28 @@ export class FunctionsStore {
     return rows.map(mapJudgment);
   }
 
-  latestSceneJudgments(boardId: string, sceneId: string): JudgmentRecord[] {
+  latestSceneJudgments(projectId: string, sceneId: string): JudgmentRecord[] {
     const rows = this.db.prepare(`
       SELECT * FROM (
         SELECT *, ROW_NUMBER() OVER (PARTITION BY subject_kind, subject_id ORDER BY created_at DESC, rowid DESC) AS subject_rank
-        FROM function_judgments WHERE board_id = ? AND scene_id = ?
+        FROM function_judgments WHERE project_id = ? AND scene_id = ?
       ) WHERE subject_rank = 1 ORDER BY created_at DESC
-    `).all(boardId, sceneId) as Record<string, unknown>[];
+    `).all(projectId, sceneId) as Record<string, unknown>[];
     return rows.map(mapJudgment);
   }
 
-  latestJudgment(kind: JudgmentSubject["kind"], id: string, boardId?: string, sceneId?: string | null): JudgmentRecord | null {
-    const board = boardId ?? "";
+  latestJudgment(kind: JudgmentSubject["kind"], id: string, projectId?: string, sceneId?: string | null): JudgmentRecord | null {
+    const board = projectId ?? "";
     const row = sceneId
       ? this.db.prepare(`
           SELECT * FROM function_judgments
-          WHERE subject_kind = ? AND subject_id = ? AND (? = '' OR board_id = ?) AND scene_id = ?
+          WHERE subject_kind = ? AND subject_id = ? AND (? = '' OR project_id = ?) AND scene_id = ?
           ORDER BY created_at DESC, rowid DESC
           LIMIT 1
         `).get(kind, id, board, board, sceneId) as Record<string, unknown> | undefined
       : this.db.prepare(`
           SELECT * FROM function_judgments
-          WHERE subject_kind = ? AND subject_id = ? AND (? = '' OR board_id = ?)
+          WHERE subject_kind = ? AND subject_id = ? AND (? = '' OR project_id = ?)
           ORDER BY created_at DESC, rowid DESC
           LIMIT 1
         `).get(kind, id, board, board) as Record<string, unknown> | undefined;
@@ -396,7 +396,7 @@ export class FunctionsStore {
  * The Functions store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing
  * ones must already be at its version. Columns keep the order existing stores have them in.
  */
-export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
+export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: 3, schema: `
   CREATE TABLE functions (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -426,7 +426,7 @@ export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
     function_version INTEGER NOT NULL,
     subject_kind TEXT NOT NULL,
     subject_id TEXT NOT NULL,
-    board_id TEXT NOT NULL DEFAULT '',
+    project_id TEXT NOT NULL DEFAULT '',
     scene_id TEXT,
     outcome TEXT NOT NULL,
     suggested_json TEXT NOT NULL,
@@ -436,14 +436,14 @@ export const FUNCTIONS_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
     recommended_actions_json TEXT
   );
   CREATE INDEX function_judgments_subject_idx
-    ON function_judgments(subject_kind, subject_id, board_id, created_at);
+    ON function_judgments(subject_kind, subject_id, project_id, created_at);
   CREATE TABLE function_scene_bindings (
     scene_id TEXT NOT NULL,
-    board_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
     action_binding_json TEXT NOT NULL,
     binding_revision TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    PRIMARY KEY (scene_id, board_id)
+    PRIMARY KEY (scene_id, project_id)
   );
 ` };
 
@@ -917,7 +917,7 @@ function mapJudgment(row: Record<string, unknown>): JudgmentRecord {
   } catch {
     suggested = [];
   }
-  const boardId = String(row.board_id ?? "");
+  const projectId = String(row.project_id ?? "");
   return {
     judgment_id: String(row.judgment_id ?? ""),
     function_key: String(row.function_key ?? ""),
@@ -925,7 +925,7 @@ function mapJudgment(row: Record<string, unknown>): JudgmentRecord {
     subject: {
       kind: String(row.subject_kind ?? "mcp_invoke") as JudgmentSubject["kind"],
       id: String(row.subject_id ?? ""),
-      ...(boardId ? { board_id: boardId } : {}),
+      ...(projectId ? { project_id: projectId } : {}),
     },
     scene_id: row.scene_id == null || row.scene_id === "" ? null : String(row.scene_id),
     outcome: row.outcome === "needs_review" ? "needs_review" : "ok",

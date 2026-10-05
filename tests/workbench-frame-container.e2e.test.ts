@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, DEMO_BOARD_ID, GoalProjectApplication, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, DEMO_PROJECT_ID, GoalProjectApplication, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
@@ -17,7 +17,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   const now = new Date().toISOString();
   const feed = createLocalFeedApplication(store.db);
   const source = feed.upsertSource({
-    board_id: DEMO_BOARD_ID, source_id: "frame-rss", kind: "rss", definition_id: "rss", sync_kind: "manual",
+    project_id: DEMO_PROJECT_ID, source_id: "frame-rss", kind: "rss", definition_id: "rss", sync_kind: "manual",
     name: "产品观察", description: "Frame 验证", status: "active", enabled: true, item_count: 0, origin: "molis_work",
     config: {}, schedule: { mode: "manual" }, cursor: null, credential_ref: null, account_label: null,
     last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now,
@@ -26,9 +26,9 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
     source, externalId: "frame-feed", title: "核对 Frame 的 Feed 条目",
     summary: "点进 Frame 后应变成引用卡片。", body: "只验证引用，不打开整页。", occurredAt: now, attention: false,
   });
-  const inbox = feed.ensureInboxEntryForFeedItem(DEMO_BOARD_ID, feedItem.item.item_id, "manual");
+  const inbox = feed.ensureInboxEntryForFeedItem(DEMO_PROJECT_ID, feedItem.item.item_id, "manual");
   new GoalProjectApplication(store).artifacts.commands.registerVersion({ ...pinnedArtifact("Frame artifact"),
-    board_id: DEMO_BOARD_ID, actor_id: "frame-container", artifact_id: "frame-note", version: 1,
+    project_id: DEMO_PROJECT_ID, actor_id: "frame-container", artifact_id: "frame-note", version: 1,
     artifact_type_id: "example.note", schema_version: 1,
     producer: { plugin_id: "example.writer", plugin_version: "1.0.0", binding_signature: "fixture" },
     content: { kind: "inline", payload: { text: "Frame artifact" } }, metadata: {},
@@ -53,7 +53,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
     metadata: {},
   });
   registry.close();
-  const before = store.snapshot(DEMO_BOARD_ID);
+  const before = store.snapshot(DEMO_PROJECT_ID);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
@@ -163,6 +163,6 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]')");
   await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').click()");
   await waitFor("document.querySelectorAll('[data-frame-block]').length === 4");
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).runs, before.runs);
 });

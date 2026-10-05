@@ -9,7 +9,7 @@ import { join } from "node:path";
 import type { Socket } from "node:net";
 import type { TestContext } from "node:test";
 import { WebSocket } from "ws";
-import { DEMO_BOARD_ID, seedDemoBoard, MolisWorkLocalHost, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard, MolisWorkLocalHost, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { projectActionAvailability } from "../../apps/local-host/dist/project-action-availability.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
@@ -100,8 +100,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       let projectDb: LocalProjectDatabase | undefined;
       try {
         projectDb = new LocalProjectDatabase(databasePath);
-        const boardId = projectDb.goalsQuery.listBoardIds()[0];
-        if (boardId) catalogDb.prepare("UPDATE projects SET board_id = ? WHERE project_id = ?").run(boardId, projectId);
+        const projectId = projectDb.goalsQuery.listProjectIds()[0];
+        if (projectId) catalogDb.prepare("UPDATE projects SET project_id = ? WHERE project_id = ?").run(projectId);
       } finally {
         projectDb?.close();
         catalogDb.close();
@@ -111,7 +111,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   store = new LocalProjectDatabase(databasePath);
   localHost = completion === undefined && !runtimeSessionTransport && !functions ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
-  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, boardId: DEMO_BOARD_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
+  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
     controlToken: "goals-risk-test-control-token-0123456789" });
   server.on("connection", connection => {
     connections.add(connection);
@@ -163,7 +163,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   await (await fetch(origin + "/health")).text();
-  const before = store.snapshot(DEMO_BOARD_ID);
+  const before = store.snapshot(DEMO_PROJECT_ID);
   const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });

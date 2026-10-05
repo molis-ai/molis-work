@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
@@ -12,11 +12,11 @@ test("Goal workspace keeps details in a sidebar rail; camera and draft survive r
   if (!browser) return;
   const { store, origin, command, sessionId, evaluate, waitFor, click, navigate, reloadPage } = browser;
   const app = new GoalProjectApplication(store);
-  const created = app.goalEvents.createIntent({ board_id: DEMO_BOARD_ID, title: "完成首次内部试用", outcome: "新用户能创建目标、连接终端，并读回真实工作结果。", actor_id: "web-user", actor_kind: "user", idempotency_key: "canvas-intent" });
+  const created = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: "完成首次内部试用", outcome: "新用户能创建目标、连接终端，并读回真实工作结果。", actor_id: "web-user", actor_kind: "user", idempotency_key: "canvas-intent" });
   const goalId = created.goal.goal_id;
-  app.goalEvents.configure({ board_id: DEMO_BOARD_ID, goal_id: goalId, actor_id: "web-user", actor_kind: "user", expected_version: 0, idempotency_key: "canvas-config", types: [{ type_id: "delivery", version: 1, name: "成果", purpose: "保存可检查的结果", semantic_family: "delivery", fields: [{ field_id: "body", name: "结果", purpose: "实际结果与证据", format: "longtext", required: true }] }] });
-  app.goalEvents.report({ board_id: DEMO_BOARD_ID, goal_id: goalId, actor_id: "codex", actor_kind: "runtime", idempotency_key: "canvas-report", events: [{ type_id: "delivery", type_version: 1, title: "创建与连接流程已接通", fields: { body: "已在隔离测试项目中创建 Goal，并通过正式接口读回。下一步验证终端与时间线同时使用。" } }] });
-  const before = store.snapshot(DEMO_BOARD_ID);
+  app.goalEvents.configure({ project_id: DEMO_PROJECT_ID, goal_id: goalId, actor_id: "web-user", actor_kind: "user", expected_version: 0, idempotency_key: "canvas-config", types: [{ type_id: "delivery", version: 1, name: "成果", purpose: "保存可检查的结果", semantic_family: "delivery", fields: [{ field_id: "body", name: "结果", purpose: "实际结果与证据", format: "longtext", required: true }] }] });
+  app.goalEvents.report({ project_id: DEMO_PROJECT_ID, goal_id: goalId, actor_id: "codex", actor_kind: "runtime", idempotency_key: "canvas-report", events: [{ type_id: "delivery", type_version: 1, title: "创建与连接流程已接通", fields: { body: "已在隔离测试项目中创建 Goal，并通过正式接口读回。下一步验证终端与时间线同时使用。" } }] });
+  const before = store.snapshot(DEMO_PROJECT_ID);
   await mkdir(captures, { recursive: true });
   const screenshot = async (name: string) => {
     const { data } = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
@@ -83,8 +83,8 @@ test("Goal workspace keeps details in a sidebar rail; camera and draft survive r
   assert.equal(await evaluate("document.querySelector('[data-event-form=note] textarea').value"), "保留在本地输入框里的备注");
   assert.equal(await evaluate("document.querySelector('[data-goal-work-main]').inert"), true);
   await click('[data-event-form=note] footer [data-event-back]');
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
-  assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).runs, before.runs);
   await evaluate("localStorage.setItem('molis-work:theme','dark');window.dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'dark'}))");
   await waitFor("document.documentElement.dataset.resolvedTheme === 'dark'");
   await screenshot("goal-dark");

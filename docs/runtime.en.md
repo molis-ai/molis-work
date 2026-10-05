@@ -23,7 +23,7 @@ The Runtime uses Molis Work through MCP. `apps/mcp` owns tool names, inputs, and
 
 Start with `context_resolve`. An existing Session binding or one verified workspace association can recover the project. Suggestions, directory names, and model guesses do not authorize binding. Reuse the user's explicit choice when it identifies one project; ask only when the choice is ambiguous. Binding, switching, creating, unlinking, and deleting retain their respective authorization. An ordinary binding does not set a directory default. See [MCP integration](mcp.en.md).
 
-Use `goals.list` to find work or `goals.create` to save a new intent. Creation requires a title and may include an outcome. Ordinary calls omit project and actor fields such as `board_id` and `actor_id`; Host supplies them. Calls that read or record a particular Goal still provide `goal_id` explicitly rather than guessing from the current focus.
+Use `goals.list` to find work or `goals.create` to save a new intent. Creation requires a title and may include an outcome. Ordinary calls omit project and actor fields such as `project_id` and `actor_id`; Host supplies them. Calls that read or record a particular Goal still provide `goal_id` explicitly rather than guessing from the current focus.
 
 ## Record everyday work
 

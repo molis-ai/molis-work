@@ -38,7 +38,7 @@ export interface SourcesSqliteDatabase {
 export { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
 
 const FEED_SOURCES_COLUMNS = `
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       source_id TEXT NOT NULL,
       kind TEXT NOT NULL,
       definition_id TEXT,
@@ -58,7 +58,7 @@ const FEED_SOURCES_COLUMNS = `
       last_error_code TEXT,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, source_id)
+      PRIMARY KEY (project_id, source_id)
 `;
 
 /**
@@ -68,7 +68,7 @@ const FEED_SOURCES_COLUMNS = `
 export const SOURCES_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_sources (${FEED_SOURCES_COLUMNS});
     CREATE INDEX IF NOT EXISTS feed_sources_board_updated_idx
-      ON feed_sources(board_id, updated_at DESC, source_id);
+      ON feed_sources(project_id, updated_at DESC, source_id);
 
     CREATE TABLE IF NOT EXISTS source_events (
       event_id TEXT PRIMARY KEY,
@@ -101,13 +101,13 @@ export function refreshSourceConnectionState(db: SourcesSqliteDatabase, input: {
   const sources = new SourcesModule(db);
   const at = input.at ?? new Date().toISOString();
   return db.transaction(() => {
-    const rows = db.prepare(`SELECT board_id, source_id, enabled, config_json FROM feed_sources
+    const rows = db.prepare(`SELECT project_id, source_id, enabled, config_json FROM feed_sources
       WHERE sync_kind IN ('github', 'gmail', 'connector')`).all() as Row[];
     let changed = 0;
     for (const row of rows) {
       const config = storedSourceConfig(row.config_json);
       if (config.connection_id !== input.connection_id || !Number(row.enabled) || sourceDeletedAt({ config })) continue;
-      const source = sources.query.get(asText(row.board_id), asText(row.source_id));
+      const source = sources.query.get(asText(row.project_id), asText(row.source_id));
       const status = input.available
         ? source.status === "disconnected" ? "active" : source.status
         : source.status === "paused" ? "paused" : "disconnected";
@@ -154,13 +154,13 @@ export class SourcesModule implements SourcesApi {
 
   private list(projectId: string): SourceRecord[] {
     return (this.db.prepare(
-      "SELECT * FROM feed_sources WHERE board_id = ? ORDER BY updated_at DESC, name COLLATE NOCASE, source_id",
+      "SELECT * FROM feed_sources WHERE project_id = ? ORDER BY updated_at DESC, name COLLATE NOCASE, source_id",
     ).all(projectId) as Row[]).map(mapSource).filter((source) => sourceDeletedAt(source) === null);
   }
 
   private get(projectId: string, sourceId: string): SourceRecord {
     const row = this.db.prepare(
-      "SELECT * FROM feed_sources WHERE board_id = ? AND source_id = ?",
+      "SELECT * FROM feed_sources WHERE project_id = ? AND source_id = ?",
     ).get(projectId, sourceId) as Row | undefined;
     if (!row) throw new SourcesError("source_not_found", "找不到这个来源");
     return mapSource(row);
@@ -173,7 +173,7 @@ export class SourcesModule implements SourcesApi {
     configFingerprint?: string,
   ): SourceRecord | null {
     const rows = this.db.prepare(
-      "SELECT * FROM feed_sources WHERE board_id = ? AND sync_kind = ?",
+      "SELECT * FROM feed_sources WHERE project_id = ? AND sync_kind = ?",
     ).all(projectId, syncKind) as Row[];
     return rows.map(mapSource).filter((source) => sourceDeletedAt(source) === null).find((source) => {
       if (definitionId !== null && source.definition_id !== definitionId) return false;
@@ -188,17 +188,17 @@ export class SourcesModule implements SourcesApi {
     assertSchedule(source.schedule);
     return this.db.transaction(() => {
       const current = this.db.prepare(
-        "SELECT * FROM feed_sources WHERE board_id = ? AND source_id = ?",
+        "SELECT * FROM feed_sources WHERE project_id = ? AND source_id = ?",
       ).get(source.project_id, source.source_id) as Row | undefined;
       if (current) assertStatusTransition(mapSource(current).status, source.status);
       this.db.prepare(`
       INSERT INTO feed_sources (
-        board_id, source_id, kind, definition_id, sync_kind, name, description,
+        project_id, source_id, kind, definition_id, sync_kind, name, description,
         status, enabled, item_count, origin, config_json, schedule_json,
         credential_ref, account_label, last_sync_at, last_outcome,
         last_error_code, imported_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(board_id, source_id) DO UPDATE SET
+      ON CONFLICT(project_id, source_id) DO UPDATE SET
         kind = excluded.kind,
         definition_id = excluded.definition_id,
         sync_kind = excluded.sync_kind,
@@ -324,7 +324,7 @@ function mapSource(row: Row): SourceRecord {
   const schedule = parseJson<SourceSchedule>(row.schedule_json, { mode: "manual" });
   assertSchedule(schedule);
   return {
-    project_id: asText(row.board_id),
+    project_id: asText(row.project_id),
     source_id: asText(row.source_id),
     kind: asText(row.kind),
     definition_id: optionalText(row.definition_id),

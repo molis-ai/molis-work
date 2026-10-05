@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore, CODING_REPORT_TYPE, CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
@@ -18,8 +18,8 @@ test("formal report routes freeze real Artifact versions, distinguish missing/fa
   let api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   let sessionStore = new CodingSessionStore(store.db);
   for (const id of ["app", "other"]) {
-    sessionStore.create({ board_id: DEMO_BOARD_ID, session_id: id, title: '<img src=x onerror="bad()">', runtime_id: "prologue", at: "2026-09-21T00:00:00Z" });
-    sessionStore.setRuntimeSession(DEMO_BOARD_ID, id, id === "app" ? "sdk" : "sdk-other", "2026-09-21T00:00:00Z");
+    sessionStore.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: '<img src=x onerror="bad()">', runtime_id: "prologue", at: "2026-09-21T00:00:00Z" });
+    sessionStore.setRuntimeSession(DEMO_PROJECT_ID, id, id === "app" ? "sdk" : "sdk-other", "2026-09-21T00:00:00Z");
   }
   let runtimeAvailable = true;
   const run: AgentRunView = {
@@ -33,7 +33,7 @@ test("formal report routes freeze real Artifact versions, distinguish missing/fa
     command_outputs: [{ call_id: "check", run_id: "failed" }, { call_id: "missing", run_id: "failed" }],
     usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "未报告" }, awaiting_input: [], stop_reason: "检查失败",
   };
-  const host = () => ({ store, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -70,10 +70,10 @@ test("formal report routes freeze real Artifact versions, distinguish missing/fa
     assert.equal((await request("other", "failed", "POST")).status, 400);
     assert.equal((await request("app", "pending", "POST")).status, 400);
     assert.equal((await request("missing-session", "failed", "POST")).status, 404);
-    assert.equal(api.query.listArtifacts(DEMO_BOARD_ID).length, 0);
+    assert.equal(api.query.listArtifacts(DEMO_PROJECT_ID).length, 0);
     const preview = await request("app", "failed");
     assert.equal(preview.status, 200); assert.equal(preview.body.reference, null);
-    assert.equal(api.query.listArtifacts(DEMO_BOARD_ID).length, 0, "reading doesn't save");
+    assert.equal(api.query.listArtifacts(DEMO_PROJECT_ID).length, 0, "reading doesn't save");
     assert.match(preview.body.report.body_markdown, /fixture \/ old.ts v1 \(snapshot\)/);
     assert.match(preview.body.report.body_markdown, /退出码 1/);
     assert.match(preview.body.report.body_markdown, /回执无法读取，结果未知/);
@@ -85,7 +85,7 @@ test("formal report routes freeze real Artifact versions, distinguish missing/fa
     assert.equal(preview.body.report.frozen.directory, undefined);
     assert.match(preview.body.report.body_markdown, /未使用 Character/);
     run.frozen.character = { character_id: "profile", title: "旧角色 <script>bad()</script>", instructions: "原要求\n```\n不可变", host_tools: [],
-      source: { owner_actor_id: "web-user", draft_revision: 2 }, reference: { artifact_id: "original-character", version: 1 }, board_id: DEMO_BOARD_ID,
+      source: { owner_actor_id: "web-user", draft_revision: 2 }, reference: { artifact_id: "original-character", version: 1 }, project_id: DEMO_PROJECT_ID,
       content_digest: "sha256:original", published_at: "2026-09-21T00:00:00Z", producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" } };
     const saves = await Promise.all([request("app", "failed", "POST"), request("app", "failed", "POST")]);
     assert.equal(saves[0].status, 200); assert.deepEqual(saves[0], saves[1]);
@@ -96,22 +96,22 @@ test("formal report routes freeze real Artifact versions, distinguish missing/fa
     assert.doesNotMatch(saved.html, /<script>/);
     run.frozen.character.instructions = "来源改变后的新要求";
 
-    assert.equal(api.query.listArtifacts(DEMO_BOARD_ID, { artifact_type_id: CODING_REPORT_TYPE }).length, 1);
-    assert.equal(api.query.listArtifactVersions(DEMO_BOARD_ID, saved.reference.artifact_id).length, 1);
+    assert.equal(api.query.listArtifacts(DEMO_PROJECT_ID, { artifact_type_id: CODING_REPORT_TYPE }).length, 1);
+    assert.equal(api.query.listArtifactVersions(DEMO_PROJECT_ID, saved.reference.artifact_id).length, 1);
     run.turns[1]!.text = "不同的后续内容";
     assert.deepEqual((await request("app", "failed", "POST")).body, saved);
-    await releaseCodingSurface(store, DEMO_BOARD_ID); store.close();
+    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close();
     store = new LocalProjectDatabase(dbPath);
     api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
     runtimeAvailable = false;
     assert.deepEqual((await request("app", "failed")).body, saved, "reopen fixed Artifact even without runtime");
     assert.equal((await request("other", "failed")).status, 400);
-    api.commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: "web-user", ...saved.reference });
+    api.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", ...saved.reference });
     const archived = await request("app", "failed", "POST");
     assert.equal(archived.status, 400, "never regenerate over an unavailable saved artifact");
-    assert.equal(api.query.listArtifactVersions(DEMO_BOARD_ID, saved.reference.artifact_id).length, 1);
+    assert.equal(api.query.listArtifactVersions(DEMO_PROJECT_ID, saved.reference.artifact_id).length, 1);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
-    await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(dir, { recursive: true, force: true });
+    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(dir, { recursive: true, force: true });
   }
 });

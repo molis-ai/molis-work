@@ -9,7 +9,7 @@ import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runti
 import { createScheduledOperations, saveScheduledOperation, getScheduledOperation, saveScheduledOperationOccurrence, listScheduledOperationOccurrences,
   scheduleActions, SCHEDULE_ACTION_PERMISSIONS, SchedulePluginRouteTable, createScheduleRouteHandlers, type ScheduledOperationView } from '@molis-ai/molis-work-plugin-schedule';
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from '../apps/local-host/src/project-host.js';
-import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.js';
+import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
 import { scheduleServiceFor } from '../apps/local-host/src/schedule-runtime.js';
 import { bindInstalledOperationCaller } from '../apps/local-host/src/schedule-operations.js';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
@@ -21,26 +21,26 @@ const installation = (generation = 'original'): PluginInstanceRecord => ({ insta
 const descriptor = (generation = 'original') => ({ installationId: 'review-install', generation, version: '1.0.0', title: '笔记汇总', operations: [{ id: 'summarize', description: '汇总本周笔记' }] });
 const inputFor = (view: ScheduledOperationView) => ({ operation_id: view.id, decision: 'skip' as const, expected_revision: view.revision,
   expected_installation_id: view.installation!.installationId, expected_generation: view.installation!.generation, expected_version: view.installation!.version });
-function seedUnknown(db: Parameters<typeof scheduleServiceFor>[0], boardId: string, projectId: string) {
+function seedUnknown(db: Parameters<typeof scheduleServiceFor>[0], projectId: string, projectId: string) {
   const schedule = scheduleServiceFor(db), at = new Date(Date.now() + 86_400_000).toISOString();
   new SqlitePluginRuntimeRepository(db).save(installation());
-  const plans = createScheduledOperations({ db, boardId, projectId, schedule, describe: () => descriptor(), link: () => '/original-link' });
+  const plans = createScheduledOperations({ db, projectId, schedule, describe: () => descriptor(), link: () => '/original-link' });
   const id = plans.add({ projectId, pluginId, installationId: 'review-install' }, { operation: 'summarize', at, input: { topic: '<本周> 笔记' } }).scheduleId;
-  const run = getScheduledOperation(db, boardId, id)!;
+  const run = getScheduledOperation(db, projectId, id)!;
   saveScheduledOperation(db, { ...run, state: 'needs_review', detail: '上次调用已派出但结果未知' });
-  saveScheduledOperationOccurrence(db, { boardId, operationId: id, dueAt: at, state: 'unknown', detail: '调用中断', startedAt: at, finishedAt: null });
+  saveScheduledOperationOccurrence(db, { projectId, operationId: id, dueAt: at, state: 'unknown', detail: '调用中断', startedAt: at, finishedAt: null });
   schedule.setEnabled(run.jobId, false);
   return id;
 }
 
 test('operation recovery is a public authorized Host/HTTP action; plugin callers, stale snapshots and other projects are refused', async () => {
   const home = await mkdtemp(join(tmpdir(), 'operation-recovery-host-')), databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
-  const host = new MolisWorkLocalHost(), ref = molisWorkHostProjectReference({ databasePath, projectId: 'p', boardId: DEMO_BOARD_ID });
+  const host = new MolisWorkLocalHost(), ref = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   let stop = () => {};
   try {
     const id = await host.withProject(ref, runtime => {
-      const id = seedUnknown(runtime.store.db, DEMO_BOARD_ID, 'p');
-      stop = bindInstalledOperationCaller(runtime.store.db, DEMO_BOARD_ID, { describe: () => descriptor(), async call() { assert.fail('confirmation never invokes'); } }); return id;
+      const id = seedUnknown(runtime.store.db, DEMO_PROJECT_ID, 'p');
+      stop = bindInstalledOperationCaller(runtime.store.db, DEMO_PROJECT_ID, { describe: () => descriptor(), async call() { assert.fail('confirmation never invokes'); } }); return id;
     });
     const caller = { actor_id: 'owner', project_id: 'p', audience: 'user' as const, permissions: SCHEDULE_ACTION_PERMISSIONS };
     const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
@@ -62,14 +62,14 @@ test('operation recovery is a public authorized Host/HTTP action; plugin callers
 
 test('narrow Schedule UI reviews unknown outcomes, cancels safely and rejects a stale installation before an explicit skip', { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true, seedDemoBoard, null); if (!b) return;
-  const boardId = b.store.goalsQuery.listBoardIds()[0]!, projectId = b.projectId!;
-  const ref = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId, boardId });
+  const projectId = b.store.goalsQuery.listProjectIds()[0]!, projectId = b.projectId!;
+  const ref = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId });
   // The browser server imports the built Host, so bind to that owner and its database connection.
   const { bindInstalledOperationCaller: bind } = await import('../apps/local-host/dist/schedule-operations.js');
   let generation = 'original';
   const id = await b.localHost!.withProject(ref, runtime => {
-    const id = seedUnknown(runtime.store.db, boardId, projectId);
-    t.after(bind(runtime.store.db, boardId, { describe: () => descriptor(generation), async call() { assert.fail('skipped work must not run'); } })); return id;
+    const id = seedUnknown(runtime.store.db, projectId);
+    t.after(bind(runtime.store.db, projectId, { describe: () => descriptor(generation), async call() { assert.fail('skipped work must not run'); } })); return id;
   });
   await b.command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, b.sessionId);
   await b.navigate(() => b.command('Page.navigate', { url: `${b.origin}/projects/${projectId}/` }, b.sessionId));
@@ -79,12 +79,12 @@ test('narrow Schedule UI reviews unknown outcomes, cancels safely and rejects a 
   await b.click('[data-schedule-operation-decision=retry]');
   assert.match(await b.evaluate<string>("document.querySelector('[data-operation-review-warning]').textContent"), /可能重复/);
   await b.click('[data-schedule-operation-form] footer [data-schedule-operation-close]');
-  assert.equal(getScheduledOperation(b.store.db, boardId, id)?.state, 'needs_review');
+  assert.equal(getScheduledOperation(b.store.db, projectId, id)?.state, 'needs_review');
   await b.click('[data-schedule-operation-decision=skip]');
   generation = 'replacement'; new SqlitePluginRuntimeRepository(b.store.db).save(installation(generation));
   await b.click('[data-schedule-operation-form] [type=submit]');
   await b.waitFor("document.querySelector('[data-operation-review-error]').textContent.includes('安装或版本已变更')");
-  assert.equal(getScheduledOperation(b.store.db, boardId, id)?.state, 'needs_review');
+  assert.equal(getScheduledOperation(b.store.db, projectId, id)?.state, 'needs_review');
   await b.evaluate(`{ const original = window.fetch; window.restoreOperationFetch = () => window.fetch = original;
     window.fetch = (url, options) => String(url).endsWith('/api/schedule/workbench') ? Promise.resolve(new Response('unavailable', { status: 503 })) : original(url, options); }`);
   await b.click('[data-operation-review-refresh]');
@@ -105,6 +105,6 @@ test('narrow Schedule UI reviews unknown outcomes, cancels safely and rejects a 
   }
   await b.click('[data-schedule-operation-form] [type=submit]');
   await b.waitFor("!document.querySelector('[data-schedule-operation-dialog]').open && !document.querySelector('[data-schedule-operation-decision]')");
-  assert.equal(getScheduledOperation(b.store.db, boardId, id)?.state, 'completed');
-  assert.equal(listScheduledOperationOccurrences(b.store.db, boardId, id)[0]?.state, 'skipped');
+  assert.equal(getScheduledOperation(b.store.db, projectId, id)?.state, 'completed');
+  assert.equal(listScheduledOperationOccurrences(b.store.db, projectId, id)[0]?.state, 'skipped');
 });

@@ -41,7 +41,6 @@ export function createMcpRuntimeContextHandlers(ports: McpRuntimeContextPorts) {
           projects: catalog.listProjects().map((project) => ({
             project_id: project.project_id,
             display_name: project.display_name,
-            board_id: project.board_id,
             source: project.source,
           })),
         },

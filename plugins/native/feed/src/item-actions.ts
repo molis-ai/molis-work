@@ -82,7 +82,7 @@ export function createFeedItemHandlers(feed: FeedApplication, board: string, por
     bind(feedItemActions.disposition, input => ({ item: feed.setDisposition(board, input.item_id, input.disposition, input.expected_revision) })),
     bind(feedItemActions.restore, input => ({ item: feed.restoreToFeed(board, input.item_id, input.expected_revision) })),
     bind(feedItemActions.promote, (input, caller) => {
-      const { item, goal_id, created, runtime_autofill } = ports.promote!({ boardId: board, routePrefix: "", itemId: input.item_id,
+      const { item, goal_id, created, runtime_autofill } = ports.promote!({ projectId: board, routePrefix: "", itemId: input.item_id,
         startProcessing: input.start_processing === true, expectedRevision: input.expected_revision, actorId: caller.actor_id });
       return { item, goal_id, created, runtime_autofill };
     }, !!ports.promote),

@@ -16,7 +16,7 @@ type Row = Record<string, unknown>;
 export const GOAL_EVENT_TRUSTED_DECISIONS_SQL = `
   CREATE TABLE IF NOT EXISTS goal_event_trusted_decisions (
     decision_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     actor_id TEXT NOT NULL,
     actor_kind TEXT NOT NULL CHECK (actor_kind = 'user'),
@@ -32,7 +32,7 @@ export const GOAL_EVENT_TRUSTED_DECISIONS_SQL = `
     recorded_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS goal_event_trusted_decisions_goal_idx
-    ON goal_event_trusted_decisions(board_id, goal_id, recorded_at);
+    ON goal_event_trusted_decisions(project_id, goal_id, recorded_at);
 `;
 
 export class GovernanceEventDecisions implements GovernanceEventDecisionApi {
@@ -61,13 +61,13 @@ export class GovernanceEventDecisions implements GovernanceEventDecisionApi {
     };
     this.db.prepare(`
       INSERT INTO goal_event_trusted_decisions (
-        decision_id, board_id, goal_id, actor_id, actor_kind, authority_source,
+        decision_id, project_id, goal_id, actor_id, actor_kind, authority_source,
         conversation_ref, message_ref, request_id, selected_option_id, conclusion,
         accepts_requirements, scope_json, change_json, recorded_at
       ) VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       decisionId,
-      input.board_id,
+      input.project_id,
       input.goal_id,
       authority.actor_id,
       authority.authority_source,
@@ -81,17 +81,17 @@ export class GovernanceEventDecisions implements GovernanceEventDecisionApi {
       input.authorized_change == null ? null : json(input.authorized_change),
       at,
     );
-    return this.read(input.board_id, decisionId)!;
+    return this.read(input.project_id, decisionId)!;
   }
 
-  read(boardId: string, decisionId: string): GoalEventTrustedDecisionRecord | null {
+  read(projectId: string, decisionId: string): GoalEventTrustedDecisionRecord | null {
     const row = this.db.prepare(
-      "SELECT * FROM goal_event_trusted_decisions WHERE decision_id = ? AND board_id = ?",
-    ).get(decisionId, boardId) as Row | undefined;
+      "SELECT * FROM goal_event_trusted_decisions WHERE decision_id = ? AND project_id = ?",
+    ).get(decisionId, projectId) as Row | undefined;
     if (!row) return null;
     return {
       decision_id: String(row.decision_id),
-      board_id: String(row.board_id),
+      project_id: String(row.project_id),
       goal_id: String(row.goal_id),
       actor_id: String(row.actor_id),
       actor_kind: "user",

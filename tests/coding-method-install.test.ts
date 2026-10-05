@@ -8,8 +8,8 @@ import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-ho
 // Real packaged SDK, filesystem discovery, scanner and encrypted Store; no model or network.
 test("installed methods preserve captured content, owner and version across restart; deny escapes and duplicate writes", async () => {
   const root = await mkdtemp(join(tmpdir(), "molis-methods-")), workspace = join(root, "workspace");
-  const owner = { board_id: "project-a", plugin_id: "io.molis.work.coding" };
-  const other = { ...owner, board_id: "project-b" };
+  const owner = { project_id: "project-a", plugin_id: "io.molis.work.coding" };
+  const other = { ...owner, project_id: "project-b" };
   const directory = { canonical_path: workspace, realpath_verified: true };
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.methods-test", appVersion: "1.0.0" },
     storageRoot: join(root, "runtime"), modelConfiguration: async () => { throw new Error("no model needed"); }, resolveCredential: () => null });

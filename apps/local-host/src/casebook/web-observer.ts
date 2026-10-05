@@ -9,9 +9,9 @@ export function observedWebGoalsActions(runtime: MolisWorkProjectRuntime, refere
  return {
   discover: () => actions.discover(),
   async invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input): Promise<Output> {
-   const observed = goalActionObservation(definition, input, reference.board_id, { actor_id: 'web-user', actor_kind: 'user', audience: 'user' });
+   const observed = goalActionObservation(definition, input, reference.project_id, { actor_id: 'web-user', actor_kind: 'user', audience: 'user' });
    if (!observed) return actions.invoke(definition, input);
-   runtime.interactionObserver ??= new InteractionObserver(runtime.store, runtime.coordinator, reference.board_id, reference.project_id);
+   runtime.interactionObserver ??= new InteractionObserver(runtime.store, runtime.coordinator, reference.project_id, reference.project_id);
    const observer = runtime.interactionObserver;
    const ticket = observer.before(observed.capability, observed.input, 'web.goal-events.v1');
    let result: Output;

@@ -1,7 +1,7 @@
 export const GOVERNANCE_SCHEMA_SQL = `
   CREATE TABLE goal_tree_proposals (
     proposal_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     root_goal_id TEXT REFERENCES goals(goal_id) ON DELETE SET NULL,
     submitted_by TEXT NOT NULL,
     submitted_session_id TEXT,
@@ -17,14 +17,14 @@ export const GOVERNANCE_SCHEMA_SQL = `
     decided_at TEXT
   );
   CREATE INDEX goal_tree_proposals_board_idx
-    ON goal_tree_proposals(board_id, root_goal_id, state, created_at DESC, proposal_id);
+    ON goal_tree_proposals(project_id, root_goal_id, state, created_at DESC, proposal_id);
   CREATE INDEX goal_tree_proposals_supersedes_idx
     ON goal_tree_proposals(supersedes_proposal_id);
 
   CREATE TABLE goal_tree_proposal_items (
     item_id TEXT PRIMARY KEY,
     proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('goal', 'relation')),
     operation TEXT NOT NULL CHECK (operation IN ('create', 'deactivate')),
@@ -48,11 +48,11 @@ export const GOVERNANCE_SCHEMA_SQL = `
   CREATE INDEX goal_tree_proposal_items_proposal_idx
     ON goal_tree_proposal_items(proposal_id, ordinal, item_id);
   CREATE INDEX goal_tree_proposal_items_board_idx
-    ON goal_tree_proposal_items(board_id, state, item_id);
+    ON goal_tree_proposal_items(project_id, state, item_id);
 
   CREATE TABLE goal_tree_proposal_decisions (
     decision_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
     item_id TEXT NOT NULL REFERENCES goal_tree_proposal_items(item_id) ON DELETE CASCADE,
     decision TEXT NOT NULL CHECK (decision IN ('confirmed', 'rejected', 'revised', 'conflict')),
@@ -71,7 +71,7 @@ export const GOVERNANCE_SCHEMA_SQL = `
 
   CREATE TABLE IF NOT EXISTS goal_event_trusted_decisions (
     decision_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     actor_id TEXT NOT NULL,
     actor_kind TEXT NOT NULL CHECK (actor_kind = 'user'),
@@ -87,7 +87,7 @@ export const GOVERNANCE_SCHEMA_SQL = `
     recorded_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS goal_event_trusted_decisions_goal_idx
-    ON goal_event_trusted_decisions(board_id, goal_id, recorded_at);
+    ON goal_event_trusted_decisions(project_id, goal_id, recorded_at);
 `;
 
 export interface GovernanceSchemaDatabase {

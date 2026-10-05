@@ -64,7 +64,7 @@ test("invalid dependency declarations fail activation and cycles fail discovery 
 
 test("Host propagates async dependency lifecycle by project, including revocation while a call is queued", async () => {
   const leaf = action("runtime.leaf"), middle = action("runtime.middle", [leaf]), root = action("runtime.root", [middle]);
-  const ref = (id: string) => ({ project_id: id, board_id: id, storage_key: `memory:${id}` });
+  const ref = (id: string) => ({ project_id: id, storage_key: `memory:${id}` });
   const disabled = new Set<string>();
   let entered!: () => void, release!: () => void, reads = 0;
   const enteredCall = new Promise<void>(resolve => { entered = resolve; });

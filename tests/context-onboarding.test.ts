@@ -32,7 +32,7 @@ async function home(t: Parameters<Parameters<typeof test>[1]>[0]) {
 function pagesPorts(dir: string) {
   return { withCatalog, actions: async (_home: string, projectId: string) => {
     const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
-    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId });
+    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id, projectId });
     let host = hosts.get(dir); if (!host) { host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.set(dir, host); }
     return bindActionClient(host.actionClient(reference), () => ({ actor_id: "context-test", project_id: projectId, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write"] }));
   } };

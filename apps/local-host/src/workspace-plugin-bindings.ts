@@ -1,7 +1,7 @@
 import type { PluginPlatform } from "./plugin-platform.js";
 
 /** Install declared defaults only where no source was previously chosen. */
-export function bindWorkspaceCompanions(platform: PluginPlatform, boardId: string, actorId: string): void {
+export function bindWorkspaceCompanions(platform: PluginPlatform, projectId: string, actorId: string): void {
   const prefix = "io.molis.work.";
   for (const [target, targetPort, source, sourcePort] of [
     ["coding", "materials", "shelf", "material"],
@@ -25,7 +25,7 @@ export function bindWorkspaceCompanions(platform: PluginPlatform, boardId: strin
     if (!targetManifest?.ports?.inputs.some(port => port.port === targetPort)
       || !sourceManifest?.ports?.outputs.some(port => port.port === sourcePort)) continue;
     if (platform.wiring.view().plugins.find(plugin => plugin.plugin_id === targetId)?.ports.find(port => port.port === targetPort)?.source) continue;
-    platform.wiring.bind({ board_id: boardId, actor_id: actorId, target_plugin_id: targetId, target_port: targetPort,
+    platform.wiring.bind({ project_id: projectId, actor_id: actorId, target_plugin_id: targetId, target_port: targetPort,
       source_plugin_id: sourceId, source_port: sourcePort, origin: "default" });
   }
   const diffId = prefix + "diff";

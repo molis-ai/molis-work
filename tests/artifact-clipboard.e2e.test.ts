@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { WebSocket } from "ws";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -38,10 +38,10 @@ test("migrated result reference copies exact text and handles denied clipboard p
   });
   const reference = "artifact://迁移结果/季度?version=1&note=原始引用";
   // An opaque reference among the Goal's inputs is shown as a copy button.
-  new GoalProjectApplication(store).goalInputs.register({ binding_id: "clipboard-fixture", board_id: DEMO_BOARD_ID, goal_id: "V1",
+  new GoalProjectApplication(store).goalInputs.register({ binding_id: "clipboard-fixture", project_id: DEMO_PROJECT_ID, goal_id: "V1",
     input_name: "迁移结果", source_type: "reference", source_ref: reference, snapshot_digest: null, state: "confirmed",
     reason: "fixture", created_by: "fixture-user", created_at: new Date().toISOString() });
-  server = createMolisWorkWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory,
+  server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory,
     controlToken: "artifact-clipboard-test-control-token-0123456789" });
   child = spawn(chrome, ["--headless=new", "--disable-gpu", "--disable-background-networking",
     "--disable-component-update", "--disable-extensions", "--no-first-run", "--no-default-browser-check",
@@ -84,7 +84,7 @@ test("migrated result reference copies exact text and handles denied clipboard p
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   await (await fetch(origin + "/health")).text();
-  const before = store.snapshot(DEMO_BOARD_ID);
+  const before = store.snapshot(DEMO_PROJECT_ID);
   const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   async function evaluate<T = unknown>(expression: string): Promise<T> {
@@ -129,6 +129,6 @@ test("migrated result reference copies exact text and handles denied clipboard p
   await waitFor(`document.querySelector('[data-toast]')?.textContent.includes('无法访问剪贴板')`);
   await command("Browser.grantPermissions", { origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
   assert.equal(await evaluate("navigator.clipboard.readText()"), reference);
-  const after = store.snapshot(DEMO_BOARD_ID);
+  const after = store.snapshot(DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals, "copying a reference changes no Goal");
 });

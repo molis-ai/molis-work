@@ -34,7 +34,7 @@ async function fixture(t: Parameters<Parameters<typeof test>[1]>[0], todoModel: 
     model: async () => ({ completeText: async () => "# 新版方案\n张总要求周五前发新版方案，预算等小李确认。[S1]" }),
     actions: async (_home: string, projectId: string) => {
       const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
-      const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId });
+      const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id, projectId });
       return bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"] }));
     },
     homeActions: (_home: string, signal: AbortSignal) => bindActionClient(host.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: ["todo:read", "todo:write", "model:invoke"], signal })),

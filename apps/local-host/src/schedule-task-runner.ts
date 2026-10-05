@@ -17,7 +17,6 @@ export function createHostScheduledTaskRunner(options: {
   agentHost: AgentHost;
   /** Settles once the Home's Prologue adapter is registered; it registers lazily. */
   ready?: () => Promise<void>;
-  boardId: string;
   projectId: string;
   workspaceFor(projectId: string): ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
   /** The memories the Host chooses for one scheduled run (Agent work in this project); none when not given. */
@@ -54,7 +53,7 @@ export function createHostScheduledTaskRunner(options: {
         realpath_verified: true as const,
       };
       const session = await adapter.createSession({
-        board_id: options.boardId,
+        project_id: options.projectId,
         plugin_id: SCHEDULE_PLUGIN_ID,
         install_id: SCHEDULE_PLUGIN_ID,
         actor_id: "schedule",
@@ -64,7 +63,7 @@ export function createHostScheduledTaskRunner(options: {
       control?.beforeEffect();
       const handle = await options.agentHost.start(runtimeId, {
         session,
-        board_id: options.boardId,
+        project_id: options.projectId,
         plugin_id: SCHEDULE_PLUGIN_ID,
         install_id: SCHEDULE_PLUGIN_ID,
         actor_id: "schedule",

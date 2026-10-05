@@ -91,7 +91,7 @@ export interface ReferencedArtifactContent {
 export type ArtifactContentInput = InlineArtifactContent | ReferencedArtifactContent;
 
 export interface ArtifactIdentityRecord {
-  board_id: string;
+  project_id: string;
   artifact_id: string;
   owner_actor_id: string;
   producer_plugin_id: string;
@@ -101,7 +101,7 @@ export interface ArtifactIdentityRecord {
 
 /** The fields every immutable version has, in the 成果库 and in process items alike. */
 export interface FixedVersionRecord extends ArtifactReference {
-  board_id: string;
+  project_id: string;
   artifact_type_id: string;
   schema_version: number;
   producer_plugin_id: string;
@@ -149,7 +149,7 @@ export type ProcessItemRecord = FixedVersionRecord;
 
 /** The fields every version is written with, in either store. */
 export interface RecordFixedVersionInput extends ArtifactReference {
-  board_id: string;
+  project_id: string;
   actor_id: string;
   artifact_type_id: string;
   schema_version: number;
@@ -173,13 +173,13 @@ export interface RegisterArtifactVersionInput extends RecordFixedVersionInput {
 }
 
 export interface MarkArtifactUnavailableInput extends ArtifactReference {
-  board_id: string;
+  project_id: string;
   actor_id: string;
   reason: string;
 }
 
 export interface ArchiveArtifactVersionInput extends ArtifactReference {
-  board_id: string;
+  project_id: string;
   actor_id: string;
 }
 
@@ -211,12 +211,12 @@ export interface ArtifactConsumptionCompatibility {
 }
 
 export interface FixedVersionQueryApi<R extends FixedVersionRecord> {
-  getArtifactVersion(boardId: string, reference: ArtifactReference): R | null;
-  listArtifactVersions(boardId: string, artifactId: string): R[];
-  latestArtifactVersion(boardId: string, artifactId: string): R | null;
-  listArtifacts(boardId: string, query?: ArtifactListQuery): R[];
+  getArtifactVersion(projectId: string, reference: ArtifactReference): R | null;
+  listArtifactVersions(projectId: string, artifactId: string): R[];
+  latestArtifactVersion(projectId: string, artifactId: string): R | null;
+  listArtifacts(projectId: string, query?: ArtifactListQuery): R[];
   consumptionCompatibility(
-    boardId: string,
+    projectId: string,
     reference: ArtifactReference,
     supportedTypes: ArtifactConsumerType[],
   ): ArtifactConsumptionCompatibility;

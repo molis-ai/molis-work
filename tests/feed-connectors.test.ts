@@ -15,7 +15,7 @@ type ConnectorSyncSuccess = Extract<IntegrationProviderSyncResult, { ok: true }>
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 async function withBoard<T>(run: (store: LocalProjectDatabase) => Promise<T>): Promise<T> {
@@ -493,7 +493,7 @@ test("Gmail range changes force one bounded full sync instead of reusing the old
 /** An account Source and the Host connector sync, as Feed's source actions use them; the provider is the test's port. */
 function connectorService(store: LocalProjectDatabase, port: ConnectorPort) {
   const feed = createLocalFeedApplication(store.db);
-  const connectors = createLocalFeedConnectorSync(store.db, DEMO_BOARD_ID, () => port, feed);
+  const connectors = createLocalFeedConnectorSync(store.db, DEMO_PROJECT_ID, () => port, feed);
   return {
     feed,
     sync: (sourceId: string, input: Parameters<typeof connectors.sync>[1]) => connectors.sync(sourceId, input),
@@ -551,10 +551,10 @@ test("Connector service persists cursor only after success and safely replays or
     assert.deepEqual(first.source.cursor, cursor1);
     assert.equal(first.source.account_label, "@molis-work-user");
     assert.equal(first.source.config.scope, "GitHub 通知 · Molis Work 只调用 GET · notifications scope");
-    const firstItems = service.feed.snapshot(DEMO_BOARD_ID).feed_items.filter((item) => item.source_id === source.source_id);
+    const firstItems = service.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter((item) => item.source_id === source.source_id);
     const issue = firstItems.find((item) => item.external_id.endsWith(":issue-1"));
     assert.equal(issue?.item_type, "feed");
-    assert.ok(service.feed.listInboxEntries(DEMO_BOARD_ID).some(
+    assert.ok(service.feed.listInboxEntries(DEMO_PROJECT_ID).some(
       (entry) => entry.subject_id === issue?.item_id && entry.reason === "source_rule",
     ));
     assert.equal(firstItems.find((item) => item.external_id.endsWith(":release-1"))?.item_type, "feed");
@@ -568,8 +568,8 @@ test("Connector service persists cursor only after success and safely replays or
       service.sync(source.source_id, { idempotencyKey: "connector-sync-0002" }),
       (error: unknown) => error instanceof FeedDomainError && error.code === "connector_needs_auth" && /管理账号连接/.test(error.message),
     );
-    assert.deepEqual(service.feed.getSource(DEMO_BOARD_ID, source.source_id).cursor, cursor1);
-    const fault = service.feed.listInboxEntries(DEMO_BOARD_ID).find(
+    assert.deepEqual(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, cursor1);
+    const fault = service.feed.listInboxEntries(DEMO_PROJECT_ID).find(
       (entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id,
     );
     assert.equal(fault?.status, "open");
@@ -585,11 +585,11 @@ test("Connector service persists cursor only after success and safely replays or
     const recovered = await service.sync(source.source_id, { idempotencyKey: "connector-sync-0003" });
     assert.equal(recovered.created, 1);
     assert.equal((recovered.source.cursor as { next_poll_at?: string }).next_poll_at, "2026-08-30T10:04:00.000Z");
-    assert.equal(service.feed.listInboxEntries(DEMO_BOARD_ID).find(
+    assert.equal(service.feed.listInboxEntries(DEMO_PROJECT_ID).find(
       (entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id,
     )?.status, "done");
 
-    service.feed.setSourceEnabled(DEMO_BOARD_ID, source.source_id, false);
+    service.feed.setSourceEnabled(DEMO_PROJECT_ID, source.source_id, false);
     await assert.rejects(
       service.sync(source.source_id, { idempotencyKey: "connector-sync-0004" }),
       (error: unknown) => error instanceof FeedDomainError && error.code === "feed_source_paused",
@@ -615,8 +615,8 @@ test("Connector failure commits Source and event together while retaining the Li
       WHEN NEW.type = 'feed_connector.sync_failed'
       BEGIN SELECT RAISE(ABORT, 'injected_connector_commit_failure'); END`);
     await assert.rejects(service.sync(source.source_id, { idempotencyKey: "connector-commit-failure-1" }), /injected_connector_commit_failure/);
-    assert.deepEqual(service.feed.getSource(DEMO_BOARD_ID, source.source_id), source, "the failed event rolls back the preceding Source update");
-    assert.equal(service.feed.listInboxEntries(DEMO_BOARD_ID).some((entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id), false);
+    assert.deepEqual(service.feed.getSource(DEMO_PROJECT_ID, source.source_id), source, "the failed event rolls back the preceding Source update");
+    assert.equal(service.feed.listInboxEntries(DEMO_PROJECT_ID).some((entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id), false);
     store.db.exec("DROP TRIGGER fail_connector_event");
     const replay = await service.sync(source.source_id, { idempotencyKey: "connector-commit-failure-1" });
     assert.equal(replay.replayed, true);
@@ -625,13 +625,13 @@ test("Connector failure commits Source and event together while retaining the Li
     assert.deepEqual(replay.source, source);
     assert.equal(calls, 1, "the Listener receipt remains durable independently of the later Source/event transaction");
     await assert.rejects(service.sync(source.source_id, { idempotencyKey: "connector-commit-failure-2" }), (error: unknown) => error instanceof FeedDomainError && error.code === "connector_needs_auth");
-    const updated = service.feed.getSource(DEMO_BOARD_ID, source.source_id);
+    const updated = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
     assert.equal(updated.status, "error");
     assert.equal(updated.last_error_code, "connector_needs_auth");
     assert.deepEqual(updated.cursor, source.cursor);
-    const events = store.db.prepare("SELECT actor_id, reason, payload_json FROM events WHERE board_id = ? AND object_id = ? AND type = 'feed_connector.sync_failed'").all(DEMO_BOARD_ID, source.source_id) as Array<{ actor_id: string; reason: string; payload_json: string }>;
+    const events = store.db.prepare("SELECT actor_id, reason, payload_json FROM events WHERE project_id = ? AND object_id = ? AND type = 'feed_connector.sync_failed'").all(DEMO_PROJECT_ID, source.source_id) as Array<{ actor_id: string; reason: string; payload_json: string }>;
     assert.deepEqual(events, [{ actor_id: "feed-connector-service", reason: "GitHub 同步失败：Provider request failed safely", payload_json: JSON.stringify({ failure: "needs_auth", action: "Reconnect and retry" }) }]);
-    assert.equal(service.feed.listInboxEntries(DEMO_BOARD_ID).find((entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id)?.status, "open");
+    assert.equal(service.feed.listInboxEntries(DEMO_PROJECT_ID).find((entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id)?.status, "open");
   });
 });
 
@@ -664,12 +664,12 @@ test("Connector service preserves cursor and schedules rate-limit recovery witho
       service.sync(source.source_id, { idempotencyKey: "connector-rate-limit-0001" }),
       (error: unknown) => error instanceof FeedDomainError && error.code === "connector_rate_limited",
     );
-    const durable = service.feed.getSource(DEMO_BOARD_ID, source.source_id);
+    const durable = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
     assert.equal(durable.status, "active");
     assert.deepEqual(durable.cursor, { trusted: "cursor" });
     assert.equal(durable.schedule.mode, "interval");
     if (durable.schedule.mode === "interval") assert.equal(durable.schedule.next_pull_at, retryAfterAt);
-    assert.equal(service.feed.listInboxEntries(DEMO_BOARD_ID).some(
+    assert.equal(service.feed.listInboxEntries(DEMO_PROJECT_ID).some(
       (entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id,
     ), false);
   });
@@ -718,9 +718,9 @@ test("Connector interruption is recoverable with the same idempotency key", asyn
       service.sync(source.source_id, { idempotencyKey: "connector-recovery-0001" }),
       (error: unknown) => error instanceof FeedDomainError && error.code === "feed_source_sync_interrupted",
     );
-    const interrupted = service.feed.snapshot(DEMO_BOARD_ID).runs[0]!;
+    const interrupted = service.feed.snapshot(DEMO_PROJECT_ID).runs[0]!;
     assert.equal(interrupted.phase, "interrupted");
-    assert.deepEqual(service.feed.getSource(DEMO_BOARD_ID, source.source_id).cursor, {});
+    assert.deepEqual(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, {});
 
     const retried = await service.sync(source.source_id, { idempotencyKey: "connector-recovery-0001" });
     assert.equal(retried.run.phase, "terminal");
@@ -763,7 +763,7 @@ test("Connector Item dedupe is scoped by Source so Gmail accounts never collide"
 
     await service.sync(legacy.source_id, { idempotencyKey: "gmail-account-one-0001" });
     await service.sync(second.source_id, { idempotencyKey: "gmail-account-two-0001" });
-    const items = service.feed.snapshot(DEMO_BOARD_ID).feed_items;
+    const items = service.feed.snapshot(DEMO_PROJECT_ID).feed_items;
     assert.equal(items.length, 2);
     assert.equal(new Set(items.map((entry) => entry.source_id)).size, 2);
   });
@@ -827,11 +827,11 @@ test("Connector service writes Gmail identity and keeps only explicit Gmail atte
       ],
       molis_work_http_methods: ["GET"],
     });
-    const items = service.feed.snapshot(DEMO_BOARD_ID).feed_items
+    const items = service.feed.snapshot(DEMO_PROJECT_ID).feed_items
       .filter((item) => item.source_id === source.source_id);
     assert.equal(items.find((item) => item.external_id.endsWith(":gmail-attention-1"))?.item_type, "feed");
     assert.equal(items.find((item) => item.external_id.endsWith(":gmail-feed-only-2"))?.item_type, "feed");
-    const inbox = service.feed.listInboxEntries(DEMO_BOARD_ID)
+    const inbox = service.feed.listInboxEntries(DEMO_PROJECT_ID)
       .find((entry) => entry.subject_id === items.find((item) => item.external_id.endsWith(":gmail-attention-1"))?.item_id);
     assert.deepEqual(inbox?.detail, {
       rule: "gmail_attention_v1",

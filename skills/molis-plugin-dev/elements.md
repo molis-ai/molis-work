@@ -85,7 +85,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 方向：人/Agent → 本插件。插件对外的能力就是它声明的 `actions`：动作的 `audiences` 含 `mcp`，用户在「能力 → 对外接入」为某个客户端授权后，它就是 MCP 工具 `molis_work_v1_action_<动作>__v<版本>`。不另外登记 MCP 工具，没有按名称的开关。
 
-- 动作输入只放业务字段；`board_id`、数据库路径、Web 地址、操作者身份都由 Host 注入。
+- 动作输入只放业务字段；`project_id`、数据库路径、Web 地址、操作者身份都由 Host 注入。
 - 个人、不绑项目也能用的动作用 `scope: "home"`；个人插件但按项目分区（Pages / Forms / Dataset / PPT）用 `scope: "project"`，`project_id` 由 Host 注入。
 
 `agent.mcp` 是反方向：插件里的 Agent 能不能调**外面**的 MCP。

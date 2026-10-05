@@ -35,8 +35,7 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
       ? { ...resolution.connection, web_base_url: webBaseUrl, project_url: projectUrl, goal_url_template: `${projectUrl}/goals/{goal_id}` }
       : null;
     ports.connection.accept(connection ? {
-      projectId: connection.project_id, databasePath: connection.database_path,
-      boardId: connection.board_id, webBaseUrl,
+      projectId: connection.project_id, databasePath: connection.database_path, webBaseUrl,
     } : null, host.runtimeContext);
     const accepted = ports.connection.connection;
     const checkContext = () => {

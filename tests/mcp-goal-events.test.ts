@@ -46,11 +46,10 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     };
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, runtimeHost, host);
-    const board_id = project.board_id;
+    const project_id = project.project_id;
     const created = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "互动故事开场", outcome: "玩家能走进洞穴并做一次选择", idempotency_key: "intent-1",
     }));
@@ -130,14 +129,13 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(read.payload.piece, "开场洞穴");
 
     const snapshot = await host.client(molisWorkHostProjectReference({
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
-    })).invoke(snapshotBoardCapability, { board_id });
+      databasePath: project.database_path, projectId: project.project_id,
+    })).invoke(snapshotBoardCapability, { project_id });
     assert.equal("claims" in snapshot || "runs" in snapshot, false, "the retired claim/run protocol has no state");
 
     await mcp.close();
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, runtimeHost, host);
@@ -181,7 +179,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     const beforeReject = afterInvalid.events.length;
     await assert.rejects(
       () => mcp!.callTool("molis_work_v1_action_goals.events.report__v1", {
-        board_id: "other-board", goal_id, idempotency_key: "cross-board",
+        project_id: "other-board", goal_id, idempotency_key: "cross-board",
         events: [{ type_id: "story-delivery", type_version: 1, title: "跨 board", fields: { piece: "不应写入" } }],
       }),
       { code: "actions.input_invalid" },
@@ -207,11 +205,11 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
       { code: "actions.input_invalid" },
     );
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id, board_id }),
+      () => mcp!.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id, project_id }),
       { code: "actions.input_invalid" },
     );
     await assert.rejects(
-      () => mcp!.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id, board_id: null }),
+      () => mcp!.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id, project_id: null }),
       { code: "actions.input_invalid" },
     );
     await assert.rejects(
@@ -222,8 +220,8 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     assert.equal(afterReject.events.length, beforeReject);
 
     const persisted = await host.client(molisWorkHostProjectReference({
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
-    })).invoke(snapshotBoardCapability, { board_id });
+      databasePath: project.database_path, projectId: project.project_id,
+    })).invoke(snapshotBoardCapability, { project_id });
     assert.equal("claims" in persisted || "runs" in persisted, false, "the retired claim/run protocol has no state");
   } finally {
     await mcp?.close();
@@ -251,13 +249,13 @@ test("event report stays persisted when secondary Session indexing fails", async
       }).session_id;
     } finally { registry.close(); }
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id,
+      databasePath: project.database_path, projectId: project.project_id,
       projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-events-activity", host_declares_stable: true },
     }, host);
-    const board_id = project.board_id;
+    const project_id = project.project_id;
     const created = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "记录事件活动", idempotency_key: "intent-activity",
     }));
@@ -296,11 +294,11 @@ test("missing stable Session identity rejects event writes with no Goal or event
     const project = await catalog.createProject({ display_name: "身份拒绝", actor_id: "user" });
     await grantGoalsMcp(host, homeDirectory, project);
     const reference = molisWorkHostProjectReference({
-      databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
+      databasePath: project.database_path, projectId: project.project_id,
     });
-    const before = await host.client(reference).invoke(snapshotBoardCapability, { board_id: project.board_id });
+    const before = await host.client(reference).invoke(snapshotBoardCapability, { project_id: project.project_id });
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id,
+      databasePath: project.database_path, projectId: project.project_id,
       projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
@@ -314,13 +312,13 @@ test("missing stable Session identity rejects event writes with no Goal or event
         && error.code === "mcp.runtime_identity_missing"
         && /稳定 Session/.test(error.message),
     );
-    const after = await host.client(reference).invoke(snapshotBoardCapability, { board_id: project.board_id });
+    const after = await host.client(reference).invoke(snapshotBoardCapability, { project_id: project.project_id });
     assert.equal(after.goals.length, before.goals.length);
     assert.deepEqual(after.goals.map((goal) => goal.goal_id), before.goals.map((goal) => goal.goal_id));
 
     await mcp.close();
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id,
+      databasePath: project.database_path, projectId: project.project_id,
       projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
@@ -363,12 +361,11 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
     };
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, runtimeHost, host);
     store = new LocalProjectDatabase(project.database_path);
-    const board_id = project.board_id;
+    const project_id = project.project_id;
     const call = async (name: string, input: Record<string, unknown>) =>
       JSON.parse(await mcp!.callTool(`molis_work_v1_action_${name}__v1`, { ...input }));
     const parent = await call("goals.create", { title: "用户购买结果", goal_id: "SOURCE-PARENT", idempotency_key: "source-parent" });
@@ -388,17 +385,17 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
     for (const field of ["definition_state", "decomposition_state", "fulfillment_state"]) {
       assert.equal(Object.hasOwn(created.goal, field), false);
     }
-    const finalCursor = Number((store.db.prepare("SELECT MAX(seq) AS n FROM events WHERE board_id=?").get(board_id) as { n: number }).n);
+    const finalCursor = Number((store.db.prepare("SELECT MAX(seq) AS n FROM events WHERE project_id=?").get(project_id) as { n: number }).n);
     assert.equal(created.observed_event_cursor, finalCursor);
     assert.deepEqual(state.requirements.map((item) => item.statement), ["包含真实付款金额"]);
-    assert.equal(store.snapshot(board_id).relations.filter((relation) => relation.from_goal_id === created.goal.goal_id).length, 2);
+    assert.equal(store.snapshot(project_id).relations.filter((relation) => relation.from_goal_id === created.goal.goal_id).length, 2);
     const replay = await call("goals.create", input);
     assert.equal(replay.replayed, true);
     assert.equal(replay.observed_event_cursor, created.observed_event_cursor);
     assert.equal(replay.goal.goal_id, created.goal.goal_id);
     // Naming its own channel is not a forgery; any other channel is refused before anything is written.
     assert.equal((await call("goals.create", { title: "自报来源", goal_id: "SELF-RUNTIME", source_kind: "runtime", idempotency_key: "self-runtime" })).goal.goal_id, "SELF-RUNTIME");
-    const before = store.snapshot(board_id);
+    const before = store.snapshot(project_id);
     for (const source_kind of ["web", "onboarding", "feed", "tree"]) {
       await assert.rejects(
         () => call("goals.create", {
@@ -408,11 +405,11 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
         { code: "actions.input_invalid", message: "只有本人可以指定 Goal 的创建渠道" },
       );
     }
-    assert.deepEqual(store.snapshot(board_id), before);
+    assert.deepEqual(store.snapshot(project_id), before);
     const app = new GoalProjectApplication(store);
     for (let index = 0; index < 45; index++) {
       app.goalEvents.recordNote({
-        board_id,
+        project_id,
         goal_id: created.goal.goal_id,
         actor_id: "runtime:codex:thread-source",
         actor_kind: "runtime",
@@ -427,7 +424,6 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
     host = createMolisWorkLocalHost();
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
-      boardId: project.board_id,
       projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, runtimeHost, host);
@@ -437,7 +433,7 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
     const restartedReplay = await call("goals.create", input);
     assert.equal(restartedReplay.replayed, true);
     assert.equal(restartedReplay.observed_event_cursor, created.observed_event_cursor);
-    assert.equal(store.snapshot(board_id).goals.length, 4, "parent, dependency, the child and the self-declared Runtime Goal");
+    assert.equal(store.snapshot(project_id).goals.length, 4, "parent, dependency, the child and the self-declared Runtime Goal");
   } finally {
     await mcp?.close();
     await host.close();
@@ -457,7 +453,7 @@ test("no-config note and combined report progress persist; implicit focus, illeg
     const project = await catalog.createProject({ display_name: "笔记继续", actor_id: "user" });
     await grantGoalsMcp(host, homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
-      databasePath: project.database_path, boardId: project.board_id,
+      databasePath: project.database_path, projectId: project.project_id,
       projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,

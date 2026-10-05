@@ -80,14 +80,14 @@ test("context_resolve restores Host and Session focus outside the discovery wind
     let tick = Date.parse("2026-09-10T00:00:00.000Z");
     const app = new GoalProjectApplication(store, () => new Date(tick++));
     const create = (goal_id: string, title: string) => app.goalEvents.createIntent({
-      board_id: project.board_id, goal_id, title, actor_id: "focus-user", actor_kind: "user",
+      project_id: project.project_id, goal_id, title, actor_id: "focus-user", actor_kind: "user",
       idempotency_key: `focus-create-${goal_id}`, source_kind: "web",
     });
     create("FOCUS-HOST", "明确的 Host 目标");
     create("FOCUS-SESSION", "原 Session 正在处理的目标");
     for (let i = 0; i < 105; i++) create(`FOCUS-RECENT-${String(i).padStart(3, "0")}`, `后续记录目标 ${i + 1}`);
     assert.equal(
-      app.goalEvents.listGoals({ board_id: project.board_id, limit: 100 }).goals
+      app.goalEvents.listGoals({ project_id: project.project_id, limit: 100 }).goals
         .some((item) => item.goal_id === "FOCUS-HOST" || item.goal_id === "FOCUS-SESSION"),
       false,
     );
@@ -112,7 +112,7 @@ test("context_resolve restores Host and Session focus outside the discovery wind
       actor_id: "focus-user", user_confirmed: true,
     });
     const connection = {
-      databasePath: project.database_path, boardId: project.board_id,
+      databasePath: project.database_path, projectId: project.project_id,
       projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
     };
     runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);

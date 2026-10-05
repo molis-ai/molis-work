@@ -16,7 +16,7 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "授权范围", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path, boardId: project.board_id });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path, projectId: project.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   let connected = true, calls = 0;
   const id = `unknown.${randomUUID()}`;
@@ -60,7 +60,7 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     const page = await fetch(`${origin}/capabilities/access?client=${input.client_id}&project=${input.project_id}`);
     assert.equal(page.status, 200);
     assert.match(await page.text(), /runtime:external/);
-    const external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id, boardId: project.board_id,
+    const external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id,
       databasePath: project.database_path, webBaseUrl: origin }, { homeDirectory: home,
       runtimeContext: { runtime_id: "external", stable_work_context_id: null, host_declares_stable: false } }, host);
     const reply = await external.handleMessage({ id: 1, method: "tools/call", params: {

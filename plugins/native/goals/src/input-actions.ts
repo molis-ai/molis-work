@@ -39,20 +39,20 @@ export function boundGoalObjects(records: readonly GoalInputBindingRecord[], goa
   });
 }
 
-export function createGoalsInputActionHandlers(boardId: string, inputs: Pick<GoalInputBindingsApi, "list" | "register" | "deactivate">, goalExists: (goalId: string) => boolean): ActionHandlerBinding[] {
+export function createGoalsInputActionHandlers(projectId: string, inputs: Pick<GoalInputBindingsApi, "list" | "register" | "deactivate">, goalExists: (goalId: string) => boolean): ActionHandlerBinding[] {
   const view = (record: GoalInputBindingRecord): GoalBoundObject | null => {
     const subjectRef = parseGoalPluginObjectRef(record.source_ref);
     return record.source_type === GOAL_PLUGIN_OBJECT_SOURCE && subjectRef ? { binding_id: record.binding_id, goal_id: record.goal_id, subject: subjectRef,
       title: record.input_name, state: record.state, created_at: record.created_at } : null;
   };
-  const active = () => inputs.list(boardId).map(view).filter((item): item is GoalBoundObject => !!item && item.state !== "inactive");
+  const active = () => inputs.list(projectId).map(view).filter((item): item is GoalBoundObject => !!item && item.state !== "inactive");
   return [
     { ...goalsInputActions.bind, handle: (caller, input) => {
       const value = input as { goal_id: string; subject: { kind: string; id: string }; title: string };
       if (!goalExists(value.goal_id)) throw new ActionError("goals.not_found", "找不到这个目标");
       const existing = active().find(item => item.goal_id === value.goal_id && item.subject.kind === value.subject.kind && item.subject.id === value.subject.id);
       if (existing) return { binding: existing, replayed: true };
-      const record: GoalInputBindingRecord = { binding_id: crypto.randomUUID(), board_id: boardId, goal_id: value.goal_id, input_name: value.title.slice(0, 200),
+      const record: GoalInputBindingRecord = { binding_id: crypto.randomUUID(), project_id: projectId, goal_id: value.goal_id, input_name: value.title.slice(0, 200),
         source_type: GOAL_PLUGIN_OBJECT_SOURCE, source_ref: goalPluginObjectRef(value.subject), snapshot_digest: null, state: "confirmed",
         reason: "用户关联的资料", created_by: goalActor(caller).actor_id, created_at: new Date().toISOString() };
       inputs.register(record);
@@ -60,10 +60,10 @@ export function createGoalsInputActionHandlers(boardId: string, inputs: Pick<Goa
     } },
     { ...goalsInputActions.release, handle: (_caller, input) => {
       const value = input as { goal_id: string; binding_id: string };
-      const found = inputs.list(boardId).find(item => item.binding_id === value.binding_id && item.goal_id === value.goal_id);
+      const found = inputs.list(projectId).find(item => item.binding_id === value.binding_id && item.goal_id === value.goal_id);
       if (!found || found.source_type !== GOAL_PLUGIN_OBJECT_SOURCE) throw new ActionError("goals.not_found", "找不到这条资料关联");
       if (!inputs.deactivate) throw new ActionError("actions.unavailable", "当前环境不能移除资料关联");
-      return { released: inputs.deactivate(boardId, value.binding_id) };
+      return { released: inputs.deactivate(projectId, value.binding_id) };
     } },
     { ...goalsInputActions.list, handle: (_caller, input) => {
       const value = (input ?? {}) as { goal_id?: string | null; subject?: { kind: string; id: string } | null };

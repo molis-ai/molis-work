@@ -69,7 +69,7 @@ function adapterFor(process: CliProcessPort, model: string | null = "claude-opus
 
 async function startRun(adapter: CliAgentAdapter) {
   const session = await adapter.createSession({
-    board_id: BOARD,
+    project_id: BOARD,
     plugin_id: PLUGIN,
     install_id: "install-1",
     actor_id: "tester",
@@ -78,7 +78,7 @@ async function startRun(adapter: CliAgentAdapter) {
   });
   const request: AgentStartRequest = {
     session,
-    board_id: BOARD,
+    project_id: BOARD,
     plugin_id: PLUGIN,
     install_id: "install-1",
     actor_id: "tester",
@@ -273,7 +273,7 @@ test("the Host refuses a writing role on this runtime, because approvals do not 
   await assert.rejects(
     () => host.start("claude-code", {
       session: { session_id: "s", runtime_id: "claude-code" },
-      board_id: BOARD,
+      project_id: BOARD,
       plugin_id: PLUGIN,
       install_id: "install-1",
       actor_id: "tester",
@@ -290,7 +290,7 @@ test("without a frozen role the adapter refuses instead of running an unshaped a
   const fake = fakeProcess();
   const adapter = adapterFor(fake.port);
   const session = await adapter.createSession({
-    board_id: BOARD,
+    project_id: BOARD,
     plugin_id: PLUGIN,
     install_id: "install-1",
     actor_id: "tester",
@@ -301,7 +301,7 @@ test("without a frozen role the adapter refuses instead of running an unshaped a
   await assert.rejects(
     () => adapter.start({
       session,
-      board_id: BOARD,
+      project_id: BOARD,
       plugin_id: PLUGIN,
       install_id: "install-1",
       actor_id: "tester",
@@ -322,14 +322,14 @@ test("the Host freezes the role from the Plugin's own declarations", async () =>
 
   const handle = await host.start("claude-code", {
     session: await adapterFor(fake.port).createSession({
-      board_id: BOARD,
+      project_id: BOARD,
       plugin_id: PLUGIN,
       install_id: "install-1",
       actor_id: "tester",
       directory: { canonical_path: DIRECTORY, realpath_verified: true },
       title: "任务",
     }),
-    board_id: BOARD,
+    project_id: BOARD,
     plugin_id: PLUGIN,
     install_id: "install-1",
     actor_id: "tester",

@@ -61,7 +61,7 @@ describe("cross-task work reuse through original Alchemist owners", { timeout: 3
     const result=await f.run(plan.id);expect(result.workspace.lenses.market_space.run!.errorCode).toBe("REUSE_SOURCE_UNAVAILABLE");
     expect((await f.call(a.reuseReceipt,{planId:plan.id})).receipt).toBeNull();
     f.afterGenerate();f.deny(false);
-    f.artifacts.commands.archiveVersion({board_id:"board-test",actor_id:"actor-local",...reference});
+    f.artifacts.commands.archiveVersion({project_id:"board-test",actor_id:"actor-local",...reference});
     await expect(f.plan(reuse)).rejects.toMatchObject({code:"REUSE_SOURCE_WITHDRAWN"});
     expect((await f.call(a.reuseCandidates,{intent:"再开始",directionId:f.direction.id})).artifacts).toHaveLength(0);
   });

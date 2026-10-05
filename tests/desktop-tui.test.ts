@@ -12,7 +12,7 @@ import { desktopAdvancePrompt, desktopLaunchSpec, desktopPanelEnv } from "@molis
 import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-app-desktop";
@@ -150,14 +150,14 @@ async function openAuthedPty(port: number): Promise<WebSocket> {
 }
 
 function addProjectGoal(
-  project: { database_path: string; board_id: string },
+  project: { database_path: string; project_id: string },
   goalId: string,
   title: string,
 ): void {
   const store = new LocalProjectDatabase(project.database_path);
   try {
     new GoalProjectApplication(store).goals.commands.createGoal(
-      project.board_id,
+      project.project_id,
       {
         goal_id: goalId,
         title,
@@ -176,7 +176,7 @@ function addProjectGoal(
 }
 
 function addProjectFeedItem(
-  project: { database_path: string; board_id: string },
+  project: { database_path: string; project_id: string },
   itemId: string,
   options: { openInbox?: boolean } = {},
 ): void {
@@ -186,12 +186,12 @@ function addProjectFeedItem(
   try {
     store.db.prepare(`
       INSERT INTO feed_sources (
-        board_id, source_id, kind, name, description, status, enabled, item_count,
+        project_id, source_id, kind, name, description, status, enabled, item_count,
         origin, last_sync_at, last_outcome, last_error_code, imported_at, updated_at
-      ) VALUES (@board_id, @source_id, @source_kind, @source_label, '测试来源', 'active', 1, 1,
+      ) VALUES (@project_id, @source_id, @source_kind, @source_label, '测试来源', 'active', 1, 1,
         'molis_work', @now, 'completed', NULL, @now, @now)
     `).run({
-      board_id: project.board_id,
+      project_id: project.project_id,
       source_id: inbox ? "source-test-inbox" : "source-test",
       source_kind: inbox ? "github" : "rss",
       source_label: inbox ? "GitHub" : "测试 RSS",
@@ -199,18 +199,18 @@ function addProjectFeedItem(
     });
     store.db.prepare(`
       INSERT INTO feed_items (
-        board_id, item_id, source_id, kind, title, summary, body,
+        project_id, item_id, source_id, kind, title, summary, body,
         source_kind, source_label, external_id, url, origin_status, priority,
         tags_json, author, disposition, revision, source_created_at,
         source_updated_at, imported_at, updated_at
       ) VALUES (
-        @board_id, @item_id, @source_id, @kind, @title,
+        @project_id, @item_id, @source_id, @kind, @title,
         '验证升格、绑定和终端上下文', '正文里包含需要核对的事实\nAuthorization: Bearer runtime-secret-token', @source_kind, @source_label,
         @external_id, 'https://example.com/feed-item?access_token=url-secret-value', 'inbox', 'high', '["rss"]',
         '测试作者', 'inbox', 1, @now, @now, @now, @now
       )
     `).run({
-      board_id: project.board_id,
+      project_id: project.project_id,
       item_id: itemId,
       source_id: inbox ? "source-test-inbox" : "source-test",
       kind: inbox ? "github_issue" : "article",
@@ -222,7 +222,7 @@ function addProjectFeedItem(
     });
     if (inbox) {
       createLocalFeedApplication(store.db).ensureInboxEntryForFeedItem(
-        project.board_id,
+        project.project_id,
         itemId,
         "source_rule",
         { rule_id: "desktop-tui-fixture" },
@@ -230,16 +230,16 @@ function addProjectFeedItem(
     }
     store.db.prepare(`
       INSERT INTO feed_materials (
-        board_id, material_id, item_id, canonical_url, title, source_name,
+        project_id, material_id, item_id, canonical_url, title, source_name,
         published_at, preview, content_hash, provenance_json, selected_for_context,
         imported_at, updated_at
       ) VALUES (
-        @board_id, 'material-test', @item_id, 'https://example.com/material',
+        @project_id, 'material-test', @item_id, 'https://example.com/material',
         @material_title, @source_label, @now, '资料预览会进入上下文\nclient_secret=material-secret-value', 'sha256:test',
         '{"provider":"rss"}', 1, @now, @now
       )
     `).run({
-      board_id: project.board_id,
+      project_id: project.project_id,
       item_id: itemId,
       material_title: inbox ? "Inbox 来源资料" : "测试来源资料",
       source_label: inbox ? "GitHub" : "测试 RSS",
@@ -251,7 +251,7 @@ function addProjectFeedItem(
 }
 
 function addProjectAcceptedGoal(
-  project: { database_path: string; board_id: string },
+  project: { database_path: string; project_id: string },
   goalId: string,
   title: string,
   decompositionState: "closed_leaf" | "closed_compound",
@@ -259,7 +259,7 @@ function addProjectAcceptedGoal(
   const store = new LocalProjectDatabase(project.database_path);
   try {
     new GoalProjectApplication(store).goals.commands.createGoal(
-      project.board_id,
+      project.project_id,
       {
         goal_id: goalId,
         title,
@@ -287,14 +287,14 @@ function addProjectAcceptedGoal(
 }
 
 function addProjectChildRelation(
-  project: { database_path: string; board_id: string },
+  project: { database_path: string; project_id: string },
   childGoalId: string,
   parentGoalId: string,
 ): void {
   const store = new LocalProjectDatabase(project.database_path);
   try {
     new GoalProjectApplication(store).goals.commands.addRelation(
-      project.board_id,
+      project.project_id,
       {
         from_goal_id: childGoalId,
         to_goal_id: parentGoalId,
@@ -550,7 +550,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
   try {
     const view = buildMolisWorkWebView(store, coordinator, {
       databasePath,
-      boardId: DEMO_BOARD_ID,
+      projectId: DEMO_PROJECT_ID,
       demo: true,
     });
     const workbenchAssets = `<style>${renderMolisWorkWorkbenchStylesheet()}</style><script>${renderMolisWorkWorkbenchClientScript()}</script>`;
@@ -1040,7 +1040,7 @@ test("compound parent terminals become read-only and direct execution APIs requi
       // matching cursor event just as every supported product write does.
       completionStore.appendEvent({
         eventId: "desktop-tui-compound-completed",
-        boardId: fixture.project.board_id,
+        projectId: fixture.project.project_id,
         actorId: "test-user",
         type: "test.fixture.updated",
         objectType: "goal",
@@ -1252,8 +1252,8 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     try {
       const binding = store.db.prepare(`
         SELECT source_type, source_ref, state FROM input_bindings
-        WHERE board_id = ? AND goal_id = ?
-      `).get(fixture.project.board_id, startedBody.goal_id) as {
+        WHERE project_id = ? AND goal_id = ?
+      `).get(fixture.project.project_id, startedBody.goal_id) as {
         source_type: string;
         source_ref: string;
         state: string;
@@ -1263,20 +1263,20 @@ test("Feed Item actions create one bound Goal and expose its source context to T
         source_ref: "",
         state: "confirmed",
       });
-      const receipt = new GoalProjectApplication(store).goalInputs.list(fixture.project.board_id)
+      const receipt = new GoalProjectApplication(store).goalInputs.list(fixture.project.project_id)
         .find((input) => input.goal_id === startedBody.goal_id);
       assert.equal(receipt?.source_ref, "feed-item:feed-item-test");
       assert.equal(receipt?.state, "confirmed");
       const item = store.db.prepare(`
-        SELECT disposition, read_at FROM feed_items WHERE board_id = ? AND item_id = ?
-      `).get(fixture.project.board_id, "feed-item-test") as {
+        SELECT disposition, read_at FROM feed_items WHERE project_id = ? AND item_id = ?
+      `).get(fixture.project.project_id, "feed-item-test") as {
         disposition: string;
         read_at: string | null;
       };
       assert.equal(item.disposition, "processing");
       assert.equal((store.db.prepare("SELECT name FROM pragma_table_info('feed_items')").all() as Array<{ name: string }>)
         .some((column) => column.name === "linked_goal_id"), false, "Feed 不再保存第二份关联事实");
-      assert.equal(createLocalFeedApplication(store.db).findLinkedGoalItem(fixture.project.board_id, startedBody.goal_id)?.item_id, "feed-item-test");
+      assert.equal(createLocalFeedApplication(store.db).findLinkedGoalItem(fixture.project.project_id, startedBody.goal_id)?.item_id, "feed-item-test");
       assert.equal(item.read_at, readBody.item.read_at);
     } finally {
       store.close();
@@ -1363,7 +1363,7 @@ test("Feed start reuses one Draft Goal across repeat clicks and a Web restart", 
 
   const store = new LocalProjectDatabase(fixture.project.database_path);
   try {
-    const bindings = new GoalProjectApplication(store).goalInputs.list(fixture.project.board_id)
+    const bindings = new GoalProjectApplication(store).goalInputs.list(fixture.project.project_id)
       .filter((input) => input.source_type === "feed_item" && input.source_ref === `feed-item:${itemId}`);
     assert.equal(bindings.length, 1);
   } finally {
@@ -1488,21 +1488,21 @@ test("Inbox Message save and start survives a Web restart without duplicating it
   try {
     const item = store.db.prepare(`
       SELECT disposition, read_at FROM feed_items
-      WHERE board_id = ? AND item_id = ?
-    `).get(fixture.project.board_id, itemId) as {
+      WHERE project_id = ? AND item_id = ?
+    `).get(fixture.project.project_id, itemId) as {
       disposition: string;
       read_at: string | null;
     };
     const goal = store.db.prepare(`
-      SELECT title FROM goals WHERE board_id = ? AND goal_id = ?
-    `).get(fixture.project.board_id, goalId) as { title: string };
-    const bindings = new GoalProjectApplication(store).goalInputs.list(fixture.project.board_id)
+      SELECT title FROM goals WHERE project_id = ? AND goal_id = ?
+    `).get(fixture.project.project_id, goalId) as { title: string };
+    const bindings = new GoalProjectApplication(store).goalInputs.list(fixture.project.project_id)
       .filter((input) => input.goal_id === goalId && input.source_type === "feed_item" && input.source_ref === `feed-item:${itemId}`);
     const materialCount = store.db.prepare(`
-      SELECT COUNT(*) AS count FROM feed_materials WHERE board_id = ? AND item_id = ?
-    `).get(fixture.project.board_id, itemId) as { count: number };
+      SELECT COUNT(*) AS count FROM feed_materials WHERE project_id = ? AND item_id = ?
+    `).get(fixture.project.project_id, itemId) as { count: number };
     assert.deepEqual(item, { disposition: "processing", read_at: null });
-    assert.equal(createLocalFeedApplication(store.db).findLinkedGoalItem(fixture.project.board_id, goalId, itemId)?.linked_goal_id, goalId);
+    assert.equal(createLocalFeedApplication(store.db).findLinkedGoalItem(fixture.project.project_id, goalId, itemId)?.linked_goal_id, goalId);
     assert.equal(goal.title, "处理 Feed Item：需要处理的 Inbox Message");
     assert.equal(bindings.length, 1);
     assert.equal(materialCount.count, 1);
@@ -1520,7 +1520,7 @@ test("TUI menu greys out runtimes whose CLI is missing", () => {
   try {
     const view = buildMolisWorkWebView(store, coordinator, {
       databasePath,
-      boardId: DEMO_BOARD_ID,
+      projectId: DEMO_PROJECT_ID,
       demo: true,
     });
     const withMissing = renderMolisWorkWeb(

@@ -14,8 +14,8 @@ async function fixture(t:test.TestContext) {
   const home=await mkdtemp(join(tmpdir(),'images-actions-'));
   const hosts:MolisWorkLocalHost[]=[];
   const open=()=>{const host=new MolisWorkLocalHost({homeDirectory:home});hosts.push(host);return host;};
-  const host=open(), ref=molisWorkHostProjectReference({databasePath:join(home,'project.sqlite'),boardId:'board',projectId:'a'});
-  const bind=(host:MolisWorkLocalHost,projectId:string|null='a',permissions:readonly string[]=IMAGES_ACTION_PERMISSIONS)=>bindActionClient(projectId?host.actionClient(projectId === 'a' ? ref : molisWorkHostProjectReference({databasePath:join(home,`${projectId}.sqlite`),boardId:projectId,projectId})):host.homeActionClient(),()=>({actor_id:'owner',project_id:projectId,audience:'user',permissions}));
+  const host=open(), ref=molisWorkHostProjectReference({databasePath:join(home,'project.sqlite'),projectId: 'board'});
+  const bind=(host:MolisWorkLocalHost,projectId:string|null='a',permissions:readonly string[]=IMAGES_ACTION_PERMISSIONS)=>bindActionClient(projectId?host.actionClient(projectId === 'a' ? ref : molisWorkHostProjectReference({databasePath:join(home,`${projectId}.sqlite`),projectId:projectId})):host.homeActionClient(),()=>({actor_id:'owner',project_id:projectId,audience:'user',permissions}));
   t.after(async()=>{await Promise.all(hosts.map(host=>host.close()));await rm(home,{recursive:true,force:true});});
   return {home,host,open,bind,client:bind(host),global:bind(host,null)};
 }

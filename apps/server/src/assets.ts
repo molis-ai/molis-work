@@ -8,7 +8,7 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ImError } from "@molis-ai/molis-work-server";
 
-type Asset = Omit<RegisterArtifactVersionInput,"board_id"|"actor_id"|"team_share_authorized"> & {
+type Asset = Omit<RegisterArtifactVersionInput,"project_id"|"actor_id"|"team_share_authorized"> & {
   owner_actor_id:string;availability:"available"|"unavailable";lifecycle_state:"active"|"archived";source_supersedes_version:number|null;
 };
 export interface AssetBundle {
@@ -48,10 +48,10 @@ export async function restoreWorkAssets(value: unknown, directory: string) {
     const artifacts=new GoalProjectApplication(store).artifacts;
     const restored=store.immediate(()=>bundle.artifacts.map(asset=>{
       const {owner_actor_id,availability,lifecycle_state,source_supersedes_version:_source,...record}=asset;
-      const result=artifacts.commands.registerVersion({...record,board_id:project.board_id,actor_id:owner_actor_id,team_share_authorized:record.scope === "team_project"});
+      const result=artifacts.commands.registerVersion({...record,project_id:project.project_id,actor_id:owner_actor_id,team_share_authorized:record.scope === "team_project"});
       const version={artifact_id:asset.artifact_id,version:asset.version};
-      if(availability === "unavailable")artifacts.commands.markUnavailable({board_id:project.board_id,actor_id:owner_actor_id,...version,reason:"原成果不可用，需要重新连接来源"});
-      if(lifecycle_state === "archived")artifacts.commands.archiveVersion({board_id:project.board_id,actor_id:owner_actor_id,...version});
+      if(availability === "unavailable")artifacts.commands.markUnavailable({project_id:project.project_id,actor_id:owner_actor_id,...version,reason:"原成果不可用，需要重新连接来源"});
+      if(lifecycle_state === "archived")artifacts.commands.archiveVersion({project_id:project.project_id,actor_id:owner_actor_id,...version});
       return result;
     }));
     const installedPlugins=new SqlitePluginRuntimeRepository(store.db).list();
@@ -59,7 +59,7 @@ export async function restoreWorkAssets(value: unknown, directory: string) {
       ...bundle.artifacts.filter(a=>a.content.kind === "reference").map(a=>`成果 ${a.artifact_id} v${a.version} 需要重新连接来源；未导入私人凭据。`),
       "目标接续摘要可读取；原项目的完整执行历史、权限和完成验收未迁移。"];
     atomicWriteFileSync(snapshotPath,JSON.stringify({...snapshot,title:bundle.title,goals:bundle.goals,warnings},null,2));
-    return {restored:restored.length,project_id:project.project_id,board_id:project.board_id,warnings};
+    return {restored:restored.length,project_id: project.project_id,warnings};
   } finally {store.close();}
 }
 /** The regular local Host and Artifact browser can read the restored versions. */
@@ -69,7 +69,7 @@ export async function readRestoredAssets(directory: string, sourceProjectId: str
   const project=await withCatalog({homeDirectory:directory},catalog=>catalog.getProject(snapshot.project_id));
   const store=new LocalProjectDatabase(project.database_path,{existingOnly:true});
   try {
-    const artifacts=new GoalProjectApplication(store).artifacts.query.listArtifacts(project.board_id);
+    const artifacts=new GoalProjectApplication(store).artifacts.query.listArtifacts(project.project_id);
     return {title:project.display_name,goals:snapshot.goals,artifacts,warnings:snapshot.warnings};
   } finally {store.close();}
 }

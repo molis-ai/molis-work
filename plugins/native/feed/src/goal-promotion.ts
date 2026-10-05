@@ -10,7 +10,7 @@ export interface FeedGoalPromotionPorts {
   feed: FeedApplication;
   goalQuery: Pick<GoalsQueryApi, "getGoal">;
   createIntent: (input: {
-    board_id: string;
+    project_id: string;
     title: string;
     outcome?: string;
     why?: string;
@@ -25,7 +25,7 @@ export interface FeedGoalPromotionPorts {
   transaction<T>(operation: () => T): T;
 }
 export interface FeedGoalPromotionInput {
-  boardId: string;
+  projectId: string;
   routePrefix: string;
   itemId: string;
   startProcessing: boolean;
@@ -38,7 +38,7 @@ export function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input: Feed
   const { feed } = ports;
   const { itemId, startProcessing, expectedRevision } = input;
   return ports.transaction(() => {
-    const item = ports.hydrateItem(feed.getItem(input.boardId, itemId));
+    const item = ports.hydrateItem(feed.getItem(input.projectId, itemId));
     if (expectedRevision != null && expectedRevision !== item.revision) {
       throw new FeedStoreError("feed_revision_conflict", "这条 Item 已经变化，请刷新后重试");
     }
@@ -46,11 +46,11 @@ export function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input: Feed
       throw new FeedStoreError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
     }
     const existingGoal = item.linked_goal_id
-      ? ports.goalQuery.getGoal(input.boardId, item.linked_goal_id)
+      ? ports.goalQuery.getGoal(input.projectId, item.linked_goal_id)
       : null;
     if (existingGoal && existingGoal.trashed_at === null && existingGoal.archived_at === null) {
       const linked = startProcessing && item.disposition !== "processing"
-        ? feed.linkGoal(input.boardId, itemId, existingGoal.goal_id, "processing")
+        ? feed.linkGoal(input.projectId, itemId, existingGoal.goal_id, "processing")
         : item;
       return {
         item: linked,
@@ -64,7 +64,7 @@ export function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input: Feed
     const sourceTitle = item.title.trim().replace(/[\u0000-\u001f\u007f]/gu, " ").slice(0, 104) || "未命名内容";
     const itemTypeLabel = "Feed Item";
     const created = ports.createIntent({
-      board_id: input.boardId,
+      project_id: input.projectId,
       title: `处理 ${itemTypeLabel}：${sourceTitle}`.slice(0, 120),
       outcome: `判断并处理这条 ${itemTypeLabel}，并留下可核对的结果。`,
       why: "这条外部输入可能影响当前项目，需要由用户和 Runtime 判断它的价值，而不是直接照做。",
@@ -76,7 +76,7 @@ export function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input: Feed
     });
     const now = new Date().toISOString();
     ports.goalInputs.register({
-      binding_id: `binding-feed-${randomUUID()}`, board_id: input.boardId,
+      binding_id: `binding-feed-${randomUUID()}`, project_id: input.projectId,
       goal_id: created.goal.goal_id, input_name: `${itemTypeLabel} 输入`,
       source_type: "feed_item", source_ref: `feed-item:${item.item_id}`,
       snapshot_digest: `sha256:${createHash("sha256").update(context).digest("hex")}`,
@@ -84,7 +84,7 @@ export function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input: Feed
       created_by: input.actorId ?? LOCAL_PERSON_ACTOR_ID, created_at: now,
     });
     const linked = feed.linkGoal(
-      input.boardId,
+      input.projectId,
       item.item_id,
       created.goal.goal_id,
       startProcessing ? "processing" : "promoted",

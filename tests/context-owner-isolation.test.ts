@@ -20,17 +20,17 @@ test("losing the Ledger does not delete Goal, Artifact or Feed content or recrea
     const coordinator = new GoalProjectApplication(store);
     const ledger = createContextLedger(store.db, { authorize: () => true });
     let feed: FeedModule;
-    const attention = new AttentionModule(store.db, { exists: (boardId, _type, id) => feed.query.exists(boardId, id) });
+    const attention = new AttentionModule(store.db, { exists: (projectId, _type, id) => feed.query.exists(projectId, id) });
     feed = new FeedModule(store.db, attention, { ledger });
     return { coordinator, ledger, feed, attention };
   };
   try {
     const first = compose();
-    first.coordinator.initializeBoard({ board_id: "project", title: "Original project", actor_id: "user", idempotency_key: "board" });
+    first.coordinator.initializeBoard({ project_id: "project", title: "Original project", actor_id: "user", idempotency_key: "board" });
     first.coordinator.goals.commands.createGoal("project", { goal_id: "goal", title: "Original goal", outcome: "Report",
       why: "User requirement", business_logic: "Preserve content", acceptance_criteria: [] }, { actor_id: "user", idempotency_key: "goal" });
     const goal = first.coordinator.goalQueries.readGoalContract("project", "goal").goal;
-    const artifact = first.coordinator.artifacts.commands.registerVersion({ ...pinnedArtifact("Original report"), board_id: "project", artifact_id: "report", version: 1,
+    const artifact = first.coordinator.artifacts.commands.registerVersion({ ...pinnedArtifact("Original report"), project_id: "project", artifact_id: "report", version: 1,
       actor_id: "user", artifact_type_id: "io.example.report", schema_version: 1,
       producer: { plugin_id: "io.example.writer", plugin_version: "1.0.0", binding_signature: "official-writer" },
       content: { kind: "inline", payload: { text: "Original report", custom: [1, 2] } }, metadata: {} }).artifact;

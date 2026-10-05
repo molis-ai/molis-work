@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { inboxActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
 import { publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import type { ActionCallContext, ActionDefinition, ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -14,7 +14,7 @@ import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-h
 test("Inbox consumes a registered judgment, retains the original binding and history across restart, and rejects stale results", async () => {
   const home = await mkdtemp(join(tmpdir(), "inbox-action-scene-"));
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId: DEMO_BOARD_ID, projectId: "canonical-inbox-project" });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
   const inputs: string[] = [];
   let duringJudgment: (() => void) | undefined;
@@ -32,9 +32,9 @@ test("Inbox consumes a registered judgment, retains the original binding and his
   try {
     const entry = await host.withProject(reference, runtime => {
       const feed = createLocalFeedApplication(runtime.store.db);
-      const source = createLocalFeedSourceService(runtime.store.db, runtime.board_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "inbox-scene-test" }).source;
+      const source = createLocalFeedSourceService(runtime.store.db, runtime.project_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "inbox-scene-test" }).source;
       const item = feed.ingestItem({ source, externalId: "article-1", title: "核对发布说明", summary: "尚未确认的数据", body: "原文内容", occurredAt: new Date().toISOString(), attention: false }).item;
-      return feed.ensureInboxEntryForFeedItem(runtime.board_id, item.item_id, "manual").entry;
+      return feed.ensureInboxEntryForFeedItem(runtime.project_id, item.item_id, "manual").entry;
     });
     const rule = withFunctionsService(home, service => service.list().find(rule => rule.function_key === "system_pick_inbox_next")!, options);
     const fn = publishedFunctionAction(rule);
@@ -51,19 +51,19 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     const result = await actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }) as { judgments: JudgmentRecord[] };
     assert.equal(result.judgments.length, 1);
     assert.deepEqual(result.judgments[0]!.suggested_behavior_ids, ["inbox.done"]);
-    assert.deepEqual(result.judgments[0]!.subject, { kind: "inbox_entry", id: entry.entry_id, board_id: reference.board_id });
+    assert.deepEqual(result.judgments[0]!.subject, { kind: "inbox_entry", id: entry.entry_id, project_id: reference.project_id });
     const recommendations = async () => (await actions.invoke(caller, inboxActions.recommendations, {}) as { judgments: JudgmentRecord[] }).judgments;
     assert.deepEqual(await recommendations(), result.judgments);
     assert.equal((await actions.invoke(caller, inboxActions.readJudgment, {}) as InboxJudgmentState).summary?.available, true);
     assert.equal(history().length, 1, "the scene commits one consumer history, not an extra MCP invocation record");
     assert.match(inputs[0]!, /原文内容/);
     await host.withProject(reference, runtime => {
-      assert.equal(createLocalFeedApplication(runtime.store.db).getInboxEntry(runtime.board_id, entry.entry_id).status, "open", "a suggestion cannot complete the item");
+      assert.equal(createLocalFeedApplication(runtime.store.db).getInboxEntry(runtime.project_id, entry.entry_id).status, "open", "a suggestion cannot complete the item");
       const events = runtime.store.db.prepare("SELECT * FROM events WHERE object_id = ?").all(result.judgments[0]!.judgment_id);
       assert.equal(events.length, 1, "Feed receives the actual judgment event");
     });
     // Rebinding to the same function is still a changed configuration revision.
-    duringJudgment = () => withFunctionsService(home, service => service.saveActionSceneBinding(reference.board_id, { ...before[0]!, title: "changed while waiting" }), options);
+    duringJudgment = () => withFunctionsService(home, service => service.saveActionSceneBinding(reference.project_id, { ...before[0]!, title: "changed while waiting" }), options);
     await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.binding_changed" });
     assert.equal(history().length, 1);
     duringJudgment = () => { disabled = true; };
@@ -98,7 +98,7 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     const summary = (await actions.invoke(caller, inboxActions.readJudgment, {}) as InboxJudgmentState).summary!;
     assert.equal(summary.name, "本地规则"); assert.equal(summary.available, true);
     const legacy = withFunctionsService(home, service => service.recordSceneJudgment({ function_key: unknown.capability_id, function_version: 1,
-      subject: { kind: "inbox_entry", id: entry.entry_id, board_id: reference.board_id }, scene_id: inboxNextScene.scene_id,
+      subject: { kind: "inbox_entry", id: entry.entry_id, project_id: reference.project_id }, scene_id: inboxNextScene.scene_id,
       outcome: "ok", suggested_behavior_ids: ["inbox.done"], error_code: null }), options);
     assert.deepEqual(await recommendations(), [], "old history without binding and content provenance is retained but cannot claim current advice");
     const consumed = await scenes.runScene(caller, inboxNextScene, inboxSceneBindingId(reference.project_id), { entry_id: entry.entry_id }) as JudgmentRecord;
@@ -106,7 +106,7 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     assert.deepEqual(consumed.suggested_behavior_ids, ["inbox.done"]);
     assert.equal(history().length, 3);
     assert.deepEqual(await recommendations(), [consumed]);
-    await host.withProject(reference, runtime => runtime.store.db.prepare("UPDATE feed_items SET body = ? WHERE item_id = ? AND board_id = ?").run("原文已更正", entry.subject_id, reference.board_id));
+    await host.withProject(reference, runtime => runtime.store.db.prepare("UPDATE feed_items SET body = ? WHERE item_id = ? AND project_id = ?").run("原文已更正", entry.subject_id, reference.project_id));
     assert.deepEqual(await recommendations(), [], "changing the underlying material also withdraws advice without changing the Inbox entry");
     assert.ok(history().some(record => record.judgment_id === consumed.judgment_id));
     assert.ok(history().some(record => record.judgment_id === legacy.judgment_id));
@@ -131,12 +131,12 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     assert.equal(history().length, count, "revoking the initiating operation while its judgment runs must prevent history consumption");
     // Change the actual entry while the provider is executing, through its business owner.
     const feed = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db));
-    unknownEffect = () => feed.setInboxEntryStatus(reference.board_id, entry.entry_id, "in_progress", entry.revision);
+    unknownEffect = () => feed.setInboxEntryStatus(reference.project_id, entry.entry_id, "in_progress", entry.revision);
     await assert.rejects(scenes.runScene(caller, inboxNextScene, binding.binding_id, { entry_id: entry.entry_id }), { code: "actions.subject_changed" });
     assert.equal(history().length, count);
     assert.deepEqual(await recommendations(), [], "an edited entry invalidates previously saved advice");
-    const current = feed.getInboxEntry(reference.board_id, entry.entry_id);
-    feed.setInboxEntryStatus(reference.board_id, entry.entry_id, "dismissed", current.revision);
+    const current = feed.getInboxEntry(reference.project_id, entry.entry_id);
+    feed.setInboxEntryStatus(reference.project_id, entry.entry_id, "dismissed", current.revision);
     await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.subject_unavailable" });
     assert.equal(history().length, count);
     stop();

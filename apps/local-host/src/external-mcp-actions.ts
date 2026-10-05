@@ -8,7 +8,7 @@ const OUTPUT: ActionSchema = { type: "object", properties: { text: { type: "stri
 const VERSIONS_PATH = "config/external-mcp-actions.json";
 /** What each project's connected servers offered, so a restart keeps the entries (shown unavailable until reconnected). No secrets. */
 const SEEN_PATH = "config/external-mcp-tools.json";
-type Place = { project_id: string; board_id: string; storage_key: string };
+type Place = { project_id: string; storage_key: string };
 type Seen = Place & { plugin_id: string; runtime_id: string; tools: AgentMcpToolDescriptor[] };
 
 /**
@@ -73,7 +73,7 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
   }
   return {
     sync(runtime: MolisWorkProjectRuntime, pluginId: string, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner) {
-      return sync({ project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path }, pluginId, runtimeId, library, owner);
+      return sync({ project_id: runtime.project_id, storage_key: runtime.store.path }, pluginId, runtimeId, library, owner);
     },
     /**
      * After a restart (or a project reopening) the directory is empty until someone lists the servers again. The first
@@ -86,7 +86,7 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
         const run = restoring.get(key) ?? (async () => {
           try {
             const library = await libraryFor(entry.runtime_id);
-            if (library && !registered.has(key)) await sync(entry, entry.plugin_id, entry.runtime_id, library, { board_id: entry.board_id, plugin_id: entry.plugin_id });
+            if (library && !registered.has(key)) await sync(entry, entry.plugin_id, entry.runtime_id, library, { project_id: entry.project_id, plugin_id: entry.plugin_id });
           } catch { /* The directory stays as it is; the next list of the servers catches up. */ }
           finally { restoring.delete(key); }
         })();

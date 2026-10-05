@@ -26,14 +26,14 @@ test("Artifacts share real records through Host and production MCP, preserving f
   const policy = projectActionAvailability(async (_options, run) => run(catalog), home);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: policy,
     workspaceFor: async () => ({ workspace_id: "fixture", canonical_path: await realpath(home), realpath_verified: true }) });
-  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   const clients: Client[] = [];
   const connect = async (identity: string) => {
     const sdk = new Client({ name: "untrusted-name", version: "1" }); clients.push(sdk);
     await sdk.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
-      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, identity, project.database_path, project.board_id], stderr: "pipe" }));
+      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, identity, project.database_path, project.project_id], stderr: "pipe" }));
     return sdk;
   };
   try {
@@ -103,11 +103,11 @@ test("external Artifact import checks live authority and plugin state after fetc
   let enabled = true;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
     actionAvailability: () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "已停用" } });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "board", projectId: "project" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "board" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "project", audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), originalFetch = globalThis.fetch;
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: "board", title: "Imports", actor_id: "owner", idempotency_key: "init" }));
+    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: "board", title: "Imports", actor_id: "owner", idempotency_key: "init" }));
     for (const mode of ["revoked", "disabled", "cancelled", "success"] as const) {
       let enter!: () => void, release!: () => void, allowed = true;
       const entered = new Promise<void>(resolve => { enter = resolve; });
@@ -144,10 +144,10 @@ test("external Artifact import checks live authority and plugin state after fetc
 for (const stop of ["withdraw", "cancel"] as const) test(`Artifact imports stay concurrent and ${stop} before commit cannot save a late document`, { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "artifact-import-execution-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "board", projectId: "project" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "board" });
   try {
     await host.withProject(ref, async runtime => {
-      runtime.coordinator.initializeBoard({ board_id: "board", title: "Imports", actor_id: "owner", idempotency_key: "init" });
+      runtime.coordinator.initializeBoard({ project_id: "board", title: "Imports", actor_id: "owner", idempotency_key: "init" });
       const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
       const service = new ActionService(undefined, { beforeEffect: async caller => {
         if (caller.actor_id === "slow") { entered.resolve(); await release.promise; }

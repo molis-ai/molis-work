@@ -39,7 +39,7 @@ export const feedQueryActions = {
       gmail: { type: "object", properties: { bound: { type: "boolean" } }, required: ["bound"] } }, required: ["github", "gmail"] }),
 } as const;
 
-export function createFeedQueryHandlers(feed: FeedApplication, boardId: string, ports: {
+export function createFeedQueryHandlers(feed: FeedApplication, projectId: string, ports: {
   hydrate(item: FeedItemRecord): FeedItemRecord;
   authStatus(): ConnectorAuthStatus;
   linkedContext(input: { goal_id: string; item_id?: string }, caller: ActionExecutionContext): Promise<{ source_context: string } | null>;
@@ -54,11 +54,11 @@ export function createFeedQueryHandlers(feed: FeedApplication, boardId: string, 
   return [
     bind(feedQueryActions.linkedContext, (input, caller) => ports.linkedContext(input, caller)),
     bind(feedQueryActions.snapshot, input => {
-      const { inbox_entries: _inbox, ...snapshot } = feed.snapshot(boardId);
+      const { inbox_entries: _inbox, ...snapshot } = feed.snapshot(projectId);
       return { ...snapshot, feed_items: snapshot.feed_items.map(item => ({ ...(input.include_contents ? ports.hydrate(item)
         : { ...item, body: null, materials: item.materials.map(material => ({ ...material, content: undefined })) }), suggested_behavior_ids: [] })) };
     }),
-    bind(feedQueryActions.item, input => ({ item: ports.hydrate(feed.getFeedItem(boardId, input.item_id)) })),
+    bind(feedQueryActions.item, input => ({ item: ports.hydrate(feed.getFeedItem(projectId, input.item_id)) })),
     bind(feedQueryActions.connections, () => ports.authStatus()),
   ];
 }

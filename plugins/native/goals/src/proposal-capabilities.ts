@@ -23,14 +23,14 @@ export const goalTreeCapabilities = {
  * the decision came from and say the whole proposal was shown; who decides, and through which entry, is fixed here, refused when
  * the caller names it, and checked again by the host (repository-anti-corruption §9.5 #6).
  */
-export function managementTreeAuthority(boardId: string, idempotencyKey: string, evidence?: unknown): GoalTreeProposalDecisionAuthority {
+export function managementTreeAuthority(projectId: string, idempotencyKey: string, evidence?: unknown): GoalTreeProposalDecisionAuthority {
   const given = (evidence && typeof evidence === "object" ? evidence : {}) as Record<string, unknown>;
   if (["actor_id", "actor_kind", "authority_source"].some(field => Object.hasOwn(given, field))) {
     throw new ActionError("goal_tree_proposal.authority_source_invalid", "管理入口以本机这个人的身份决定，参数里不能带身份或出处");
   }
   const text = (value: unknown) => typeof value === "string" && value.trim() ? value : undefined;
   return { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", authority_source: "management",
-    conversation_ref: text(given.conversation_ref) ?? `management:${boardId}`,
+    conversation_ref: text(given.conversation_ref) ?? `management:${projectId}`,
     message_ref: text(given.message_ref) ?? `management-tree-decision:${idempotencyKey}`,
     ...(given.whole_confirmation_prompted === true ? { whole_confirmation_prompted: true } : {}),
     ...(text(given.prompted_proposal_id) ? { prompted_proposal_id: text(given.prompted_proposal_id) } : {}) };

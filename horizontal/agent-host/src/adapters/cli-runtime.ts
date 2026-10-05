@@ -186,7 +186,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     const sessionId = randomUUID();
     this.#sessions.set(sessionId, {
       title: input.title,
-      owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id },
+      owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id },
       cwd: input.directory.canonical_path,
       runs: [],
     });

@@ -8,14 +8,14 @@ import { codingFixtureRoutes as codingRoutes } from "./fixtures/coding-surface.j
 
 test("one unreadable runtime history does not hide other sessions or lose its draft", async () => {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE boards (board_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
+  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
   const sessions = new CodingSessionStore(db);
   const at = "2026-09-20T00:00:00Z";
-  for (const id of ["broken", "safe"]) sessions.create({ board_id: "board", session_id: id, title: id, runtime_id: "prologue", at });
+  for (const id of ["broken", "safe"]) sessions.create({ project_id: "board", session_id: id, title: id, runtime_id: "prologue", at });
   sessions.setRuntimeSession("board", "broken", "sdk-broken", at);
   sessions.setState("board", "broken", "done", at);
   const drafts = new Map([["draft:broken", "不要丢掉未提交的要求"]]);
-  const context = { board_id: "board", plugin_id: "io.molis.work.coding", services: {
+  const context = { project_id: "board", plugin_id: "io.molis.work.coding", services: {
     storage: { get: (key: string) => drafts.get(key) },
     capabilities: { invoke: async (definition: { capability_id: string }) => {
       if (definition.capability_id === agent.readSession.capability_id) throw new Error("SESSION_HISTORY_UNAVAILABLE");
@@ -45,12 +45,12 @@ test("one unreadable runtime history does not hide other sessions or lose its dr
 
 test("command receipt route binds the selected app session and exact runtime run before reading", async () => {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE boards (board_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
+  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
   const sessions = new CodingSessionStore(db);
-  sessions.create({ board_id: "board", session_id: "app-session", title: "检查", runtime_id: "prologue", at: "2026-09-20T00:00:00Z" });
+  sessions.create({ project_id: "board", session_id: "app-session", title: "检查", runtime_id: "prologue", at: "2026-09-20T00:00:00Z" });
   sessions.setRuntimeSession("board", "app-session", "sdk-session", "2026-09-20T00:00:00Z");
   const reads: unknown[] = [];
-  const context = { board_id: "board", plugin_id: "io.molis.work.coding", services: { capabilities: { invoke: async (definition: { capability_id: string }, args: unknown[]) => {
+  const context = { project_id: "board", plugin_id: "io.molis.work.coding", services: { capabilities: { invoke: async (definition: { capability_id: string }, args: unknown[]) => {
     if (definition.capability_id === agent.readSession.capability_id) return { runs: [{ session_id: "sdk-session", run_id: "owned" }] };
     if (definition.capability_id === agent.readCommandOutput.capability_id) { reads.push(args); return { exit_code: 7, stdout: "saved", stderr: "check failed" }; }
     throw new Error("unexpected capability");
@@ -65,11 +65,11 @@ test("command receipt route binds the selected app session and exact runtime run
 });
 
 test("answer route preserves the original run and questionnaire, rejects foreign runs and malformed selections",async()=>{
-  const db=new DatabaseSync(':memory:');db.exec("CREATE TABLE boards (board_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
+  const db=new DatabaseSync(':memory:');db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
   const sessions=new CodingSessionStore(db),at='2026-09-20T00:00:00Z';
-  sessions.create({board_id:'board',session_id:'app',title:'问卷',runtime_id:'prologue',at});sessions.setRuntimeSession('board','app','sdk',at);
+  sessions.create({project_id:'board',session_id:'app',title:'问卷',runtime_id:'prologue',at});sessions.setRuntimeSession('board','app','sdk',at);
   let phase='awaiting-input';const delivered:unknown[]=[];
-  const context={board_id:'board',plugin_id:'io.molis.work.coding',services:{capabilities:{invoke:async(definition:{capability_id:string},args:unknown[])=>{
+  const context={project_id:'board',plugin_id:'io.molis.work.coding',services:{capabilities:{invoke:async(definition:{capability_id:string},args:unknown[])=>{
     if(definition.capability_id===agent.readSession.capability_id)return {runs:[{session_id:'sdk',run_id:'owned'}]};
     if(definition.capability_id===agent.readRun.capability_id)return {phase};
     if(definition.capability_id===agent.controlRun.capability_id){delivered.push(args);return;}

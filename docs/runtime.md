@@ -23,7 +23,7 @@ Runtime 通过 MCP 使用 Molis Work。工具名、输入与展示由 `apps/mcp`
 
 先调用 `context_resolve`。已有Session绑定或唯一、已验证的workspace关联可以恢复项目；普通候选、目录名和模型猜测不授权绑定。需要选择项目时，复用用户对唯一项目的明确选择；只有存在歧义才询问。绑定、切换、新建、解绑和删除遵循各自授权，普通绑定不设置目录默认项目。具体接入见 [MCP 接入](mcp.md)。
 
-连接后用 `goals.list` 发现目标，或用 `goals.create` 保存新意图。新建至少需要标题，可附结果说明。普通调用省略 `board_id`、`actor_id` 等项目和身份字段，由Host注入；读取和记录某个Goal时仍显式提供 `goal_id`，不能靠当前焦点猜写入对象。
+连接后用 `goals.list` 发现目标，或用 `goals.create` 保存新意图。新建至少需要标题，可附结果说明。普通调用省略 `project_id`、`actor_id` 等项目和身份字段，由Host注入；读取和记录某个Goal时仍显式提供 `goal_id`，不能靠当前焦点猜写入对象。
 
 ## 日常记录
 

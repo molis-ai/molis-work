@@ -35,7 +35,7 @@ if (isMain) {
   const args = process.argv.slice(2);
   const homeArgument = flag(args, "--home");
   const port = Number(flag(args, "--port") ?? 4173);
-  const unsupported = ["--db", "--board-id", "--demo"].find((argument) => args.includes(argument));
+  const unsupported = ["--db", "--project-id", "--demo"].find((argument) => args.includes(argument));
   if (unsupported) {
     console.error(`Molis Work Web 只按项目启动；${unsupported} 已不支持。请先在当前 Runtime 使用 Molis Work Skill 创建、连接或迁移项目。`);
     process.exitCode = 1;

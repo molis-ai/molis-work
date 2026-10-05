@@ -4,14 +4,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { workActions, WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import { SessionRuntimeService } from "../apps/local-host/src/session-runtime-resources.js";
 
 test("Work actions use original session facts, enforce project scope and revalidate authority after native work", async () => {
   const home = await mkdtemp(join(tmpdir(), "work-session-actions-"));
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId: DEMO_BOARD_ID, projectId: "work-project" });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   let denied = false, externalRevoked = false;
   let nativeEffect: (() => void) | undefined;
   const requests: string[] = [];
@@ -68,7 +68,7 @@ test("Work actions use original session facts, enforce project scope and revalid
 test("Session resources are shared, configure after project startup, reject cross-Home replacement, and persist across restart", async () => {
   const home = await mkdtemp(join(tmpdir(), "work-session-lifetime-"));
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId: DEMO_BOARD_ID, projectId: "lifetime-project" });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const host = new MolisWorkLocalHost();
   const caller = { actor_id: "owner", project_id: reference.project_id, audience: "user" as const, permissions: WORK_ACTION_PERMISSIONS };
   try {

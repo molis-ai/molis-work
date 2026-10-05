@@ -34,9 +34,9 @@ import type { GoalsBoardPorts } from "./board-actions.js";
 import { goalsCollectionAction, createGoalsCollectionActionHandler } from "./collection-action.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 
-export type GoalCreateActionInput = Omit<CreateGoalIntentInput, "board_id" | "actor_id" | "actor_kind">;
-export type GoalListActionInput = Omit<GoalEventDirectoryQuery, "board_id">;
-export type GoalNoteActionInput = Omit<RecordGoalNoteInput, "board_id" | "actor_id" | "actor_kind">;
+export type GoalCreateActionInput = Omit<CreateGoalIntentInput, "project_id" | "actor_id" | "actor_kind">;
+export type GoalListActionInput = Omit<GoalEventDirectoryQuery, "project_id">;
+export type GoalNoteActionInput = Omit<RecordGoalNoteInput, "project_id" | "actor_id" | "actor_kind">;
 export interface GoalReadActionInput { goal_id: string }
 const goalInput = object({ goal_id: identifier });
 const limit = { type: "integer", minimum: 1, maximum: 100 };
@@ -99,7 +99,7 @@ export const goalsActions = {
       goal_id: text, parent_goal_id: text, dependency_goal_ids: { type: "array", items: text },
       requirements: { type: "array", items: object({ requirement_id: text, statement: identifier, human_decision_required: boolean }, ["statement"]) },
       source_kind: { enum: [...goalIntentSourceKinds] }, idempotency_key: identifier }, ["title", "idempotency_key"]),
-    object({ goal: object({ goal_id: text, board_id: text, title: text, outcome: text }), replayed: boolean, observed_event_cursor: count,
+    object({ goal: object({ goal_id: text, project_id: text, title: text, outcome: text }), replayed: boolean, observed_event_cursor: count,
       recorded: { const: true }, completion_effect: { const: false } })),
   note: action<GoalNoteActionInput, GoalEventMutationResult>("goals.note", "记录目标便笺", "将正文记到指定目标的历史；便笺不会推进状态或代替用户决定。重试须保留相同 idempotency_key", "command",
     object({ goal_id: identifier, body: identifier, idempotency_key: identifier }),
@@ -124,41 +124,41 @@ export async function readGoalResumeFacts(actions: Pick<BoundActionClient, "invo
 }
 
 /** The plugin keeps its original transaction, event history and idempotency owner. */
-export function createGoalsActionHandlers({ events, boardId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables }: {
-  events: GoalEventApplication; boardId: string; history: GoalHistoryQueryPorts; planning: GoalsPlanningActionPorts;
+export function createGoalsActionHandlers({ events, projectId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables }: {
+  events: GoalEventApplication; projectId: string; history: GoalHistoryQueryPorts; planning: GoalsPlanningActionPorts;
   guidance: GoalsGuidanceActionPorts; lifecycle: GoalsLifecycleActionPorts; tree: GoalTreeApplicationApi; configuration: GoalsConfigurationActionPorts;
   readGoal: Parameters<typeof createGoalDocumentActionHandler>[1]["goal"];
   readContract(goalId: string): GoalContractView;
   collection: GoalsDocumentReadPorts;
   board: GoalsBoardPorts;
   /** The 成果库 and context ledger for a Goal's deliverables (artifact-positioning A5), and the owners that pin work objects. */
-  deliverables: Omit<GoalDeliverablePorts, "boardId" | "goalExists" | "boundObjects">;
+  deliverables: Omit<GoalDeliverablePorts, "projectId" | "goalExists" | "boundObjects">;
 }): ActionHandlerBinding[] {
-  const goalExists = (goalId: string) => Boolean(readGoal(goalId) && events.readDirectoryItem(boardId, goalId));
+  const goalExists = (goalId: string) => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId));
   return [
-    ...createGoalsDeliverableActionHandlers({ ...deliverables, boardId, goalExists, boundObjects: goalId => boundGoalObjects(collection.inputs.list(boardId), goalId) }),
-    ...createGoalsInputActionHandlers(boardId, collection.inputs, goalId => Boolean(readGoal(goalId) && events.readDirectoryItem(boardId, goalId))),
+    ...createGoalsDeliverableActionHandlers({ ...deliverables, projectId, goalExists, boundObjects: goalId => boundGoalObjects(collection.inputs.list(projectId), goalId) }),
+    ...createGoalsInputActionHandlers(projectId, collection.inputs, goalId => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId))),
     { ...goalsActions.subject, handle: (_caller, input) => {
       const id = (input as { subject_id: string }).subject_id;
       const goal = readGoal(id);
-      if (!goal || !events.readDirectoryItem(boardId, id)) throw new ActionError("actions.subject_unavailable", "当前目标已不存在或已归档");
-      const state = events.readState(boardId, id);
+      if (!goal || !events.readDirectoryItem(projectId, id)) throw new ActionError("actions.subject_unavailable", "当前目标已不存在或已归档");
+      const state = events.readState(projectId, id);
       return subjectContext({ subject: { kind: "goal", id }, revision: `${goal.updated_at}:${state.goal_event_cursor}`, title: goal.title,
         content: [state.intent.title, state.intent.why, state.intent.business_logic, goal.outcome, `当前工作状态：${state.work_status}`, state.progress_summary?.summary, state.progress_summary?.next_step].filter(Boolean).join("\n\n"), goal_ids: [id], session_id: null,
         open: { surface: "goals", id } });
     } },
     { ...goalsActions.fragmentOffers, handle: (_caller, input) => ({ offers: prepareGoalsFragmentOffers(input as FragmentOffersInput, { cursor: goalId => {
-      try { return readGoal(goalId) && events.readDirectoryItem(boardId, goalId) ? events.readState(boardId, goalId).goal_event_cursor : null; } catch { return null; }
+      try { return readGoal(goalId) && events.readDirectoryItem(projectId, goalId) ? events.readState(projectId, goalId).goal_event_cursor : null; } catch { return null; }
     } }) }) },
     bindSearchEntriesHandler(goalsActions.searchEntries, () => {
       const entries: SearchEntry[] = [];
       let after: string | undefined;
       do {
-        const page = events.listGoals({ board_id: boardId, limit: 100, ...(after ? { after_cursor: after } : {}) });
+        const page = events.listGoals({ project_id: projectId, limit: 100, ...(after ? { after_cursor: after } : {}) });
         for (const item of page.goals) {
           const goal = readGoal(item.goal_id);
           if (!goal) continue;
-          const state = events.readState(boardId, item.goal_id);
+          const state = events.readState(projectId, item.goal_id);
           entries.push({ subject: { kind: "goal", id: item.goal_id }, revision: `${goal.updated_at}:${state.goal_event_cursor}`, title: goal.title,
             summary: searchText(state.progress_summary?.summary ?? item.next_hint, 400), updated_at: item.updated_at, content: "context", open: { surface: "goals", id: item.goal_id } });
         }
@@ -166,44 +166,44 @@ export function createGoalsActionHandlers({ events, boardId, history, planning, 
       } while (after);
       return entries;
     }),
-    ...createGoalsBoardActionHandlers(boardId, board),
-    createGoalsCollectionActionHandler(boardId, collection),
+    ...createGoalsBoardActionHandlers(projectId, board),
+    createGoalsCollectionActionHandler(projectId, collection),
     { ...goalsActions.snapshot, handle: () => history.snapshot() },
     { ...goalsActions.contract, handle: (_caller, input) => readContract((input as GoalReadActionInput).goal_id) },
-    createGoalDocumentActionHandler(boardId, { goal: readGoal, events, history, planning: planning.planning }),
-    ...createGoalsEventActionHandlers(events, boardId),
-    ...createGoalsPlanningActionHandlers(planning, boardId),
-    ...createGoalsGuidanceActionHandlers(guidance, boardId),
-    ...createGoalsLifecycleActionHandlers(lifecycle, boardId),
-    ...createGoalsTreeActionHandlers(tree, boardId),
-    ...createGoalsConfigurationActionHandlers(configuration, boardId),
-    createGoalDecisionActionHandler(events, boardId),
+    createGoalDocumentActionHandler(projectId, { goal: readGoal, events, history, planning: planning.planning }),
+    ...createGoalsEventActionHandlers(events, projectId),
+    ...createGoalsPlanningActionHandlers(planning, projectId),
+    ...createGoalsGuidanceActionHandlers(guidance, projectId),
+    ...createGoalsLifecycleActionHandlers(lifecycle, projectId),
+    ...createGoalsTreeActionHandlers(tree, projectId),
+    ...createGoalsConfigurationActionHandlers(configuration, projectId),
+    createGoalDecisionActionHandler(events, projectId),
     { ...goalsActions.progressReceipt, handle: (caller, input) => {
       const query = input as GoalReadActionInput & { idempotency_key: string };
-      return events.readProgressReceipt(boardId, query.goal_id, goalActor(caller).actor_id, query.idempotency_key);
+      return events.readProgressReceipt(projectId, query.goal_id, goalActor(caller).actor_id, query.idempotency_key);
     } },
-    { ...goalsActions.list, handle: (_caller, input) => events.listGoals({ ...(input as GoalListActionInput), board_id: boardId }) },
-    { ...goalsActions.state, handle: (_caller, input) => events.readState(boardId, (input as GoalReadActionInput).goal_id) },
-    { ...goalsActions.directoryItem, handle: (_caller, input) => events.readDirectoryItem(boardId, (input as GoalReadActionInput).goal_id) },
-    { ...goalsActions.events, handle: (_caller, input) => { const { goal_id, ...query } = input as GoalReadActionInput & GoalEventListQuery; return events.listEvents(boardId, goal_id, query); } },
-    { ...goalsActions.latestEvents, handle: (_caller, input) => { const { goal_id, ...query } = input as GoalReadActionInput & GoalEventHistoryQuery; return events.listLatestEvents(boardId, goal_id, query); } },
-    { ...goalsActions.timeline, handle: (_caller, input) => { const { goal_id, ...query } = input as GoalReadActionInput & GoalEventHistoryQuery; return events.listLatestTimeline(boardId, goal_id, query); } },
-    { ...goalsActions.event, handle: (_caller, input) => { const query = input as GoalReadActionInput & { event_id: string }; return events.readEvent(boardId, query.goal_id, query.event_id); } },
+    { ...goalsActions.list, handle: (_caller, input) => events.listGoals({ ...(input as GoalListActionInput), project_id: projectId }) },
+    { ...goalsActions.state, handle: (_caller, input) => events.readState(projectId, (input as GoalReadActionInput).goal_id) },
+    { ...goalsActions.directoryItem, handle: (_caller, input) => events.readDirectoryItem(projectId, (input as GoalReadActionInput).goal_id) },
+    { ...goalsActions.events, handle: (_caller, input) => { const { goal_id, ...query } = input as GoalReadActionInput & GoalEventListQuery; return events.listEvents(projectId, goal_id, query); } },
+    { ...goalsActions.latestEvents, handle: (_caller, input) => { const { goal_id, ...query } = input as GoalReadActionInput & GoalEventHistoryQuery; return events.listLatestEvents(projectId, goal_id, query); } },
+    { ...goalsActions.timeline, handle: (_caller, input) => { const { goal_id, ...query } = input as GoalReadActionInput & GoalEventHistoryQuery; return events.listLatestTimeline(projectId, goal_id, query); } },
+    { ...goalsActions.event, handle: (_caller, input) => { const query = input as GoalReadActionInput & { event_id: string }; return events.readEvent(projectId, query.goal_id, query.event_id); } },
     { ...goalsActions.history, handle: (_caller, input) => { const { goal_id, ...query } = input as GoalReadActionInput & GoalDocumentHistoryQuery;
-      return listGoalDocumentHistory({ boardId, goalId: goal_id, ports: events, snapshot: history.snapshot(), events: history.journalEvents(), query }); } },
+      return listGoalDocumentHistory({ projectId, goalId: goal_id, ports: events, snapshot: history.snapshot(), events: history.journalEvents(), query }); } },
     { ...goalsActions.historyItem, handle: (_caller, input) => { const query = input as GoalReadActionInput & { item_id: string };
-      return readGoalHistory({ boardId, goalId: query.goal_id, itemId: query.item_id, ports: events, snapshot: history.snapshot(), events: history.journalEvents() }); } },
+      return readGoalHistory({ projectId, goalId: query.goal_id, itemId: query.item_id, ports: events, snapshot: history.snapshot(), events: history.journalEvents() }); } },
     { ...goalsActions.create, handle: (caller, input) => {
       const payload = input as GoalCreateActionInput;
       // The creation channel is a fact about who asked: only the person may name one; any other caller is a Runtime.
       if (caller.audience !== "user" && payload.source_kind !== undefined && payload.source_kind !== "runtime") {
         throw new ActionError("actions.input_invalid", "只有本人可以指定 Goal 的创建渠道");
       }
-      return events.createIntent({ ...payload, board_id: boardId,
+      return events.createIntent({ ...payload, project_id: projectId,
         source_kind: caller.audience === "user" ? payload.source_kind ?? "web" : "runtime",
         ...goalActor(caller) });
     } },
-    { ...goalsActions.note, handle: (caller, input) => events.recordNote({ ...(input as GoalNoteActionInput), board_id: boardId,
+    { ...goalsActions.note, handle: (caller, input) => events.recordNote({ ...(input as GoalNoteActionInput), project_id: projectId,
       ...goalActor(caller) }) },
   ];
 }

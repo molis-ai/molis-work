@@ -11,7 +11,7 @@ import { withFunctionsService, type FunctionsHostOptions } from "./functions-hos
 export interface InboxSceneServices { actions: ActionClient; scenes: ActionSceneClient; functions?: FunctionsHostOptions }
 
 /** Uses the existing binding row and history owner; no second configuration store. */
-export function createLocalInboxScene(home: string, projectId: string, boardId: string, feed: FeedApplication, services: InboxSceneServices) {
+export function createLocalInboxScene(home: string, projectId: string, feed: FeedApplication, services: InboxSceneServices) {
   const read = <T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions);
   const published = () => read(service => service.list().filter(rule => rule.status === "published" && rule.version));
   const bindingFor = (functionKey: string, version: number): ActionSceneBinding => ({
@@ -19,24 +19,24 @@ export function createLocalInboxScene(home: string, projectId: string, boardId: 
     project_id: projectId, function: { capability_id: `functions.published.${functionKey}`, version, provider_id: "system.functions" }, enabled: true,
     title: "Inbox 下一步", href: `/projects/${encodeURIComponent(projectId)}/`,
   });
-  const binding = (): ActionSceneBinding | null => read(service => service.actionSceneBinding(INBOX_NEXT_SCENE_ID, boardId));
+  const binding = (): ActionSceneBinding | null => read(service => service.actionSceneBinding(INBOX_NEXT_SCENE_ID, projectId));
   const resolve = (entryId: string) => {
-    const entry = feed.getInboxEntry(boardId, entryId);
-    const subject = entry.subject_type === "feed_item" ? runWithMolisWorkHome(home, () => hydrateFeedItemContent(feed.getFeedItem(boardId, entry.subject_id))) : null;
+    const entry = feed.getInboxEntry(projectId, entryId);
+    const subject = entry.subject_type === "feed_item" ? runWithMolisWorkHome(home, () => hydrateFeedItemContent(feed.getFeedItem(projectId, entry.subject_id))) : null;
     return { entry_id: entry.entry_id, revision: entry.revision, status: entry.status,
       content: [entry.reason, subject?.title, subject?.summary, subject?.body, ...(subject?.materials.map(material => material.content || material.preview) ?? []), JSON.stringify(entry.detail)].filter(Boolean).join("\n") };
   };
   const subjectRevision = (subject: InboxJudgmentSubject) => createHash("sha256").update(JSON.stringify(subject)).digest("hex");
   const handler = createInboxSceneHandler({ projectId, binding, resolve,
-    save: (value, options) => { read(service => service.saveActionSceneBinding(boardId, value, options?.expected_revision)); },
+    save: (value, options) => { read(service => service.saveActionSceneBinding(projectId, value, options?.expected_revision)); },
     record: (subject, value, result) => {
       const judgment = read(service => service.recordSceneJudgment({
         function_key: publishedFunctionKey(value.function) ?? value.function.capability_id, function_version: value.function.version,
-        subject: { kind: "inbox_entry", id: subject.entry_id, board_id: boardId }, scene_id: INBOX_NEXT_SCENE_ID,
+        subject: { kind: "inbox_entry", id: subject.entry_id, project_id: projectId }, scene_id: INBOX_NEXT_SCENE_ID,
         scene_provenance: { binding_id: value.binding_id, binding_revision: value.revision!, function: value.function, subject_revision: subjectRevision(subject) },
         outcome: result.status, suggested_behavior_ids: result.suggested_behavior_ids, error_code: result.error_code ?? null,
       }));
-      feed.recordInboxJudgmentEvent(boardId, judgment);
+      feed.recordInboxJudgmentEvent(projectId, judgment);
       return judgment;
     },
   });
@@ -62,7 +62,7 @@ export function createLocalInboxScene(home: string, projectId: string, boardId: 
     recommendations: async caller => {
       const usage = (await services.scenes.usages(caller)).find(usage => usage.scene_id === INBOX_NEXT_SCENE_ID && usage.binding_id === inboxSceneBindingId(projectId));
       if (!usage?.enabled || !usage.availability.available) return { judgments: [] };
-      const judgments = read(service => service.latestSceneJudgments(boardId, INBOX_NEXT_SCENE_ID)).filter(record => {
+      const judgments = read(service => service.latestSceneJudgments(projectId, INBOX_NEXT_SCENE_ID)).filter(record => {
         const provenance = record.scene_provenance;
         if (record.subject.kind !== "inbox_entry" || !provenance || provenance.binding_id !== usage.binding_id || provenance.binding_revision !== usage.revision
           || provenance.function.capability_id !== usage.function.capability_id || provenance.function.version !== usage.function.version || provenance.function.provider_id !== usage.function.provider_id) return false;

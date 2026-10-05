@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_BOARD_ID, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { SessionMessageService, workActions, WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
@@ -14,7 +14,7 @@ const deferred = <T>() => { let resolve!: (value: T) => void; const promise = ne
 test("Session message actions deduplicate concurrent callers, keep private scope, and persist the actual receipt before revocation", { timeout: 45_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "session-message-actions-"));
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId: DEMO_BOARD_ID, projectId: "message-project" });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const started = deferred<void>(), response = deferred<unknown>();
   const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
   let revoked = false;

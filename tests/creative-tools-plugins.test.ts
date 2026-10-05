@@ -72,7 +72,7 @@ function emptyView(): MolisWorkWebView {
   return {
     snapshot: {
       board: {
-        board_id: "board-creative-tools",
+        project_id: "board-creative-tools",
         title: "创作工具",
         active_goal_id: null,
         created_at: "2026-09-21T00:00:00.000Z",

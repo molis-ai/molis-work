@@ -11,7 +11,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { Script } from "node:vm";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { type MolisWorkProjectCatalog, normalizeRuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
@@ -247,7 +247,7 @@ function readDecisionDeepLinkBrowserState(
     `<script>
       if (${JSON.stringify(scenario)} === "restored_mobile_tree") {
         const state = JSON.parse(document.querySelector("#molis-work-data").textContent);
-        const storageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.board_id) + ":inbox";
+        const storageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.project_id) + ":inbox";
         sessionStorage.setItem(storageKey, JSON.stringify({
           mobileView: "tree",
           workSurface: "inbox",
@@ -585,7 +585,7 @@ test("Web health identifies the process serving the response", async () => {
 test("Web View cache follows canonical Board events instead of SQLite file lifecycle", async () => {
   const { databasePath } = webFixture();
   const cache = new Map() as Parameters<typeof cachedMolisWorkWebView>[0];
-  const options = { databasePath, boardId: DEMO_BOARD_ID, demo: true };
+  const options = { databasePath, projectId: DEMO_PROJECT_ID, demo: true };
 
   const firstStore = new LocalProjectDatabase(databasePath);
   const first = await cachedMolisWorkWebView(
@@ -604,7 +604,7 @@ test("Web View cache follows canonical Board events instead of SQLite file lifec
     assert.deepEqual(unchanged.feed, first.feed, "plugin views are freshly authorized without changing original data");
 
     coordinator.goals.commands.createGoal(
-      DEMO_BOARD_ID,
+      DEMO_PROJECT_ID,
       {
         goal_id: "CACHE-EVENT",
         title: "通过事件使 Web View 失效",
@@ -708,10 +708,10 @@ function webRuntimeIntegrationFixture(homeDirectory: string) {
   };
 }
 
-function boardSnapshot(databasePath: string, boardId: string) {
+function boardSnapshot(databasePath: string, projectId: string) {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    return store.snapshot(boardId);
+    return store.snapshot(projectId);
   } finally {
     store.close();
   }
@@ -1014,7 +1014,7 @@ test("Web onboarding creates one real Project, root Draft Goal, and optional Wor
     const project = catalog.getProject(projectId);
     const store = new LocalProjectDatabase(project.database_path);
     try {
-      const goals = store.snapshot(project.board_id).goals;
+      const goals = store.snapshot(project.project_id).goals;
       assert.equal(goals.length, 1);
       assert.equal(goals[0]?.goal_id, goalId);
       assert.equal(goals[0]?.definition_state, "draft");
@@ -1146,14 +1146,14 @@ test("Web explains incomplete product decomposition and shows who owns each prod
   const coordinator = new GoalProjectApplication(store);
   try {
     coordinator.initializeBoard({
-      board_id: "web-decomposition-board",
+      project_id: "web-decomposition-board",
       title: "Product Decomposition",
       actor_id: "web-user",
       idempotency_key: "web-decomposition-init",
     });
     assert.throws(
       () => coordinator.goalTreeSubmission.submitGoalTreeProposal({
-        board_id: "web-decomposition-board",
+        project_id: "web-decomposition-board",
         actor_id: "runtime-game-planner",
         root_goal_id: "web-footballnia",
         summary: "旧固定拆分/万能提案已退役，不能再从新结构入口落地。",
@@ -1184,7 +1184,7 @@ test("Web normal Tree excludes trashed Goals while the coordinator retains their
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   coordinator.goals.commands.createGoal(
-    DEMO_BOARD_ID,
+    DEMO_PROJECT_ID,
     {
       goal_id: "TRASHED-WEB",
       title: "不会出现在普通 Tree 的 Goal",
@@ -1205,19 +1205,19 @@ test("Web normal Tree excludes trashed Goals while the coordinator retains their
     { actor_id: "test-user", idempotency_key: "create-trashed-web" },
   );
   coordinator.goals.lifecycle.setTrashed(
-    DEMO_BOARD_ID,
+    DEMO_PROJECT_ID,
     { goal_id: "TRASHED-WEB", trashed: true, reason: "验证正常 Web 读取过滤" },
     { actor_id: "test-user", idempotency_key: "trash-web-goal" },
   );
   const view = buildMolisWorkWebView(store, coordinator, {
     databasePath,
-    boardId: DEMO_BOARD_ID,
+    projectId: DEMO_PROJECT_ID,
     demo: true,
   });
   assert.equal(view.goals.some((item) => item.goal.goal_id === "TRASHED-WEB"), false);
   assert.equal(view.archived_goals.some((item) => item.goal.goal_id === "TRASHED-WEB"), false);
   assert.equal(view.trashed_goals.some((item) => item.goal.goal_id === "TRASHED-WEB"), true);
-  assert.equal(store.snapshot(DEMO_BOARD_ID).goals.find((goal) => goal.goal_id === "TRASHED-WEB")?.trashed_at == null, false);
-  assert.deepEqual(coordinator.listTrashedGoals(DEMO_BOARD_ID).map((goal) => goal.goal_id), ["AUTO-CONNECT", "TRASHED-WEB"]);
+  assert.equal(store.snapshot(DEMO_PROJECT_ID).goals.find((goal) => goal.goal_id === "TRASHED-WEB")?.trashed_at == null, false);
+  assert.deepEqual(coordinator.listTrashedGoals(DEMO_PROJECT_ID).map((goal) => goal.goal_id), ["AUTO-CONNECT", "TRASHED-WEB"]);
   store.close();
 });

@@ -22,7 +22,7 @@ This MCP process starts "not connected to a project" and opens no Board. The uni
 
 > **Host identity**: Molis Work reads per-call `_meta["molis-work/sessionId"]`, `_meta.threadId`, then `_meta.sessionId` before falling back to the host's startup identity. Availability is host-dependent; do not assume every Runtime version supplies these fields. Without a Session signal, one exact verified workspace membership may still recover read-only; otherwise follow the returned suggested/unbound state.
 
-- `bound`: returns one project and a fixed connection. Later ordinary calls omit `board_id` and actor fields; Host injects them from that connection and Session. Calls for a particular Goal still provide `goal_id` explicitly.
+- `bound`: returns one project and a fixed connection. Later ordinary calls omit `project_id` and actor fields; Host injects them from that connection and Session. Calls for a particular Goal still provide `goal_id` explicitly.
 - `suggested`: the new Session has workspace history or other host clues. The result contains only candidate projects and generic reasons that don't leak the original path, with no project connection. If the current user message already explicitly asks to use Molis Work with a named project and exactly one returned existing project unambiguously matches it, the Skill calls `context_bind` directly; otherwise it shows the candidates and asks.
 - `unbound`: returns `missing_stable_context` or `unknown_context` and connects to no project. The Skill likewise reuses an explicit current-message selection of one unambiguous existing project; otherwise it shows the project list and asks the user to select or create one.
 - When the user explicitly rejects a `suggested` candidate, the Skill calls `molis_work_v1_context_reject_suggestion` with `user_confirmed=true`. It only stops suggesting that candidate in this Session, then may return another candidate or an explicit project list/create path; it never unbinds, deletes, or affects other Sessions.
@@ -55,7 +55,7 @@ Common Goals actions:
 | Project guidance | `goals.guidance.read`, `goals.guidance.add`, `goals.guidance.update` |
 | Trash | `goals.trash.set` (`trashed` true moves to trash, false restores), `goals.trash.list` |
 
-Action input holds business fields only: the project, the operator and the creation channel come from the connection and Session, so `board_id`, database paths, Web URLs, `actor_id` / `actor_kind` / `runtime_actor_id` and `source_kind` are not accepted. For a Runtime write, the host records the Session as the audit author (`runtime:<runtime_id>:<session>`); without a stable Session identity the write is refused.
+Action input holds business fields only: the project, the operator and the creation channel come from the connection and Session, so `project_id`, database paths, Web URLs, `actor_id` / `actor_kind` / `runtime_actor_id` and `source_kind` are not accepted. For a Runtime write, the host records the Session as the audit author (`runtime:<runtime_id>:<session>`); without a stable Session identity the write is refused.
 
 The shortest path is `goals.create` → `goals.note`, with no type or planning. Use `goals.events.configure` / `goals.events.report` for structured results. A report may hold several facts and progress; the batch is saved only when all of it is valid, and the receipt returns current state, gaps and cursors.
 

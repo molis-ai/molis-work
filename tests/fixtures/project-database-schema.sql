@@ -19,7 +19,7 @@ CREATE TABLE attention_events (
       at TEXT NOT NULL
     );
 CREATE TABLE boards (
-          board_id TEXT PRIMARY KEY,
+          project_id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
           active_goal_id TEXT,
           created_at TEXT NOT NULL,
@@ -38,15 +38,15 @@ CREATE TABLE casebook_interaction_facts (
 CREATE TABLE casebook_interaction_scopes (
  board TEXT PRIMARY KEY, epoch TEXT NOT NULL, state TEXT NOT NULL, secret TEXT NOT NULL, since TEXT NOT NULL, pauses INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE coding_plan_drafts (
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       session_id TEXT NOT NULL,
       revision INTEGER NOT NULL,
       draft_json TEXT NOT NULL,
-      PRIMARY KEY (board_id, session_id),
-      FOREIGN KEY (board_id, session_id) REFERENCES coding_sessions(board_id, session_id) ON DELETE CASCADE
+      PRIMARY KEY (project_id, session_id),
+      FOREIGN KEY (project_id, session_id) REFERENCES coding_sessions(project_id, session_id) ON DELETE CASCADE
     );
 CREATE TABLE coding_sessions (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       session_id TEXT NOT NULL,
       title TEXT NOT NULL,
       state TEXT NOT NULL,
@@ -60,7 +60,7 @@ CREATE TABLE coding_sessions (
       steps_json TEXT,
       -- Background commands the session left running, as last read: lets the list across projects show and stop them.
       background_json TEXT,
-      PRIMARY KEY (board_id, session_id)
+      PRIMARY KEY (project_id, session_id)
     );
 CREATE TABLE context_edges (
     scope_kind TEXT NOT NULL CHECK (scope_kind IN ('personal', 'team_project')),
@@ -79,7 +79,7 @@ CREATE TABLE context_edges (
 CREATE TABLE events (
           seq INTEGER PRIMARY KEY AUTOINCREMENT,
           event_id TEXT NOT NULL UNIQUE,
-          board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+          project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
           actor_id TEXT NOT NULL,
           type TEXT NOT NULL,
           object_type TEXT NOT NULL,
@@ -97,7 +97,7 @@ CREATE TABLE feed_item_events (
       at TEXT NOT NULL
     );
 CREATE TABLE feed_items (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       item_id TEXT NOT NULL,
       source_id TEXT,
       signal_id TEXT,
@@ -121,10 +121,10 @@ CREATE TABLE feed_items (
       source_updated_at TEXT NOT NULL,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, item_id)
+      PRIMARY KEY (project_id, item_id)
     );
 CREATE TABLE feed_materials (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       material_id TEXT NOT NULL,
       item_id TEXT NOT NULL,
       canonical_url TEXT,
@@ -142,11 +142,11 @@ CREATE TABLE feed_materials (
       selected_for_context INTEGER NOT NULL DEFAULT 0,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, material_id),
-      FOREIGN KEY (board_id, item_id) REFERENCES feed_items(board_id, item_id) ON DELETE CASCADE
+      PRIMARY KEY (project_id, material_id),
+      FOREIGN KEY (project_id, item_id) REFERENCES feed_items(project_id, item_id) ON DELETE CASCADE
     );
 CREATE TABLE feed_out_rules (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       rule_id TEXT NOT NULL,
       name TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
@@ -156,14 +156,14 @@ CREATE TABLE feed_out_rules (
       admission TEXT NOT NULL,
       judgment_json TEXT,
       revision TEXT NOT NULL,
-      PRIMARY KEY (board_id, rule_id)
+      PRIMARY KEY (project_id, rule_id)
     );
 CREATE TABLE feed_runtime_blobs (
     namespace TEXT NOT NULL, key TEXT NOT NULL, opaque TEXT NOT NULL, cas_token TEXT NOT NULL,
     PRIMARY KEY (namespace, key)
   );
 CREATE TABLE feed_source_runs (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       run_id TEXT NOT NULL,
       operation_id TEXT NOT NULL,
       source_id TEXT NOT NULL,
@@ -178,11 +178,11 @@ CREATE TABLE feed_source_runs (
       started_at TEXT NOT NULL,
       completed_at TEXT,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, run_id),
-      UNIQUE (board_id, operation_id)
+      PRIMARY KEY (project_id, run_id),
+      UNIQUE (project_id, operation_id)
     );
 CREATE TABLE feed_sources (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       source_id TEXT NOT NULL,
       kind TEXT NOT NULL,
       definition_id TEXT,
@@ -202,21 +202,21 @@ CREATE TABLE feed_sources (
       last_error_code TEXT,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, source_id)
+      PRIMARY KEY (project_id, source_id)
 );
 CREATE TABLE goal_event_agreements (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     version INTEGER NOT NULL,
     outcome TEXT NOT NULL,
     actor_id TEXT NOT NULL,
     created_at TEXT NOT NULL,
     event_id TEXT,
-    PRIMARY KEY (board_id, goal_id, version)
+    PRIMARY KEY (project_id, goal_id, version)
   );
 CREATE TABLE goal_event_applied_decisions (
     decision_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     governance_decision_id TEXT NOT NULL,
     request_id TEXT,
@@ -236,7 +236,7 @@ CREATE TABLE goal_event_applied_decisions (
   );
 CREATE TABLE goal_event_closures (
     closure_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     event_id TEXT NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('complete', 'cancel')),
@@ -254,7 +254,7 @@ CREATE TABLE goal_event_closures (
   );
 CREATE TABLE goal_event_concerns (
     concern_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     event_id TEXT NOT NULL,
     title TEXT NOT NULL,
@@ -270,26 +270,26 @@ CREATE TABLE goal_event_concerns (
     updated_at TEXT NOT NULL
   );
 CREATE TABLE goal_event_config_versions (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     version INTEGER NOT NULL,
     actor_id TEXT NOT NULL,
     adopted_planning_json TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
     config_event_id TEXT NOT NULL,
-    PRIMARY KEY (board_id, goal_id, version)
+    PRIMARY KEY (project_id, goal_id, version)
   );
 CREATE TABLE goal_event_configs (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     current_version INTEGER NOT NULL,
     updated_at TEXT NOT NULL,
     updated_by TEXT NOT NULL,
-    PRIMARY KEY (board_id, goal_id)
+    PRIMARY KEY (project_id, goal_id)
   );
 CREATE TABLE goal_event_decision_requests (
     request_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     event_id TEXT NOT NULL,
     question TEXT NOT NULL,
@@ -303,7 +303,7 @@ CREATE TABLE goal_event_decision_requests (
   );
 CREATE TABLE goal_event_progress_summaries (
     summary_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     event_id TEXT NOT NULL,
     summary_text TEXT NOT NULL,
@@ -314,16 +314,16 @@ CREATE TABLE goal_event_progress_summaries (
     recorded_at TEXT NOT NULL
   );
 CREATE TABLE goal_event_requirement_bindings (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     type_id TEXT NOT NULL,
     requirement_id TEXT NOT NULL,
     created_in_config_version INTEGER NOT NULL,
     created_at TEXT NOT NULL,
-    PRIMARY KEY (board_id, goal_id, type_id, requirement_id)
+    PRIMARY KEY (project_id, goal_id, type_id, requirement_id)
   );
 CREATE TABLE goal_event_requirement_conclusions (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     requirement_id TEXT NOT NULL,
     decision_id TEXT NOT NULL,
@@ -331,11 +331,11 @@ CREATE TABLE goal_event_requirement_conclusions (
     verdict TEXT NOT NULL CHECK (verdict IN ('accepted', 'rejected')),
     received_at TEXT NOT NULL,
     journal_seq INTEGER NOT NULL,
-    PRIMARY KEY (board_id, goal_id, requirement_id, decision_id)
+    PRIMARY KEY (project_id, goal_id, requirement_id, decision_id)
   );
 CREATE TABLE goal_event_requirements (
     requirement_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     statement TEXT NOT NULL,
     bound_type_id TEXT,
@@ -349,7 +349,7 @@ CREATE TABLE goal_event_requirements (
     support_valid_after_seq INTEGER NOT NULL DEFAULT 0
   );
 CREATE TABLE goal_event_state_owners (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     owner TEXT NOT NULL CHECK (owner = 'event_work'),
     source TEXT NOT NULL CHECK (source IN ('intent', 'configuration', 'continue')),
@@ -359,7 +359,7 @@ CREATE TABLE goal_event_state_owners (
   );
 CREATE TABLE goal_event_trusted_decisions (
     decision_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     actor_id TEXT NOT NULL,
     actor_kind TEXT NOT NULL CHECK (actor_kind = 'user'),
@@ -375,7 +375,7 @@ CREATE TABLE goal_event_trusted_decisions (
     recorded_at TEXT NOT NULL
   );
 CREATE TABLE goal_event_types (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     type_id TEXT NOT NULL,
     type_version INTEGER NOT NULL,
@@ -387,10 +387,10 @@ CREATE TABLE goal_event_types (
     created_at TEXT NOT NULL,
     created_in_config_version INTEGER NOT NULL,
     actor_id TEXT NOT NULL,
-    PRIMARY KEY (board_id, goal_id, type_id, type_version)
+    PRIMARY KEY (project_id, goal_id, type_id, type_version)
   );
 CREATE TABLE goal_event_work_status (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     work_status TEXT NOT NULL CHECK (work_status IN ('open', 'completed', 'cancelled')),
     updated_at TEXT NOT NULL,
@@ -398,7 +398,7 @@ CREATE TABLE goal_event_work_status (
   );
 CREATE TABLE goal_relations (
     relation_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     from_goal_id TEXT NOT NULL REFERENCES goals(goal_id),
     to_goal_id TEXT NOT NULL REFERENCES goals(goal_id),
     type TEXT NOT NULL,
@@ -410,7 +410,7 @@ CREATE TABLE goal_relations (
   );
 CREATE TABLE goal_trash_records (
     trash_record_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     trashed_at TEXT NOT NULL,
     trashed_by TEXT NOT NULL,
@@ -429,7 +429,7 @@ CREATE TABLE goal_trash_relation_records (
   );
 CREATE TABLE goal_tree_proposal_decisions (
     decision_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
     item_id TEXT NOT NULL REFERENCES goal_tree_proposal_items(item_id) ON DELETE CASCADE,
     decision TEXT NOT NULL CHECK (decision IN ('confirmed', 'rejected', 'revised', 'conflict')),
@@ -446,7 +446,7 @@ CREATE TABLE goal_tree_proposal_decisions (
 CREATE TABLE goal_tree_proposal_items (
     item_id TEXT PRIMARY KEY,
     proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('goal', 'relation')),
     operation TEXT NOT NULL CHECK (operation IN ('create', 'deactivate')),
@@ -469,7 +469,7 @@ CREATE TABLE goal_tree_proposal_items (
   );
 CREATE TABLE goal_tree_proposals (
     proposal_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     root_goal_id TEXT REFERENCES goals(goal_id) ON DELETE SET NULL,
     submitted_by TEXT NOT NULL,
     submitted_session_id TEXT,
@@ -492,7 +492,7 @@ CREATE TABLE goal_work_event_judgments (
   );
 CREATE TABLE goal_work_events (
     event_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     kind TEXT NOT NULL CHECK (kind IN ('configuration', 'report', 'system')),
     type_id TEXT,
@@ -507,7 +507,7 @@ CREATE TABLE goal_work_events (
   );
 CREATE TABLE goals (
     goal_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     outcome TEXT NOT NULL,
     why TEXT NOT NULL,
@@ -533,17 +533,17 @@ CREATE TABLE goals (
     updated_at TEXT NOT NULL
   );
 CREATE TABLE idempotency_records (
-          board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+          project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
           actor_id TEXT NOT NULL,
           operation TEXT NOT NULL,
           idempotency_key TEXT NOT NULL,
           request_hash TEXT NOT NULL,
           outcome_json TEXT NOT NULL,
           created_at TEXT NOT NULL,
-          PRIMARY KEY (board_id, actor_id, operation, idempotency_key)
+          PRIMARY KEY (project_id, actor_id, operation, idempotency_key)
         );
 CREATE TABLE inbox_entries (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
       subject_id TEXT NOT NULL,
@@ -554,12 +554,12 @@ CREATE TABLE inbox_entries (
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       completed_at TEXT,
-      PRIMARY KEY (board_id, entry_id),
-      UNIQUE (board_id, subject_type, subject_id, reason)
+      PRIMARY KEY (project_id, entry_id),
+      UNIQUE (project_id, subject_type, subject_id, reason)
 );
 CREATE TABLE input_bindings (
     binding_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id),
     input_name TEXT NOT NULL,
     source_type TEXT NOT NULL,
@@ -606,12 +606,12 @@ CREATE TABLE library_artifact_versions (
   );
 CREATE TABLE library_artifacts (
     artifact_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     owner_actor_id TEXT NOT NULL,
     producer_plugin_id TEXT NOT NULL,
     producer_binding_signature TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    UNIQUE (artifact_id, board_id)
+    UNIQUE (artifact_id, project_id)
   );
 CREATE TABLE listener_deliveries (
       project_id TEXT NOT NULL,
@@ -645,17 +645,17 @@ CREATE TABLE listener_instances (
       PRIMARY KEY (project_id, source_id)
     );
 CREATE TABLE planning_method_packs (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     method_id TEXT NOT NULL,
     version INTEGER NOT NULL,
     enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
     pack_json TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    PRIMARY KEY (board_id, method_id)
+    PRIMARY KEY (project_id, method_id)
   );
 CREATE TABLE plugin_event_cursors (
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       subscriber_plugin_id TEXT NOT NULL,
       subscriber_install_id TEXT NOT NULL,
       subscriber_generation TEXT NOT NULL,
@@ -668,14 +668,14 @@ CREATE TABLE plugin_event_cursors (
       retry_at TEXT,
       last_error_code TEXT,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version)
+      PRIMARY KEY (project_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version)
     );
 CREATE TABLE plugin_event_resolutions (
-      resolution_id TEXT PRIMARY KEY, board_id TEXT NOT NULL, subscriber_plugin_id TEXT NOT NULL, record_json TEXT NOT NULL
+      resolution_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, subscriber_plugin_id TEXT NOT NULL, record_json TEXT NOT NULL
     );
 CREATE TABLE plugin_events (
       event_id TEXT PRIMARY KEY,
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       sequence INTEGER NOT NULL,
       event_type_id TEXT NOT NULL,
       type_version INTEGER NOT NULL,
@@ -686,24 +686,24 @@ CREATE TABLE plugin_events (
       occurred_at TEXT NOT NULL
     );
 CREATE TABLE plugin_input_groups (
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       plugin_id TEXT NOT NULL,
       group_id TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, plugin_id)
+      PRIMARY KEY (project_id, plugin_id)
     );
 CREATE TABLE plugin_port_artifact_bindings (
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       target_plugin_id TEXT NOT NULL,
       target_port TEXT NOT NULL,
       artifact_id TEXT NOT NULL,
       version INTEGER NOT NULL,
       actor_id TEXT NOT NULL,
       created_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, target_plugin_id, target_port)
+      PRIMARY KEY (project_id, target_plugin_id, target_port)
     );
 CREATE TABLE plugin_port_bindings (
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       target_plugin_id TEXT NOT NULL,
       target_port TEXT NOT NULL,
       source_plugin_id TEXT NOT NULL,
@@ -711,10 +711,10 @@ CREATE TABLE plugin_port_bindings (
       origin TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, target_plugin_id, target_port)
+      PRIMARY KEY (project_id, target_plugin_id, target_port)
     );
 CREATE TABLE plugin_port_outputs (
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       plugin_id TEXT NOT NULL,
       port TEXT NOT NULL,
       artifact_id TEXT,
@@ -722,7 +722,7 @@ CREATE TABLE plugin_port_outputs (
       invalidated_reason TEXT,
       scope_key TEXT,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, plugin_id, port)
+      PRIMARY KEY (project_id, plugin_id, port)
     );
 CREATE TABLE plugin_private_values (
       install_id TEXT NOT NULL,
@@ -741,7 +741,7 @@ CREATE TABLE plugin_runtime_release_artifacts (
     );
 CREATE TABLE policy_bindings (
     policy_binding_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT REFERENCES goals(goal_id),
     scope TEXT NOT NULL CHECK (scope IN ('project_default', 'ancestor_minimum', 'goal')),
     policy_json TEXT NOT NULL,
@@ -781,19 +781,19 @@ CREATE TABLE process_item_versions (
   );
 CREATE TABLE process_items (
     artifact_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     owner_actor_id TEXT NOT NULL,
     producer_plugin_id TEXT NOT NULL,
     producer_binding_signature TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    UNIQUE (artifact_id, board_id)
+    UNIQUE (artifact_id, project_id)
   );
 CREATE TABLE project_browsing_settings (
-    board_id TEXT PRIMARY KEY, workspace_id TEXT
+    project_id TEXT PRIMARY KEY, workspace_id TEXT
   );
 CREATE TABLE project_guidance_entries (
     guidance_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     position INTEGER NOT NULL,
     revision INTEGER NOT NULL DEFAULT 1,
     active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
@@ -807,13 +807,13 @@ CREATE TABLE project_guidance_entries (
     created_at TEXT NOT NULL,
     updated_by TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    UNIQUE(board_id, position),
-    UNIQUE(board_id, kind, content_hash)
+    UNIQUE(project_id, position),
+    UNIQUE(project_id, kind, content_hash)
   );
 CREATE TABLE project_guidance_revisions (
     revision_id TEXT PRIMARY KEY,
     guidance_id TEXT NOT NULL REFERENCES project_guidance_entries(guidance_id) ON DELETE CASCADE,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     revision INTEGER NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('context', 'requirement', 'constraint', 'convention', 'workflow', 'quality_bar')),
     content TEXT NOT NULL,
@@ -870,15 +870,15 @@ CREATE TABLE schedule_jobs (
       UNIQUE (plugin_id, capability_id, object_ref)
     );
 CREATE TABLE schedule_operation_occurrences (
-    board_id TEXT NOT NULL, operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
-    PRIMARY KEY (board_id, operation_id, due_at)
+    project_id TEXT NOT NULL, operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
+    PRIMARY KEY (project_id, operation_id, due_at)
   );
 CREATE TABLE schedule_operations (
-    board_id TEXT NOT NULL, id TEXT NOT NULL, job_id TEXT NOT NULL UNIQUE, record_json TEXT NOT NULL,
-    PRIMARY KEY (board_id, id)
+    project_id TEXT NOT NULL, id TEXT NOT NULL, job_id TEXT NOT NULL UNIQUE, record_json TEXT NOT NULL,
+    PRIMARY KEY (project_id, id)
   );
 CREATE TABLE schedule_plugin_reminders (
-    id TEXT PRIMARY KEY, board_id TEXT NOT NULL, plugin_id TEXT NOT NULL, installation_id TEXT,
+    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, plugin_id TEXT NOT NULL, installation_id TEXT,
     record_json TEXT NOT NULL
   );
 CREATE TABLE schedule_wakeups (
@@ -945,103 +945,103 @@ CREATE INDEX acceptance_goal_idx ON acceptance_criteria(goal_id);
 CREATE INDEX attention_events_project_entry_idx
       ON attention_events(project_id, entry_id, at, event_id);
 CREATE INDEX coding_sessions_board_updated_idx
-      ON coding_sessions(board_id, updated_at DESC, session_id);
+      ON coding_sessions(project_id, updated_at DESC, session_id);
 CREATE INDEX context_edges_source_idx ON context_edges
     (scope_kind, scope_id, relation_type, json_extract(source_json, '$.module'), json_extract(source_json, '$.id'));
-CREATE INDEX events_board_idx ON events(board_id, seq);
+CREATE INDEX events_board_idx ON events(project_id, seq);
 CREATE INDEX feed_item_events_project_item_idx
       ON feed_item_events(project_id, item_id, at, event_id);
 CREATE UNIQUE INDEX feed_items_board_signal_idx
-      ON feed_items(board_id, signal_id) WHERE signal_id IS NOT NULL;
+      ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
 CREATE UNIQUE INDEX feed_items_board_source_external_idx
-      ON feed_items(board_id, source_id, external_id)
+      ON feed_items(project_id, source_id, external_id)
       WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
 CREATE INDEX feed_items_board_updated_idx
-      ON feed_items(board_id, disposition, source_updated_at DESC);
+      ON feed_items(project_id, disposition, source_updated_at DESC);
 CREATE INDEX feed_materials_board_item_idx
-      ON feed_materials(board_id, item_id, updated_at DESC, material_id);
+      ON feed_materials(project_id, item_id, updated_at DESC, material_id);
 CREATE INDEX feed_out_rules_board_enabled_idx
-      ON feed_out_rules(board_id, enabled, created_at, rule_id);
+      ON feed_out_rules(project_id, enabled, created_at, rule_id);
 CREATE INDEX feed_source_runs_board_source_idx
-      ON feed_source_runs(board_id, source_id, started_at DESC);
+      ON feed_source_runs(project_id, source_id, started_at DESC);
 CREATE INDEX feed_sources_board_updated_idx
-      ON feed_sources(board_id, updated_at DESC, source_id);
+      ON feed_sources(project_id, updated_at DESC, source_id);
 CREATE INDEX goal_event_applied_decisions_goal_idx
-    ON goal_event_applied_decisions(board_id, goal_id, recorded_at);
+    ON goal_event_applied_decisions(project_id, goal_id, recorded_at);
 CREATE INDEX goal_event_closures_goal_idx
-    ON goal_event_closures(board_id, goal_id, recorded_at);
+    ON goal_event_closures(project_id, goal_id, recorded_at);
 CREATE INDEX goal_event_concerns_goal_idx
-    ON goal_event_concerns(board_id, goal_id, status);
+    ON goal_event_concerns(project_id, goal_id, status);
 CREATE INDEX goal_event_decision_requests_goal_idx
-    ON goal_event_decision_requests(board_id, goal_id, status);
+    ON goal_event_decision_requests(project_id, goal_id, status);
 CREATE INDEX goal_event_progress_summaries_goal_idx
-    ON goal_event_progress_summaries(board_id, goal_id, recorded_at);
+    ON goal_event_progress_summaries(project_id, goal_id, recorded_at);
 CREATE INDEX goal_event_requirement_conclusions_latest_idx
-    ON goal_event_requirement_conclusions(board_id, goal_id, requirement_id, journal_seq);
+    ON goal_event_requirement_conclusions(project_id, goal_id, requirement_id, journal_seq);
 CREATE INDEX goal_event_requirements_goal_idx
-    ON goal_event_requirements(board_id, goal_id, requirement_id);
+    ON goal_event_requirements(project_id, goal_id, requirement_id);
 CREATE INDEX goal_event_state_owners_board_idx
-    ON goal_event_state_owners(board_id, goal_id);
+    ON goal_event_state_owners(project_id, goal_id);
 CREATE INDEX goal_event_trusted_decisions_goal_idx
-    ON goal_event_trusted_decisions(board_id, goal_id, recorded_at);
+    ON goal_event_trusted_decisions(project_id, goal_id, recorded_at);
 CREATE INDEX goal_event_types_goal_idx
-    ON goal_event_types(board_id, goal_id, type_id, type_version);
+    ON goal_event_types(project_id, goal_id, type_id, type_version);
 CREATE UNIQUE INDEX goal_trash_one_open_per_goal
-    ON goal_trash_records(board_id, goal_id)
+    ON goal_trash_records(project_id, goal_id)
     WHERE restored_at IS NULL;
 CREATE INDEX goal_trash_records_goal_idx
-    ON goal_trash_records(board_id, goal_id, restored_at, trashed_at);
+    ON goal_trash_records(project_id, goal_id, restored_at, trashed_at);
 CREATE INDEX goal_trash_relation_records_relation_idx
     ON goal_trash_relation_records(relation_id, restored_at);
 CREATE INDEX goal_tree_proposal_decisions_item_idx
     ON goal_tree_proposal_decisions(proposal_id, item_id, created_at, decision_id);
 CREATE INDEX goal_tree_proposal_items_board_idx
-    ON goal_tree_proposal_items(board_id, state, item_id);
+    ON goal_tree_proposal_items(project_id, state, item_id);
 CREATE INDEX goal_tree_proposal_items_proposal_idx
     ON goal_tree_proposal_items(proposal_id, ordinal, item_id);
 CREATE INDEX goal_tree_proposals_board_idx
-    ON goal_tree_proposals(board_id, root_goal_id, state, created_at DESC, proposal_id);
+    ON goal_tree_proposals(project_id, root_goal_id, state, created_at DESC, proposal_id);
 CREATE INDEX goal_tree_proposals_supersedes_idx
     ON goal_tree_proposals(supersedes_proposal_id);
 CREATE INDEX goal_work_event_judgments_requirement_idx
     ON goal_work_event_judgments(requirement_id, event_id);
 CREATE INDEX goal_work_events_goal_seq_idx
-    ON goal_work_events(board_id, goal_id, journal_seq);
-CREATE INDEX goals_archive_idx ON goals(board_id, archived_at);
-CREATE INDEX goals_board_idx ON goals(board_id);
-CREATE INDEX goals_ready_idx ON goals(board_id, definition_state, decomposition_state, validity_state, fulfillment_state);
-CREATE INDEX goals_trash_idx ON goals(board_id, trashed_at);
+    ON goal_work_events(project_id, goal_id, journal_seq);
+CREATE INDEX goals_archive_idx ON goals(project_id, archived_at);
+CREATE INDEX goals_board_idx ON goals(project_id);
+CREATE INDEX goals_ready_idx ON goals(project_id, definition_state, decomposition_state, validity_state, fulfillment_state);
+CREATE INDEX goals_trash_idx ON goals(project_id, trashed_at);
 CREATE INDEX inbox_entries_board_status_idx
-      ON inbox_entries(board_id, status, updated_at DESC, entry_id);
+      ON inbox_entries(project_id, status, updated_at DESC, entry_id);
 CREATE INDEX inbox_entries_board_subject_idx
-      ON inbox_entries(board_id, subject_type, subject_id);
+      ON inbox_entries(project_id, subject_type, subject_id);
 CREATE INDEX library_artifact_versions_type_idx
     ON library_artifact_versions(artifact_type_id, schema_version, scope, lifecycle_state);
 CREATE INDEX library_artifacts_board_idx
-    ON library_artifacts(board_id, created_at DESC, artifact_id);
+    ON library_artifacts(project_id, created_at DESC, artifact_id);
 CREATE INDEX listener_deliveries_recovery_idx
       ON listener_deliveries(project_id, source_id, state, updated_at, raw_event_id);
-CREATE UNIQUE INDEX plugin_events_board_sequence ON plugin_events (board_id, sequence);
+CREATE UNIQUE INDEX plugin_events_board_sequence ON plugin_events (project_id, sequence);
 CREATE INDEX plugin_events_board_type_source
-      ON plugin_events (board_id, event_type_id, type_version, source_plugin_id, sequence);
-CREATE INDEX policies_scope_idx ON policy_bindings(board_id, goal_id, state);
+      ON plugin_events (project_id, event_type_id, type_version, source_plugin_id, sequence);
+CREATE INDEX policies_scope_idx ON policy_bindings(project_id, goal_id, state);
 CREATE INDEX process_item_versions_type_idx
     ON process_item_versions(artifact_type_id, schema_version, scope, lifecycle_state);
 CREATE INDEX process_items_board_idx
-    ON process_items(board_id, created_at DESC, artifact_id);
+    ON process_items(project_id, created_at DESC, artifact_id);
 CREATE INDEX project_guidance_board_idx
-    ON project_guidance_entries(board_id, position, guidance_id);
+    ON project_guidance_entries(project_id, position, guidance_id);
 CREATE INDEX project_guidance_revisions_board_idx
-    ON project_guidance_revisions(board_id, guidance_id, revision DESC);
-CREATE INDEX relations_from_idx ON goal_relations(board_id, from_goal_id, state);
-CREATE INDEX relations_to_idx ON goal_relations(board_id, to_goal_id, state);
+    ON project_guidance_revisions(project_id, guidance_id, revision DESC);
+CREATE INDEX relations_from_idx ON goal_relations(project_id, from_goal_id, state);
+CREATE INDEX relations_to_idx ON goal_relations(project_id, to_goal_id, state);
 CREATE INDEX schedule_conversation_tasks_enabled_idx
       ON schedule_conversation_tasks(enabled, updated_at);
 CREATE INDEX schedule_conversation_turns_task_idx
       ON schedule_conversation_turns(task_id, created_at);
 CREATE INDEX schedule_jobs_due_idx
       ON schedule_jobs(enabled, next_due_at);
-CREATE INDEX schedule_plugin_reminders_owner ON schedule_plugin_reminders(board_id, plugin_id, installation_id);
+CREATE INDEX schedule_plugin_reminders_owner ON schedule_plugin_reminders(project_id, plugin_id, installation_id);
 CREATE INDEX signal_events_project_source_idx
       ON signal_events(project_id, source_id, at, event_id);
 CREATE INDEX signals_project_source_observed_idx

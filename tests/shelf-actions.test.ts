@@ -7,7 +7,7 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import { SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTIONS, SHELF_RUNTIME_ACTIONS, shelfActions as a } from "@molis-ai/molis-work-plugin-shelf";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 
 test("the personal Shelf is a Home action provider; clipboard, settings and local paths stay with the local user", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "shelf-actions-"));
@@ -66,8 +66,8 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
     // In a project, the Host adds the save-as-material pair and the Runtime instance redeems its own declared actions.
     const database = join(home, "project.sqlite");
     seedDemoBoard(database);
-    const project = molisWorkHostProjectReference({ databasePath: database, boardId: DEMO_BOARD_ID, projectId: DEMO_BOARD_ID });
-    const owner: ActionCallContext = { actor_id: "web-user", project_id: DEMO_BOARD_ID, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "shelf:read"] };
+    const project = molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID });
+    const owner: ActionCallContext = { actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "shelf:read"] };
     const scoped = (await host.actionClient(project).discover(owner)).filter(row => row.provider.plugin_id === "io.molis.work.shelf" && row.action.scope === "project");
     assert.deepEqual(scoped.filter(row => row.provider.provider_id === "io.molis.work.shelf").map(row => row.capability_id).sort(), SHELF_PROJECT_ACTIONS.map(row => row.capability_id).sort());
     const runtime = scoped.filter(row => row.provider.provider_id !== "io.molis.work.shelf");

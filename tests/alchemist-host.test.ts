@@ -47,8 +47,8 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     const project = /^\/projects\/([^/]+)/.exec(url.pathname)?.[1] ?? "a";
     url.pathname = url.pathname.replace(/^\/projects\/[^/]+/, "");
-    const ref = molisWorkHostProjectReference({ databasePath: join(home, `${project}.sqlite`), boardId: project, projectId: project });
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: project, title: "HTTP Alchemist", actor_id: "http-user", idempotency_key: "alchemist-http-init" }));
+    const ref = molisWorkHostProjectReference({ databasePath: join(home, `${project}.sqlite`), projectId: project });
+    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: project, title: "HTTP Alchemist", actor_id: "http-user", idempotency_key: "alchemist-http-init" }));
     await handleAlchemistNativePluginHttp(request, response, url, { projectId: project, routePrefix: `/projects/${project}`,
       actions: { invoke: async (definition, input, signal) => await host.actionClient(ref).invoke({ actor_id: "http-user", project_id: project, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS, signal }, definition, input) as never } });
   });

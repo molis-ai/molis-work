@@ -11,7 +11,7 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import { CODING_PLUGIN_ID, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { DEMO_BOARD_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/src/coding-surface.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -142,7 +142,7 @@ test("a bundled plugin's older install moves up when the project starts, so the 
     });
     const ports = {
       store,
-      boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID),
+      projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID),
       actorId: "market-test",
       goalTitle: () => undefined,
       escapeHtml: String,
@@ -164,7 +164,7 @@ test("a bundled plugin's older install moves up when the project starts, so the 
     assert.equal(updates.find(item => item.plugin_id === CODING_PLUGIN_ID), undefined);
     assert.equal(new PluginRuntime(new SqlitePluginRuntimeRepository(store.db)).get(oldInstall.install.install_id).version, currentDefinition.manifest.version);
   } finally {
-    await releaseCodingSurface(store, DEMO_BOARD_ID);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID);
     store.close();
     rmSync(directory, { recursive: true, force: true });
   }

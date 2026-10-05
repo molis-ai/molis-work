@@ -20,11 +20,11 @@ test("project folders are readable through directory actions by the person and b
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd: folder });
   const workspace = { workspace_id: "workspace-read", canonical_path: folder, realpath_verified: true, display_name: "repository" };
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspacesFor: async () => [workspace] });
-  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-read", boardId: "board-read" });
+  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "board-read" });
   const user: ActionCallContext = { actor_id: "web-user", project_id: "project-read", audience: "user", permissions: ["workspace:read"] };
   const client = host.actionClient(reference);
   try {
-    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ board_id: "board-read", title: "读取", actor_id: "web-user", idempotency_key: "init" }));
+    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "board-read", title: "读取", actor_id: "web-user", idempotency_key: "init" }));
     const directory = await client.discover(user);
     const file = directory.find(row => row.capability_id === workspaceReadActions.file.capability_id)!;
     const git = directory.find(row => row.capability_id === workspaceReadActions.git.capability_id)!;

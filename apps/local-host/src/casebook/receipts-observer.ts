@@ -25,7 +25,7 @@ export class ReceiptObserver {
    const proposal=/^io\.molis\.work\.goals\.(submit|list|check|decide)-goal-tree-proposals?$/.test(cap.capability_id);
    if(cap.version!==1||(!proposal&&!/^io\.molis\.work\.goals\.events\.(create-intent|list-goals|read-state|configure|report|list|list-latest|timeline|read|progress|concern|decision-request|cite-decision|decide|agree|close|resume|note)$/.test(cap.capability_id)))return null;
    const s=this.journal.scope();if(!s||s.state!=='active')return null;
-   const f=obj(proposal?array(input)[0]:input);if(f.board_id!==this.journal.board)return null;
+   const f=obj(proposal?array(input)[0]:input);if(f.project_id!==this.journal.board)return null;
    const tag=(v:unknown)=>this.journal.tag(s,'reference',v),ref=(v:unknown)=>typeof v==='string'?tag(v):null;
    const goal=typeof f.goal_id==='string'?f.goal_id:typeof f.root_goal_id==='string'?f.root_goal_id:null,p=typeof f.proposal_id==='string'?f.proposal_id:null;
    const comparison:Record<string,unknown>={};for(const key of ['title','outcome','types','requirements','events','progress','reason','result','kind','action','statement','conclusion','question','options','scope','effects','authorized_change','proposed_change','items','decisions','confirm_all_pending'])if(Object.hasOwn(f,key))comparison[key]=f[key];
@@ -44,7 +44,7 @@ export class ReceiptObserver {
    const goal=t.goal??(typeof obj(o.goal).goal_id==='string'?obj(o.goal).goal_id as string:null),proposal=t.proposal??(typeof p.proposal_id==='string'?p.proposal_id:null);
    const events=[o.event_id,...array(o.events).map(x=>obj(x).event_id)].filter((x):x is string=>typeof x==='string');
    const verified=goal&&!threw&&t.mutation?[...new Set(events)].filter(id=>this.app.goalEvents.readEvent(this.journal.board,goal,id)!=null):[];
-   const stored=proposal&&!threw?this.app.goalTree.listGoalTreeProposals({board_id:this.journal.board,proposal_id:proposal}).proposals.find(x=>x.proposal_id===proposal):null;
+   const stored=proposal&&!threw?this.app.goalTree.listGoalTreeProposals({project_id:this.journal.board,proposal_id:proposal}).proposals.find(x=>x.proposal_id===proposal):null;
    const options=array(d.options),reasons=resultReasons(result,threw);
    this.journal.appendReceipt(t.epoch,{...t.base,receipt_id:randomUUID(),occurred_at:new Date().toISOString(),phase:'result',outcome:threw?'threw':'returned',replayed:typeof o.replayed==='boolean'?o.replayed:null,condition:this.condition(goal,proposal),
     guidance:{observation:'api_return_only',reasons:reasons.slice(0,100),reasons_truncated:reasons.length>100,decision_options:refs(options.map(x=>obj(x).option_id)),options_truncated:options.length>20,semantic_next_action:['review_affected_subgraph','continue'].includes(String(semantic.next_action))?semantic.next_action as 'continue':null,requires_new_confirmation:typeof semantic.canonical_changes_require_new_user_confirmation==='boolean'?semantic.canonical_changes_require_new_user_confirmation:null},
@@ -58,7 +58,7 @@ export class ReceiptObserver {
  }
  private condition(goal:string|null,proposal:string|null):OperationReceipt['condition'] {
   const s=goal&&this.store.goalsQuery.getGoal(this.journal.board,goal)?this.app.goalEvents.readState(this.journal.board,goal):null;
-  const p=proposal?this.app.goalTree.listGoalTreeProposals({board_id:this.journal.board,proposal_id:proposal}).proposals.find(x=>x.proposal_id===proposal):null;
+  const p=proposal?this.app.goalTree.listGoalTreeProposals({project_id:this.journal.board,proposal_id:proposal}).proposals.find(x=>x.proposal_id===proposal):null;
   return{config_version:integer(s?.config.version),agreement_version:integer(s?.agreement.version),goal_event_cursor:integer(s?.goal_event_cursor),proposal_version:integer(p?.version),proposal_state:p&&proposalStates.includes(p.state)?p.state:null};
  }
 }

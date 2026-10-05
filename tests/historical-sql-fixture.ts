@@ -12,7 +12,7 @@ export function insertHistoricalPolicy(
   db: SqlDatabase,
   input: {
     policy_binding_id: string;
-    board_id: string;
+    project_id: string;
     goal_id?: string | null;
     scope?: string;
     policy: unknown;
@@ -25,11 +25,11 @@ export function insertHistoricalPolicy(
 ): void {
   db.prepare(`
     INSERT INTO policy_bindings (
-      policy_binding_id, board_id, goal_id, scope, policy_json, state, created_by, reason, created_at
+      policy_binding_id, project_id, goal_id, scope, policy_json, state, created_by, reason, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     input.policy_binding_id,
-    input.board_id,
+    input.project_id,
     input.goal_id ?? null,
     input.scope ?? "project_default",
     input.policy_json ?? JSON.stringify(input.policy),
@@ -43,16 +43,16 @@ export function insertHistoricalPolicy(
 /** Same current/history assembly Host uses for Session Handoff. */
 export function sessionHandoffGoalContext(
   app: GoalProjectApplication,
-  boardId: string,
+  projectId: string,
   goalId: string,
 ): SessionHandoffGoalContext {
-  const history = app.goalQueries.readGoalContract(boardId, goalId);
-  const event_work = app.goalEvents.isEventStateOwner(boardId, goalId);
-  const state = event_work ? app.goalEvents.readState(boardId, goalId) : null;
+  const history = app.goalQueries.readGoalContract(projectId, goalId);
+  const event_work = app.goalEvents.isEventStateOwner(projectId, goalId);
+  const state = event_work ? app.goalEvents.readState(projectId, goalId) : null;
   return {
     board: history.board,
     goal: history.goal,
-    goal_event_cursor: app.goalEvents.readState(boardId, goalId).goal_event_cursor,
+    goal_event_cursor: app.goalEvents.readState(projectId, goalId).goal_event_cursor,
     event_work,
     event_facts: state
       ? {

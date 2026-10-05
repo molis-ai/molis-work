@@ -17,7 +17,7 @@ import { PLUGIN_ROUTE_PREFIX } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
-  DEMO_BOARD_ID,
+  DEMO_PROJECT_ID,
   LocalProjectDatabase,
   createPluginPlatform,
   seedDemoBoard,
@@ -155,8 +155,8 @@ function project(directory: string) {
     appendEvent: (event) => store.appendEvent(event),
   });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) });
-  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID),
-    board_id: DEMO_BOARD_ID,
+  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID),
+    project_id: DEMO_PROJECT_ID,
     actor_id: "tester",
     db: store.db,
     journal: store,
@@ -186,8 +186,8 @@ test('stopped activation event clients remain revoked after restart and bus clos
     assert.throws(() => clients.at(-1)!.publish(input), { code: 'event_identity_invalid' });
     finish.resolve(); await new Promise(resolve => setImmediate(resolve));
     assert.equal(writes, 0);
-    assert.equal(platform.events.cursors(DEMO_BOARD_ID, CONSUMER)[0]!.state, 'quarantined');
-    assert.equal(platform.events.cursors(DEMO_BOARD_ID, CONSUMER)[0]!.delivered_sequence, 0);
+    assert.equal(platform.events.cursors(DEMO_PROJECT_ID, CONSUMER)[0]!.state, 'quarantined');
+    assert.equal(platform.events.cursors(DEMO_PROJECT_ID, CONSUMER)[0]!.delivered_sequence, 0);
   } finally {
     finish.resolve(); await platform.events.close();
     for (const record of platform.runtime.list()) if (record.state === 'running') await platform.runtime.stop(record.install_id);
@@ -225,7 +225,7 @@ test("one factory composes the whole v2 platform and it works end to end", async
     assert.ok(producerServices?.events);
 
     platform.wiring.bind({
-      board_id: DEMO_BOARD_ID,
+      project_id: DEMO_PROJECT_ID,
       target_plugin_id: CONSUMER,
       target_port: "payload",
       source_plugin_id: PRODUCER,
@@ -286,7 +286,7 @@ test("bindings, port values and undelivered events survive reopening the project
       { definition: brokenConsumer },
     ]);
     first.platform.wiring.bind({
-      board_id: DEMO_BOARD_ID,
+      project_id: DEMO_PROJECT_ID,
       target_plugin_id: CONSUMER,
       target_port: "payload",
       source_plugin_id: PRODUCER,
@@ -315,7 +315,7 @@ test("bindings, port values and undelivered events survive reopening the project
     assert.deepEqual(secondRecorder.delivered, [["payload"]], "连线和端口版本应从库里恢复");
     assert.deepEqual(secondRecorder.received, [{ note: "changed" }], "欠着的事件应补投一次");
 
-    await second.platform.events.resume(DEMO_BOARD_ID);
+    await second.platform.events.resume(DEMO_PROJECT_ID);
     await second.platform.events.drain();
     assert.equal(secondRecorder.received.length, 1, "再次 resume 不应重复投递");
     second.store.close();
@@ -344,32 +344,32 @@ test('committed changes to a port\'s process item refresh existing inputs across
       { definition: definitionFor(manifestFor({ id: PRODUCER, outputs: ['payload'] }), recorder, services => { outputs = (services as { outputs: PluginOutputsClient }).outputs; }) },
       { definition: consumer },
     ]);
-    platform.wiring.bind({ board_id: DEMO_BOARD_ID, target_plugin_id: CONSUMER, target_port: 'payload',
+    platform.wiring.bind({ project_id: DEMO_PROJECT_ID, target_plugin_id: CONSUMER, target_port: 'payload',
       source_plugin_id: PRODUCER, source_port: 'payload', origin: 'user', actor_id: 'tester' });
     const first = outputs.publish({ port: 'payload', content: { kind: 'inline', payload: 'first' } }).artifact;
     await platform.wiring.drain(); assert.equal(contexts.length, 1);
     // Let the watcher establish its cursor; repeating the current projection is idempotent.
     await delay(1100); assert.equal(contexts.length, 1);
-    store.db.prepare('INSERT INTO boards (board_id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+    store.db.prepare('INSERT INTO boards (project_id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
       .run('other-board', 'Other', new Date().toISOString(), new Date().toISOString());
     const originalEvaluate = platform.wiring.evaluateAll.bind(platform.wiring); let refreshes = 0;
     platform.wiring.evaluateAll = () => { refreshes++; originalEvaluate(); };
-    store.appendEvent({ eventId: 'other-project-artifact', boardId: 'other-board', actorId: 'tester', type: 'artifact.published',
+    store.appendEvent({ eventId: 'other-project-artifact', projectId: 'other-board', actorId: 'tester', type: 'artifact.published',
       objectType: 'artifact', objectId: 'unrelated@1', reason: 'Other project', payload: {}, at: new Date().toISOString() });
     await delay(1100); assert.equal(refreshes, 0, 'another project does not invalidate this input graph');
-    assert.throws(() => createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID,
+    assert.throws(() => createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID,
       actor_id: 'tester', db: store.db, journal: other, artifacts, processItems, ui: new UiHost(),
       privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) }), /当前项目连接/u);
     store.db.exec('BEGIN IMMEDIATE');
-    processItems.commands.markUnavailable({ board_id: DEMO_BOARD_ID, actor_id: 'tester', ...first, reason: 'rolled back' });
+    processItems.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, actor_id: 'tester', ...first, reason: 'rolled back' });
     await delay(1100);
     assert.equal(unavailable, 0); assert.equal(contexts[0]!.signal.aborted, false);
     store.db.exec('ROLLBACK'); await delay(1100);
     assert.equal(unavailable, 0); contexts[0]!.beforeEffect();
-    assert.equal(processItems.query.getArtifactVersion(DEMO_BOARD_ID, first)!.availability, 'available');
+    assert.equal(processItems.query.getArtifactVersion(DEMO_PROJECT_ID, first)!.availability, 'available');
 
     other.db.exec('BEGIN IMMEDIATE');
-    remote.commands.markUnavailable({ board_id: DEMO_BOARD_ID, actor_id: 'tester', ...first, reason: 'removed remotely' });
+    remote.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, actor_id: 'tester', ...first, reason: 'removed remotely' });
     await delay(1100); assert.equal(unavailable, 0, 'uncommitted work on another connection is invisible');
     other.db.exec('COMMIT'); await onUnavailable.promise;
     assert.equal(unavailable, 1); assert.equal(contexts[0]!.signal.aborted, true);
@@ -378,9 +378,9 @@ test('committed changes to a port\'s process item refresh existing inputs across
     const second = outputs.publish({ port: 'payload', content: { kind: 'inline', payload: 'second' } }).artifact;
     await platform.wiring.drain(); assert.equal(contexts.length, 2);
     onUnavailable = Promise.withResolvers<void>();
-    remote.commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: 'tester', ...second });
+    remote.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: 'tester', ...second });
     await onUnavailable.promise; assert.equal(unavailable, 2);
-    assert.equal(processItems.query.getArtifactVersion(DEMO_BOARD_ID, second)!.lifecycle_state, 'archived');
+    assert.equal(processItems.query.getArtifactVersion(DEMO_PROJECT_ID, second)!.lifecycle_state, 'archived');
     outputs.publish({ port: 'payload', content: { kind: 'inline', payload: 'third' } });
     await platform.wiring.drain(); assert.equal(contexts.length, 3);
     await platform.supervisor.restart(CONSUMER); await platform.wiring.drain();

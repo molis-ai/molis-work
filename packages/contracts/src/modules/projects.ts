@@ -9,11 +9,10 @@ export const modulesProjectsContract = {
   ssot: "docs/modules/projects.md",
 } as const satisfies ContractDescriptor;
 
-/** `project_id` is canonical. `board_id` remains only as the V1 database identity. */
+/** One project, one database: `project_id` names both the catalog entry and the Goals board inside it. */
 export interface ProjectRecord {
   project_id: string;
   display_name: string;
-  board_id: string;
   database_path: string;
   source: "created";
   data_class: "user" | "regenerable_demo";
@@ -137,7 +136,6 @@ export interface ProjectDeletionRecord {
   deletion_id: string;
   project_id: string;
   display_name: string;
-  board_id: string;
   actor_id: string;
   deleted_binding_count: number;
   cleanup_state: "complete" | "pending";

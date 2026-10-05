@@ -25,7 +25,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
   const created = await catalog.createProject({ display_name: "自动判断", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "test" });
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
   const inputs: string[] = [];
   let failure = false;
@@ -48,7 +48,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     await host.actionClient(reference).invoke(caller, inboxActions.writeJudgment, { function_key: "system_pick_inbox_next" });
     const runtime = await host.withProject(reference, runtime => runtime);
     const feed = createLocalFeedApplication(runtime.store.db);
-    const source = createLocalFeedSourceService(runtime.store.db, runtime.board_id).register({ kind: "research_library",
+    const source = createLocalFeedSourceService(runtime.store.db, runtime.project_id).register({ kind: "research_library",
       repository: "molis-ai/research-library", research_source: "automatic-inbox-fixture" }).source;
     const addMaterial = (title: string, body = "可核对的原始材料") => feed.ingestItem({ source, externalId: `manual-${sequence++}`, title,
       summary: title, body, occurredAt: new Date().toISOString(), attention: false }).item;
@@ -61,14 +61,14 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
           "x-molis-work-idempotency-key": `automatic-admit-${sequence++}` }, body: JSON.stringify({ expected_revision: item.revision }),
       });
       assert.equal(response.status, 200, await response.text());
-      return feed.listInboxEntries(runtime.board_id).find(entry => entry.subject_id === item.item_id)!;
+      return feed.listInboxEntries(runtime.project_id).find(entry => entry.subject_id === item.item_id)!;
     };
     const item = addMaterial("HTTP 自动判断");
     const entry = await admit(item);
     assert.equal(history().length, 1);
     assert.equal(history()[0]!.subject.id, entry.entry_id);
     assert.deepEqual(history()[0]!.suggested_behavior_ids, ["inbox.done"]);
-    assert.equal(feed.getInboxEntry(runtime.board_id, entry.entry_id).status, "open");
+    assert.equal(feed.getInboxEntry(runtime.project_id, entry.entry_id).status, "open");
     await admit(item);
     assert.equal(history().length, 1, "repeated admission does not emit another created event or judgment");
     failure = true;
@@ -103,13 +103,13 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     let captureCalls = 0;
     host.actionRegistry(reference).registerProvider({ provider: { provider_id: captureDefinition.capability_id, kind: "plugin", title: "Feed fixture" }, definitions: [captureDefinition],
       handlers: [{ ...captureDefinition, handle: () => { captureCalls++; return { status: "ok", suggested_behavior_ids: ["inbox.admit"] }; } }] });
-    const feedOptions = { captureJudgment: createFeedCaptureTrigger({ scenes, context: () => ({ ...caller, permissions: [...caller.permissions, "feed:read", "feed:write"] }), boardId: runtime.board_id }), inboxJudgment: createInboxJudgmentTrigger({ scenes, context: () => caller, boardId: runtime.board_id }) };
-    await assert.rejects(feedOptions.inboxJudgment({ board_id: "other", entry_id: entry.entry_id }), { code: "actions.scope_mismatch" });
+    const feedOptions = { captureJudgment: createFeedCaptureTrigger({ scenes, context: () => ({ ...caller, permissions: [...caller.permissions, "feed:read", "feed:write"] }), projectId: runtime.project_id }), inboxJudgment: createInboxJudgmentTrigger({ scenes, context: () => caller, projectId: runtime.project_id }) };
+    await assert.rejects(feedOptions.inboxJudgment({ project_id: "other", entry_id: entry.entry_id }), { code: "actions.scope_mismatch" });
     const automatic = createLocalFeedApplication(runtime.store.db, feedOptions);
     const direct = automatic.ingestItem({ source, externalId: "module-attention", title: "直接带入箱请求的材料", summary: "内容", occurredAt: new Date().toISOString(), attention: { reason: "source_rule" } });
     await automatic.flushPendingJudgments();
     assert.equal(localCalls, 1, "Attention events emitted inside Feed ingestion also reach the scene");
-    const directEntry = automatic.listInboxEntries(runtime.board_id).find(entry => entry.subject_id === direct.item.item_id)!;
+    const directEntry = automatic.listInboxEntries(runtime.project_id).find(entry => entry.subject_id === direct.item.item_id)!;
     assert.deepEqual(history().find(record => record.subject.id === directEntry.entry_id)!.suggested_behavior_ids, ["inbox.verify"]);
     assert.throws(() => runtime.store.db.transaction(() => {
       automatic.ingestItem({ source, externalId: "rolled-back-attention", title: "不应判断", summary: "", occurredAt: new Date().toISOString(), attention: { reason: "manual" } });
@@ -125,17 +125,17 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     const restricted = createWorkflowContentPorts(bindActionClient(host.actionClient(reference), () => ({ ...caller, actor_id: "restricted-workflow", audience: "workflow",
       permissions: NATIVE_CONTENT_PERMISSIONS.filter(permission => permission !== "model:invoke") })));
     const withoutModel = await restricted.receive("inbox", { title: "只交接材料", body: "没有模型权限也可以保留材料", feed_item_id: null }, { instance_id: "restricted-flow", step: 1 });
-    assert.ok(feed.getInboxEntry(runtime.board_id, withoutModel.item_id));
+    assert.ok(feed.getInboxEntry(runtime.project_id, withoutModel.item_id));
     assert.equal(localCalls, 2, "a workflow without model permission cannot borrow the native background caller to judge its entry");
     assert.ok(!history().some(record => record.subject.id === withoutModel.item_id));
 
     await runWithMolisWorkHome(home, async () => {
       const connectorFeed = createLocalFeedApplication(runtime.store.db, feedOptions);
-      const connectors = createLocalFeedConnectorSync(runtime.store.db, runtime.board_id, () => ({ type: "github",
+      const connectors = createLocalFeedConnectorSync(runtime.store.db, runtime.project_id, () => ({ type: "github",
         async health() { return { ok: true, status: "connected", message: "fixture" }; },
         async sync() { return { ok: true, mode: "live", cursor: { fixture: 1 }, items: [{ externalId: "auto-issue", title: "连接器材料", summary: "需要处理", occurredAt: new Date().toISOString(), attention: { reason: "source_rule" } }] }; },
       }), connectorFeed, home);
-      const connector = connectorFeed.upsertSource(accountSourceRecord("github", { board_id: runtime.board_id, status: "active" }));
+      const connector = connectorFeed.upsertSource(accountSourceRecord("github", { project_id: runtime.project_id, status: "active" }));
       await connectors.sync(connector.source_id, { idempotencyKey: "auto-connector-once" });
       assert.equal(localCalls, 3, "connector sync passes the trigger through its own application");
       await connectors.sync(connector.source_id, { idempotencyKey: "auto-connector-once" });
@@ -158,17 +158,17 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
       }, async shutdown() {} },
       content: { write() { return { contentRef: "fixture" }; }, read() { return "需要核查"; }, has() { return true; }, inspect() { return { referenced: 1, available: 1, missing: 0, keyAvailable: true }; } }, async shutdown() {},
     });
-    const publicSources = createLocalFeedSourceService(runtime.store.db, runtime.board_id, publicRuntime, () => now, home, feedOptions);
+    const publicSources = createLocalFeedSourceService(runtime.store.db, runtime.project_id, publicRuntime, () => now, home, feedOptions);
     const publicSource = publicSources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
-    publicSources.feed.createOutRule(runtime.board_id, { name: "纳入 Inbox", match: { source_id: publicSource.source_id }, admission: "inbox", judgment: { capability_id: captureDefinition.capability_id, version: 1, provider_id: captureDefinition.capability_id } });
+    publicSources.feed.createOutRule(runtime.project_id, { name: "纳入 Inbox", match: { source_id: publicSource.source_id }, admission: "inbox", judgment: { capability_id: captureDefinition.capability_id, version: 1, provider_id: captureDefinition.capability_id } });
     localFailure = true;
     const pulled = await publicSources.sync(publicSource.source_id, { idempotencyKey: "auto-public-once" });
     assert.equal(pulled.created, 1);
     assert.equal(pulled.run.outcome, "completed", "a failed follow-up judgment does not falsify the source sync result");
     assert.equal(localCalls, 4, "public source admission uses the same scene");
     assert.equal(captureCalls, 1, "source collection runs the actual Feed capture scene before creating the Inbox event");
-    const publicItem = publicSources.feed.snapshot(runtime.board_id).feed_items.find(item => item.source_id === publicSource.source_id)!;
-    const publicEntry = publicSources.feed.listInboxEntries(runtime.board_id).find(entry => entry.subject_id === publicItem.item_id)!;
+    const publicItem = publicSources.feed.snapshot(runtime.project_id).feed_items.find(item => item.source_id === publicSource.source_id)!;
+    const publicEntry = publicSources.feed.listInboxEntries(runtime.project_id).find(entry => entry.subject_id === publicItem.item_id)!;
     assert.equal(history().find(record => record.subject.id === publicEntry.entry_id)!.outcome, "needs_review");
     localFailure = false;
     await publicSources.sync(publicSource.source_id, { idempotencyKey: "auto-public-once" });
@@ -176,12 +176,12 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     assert.equal(captureCalls, 1, "replaying the collection receipt does not repeat a judgment");
     publicSources.configureSchedule(publicSource.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
     now = new Date("2026-09-25T00:05:00Z");
-    const scheduler = createLocalFeedSourceScheduler(runtime.store.db, runtime.board_id, async () => {
+    const scheduler = createLocalFeedSourceScheduler(runtime.store.db, runtime.project_id, async () => {
       throw Object.assign(new Error("fixture auth failure"), { code: "connector_needs_auth" });
     }, () => now, home, feedOptions);
     assert.equal((await scheduler.tick(now)).failed, 1);
     assert.equal(localCalls, 5, "scheduler-created source faults also flush their scene event");
-    const faults = publicSources.feed.listInboxEntries(runtime.board_id).filter(entry => entry.subject_type === "source_fault");
+    const faults = publicSources.feed.listInboxEntries(runtime.project_id).filter(entry => entry.subject_type === "source_fault");
     assert.ok(faults.some(entry => history().some(record => record.subject.id === entry.entry_id)));
 
     stop();

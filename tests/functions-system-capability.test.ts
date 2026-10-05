@@ -159,7 +159,7 @@ test("historical judgments retain original object, project and scene scope", asy
     const store = openFunctionsStore(home);
     try {
       const write = (scene: string, project: string, result: string) => store.recordJudgment({ function_key: "old-rule", function_version: 1,
-        subject: { kind: "inbox_entry", id: "same-object", board_id: project }, scene_id: scene, outcome: "ok", suggested_behavior_ids: [result], error_code: null });
+        subject: { kind: "inbox_entry", id: "same-object", project_id: project }, scene_id: scene, outcome: "ok", suggested_behavior_ids: [result], error_code: null });
       const inbox = write(INBOX_NEXT_SCENE_ID, "first", INBOX_DONE_BEHAVIOR_ID);
       const home = write(HOME_DOCK_SCENE_ID, "first", HOME_CONTINUE_BEHAVIOR_ID);
       const foreign = write(INBOX_NEXT_SCENE_ID, "other", INBOX_DISMISS_BEHAVIOR_ID);

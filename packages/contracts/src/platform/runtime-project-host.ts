@@ -28,9 +28,8 @@ export interface MolisWorkRuntimeContextHost {
 }
 
 export interface MolisWorkRuntimeConnection {
-  projectId?: string;
+  projectId: string;
   databasePath: string;
-  boardId: string;
   webBaseUrl: string;
 }
 

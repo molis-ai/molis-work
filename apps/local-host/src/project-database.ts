@@ -26,8 +26,8 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
     } catch (error) { this.close(); throw error; }
   }
 
-  snapshot(boardId: string): BoardSnapshot {
-    return readMolisWorkSnapshot(this.snapshotQueries, boardId);
+  snapshot(projectId: string): BoardSnapshot {
+    return readMolisWorkSnapshot(this.snapshotQueries, projectId);
   }
 }
 

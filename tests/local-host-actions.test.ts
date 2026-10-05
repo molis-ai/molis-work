@@ -12,7 +12,7 @@ const counter: ActionDefinition<{ amount: number }, number> = { capability_id: "
   action: { title: "累计", description: "累计项目值", kind: "operation", scope: "project", audiences: ["user", "mcp"],
     permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { amount: { type: "integer" } }, required: ["amount"], additionalProperties: false },
     output_schema: { type: "integer" } } };
-const ref = (id: string) => ({ project_id: id, board_id: id, storage_key: `memory:${id}` });
+const ref = (id: string) => ({ project_id: id, storage_key: `memory:${id}` });
 const context = (id: string): ActionCallContext => ({ actor_id: "alice", project_id: id, audience: "user", permissions: [] });
 
 test("a Plugin action can await a nested Host capability without waiting behind itself", { timeout: 2_000 }, async () => {
@@ -90,7 +90,7 @@ test("existing project workspace capability is discoverable and executable throu
   const directory = await mkdtemp(join(tmpdir(), "host-actions-"));
   const workspace = { workspace_id: "a-root", canonical_path: "/authorized/a", realpath_verified: true, display_name: "A" };
   const host = new MolisWorkLocalHost({ workspacesFor: id => id === "a" ? [workspace] : [] });
-  const project = molisWorkHostProjectReference({ databasePath: join(directory, "a.sqlite"), projectId: "a", boardId: "board-a" });
+  const project = molisWorkHostProjectReference({ databasePath: join(directory, "a.sqlite"), projectId: "board-a" });
   const c = context("a");
   try {
     const service = host.actionClient(project);
@@ -103,7 +103,7 @@ test("existing project workspace capability is discoverable and executable throu
     await assert.rejects(service.invoke({ ...c, project_id: "b" }, projectsCapabilities.listWorkspaces, []), { code: "actions.scope_mismatch" });
     // The production server discovers common actions too; there is no private Session here.
     const server = new LocalMcpServer(async () => { throw new Error("Unbound catalog should not be accessed"); }, "runtime",
-      { databasePath: project.storage_key, boardId: project.board_id, projectId: project.project_id, webBaseUrl: "http://localhost" }, null, host);
+      { databasePath: project.storage_key, projectId: project.project_id, webBaseUrl: "http://localhost" }, null, host);
     const publicName = actionMcpToolName({ ...projectsCapabilities.listWorkspaces,
       capability_id: `molis_work_v1_action_${projectsCapabilities.listWorkspaces.capability_id}` });
     const list = () => server.handleMessage({ id: 2, method: "tools/list" });

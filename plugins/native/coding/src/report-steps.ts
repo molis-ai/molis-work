@@ -38,7 +38,7 @@ export function codingReportStepsMarkdown(run: AgentRunView, evidence: CodingRep
     "这是保存时的证据快照。模型回报与用户评价分别保留；后续评价不会改写固定报告，当前评价请回原任务的步骤查看。步骤通过不代表整个 Goal 已验收。"];
   if (plan) sections.push(literal(`${plan.title}\n原计划：${plan.source.artifact_id} v${plan.source.version}`));
   if (evidence.unavailable_reason) sections.push(literal(evidence.unavailable_reason));
-  if (board) sections.push(literal(`原步骤图：${board.board_id} v${board.version}\n图状态：${board.terminal ? "已结束" : "尚未结束"}（不代表用户验收）`));
+  if (board) sections.push(literal(`原步骤图：${board.project_id} v${board.version}\n图状态：${board.terminal ? "已结束" : "尚未结束"}（不代表用户验收）`));
   for (const [index, step] of (plan?.steps ?? []).entries()) {
     const node = board?.nodes.find(node => node.id === step.id);
     const verdict = evidence.verdicts[step.id];
@@ -52,10 +52,10 @@ export function codingReportStepsMarkdown(run: AgentRunView, evidence: CodingRep
       if (!node.reports.length) lines.push("尚无模型步骤回报。");
     }
     if (verdict) {
-      const current = verdict.board_id === board?.board_id && verdict.board_version === board?.version;
+      const current = verdict.project_id === board?.project_id && verdict.board_version === board?.version;
       lines.push(current ? (verdict.status === "accepted" ? "用户已通过此步骤" : "用户要求返工")
         : `历史评价：${verdict.status === "accepted" ? "曾通过此步骤" : "曾要求返工"}；对应较早或不同回报，当前版本尚待核对。`,
-        `评价版本：${verdict.revision} · 回报 ${verdict.board_id} v${verdict.board_version}`,
+        `评价版本：${verdict.revision} · 回报 ${verdict.project_id} v${verdict.board_version}`,
         `评价人：${verdict.actor} · ${verdict.at}`, verdict.notes || "未附评价说明。");
     } else lines.push(evidence.unavailable_reason ? "用户评价暂不可核对。" : "用户尚未评价。");
     sections.push(literal(lines.join("\n")));

@@ -32,13 +32,13 @@ test("headless runtime companions are discovered and called by the official MCP 
     workspaceFor: async () => { workspaceReads++; return null; },
     completeText: async () => { completions++; throw new Error("Discovery must not call a model"); },
   });
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "runtime:reader", project_id: project.project_id, audience: "mcp", permissions: ["artifact:read"] };
   const client = host.actionClient(reference), clients: Client[] = [];
   const connect = async (identity: string) => {
     const sdk = new Client({ name: "untrusted", version: "1" }); clients.push(sdk);
     const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
-      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, identity, project.database_path, project.board_id], stderr: "pipe" });
+      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, identity, project.database_path, project.project_id], stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
     try { await sdk.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return sdk;

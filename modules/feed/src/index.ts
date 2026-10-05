@@ -60,7 +60,7 @@ export { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
 /** The Feed tables, as one current schema; the host composes them into the project database baseline. */
 export const FEED_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_items (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       item_id TEXT NOT NULL,
       source_id TEXT,
       signal_id TEXT,
@@ -84,15 +84,15 @@ export const FEED_SCHEMA_SQL = `
       source_updated_at TEXT NOT NULL,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, item_id)
+      PRIMARY KEY (project_id, item_id)
     );
     CREATE INDEX IF NOT EXISTS feed_items_board_updated_idx
-      ON feed_items(board_id, disposition, source_updated_at DESC);
+      ON feed_items(project_id, disposition, source_updated_at DESC);
     CREATE UNIQUE INDEX IF NOT EXISTS feed_items_board_source_external_idx
-      ON feed_items(board_id, source_id, external_id)
+      ON feed_items(project_id, source_id, external_id)
       WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
     CREATE TABLE IF NOT EXISTS feed_materials (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       material_id TEXT NOT NULL,
       item_id TEXT NOT NULL,
       canonical_url TEXT,
@@ -110,11 +110,11 @@ export const FEED_SCHEMA_SQL = `
       selected_for_context INTEGER NOT NULL DEFAULT 0,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, material_id),
-      FOREIGN KEY (board_id, item_id) REFERENCES feed_items(board_id, item_id) ON DELETE CASCADE
+      PRIMARY KEY (project_id, material_id),
+      FOREIGN KEY (project_id, item_id) REFERENCES feed_items(project_id, item_id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS feed_materials_board_item_idx
-      ON feed_materials(board_id, item_id, updated_at DESC, material_id);
+      ON feed_materials(project_id, item_id, updated_at DESC, material_id);
 
     CREATE TABLE IF NOT EXISTS feed_item_events (
       event_id TEXT PRIMARY KEY,
@@ -128,7 +128,7 @@ export const FEED_SCHEMA_SQL = `
       ON feed_item_events(project_id, item_id, at, event_id);
 
     CREATE UNIQUE INDEX IF NOT EXISTS feed_items_board_signal_idx
-      ON feed_items(board_id, signal_id) WHERE signal_id IS NOT NULL;
+      ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
 `;
 
 export class FeedModule implements FeedApi {
@@ -179,39 +179,39 @@ export class FeedModule implements FeedApi {
   private list(projectId: string): FeedItemRecord[] {
     const links = this.goalLinks.list(projectId);
     const materials = (this.db.prepare(
-      "SELECT * FROM feed_materials WHERE board_id = ? ORDER BY updated_at DESC, material_id",
+      "SELECT * FROM feed_materials WHERE project_id = ? ORDER BY updated_at DESC, material_id",
     ).all(projectId) as Row[]).map(mapFeedMaterial);
     const byItem = new Map<string, FeedMaterialRecord[]>();
     for (const material of materials) {
       byItem.set(material.item_id, [...(byItem.get(material.item_id) ?? []), material]);
     }
     return (this.db.prepare(
-      "SELECT * FROM feed_items WHERE board_id = ? ORDER BY source_updated_at DESC, item_id",
+      "SELECT * FROM feed_items WHERE project_id = ? ORDER BY source_updated_at DESC, item_id",
     ).all(projectId) as Row[]).map((row) => mapFeedItem(row, byItem.get(text(row.item_id)) ?? [],
       links.get(text(row.item_id)) ?? null));
   }
 
   private get(projectId: string, itemId: string): FeedItemRecord {
     const row = this.db.prepare(
-      "SELECT * FROM feed_items WHERE board_id = ? AND item_id = ?",
+      "SELECT * FROM feed_items WHERE project_id = ? AND item_id = ?",
     ).get(projectId, itemId) as Row | undefined;
     if (!row) throw new FeedError("feed_item_not_found", "找不到这个 Feed Item");
     const materials = (this.db.prepare(`
       SELECT * FROM feed_materials
-      WHERE board_id = ? AND item_id = ? ORDER BY updated_at DESC, material_id
+      WHERE project_id = ? AND item_id = ? ORDER BY updated_at DESC, material_id
     `).all(projectId, itemId) as Row[]).map(mapFeedMaterial);
     return mapFeedItem(row, materials, this.goalLinks.get(projectId, itemId));
   }
 
   private exists(projectId: string, itemId: string): boolean {
     return Boolean(this.db.prepare(
-      "SELECT 1 FROM feed_items WHERE board_id = ? AND item_id = ?",
+      "SELECT 1 FROM feed_items WHERE project_id = ? AND item_id = ?",
     ).get(projectId, itemId));
   }
 
   private countBySource(projectId: string, sourceId: string): number {
     return Number((this.db.prepare(`
-      SELECT COUNT(*) AS count FROM feed_items WHERE board_id = ? AND source_id = ?
+      SELECT COUNT(*) AS count FROM feed_items WHERE project_id = ? AND source_id = ?
     `).get(projectId, sourceId) as { count?: number } | undefined)?.count ?? 0);
   }
 
@@ -219,7 +219,7 @@ export class FeedModule implements FeedApi {
     const linked = this.goalLinks.find(projectId, goalId).filter((id) => itemId == null || id === itemId);
     if (!linked.length) return null;
     const found = this.db.prepare(`SELECT item_id FROM feed_items
-      WHERE board_id = ? AND item_id IN (SELECT value FROM json_each(?))
+      WHERE project_id = ? AND item_id IN (SELECT value FROM json_each(?))
       ORDER BY updated_at DESC, item_id LIMIT 1`).get(projectId, JSON.stringify(linked)) as { item_id: string } | undefined;
     return found ? this.get(projectId, found.item_id) : null;
   }
@@ -232,7 +232,7 @@ export class FeedModule implements FeedApi {
     return this.db.transaction(() => {
       const existingRow = this.db.prepare(`
         SELECT * FROM feed_items
-        WHERE board_id = ? AND source_id = ? AND external_id = ?
+        WHERE project_id = ? AND source_id = ? AND external_id = ?
       `).get(input.project_id, input.source_id, input.external_id) as Row | undefined;
       const attention = input.attention === false ? null : input.attention ?? null;
       if (existingRow) {
@@ -248,7 +248,7 @@ export class FeedModule implements FeedApi {
               signal_id = ?, signal_revision = ?, kind = ?, title = ?, summary = ?, body = ?,
               source_kind = ?, source_label = ?, url = ?, priority = ?, tags_json = ?, author = ?,
               revision = revision + 1, source_updated_at = ?, updated_at = ?
-            WHERE board_id = ? AND item_id = ?
+            WHERE project_id = ? AND item_id = ?
           `).run(
             input.signal!.signal_id,
             input.signal!.revision,
@@ -301,7 +301,7 @@ export class FeedModule implements FeedApi {
       const itemId = `feeditem-${randomUUID()}`;
       this.db.prepare(`
         INSERT INTO feed_items (
-          board_id, item_id, source_id, signal_id, signal_revision,
+          project_id, item_id, source_id, signal_id, signal_revision,
           kind, title, summary, body, source_kind, source_label, external_id,
           url, origin_status, priority, tags_json, author, disposition,
           read_at, revision, source_created_at, source_updated_at,
@@ -363,12 +363,12 @@ export class FeedModule implements FeedApi {
     this.get(material.project_id, material.item_id);
     this.db.prepare(`
       INSERT INTO feed_materials (
-        board_id, material_id, item_id, canonical_url, title, source_name,
+        project_id, material_id, item_id, canonical_url, title, source_name,
         published_at, preview, content_hash, content_ref, content_available,
         content_type, character_count, captured_at, provenance_json,
         selected_for_context, imported_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(board_id, material_id) DO UPDATE SET
+      ON CONFLICT(project_id, material_id) DO UPDATE SET
         item_id = excluded.item_id,
         canonical_url = excluded.canonical_url,
         title = excluded.title,
@@ -439,7 +439,7 @@ export class FeedModule implements FeedApi {
       this.db.prepare(`
         UPDATE feed_items
         SET disposition = ?, revision = revision + 1, updated_at = ?
-        WHERE board_id = ? AND item_id = ?
+        WHERE project_id = ? AND item_id = ?
       `).run(disposition, at, projectId, itemId);
       const inbox = this.attention.query.findActiveForSubject(projectId, "feed_item", itemId);
       if (inbox) {
@@ -474,7 +474,7 @@ export class FeedModule implements FeedApi {
       this.db.prepare(`
         UPDATE feed_items
         SET disposition = 'inbox', revision = revision + 1, updated_at = ?
-        WHERE board_id = ? AND item_id = ?
+        WHERE project_id = ? AND item_id = ?
       `).run(at, projectId, itemId);
       const inbox = this.attention.query.findActiveForSubject(projectId, "feed_item", itemId);
       if (inbox) this.attention.commands.setStatus(projectId, inbox.entry_id, "dismissed", inbox.revision);
@@ -498,7 +498,7 @@ export class FeedModule implements FeedApi {
       const at = this.now().toISOString();
       this.db.prepare(`
         UPDATE feed_items SET read_at = ?, updated_at = ?
-        WHERE board_id = ? AND item_id = ?
+        WHERE project_id = ? AND item_id = ?
       `).run(at, at, projectId, itemId);
       this.appendEvent(
         projectId,
@@ -530,7 +530,7 @@ export class FeedModule implements FeedApi {
       this.db.prepare(`
         UPDATE feed_items
         SET disposition = ?, revision = revision + 1, updated_at = ?
-        WHERE board_id = ? AND item_id = ?
+        WHERE project_id = ? AND item_id = ?
       `).run(disposition, at, projectId, itemId);
       const inbox = this.attention.query.findActiveForSubject(projectId, "feed_item", itemId);
       if (inbox) {
@@ -556,7 +556,7 @@ export class FeedModule implements FeedApi {
 
   private deleteBySource(projectId: string, sourceId: string): string[] {
     const itemIds = (this.db.prepare(
-      "SELECT item_id FROM feed_items WHERE board_id = ? AND source_id = ? ORDER BY item_id",
+      "SELECT item_id FROM feed_items WHERE project_id = ? AND source_id = ? ORDER BY item_id",
     ).all(projectId, sourceId) as Array<{ item_id: string }>).map((row) => row.item_id);
     if (itemIds.length === 0) return [];
     return this.db.transaction(() => {
@@ -565,7 +565,7 @@ export class FeedModule implements FeedApi {
         this.goalLinks.remove(projectId, itemId);
         this.attention.commands.deleteSubject(projectId, "feed_item", itemId);
       }
-      this.db.prepare("DELETE FROM feed_items WHERE board_id = ? AND source_id = ?")
+      this.db.prepare("DELETE FROM feed_items WHERE project_id = ? AND source_id = ?")
         .run(projectId, sourceId);
       for (const itemId of itemIds) {
         this.appendEvent(
@@ -652,7 +652,7 @@ function normalizeSummary(value: string): string {
 
 function mapFeedMaterial(row: Row): FeedMaterialRecord {
   return {
-    project_id: text(row.board_id),
+    project_id: text(row.project_id),
     material_id: text(row.material_id),
     item_id: text(row.item_id),
     canonical_url: optionalText(row.canonical_url),
@@ -675,7 +675,7 @@ function mapFeedMaterial(row: Row): FeedMaterialRecord {
 
 function mapFeedItem(row: Row, materials: FeedMaterialRecord[], linkedGoalId: string | null = null): FeedItemRecord {
   return {
-    project_id: text(row.board_id),
+    project_id: text(row.project_id),
     item_id: text(row.item_id),
     source_id: optionalText(row.source_id),
     signal_id: optionalText(row.signal_id),

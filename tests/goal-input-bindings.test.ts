@@ -11,21 +11,21 @@ import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger"
 test("Goal input receipts retain opaque locators and snapshots, isolate Projects, and share rollback", () => {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
-  db.exec(`CREATE TABLE boards (board_id TEXT PRIMARY KEY);
-    CREATE TABLE goals (goal_id TEXT PRIMARY KEY, board_id TEXT NOT NULL REFERENCES boards(board_id));
+  db.exec(`CREATE TABLE boards (project_id TEXT PRIMARY KEY);
+    CREATE TABLE goals (goal_id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES boards(project_id));
     INSERT INTO boards VALUES ('project-a'), ('project-b');
     INSERT INTO goals VALUES ('goal-a', 'project-a');
     ${GOAL_INPUT_BINDINGS_SCHEMA_SQL}`);
   try {
     const inputs = new GoalInputBindings(db, createContextLedger(db, { authorize: () => true }));
-    const record: GoalInputBindingRecord = { binding_id: "binding-a", board_id: "project-a", goal_id: "goal-a",
+    const record: GoalInputBindingRecord = { binding_id: "binding-a", project_id: "project-a", goal_id: "goal-a",
       input_name: "Product requirements", source_type: "url", source_ref: "https://example.com/requirements",
       snapshot_digest: "sha256:existing-snapshot", state: "confirmed", reason: "User chose this source",
       created_by: "user-a", created_at: "2026-09-05T00:00:00Z" };
     inputs.register(record);
     assert.deepEqual(inputs.list("project-a"), [record]);
     assert.deepEqual(inputs.list("project-b"), []);
-    assert.throws(() => inputs.register({ ...record, binding_id: "wrong-project", board_id: "project-b" }), /不属于这个 Project/);
+    assert.throws(() => inputs.register({ ...record, binding_id: "wrong-project", project_id: "project-b" }), /不属于这个 Project/);
     assert.deepEqual(inputs.list("project-a"), [record]);
     assert.deepEqual(inputs.list("project-b"), []);
     assert.throws(() => db.transaction(() => {
@@ -39,14 +39,14 @@ test("Goal input receipts retain opaque locators and snapshots, isolate Projects
 });
 
 const feedReceipt: GoalInputBindingRecord = {
-  binding_id: "binding-feed", board_id: "project-a", goal_id: "goal-a", input_name: "Inbox input",
+  binding_id: "binding-feed", project_id: "project-a", goal_id: "goal-a", input_name: "Inbox input",
   source_type: "feed_item", source_ref: "feed-item:item-a", snapshot_digest: "old-confirmed-snapshot",
   state: "confirmed", reason: "Confirmed by user", created_by: "original-user", created_at: "2026-09-01T10:00:00Z",
 };
 
 function seedGoal(db: Database.Database): void {
-  db.exec(`CREATE TABLE boards (board_id TEXT PRIMARY KEY);
-    CREATE TABLE goals (goal_id TEXT PRIMARY KEY, board_id TEXT NOT NULL REFERENCES boards(board_id));
+  db.exec(`CREATE TABLE boards (project_id TEXT PRIMARY KEY);
+    CREATE TABLE goals (goal_id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES boards(project_id));
     INSERT INTO boards VALUES ('project-a');
     INSERT INTO goals VALUES ('goal-a', 'project-a'); ${GOAL_INPUT_BINDINGS_SCHEMA_SQL}`);
 }

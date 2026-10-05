@@ -15,7 +15,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 async function fixture() {
   const home = await mkdtemp(join(tmpdir(), "goals-configuration-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Configuration", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const denied = new Set<string>();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, view) =>
     denied.has(view.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "Configuration disabled" } : { available: true } });
@@ -24,7 +24,7 @@ async function fixture() {
     user_action: { source: "management", conversation_ref: "conversation://configuration", message_ref: "message://change" } };
   const client = host.actionClient(ref), actions = bindActionClient(client, () => caller);
   for (const id of ["parent", "child", "other"]) await actions.invoke(goalsActions.create, { goal_id: id, title: id, idempotency_key: `create-${id}` });
-  const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.board_id));
+  const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.project_id));
   return { home, project, ref, host, caller, client, actions, denied, snapshot,
     async close() { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
@@ -35,7 +35,7 @@ test("relation actions preserve original receipts, direction, history, graph rul
   const relation = { from_goal_id: "child", to_goal_id: "parent", type: "part_of" as const, reason: "  Own this result  " };
   const input = { ...relation, idempotency_key: "existing-add" };
   try {
-    const old = await host.withProject(ref, r => r.coordinator.goals.commands.addRelation(project.board_id, relation,
+    const old = await host.withProject(ref, r => r.coordinator.goals.commands.addRelation(project.project_id, relation,
       { actor_id: caller.actor_id, idempotency_key: input.idempotency_key }));
     assert.deepEqual(await actions.invoke(goalsActions.relationAdd, input), { ...old, replayed: true });
     const record = (await actions.invoke(goalsActions.relations, { goal_id: "parent" })).relations.find(r => r.relation_id === old.relation_id)!;
@@ -49,7 +49,7 @@ test("relation actions preserve original receipts, direction, history, graph rul
     await assert.rejects(actions.invoke(goalsActions.relationAdd, { ...input, from_goal_id: "parent", to_goal_id: "child", idempotency_key: "cycle" }));
     await assert.rejects(actions.invoke(goalsActions.relationAdd, { ...input, to_goal_id: "missing", idempotency_key: "missing" }), { code: "goal.not_found" });
     await assert.rejects(client.invoke({ ...caller, project_id: "foreign" }, goalsActions.relations, {}), { code: "actions.scope_mismatch" });
-    for (const forged of [{ actor_id: "forged" }, { board_id: "other" }, { user_action: caller.user_action }]) {
+    for (const forged of [{ actor_id: "forged" }, { project_id: "other" }, { user_action: caller.user_action }]) {
       await assert.rejects(actions.invoke(goalsActions.relationAdd, { ...input, ...forged }), { code: "actions.input_invalid" });
     }
     assert.deepEqual(await snapshot(), before);
@@ -58,7 +58,7 @@ test("relation actions preserve original receipts, direction, history, graph rul
     const pending = (await actions.invoke(goalsActions.relations, {})).relations.find(r => r.relation_id === proposed.relation_id)!;
     assert.equal(pending.state, "proposed");
     const remove = { relation_id: old.relation_id, reason: "  No longer belongs here  ", idempotency_key: "existing-remove" };
-    const oldRemove = await host.withProject(ref, r => r.coordinator.goals.commands.deactivateRelation(project.board_id,
+    const oldRemove = await host.withProject(ref, r => r.coordinator.goals.commands.deactivateRelation(project.project_id,
       { relation_id: remove.relation_id, reason: remove.reason }, { actor_id: caller.actor_id, idempotency_key: remove.idempotency_key }));
     assert.deepEqual(await actions.invoke(goalsActions.relationDeactivate, remove), { ...oldRemove, replayed: true });
     assert.equal(oldRemove.relation.reason, record.reason, "deactivation preserves the original creation reason");
@@ -89,7 +89,7 @@ test("relation actions preserve original receipts, direction, history, graph rul
       assert.deepEqual(await restarted.actionClient(ref).invoke(caller, goalsActions.relations, {}), all);
       assert.deepEqual(await restarted.actionClient(ref).invoke(caller, goalsActions.relationAdd, input), { ...old, replayed: true });
       assert.deepEqual(await restarted.actionClient(ref).invoke(caller, goalsActions.relationDeactivate, remove), { ...oldRemove, replayed: true });
-      assert.deepEqual(await restarted.withProject(ref, r => r.store.snapshot(project.board_id)), stable);
+      assert.deepEqual(await restarted.withProject(ref, r => r.store.snapshot(project.project_id)), stable);
     } finally { await restarted.close(); }
   } finally { await f.close(); }
 });
@@ -98,13 +98,13 @@ test("project policy actions preserve normalized receipts, original binding hist
   const f = await fixture(); const { host, ref, project, caller, client, actions, snapshot, denied } = f;
   const input = { policy: { ...DEFAULT_GOAL_POLICY }, user_confirmed: true, idempotency_key: "existing-policy" };
   try {
-    const old = await host.withProject(ref, r => r.coordinator.goals.commands.saveProjectPolicy({ ...input, board_id: project.board_id, actor_id: caller.actor_id }));
+    const old = await host.withProject(ref, r => r.coordinator.goals.commands.saveProjectPolicy({ ...input, project_id: project.project_id, actor_id: caller.actor_id }));
     assert.deepEqual(await actions.invoke(goalsActions.policySave, input), { ...old, replayed: true });
     // A Goal's own binding stays with its author and stays stricter than the project default.
     await host.withProject(ref, r => r.store.db.prepare(`INSERT INTO policy_bindings
-      (policy_binding_id, board_id, goal_id, scope, policy_json, state, created_by, reason, created_at)
+      (policy_binding_id, project_id, goal_id, scope, policy_json, state, created_by, reason, created_at)
       VALUES ('goal-policy', ?, 'child', 'goal', ?, 'active', 'original-author', 'Retain stricter goal requirements', '2025-01-01T00:00:00.000Z')`)
-      .run(project.board_id, JSON.stringify({ human_approval: true })));
+      .run(project.project_id, JSON.stringify({ human_approval: true })));
     const history = await actions.invoke(goalsActions.policyHistory, {});
     const own = history.bindings.find(b => b.policy_binding_id === "goal-policy")!;
     assert.equal(own.created_by, "original-author"); assert.equal(own.reason, "Retain stricter goal requirements");

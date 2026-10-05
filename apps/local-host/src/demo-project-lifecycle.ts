@@ -15,7 +15,7 @@ import {
   seedDemoPluginSurfaces,
   seedDemoProjectExtras,
 } from "./demo-plugin-seed.js";
-export interface DemoProjectSeedPort { boardId: string; seed(databasePath: string): void }
+export interface DemoProjectSeedPort { seed(databasePath: string, projectId: string): void }
 /** Rebuild only explicitly classified demonstration data through the supplied production seed. */
 export class DemoProjectLifecycle {
   constructor(
@@ -38,7 +38,6 @@ export class DemoProjectLifecycle {
     }
     const record = this.projects.lifecycle.prepareRecord({
       display_name: input.display_name ?? "Molis Work 示例项目",
-      board_id: this.demo.boardId,
       projects_directory: this.projectsDirectory,
       data_class: "regenerable_demo",
     });
@@ -48,9 +47,9 @@ export class DemoProjectLifecycle {
     try {
       await fs.mkdir(stagingDirectory, { recursive: false });
       const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
-      this.demo.seed(stagedDatabasePath);
-      seedDemoPluginSurfaces(stagedDatabasePath);
-      validateManagedBoard(stagedDatabasePath, this.demo.boardId);
+      this.demo.seed(stagedDatabasePath, record.project_id);
+      seedDemoPluginSurfaces(stagedDatabasePath, record.project_id);
+      validateManagedBoard(stagedDatabasePath, record.project_id);
       await fs.rename(stagingDirectory, projectDirectory);
       promoted = true;
       await this.commit(() => this.projects.lifecycle.register(record, "project.demo_created", actorId));
@@ -77,9 +76,9 @@ export class DemoProjectLifecycle {
     try {
       await fs.mkdir(stagingDirectory, { recursive: false });
       const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
-      this.demo.seed(stagedDatabasePath);
-      seedDemoPluginSurfaces(stagedDatabasePath);
-      validateManagedBoard(stagedDatabasePath, this.demo.boardId);
+      this.demo.seed(stagedDatabasePath, project.project_id);
+      seedDemoPluginSurfaces(stagedDatabasePath, project.project_id);
+      validateManagedBoard(stagedDatabasePath, project.project_id);
       await fs.rename(projectDirectory, backupDirectory);
       previousMoved = true;
       await fs.rename(stagingDirectory, projectDirectory);
@@ -87,7 +86,7 @@ export class DemoProjectLifecycle {
       await this.seedDemoExtras(project.project_id, project.database_path, actorId);
       updated = await this.commit(() => {
         enableDemoProjectPlugins(this.projects, project.project_id, actorId);
-        return this.projects.lifecycle.touch(project.project_id, "project.demo_reset", actorId, { board_id: project.board_id });
+        return this.projects.lifecycle.touch(project.project_id, "project.demo_reset", actorId, {});
       });
     } catch (error) {
       try {
@@ -126,7 +125,7 @@ export class DemoProjectLifecycle {
   }
 
   private async seedDemoExtras(projectId: string, databasePath: string, actorId: string): Promise<void> {
-    seedDemoPluginSurfaces(databasePath, this.projects.query.getProject(projectId).board_id);
+    seedDemoPluginSurfaces(databasePath, projectId);
     await seedDemoProjectExtras({
       projectId,
       homeDirectory: this.homeDirectory,

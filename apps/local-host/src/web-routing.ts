@@ -7,7 +7,7 @@ export function fixtureWebBoardOptions(options: WebServerOptions): ResolvedWebBo
   if (!options.databasePath) return null;
   return {
     databasePath: options.databasePath,
-    boardId: options.boardId ?? "default",
+    projectId: options.projectId ?? "default",
     demo: options.demo,
     projectRoot: options.projectRoot,
     project: null,
@@ -70,7 +70,7 @@ export async function resolveWebRequest(
       pathname: match[2] || "/",
       options: {
         databasePath: project.database_path,
-        boardId: project.board_id,
+        projectId: project.project_id,
         projectRoot: serverOptions.projectRoot,
         project: projectNavigation(project),
         projects,

@@ -48,14 +48,14 @@ async function seededHome(t: test.TestContext) {
   for (const suffix of ["", "-wal", "-shm"]) await rm(project.database_path + suffix, { force: true });
   seedDemoBoard(project.database_path);
   const store = new LocalProjectDatabase(project.database_path);
-  const boardId = store.goalsQuery.listBoardIds()[0]!;
+  const projectId = store.goalsQuery.listProjectIds()[0]!;
   // Feed has no sources until one is added; two give its source pages and their links something to show.
-  const sources = createLocalFeedSourceService(store.db, boardId);
+  const sources = createLocalFeedSourceService(store.db, projectId);
   sources.register({ kind: "web_query", query: "整页门禁" });
   sources.register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "page-gate" });
   store.close();
   const catalogDb = new Database(catalogPath);
-  catalogDb.prepare("UPDATE projects SET board_id = ? WHERE project_id = ?").run(boardId, project.project_id);
+  catalogDb.prepare("UPDATE projects SET project_id = ? WHERE project_id = ?").run(projectId, project.project_id);
   catalogDb.close();
   const server = createMolisWorkWebServer({ homeDirectory: directory, controlToken: "page-gate-test-control-token-0123456789" });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

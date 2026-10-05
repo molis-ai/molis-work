@@ -19,7 +19,7 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
   try {
     const coordinator = new GoalProjectApplication(store);
     coordinator.initializeBoard({
-      board_id: "board-query",
+      project_id: "board-query",
       title: "Goals Query",
       actor_id: "user-1",
       idempotency_key: "initialize",
@@ -55,7 +55,7 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
     }, { actor_id: "user-1", idempotency_key: "relate" });
     insertHistoricalPolicy(store.db, {
       policy_binding_id: "policy-project",
-      board_id: "board-query",
+      project_id: "board-query",
       scope: "project_default",
       policy: { human_approval: false },
       reason: "项目规则",
@@ -63,7 +63,7 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
     });
     insertHistoricalPolicy(store.db, {
       policy_binding_id: "policy-child",
-      board_id: "board-query",
+      project_id: "board-query",
       goal_id: "goal-child",
       scope: "goal",
       policy: { human_approval: true },
@@ -71,7 +71,7 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
       created_by: "user-1",
     });
     goals.commands.addProjectGuidance({
-      board_id: "board-query",
+      project_id: "board-query",
       actor_id: "user-1",
       kind: "quality_bar",
       content: "查询迁移保持结果无损。",

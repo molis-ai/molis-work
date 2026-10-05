@@ -66,17 +66,17 @@ test("formal unknown plugins supply namespaced events and checked navigation thr
 
 test("native event providers project original Feed, Inbox, source state and project Sessions", async () => {
   const { mkdtemp, rm } = await import("node:fs/promises"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
-  const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_BOARD_ID, createLocalFeedApplication, createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
+  const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, createLocalFeedApplication, createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
   const { createFeedEvidenceContentStore } = await import("@molis-ai/molis-work-module-feed");
   const { runWithMolisWorkHome } = await import("@molis-ai/molis-work-storage");
   const home = await mkdtemp(join(tmpdir(), "native-home-events-")); const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId: DEMO_BOARD_ID, projectId: caller.project_id! });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const owner = { ...caller, permissions: ["home:read", "feed:read", "inbox:read", "goals:read", "sessions:read"] };
   const now = new Date(); const range = { from: new Date(now.getTime() - 86400000).toISOString(), to: new Date(now.getTime() + 86400000).toISOString(), now: now.toISOString() };
   try {
     const runtime = await host.withProject(reference, runtime => runtime); const feed = createLocalFeedApplication(runtime.store.db);
-    const source = createLocalFeedSourceService(runtime.store.db, reference.board_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "events" }).source;
+    const source = createLocalFeedSourceService(runtime.store.db, reference.project_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "events" }).source;
     const ingest = (id: string, at = now.toISOString()) => feed.ingestItem({ source, externalId: id, title: "材料 " + id, summary: "摘要", body: "完整原文 " + id, occurredAt: at, attention: false }).item;
     const ordinary = ingest("ordinary"), active = ingest("active", "2020-01-01T00:00:00Z"), done = ingest("done");
     const retainedText = "# 保留的材料原文\n\n这段内容只存在加密材料中。";
@@ -85,11 +85,11 @@ test("native event providers project original Feed, Inbox, source state and proj
       material: { material_id: "retained-material", canonical_url: null, title: "材料附件", source_name: source.name, published_at: null,
         preview: "附件预览", content_hash: null, content_ref: retained.contentRef, content_available: true, content_type: "text/markdown",
         character_count: retainedText.length, captured_at: now.toISOString(), provenance: {}, selected_for_context: true } }).item;
-    const goal = runtime.store.snapshot(reference.board_id).goals[0]!;
-    feed.linkGoal(reference.board_id, ordinary.item_id, goal.goal_id, "processing");
-    const activeEntry = feed.ensureInboxEntryForFeedItem(reference.board_id, active.item_id, "manual").entry;
-    const doneEntry = feed.ensureInboxEntryForFeedItem(reference.board_id, done.item_id, "manual").entry;
-    feed.setInboxEntryStatus(reference.board_id, doneEntry.entry_id, "done", doneEntry.revision); await feed.flushPendingJudgments();
+    const goal = runtime.store.snapshot(reference.project_id).goals[0]!;
+    feed.linkGoal(reference.project_id, ordinary.item_id, goal.goal_id, "processing");
+    const activeEntry = feed.ensureInboxEntryForFeedItem(reference.project_id, active.item_id, "manual").entry;
+    const doneEntry = feed.ensureInboxEntryForFeedItem(reference.project_id, done.item_id, "manual").entry;
+    feed.setInboxEntryStatus(reference.project_id, doneEntry.entry_id, "done", doneEntry.revision); await feed.flushPendingJudgments();
     feed.upsertSource({ ...source, status: "error", last_outcome: "failed", last_error_code: "rate_limited", updated_at: now.toISOString() });
     const resources = await host.sessionResources();
     const session = resources.registry.createSession({ runtime_id: "codex", native_runtime_session_id: "native-event-session", project_id: reference.project_id, actor_id: owner.actor_id, user_confirmed: true, title: "真实会话", current_goal_id: goal.goal_id });
@@ -115,14 +115,14 @@ test("native event providers project original Feed, Inbox, source state and proj
     feed.upsertSource({ ...source, status: "active", last_outcome: "completed", last_error_code: null });
     await assert.rejects(client.invoke(owner, homeEventActions.openEvent, open), { code: "actions.event_changed" });
     feed.upsertSource({ ...source, status: "disconnected", last_outcome: "failed", last_error_code: "auth_required" });
-    const sourceEntry = feed.createInboxEntry({ boardId: reference.board_id, subjectType: "source_fault", subjectId: source.source_id, reason: "source_fault", detail: { user_action: "请检查连接设置" } }).entry;
+    const sourceEntry = feed.createInboxEntry({ projectId: reference.project_id, subjectType: "source_fault", subjectId: source.source_id, reason: "source_fault", detail: { user_action: "请检查连接设置" } }).entry;
     const withFault = await client.invoke(owner, homeEventActions.events, range) as HomeEventsResult;
     assert.equal(withFault.events.some(event => event.subject.kind === "source" && event.subject.id === source.source_id), false, "one fault has only its original attention row");
     assert.equal(withFault.events.find(event => event.subject.id === sourceEntry.entry_id)?.content, "请检查连接设置");
-    feed.setInboxEntryStatus(reference.board_id, sourceEntry.entry_id, "dismissed", sourceEntry.revision);
+    feed.setInboxEntryStatus(reference.project_id, sourceEntry.entry_id, "dismissed", sourceEntry.revision);
     const dismissed = await client.invoke(owner, homeEventActions.events, range) as HomeEventsResult;
     assert.equal(dismissed.events.some(event => event.subject.id === sourceEntry.entry_id || event.subject.kind === "source" && event.subject.id === source.source_id), false, "dismissed faults do not reappear as raw source events");
-    feed.setInboxEntryStatus(reference.board_id, activeEntry.entry_id, "done", activeEntry.revision);
+    feed.setInboxEntryStatus(reference.project_id, activeEntry.entry_id, "done", activeEntry.revision);
     const after = await client.invoke(owner, homeEventActions.events, range) as HomeEventsResult;
     assert.equal(after.events.some(event => event.subject.id === activeEntry.entry_id || event.subject.id === active.item_id), false);
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }

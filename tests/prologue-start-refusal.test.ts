@@ -33,7 +33,7 @@ test("a round the runtime refuses while packing its context leaves the session u
       if (Date.now() > until) throw new Error("run did not finish");
     }
   };
-  const session = await adapter.createSession({ title: "Refusal", board_id: "test", plugin_id: "io.molis.work.coding", install_id: "test", actor_id: "test", directory });
+  const session = await adapter.createSession({ title: "Refusal", project_id: "test", plugin_id: "io.molis.work.coding", install_id: "test", actor_id: "test", directory });
   try {
     // A 200-token window cannot hold the role's instructions: refused before any run exists.
     await assert.rejects(start(), (error: { code?: string }) => error.code === "CONTEXT_BUDGET_EXCEEDED");

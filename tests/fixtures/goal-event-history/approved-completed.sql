@@ -2,7 +2,7 @@ PRAGMA user_version = 5;
 PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
 CREATE TABLE boards (
-          board_id TEXT PRIMARY KEY,
+          project_id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
           active_goal_id TEXT,
           created_at TEXT NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE boards (
 INSERT INTO boards VALUES('goalboard-v1-demo','让第一次使用 Molis Work 的人顺利完成一次目标协作','V1','2026-09-10T07:03:28.489Z','2026-09-10T07:03:28.555Z');
 CREATE TABLE goals (
     goal_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     outcome TEXT NOT NULL,
     why TEXT NOT NULL,
@@ -81,7 +81,7 @@ INSERT INTO acceptance_criteria VALUES('OLD-RISK-C1','OLD-RISK','结果可以打
 INSERT INTO acceptance_criteria VALUES('MIXED-C1','MIXED-OWNER','结果确实可读','inspection','打开实际结果',NULL,'[]');
 CREATE TABLE goal_relations (
     relation_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     from_goal_id TEXT NOT NULL REFERENCES goals(goal_id),
     to_goal_id TEXT NOT NULL REFERENCES goals(goal_id),
     type TEXT NOT NULL,
@@ -110,7 +110,7 @@ INSERT INTO goal_relations VALUES('relation-341fe1f6-94a5-4b9d-96d8-1481878e7570
 INSERT INTO goal_relations VALUES('relation-26184b19-74b6-4509-a239-b2c3d9ef3b67','goalboard-v1-demo','DOCS','ONBOARDING','depends_on','active','README 的演示必须来自已经走通的首次体验','demo-user','2026-09-10T07:03:28.530Z',NULL);
 CREATE TABLE goal_trash_records (
     trash_record_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     trashed_at TEXT NOT NULL,
     trashed_by TEXT NOT NULL,
@@ -130,7 +130,7 @@ CREATE TABLE goal_trash_relation_records (
   );
 CREATE TABLE policy_bindings (
     policy_binding_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT REFERENCES goals(goal_id),
     scope TEXT NOT NULL CHECK (scope IN ('project_default', 'ancestor_minimum', 'goal')),
     policy_json TEXT NOT NULL,
@@ -143,7 +143,7 @@ INSERT INTO policy_bindings VALUES('legacy-explicit-human','goalboard-v1-demo','
 INSERT INTO policy_bindings VALUES('mixed-project-human','goalboard-v1-demo',NULL,'project_default','{"human_approval":true}','active','mixed-user','本项目完成必须由用户验收','2026-09-10T07:29:38.105Z');
 CREATE TABLE project_guidance_entries (
     guidance_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     position INTEGER NOT NULL,
     revision INTEGER NOT NULL DEFAULT 1,
     active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
@@ -157,13 +157,13 @@ CREATE TABLE project_guidance_entries (
     created_at TEXT NOT NULL,
     updated_by TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    UNIQUE(board_id, position),
-    UNIQUE(board_id, kind, content_hash)
+    UNIQUE(project_id, position),
+    UNIQUE(project_id, kind, content_hash)
   );
 CREATE TABLE project_guidance_revisions (
     revision_id TEXT PRIMARY KEY,
     guidance_id TEXT NOT NULL REFERENCES project_guidance_entries(guidance_id) ON DELETE CASCADE,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     revision INTEGER NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('context', 'requirement', 'constraint', 'convention', 'workflow', 'quality_bar')),
     content TEXT NOT NULL,
@@ -178,18 +178,18 @@ CREATE TABLE project_guidance_revisions (
     UNIQUE(guidance_id, revision)
   );
 CREATE TABLE planning_method_packs (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     method_id TEXT NOT NULL,
     version INTEGER NOT NULL,
     enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
     pack_json TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    PRIMARY KEY (board_id, method_id)
+    PRIMARY KEY (project_id, method_id)
   );
 CREATE TABLE input_bindings (
     binding_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id),
     input_name TEXT NOT NULL,
     source_type TEXT NOT NULL,
@@ -202,27 +202,27 @@ CREATE TABLE input_bindings (
     created_at TEXT NOT NULL
   );
 CREATE TABLE goal_event_configs (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     current_version INTEGER NOT NULL,
     updated_at TEXT NOT NULL,
     updated_by TEXT NOT NULL,
-    PRIMARY KEY (board_id, goal_id)
+    PRIMARY KEY (project_id, goal_id)
   );
 INSERT INTO goal_event_configs VALUES('goalboard-v1-demo','MIXED-OWNER',1,'2026-09-10T07:29:38.102Z','mixed-runtime');
 CREATE TABLE goal_event_config_versions (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     version INTEGER NOT NULL,
     actor_id TEXT NOT NULL,
     adopted_planning_json TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
     config_event_id TEXT NOT NULL,
-    PRIMARY KEY (board_id, goal_id, version)
+    PRIMARY KEY (project_id, goal_id, version)
   );
 INSERT INTO goal_event_config_versions VALUES('goalboard-v1-demo','MIXED-OWNER',1,'mixed-runtime','[]','2026-09-10T07:29:38.102Z','gevt-a47aa75e-722e-41ac-8896-e59373c12681');
 CREATE TABLE goal_event_types (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     type_id TEXT NOT NULL,
     type_version INTEGER NOT NULL,
@@ -234,12 +234,12 @@ CREATE TABLE goal_event_types (
     created_at TEXT NOT NULL,
     created_in_config_version INTEGER NOT NULL,
     actor_id TEXT NOT NULL,
-    PRIMARY KEY (board_id, goal_id, type_id, type_version)
+    PRIMARY KEY (project_id, goal_id, type_id, type_version)
   );
 INSERT INTO goal_event_types VALUES('goalboard-v1-demo','MIXED-OWNER','check',1,'实际核对','保留真实支持',NULL,'{"kind":"local","label":"当前 Goal 局部定义"}','[{"field_id":"result","name":"结果","purpose":"核对结果","format":"text","required":true,"source":{"kind":"local"}}]','2026-09-10T07:29:38.102Z',1,'mixed-runtime');
 CREATE TABLE goal_event_requirements (
     requirement_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     statement TEXT NOT NULL,
     bound_type_id TEXT,
@@ -287,17 +287,17 @@ INSERT INTO goal_event_requirements VALUES('imported-policy:WEB','goalboard-v1-d
 INSERT INTO goal_event_requirements VALUES('WORKSPACE-C1','goalboard-v1-demo','WORKSPACE','用户不切窗口即可从 Goal 进入对应 Runtime',NULL,'2026-10-04T20:13:22.300Z',0,'migration:36','{"kind":"imported_acceptance_criterion","decision_method":"inspection","pass_condition":"桌面主工作流可完成并保持 Goal 绑定"}',0,'active',1,0);
 INSERT INTO goal_event_requirements VALUES('imported-policy:WORKSPACE','goalboard-v1-demo','WORKSPACE','本项目完成必须由用户验收',NULL,'2026-10-04T20:13:22.300Z',0,'migration:36','{"kind":"imported_human_approval","policy_binding_ids":["mixed-project-human"]}',1,'active',1,0);
 CREATE TABLE goal_event_requirement_bindings (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     type_id TEXT NOT NULL,
     requirement_id TEXT NOT NULL,
     created_in_config_version INTEGER NOT NULL,
     created_at TEXT NOT NULL,
-    PRIMARY KEY (board_id, goal_id, type_id, requirement_id)
+    PRIMARY KEY (project_id, goal_id, type_id, requirement_id)
   );
 CREATE TABLE goal_work_events (
     event_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     kind TEXT NOT NULL CHECK (kind IN ('configuration', 'report', 'system')),
     type_id TEXT,
@@ -325,7 +325,7 @@ CREATE TABLE goal_work_event_judgments (
   );
 INSERT INTO goal_work_event_judgments VALUES('gevt-75b666e9-56d7-4929-b6d0-7474b5937be3','MIXED-C1','supports');
 CREATE TABLE goal_event_state_owners (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     owner TEXT NOT NULL CHECK (owner = 'event_work'),
     source TEXT NOT NULL CHECK (source IN ('intent', 'configuration', 'continue')),
@@ -351,14 +351,14 @@ INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','V1','event_work'
 INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','WEB','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
 INSERT INTO goal_event_state_owners VALUES('goalboard-v1-demo','WORKSPACE','event_work','intent','2026-10-04T20:13:22.300Z','migration:36');
 CREATE TABLE goal_event_agreements (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     version INTEGER NOT NULL,
     outcome TEXT NOT NULL,
     actor_id TEXT NOT NULL,
     created_at TEXT NOT NULL,
     event_id TEXT,
-    PRIMARY KEY (board_id, goal_id, version)
+    PRIMARY KEY (project_id, goal_id, version)
   );
 INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','MIXED-OWNER',1,'真实结果继续有效','mixed-runtime','2026-09-10T07:29:38.102Z','');
 INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','ADOPTION',1,'新用户从 README、安装和首次打开一路走到推进第一条 Goal','migration:36','2026-10-04T20:13:22.300Z','');
@@ -379,7 +379,7 @@ INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','WEB',1,'用户不�
 INSERT INTO goal_event_agreements VALUES('goalboard-v1-demo','WORKSPACE',1,'用户在一个窗口里查看 Goal Tree、Focus、Graph 和 Goal-bound Runtime','migration:36','2026-10-04T20:13:22.300Z','');
 CREATE TABLE goal_event_progress_summaries (
     summary_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     event_id TEXT NOT NULL,
     summary_text TEXT NOT NULL,
@@ -391,7 +391,7 @@ CREATE TABLE goal_event_progress_summaries (
   );
 CREATE TABLE goal_event_concerns (
     concern_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     event_id TEXT NOT NULL,
     title TEXT NOT NULL,
@@ -411,7 +411,7 @@ INSERT INTO goal_event_concerns VALUES('imported-risk:OLD-HUMAN:mixed-shared-ris
 INSERT INTO goal_event_concerns VALUES('imported-risk:OLD-RISK:legacy-completion-risk','goalboard-v1-demo','OLD-RISK','gevt-fca3466a-5e03-4f25-ac8b-a3ff3948e9b5','付款记录存在遗漏，结果未确认','付款记录存在遗漏，结果未确认；全部付款记录可读取','{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"}',1,'open',NULL,NULL,NULL,NULL,'2026-10-04T20:13:22.300Z','2026-10-04T20:13:22.300Z');
 CREATE TABLE goal_event_decision_requests (
     request_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     event_id TEXT NOT NULL,
     question TEXT NOT NULL,
@@ -425,7 +425,7 @@ CREATE TABLE goal_event_decision_requests (
   );
 CREATE TABLE goal_event_applied_decisions (
     decision_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     governance_decision_id TEXT NOT NULL,
     request_id TEXT,
@@ -445,7 +445,7 @@ CREATE TABLE goal_event_applied_decisions (
   );
 INSERT INTO goal_event_applied_decisions VALUES('gdec-83564492-8f53-45d4-9c70-7cd39039fc2a','goalboard-v1-demo','MIXED-OWNER','gedec-fe7294b3-8446-424e-9418-2932bb8027d9',NULL,'gevt-c3a48804-b9f3-4b0f-9a75-2393f0881092',NULL,'我已经核对本 Goal 的当前交付，同意满足人工验收责任；剩余输入遗漏修复后可以完成',0,'[{"kind":"authorize_action","action":"complete"}]','{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"}','{"outcome":"真实结果继续有效","requirements":[]}',NULL,1,1,'existing-user','web','2026-09-10T08:08:53.175Z');
 CREATE TABLE goal_event_requirement_conclusions (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     requirement_id TEXT NOT NULL,
     decision_id TEXT NOT NULL,
@@ -453,12 +453,12 @@ CREATE TABLE goal_event_requirement_conclusions (
     verdict TEXT NOT NULL CHECK (verdict IN ('accepted', 'rejected')),
     received_at TEXT NOT NULL,
     journal_seq INTEGER NOT NULL,
-    PRIMARY KEY (board_id, goal_id, requirement_id, decision_id)
+    PRIMARY KEY (project_id, goal_id, requirement_id, decision_id)
   );
 INSERT INTO goal_event_requirement_conclusions VALUES('goalboard-v1-demo','MIXED-OWNER','imported-policy:MIXED-OWNER','gdec-83564492-8f53-45d4-9c70-7cd39039fc2a','existing-user','accepted','2026-09-10T08:08:53.175Z',51);
 CREATE TABLE goal_event_closures (
     closure_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     event_id TEXT NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('complete', 'cancel')),
@@ -476,7 +476,7 @@ CREATE TABLE goal_event_closures (
   );
 INSERT INTO goal_event_closures VALUES('gclo-f5c0d3db-95a0-444f-978e-17060d3f6ab8','goalboard-v1-demo','MIXED-OWNER','gevt-fff26575-8687-4006-bc0a-652b335c236f','complete','实际结果可读','保留真实人工批准，核对剩余风险',1,1,1,1,1,'[]',0,NULL,'2026-09-10T08:08:53.178Z');
 CREATE TABLE goal_event_work_status (
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     work_status TEXT NOT NULL CHECK (work_status IN ('open', 'completed', 'cancelled')),
     updated_at TEXT NOT NULL,
@@ -501,7 +501,7 @@ INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','WEB','open','2026
 INSERT INTO goal_event_work_status VALUES('goalboard-v1-demo','WORKSPACE','open','2026-10-04T20:13:22.300Z');
 CREATE TABLE goal_tree_proposals (
     proposal_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     root_goal_id TEXT REFERENCES goals(goal_id) ON DELETE SET NULL,
     submitted_by TEXT NOT NULL,
     submitted_session_id TEXT,
@@ -519,7 +519,7 @@ CREATE TABLE goal_tree_proposals (
 CREATE TABLE goal_tree_proposal_items (
     item_id TEXT PRIMARY KEY,
     proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('goal', 'relation')),
     operation TEXT NOT NULL CHECK (operation IN ('create', 'deactivate')),
@@ -542,7 +542,7 @@ CREATE TABLE goal_tree_proposal_items (
   );
 CREATE TABLE goal_tree_proposal_decisions (
     decision_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
     item_id TEXT NOT NULL REFERENCES goal_tree_proposal_items(item_id) ON DELETE CASCADE,
     decision TEXT NOT NULL CHECK (decision IN ('confirmed', 'rejected', 'revised', 'conflict')),
@@ -558,7 +558,7 @@ CREATE TABLE goal_tree_proposal_decisions (
   );
 CREATE TABLE goal_event_trusted_decisions (
     decision_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     actor_id TEXT NOT NULL,
     actor_kind TEXT NOT NULL CHECK (actor_kind = 'user'),
@@ -576,12 +576,12 @@ CREATE TABLE goal_event_trusted_decisions (
 INSERT INTO goal_event_trusted_decisions VALUES('gedec-fe7294b3-8446-424e-9418-2932bb8027d9','goalboard-v1-demo','MIXED-OWNER','existing-user','user','web','web:goalboard-v1-demo','web-event-decision:approved-policy-before-migration',NULL,NULL,'我已经核对本 Goal 的当前交付，同意满足人工验收责任；剩余输入遗漏修复后可以完成',0,'{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"}',NULL,'2026-09-10T08:08:53.172Z');
 CREATE TABLE library_artifacts (
     artifact_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     owner_actor_id TEXT NOT NULL,
     producer_plugin_id TEXT NOT NULL,
     producer_binding_signature TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    UNIQUE (artifact_id, board_id)
+    UNIQUE (artifact_id, project_id)
   );
 CREATE TABLE library_artifact_versions (
     artifact_id TEXT NOT NULL REFERENCES library_artifacts(artifact_id) ON DELETE CASCADE,
@@ -618,12 +618,12 @@ CREATE TABLE library_artifact_versions (
   );
 CREATE TABLE process_items (
     artifact_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     owner_actor_id TEXT NOT NULL,
     producer_plugin_id TEXT NOT NULL,
     producer_binding_signature TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    UNIQUE (artifact_id, board_id)
+    UNIQUE (artifact_id, project_id)
   );
 CREATE TABLE process_item_versions (
     artifact_id TEXT NOT NULL REFERENCES process_items(artifact_id) ON DELETE CASCADE,
@@ -655,16 +655,16 @@ CREATE TABLE process_item_versions (
     )
   );
 CREATE TABLE idempotency_records (
-          board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+          project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
           actor_id TEXT NOT NULL,
           operation TEXT NOT NULL,
           idempotency_key TEXT NOT NULL,
           request_hash TEXT NOT NULL,
           outcome_json TEXT NOT NULL,
           created_at TEXT NOT NULL,
-          PRIMARY KEY (board_id, actor_id, operation, idempotency_key)
+          PRIMARY KEY (project_id, actor_id, operation, idempotency_key)
         );
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','initialize_board','demo-board','0f9326d5c36b2448d19263ed58dc07612f8eb0a6903ac5f91b7386e2b40c8c34','{"board_id":"goalboard-v1-demo","observed_event_cursor":1}','2026-09-10T07:03:28.489Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','initialize_board','demo-board','0f9326d5c36b2448d19263ed58dc07612f8eb0a6903ac5f91b7386e2b40c8c34','{"project_id":"goalboard-v1-demo","observed_event_cursor":1}','2026-09-10T07:03:28.489Z');
 INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-PLATFORM','6482c3a8d0633f75f1cda11eeefc3dd7ca543d0d43f9eca0eb3a38ba4a3b3eba','{"relation_id":"relation-46303826-25b2-4b8e-ad5e-b76617d90fc9","observed_event_cursor":15}','2026-09-10T07:03:28.510Z');
 INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-WORKSPACE','c82e6659f90d83cf44078a6802429aab882e5248f7fb69d6deaae3603242a0cd','{"relation_id":"relation-d0cedc75-3cc4-4977-a253-247efa2b82fb","observed_event_cursor":16}','2026-09-10T07:03:28.512Z');
 INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-ADOPTION','8c4c953cbbc131dd0107694b8bc264106228d57464282ad08412d37cae240fbc','{"relation_id":"relation-4814cf00-c15c-4d86-b625-15f7c60df9b7","observed_event_cursor":17}','2026-09-10T07:03:28.513Z');
@@ -682,25 +682,25 @@ INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_rela
 INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-desktop','c9c2312048bd48ea14ed96929703343234592cad72dfcab1890e57a28e8c5442','{"relation_id":"relation-5e6401d7-b1dc-4a94-8c53-f04539921f6a","observed_event_cursor":29}','2026-09-10T07:03:28.530Z');
 INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-onboarding','3e8414f6e7fd92b35a9c7937511a5a8c469503218711a28db6b4d551007502cf','{"relation_id":"relation-341fe1f6-94a5-4b9d-96d8-1481878e7570","observed_event_cursor":30}','2026-09-10T07:03:28.530Z');
 INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-dependency-docs','7130416bf9475ebe006b6a08de7bf332cbb74fabfb4fffa75a49771f38bc5b70','{"relation_id":"relation-26184b19-74b6-4509-a239-b2c3d9ef3b67","observed_event_cursor":31}','2026-09-10T07:03:28.530Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_risk','demo-risk-first-restart','a5c777c15939f4df3d9150c8d8a736c4b9dc25aaaca03a59196ed1ecece1ca62','{"risk":{"risk_id":"RISK-FIRST-RESTART","board_id":"goalboard-v1-demo","description":"用户接入 Runtime 后没有新开会话，误以为安装失败","probability":"medium","impact":"用户看不到 Molis Work 工具，无法开始第一次使用","affected_surfaces":["首次安装","Runtime 接入"],"trigger":"用户继续使用接入前已经打开的会话","treatment":"mitigate","treatment_plan":"","blocking_mode":"none","revisit_condition":"安装结果和接入预览都清楚说明新开会话的原因和下一步","owner":"产品体验","state":"open","resolution_basis":null,"created_at":"2026-09-10T07:03:28.532Z","updated_at":"2026-09-10T07:03:28.532Z"},"transitions":[{"goal_id":"RELEASE","previous_action_token":"015c71bbe8e02f95e8983236eca05686","projection":{"goal_id":"RELEASE","contract_revision":1,"progress":"not_started","primary_action":{"action_id":"action-a8122f09c3549b87ffe37f55","actor":"runtime","kind":"clarify","status":"ready","target_type":"goal","target_id":"RELEASE","reasons":[]},"actions":[{"action_id":"action-a8122f09c3549b87ffe37f55","actor":"runtime","kind":"clarify","status":"ready","target_type":"goal","target_id":"RELEASE","reasons":[]}],"action_token":"015c71bbe8e02f95e8983236eca05686","display_status":"continue"},"affected_goals":[{"goal_id":"RELEASE","contract_revision":1,"progress":"not_started","primary_action":{"action_id":"action-a8122f09c3549b87ffe37f55","actor":"runtime","kind":"clarify","status":"ready","target_type":"goal","target_id":"RELEASE","reasons":[]},"action_token":"015c71bbe8e02f95e8983236eca05686","display_status":"continue"}],"summary":"已记录风险，不新增用户待办","observed_event_cursor":32}],"observed_event_cursor":32}','2026-09-10T07:03:28.532Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','claim_goal','demo-core-claim','f3f50cb4ff6f2131a98ef644fb4ecc7d3e970e6b38b2865275e8d82c78fb8122','{"allowed":true,"observed_event_cursor":33,"reasons":[],"claim":{"claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14","board_id":"goalboard-v1-demo","goal_id":"CORE","actor_id":"runtime-core","role":"executor","contract_revision":1,"action_kind":"execute","action_target_id":"CORE","state":"active","capabilities":[],"goal_mode_attestation":false,"resolved_policy":{"goal_mode":"preferred","required_capabilities":[],"self_verification":true,"cross_reviewers":0,"adversarial_reviewers":0,"human_approval":false,"max_lease_seconds":1800},"claimed_at":"2026-09-10T07:03:28.540Z","expires_at":"2026-09-10T07:33:28.540Z","renewed_at":null,"released_at":null,"release_reason":null},"replayed":false}','2026-09-10T07:03:28.539Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','start_run','demo-core-run','516fe370819c54c411c7adb73b7160988dad03999d738f2297741bd203d775cf','{"run":{"run_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","board_id":"goalboard-v1-demo","goal_id":"CORE","claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14","actor_id":"runtime-core","role":"executor","state":"started","block_reason":null,"output_refs":[],"discovery_refs":[],"started_at":"2026-09-10T07:03:28.541Z","ended_at":null},"observed_event_cursor":35}','2026-09-10T07:03:28.541Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','report_run','demo-core-run-complete','8e32de79bb818f1cf49734120236be23e1c4335f5246e6867de9411db905890a','{"run":{"run_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","board_id":"goalboard-v1-demo","goal_id":"CORE","claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14","actor_id":"runtime-core","role":"executor","state":"completed","block_reason":null,"output_refs":["tests/v1.test.ts"],"discovery_refs":[],"started_at":"2026-09-10T07:03:28.541Z","ended_at":"2026-09-10T07:03:28.543Z"},"observed_event_cursor":36,"transition":{"goal_id":"CORE","previous_action_token":"6bb6bf58c8d6e46dead0b1444437cd55","projection":{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-77c1abae7519eaaebb327691","actor":"runtime","kind":"submit_evidence","status":"active","target_type":"run","target_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","reasons":[{"code":"action.evidence_incomplete","severity":"warning","subject_type":"run","subject_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","message":"执行已经完成，还需要补齐完成依据","remediation":"提交当前 Contract revision 所需的最后一条 Evidence 后会自动释放工作。"}]},"actions":[{"action_id":"action-77c1abae7519eaaebb327691","actor":"runtime","kind":"submit_evidence","status":"active","target_type":"run","target_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","reasons":[{"code":"action.evidence_incomplete","severity":"warning","subject_type":"run","subject_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","message":"执行已经完成，还需要补齐完成依据","remediation":"提交当前 Contract revision 所需的最后一条 Evidence 后会自动释放工作。"}]}],"action_token":"2e51258038925f4e17921c9b7541f5c9","display_status":"in_progress"},"affected_goals":[{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-77c1abae7519eaaebb327691","actor":"runtime","kind":"submit_evidence","status":"active","target_type":"run","target_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","reasons":[{"code":"action.evidence_incomplete","severity":"warning","subject_type":"run","subject_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","message":"执行已经完成，还需要补齐完成依据","remediation":"提交当前 Contract revision 所需的最后一条 Evidence 后会自动释放工作。"}]},"action_token":"2e51258038925f4e17921c9b7541f5c9","display_status":"in_progress"}],"summary":"已记录本阶段产物","observed_event_cursor":36}}','2026-09-10T07:03:28.542Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','submit_evidence','demo-core-evidence','9f1efd1614152da15ae8d38183471667ebde917406f48b21bc6084cf4100d86f','{"evidence":{"evidence_id":"evidence-3aaba898-2eb4-4565-acbb-13cccced105f","board_id":"goalboard-v1-demo","goal_id":"CORE","contract_revision":1,"criterion_ids":["CORE-C1"],"producer_actor_id":"runtime-core","run_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","review_id":null,"kind":"test","locator":"command://pnpm-test","locator_status":"unverified","locator_validation_reason":"不透明或外部 locator 已保留为 UNVERIFIED；Molis Work 不会调用自定义协议","locator_checked_at":"2026-09-10T07:03:28.545Z","locator_workspace_id":null,"digest":null,"captured_at":"2026-09-10T07:03:28.545Z","result":"passed","lifecycle_state":"effective","correction":null,"historical_unmapped":false},"observed_event_cursor":38,"transition":{"goal_id":"CORE","previous_action_token":"2e51258038925f4e17921c9b7541f5c9","projection":{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-8b0b3c4001bbd07472c0f31a","actor":"runtime","kind":"review","status":"ready","target_type":"review_obligation","target_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","reasons":[]},"actions":[{"action_id":"action-8b0b3c4001bbd07472c0f31a","actor":"runtime","kind":"review","status":"ready","target_type":"review_obligation","target_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","reasons":[]}],"action_token":"bc49b6de772fa1099fcf9789ccfe42ae","display_status":"continue"},"affected_goals":[{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-8b0b3c4001bbd07472c0f31a","actor":"runtime","kind":"review","status":"ready","target_type":"review_obligation","target_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","reasons":[]},"action_token":"bc49b6de772fa1099fcf9789ccfe42ae","display_status":"continue"}],"summary":"已记录完成依据","observed_event_cursor":38}}','2026-09-10T07:03:28.545Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','submit_review','demo-core-review','c190c83074aaf56e00148d4ac063185a35144ffe0a09b98d4acf915cdc69ec39','{"review":{"review_id":"review-3c52c9fe-13b8-41ce-92d2-725de601ae6f","board_id":"goalboard-v1-demo","goal_id":"CORE","obligation_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","claim_id":null,"actor_id":"runtime-core","verdict":"pass","evidence_refs":["evidence-3aaba898-2eb4-4565-acbb-13cccced105f"],"reasoning":"生命周期测试通过","submitted_at":"2026-09-10T07:03:28.550Z"},"observed_event_cursor":40,"transition":{"goal_id":"CORE","previous_action_token":"bc49b6de772fa1099fcf9789ccfe42ae","projection":{"goal_id":"CORE","contract_revision":1,"progress":"verified","primary_action":null,"actions":[],"action_token":"e860ebc1537180e7b4660f8d71ccf5af","display_status":"completed"},"affected_goals":[{"goal_id":"CORE","contract_revision":1,"progress":"verified","primary_action":null,"action_token":"e860ebc1537180e7b4660f8d71ccf5af","display_status":"completed"}],"summary":"已记录复核结果","observed_event_cursor":40}}','2026-09-10T07:03:28.550Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_risk','demo-risk-first-restart','a5c777c15939f4df3d9150c8d8a736c4b9dc25aaaca03a59196ed1ecece1ca62','{"risk":{"risk_id":"RISK-FIRST-RESTART","project_id":"goalboard-v1-demo","description":"用户接入 Runtime 后没有新开会话，误以为安装失败","probability":"medium","impact":"用户看不到 Molis Work 工具，无法开始第一次使用","affected_surfaces":["首次安装","Runtime 接入"],"trigger":"用户继续使用接入前已经打开的会话","treatment":"mitigate","treatment_plan":"","blocking_mode":"none","revisit_condition":"安装结果和接入预览都清楚说明新开会话的原因和下一步","owner":"产品体验","state":"open","resolution_basis":null,"created_at":"2026-09-10T07:03:28.532Z","updated_at":"2026-09-10T07:03:28.532Z"},"transitions":[{"goal_id":"RELEASE","previous_action_token":"015c71bbe8e02f95e8983236eca05686","projection":{"goal_id":"RELEASE","contract_revision":1,"progress":"not_started","primary_action":{"action_id":"action-a8122f09c3549b87ffe37f55","actor":"runtime","kind":"clarify","status":"ready","target_type":"goal","target_id":"RELEASE","reasons":[]},"actions":[{"action_id":"action-a8122f09c3549b87ffe37f55","actor":"runtime","kind":"clarify","status":"ready","target_type":"goal","target_id":"RELEASE","reasons":[]}],"action_token":"015c71bbe8e02f95e8983236eca05686","display_status":"continue"},"affected_goals":[{"goal_id":"RELEASE","contract_revision":1,"progress":"not_started","primary_action":{"action_id":"action-a8122f09c3549b87ffe37f55","actor":"runtime","kind":"clarify","status":"ready","target_type":"goal","target_id":"RELEASE","reasons":[]},"action_token":"015c71bbe8e02f95e8983236eca05686","display_status":"continue"}],"summary":"已记录风险，不新增用户待办","observed_event_cursor":32}],"observed_event_cursor":32}','2026-09-10T07:03:28.532Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','claim_goal','demo-core-claim','f3f50cb4ff6f2131a98ef644fb4ecc7d3e970e6b38b2865275e8d82c78fb8122','{"allowed":true,"observed_event_cursor":33,"reasons":[],"claim":{"claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14","project_id":"goalboard-v1-demo","goal_id":"CORE","actor_id":"runtime-core","role":"executor","contract_revision":1,"action_kind":"execute","action_target_id":"CORE","state":"active","capabilities":[],"goal_mode_attestation":false,"resolved_policy":{"goal_mode":"preferred","required_capabilities":[],"self_verification":true,"cross_reviewers":0,"adversarial_reviewers":0,"human_approval":false,"max_lease_seconds":1800},"claimed_at":"2026-09-10T07:03:28.540Z","expires_at":"2026-09-10T07:33:28.540Z","renewed_at":null,"released_at":null,"release_reason":null},"replayed":false}','2026-09-10T07:03:28.539Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','start_run','demo-core-run','516fe370819c54c411c7adb73b7160988dad03999d738f2297741bd203d775cf','{"run":{"run_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","project_id":"goalboard-v1-demo","goal_id":"CORE","claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14","actor_id":"runtime-core","role":"executor","state":"started","block_reason":null,"output_refs":[],"discovery_refs":[],"started_at":"2026-09-10T07:03:28.541Z","ended_at":null},"observed_event_cursor":35}','2026-09-10T07:03:28.541Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','report_run','demo-core-run-complete','8e32de79bb818f1cf49734120236be23e1c4335f5246e6867de9411db905890a','{"run":{"run_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","project_id":"goalboard-v1-demo","goal_id":"CORE","claim_id":"claim-dc5985a4-4a90-4aaa-880a-28f896f96e14","actor_id":"runtime-core","role":"executor","state":"completed","block_reason":null,"output_refs":["tests/v1.test.ts"],"discovery_refs":[],"started_at":"2026-09-10T07:03:28.541Z","ended_at":"2026-09-10T07:03:28.543Z"},"observed_event_cursor":36,"transition":{"goal_id":"CORE","previous_action_token":"6bb6bf58c8d6e46dead0b1444437cd55","projection":{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-77c1abae7519eaaebb327691","actor":"runtime","kind":"submit_evidence","status":"active","target_type":"run","target_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","reasons":[{"code":"action.evidence_incomplete","severity":"warning","subject_type":"run","subject_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","message":"执行已经完成，还需要补齐完成依据","remediation":"提交当前 Contract revision 所需的最后一条 Evidence 后会自动释放工作。"}]},"actions":[{"action_id":"action-77c1abae7519eaaebb327691","actor":"runtime","kind":"submit_evidence","status":"active","target_type":"run","target_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","reasons":[{"code":"action.evidence_incomplete","severity":"warning","subject_type":"run","subject_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","message":"执行已经完成，还需要补齐完成依据","remediation":"提交当前 Contract revision 所需的最后一条 Evidence 后会自动释放工作。"}]}],"action_token":"2e51258038925f4e17921c9b7541f5c9","display_status":"in_progress"},"affected_goals":[{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-77c1abae7519eaaebb327691","actor":"runtime","kind":"submit_evidence","status":"active","target_type":"run","target_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","reasons":[{"code":"action.evidence_incomplete","severity":"warning","subject_type":"run","subject_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","message":"执行已经完成，还需要补齐完成依据","remediation":"提交当前 Contract revision 所需的最后一条 Evidence 后会自动释放工作。"}]},"action_token":"2e51258038925f4e17921c9b7541f5c9","display_status":"in_progress"}],"summary":"已记录本阶段产物","observed_event_cursor":36}}','2026-09-10T07:03:28.542Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','submit_evidence','demo-core-evidence','9f1efd1614152da15ae8d38183471667ebde917406f48b21bc6084cf4100d86f','{"evidence":{"evidence_id":"evidence-3aaba898-2eb4-4565-acbb-13cccced105f","project_id":"goalboard-v1-demo","goal_id":"CORE","contract_revision":1,"criterion_ids":["CORE-C1"],"producer_actor_id":"runtime-core","run_id":"run-45ec1136-7bbf-4740-9e6b-1689e672c7af","review_id":null,"kind":"test","locator":"command://pnpm-test","locator_status":"unverified","locator_validation_reason":"不透明或外部 locator 已保留为 UNVERIFIED；Molis Work 不会调用自定义协议","locator_checked_at":"2026-09-10T07:03:28.545Z","locator_workspace_id":null,"digest":null,"captured_at":"2026-09-10T07:03:28.545Z","result":"passed","lifecycle_state":"effective","correction":null,"historical_unmapped":false},"observed_event_cursor":38,"transition":{"goal_id":"CORE","previous_action_token":"2e51258038925f4e17921c9b7541f5c9","projection":{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-8b0b3c4001bbd07472c0f31a","actor":"runtime","kind":"review","status":"ready","target_type":"review_obligation","target_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","reasons":[]},"actions":[{"action_id":"action-8b0b3c4001bbd07472c0f31a","actor":"runtime","kind":"review","status":"ready","target_type":"review_obligation","target_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","reasons":[]}],"action_token":"bc49b6de772fa1099fcf9789ccfe42ae","display_status":"continue"},"affected_goals":[{"goal_id":"CORE","contract_revision":1,"progress":"work_recorded","primary_action":{"action_id":"action-8b0b3c4001bbd07472c0f31a","actor":"runtime","kind":"review","status":"ready","target_type":"review_obligation","target_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","reasons":[]},"action_token":"bc49b6de772fa1099fcf9789ccfe42ae","display_status":"continue"}],"summary":"已记录完成依据","observed_event_cursor":38}}','2026-09-10T07:03:28.545Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','submit_review','demo-core-review','c190c83074aaf56e00148d4ac063185a35144ffe0a09b98d4acf915cdc69ec39','{"review":{"review_id":"review-3c52c9fe-13b8-41ce-92d2-725de601ae6f","project_id":"goalboard-v1-demo","goal_id":"CORE","obligation_id":"obligation-64b45adb-d01f-4ee5-a9d7-fba2f7dcb9a6","claim_id":null,"actor_id":"runtime-core","verdict":"pass","evidence_refs":["evidence-3aaba898-2eb4-4565-acbb-13cccced105f"],"reasoning":"生命周期测试通过","submitted_at":"2026-09-10T07:03:28.550Z"},"observed_event_cursor":40,"transition":{"goal_id":"CORE","previous_action_token":"bc49b6de772fa1099fcf9789ccfe42ae","projection":{"goal_id":"CORE","contract_revision":1,"progress":"verified","primary_action":null,"actions":[],"action_token":"e860ebc1537180e7b4660f8d71ccf5af","display_status":"completed"},"affected_goals":[{"goal_id":"CORE","contract_revision":1,"progress":"verified","primary_action":null,"action_token":"e860ebc1537180e7b4660f8d71ccf5af","display_status":"completed"}],"summary":"已记录复核结果","observed_event_cursor":40}}','2026-09-10T07:03:28.550Z');
 INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-core','evaluate_leaf_completion','demo-core-complete','411b89fc57c66098a0d9a68d7e3c492c9933e671c0480e30cfe1a84e15237d03','{"satisfied":true,"reasons":[],"observed_event_cursor":40}','2026-09-10T07:03:28.553Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','claim_goal','demo-interface-claim','6ffbf790d78c5f1a15ce473d4f7d6739b8b1ba547e70941c19dca0ff3be6d630','{"allowed":true,"observed_event_cursor":40,"reasons":[],"claim":{"claim_id":"claim-c44fe62b-c4bf-4b0e-9d14-3f302a74c45b","board_id":"goalboard-v1-demo","goal_id":"INTERFACES","actor_id":"runtime-interface","role":"executor","contract_revision":1,"action_kind":"execute","action_target_id":"INTERFACES","state":"active","capabilities":[],"goal_mode_attestation":false,"resolved_policy":{"goal_mode":"preferred","required_capabilities":[],"self_verification":true,"cross_reviewers":0,"adversarial_reviewers":0,"human_approval":false,"max_lease_seconds":1800},"claimed_at":"2026-09-10T07:03:28.554Z","expires_at":"2026-09-10T07:33:28.554Z","renewed_at":null,"released_at":null,"release_reason":null},"replayed":false}','2026-09-10T07:03:28.553Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','start_run','demo-interface-run','ee73190f49d01e0b20782352a8aa00df648f62904407861918e968d588e6ff43','{"run":{"run_id":"run-65ec112f-54fe-499a-a41d-b5fc73d14f85","board_id":"goalboard-v1-demo","goal_id":"INTERFACES","claim_id":"claim-c44fe62b-c4bf-4b0e-9d14-3f302a74c45b","actor_id":"runtime-interface","role":"executor","state":"started","block_reason":null,"output_refs":[],"discovery_refs":[],"started_at":"2026-09-10T07:03:28.554Z","ended_at":null},"observed_event_cursor":42}','2026-09-10T07:03:28.554Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','submit_candidate','demo-candidate','015b8f6ae3d66514b6d8178ff3e626a44aed82ed38376b8609884169bcfd79cb','{"candidate":{"candidate_id":"candidate-b0050ab4-1d01-4556-ac3d-fa0053f69ce2","board_id":"goalboard-v1-demo","submitted_by":"runtime-interface","discovered_in_run_id":"run-65ec112f-54fe-499a-a41d-b5fc73d14f85","proposed_goal":{"title":"让旧数据升级前先看到安全说明","outcome":"用户在升级前知道哪些内容会保留、哪些需要重新整理","why":"旧版数据和当前规则并不完全对应，直接迁移可能让用户误以为缺失内容仍然有效","business_logic":"用户升级时先看到每类旧数据的处理结果；能安全保留的内容明确列出，不能可靠迁移的内容提示重新整理，不会静默丢失或伪造。","acceptance_criteria":[{"statement":"升级报告逐项说明可迁移内容和需要重建的内容","decision_method":"automated_check","pass_condition":"迁移样例没有未解释字段"}]},"proposed_relations":[],"proposed_impacts":[],"proposed_risks":[],"blocking_mode":"none","state":"pending","decision":null,"created_at":"2026-09-10T07:03:28.555Z","decided_at":null},"observed_event_cursor":43}','2026-09-10T07:03:28.555Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','mixed-runtime','configure_goal_events','mixed-configure','f29cb7d226a3f3764c3fa9d7ab4f7f2fcbe7cade28de45c36a7931cec4d39111','{"config":{"board_id":"goalboard-v1-demo","goal_id":"MIXED-OWNER","version":1,"types":[{"type_id":"check","version":1,"name":"实际核对","purpose":"保留真实支持","source":{"kind":"local","label":"当前 Goal 局部定义"},"fields":[{"field_id":"result","name":"结果","purpose":"核对结果","format":"text","required":true,"source":{"kind":"local"}}]}],"adopted_planning":[],"extra_requirements":[],"requirement_bindings":[],"updated_at":"2026-09-10T07:29:38.102Z","updated_by":"mixed-runtime"},"event_id":"gevt-a47aa75e-722e-41ac-8896-e59373c12681","observed_event_cursor":48}','2026-09-10T07:29:38.102Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','mixed-runtime','configure_goal_events_request','mixed-configure','5acad0863241b6f6a93186b5e2671e5673fb70ddfa30b7be7c29e157c522cac6','{"config":{"board_id":"goalboard-v1-demo","goal_id":"MIXED-OWNER","version":1,"types":[{"type_id":"check","version":1,"name":"实际核对","purpose":"保留真实支持","source":{"kind":"local","label":"当前 Goal 局部定义"},"fields":[{"field_id":"result","name":"结果","purpose":"核对结果","format":"text","required":true,"source":{"kind":"local"}}]}],"adopted_planning":[],"extra_requirements":[],"requirement_bindings":[],"updated_at":"2026-09-10T07:29:38.102Z","updated_by":"mixed-runtime"},"event_id":"gevt-a47aa75e-722e-41ac-8896-e59373c12681","observed_event_cursor":48}','2026-09-10T07:29:38.103Z');
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','mixed-runtime','report_goal_events','mixed-report','9d5df42b0b3763b0ff9570c87fe1556ac8de5f839ec4ab927141b0c935969795','{"events":[{"event_id":"gevt-75b666e9-56d7-4929-b6d0-7474b5937be3","board_id":"goalboard-v1-demo","goal_id":"MIXED-OWNER","title":"结果核对","actor_id":"mixed-runtime","actor_kind":"runtime","received_at":"2026-09-10T07:29:38.103Z","journal_seq":49,"config_version":1,"kind":"report","type":{"type_id":"check","version":1,"name":"实际核对","purpose":"保留真实支持","source":{"kind":"local","label":"当前 Goal 局部定义"},"fields":[{"field_id":"result","name":"结果","purpose":"核对结果","format":"text","required":true,"source":{"kind":"local"}}]},"payload":{"result":"真实结果可以打开"},"judgments":[{"requirement_id":"MIXED-C1","verdict":"supports"}]}],"observed_event_cursor":49}','2026-09-10T07:29:38.103Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','claim_goal','demo-interface-claim','6ffbf790d78c5f1a15ce473d4f7d6739b8b1ba547e70941c19dca0ff3be6d630','{"allowed":true,"observed_event_cursor":40,"reasons":[],"claim":{"claim_id":"claim-c44fe62b-c4bf-4b0e-9d14-3f302a74c45b","project_id":"goalboard-v1-demo","goal_id":"INTERFACES","actor_id":"runtime-interface","role":"executor","contract_revision":1,"action_kind":"execute","action_target_id":"INTERFACES","state":"active","capabilities":[],"goal_mode_attestation":false,"resolved_policy":{"goal_mode":"preferred","required_capabilities":[],"self_verification":true,"cross_reviewers":0,"adversarial_reviewers":0,"human_approval":false,"max_lease_seconds":1800},"claimed_at":"2026-09-10T07:03:28.554Z","expires_at":"2026-09-10T07:33:28.554Z","renewed_at":null,"released_at":null,"release_reason":null},"replayed":false}','2026-09-10T07:03:28.553Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','start_run','demo-interface-run','ee73190f49d01e0b20782352a8aa00df648f62904407861918e968d588e6ff43','{"run":{"run_id":"run-65ec112f-54fe-499a-a41d-b5fc73d14f85","project_id":"goalboard-v1-demo","goal_id":"INTERFACES","claim_id":"claim-c44fe62b-c4bf-4b0e-9d14-3f302a74c45b","actor_id":"runtime-interface","role":"executor","state":"started","block_reason":null,"output_refs":[],"discovery_refs":[],"started_at":"2026-09-10T07:03:28.554Z","ended_at":null},"observed_event_cursor":42}','2026-09-10T07:03:28.554Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','submit_candidate','demo-candidate','015b8f6ae3d66514b6d8178ff3e626a44aed82ed38376b8609884169bcfd79cb','{"candidate":{"candidate_id":"candidate-b0050ab4-1d01-4556-ac3d-fa0053f69ce2","project_id":"goalboard-v1-demo","submitted_by":"runtime-interface","discovered_in_run_id":"run-65ec112f-54fe-499a-a41d-b5fc73d14f85","proposed_goal":{"title":"让旧数据升级前先看到安全说明","outcome":"用户在升级前知道哪些内容会保留、哪些需要重新整理","why":"旧版数据和当前规则并不完全对应，直接迁移可能让用户误以为缺失内容仍然有效","business_logic":"用户升级时先看到每类旧数据的处理结果；能安全保留的内容明确列出，不能可靠迁移的内容提示重新整理，不会静默丢失或伪造。","acceptance_criteria":[{"statement":"升级报告逐项说明可迁移内容和需要重建的内容","decision_method":"automated_check","pass_condition":"迁移样例没有未解释字段"}]},"proposed_relations":[],"proposed_impacts":[],"proposed_risks":[],"blocking_mode":"none","state":"pending","decision":null,"created_at":"2026-09-10T07:03:28.555Z","decided_at":null},"observed_event_cursor":43}','2026-09-10T07:03:28.555Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','mixed-runtime','configure_goal_events','mixed-configure','f29cb7d226a3f3764c3fa9d7ab4f7f2fcbe7cade28de45c36a7931cec4d39111','{"config":{"project_id":"goalboard-v1-demo","goal_id":"MIXED-OWNER","version":1,"types":[{"type_id":"check","version":1,"name":"实际核对","purpose":"保留真实支持","source":{"kind":"local","label":"当前 Goal 局部定义"},"fields":[{"field_id":"result","name":"结果","purpose":"核对结果","format":"text","required":true,"source":{"kind":"local"}}]}],"adopted_planning":[],"extra_requirements":[],"requirement_bindings":[],"updated_at":"2026-09-10T07:29:38.102Z","updated_by":"mixed-runtime"},"event_id":"gevt-a47aa75e-722e-41ac-8896-e59373c12681","observed_event_cursor":48}','2026-09-10T07:29:38.102Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','mixed-runtime','configure_goal_events_request','mixed-configure','5acad0863241b6f6a93186b5e2671e5673fb70ddfa30b7be7c29e157c522cac6','{"config":{"project_id":"goalboard-v1-demo","goal_id":"MIXED-OWNER","version":1,"types":[{"type_id":"check","version":1,"name":"实际核对","purpose":"保留真实支持","source":{"kind":"local","label":"当前 Goal 局部定义"},"fields":[{"field_id":"result","name":"结果","purpose":"核对结果","format":"text","required":true,"source":{"kind":"local"}}]}],"adopted_planning":[],"extra_requirements":[],"requirement_bindings":[],"updated_at":"2026-09-10T07:29:38.102Z","updated_by":"mixed-runtime"},"event_id":"gevt-a47aa75e-722e-41ac-8896-e59373c12681","observed_event_cursor":48}','2026-09-10T07:29:38.103Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','mixed-runtime','report_goal_events','mixed-report','9d5df42b0b3763b0ff9570c87fe1556ac8de5f839ec4ab927141b0c935969795','{"events":[{"event_id":"gevt-75b666e9-56d7-4929-b6d0-7474b5937be3","project_id":"goalboard-v1-demo","goal_id":"MIXED-OWNER","title":"结果核对","actor_id":"mixed-runtime","actor_kind":"runtime","received_at":"2026-09-10T07:29:38.103Z","journal_seq":49,"config_version":1,"kind":"report","type":{"type_id":"check","version":1,"name":"实际核对","purpose":"保留真实支持","source":{"kind":"local","label":"当前 Goal 局部定义"},"fields":[{"field_id":"result","name":"结果","purpose":"核对结果","format":"text","required":true,"source":{"kind":"local"}}]},"payload":{"result":"真实结果可以打开"},"judgments":[{"requirement_id":"MIXED-C1","verdict":"supports"}]}],"observed_event_cursor":49}','2026-09-10T07:29:38.103Z');
 INSERT INTO idempotency_records VALUES('goalboard-v1-demo','existing-user','record_goal_user_decision','approved-policy-before-migration','1acadeefc733972f0eb553106ceea508a907f9d2c506d3d31956d5c438896f0d','{"event_id":"gevt-c3a48804-b9f3-4b0f-9a75-2393f0881092","observed_event_cursor":51,"recorded":true,"decision":{"decision_id":"gdec-83564492-8f53-45d4-9c70-7cd39039fc2a","governance_decision_id":"gedec-fe7294b3-8446-424e-9418-2932bb8027d9","request_id":null,"selected_option_id":null,"conclusion":"我已经核对本 Goal 的当前交付，同意满足人工验收责任；剩余输入遗漏修复后可以完成","accepts_requirements":false,"effects":[{"kind":"authorize_action","action":"complete"}],"scope":{"requirement_ids":[],"event_ids":[],"concern_ids":[],"action":"complete"},"commitment":{"outcome":"真实结果继续有效","requirements":[]},"authorized_change":null,"config_version":1,"agreement_version":1,"actor_id":"existing-user","authority_source":"web","recorded_at":"2026-09-10T08:08:53.175Z"}}','2026-09-10T08:08:53.175Z');
 INSERT INTO idempotency_records VALUES('goalboard-v1-demo','existing-runtime','submit_goal_event_closure','approved-still-blocked-by-risk','d7b4fc0c718e4590dfda9185ee19a2ba7bafeb0473f0133f3965121dea319629','{"event_id":"gevt-fff26575-8687-4006-bc0a-652b335c236f","observed_event_cursor":52,"recorded":true,"completion_applied":true,"work_status":"completed","unmet_reasons":[],"closure":{"closure_id":"gclo-f5c0d3db-95a0-444f-978e-17060d3f6ab8","event_id":"gevt-fff26575-8687-4006-bc0a-652b335c236f","kind":"complete","result":"实际结果可读","reason":"保留真实人工批准，核对剩余风险","recorded":true,"completion_applied":true,"expected_config_version":1,"expected_agreement_version":1,"config_version":1,"agreement_version":1,"unmet_reasons":[],"superseded":false,"superseded_reason":null,"recorded_at":"2026-09-10T08:08:53.178Z"}}','2026-09-10T08:08:53.178Z');
 CREATE TABLE events (
           seq INTEGER PRIMARY KEY AUTOINCREMENT,
           event_id TEXT NOT NULL UNIQUE,
-          board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+          project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
           actor_id TEXT NOT NULL,
           type TEXT NOT NULL,
           object_type TEXT NOT NULL,
@@ -768,7 +768,7 @@ CREATE TABLE context_edges (
     PRIMARY KEY (scope_kind, scope_id, edge_key, revision)
   );
 CREATE TABLE feed_sources (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       source_id TEXT NOT NULL,
       kind TEXT NOT NULL,
       definition_id TEXT,
@@ -788,7 +788,7 @@ CREATE TABLE feed_sources (
       last_error_code TEXT,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, source_id)
+      PRIMARY KEY (project_id, source_id)
 );
 CREATE TABLE source_events (
       event_id TEXT PRIMARY KEY,
@@ -872,7 +872,7 @@ CREATE TABLE listener_deliveries (
       PRIMARY KEY (project_id, source_id, raw_event_id)
     );
 CREATE TABLE feed_source_runs (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       run_id TEXT NOT NULL,
       operation_id TEXT NOT NULL,
       source_id TEXT NOT NULL,
@@ -887,11 +887,11 @@ CREATE TABLE feed_source_runs (
       started_at TEXT NOT NULL,
       completed_at TEXT,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, run_id),
-      UNIQUE (board_id, operation_id)
+      PRIMARY KEY (project_id, run_id),
+      UNIQUE (project_id, operation_id)
     );
 CREATE TABLE inbox_entries (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
       subject_id TEXT NOT NULL,
@@ -902,8 +902,8 @@ CREATE TABLE inbox_entries (
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       completed_at TEXT,
-      PRIMARY KEY (board_id, entry_id),
-      UNIQUE (board_id, subject_type, subject_id, reason)
+      PRIMARY KEY (project_id, entry_id),
+      UNIQUE (project_id, subject_type, subject_id, reason)
 );
 CREATE TABLE attention_events (
       event_id TEXT PRIMARY KEY,
@@ -915,7 +915,7 @@ CREATE TABLE attention_events (
       at TEXT NOT NULL
     );
 CREATE TABLE feed_items (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       item_id TEXT NOT NULL,
       source_id TEXT,
       signal_id TEXT,
@@ -939,10 +939,10 @@ CREATE TABLE feed_items (
       source_updated_at TEXT NOT NULL,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, item_id)
+      PRIMARY KEY (project_id, item_id)
     );
 CREATE TABLE feed_materials (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       material_id TEXT NOT NULL,
       item_id TEXT NOT NULL,
       canonical_url TEXT,
@@ -960,8 +960,8 @@ CREATE TABLE feed_materials (
       selected_for_context INTEGER NOT NULL DEFAULT 0,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, material_id),
-      FOREIGN KEY (board_id, item_id) REFERENCES feed_items(board_id, item_id) ON DELETE CASCADE
+      PRIMARY KEY (project_id, material_id),
+      FOREIGN KEY (project_id, item_id) REFERENCES feed_items(project_id, item_id) ON DELETE CASCADE
     );
 CREATE TABLE feed_item_events (
       event_id TEXT PRIMARY KEY,
@@ -972,7 +972,7 @@ CREATE TABLE feed_item_events (
       at TEXT NOT NULL
     );
 CREATE TABLE feed_out_rules (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       rule_id TEXT NOT NULL,
       name TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
@@ -982,7 +982,7 @@ CREATE TABLE feed_out_rules (
       admission TEXT NOT NULL,
       judgment_json TEXT,
       revision TEXT NOT NULL,
-      PRIMARY KEY (board_id, rule_id)
+      PRIMARY KEY (project_id, rule_id)
     );
 CREATE TABLE feed_runtime_blobs (
     namespace TEXT NOT NULL, key TEXT NOT NULL, opaque TEXT NOT NULL, cas_token TEXT NOT NULL,
@@ -1005,7 +1005,7 @@ CREATE TABLE plugin_private_values (
     );
 CREATE TABLE plugin_events (
       event_id TEXT PRIMARY KEY,
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       sequence INTEGER NOT NULL,
       event_type_id TEXT NOT NULL,
       type_version INTEGER NOT NULL,
@@ -1016,7 +1016,7 @@ CREATE TABLE plugin_events (
       occurred_at TEXT NOT NULL
     );
 CREATE TABLE plugin_event_cursors (
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       subscriber_plugin_id TEXT NOT NULL,
       subscriber_install_id TEXT NOT NULL,
       subscriber_generation TEXT NOT NULL,
@@ -1029,13 +1029,13 @@ CREATE TABLE plugin_event_cursors (
       retry_at TEXT,
       last_error_code TEXT,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version)
+      PRIMARY KEY (project_id, subscriber_plugin_id, subscriber_install_id, subscriber_generation, source_plugin_id, event_type_id, type_version)
     );
 CREATE TABLE plugin_event_resolutions (
-      resolution_id TEXT PRIMARY KEY, board_id TEXT NOT NULL, subscriber_plugin_id TEXT NOT NULL, record_json TEXT NOT NULL
+      resolution_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, subscriber_plugin_id TEXT NOT NULL, record_json TEXT NOT NULL
     );
 CREATE TABLE plugin_port_bindings (
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       target_plugin_id TEXT NOT NULL,
       target_port TEXT NOT NULL,
       source_plugin_id TEXT NOT NULL,
@@ -1043,27 +1043,27 @@ CREATE TABLE plugin_port_bindings (
       origin TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, target_plugin_id, target_port)
+      PRIMARY KEY (project_id, target_plugin_id, target_port)
     );
 CREATE TABLE plugin_port_artifact_bindings (
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       target_plugin_id TEXT NOT NULL,
       target_port TEXT NOT NULL,
       artifact_id TEXT NOT NULL,
       version INTEGER NOT NULL,
       actor_id TEXT NOT NULL,
       created_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, target_plugin_id, target_port)
+      PRIMARY KEY (project_id, target_plugin_id, target_port)
     );
 CREATE TABLE plugin_input_groups (
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       plugin_id TEXT NOT NULL,
       group_id TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, plugin_id)
+      PRIMARY KEY (project_id, plugin_id)
     );
 CREATE TABLE plugin_port_outputs (
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       plugin_id TEXT NOT NULL,
       port TEXT NOT NULL,
       artifact_id TEXT,
@@ -1071,7 +1071,7 @@ CREATE TABLE plugin_port_outputs (
       invalidated_reason TEXT,
       scope_key TEXT,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (board_id, plugin_id, port)
+      PRIMARY KEY (project_id, plugin_id, port)
     );
 CREATE TABLE schedule_jobs (
       job_id TEXT PRIMARY KEY,
@@ -1126,19 +1126,19 @@ CREATE TABLE schedule_conversation_turns (
       FOREIGN KEY (task_id) REFERENCES schedule_conversation_tasks(task_id)
     );
 CREATE TABLE schedule_plugin_reminders (
-    id TEXT PRIMARY KEY, board_id TEXT NOT NULL, plugin_id TEXT NOT NULL, installation_id TEXT,
+    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, plugin_id TEXT NOT NULL, installation_id TEXT,
     record_json TEXT NOT NULL
   );
 CREATE TABLE schedule_operations (
-    board_id TEXT NOT NULL, id TEXT NOT NULL, job_id TEXT NOT NULL UNIQUE, record_json TEXT NOT NULL,
-    PRIMARY KEY (board_id, id)
+    project_id TEXT NOT NULL, id TEXT NOT NULL, job_id TEXT NOT NULL UNIQUE, record_json TEXT NOT NULL,
+    PRIMARY KEY (project_id, id)
   );
 CREATE TABLE schedule_operation_occurrences (
-    board_id TEXT NOT NULL, operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
-    PRIMARY KEY (board_id, operation_id, due_at)
+    project_id TEXT NOT NULL, operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
+    PRIMARY KEY (project_id, operation_id, due_at)
   );
 CREATE TABLE coding_sessions (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       session_id TEXT NOT NULL,
       title TEXT NOT NULL,
       state TEXT NOT NULL,
@@ -1152,18 +1152,18 @@ CREATE TABLE coding_sessions (
       steps_json TEXT,
       -- Background commands the session left running, as last read: lets the list across projects show and stop them.
       background_json TEXT,
-      PRIMARY KEY (board_id, session_id)
+      PRIMARY KEY (project_id, session_id)
     );
 CREATE TABLE coding_plan_drafts (
-      board_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
       session_id TEXT NOT NULL,
       revision INTEGER NOT NULL,
       draft_json TEXT NOT NULL,
-      PRIMARY KEY (board_id, session_id),
-      FOREIGN KEY (board_id, session_id) REFERENCES coding_sessions(board_id, session_id) ON DELETE CASCADE
+      PRIMARY KEY (project_id, session_id),
+      FOREIGN KEY (project_id, session_id) REFERENCES coding_sessions(project_id, session_id) ON DELETE CASCADE
     );
 CREATE TABLE project_browsing_settings (
-    board_id TEXT PRIMARY KEY, workspace_id TEXT
+    project_id TEXT PRIMARY KEY, workspace_id TEXT
   );
 CREATE TABLE casebook_interaction_scopes (
  board TEXT PRIMARY KEY, epoch TEXT NOT NULL, state TEXT NOT NULL, secret TEXT NOT NULL, since TEXT NOT NULL, pauses INTEGER NOT NULL DEFAULT 0);
@@ -1178,72 +1178,72 @@ CREATE TABLE casebook_interaction_audit_keys (board TEXT PRIMARY KEY, secret TEX
 CREATE TABLE casebook_interaction_actions (
  board TEXT NOT NULL, key TEXT NOT NULL, digest TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(board,key));
 INSERT INTO sqlite_sequence VALUES('events',56);
-CREATE INDEX goals_board_idx ON goals(board_id);
-CREATE INDEX goals_ready_idx ON goals(board_id, definition_state, decomposition_state, validity_state, fulfillment_state);
-CREATE INDEX goals_trash_idx ON goals(board_id, trashed_at);
-CREATE INDEX goals_archive_idx ON goals(board_id, archived_at);
+CREATE INDEX goals_board_idx ON goals(project_id);
+CREATE INDEX goals_ready_idx ON goals(project_id, definition_state, decomposition_state, validity_state, fulfillment_state);
+CREATE INDEX goals_trash_idx ON goals(project_id, trashed_at);
+CREATE INDEX goals_archive_idx ON goals(project_id, archived_at);
 CREATE INDEX acceptance_goal_idx ON acceptance_criteria(goal_id);
-CREATE INDEX relations_from_idx ON goal_relations(board_id, from_goal_id, state);
-CREATE INDEX relations_to_idx ON goal_relations(board_id, to_goal_id, state);
+CREATE INDEX relations_from_idx ON goal_relations(project_id, from_goal_id, state);
+CREATE INDEX relations_to_idx ON goal_relations(project_id, to_goal_id, state);
 CREATE UNIQUE INDEX goal_trash_one_open_per_goal
-    ON goal_trash_records(board_id, goal_id)
+    ON goal_trash_records(project_id, goal_id)
     WHERE restored_at IS NULL;
 CREATE INDEX goal_trash_records_goal_idx
-    ON goal_trash_records(board_id, goal_id, restored_at, trashed_at);
+    ON goal_trash_records(project_id, goal_id, restored_at, trashed_at);
 CREATE INDEX goal_trash_relation_records_relation_idx
     ON goal_trash_relation_records(relation_id, restored_at);
-CREATE INDEX policies_scope_idx ON policy_bindings(board_id, goal_id, state);
+CREATE INDEX policies_scope_idx ON policy_bindings(project_id, goal_id, state);
 CREATE INDEX project_guidance_board_idx
-    ON project_guidance_entries(board_id, position, guidance_id);
+    ON project_guidance_entries(project_id, position, guidance_id);
 CREATE INDEX project_guidance_revisions_board_idx
-    ON project_guidance_revisions(board_id, guidance_id, revision DESC);
+    ON project_guidance_revisions(project_id, guidance_id, revision DESC);
 CREATE INDEX goal_event_types_goal_idx
-    ON goal_event_types(board_id, goal_id, type_id, type_version);
+    ON goal_event_types(project_id, goal_id, type_id, type_version);
 CREATE INDEX goal_event_requirements_goal_idx
-    ON goal_event_requirements(board_id, goal_id, requirement_id);
+    ON goal_event_requirements(project_id, goal_id, requirement_id);
 CREATE INDEX goal_work_events_goal_seq_idx
-    ON goal_work_events(board_id, goal_id, journal_seq);
+    ON goal_work_events(project_id, goal_id, journal_seq);
 CREATE INDEX goal_work_event_judgments_requirement_idx
     ON goal_work_event_judgments(requirement_id, event_id);
 CREATE INDEX goal_event_state_owners_board_idx
-    ON goal_event_state_owners(board_id, goal_id);
+    ON goal_event_state_owners(project_id, goal_id);
 CREATE INDEX goal_event_progress_summaries_goal_idx
-    ON goal_event_progress_summaries(board_id, goal_id, recorded_at);
+    ON goal_event_progress_summaries(project_id, goal_id, recorded_at);
 CREATE INDEX goal_event_concerns_goal_idx
-    ON goal_event_concerns(board_id, goal_id, status);
+    ON goal_event_concerns(project_id, goal_id, status);
 CREATE INDEX goal_event_decision_requests_goal_idx
-    ON goal_event_decision_requests(board_id, goal_id, status);
+    ON goal_event_decision_requests(project_id, goal_id, status);
 CREATE INDEX goal_event_applied_decisions_goal_idx
-    ON goal_event_applied_decisions(board_id, goal_id, recorded_at);
+    ON goal_event_applied_decisions(project_id, goal_id, recorded_at);
 CREATE INDEX goal_event_requirement_conclusions_latest_idx
-    ON goal_event_requirement_conclusions(board_id, goal_id, requirement_id, journal_seq);
+    ON goal_event_requirement_conclusions(project_id, goal_id, requirement_id, journal_seq);
 CREATE INDEX goal_event_closures_goal_idx
-    ON goal_event_closures(board_id, goal_id, recorded_at);
+    ON goal_event_closures(project_id, goal_id, recorded_at);
 CREATE INDEX goal_tree_proposals_board_idx
-    ON goal_tree_proposals(board_id, root_goal_id, state, created_at DESC, proposal_id);
+    ON goal_tree_proposals(project_id, root_goal_id, state, created_at DESC, proposal_id);
 CREATE INDEX goal_tree_proposals_supersedes_idx
     ON goal_tree_proposals(supersedes_proposal_id);
 CREATE INDEX goal_tree_proposal_items_proposal_idx
     ON goal_tree_proposal_items(proposal_id, ordinal, item_id);
 CREATE INDEX goal_tree_proposal_items_board_idx
-    ON goal_tree_proposal_items(board_id, state, item_id);
+    ON goal_tree_proposal_items(project_id, state, item_id);
 CREATE INDEX goal_tree_proposal_decisions_item_idx
     ON goal_tree_proposal_decisions(proposal_id, item_id, created_at, decision_id);
 CREATE INDEX goal_event_trusted_decisions_goal_idx
-    ON goal_event_trusted_decisions(board_id, goal_id, recorded_at);
+    ON goal_event_trusted_decisions(project_id, goal_id, recorded_at);
 CREATE INDEX library_artifacts_board_idx
-    ON library_artifacts(board_id, created_at DESC, artifact_id);
+    ON library_artifacts(project_id, created_at DESC, artifact_id);
 CREATE INDEX library_artifact_versions_type_idx
     ON library_artifact_versions(artifact_type_id, schema_version, scope, lifecycle_state);
 CREATE INDEX process_items_board_idx
-    ON process_items(board_id, created_at DESC, artifact_id);
+    ON process_items(project_id, created_at DESC, artifact_id);
 CREATE INDEX process_item_versions_type_idx
     ON process_item_versions(artifact_type_id, schema_version, scope, lifecycle_state);
-CREATE INDEX events_board_idx ON events(board_id, seq);
+CREATE INDEX events_board_idx ON events(project_id, seq);
 CREATE INDEX context_edges_source_idx ON context_edges
     (scope_kind, scope_id, relation_type, json_extract(source_json, '$.module'), json_extract(source_json, '$.id'));
 CREATE INDEX feed_sources_board_updated_idx
-      ON feed_sources(board_id, updated_at DESC, source_id);
+      ON feed_sources(project_id, updated_at DESC, source_id);
 CREATE INDEX source_events_project_source_idx
       ON source_events(project_id, source_id, at, event_id);
 CREATE INDEX signals_project_source_observed_idx
@@ -1253,36 +1253,36 @@ CREATE INDEX signal_events_project_source_idx
 CREATE INDEX listener_deliveries_recovery_idx
       ON listener_deliveries(project_id, source_id, state, updated_at, raw_event_id);
 CREATE INDEX feed_source_runs_board_source_idx
-      ON feed_source_runs(board_id, source_id, started_at DESC);
+      ON feed_source_runs(project_id, source_id, started_at DESC);
 CREATE INDEX inbox_entries_board_status_idx
-      ON inbox_entries(board_id, status, updated_at DESC, entry_id);
+      ON inbox_entries(project_id, status, updated_at DESC, entry_id);
 CREATE INDEX inbox_entries_board_subject_idx
-      ON inbox_entries(board_id, subject_type, subject_id);
+      ON inbox_entries(project_id, subject_type, subject_id);
 CREATE INDEX attention_events_project_entry_idx
       ON attention_events(project_id, entry_id, at, event_id);
 CREATE INDEX feed_items_board_updated_idx
-      ON feed_items(board_id, disposition, source_updated_at DESC);
+      ON feed_items(project_id, disposition, source_updated_at DESC);
 CREATE UNIQUE INDEX feed_items_board_source_external_idx
-      ON feed_items(board_id, source_id, external_id)
+      ON feed_items(project_id, source_id, external_id)
       WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
 CREATE INDEX feed_materials_board_item_idx
-      ON feed_materials(board_id, item_id, updated_at DESC, material_id);
+      ON feed_materials(project_id, item_id, updated_at DESC, material_id);
 CREATE INDEX feed_item_events_project_item_idx
       ON feed_item_events(project_id, item_id, at, event_id);
 CREATE UNIQUE INDEX feed_items_board_signal_idx
-      ON feed_items(board_id, signal_id) WHERE signal_id IS NOT NULL;
+      ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
 CREATE INDEX feed_out_rules_board_enabled_idx
-      ON feed_out_rules(board_id, enabled, created_at, rule_id);
-CREATE UNIQUE INDEX plugin_events_board_sequence ON plugin_events (board_id, sequence);
+      ON feed_out_rules(project_id, enabled, created_at, rule_id);
+CREATE UNIQUE INDEX plugin_events_board_sequence ON plugin_events (project_id, sequence);
 CREATE INDEX plugin_events_board_type_source
-      ON plugin_events (board_id, event_type_id, type_version, source_plugin_id, sequence);
+      ON plugin_events (project_id, event_type_id, type_version, source_plugin_id, sequence);
 CREATE INDEX schedule_jobs_due_idx
       ON schedule_jobs(enabled, next_due_at);
 CREATE INDEX schedule_conversation_tasks_enabled_idx
       ON schedule_conversation_tasks(enabled, updated_at);
 CREATE INDEX schedule_conversation_turns_task_idx
       ON schedule_conversation_turns(task_id, created_at);
-CREATE INDEX schedule_plugin_reminders_owner ON schedule_plugin_reminders(board_id, plugin_id, installation_id);
+CREATE INDEX schedule_plugin_reminders_owner ON schedule_plugin_reminders(project_id, plugin_id, installation_id);
 CREATE INDEX coding_sessions_board_updated_idx
-      ON coding_sessions(board_id, updated_at DESC, session_id);
+      ON coding_sessions(project_id, updated_at DESC, session_id);
 COMMIT;

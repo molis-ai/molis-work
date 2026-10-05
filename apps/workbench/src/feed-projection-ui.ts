@@ -39,7 +39,7 @@ function buildFeedNativePluginModel(
   const sources = view.feed.sources.map((source) => sourceModel(source, view));
   if (view.demo) {
     const presentKinds = new Set(sources.map((source) => source.ui_kind));
-    sources.push(...demoSourceModels(view.snapshot.board.board_id).filter((source) => !presentKinds.has(source.ui_kind)));
+    sources.push(...demoSourceModels(view.snapshot.board.project_id).filter((source) => !presentKinds.has(source.ui_kind)));
   }
   return {
     route_prefix: view.route_prefix,
@@ -123,7 +123,7 @@ function feedEntries(view: MolisWorkWebView): FeedUiEntry[] {
 }
 
 function demoFeedEntries(view: MolisWorkWebView): FeedUiEntry[] {
-  const boardId = view.snapshot.board.board_id;
+  const projectId = view.snapshot.board.project_id;
   const createItem = (
     id: string,
     itemType: FeedItemType,
@@ -136,7 +136,7 @@ function demoFeedEntries(view: MolisWorkWebView): FeedUiEntry[] {
     updatedAt: string,
     tags: string[],
   ): FeedItemRecord => ({
-    board_id: boardId,
+    project_id: projectId,
     item_id: id,
     source_id: sourceId,
     item_type: itemType,
@@ -203,7 +203,7 @@ function demoFeedEntries(view: MolisWorkWebView): FeedUiEntry[] {
 
 function itemModel(item: FeedItemRecord): FeedUiItem {
   return {
-    project_id: item.board_id,
+    project_id: item.project_id,
     item_id: item.item_id,
     source_id: item.source_id,
     signal_id: null,
@@ -231,14 +231,14 @@ function itemModel(item: FeedItemRecord): FeedUiItem {
     updated_at: item.updated_at,
     materials: item.materials.map((material) => ({
       ...material,
-      project_id: material.board_id,
+      project_id: material.project_id,
     })),
     suggested_behavior_ids: item.suggested_behavior_ids ?? [],
   };
 }
 
 function attentionModel(entry: InboxEntryRecord): AttentionEntryRecord {
-  return { ...entry, project_id: entry.board_id };
+  return { ...entry, project_id: entry.project_id };
 }
 
 function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSource {
@@ -269,7 +269,7 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSo
     ? source.config.scope
     : uiKind === "github" ? L("通知、PR 与 Review 请求") : uiKind === "gmail" ? L("指定标签与未读邮件") : uiKind === "connector" ? L("账号入站更新") : L("公开 Feed 更新");
   return {
-    project_id: source.board_id,
+    project_id: source.project_id,
     source_id: source.source_id,
     kind: source.kind,
     definition_id: source.definition_id,

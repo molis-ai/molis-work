@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
@@ -13,13 +13,13 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 test("plan changes are checked, applied through the Host graph operation, and told to the live round in plain words", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-plan-amend-")), path = join(root, "board.db"); seedDemoBoard(path);
   const store = new LocalProjectDatabase(path), sessions = new CodingSessionStore(store.db);
-  sessions.create({ board_id: DEMO_BOARD_ID, session_id: "app", title: "app", runtime_id: "prologue", at: new Date().toISOString() });
-  sessions.setRuntimeSession(DEMO_BOARD_ID, "app", "sdk", new Date().toISOString());
+  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "app", runtime_id: "prologue", at: new Date().toISOString() });
+  sessions.setRuntimeSession(DEMO_PROJECT_ID, "app", "sdk", new Date().toISOString());
   const ref = { session_id: "sdk", run_id: "r" };
-  const board = { board_id: "b1", version: 4, terminal: false, nodes: [
+  const board = { project_id: "b1", version: 4, terminal: false, nodes: [
     { id: "step-1", state: "running", reports: [], title: "读取代码" }, { id: "step-2", state: "not-started", reports: [], title: "实现功能" }] };
   const amendments: unknown[] = [], steers: string[] = []; let steerFails = false;
-  const host = () => ({ store, homeDirectory: root, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
     execution: { ready: async () => {}, models: async () => [] }, capabilities: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
       const input = args as any[];
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;
@@ -49,5 +49,5 @@ test("plan changes are checked, applied through the Host graph operation, and to
     steerFails = true;
     const skipped = await post({ amendment: { kind: "skip", node: "step-2", reason: "这次不做" }, expected_version: 6 });
     assert.equal(skipped.status, 200); assert.equal(skipped.body.steered, false); assert.match(skipped.body.steer_error, /not accepting input/, "a graph change stands even when the round could not be told; the person is told so");
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

@@ -72,9 +72,9 @@ export class GoalEventApplication {
     }
     const hash = intentHash(input);
     return this.ports.events.runImmediate(() => {
-      const replay = this.ports.events.replayIntent(input.board_id, input.actor_id, input.idempotency_key, hash);
+      const replay = this.ports.events.replayIntent(input.project_id, input.actor_id, input.idempotency_key, hash);
       if (replay) return { ...replay, replayed: true };
-      const result = this.ports.commands.createGoal(input.board_id, {
+      const result = this.ports.commands.createGoal(input.project_id, {
         goal_id: input.goal_id?.trim() || undefined,
         title,
         outcome,
@@ -91,7 +91,7 @@ export class GoalEventApplication {
         reason: "保存原始意图",
       });
       this.ports.events.recordIntentArtifacts({
-        board_id: result.goal.board_id,
+        project_id: result.goal.project_id,
         goal_id: result.goal.goal_id,
         actor_id: input.actor_id,
         actor_kind: input.actor_kind,
@@ -101,7 +101,7 @@ export class GoalEventApplication {
       });
       const parentGoalId = input.parent_goal_id?.trim();
       if (parentGoalId) {
-        this.ports.commands.addRelation(input.board_id, {
+        this.ports.commands.addRelation(input.project_id, {
           from_goal_id: result.goal.goal_id,
           to_goal_id: parentGoalId,
           type: "part_of",
@@ -113,7 +113,7 @@ export class GoalEventApplication {
         });
       }
       for (const dependencyGoalId of uniqueIds(input.dependency_goal_ids)) {
-        this.ports.commands.addRelation(input.board_id, {
+        this.ports.commands.addRelation(input.project_id, {
           from_goal_id: result.goal.goal_id,
           to_goal_id: dependencyGoalId,
           type: "depends_on",
@@ -127,17 +127,17 @@ export class GoalEventApplication {
       const created: CreateGoalIntentResult = {
         goal: {
           goal_id: result.goal.goal_id,
-          board_id: result.goal.board_id,
+          project_id: result.goal.project_id,
           title: result.goal.title,
           outcome: result.goal.outcome,
         },
         replayed: false,
-        observed_event_cursor: this.ports.events.readObservedEventCursor(result.goal.board_id),
+        observed_event_cursor: this.ports.events.readObservedEventCursor(result.goal.project_id),
         recorded: true,
         completion_effect: false,
       };
       this.ports.events.rememberIntent(
-        input.board_id, input.actor_id, input.idempotency_key, hash, created, new Date().toISOString(),
+        input.project_id, input.actor_id, input.idempotency_key, hash, created, new Date().toISOString(),
       );
       return created;
     });
@@ -147,12 +147,12 @@ export class GoalEventApplication {
     this.ports.events.adoptOwner(input);
   }
 
-  readState(boardId: string, goalId: string): GoalEventStateView {
-    const goal = this.requireGoal(boardId, goalId);
-    const config = this.ports.events.readConfig(boardId, goalId);
-    const requirements = this.ports.events.readCurrentRequirements(boardId, goalId);
-    const work = this.ports.events.readWorkState(boardId, goalId);
-    const latest = this.ports.events.listLatestReports(boardId, goalId, { limit: STATE_REPORT_LIMIT });
+  readState(projectId: string, goalId: string): GoalEventStateView {
+    const goal = this.requireGoal(projectId, goalId);
+    const config = this.ports.events.readConfig(projectId, goalId);
+    const requirements = this.ports.events.readCurrentRequirements(projectId, goalId);
+    const work = this.ports.events.readWorkState(projectId, goalId);
+    const latest = this.ports.events.listLatestReports(projectId, goalId, { limit: STATE_REPORT_LIMIT });
     const latestReports = latest.reports.map(reportSummary);
     const gaps: GoalEventWorkGap[] = requirements
       .filter((requirement) => !requirement.currently_satisfied)
@@ -163,20 +163,20 @@ export class GoalEventApplication {
         human_decision_required: requirement.human_decision_required,
       }));
     return {
-      board_id: boardId,
+      project_id: projectId,
       goal_id: goal.goal_id,
       intent: {
         title: goal.title,
         why: goal.why,
         business_logic: goal.business_logic,
-        source_kind: this.ports.events.readIntentSourceKind(boardId, goalId),
+        source_kind: this.ports.events.readIntentSourceKind(projectId, goalId),
       },
       config,
       requirements,
       latest_reports: latestReports,
       gaps,
       observed_event_cursor: latest.observed_event_cursor,
-      goal_event_cursor: this.ports.events.listLatestTimeline(boardId, goalId, { limit: 1 }).items[0]?.journal_seq ?? 0,
+      goal_event_cursor: this.ports.events.listLatestTimeline(projectId, goalId, { limit: 1 }).items[0]?.journal_seq ?? 0,
       event_list_next_cursor: null,
       owner: work.owner,
       work_status: work.work_status,
@@ -203,12 +203,12 @@ export class GoalEventApplication {
       throw new MolisWorkV1Error("goal_list.invalid_status", "不支持的工作状态");
     }
     const cursor = query.after_cursor === undefined ? null : parseDirectoryCursor(query.after_cursor);
-    const goals = this.ports.query.listGoals(query.board_id)
+    const goals = this.ports.query.listGoals(query.project_id)
       .filter((goal) => !goal.trashed_at && !goal.archived_at)
       .sort((left, right) => right.updated_at.localeCompare(left.updated_at) || left.goal_id.localeCompare(right.goal_id));
     const summaries = [];
     for (const goal of goals) {
-      const state = this.readState(query.board_id, goal.goal_id);
+      const state = this.readState(query.project_id, goal.goal_id);
       if (query.work_status && state.work_status !== query.work_status) continue;
       const item = directoryItem(goal, state);
       if (cursor && !isAfterDirectoryCursor(item, cursor)) continue;
@@ -220,28 +220,28 @@ export class GoalEventApplication {
     return {
       goals: items,
       next_cursor: overflow && last ? `${last.updated_at}|${last.goal_id}` : null,
-      observed_event_cursor: items[0] ? this.readState(query.board_id, items[0].goal_id).observed_event_cursor : 0,
+      observed_event_cursor: items[0] ? this.readState(query.project_id, items[0].goal_id).observed_event_cursor : 0,
     };
   }
 
-  readDirectoryItem(boardId: string, goalId: string): GoalEventDirectoryItem | null {
+  readDirectoryItem(projectId: string, goalId: string): GoalEventDirectoryItem | null {
     const id = goalId.trim();
     if (!id) return null;
-    const goal = this.ports.query.getGoal(boardId, id);
+    const goal = this.ports.query.getGoal(projectId, id);
     if (!goal || goal.trashed_at || goal.archived_at) return null;
-    return directoryItem(goal, this.readState(boardId, goal.goal_id));
+    return directoryItem(goal, this.readState(projectId, goal.goal_id));
   }
 
   configure(input: ConfigureGoalEventsApplicationInput): ConfigureGoalEventsResult {
     return this.ports.events.configureRequested(
       input,
-      (boardId, requested) => this.ports.planning.resolveEventAdoption(boardId, requested),
+      (projectId, requested) => this.ports.planning.resolveEventAdoption(projectId, requested),
     );
   }
 
   report(input: ReportGoalEventsInput): ReportGoalEventsResult {
     const result = this.ports.events.report(input);
-    const state = this.readState(input.board_id, input.goal_id);
+    const state = this.readState(input.project_id, input.goal_id);
     return {
       events: result.events,
       replayed: result.replayed,
@@ -255,28 +255,28 @@ export class GoalEventApplication {
     };
   }
 
-  listEvents(boardId: string, goalId: string, query?: GoalEventListQuery): GoalEventListPage {
-    return this.ports.events.listEvents(boardId, goalId, query);
+  listEvents(projectId: string, goalId: string, query?: GoalEventListQuery): GoalEventListPage {
+    return this.ports.events.listEvents(projectId, goalId, query);
   }
 
-  listLatestEvents(boardId: string, goalId: string, query?: GoalEventHistoryQuery): GoalEventHistoryPage {
-    return this.ports.events.listLatestEvents(boardId, goalId, query);
+  listLatestEvents(projectId: string, goalId: string, query?: GoalEventHistoryQuery): GoalEventHistoryPage {
+    return this.ports.events.listLatestEvents(projectId, goalId, query);
   }
 
-  listLatestTimeline(boardId: string, goalId: string, query?: GoalEventHistoryQuery): GoalEventTimelinePage {
-    return this.ports.events.listLatestTimeline(boardId, goalId, query);
+  listLatestTimeline(projectId: string, goalId: string, query?: GoalEventHistoryQuery): GoalEventTimelinePage {
+    return this.ports.events.listLatestTimeline(projectId, goalId, query);
   }
 
-  readEvent(boardId: string, goalId: string, eventId: string): GoalWorkEventRecord {
-    return this.ports.events.readEvent(boardId, goalId, eventId);
+  readEvent(projectId: string, goalId: string, eventId: string): GoalWorkEventRecord {
+    return this.ports.events.readEvent(projectId, goalId, eventId);
   }
 
-  isEventStateOwner(boardId: string, goalId: string): boolean {
-    return this.ports.events.isEventStateOwner(boardId, goalId);
+  isEventStateOwner(projectId: string, goalId: string): boolean {
+    return this.ports.events.isEventStateOwner(projectId, goalId);
   }
 
-  readProgressReceipt(boardId: string, goalId: string, actorId: string, key: string): GoalEventProgressResult | null {
-    return this.ports.events.readProgressReceipt(boardId, goalId, actorId, key);
+  readProgressReceipt(projectId: string, goalId: string, actorId: string, key: string): GoalEventProgressResult | null {
+    return this.ports.events.readProgressReceipt(projectId, goalId, actorId, key);
   }
 
   recordProgress(input: RecordGoalProgressSummaryInput): GoalEventProgressResult {
@@ -322,8 +322,8 @@ export class GoalEventApplication {
     return this.ports.events.recordNote(input);
   }
 
-  private requireGoal(boardId: string, goalId: string): GoalRecord {
-    const goal = this.ports.query.getGoal(boardId, goalId);
+  private requireGoal(projectId: string, goalId: string): GoalRecord {
+    const goal = this.ports.query.getGoal(projectId, goalId);
     if (!goal) throw new MolisWorkV1Error("goal.not_found", `找不到这个 Goal: ${goalId}`);
     return goal;
   }
@@ -331,7 +331,7 @@ export class GoalEventApplication {
 
 export function hostEventDecisionAuthority(
   source: GoalEventTrustedAuthority["authority_source"],
-  boardId: string,
+  projectId: string,
   actorId: string,
   idempotencyKey: string,
 ): GoalEventTrustedAuthority {
@@ -339,7 +339,7 @@ export function hostEventDecisionAuthority(
     actor_id: actorId,
     actor_kind: "user",
     authority_source: source,
-    conversation_ref: `${source}:${boardId}`,
+    conversation_ref: `${source}:${projectId}`,
     message_ref: `${source}-event-decision:${idempotencyKey}`,
   };
 }
@@ -357,7 +357,7 @@ function reportSummary(event: Extract<GoalWorkEventRecord, { kind: "report" }>):
 }
 
 const CREATE_INTENT_KEYS = new Set([
-  "board_id", "title", "outcome", "why", "business_logic", "priority", "goal_id",
+  "project_id", "title", "outcome", "why", "business_logic", "priority", "goal_id",
   "actor_id", "actor_kind", "idempotency_key", "parent_goal_id", "dependency_goal_ids",
   "requirements", "source_kind",
 ]);
@@ -375,7 +375,7 @@ function uniqueIds(values: string[] | undefined): string[] {
 
 function intentHash(input: CreateGoalIntentInput): string {
   return createHash("sha256").update(JSON.stringify({
-    board_id: input.board_id,
+    project_id: input.project_id,
     title: input.title,
     outcome: input.outcome ?? "",
     why: input.why ?? "",

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_BOARD_ID, createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
 import { HOME_ACTION_PERMISSIONS } from "../apps/local-host/src/home-actions.js";
@@ -13,7 +13,7 @@ import { GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
 test("system configuration writes Home, Inbox and existing Feed rules through their original owners with concurrency checks", async () => {
   const home = await mkdtemp(join(tmpdir(), "native-scene-config-"));
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId: DEMO_BOARD_ID, projectId: "native-config-project" });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const functions: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: { async evaluate(_key, record) {
     return { primitive: record.primitive, choice: "inbox.done", noul: null, score: null, legend: null, probabilities: {}, confidence: null, model: record.model };
   } } };
@@ -32,7 +32,7 @@ test("system configuration writes Home, Inbox and existing Feed rules through th
     const feedRule = rule("system_admit_inbox");
     assert.equal((await actions.invoke(functionContextActions.targets, { id: feedRule.id })).targets.filter(row => row.scene_id === "feed.capture").length, 0,
       "querying a capture destination cannot invent a new Feed rule");
-    const original = feed.createOutRule(reference.board_id, { name: "原来的项目规则", match: { contains: "真实材料" }, admission: "inbox" });
+    const original = feed.createOutRule(reference.project_id, { name: "原来的项目规则", match: { contains: "真实材料" }, admission: "inbox" });
     for (const [sceneId, key] of [["home.dock", "system_pick_home_dock"], ["inbox.next", "system_pick_inbox_next"], ["feed.capture", "system_admit_inbox"]]) {
       const record = rule(key!);
       const readTarget = async () => (await actions.invoke(functionContextActions.targets, { id: record.id })).targets.find(row => row.scene_id === sceneId)!;
@@ -57,8 +57,8 @@ test("system configuration writes Home, Inbox and existing Feed rules through th
       assert.equal(target.binding?.function.capability_id, publishedFunctionAction(record).capability_id);
       await assert.rejects(actions.invoke(functionContextActions.configure, request), { code: "actions.binding_changed" });
       const originalBinding = target.binding!;
-      if (sceneId === "feed.capture") assert.equal(feed.listOutRules(reference.board_id).find(row => row.rule_id === original.rule_id)!.judgment?.provider_id, "system.functions");
-      else assert.equal(withFunctionsService(home, service => service.actionSceneBinding(sceneId!, reference.board_id), functions)?.function.provider_id, "system.functions");
+      if (sceneId === "feed.capture") assert.equal(feed.listOutRules(reference.project_id).find(row => row.rule_id === original.rule_id)!.judgment?.provider_id, "system.functions");
+      else assert.equal(withFunctionsService(home, service => service.actionSceneBinding(sceneId!, reference.project_id), functions)?.function.provider_id, "system.functions");
       unavailable = true;
       target = await readTarget();
       assert.equal(target.availability.available, false); assert.equal(target.configuration_availability.available, true);
@@ -78,7 +78,7 @@ test("system configuration writes Home, Inbox and existing Feed rules through th
       if (sceneId !== "feed.capture") {
         await assert.rejects(host.actionClient(reference).invoke({ ...caller, validate_authority: action => {
           if (action.capability_id === publishedFunctionAction(record).capability_id) withFunctionsService(home,
-            service => service.saveActionSceneBinding(reference.board_id, { ...originalBinding, enabled: false }), functions);
+            service => service.saveActionSceneBinding(reference.project_id, { ...originalBinding, enabled: false }), functions);
         } }, functionContextActions.configure, configure(record.id, target, true)), { code: "functions.conflict" });
         assert.equal((await readTarget()).binding?.enabled, false);
       } else {

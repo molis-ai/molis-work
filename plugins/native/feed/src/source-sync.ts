@@ -9,7 +9,7 @@ import { normalizeIdempotencyKey, stableId } from "./source-input.js";
 import { safeErrorCode, interruptedMessage, rssFailureAction, sourceDedupeScope, cursorForMaterials, safeRssReceipt, terminalErrorCode } from "./source-sync-result.js";
 export class PublicSourceSync {
   private readonly feed: FeedApplication;
-  constructor(private readonly ports: FeedSourcePorts, private readonly boardId: string) { this.feed = ports.feed; }
+  constructor(private readonly ports: FeedSourcePorts, private readonly projectId: string) { this.feed = ports.feed; }
   async sync(
     source: FeedSourceRecord,
     input: FeedSourceSyncInput,
@@ -27,14 +27,14 @@ export class PublicSourceSync {
     const operationId = stableId("feed-operation", `${source.source_id}\u0000${idempotencyKey}`);
     const request = buildExactRequest(source, operationId, this.ports.providers);
     const planFingerprint = fingerprintSearchIntentExactV1(request);
-    const prior = this.feed.getSourceRunByOperationId(this.boardId, operationId);
+    const prior = this.feed.getSourceRunByOperationId(this.projectId, operationId);
     if (prior?.phase === "terminal") {
       const storedFingerprint = prior.receipt?.intent_fingerprint;
       if (storedFingerprint && storedFingerprint !== planFingerprint) {
         throw new FeedDomainError("同一幂等键对应的来源配置已经变化", "feed_source_idempotency_conflict");
       }
       return {
-        source: this.feed.getSource(this.boardId, sourceId),
+        source: this.feed.getSource(this.projectId, sourceId),
         run: prior,
         created: 0,
         deduped: 0,
@@ -44,7 +44,7 @@ export class PublicSourceSync {
 
     const startedAt = new Date().toISOString();
     const running: FeedSourceRunRecord = {
-      board_id: this.boardId,
+      project_id: this.projectId,
       run_id: prior?.run_id ?? stableId("feed-run", operationId),
       operation_id: operationId,
       source_id: source.source_id,
@@ -61,7 +61,7 @@ export class PublicSourceSync {
       updated_at: startedAt,
     };
     this.feed.upsertSourceRun(running);
-    this.ports.appendEvent(this.boardId, sourceId, "feed_source.sync_started", "开始同步 Feed 来源", {
+    this.ports.appendEvent(this.projectId, sourceId, "feed_source.sync_started", "开始同步 Feed 来源", {
       operation_id: operationId,
     });
 
@@ -75,7 +75,7 @@ export class PublicSourceSync {
       return await this.commitPublicResult(source, running, result, runtime);
     } catch (error) {
       await beforeEffect();
-      const current = this.feed.getSourceRunByOperationId(this.boardId, operationId);
+      const current = this.feed.getSourceRunByOperationId(this.projectId, operationId);
       // The pull may have committed before a downstream judgment was cancelled.
       // Preserve the refusal; an explicit retry can replay the durable pull.
       if (current?.phase === "terminal") throw error;
@@ -91,7 +91,7 @@ export class PublicSourceSync {
       };
       this.ports.transaction(() => {
         this.feed.upsertSourceRun(interrupted);
-        const latest = this.feed.getSource(this.boardId, sourceId);
+        const latest = this.feed.getSource(this.projectId, sourceId);
         const rssFailure = this.ports.providers.rss.isSourceKind(latest.kind)
           ? this.ports.providers.rss.withFailure(latest.cursor)
           : null;
@@ -105,12 +105,12 @@ export class PublicSourceSync {
           last_error_code: errorCode,
           updated_at: updatedAt,
         });
-        this.ports.appendEvent(this.boardId, sourceId, "feed_source.sync_interrupted", "来源同步未取得终态，可安全重试", {
+        this.ports.appendEvent(this.projectId, sourceId, "feed_source.sync_interrupted", "来源同步未取得终态，可安全重试", {
           operation_id: operationId,
           error_code: errorCode,
         });
       });
-      const failedSource = this.feed.getSource(this.boardId, sourceId);
+      const failedSource = this.feed.getSource(this.projectId, sourceId);
       if (this.ports.providers.rss.isSourceKind(failedSource.kind)) {
         const failures = this.ports.providers.rss.failureCount(failedSource.cursor);
         const actionable = rssFailureAction(errorCode, failures);
@@ -138,7 +138,7 @@ export class PublicSourceSync {
     let terminal!: FeedSourceRunRecord;
     let actionableRssFailure: ReturnType<typeof rssFailureAction> = null;
     this.ports.transaction(() => {
-      const latest = this.feed.getSource(this.boardId, entrySource.source_id);
+      const latest = this.feed.getSource(this.projectId, entrySource.source_id);
       if (consumable) {
         for (const material of result.materials) {
           const externalId = `${latest.kind}:${sourceDedupeScope(latest)}:${material.candidateId}`;
@@ -226,7 +226,7 @@ export class PublicSourceSync {
         updated_at: completedAt,
       });
       this.feed.upsertSourceRun(terminal);
-      this.ports.appendEvent(this.boardId, latest.source_id, "feed_source.sync_completed", `来源同步${result.outcome}：新增 ${created}，去重 ${deduped}`, {
+      this.ports.appendEvent(this.projectId, latest.source_id, "feed_source.sync_completed", `来源同步${result.outcome}：新增 ${created}，去重 ${deduped}`, {
         operation_id: running.operation_id,
         outcome: result.outcome,
         created,
@@ -250,7 +250,7 @@ export class PublicSourceSync {
     at: string,
   ): void {
     const stored = this.feed.createInboxEntry({
-      boardId: this.boardId,
+      projectId: this.projectId,
       subjectType: "source_fault",
       subjectId: source.source_id,
       reason: "source_fault",
@@ -264,18 +264,18 @@ export class PublicSourceSync {
       at,
     });
     if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
-      this.feed.setInboxEntryStatus(this.boardId, stored.entry.entry_id, "open", stored.entry.revision);
+      this.feed.setInboxEntryStatus(this.projectId, stored.entry.entry_id, "open", stored.entry.revision);
     }
   }
 
   private resolveRssSourceFaults(sourceId: string): void {
-    for (const entry of this.feed.listInboxEntries(this.boardId)) {
+    for (const entry of this.feed.listInboxEntries(this.projectId)) {
       if (
         entry.subject_type === "source_fault"
         && entry.subject_id === sourceId
         && (entry.status === "open" || entry.status === "in_progress")
       ) {
-        this.feed.setInboxEntryStatus(this.boardId, entry.entry_id, "done", entry.revision);
+        this.feed.setInboxEntryStatus(this.projectId, entry.entry_id, "done", entry.revision);
       }
     }
   }

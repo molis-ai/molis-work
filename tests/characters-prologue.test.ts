@@ -30,10 +30,10 @@ test("packed SDK consumes the Host-frozen Character instructions and narrowed to
   let adapter: Awaited<ReturnType<typeof make>> | undefined;
   try {
     adapter = await make(); const host = new AgentHost(); host.register(adapter);
-    const owner = { board_id: "b", plugin_id: "caller", install_id: "i", actor_id: "u" }, directory = { canonical_path: root, realpath_verified: true };
+    const owner = { project_id: "b", plugin_id: "caller", install_id: "i", actor_id: "u" }, directory = { canonical_path: root, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Character freeze" });
     const original: AgentFrozenCharacter = { character_id: "profile", title: "Verifier", instructions: "CHARACTER_FIXED_V2: cite actual evidence.", host_tools: ["read-file"],
-      source: { owner_actor_id: "u", draft_revision: 3 }, reference: { artifact_id: "character:b:profile", version: 2 }, board_id: "b", content_digest: "fixed",
+      source: { owner_actor_id: "u", draft_revision: 3 }, reference: { artifact_id: "character:b:profile", version: 2 }, project_id: "b", content_digest: "fixed",
       producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" }, published_at: "2026-09-22T00:00:00Z" };
     const expected = structuredClone(original), resolved = Promise.withResolvers<void>();
     const authority: AgentStartAuthority = { manifest: { roles: [{ role_id: "reader", version: 1, name: "Reader", prompts: ["base", "reader"], host_tools: ["read-file", "search"] }],
@@ -83,7 +83,7 @@ test("packed SDK sends full Coding prompts and the current Character on consecut
     resolveCredential: () => "fixture-only" });
   try {
     host.register(adapter);
-    const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "u" };
+    const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "u" };
     const directory = { canonical_path: root, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Coding Character delivery" });
     const instructions = [
@@ -93,7 +93,7 @@ test("packed SDK sends full Coding prompts and the current Character on consecut
     const tail = "长角色末尾：只依据实际回执报告结果。";
     instructions.push("角色说明。".repeat(4_000).slice(0, 20_000 - tail.length) + tail);
     const profile = (version: number): AgentFrozenCharacter => ({ character_id: "profile", title: "Verifier", instructions: instructions[version - 1]!, host_tools: null,
-      source: { owner_actor_id: "u", draft_revision: version }, reference: { artifact_id: "character:b:profile", version }, board_id: "b", content_digest: `digest-${version}`,
+      source: { owner_actor_id: "u", draft_revision: version }, reference: { artifact_id: "character:b:profile", version }, project_id: "b", content_digest: `digest-${version}`,
       producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" }, published_at: "2026-09-22T00:00:00Z" });
     const authority: AgentStartAuthority = { manifest: codingAgentManifest, authorizedDirectories: [root], prompts: [...codingPrompts], resolveCharacter: ref => profile(ref.version) };
     const task = "请检查 shipping.mjs 是否符合 README 的要求，完成这次代码检查。";

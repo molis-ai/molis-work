@@ -32,7 +32,7 @@ export class ArtifactImportError extends Error {
 }
 
 export interface ArtifactDocumentImportPorts {
-  boardId: string;
+  projectId: string;
   actorId: string;
   routePrefix: string;
   artifacts: ArtifactsApplicationApi;
@@ -63,8 +63,8 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
   await ports.beforeSave?.();
   ports.signal?.throwIfAborted();
   // Project-scoped identity: the same source can be independently imported into two projects.
-  const artifactId = `document-${digest(JSON.stringify([ports.boardId, document.source, document.source_id]))}`;
-  const latest = ports.artifacts.query.latestArtifactVersion(ports.boardId, artifactId);
+  const artifactId = `document-${digest(JSON.stringify([ports.projectId, document.source, document.source_id]))}`;
+  const latest = ports.artifacts.query.latestArtifactVersion(ports.projectId, artifactId);
   const payload = JSON.parse(JSON.stringify(document)) as ArtifactJsonValue;
   const previous = latest?.payload;
   const sameContent = previous && typeof previous === "object" && !Array.isArray(previous)
@@ -74,7 +74,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
       url: ports.routePrefix + artifactVersionPath(latest), warnings: document.warnings };
   }
   const result = ports.artifacts.commands.registerVersion({
-    board_id: ports.boardId, actor_id: ports.actorId, artifact_id: artifactId,
+    project_id: ports.projectId, actor_id: ports.actorId, artifact_id: artifactId,
     version: (latest?.version ?? 0) + 1,
     artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1,
     producer: { plugin_id: artifactsManifest.plugin_id, plugin_version: artifactsManifest.version,

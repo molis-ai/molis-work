@@ -19,7 +19,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
   const home = await mkdtemp(join(tmpdir(), "mcp-context-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Connection A", actor_id: "user" }));
   const second = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Connection B", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const seen = new Set<string>();
   let disabled = false;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (caller, action) => {
@@ -40,7 +40,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
       confirmation_summary: "Exact instruction confirmed", user_confirmed: true, idempotency_key: "guidance-context" });
     await withCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({ context: runtimeContext, project_id: project.project_id, actor_id: "user", user_confirmed: true }));
     const bindingsBefore = await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings());
-    const cursorBefore = await host.withProject(ref, r => r.store.eventCursor(project.board_id));
+    const cursorBefore = await host.withProject(ref, r => r.store.eventCursor(project.project_id));
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
@@ -82,7 +82,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     assert.equal(result.status, "bound"); assert.equal(result.resume, null); assert.ok(result.resume_error);
     disabled = false;
     assert.deepEqual(await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings()), bindingsBefore);
-    assert.equal(await host.withProject(ref, r => r.store.eventCursor(project.board_id)), cursorBefore, "read-only recovery never claims work or rewrites project facts");
+    assert.equal(await host.withProject(ref, r => r.store.eventCursor(project.project_id)), cursorBefore, "read-only recovery never claims work or rewrites project facts");
     result = await contextCall("molis_work_v1_context_bind", { project_id: second.project_id,
       actor_id: "user", user_confirmed: true, rebind_confirmed: true });
     assert.equal(result.connection.project_id, second.project_id); assert.equal(result.resume, null);
@@ -114,11 +114,11 @@ for (const changed of ["project", "client"]) test(`context presentation rejects 
   const present = createMcpContextPresenter({ connection, contextSignal: () => lifetime.signal, createError: (code, message) => new ActionError(code, message),
     readGuidance: async () => { throw new ActionError("actions.forbidden", "Not granted"); },
     readSession: async () => {
-      if (changed === "project") connection.accept({ projectId: "other", boardId: "other", databasePath: "/other.db", webBaseUrl: "http://127.0.0.1:4173" }, host.runtimeContext);
+      if (changed === "project") connection.accept({ projectId: "other", databasePath: "/other.db", webBaseUrl: "http://127.0.0.1:4173" }, host.runtimeContext);
       else lifetime.abort();
       return { sessionRegistry: { status: "unavailable", message: "No Session", session: null }, sessionGoalId: null };
     }, readResumeFacts: async () => { resumeRead = true; return { goals: [] }; } });
   // The Catalog shape is irrelevant to this race; presentation reads only its resolved connection.
-  await assert.rejects(present({ connection: { project_id: "first", board_id: "first", database_path: "/first.db" } } as never, host), { code: "mcp.context_changed" });
+  await assert.rejects(present({ connection: { project_id: "first", database_path: "/first.db" } } as never, host), { code: "mcp.context_changed" });
   assert.equal(resumeRead, false); assert.equal(connection.connection?.projectId, changed === "project" ? "other" : "first");
 });

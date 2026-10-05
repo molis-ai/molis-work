@@ -19,23 +19,23 @@ export class ProjectPolicyCommands {
     const operation = "save_project_policy";
     return this.context.repository.immediate(() => {
       const replay = this.context.replay<Omit<ReturnType<GoalsCommandApi["saveProjectPolicy"]>, "replayed">>(
-        input.board_id, input.actor_id, operation, input.idempotency_key, hash,
+        input.project_id, input.actor_id, operation, input.idempotency_key, hash,
       );
       if (replay) return { ...replay, replayed: true };
-      this.context.requireBoard(input.board_id);
+      this.context.requireBoard(input.project_id);
       const at = this.context.now().toISOString();
       const bindingId = randomUUID();
       const replaced = this.context.repository.replacePolicyBinding({
-        board_id: input.board_id, goal_id: null, policy_binding_id: bindingId,
+        project_id: input.project_id, goal_id: null, policy_binding_id: bindingId,
         policy, actor_id: input.actor_id, reason: "", at,
       });
       const cursor = this.context.repository.appendEvent({
-        eventId: randomUUID(), boardId: input.board_id, actorId: input.actor_id,
+        eventId: randomUUID(), projectId: input.project_id, actorId: input.actor_id,
         type: "policy.project_defaults_saved", objectType: "policy_binding", objectId: bindingId,
         reason: "", payload: { policy, replaced_policy_binding_ids: replaced }, at,
       });
       const outcome = { policy_binding_id: bindingId, observed_event_cursor: cursor };
-      this.context.remember(input.board_id, input.actor_id, operation, input.idempotency_key, hash, outcome, at);
+      this.context.remember(input.project_id, input.actor_id, operation, input.idempotency_key, hash, outcome, at);
       return { ...outcome, replayed: false };
     });
   }

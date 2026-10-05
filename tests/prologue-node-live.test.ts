@@ -32,7 +32,7 @@ test("Prologue Node: frozen instructions, real file tool and same-session contin
     resolveCredential: () => key ?? null,
   });
   try {
-    const session = await adapter.createSession({ title: "真实读取与继续", board_id: "live", plugin_id: "io.molis.work.coding", install_id: "live", actor_id: "local-user", directory: { canonical_path: workspace, realpath_verified: true } });
+    const session = await adapter.createSession({ title: "真实读取与继续", project_id: "live", plugin_id: "io.molis.work.coding", install_id: "live", actor_id: "local-user", directory: { canonical_path: workspace, realpath_verified: true } });
     const run = async (task: string): Promise<AgentRunView> => {
       const handle = await adapter.start({
         plugin_id: "io.molis.work.coding", session,

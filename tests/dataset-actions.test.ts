@@ -12,8 +12,8 @@ import type { HostCompleteText } from "../apps/local-host/src/host-complete-text
 async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "dataset-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "legacy-board", projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: ref.board_id, title: "Dataset", actor_id: "owner", idempotency_key: "init" }));
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "legacy-board" });
+  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Dataset", actor_id: "owner", idempotency_key: "init" }));
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: DATASET_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };
@@ -51,7 +51,7 @@ test("Dataset registers all business actions; snapshots, CSV and Artifact share 
   const promoted = await invoke("promote", { id: dataset.id });
   assert.equal(promoted.artifact.artifact_id, "dataset-" + dataset.id); assert.equal(promoted.dataset.artifact_version, 1);
   await f.host.withProject(f.ref, runtime => {
-    const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id, promoted.artifact)!;
+    const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, promoted.artifact)!;
     assert.equal(artifact.owner_actor_id, "owner"); assert.deepEqual((artifact.payload as any).rows, imported.rows);
   });
   const store = openDatasetStore(f.home); let foreign: string;
@@ -79,11 +79,11 @@ test("Dataset publication recovers original Artifact after restart without repla
     const restored = await bound.invoke(actions.promote, { id: dataset.id, expected_version: edited.version });
     assert.equal(restored.recovered, true); assert.equal(restored.dataset.title, "New local edit"); assert.equal(restored.dataset.publication_pending, undefined);
     await host.withProject(ref, runtime => {
-      assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(ref.board_id, restored.artifact)!.payload as any).title, "Publication v1");
-      assert.equal(runtime.coordinator.artifacts.query.getArtifactVersion(ref.board_id, { ...restored.artifact, version: 2 }), null);
+      assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(ref.project_id, restored.artifact)!.payload as any).title, "Publication v1");
+      assert.equal(runtime.coordinator.artifacts.query.getArtifactVersion(ref.project_id, { ...restored.artifact, version: 2 }), null);
     });
     const next = await bound.invoke(actions.promote, { id: dataset.id }); assert.equal(next.artifact.version, 2);
-    await host.withProject(ref, runtime => assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(ref.board_id, next.artifact)!.payload as any).title, "New local edit"));
+    await host.withProject(ref, runtime => assert.equal((runtime.coordinator.artifacts.query.getArtifactVersion(ref.project_id, next.artifact)!.payload as any).title, "New local edit"));
   } finally { db.close(); }
 });
 

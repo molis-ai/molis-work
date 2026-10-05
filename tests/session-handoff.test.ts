@@ -35,17 +35,17 @@ function handoffHistorySection(content: string): string {
   return content.split("## 历史记录（只读）")[1] ?? "";
 }
 
-function createContract(databasePath: string, boardId: string, goalId: string) {
+function createContract(databasePath: string, projectId: string, goalId: string) {
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   coordinator.initializeBoard({
-    board_id: boardId,
+    project_id: projectId,
     title: "Handoff 项目",
     actor_id: "owner",
-    idempotency_key: `${boardId}-init`,
+    idempotency_key: `${projectId}-init`,
   });
   coordinator.goalEvents.createIntent({
-    board_id: boardId,
+    project_id: projectId,
     goal_id: goalId,
     title: "交付新的目标 Runtime Session",
     outcome: "目标 Runtime 收到可执行的 Goal Handoff",
@@ -59,15 +59,15 @@ function createContract(databasePath: string, boardId: string, goalId: string) {
       statement: "目标 Session 收到 Handoff",
     }],
   });
-  return { store, contract: sessionHandoffGoalContext(coordinator, boardId, goalId) };
+  return { store, contract: sessionHandoffGoalContext(coordinator, projectId, goalId) };
 }
 
 test("Handoff package uses the canonical Goal and a minimal Session context, then creates a new Codex Session", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-handoff-"));
   const home = path.join(directory, ".molis-work");
-  const boardId = "project-handoff-native";
+  const projectId = "project-handoff-native";
   const goalId = "goal-handoff-native";
-  const { store, contract } = createContract(path.join(directory, "board.db"), boardId, goalId);
+  const { store, contract } = createContract(path.join(directory, "board.db"), projectId, goalId);
   const registry = await openWorkSessionRegistry({ homeDirectory: home });
   const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
   const transport: RuntimeSessionTransport = {
@@ -86,7 +86,7 @@ test("Handoff package uses the canonical Goal and a minimal Session context, the
       native_runtime_session_id: "thread-native-source",
       actor_id: "user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
       current_goal_id: goalId,
       workspace_path: directory,
       title: "来源 Session",
@@ -117,7 +117,7 @@ test("Handoff package uses the canonical Goal and a minimal Session context, the
 
     const prepared = await service.prepare({
       source_session_id: source.session_id,
-      project_id: boardId,
+      project_id: projectId,
       project_name: "Handoff 项目",
       target_runtime_id: "codex",
       target_workspace_path: directory,
@@ -136,7 +136,7 @@ test("Handoff package uses the canonical Goal and a minimal Session context, the
       const edge = ledger.query.get({ actor_id: "test-reader", scope: { kind: "personal", id: "private-work-context" } },
         `handoff.goal:${prepared.handoff.package_id}`);
       assert.equal(edge?.target.id, goalId);
-      assert.equal(edge?.target.project_id, boardId);
+      assert.equal(edge?.target.project_id, projectId);
       assert.equal(edge?.target.version, contract.goal_event_cursor, "Native Work must pin the Goal version used to build this package");
     } finally { relationDb.close(); }
 
@@ -178,16 +178,16 @@ test("Handoff package uses the canonical Goal and a minimal Session context, the
 
 test("unsupported Runtime receives an honest Molis Work fallback Session with encrypted package content", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-handoff-fallback-"));
-  const boardId = "project-handoff-fallback";
+  const projectId = "project-handoff-fallback";
   const goalId = "goal-handoff-fallback";
-  const { store, contract } = createContract(path.join(directory, "board.db"), boardId, goalId);
+  const { store, contract } = createContract(path.join(directory, "board.db"), projectId, goalId);
   const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     const source = registry.createSession({
       runtime_id: "runtime-without-read",
       actor_id: "user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
       current_goal_id: goalId,
       title: "Fallback source",
     });
@@ -201,7 +201,7 @@ test("unsupported Runtime receives an honest Molis Work fallback Session with en
     );
     const prepared = await service.prepare({
       source_session_id: source.session_id,
-      project_id: boardId,
+      project_id: projectId,
       project_name: "Fallback Project",
       target_runtime_id: "claude-code",
       actor_id: "user",
@@ -230,16 +230,16 @@ test("unsupported Runtime receives an honest Molis Work fallback Session with en
 
 test("a source Session without a current Goal cannot prepare a Handoff", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-handoff-no-goal-"));
-  const boardId = "project-handoff-no-goal";
+  const projectId = "project-handoff-no-goal";
   const goalId = "goal-handoff-no-goal";
-  const { store, contract } = createContract(path.join(directory, "board.db"), boardId, goalId);
+  const { store, contract } = createContract(path.join(directory, "board.db"), projectId, goalId);
   const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     const source = registry.createSession({
       runtime_id: "unknown",
       actor_id: "user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
     });
     const router = new RuntimeHostRouter((runtimeId) => new RegistryFallbackSessionAdapter(runtimeId, registry));
     const service = new SessionHandoffService(
@@ -251,7 +251,7 @@ test("a source Session without a current Goal cannot prepare a Handoff", async (
     await assert.rejects(
       () => service.prepare({
         source_session_id: source.session_id,
-        project_id: boardId,
+        project_id: projectId,
         project_name: "No Goal",
         target_runtime_id: "codex",
         actor_id: "user",
@@ -277,7 +277,7 @@ test("project Handoff web API keeps the editable draft, requires confirmation, a
   const store = new LocalProjectDatabase(project.database_path);
   const coordinator = new GoalProjectApplication(store);
   coordinator.goals.commands.createGoal(
-    project.board_id,
+    project.project_id,
     {
       goal_id: goalId,
       title: "通过 Web 完成 Handoff",
@@ -437,15 +437,15 @@ test("project Handoff web API keeps the editable draft, requires confirmation, a
 test("event-work handoff package uses current facts and does not force Proposal or roles", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-handoff-event-"));
   const home = path.join(directory, ".molis-work");
-  const boardId = "project-handoff-event";
+  const projectId = "project-handoff-event";
   const store = new LocalProjectDatabase(path.join(directory, "board.db"));
   const coordinator = new GoalProjectApplication(store);
-  coordinator.initializeBoard({ board_id: boardId, title: "Event Handoff", actor_id: "owner", idempotency_key: `${boardId}-init` });
+  coordinator.initializeBoard({ project_id: projectId, title: "Event Handoff", actor_id: "owner", idempotency_key: `${projectId}-init` });
   const created = coordinator.goalEvents.createIntent({
-    board_id: boardId, title: "事件交接目标", outcome: "按当前差距继续",
+    project_id: projectId, title: "事件交接目标", outcome: "按当前差距继续",
     actor_id: "owner", actor_kind: "user", idempotency_key: "event-handoff-intent",
   });
-  const contract = sessionHandoffGoalContext(coordinator, boardId, created.goal.goal_id);
+  const contract = sessionHandoffGoalContext(coordinator, projectId, created.goal.goal_id);
   const registry = await openWorkSessionRegistry({ homeDirectory: home });
   const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
   const transport: RuntimeSessionTransport = {
@@ -464,7 +464,7 @@ test("event-work handoff package uses current facts and does not force Proposal 
       native_runtime_session_id: "thread-event-source",
       actor_id: "user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
       current_goal_id: created.goal.goal_id,
       workspace_path: directory,
       title: "事件来源 Session",
@@ -479,7 +479,7 @@ test("event-work handoff package uses current facts and does not force Proposal 
     );
     const prepared = await service.prepare({
       source_session_id: source.session_id,
-      project_id: boardId,
+      project_id: projectId,
       project_name: "Event Handoff",
       target_runtime_id: "codex",
       target_workspace_path: directory,
@@ -519,19 +519,19 @@ test("current handoff acceptance uses live event requirements; original v35 crit
   const fixture = materializeGoalEventHistory("legacy");
   const store = new LocalProjectDatabase(fixture.path);
   const app = new GoalProjectApplication(store);
-  const boardId = "goalboard-v1-demo";
+  const projectId = "goalboard-v1-demo";
   const goalId = "CORE";
   const registry = await openWorkSessionRegistry({ homeDirectory: fixture.directory });
   try {
-    const historyBefore = app.goalQueries.readGoalContract(boardId, goalId);
+    const historyBefore = app.goalQueries.readGoalContract(projectId, goalId);
     const originalCriteria = historyBefore.goal.acceptance_criteria;
     const criterion = originalCriteria[0];
     assert.ok(criterion, "original v35 CORE must keep at least one historical acceptance criterion");
-    let state = app.goalEvents.readState(boardId, goalId);
+    let state = app.goalEvents.readState(projectId, goalId);
     const requirement = state.requirements.find((item) => item.statement === criterion.statement);
     assert.ok(requirement, "the original historical acceptance criterion must be mapped to an actual current requirement");
     app.goalEvents.setAgreement({
-      board_id: boardId,
+      project_id: projectId,
       goal_id: goalId,
       actor_id: "handoff-history-user",
       actor_kind: "user",
@@ -540,16 +540,16 @@ test("current handoff acceptance uses live event requirements; original v35 crit
       retire_requirement_ids: [requirement.requirement_id],
       idempotency_key: "handoff-history-retire",
     });
-    state = app.goalEvents.readState(boardId, goalId);
+    state = app.goalEvents.readState(projectId, goalId);
     assert.equal(state.requirements.some((item) => item.requirement_id === requirement.requirement_id), false);
-    const history = app.goalQueries.readGoalContract(boardId, goalId);
+    const history = app.goalQueries.readGoalContract(projectId, goalId);
     assert.deepEqual(history.goal.acceptance_criteria, originalCriteria);
     const source = registry.explicitlyLinkSession({
       runtime_id: "handoff-history-fixture",
       native_runtime_session_id: "isolated-history-source",
       actor_id: "handoff-history-user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
       current_goal_id: goalId,
       workspace_path: fixture.directory,
     });
@@ -557,7 +557,7 @@ test("current handoff acceptance uses live event requirements; original v35 crit
       source_session: source,
       project_name: "原始历史接力验收",
       timeline: [],
-      goal_contract: sessionHandoffGoalContext(app, boardId, goalId),
+      goal_contract: sessionHandoffGoalContext(app, projectId, goalId),
     });
     const current = handoffCurrentSection(content);
     const historical = handoffHistorySection(content);
@@ -581,18 +581,18 @@ test("current handoff acceptance uses live event requirements; original v35 crit
 
 test("completed Goal handoff names the public resume tool and keeps the historical Risk out of current protocol", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-handoff-resume-"));
-  const boardId = "project-handoff-resume";
+  const projectId = "project-handoff-resume";
   const goalId = "goal-handoff-resume";
-  const { store, contract: openContract } = createContract(path.join(directory, "board.db"), boardId, goalId);
+  const { store, contract: openContract } = createContract(path.join(directory, "board.db"), projectId, goalId);
   const coordinator = new GoalProjectApplication(store);
   const registry = await openWorkSessionRegistry({ homeDirectory: path.join(directory, ".molis-work") });
   try {
     coordinator.goalEvents.configure({
-      board_id: boardId,
+      project_id: projectId,
       goal_id: goalId,
       actor_id: "owner",
       actor_kind: "user",
-      expected_version: coordinator.goalEvents.readState(boardId, goalId).config.version,
+      expected_version: coordinator.goalEvents.readState(projectId, goalId).config.version,
       idempotency_key: `${goalId}-type`,
       types: [{
         type_id: "handoff-result",
@@ -605,7 +605,7 @@ test("completed Goal handoff names the public resume tool and keeps the historic
       }],
     });
     coordinator.goalEvents.report({
-      board_id: boardId,
+      project_id: projectId,
       goal_id: goalId,
       actor_id: "owner",
       actor_kind: "user",
@@ -618,9 +618,9 @@ test("completed Goal handoff names the public resume tool and keeps the historic
         judgments: [{ requirement_id: `${goalId}-criterion`, verdict: "supports" }],
       }],
     });
-    const beforeClose = coordinator.goalEvents.readState(boardId, goalId);
+    const beforeClose = coordinator.goalEvents.readState(projectId, goalId);
     coordinator.goalEvents.submitClosure({
-      board_id: boardId,
+      project_id: projectId,
       goal_id: goalId,
       actor_id: "owner",
       actor_kind: "user",
@@ -636,7 +636,7 @@ test("completed Goal handoff names the public resume tool and keeps the historic
       native_runtime_session_id: "isolated-resume-source",
       actor_id: "user",
       user_confirmed: true,
-      project_id: boardId,
+      project_id: projectId,
       current_goal_id: goalId,
       workspace_path: directory,
     });
@@ -644,7 +644,7 @@ test("completed Goal handoff names the public resume tool and keeps the historic
       source_session: source,
       project_name: "完成后续交接",
       timeline: [],
-      goal_contract: sessionHandoffGoalContext(coordinator, boardId, goalId),
+      goal_contract: sessionHandoffGoalContext(coordinator, projectId, goalId),
     });
     const current = handoffCurrentSection(content);
     const historical = handoffHistorySection(content);

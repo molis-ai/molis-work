@@ -204,7 +204,7 @@ function dataJson(view: MolisWorkWebView): string {
   );
   return JSON.stringify({
     snapshot: {
-      board: { board_id: view.snapshot.board.board_id },
+      board: { project_id: view.snapshot.board.project_id },
       cursor: view.snapshot.cursor,
     },
     project: view.project,

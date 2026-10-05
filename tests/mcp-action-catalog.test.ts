@@ -77,7 +77,7 @@ test("assembleMcpCatalog lists exactly the granted actions that are available no
 test("Pages Forms Dataset PPT actions take no identity fields: the project comes from the connection", () => {
   for (const view of creativeViews) {
     const properties = view.action.input_schema.properties ?? {};
-    for (const field of ["project_id", "board_id", "database_path", "actor_id"]) {
+    for (const field of ["project_id", "project_id", "database_path", "actor_id"]) {
       assert.equal(Object.hasOwn(properties, field), false, `${view.capability_id}.${field}`);
     }
   }

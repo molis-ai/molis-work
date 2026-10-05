@@ -12,9 +12,9 @@ import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis
 test("actual CLI snapshot and MCP event handlers finish one Goal without the retired claim/run protocol", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-command-chain-"));
   const databasePath = join(directory, "project.db");
-  const boardId = "command-chain";
+  const projectId = "command-chain";
   const host = createMolisWorkLocalHost();
-  const reference = molisWorkHostProjectReference({ databasePath, boardId });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId });
   const client = host.client(reference);
   const runtimeHost = {
     homeDirectory: directory,
@@ -24,7 +24,7 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
       host_declares_stable: true,
     },
   };
-  const mcp = new MolisWorkServer("runtime", { databasePath, boardId, webBaseUrl: "http://127.0.0.1:4173" }, runtimeHost, host);
+  const mcp = new MolisWorkServer("runtime", { databasePath, projectId, webBaseUrl: "http://127.0.0.1:4173" }, runtimeHost, host);
   async function cli<T>(operation: string, input: Record<string, unknown>): Promise<T> {
     const lines: string[] = [];
     const original = console.log;
@@ -38,9 +38,9 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
   }
   try {
     await client.invoke(initializeBoardCapability, {
-      board_id: boardId, title: "真实命令链", idempotency_key: "init",
+      project_id: projectId, title: "真实命令链", idempotency_key: "init",
     });
-    await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath }, "runtime:chain");
+    await grantGoalsMcp(host, directory, { project_id: projectId, database_path: databasePath }, "runtime:chain");
     const created = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "跨入口验收", outcome: "命令迁移后仍可完成同一 Goal", idempotency_key: "create",
     }));
@@ -75,12 +75,12 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
     assert.equal(replay.events[0]?.event_id, reported.events[0]?.event_id);
 
     await assert.rejects(
-      () => mcp.callTool("molis_work_v1_action_goals.events.report__v1", { ...reportInput, board_id: boardId, idempotency_key: "denied-board" }),
+      () => mcp.callTool("molis_work_v1_action_goals.events.report__v1", { ...reportInput, project_id: projectId, idempotency_key: "denied-board" }),
       { code: "actions.input_invalid" },
     );
     await assert.rejects(
       () => runV1Cli(["select-goal", "--db", databasePath, "--json", JSON.stringify({
-        board_id: boardId, goal_id, actor_id: "executor", idempotency_key: "retired",
+        project_id: projectId, goal_id, actor_id: "executor", idempotency_key: "retired",
       })], { localHost: host }),
       /未知 V1 operation: select-goal/,
     );
@@ -94,9 +94,9 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
     });
     const state = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     assert.equal(state.work_status, "completed");
-    const final = await client.invoke(snapshotBoardCapability, { board_id: boardId });
+    const final = await client.invoke(snapshotBoardCapability, { project_id: projectId });
     assert.equal(final.goals.find((goal) => goal.goal_id === goal_id)?.title, "跨入口验收");
-    assert.deepEqual(await cli("snapshot", { board_id: boardId }), final);
+    assert.deepEqual(await cli("snapshot", { project_id: projectId }), final);
   } finally {
     await mcp.close();
     await host.close();

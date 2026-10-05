@@ -26,7 +26,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   const ownsLocalHost = !options.localHost;
   const reference = molisWorkHostProjectReference({
     databasePath,
-    boardId: String(input.board_id ?? value(args, "--board-id") ?? `database:${databasePath}`),
+    projectId: String(input.project_id ?? value(args, "--project-id") ?? `database:${databasePath}`),
   });
   const client = localHost.client(reference);
   try {

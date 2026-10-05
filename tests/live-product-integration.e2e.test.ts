@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { CodexAppServerTransport, CodexRuntimeSessionAdapter } from '@molis-ai/molis-work-service-runtime-host';
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID } from '@molis-ai/molis-work-app-local-host';
+import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 
@@ -13,7 +13,7 @@ test('Live public RSS uses production fetch, deduplicates, and opens retained co
   const b=await openGoalBrowser(t,true);if(!b)return;
   const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
   catalog.addProjectPlugin({project_id:b.projectId!,plugin_id:'feed',actor_id:'live-acceptance'});catalog.close();
-  const service=createLocalFeedSourceService(b.store.db,DEMO_BOARD_ID);
+  const service=createLocalFeedSourceService(b.store.db,DEMO_PROJECT_ID);
   const source=service.register({kind:'custom_rss',name:'公开 RSS 验收',feed_url:'https://simonwillison.net/atom/everything/'}).source;
   const first=await service.sync(source.source_id,{idempotencyKey:'live-first',signal:AbortSignal.timeout(45000)});
   assert.equal(first.run.outcome,'completed',JSON.stringify(first.run));
@@ -26,7 +26,7 @@ test('Live public RSS uses production fetch, deduplicates, and opens retained co
   const itemId=await b.evaluate<string>("document.querySelector('[data-feed-entry-id]').dataset.feedEntryId");
   await b.click(`[data-feed-entry-id="${itemId}"]`);
   await b.waitFor(`document.querySelector('[data-feed-detail="${itemId}"] [data-feed-action=inbox]')`);
-  const item=createLocalFeedApplication(b.store.db).getItem(DEMO_BOARD_ID,itemId);
+  const item=createLocalFeedApplication(b.store.db).getItem(DEMO_PROJECT_ID,itemId);
   assert.ok(item.read_at);assert.ok(item.body.length>0);
   await b.navigate(()=>b.click(`[data-feed-detail="${itemId}"] [data-feed-action=inbox]`));
   const inbox=await (await fetch(`${b.origin}/projects/${b.projectId}/api/inbox`)).json();

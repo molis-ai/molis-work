@@ -7,7 +7,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineSubjectContextAction, subjectContext, resolveActionSubject } from "../packages/plugin-sdk/src/index.js";
 import { bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_BOARD_ID, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { homeTalkActions, HOME_TALK_PERMISSIONS, createHomeTalkHandlers } from "../apps/local-host/src/home-talk-actions.js";
 import { workActions } from "@molis-ai/molis-work-plugin-work";
 
@@ -51,14 +51,14 @@ test("unknown SDK plugin supplies subject context through formal Runtime registr
 test("Home resolves original Feed, Inbox, Goal and Session facts, and never defaults an unrelated conversation", async () => {
   const home = await mkdtemp(join(tmpdir(), "home-talk-actions-"));
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId: DEMO_BOARD_ID, projectId: caller.project_id! });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const host = new MolisWorkLocalHost({ homeDirectory: home, runtimeSessionTransport: { async request() { throw new Error("preparation must not contact Runtime"); }, subscribe() { return () => undefined; } } });
   try {
     const runtime = await host.withProject(reference, runtime => runtime);
     const feed = createLocalFeedApplication(runtime.store.db);
-    const source = createLocalFeedSourceService(runtime.store.db, reference.board_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "talk-context" }).source;
+    const source = createLocalFeedSourceService(runtime.store.db, reference.project_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "talk-context" }).source;
     const item = feed.ingestItem({ source, externalId: "talk-item", title: "需要解释的材料", summary: "核对原始正文", body: "上下文正文".repeat(7000), occurredAt: new Date().toISOString(), attention: false }).item;
-    const entry = feed.ensureInboxEntryForFeedItem(reference.board_id, item.item_id, "manual").entry;
+    const entry = feed.ensureInboxEntryForFeedItem(reference.project_id, item.item_id, "manual").entry;
     const owner = await host.sessionResources();
     const create = (native: string, goal: string | null = null, project = reference.project_id, runtimeId = "codex") => owner.registry.createSession({ runtime_id: runtimeId, native_runtime_session_id: native, project_id: project, current_goal_id: goal, actor_id: caller.actor_id, user_confirmed: true });
     const first = create("native-first"), second = create("native-second", "goal-associated");
@@ -69,7 +69,7 @@ test("Home resolves original Feed, Inbox, Goal and Session facts, and never defa
     assert.equal(prepared.selection, "choose"); assert.equal(prepared.selected_session_id, null);
     assert.deepEqual(new Set(prepared.candidates.map(x => x.session_id)), new Set([first.session_id, second.session_id]));
     assert.equal(prepared.context.content.length, 32000); assert.equal(prepared.context.truncated, true);
-    feed.linkGoal(reference.board_id, item.item_id, "goal-associated", "processing");
+    feed.linkGoal(reference.project_id, item.item_id, "goal-associated", "processing");
     prepared = await prepare("inbox_entry", entry.entry_id);
     assert.equal(prepared.selected_session_id, second.session_id);
     assert.equal(prepared.context.subject.id, entry.entry_id); assert.deepEqual(prepared.context.goal_ids, ["goal-associated"]);
@@ -82,7 +82,7 @@ test("Home resolves original Feed, Inbox, Goal and Session facts, and never defa
     owner.registry.updateAssociations({ session_id: second.session_id, current_goal_id: null, actor_id: caller.actor_id, user_confirmed: true });
     owner.registry.updateAssociations({ session_id: third.session_id, current_goal_id: null, actor_id: caller.actor_id, user_confirmed: true });
     assert.equal((await prepare("feed_item", item.item_id)).candidates.length, 0);
-    const goalId = runtime.store.snapshot(reference.board_id).goals[0]!.goal_id;
+    const goalId = runtime.store.snapshot(reference.project_id).goals[0]!.goal_id;
     prepared = await prepare("goal", goalId);
     assert.deepEqual(prepared.context.goal_ids, [goalId]); assert.ok(!prepared.context.content.includes("[object Object]"));
     prepared = await prepare("source", source.source_id);

@@ -70,7 +70,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
         const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services,
-          identity: { projectId: context.board_id ?? 'local', installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' } });
+          identity: { projectId: context.project_id ?? 'local', installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' } });
         lanes.set(lane, created);
         created.catch(() => { if (lanes.get(lane) === created) lanes.delete(lane); });
         return created;

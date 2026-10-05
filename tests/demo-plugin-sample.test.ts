@@ -7,7 +7,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_BOARD_ID,
+import { DEMO_PROJECT_ID,
   DEMO_CORE_ARTIFACT_ID,
   DEMO_GITHUB_SOURCE_ID,
   DEMO_GMAIL_SOURCE_ID,
@@ -32,12 +32,12 @@ async function withDirectory<T>(prefix: string, run: (directory: string) => Prom
   }
 }
 
-function feedHtml(databasePath: string): string {
+function feedHtml(databasePath: string, projectId = DEMO_PROJECT_ID): string {
   const store = new LocalProjectDatabase(databasePath);
   try {
     const view = buildMolisWorkWebView(store, new GoalProjectApplication(store), {
       databasePath,
-      boardId: DEMO_BOARD_ID,
+      projectId,
       demo: true,
     });
     return renderFeedWorkbenchFragment(view);
@@ -46,10 +46,10 @@ function feedHtml(databasePath: string): string {
   }
 }
 
-function feedItemCount(databasePath: string): number {
+function feedItemCount(databasePath: string, projectId = DEMO_PROJECT_ID): number {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    return createLocalFeedApplication(store.db).snapshot(DEMO_BOARD_ID).feed_items.length;
+    return createLocalFeedApplication(store.db).snapshot(projectId).feed_items.length;
   } finally {
     store.close();
   }
@@ -62,7 +62,7 @@ async function assertDemoPluginFacts(input: {
 }): Promise<void> {
   const store = new LocalProjectDatabase(input.databasePath);
   try {
-    const snapshot = createLocalFeedApplication(store.db).snapshot(DEMO_BOARD_ID);
+    const snapshot = createLocalFeedApplication(store.db).snapshot(input.projectId);
     const kinds = new Set(snapshot.sources.map((source) => source.kind));
     assert.ok(kinds.has("rss"));
     assert.ok(kinds.has("youtube_channel"));
@@ -85,7 +85,7 @@ async function assertDemoPluginFacts(input: {
     assert.ok(active.some((entry) => entry.reason === "source_fault"));
     assert.ok(history.some((entry) => entry.status === "done"));
     assert.ok(history.some((entry) => entry.status === "dismissed"));
-    const artifacts = new GoalProjectApplication(store).artifacts.query.listArtifacts(DEMO_BOARD_ID);
+    const artifacts = new GoalProjectApplication(store).artifacts.query.listArtifacts(input.projectId);
     assert.ok(artifacts.some((artifact) => artifact.artifact_id === DEMO_CORE_ARTIFACT_ID));
     assert.ok(artifacts.some((artifact) => artifact.artifact_type_id === FEED_CAPTURE_ARTIFACT_TYPE_ID));
   } finally {
@@ -112,11 +112,11 @@ test("seedDemoBoard fixtures stay empty of plugin samples", async () => {
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
-      const snapshot = createLocalFeedApplication(store.db).snapshot(DEMO_BOARD_ID);
+      const snapshot = createLocalFeedApplication(store.db).snapshot(DEMO_PROJECT_ID);
       assert.equal(snapshot.feed_items.length, 0);
       assert.equal(snapshot.inbox_entries.length, 0);
       assert.equal(snapshot.sources.length, 0);
-      assert.equal(new GoalProjectApplication(store).artifacts.query.listArtifacts(DEMO_BOARD_ID).length, 0);
+      assert.equal(new GoalProjectApplication(store).artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 0);
     } finally {
       store.close();
     }
@@ -124,13 +124,13 @@ test("seedDemoBoard fixtures stay empty of plugin samples", async () => {
   });
 });
 
-test("plugin samples can be written onto an older demo board id", async () => {
+test("plugin samples are written under the project id they are given", async () => {
   await withDirectory("molis-work-demo-old-board-", async (directory) => {
     const databasePath = join(directory, "old-demo.db");
     const store = new LocalProjectDatabase(databasePath);
     try {
       new GoalProjectApplication(store).initializeBoard({
-        board_id: "goalboard-v1-demo",
+        project_id: "goalboard-v1-demo",
         title: "Molis Work 示例项目",
         actor_id: "demo-user",
         idempotency_key: "demo-old-board",
@@ -181,12 +181,12 @@ test("creating the demo project seeds every built-in plugin surface", async () =
         homeDirectory: home,
         projectId: created.project.project_id,
       });
-      assert.doesNotMatch(feedHtml(created.project.database_path), /prototype-feed-github/);
-      const itemCount = feedItemCount(created.project.database_path);
+      assert.doesNotMatch(feedHtml(created.project.database_path, created.project.project_id), /prototype-feed-github/);
+      const itemCount = feedItemCount(created.project.database_path, created.project.project_id);
 
       const existing = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
       assert.equal(existing.status, "existing");
-      assert.equal(feedItemCount(existing.project.database_path), itemCount);
+      assert.equal(feedItemCount(existing.project.database_path, existing.project.project_id), itemCount);
 
       const reset = await catalog.resetDemoProject({ actor_id: "user", user_confirmed: true });
       assert.equal(reset.status, "reset");

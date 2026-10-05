@@ -91,6 +91,8 @@
 | 2026-10-05 | Form 两条没有题目快照的试用答卷（弹窗） | 删两条并去掉特殊显示（推荐）；保留；用现题补快照 | 删两条并去掉特殊显示 | 2026-09-20「试用问卷」的两条答卷在维护时删除（先备份），结果页的「历史答卷」分支与 `form_version`/`questions_json` 可空的读取一并去掉 |
 | 2026-10-05 | 插件工作室目录之前的能力（任务书 §4.7「本轮不为现有的生成插件和已安装插件保留兼容」） | — | 删 | 工作室自己的旧能力清单（`goals.*`、`reminders.*`、`schedules.*` 的旧形状）、按它派发的宿主层、能力看板里的旧条目、`model.generate` 写在代码里的 `instructions` 都删；生成插件只走统一目录，模型只认声明的 prompt；发布版本必带 prompts。真实 Home 13 个发布都早于目录或 prompt，其中 5 个调用模型或旧目标能力的会失败（a9ee73b6、82933d7e、e49738d3、4807c988、1ed82264），需要在创作台重新生成；维护给存量发布补 `prompts: []` |
 | 2026-10-05 | 防回流门禁的口径（日常取舍） | 只数总数；按文件计数只许减少 | 按文件计数 | `pnpm health:check` 数源码里的 `legacy`、`compat`、`@deprecated`、`backfill`（大小写按词形），每个文件只许减少、新文件从零开始；场景里普通的 compatible 不算，`compatibleRun` 这类标识算。main 7ac6fc4a 上 245 处、82 个文件 |
+| 2026-10-05 | board_id 统一的切法（日常取舍，接 10-05 弹窗；做的过程中改过一次） | 按层四片；存储列单独一片；一次改完 | 一次改完（列、合同字段、变量名、目录库） | 先试了只改存储列（B1）：全量回归里 `SELECT *` 读出的行直接当记录用的地方都断了（行是 project_id、记录还叫 board_id），要么到处加临时映射、要么一次改完。选一次改完：一个 PR，挑合并空档，冲突由我解；Functions 库两张表一起改（v3），项目库 v6，目录库去掉 projects.board_id |
+| 2026-10-05 | 门禁上线后剩下的 92 处兼容标记（日常取舍） | 逐条判断：删兼容、改名现行机制、保留并记录 | 按条处理 | 删：助理工作的会话补记（真实 Home 没有助理工作）、灵光不带项目的目录级路由（客户端只用项目内地址）、未绑定的插件事件游标分支（真实 Home 56 个游标都有安装与世代）、起草文字的内联 instructions、旧解释型创作台的领域代码（model/formula/设计解析）、命令回执引用可缺 run_id。改名：目录库错误码、Attention/Feed 的日志镜像、IM 房间目录、根包导入规则与若干注释。保留：插件升级声明机制、Casebook 对外覆盖字段、pdfjs 的 legacy 构建路径、产品文案。Feed 的旧形状投影与单项目服务模式随 `board_id` 统一（B2–B4）处理 |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -338,10 +340,13 @@
 | [#277](https://github.com/molis-ai/molis-work/pull/277) | 合入 | 会话表为唯一来源：面板与运行时绑定写会话，删读取时的复制（会话库 v7） |
 | [#278](https://github.com/molis-ai/molis-work/pull/278) | 合入 | 判断方式四种、复审状态两种、规则只剩「需要用户验收」 |
 | [#279](https://github.com/molis-ai/molis-work/pull/279) | 2a8fffcd | 场景绑定一套模型（Functions v2、项目库 v5、内置首页规则种子带 Inbox offer 键） |
-| [#280](https://github.com/molis-ai/molis-work/pull/280)、[#281](https://github.com/molis-ai/molis-work/pull/281)、[#282](https://github.com/molis-ai/molis-work/pull/282) | 合入 / 排队 | 宿主声明的工作入口改名；没人调用的兼容面；Form v2 与工作室零件类型 |
+| [#280](https://github.com/molis-ai/molis-work/pull/280)、[#281](https://github.com/molis-ai/molis-work/pull/281)、[#282](https://github.com/molis-ai/molis-work/pull/282) | 合入（99f778cd） | 宿主声明的工作入口改名；没人调用的兼容面；Form v2 与工作室零件类型 |
+| [#283](https://github.com/molis-ai/molis-work/pull/283) | dd5d8c89 | 防回流门禁：源码兼容标记按文件计数只许减少（CI 里跑；当时 92 处、42 个文件） |
+| [#284](https://github.com/molis-ai/molis-work/pull/284) | 排队 | 生成插件只走统一目录（工作室目录之前的能力与内联模型要求删除） |
 
 - 全量回归：batch K（C2 栈顶）3,685 个用例 3,674 过、4 败（均为 C2 预期变化或缺 #274，已修，重跑通过）；batch L（#277–#282 栈顶）3,680 个用例 3,659 过、13 败（11 个是本栈自己的用例仍用旧字段，已修；2 个是负载超时，单独重跑通过；受影响的 32 个用例在栈顶重跑全过）。
-- 在途：工作室只走统一目录（sweep C）、`board_id` 统一第一片 B1（项目库 v6、Functions v3），二者在 batch M 全量回归中；防回流门禁（按文件计兼容标记）等栈合入后更新基线。
+- batch M（#284 加 `board_id` 只改存储列的试做）3,679 个用例 3,656 过、16 败：6 个是 #284 自己的用例仍发内联 instructions（已修，#284 单独验证 192/192）；其余都来自「只改存储列」造成的行与记录字段错位，于是改为一次改完（§1）。
+- 在途：剩余兼容标记的清理（sweep D：92 → 57，batch N 全量在跑）；`board_id` 统一一次做完（项目库 v6、Functions v3、目录库去掉 projects.board_id），等 #284 与 sweep D 合入后从 main 开。
 - 真实 Home 维护三（栈合入后一次做，先在拷贝上演练）：脚本与步骤见会话临时目录 `apply-real-home-maintenance3.mjs` 与 `real-home-maintenance-plan.md`，结果补在这里。
 
 ## 5. 包级清单（§4.4）

@@ -6,7 +6,7 @@ import test from "node:test";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFeedSourceHandlers, feedSourceActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
-import { DEMO_BOARD_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService, createLocalFeedConnectorService, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService, createLocalFeedConnectorSync, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 
 for (const change of ["paused", "edited", "revoked", "cancelled"] as const) test(`Feed sync ignores the stale result after ${change} and releases its source lease`, { timeout: 15_000 }, async () => {
@@ -29,7 +29,7 @@ for (const change of ["paused", "edited", "revoked", "cancelled"] as const) test
     const sources = () => createLocalFeedSourceService(runtime.db, reference.board_id, factory);
     host.actionRegistry(reference).registerProvider({ provider: { provider_id: feedManifest.plugin_id, plugin_id: feedManifest.plugin_id,
       title: "Feed", kind: "plugin", project_id: reference.project_id }, definitions: Object.values(feedSourceActions),
-      handlers: createFeedSourceHandlers(reference.board_id, { feed: () => sources().feed, sources, connectors: () => createLocalFeedConnectorService(runtime.db, reference.board_id) }) });
+      handlers: createFeedSourceHandlers(reference.board_id, { feed: () => sources().feed, sources, connectorSync: () => createLocalFeedConnectorSync(runtime.db, reference.board_id) }) });
     const actions = bindActionClient(host.actionClient(reference), () => caller);
     const source = (await actions.invoke(feedSourceActions.register, { kind: "web_query", query: "fixture" })).source;
     const id = source.source_id;

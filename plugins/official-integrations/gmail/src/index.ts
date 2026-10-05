@@ -65,8 +65,8 @@ export function createGmailIntegrationPlugin(input: {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { createGmailOAuth, parseGmailOAuthCallbackInput } from "./oauth.js";
-export { GMAIL_CLIENT_ID_REF, GMAIL_CLIENT_SECRET_REF, GMAIL_REFRESH_REF, GMAIL_TOKEN_EXPIRES_AT_REF, GMAIL_OAUTH_PENDING_REF, GMAIL_OAUTH_PENDING_TTL_MS, GMAIL_ACCESS_TOKEN_SKEW_MS, GMAIL_OAUTH_CALLBACK_PATH, GMAIL_OAUTH_DEFAULT_SCOPES, type GmailOAuthPorts, type GmailOAuthSecrets, type GmailOAuthStart, type GmailOAuthComplete, type GmailOAuthExchangeInput, type OAuthFetch } from "./oauth-types.js";
+export { GMAIL_CLIENT_ID_REF, GMAIL_CLIENT_SECRET_REF, GMAIL_OAUTH_PENDING_PREFIX, GMAIL_OAUTH_PENDING_TTL_MS, GMAIL_ACCESS_TOKEN_SKEW_MS, GMAIL_OAUTH_CALLBACK_PATH, GMAIL_OAUTH_DEFAULT_SCOPES, type GmailOAuthPorts, type GmailOAuthSecrets, type GmailOAuthStart, type GmailOAuthComplete, type GmailOAuthExchangeInput, type OAuthFetch } from "./oauth-types.js";
 
-export * from "./installations.js";
+export { isGmailTokenRefs } from "./token-refs.js";
 
 export { gmailAccountPresentation } from "./account-presentation.js";

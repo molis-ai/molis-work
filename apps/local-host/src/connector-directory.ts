@@ -1,25 +1,13 @@
 import type {
-  ConnectorAccountState,
   ConnectorCapability,
   ConnectorDirectoryEntry,
 } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { peekSealedEntry, readProductEnv } from "@molis-ai/molis-work-storage";
 import { CATALOG_CONNECTORS, setupLinksFor } from "@molis-ai/molis-work-integration-catalog";
 import { gmailOAuthConfigured } from "./gmail-oauth.js";
-import { GITHUB_CLIENT_ID_REF, connectorCredentialStatus } from "./connector-credentials.js";
-import { notionOAuthConfigured, notionOAuthWorkspace } from "./notion-oauth.js";
-import { createFileSecretStore } from "@molis-ai/molis-work-storage";
+import { GITHUB_CLIENT_ID_REF } from "./github-oauth.js";
+import { notionOAuthConfigured } from "./notion-oauth.js";
 import { connectorMethodsFor } from "./host-connector-methods.js";
-
-function storedConnectionMethod(connectorId: string, bound: boolean): "oauth" | "token" | "cli" | null {
-  try {
-    const store = createFileSecretStore();
-    if (connectorId === "notion" && store.get("connector:notion:refresh")) return "oauth";
-    if (connectorId === "feishu" && store.get("connector:feishu:auth_mode") === "cli") return "cli";
-    if (connectorId === "gmail" && store.get("connector:gmail:refresh")) return "oauth";
-  } catch { /* Account state reports store errors separately. */ }
-  return bound ? "token" : null;
-}
 
 function capabilities(
   inbound: string,
@@ -110,11 +98,6 @@ export function liveConnectorIds(): readonly string[] {
   return HOST_CONNECTOR_DIRECTORY.filter((row) => row.availability === "live").map((row) => row.connector_id);
 }
 
-export function connectorAccountStateFromCredential(bound: boolean, problem?: string): ConnectorAccountState {
-  if (problem === "credential_unreadable") return "reauth_required";
-  return bound ? "connected" : "disconnected";
-}
-
 export function githubClientIdConfigured(): boolean {
   try {
     if (peekSealedEntry(GITHUB_CLIENT_ID_REF)) return true;
@@ -122,28 +105,15 @@ export function githubClientIdConfigured(): boolean {
   return Boolean(readProductEnv("GITHUB_CLIENT_ID"));
 }
 
+/** The services a connection can be made to, with whether their OAuth apps are configured; accounts are the connections themselves. */
 export function listConnectorSettingsCards() {
-  return HOST_CONNECTOR_DIRECTORY.map((entry) => {
-    if (entry.availability === "placeholder") {
-      return {
-        ...entry,
-        account_state: "disconnected" as const,
-        github_client_id_configured: false,
-        gmail_oauth_configured: false,
-      };
-    }
-    const credential = connectorCredentialStatus(entry.connector_id);
-    return {
+  return HOST_CONNECTOR_DIRECTORY.map((entry) => entry.availability === "placeholder"
+    ? { ...entry, github_client_id_configured: false, gmail_oauth_configured: false }
+    : {
       ...entry,
       method_options: connectorMethodsFor(entry.connector_id),
-      account_state: connectorAccountStateFromCredential(credential.bound, credential.problem),
-      hint: credential.hint,
       github_client_id_configured: entry.auth_kind === "github" ? githubClientIdConfigured() : false,
       gmail_oauth_configured: entry.auth_kind === "gmail" ? gmailOAuthConfigured() : false,
       notion_oauth_configured: entry.auth_kind === "notion" ? notionOAuthConfigured() : false,
-      connection_method: ["notion", "feishu", "gmail"].includes(entry.connector_id)
-        ? storedConnectionMethod(entry.connector_id, credential.bound) : null,
-      workspace_name: entry.connector_id === "notion" ? notionOAuthWorkspace() : null,
-    };
-  });
+    });
 }

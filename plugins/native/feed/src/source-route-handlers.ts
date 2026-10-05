@@ -1,11 +1,10 @@
 import type { SourceHistoryDecision } from "./projection.js";
-import { requireParam, requireProvider } from "./route-input.js";
+import { requireParam } from "./route-input.js";
 import type { FeedPluginRouteHandler } from "./routes.js";
 import type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
 import { feedSourceActions, type FeedSourceRegistration } from "./source-actions.js";
 
 export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): Record<string, FeedPluginRouteHandler> {
-  const connectors = () => options.connectors();
   const changed = () => options.changed();
   return {
     // Source routes translate the old URLs; every caller manages sources through the same registered Feed actions.
@@ -50,70 +49,6 @@ export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): R
           ...(request.body.mode === "rebuild_cursor" ? { mode: "rebuild_cursor" as const } : {}) });
       changed();
       return { status: 200, body: result };
-    },
-    "feed.connector.token.set": ({ params, request }) => {
-      const status = connectors().bindToken(
-        requireProvider(params.provider),
-        typeof request.body.token === "string" ? request.body.token : "",
-      );
-      changed();
-      return { status: 200, body: { connector_auth: status } };
-    },
-    "feed.connector.token.delete": ({ params }) => {
-      const status = connectors().unbind(requireProvider(params.provider));
-      changed();
-      return { status: 200, body: { connector_auth: status } };
-    },
-    "feed.connector.github.client": ({ request }) => ({
-      status: 200,
-      body: {
-        connector_auth: connectors().configureGithubClient(
-          typeof request.body.client_id === "string" ? request.body.client_id : "",
-        ),
-      },
-    }),
-    "feed.connector.github.device.start": async ({ request }) => ({
-      status: 200,
-      body: await connectors().startGithubDevice(
-        typeof request.body.client_id === "string" ? request.body.client_id : undefined,
-      ),
-    }),
-    "feed.connector.github.device.poll": async ({ request }) => {
-      const result = await connectors().pollGithubDevice(
-        typeof request.body.device_code === "string" ? request.body.device_code : "",
-        typeof request.body.client_id === "string" ? request.body.client_id : undefined,
-      );
-      changed();
-      return { status: 200, body: result };
-    },
-    "feed.connector.gmail.client": ({ request }) => ({
-      status: 200,
-      body: {
-        connector_auth: connectors().configureGmailClient(
-          typeof request.body.client_id === "string" ? request.body.client_id : "",
-          typeof request.body.client_secret === "string" ? request.body.client_secret : undefined,
-        ),
-      },
-    }),
-    "feed.connector.gmail.oauth.start": async ({ request }) => ({
-      status: 200,
-      body: await connectors().startGmailOAuth({
-        clientId: typeof request.body.client_id === "string" ? request.body.client_id : undefined,
-        clientSecret: typeof request.body.client_secret === "string" ? request.body.client_secret : undefined,
-        redirectUri: typeof request.body.redirect_uri === "string" ? request.body.redirect_uri : undefined,
-      }),
-    }),
-    "feed.connector.gmail.oauth.callback": async ({ request }) => {
-      await connectors().completeGmailOAuth({
-        code: request.query.get("code") ?? "",
-        state: request.query.get("state") ?? undefined,
-      });
-      changed();
-      const project = /^\/projects\/([^/]+)$/u.exec(options.routePrefix)?.[1];
-      return {
-        status: 302,
-        redirect: `/settings/connectors?connected=gmail${project ? `&project=${project}` : ""}`,
-      };
     },
   };
 }

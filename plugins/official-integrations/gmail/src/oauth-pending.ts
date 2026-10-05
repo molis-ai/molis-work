@@ -1,4 +1,4 @@
-import { GMAIL_OAUTH_PENDING_REF, GMAIL_OAUTH_PENDING_TTL_MS, RESTART_HINT, type PendingSession, type GmailOAuthPorts, type GmailOAuthSecrets, type GmailOAuthExchangeInput } from "./oauth-types.js";
+import { GMAIL_OAUTH_PENDING_PREFIX, GMAIL_OAUTH_PENDING_TTL_MS, RESTART_HINT, type PendingSession, type GmailOAuthPorts, type GmailOAuthSecrets, type GmailOAuthExchangeInput } from "./oauth-types.js";
 import type { createGmailOAuthConfiguration } from "./oauth-configuration.js";
 
 export function createGmailPendingSessions(ports: GmailOAuthPorts, configuration: ReturnType<typeof createGmailOAuthConfiguration>) {
@@ -8,9 +8,6 @@ export function createGmailPendingSessions(ports: GmailOAuthPorts, configuration
     // Multi-flow: each authorization attempt gets its own ref keyed by state so
     // several members can start logins concurrently without clobbering.
     store.put(pendingRefFor(session.state), JSON.stringify(session));
-    // Compatibility slot keeps pre-multi-flow observers (paste UX retry,
-    // doctor output) working; it always mirrors the most recent attempt.
-    store.put(GMAIL_OAUTH_PENDING_REF, JSON.stringify(session));
     const alive = prunePendingIndex(store).filter(
       (e) => e.state !== session.state,
     );
@@ -18,7 +15,7 @@ export function createGmailPendingSessions(ports: GmailOAuthPorts, configuration
     store.put(GMAIL_OAUTH_PENDING_INDEX_REF, JSON.stringify(alive));
   }
 
-  const GMAIL_OAUTH_PENDING_INDEX_REF = "connector:gmail:oauth:pending:index";
+  const GMAIL_OAUTH_PENDING_INDEX_REF = `${GMAIL_OAUTH_PENDING_PREFIX}:index`;
 
   interface PendingIndexEntry {
     state: string;
@@ -26,7 +23,7 @@ export function createGmailPendingSessions(ports: GmailOAuthPorts, configuration
   }
 
   function pendingRefFor(state: string): string {
-    return `${GMAIL_OAUTH_PENDING_REF}:${state}`;
+    return `${GMAIL_OAUTH_PENDING_PREFIX}:${state}`;
   }
 
   /** Drops expired entries (and their refs) from the bounded pending index. */
@@ -94,27 +91,6 @@ export function createGmailPendingSessions(ports: GmailOAuthPorts, configuration
     }
   }
 
-  /**
-   * Legacy single-slot fallback for sessions started before multi-flow storage —
-   * kept read-only here; new writes always go to state-keyed refs.
-   */
-  function loadLegacyPending(): PendingSession | null {
-    try {
-      const raw = ports.secrets().get(GMAIL_OAUTH_PENDING_REF);
-      return raw ? parsePending(raw) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  function clearPending(): void {
-    try {
-      ports.secrets().delete(GMAIL_OAUTH_PENDING_REF);
-    } catch {
-      /* ignore */
-    }
-  }
-
   function clearPendingByState(state: string): void {
     if (!state) return;
     try {
@@ -150,17 +126,7 @@ export function createGmailPendingSessions(ports: GmailOAuthPorts, configuration
       );
     }
 
-    // Multi-flow lookup first; the legacy slot then distinguishes a real
-    // mismatch (a live session exists, state doesn't fit it) from no session.
-    let pending = loadPendingByState(state);
-    if (!pending) {
-      const legacy = loadLegacyPending();
-      if (legacy && legacy.state === state) {
-        pending = legacy;
-      } else if (legacy) {
-        throw new Error(`OAuth state mismatch — ${RESTART_HINT}`);
-      }
-    }
+    const pending = loadPendingByState(state);
     if (!pending) {
       throw new Error(
         `No pending Gmail OAuth session — ${RESTART_HINT}`,
@@ -171,14 +137,12 @@ export function createGmailPendingSessions(ports: GmailOAuthPorts, configuration
     const createdMs = Date.parse(pending.createdAt);
     if (!Number.isFinite(createdMs) || nowMs - createdMs > GMAIL_OAUTH_PENDING_TTL_MS) {
       clearPendingByState(state);
-      clearPending();
       throw new Error(
         `Gmail OAuth session expired — ${RESTART_HINT}`,
       );
     }
     if (nowMs < createdMs) {
       clearPendingByState(state);
-      clearPending();
       throw new Error(
         `Gmail OAuth session clock invalid — ${RESTART_HINT}`,
       );
@@ -197,7 +161,6 @@ export function createGmailPendingSessions(ports: GmailOAuthPorts, configuration
       opts.clientId?.trim() || (pending.clientSecret !== undefined ? pending.clientId : resolveGmailClientId()) || pending.clientId;
     if (currentClientId !== pending.clientId) {
       clearPendingByState(state);
-      clearPending();
       throw new Error(
         `Gmail OAuth client identity changed since start — ${RESTART_HINT}`,
       );
@@ -214,5 +177,5 @@ export function createGmailPendingSessions(ports: GmailOAuthPorts, configuration
   }
 
 
-  return { savePending, clearPending, clearPendingByState, validatePendingGmailOAuthSession };
+  return { savePending, clearPendingByState, validatePendingGmailOAuthSession };
 }

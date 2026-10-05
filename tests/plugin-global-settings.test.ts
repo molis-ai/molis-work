@@ -361,7 +361,6 @@ test("Connectors settings page is a Host global section, not a plugin settings-p
       auth_kind: "github",
       group_id: "code",
       summary: "本机账号。Feed 拉未读通知，Functions 可勾已兑现动作。",
-      account_state: "disconnected",
       outbound_note: "已兑现动作：查看当前 GitHub 账号（github.whoami）。判断只挑，不会自动调用。",
     }],
     runtimes: [],

@@ -4,7 +4,8 @@ import test from "node:test";
 import { createGmailOAuth, type GmailTokenRefs, type OAuthFetch } from "@molis-ai/molis-work-integration-gmail";
 
 const callback = "http://127.0.0.1:3000/projects/project-a/api/feed/connectors/gmail/oauth/callback";
-const legacy = "connector:gmail:token";
+/** Another account's access token in the same store; no flow may read or write it. */
+const otherAccess = "account:other:access";
 function fixture() {
   const values = new Map<string, string>();
   const writes: string[] = [];
@@ -18,9 +19,6 @@ function fixture() {
     secrets: () => store,
     hasSecret: (ref) => values.has(ref),
     environment: () => environment,
-    legacyAuthRef: legacy,
-    resolveLegacyToken: () => values.get(legacy) ?? "environment-account-token",
-    bindLegacyToken: (value) => store.put(legacy, value),
   });
   return { flow, values, writes, environment };
 }
@@ -43,7 +41,7 @@ test("Gmail rejects invalid callback state, session time, redirect before exchan
     writes.length = 0;
     const expected = {
       "missing-state": /OAuth state required/,
-      "wrong-state": /OAuth state mismatch/,
+      "wrong-state": /No pending Gmail OAuth session/,
       expired: /session expired/,
       future: /session clock invalid/,
       redirect: /redirect must use http/,
@@ -53,14 +51,15 @@ test("Gmail rejects invalid callback state, session time, redirect before exchan
       state: scenario === "missing-state" ? undefined : scenario === "wrong-state" ? "wrong" : started.state,
       nowMs,
       fetchImpl: async () => assert.fail("invalid session reached provider"),
+      resolveRefs: () => refs("x"),
     }), expected);
-    assert.equal(values.has(legacy), false);
-    assert.equal(values.has("connector:gmail:refresh"), false);
+    assert.equal(values.has(refs("x").access), false);
+    assert.equal(values.has(refs("x").refresh), false);
     assert.ok(writes.every((ref) => ref === "connector:gmail:oauth:pending:index"), scenario);
     if (["expired", "future"].includes(scenario)) {
       assert.equal(values.has(`connector:gmail:oauth:pending:${started.state}`), false);
       assert.equal(values.has("connector:gmail:oauth:pending"), false);
-      await assert.rejects(flow.completeGmailOAuthFlow({ code: "again", state: started.state, nowMs, fetchImpl: async () => assert.fail("cleared session reached provider") }), /No pending Gmail OAuth session/);
+      await assert.rejects(flow.completeGmailOAuthFlow({ code: "again", state: started.state, nowMs, fetchImpl: async () => assert.fail("cleared session reached provider"), resolveRefs: () => refs("x") }), /No pending Gmail OAuth session/);
     }
   }
 });
@@ -113,7 +112,7 @@ test("Gmail interleaved account callbacks exchange the matching PKCE verifier an
   }
   assert.equal(values.has(`connector:gmail:oauth:pending:${a.state}`), false);
   assert.equal(values.has(`connector:gmail:oauth:pending:${b.state}`), false);
-  await assert.rejects(flow.completeGmailOAuthFlow({ code: "code-a", state: a.state, nowMs, fetchImpl: async () => assert.fail("replayed callback exchanged tokens") }), /No pending Gmail OAuth session/);
+  await assert.rejects(flow.completeGmailOAuthFlow({ code: "code-a", state: a.state, nowMs, fetchImpl: async () => assert.fail("replayed callback exchanged tokens"), resolveRefs }), /No pending Gmail OAuth session/);
 });
 
 test("Gmail scoped refresh preserves credentials on failure, rotates one account on success and never borrows environment credentials", async () => {
@@ -123,7 +122,7 @@ test("Gmail scoped refresh preserves credentials on failure, rotates one account
   values.set(tokenRefs.access, "old-access");
   values.set(tokenRefs.refresh, "old-refresh");
   values.set(tokenRefs.expiresAt, new Date(nowMs).toISOString());
-  values.set(legacy, "other-account-access");
+  values.set(otherAccess, "other-account-access");
   const before = [...values];
   const failures: OAuthFetch[] = [
     async () => { throw new Error("private-network-details"); },
@@ -148,7 +147,7 @@ test("Gmail scoped refresh preserves credentials on failure, rotates one account
   assert.equal(values.get(tokenRefs.access), "new-access");
   assert.equal(values.get(tokenRefs.refresh), "new-refresh");
   assert.equal(values.get(tokenRefs.expiresAt), new Date(nowMs + 3600000).toISOString());
-  assert.equal(values.get(legacy), "other-account-access");
+  assert.equal(values.get(otherAccess), "other-account-access");
   assert.deepEqual(writes, [tokenRefs.access, tokenRefs.refresh, tokenRefs.expiresAt]);
   assert.deepEqual(await flow.resolveUsableGmailAccessToken({ tokenRefs, nowMs, fetchImpl: async () => assert.fail("fresh access refreshed again") }), result);
 });

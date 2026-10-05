@@ -1,5 +1,5 @@
 import type { ModelSettingsModel } from "./settings-models.js";
-import type { ConnectorAccountState, ConnectorAuthKind, ConnectorConnectionView, ConnectorDirectoryAvailability, ConnectorDirectoryGroupId, ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { ConnectorAuthKind, ConnectorConnectionView, ConnectorDirectoryAvailability, ConnectorDirectoryGroupId, ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
 export interface WebSettingsProject extends WebProjectNavigation {
@@ -49,9 +49,7 @@ export interface ConnectorSettingsCardView {
   auth_kind: ConnectorAuthKind;
   group_id: ConnectorDirectoryGroupId;
   summary: string;
-  account_state: ConnectorAccountState;
   capabilities?: readonly { label: string; fulfillment: "live" | "unfulfilled" }[];
-  hint?: string;
   unavailable_reason?: string;
   readonly outbound_note?: string;
   readonly token_label?: string;
@@ -62,7 +60,5 @@ export interface ConnectorSettingsCardView {
   github_client_id_configured?: boolean;
   gmail_oauth_configured?: boolean;
   notion_oauth_configured?: boolean;
-  connection_method?: "oauth" | "token" | "cli" | null;
-  workspace_name?: string | null;
 }
 

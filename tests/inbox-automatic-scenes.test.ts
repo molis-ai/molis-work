@@ -9,7 +9,8 @@ import test from "node:test";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService,
-  createLocalFeedConnectorService, createLocalFeedSourceScheduler, listFeedSourceCatalog, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
+  createLocalFeedConnectorSync, createLocalFeedSourceScheduler, listFeedSourceCatalog, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
+import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger, inboxActions, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -129,11 +130,12 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     assert.ok(!history().some(record => record.subject.id === withoutModel.item_id));
 
     await runWithMolisWorkHome(home, async () => {
-      const connectors = createLocalFeedConnectorService(runtime.store.db, runtime.board_id, () => ({ type: "github",
+      const connectorFeed = createLocalFeedApplication(runtime.store.db, feedOptions);
+      const connectors = createLocalFeedConnectorSync(runtime.store.db, runtime.board_id, () => ({ type: "github",
         async health() { return { ok: true, status: "connected", message: "fixture" }; },
         async sync() { return { ok: true, mode: "live", cursor: { fixture: 1 }, items: [{ externalId: "auto-issue", title: "连接器材料", summary: "需要处理", occurredAt: new Date().toISOString(), attention: { reason: "source_rule" } }] }; },
-      }), home, feedOptions);
-      const connector = connectors.feed.upsertSource({ ...connectors.ensureSources().find(source => source.sync_kind === "github")!, status: "active" });
+      }), connectorFeed, home);
+      const connector = connectorFeed.upsertSource(accountSourceRecord("github", { board_id: runtime.board_id, status: "active" }));
       await connectors.sync(connector.source_id, { idempotencyKey: "auto-connector-once" });
       assert.equal(localCalls, 3, "connector sync passes the trigger through its own application");
       await connectors.sync(connector.source_id, { idempotencyKey: "auto-connector-once" });

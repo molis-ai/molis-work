@@ -87,7 +87,6 @@ export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type
 export { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-source-service.js";
 export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 
-export * from "./connector-credentials.js";
 export { withConnectorConnections } from "./connector-connection-store.js";
 export * from "./github-oauth.js";
 
@@ -100,7 +99,7 @@ export { OfficialIntegrationRegistry, type OfficialProviderFactory } from "./off
 
 export { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
 
-export { createLocalFeedConnectorService } from "./feed-connector-service.js";
+export { feedConnectorAuthStatus } from "./feed-connector-auth.js";
 
 export { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
 

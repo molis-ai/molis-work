@@ -100,8 +100,6 @@ export interface FeedUiCatalogSource {
 
 export interface FeedUiConnectorStatus {
   readonly bound: boolean;
-  readonly hint?: string | null;
-  readonly problem?: string | null;
 }
 
 export interface FeedUiPrimitives {
@@ -484,8 +482,7 @@ function renderFeedSetupPanel(model: FeedUiModel): string {
   const p = model.primitives;
   const catalogOptions = model.source_catalog.map((source) => `<option value="${p.escape(source.id)}">${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
   const connectorLabel = (status: FeedUiConnectorStatus, kind: "github" | "gmail") => status.bound
-    ? `${p.text(kind === "gmail" ? "凭据已保存" : "已连接")} ${p.escape(status.hint || "")}`
-    : status.problem ? p.text("凭据不可读取") : p.text("未连接");
+    ? p.text(kind === "gmail" ? "凭据已保存" : "已连接") : p.text("未连接");
   const choices = [
     ["research_library", "book", "共享研究库", "已发布的研究成果"],
     ["custom_rss", "rss", "RSS / Atom", "粘贴地址"],

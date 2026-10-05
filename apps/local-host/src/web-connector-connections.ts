@@ -1,16 +1,9 @@
 import { agentMcpEndpoint } from "./agent-connector-ports.js";
 import { connectorAuthorizationStatus } from "./connector-authorization-status.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { existsSync } from "node:fs";
-import { resolve, sep, join } from "node:path";
-import { LocalSqliteStorage, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
-import { inspectAccountSourceCredentials } from "@molis-ai/molis-work-module-sources";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
-import { HOST_CONNECTOR_DIRECTORY } from "./connector-directory.js";
-import { authRefFor } from "./connector-credentials.js";
-import { connectorCredentialStatus } from "./connector-credentials.js";
 import { ConnectorConnectionError, withConnectorConnections } from "./connector-connection-store.js";
+import { HOST_CONNECTOR_DIRECTORY } from "./connector-directory.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 
 import { refreshFeedConnectionState } from "./connector-source-state.js";
@@ -18,88 +11,14 @@ export { refreshFeedConnectionState } from "./connector-source-state.js";
 
 const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
 
-/** Makes old Host-owned tokens visible without moving or exposing their bytes. */
-function importLegacyAccounts(homeDirectory: string): void {
-  withConnectorConnections(homeDirectory, (connections) => {
-    for (const service of HOST_CONNECTOR_DIRECTORY) {
-      if (service.availability !== "live") continue;
-      const ref = authRefFor(service.connector_id);
-      try {
-        if (runWithMolisWorkHome(homeDirectory, () => peekSealedEntry(ref))) {
-          const refreshRef = `connector:${service.connector_id}:refresh`;
-          const hasRefresh = ["gmail", "notion"].includes(service.connector_id)
-            && Boolean(runWithMolisWorkHome(homeDirectory, () => peekSealedEntry(refreshRef)));
-          connections.adoptLegacy({
-            serviceId: service.connector_id,
-            displayName: `${service.title} · 原有连接`,
-            credentialRef: ref,
-            authMethod: hasRefresh ? "oauth" : "token",
-            ...(hasRefresh ? { refreshRef } : {}),
-            ...(service.connector_id === "gmail" && hasRefresh ? { expiresRef: "connector:gmail:token_expires_at" } : {}),
-          });
-        }
-      } catch { /* An unreadable old credential remains visible in the provider status. */ }
-      try {
-        const status = runWithMolisWorkHome(homeDirectory, () => connectorCredentialStatus(service.connector_id));
-        if (status.source === "env" && status.bound) connections.adoptExternal({
-          serviceId: service.connector_id, displayName: `${service.title} · 环境变量`,
-          authMethod: "token", externalId: "environment",
-        });
-        if (service.connector_id === "feishu" && status.authRef === "connector:feishu:auth_mode") {
-          connections.adoptExternal({ serviceId: "feishu", displayName: "飞书 CLI 用户授权",
-            authMethod: "cli", externalId: "lark-cli", accountLabel: status.hint ?? null });
-        }
-      } catch { /* External integrations report their own availability. */ }
-    }
-    const catalogPath = join(homeDirectory, "projects", "catalog.db");
-    if (!existsSync(catalogPath)) return;
-    const catalog = new LocalSqliteStorage(catalogPath, { readonly: true });
-    try {
-      const root = resolve(homeDirectory, "projects") + sep;
-      for (const databasePath of listProjectDatabasePaths(catalog.db)) {
-        const projectPath = resolve(databasePath);
-        if (!projectPath.startsWith(root) || !existsSync(projectPath)) continue;
-        const project = new LocalSqliteStorage(projectPath, { readonly: true });
-        try {
-          for (const source of inspectAccountSourceCredentials(project.db)) {
-            if (!SERVICE_ID.test(source.kind)) continue;
-            const ref = source.connection_ref;
-            if (!ref || !runWithMolisWorkHome(homeDirectory, () => peekSealedEntry(ref))) continue;
-            const refs = source.config.token_refs;
-            const tokenRefs = refs && typeof refs === "object" && !Array.isArray(refs) ? refs as Record<string, unknown> : {};
-            connections.adoptLegacy({
-              serviceId: source.kind,
-              displayName: source.account_label ? `${source.kind} · ${source.account_label}` : source.name,
-              credentialRef: ref,
-              accountLabel: source.account_label,
-              authMethod: typeof tokenRefs.refresh === "string" ? "oauth" : "token",
-              ...(typeof tokenRefs.refresh === "string" ? { refreshRef: tokenRefs.refresh } : {}),
-              ...(typeof tokenRefs.expiresAt === "string" ? { expiresRef: tokenRefs.expiresAt } : {}),
-            });
-          }
-        } finally { project.close(); }
-      }
-    } catch { /* Catalog migration can finish on the next successful request. */ }
-    finally { catalog.close(); }
-  });
-}
-
-const SERVICE_ID = /^[a-z][a-z0-9-]*$/u;
-
 export function listConnectorConnectionViews(homeDirectory: string, serviceId?: string) {
-  importLegacyAccounts(homeDirectory);
   return withConnectorConnections(homeDirectory, (store) => store.list(serviceId).map((row) => {
     const endpoint = row.auth_method === "mcp" ? agentMcpEndpoint(homeDirectory, row.connection_id) : null;
     const view = { ...store.view(row), ...(row.auth_method === "mcp" ? { agent_available: Boolean(endpoint), ...(endpoint ? { mcp_endpoint: endpoint } : {}) } : {}) };
     if (row.source !== "external" || row.disconnected_at) return view;
-    try {
-      if (row.auth_method === "cli") {
-        const configuration = withConnectorProtocols(homeDirectory, protocols => protocols.get(row.connection_id));
-        if (configuration?.protocol === "cli" && configuration.serviceId === row.service_id) return view;
-      }
-      const available = runWithMolisWorkHome(homeDirectory, () => connectorCredentialStatus(row.service_id).bound);
-      return { ...view, state: available ? "connected" as const : "reauth_required" as const };
-    } catch { return { ...view, state: "reauth_required" as const }; }
+    // A CLI account stays usable while the CLI configuration that verified it is still there.
+    const configuration = withConnectorProtocols(homeDirectory, protocols => protocols.get(row.connection_id));
+    return configuration?.protocol === "cli" && configuration.serviceId === row.service_id ? view : { ...view, state: "reauth_required" as const };
   }));
 }
 

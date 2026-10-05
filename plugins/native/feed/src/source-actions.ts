@@ -4,7 +4,7 @@ import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { FEED_PLUGIN_ID } from "./identity.js";
 import type { FeedApplication } from "./application.js";
 import { FeedStoreError } from "./application-errors.js";
-import type { FeedConnectorService } from "./connector-service.js";
+import type { FeedConnectorSync } from "./connector-sync.js";
 import type { FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 import { sourceRegistrationInput } from "./route-input.js";
 import type { ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, UpdateFeedSourceInput } from "./source-ports.js";
@@ -57,7 +57,7 @@ export const FEED_SOURCE_ACTIONS: readonly ActionDefinition[] = Object.values(fe
 export interface FeedSourceActionPorts {
   feed(): FeedApplication;
   sources(caller: ActionCallContext): FeedSourceService;
-  connectors(caller: ActionCallContext): FeedConnectorService;
+  connectorSync(caller: ActionCallContext): Pick<FeedConnectorSync, "sync">;
 }
 
 const asActionError = (error: unknown) => error instanceof FeedStoreError || error instanceof FeedDomainError ? new ActionError(error.code, error.message) : error;
@@ -81,7 +81,7 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
         signal: AbortSignal.any([AbortSignal.timeout(current.kind === "research_library" ? 180_000 : 45_000), ...(caller.signal ? [caller.signal] : [])]) });
     }
     if (isAccountConnectorSyncKind(current.sync_kind)) {
-      return await ports.connectors(caller).sync(input.source_id, { idempotencyKey, beforeEffect: caller.beforeEffect, signal: caller.signal,
+      return await ports.connectorSync(caller).sync(input.source_id, { idempotencyKey, beforeEffect: caller.beforeEffect, signal: caller.signal,
         mode: input.mode === "rebuild_cursor" ? "rebuild_cursor" : "normal" });
     }
     throw new FeedDomainError("这个来源没有同步能力", "feed_source_not_syncable");

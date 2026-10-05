@@ -10,7 +10,6 @@ export function createGmailOAuthConfiguration(ports: GmailOAuthPorts) {
   /**
    * Gmail OAuth must complete on a local loopback HTTP origin only.
    * Rejects https, non-loopback hosts, and non-callback paths.
-   * Kept strict for the legacy single-account local path.
    */
   function assertLoopbackGmailRedirectUri(redirectUri: string): void {
     let url: URL;

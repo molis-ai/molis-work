@@ -1,4 +1,4 @@
-import { createFileSecretStore, peekSealedEntry, readProductEnv, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { catalogWhoami, createCatalogProvider, getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { apiOAuthConnectionId, apiOAuthContext, resolveApiOAuthToken } from "./connector-api-oauth.js";
@@ -10,6 +10,16 @@ import { inspectCliConnection } from "./connector-cli.js";
 import { createGmailConnector } from "./gmail-connector.js";
 import { createGithubConnector } from "./github-connector.js";
 
+/** Fetch through the official CLI, checking before and after that its current account is still this connection's. */
+export function cliConnectionFetch(home: string, id: string): typeof fetch {
+  return async (input, init) => {
+    await inspectCliConnection(home, id);
+    const result = await feishuCliFetch(input, init);
+    await inspectCliConnection(home, id);
+    return result;
+  };
+}
+
 /** Single account-bound resolver for API readers. Never falls back to another saved account. */
 export async function resolveApiConnection(home: string, id: string, service?: string, forceRefresh = false) {
   const connection = withConnectorConnections(home, store => store.require(id, service));
@@ -18,20 +28,12 @@ export async function resolveApiConnection(home: string, id: string, service?: s
     if (connection.auth_method === "cli") {
       if (connection.service_id !== "feishu") throw new Error("此 CLI 连接请通过连接设置中的只读操作使用");
       await inspectCliConnection(home, id);
-      const fetchImpl: typeof fetch = async (input, init) => {
-        await inspectCliConnection(home, id);
-        const result = await feishuCliFetch(input, init);
-        await inspectCliConnection(home, id);
-        return result;
-      };
-      return { connection, token: feishuCliMarker(), fetchImpl, authExtras: undefined };
+      return { connection, token: feishuCliMarker(), fetchImpl: cliConnectionFetch(home, id), authExtras: undefined };
     }
     const oauthId = apiOAuthConnectionId(connection.credential_ref ?? undefined);
     if (oauthId) return { connection, token: await resolveApiOAuthToken(home, id, forceRefresh), authExtras: apiOAuthContext(home, id), fetchImpl: undefined };
     if (connection.auth_method === "oauth" && connection.service_id === "notion" && connection.refresh_ref) {
-      const managed = /^connector-connection:([0-9a-f-]+):access$/u.exec(connection.credential_ref || "");
-      if (!managed && connection.credential_ref !== "connector:notion:token") throw new Error("此旧 Notion 连接需要重新授权以恢复刷新配置");
-      const token = await resolveUsableNotionToken(forceRefresh, undefined, managed?.[1]);
+      const token = await resolveUsableNotionToken(id, forceRefresh);
       if (!token) throw new Error("Notion 连接需要重新授权");
       return { connection, token, authExtras: undefined, fetchImpl: undefined };
     }
@@ -40,9 +42,7 @@ export async function resolveApiConnection(home: string, id: string, service?: s
       if (!result.ok) throw new Error("Gmail 连接需要重新授权");
       return { connection, token: result.accessToken, authExtras: undefined, fetchImpl: undefined };
     }
-    const token = connection.source === "external"
-      ? readProductEnv(connection.service_id === "gmail" ? "GMAIL_ACCESS_TOKEN" : `${connection.service_id.replaceAll("-", "_").toUpperCase()}_TOKEN`)
-      : connection.credential_ref ? createFileSecretStore().get(connection.credential_ref) : null;
+    const token = connection.credential_ref ? createFileSecretStore().get(connection.credential_ref) : null;
     if (!token) throw new Error("所选连接凭据缺失，请重新授权");
     return { connection, token, authExtras: undefined, fetchImpl: undefined };
   });
@@ -59,8 +59,7 @@ export async function inspectSourceAuthorization(home: string, source: {
   if (!source.enabled || source.status !== "active" || lifecycle?.deleted_at) return denied("来源已暂停、断开或移除");
   if (["manual", "public_source"].includes(source.sync_kind)) return { authorized: true, connection_id: null, revision: null };
   try {
-    const connection = withConnectorConnections(home, store => id ? store.require(id, source.kind)
-      : store.list(source.kind).find(row => row.credential_ref === source.credential_ref));
+    const connection = id ? withConnectorConnections(home, store => store.require(id, source.kind)) : null;
     if (connection) {
       if (connection.disconnected_at) return denied("连接已断开", connection.updated_at);
       if (connection.auth_method === "cli") await inspectCliConnection(home, connection.connection_id);
@@ -68,9 +67,6 @@ export async function inspectSourceAuthorization(home: string, source: {
       const latest = withConnectorConnections(home, store => store.require(connection.connection_id));
       if (latest.disconnected_at || latest.updated_at !== connection.updated_at) return denied("检查期间连接已改变", latest.updated_at);
       return { authorized: true, connection_id: connection.connection_id, revision: connection.updated_at };
-    }
-    if (!id && source.credential_ref && runWithMolisWorkHome(home, () => peekSealedEntry(source.credential_ref!))) {
-      return { authorized: true, connection_id: null, revision: source.credential_ref };
     }
     return denied("来源缺少当前有效的账号连接");
   } catch { return denied("账号需要重新授权或 CLI 当前账号已改变"); }

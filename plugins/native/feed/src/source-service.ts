@@ -139,14 +139,11 @@ export class FeedSourceService {
         throw new FeedDomainError("请选择可用的账号连接", "feed_source_invalid_configuration");
       }
       const connection = this.ports.resolveConnection(source.kind, connectionId);
-      changedAccount = typeof source.config.connection_id === "string"
-        ? source.config.connection_id !== connectionId
-        : source.credential_ref !== connection.credentialRef;
+      changedAccount = source.config.connection_id !== connectionId;
       credentialRef = connection.credentialRef;
       accountLabel = connection.accountLabel;
       config.connection_id = connectionId;
       if (source.sync_kind === "gmail") config.token_refs = connection.tokenRefs;
-      if (source.sync_kind === "connector") config.refresh_ref = connection.refreshRef;
       if (changedAccount) cursor = {};
     }
     const save = () => this.feed.upsertSource({

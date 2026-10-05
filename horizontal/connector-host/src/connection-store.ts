@@ -8,7 +8,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 const SERVICE_ID = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)*$/u;
-const CONNECTION_ID = /^(?:[0-9a-f]{8}-[0-9a-f-]{27,}|legacy-[0-9a-f]{24})$/u;
+const CONNECTION_ID = /^(?:[0-9a-f]{8}-[0-9a-f-]{27,}|external-[0-9a-f]{24})$/u;
 
 type Row = Record<string, unknown>;
 export interface ConnectorConnectionSecrets {
@@ -82,12 +82,10 @@ export const CONNECTOR_CONNECTIONS_SCHEMA = `
   );
 `;
 
-/** Home-scoped metadata. Secret values only live in the existing SecretStore. */
+/** Home-scoped metadata over the connectors store's baseline tables. Secret values only live in the existing SecretStore. */
 export class ConnectorConnectionStore {
   constructor(private readonly db: DatabaseSync, private readonly secrets: ConnectorConnectionSecrets,
-    private readonly now = () => new Date(), private readonly onChange?: (connectionId: string) => void) {
-    db.exec(CONNECTOR_CONNECTIONS_SCHEMA.replace(/CREATE (TABLE|INDEX|UNIQUE INDEX) /g, "CREATE $1 IF NOT EXISTS "));
-  }
+    private readonly now = () => new Date(), private readonly onChange?: (connectionId: string) => void) {}
 
   list(serviceId?: string): ConnectorConnectionRecord[] {
     const sql = serviceId
@@ -239,46 +237,17 @@ export class ConnectorConnectionStore {
     return this.require(input.connectionId);
   }
 
-  adoptExternal(input: { serviceId: string; displayName: string; authMethod: "cli" | "token" | "none"; externalId: string; accountLabel?: string | null }): ConnectorConnectionRecord {
+  /** CLI secrets stay in the official CLI; this records its verified current account under one stable id per CLI account. */
+  saveCli(input: { serviceId: string; displayName: string; externalId: string; accountLabel: string }): ConnectorConnectionRecord {
     if (!SERVICE_ID.test(input.serviceId) || !input.externalId.trim()) throw new ConnectorConnectionError("invalid", "外部连接标识无效");
-    const connectionId = `legacy-${createHash("sha256").update(input.serviceId).update("\0external\0").update(input.externalId).digest("hex").slice(0, 24)}`;
-    const existing = this.get(connectionId);
-    if (existing) return existing;
+    const connectionId = `external-${createHash("sha256").update(input.serviceId).update("\0external\0").update(input.externalId).digest("hex").slice(0, 24)}`;
     const now = this.now().toISOString();
     this.db.prepare(`INSERT INTO connector_connections
       (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(connectionId, input.serviceId,
-      requiredText(input.displayName, "连接名称", 100), input.accountLabel?.trim() || null,
-      input.authMethod, null, null, null, "external", null, now, now);
-    return this.require(connectionId);
-  }
-
-  /** CLI secrets stay in the official CLI; this binds its verified current account. */
-  saveCli(input: { serviceId: string; displayName: string; externalId: string; accountLabel: string }): ConnectorConnectionRecord {
-    const connection = this.adoptExternal({ ...input, authMethod: "cli" });
-    this.db.prepare("UPDATE connector_connections SET display_name=?,account_label=?,disconnected_at=NULL,updated_at=? WHERE connection_id=?")
-      .run(requiredText(input.displayName, "连接名称", 100), input.accountLabel, this.now().toISOString(), connection.connection_id);
-    return this.require(connection.connection_id);
-  }
-
-  /** Idempotently exposes an existing secret without copying or deleting it. */
-  adoptLegacy(input: {
-    serviceId: string; displayName: string; credentialRef: string; authMethod?: ConnectorConnectionAuthMethod;
-    refreshRef?: string | null; expiresRef?: string | null; accountLabel?: string | null;
-  }): ConnectorConnectionRecord | null {
-    if (!SERVICE_ID.test(input.serviceId) || !input.credentialRef) throw new ConnectorConnectionError("invalid", "原有连接参数无效");
-    const existing = this.db.prepare("SELECT * FROM connector_connections WHERE credential_ref = ?").get(input.credentialRef) as Row | undefined;
-    if (existing) return connectionFromRow(existing);
-    let present = false;
-    try { present = this.secrets.has ? this.secrets.has(input.credentialRef) : Boolean(this.secrets.get(input.credentialRef)?.trim()); } catch { /* Status will be repaired separately. */ }
-    if (!present) return null;
-    const connectionId = `legacy-${createHash("sha256").update(input.serviceId).update("\0").update(input.credentialRef).digest("hex").slice(0, 24)}`;
-    const now = this.now().toISOString();
-    this.db.prepare(`INSERT OR IGNORE INTO connector_connections
-      (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(connectionId, input.serviceId, requiredText(input.displayName, "连接名称", 100),
-      input.accountLabel?.trim() || null, input.authMethod ?? "token", input.credentialRef,
-      input.refreshRef ?? null, input.expiresRef ?? null, "legacy", null, now, now);
+      VALUES (?,?,?,?,'cli',NULL,NULL,NULL,'external',NULL,?,?)
+      ON CONFLICT(connection_id) DO UPDATE SET display_name=excluded.display_name,account_label=excluded.account_label,
+        disconnected_at=NULL,updated_at=excluded.updated_at`)
+      .run(connectionId, input.serviceId, requiredText(input.displayName, "连接名称", 100), input.accountLabel, now, now);
     return this.require(connectionId);
   }
 

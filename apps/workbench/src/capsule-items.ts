@@ -1,4 +1,4 @@
-import type { GoalsDocumentView as WebGoalView } from "@molis-ai/molis-work-plugin-goals";
+import { isAppliedGoalCompletion, type GoalsDocumentView as WebGoalView } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkWebView } from "./page-view.js";
 import type { WorkbenchRendererPorts } from "./renderer.js";
 import type { CapsuleGoalItem, CapsuleState, CapsuleStateKind, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";
@@ -22,21 +22,23 @@ export function createCapsuleItemProjection(L: WorkbenchRendererPorts["locale"][
     );
   }
 
+  /** The Goal whose completion applied most recently, while it is still complete. */
   function recentCompletedGoal(
     view: MolisWorkWebView,
     now: Date,
     visibleForMs: number,
   ): { item: WebGoalView; at: string } | null {
-    const newestEvents = [...view.events].sort((left, right) => right.seq - left.seq);
-    for (const event of newestEvents) {
-      if (event.type !== "goal.satisfied") continue;
-      const at = Date.parse(event.at);
-      if (!Number.isFinite(at) || now.getTime() - at < 0 || now.getTime() - at > visibleForMs) continue;
-      const item = [...view.goals, ...view.archived_goals]
-        .find((candidate) => candidate.goal.goal_id === event.object_id);
-      if (item) return { item, at: event.at };
+    let newest: { item: WebGoalView; at: string; seq: number } | null = null;
+    for (const item of [...view.goals, ...view.archived_goals]) {
+      if (item.display_status !== "completed") continue;
+      for (const event of item.events) {
+        if (!isAppliedGoalCompletion(event)) continue;
+        const at = Date.parse(event.at);
+        if (!Number.isFinite(at) || now.getTime() - at < 0 || now.getTime() - at > visibleForMs) continue;
+        if (!newest || event.seq > newest.seq) newest = { item, at: event.at, seq: event.seq };
+      }
     }
-    return null;
+    return newest && { item: newest.item, at: newest.at };
   }
 
   function goalPath(view: MolisWorkWebView, goalId: string): string {

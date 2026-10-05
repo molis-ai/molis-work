@@ -247,8 +247,8 @@ export interface PluginManifest {
 
 export interface PluginInstanceRecord {
   install_id: string;
-  /** Changes on confirmed reinstall, unlike the stable private-data namespace. Missing on legacy records. */
-  installation_generation?: string;
+  /** Changes on confirmed reinstall, unlike the stable private-data namespace. */
+  installation_generation: string;
   plugin_id: string;
   version: string;
   publisher_id: string;
@@ -257,8 +257,8 @@ export interface PluginInstanceRecord {
   deployment: PluginDeployment;
   selected_entrypoint: string;
   grants: string[];
-  /** Trusted host provenance, never read from a plugin Manifest. Missing means an existing native installation. */
-  execution?: "host" | "sandbox";
+  /** Trusted host provenance, never read from a plugin Manifest. */
+  execution: "host" | "sandbox";
   state: PluginLifecycleState;
   recovery_count: number;
   last_error_code: string | null;

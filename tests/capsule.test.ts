@@ -344,21 +344,26 @@ test("capsule groups every actionable Goal into one horizontal status tab", () =
 });
 
 test("capsule shows a real completion briefly, then the authoritative next actionable Goal", () => {
-  const completed = webGoal(goal("completed-goal", "完成胶囊状态链", "satisfied"), "satisfied");
+  const closure = (completionApplied: boolean) => ({
+    seq: 10,
+    event_id: "gevt-complete",
+    actor_id: "runtime-a",
+    type: "goal.event_state.closure_submitted",
+    object_type: "goal_work_event",
+    object_id: "gevt-complete",
+    reason: "显式完成当前 Goal",
+    payload: { operation: "closure_submitted", kind: "complete", result: "状态链已接通", completion_applied: completionApplied },
+    at: "2026-08-24T09:10:00.000Z",
+  });
+  const completed = webGoal(goal("completed-goal", "完成胶囊状态链", "satisfied"), "satisfied", { events: [closure(true)] });
   const nextRecord = goal("next-goal", "补齐恢复与发布");
   const next = webGoal(nextRecord, "execution_pending");
   const currentView = view([completed, next], "completed-goal");
-  currentView.events = [{
-    seq: 10,
-    event_id: "event-complete",
-    actor_id: "runtime-a",
-    type: "goal.satisfied",
-    object_type: "goal",
-    object_id: "completed-goal",
-    reason: "完成条件满足",
-    payload: {},
-    at: "2026-08-24T09:10:00.000Z",
-  }];
+  currentView.events = [closure(true)];
+
+  const unapplied = view([{ ...completed, events: [closure(false)] }, next], "completed-goal");
+  assert.equal(buildCapsuleSnapshot(unapplied, [ready(nextRecord)], new Date("2026-08-24T09:10:06.000Z")).state.kind, "ready",
+    "a saved closure report that did not apply is not a completion");
 
   const justCompleted = buildCapsuleSnapshot(
     currentView,

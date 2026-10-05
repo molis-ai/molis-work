@@ -10,10 +10,6 @@ CREATE TABLE assistant_jobs (
   key TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, told INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
 );
 
-CREATE TABLE assistant_memory_candidates (
-  candidate_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL
-);
-
 CREATE TABLE assistant_notices (
   notice_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL,
   dedupe TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL, UNIQUE(actor_id, dedupe)

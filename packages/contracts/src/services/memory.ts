@@ -599,10 +599,7 @@ export interface MemoryUseRecord {
 }
 
 export interface MemoryLedgerPort {
-  meta(memoryId: string): MemoryMetaRecord | null;
-  metas(scope: MemoryScope, owner: string): MemoryMetaRecord[];
-  saveMeta(record: MemoryMetaRecord): void;
-  /** Forget everything the ledger knows about a deleted memory: its facts, history and uses; changes keep no text. */
+  /** Forget everything the ledger knows about a deleted memory: its history and uses; changes keep no text. */
   forget(memoryId: string): void;
   revisions(memoryId: string): MemoryRevision[];
   addRevision(memoryId: string, revision: MemoryRevision): void;
@@ -627,8 +624,9 @@ export interface MemoryLedgerPort {
   /** Pairs waiting for the person, and the pair keys ever raised (a pair kept both is not raised again). */
   pairs(actorId: string): Array<MemoryPair & { owner: string; state: "pending" | "resolved" }>;
   savePair(actorId: string, pair: MemoryPair & { owner: string; state: "pending" | "resolved" }): void;
-  migration(actorId: string, source: string): { at: string; body: unknown } | null;
-  markMigration(actorId: string, source: string, body: unknown, at: string): void;
+  /** Small notes the service keeps per person between rounds: the last upkeep report, what tidying last saw, the upkeep session. */
+  marker(actorId: string, key: string): { at: string; body: unknown } | null;
+  setMarker(actorId: string, key: string, body: unknown, at: string): void;
   /** One unit of work: all or nothing. */
   transaction<T>(work: () => T): T;
   close(): void;

@@ -15,7 +15,7 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * content and run state stay in the Prologue session; business results stay with their owners. One current schema
  * (repository-anti-corruption §4.1), the relations the Assistant keeps in the context ledger included.
  */
-export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
 CREATE TABLE assistant_works (
   work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
@@ -39,9 +39,6 @@ CREATE TABLE assistant_notices (
 CREATE INDEX assistant_notices_open ON assistant_notices(actor_id, state, created_at);
 CREATE TABLE assistant_followups (
   followup_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
-);
-CREATE TABLE assistant_memory_candidates (
-  candidate_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL
 );
 CREATE TABLE assistant_undos (
   undo_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL

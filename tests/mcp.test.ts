@@ -7,7 +7,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import Database from "better-sqlite3";
-import { MolisWorkCoordinator, SqliteMolisWorkStore } from "../apps/local-host/sdk/index.js";
 import { MolisWorkServer, runtimeContextHostFromEnvironment } from "../apps/desktop/launchers/mcp/server.js";
 
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";

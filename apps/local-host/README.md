@@ -49,7 +49,6 @@ Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定�
 
 ## SDK 兼容发布面
 
-`sdk/` 保留 0.1.x 的根 SDK 名称与类型别名；它独立于本包 `src/index.ts`，由根 `tsconfig.sdk.json` 编译到 `dist/index.js` 及对应声明。消费者仍使用 `@molis-ai/molis-work`，内部代码继续使用明确的 Module/Host 入口。
 
 ## 本地开发
 

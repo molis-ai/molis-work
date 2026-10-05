@@ -8,7 +8,8 @@ import type { IntegrationProviderPort } from "@molis-ai/molis-work-contracts/pla
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { FEED_SOURCE_ACTIONS, createFeedSourceHandlers, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { SignalsModule } from "@molis-ai/molis-work-module-signals";
-import { DEMO_BOARD_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService, createLocalFeedConnectorService, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedConnectorSync, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
+import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
 import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
@@ -167,17 +168,17 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
       if (fails) return { ok: false, mode: "live", failure: "needs_auth", message: "Expired upstream", action: "Reconnect" };
       return { ok: true, mode: "live", items: [{ externalId: "issue-1", title: "One authorized issue", summary: "Provider evidence", kind: "issue", priority: "medium", tags: ["github"], attention: false }], cursor: { position: "after-one" } };
     } };
-    const connectors = createLocalFeedConnectorService(store.db, DEMO_BOARD_ID, () => provider, home);
+    const feed = createLocalFeedApplication(store.db);
+    const connectorSync = createLocalFeedConnectorSync(store.db, DEMO_BOARD_ID, () => provider, feed, home);
     const sources = createLocalFeedSourceService(store.db, DEMO_BOARD_ID, undefined, () => new Date(Date.now() - 360_000), home);
     const account = withConnectorConnections(home, rows => rows.createToken({ serviceId: "github", displayName: "Fixture account", token: "fixture-account-token" }));
-    const base = connectors.ensureSources().find(row => row.sync_kind === "github")!;
-    const source = connectors.feed.upsertSource({ ...base, status: "active", credential_ref: account.credential_ref, config: { ...base.config, connection_id: account.connection_id } });
+    const source = feed.upsertSource(accountSourceRecord("github", { status: "active", credential_ref: account.credential_ref, config: { connection_id: account.connection_id } }));
     if (mode === "scheduled-revoked") sources.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
     const signals = new SignalsModule(store.db), actions = new ActionService();
     const dispose = actions.registerProvider({ provider: { provider_id: "io.molis.work.feed", title: "Feed", kind: "plugin", project_id: DEMO_BOARD_ID }, definitions: FEED_SOURCE_ACTIONS,
-      handlers: createFeedSourceHandlers(DEMO_BOARD_ID, { feed: () => connectors.feed, sources: () => sources, connectors: () => connectors }) });
+      handlers: createFeedSourceHandlers(DEMO_BOARD_ID, { feed: () => feed, sources: () => sources, connectorSync: () => connectorSync }) });
     const context: ActionCallContext = { ...caller, validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "Revoked"); } };
-    const snapshot = () => ({ feed: connectors.feed.snapshot(DEMO_BOARD_ID), signals: signals.query.list(DEMO_BOARD_ID, source.source_id),
+    const snapshot = () => ({ feed: feed.snapshot(DEMO_BOARD_ID), signals: signals.query.list(DEMO_BOARD_ID, source.source_id),
       checkpoint: store.db.prepare("SELECT cursor_json, state, attempt, retry_at, last_error_code, updated_at FROM listener_instances WHERE project_id = ? AND source_id = ?").get(DEMO_BOARD_ID, source.source_id),
       deliveries: store.db.prepare("SELECT * FROM listener_deliveries WHERE project_id = ? AND source_id = ?").all(DEMO_BOARD_ID, source.source_id),
       events: store.db.prepare("SELECT * FROM events WHERE board_id = ? AND object_id = ? ORDER BY event_id").all(DEMO_BOARD_ID, source.source_id) });
@@ -202,7 +203,7 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
         const replacement = withConnectorConnections(home, rows => rows.createToken({ serviceId: "github", displayName: "Restored account", token: "fixture-restored-token" }));
         recoverySource = sources.update(source.source_id, { connection_id: replacement.connection_id }).source_id;
         assert.notEqual(recoverySource, source.source_id, "a different account keeps a separate source identity and dedupe scope");
-        assert.equal(connectors.feed.getSource(DEMO_BOARD_ID, source.source_id).enabled, false);
+        assert.equal(feed.getSource(DEMO_BOARD_ID, source.source_id).enabled, false);
       }
       const retry = { ...input, source_id: recoverySource };
       if (mode === "scheduled-revoked") {
@@ -210,7 +211,7 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
       } else assert.equal((await actions.invoke(context, feedSourceActions.sync, retry)).run.outcome, "completed");
       assert.equal(signals.query.list(DEMO_BOARD_ID, recoverySource).length, 1);
       assert.equal(snapshot().feed.feed_items.filter(item => item.source_id === recoverySource).length, 1);
-      assert.deepEqual(connectors.feed.getSource(DEMO_BOARD_ID, recoverySource).cursor, { position: "after-one" });
+      assert.deepEqual(feed.getSource(DEMO_BOARD_ID, recoverySource).cursor, { position: "after-one" });
       const calls = requests;
       if (mode === "scheduled-revoked") assert.equal((await actions.invoke(context, feedSourceActions.tick, {})).due, 0);
       else assert.equal((await actions.invoke(context, feedSourceActions.sync, retry)).replayed, true);

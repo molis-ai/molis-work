@@ -23,9 +23,8 @@ export const CONNECTOR_PROTOCOLS_SCHEMA = `
 `;
 
 export class ConnectorProtocolStore {
-  constructor(private readonly db: Database, private readonly discardStage?: (sessionId: string) => void) {
-    db.exec(CONNECTOR_PROTOCOLS_SCHEMA.replace(/CREATE TABLE /g, "CREATE TABLE IF NOT EXISTS "));
-  }
+  /** Over the connectors store's baseline tables. */
+  constructor(private readonly db: Database, private readonly discardStage?: (sessionId: string) => void) {}
   private clearStage(configuration: string): void {
     const config = JSON.parse(configuration) as { sessionId?: string; connectionId: string };
     if (config.sessionId && config.sessionId !== config.connectionId) this.discardStage?.(config.sessionId);

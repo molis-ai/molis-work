@@ -259,11 +259,7 @@ export function createGmailProvider(opts?: {
   authRef?: string;
   /** Direct access token for tests / env (not stored on Item) */
   accessToken?: string;
-  /**
-   * Per-installation credential scope (CONN-002c): every token read and
-   * refresh write-back targets exactly these refs. Takes precedence over
-   * the legacy shared lifecycle.
-   */
+  /** The connection's credential scope: every token read and refresh write-back targets exactly these refs. */
   tokenRefs?: GmailTokenRefs;
   /** One of the closed, incrementally enforceable Gmail range presets. */
   scope?: string;
@@ -272,7 +268,7 @@ export function createGmailProvider(opts?: {
   getNowMs?: () => number;
   /** Host-owned Secret reference resolver; never exposed to Signal/Feed data. */
   resolveAuthRef?: (authRef: string) => string | null | undefined;
-  /** Host-owned OAuth refresh boundary for legacy/local credential storage. */
+  /** Host-owned OAuth refresh boundary for a connection's tokens. */
   resolveUsableToken?: (input: {
     fetchImpl?: GmailFetch;
     nowMs?: number;

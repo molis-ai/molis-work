@@ -39,7 +39,6 @@ export interface FeedSourcePorts {
   resolveConnection?(serviceId: string, connectionId: string): {
     credentialRef: string | null;
     accountLabel: string | null;
-    refreshRef?: string;
     tokenRefs?: { access: string; refresh: string; expiresAt: string };
   };
 }

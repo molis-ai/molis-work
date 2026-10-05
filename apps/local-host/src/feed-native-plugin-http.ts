@@ -5,7 +5,6 @@ import { feedRuleActions, FeedPluginRouteTable, createFeedRouteHandlers, feedRou
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { LocalFeedApplicationOptions } from "./feed-application.js";
-import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -55,7 +54,6 @@ function createHandlers(options: FeedNativePluginHttpOptions): ReturnType<typeof
     actions: options.actions,
     routePrefix: options.routePrefix,
     inboxEntries: async () => (await optionalPluginQuery(options.actions, inboxActions.list, {}))?.entries ?? [],
-    connectors: () => createLocalFeedConnectorService(options.store.db, options.boardId, undefined, options.homeDirectory, options.feedOptions),
     changed: () => options.invalidateWebView(),
     hydrateItem: async item => {
       const { recommendations } = await options.actions.invoke(feedRuleActions.recommendations, {});

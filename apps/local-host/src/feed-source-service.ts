@@ -11,8 +11,6 @@ import { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-r
 import { syncResearchLibrarySource } from "./research-library-source.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { connectorCredentialStatus } from "./connector-credentials.js";
-import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 export function listFeedSourceCatalog(): FeedSourceCatalogView[] {
   return listRegisterableFeeds().filter((source) => source.enabled).map((source) => ({
     id: source.sourceId,
@@ -52,16 +50,12 @@ export function createLocalFeedSourceService(
     resolveConnection: (serviceId, connectionId) => withConnectorConnections(homeDirectory ?? resolveMolisWorkHome(), (connections) => {
       const connection = connections.require(connectionId, serviceId);
       if (connection.disconnected_at || connection.auth_method === "mcp" || connection.auth_method === "cli") throw new Error("Feed 自动同步请选择 API OAuth 或令牌连接；CLI / MCP 请在连接器中使用其原生操作");
-      const externalAvailable = connection.source === "external"
-        && runWithMolisWorkHome(homeDirectory ?? resolveMolisWorkHome(), () => connectorCredentialStatus(serviceId).bound);
-      if ((connections.state(connection) !== "connected" && !externalAvailable)
-        || (!connection.credential_ref && !externalAvailable && connection.auth_method !== "none")) {
+      if (connections.state(connection) !== "connected" || (!connection.credential_ref && connection.auth_method !== "none")) {
         throw new Error("所选账号连接不可用，请在 Connectors 中重新授权");
       }
       return {
         credentialRef: connection.credential_ref,
         accountLabel: connection.account_label,
-        ...(connection.refresh_ref ? { refreshRef: connection.refresh_ref } : {}),
         ...(connection.credential_ref && connection.refresh_ref && connection.expires_ref ? { tokenRefs: {
           access: connection.credential_ref, refresh: connection.refresh_ref, expiresAt: connection.expires_ref,
         } } : {}),

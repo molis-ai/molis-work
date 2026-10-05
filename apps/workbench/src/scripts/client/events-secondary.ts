@@ -1,25 +1,5 @@
 /** AP3 Workbench client segment: events-secondary. */
-export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
-      }
-      if (target.closest("[data-feed-gmail-oauth-start]")) {
-        const button = target.closest("[data-feed-gmail-oauth-start]");
-        const clientId = feedSourcesDialog?.querySelector("[data-feed-gmail-client-id]")?.value || "";
-        const clientSecret = feedSourcesDialog?.querySelector("[data-feed-gmail-client-secret]")?.value || "";
-        button.disabled = true;
-        try {
-          const result = await feedApi("/api/feed/connectors/gmail/oauth/start", "POST", {
-            client_id: clientId,
-            client_secret: clientSecret,
-            redirect_uri: location.origin + route("/api/feed/connectors/gmail/oauth/callback"),
-          });
-          location.assign(result.authorizationUrl);
-        } catch (error) {
-          setFeedSourceFeedback(error.message || L("Gmail 授权启动失败"), true);
-          button.disabled = false;
-        }
-        return;
-      }
-      const feedTaskToggle = target.closest("[data-feed-task-toggle]");
+export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = target.closest("[data-feed-task-toggle]");
       if (feedTaskToggle) {
         tabWorkspace?.openPlugin("feed");
         const taskId = feedTaskToggle.dataset.feedTaskToggle || "all";

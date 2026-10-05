@@ -1,4 +1,4 @@
-import { createLocalFeedApplication, createLocalFeedConnectorService, listFeedSourceCatalog, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, feedConnectorAuthStatus, listFeedSourceCatalog, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { createScheduleActionPorts, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
@@ -19,7 +19,7 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, app: GoalProj
   const schedule = createScheduleActionPorts({ db: store.db, schedule: scheduleServiceFor(store.db) });
   return composeWebView(store, readTestGoalCollection(store, app, options.boardId), { databasePath: ":memory:", ...options }, {
     feed: { ...snapshot, feed_items: snapshot.feed_items.map(item => ({ ...item, body: null, materials: item.materials.map(material => ({ ...material, content: undefined })) })) },
-    feed_source_catalog: listFeedSourceCatalog(), feed_connector_auth: createLocalFeedConnectorService(store.db, options.boardId).authStatus(),
+    feed_source_catalog: listFeedSourceCatalog(), feed_connector_auth: feedConnectorAuthStatus(options.homeDirectory),
     schedule_jobs: schedule.listJobs(), schedule_tasks: schedule.listTasks(),
   });
 }

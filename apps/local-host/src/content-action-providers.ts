@@ -9,7 +9,9 @@ import { feedManifest, feedQueryActions, readLinkedFeedContext, feedItemContext,
 import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { createHomeJudgmentTrigger } from "./home-actions.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
-import { createLocalFeedConnectorService } from "./feed-connector-service.js";
+import { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
+import { createLocalFeedApplication } from "./feed-application.js";
+import { feedConnectorAuthStatus } from "./feed-connector-auth.js";
 import type { LocalFeedApplicationOptions } from "./feed-application.js";
 import { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
 import { pagesContentActions } from "@molis-ai/molis-work-plugin-pages";
@@ -36,7 +38,7 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
   const providers = [provider(feedManifest, [...createFeedContentHandlers(feed, runtime.board_id,
     hydrate, client ? async (subject, caller) => (await resolveActionSubject(client, caller, subject)).context : undefined),
     ...createFeedQueryHandlers(feed, runtime.board_id, { hydrate,
-      authStatus: () => createLocalFeedConnectorService(runtime.store.db, runtime.board_id, undefined, home).authStatus(),
+      authStatus: () => feedConnectorAuthStatus(home),
       linkedContext: async (input, caller) => {
         if (!client) throw new ActionError("actions.connection_required", "尚未接通 Goal 服务");
         const nested = retainActionAuthority(caller, { ...feedQueryActions.linkedContext, provider_id: feedManifest.plugin_id });
@@ -65,7 +67,8 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
     ...(scenes ? createFeedSourceHandlers(runtime.board_id, {
       feed: () => feed,
       sources: caller => createLocalFeedSourceService(runtime.store.db, runtime.board_id, undefined, undefined, home, judgedAs(caller, scenes, runtime.board_id)),
-      connectors: caller => createLocalFeedConnectorService(runtime.store.db, runtime.board_id, undefined, home, judgedAs(caller, scenes, runtime.board_id)),
+      connectorSync: caller => createLocalFeedConnectorSync(runtime.store.db, runtime.board_id, undefined,
+        createLocalFeedApplication(runtime.store.db, judgedAs(caller, scenes, runtime.board_id)), home),
     }) : [])])];
   if (scene) Object.assign(providers[0]!, { scenes: feedManifest.action_scenes, scene_handlers: [scene.handler] });
   return providers;

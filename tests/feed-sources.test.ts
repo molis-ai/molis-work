@@ -6,7 +6,10 @@ import test from "node:test";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 
 import { createLocalFeedSourceService, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
-import { createLocalFeedConnectorService } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { accountSourceRecord } from "./fixtures/feed-account-source.js";
+
+const gmailSource = (db: LocalProjectDatabase["db"]) => createLocalFeedApplication(db).upsertSource(accountSourceRecord("gmail"));
 import { createLocalFeedSourceScheduler } from "@molis-ai/molis-work-app-local-host";
 import { createFeedSourceRuntime, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
 import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
@@ -545,9 +548,7 @@ test("Gmail source configuration accepts only incrementally enforceable range pr
     const store = new LocalProjectDatabase(databasePath);
     try {
       const sourceService = createLocalFeedSourceService(store.db, DEMO_BOARD_ID);
-      const gmail = createLocalFeedConnectorService(store.db, DEMO_BOARD_ID)
-        .ensureSources()
-        .find((candidate) => candidate.sync_kind === "gmail")!;
+      const gmail = gmailSource(store.db);
       assert.equal(gmail.config.scope, "in:inbox is:unread");
       const configured = sourceService.update(gmail.source_id, { scope: "is:starred" });
       assert.equal(configured.config.scope, "is:starred");
@@ -564,7 +565,7 @@ test("Gmail source configuration accepts only incrementally enforceable range pr
   }
 });
 
-test("Feed source Web API manages local sources and encrypted connector bindings", async () => {
+test("Feed source Web API manages local sources and reads accounts from Connectors", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-source-api-"));
   const databasePath = join(directory, "molis-work.sqlite");
   const controlToken = "molis-work-feed-source-api-control-token";
@@ -576,6 +577,8 @@ test("Feed source Web API manages local sources and encrypted connector bindings
   process.env.NODE_ENV = "test";
   resetSecretStoreCache();
   seedDemoBoard(databasePath);
+  const seeded = new LocalProjectDatabase(databasePath);
+  try { gmailSource(seeded.db); } finally { seeded.close(); }
   const server = createMolisWorkWebServer({
     databasePath,
     boardId: DEMO_BOARD_ID,
@@ -651,24 +654,20 @@ test("Feed source Web API manages local sources and encrypted connector bindings
     assert.match(realPage, /data-source-schedule-save/);
     assert.match(realPage, /data-source-runtime-action="pause"/);
 
-    const bound = await mutate("/api/feed/connectors/github/token", "POST", {
-      token: "github-test-token-12345",
-    });
-    assert.equal(bound.status, 200);
+    const home = join(directory, "home");
+    const github = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: "github-test-token-12345" }));
     const feed = await (await fetch(`${origin}/api/feed`)).json() as {
       sources: Array<{ kind: string; status: string }>;
-      connector_auth: { github: { bound: boolean; hint?: string } };
+      connector_auth: { github: { bound: boolean } };
       source_catalog: unknown[];
     };
     assert.equal(feed.connector_auth.github.bound, true);
-    assert.equal(feed.connector_auth.github.hint, "…2345");
     assert.ok(feed.source_catalog.length > 0);
-    assert.ok(feed.sources.some((source) => source.kind === "github" && source.status === "active"));
+    assert.equal(feed.sources.some((source) => source.kind === "github"), false, "a connection alone adds no Feed source");
     assert.equal(JSON.stringify(feed).includes("github-test-token-12345"), false);
 
-    const unbound = await mutate("/api/feed/connectors/github/token", "DELETE");
-    assert.equal(unbound.status, 200);
-    assert.equal((await unbound.json() as { connector_auth: { github: { bound: boolean } } })
+    withConnectorConnections(home, store => store.disconnect(github.connection_id));
+    assert.equal((await (await fetch(`${origin}/api/feed`)).json() as { connector_auth: { github: { bound: boolean } } })
       .connector_auth.github.bound, false);
 
     const deleted = await mutate(

@@ -56,7 +56,6 @@ import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.j
 import { handleSideFilesHttp } from "./side-files-http.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { createLocalFeedApplication } from "./feed-application.js";
-import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { bindScheduledTaskRunner, scheduleServiceFor } from "./schedule-runtime.js";
 import { createHostScheduledTaskRunner } from "./schedule-task-runner.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
@@ -280,7 +279,6 @@ export async function handleMolisWorkWebRequest(
         if (!feedSchedulers.has(options.databasePath)) {
         const feed = createLocalFeedApplication(store.db, feedOptions);
         feed.recoverInterruptedSourceRuns(options.boardId);
-        createLocalFeedConnectorService(store.db, options.boardId, undefined, serverOptions.homeDirectory, feedOptions).ensureSources();
         const scheduler = { tick: () => homeActions.invoke(feedSourceActions.tick, {}) };
         const schedule = scheduleServiceFor(store.db);
         bindScheduledTaskRunner(store.db, createHostScheduledTaskRunner({

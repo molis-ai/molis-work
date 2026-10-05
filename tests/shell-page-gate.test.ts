@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -48,7 +48,11 @@ async function seededHome(t: test.TestContext) {
   for (const suffix of ["", "-wal", "-shm"]) await rm(project.database_path + suffix, { force: true });
   seedDemoBoard(project.database_path);
   const store = new LocalProjectDatabase(project.database_path);
-  const boardId = store.goalsQuery.listBoardIds()[0];
+  const boardId = store.goalsQuery.listBoardIds()[0]!;
+  // Feed has no sources until one is added; two give its source pages and their links something to show.
+  const sources = createLocalFeedSourceService(store.db, boardId);
+  sources.register({ kind: "web_query", query: "整页门禁" });
+  sources.register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "page-gate" });
   store.close();
   const catalogDb = new Database(catalogPath);
   catalogDb.prepare("UPDATE projects SET board_id = ? WHERE project_id = ?").run(boardId, project.project_id);

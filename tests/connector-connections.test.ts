@@ -7,6 +7,7 @@ import test from "node:test";
 import { ConnectorConnectionStore, withConnectorConnections } from "../apps/local-host/src/connector-connection-store.ts";
 import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
 import { ImagesHostService } from "../apps/local-host/src/images-service-host.ts";
 import { refreshFeedConnectionState } from "../apps/local-host/src/web-connector-connections.ts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
@@ -16,6 +17,7 @@ const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AA
 
 test("one service keeps two independent credentials and bindings never cross services", () => {
   const db = new DatabaseSync(":memory:");
+  db.exec(CONNECTOR_CONNECTIONS_SCHEMA);
   const values = new Map<string, string>();
   const store = new ConnectorConnectionStore(db, {
     get: (ref) => values.get(ref) ?? null,
@@ -39,25 +41,9 @@ test("one service keeps two independent credentials and bindings never cross ser
   } finally { db.close(); }
 });
 
-test("old fixed secret is adopted once without copying or replacing it", () => {
-  const db = new DatabaseSync(":memory:");
-  const values = new Map([["connector:github:token", "old-github-token"]]);
-  const store = new ConnectorConnectionStore(db, {
-    get: (ref) => values.get(ref) ?? null,
-    put: (ref, value) => { values.set(ref, value); },
-    delete: (ref) => { values.delete(ref); },
-  });
-  try {
-    const first = store.adoptLegacy({ serviceId: "github", displayName: "原有连接", credentialRef: "connector:github:token" });
-    const again = store.adoptLegacy({ serviceId: "github", displayName: "原有连接", credentialRef: "connector:github:token" });
-    assert.equal(first?.connection_id, again?.connection_id);
-    assert.equal(store.list("github").length, 1);
-    assert.equal(values.get("connector:github:token"), "old-github-token");
-  } finally { db.close(); }
-});
-
 test("API and MCP credentials pin their first destination origin and reject a different host", () => {
   const db = new DatabaseSync(":memory:");
+  db.exec(CONNECTOR_CONNECTIONS_SCHEMA);
   const values = new Map<string, string>();
   const store = new ConnectorConnectionStore(db, {
     get: ref => values.get(ref) ?? null,

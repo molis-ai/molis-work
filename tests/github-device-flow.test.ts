@@ -2,13 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createGithubDeviceFlow } from "@molis-ai/molis-work-integration-github";
 
-test("GitHub device authorization persists the selected client and binds only an authorized token", async () => {
+test("GitHub device authorization persists the selected client and returns a token only once authorized", async () => {
   let storedClient = "old-client";
-  const bound: string[] = [];
   const flow = createGithubDeviceFlow({
     clientId: () => storedClient,
     storeClientId: (value) => { storedClient = value; },
-    bindToken: (value) => { bound.push(value); },
   });
   const started = await flow.startGithubDeviceFlow({
     clientId: " new-client ",
@@ -25,8 +23,7 @@ test("GitHub device authorization persists the selected client and binds only an
   assert.deepEqual(started, { deviceCode: "device-1", userCode: "ABCD", verificationUri: "https://github.com/login/device", expiresIn: 900, interval: 8 });
   for (const [error, status] of [["authorization_pending", "pending"], ["slow_down", "slow_down"], ["expired_token", "expired"], ["access_denied", "denied"], ["unknown", "error"]]) {
     const result = await flow.pollGithubDeviceFlow({ deviceCode: started.deviceCode, fetchImpl: async () => Response.json({ error, error_description: "safe provider status" }) });
-    assert.deepEqual(result, { status, message: "safe provider status" });
-    assert.deepEqual(bound, []);
+    assert.deepEqual(result, { status, message: "safe provider status" }, "no token before authorization");
   }
   const authorized = await flow.pollGithubDeviceFlow({
     deviceCode: started.deviceCode,
@@ -40,11 +37,10 @@ test("GitHub device authorization persists the selected client and binds only an
     },
   });
   assert.deepEqual(authorized, { status: "authorized", accessToken: "fixture-device-token" });
-  assert.deepEqual(bound, ["fixture-device-token"]);
 });
 
-test("GitHub authorization without a configured client does not request or bind credentials", async () => {
-  const flow = createGithubDeviceFlow({ clientId: () => null, storeClientId: () => assert.fail("unexpected client write"), bindToken: () => assert.fail("unexpected credential write") });
+test("GitHub authorization without a configured client does not request credentials", async () => {
+  const flow = createGithubDeviceFlow({ clientId: () => null, storeClientId: () => assert.fail("unexpected client write") });
   const fetchImpl = async (): Promise<Response> => assert.fail("unexpected network request");
   await assert.rejects(flow.startGithubDeviceFlow({ fetchImpl }), /MOLIS_WORK_GITHUB_CLIENT_ID required/);
   assert.deepEqual(await flow.pollGithubDeviceFlow({ deviceCode: "device-1", fetchImpl }), { status: "error", message: "Missing GitHub client id" });

@@ -82,8 +82,6 @@ export const SOURCES_SCHEMA_SQL = `
       ON source_events(project_id, source_id, at, event_id);
 `;
 
-export type AccountSourceCredential = Pick<SourceRecord,
-  "kind" | "name" | "connection_ref" | "account_label" | "config">;
 
 function hasStoredSources(db: Pick<SourcesSqliteDatabase, "prepare">): boolean {
   return Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get());
@@ -93,17 +91,6 @@ function storedSourceConfig(value: unknown): Record<string, unknown> {
   const parsed = parseJson<unknown>(value, {});
   return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
     ? parsed as Record<string, unknown> : {};
-}
-
-/** Read legacy account references without migrating Sources or opening credentials. */
-export function inspectAccountSourceCredentials(db: Pick<SourcesSqliteDatabase, "prepare">): AccountSourceCredential[] {
-  if (!hasStoredSources(db)) return [];
-  const rows = db.prepare(`SELECT kind, name, credential_ref, account_label, config_json
-    FROM feed_sources WHERE credential_ref IS NOT NULL AND sync_kind IN ('github', 'gmail', 'connector')`).all() as Row[];
-  return rows.map(row => ({
-    kind: asText(row.kind), name: asText(row.name), connection_ref: optionalText(row.credential_ref),
-    account_label: optionalText(row.account_label), config: storedSourceConfig(row.config_json),
-  })).filter(source => sourceDeletedAt(source) === null);
 }
 
 /** Connection availability changes Source state through its normal command/event path. */

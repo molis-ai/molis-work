@@ -16,6 +16,7 @@ import {
   DEMO_BOARD_ID,
   GoalProjectApplication,
   LocalProjectDatabase,
+  listFeedSourceCatalog,
   seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -361,6 +362,10 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   assert.equal(addFeed.status, 200);
 
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
+  // Out-rules belong to a Source; a new project has none until one is added.
+  const registered = await webFetch(`${origin}${prefix}/api/feed/sources`, { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }) });
+  assert.equal(registered.status, 201, await registered.clone().text());
   const page = await (await webFetch(`${origin}${prefix}/`)).text();
   assert.match(page, /data-feed-rule-instructions/);
   assert.match(page, /data-feed-out-rule-function-key/);

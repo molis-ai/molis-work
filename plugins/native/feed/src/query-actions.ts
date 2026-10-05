@@ -1,7 +1,7 @@
 import { ActionError, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import { FeedStoreError } from "./application-errors.js";
-import type { ConnectorAuthStatus } from "./connector-account-ports.js";
+import type { ConnectorAuthStatus } from "./connector-auth-status.js";
 import type { FeedItemRecord, FeedSnapshot } from "./projection.js";
 
 const empty = { type: "object", properties: {}, additionalProperties: false };
@@ -34,8 +34,9 @@ export const feedQueryActions = {
     { ...empty, properties: { item_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["item_id"] },
     { type: "object", properties: { item }, required: ["item"], additionalProperties: false }),
   connections: define<Record<string, never>, ConnectorAuthStatus>("feed.connections.status", "Feed 连接状态",
-    "读取 Feed 本机账号的连接状态，不包含令牌", empty,
-    { type: "object", required: ["github", "gmail", "github_client_id_configured", "gmail_oauth_configured", "gmail_redirect_uri"] }),
+    "读取本机是否已连上 GitHub、Gmail 账号，不包含令牌", empty,
+    { type: "object", properties: { github: { type: "object", properties: { bound: { type: "boolean" } }, required: ["bound"] },
+      gmail: { type: "object", properties: { bound: { type: "boolean" } }, required: ["bound"] } }, required: ["github", "gmail"] }),
 } as const;
 
 export function createFeedQueryHandlers(feed: FeedApplication, boardId: string, ports: {

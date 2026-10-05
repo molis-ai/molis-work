@@ -19,18 +19,16 @@ import { feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugi
 import {
   DEMO_BOARD_ID,
   LocalProjectDatabase,
-  bindConnectorToken,
-  createLocalFeedConnectorService,
+  createLocalFeedApplication,
   liveHostFunctionAuthoringCatalog,
   seedDemoBoard,
-  unbindConnectorToken,
+  withConnectorConnections,
 } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { connectorAccountActions } from "../apps/local-host/src/connector-account-actions.js";
+import { connectorAccountActions, readConnectorAccount } from "../apps/local-host/src/connector-account-actions.js";
 import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/src/connector-directory.ts";
-import { GITHUB_AUTH_REF } from "../apps/local-host/src/connector-credentials.ts";
 import { CONNECTOR_MARKS } from "../apps/workbench/src/connector-marks.ts";
 import { renderConnectorsSettings } from "../apps/workbench/src/settings-connectors.ts";
 
@@ -152,8 +150,6 @@ test("Connectors settings cards distinguish account states and never echo the se
         auth_kind: "github",
         group_id: "code",
         summary: "本机账号。Feed 拉未读通知，Functions 可勾已兑现动作。",
-        account_state: "connected",
-        hint: "…ABCD",
         outbound_note: "已兑现动作：查看当前 GitHub 账号（github.whoami）。判断只挑，不会自动调用。",
         capabilities: [
           { label: "Feed 拉未读通知", fulfillment: "live" },
@@ -167,7 +163,6 @@ test("Connectors settings cards distinguish account states and never echo the se
         auth_kind: "gmail",
         group_id: "mail",
         summary: "本机账号。Feed 只读收信。",
-        account_state: "reauth_required",
         outbound_note: "出站动作未兑现：当前只读收信，不发送邮件。",
         capabilities: [
           { label: "Feed 只读收信", fulfillment: "live" },
@@ -181,7 +176,6 @@ test("Connectors settings cards distinguish account states and never echo the se
         auth_kind: "token",
         group_id: "chat",
         summary: "企业微信消息。",
-        account_state: "disconnected",
         token_label: "企业微信 CorpID 与 Secret",
         token_placeholder: "ww…:secret",
         auth_help: "微信个人号没有稳定官方接口。这里连的是企业微信自建应用，格式 corpid:corpsecret。",
@@ -236,7 +230,7 @@ test("every connector detail exposes official https setup links", () => {
     }
   }
   const html = renderConnectorsSettings({
-    connectors: HOST_CONNECTOR_DIRECTORY.map((row) => ({ ...row, account_state: "disconnected" as const })),
+    connectors: HOST_CONNECTOR_DIRECTORY,
   }, primitives);
   assert.match(html, /https:\/\/github\.com\/settings\/tokens/);
   assert.match(html, /https:\/\/console\.cloud\.google\.com\/apis\/library\/gmail\.googleapis\.com/);
@@ -257,7 +251,7 @@ test("an existing Gmail account offers targeted OAuth reauthorization while the 
     connector_connections: [{ connection_id: "33333333-3333-4333-8333-333333333333", service_id: "gmail", display_name: "工作邮箱", account_label: "work@example.com", auth_method: "oauth", source: "managed", state: "connected" }],
     connectors: HOST_CONNECTOR_DIRECTORY
       .filter((row) => row.connector_id === "gmail")
-      .map((row) => ({ ...row, account_state: "connected" as const, hint: "…ABCD", gmail_oauth_configured: true, connection_method: "oauth" as const })),
+      .map((row) => ({ ...row, gmail_oauth_configured: true })),
   }, {
     L: (text) => text,
     escapeHtml: (value) => String(value ?? ""),
@@ -271,7 +265,7 @@ test("an existing Gmail account offers targeted OAuth reauthorization while the 
   const manualTokenHtml = renderConnectorsSettings({
     connectors: HOST_CONNECTOR_DIRECTORY
       .filter((row) => row.connector_id === "gmail")
-      .map((row) => ({ ...row, account_state: "connected" as const, gmail_oauth_configured: false })),
+      .map((row) => ({ ...row, gmail_oauth_configured: false })),
   }, {
     L: (text) => text,
     escapeHtml: (value) => String(value ?? ""),
@@ -341,17 +335,17 @@ test("GitHub whoami is the fulfilled GET /user action", async () => {
   assert.deepEqual(urls, ["https://api.github.com/user"]);
 });
 
-test("legacy credential binding does not invent Agent capabilities absent from the action directory", async () => {
-  await withIsolatedHome(async () => {
+test("a saved connection does not invent Agent capabilities absent from the action directory", async () => {
+  await withIsolatedHome(async (homeDirectory) => {
     assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, []);
-    bindConnectorToken("github", TOKEN);
+    const connection = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: TOKEN }));
     assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, [], "credentials alone are not action registration or authorization");
-    unbindConnectorToken("github");
+    withConnectorConnections(homeDirectory, store => store.disconnect(connection.connection_id));
     assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, []);
   });
 });
 
-test("Connectors HTTP binds the same GitHub secret Feed uses, hides plaintext, and gates the catalog", async () => {
+test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the catalog", async () => {
   await withIsolatedHome(async (homeDirectory) => {
     const githubCalls: string[] = [];
     const realFetch = globalThis.fetch;
@@ -400,37 +394,34 @@ test("Connectors HTTP binds the same GitHub secret Feed uses, hides plaintext, a
           ?.behavior_ids.includes("github.whoami"),
         false,
       );
-      const bound = await fetch(`${origin}/api/settings/connectors/github/token`, {
+      const created = await fetch(`${origin}/api/settings/connectors/connections`, {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({ token: TOKEN }),
+        body: JSON.stringify({ service_id: "github", display_name: "工作 GitHub", token: TOKEN }),
       });
-      assert.equal(bound.status, 200);
-      assert.equal(createFileSecretStore().get(GITHUB_AUTH_REF), TOKEN);
-      const boundBody = await bound.json() as { connectors: Array<{ connector_id: string; hint?: string }>; status: { hint?: string } };
-      assert.equal(JSON.stringify(boundBody).includes(TOKEN), false);
-      assert.equal(boundBody.status.hint, "…ABCD");
+      assert.equal(created.status, 201);
+      const createdBody = await created.json() as { connection: { connection_id: string; state: string } };
+      assert.equal(JSON.stringify(createdBody).includes(TOKEN), false);
+      assert.equal(createdBody.connection.state, "connected");
+      const connectionId = createdBody.connection.connection_id;
       const connectedPage = await (await fetch(`${origin}/settings/connectors`)).text();
-      assert.match(connectedPage, /GitHub · 原有连接/);
+      assert.match(connectedPage, /工作 GitHub/);
       assert.doesNotMatch(connectedPage, new RegExp(TOKEN));
-      assert.match(connectedPage, /data-connection-row="legacy-/);
+      assert.match(connectedPage, new RegExp(`data-connection-row="${connectionId}"`));
       const liveCatalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
         catalog: { destinations: Array<{ destination_id: string; behavior_ids: string[] }>; behaviors: Array<{ behavior_id: string }> };
       };
       assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes("github.whoami"), false,
-        "the legacy connector settings API is not a registered Agent action");
-      const whoami = await fetch(`${origin}/api/settings/connectors/github/whoami`, {
-        method: "POST",
-        headers: headers(),
-      });
-      assert.equal(whoami.status, 200);
-      assert.deepEqual(await whoami.json(), { login: "octocat", scopes: ["notifications"] });
+        "the account check is the registered connector action, not a catalog behavior");
+      assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
+      assert.deepEqual(await readConnectorAccount(homeDirectory, connectionId),
+        { connection_id: connectionId, service_id: "github", login: "octocat", scopes: ["notifications"] });
       assert.deepEqual(githubCalls, ["https://api.github.com/user"]);
-      const unbound = await fetch(`${origin}/api/settings/connectors/github/token`, {
+      const disconnected = await fetch(`${origin}/api/settings/connectors/connections/${connectionId}`, {
         method: "DELETE",
         headers: headers(),
       });
-      assert.equal(unbound.status, 200);
+      assert.equal(disconnected.status, 200);
       const after = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
         catalog: { destinations: Array<{ destination_id: string; behavior_ids: string[] }> };
       };
@@ -446,18 +437,21 @@ test("Connectors HTTP binds the same GitHub secret Feed uses, hides plaintext, a
   });
 });
 
-test("deleting a Feed GitHub source keeps the machine credential", async () => {
+test("deleting a Feed GitHub source keeps its connection's credential", async () => {
   await withIsolatedHome(async (homeDirectory) => {
     const databasePath = join(homeDirectory, "molis-work.sqlite");
     seedDemoBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
-      const service = createLocalFeedConnectorService(store.db, DEMO_BOARD_ID, undefined, homeDirectory);
-      service.bindToken("github", TOKEN);
-      const source = service.ensureSources().find((row) => row.sync_kind === "github");
-      assert.ok(source);
-      service.feed.retireSource(DEMO_BOARD_ID, source.source_id, "retain_history");
-      assert.equal(createFileSecretStore().get(GITHUB_AUTH_REF), TOKEN);
+      const connection = withConnectorConnections(homeDirectory, connections => connections.createToken({ serviceId: "github", displayName: "GitHub", token: TOKEN }));
+      const feed = createLocalFeedApplication(store.db);
+      const at = new Date().toISOString();
+      const source = feed.upsertSource({ board_id: DEMO_BOARD_ID, source_id: "github-account", kind: "github", definition_id: "github", sync_kind: "github",
+        name: "GitHub", description: "通知", status: "active", enabled: true, item_count: 0, origin: "molis_work",
+        config: { connection_id: connection.connection_id }, schedule: { mode: "manual" }, cursor: {}, credential_ref: connection.credential_ref,
+        account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: at, updated_at: at });
+      feed.retireSource(DEMO_BOARD_ID, source.source_id, "retain_history");
+      assert.equal(createFileSecretStore().get(connection.credential_ref!), TOKEN);
     } finally {
       store.close();
     }
@@ -482,11 +476,11 @@ test("catalog Slack whoami hits auth.test and appears in Functions only while bo
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.login, "molis");
   assert.deepEqual(urls, ["https://slack.com/api/auth.test"]);
-  await withIsolatedHome(async () => {
+  await withIsolatedHome(async (homeDirectory) => {
     assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
-    bindConnectorToken("slack", "xoxb-liveTokenABCD");
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false, "binding a legacy credential does not register an action");
-    unbindConnectorToken("slack");
+    const connection = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "slack", displayName: "Slack", token: "xoxb-liveTokenABCD" }));
+    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false, "saving a connection does not register an action");
+    withConnectorConnections(homeDirectory, store => store.disconnect(connection.connection_id));
     assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
   });
 });
@@ -494,7 +488,7 @@ test("catalog Slack whoami hits auth.test and appears in Functions only while bo
 
 test("Connector next steps follow the active connection method and never send MCP to Feed", () => {
   const entry = HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === "notion")!;
-  const card = { ...entry, account_state: "disconnected" as const, feed_available: true };
+  const card = { ...entry, feed_available: true };
   const row = { connection_id: "review-connection", service_id: "notion", display_name: "Work", account_label: null,
     source: "managed" as const, state: "connected" as const, auth_method: "mcp" as const };
   const p = { L: (value: string) => value, escapeHtml: (value: unknown) => String(value ?? ""), icon: () => "" };

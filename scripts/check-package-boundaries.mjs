@@ -175,8 +175,6 @@ function checkMigratedFeedOwnership(repositoryRoot) {
     "plugins/native/feed/src/application.ts",
     "plugins/native/feed/src/source-service.ts",
     "plugins/native/feed/src/source-sync.ts",
-    "plugins/native/feed/src/connector-service.ts",
-    "plugins/native/feed/src/connector-source-registration.ts",
     "plugins/native/feed/src/connector-sync.ts",
     "plugins/native/feed/src/source-scheduler.ts",
     "apps/local-host/src/web-request.ts",

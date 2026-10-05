@@ -173,7 +173,10 @@ test("cadence uses the first work event, satisfaction and blocking facts without
         status: "satisfied",
         work_state: "satisfied",
         display_status: "completed",
-        events: [{ type: "goal.satisfied", at: "2026-08-29T11:00:00.000Z" }],
+        events: [
+          { type: "goal.event_state.closure_submitted", at: "2026-08-28T10:00:00.000Z", payload: { operation: "closure_submitted", completion_applied: false } },
+          { type: "goal.event_state.closure_submitted", at: "2026-08-29T11:00:00.000Z", payload: { operation: "closure_submitted", completion_applied: true } },
+        ],
       }),
       goal("BLOCKED", {
         work_state: "completion_blocked",

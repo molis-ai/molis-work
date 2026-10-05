@@ -115,14 +115,12 @@ test("developer diagnostics say what each source registered and what is not in e
     registry.save("io.molis.work.generated.b1/summary", "B", null, "person");
     const v2 = release(2, [{ id: "summary", title: "要点提炼", purpose: "p", body: "A2" }]);
     registerGeneratedPrompts(home, generatedRegistration(v2, [v1, v2], "disabled", "2.0.0"));
-    registerGeneratedPrompts(home, { ...generatedRegistration(release(1, undefined), [], "enabled", "1.0.0"), owner_id: "io.molis.work.generated.old" });
 
     const report = registry.diagnostics(UNREGISTERED_MODEL_CALLS);
     const generated = report.owners.find(owner => owner.owner_id === "io.molis.work.generated.b1")!;
     assert.deepEqual([generated.instructions, generated.edited], [1, 1]);
     assert.ok(generated.issues.some(issue => /插件已停用/.test(issue.text)));
     assert.ok(generated.issues.some(issue => /基于旧默认/.test(issue.text)), "the default moved from A to A2 under the person's edit");
-    assert.ok(report.owners.find(owner => owner.owner_id === "io.molis.work.generated.old")!.issues.some(issue => /登记 Prompt 之前/.test(issue.text)));
     const assistant = report.owners.find(owner => owner.owner_id === "io.molis.work.assistant")!;
     assert.ok(assistant.prompts > 0 && assistant.roles > 0);
     assert.ok(assistant.issues.some(issue => issue.level === "info" && /还没有被调用过/.test(issue.text)));

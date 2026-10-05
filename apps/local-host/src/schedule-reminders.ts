@@ -1,5 +1,5 @@
 import { AgentBuilderStore } from "@molis-ai/molis-work-plugin-builder";
-import { pluginInstallationGeneration, SqlitePluginRuntimeRepository, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { SqlitePluginRuntimeRepository, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { createScheduleReminders, createScheduleReminderManagement, deliverScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ScheduleService, ScheduleSqliteDatabase, ScheduleWakeupControl, ScheduleWakeupInput } from "@molis-ai/molis-work-service-scheduler";
@@ -34,7 +34,7 @@ function reminderInstallations(db: ScheduleSqliteDatabase, boardId: string) {
     const generated = !artifact && record.publisher_signature.startsWith("agent-built:")
       ? new AgentBuilderStore(studioStorage(db, boardId)).versions(record.publisher_signature.slice("agent-built:".length))
         .find(item => `${item.version}.0.0` === record.version) : undefined;
-    return { installation_id: record.install_id, generation: pluginInstallationGeneration(record), version: record.version, publisher: record.publisher_id,
+    return { installation_id: record.install_id, generation: record.installation_generation, version: record.version, publisher: record.publisher_id,
       title: artifact?.manifest.name ?? generated?.design.title ?? record.plugin_id };
   } };
 }
@@ -45,7 +45,7 @@ export function deliverHostReminder(db: ScheduleSqliteDatabase, input: ScheduleW
     currentInstallation(reminder) {
       const record = reminder.installationId ? installations.get(reminder.installationId) : null;
       // Persisted reminders do not execute plugin code; a normal Host shutdown does not cancel them.
-      return !!record && record.plugin_id === reminder.pluginId && record.state !== "uninstalled" && pluginInstallationGeneration(record) === reminder.installationGeneration;
+      return !!record && record.plugin_id === reminder.pluginId && record.state !== "uninstalled" && record.installation_generation === reminder.installationGeneration;
     },
     deliver(reminder, dueAt) {
       const feed = createLocalFeedApplication(db as Parameters<typeof createLocalFeedApplication>[0]), stamp = new Date().toISOString();

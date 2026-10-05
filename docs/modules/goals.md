@@ -15,7 +15,7 @@ Goals 保存 Goal 身份、当前结果约定、要求、工作事件和父子�
 | 入口 | 用途 |
 | --- | --- |
 | `events` | 意图归属、局部类型版本、笔记、批量事实、进展、当前约定与要求、Concern、决定请求／引用、收尾、取消和继续 |
-| `query` | Goal、关系、归档／回收站、指导、历史覆盖、原规则／风险与版本记录的读取 |
+| `query` | Goal、关系、归档／回收站、指导、历史覆盖、原规则／风险与版本记录、工作事件所属 Goal 的读取 |
 | `commands` | 底层建库、Goal／关系物化和项目指导；由实际应用用例调用，不构成第二套 Runtime 创建协议 |
 | `lifecycle` | 当前仍使用的归档、回收站和恢复行为 |
 | `planning` | 规划方法与采用来源、关系图合法性、当前状态下的变化影响分析 |
@@ -33,7 +33,7 @@ Goal schema、事件 schema 和本模块的历史升级由 Goals 维护。Host �
 
 ## 应用与 UI 边界
 
-`plugins/native/goals` 拥有事件正文、时间索引、说明／要求阅读器、有限树提案和实际表单。当前目录和正文直接消费事件状态；归档和回收站遵守 Goal 的实际记录。历史 Claim/Run/Evidence/Review 的正文由各 owner 的公开读接口组合，不需要构造空 action token 或旧操作列表。
+`plugins/native/goals` 拥有事件正文、时间索引、说明／要求阅读器、有限树提案和实际表单。当前目录和正文直接消费事件状态；归档和回收站遵守 Goal 的实际记录。日志按工作事件自己的 id 记录报告与状态记录，Goal 文档集合经 `query.listWorkEventGoalLinks` 把它们挂到所属 Goal，动量与工作胶囊由此读到活动；完成只认 `completion_applied` 为真的收尾。历史 Claim/Run/Evidence/Review 的正文由各 owner 的公开读接口组合，不需要构造空 action token 或旧操作列表。
 
 真实 Runtime Session、终端进程和文件服务由 Work/Host 负责；切换 Goal 不会自动发送消息或改变终端绑定。Planning 不自行批准树变化；可信用户决定由 Governance 保存，Goals 只在相应应用事务中修改自己的事实。
 

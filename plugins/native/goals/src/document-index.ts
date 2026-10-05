@@ -2,6 +2,7 @@ import type { BoardSnapshot } from "./goal-entry-contract.js";
 import type { GoalsInputBinding } from "./document-view.js";
 import type { GoalsPolicyBinding } from "./policy-ui-model.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";
+import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 
 function groupByKey<T>(items: readonly T[], keyFor: (item: T) => string | null | undefined): Map<string, T[]> {
   const grouped = new Map<string, T[]>();
@@ -26,11 +27,16 @@ function addGroupedValue<T>(grouped: Map<string, T[]>, key: unknown, value: T): 
 export function createGoalDocumentIndex(
   snapshot: BoardSnapshot, inputBindings: GoalsInputBinding[],
   policyBindings: GoalsPolicyBinding[], events: GoalsDecisionEvent[],
+  workEventLinks: ReturnType<GoalsDocumentReadPorts["goals"]["listWorkEventGoalLinks"]>,
 ) {
   const inputBindingsByGoal = groupByKey(inputBindings, (item) => item.goal_id);
   const policyBindingsByGoal = groupByKey(policyBindings, (item) => item.goal_id);
   const projectPolicyBindings = policyBindings.filter((item) => item.goal_id == null);
   const eventsByObject = groupByKey(events, (item) => item.object_id);
+  // Work events are journaled under their own id; Goals' work-event facts name the Goal each belongs to.
+  const workEventGoalIds = new Map(workEventLinks.map((link) => [link.event_id, link.goal_id]));
+  const workEventsByGoal = groupByKey(events, (item) =>
+    item.object_type === "goal_work_event" ? workEventGoalIds.get(item.object_id) : null);
   const relationsByGoal = new Map<string, typeof snapshot.relations>();
   for (const relation of snapshot.relations) {
     addGroupedValue(relationsByGoal, relation.from_goal_id, relation);
@@ -58,5 +64,5 @@ export function createGoalDocumentIndex(
     }
     for (const goalId of touchedGoalIds) addGroupedValue(goalTreeProposalsByGoal, goalId, proposal);
   }
-  return { inputBindingsByGoal, policyBindingsByGoal, projectPolicyBindings, eventsByObject, relationsByGoal, goalTreeProposalsByGoal };
+  return { inputBindingsByGoal, policyBindingsByGoal, projectPolicyBindings, eventsByObject, workEventsByGoal, relationsByGoal, goalTreeProposalsByGoal };
 }

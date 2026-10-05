@@ -395,6 +395,12 @@ export interface GoalsBoardRecord {
   updated_at: string;
 }
 
+/** The journal keys a work event by its own id; this names the Goal it was recorded on. */
+export interface GoalWorkEventLinkRecord {
+  goal_id: string;
+  event_id: string;
+}
+
 export interface GoalPolicyBindingRecord {
   scope: "project_default" | "ancestor_minimum" | "goal_override";
   goal_id: string | null;
@@ -500,6 +506,7 @@ export interface GoalsQueryApi {
   listBoardIds(): string[];
   listActivePolicyBindings(boardId: string, goalId?: string): GoalPolicyBindingRecord[];
   listPolicyHistory(boardId: string): GoalPolicyHistoryRecord[];
+  listWorkEventGoalLinks(boardId: string): GoalWorkEventLinkRecord[];
   listDependencies(boardId: string, goalId: string): GoalDependencyFact[];
   activeReplacement(boardId: string, goalId: string): GoalReplacementFact | null;
   /** Global ID collision check only; does not expose another Board's Goal contents. */

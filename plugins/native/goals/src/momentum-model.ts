@@ -3,8 +3,8 @@ import type { GoalDisplayStatus } from "./tree-order.js";
 export interface GoalMomentumEventInput {
   type: string;
   at: string;
-  /** Set on closure events: whether the closure completed the Goal. */
-  completion_applied?: boolean;
+  /** Journal payload; completion is read from it, so a closure that did not apply is not counted. */
+  payload?: unknown;
 }
 
 export interface GoalMomentumGoalInput {

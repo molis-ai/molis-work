@@ -352,11 +352,11 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     await local.invoke(goalsActions.create, { title: "Relation target", goal_id: "RELATION-TARGET", idempotency_key: "relation-target" });
     const relationInput = { from_goal_id: input.goal_id, to_goal_id: "RELATION-TARGET", type: "extends" as const, reason: "Public read of user-owned structure", idempotency_key: "configuration-relation" };
     const relation = await local.invoke(goalsActions.relationAdd, relationInput);
-    const policyInput = { policy: { ...DEFAULT_GOAL_POLICY, cross_reviewers: 2 }, user_confirmed: true, idempotency_key: "configuration-policy" };
+    const policyInput = { policy: { human_approval: true }, user_confirmed: true, idempotency_key: "configuration-policy" };
     const policy = await local.invoke(goalsActions.policySave, policyInput);
     assert.equal((await invokePlanning(goalsActions.relations, { goal_id: input.goal_id })).relations.find(r => r.relation_id === relation.relation_id)?.to_goal_id, "RELATION-TARGET");
     assert.equal((await invokePlanning(goalsActions.policyHistory, {})).bindings.find(b => b.policy_binding_id === policy.policy_binding_id)?.created_by, user.actor_id);
-    assert.equal((await invokePlanning(goalsActions.policyResolve, { goal_id: input.goal_id })).policy.cross_reviewers, 2);
+    assert.equal((await invokePlanning(goalsActions.policyResolve, { goal_id: input.goal_id })).policy.human_approval, true);
     const beforeForged = await host.withProject(ref, r => r.store.snapshot(project.board_id));
     const tools = (await sdk.listTools()).tools;
     for (const [definition, payload] of [[goalsActions.relationAdd, relationInput], [goalsActions.relationDeactivate, { relation_id: relation.relation_id, reason: "Forge", idempotency_key: "forge" }], [goalsActions.policySave, policyInput]] as const) {

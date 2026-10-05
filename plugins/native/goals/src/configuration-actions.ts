@@ -20,9 +20,8 @@ function protectedHandler(binding: ActionHandlerBinding): ActionHandlerBinding {
     catch (error) { if (error instanceof ActionError) return { available: false, code: error.code, reason: error.message }; throw error; }
   }, handle(caller, input) { requireUser(caller); return binding.handle(caller, input); } };
 }
-const policyFields = { goal_mode: enumeration(["disabled", "preferred", "required"]), required_capabilities: array(identifier),
-  self_verification: boolean, cross_reviewers: count, adversarial_reviewers: count, human_approval: boolean,
-  max_lease_seconds: { type: "integer", minimum: 1 } };
+/** A Goal's rule is the user's acceptance at closure; quality checks belong to Coding (specs/coding-quality-assurance). */
+const policyFields = { human_approval: boolean };
 export const goalPolicySchema = object(policyFields);
 const policy = goalPolicySchema;
 export const goalPolicyBindingSchema = object({ policy_binding_id: text, goal_id: nullable(text), scope: enumeration(["project_default", "ancestor_minimum", "goal"]),

@@ -122,15 +122,7 @@ function webGoal(
     input_bindings: [],
     policy_bindings: [],
     events: [],
-    resolved_policy: {
-      goal_mode: "disabled",
-      required_capabilities: [],
-      self_verification: false,
-      cross_reviewers: 0,
-      adversarial_reviewers: 0,
-      human_approval: false,
-      max_lease_seconds: 1800,
-    },
+    resolved_policy: { human_approval: false },
     ...options,
   };
 }

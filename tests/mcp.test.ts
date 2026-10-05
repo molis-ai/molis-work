@@ -58,17 +58,16 @@ describe("mcp server", () => {
       "molis_work_v1_evidence_submit", "molis_work_v1_evidence_correct", "molis_work_v1_review_submit",
       "molis_work_v1_revalidate", "molis_work_v1_rework_request", "molis_work_v1_complete",
       "molis_work_v1_contract_propose", "molis_work_v1_candidate_submit", "molis_work_v1_dependency_propose",
-      "molis_work_v1_create_goal",
+      "molis_work_v1_create_goal", "molis_work_v1_goal_intent_create", "molis_work_v1_goal_list", "molis_work_v1_goal_state",
+      "molis_work_v1_event_note", "molis_work_v1_event_report", "molis_work_v1_goal_trash", "molis_work_v1_goal_restore",
+      "molis_work_v1_planning_methods", "molis_work_v1_functions_list", "molis_work_v1_functions_describe", "molis_work_v1_functions_invoke",
     ];
     for (const name of retired) assert.ok(!names.includes(name), name);
     for (const name of [
       "molis_work_v1_project_delete", "molis_work_v1_context_resolve",
     ]) assert.ok(names.includes(name), name);
-    for (const alias of ["list", "describe", "invoke"]) {
-      assert.equal(names.includes(`molis_work_v1_functions_${alias}`), false, "without a Home service, compatibility aliases are not executable");
-    }
-    for (const alias of ["molis_work_v1_goal_tree_propose", "molis_work_v1_goal_tree_read", "molis_work_v1_goal_tree_check", "molis_work_v1_active_goal", "molis_work_v1_goal_trash", "molis_work_v1_goal_restore", "molis_work_v1_goal_trash_list", "molis_work_v1_goal_intent_create", "molis_work_v1_goal_list", "molis_work_v1_event_note", "molis_work_v1_goal_state", "molis_work_v1_event_list", "molis_work_v1_event_read", "molis_work_v1_event_configure", "molis_work_v1_event_report", "molis_work_v1_event_progress", "molis_work_v1_event_concern", "molis_work_v1_event_decision_request", "molis_work_v1_event_cite_decision", "molis_work_v1_event_agree", "molis_work_v1_event_close", "molis_work_v1_event_resume"]) {
-      assert.equal(names.includes(alias), false, "Goals aliases require a bound project and explicit action grants");
+    for (const action of ["molis_work_v1_action_goals.tree.submit__v1", "molis_work_v1_action_goals.tree.read__v1", "molis_work_v1_action_goals.tree.check__v1", "molis_work_v1_action_goals.active.set__v1", "molis_work_v1_action_goals.trash.set__v1", "molis_work_v1_action_goals.trash.list__v1", "molis_work_v1_action_goals.create__v1", "molis_work_v1_action_goals.list__v1", "molis_work_v1_action_goals.note__v1", "molis_work_v1_action_goals.state.read__v1", "molis_work_v1_action_goals.events.list__v1", "molis_work_v1_action_goals.events.read__v1", "molis_work_v1_action_goals.events.configure__v1", "molis_work_v1_action_goals.events.report__v1", "molis_work_v1_action_goals.progress.record__v1", "molis_work_v1_action_goals.concerns.apply__v1", "molis_work_v1_action_goals.decisions.request__v1", "molis_work_v1_action_goals.decisions.cite__v1", "molis_work_v1_action_goals.agreement.set__v1", "molis_work_v1_action_goals.closure.submit__v1", "molis_work_v1_action_goals.work.resume__v1"]) {
+      assert.equal(names.includes(action), false, "Goals action tools require a bound project and explicit action grants");
     }
     assert.ok(!names.some((name) => !name.startsWith("molis_work_v1_")));
     assert.ok(listedTools.every((tool) => !("database_path" in (tool.inputSchema.properties ?? {}))));

@@ -6,7 +6,6 @@ import {
   DATASET_PROJECT_PLUGIN_ID,
 } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { DATASET_UI_CONTRIBUTION_ID } from "./ui.js";
-import { DATASET_MCP_EXPORTS } from "./mcp.js";
 import { datasetActions, datasetContentActions, DATASET_ACTION_PERMISSIONS } from "./actions.js";
 
 export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID };
@@ -39,5 +38,4 @@ export const datasetManifest: PluginManifest = {
       { view_id: "directory", slot: "navigator", title: "Dataset", contribution_id: DATASET_UI_CONTRIBUTION_ID, icon: "database", order: 58 },
     ],
   },
-  mcp_exports: [...DATASET_MCP_EXPORTS],
 };

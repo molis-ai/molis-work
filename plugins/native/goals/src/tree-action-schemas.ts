@@ -55,5 +55,5 @@ export const treeDecisionResultSchema = object({ proposal: treeProposalSchema, r
   applied_item_ids: strings, rejected_item_ids: strings, revised_item_ids: strings, conflict_item_ids: strings,
   semantic_review: nullable(object({ ...planningImpactSchema.properties as Record<string, object>, structural_validation: { const: "passed" },
     status: enumeration(["required", "not_required"]), next_action: enumeration(["review_affected_subgraph", "continue"]),
-    review_tool: { const: "molis_work_v1_planning_analyze_change" }, canonical_changes_require_new_user_confirmation: { const: true } })),
+    review_action: object({ capability_id: { const: "goals.planning.impact" }, version: { const: 1 } }), canonical_changes_require_new_user_confirmation: { const: true } })),
   transitions: { type: "array", maxItems: 0 }, observed_event_cursor: count, replayed: boolean });

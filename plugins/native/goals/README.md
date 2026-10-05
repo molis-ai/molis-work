@@ -84,6 +84,6 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
   - 状态变化只经 `modules/goals` 的公开入口，页面不另算完成。
   - CLI、管理 MCP 与 typed 入口薄转发同一动作；有幂等合同的写入沿用原事务与幂等键。
   - 回收站操作要用户明确确认；`goals.trash.set` 可恢复，因此声明为写而不是不可撤销，并且不进生成插件。
-  - 旧 MCP 的兼容名称共用逐客户端授权与常驻 Host，不再指定数据库或自填作者；历史提案可读，退役类型不能重新批准。
+  - MCP 只经动作工具（逐客户端授权、常驻 Host）调用 Goals，不能指定数据库或自填作者、创建渠道。
 - 改动后必跑：`node scripts/run-tests.mjs tests/goals-actions.test.ts tests/goals-command-actions.test.ts tests/goals-board-actions.test.ts tests/goal-event-create-flow.test.ts tests/goals-tree-actions.test.ts`
 - 相关手册：[docs/modules/goals.md](../../../docs/modules/goals.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[PRODUCT.md](../../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

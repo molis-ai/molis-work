@@ -14,7 +14,7 @@ Rebuild after changing workspace sources. At the end of `pnpm build`, `apps/loca
 
 ## Current Goals, parents, and dependencies
 
-Current work is represented by event state and read through `goal_state`. A parent completes against its own current agreement, reports, requirements, and applicable blockers; child count is not proof of completion. An unfinished dependency affects formal completion without preventing notes or partial work.
+Current work is represented by event state and read through `goals.state.read`. A parent completes against its own current agreement, reports, requirements, and applicable blockers; child count is not proof of completion. An unfinished dependency affects formal completion without preventing notes or partial work.
 
 Goals Module owns graph integrity and structural impact. Reusable candidates come from current event work status rather than old leaf categories. Relation changes use finite Goal Tree proposals and protected user decisions, with no clarifier Claim, Draft Dialogue, or old action token. Regressions include `tests/goal-tree-event-flow.test.ts`, `tests/goal-events-state.test.ts`, and `tests/planning-engine.test.ts`.
 

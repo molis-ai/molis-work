@@ -1,11 +1,9 @@
-import type { PluginMcpEffect } from "./plugin-mcp.js";
-
 const ID = /^[a-z0-9][a-z0-9-]*$/u;
 
 export interface PluginBehaviorDeclaration {
   readonly behavior_id: string;
   readonly title: string;
-  readonly effect: PluginMcpEffect;
+  readonly effect: "read" | "write";
   readonly subject_kinds: readonly string[];
 }
 

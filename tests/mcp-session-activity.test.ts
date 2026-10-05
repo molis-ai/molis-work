@@ -8,34 +8,32 @@ import { join } from "node:path";
 import test from "node:test";
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { mcpRuntimeSessionActivity } from "@molis-ai/molis-work-app-mcp";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
 import { createMolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 
 test("activity extraction preserves established priority, ignored operations and bounded result lookup", () => {
-  assert.equal(mcpRuntimeSessionActivity("molis_work_v1_goal_state", { goal_id: "leaf" }, "{}"), null);
-  assert.equal(mcpRuntimeSessionActivity("molis_work_v1_event_report", {}, "not-json"), null);
-  const replayed = mcpRuntimeSessionActivity("molis_work_v1_event_note", { goal_id: "g", idempotency_key: "k" }, JSON.stringify({
-    replayed: true, event_id: "gevt-1",
-  }));
+  const toolName = (action: { capability_id: string; version: number }) => `molis_work_v1_action_${action.capability_id}__v${action.version}`;
+  const tool = (action: { capability_id: string; version: number }) => [action.capability_id, toolName(action)] as const;
+  assert.equal(mcpRuntimeSessionActivity(...tool(goalsActions.state), { goal_id: "leaf" }, {}), null);
+  assert.equal(mcpRuntimeSessionActivity(...tool(goalsActions.report), {}, {}), null);
+  const replayed = mcpRuntimeSessionActivity(...tool(goalsActions.note), { goal_id: "g", idempotency_key: "k" }, { replayed: true, event_id: "gevt-1" });
   assert.equal(replayed?.goal_id, "g");
-  assert.equal(replayed?.event.source_id, "molis_work_v1_event_note:k");
-  const activity = mcpRuntimeSessionActivity("molis_work_v1_event_report", {
-    goal_id: "top-goal", idempotency_key: "report-key",
-  }, JSON.stringify({ replayed: false, events: [{ event_id: "gevt-result" }] }));
+  assert.equal(replayed?.event.source_id, `${toolName(goalsActions.note)}:k`);
+  const activity = mcpRuntimeSessionActivity(...tool(goalsActions.report), { goal_id: "top-goal", idempotency_key: "report-key" },
+    { replayed: false, events: [{ event_id: "gevt-result" }] });
   assert.deepEqual(activity, {
     goal_id: "top-goal", actor_id: "molis-work:event-report",
     event: {
-      source: "molis_work", kind: "status", source_id: "molis_work_v1_event_report:report-key",
+      source: "molis_work", kind: "status", source_id: `${toolName(goalsActions.report)}:report-key`,
       content: "上报 Goal 工作事实：top-goal",
-      metadata: { tool: "molis_work_v1_event_report", goal_id: "top-goal", run_id: null, state: null },
+      metadata: { tool: toolName(goalsActions.report), goal_id: "top-goal", state: null },
     },
   });
-  const nested = mcpRuntimeSessionActivity("molis_work_v1_event_note", {}, JSON.stringify({
-    items: [{ note: { goal_id: "leaf", event_id: "gevt-note" } }],
-  }));
-  assert.equal(nested?.event.source_id, "molis_work_v1_event_note:gevt-note");
-  assert.equal(mcpRuntimeSessionActivity("molis_work_v1_event_report", {}, JSON.stringify({ a: { b: { c: { d: { e: { goal_id: "too-deep" } } } } } })), null);
+  const nested = mcpRuntimeSessionActivity(...tool(goalsActions.note), {}, { items: [{ note: { goal_id: "leaf", event_id: "gevt-note" } }] });
+  assert.equal(nested?.event.source_id, `${toolName(goalsActions.note)}:gevt-note`);
+  assert.equal(mcpRuntimeSessionActivity(...tool(goalsActions.report), {}, { a: { b: { c: { d: { e: { goal_id: "too-deep" } } } } } }), null);
 });
 
 test("successful MCP writes update only their Session and survive a secondary Registry failure", async () => {
@@ -77,22 +75,22 @@ test("successful MCP writes update only their Session and survive a secondary Re
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-current", host_declares_stable: true },
     }, host);
-    const created = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const created = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "记录执行活动", outcome: "主操作与次级索引边界明确", idempotency_key: "intent-activity",
     }));
     const goal_id = created.goal.goal_id as string;
     const noteInput = { goal_id, body: "先记下已核对内容", idempotency_key: "note-focus" };
-    await mcp.callTool("molis_work_v1_event_note", noteInput);
-    await mcp.callTool("molis_work_v1_event_note", noteInput);
+    await mcp.callTool("molis_work_v1_action_goals.note__v1", noteInput);
+    await mcp.callTool("molis_work_v1_action_goals.note__v1", noteInput);
     const inspect = await openWorkSessionRegistry({ homeDirectory });
     try {
       assert.equal(inspect.get(sessionId).current_goal_id, goal_id);
-      assert.equal(inspect.events(sessionId).filter((event) => event.source_id === "molis_work_v1_event_note:note-focus").length, 1);
+      assert.equal(inspect.events(sessionId).filter((event) => event.source_id === "molis_work_v1_action_goals.note__v1:note-focus").length, 1);
       assert.equal(inspect.get(unrelatedId).current_goal_id, null);
       assert.equal(inspect.events(unrelatedId).filter((event) => event.source === "molis_work").length, 0);
     } finally { inspect.close(); }
 
-    await mcp.callTool("molis_work_v1_event_configure", {
+    await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id, expected_version: 0, idempotency_key: "cfg-activity",
       types: [{
         type_id: "delivery", version: 1, name: "工作结果", purpose: "实际记录",
@@ -104,7 +102,7 @@ test("successful MCP writes update only their Session and survive a secondary Re
       events: [{ type_id: "delivery", type_version: 1, title: "主记录已经保存", fields: { result: "索引失败时工作不能丢" } }],
     };
     const restoreSessionIndex = rejectSessionReportIndex(homeDirectory);
-    const reported = JSON.parse(await mcp.callTool("molis_work_v1_event_report", reportInput));
+    const reported = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", reportInput));
     assert.equal(reported.replayed, false);
     assert.equal(reported.events.length, 1);
     restoreSessionIndex();
@@ -114,22 +112,22 @@ test("successful MCP writes update only their Session and survive a secondary Re
     const afterFailure = await openWorkSessionRegistry({ homeDirectory });
     try {
       assert.equal(afterFailure.get(sessionId).current_goal_id, goal_id);
-      assert.equal(afterFailure.events(sessionId).filter((event) => event.source_id === "molis_work_v1_event_report:report-repair").length, 0);
-      assert.equal(afterFailure.events(sessionId).filter((event) => event.source_id === "molis_work_v1_event_note:note-focus").length, 1);
+      assert.equal(afterFailure.events(sessionId).filter((event) => event.source_id === "molis_work_v1_action_goals.events.report__v1:report-repair").length, 0);
+      assert.equal(afterFailure.events(sessionId).filter((event) => event.source_id === "molis_work_v1_action_goals.note__v1:note-focus").length, 1);
     } finally { afterFailure.close(); }
 
-    const replayed = JSON.parse(await mcp.callTool("molis_work_v1_event_report", reportInput));
+    const replayed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", reportInput));
     assert.equal(replayed.replayed, true);
     assert.equal(replayed.events[0]?.event_id, reported.events[0]?.event_id);
     const recovered = await openWorkSessionRegistry({ homeDirectory });
     try {
       assert.equal(recovered.get(sessionId).current_goal_id, goal_id);
-      assert.equal(recovered.events(sessionId).filter((event) => event.source_id === "molis_work_v1_event_report:report-repair").length, 1);
+      assert.equal(recovered.events(sessionId).filter((event) => event.source_id === "molis_work_v1_action_goals.events.report__v1:report-repair").length, 1);
     } finally { recovered.close(); }
-    await mcp.callTool("molis_work_v1_event_report", reportInput);
+    await mcp.callTool("molis_work_v1_action_goals.events.report__v1", reportInput);
     const afterRetry = await openWorkSessionRegistry({ homeDirectory });
     try {
-      assert.equal(afterRetry.events(sessionId).filter((event) => event.source_id === "molis_work_v1_event_report:report-repair").length, 1);
+      assert.equal(afterRetry.events(sessionId).filter((event) => event.source_id === "molis_work_v1_action_goals.events.report__v1:report-repair").length, 1);
     } finally { afterRetry.close(); }
   } finally {
     await mcp?.close();

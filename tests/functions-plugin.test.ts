@@ -33,6 +33,7 @@ import {
 import {
   FunctionsError,
   createFunctionsService,
+  functionsActions,
   hashChoiceConfig,
   hashFunctionConfig,
   openFunctionsStore,
@@ -707,7 +708,7 @@ test("invoke uses published config once and does not overwrite last_preview", as
   });
 });
 
-test("HTTP invoke by key and MCP list hide drafts", async () => {
+test("HTTP invoke by key and the Functions actions hide drafts", async () => {
   await withHome(async (home) => {
     const service = createFunctionsService({
       store: openFunctionsStore(home),
@@ -745,25 +746,22 @@ test("HTTP invoke by key and MCP list hide drafts", async () => {
     });
     assert.equal(invoked?.status, 200);
     assert.equal((invoked?.body as { data: { choice: string } }).data.choice, "no");
-    const { callLegacyFunctionsMcp } = await import("../apps/local-host/src/mcp-functions-tools.ts");
     const actionHost = new MolisWorkLocalHost({ homeDirectory: home, functions: {
       secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }), provider: fixtureProvider({ choice: "no" }), env: {},
     } });
     const actions = bindActionClient(actionHost.homeActionClient(), () => ({
       actor_id: "test-mcp", project_id: null, audience: "mcp", permissions: ["functions:invoke", "functions:manage"],
     }));
-    const listedMcp = JSON.parse(await callLegacyFunctionsMcp(actions, "molis_work_v1_functions_list", {})) as {
-      functions: Array<{ function_key: string }>;
-    };
+    const listedMcp = await actions.invoke(functionsActions.list, {}) as { functions: Array<{ function_key: string }> };
     assert.ok(listedMcp.functions.some((item) => item.function_key === live.function_key));
     assert.equal(listedMcp.functions.some((item) => item.function_key === draft.function_key), false);
     await assert.rejects(
-      () => callLegacyFunctionsMcp(actions, "molis_work_v1_functions_describe", { function_key: draft.function_key }),
+      () => actions.invoke(functionsActions.describe, { function_key: draft.function_key }),
       /函数不存在/,
     );
-    const invokedMcp = JSON.parse(await callLegacyFunctionsMcp(actions, "molis_work_v1_functions_invoke", {
+    const invokedMcp = await actions.invoke(functionsActions.invoke, {
       function_key: live.function_key, input: "MCP test",
-    })) as { status: string; data: { choice: string } };
+    }) as { status: string; data: { choice: string } };
     assert.equal(invokedMcp.status, "ok");
     assert.equal(invokedMcp.data.choice, "no");
     await actionHost.close();

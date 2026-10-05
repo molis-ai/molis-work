@@ -1,9 +1,9 @@
 import { CODING_WORKBENCH_SETUP_SCRIPT } from "./scripts/client/coding-setup.js";
-import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, runCogniaMcpTool } from "@molis-ai/molis-work-plugin-cognia";
+import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution } from "@molis-ai/molis-work-plugin-cognia";
 import { builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
 import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-images";
-import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, runJellyMcpTool } from "@molis-ai/molis-work-plugin-jelly";
+import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution } from "@molis-ai/molis-work-plugin-jelly";
 import { experimentsManifest, EXPERIMENTS_CLIENT_FACTORY_SCRIPT, EXPERIMENTS_STYLES, experimentsUiContribution } from "@molis-ai/molis-work-plugin-experiments";
 import { type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -20,18 +20,16 @@ import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "@mo
 import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "@molis-ai/molis-work-plugin-schedule";
 import { SHELF_INSTRUCTIONS, SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "@molis-ai/molis-work-plugin-shelf";
 import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest, charactersSettingsUiContribution, CHARACTERS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-characters";
-import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, runPagesMcpTool } from "@molis-ai/molis-work-plugin-pages";
-import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, runFormMcpTool } from "@molis-ai/molis-work-plugin-form";
-import { DATASET_INSTRUCTIONS, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, runDatasetMcpTool } from "@molis-ai/molis-work-plugin-dataset";
-import { PPT_INSTRUCTIONS, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution, runPptMcpTool } from "@molis-ai/molis-work-plugin-ppt";
+import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution } from "@molis-ai/molis-work-plugin-pages";
+import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution } from "@molis-ai/molis-work-plugin-form";
+import { DATASET_INSTRUCTIONS, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution } from "@molis-ai/molis-work-plugin-dataset";
+import { PPT_INSTRUCTIONS, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution } from "@molis-ai/molis-work-plugin-ppt";
 import { LINGGUANG_INSTRUCTIONS, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution } from "@molis-ai/molis-work-plugin-lingguang";
 import { TODO_INSTRUCTIONS, TODO_PROJECT_PLUGIN_ID, todoManifest, todoMethods, todoPrompts, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution } from "@molis-ai/molis-work-plugin-todo";
 import { ALCHEMIST_PROJECT_PLUGIN_ID, ALCHEMIST_INSTRUCTIONS, alchemistManifest, ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistUiContribution } from "@molis-ai/molis-work-plugin-alchemist";
 import { WORKFLOWS_INSTRUCTIONS, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution } from "@molis-ai/molis-work-plugin-workflows";
 import { WORK_PROJECT_PLUGIN_ID, workManifest, workTerminalUiContribution, workUiContribution } from "@molis-ai/molis-work-plugin-work";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
@@ -61,10 +59,9 @@ export interface BuiltinPluginEntry {
   readonly methods?: readonly AgentSkillDefinition[];
   readonly workbench?: BuiltinPluginWorkbench;
   /** Historical MCP spellings only; new public functions use Manifest.actions. No Host I/O or credentials. */
-  readonly legacyMcp?: (actions: BoundActionClient, request: PluginMcpHandleRequest) => Promise<string>;
 }
 
-/** Shared build composition for catalog, UI resources and optional legacy MCP adapters. */
+/** Shared build composition for catalog and UI resources. */
 export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: COGNIA_PROJECT_PLUGIN_ID,
@@ -79,7 +76,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       clientFactory: COGNIA_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-cognia-id]", idDataset: "cogniaId" },
     },
-    legacyMcp: runCogniaMcpTool,
   },
   {
     project_plugin_id: "plugin-builder",
@@ -120,7 +116,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       clientFactory: JELLY_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-jelly-id]", idDataset: "jellyId" },
     },
-    legacyMcp: runJellyMcpTool,
   },
   {
     project_plugin_id: "experiments",
@@ -271,7 +266,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       clientAssets: ["/assets/molis-work-pages-editor.js"],
       searchRow: { selector: "button.feed-stage-entry[data-page-id]", idDataset: "pageId" },
     },
-    legacyMcp: runPagesMcpTool,
   },
   {
     project_plugin_id: FORM_PROJECT_PLUGIN_ID,
@@ -286,7 +280,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       clientFactory: FORM_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-form-id]", idDataset: "formId" },
     },
-    legacyMcp: runFormMcpTool,
   },
   {
     project_plugin_id: DATASET_PROJECT_PLUGIN_ID,
@@ -301,7 +294,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       clientFactory: DATASET_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-dataset-id]", idDataset: "datasetId" },
     },
-    legacyMcp: runDatasetMcpTool,
   },
   {
     project_plugin_id: PPT_PROJECT_PLUGIN_ID,
@@ -316,7 +308,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       clientFactory: PPT_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-ppt-id]", idDataset: "pptId" },
     },
-    legacyMcp: runPptMcpTool,
   },
   {
     project_plugin_id: ALCHEMIST_PROJECT_PLUGIN_ID,

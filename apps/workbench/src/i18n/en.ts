@@ -2493,7 +2493,6 @@ Object.assign(EN, {
   "这里打开的方法会出现在 molis-work-mcp 的工具清单里。关掉后新连接看不见，点名调用也会被拒绝。已经打开的 Runtime 连接不会立刻刷新。": "Methods turned on here appear in the molis-work-mcp tool list. After you turn one off, new connections cannot see it and a named call is refused. Open Runtime connections do not refresh immediately.",
   "选择哪些 MCP 方法对外可用。这与接入 Cursor 或其他 Runtime 不是同一件事。": "Choose which MCP methods are available externally. This is not the same as connecting Cursor or another Runtime.",
   "还没有可开关的方法": "No methods to toggle yet",
-  "无法保存 MCP 开关": "Could not save the MCP switch",
   "按需把 Molis Work 接入本机的 AI 或执行工具。每次修改配置前都会先展示变化并由你确认。": "Connect Molis Work to AI or execution tools on this machine when needed. Every configuration change is previewed for your approval.",
   "项目设置": "Project settings",
   "Goal Tree": "Goal Tree",

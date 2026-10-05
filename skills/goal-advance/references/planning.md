@@ -6,13 +6,13 @@ Read when the task benefits from professional methods, decomposition, a tree cha
 
 Start from the intended result and its consumer. Identify the work type, professional domain, industry or operating constraints that change how a good result is produced and judged.
 
-Call molis_work_v1_planning_methods with include_instructions=false for the lightweight catalog. Respect user-configured composition.method_pack_ids, then add methods whose distinct checks materially apply. Retrieve the selected method_ids and read their instructions. The returned catalog_id and returned_method_ids help detect a changed catalog or omitted selected method. Do not load every method body by default.
+Call goals.planning.catalog for the lightweight catalog (methods without their instructions). Respect user-configured composition.method_pack_ids, then add methods whose distinct checks materially apply. Read the selected methods' instructions with goals.planning.read and their method_ids; an unknown method_id is refused. Do not load every method body by default.
 
 Work type, domain, industry and situational overlays are complementary lenses, not serial phases or one Goal each. If a needed provider or professional check is missing, consult the relevant additional method. Do not turn an example method bundle into a mandatory product/software/data checklist.
 
-If no method fits, use relevant professional evidence and explain the chosen approach. Saving a reusable project method through planning_method_save is a separate, user-confirmed change; it is not a prerequisite for recording or planning the current Goal.
+If no method fits, use relevant professional evidence and explain the chosen approach. Saving a reusable project method through goals.planning.save is a separate, user-confirmed change; it is not a prerequisite for recording or planning the current Goal.
 
-event_configure can adopt a saved method version and its useful types. Default requirements are separate choices: adopt_default_requirement_ids enables only the chosen ones, using the returned Goal-local IDs afterward. Omit adopted_planning to retain the current selection. A template-free Goal stays template-free unless adoption is intended.
+goals.events.configure can adopt a saved method version and its useful types. Default requirements are separate choices: adopt_default_requirement_ids enables only the chosen ones, using the returned Goal-local IDs afterward. Omit adopted_planning to retain the current selection. A template-free Goal stays template-free unless adoption is intended.
 
 ## Shape work around usable results
 
@@ -48,17 +48,17 @@ The current tool accepts only three item shapes:
 | relation | create | from_goal_id, to_goal_id, part_of or depends_on, reason |
 | relation | deactivate | exact relation_id and reason, or the full endpoint/type identity |
 
-Each item supplies at least one real source_refs entry, reason and confidence. A saved Goal event can provide the reference; do not fabricate conversation links. The Host supplies Runtime and Session provenance. No Run, role, temporary Goal or model-supplied actor is needed. Existing result and requirement changes use event_agree and its specific decision path, not an arbitrary tree payload.
+Each item supplies at least one real source_refs entry, reason and confidence. A saved Goal event can provide the reference; do not fabricate conversation links. The Host supplies Runtime and Session provenance. No Run, role, temporary Goal or model-supplied actor is needed. Existing result and requirement changes use goals.agreement.set and its specific decision path, not an arbitrary tree payload.
 
 In the call notation from [execution.md](execution.md), with g naming an existing parent:
 
 ```javascript
-const proposalNote = await call("molis_work_v1_event_note", {
+const proposalNote = await act("goals.note", {
   goal_id: g,
   body: "Proposal: a reusable receipt guide could help the buyer return to their receipt.",
   idempotency_key: "receipt-tree-source-1"
 });
-const proposal = await call("molis_work_v1_goal_tree_propose", {
+const proposal = await act("goals.tree.submit", {
   root_goal_id: g,
   summary: "Add a receipt guide as a separately usable part of the buying experience",
   items: [{
@@ -86,8 +86,8 @@ const proposal = await call("molis_work_v1_goal_tree_propose", {
   idempotency_key: "receipt-tree-1"
 });
 const proposalId = proposal.proposal.proposal_id;
-await call("molis_work_v1_goal_tree_read", {proposal_id: proposalId});
-await call("molis_work_v1_goal_tree_check", {
+await act("goals.tree.read", {proposal_id: proposalId});
+await act("goals.tree.check", {
   proposal_id: proposalId,
   idempotency_key: "receipt-tree-check-1"
 });
@@ -101,6 +101,6 @@ The user applies or rejects the stored items through the protected Web/managemen
 
 ## Review only the affected work
 
-Use planning_analyze_change with changed_goal_ids for actual ancestors, downstream consumers, adjacent providers and review order. Reuse compatible current open Goals; historic decomposition labels are not work gates. Impact analysis does not itself authorize rewriting the tree.
+Use goals.planning.impact with changed_goal_ids for actual ancestors, downstream consumers, adjacent providers and review order. Reuse compatible current open Goals; historic decomposition labels are not work gates. Impact analysis does not itself authorize rewriting the tree.
 
-After a user tree decision, read its semantic_review. Structural validity says the graph is well-formed; it does not prove every affected outcome still makes sense. Review those current agreements in the returned order and propose only necessary changes. Preserve unaffected work and all history. Finish with planning_graph_check after actual relationship changes when its structural result is needed.
+After a user tree decision, read its semantic_review. Structural validity says the graph is well-formed; it does not prove every affected outcome still makes sense. Review those current agreements in the returned order and propose only necessary changes. Preserve unaffected work and all history. Finish with goals.planning.graph.check after actual relationship changes when its structural result is needed.

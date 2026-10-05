@@ -123,43 +123,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
 `;
 
 export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + ASSISTANT_SETTINGS_CLIENT_SCRIPT + MEMORY_SETTINGS_CLIENT_SCRIPT + AGENT_DIAGNOSTICS_CLIENT_SCRIPT + `
-` + SHELF_SETTINGS_CLIENT_SCRIPT + CODING_SETTINGS_CLIENT_SCRIPT + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + MCP_ACCESS_CLIENT_SCRIPT + `
-  (() => {
-    const root = document.querySelector("[data-mcp-settings]");
-    if (!root) return;
-    const errorBox = root.querySelector("[data-mcp-settings-error]");
-    const setError = (message) => {
-      if (!errorBox) return;
-      errorBox.textContent = message || "";
-      errorBox.hidden = !message;
-    };
-    root.querySelectorAll("[data-mcp-tool]").forEach((input) => {
-      input.addEventListener("change", async () => {
-        setError("");
-        input.disabled = true;
-        try {
-          const response = await fetch("/api/settings/mcp", {
-            method: "POST",
-            headers: globalThis.molisWorkControlHeaders(),
-            body: JSON.stringify({ name: input.getAttribute("data-mcp-tool"), enabled: input.checked }),
-          });
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            input.checked = !input.checked;
-            setError(payload.error || L("无法保存 MCP 开关"));
-            return;
-          }
-          if (typeof payload.enabled === "boolean") input.checked = payload.enabled;
-        } catch {
-          input.checked = !input.checked;
-          setError(L("无法保存 MCP 开关"));
-        } finally {
-          input.disabled = false;
-        }
-      });
-    });
-  })();
-`;
+` + SHELF_SETTINGS_CLIENT_SCRIPT + CODING_SETTINGS_CLIENT_SCRIPT + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + MCP_ACCESS_CLIENT_SCRIPT;
 
 
 export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `

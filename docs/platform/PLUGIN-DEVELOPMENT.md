@@ -6,7 +6,7 @@ Native 新工作面除 catalog / Workbench pack 外，还需 `ui-composition.ts`
 
 平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
-内置 build 的组合声明在 `apps/workbench/src/builtin-plugins.ts`：每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。目录、Workbench UI 注册/样式/客户端和历史 MCP 适配从同一条目派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。维护旧 MCP 名称时同条目绑定 `legacyMcp` 与 Manifest 的 `mcp_exports`，不再修改 Host handler 白名单；新能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
+内置 build 的组合声明在 `apps/workbench/src/builtin-plugins.ts`：每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。目录、Workbench UI 注册/样式/客户端从同一条目派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
 
 ## 安装 Skill
 
@@ -199,33 +199,21 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 
 ## 对外 MCP
 
-Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件不要自己开 MCP 端口，也不要新开 MCP 包。新能力使用上文 SDK 的动作合同。下面仅说明存量 `mcp_exports` 的维护；动作的逐客户端、逐项目授权已接入「能力 → 对外接入」，选项从同一注册表发现，不需前端白名单。旧插件与判断工具名称也受相同动作授权约束，该页「旧版工具（全局开关）」只控制这些兼容名称是否启用。
+Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件的 MCP 能力就是它在 Manifest 里声明的 `actions`：每个动作在共同目录里登记一次，对外就是动作工具 `molis_work_v1_action_<动作>__v<版本>`，由用户在「能力 → 对外接入」按客户端与范围逐项授权。插件不另外登记 MCP 工具、不开自己的 MCP 端口，也不新开 MCP 包；没有按名称的开关。
 
 `agent.mcp` 是反过来的：插件里的 Agent 能不能去调外面的 MCP。不要拿它当对外贡献开关。
 
 ### 作者要做的
 
-1. 存量兼容名的 Manifest schema 2 `mcp_exports` 保留 `tool_id`（插件内唯一，`[a-z0-9][a-z0-9_-]*`）、`description`、`input_schema`（`type: "object"`）、`effect`（`read` 或 `write`）。可选 `audience`（省略 = `runtime`）、`scope`（省略 = 当前绑定项目必须启用本插件）。还须用非空 `required_actions` 列出 `{ capability_id, version, provider_id? }`；provider 省略指本插件。所有引用的动作已授权且可用，旧工具才进入调用目录。
-2. 不要写 `enabled`、不要写对外正式名、不要在 `input_schema` 里放 `board_id` / `database_path` / `web_base_url` / `actor_id` / `actor_kind` / `runtime_actor_id` / `submitted_session_id`。身份由 Host 注入。可调用能力只以 `actions` 声明；旧 `behaviors` 字段已废弃，内置插件均已移除，不要再写。
-3. 公开名由 Host 盖：`molis_work_v1_<短名>_<tool_id>`。短名是项目插件 id，不是在 Manifest 里拼出来的。
-4. Handler 只认 `{ tool_id, arguments }`。未在 Manifest 登记的 `tool_id` 即使代码里有实现也到不了。
-5. 兼容名称默认关。开关不授予动作权限，客户端另须取得每项所需动作授权；现有与新连接的下次发现和调用都读取当前状态。旧复合工具须覆盖全部参数分支，例如 Pages 翻译并新建、Jelly 自动读取版本后的写入。需要更窄的权限时直接调用对应公共动作。不要把开关做进插件自己的 `settings-page`。
-6. 个人、不绑项目也能用的方法标 `scope: "home"`。项目能力保持默认 `scope: "project"`。个人插件但内容按当前项目分区的（Pages / Forms / Dataset / PPT）不要标 home；Host 从绑定连接注入 `project_id`，schema 里不要出现它。未绑项目时这些方法不进 list/call。
-
-存量插件示例：[`plugins/native/form/src/mcp.ts`](../../plugins/native/form/src/mcp.ts)（个人插件、项目分区）。Functions 已移除插件身份，原三个公开名称由 [系统别名适配](../../apps/local-host/src/mcp-functions-tools.ts) 转到同一动作服务；不能再作为新插件模板。类型从 `@molis-ai/molis-work-plugin-sdk` 再导出。
-
-### 两种兑现方式
-
-**存量 Native（Pages / Forms / Dataset / PPT / Cognia / Jelly）**：[`apps/local-host/src/mcp-native-plugins.ts`](../../apps/local-host/src/mcp-native-plugins.ts) 仅保留历史名称的参数/结果适配处理器。它们调用同一授权 ActionClient，正式 stdio 转发到常驻 Host；不打开另一套业务 Store，不由 Manifest 计算并授予权限。新插件无需加入此表，没有历史 adapter 也不会阻止其公共动作注册。
-
-**运行时托管 app 插件**：`start()` 返回 `contribution.mcp`，`tool_id` 必须和 Manifest 一一对应。Plugin Runtime 启动时会校验，缺一条或多一条都是启动失败。生产 `tools/call` 还没有把这类插件接到 Runtime；在 Host 接上之前，不要给 Coding 等产品插件填 `mcp_exports`。
+1. 把要对外的能力写成动作（见上文 SDK 的动作合同）：输入只含业务字段，`board_id`、数据库路径、Web 地址和操作者身份都由 Host 从调用上下文注入。
+2. 个人、不绑项目也能用的动作用 `scope: "home"`；项目能力用 `scope: "project"`。
+3. 动作声明里的 `audiences` 决定谁能发现它；包含 `mcp` 才会出现在 MCP 授权列表里。声明和可发现都不等于已授权。
 
 ### 不要做的
 
-- 新开 MCP 进程、MCP 包，或在 `apps/mcp` 的 tool-catalog 里写死插件工具。
-- 在 `LocalMcpServer.callTool` 里按公开名写 `if`。
+- 新开 MCP 进程、MCP 包，或在 `apps/mcp` 的工具目录里写死插件工具。
+- 在 `LocalMcpServer.callTool` 里按名称写 `if`。
 - 复用 `agent.mcp`。
-- 把 MCP 开关和「AI 与执行工具」做成一页。
 
 Host 侧改哪里、调用链怎么走，见 [CLI 与开发 · 对外 MCP](../cli-and-development.md#对外-mcp)。协议与 Runtime Skill 仍以 [MCP 接入](../mcp.md) 为准。
 
@@ -266,6 +254,8 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 提供方在 `action.execution` 声明执行事实：`timeout_ms` 是处理器开始执行后的等待上限，`cost` 为 `none` / `metered` / `unknown`，`max_calls_per_minute` 是同一 actor、项目、安装实例滚动一分钟内的接受次数。未声明费用保持 unknown；未声明时限/频率不自动加限。Kernel 对声明的时限与频率统一执行，切换用户、Agent、Workflow、MCP 或插件入口不能重置同一身份的预算。限额是当前注册实例的本机保护，不是跨进程计费账本；重启或重新注册会重置计数。
 
 例如调用收费文字模型的能力声明 `execution: { timeout_ms: 120000, cost: "metered", max_calls_per_minute: 20 }`。声明不代替 `scheduling: "concurrent"`、权限或模型服务自己的预算。超时停止本机等待并中止传给处理器的 signal，外部副作用可能已经发生，不自动重试；每次异步等待后仍须调用 `beforeEffect()` 才能提交。同步阻塞代码无法靠 JavaScript 定时器抢占。Agent 可以使用更严格的入口时限；生成插件的 sandbox 依据共同目录选择时限和慢操作通道，费用未知不能显示成免费。老生成物只转换历史输入输出，模型和提醒执行仍走当前 ActionService。
+
+记录要算在某个 Runtime 会话名下的写入动作声明 `authorship: "session"`（Goals 的写入都是）：经 MCP 调用时宿主要求客户端给出稳定会话，否则拒绝，并把 `runtime:<客户端>:<会话>` 作为审计作者传进 `caller.audit_actor_id`。没有声明的动作，客户端有会话时同样带上，没有也照常执行。
 
 生成式公开动作的费用是可能收费的声明，不是实际用量或预算。其沙箱 operation 时限从排队头开始，lane 频率按安装计数；公共 Action 时限从处理器开始、频率按调用者与安装计数。两者含义不同，不能直接复制沙箱限额到公共动作。实际依赖仍逐次受提供方的授权、时限和频率约束。
 

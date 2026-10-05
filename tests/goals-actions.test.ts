@@ -82,6 +82,8 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const caller: ActionCallContext = { actor_id: "runtime:goals-actions", project_id: project.project_id, audience: "mcp", permissions: [] };
+  // A Runtime write through MCP is recorded under the Session the launcher declares.
+  const sessionActor = `${caller.actor_id}:goals-actions-session`;
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
   const sdk = new Client({ name: "untrusted-client-name", version: "1" });
   try {
@@ -124,7 +126,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     assert.equal(note.isError, false, JSON.stringify(note));
     const eventId = (note.structuredContent as { event_id: string }).event_id;
     const event = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project.board_id, input.goal_id, eventId));
-    assert.equal(event.actor_id, caller.actor_id); assert.equal(event.actor_kind, "runtime");
+    assert.equal(event.actor_id, sessionActor); assert.equal(event.actor_kind, "runtime");
     assert.equal((event.payload as { body: string }).body, noteInput.body);
     const replay = await sdk.callTool({ name: noteName, arguments: noteInput });
     assert.equal((replay.structuredContent as { replayed: boolean }).replayed, true);
@@ -147,7 +149,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     assert.equal((await sdk.callTool({ name: documentName, arguments: { goal_id: input.goal_id } })).isError, true);
     const eventResult = await sdk.callTool({ name: hostActionToolName(goalsActions.event), arguments: { goal_id: input.goal_id, event_id: eventId } });
     assert.equal(eventResult.isError, false, JSON.stringify(eventResult));
-    assert.deepEqual(eventResult.structuredContent, { result: event });
+    assert.deepEqual(eventResult.structuredContent, event, "one event object is returned as is");
     const missing = await sdk.callTool({ name: hostActionToolName(goalsActions.directoryItem), arguments: { goal_id: "MISSING" } });
     assert.equal(missing.isError, false, JSON.stringify(missing));
     assert.deepEqual(missing.structuredContent, { result: null });
@@ -166,24 +168,22 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     };
     const lifecycleInput = { goal_id: input.goal_id, reason: "用户确认整理", idempotency_key: "public-active" };
     assert.equal((await invokePlanning(goalsActions.active, lifecycleInput)).active_goal_id, input.goal_id);
-    const legacyActive = { ...lifecycleInput, idempotency_key: "legacy-active" };
-    assert.equal((await sdk.callTool({ name: "molis_work_v1_active_goal", arguments: legacyActive })).isError, false);
+    const repeatActive = { ...lifecycleInput, idempotency_key: "repeat-active" };
+    assert.equal((await sdk.callTool({ name: hostActionToolName(goalsActions.active), arguments: repeatActive })).isError, false);
     const trashInput = { ...lifecycleInput, user_confirmed: true, idempotency_key: "public-trash", trashed: true };
     assert.equal((await sdk.callTool({ name: hostActionToolName(goalsActions.trash), arguments: { ...trashInput, user_confirmed: false } })).isError, true);
     const trashed = await invokePlanning(goalsActions.trash, trashInput);
     assert.equal(trashed.status, "trashed"); assert.equal(trashed.active_goal_cleared, true);
     assert.equal((await invokePlanning(goalsActions.trashed, {})).goals[0]?.goal_id, input.goal_id);
-    const legacyList = await sdk.callTool({ name: "molis_work_v1_goal_trash_list", arguments: {} });
-    assert.equal(legacyList.isError, false, JSON.stringify(legacyList));
-    const parseLegacy = (result: Awaited<ReturnType<typeof sdk.callTool>>) => JSON.parse((result.content as Array<{ type: string; text: string }>).find(item => item.type === "text")!.text);
+    const trashList = await sdk.callTool({ name: hostActionToolName(goalsActions.trashed), arguments: {} });
+    assert.equal(trashList.isError, false, JSON.stringify(trashList));
+    const parseText = (result: Awaited<ReturnType<typeof sdk.callTool>>) => JSON.parse((result.content as Array<{ type: string; text: string }>).find(item => item.type === "text")!.text);
     const snapshotName = hostActionToolName(goalsActions.snapshot);
     const expectedSnapshot = await host.withProject(ref, r => r.store.snapshot(project.board_id));
     const fullSnapshot = await sdk.callTool({ name: snapshotName, arguments: {} });
     assert.equal(fullSnapshot.isError, false, JSON.stringify(fullSnapshot));
     assert.deepEqual(fullSnapshot.structuredContent, expectedSnapshot);
-    const legacySnapshot = await sdk.callTool({ name: "molis_work_v1_snapshot", arguments: {} });
-    assert.equal(legacySnapshot.isError, false, JSON.stringify(legacySnapshot));
-    assert.deepEqual(parseLegacy(legacySnapshot), expectedSnapshot);
+    assert.deepEqual(parseText(fullSnapshot), expectedSnapshot);
     const fullContract = await sdk.callTool({ name: hostActionToolName(goalsActions.contract), arguments: { goal_id: input.goal_id } });
     assert.equal(fullContract.isError, false, JSON.stringify(fullContract));
     assert.deepEqual(fullContract.structuredContent,
@@ -197,42 +197,33 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === collectionName), false);
     assert.equal((await sdk.callTool({ name: collectionName, arguments: {} })).isError, true);
     for (const args of [{ board_id: "foreign" }, { database_path: project.database_path }, { actor_id: "forged" }]) {
-      assert.equal((await sdk.callTool({ name: "molis_work_v1_snapshot", arguments: args })).isError, true);
+      assert.equal((await sdk.callTool({ name: snapshotName, arguments: args })).isError, true);
     }
     await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id,
       views.find(v => v.capability_id === goalsActions.snapshot.capability_id)!, false));
-    const afterSnapshotRevoke = (await sdk.listTools()).tools;
-    for (const name of [snapshotName, "molis_work_v1_snapshot"]) {
-      assert.equal(afterSnapshotRevoke.some(tool => tool.name === name), false);
-      assert.equal((await sdk.callTool({ name, arguments: {} })).isError, true);
-    }
-    assert.equal(parseLegacy(legacyList).goals[0].goal_id, input.goal_id);
-    const legacyTrash = { ...lifecycleInput, user_confirmed: true, idempotency_key: "legacy-restore" };
-    assert.equal((await sdk.callTool({ name: "molis_work_v1_goal_restore", arguments: { ...legacyTrash, trashed: true } })).isError, true);
-    const restored = await sdk.callTool({ name: "molis_work_v1_goal_restore", arguments: legacyTrash });
-    assert.equal(restored.isError, false, JSON.stringify(restored));
-    assert.equal(parseLegacy(restored).status, "restored"); assert.equal(parseLegacy(restored).work_state.status, "open");
-    const legacyTrashed = await sdk.callTool({ name: "molis_work_v1_goal_trash", arguments: { ...legacyTrash, idempotency_key: "legacy-trash" } });
-    assert.equal(legacyTrashed.isError, false, JSON.stringify(legacyTrashed));
-    assert.equal(parseLegacy(legacyTrashed).goal.trashed_by, "runtime:goals-actions:goals-actions-session");
-    assert.equal(parseLegacy(legacyTrashed).next_action.kind, "report_recoverable_trash");
+    assert.equal((await sdk.listTools()).tools.some(tool => tool.name === snapshotName), false);
+    assert.equal((await sdk.callTool({ name: snapshotName, arguments: {} })).isError, true);
+    assert.equal(parseText(trashList).goals[0].goal_id, input.goal_id);
+    const restoreInput = { ...lifecycleInput, user_confirmed: true, trashed: false, idempotency_key: "mcp-restore" };
+    const restored = await invokePlanning(goalsActions.trash, restoreInput);
+    assert.equal(restored.status, "restored"); assert.equal(restored.goal.trashed_at, null);
+    const trashedAgain = await invokePlanning(goalsActions.trash, { ...restoreInput, trashed: true, idempotency_key: "mcp-trash" });
+    assert.equal(trashedAgain.status, "trashed");
+    assert.equal(trashedAgain.goal.trashed_by, sessionActor);
     await invokePlanning(goalsActions.trash, { ...trashInput, trashed: false, idempotency_key: "public-restore" });
     const trashGrant = views.find(view => view.capability_id === goalsActions.trash.capability_id)!;
     await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, trashGrant, false));
-    const lifecycleTools = (await sdk.listTools()).tools;
-    for (const name of [hostActionToolName(goalsActions.trash), "molis_work_v1_goal_trash", "molis_work_v1_goal_restore"]) {
-      assert.equal(lifecycleTools.some(tool => tool.name === name), false);
-      assert.equal((await sdk.callTool({ name, arguments: name === hostActionToolName(goalsActions.trash) ? { ...trashInput, idempotency_key: "denied" } : { ...legacyTrash, idempotency_key: "denied" } })).isError, true);
-    }
+    assert.equal((await sdk.listTools()).tools.some(tool => tool.name === hostActionToolName(goalsActions.trash)), false);
+    assert.equal((await sdk.callTool({ name: hostActionToolName(goalsActions.trash), arguments: { ...trashInput, idempotency_key: "denied" } })).isError, true);
     assert.deepEqual((await invokePlanning(goalsActions.trashed, {})).goals, []);
     const guidance = await invokePlanning(goalsActions.guidanceAdd, { kind: "constraint", content: "保留用户原始文件。", reason: "数据边界",
       confirmation_summary: "已向用户展示精确原文并确认", user_confirmed: true, idempotency_key: "public-guidance" });
-    assert.equal(guidance.entry.created_by, caller.actor_id);
+    assert.equal(guidance.entry.created_by, sessionActor);
     assert.match((await invokePlanning(goalsActions.guidanceRead, {})).runtime_prompt_prefix, /保留用户原始文件/);
     const guidanceUpdate = { guidance_id: guidance.entry.guidance_id, action: "edit" as const, kind: "constraint" as const,
-      content: "保留用户原始文件和备份。", reason: "补充备份边界", confirmation_summary: "用户同意修改", user_confirmed: true, idempotency_key: "legacy-guidance-edit" };
-    const legacyGuidance = await sdk.callTool({ name: "molis_work_v1_project_guidance_update", arguments: guidanceUpdate });
-    assert.equal(legacyGuidance.isError, false, JSON.stringify(legacyGuidance));
+      content: "保留用户原始文件和备份。", reason: "补充备份边界", confirmation_summary: "用户同意修改", user_confirmed: true, idempotency_key: "mcp-guidance-edit" };
+    const mcpGuidance = await sdk.callTool({ name: "molis_work_v1_action_goals.guidance.update__v1", arguments: guidanceUpdate });
+    assert.equal(mcpGuidance.isError, false, JSON.stringify(mcpGuidance));
     const afterGuidance = await invokePlanning(goalsActions.guidanceRead, {});
     assert.equal(afterGuidance.entries[0]?.revision, 2);
     assert.equal(afterGuidance.entries[0]?.updated_by, "runtime:goals-actions:goals-actions-session");
@@ -242,8 +233,8 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     const guidanceGrant = views.find(view => view.capability_id === goalsActions.guidanceUpdate.capability_id)!;
     await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, guidanceGrant, false));
     const toolsAfterRevoke = (await sdk.listTools()).tools;
-    assert.equal(toolsAfterRevoke.some(tool => tool.name === "molis_work_v1_project_guidance_update"), false);
-    assert.equal((await sdk.callTool({ name: "molis_work_v1_project_guidance_update", arguments: { ...guidanceUpdate, action: "restore", idempotency_key: "denied-guidance" } })).isError, true);
+    assert.equal(toolsAfterRevoke.some(tool => tool.name === "molis_work_v1_action_goals.guidance.update__v1"), false);
+    assert.equal((await sdk.callTool({ name: "molis_work_v1_action_goals.guidance.update__v1", arguments: { ...guidanceUpdate, action: "restore", idempotency_key: "denied-guidance" } })).isError, true);
     assert.equal((await invokePlanning(goalsActions.guidanceRead, {})).inactive_entries[0]?.revision, 3);
     const planning = await invokePlanning(goalsActions.planningRead, {});
     const software = planning.methods.find(method => method.method_id === "domain-software-development")!;
@@ -267,7 +258,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     assert.equal(configured.config.version, 1);
     const reported = await invokeWork(goalsActions.report, { idempotency_key: "public-report", events: [{ type_id: "work", type_version: 1,
       title: "外部真实交付", fields: { body: "标准 MCP 保存的报告正文" }, judgments: [{ requirement_id: "delivered", verdict: "supports" }] }] });
-    assert.equal(reported.events[0]!.actor_id, caller.actor_id);
+    assert.equal(reported.events[0]!.actor_id, sessionActor);
     const progressed = await invokeWork(goalsActions.progress, { idempotency_key: "public-progress", based_on_cursor: reported.goal_event_cursor, summary: "报告已交付" });
     assert.equal(progressed.progress_summary.summary, "报告已交付");
     const receiptName = hostActionToolName(goalsActions.progressReceipt);
@@ -302,40 +293,36 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     const archived = await invokePlanning(goalsActions.archive, { goal_id: input.goal_id, archived: true, reason: "整理已完成目标", idempotency_key: "public-archive" });
     assert.ok(archived.goal.archived_at); assert.equal(archived.goal.fulfillment_state, "satisfied");
     assert.equal((await invokePlanning(goalsActions.archive, { goal_id: input.goal_id, archived: false, reason: "恢复查看", idempotency_key: "public-unarchive" })).goal.archived_at, null);
-    const treeInput = { summary: "MCP structure proposal", idempotency_key: "legacy-tree", items: [{ item_id: "mcp-tree-child",
+    const treeInput = { summary: "MCP structure proposal", idempotency_key: "mcp-tree", items: [{ item_id: "mcp-tree-child",
       kind: "goal" as const, operation: "create" as const, payload: { goal_id: "MCP-TREE-CHILD", title: "Needs user approval" },
       source_refs: ["mcp-session"], reason: "Proposed work", confidence: 1 }] };
-    const proposedWire = await sdk.callTool({ name: "molis_work_v1_goal_tree_propose", arguments: treeInput });
+    const proposedWire = await sdk.callTool({ name: "molis_work_v1_action_goals.tree.submit__v1", arguments: treeInput });
     assert.equal(proposedWire.isError, false, JSON.stringify(proposedWire));
-    const proposed = parseLegacy(proposedWire);
-    assert.equal(proposed.proposal.submitted_by, "runtime:goals-actions:goals-actions-session");
+    const proposed = parseText(proposedWire);
+    assert.equal(proposed.proposal.submitted_by, sessionActor);
     assert.equal(proposed.proposal.submitted_session_id, "goals-actions-session", "the shared gateway preserves trusted session provenance");
-    assert.equal(parseLegacy(await sdk.callTool({ name: "molis_work_v1_goal_tree_propose", arguments: treeInput })).replayed, true);
+    assert.equal(parseText(await sdk.callTool({ name: "molis_work_v1_action_goals.tree.submit__v1", arguments: treeInput })).replayed, true);
     const treeQuery = { proposal_id: proposed.proposal.proposal_id };
-    const treeCheck = { ...treeQuery, idempotency_key: "legacy-tree-check" };
-    const checkedWire = await sdk.callTool({ name: "molis_work_v1_goal_tree_check", arguments: treeCheck });
+    const treeCheck = { ...treeQuery, idempotency_key: "mcp-tree-check" };
+    const checkedWire = await sdk.callTool({ name: "molis_work_v1_action_goals.tree.check__v1", arguments: treeCheck });
     assert.equal(checkedWire.isError, false, JSON.stringify(checkedWire));
-    assert.deepEqual(parseLegacy(checkedWire).conflict_item_ids, []);
-    assert.deepEqual(parseLegacy(await sdk.callTool({ name: "molis_work_v1_goal_tree_read", arguments: treeQuery })), await invokePlanning(goalsActions.treeRead, treeQuery));
+    assert.deepEqual(parseText(checkedWire).conflict_item_ids, []);
+    assert.deepEqual(parseText(await sdk.callTool({ name: "molis_work_v1_action_goals.tree.read__v1", arguments: treeQuery })), await invokePlanning(goalsActions.treeRead, treeQuery));
     await invokePlanning(goalsActions.treeCheck, { ...treeQuery, idempotency_key: "public-tree-check" });
     const publicProposal = await invokePlanning(goalsActions.treeSubmit, { ...treeInput, idempotency_key: "public-tree", items: [{ ...treeInput.items[0]!,
       item_id: "public-tree", payload: { goal_id: "PUBLIC-TREE-CHILD", title: "Another pending proposal" } }] });
-    assert.equal(publicProposal.proposal.submitted_by, caller.actor_id);
+    assert.equal(publicProposal.proposal.submitted_by, sessionActor);
     assert.deepEqual(await invokePlanning(goalsActions.directoryItem, { goal_id: "MCP-TREE-CHILD" }), { result: null });
     for (const tool of ["molis_work_v1_goal_tree_decide", hostActionToolName(goalsActions.treeDecide)]) {
       assert.equal((await sdk.listTools()).tools.some(t => t.name === tool), false);
       assert.equal((await sdk.callTool({ name: tool, arguments: { ...treeQuery, idempotency_key: "forged-tree", confirm_all_pending: true,
         user_confirmed: true, authority: { actor_id: "user", actor_kind: "user", authority_source: "web" } } })).isError, true);
     }
-    for (const tool of ["molis_work_v1_goal_tree_propose", hostActionToolName(goalsActions.treeSubmit)]) {
-      assert.equal((await sdk.callTool({ name: tool, arguments: { ...treeInput, submitted_session_id: "forged" } })).isError, true);
-    }
+    assert.equal((await sdk.callTool({ name: hostActionToolName(goalsActions.treeSubmit), arguments: { ...treeInput, submitted_session_id: "forged" } })).isError, true);
     const treeSubmitView = views.find(v => v.capability_id === goalsActions.treeSubmit.capability_id)!;
     await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, treeSubmitView, false));
-    for (const tool of ["molis_work_v1_goal_tree_propose", hostActionToolName(goalsActions.treeSubmit)]) {
-      assert.equal((await sdk.listTools()).tools.some(t => t.name === tool), false);
-      assert.equal((await sdk.callTool({ name: tool, arguments: treeInput })).isError, true);
-    }
+    assert.equal((await sdk.listTools()).tools.some(t => t.name === hostActionToolName(goalsActions.treeSubmit)), false);
+    assert.equal((await sdk.callTool({ name: hostActionToolName(goalsActions.treeSubmit), arguments: treeInput })).isError, true);
     assert.equal((await invokePlanning(goalsActions.treeRead, {})).proposals.length, 2);
     const reportView = views.find(view => view.capability_id === goalsActions.report.capability_id)!;
     await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, reportView, false));

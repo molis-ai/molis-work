@@ -4,7 +4,7 @@ import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpWebUrl } from "./goal-presentation.js";
 import { buildMcpResumeView, type McpResumeFacts } from "./resume-view.js";
-import type { McpPresentationErrorFactory } from "./query-presentation.js";
+import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 
 type ProjectConnection = NonNullable<MolisWorkRuntimeContextResolution["connection"]>;
 
@@ -29,8 +29,9 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
     const projectUrl = resolution.connection
       ? mcpWebUrl(`/projects/${encodeURIComponent(resolution.connection.project_id)}`, webBaseUrl, ports.createError)
       : null;
+    // Action results carry IDs only; a Runtime fills `{goal_id}` here instead of composing a URL itself.
     const connection = resolution.connection
-      ? { ...resolution.connection, web_base_url: webBaseUrl, project_url: projectUrl }
+      ? { ...resolution.connection, web_base_url: webBaseUrl, project_url: projectUrl, goal_url_template: `${projectUrl}/goals/{goal_id}` }
       : null;
     ports.connection.accept(connection ? {
       projectId: connection.project_id, databasePath: connection.database_path,

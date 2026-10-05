@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pptActions as actions, PPT_ACTION_PERMISSIONS, openPptStore, runPptMcpTool } from "@molis-ai/molis-work-plugin-ppt";
+import { pptActions as actions, PPT_ACTION_PERMISSIONS, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
@@ -20,34 +20,34 @@ async function fixture(t: test.TestContext) {
 const slides = [{ id: "opening", title: "开场", bullets: ["一季度结果", "下一步"], notes: "讲者备注\n保留第二行", order: 1 },
   { id: "next", title: "后续计划", bullets: ["试用"], notes: "", order: 2 }];
 
-test("PPT all actions and six legacy tools share records, typed slides, colors and export", async t => {
+test("PPT actions share records, typed slides, colors and export", async t => {
   const f = await fixture(t);
-  const legacy = async (tool_id: string, args = {}) => JSON.parse(await runPptMcpTool(f.bound, { tool_id, arguments: args }));
+  const invoke = (key: keyof typeof actions, args: object = {}): Promise<any> => f.bound.invoke(actions[key] as never, args as never);
   const catalog = await f.bound.discover();
   for (const action of Object.values(actions)) assert.ok(catalog.some(item => item.capability_id === action.capability_id));
-  let { presentation } = await legacy("create", { title: "季度演示" }); const id = presentation.id;
-  assert.equal((await legacy("list")).presentations[0].id,id);
+  let { presentation } = await invoke("create", { title: "季度演示" }); const id = presentation.id;
+  assert.equal((await invoke("list")).presentations[0].id,id);
   assert.equal(presentation.slides.length,1);
   await assert.rejects(f.client.invoke({ ...f.caller, project_id: "b" }, actions.list, {}), { code: "actions.scope_mismatch" });
   await assert.rejects(f.client.invoke({ ...f.caller, permissions: ["ppt:read"] }, actions.create, {}), { code: "actions.forbidden" });
   await assert.rejects(f.bound.invoke(actions.create, { project_id: "b" } as never), { code: "actions.input_invalid" });
-  presentation = (await legacy("update", { id, slides, color_primary: "#B34D32", color_background: "#FCFCFB", color_text: "#292A2E", expected_version: presentation.version })).presentation;
+  presentation = (await invoke("update", { id, slides, color_primary: "#B34D32", color_background: "#FCFCFB", color_text: "#292A2E", expected_version: presentation.version })).presentation;
   assert.deepEqual(presentation.slides,slides); assert.equal(presentation.color_primary,"#b34d32");
   const originalVersion=presentation.version;
   for (const patch of [{color_primary:"red"},{slides:[]},{slides:[{id:"same"},{id:"same"}]},{slides:[{bullets:[3]}]}]) {
     await assert.rejects(f.bound.invoke(actions.update,{id,...patch} as never));
-    assert.equal((await legacy("get",{id})).presentation.version,originalVersion);
+    assert.equal((await invoke("get",{id})).presentation.version,originalVersion);
   }
   for(const action of [actions.update,actions.export,actions.delete,actions.promote]) await assert.rejects(f.bound.invoke(action,{id,expected_version:1}),{code:"ppt.conflict"});
   const exported=await f.bound.invoke(actions.export,{id,expected_version:originalVersion});
   assert.equal(exported.filename,'季度演示.json');assert.equal(exported.mime_type,'application/json');assert.deepEqual(JSON.parse(exported.content),presentation);
-  const published=await legacy("promote",{id,expected_version:originalVersion});
+  const published=await invoke("promote",{id,expected_version:originalVersion});
   await f.host.withProject(f.ref,runtime=>assert.deepEqual((runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id,published.artifact)!.payload as any).slides,slides));
   const store=openPptStore(f.home);let foreign:string;
   try{foreign=store.create({project_id:'b'}).id;}finally{store.close();}
   for(const action of [actions.get,actions.export,actions.delete])await assert.rejects(f.bound.invoke(action,{id:foreign}),{code:'ppt.not_found'});
-  await f.host.closeProject(f.ref); assert.deepEqual((await legacy('get',{id})).presentation,published.presentation);
-  await legacy('delete',{id,expected_version:published.presentation.version}); assert.deepEqual((await legacy('list')).presentations,[]);
+  await f.host.closeProject(f.ref); assert.deepEqual((await invoke('get',{id})).presentation,published.presentation);
+  await invoke('delete',{id,expected_version:published.presentation.version}); assert.deepEqual((await invoke('list')).presentations,[]);
   const another=await fixture(t);assert.deepEqual((await another.bound.invoke(actions.list,{})).presentations,[]);
 });
 

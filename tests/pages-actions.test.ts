@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_PERMISSIONS, openPagesStore, runPagesMcpTool } from "@molis-ai/molis-work-plugin-pages";
+import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
@@ -24,7 +24,7 @@ async function fixture(run: (f: { home: string; host: MolisWorkLocalHost; caller
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 }
 
-test("Pages auto-registers all business contracts; HTTP/workflow/legacy MCP use the same persisted operations", async () => {
+test("Pages auto-registers all business contracts; HTTP and workflow use the same persisted operations", async () => {
   await fixture(async ({ home, client, caller, bound, host, ref }) => {
     const discovered = await client.discover(caller);
     for (const action of Object.values(actions)) assert.ok(discovered.some(row => row.capability_id === action.capability_id));
@@ -35,8 +35,8 @@ test("Pages auto-registers all business contracts; HTTP/workflow/legacy MCP use 
     await assert.rejects(client.invoke({ ...caller, permissions: ["pages:read"] }, actions.create, { title: "Denied" }), { code: "actions.forbidden" });
     await assert.rejects(bound.invoke(actions.create, { project_id: "b" } as never), { code: "actions.input_invalid" });
     const received = await bound.invoke(content.receive, { payload: { title: "Workflow", body: "# Shared\nActual content" }, context: { instance_id: "workflow-1", step: 1 } });
-    const legacy = JSON.parse(await runPagesMcpTool(bound, { tool_id: "get", arguments: { id: received.item_id } }));
-    assert.match(JSON.stringify(legacy.document.body), /Actual content/);
+    const receivedDocument = await bound.invoke(actions.get, { id: received.item_id });
+    assert.match(JSON.stringify(receivedDocument.document.body), /Actual content/);
     await assert.rejects(client.invoke({ ...caller, allowed_capability_ids: [content.receive.capability_id] }, content.receive,
       { payload: { title: "Bypass", body: "Denied" }, context: { instance_id: "workflow-1", step: 2 } }), { code: "actions.forbidden" });
     const updated = (await bound.invoke(actions.update, { id: document.id, body: body("Edited"), expected_version: document.version })).document;
@@ -108,9 +108,9 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
       if (mode === "success") {
         assert.deepEqual(await pending, { text: "Actual candidate", stub: false, command: "rewrite", style: undefined });
         assert.match(prompts[0]!, /Source selected text/);
-        const translated = JSON.parse(await runPagesMcpTool(bound, { tool_id: "ai", arguments: { id: document.id, command: "translate_new", text: "Original" } }));
-        assert.equal(translated.stub, false); assert.match(JSON.stringify(translated.document.body), /Actual candidate/);
-        assert.equal((await bound.invoke(actions.list, {})).documents.length, 2);
+        const translated = await bound.invoke(actions.ai, { id: document.id, command: "translate_new", text: "Original" });
+        assert.equal(translated.stub, false); assert.equal(translated.text, "Actual candidate");
+        assert.equal((await bound.invoke(actions.list, {})).documents.length, 1, "a candidate is returned, not saved as a document");
       } else {
         const rejection = assert.rejects(pending, mode === "missing" ? { code: "actions.connection_required" }
           : mode === "failure" ? /Fixture model failure/ : mode === "empty" ? /模型没有返回文字/

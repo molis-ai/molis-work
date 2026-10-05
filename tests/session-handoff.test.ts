@@ -657,7 +657,7 @@ test("completed Goal handoff names the public resume tool and keeps the historic
     });
     const current = handoffCurrentSection(content);
     const historical = handoffHistorySection(content);
-    assert.match(current, /molis_work_v1_event_resume/);
+    assert.match(current, /goals\.work\.resume/);
     assert.match(current, /必须显式继续/);
     assert.doesNotMatch(content, /resumeWork\(/);
     assert.doesNotMatch(current, /## 当前 Run|有效 Evidence|待检查角色/);

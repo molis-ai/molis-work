@@ -4,18 +4,17 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createGoalEntryCompositionClient, createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
-import { LocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference, initializeBoardCapability, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
+import { createGoalIntentCapability } from "@molis-ai/molis-work-plugin-goals";
+import { LocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference, initializeBoardCapability } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 
-test("MCP event directory and trash composition cannot be split by a queued competing Goal write", async () => {
+test("MCP Goal directory cannot be split by a queued competing Goal write, and an MCP trash is recorded under the Session", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-entry-consistency-"));
   const databasePath = join(directory, "project.db");
   const boardId = "combined-entry";
   const host = createMolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath, boardId });
   const client = host.client(reference);
-  const composition = createGoalEntryCompositionClient(client);
   const runtimeHost = {
     homeDirectory: directory,
     runtimeContext: { runtime_id: "entry", stable_work_context_id: "session", host_declares_stable: true },
@@ -42,36 +41,19 @@ test("MCP event directory and trash composition cannot be split by a queued comp
       };
     });
     await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath }, "runtime:entry");
-    const listed = JSON.parse(await mcp.callTool("molis_work_v1_goal_list", { limit: 100 }));
+    const listed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.list__v1", { limit: 100 }));
     await competingWrite;
     assert.deepEqual(listed.goals.map((item: { goal_id: string }) => item.goal_id), ["first"]);
     const later = await client.invoke(createGoalIntentCapability, makeIntent("later"));
     assert.equal(later.replayed, true);
-    const after = JSON.parse(await mcp.callTool("molis_work_v1_goal_list", { limit: 100 }));
+    const after = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.list__v1", { limit: 100 }));
     assert.deepEqual(after.goals.map((item: { goal_id: string }) => item.goal_id).sort(), ["first", "later"]);
 
-    await host.withProject(reference, ({ coordinator }) => {
-      const original = coordinator.goals.lifecycle.setTrashed.bind(coordinator.goals.lifecycle);
-      coordinator.goals.lifecycle.setTrashed = (...input) => {
-        const result = original(...input);
-        if (input[1].trashed) {
-          competingWrite = composition.setTrashedWithWorkState(boardId,
-            { goal_id: "first", trashed: false, reason: "已排队的恢复" },
-            { actor_id: "user", idempotency_key: "restore-after-trash" });
-        }
-        return result;
-      };
-    });
-    const trashed = JSON.parse(await mcp.callTool("molis_work_v1_goal_trash", {
-      goal_id: "first", user_confirmed: true,
-      reason: "用户明确移入回收站", idempotency_key: "trash-before-restore",
+    const trashed = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.trash.set__v1", {
+      goal_id: "first", trashed: true, user_confirmed: true,
+      reason: "用户明确移入回收站", idempotency_key: "trash-first",
     }));
-    await competingWrite;
     assert.equal(trashed.status, "trashed");
-    assert.equal(trashed.work_state.status, "trashed", "queued restore cannot replace the state associated with this trash result");
-    assert.equal(trashed.next_action.kind, "report_recoverable_trash");
-    const final = await client.invoke(snapshotBoardCapability, { board_id: boardId });
-    assert.equal(final.goals.find(goal => goal.goal_id === "first")!.trashed_at, null, "the competing restore must really have committed");
     await host.withProject(reference, ({ store }) => {
       const trashEvent = store.readEventsDescending(boardId).find((event) =>
         event.object_id === "first" && event.type === "goal.trashed");

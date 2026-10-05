@@ -195,8 +195,12 @@ export function createGoalsActionHandlers({ events, boardId, history, planning, 
       return readGoalHistory({ boardId, goalId: query.goal_id, itemId: query.item_id, ports: events, snapshot: history.snapshot(), events: history.journalEvents() }); } },
     { ...goalsActions.create, handle: (caller, input) => {
       const payload = input as GoalCreateActionInput;
+      // The creation channel is a fact about who asked: only the person may name one; any other caller is a Runtime.
+      if (caller.audience !== "user" && payload.source_kind !== undefined && payload.source_kind !== "runtime") {
+        throw new ActionError("actions.input_invalid", "只有本人可以指定 Goal 的创建渠道");
+      }
       return events.createIntent({ ...payload, board_id: boardId,
-        source_kind: payload.source_kind ?? (caller.audience === "user" ? "web" : "runtime"),
+        source_kind: caller.audience === "user" ? payload.source_kind ?? "web" : "runtime",
         ...goalActor(caller) });
     } },
     { ...goalsActions.note, handle: (caller, input) => events.recordNote({ ...(input as GoalNoteActionInput), board_id: boardId,

@@ -32,7 +32,7 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 ## 接入与边界
 
-SDK 不包含 Runtime 或业务 Store。Manifest 解析委托 Contracts；授权的实际执行由 Host/Runtime 控制。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。作者可声明 `mcp_exports` 并向 Host 贡献工具；公开名和开关留在 Host。步骤见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
+SDK 不包含 Runtime 或业务 Store。Manifest 解析委托 Contracts；授权的实际执行由 Host/Runtime 控制。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。插件对外的能力就是它声明的动作，MCP 名称与授权都在 Host。步骤见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 
 工作区依赖：只有 `@molis-ai/molis-work-contracts`。Plugin SDK 属于公共发布面，不依赖私有的 Kernel；`createExecutionLifetime` 从 contracts 的 `platform/execution-lifetime` 转出（`tests/plugin-sample.e2e.test.ts` 只用打包后的 contracts 与 SDK 离线安装，守住这一点）。其他运行依赖见 [package.json](package.json)。
 
@@ -78,7 +78,7 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 `user_action` 由受保护 Host 渠道注入，表示真实用户操作的出处，不能由插件或模型根据文本构造。它不单独授予操作权限。旧 typed 接口若声明 `host_only`，Manifest 的 consumes 也不能使其可调用；SDK 的依赖检查和调用都保留 plugin 消费者身份，传入另一个描述或调用选项不能解除限制。用户决定应交给产品的受保护入口处理。
 
-生产 MCP 的新动作由用户在「能力 → 对外接入」按客户端与范围授权。界面从同一注册表读取名称、合同、权限和状态，新插件不需修改该页白名单。版本、提供方或权限变化不能继承旧授权；移除插件后保留原记录供撤销。默认开放的系统查询可以被单独撤销。目录注册不等于授权，也不自动授予组合动作的依赖。旧 `mcp_exports` 别名仍沿用原全局规则，不能用它们证明新动作授权生效。
+生产 MCP 的动作由用户在「能力 → 对外接入」按客户端与范围授权。界面从同一注册表读取名称、合同、权限和状态，新插件不需修改该页白名单。版本、提供方或权限变化不能继承旧授权；移除插件后保留原记录供撤销。默认开放的系统查询可以被单独撤销。目录注册不等于授权，也不自动授予组合动作的依赖。
 
 需要等待模型、网络或材料处理的能力，可声明 `action.scheduling: "concurrent"`。这只适用于业务 owner 已使用短事务和版本/来源校验保证安全的处理器；Host 默认仍串行执行。调度方式从正式注册定义读取，调用方不能自行打开并发；Host 关闭时等待这些调用完成。使用可信 `ActionCallContext.signal` 取消，`on_progress?.({ stage, progress })` 回传传输进度；回调不是能力参数，也不替代需要持久保存的运行记录。
 

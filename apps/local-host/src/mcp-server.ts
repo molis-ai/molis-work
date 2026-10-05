@@ -1,5 +1,4 @@
 import { ensureSystemAgentService } from "./system-agent-service.js";
-import { callLegacyFunctionsMcp } from "./mcp-functions-tools.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -7,7 +6,7 @@ import { goalsActions, readGoalResumeFacts } from "@molis-ai/molis-work-plugin-g
 import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { createMcpRuntimeContextHandlers, createMcpContextPresenter, dispatchMcpProjectTool, handleMcpMessage,
   mcpRuntimeSessionActivity, MCP_SERVER_INFO as SERVER_INFO,
-  canonicalMcpToolName, createActionMcpPorts, isRuntimeContextMcpTool, LEGACY_GOALS_MCP, callLegacyGoalsMcp,
+  createActionMcpPorts, isRuntimeContextMcpTool,
   type McpToolResult, type McpToolCallContext, type McpPresentationErrorFactory } from "@molis-ai/molis-work-app-mcp";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { MolisWorkProjectCatalogError } from "./project-catalog.js";
@@ -18,14 +17,12 @@ import { RuntimeSessionHost } from "./runtime-session.js";
 import { RuntimeProjectConnection } from "./runtime-project-connection.js";
 import { runtimeContextHostFromEnvironment } from "./runtime-context.js";
 import { assertMcpToolAllowed, requireMcpRuntimeContextHost } from "./mcp-authority.js";
-import { runtimeEventActor } from "./mcp-event-identity.js";
+import { runtimeEventActor, runtimeSessionActor } from "./mcp-event-identity.js";
 import { assembleMcpCatalog, findAssembledMcpTool, type AssembledMcpCatalog } from "./mcp-catalog.js";
-import { createNativeMcpPluginAdapters, dispatchNativeMcpPluginTool, type NativeMcpDispatchEntry } from "./mcp-native-plugins.js";
 import { readProductEnv } from "@molis-ai/molis-work-storage";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { hostActionToolName } from "./mcp-action-grants.js";
 import { LocalActionGatewayClient } from "./action-gateway.js";
-import { readMcpToolPreference } from "./mcp-settings-store.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
 
 export type MolisWorkMcpAudience = "runtime" | "management";
@@ -122,9 +119,9 @@ export class LocalMcpServer {
       : Promise.resolve();
   }
 
-  private currentActions(scope?: "home") {
+  private currentActions() {
     const connection = this.runtimeConnection;
-    const reference = connection && scope !== "home" ? molisWorkHostProjectReference(connection) : null;
+    const reference = connection ? molisWorkHostProjectReference(connection) : null;
     const context: ActionCallContext = { actor_id: this.runtimeContextHost
       ? `runtime:${this.runtimeContextHost.runtimeContext.runtime_id}` : "local-mcp",
       project_id: reference?.project_id ?? null, audience: "mcp", permissions: [] };
@@ -139,15 +136,18 @@ export class LocalMcpServer {
     return bindActionClient(actions.service, () => actions.context);
   }
 
-  private async authorizedActions(scope?: "home", legacyCall?: McpToolCallContext) {
+  /** `sessionCall` names the Runtime Session a call is made in; it becomes the call's audit actor, and a write requires it. */
+  private async authorizedActions(sessionCall?: McpToolCallContext, requireSession = false) {
     const connection = this.runtimeConnection;
-    const current = this.currentActions(scope);
-    const auditActor = legacyCall ? runtimeEventActor(this.runtimeContextHost, legacyCall).actor_id : undefined;
+    const current = this.currentActions();
+    const sessionActor = (call: McpToolCallContext) => requireSession
+      ? runtimeEventActor(this.runtimeContextHost, call).actor_id : runtimeSessionActor(this.runtimeContextHost, call) ?? undefined;
+    const auditActor = sessionCall ? sessionActor(sessionCall) : undefined;
     const runtimeSessionId = auditActor?.slice(current.context.actor_id.length + 1);
     if (auditActor) current.context = { ...current.context, audit_actor_id: auditActor, actor_kind: "runtime", runtime_session_id: runtimeSessionId };
     const checkContext = () => {
       if (this.runtimeConnection !== connection || this.currentActions().context.actor_id !== current.context.actor_id
-        || (legacyCall && runtimeEventActor(this.runtimeContextHost, legacyCall).actor_id !== auditActor))
+        || (sessionCall && sessionActor(sessionCall) !== auditActor))
         throw new ActionError("mcp.context_changed", "调用等待期间客户端或项目连接已变化，或会话身份不再一致，请重新发现能力");
     };
     const home = this.runtimeContextHost?.homeDirectory;
@@ -159,13 +159,12 @@ export class LocalMcpServer {
         signal: AbortSignal.any([this.connectionState.signal, this.transportLifetime.signal]),
         validate_authority: checkContext,
       };
-      const preference = await readMcpToolPreference(home);
-      return { service, context, preference,
+      return { service, context,
         ports: createActionMcpPorts({ service, context: () => context, serverInfo: SERVER_INFO, toolName: hostActionToolName }) };
     }
-    const reference = this.runtimeConnection && scope !== "home" ? molisWorkHostProjectReference(this.runtimeConnection) : undefined;
-    const { context, preference } = await authorizeMcpActions(this.localHost, current.context, home, reference, checkContext);
-    return { ...current, context, preference,
+    const reference = this.runtimeConnection ? molisWorkHostProjectReference(this.runtimeConnection) : undefined;
+    const { context } = await authorizeMcpActions(this.localHost, current.context, home, reference, checkContext);
+    return { ...current, context,
       ports: createActionMcpPorts({ service: current.service, context: () => context, serverInfo: SERVER_INFO, toolName: hostActionToolName }) };
   }
 
@@ -182,8 +181,6 @@ export class LocalMcpServer {
     }
     const catalog = assembleMcpCatalog({
       audience: this.audience,
-      preference: actions.preference,
-      enabled_project_plugins: await this.loadEnabledProjectPlugins(),
       actions: discovered,
       actionToolName: hostActionToolName,
       authorized_actions: this.actionServiceUrl ? discovered.map(view => ({ capability_id: view.capability_id,
@@ -212,18 +209,6 @@ export class LocalMcpServer {
     }, host.runtimeContext);
   }
 
-  private async loadEnabledProjectPlugins(): Promise<readonly string[] | null> {
-    if (!this.runtimeConnection) return null;
-    const homeDirectory = this.runtimeContextHost?.homeDirectory;
-    const projectId = this.runtimeConnection.projectId;
-    if (!homeDirectory || !projectId) return [];
-    try {
-      return await this.withCatalog({ homeDirectory }, (catalog) => catalog.listProjectPlugins(projectId));
-    } catch {
-      return [];
-    }
-  }
-
   async callTool(
     name: string,
     arguments_: Record<string, unknown>,
@@ -235,12 +220,11 @@ export class LocalMcpServer {
 
   private async callToolResult(name: string, arguments_: Record<string, unknown>, callContext: McpToolCallContext): Promise<string | McpToolResult> {
     await this.sessionFoundationReady;
-    name = canonicalMcpToolName(name);
     const catalog = await this.ensureCatalog();
     if (catalog.actionServiceError && !isRuntimeContextMcpTool(name)) throw catalog.actionServiceError;
     const connection = this.runtimeConnection;
     assertMcpToolAllowed({ audience: this.audience, connectionState: this.connectionState,
-      runtimeConnection: this.runtimeConnection, runtimeContextHost: this.runtimeContextHost }, name, arguments_, callContext, catalog);
+      runtimeConnection: this.runtimeConnection, runtimeContextHost: this.runtimeContextHost }, name, callContext, catalog);
     await this.linkPanelSession(this.runtimeContextHost, callContext.runtimeSessionId);
     const entry = findAssembledMcpTool(catalog, name);
     if (!entry) {
@@ -248,57 +232,32 @@ export class LocalMcpServer {
     }
     if (entry.source === "action") {
       if (this.runtimeConnection !== connection) throw new ActionError("mcp.context_changed", "客户端项目连接已变化，请重新发现能力");
-      const actions = await this.authorizedActions();
-      return actions.ports.callTool(name, arguments_, callContext);
-    }
-    if (entry.source === "system") {
-      this.requireRuntimeContextHost(callContext);
-      if (this.runtimeConnection !== connection) throw new ActionError("mcp.context_changed", "客户端项目连接已变化，请重新发现能力");
-      const actions = await this.authorizedActions();
-      await actions.service.discover(actions.context);
-      return callLegacyFunctionsMcp(bindActionClient(actions.service, () => actions.context), name, arguments_ ?? {});
-    }
-    if (entry.source === "plugin") {
-      return this.callPluginTool(entry, arguments_ ?? {}, callContext);
-    }
-    if (entry.source === "alias") {
-      if (!connection || this.runtimeConnection !== connection) throw new ActionError("mcp.context_changed", "请先连接具体项目并重新发现能力");
-      const binding = LEGACY_GOALS_MCP.find(item => item.name === name)!;
-      const actions = await this.authorizedActions(undefined, binding.session_actor ? callContext : undefined);
-      await actions.service.discover(actions.context);
-      const response = await callLegacyGoalsMcp(bindActionClient(actions.service, () => actions.context), name, arguments_ ?? {}, {
-        projectId: connection.projectId, webBaseUrl: connection.webBaseUrl,
-      });
-      if (this.runtimeConnection === connection) await this.recordRuntimeSessionActivity(name, arguments_, response, callContext);
-      return response;
+      // Every Runtime call carries its Session when there is one (a receipt query finds the write it made); an action whose
+      // records are authored by a Session refuses a call without one.
+      // A Home action called from a bound project still runs in that project's context (e.g. a judgment records where it was asked).
+      const runtimeCall = this.runtimeContextHost ? callContext : undefined;
+      const actions = await this.authorizedActions(runtimeCall, entry.action?.action.authorship === "session");
+      const result = await actions.ports.callTool(name, arguments_, callContext);
+      if (entry.action && this.runtimeConnection === connection && typeof result !== "string" && result.structuredContent) {
+        await this.recordRuntimeSessionActivity(entry.action.capability_id, name, arguments_, result.structuredContent, callContext);
+      }
+      return result;
     }
     const contextHandler = lookupContextTool(this.contextTools, name);
     if (contextHandler) return contextHandler(arguments_ ?? {}, callContext);
-    const response = await this.callV1Tool(
-      name,
-      arguments_,
-      this.audience === "runtime" ? this.runtimeConnection : null,
-    );
-    await this.recordRuntimeSessionActivity(name, arguments_, response, callContext);
-    return response;
-  }
-
-  private async callPluginTool(entry: NativeMcpDispatchEntry, arguments_: Record<string, unknown>, context: McpToolCallContext): Promise<string> {
-    const actions = await this.authorizedActions(entry.scope === "home" ? "home" : undefined);
-    await actions.service.discover(actions.context);
-    const adapters = createNativeMcpPluginAdapters(bindActionClient(actions.service, () => actions.context));
-    return dispatchNativeMcpPluginTool(adapters, entry, arguments_ ?? {}, context);
+    return this.callV1Tool(name, arguments_, this.audience === "runtime" ? this.runtimeConnection : null);
   }
 
   private async recordRuntimeSessionActivity(
+    capabilityId: string,
     name: string,
     arguments_: Record<string, unknown>,
-    response: string,
+    result: Record<string, unknown>,
     callContext: MolisWorkMcpToolCallContext,
   ): Promise<void> {
     const host = this.runtimeContextHost;
     if (this.audience !== "runtime" || !host?.homeDirectory || !this.runtimeConnection) return;
-    const activity = mcpRuntimeSessionActivity(name, arguments_, response);
+    const activity = mcpRuntimeSessionActivity(capabilityId, name, arguments_, result);
     if (!activity) return;
     const activeHost = this.requireRuntimeContextHost(callContext);
     await this.runtimeSessions.record(activity, activeHost, this.runtimeConnection.projectId);

@@ -25,8 +25,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | [src/web-server.ts](src/web-server.ts) | Web 请求与 Home 装配 |
 | [src/mcp-server.ts](src/mcp-server.ts) | 对外 MCP 装配；公共动作转发、上下文及历史入口 |
 | [src/action-gateway.ts](src/action-gateway.ts)、[src/action-gateway-http.ts](src/action-gateway-http.ts) | 常驻 Host 的通用动作通道，复用原授权与执行核心 |
-| [src/mcp-catalog.ts](src/mcp-catalog.ts) | 平台 schema + 插件 `mcp_exports` 合成目录 |
-| [src/mcp-native-plugins.ts](src/mcp-native-plugins.ts) | 尚待收敛的历史 Native MCP 兼容适配；新插件使用动作声明 |
+| [src/mcp-catalog.ts](src/mcp-catalog.ts) | 平台工具 + 已授权动作合成目录 |
 | [src/goal-project-application.ts](src/goal-project-application.ts) | 跨 Module 应用组合 |
 
 可对照现有调用方 [apps/desktop/src/web-host.ts](../desktop/src/web-host.ts) 阅读装配方式。

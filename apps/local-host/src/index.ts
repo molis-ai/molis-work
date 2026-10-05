@@ -140,14 +140,8 @@ export { createLocalWebAssets } from "./web-assets.js";
 export * from "./web-session.js";
 export { reconcileLegacySessionCatalog } from "./session-migration.js";
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
-export { handleLocalMcpSettingsHttp } from "./web-mcp-settings.js";
-export { assembleMcpCatalog, findAssembledMcpTool, listMcpSettingsEntries } from "./mcp-catalog.js";
-export {
-  createNativeMcpPluginAdapters,
-  dispatchNativeMcpPluginTool,
-  nativeMcpPluginSources,
-} from "./mcp-native-plugins.js";
-export { readMcpToolPreference, writeMcpToolPreference } from "./mcp-settings-store.js";
+export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
+export { readMcpToolPreference } from "./mcp-settings-store.js";
 export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export * from "./project-host.js";

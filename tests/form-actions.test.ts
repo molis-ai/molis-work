@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { formActions as actions, FORM_ACTION_PERMISSIONS, openFormStore, runFormMcpTool } from "@molis-ai/molis-work-plugin-form";
+import { formActions as actions, FORM_ACTION_PERMISSIONS, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
@@ -24,36 +24,36 @@ const questions = [
 ];
 const answers = { text: "第一份回答", singleChoice: "是", multiChoice: "是\n否", dropdown: "否", rating: "5", date: "2026-09-25" };
 
-test("Form all actions and ten legacy tools share original data, six question types and snapshot-backed submissions", async t => {
+test("Form actions share original data, six question types and snapshot-backed submissions", async t => {
   const f = await fixture(t);
-  const legacy = async (tool_id: string, args = {}) => JSON.parse(await runFormMcpTool(f.bound, { tool_id, arguments: args }));
+  const invoke = (key: keyof typeof actions, args: object = {}): Promise<any> => f.bound.invoke(actions[key] as never, args as never);
   const catalog = await f.bound.discover();
   for (const action of Object.values(actions)) assert.ok(catalog.some(item => item.capability_id === action.capability_id));
-  let { form } = await legacy("create", { title: "原问卷" }); const id = form.id;
-  assert.equal((await legacy("list")).forms[0].id, id);
+  let { form } = await invoke("create", { title: "原问卷" }); const id = form.id;
+  assert.equal((await invoke("list")).forms[0].id, id);
   await assert.rejects(f.client.invoke({ ...f.caller, project_id: "b" }, actions.list, {}), { code: "actions.scope_mismatch" });
   await assert.rejects(f.client.invoke({ ...f.caller, permissions: ["form:read"] }, actions.create, {}), { code: "actions.forbidden" });
   await assert.rejects(f.bound.invoke(actions.create, { project_id: "b" } as never), { code: "actions.input_invalid" });
-  form = (await legacy("update", { id, questions, expected_version: form.version })).form;
+  form = (await invoke("update", { id, questions, expected_version: form.version })).form;
   for (const invalid of [{ ...answers, text: "" }, { ...answers, singleChoice: "不在选项中" }, { ...answers, multiChoice: "是\n是" }, { ...answers, rating: "6" }, { ...answers, date: "2026-02-30" }, { ...answers, unknown: "不得静默丢弃" }]) {
     await assert.rejects(f.bound.invoke(actions.submit, { id, answers: invalid, expected_version: form.version }), { code: "form.invalid" });
   }
-  assert.equal((await legacy("results", { id })).analysis.submission_count, 0);
+  assert.equal((await invoke("results", { id })).analysis.submission_count, 0);
   const input = { id, answers, expected_version: form.version, request_id: "first-submission" };
-  const first = (await legacy("submit", input)).submission;
+  const first = (await invoke("submit", input)).submission;
   assert.deepEqual(first.answers, answers); assert.equal(first.form_version, form.version);
   assert.equal(first.questions[0].title, "原问题");
-  assert.deepEqual((await legacy("submit", input)).submission, first);
+  assert.deepEqual((await invoke("submit", input)).submission, first);
   await assert.rejects(f.bound.invoke(actions.submit, { ...input, answers: { ...answers, text: "不能换内容" } }), { code: "form.request_conflict" });
-  form = (await legacy("update", { id, questions: [{ id: "replacement", title: "新问题" }], expected_version: form.version })).form;
+  form = (await invoke("update", { id, questions: [{ id: "replacement", title: "新问题" }], expected_version: form.version })).form;
   await assert.rejects(f.bound.invoke(actions.submit, { ...input, request_id: "stale-preview" }), { code: "form.conflict" });
-  assert.deepEqual((await legacy("submit", input)).submission, first, "a completed request can recover even after the form changes");
-  assert.equal((await legacy("results", { id })).submissions[0].questions[0].title, "原问题");
-  const published = (await legacy("publish", { id, expected_version: form.version })).form;
+  assert.deepEqual((await invoke("submit", input)).submission, first, "a completed request can recover even after the form changes");
+  assert.equal((await invoke("results", { id })).submissions[0].questions[0].title, "原问题");
+  const published = (await invoke("publish", { id, expected_version: form.version })).form;
   assert.equal(published.status, "published"); assert.ok(published.share_id);
-  assert.equal((await legacy("publish", { id })).form.share_id, published.share_id);
-  assert.equal((await legacy("generate", { id, prompt: "本地追加" })).form.questions.at(-1).title, "本地追加");
-  const promoted = await legacy("promote", { id });
+  assert.equal((await invoke("publish", { id })).form.share_id, published.share_id);
+  assert.equal((await invoke("generate", { id, prompt: "本地追加" })).form.questions.at(-1).title, "本地追加");
+  const promoted = await invoke("promote", { id });
   await f.host.withProject(f.ref, runtime => {
     const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.board_id, promoted.artifact)!;
     assert.equal(artifact.owner_actor_id, "owner"); assert.equal((artifact.payload as any).questions.length, 2);
@@ -64,9 +64,9 @@ test("Form all actions and ten legacy tools share original data, six question ty
   try { foreign = store.create({ project_id: "b" }).id; assert.equal(store.listSubmissions(id, "a").length, 1); } finally { store.close(); }
   for (const definition of [actions.get, actions.results, actions.delete]) await assert.rejects(f.bound.invoke(definition, { id: foreign }), { code: "form.not_found" });
   await f.host.closeProject(f.ref);
-  assert.deepEqual((await legacy("results", { id })).submissions[0], first);
-  assert.equal((await legacy("get", { id })).form.share_id, published.share_id);
-  await legacy("delete", { id }); assert.deepEqual((await legacy("list")).forms, []);
+  assert.deepEqual((await invoke("results", { id })).submissions[0], first);
+  assert.equal((await invoke("get", { id })).form.share_id, published.share_id);
+  await invoke("delete", { id }); assert.deepEqual((await invoke("list")).forms, []);
   const another = await fixture(t); assert.deepEqual((await another.bound.invoke(actions.list, {})).forms, []);
 });
 

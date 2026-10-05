@@ -27,8 +27,7 @@ Manifest 写完不等于底栏插件切换里有入口。一等插件还要改 H
 
 | 有这个 | 再改 |
 | --- | --- |
-| 新的 MCP 能力 | 声明公共 `actions` 与处理器，设置 MCP audience，经 Runtime 注册后自动导出；不增加 Host 适配表 |
-| 维护存量 `mcp_exports` | 用 `required_actions` 声明其精确动作版本，并在同一内置条目绑定包导出的 `legacyMcp`，Host 不再另列 handler 表。历史处理器只做参数/结果转接，共用逐客户端授权和 ActionClient；开关不授予权限。无 provider 的引用属于本插件，复合工具须满足所有引用 |
+| 新的 MCP 能力 | 声明公共 `actions` 与处理器，`audiences` 含 `mcp`，经 Runtime 注册后由用户授权；不增加 Host 适配表 |
 | `actions` / 判断消费场景 | 下面「接到统一判断场景」 |
 | 插件事件总线 | 下面「接到插件事件总线」；Native 不要抄 |
 | 新 Artifact 类型 | 合同 + Artifacts Module，不要只写在插件里 |
@@ -93,7 +92,6 @@ Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 
 
 - Manifest 每条 `views` → `contribution.views`
 - 每条 `routes` → `contribution.routes`
-- 每条 `mcp_exports` → `contribution.mcp`（生产 tools/call 未接就不要声明）
 - 每条 `actions` → `contribution.actions`（缺处理器的声明会让启动失败）
 - 有 `commands` → `commandAvailability` + `executeCommand`
 - 有 `events.subscribes` → `onEvent`

@@ -112,7 +112,8 @@ const systemPayload: ActionSchema = { anyOf: [
 const eventBase = { event_id: text, board_id: text, goal_id: text, title: text, actor_id: text, actor_kind: actorKind, received_at: text,
   journal_seq: count, config_version: maybeCount, judgments: array(judgment) };
 export const goalReportEventSchema = object({ ...eventBase, kind: { const: "report" }, type: nullable(eventType), payload: { type: "object", additionalProperties: text } });
-export const goalEventSchema: ActionSchema = { anyOf: [
+// Always one event object, so tools return it as is rather than under `result`.
+export const goalEventSchema: ActionSchema = { type: "object", anyOf: [
   object({ ...eventBase, kind: { const: "configuration" }, type: { type: "null" }, payload: object({ config_version: count, ...configFields }) }),
   goalReportEventSchema,
   object({ ...eventBase, kind: { const: "system" }, type: { type: "null" }, payload: systemPayload }),

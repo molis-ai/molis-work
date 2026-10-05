@@ -190,7 +190,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     const reference = molisWorkHostProjectReference({ databasePath, boardId });
     await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath }, "runtime:shared");
     const { board_id, actor_id, actor_kind, source_kind, ...businessInput } = intent;
-    const mcpCreated = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", businessInput)) as {
+    const mcpCreated = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", businessInput)) as {
       goal: { goal_id: string }; observed_event_cursor: number; replayed: boolean };
     const workbenchCreated = await host.client(reference).invoke(createGoalIntentCapability, intent);
     assert.equal(mcpCreated.goal.goal_id, "shared-entry-goal");

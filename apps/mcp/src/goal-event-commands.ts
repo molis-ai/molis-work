@@ -2,7 +2,7 @@ import type { RecordGoalUserDecisionInput } from "@molis-ai/molis-work-contracts
 import { createGoalEventEntryClient, hostEventDecisionAuthority, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { McpPresentationErrorFactory } from "./query-presentation.js";
+import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 
 // No identity fields: the management entry decides as the person on this machine (repository-anti-corruption §9.5 #6).
 const allowed = new Set(["database_path", "board_id",

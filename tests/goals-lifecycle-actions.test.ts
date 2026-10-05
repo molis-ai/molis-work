@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, setActiveGoalCapability, trashedGoalsCapability, createGoalEntryCompositionClient } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, setActiveGoalCapability, trashedGoalsCapability } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -27,7 +27,6 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     denied.has(action.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "Lifecycle disabled" } : { available: true } });
   const caller: ActionCallContext = { actor_id: "runtime:lifecycle", project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
   const client = host.actionClient(ref), typed = host.client(ref), bound = bindActionClient(client, () => caller);
-  const composition = createGoalEntryCompositionClient(typed);
   const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.board_id));
   const active = { goal_id: "left", reason: "Continue this Goal", idempotency_key: "active-original" };
   const trash = { goal_id: "left", trashed: true, reason: "User confirmed trash", user_confirmed: true, idempotency_key: "trash-original" };
@@ -70,10 +69,9 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
     await assert.rejects(bound.invoke(goalsActions.trash, { ...trash, reason: "Different request" }));
     await assert.rejects(bound.invoke(goalsActions.active, { ...active, idempotency_key: "active-trashed" }), { code: "goal.trashed" });
     await bound.invoke(goalsActions.trash, { ...trash, goal_id: "right", idempotency_key: "trash-right" });
-    const leftRestored = await composition.setTrashedWithWorkState(project.board_id, { goal_id: "left", trashed: false, reason: "Restore left" },
-      { actor_id: caller.actor_id, idempotency_key: "restore-left" });
-    assert.equal(leftRestored.work_state.status, "open");
-    assert.deepEqual(leftRestored.result.pending_relation_ids, [relation.relation_id]);
+    const leftRestored = await bound.invoke(goalsActions.trash, { ...trash, trashed: false, reason: "Restore left", idempotency_key: "restore-left" });
+    assert.equal(leftRestored.goal.trashed_at, null);
+    assert.deepEqual(leftRestored.pending_relation_ids, [relation.relation_id]);
     const rightRestored = await bound.invoke(goalsActions.trash, { ...trash, goal_id: "right", trashed: false, idempotency_key: "restore-right" });
     assert.deepEqual(rightRestored.restored_relation_ids, [relation.relation_id]);
     assert.equal((await snapshot()).relations.find(r => r.relation_id === relation.relation_id)?.state, "active");
@@ -94,7 +92,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
 
     denied.add(goalsActions.active.capability_id); denied.add(goalsActions.trash.capability_id); denied.add(goalsActions.trashed.capability_id);
     await assert.rejects(typed.invoke(setActiveGoalCapability, { board_id: project.board_id, goal: active, write: { actor_id: caller.actor_id, idempotency_key: "denied" } }), { code: "actions.plugin_disabled" });
-    await assert.rejects(composition.setTrashedWithWorkState(project.board_id, oldInput, { actor_id: caller.actor_id, idempotency_key: "denied" }), { code: "actions.plugin_disabled" });
+    await assert.rejects(bound.invoke(goalsActions.trash, { ...trash, idempotency_key: "denied" }), { code: "actions.plugin_disabled" });
     await assert.rejects(typed.invoke(trashedGoalsCapability, { board_id: project.board_id }), { code: "actions.plugin_disabled" });
     const final = await snapshot();
     await host.close();

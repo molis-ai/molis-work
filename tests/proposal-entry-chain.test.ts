@@ -36,15 +36,15 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
   try {
     await client.invoke(initializeBoardCapability, { board_id: boardId, title: "Proposal chain", idempotency_key: "init" });
     await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath }, "runtime:chain");
-    const created = JSON.parse(await runtime.callTool("molis_work_v1_goal_intent_create", {
+    const created = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.create__v1", {
       goal_id: "draft", title: "整理开发入口", outcome: "提案先保存，用户决定后生效", idempotency_key: "start",
     }));
     assert.equal(created.goal.goal_id, "draft");
-    const note = JSON.parse(await runtime.callTool("molis_work_v1_event_note", {
+    const note = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.note__v1", {
       goal_id: "draft", body: "用户确认以后才能创建子目标", idempotency_key: "source-note",
     }));
     assert.equal(note.recorded, true);
-    const replayNote = JSON.parse(await runtime.callTool("molis_work_v1_event_note", {
+    const replayNote = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.note__v1", {
       goal_id: "draft", body: "用户确认以后才能创建子目标", idempotency_key: "source-note",
     }));
     assert.equal(replayNote.replayed, true);
@@ -64,7 +64,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
       }],
     });
     assert.equal((await snapshot()).goals.some((goal) => goal.goal_id === "child"), false);
-    const listed = JSON.parse((await runtime.callTool("molis_work_v1_goal_tree_read", {
+    const listed = JSON.parse((await runtime.callTool("molis_work_v1_action_goals.tree.read__v1", {
       proposal_id: proposed.proposal.proposal_id,
     }))) as GoalTreeProposalListResult;
     assert.equal(listed.proposals[0]!.proposal_id, proposed.proposal.proposal_id);
@@ -73,7 +73,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     const checked = await cli<ReturnType<GoalTreeApplicationApi["checkGoalTreeProposal"]>>("goal-tree-check", checkInput);
     assert.deepEqual(checked.conflict_item_ids, []);
     const checkedSnapshot = await snapshot();
-    assert.deepEqual(JSON.parse(await runtime.callTool("molis_work_v1_goal_tree_check", {
+    assert.deepEqual(JSON.parse(await runtime.callTool("molis_work_v1_action_goals.tree.check__v1", {
       proposal_id: proposed.proposal.proposal_id, idempotency_key: "check-proposal",
     })), checked);
     assert.deepEqual(await snapshot(), checkedSnapshot, "a repeated check preserves the stored item checks and history");

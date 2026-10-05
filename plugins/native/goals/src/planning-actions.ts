@@ -3,7 +3,7 @@ import type { GoalsPlanningApi, PlanningMethodPack, ResolvedPlanningMethodPack, 
 import type { GoalEntryCompositionApi } from "./entry-composition-capabilities.js";
 import { goalAction, goalActor } from "./action-contract.js";
 import { identifier, count, boolean, object, array } from "./event-action-schemas.js";
-import { planningMethodInputSchema, planningMethodSchema, planningCompositionSchema, planningImpactSchema, planningGraphIssueSchema, planningSavedSchema } from "./planning-action-schemas.js";
+import { planningMethodInputSchema, planningMethodSchema, planningMethodSummarySchema, planningCompositionSchema, planningImpactSchema, planningGraphIssueSchema, planningSavedSchema } from "./planning-action-schemas.js";
 
 type SaveInput = Omit<SaveProjectPlanningMethodInput, "board_id" | "actor_id">;
 type Saved = ReturnType<GoalsPlanningApi["saveProjectMethod"]>;
@@ -14,8 +14,11 @@ export interface GoalsPlanningActionPorts {
   baseMethods(): readonly PlanningMethodPack[];
 }
 export const goalsPlanningActions = {
-  planningRead: goalAction<Record<string, never>, ReturnType<GoalEntryCompositionApi["readPlanningComposition"]>>("goals.planning.read", "读取项目规划方法", "读取当前项目可用的完整规划方法及已启用的项目组合；项目覆盖个人，个人覆盖内置方法", "query",
-    object({}), object({ methods: array(planningMethodSchema), composition: planningCompositionSchema })),
+  planningCatalog: goalAction<Record<string, never>, { methods: Omit<PlanningMethodPack, "instructions">[]; composition: ReturnType<GoalEntryCompositionApi["readPlanningComposition"]>["composition"] }>(
+    "goals.planning.catalog", "列出项目规划方法", "只读列出当前项目可用的规划方法（不含正文）与已启用的项目组合；需要正文时按 method_ids 读取", "query",
+    object({}), object({ methods: array(planningMethodSummarySchema), composition: planningCompositionSchema })),
+  planningRead: goalAction<{ method_ids?: string[] }, ReturnType<GoalEntryCompositionApi["readPlanningComposition"]>>("goals.planning.read", "读取项目规划方法", "读取当前项目可用的完整规划方法及已启用的项目组合；项目覆盖个人，个人覆盖内置方法", "query",
+    object({ method_ids: array(identifier) }, []), object({ methods: array(planningMethodSchema), composition: planningCompositionSchema })),
   planningSave: goalAction<SaveInput, Saved>("goals.planning.save", "保存项目规划方法", "用户明确确认后保存项目方法或覆盖；影响后续规划，保留完整正文、事件类型和默认要求。重复保存会生成新版本", "command",
     object({ method: planningMethodInputSchema, user_confirmed: boolean }), planningSavedSchema),
   planningApply: goalAction<ApplyInput, Saved>("goals.planning.apply", "采用已有规划方法", "用户确认后将指定内置或个人方法完整复制到当前项目并启用；包括事件类型和默认要求，Goal 仍须显式采用其要求", "command",
@@ -29,7 +32,15 @@ export const goalsPlanningActions = {
 export function createGoalsPlanningActionHandlers(ports: GoalsPlanningActionPorts, boardId: string): ActionHandlerBinding[] {
   const { planning } = ports;
   return [
-    { ...goalsPlanningActions.planningRead, handle: () => ({ methods: planning.effectiveMethods(boardId), composition: planning.projectComposition(boardId) }) },
+    { ...goalsPlanningActions.planningCatalog, handle: () => ({
+      methods: planning.effectiveMethods(boardId).map(({ instructions: _instructions, ...summary }) => summary),
+      composition: planning.projectComposition(boardId) }) },
+    { ...goalsPlanningActions.planningRead, handle: (_caller, input) => {
+      const methods = planning.effectiveMethods(boardId), wanted = (input as { method_ids?: string[] }).method_ids;
+      const missing = (wanted ?? []).filter(id => !methods.some(method => method.method_id === id));
+      if (missing.length) throw new ActionError("planning_method.not_found", `找不到规划方法：${missing.join("、")}`);
+      return { methods: wanted ? wanted.map(id => methods.find(method => method.method_id === id)!) : methods, composition: planning.projectComposition(boardId) };
+    } },
     { ...goalsPlanningActions.planningSave, handle: (caller, input) => planning.saveProjectMethod({ ...input as SaveInput, board_id: boardId, actor_id: goalActor(caller).actor_id }) },
     { ...goalsPlanningActions.planningApply, handle: (caller, input) => {
       const { method_id, user_confirmed } = input as ApplyInput;

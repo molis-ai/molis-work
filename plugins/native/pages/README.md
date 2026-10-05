@@ -12,7 +12,7 @@
 
 接口：`POST /api/pages/import/preview` 接收 `project_id` 和 `files: [{name, data}]`（base64）；`POST /api/pages/import` 增加 `selected_keys`、`folder_id`、稳定的 UUID `request_id`。Host 对外沿用 `/api/plugins/pages/...` 路由。预览不写入，提交重新解析并验证，转换只在本机进行。
 
-不改 Goal 树。Promote 经 Host 发出个人 Artifact。已登记对外 MCP（`mcp_exports`），默认关；Host 从绑定项目注入分区，作者步骤见 [Plugin 开发 · 对外 MCP](../../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
+不改 Goal 树。Promote 经 Host 发出个人 Artifact。对外能力就是它声明的动作，经「能力 → 对外接入」授权后才出现在 MCP；Host 从绑定项目注入分区。
 
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`

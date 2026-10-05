@@ -18,7 +18,6 @@ export * from "./import.js";
 export * from "./error.js";
 export * from "./routes.js";
 export * from "./ai.js";
-export * from "./mcp.js";
 export * from "./actions.js";
 export * from "./command-actions.js";
 export * from "./service-actions.js";

@@ -32,5 +32,5 @@ node --import tsx --test --test-concurrency=1 tests/functions-system-capability.
   - 执行要在“能力 → 对外接入”授予该客户端 `functions.invoke`；旧名称开关不单独授权。
   - 模型返回后经 `before_result` 复查权限；取消或撤权后不保存判断历史、不返回成功。
   - 编辑器在 Workbench 的 `src/functions`，没有独立的 Functions 插件包。
-- 改动后必跑：`node scripts/run-tests.mjs tests/functions-authoring-actions.test.ts tests/functions-system-capability.test.ts tests/functions-mcp-aliases.test.ts tests/functions-draft-retention.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/functions-authoring-actions.test.ts tests/functions-system-capability.test.ts tests/functions-draft-retention.test.ts`
 - 相关手册：[specs/archive/functions-independent-authoring/spec.md](../../specs/archive/functions-independent-authoring/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

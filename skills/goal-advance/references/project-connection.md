@@ -47,7 +47,7 @@ Use the user's existing authorization for the precise effect. Choosing another p
 
 ## A Goal opened beside a Runtime
 
-After connection resolves, read the explicit Goal using molis_work_v1_goal_state. A Host-provided MOLIS_WORK_GOAL_ID identifies page context; it does not itself authorize doing the work.
+After connection resolves, read the explicit Goal using goals.state.read. A Host-provided MOLIS_WORK_GOAL_ID identifies page context; it does not itself authorize doing the work.
 
 When the user asks to advance it, continue from current agreement, requirements, progress and gaps. Updating another Goal never silently retargets the existing terminal. Do not invent MOLIS_WORK_WORK_CONTEXT_ID or MOLIS_WORK_PANEL_ID, ask the user to paste a Session ID, or send to a terminal as part of Goal navigation.
 
@@ -55,10 +55,10 @@ When the user asks to advance it, continue from current agreement, requirements,
 
 Goal trash preserves the original ID, facts and relationship history. It differs from permanent project deletion.
 
-- molis_work_v1_goal_trash_list uses an empty ordinary input and is read-only.
-- molis_work_v1_goal_trash and molis_work_v1_goal_restore take flat goal_id, reason, user_confirmed=true and idempotency_key. Omit board/actor fields and the old payload envelope.
+- goals.trash.list uses an empty ordinary input and is read-only.
+- goals.trash.set moves a Goal to the trash (trashed=true) or restores it (trashed=false); it takes goal_id, trashed, reason, user_confirmed=true and idempotency_key. Omit board and actor fields.
 - Use the exact Goal and the user's explicit instruction to trash or restore it. If the requested effect is ambiguous, clarify it; do not repeat a clear instruction.
 
-Read the result literally: blocked means no transition; trashed is recoverable; restored keeps relations with unavailable endpoints inactive and identifies pending_relation_ids. already_trashed and already_active report existing state. After restoring, goal_state describes current work. Never force historical active work closed or invent a per-Goal permanent deletion route.
+Read the result literally: trashed is recoverable; restored keeps relations with unavailable endpoints inactive and identifies pending_relation_ids. already_trashed and already_active report existing state. After restoring, goals.state.read describes current work. Never force historical active work closed or invent a per-Goal permanent deletion route.
 
 Project binding does not grant access to project content. Connection responses read project guidance and recovery goals through the client’s explicit action grants. If `project_guidance_error` or `resume_error` is present, the corresponding content is null, not empty or absent from the project. Preserve a valid bound connection; do not bind again to repair content access. For authorization errors, explain the exact missing access and direct the user to system capabilities → external access. For `actions.service_unavailable`, restore the existing Home service before retrying the read. Never fall back to another project, Home, or local database. A focus outside the first directory page additionally requires `goals.directory.read`.

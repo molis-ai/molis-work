@@ -91,27 +91,6 @@ function assertRoutes(manifest: PluginManifest, contribution: PluginAppContribut
   return problems;
 }
 
-function assertMcp(manifest: PluginManifest, contribution: PluginAppContribution): string[] {
-  const problems: string[] = [];
-  const declared = new Set((manifest.mcp_exports ?? []).map((entry) => entry.tool_id));
-  const delivered = new Set<string>();
-  for (const binding of contribution.mcp ?? []) {
-    if (!declared.has(binding.tool_id)) {
-      problems.push(`MCP ${binding.tool_id} 没有在 Manifest 里声明`);
-      continue;
-    }
-    if (delivered.has(binding.tool_id)) {
-      problems.push(`MCP ${binding.tool_id} 重复提供`);
-      continue;
-    }
-    delivered.add(binding.tool_id);
-  }
-  for (const toolId of declared) {
-    if (!delivered.has(toolId)) problems.push(`声明的 MCP ${toolId} 没有兑现`);
-  }
-  return problems;
-}
-
 function assertBehaviors(manifest: PluginManifest, contribution: PluginAppContribution): string[] {
   const problems: string[] = [];
   const declared = new Set((manifest.behaviors ?? []).map((entry) => entry.behavior_id));
@@ -172,7 +151,6 @@ export function assertContributionMatchesManifest(
   if (contribution.kind === "app") problems.push(
     ...assertViews(manifest, contribution),
     ...assertRoutes(manifest, contribution),
-    ...assertMcp(manifest, contribution),
     ...assertBehaviors(manifest, contribution),
     ...assertHandlers(manifest, contribution),
   );

@@ -164,11 +164,6 @@ export function registerProjectCapabilities(
     checkGoalBoard(runtime, boardId);
     return goalAction(runtime, goalsActions.planningGraph, {}, { actor_id: "local-host" }, invocation);
   });
-  host.register(goalEntryCompositionCapabilities.setTrashedWithWorkState, async (runtime, [boardId, input, write], invocation) => {
-    checkGoalBoard(runtime, boardId);
-    const result = await goalAction(runtime, goalsActions.trash, { ...input, user_confirmed: true, idempotency_key: write.idempotency_key }, write, invocation);
-    return { result, work_state: { goal_id: result.goal.goal_id, status: result.status === "trashed" || result.goal.trashed_at ? "trashed" : "open" } };
-  });
   host.register(goalEntryCompositionCapabilities.readPlanningComposition, (runtime, [boardId], invocation) => {
     checkGoalBoard(runtime, boardId);
     return goalAction(runtime, goalsActions.planningRead, {}, { actor_id: "local-host" }, invocation);

@@ -8,7 +8,6 @@ import {
 import { FORM_UI_CONTRIBUTION_ID } from "./ui.js";
 import { formActions, FORM_ACTION_PERMISSIONS } from "./actions.js";
 import { formContentActions } from "./content-actions.js";
-import { FORM_MCP_EXPORTS } from "./mcp.js";
 
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID };
 
@@ -40,5 +39,4 @@ export const formManifest: PluginManifest = {
       { view_id: "directory", slot: "navigator", title: "Forms", contribution_id: FORM_UI_CONTRIBUTION_ID, icon: "clipboard", order: 57 },
     ],
   },
-  mcp_exports: [...FORM_MCP_EXPORTS],
 };

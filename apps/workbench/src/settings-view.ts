@@ -33,7 +33,6 @@ export interface MolisWorkSettingsView {
   enabled_plugins?: readonly string[];
   hidden_plugins?: readonly string[];
   runtimes: RuntimeIntegrationDetection[];
-  mcp_tools?: readonly McpSettingsToolView[];
   mcp_access?: import("./mcp-access.js").McpAccessModel;
   connectors?: readonly ConnectorSettingsCardView[];
   connector_connections?: readonly ConnectorConnectionView[];
@@ -67,11 +66,3 @@ export interface ConnectorSettingsCardView {
   workspace_name?: string | null;
 }
 
-export interface McpSettingsToolView {
-  name: string;
-  description: string;
-  group_id: string;
-  group_title: string;
-  enabled: boolean;
-  effect: "read" | "write";
-}

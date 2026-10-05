@@ -2,8 +2,7 @@ import { initializeBoardCapability, goalTreeCapabilities, managementTreeAuthorit
 import { createMcpGoalEventHandlers } from "./goal-event-commands.js";
 import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import type { McpPresentationErrorFactory } from "./query-presentation.js";
-import { canonicalMcpToolName } from "./tool-catalog.js";
+import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 
 export interface McpToolDispatchPorts {
   audience: "runtime" | "management";
@@ -19,7 +18,6 @@ export async function dispatchMcpProjectTool(
   arguments_: Record<string, unknown>,
   ports: McpToolDispatchPorts,
 ): Promise<string> {
-  name = canonicalMcpToolName(name);
   return client.withScope(async () => {
     const eventTools = createMcpGoalEventHandlers(client, ports.audience, ports.createError);
     let result: unknown;

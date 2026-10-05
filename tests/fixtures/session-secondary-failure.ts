@@ -7,7 +7,7 @@ export function rejectSessionReportIndex(home: string): () => void {
   const db = new DatabaseSync(path);
   try {
     db.exec(`CREATE TRIGGER reject_report_index BEFORE INSERT ON session_events
-      WHEN NEW.source = 'molis_work' AND NEW.source_id LIKE 'molis_work_v1_event_report:%'
+      WHEN NEW.source = 'molis_work' AND NEW.source_id LIKE 'molis_work_v1_action_goals.events.report__v1:%'
       BEGIN SELECT RAISE(FAIL, 'injected Session report index failure'); END`);
   } finally { db.close(); }
   return () => {

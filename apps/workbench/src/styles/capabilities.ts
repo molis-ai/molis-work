@@ -85,9 +85,6 @@ export const CAPABILITIES_STYLES = `
   .mcp-access-row dd:last-child { margin-bottom: 0; }
   .mcp-access-feedback { color: var(--ink-soft); line-height: 1.6; overflow-wrap: anywhere; }
   .mcp-access-feedback[role="alert"] { color: var(--red); }
-  .mcp-legacy-tools { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
-  .mcp-legacy-tools > summary { cursor: pointer; padding: 12px 0; color: var(--ink-soft); font-size: 13px; }
-  .mcp-legacy-tools > p { color: var(--muted); line-height: 1.6; }
   @media (max-width: 760px) {
     :is(.capabilities-page, .settings-stage) .mcp-access :is(button,input) { min-height: 44px; }
     .mcp-access-row { flex-direction: column; gap: 12px; }

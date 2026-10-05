@@ -158,7 +158,7 @@ test("global HTTP published invocation uses the same system handler and separate
     assert.deepEqual((usages.structuredContent as { usages: unknown[] }).usages, []);
     const directory = await external.callTool({ name: directoryName, arguments: {} });
     assert.ok((directory.structuredContent as { functions: { function_key: string }[] }).functions.some(row => row.function_key === record.function_key));
-    const result = await external.callTool({ name: "molis_work_v1_functions_invoke", arguments: { function_key: record.function_key, input: "external MCP" } });
+    const result = await external.callTool({ name: "molis_work_v1_action_functions.invoke__v1", arguments: { function_key: record.function_key, input: "external MCP" } });
     assert.notEqual(result.isError, true, JSON.stringify(result));
     assert.equal(JSON.parse((result.content as { text: string }[])[0]!.text).data.choice, "yes");
     const history = withFunctionsService(home, service => service.listJudgments(), options);

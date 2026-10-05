@@ -7,7 +7,6 @@ import test from "node:test";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, initializeBoardCapability, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-contracts/modules/goals";
 
 test("actual CLI snapshot and MCP event handlers finish one Goal without the retired claim/run protocol", async () => {
@@ -42,11 +41,11 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
       board_id: boardId, title: "真实命令链", idempotency_key: "init",
     });
     await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath }, "runtime:chain");
-    const created = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
+    const created = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.create__v1", {
       title: "跨入口验收", outcome: "命令迁移后仍可完成同一 Goal", idempotency_key: "create",
     }));
     const goal_id = created.goal.goal_id as string;
-    await mcp.callTool("molis_work_v1_event_configure", {
+    await mcp.callTool("molis_work_v1_action_goals.events.configure__v1", {
       goal_id, expected_version: 0, idempotency_key: "cfg",
       types: [{
         type_id: "result", version: 1, name: "结果", purpose: "可核对的交付",
@@ -54,8 +53,8 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
         fields: [{ field_id: "result", name: "结果", purpose: "当前交付", format: "text", required: true }],
       }],
     });
-    const configured = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
-    await mcp.callTool("molis_work_v1_event_agree", {
+    const configured = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
+    await mcp.callTool("molis_work_v1_action_goals.agreement.set__v1", {
       goal_id, idempotency_key: "agree",
       expected_config_version: configured.config.version,
       expected_agreement_version: configured.agreement.version,
@@ -69,15 +68,15 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
         judgments: [{ requirement_id: "result", verdict: "supports" }],
       }],
     };
-    const reported = JSON.parse(await mcp.callTool("molis_work_v1_event_report", reportInput)) as ReportGoalEventsResult;
+    const reported = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", reportInput)) as ReportGoalEventsResult;
     assert.equal(reported.work_status, "open");
-    const replay = JSON.parse(await mcp.callTool("molis_work_v1_event_report", reportInput)) as ReportGoalEventsResult;
+    const replay = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.events.report__v1", reportInput)) as ReportGoalEventsResult;
     assert.equal(replay.replayed, true);
     assert.equal(replay.events[0]?.event_id, reported.events[0]?.event_id);
 
     await assert.rejects(
-      () => mcp.callTool("molis_work_v1_event_report", { ...reportInput, board_id: boardId, idempotency_key: "denied-board" }),
-      (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.connection_override_denied",
+      () => mcp.callTool("molis_work_v1_action_goals.events.report__v1", { ...reportInput, board_id: boardId, idempotency_key: "denied-board" }),
+      { code: "actions.input_invalid" },
     );
     await assert.rejects(
       () => runV1Cli(["select-goal", "--db", databasePath, "--json", JSON.stringify({
@@ -86,14 +85,14 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
       /未知 V1 operation: select-goal/,
     );
 
-    const ready = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
-    await mcp.callTool("molis_work_v1_event_close", {
+    const ready = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
+    await mcp.callTool("molis_work_v1_action_goals.closure.submit__v1", {
       goal_id, idempotency_key: "close", kind: "complete",
       reason: "跨入口事件记录已核对", result: "可复核结果",
       expected_config_version: ready.config.version,
       expected_agreement_version: ready.agreement.version,
     });
-    const state = JSON.parse(await mcp.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
+    const state = JSON.parse(await mcp.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id })) as GoalEventStateView;
     assert.equal(state.work_status, "completed");
     const final = await client.invoke(snapshotBoardCapability, { board_id: boardId });
     assert.equal(final.goals.find((goal) => goal.goal_id === goal_id)?.title, "跨入口验收");

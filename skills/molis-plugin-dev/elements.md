@@ -4,7 +4,7 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 
 ## 身份
 
-- `schema_version`：产品插件用 `2`（ports、events、views、commands、routes、agent、mcp_exports）。CLI 样例脚手架仍可能生成 `1`。
+- `schema_version`：产品插件用 `2`（ports、events、views、commands、routes、agent、actions）。CLI 样例脚手架仍可能生成 `1`。
 - `host_api_version`：与 schema 对齐，产品用 `2`。
 - `plugin_id`：反向域名，如 `io.molis.work.feed`。
 - `*_PROJECT_PLUGIN_ID`：项目库短名（`feed`）。和全球 id 不是同一个字段。
@@ -83,21 +83,14 @@ Native：构建期装配，Host 注入 HTML primitives。
 
 ## MCP（对外贡献）
 
-方向：人/Agent → 本插件。登记在 `mcp_exports`。
+方向：人/Agent → 本插件。插件对外的能力就是它声明的 `actions`：动作的 `audiences` 含 `mcp`，用户在「能力 → 对外接入」为某个客户端授权后，它就是 MCP 工具 `molis_work_v1_action_<动作>__v<版本>`。不另外登记 MCP 工具，没有按名称的开关。
 
-- 每条：`tool_id`、`description`、`input_schema`（object）、`effect`：`read` | `write`。
-- 可选 `audience`（默认 `runtime`）、`scope`：`home`（不绑项目也可用，如判断规则相关动作）或默认 `project`。
-- 禁止 schema 字段：`board_id`、`database_path`、`web_base_url`、`actor_id`、`actor_kind`、`runtime_actor_id`、`submitted_session_id`。
-- 禁止自报对外名和 `enabled`。公开名 `molis_work_v1_<短名>_<tool_id>`。
-- 存量导出只维护已有兼容名称，并须用 `required_actions` 指向真实动作；新能力直接声明 `actions`。
-- 新贡献默认关；人在设置 → MCP 打开后，**之后新开的**连接才看得到。
-- 个人插件但按项目分区（Pages / Forms / Dataset / PPT）：不要标 `home`；`project_id` 由 Host 注入。
-- Native 还要在 `apps/local-host/src/mcp-native-plugins.ts` 加 adapter，`default_enabled` 默认 `false`。
-- `app` 的 `contribution.mcp` 与 Manifest 一一对应。生产 `tools/call` 未接 Runtime 时不要给 Coding 等填 `mcp_exports`。
+- 动作输入只放业务字段；`board_id`、数据库路径、Web 地址、操作者身份都由 Host 注入。
+- 个人、不绑项目也能用的动作用 `scope: "home"`；个人插件但按项目分区（Pages / Forms / Dataset / PPT）用 `scope: "project"`，`project_id` 由 Host 注入。
 
 `agent.mcp` 是反方向：插件里的 Agent 能不能调**外面**的 MCP。
 
-SSOT：`specs/archive/plugin-outbound-mcp/spec.md`。
+
 
 ## Artifacts / ports
 

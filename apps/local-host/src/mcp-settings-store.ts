@@ -12,16 +12,16 @@ export interface McpActionGrant {
   readonly enabled: boolean;
 }
 
-export const MCP_TOOL_PREFERENCE_VERSION = 1;
+export const MCP_TOOL_PREFERENCE_VERSION = 2;
 export const MCP_TOOL_PREFERENCE_RELATIVE_PATH = "config/mcp-tools.json";
 
+/** Which actions each MCP client may use; nothing else switches an MCP tool on or off. */
 export interface McpToolPreference {
   readonly version: typeof MCP_TOOL_PREFERENCE_VERSION;
-  readonly overrides: Readonly<Record<string, boolean>>;
-  readonly action_grants?: readonly McpActionGrant[];
+  readonly action_grants: readonly McpActionGrant[];
 }
 
-const EMPTY: McpToolPreference = { version: MCP_TOOL_PREFERENCE_VERSION, overrides: {} };
+const EMPTY: McpToolPreference = { version: MCP_TOOL_PREFERENCE_VERSION, action_grants: [] };
 
 export function mcpToolPreferencePath(homeDirectory: string): string {
   return path.join(homeDirectory, MCP_TOOL_PREFERENCE_RELATIVE_PATH);
@@ -29,21 +29,14 @@ export function mcpToolPreferencePath(homeDirectory: string): string {
 
 export function parseMcpToolPreference(value: unknown): McpToolPreference {
   if (!value || typeof value !== "object" || Array.isArray(value)) return EMPTY;
-  const record = value as { version?: unknown; overrides?: unknown; action_grants?: unknown };
+  const record = value as { version?: unknown; action_grants?: unknown };
   if (record.version !== MCP_TOOL_PREFERENCE_VERSION) return EMPTY;
-  if (!record.overrides || typeof record.overrides !== "object" || Array.isArray(record.overrides)) {
-    return EMPTY;
-  }
-  const overrides: Record<string, boolean> = {};
-  for (const [name, enabled] of Object.entries(record.overrides)) {
-    if (typeof enabled === "boolean" && name.startsWith("molis_work_v1_")) overrides[name] = enabled;
-  }
   const grants = Array.isArray(record.action_grants) ? record.action_grants.filter(isMcpActionGrant) : [];
   // Conflicting records must not let an older enabled grant defeat a revocation.
   const counts = new Map<string, number>();
   for (const grant of grants) { const key = actionGrantKey(grant); counts.set(key, (counts.get(key) ?? 0) + 1); }
   const unique = grants.filter(grant => counts.get(actionGrantKey(grant)) === 1);
-  return { version: MCP_TOOL_PREFERENCE_VERSION, overrides, ...(record.action_grants !== undefined ? { action_grants: unique } : {}) };
+  return { version: MCP_TOOL_PREFERENCE_VERSION, action_grants: unique };
 }
 
 function isMcpActionGrant(value: unknown): value is McpActionGrant {
@@ -59,14 +52,6 @@ export function actionGrantKey(grant: Pick<McpActionGrant, "client_id" | "projec
   return JSON.stringify([grant.client_id, grant.project_id, grant.capability_id, grant.version, grant.provider_id]);
 }
 
-export function isMcpToolEnabled(
-  name: string,
-  defaultEnabled: boolean,
-  overrides: Readonly<Record<string, boolean>>,
-): boolean {
-  return Object.hasOwn(overrides, name) ? overrides[name]! : defaultEnabled;
-}
-
 export async function readMcpToolPreference(homeDirectory: string): Promise<McpToolPreference> {
   try {
     const text = await readFile(mcpToolPreferencePath(homeDirectory), "utf8");
@@ -74,13 +59,6 @@ export async function readMcpToolPreference(homeDirectory: string): Promise<McpT
   } catch {
     return EMPTY;
   }
-}
-
-export async function writeMcpToolPreference(
-  homeDirectory: string,
-  overrides: Readonly<Record<string, boolean>>,
-): Promise<McpToolPreference> {
-  return updateMcpToolPreference(homeDirectory, current => ({ ...current, overrides: { ...overrides } }));
 }
 
 const writes = new Map<string, Promise<unknown>>();
@@ -93,8 +71,7 @@ export async function updateMcpToolPreference(homeDirectory: string, change: (cu
     try {
       const raw = JSON.parse(await readFile(filePath, "utf8"));
       current = parseMcpToolPreference(raw);
-      if (!raw || raw.version !== MCP_TOOL_PREFERENCE_VERSION || !raw.overrides || typeof raw.overrides !== "object" || Array.isArray(raw.overrides)
-        || (raw.action_grants !== undefined && (!Array.isArray(raw.action_grants) || raw.action_grants.length !== current.action_grants?.length))) {
+      if (!raw || raw.version !== MCP_TOOL_PREFERENCE_VERSION || !Array.isArray(raw.action_grants) || raw.action_grants.length !== current.action_grants.length) {
         throw new Error("MCP 配置包含无效或冲突的记录，已保留原文件；请先修复配置");
       }
     }
@@ -114,18 +91,6 @@ export async function writeMcpActionGrant(homeDirectory: string, grant: McpActio
   if (!isMcpActionGrant(grant)) throw new Error("动作授权无效");
   const snapshot = structuredClone(grant);
   return updateMcpToolPreference(homeDirectory, current => ({ ...current,
-    action_grants: [...(current.action_grants ?? []).filter(row => actionGrantKey(row) !== actionGrantKey(snapshot)), snapshot],
+    action_grants: [...current.action_grants.filter(row => actionGrantKey(row) !== actionGrantKey(snapshot)), snapshot],
   }));
-}
-
-export function withMcpToolOverride(
-  preference: McpToolPreference,
-  name: string,
-  enabled: boolean,
-  defaultEnabled: boolean,
-): McpToolPreference {
-  const overrides = { ...preference.overrides };
-  if (enabled === defaultEnabled) delete overrides[name];
-  else overrides[name] = enabled;
-  return { ...preference, overrides };
 }

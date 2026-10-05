@@ -150,7 +150,7 @@ describe("mcp server", () => {
       CODEX_THREAD_ID: "thread-native",
       MOLIS_WORK_PANEL_ID: "panel-surface",
       MOLIS_WORK_GOAL_ID: "goal-current",
-      MOLIS_WORK_WORK_CONTEXT_ID: "legacy-work-context",
+      MOLIS_WORK_WORK_CONTEXT_ID: "host-work-context",
       MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
       PWD: "/tmp/molis-work-session-identities",
     }, "/tmp/molis-work-session-identities");
@@ -159,8 +159,8 @@ describe("mcp server", () => {
     assert.equal(host.nativeRuntimeSessionId, "thread-native");
     assert.equal(host.panelId, "panel-surface");
     assert.equal(host.goalId, "goal-current");
-    assert.equal(host.legacyWorkContextId, "legacy-work-context");
-    assert.equal(host.runtimeContext.stable_work_context_id, "legacy-work-context");
+    assert.equal(host.hostWorkContextId, "host-work-context");
+    assert.equal(host.runtimeContext.stable_work_context_id, "host-work-context");
   });
 
   it("unknown method", async () => {

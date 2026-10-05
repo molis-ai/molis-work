@@ -96,7 +96,7 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     fail = false;
     await actions.invoke(homeActions.evaluate, { subjects: [subjects[0]!] });
     const current = (await scenes.usages(caller)).find(value => value.scene_id === HOME_DOCK_SCENE_ID)!;
-    effect = () => withFunctionsService(home, service => service.saveActionSceneBinding(reference.board_id, current, "system_pick_home_dock"), options);
+    effect = () => withFunctionsService(home, service => service.saveActionSceneBinding(reference.board_id, current), options);
     await assert.rejects(actions.invoke(homeActions.evaluate, { subjects: [subjects[0]!] }), { code: "actions.binding_changed" });
     effect = undefined;
     await actions.invoke(homeActions.writeJudgment, { function_key: null });
@@ -326,20 +326,17 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
   } finally { if (runtime && installId) await runtime.stop(installId); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("saved scene bindings retain provider identity and only known legacy Functions keys restore it", async () => {
-  const home = await mkdtemp(join(tmpdir(), "home-binding-provider-migration-"));
-  const old: ActionSceneBinding = { binding_id: "home.dock:project", scene_id: HOME_DOCK_SCENE_ID, scene_version: 1, project_id: "project",
-    function: { capability_id: "functions.published.system_pick_home_dock", version: 1 }, enabled: true, title: "旧首页规则" };
+test("saved scene bindings keep exactly the provider identity they were saved with", async () => {
+  const home = await mkdtemp(join(tmpdir(), "home-binding-provider-"));
+  const pinned: ActionSceneBinding = { binding_id: "home.dock:project", scene_id: HOME_DOCK_SCENE_ID, scene_version: 1, project_id: "project",
+    function: { capability_id: "unknown.judge", version: 3, provider_id: "original-plugin" }, enabled: true, title: "首页规则" };
   try {
-    const saved = withFunctionsService(home, service => service.saveActionSceneBinding("board", old, "system_pick_home_dock"));
-    const migrated = withFunctionsService(home, service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, "board"))!;
-    assert.equal(migrated.function.provider_id, "system.functions"); assert.equal(migrated.revision, saved.revision);
-    assert.equal(migrated.title, old.title); assert.equal(migrated.enabled, true);
-    withFunctionsService(home, service => service.saveActionSceneBinding("board", { ...old, function: { capability_id: "unknown.judge", version: 3 } }));
+    const saved = withFunctionsService(home, service => service.saveActionSceneBinding("board", pinned));
+    const read = withFunctionsService(home, service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, "board"))!;
+    assert.deepEqual(read.function, pinned.function); assert.equal(read.revision, saved.revision);
+    assert.equal(read.title, pinned.title); assert.equal(read.enabled, true);
+    withFunctionsService(home, service => service.saveActionSceneBinding("board", { ...pinned, function: { capability_id: "functions.published.system_pick_home_dock", version: 1 } }));
     assert.equal(withFunctionsService(home, service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, "board"))!.function.provider_id, undefined,
-      "unknown legacy identities cannot be inferred from whatever provider is installed now");
-    const pinned = { ...old, function: { capability_id: "unknown.judge", version: 3, provider_id: "original-plugin" } };
-    withFunctionsService(home, service => service.saveActionSceneBinding("board", pinned));
-    assert.deepEqual(withFunctionsService(home, service => service.actionSceneBinding(HOME_DOCK_SCENE_ID, "board"))!.function, pinned.function);
+      "an identity is never inferred from the capability name or whatever provider is installed now");
   } finally { await rm(home, { recursive: true, force: true }); }
 });

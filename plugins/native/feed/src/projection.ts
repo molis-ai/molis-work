@@ -55,11 +55,10 @@ export interface FeedOutRuleRecord {
   name: string;
   enabled: boolean;
   match: FeedOutRuleMatch;
-  function_key: string | null;
-  /** undefined only for a pre-migration row; null preserves an unresolved legacy key. */
-  judgment?: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference | null;
-  revision?: string;
-  admission?: "suggest" | "inbox";
+  /** The judgment that decides what a matched item becomes; null keeps the rule a plain keyword or source filter. */
+  judgment: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference | null;
+  revision: string;
+  admission: "suggest" | "inbox";
   created_at: string;
   updated_at: string;
 }

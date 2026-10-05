@@ -14,7 +14,6 @@ import { hostCompleteText } from "../apps/local-host/src/host-complete-text.js";
 import { planInformationWork } from "../apps/local-host/src/information-planner.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/assistant-island.js";
 import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/src/scripts/client/navigation-inbox.js";
-import { functionFitsScene, sceneBehaviorIds } from "@molis-ai/molis-work-contracts/modules/functions";
 
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 function publishedPackage() {
@@ -114,11 +113,6 @@ test("Host uses configured model transport and never fabricates text on failure"
   assert.equal(hostCompleteText({ env: {} }), undefined);
   new Function("return " + ASSISTANT_ISLAND_FACTORY_SCRIPT);
   new Function(CLIENT_NAVIGATION_INBOX_SCRIPT);
-});
-
-test("legacy Inbox authoring still recognizes the supported next-step recommendations", () => {
-  assert.equal(functionFitsScene({ primitive: "choice", scene_id: "inbox.next", criteria: ["inbox.compose", "inbox.verify", "inbox.dismiss"].map(key => ({ key, description: key })) }, "inbox.next"), true);
-  assert.ok(sceneBehaviorIds("inbox.next").includes("inbox.compose"));
 });
 
 test("Multi-material document retains every source and a project-scoped return link", async () => {

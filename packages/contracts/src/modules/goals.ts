@@ -54,8 +54,7 @@ export const goalDecompositionReviewStatuses = ["complete", "paused"] as const;
 export type GoalDecompositionReviewStatus = (typeof goalDecompositionReviewStatuses)[number];
 
 export interface GoalDecompositionReview {
-  /** One of goalDecompositionReviewStatuses; reviews recorded before writes were checked may carry other wording. */
-  status: GoalDecompositionReviewStatus | (string & {});
+  status: GoalDecompositionReviewStatus;
   method_pack_ids?: string[];
   task_context?: GoalTaskContext;
   coverage: Array<{
@@ -90,11 +89,7 @@ export interface GoalAcceptanceCriterion {
   criterion_id: string;
   goal_id: string;
   statement: string;
-  /**
-   * One of goalDecisionMethods. Criteria recorded before writes were checked may carry an agent's own wording
-   * ("test", "playtest", ...); they are read and shown as recorded.
-   */
-  decision_method: GoalDecisionMethod | (string & {});
+  decision_method: GoalDecisionMethod;
   pass_condition: string;
   target: Record<string, unknown> | null;
   required_evidence: string[];
@@ -377,14 +372,9 @@ export interface AddGoalRelationInput {
   reason: string;
 }
 
+/** A Goal's rules. Only the user's acceptance at closure is a rule; quality checks belong to Coding (specs/coding-quality-assurance). */
 export interface GoalPolicy {
-  goal_mode: "disabled" | "preferred" | "required";
-  required_capabilities: string[];
-  self_verification: boolean;
-  cross_reviewers: number;
-  adversarial_reviewers: number;
   human_approval: boolean;
-  max_lease_seconds: number;
 }
 
 export interface GoalsBoardRecord {

@@ -153,10 +153,9 @@ CREATE TABLE feed_out_rules (
       match_json TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      function_key TEXT,
-      admission TEXT NOT NULL DEFAULT 'suggest',
+      admission TEXT NOT NULL,
       judgment_json TEXT,
-      revision TEXT,
+      revision TEXT NOT NULL,
       PRIMARY KEY (board_id, rule_id)
     );
 CREATE TABLE feed_runtime_blobs (

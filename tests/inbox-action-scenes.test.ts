@@ -36,12 +36,10 @@ test("Inbox consumes a registered judgment, retains the original binding and his
       const item = feed.ingestItem({ source, externalId: "article-1", title: "核对发布说明", summary: "尚未确认的数据", body: "原文内容", occurredAt: new Date().toISOString(), attention: false }).item;
       return feed.ensureInboxEntryForFeedItem(runtime.board_id, item.item_id, "manual").entry;
     });
-    const rule = withFunctionsService(home, service => {
-      service.bindScene(inboxNextScene.scene_id, "system_pick_inbox_next", reference.board_id);
-      return service.list().find(rule => rule.function_key === "system_pick_inbox_next")!;
-    }, options);
+    const rule = withFunctionsService(home, service => service.list().find(rule => rule.function_key === "system_pick_inbox_next")!, options);
     const fn = publishedFunctionAction(rule);
     let scenes = host.sceneClient(reference), actions = host.actionClient(reference);
+    await actions.invoke(caller, inboxActions.writeJudgment, { function_key: rule.function_key });
     assert.equal((await scenes.discoverScenes(caller, fn)).find(scene => scene.definition.scene_id === inboxNextScene.scene_id)?.compatible, true);
     const before = await scenes.usages(caller, fn);
     assert.equal(before.length, 1);
@@ -65,12 +63,9 @@ test("Inbox consumes a registered judgment, retains the original binding and his
       assert.equal(events.length, 1, "Feed receives the actual judgment event");
     });
     // Rebinding to the same function is still a changed configuration revision.
-    duringJudgment = () => withFunctionsService(home, service => service.saveActionSceneBinding(reference.board_id, { ...before[0]!, title: "changed while waiting" }, rule.function_key), options);
+    duringJudgment = () => withFunctionsService(home, service => service.saveActionSceneBinding(reference.board_id, { ...before[0]!, title: "changed while waiting" }), options);
     await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.binding_changed" });
     assert.equal(history().length, 1);
-    duringJudgment = () => withFunctionsService(home, service => service.bindScene(inboxNextScene.scene_id, rule.function_key, reference.board_id), options);
-    await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.binding_changed" });
-    assert.equal(history().length, 1, "legacy rebinds also invalidate the in-flight decision");
     duringJudgment = () => { disabled = true; };
     await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.plugin_disabled" });
     assert.equal(history().length, 1);
@@ -80,7 +75,6 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     const stopped = (await scenes.usages(caller, fn))[0]!;
     assert.equal(stopped.enabled, false);
     assert.deepEqual(await recommendations(), []);
-    assert.equal(withFunctionsService(home, service => service.sceneBinding(inboxNextScene.scene_id, reference.board_id), options), null);
     await host.close(); host = makeHost(); scenes = host.sceneClient(reference); actions = host.actionClient(reference);
     assert.equal((await scenes.usages(caller, fn))[0]!.enabled, false, "disable preserves the binding across restart");
     assert.equal(history().length, 1);

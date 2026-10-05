@@ -91,29 +91,6 @@ function assertRoutes(manifest: PluginManifest, contribution: PluginAppContribut
   return problems;
 }
 
-function assertBehaviors(manifest: PluginManifest, contribution: PluginAppContribution): string[] {
-  const problems: string[] = [];
-  const declared = new Set((manifest.behaviors ?? []).map((entry) => entry.behavior_id));
-  const delivered = new Set<string>();
-  for (const binding of contribution.behaviors ?? []) {
-    if (!declared.has(binding.behavior_id)) {
-      problems.push(`行为 ${binding.behavior_id} 没有在 Manifest 里声明`);
-      continue;
-    }
-    if (delivered.has(binding.behavior_id)) {
-      problems.push(`行为 ${binding.behavior_id} 重复提供`);
-      continue;
-    }
-    delivered.add(binding.behavior_id);
-  }
-  if (manifest.kind === "app") {
-    for (const behaviorId of declared) {
-      if (!delivered.has(behaviorId)) problems.push(`声明的行为 ${behaviorId} 没有兑现`);
-    }
-  }
-  return problems;
-}
-
 function assertHandlers(manifest: PluginManifest, contribution: PluginAppContribution): string[] {
   const problems: string[] = [];
   const subscribes = manifest.events?.subscribes ?? [];
@@ -151,7 +128,6 @@ export function assertContributionMatchesManifest(
   if (contribution.kind === "app") problems.push(
     ...assertViews(manifest, contribution),
     ...assertRoutes(manifest, contribution),
-    ...assertBehaviors(manifest, contribution),
     ...assertHandlers(manifest, contribution),
   );
   if (problems.length > 0) {

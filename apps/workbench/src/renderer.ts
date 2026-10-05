@@ -268,7 +268,7 @@ const { renderChildProgress, renderContractCoverage } = createWorkbenchGoalsCont
 });
 
 const { renderProjectPolicyDocument, renderPolicyEditor } = createWorkbenchGoalsPolicyRenderer({
-  translate: L, escapeHtml, formatDate, icon, currentLocale, defaultPolicy: DEFAULT_GOAL_POLICY,
+  translate: L, escapeHtml, formatDate, icon, defaultPolicy: DEFAULT_GOAL_POLICY,
 });
 
 function decisionGroupModel(group: DecisionGoalGroup, view: MolisWorkWebView): WorkbenchDecisionGroup {

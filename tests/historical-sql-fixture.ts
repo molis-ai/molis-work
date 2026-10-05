@@ -5,15 +5,7 @@ type SqlDatabase = {
   prepare(sql: string): { run(...params: unknown[]): unknown };
 };
 
-const DEFAULT_POLICY_JSON = JSON.stringify({
-  goal_mode: "preferred",
-  required_capabilities: [],
-  self_verification: true,
-  cross_reviewers: 0,
-  adversarial_reviewers: 0,
-  human_approval: false,
-  max_lease_seconds: 1800,
-});
+const DEFAULT_POLICY_JSON = JSON.stringify({ human_approval: false });
 
 /** Temporary historical Policy binding. Production Policy writers are retired. */
 export function insertHistoricalPolicy(

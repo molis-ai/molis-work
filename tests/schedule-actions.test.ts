@@ -34,14 +34,14 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     assert.deepEqual(directory.map(row => row.capability_id).sort(), SCHEDULE_ACTIONS.map(row => row.capability_id).sort());
     assert.ok(directory.every(row => row.availability.available && row.provider.project_id === project.project_id));
 
-    // The old HTTP paths are thin: legacy `clock`, the 201 status and the owner's validation messages survive.
+    // The HTTP paths are thin: the 201 status and the owner's validation messages come through.
     let changed = 0;
     const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: bound, changed: () => { changed++; } }));
     const post = async (pathname: string, body: Record<string, unknown>) => {
       try { return await routes.handle({ method: "POST", pathname, query: new URLSearchParams(), body }); }
       catch (error) { return scheduleRouteErrorResponse(error); }
     };
-    const created = await post("/api/schedule/tasks", { title: "晨报", instructions: "把未读收成三条", clock: "08:30" });
+    const created = await post("/api/schedule/tasks", { title: "晨报", instructions: "把未读收成三条", time: "08:30" });
     assert.equal(created?.status, 201);
     const task = (created?.body as { task: ScheduleConversationTaskView }).task;
     assert.equal(task.clock_label, "08:30");

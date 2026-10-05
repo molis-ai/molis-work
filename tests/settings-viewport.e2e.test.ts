@@ -41,17 +41,13 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await navigate(() => command('Page.navigate', { url: prefix + '/settings/rules' }, sessionId));
     await loaded('[data-policy-form]');
     const cursor = b.store.snapshot(DEMO_BOARD_ID).cursor;
-    const originalReviewers = await evaluate<string>("document.querySelector('[name=cross_reviewers]').value");
-    await fill('[name=cross_reviewers]', '3');
+    const accepted = "document.querySelector('[name=human_approval]').checked";
+    const original = await evaluate<boolean>(accepted);
+    await evaluate(accepted + " = " + String(!original));
     await click('[data-policy-cancel]');
-    assert.equal(await evaluate("document.querySelector('[name=cross_reviewers]').value"), originalReviewers);
+    assert.equal(await evaluate(accepted), original);
     assert.equal(b.store.snapshot(DEMO_BOARD_ID).cursor, cursor);
-    await fill('[name=cross_reviewers]', '-1');
-    await click('[data-policy-form] button[type=submit]');
-    assert.equal(await evaluate('document.activeElement.name'), 'cross_reviewers');
-    await contained('[name=cross_reviewers]');
-    await capture('rules-validation');
-    await fill('[name=cross_reviewers]', '3');
+    await evaluate(accepted + " = " + String(!original));
     await command('Network.setBlockedURLs', { urls: [prefix + '/api/policy-bindings'] }, sessionId);
     await click('[data-policy-form] button[type=submit]');
     await waitFor("!document.querySelector('[data-policy-error]').hidden");
@@ -59,20 +55,20 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     assert.match(await evaluate<string>("document.querySelector('[data-policy-error]').textContent"), /输入已保留/);
     await evaluate("document.querySelector('.settings-save-footer').scrollIntoView({block:'nearest'})");
     await contained('.settings-save-footer');
-    assert.equal(await evaluate("document.querySelector('[name=cross_reviewers]').value"), '3');
+    assert.equal(await evaluate(accepted), !original);
     await command('Network.setBlockedURLs', { urls: [] }, sessionId);
     await command('Network.emulateNetworkConditions', { offline: false, latency: 800, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
     await navigate(async () => {
       await click('[data-policy-form] button[type=submit]');
-      assert.equal(await evaluate("document.querySelector('[data-policy-cancel]').disabled && document.querySelector('[name=cross_reviewers]').disabled"), true);
+      assert.equal(await evaluate("document.querySelector('[data-policy-cancel]').disabled && document.querySelector('[name=human_approval]').disabled"), true);
     });
     await command('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
     await loaded('[data-policy-form]');
-    assert.equal(await evaluate("document.querySelector('[name=cross_reviewers]').value"), '3');
+    assert.equal(await evaluate(accepted), !original);
     assert.ok(b.store.snapshot(DEMO_BOARD_ID).cursor > cursor);
     await b.reloadPage();
     await loaded('[data-policy-form]');
-    assert.equal(await evaluate("document.querySelector('[name=cross_reviewers]').value"), '3');
+    assert.equal(await evaluate(accepted), !original);
 
     await navigate(() => command('Page.navigate', { url: prefix + '/settings/guidance' }, sessionId));
     const trigger = '[data-guidance-kind="constraint"]';

@@ -14,13 +14,9 @@ export const enumeration = (values: readonly unknown[]): ActionSchema => ({ enum
 export const object = (properties: Record<string, ActionSchema>, required = Object.keys(properties)): ActionSchema => ({
   type: "object", properties, required, additionalProperties: false,
 });
-/**
- * A recorded criterion's decision method. New criteria are checked against goalDecisionMethods when a Goal is created;
- * criteria recorded before that check may carry an agent's own wording, and reading them must not fail.
- */
-export const recordedDecisionMethod: ActionSchema = { type: "string", description: `通常是 ${goalDecisionMethods.join("、")} 之一；较早记录的可能是其他文字` };
-/** A recorded decomposition review's status, read the same way: checked when written, tolerated as recorded. */
-export const recordedReviewStatus: ActionSchema = { type: "string", description: `通常是 ${goalDecompositionReviewStatuses.join("、")} 之一；较早记录的可能是其他文字` };
+/** A criterion's decision method and a decomposition review's status: written and read as one of their values. */
+export const recordedDecisionMethod: ActionSchema = enumeration(goalDecisionMethods);
+export const recordedReviewStatus: ActionSchema = enumeration(goalDecompositionReviewStatuses);
 const strings = array(text), maybeText = nullable(text), maybeCount = nullable(count);
 const actorKind = enumeration(["user", "runtime", null]);
 const workStatus = enumeration(goalEventWorkStatuses), concernStatus = enumeration(goalEventConcernStatuses);
@@ -28,7 +24,7 @@ const verdict = enumeration(goalEventJudgmentVerdicts), planningSource = enumera
 const method = object({ method_id: text, version: count, source: planningSource, name: text }, ["method_id", "version", "source"]);
 const planningRequirement = object({ kind: { const: "planning" }, template_requirement_id: text, methods: array(method) });
 const requirementSource: ActionSchema = { anyOf: [planningRequirement, object({ kind: { const: "create_input" } }),
-  object({ kind: { const: "imported_acceptance_criterion" }, decision_method: text, pass_condition: text }),
+  object({ kind: { const: "imported_acceptance_criterion" }, decision_method: recordedDecisionMethod, pass_condition: text }),
   object({ kind: { const: "imported_human_approval" }, policy_binding_ids: strings })] };
 const fieldSource = object({ kind: enumeration(["local", "planning"]), method_id: text, label: text }, ["kind"]);
 const typeSource = object({ kind: enumeration(goalEventTypeSourceKinds), method_id: text, method_version: count, label: text,

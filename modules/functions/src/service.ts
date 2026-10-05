@@ -2,14 +2,12 @@ import {
   AGENT_MCP_DESTINATION_ID,
   NOUL_POSITIVE_THRESHOLD,
   filterSuggestedBehaviorIds,
-  functionFitsScene,
   functionOutputKeys,
   mapJudgmentChoice,
   type FunctionDescribe,
   type FunctionDraftPatch,
   type FunctionInvokeResult,
   type FunctionRecord,
-  type FunctionSceneBinding,
   type FunctionSummary,
   type FunctionsOutcome,
   type FunctionsPreviewRecord,
@@ -185,34 +183,12 @@ export class FunctionsService {
     return this.store.recordJudgment(input);
   }
 
-  sceneBindingRevision(sceneId: string, boardId: string) { return this.store.sceneBindingRevision(sceneId, boardId); }
-
-  actionSceneBinding(sceneId: string, boardId: string, ref = "") {
-    return this.store.getActionSceneBinding(sceneId, boardId, ref);
+  actionSceneBinding(sceneId: string, boardId: string) {
+    return this.store.getActionSceneBinding(sceneId, boardId);
   }
 
-  saveActionSceneBinding(boardId: string, binding: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneBinding, legacyKey = "", expectedRevision?: string | null) {
-    return this.store.setActionSceneBinding(boardId, binding, legacyKey, expectedRevision);
-  }
-
-  sceneBinding(sceneId: string, boardId?: string | null, ref?: string | null): FunctionSceneBinding | null {
-    return this.store.getSceneBinding(sceneId, boardId ?? null, ref ?? null);
-  }
-
-  bindScene(sceneId: string, functionKey: string, boardId?: string | null, ref?: string | null): FunctionSceneBinding {
-    const current = this.store.requirePublishedByKey(functionKey);
-    if (!functionFitsScene(current, sceneId)) {
-      throw new FunctionsError("functions.scene_mismatch", "这个函数的选项对不上这个场景");
-    }
-    return this.store.bindScene(sceneId, functionKey, boardId ?? null, ref ?? null);
-  }
-
-  unbindScene(sceneId: string, boardId?: string | null, ref?: string | null): void {
-    this.store.unbindScene(sceneId, boardId ?? null, ref ?? null);
-  }
-
-  listSceneBindings(functionKey?: string): FunctionSceneBinding[] {
-    return this.store.listSceneBindings(functionKey);
+  saveActionSceneBinding(boardId: string, binding: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneBinding, expectedRevision?: string | null) {
+    return this.store.setActionSceneBinding(boardId, binding, expectedRevision);
   }
 
   listJudgments(): JudgmentRecord[] {

@@ -175,31 +175,13 @@ test("query contracts read the completion, human requirements and event payloads
 });
 
 
-test("records written by earlier versions still read through the action contracts; new criteria must use a known decision method", async () => {
-  const home = await mkdtemp(join(tmpdir(), "goals-legacy-records-"));
-  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Legacy", actor_id: "user" }));
+test("Goal definitions take only the four decision methods and the two review statuses", async () => {
+  const home = await mkdtemp(join(tmpdir(), "goals-definition-values-"));
+  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Values", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "legacy-reader", audience: "user",
-    project_id: project.project_id, permissions: ["goals:read", "goals:write"] }));
-  const goal_id = "LEGACY-GOAL", board_id = project.board_id;
+  const board_id = project.board_id;
   try {
-    await actions.invoke(goalsActions.create, { goal_id, title: "早期记录", outcome: "仍然能打开", idempotency_key: "create" });
-    // What earlier versions left behind: an agent's own wording for a decision method and for a review status.
-    await host.withProject(ref, r => {
-      r.store.db.prepare(`INSERT INTO acceptance_criteria (criterion_id, goal_id, statement, decision_method, pass_condition, target_json, required_evidence_json)
-        VALUES ('legacy-criterion', ?, '试玩一局', 'playtest', '三分钟内能进球', NULL, '[]')`).run(goal_id);
-      r.store.db.prepare(`UPDATE goals SET decomposition_review_json = '{"status":"closed_leaf","method_pack_ids":[],"coverage":[],"open_goal_ids":[],"next_step":""}'
-        WHERE goal_id = ?`).run(goal_id);
-    });
-    const snapshot = await actions.invoke(goalsActions.snapshot, {}) as {
-      goals: Array<{ goal_id: string; acceptance_criteria: Array<{ decision_method: string }>; decomposition_review: { status: string } | null }>;
-    };
-    // Read and shown as recorded, not rewritten.
-    const legacy = snapshot.goals.find(row => row.goal_id === goal_id)!;
-    assert.deepEqual(legacy.acceptance_criteria.map(row => row.decision_method), ["playtest"]);
-    assert.equal(legacy.decomposition_review?.status, "closed_leaf");
-    assert.equal((await actions.invoke(goalsActions.collection, {})).goals.find(row => row.goal.goal_id === goal_id)!.goal.acceptance_criteria[0]!.decision_method, "playtest");
     // New criteria are held to the known methods.
     await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(board_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
       acceptance_criteria: [{ statement: "试玩", decision_method: "playtest" as never, pass_condition: "能进球" }] },

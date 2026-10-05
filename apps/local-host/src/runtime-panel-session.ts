@@ -1,5 +1,6 @@
 import type { MolisWorkRuntimeContextHost, RuntimePanelCatalogProvider } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { openWorkSessionRegistry } from "./session-registry.js";
+import { panelSessionInput } from "./panel-sessions.js";
 
 /** Link the late native identity using the same Desktop and Session owners. */
 export function createRuntimePanelSessionLinker(ports: RuntimePanelCatalogProvider) {
@@ -16,8 +17,8 @@ export function createRuntimePanelSessionLinker(ports: RuntimePanelCatalogProvid
       });
       const registry = await openWorkSessionRegistry({ homeDirectory: host.homeDirectory });
       try {
-        catalog.reconcileSessions(registry);
-        const unified = registry.findBySurface(panel.panel_id);
+        // The panel just took its native identity; its Session records it with the panel.
+        const unified = registry.recordPanelSession(panelSessionInput(panel));
         if (unified && unified.native_runtime_session_id !== runtimeSessionId) {
           registry.linkNativeRuntimeSession({
             session_id: unified.session_id,

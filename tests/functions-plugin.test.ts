@@ -25,7 +25,6 @@ import {
   SYSTEM_HOME_DOCK_FUNCTION_KEY,
   SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
-  functionFitsScene,
   choiceCriteriaFollowContext,
   type TypeSafeEvaluateResult,
 } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -206,7 +205,6 @@ test("custom Choice options survive an Inbox destination and bind through a scen
       urgent: INBOX_DONE_BEHAVIOR_ID,
       later: INBOX_DISMISS_BEHAVIOR_ID,
     });
-    assert.equal(functionFitsScene(mapped, INBOX_NEXT_SCENE_ID), true);
     const noul = store.create({ primitive: "noul", name: "材料够不够" });
     assert.equal(noul.scene_id, null);
     const noulMapped = store.updateDraft(noul.id, {

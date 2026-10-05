@@ -11,7 +11,7 @@ export interface ShelfRouteHandlerPorts {
   readonly project?: { readonly title: string; readonly actions: BoundActionClient };
 }
 
-/** HTTP adapts legacy parameters and response shapes; validation and business work belong to actions. */
+/** HTTP adapts path and body parameters and answers writes with the shelf; validation and business work belong to actions. */
 export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Record<string, ShelfPluginRouteHandler> {
   const call = <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => options.actions.invoke(definition, input);
   const snapshot = () => call(shelfActions.snapshot, {});

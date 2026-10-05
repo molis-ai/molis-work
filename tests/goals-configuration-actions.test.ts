@@ -96,28 +96,24 @@ test("relation actions preserve original receipts, direction, history, graph rul
 
 test("project policy actions preserve normalized receipts, original binding history and user-only authority", async () => {
   const f = await fixture(); const { host, ref, project, caller, client, actions, snapshot, denied } = f;
-  const input = { policy: { ...DEFAULT_GOAL_POLICY, required_capabilities: [" code ", "code", "read"] }, user_confirmed: true, idempotency_key: "existing-policy" };
+  const input = { policy: { ...DEFAULT_GOAL_POLICY }, user_confirmed: true, idempotency_key: "existing-policy" };
   try {
     const old = await host.withProject(ref, r => r.coordinator.goals.commands.saveProjectPolicy({ ...input, board_id: project.board_id, actor_id: caller.actor_id }));
-    assert.deepEqual(await actions.invoke(goalsActions.policySave, { ...input, policy: { ...input.policy, required_capabilities: ["code", "read"] } }), { ...old, replayed: true });
-    // Existing goal bindings are still owned by the original resolver; migration must not flatten them into project defaults.
+    assert.deepEqual(await actions.invoke(goalsActions.policySave, input), { ...old, replayed: true });
+    // A Goal's own binding stays with its author and stays stricter than the project default.
     await host.withProject(ref, r => r.store.db.prepare(`INSERT INTO policy_bindings
       (policy_binding_id, board_id, goal_id, scope, policy_json, state, created_by, reason, created_at)
-      VALUES ('legacy-goal-policy', ?, 'child', 'goal', ?, 'active', 'original-author', 'Retain stricter goal requirements', '2025-01-01T00:00:00.000Z')`)
-      .run(project.board_id, JSON.stringify({ goal_mode: "required", cross_reviewers: 4, human_approval: true, required_capabilities: ["review"], max_lease_seconds: 300 })));
+      VALUES ('goal-policy', ?, 'child', 'goal', ?, 'active', 'original-author', 'Retain stricter goal requirements', '2025-01-01T00:00:00.000Z')`)
+      .run(project.board_id, JSON.stringify({ human_approval: true })));
     const history = await actions.invoke(goalsActions.policyHistory, {});
-    const legacy = history.bindings.find(b => b.policy_binding_id === "legacy-goal-policy")!;
-    assert.equal(legacy.created_by, "original-author"); assert.equal(legacy.reason, "Retain stricter goal requirements");
-    const parent = await actions.invoke(goalsActions.policyResolve, { goal_id: "parent" });
-    assert.deepEqual(parent.policy, { ...DEFAULT_GOAL_POLICY, required_capabilities: ["code", "read"] });
-    const child = await actions.invoke(goalsActions.policyResolve, { goal_id: "child" });
-    assert.equal(child.policy.cross_reviewers, 4); assert.equal(child.policy.human_approval, true);
-    assert.equal(child.policy.goal_mode, "required"); assert.equal(child.policy.max_lease_seconds, 300);
-    assert.deepEqual(child.policy.required_capabilities, ["code", "read", "review"]);
-    const next = { ...input, policy: { ...input.policy, cross_reviewers: 2 }, idempotency_key: "next" };
+    const own = history.bindings.find(b => b.policy_binding_id === "goal-policy")!;
+    assert.equal(own.created_by, "original-author"); assert.equal(own.reason, "Retain stricter goal requirements");
+    assert.deepEqual((await actions.invoke(goalsActions.policyResolve, { goal_id: "parent" })).policy, DEFAULT_GOAL_POLICY);
+    assert.deepEqual((await actions.invoke(goalsActions.policyResolve, { goal_id: "child" })).policy, { human_approval: true });
+    const next = { ...input, policy: { human_approval: true }, idempotency_key: "next" };
     const stable = await snapshot();
     await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, user_confirmed: false }), { code: "policy.confirmation_required" });
-    await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, policy: { ...next.policy, max_lease_seconds: 0 } }), { code: "actions.input_invalid" });
+    await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, policy: { ...next.policy, cross_reviewers: 2 } }), { code: "actions.input_invalid" }, "a rule is only the user's acceptance");
     await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, idempotency_key: input.idempotency_key }));
     for (const definition of [goalsActions.relationAdd, goalsActions.relationDeactivate, goalsActions.policySave]) {
       const payload = definition === goalsActions.policySave ? next : definition === goalsActions.relationAdd
@@ -146,9 +142,9 @@ test("project policy actions preserve normalized receipts, original binding hist
     const after = await actions.invoke(goalsActions.policyHistory, {});
     assert.equal(after.bindings.find(b => b.policy_binding_id === old.policy_binding_id)?.state, "replaced");
     assert.equal(after.bindings.find(b => b.policy_binding_id === saved.policy_binding_id)?.created_by, caller.actor_id);
-    assert.deepEqual(after.bindings.find(b => b.policy_binding_id === legacy.policy_binding_id), legacy);
-    assert.equal((await actions.invoke(goalsActions.policyResolve, { goal_id: "parent" })).policy.cross_reviewers, 2);
-    assert.equal((await actions.invoke(goalsActions.policyResolve, { goal_id: "child" })).policy.cross_reviewers, 4);
+    assert.deepEqual(after.bindings.find(b => b.policy_binding_id === own.policy_binding_id), own);
+    assert.equal((await actions.invoke(goalsActions.policyResolve, { goal_id: "parent" })).policy.human_approval, true);
+    assert.equal((await actions.invoke(goalsActions.policyResolve, { goal_id: "child" })).policy.human_approval, true);
     denied.add(goalsActions.policySave.capability_id); denied.add(goalsActions.policyHistory.capability_id);
     await assert.rejects(actions.invoke(goalsActions.policySave, next), { code: "actions.plugin_disabled" });
     await assert.rejects(actions.invoke(goalsActions.policyHistory, {}), { code: "actions.plugin_disabled" });
@@ -194,7 +190,7 @@ test("Web relations and rules use live action policy for writes and selected pag
     assert.equal((await actions.invoke(goalsActions.relations, {})).relations.find(r => r.relation_id === relation_id)?.state, "active");
     denied.clear();
     assert.equal((await write(`/api/relations/${relation_id}/deactivate`, { reason: "Remove" }, "web-remove")).status, 200);
-    const policy = { scope: "project_default", policy: { ...DEFAULT_GOAL_POLICY, cross_reviewers: 3 }, user_confirmed: true, idempotency_key: "web-policy", actor_id: "forged" };
+    const policy = { scope: "project_default", policy: { human_approval: true }, user_confirmed: true, idempotency_key: "web-policy", actor_id: "forged" };
     denied.add(goalsActions.policySave.capability_id);
     assert.equal((await write("/api/policy-bindings", policy, "web-policy")).status, 400);
     denied.clear();

@@ -68,11 +68,6 @@ export interface AssistantSurfaceContext {
   unsaved?: boolean;
   /** The unsaved content itself, bounded, when the surface can give it; it is a draft, never the saved version. */
   draft_text?: string;
-  /**
-   * @deprecated Starting points now come from the action directory for the open object (specs/archive/contextual-interaction
-   * §6.4.2). Still accepted from older pages, but no longer read.
-   */
-  starters?: Array<{ label: string; prompt: string }>;
 }
 
 /**

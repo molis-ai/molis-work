@@ -104,13 +104,8 @@ export class SystemFunctionsActions {
         { ...functionContextActions.usages, handle: async (caller, input) => {
           const record = this.ports.read(service => service.get((input as { id: string }).id));
           if (record.status !== "published") return { usages: [] };
-          const { scenes, boardId } = context(caller);
-          const [actual, consumers] = await Promise.all([
-            scenes.usages(caller, { ...publishedFunctionAction(record), provider_id: "system.functions" }), scenes.discoverScenes(caller),
-          ]);
-          const legacy = this.ports.read(service => service.listSceneBindings(record.function_key));
-          return { usages: [...actual, ...legacy.filter(use => (use.board_id ?? null) === (boardId ?? null)
-            && !consumers.some(scene => scene.definition.scene_id === use.scene_id))] };
+          const { scenes } = context(caller);
+          return { usages: await scenes.usages(caller, { ...publishedFunctionAction(record), provider_id: "system.functions" }) };
         } },
       ],
     });

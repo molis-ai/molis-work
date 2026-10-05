@@ -59,7 +59,7 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     await waitFor(`Array.from(document.querySelectorAll('${section} [data-feed-out-rule-row]')).some(row => row.textContent.includes('需要跟进的消息')) || document.querySelector('${section} [data-feed-rule-status]')?.dataset.error === 'true'`);
     assert.notEqual(await evaluate(`document.querySelector('${section} [data-feed-rule-status]')?.dataset.error`), 'true', await evaluate(`document.querySelector('${section}')?.innerText`));
     const saved = feed.listOutRules(DEMO_BOARD_ID).find(rule => rule.name === "需要跟进的消息")!;
-    assert.equal(saved.judgment?.capability_id, definition.capability_id); assert.ok(saved.judgment?.provider_id); assert.equal(saved.function_key, null);
+    assert.equal(saved.judgment?.capability_id, definition.capability_id); assert.ok(saved.judgment?.provider_id);
     await evaluate(`document.querySelector('${section} [data-feed-out-rules-evaluate]').closest('details').open = true`);
     await click(section + ' [data-feed-out-rules-evaluate]');
     await waitFor(`!document.querySelector('${section} [data-feed-out-rules-evaluate]')?.disabled`);

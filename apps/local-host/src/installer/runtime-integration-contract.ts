@@ -102,7 +102,8 @@ export interface DesiredConnection {
 }
 
 export interface ConfigInspection {
-  state: "absent" | "current" | "legacy" | "conflict";
+  /** `outdated`: an entry Molis Work wrote that no longer matches this installation; it is replaced on connect. */
+  state: "absent" | "current" | "outdated" | "conflict";
   summary: string;
   entryFingerprint: string | null;
 }

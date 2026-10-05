@@ -70,10 +70,6 @@ test('recovery refuses missing files and databases at another schema version wit
   await f.create(randomBytes(4).toString('hex'));
  }
 });
-test('legacy planning remains explicit delegation, not inferred from the current workflow',async t=>{
- const f=await fixture(t);assert.throws(()=>f.api.readPlanningEvents({}),{code:'legacy_planning_provider_required'});
-});
-
 test('a current project recovers with its interaction facts intact and keeps recording',async t=>{
  const f=await fixture(t);
  await f.api.setInteractionAuthorization(f.request('join','join'));

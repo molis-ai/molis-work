@@ -1,4 +1,4 @@
-import { GOALS_PROPOSAL_MOBILE_STYLES, GOALS_LEGACY_PROPOSAL_MOBILE_STYLES } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_PROPOSAL_MOBILE_STYLES } from "@molis-ai/molis-work-plugin-goals";
 export const RESPONSIVE_STYLES = `
   @container (max-width: 660px) {
     .goal-factor-nav, .goal-factor-panels { margin-left: 0; }
@@ -25,7 +25,7 @@ export const RESPONSIVE_STYLES = `
     .policy-form footer { align-items: stretch; flex-direction: column; }
     .policy-form footer button { align-self: flex-end; }
     .draft-form-row, .draft-list-grid, .decomposition-editor > div, .criterion-editor-grid, .draft-aux-form { grid-template-columns: 1fr; }
-    .draft-list-grid label:last-child, .criterion-pass, .draft-aux-wide { grid-column: 1; }
+    .draft-list-grid label:last-child, .draft-aux-wide { grid-column: 1; }
     .decomposition-choice { border-right: 0; }
     .decomposition-choice:nth-last-child(2) { border-bottom: 1px solid var(--line); }
     .criteria-editor > header, .draft-contract-form > footer { align-items: stretch; flex-direction: column; }
@@ -44,7 +44,6 @@ export const RESPONSIVE_STYLES = `
     .risk-record .risk-state { margin-bottom: 4px; }
     .risk-effect, .risk-resolution, .risk-readonly { margin-left: 16px; }
     .risk-actions > details > summary, .risk-form, .risk-state-form { padding-left: 16px; }
-    .risk-decision-link { padding-left: 16px; }
     .risk-goal-options { grid-template-columns: 1fr; }
     .risk-form footer, .risk-state-form footer { align-items: stretch; flex-direction: column; }
     .risk-form footer button, .risk-state-form footer button { align-self: flex-end; }
@@ -134,7 +133,6 @@ export const RESPONSIVE_STYLES = `
     .runtime-grid { grid-template-columns: 1fr; }
     .runtime-grid > section { min-height: 0; border-right: 0 !important; border-bottom: 1px solid var(--line) !important; }
     .runtime-grid > section:last-child { border-bottom: 0 !important; }
-    .contract-list section { grid-template-columns: 1fr; gap: 8px; }
     .policy-effective { padding-inline: 16px; }
     .policy-effective dl { grid-template-columns: 1fr 1fr; }
     .policy-inheritance { grid-template-columns: 1fr; gap: 4px; }
@@ -148,7 +146,7 @@ export const RESPONSIVE_STYLES = `
     .policy-form footer { align-items: stretch; flex-direction: column; }
     .policy-form footer button { align-self: flex-end; }
     .draft-form-row, .draft-list-grid, .decomposition-editor > div, .criterion-editor-grid, .draft-aux-form { grid-template-columns: 1fr; }
-    .draft-list-grid label:last-child, .criterion-pass, .draft-aux-wide { grid-column: 1; }
+    .draft-list-grid label:last-child, .draft-aux-wide { grid-column: 1; }
     .decomposition-choice { border-right: 0; }
     .decomposition-choice:nth-last-child(2) { border-bottom: 1px solid var(--line); }
     .criteria-editor > header, .draft-contract-form > footer { align-items: stretch; flex-direction: column; }
@@ -160,12 +158,12 @@ export const RESPONSIVE_STYLES = `
     .relation-editor-action { display: none; }
     .history-list li { grid-template-columns: 1fr; gap: 4px; }
     .decision-center { padding-inline: 24px; }
-    .decision-center-header, .candidate-title, .decision-owner { align-items: flex-start; }
+    .decision-center-header, .decision-owner { align-items: flex-start; }
     .decision-center-header { display: grid; }
     .decision-center-header > strong { text-align: left; }
     .decision-summary { gap: 8px 16px; }
     .decision-record-heading { align-items: flex-start; }
-    .decision-guidance, .review-context, .risk-decision-choice { grid-template-columns: 1fr; }
+    .decision-guidance { grid-template-columns: 1fr; }
     .decision-guidance > section { border-right: 0; border-bottom: 1px solid var(--line); }
     .decision-guidance > section:last-child { border-bottom: 0; }
     .decision-scenario dl > div { grid-template-columns: 1fr; gap: 4px; }
@@ -180,7 +178,6 @@ ${GOALS_PROPOSAL_MOBILE_STYLES}
     .goal-situation { grid-template-columns: 1fr 1fr; }
     .goal-situation-cell:nth-child(2n) { border-right: 0; }
     .goal-situation-cell:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
-${GOALS_LEGACY_PROPOSAL_MOBILE_STYLES}
     .decision-actions { justify-content: flex-end; }
     .field-row--split, .goal-choice-list { grid-template-columns: 1fr; }
     .relation-field-heading, .relation-field > legend { grid-template-columns: 1fr; gap: 8px; }

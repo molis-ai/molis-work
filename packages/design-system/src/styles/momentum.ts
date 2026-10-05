@@ -559,7 +559,6 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .business-copy,
   html[data-resolved-theme="dark"] .trash-summary,
   html[data-resolved-theme="dark"] .trash-restore-row,
-  html[data-resolved-theme="dark"] .evidence-record p,
   html[data-resolved-theme="dark"] .relation-copy .relation-path,
   html[data-resolved-theme="dark"] .relation-authority small { color: var(--ink-soft); }
   html[data-resolved-theme="dark"] input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not(.mw-slider):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]):not([data-inline-title]),
@@ -572,22 +571,17 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .goal-meta,
   html[data-resolved-theme="dark"] .decision-record,
   html[data-resolved-theme="dark"] .decision-results,
-  html[data-resolved-theme="dark"] .goal-tree-risk-options,
   html[data-resolved-theme="dark"] .decision-actions button:not(.mw-btn--primary) {
     border-color: var(--line-strong);
     background: color-mix(in srgb, var(--paper) 86%, var(--rail));
     color: var(--ink);
   }
-  html[data-resolved-theme="dark"] .tree-filter-option,
-  html[data-resolved-theme="dark"] .contract-diff-row,
-  html[data-resolved-theme="dark"] .proposal-appendix,
-  html[data-resolved-theme="dark"] .candidate-contract > div { border-color: var(--line); }
+  html[data-resolved-theme="dark"] .tree-filter-option { border-color: var(--line); }
   html[data-resolved-theme="dark"] .decision-record-heading,
   html[data-resolved-theme="dark"] .decision-details > summary,
   html[data-resolved-theme="dark"] .decision-reason,
   html[data-resolved-theme="dark"] .risk-resolution-fields,
   html[data-resolved-theme="dark"] .decision-record > footer.decision-actions,
-  html[data-resolved-theme="dark"] .decision-link-row,
   html[data-resolved-theme="dark"] .decision-results > header {
     border-color: var(--line);
     background: color-mix(in srgb, var(--rail) 76%, var(--paper));
@@ -603,7 +597,6 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   }
   html[data-resolved-theme="dark"] .decision-details > summary,
   html[data-resolved-theme="dark"] .decision-kind,
-  html[data-resolved-theme="dark"] .decision-link-row a,
   html[data-resolved-theme="dark"] .risk-decision > footer.decision-actions a { color: var(--blue-dark); }
   html[data-resolved-theme="dark"] .risk-decision-fact p,
   html[data-resolved-theme="dark"] .risk-decision-fact small { color: var(--ink-soft); }
@@ -638,8 +631,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .goal-factor-nav button[aria-selected="true"] small { background: var(--nav-hover); color: var(--ink); }
   html[data-resolved-theme="dark"] .relation-group > header,
   html[data-resolved-theme="dark"] .relation-actions,
-  html[data-resolved-theme="dark"] .risk-actions,
-  html[data-resolved-theme="dark"] .impact-actions { background: var(--rail); }
+  html[data-resolved-theme="dark"] .risk-actions { background: var(--rail); }
   html[data-resolved-theme="dark"] .relation-kind { background: var(--line); color: var(--ink-soft); }
   html[data-resolved-theme="dark"] .relation-authority,
   html[data-resolved-theme="dark"] .relation-live-preview { border-color: color-mix(in srgb, var(--blue), var(--line) 68%); background: color-mix(in srgb, var(--blue-soft) 72%, var(--paper)); }

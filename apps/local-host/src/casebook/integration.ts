@@ -47,16 +47,10 @@ export function registerCasebookCapabilities(host:LocalHost<MolisWorkProjectRunt
   host.register(contexts,(r,i)=>new InteractionContexts(journal(r,i)).read((i as {request:ContextRequest}).request));
   host.register(receipts,(r,i)=>{journal(r,i);return r.interactionObserver!.receipts.journal.readReceipts((i as {request:ReceiptReadRequest}).request);});
 }
-export interface LegacyPlanningProvider {
-  readEligibility(input:unknown):unknown;
-  setAuthorization(input:unknown):unknown;
-  readPlanningEvents(input:unknown):unknown;
-}
 /** In-process embedding must supply the already-owned project client, never a database path. */
 export class MolisWorkCasebookIntegration {
   constructor(private options:{client:LocalHostProjectClient;
-    verifyUserAction?:(request:AuthorizationRequest)=>boolean|Promise<boolean>;
-    legacyPlanning?:LegacyPlanningProvider}) {}
+    verifyUserAction?:(request:AuthorizationRequest)=>boolean|Promise<boolean>}) {}
   private input(request?:unknown) {
     return {board_id:this.options.client.project.board_id,project_ref:this.options.client.project.project_id,request};
   }
@@ -77,9 +71,4 @@ export class MolisWorkCasebookIntegration {
     return await this.options.client.invoke(contexts,this.input(request)) as ContextEnvelope;
   }
   async readOperationReceipts(request:ReceiptReadRequest):Promise<ReceiptEnvelope>{return await this.options.client.invoke(receipts,this.input(request)) as ReceiptEnvelope;}
-  // Explicit delegation preserves the old provider's own source, authorization and cursor semantics.
-  // No adapter opens a legacy database or maps a legacy epoch to an interaction epoch.
-  readEligibility(input:unknown) { if(!this.options.legacyPlanning) throw new CasebookError('legacy_planning_provider_required'); return this.options.legacyPlanning.readEligibility(input); }
-  setAuthorization(input:unknown) { if(!this.options.legacyPlanning) throw new CasebookError('legacy_planning_provider_required'); return this.options.legacyPlanning.setAuthorization(input); }
-  readPlanningEvents(input:unknown) { if(!this.options.legacyPlanning) throw new CasebookError('legacy_planning_provider_required'); return this.options.legacyPlanning.readPlanningEvents(input); }
 }

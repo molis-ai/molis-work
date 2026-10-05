@@ -422,9 +422,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
   }
 
   @media (max-width: 900px) {
-    body[data-desktop-shell="true"] .feed-decision-work .decision-guidance,
-    body[data-desktop-shell="true"] .feed-decision-work .review-context,
-    body[data-desktop-shell="true"] .feed-decision-work .risk-decision-choice {
+    body[data-desktop-shell="true"] .feed-decision-work .decision-guidance {
       grid-template-columns: minmax(0, 1fr);
     }
     body[data-desktop-shell="true"] .feed-decision-work .decision-guidance > section {

@@ -77,13 +77,13 @@ export class InteractionObserver {
  constructor(private store:LocalProjectDatabase,private app:GoalProjectApplication,board:string,project:string){this.journal=new InteractionJournal(store.db,board,project);this.receipts=new ReceiptObserver(store,app,board,project);}
  before(cap:HostCapabilityDescriptor,input:unknown,channel:Fact['channel']='local-host.capability.v1'):unknown{
   const operation=randomUUID();
-  return {legacy:this.beforeLegacy(cap,input,channel,operation),receipt:this.receipts.before(cap,input,operation,channel)};
+  return {fact:this.beforeFact(cap,input,channel,operation),receipt:this.receipts.before(cap,input,operation,channel)};
  }
  after(ticket:unknown,result:unknown,threw:boolean):void{
-  if(!ticket)return;const t=ticket as {legacy:unknown;receipt:unknown};
-  this.afterLegacy(t.legacy,result,threw);this.receipts.after(t.receipt,result,threw);
+  if(!ticket)return;const t=ticket as {fact:unknown;receipt:unknown};
+  this.afterFact(t.fact,result,threw);this.receipts.after(t.receipt,result,threw);
  }
- private beforeLegacy(cap:HostCapabilityDescriptor,input:unknown,channel:Fact['channel'],operation:string):Ticket|null{
+ private beforeFact(cap:HostCapabilityDescriptor,input:unknown,channel:Fact['channel'],operation:string):Ticket|null{
   try{
    if(!CAPABILITIES.has(cap.capability_id)||cap.version!==1)return null;
    const scope=this.journal.scope();if(!scope||scope.state!=='active')return null;
@@ -104,7 +104,7 @@ export class InteractionObserver {
    this.journal.append(scope.epoch,base);this.capture(scope.epoch,base.operation_id,'before',goal,tag);return{mutation:cap.operation==='command',epoch:scope.epoch,base,goal,tag};
   }catch{this.journal.unpersistedFailures++;return null;}
  }
- private afterLegacy(ticket:unknown,result:unknown,threw:boolean):void{
+ private afterFact(ticket:unknown,result:unknown,threw:boolean):void{
   if(!ticket)return;const t=ticket as Ticket;
   try{
    const output=obj(result),goal=t.goal??(typeof obj(output.goal).goal_id==='string'?obj(output.goal).goal_id as string:null);

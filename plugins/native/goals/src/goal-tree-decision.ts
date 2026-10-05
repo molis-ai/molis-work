@@ -37,12 +37,6 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
       "需要指定要决定的 Goal Tree proposal_id",
     );
     const runtimeActorId = nullableDialogueText(input.runtime_actor_id);
-    if (proposalId.startsWith("legacy-")) {
-      throw this.ports.errorFactory(
-        "goal_tree_proposal.kind_retired",
-        "历史提案不能从新 decide 落地；请在 Web 或管理入口阅读历史，结构变更请提交新的 Goal/关系提案",
-      );
-    }
     const hash = requestHash({
       board_id: input.board_id,
       proposal_id: proposalId,

@@ -56,7 +56,7 @@ export async function detectWebService(environment: WebServiceEnvironment): Prom
     const processId = launchAgentProcessId(status);
     const running = processId != null;
     const healthyOwnedInstance = processId != null
-      && (await environment.healthCheck(processId) || await environment.legacyInstanceCheck(processId));
+      && await environment.healthCheck(processId);
     if (!launcherAvailable) {
       return environment.detection("unavailable", true, true, running, command, "Molis Work Web 启动器缺失；可移除服务或先修复 Molis Work 安装");
     }

@@ -136,7 +136,7 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
     .composer-bottom { flex-direction: column; align-items: stretch; }
     .event-form input, .event-form select, .event-form textarea { font-size: 16px; }
     .draft-form-row, .draft-list-grid, .decomposition-editor > div, .criterion-editor-grid, .draft-aux-form { grid-template-columns: minmax(0, 1fr) !important; }
-    .draft-list-grid label:last-child, .criterion-pass, .draft-aux-wide { grid-column: 1; }
+    .draft-list-grid label:last-child, .draft-aux-wide { grid-column: 1; }
     .criteria-editor > header, .draft-contract-form > footer { align-items: stretch; flex-direction: column; }
     .criteria-editor > header button, .draft-contract-form > footer button { align-self: stretch; }
     .goal-edit-disclosure, .draft-editor-section { margin-left: 0; }

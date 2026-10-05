@@ -394,7 +394,7 @@ export function retainActionAuthority<Context extends ActionCallContext>(context
   } };
 }
 
-/** A compatibility HTTP route only adapts transport; execution always goes through the Host. */
+/** A plugin HTTP route only adapts transport to an action; execution always goes through the Host. */
 export function bindPluginActionRoute<Input, Output>(
   context: import("./plugin.js").PluginStartContext,
   definition: ActionDefinition<Input, Output>,
@@ -414,7 +414,7 @@ export function bindPluginActionRoute<Input, Output>(
   } };
 }
 
-/** Bridge for legacy owner-bound storage/Artifact SDKs. It never impersonates the startup owner. */
+/** An action over the local owner's personal state and 成果: it runs only for that owner and never impersonates the startup owner. */
 export function bindOwnerPluginAction<Input, Output>(
   context: import("./plugin.js").PluginStartContext,
   definition: ActionDefinition<Input, Output>,

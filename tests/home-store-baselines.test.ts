@@ -17,8 +17,8 @@ import { IMAGES_STORE_BASELINE } from "@molis-ai/molis-work-plugin-images";
 import { AGENT_DEFINITIONS_BASELINE, ASSISTANT_STORE_BASELINE, CONNECTORS_BASELINE, CONTEXT_ONBOARDING_BASELINE, PLACEMENT_BASELINE } from "@molis-ai/molis-work-app-local-host";
 
 /** Stores past their first baseline: the memory ledger without its first facts table, the assistant without its memory candidates,
- * Functions with one scene binding per scene and project. */
-const STORE_VERSIONS: Record<string, number> = { memory: 2, assistant: 2, functions: 2 };
+ * Functions with one scene binding per scene and project, Form answers that always keep their questions. */
+const STORE_VERSIONS: Record<string, number> = { memory: 2, assistant: 2, functions: 2, form: 2 };
 /** Baseline tables a real Home had not created yet (made on first use); the stamping run creates them empty. */
 const LAZY_TABLES: Record<string, string[]> = { connectors: ["connector_authorization_results"] };
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };

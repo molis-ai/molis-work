@@ -58,8 +58,8 @@ test('real browser puts an action on each record it acts on, follows the view or
     pages: [{ id: 'home', title: '笔记', regions: [{ id: 'main', title: '笔记', operationIds: ['notes.list', 'notes.remove'] }] }],
   };
   const nodes = [
-    { id: 'title', pageId: 'home', regionId: 'main', intent: 'heading', purpose: '笔记', props: {}, kind: 'heading' },
-    { id: 'notes', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '浏览笔记', props: { idField: 'id', titleField: 'text' }, read: { operationId: 'notes.list', input: {} }, kind: 'list' },
+    { id: 'title', pageId: 'home', regionId: 'main', intent: 'heading', purpose: '笔记', props: {}, kind: 'frame' },
+    { id: 'notes', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '浏览笔记', props: { idField: 'id', titleField: 'text' }, read: { operationId: 'notes.list', input: {} }, kind: 'directory' },
     { id: 'remove', pageId: 'home', regionId: 'main', intent: 'action', purpose: '删除选中的笔记', props: { submitLabel: '删除选中' }, submit: { operationId: 'notes.remove', input: { id: { source: 'selection', componentId: 'notes', field: 'id' } } }, kind: 'button' },
   ];
   try {
@@ -84,7 +84,7 @@ test('real browser shows a model answer\'s emphasis without ever treating it as 
   const records: SandboxPluginContract = { version: 1, pluginId: 'test.prose', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'answers.list', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: {}, examples: [] }],
     pages: [{ id: 'home', title: '回答', regions: [{ id: 'main', title: '回答', operationIds: ['answers.list'] }] }] };
-  const nodes = [{ id: 'answers', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '回答', props: { idField: 'id', titleField: 'title', textField: 'text' }, read: { operationId: 'answers.list', input: {} }, kind: 'list' }];
+  const nodes = [{ id: 'answers', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '回答', props: { idField: 'id', titleField: 'title', textField: 'text' }, read: { operationId: 'answers.list', input: {} }, kind: 'directory' }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
     const page = await browser.page();
@@ -121,7 +121,7 @@ test('real browser: an error an earlier read left goes away once a read succeeds
   const contract: SandboxPluginContract = { version: 1, pluginId: 'test.retry', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'notes.list', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: {}, examples: [] }],
     pages: [{ id: 'home', title: '笔记', regions: [{ id: 'main', title: '笔记', operationIds: ['notes.list'] }] }] };
-  const nodes = [{ id: 'notes', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '笔记', kind: 'list', props: { idField: 'id', titleField: 'text' }, read: { operationId: 'notes.list', input: {} } }];
+  const nodes = [{ id: 'notes', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '笔记', kind: 'directory', props: { idField: 'id', titleField: 'text' }, read: { operationId: 'notes.list', input: {} } }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
     const page = await browser.page();
@@ -141,7 +141,7 @@ test('real browser shows a total and its breakdown as labelled figures, named fr
     operations: [{ id: 'summary.read', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false },
       output: { type: 'object', properties: { total: { type: 'number', description: '本月总支出' }, byCategory: { type: 'array', description: '各分类合计', items: { type: 'object', properties: { category: { type: 'string', description: '分类' }, amount: { type: 'number', description: '合计' } } } } } }, errors: [], effects: {}, examples: [] }],
     pages: [{ id: 'home', title: '账', regions: [{ id: 'main', title: '账', operationIds: ['summary.read'] }] }] };
-  const nodes = [{ id: 'summary', pageId: 'home', regionId: 'main', intent: 'description', purpose: '本月合计', kind: 'text', props: {}, read: { operationId: 'summary.read', input: {} } }];
+  const nodes = [{ id: 'summary', pageId: 'home', regionId: 'main', intent: 'description', purpose: '本月合计', kind: 'card', props: {}, read: { operationId: 'summary.read', input: {} } }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
     const page = await browser.page();
@@ -165,7 +165,7 @@ test('real browser filters a collection by its read\'s own fields: 全部 first,
   const books: SandboxPluginContract = { version: 1, pluginId: 'test.books', revision: 'one', entities: [], acceptance: [],
     operations: [{ id: 'books.list', kind: 'query', input: { type: 'object', properties: { status: { type: 'string', enum: ['想读', '在读', '读完'], description: '状态' }, keyword: { type: 'string', description: '书名包含' } }, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: {}, examples: [] }],
     pages: [{ id: 'home', title: '书', regions: [{ id: 'main', title: '书', operationIds: ['books.list'] }] }] };
-  const nodes = [{ id: 'books', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '书单', props: { idField: 'id', titleField: 'title' }, kind: 'list',
+  const nodes = [{ id: 'books', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '书单', props: { idField: 'id', titleField: 'title' }, kind: 'directory',
     read: { operationId: 'books.list', input: { status: { source: 'form', field: 'status' }, keyword: { source: 'form', field: 'keyword' } } } }];
   try {
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });

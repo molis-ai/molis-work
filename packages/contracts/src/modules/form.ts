@@ -56,7 +56,8 @@ export interface FormSubmissionRecord {
   readonly form_id: string;
   readonly answers: Readonly<Record<string, string>>;
   readonly submitted_at: string;
-  readonly form_version: number | null;
-  readonly questions: readonly FormQuestion[] | null;
-  readonly source?: FormSubmissionSource;
+  readonly form_version: number;
+  /** The questions as they were when this answer was given. */
+  readonly questions: readonly FormQuestion[];
+  readonly source: FormSubmissionSource;
 }

@@ -132,8 +132,9 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
     db.exec("CREATE TRIGGER fail_form_ui BEFORE UPDATE OF artifact_version ON forms WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
     await click('[data-form-artifact-bar]');await idle();assert.equal(read().forms[0]!.publication_pending!.version,1);
     db.exec('DROP TRIGGER fail_form_ui');
-    // Legacy answer has no historical snapshot; preserve unknown IDs explicitly in the result.
-    db.prepare('INSERT INTO submissions (id,form_id,answers_json,submitted_at) VALUES (?,?,?,?)').run('old-answer',id,JSON.stringify({'removed-question':'历史回答'}),'2025-01-01T00:00:00Z');
+    // An answer keeps the questions as they were: one removed from the form since still shows under its own title.
+    db.prepare('INSERT INTO submissions (id,form_id,answers_json,submitted_at,form_version,questions_json,source) VALUES (?,?,?,?,?,?,?)').run('old-answer',id,
+      JSON.stringify({'removed-question':'历史回答'}),'2025-01-01T00:00:00Z',1,JSON.stringify([{id:'removed-question',type:'text',title:'已删掉的题',required:false,order:0}]),'preview');
   }finally{db.close();}
   assert.equal(await evaluate("document.querySelector('[data-form-artifact-bar]').textContent"),'继续保存上次固定版本');
   await input('[data-form-description]','发布后继续编辑');await saved();await screenshot('recovery');
@@ -146,9 +147,7 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   // The form being edited comes back by itself (specs/archive/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
   await reloadPage();await open();await waitFor("document.querySelector('[data-form-title]')?.getClientRects().length > 0");await idle();
   await click('[data-form-tab=results]');await idle();
-  assert.match(await evaluate<string>("document.querySelector('[data-form-result-list]').textContent"),/历史答卷未保存题目快照/);
-  assert.match(await evaluate<string>("document.querySelector('[data-form-result-list]').textContent"),/removed-question.*历史回答/);
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('.form-result-legacy')).display"),'block');
+  assert.match(await evaluate<string>("document.querySelector('[data-form-result-list]').textContent"),/已删掉的题.*历史回答/);
   assert.equal(await evaluate("document.querySelector('[data-form-stage-workspace]').scrollLeft"),0);
   assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'));
   await screenshot('history');

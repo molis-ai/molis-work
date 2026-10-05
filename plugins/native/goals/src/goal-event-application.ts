@@ -169,7 +169,7 @@ export class GoalEventApplication {
         title: goal.title,
         why: goal.why,
         business_logic: goal.business_logic,
-        source_kind: intentSourceKind(work.owner?.source, this.ports.events.readIntentSourceKind(boardId, goalId)),
+        source_kind: this.ports.events.readIntentSourceKind(boardId, goalId),
       },
       config,
       requirements,
@@ -187,7 +187,6 @@ export class GoalEventApplication {
       applied_decisions: work.applied_decisions,
       current_decisions: work.current_decisions,
       closure: work.closure,
-      imported_completion: work.imported_completion,
       can_record: canRecord(goal, work.owner != null),
       recorded_not_completed: work.work_status !== "completed",
       completion_effect: work.work_status === "completed" && goal.fulfillment_state === "satisfied",
@@ -394,13 +393,6 @@ function canRecord(goal: GoalRecord, owned: boolean): boolean {
   return owned && !goal.trashed_at && !goal.archived_at;
 }
 
-function intentSourceKind(
-  source: "intent" | "configuration" | "continue" | "migration" | null | undefined,
-  stored: GoalEventStateView["intent"]["source_kind"],
-): GoalEventStateView["intent"]["source_kind"] {
-  if (source === "migration") return "migration";
-  return stored;
-}
 
 function nextHint(state: GoalEventStateView): string {
   if (state.work_status === "completed") return "已完成，明确继续后开启新一轮";

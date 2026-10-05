@@ -7,32 +7,9 @@ import { treeProposalSchema } from "./tree-action-schemas.js";
 import { planningMethodSchema } from "./planning-action-schemas.js";
 
 const strings = array(text), maybeText = nullable(text), number = { type: "number" };
-// These historical records explicitly allow arbitrary payloads in their owning contracts.
+// Goal targets and journal payloads allow arbitrary objects in their owning contracts.
 const record = { type: "object", additionalProperties: true };
-const role = enumeration(["clarifier", "executor", "self_verifier", "cross_reviewer", "adversarial_reviewer", "revalidator"]);
 const board = object({ board_id: text, title: text, active_goal_id: maybeText, created_at: text, updated_at: text });
-const impact = object({ binding_id: text, board_id: text, goal_id: text, surface: text, access: enumeration(["read", "write", "decide", "exclusive"]),
-  input_snapshot: maybeText, state: enumeration(["proposed", "confirmed", "inactive"]), reason: text, created_by: text,
-  created_at: text, updated_at: text, deactivated_at: maybeText, deactivation_reason: maybeText });
-const claim = object({ claim_id: text, board_id: text, goal_id: text, actor_id: text, role, contract_revision: count,
-  action_kind: nullable(enumeration(["clarify", "execute", "submit_evidence", "revise", "review", "revalidate", "mitigate_risk", "accept_risk", "release", "renew", "repair", "wait"])),
-  action_target_id: maybeText, state: enumeration(["active", "released", "expired", "revoked"]), capabilities: strings, goal_mode_attestation: boolean,
-  resolved_policy: goalPolicySchema, claimed_at: text, expires_at: text, renewed_at: maybeText, released_at: maybeText, release_reason: maybeText });
-const run = object({ run_id: text, board_id: text, goal_id: text, claim_id: text, actor_id: text, role,
-  state: enumeration(["started", "blocked", "completed", "failed", "abandoned"]), block_reason: maybeText,
-  output_refs: strings, discovery_refs: strings, started_at: text, ended_at: maybeText });
-const correction = object({ correction_id: text, board_id: text, goal_id: text, target_evidence_id: text, action: enumeration(["supersede", "retract"]),
-  replacement_evidence_id: maybeText, actor_id: text, reason: text, created_at: text });
-const evidence = object({ evidence_id: text, board_id: text, goal_id: text, contract_revision: count, criterion_ids: strings,
-  producer_actor_id: text, run_id: maybeText, review_id: maybeText, kind: enumeration(["test", "measurement", "artifact", "inspection", "attestation", "human_verdict"]),
-  locator: text, locator_status: enumeration(["verified", "unverified"]), locator_validation_reason: text, locator_checked_at: maybeText,
-  locator_workspace_id: maybeText, digest: maybeText, captured_at: text, result: enumeration(["passed", "failed", "inconclusive"]),
-  lifecycle_state: enumeration(["effective", "superseded", "retracted"]), correction: nullable(correction), historical_unmapped: boolean });
-const obligation = object({ obligation_id: text, board_id: text, goal_id: text, contract_revision: count,
-  role: enumeration(["self_verifier", "cross_reviewer", "adversarial_reviewer", "human_approver"]), required_count: count,
-  independence_rule: text, criterion_scope: strings, state: enumeration(["pending", "satisfied", "waived"]), created_at: text });
-const review = object({ review_id: text, board_id: text, goal_id: text, obligation_id: text, claim_id: maybeText, actor_id: text,
-  verdict: enumeration(["pass", "fail", "needs_changes", "inconclusive"]), evidence_refs: strings, reasoning: text, submitted_at: text });
 const leafReadiness = object({ verdict: enumeration(["ready", "split_required"]), primary_deliverable: text,
   output_coverage: array(object({ promised_output: text, role: enumeration(["primary", "supporting", "independent"]), reason: text })),
   split_candidates: array(object({ work_item: text, separately_deliverable: boolean, separately_acceptable: boolean, independently_reworkable: boolean,
@@ -44,27 +21,15 @@ const goalInput = object({ goal_id: text, title: text, outcome: text, why: text,
   acceptance_criteria: array(object({ criterion_id: text, statement: text, decision_method: recordedDecisionMethod,
     pass_condition: text, target: nullable(record), required_evidence: strings }, ["statement", "decision_method", "pass_condition"])) },
   ["title", "outcome", "why", "business_logic", "acceptance_criteria"]);
-/** A goal as it was submitted in a proposal. Earlier proposal formats carried fields since dropped (source_refs, review_policy); they are read as recorded. */
-const clarification = object({ session_id: text, board_id: text, goal_id: text, claim_id: maybeText, run_id: maybeText, rough_idea: text,
-  state: enumeration(["clarifying", "proposal_ready", "closed"]), current_understanding: maybeText, next_question: maybeText, proposal_summary: maybeText,
-  created_by: text, created_at: text, updated_at: text, closed_at: maybeText });
-const turn = object({ turn_id: text, session_id: text, board_id: text, goal_id: text, run_id: maybeText, actor_id: text, turn_index: count,
-  turn_kind: enumeration(["rough_idea", "user_answer"]), user_message: text, current_understanding: maybeText,
-  known_facts: array(object({ statement: text, source_kind: enumeration(["user_answer", "repository_fact", "document_fact"]), source_refs: strings, confidence: number, confirmed_by_user: boolean })),
-  assumptions: array(object({ statement: text, source_refs: strings, confidence: number, requires_user_confirmation: { const: true } })),
-  next_question: maybeText, proposal_summary: maybeText, created_at: text });
-const historical = { impacts: array(impact), claims: array(claim), runs: array(run), evidence: array(evidence), evidence_corrections: array(correction),
-  review_obligations: array(obligation), reviews: array(review),
-  clarification_sessions: array(clarification), clarification_turns: array(turn), goal_tree_proposals: array(treeProposalSchema) };
+const proposals = { goal_tree_proposals: array(treeProposalSchema) };
 export const boardSnapshotSchema = object({ cursor: count, board, goals: array(goalRecordSchema), relations: array(goalRelationSchema), risks: array(goalRiskSchema),
-  goal_risks: array(object({ goal_id: text, risk_id: text })), ...historical,
+  goal_risks: array(object({ goal_id: text, risk_id: text })), ...proposals,
   goal_contract_revisions: array(object({ goal_id: text, board_id: text, revision: count, contract: goalInput, effect: enumeration(["metadata", "revalidate", "rework"]),
     source_proposal_id: maybeText, changed_by: text, reason: text, created_at: text })),
-  coverage_contract_revisions: array(object({ parent_goal_id: text, child_goal_id: text, parent_contract_revision: count, child_contract_revision: count, recorded_at: text })),
   lifecycle_events: array(object({ seq: count, type: text, object_type: text, object_id: text, payload: record, at: text })),
   planning_method_packs: array(planningMethodSchema), project_guidance: array(projectGuidanceEntrySchema) });
 const coverage = (goalDecompositionReviewSchema.properties as Record<string, ActionSchema>).contract_coverage!;
 export const goalContractSchema = object({ board, observed_event_cursor: count, goal_path: text, goal: goalRecordSchema,
   parent_contract_coverage: array(object({ parent_goal_id: text, parent_goal_title: text, record_status: enumeration(["recorded", "unrecorded"]),
     ...coverage.properties as Record<string, ActionSchema> })), relations: array(goalRelationSchema), risks: array(goalRiskSchema),
-  resolved_policy: goalPolicySchema, project_guidance: array(projectGuidanceEntrySchema), ...historical });
+  resolved_policy: goalPolicySchema, project_guidance: array(projectGuidanceEntrySchema), ...proposals });

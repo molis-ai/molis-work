@@ -2,7 +2,6 @@ import type { StoredModuleEvent } from "@molis-ai/molis-work-contracts/platform/
 import type {
   AcceptedRiskFacts,
   GoalContractRevisionRecord,
-  CoverageContractRevisionRecord,
   GoalAcceptanceCriterion,
   GoalPolicyBindingRecord,
   GoalRecord,
@@ -188,16 +187,6 @@ export class GoalsRepository {
     }));
   }
 
-  listCoverageRevisions(boardId: string): CoverageContractRevisionRecord[] {
-    return (this.db.prepare(`SELECT coverage.* FROM coverage_contract_revisions coverage
-      JOIN goals parent ON parent.goal_id = coverage.parent_goal_id
-      WHERE parent.board_id = ? ORDER BY coverage.parent_goal_id, coverage.child_goal_id, coverage.parent_contract_revision`)
-      .all(boardId) as Row[]).map(row => ({
-      parent_goal_id: text(row.parent_goal_id), child_goal_id: text(row.child_goal_id),
-      parent_contract_revision: Math.max(1, number(row.parent_contract_revision) || 1),
-      child_contract_revision: Math.max(1, number(row.child_contract_revision) || 1), recorded_at: text(row.recorded_at),
-    }));
-  }
 
   replacePolicyBinding(input: {
     board_id: string; goal_id: string | null; policy_binding_id: string;

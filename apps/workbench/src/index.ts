@@ -22,7 +22,6 @@ export {
   decisionGroupCount,
   decisionTypeCounts,
   displayedPassedCriterionIds,
-  explainGoalDecision,
   findGoalView,
   firstBlockedDescendant,
   GOAL_DISPLAY_STATUSES,
@@ -81,11 +80,6 @@ export {
   WORK_TAB_VISIBILITY_CLIENT_SCRIPT,
 } from "./browser-assets.js";
 export { EN } from "./i18n/en.js";
-export {
-  EXECUTION_EVIDENCE_KIND_LABELS,
-  EXECUTION_EVIDENCE_RESULT_LABELS,
-} from "./human-review-renderer.js";
-
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-app-workbench",
   packagePath: "apps/workbench",
@@ -112,7 +106,6 @@ export { isProjectSettingsWorkbenchPath, projectSettingsPageFromPath, projectSet
 export { createWorkbenchProjectChooserRenderer, type ChooserArrival } from "./arrival/chooser.js";
 export { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "./arrival/project-brief.js";
 export type { ArrivalPrimitives, ArrivalShellPrimitives } from "./arrival/shell.js";
-export { createWorkbenchHumanReviewRenderer, type HumanReviewPrimitives } from "./human-review-renderer.js";
 export type { WebSettingsProject, WebInstallationDiagnostics, MolisWorkSettingsView } from "./settings-view.js";
 export { createWorkbenchSettingsRenderer, type SettingsRenderPrimitives } from "./settings-renderer.js";
 export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";

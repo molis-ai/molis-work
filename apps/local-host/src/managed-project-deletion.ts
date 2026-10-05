@@ -8,7 +8,6 @@ import { randomUUID } from "node:crypto";
 import type { StoredProjectDeletion } from "@molis-ai/molis-work-module-projects";
 import type { DeleteProjectInput as DeleteMolisWorkProjectInput, ProjectDeletionResult as MolisWorkProjectDeletionResult, ProjectDeletionRecord as MolisWorkProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import { managedProjectDirectory } from "./project-file-paths.js";
-import { assertProjectHasNoActiveWork } from "./managed-project-database.js";
 export interface ProjectDeletionCleanupPorts {
   removeBindings(projectId: string, actorId: string, at: string): number;
   removePanels(projectId: string): void;
@@ -19,13 +18,6 @@ export class ManagedProjectDeletion {
     private readonly projectsDirectory: string, private readonly cleanup: ProjectDeletionCleanupPorts,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">, private readonly commit: CatalogCommit) {}
 async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
-    return this.deleteProjectInternal(input, false);
-  }
-
-async deleteProjectInternal(
-    input: DeleteMolisWorkProjectInput,
-    allowActiveDemoWork: boolean,
-  ): Promise<MolisWorkProjectDeletionResult> {
     const projectId = this.validation.requiredProjectId(input.project_id);
     const actorId = this.validation.requiredActorId(input.actor_id);
     if (input.delete_confirmed !== true) {
@@ -50,7 +42,6 @@ async deleteProjectInternal(
 
     const project = this.projects.query.getProject(projectId);
     const projectDirectory = managedProjectDirectory(this.projectsDirectory, project);
-    if (!allowActiveDemoWork) assertProjectHasNoActiveWork(project);
     const stagedDirectory = path.join(this.projectsDirectory, `.deleting-${project.project_id}-${randomUUID()}`);
     await fs.rename(projectDirectory, stagedDirectory);
     let catalogCommitted = false;

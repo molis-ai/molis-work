@@ -1,7 +1,5 @@
-import type { GoalFactsView, ImpactBindingRecord, ProjectGuidanceView, GoalsActorWrite, GoalsBoardRecord, GoalContractRevisionRecord, CoverageContractRevisionRecord, PlanningMethodPack, ProjectGuidanceEntryRecord, GoalRecord, GoalRelationRecord, RiskRecord, GoalRiskLinkRecord } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { ExecutionClaimRecord, ExecutionRunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
-import type { EvidenceRecord, EvidenceCorrectionRecord } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
-import type { ReviewObligationRecord, ReviewRecord, ClarificationSessionRecord, ClarificationTurnRecord, GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalFactsView, ProjectGuidanceView, GoalsActorWrite, GoalsBoardRecord, GoalContractRevisionRecord, PlanningMethodPack, ProjectGuidanceEntryRecord, GoalRecord, GoalRelationRecord, RiskRecord, GoalRiskLinkRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { StoredModuleEvent } from "@molis-ai/molis-work-contracts/platform/storage";
 
@@ -11,36 +9,17 @@ export interface BoardSnapshot {
   board: GoalsBoardRecord;
   goals: GoalRecord[];
   relations: GoalRelationRecord[];
-  impacts: ImpactBindingRecord[];
   risks: RiskRecord[];
   goal_risks: GoalRiskLinkRecord[];
-  claims: ExecutionClaimRecord[];
-  runs: ExecutionRunRecord[];
-  evidence: EvidenceRecord[];
-  evidence_corrections: EvidenceCorrectionRecord[];
-  review_obligations: ReviewObligationRecord[];
-  reviews: ReviewRecord[];
   goal_contract_revisions: GoalContractRevisionRecord[];
-  coverage_contract_revisions: CoverageContractRevisionRecord[];
   lifecycle_events: StoredModuleEvent[];
-  clarification_sessions: ClarificationSessionRecord[];
-  clarification_turns: ClarificationTurnRecord[];
   planning_method_packs: PlanningMethodPack[];
   project_guidance: ProjectGuidanceEntryRecord[];
   goal_tree_proposals: GoalTreeProposalRecord[];
 }
 
-/** Public entry contract: Goal facts plus historical owner records. */
+/** Public entry contract: Goal facts plus the owners' records about it. */
 export interface GoalContractView extends GoalFactsView {
-  impacts: ImpactBindingRecord[];
-  claims: ExecutionClaimRecord[];
-  runs: ExecutionRunRecord[];
-  evidence: EvidenceRecord[];
-  evidence_corrections: EvidenceCorrectionRecord[];
-  review_obligations: ReviewObligationRecord[];
-  reviews: ReviewRecord[];
-  clarification_sessions: ClarificationSessionRecord[];
-  clarification_turns: ClarificationTurnRecord[];
   goal_tree_proposals: GoalTreeProposalRecord[];
 }
 

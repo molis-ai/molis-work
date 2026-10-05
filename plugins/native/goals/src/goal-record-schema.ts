@@ -30,5 +30,5 @@ export const goalRecordSchema = object({ goal_id: text, board_id: text, title: t
   created_at: text, updated_at: text, acceptance_criteria: array(goalAcceptanceCriterionSchema) });
 export const goalArchiveResultSchema = object({ goal: goalRecordSchema, active_goal_cleared: boolean, observed_event_cursor: count, replayed: boolean });
 export const goalTrashResultSchema = object({ goal: goalRecordSchema, active_goal_cleared: boolean, observed_event_cursor: count, replayed: boolean,
-  status: enumeration(["trashed", "restored", "already_trashed", "already_active", "blocked"]), deactivated_relation_ids: strings,
-  restored_relation_ids: strings, pending_relation_ids: strings, blocking_claim_ids: strings, blocking_run_ids: strings });
+  status: enumeration(["trashed", "restored", "already_trashed", "already_active"]), deactivated_relation_ids: strings,
+  restored_relation_ids: strings, pending_relation_ids: strings });

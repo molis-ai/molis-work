@@ -363,7 +363,7 @@ export interface GoalEventStateView {
     title: string;
     why: string;
     business_logic: string;
-    source_kind: GoalIntentSourceKind | "migration" | null;
+    source_kind: GoalIntentSourceKind | null;
   };
   config: GoalEventConfigView;
   requirements: GoalEventRequirementStatus[];
@@ -382,7 +382,6 @@ export interface GoalEventStateView {
   applied_decisions: GoalEventWorkStateView["applied_decisions"];
   current_decisions: GoalEventWorkStateView["current_decisions"];
   closure: GoalEventWorkStateView["closure"];
-  imported_completion: GoalEventWorkStateView["imported_completion"];
   can_record: boolean;
   recorded_not_completed: boolean;
   completion_effect: boolean;
@@ -529,7 +528,7 @@ export interface GoalEventFactsApi {
     board_id: string;
     goal_id: string;
     actor_id: string;
-    source: "intent" | "configuration" | "continue" | "migration";
+    source: "intent" | "configuration" | "continue";
     outcome?: string;
   }): void;
   replayIntent(boardId: string, actorId: string, idempotencyKey: string, hash: string): CreateGoalIntentResult | null;

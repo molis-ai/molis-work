@@ -173,11 +173,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
           sendJson(response, 200, result);
         });
       } catch (error) {
-        const activeWork = error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_active_work";
-        sendJson(response, activeWork ? 409 : 400, {
-          error: activeWork ? L("这个项目还有未结束的执行记录，请结束工作后再删除。")
-            : error instanceof Error ? error.message : String(error),
-        });
+        sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
       }
       return true;
     }

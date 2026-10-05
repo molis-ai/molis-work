@@ -1,37 +1,9 @@
 export const GOVERNANCE_SCHEMA_SQL = `
-  CREATE TABLE review_obligations (
-    obligation_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    contract_revision INTEGER NOT NULL DEFAULT 1,
-    role TEXT NOT NULL CHECK (role IN ('self_verifier', 'cross_reviewer', 'adversarial_reviewer', 'human_approver')),
-    required_count INTEGER NOT NULL,
-    independence_rule TEXT NOT NULL,
-    criterion_scope_json TEXT NOT NULL DEFAULT '[]',
-    state TEXT NOT NULL CHECK (state IN ('pending', 'satisfied', 'waived')),
-    created_at TEXT NOT NULL
-  );
-
-  CREATE TABLE reviews (
-    review_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    obligation_id TEXT NOT NULL REFERENCES review_obligations(obligation_id),
-    claim_id TEXT REFERENCES claims(claim_id),
-    actor_id TEXT NOT NULL,
-    verdict TEXT NOT NULL CHECK (verdict IN ('pass', 'fail', 'needs_changes', 'inconclusive')),
-    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
-    reasoning TEXT NOT NULL,
-    submitted_at TEXT NOT NULL
-  );
-  CREATE INDEX reviews_obligation_idx ON reviews(obligation_id, verdict);
-
   CREATE TABLE goal_tree_proposals (
     proposal_id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
     root_goal_id TEXT REFERENCES goals(goal_id) ON DELETE SET NULL,
     submitted_by TEXT NOT NULL,
-    discovered_in_run_id TEXT REFERENCES runs(run_id) ON DELETE SET NULL,
     submitted_session_id TEXT,
     state TEXT NOT NULL CHECK (state IN ('pending', 'superseded', 'approved', 'partially_applied', 'rejected', 'dismissed', 'closed')),
     version INTEGER NOT NULL,

@@ -191,9 +191,7 @@ export function buildGoalMomentumView(
       unsatisfied_provider_goal_ids: unsatisfiedProviderGoalIds,
       downstream_goal_ids: downstreamGoalIds,
       downstream_open_count: downstreamOpenCount,
-      completion_ratio: goal.acceptance_criteria_count > 0
-        ? Math.min(1, goal.passed_criteria_count / goal.acceptance_criteria_count)
-        : goal.completed ? 1 : 0,
+      completion_ratio: goal.completed ? 1 : 0,
       blocked,
       startable: !goal.completed && goal.display_status === "continue" && unsatisfiedProviderGoalIds.length === 0,
       stale,

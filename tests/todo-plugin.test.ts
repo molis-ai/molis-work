@@ -28,8 +28,7 @@ const PROJECT = "project-todo";
 function view(): MolisWorkWebView {
   const board = { board_id: "board-todo", title: "待办", active_goal_id: null, created_at: "2026-09-28T00:00:00.000Z", updated_at: "2026-09-28T00:00:00.000Z" };
   return {
-    snapshot: { board, cursor: 0, goals: [], relations: [], impacts: [], risks: [], claims: [], runs: [], evidence: [], review_obligations: [], reviews: [], candidates: [],
-      contract_proposals: [], rewires: [], clarification_sessions: [], clarification_turns: [], goal_tree_proposals: [], planning_method_packs: [] },
+    snapshot: { board, cursor: 0, goals: [], relations: [], risks: [], goal_tree_proposals: [], planning_method_packs: [] },
     project: { project_id: PROJECT, display_name: "待办" },
     projects: [{ project_id: PROJECT, display_name: "待办" }],
     route_prefix: `/projects/${PROJECT}`,

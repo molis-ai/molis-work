@@ -109,7 +109,7 @@ export class DemoProjectLifecycle {
     if (project.data_class !== "regenerable_demo") {
       throw new MolisWorkProjectCatalogError("catalog.not_demo", "只有明确标记为可重建演示数据的项目能走 demo 删除流程");
     }
-    return this.deletion.deleteProjectInternal(input, true);
+    return this.deletion.deleteProject(input);
   }
 
   requireDemoConfirmation(userConfirmed: boolean): void {

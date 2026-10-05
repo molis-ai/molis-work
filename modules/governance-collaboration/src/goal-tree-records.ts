@@ -107,14 +107,14 @@ export class GovernanceGoalTreeRecords {
 
   insertGoalTreeProposal(proposal: NewNativeGoalTreeProposal): void {
     this.db.prepare(`INSERT INTO goal_tree_proposals (
-      proposal_id, board_id, root_goal_id, submitted_by, discovered_in_run_id,
+      proposal_id, board_id, root_goal_id, submitted_by,
       submitted_session_id, state, version, supersedes_proposal_id,
       base_event_cursor, summary, narrative_json, decision_json,
       created_at, updated_at, decided_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)`)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)`)
       .run(
         proposal.proposal_id, proposal.board_id, proposal.root_goal_id,
-        proposal.submitted_by, proposal.discovered_in_run_id, proposal.submitted_session_id ?? null,
+        proposal.submitted_by, proposal.submitted_session_id ?? null,
         proposal.state, proposal.version, proposal.supersedes_proposal_id,
         proposal.base_event_cursor,
         proposal.summary, proposal.narrative == null ? null : json(proposal.narrative),

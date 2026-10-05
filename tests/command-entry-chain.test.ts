@@ -97,8 +97,6 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
     assert.equal(state.work_status, "completed");
     const final = await client.invoke(snapshotBoardCapability, { board_id: boardId });
     assert.equal(final.goals.find((goal) => goal.goal_id === goal_id)?.title, "跨入口验收");
-    assert.equal(final.claims.length, 0);
-    assert.equal(final.runs.length, 0);
     assert.deepEqual(await cli("snapshot", { board_id: boardId }), final);
   } finally {
     await mcp.close();

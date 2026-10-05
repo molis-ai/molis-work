@@ -1,4 +1,4 @@
--- The project database baseline, version 2 (repository-anti-corruption §4.1): the schema a new project database gets.
+-- The project database baseline, version 3 (repository-anti-corruption §4.1): the schema a new project database gets.
 -- Generated from PROJECT_DATABASE_BASELINE; a change to any owner's tables means a new version and a new snapshot.
 CREATE TABLE acceptance_criteria (
     criterion_id TEXT PRIMARY KEY,
@@ -37,59 +37,6 @@ CREATE TABLE casebook_interaction_facts (
  PRIMARY KEY(board,epoch,seq));
 CREATE TABLE casebook_interaction_scopes (
  board TEXT PRIMARY KEY, epoch TEXT NOT NULL, state TEXT NOT NULL, secret TEXT NOT NULL, since TEXT NOT NULL, pauses INTEGER NOT NULL DEFAULT 0);
-CREATE TABLE claims (
-    claim_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    actor_id TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('clarifier', 'executor', 'self_verifier', 'cross_reviewer', 'adversarial_reviewer', 'revalidator')),
-    contract_revision INTEGER NOT NULL DEFAULT 1,
-    action_kind TEXT,
-    action_target_id TEXT,
-    state TEXT NOT NULL CHECK (state IN ('active', 'released', 'expired', 'revoked')),
-    capabilities_json TEXT NOT NULL DEFAULT '[]',
-    goal_mode_attestation INTEGER NOT NULL DEFAULT 0,
-    resolved_policy_json TEXT NOT NULL,
-    claimed_at TEXT NOT NULL,
-    expires_at TEXT NOT NULL,
-    renewed_at TEXT,
-    released_at TEXT,
-    release_reason TEXT
-  );
-CREATE TABLE clarification_sessions (
-          session_id TEXT PRIMARY KEY,
-          board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-          goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-          claim_id TEXT REFERENCES claims(claim_id),
-          run_id TEXT REFERENCES runs(run_id),
-          rough_idea TEXT NOT NULL,
-          state TEXT NOT NULL CHECK (state IN ('clarifying', 'proposal_ready', 'closed')),
-          current_understanding TEXT,
-          next_question TEXT,
-          proposal_summary TEXT,
-          created_by TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL,
-          closed_at TEXT
-        );
-CREATE TABLE clarification_turns (
-          turn_id TEXT PRIMARY KEY,
-          session_id TEXT NOT NULL REFERENCES clarification_sessions(session_id) ON DELETE CASCADE,
-          board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-          goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-          run_id TEXT REFERENCES runs(run_id),
-          actor_id TEXT NOT NULL,
-          turn_index INTEGER NOT NULL,
-          turn_kind TEXT NOT NULL CHECK (turn_kind IN ('rough_idea', 'user_answer')),
-          user_message TEXT NOT NULL,
-          current_understanding TEXT,
-          known_facts_json TEXT NOT NULL DEFAULT '[]',
-          assumptions_json TEXT NOT NULL DEFAULT '[]',
-          next_question TEXT,
-          proposal_summary TEXT,
-          created_at TEXT NOT NULL,
-          UNIQUE(session_id, turn_index)
-        );
 CREATE TABLE coding_plan_drafts (
       board_id TEXT NOT NULL,
       session_id TEXT NOT NULL,
@@ -129,14 +76,6 @@ CREATE TABLE context_edges (
     state TEXT NOT NULL CHECK (state IN ('active', 'removed')),
     PRIMARY KEY (scope_kind, scope_id, edge_key, revision)
   );
-CREATE TABLE coverage_contract_revisions (
-    parent_goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    child_goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    parent_contract_revision INTEGER NOT NULL,
-    child_contract_revision INTEGER NOT NULL,
-    recorded_at TEXT NOT NULL,
-    PRIMARY KEY (parent_goal_id, child_goal_id, parent_contract_revision)
-  );
 CREATE TABLE events (
           seq INTEGER PRIMARY KEY AUTOINCREMENT,
           event_id TEXT NOT NULL UNIQUE,
@@ -149,42 +88,6 @@ CREATE TABLE events (
           payload_json TEXT NOT NULL,
           at TEXT NOT NULL
         );
-CREATE TABLE evidence (
-    evidence_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    contract_revision INTEGER NOT NULL DEFAULT 1,
-    criterion_ids_json TEXT NOT NULL,
-    producer_actor_id TEXT NOT NULL,
-    run_id TEXT REFERENCES runs(run_id),
-    review_id TEXT,
-    kind TEXT NOT NULL,
-    locator TEXT NOT NULL,
-    locator_status TEXT NOT NULL DEFAULT 'unverified' CHECK (locator_status IN ('verified', 'unverified')),
-    locator_validation_reason TEXT NOT NULL DEFAULT '历史 Evidence 未进行 locator 预检',
-    locator_checked_at TEXT,
-    locator_workspace_id TEXT,
-    locator_workspace_root TEXT,
-    digest TEXT,
-    captured_at TEXT NOT NULL,
-    result TEXT NOT NULL CHECK (result IN ('passed', 'failed', 'inconclusive')),
-    historical_unmapped INTEGER NOT NULL DEFAULT 0
-  );
-CREATE TABLE evidence_corrections (
-    correction_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    target_evidence_id TEXT NOT NULL UNIQUE REFERENCES evidence(evidence_id),
-    action TEXT NOT NULL CHECK (action IN ('supersede', 'retract')),
-    replacement_evidence_id TEXT REFERENCES evidence(evidence_id),
-    actor_id TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    CHECK (
-      (action = 'supersede' AND replacement_evidence_id IS NOT NULL) OR
-      (action = 'retract' AND replacement_evidence_id IS NULL)
-    )
-  );
 CREATE TABLE feed_item_events (
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
@@ -462,7 +365,7 @@ CREATE TABLE goal_event_state_owners (
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     owner TEXT NOT NULL CHECK (owner = 'event_work'),
-    source TEXT NOT NULL CHECK (source IN ('intent', 'configuration', 'continue', 'migration')),
+    source TEXT NOT NULL CHECK (source IN ('intent', 'configuration', 'continue')),
     adopted_at TEXT NOT NULL,
     adopted_by TEXT NOT NULL,
     PRIMARY KEY (goal_id)
@@ -587,7 +490,6 @@ CREATE TABLE goal_tree_proposals (
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
     root_goal_id TEXT REFERENCES goals(goal_id) ON DELETE SET NULL,
     submitted_by TEXT NOT NULL,
-    discovered_in_run_id TEXT REFERENCES runs(run_id) ON DELETE SET NULL,
     submitted_session_id TEXT,
     state TEXT NOT NULL CHECK (state IN ('pending', 'superseded', 'approved', 'partially_applied', 'rejected', 'dismissed', 'closed')),
     version INTEGER NOT NULL,
@@ -659,17 +561,6 @@ CREATE TABLE idempotency_records (
           created_at TEXT NOT NULL,
           PRIMARY KEY (board_id, actor_id, operation, idempotency_key)
         );
-CREATE TABLE impact_bindings (
-    binding_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    surface TEXT NOT NULL,
-    access TEXT NOT NULL CHECK (access IN ('read', 'write', 'decide', 'exclusive')),
-    input_snapshot TEXT,
-    state TEXT NOT NULL CHECK (state IN ('proposed', 'confirmed', 'inactive')),
-    reason TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-    deactivated_at TEXT, deactivation_reason TEXT
-  );
 CREATE TABLE inbox_entries (
       board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
@@ -955,30 +846,6 @@ CREATE TABLE project_guidance_revisions (
     created_at TEXT NOT NULL,
     UNIQUE(guidance_id, revision)
   );
-CREATE TABLE review_obligations (
-    obligation_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    contract_revision INTEGER NOT NULL DEFAULT 1,
-    role TEXT NOT NULL CHECK (role IN ('self_verifier', 'cross_reviewer', 'adversarial_reviewer', 'human_approver')),
-    required_count INTEGER NOT NULL,
-    independence_rule TEXT NOT NULL,
-    criterion_scope_json TEXT NOT NULL DEFAULT '[]',
-    state TEXT NOT NULL CHECK (state IN ('pending', 'satisfied', 'waived')),
-    created_at TEXT NOT NULL
-  );
-CREATE TABLE reviews (
-    review_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    obligation_id TEXT NOT NULL REFERENCES review_obligations(obligation_id),
-    claim_id TEXT REFERENCES claims(claim_id),
-    actor_id TEXT NOT NULL,
-    verdict TEXT NOT NULL CHECK (verdict IN ('pass', 'fail', 'needs_changes', 'inconclusive')),
-    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
-    reasoning TEXT NOT NULL,
-    submitted_at TEXT NOT NULL
-  );
 CREATE TABLE risks (
     risk_id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
@@ -996,20 +863,6 @@ CREATE TABLE risks (
     resolution_basis_json TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
-  );
-CREATE TABLE runs (
-    run_id TEXT PRIMARY KEY,
-    board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    claim_id TEXT NOT NULL REFERENCES claims(claim_id),
-    actor_id TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('clarifier', 'executor', 'self_verifier', 'cross_reviewer', 'adversarial_reviewer', 'revalidator')),
-    state TEXT NOT NULL CHECK (state IN ('started', 'blocked', 'completed', 'failed', 'abandoned')),
-    block_reason TEXT,
-    output_refs_json TEXT NOT NULL DEFAULT '[]',
-    discovery_refs_json TEXT NOT NULL DEFAULT '[]',
-    started_at TEXT NOT NULL,
-    ended_at TEXT
   );
 CREATE TABLE schedule_conversation_tasks (
       task_id TEXT PRIMARY KEY,
@@ -1128,27 +981,11 @@ CREATE TABLE source_events (
 CREATE INDEX acceptance_goal_idx ON acceptance_criteria(goal_id);
 CREATE INDEX attention_events_project_entry_idx
       ON attention_events(project_id, entry_id, at, event_id);
-CREATE INDEX claims_action_idx ON claims(board_id, action_kind, action_target_id, state);
-CREATE INDEX claims_board_state_idx ON claims(board_id, state, expires_at);
-CREATE INDEX claims_goal_idx ON claims(goal_id, state);
-CREATE UNIQUE INDEX claims_one_active_per_goal ON claims(goal_id) WHERE state = 'active';
-CREATE UNIQUE INDEX clarification_one_open_session_per_goal
-          ON clarification_sessions(goal_id)
-          WHERE state != 'closed';
-CREATE INDEX clarification_sessions_goal_idx
-          ON clarification_sessions(board_id, goal_id, updated_at DESC, session_id);
-CREATE INDEX clarification_turns_session_idx
-          ON clarification_turns(session_id, turn_index, turn_id);
 CREATE INDEX coding_sessions_board_updated_idx
       ON coding_sessions(board_id, updated_at DESC, session_id);
 CREATE INDEX context_edges_source_idx ON context_edges
     (scope_kind, scope_id, relation_type, json_extract(source_json, '$.module'), json_extract(source_json, '$.id'));
-CREATE INDEX coverage_contract_revisions_child_idx
-    ON coverage_contract_revisions(child_goal_id, child_contract_revision);
 CREATE INDEX events_board_idx ON events(board_id, seq);
-CREATE INDEX evidence_corrections_goal_idx
-    ON evidence_corrections(board_id, goal_id, created_at, correction_id);
-CREATE INDEX evidence_goal_idx ON evidence(goal_id, result);
 CREATE INDEX feed_item_events_project_item_idx
       ON feed_item_events(project_id, item_id, at, event_id);
 CREATE UNIQUE INDEX feed_items_board_signal_idx
@@ -1213,8 +1050,6 @@ CREATE INDEX goals_archive_idx ON goals(board_id, archived_at);
 CREATE INDEX goals_board_idx ON goals(board_id);
 CREATE INDEX goals_ready_idx ON goals(board_id, definition_state, decomposition_state, validity_state, fulfillment_state);
 CREATE INDEX goals_trash_idx ON goals(board_id, trashed_at);
-CREATE INDEX impacts_goal_idx ON impact_bindings(board_id, goal_id, state);
-CREATE INDEX impacts_surface_idx ON impact_bindings(board_id, surface, state);
 CREATE INDEX inbox_entries_board_status_idx
       ON inbox_entries(board_id, status, updated_at DESC, entry_id);
 CREATE INDEX inbox_entries_board_subject_idx
@@ -1239,8 +1074,6 @@ CREATE INDEX project_guidance_revisions_board_idx
     ON project_guidance_revisions(board_id, guidance_id, revision DESC);
 CREATE INDEX relations_from_idx ON goal_relations(board_id, from_goal_id, state);
 CREATE INDEX relations_to_idx ON goal_relations(board_id, to_goal_id, state);
-CREATE INDEX reviews_obligation_idx ON reviews(obligation_id, verdict);
-CREATE UNIQUE INDEX runs_one_nonterminal_per_claim ON runs(claim_id) WHERE state IN ('started', 'blocked');
 CREATE INDEX schedule_conversation_tasks_enabled_idx
       ON schedule_conversation_tasks(enabled, updated_at);
 CREATE INDEX schedule_conversation_turns_task_idx

@@ -3,7 +3,7 @@ export const GOAL_EVENT_STATE_SCHEMA_SQL = `
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
     owner TEXT NOT NULL CHECK (owner = 'event_work'),
-    source TEXT NOT NULL CHECK (source IN ('intent', 'configuration', 'continue', 'migration')),
+    source TEXT NOT NULL CHECK (source IN ('intent', 'configuration', 'continue')),
     adopted_at TEXT NOT NULL,
     adopted_by TEXT NOT NULL,
     PRIMARY KEY (goal_id)

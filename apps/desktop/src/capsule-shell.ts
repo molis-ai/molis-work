@@ -352,7 +352,6 @@ export const CAPSULE_CLIENT_SCRIPT = `
         const why = element("p", "capsule__why");
         why.append(element("strong", "", L("为什么做")), document.createTextNode(item.why || "—"));
         const facts = element("dl", "capsule__facts");
-        if (item.just_completed) appendFact(facts, L("刚完成"), item.just_completed);
         appendFact(facts, L("当前情况"), item.current);
         if (item.blocker) appendFact(facts, L("主要问题"), item.blocker);
         appendFact(facts, L("下一步"), item.next, true);

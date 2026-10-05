@@ -107,7 +107,7 @@ export class GovernanceProposalOperationStore {
       reason: input.supersedes_proposal_id
         ? "当前 Runtime 提交了保留历史的 Goal Tree 提案修订版本"
         : "当前 Runtime 提交了等待用户确认的统一 Goal Tree 提案",
-      payload: { root_goal_id: input.root_goal_id, discovered_in_run_id: input.discovered_in_run_id,
+      payload: { root_goal_id: input.root_goal_id,
         base_event_cursor: input.base_event_cursor, version: input.version,
         supersedes_proposal_id: input.supersedes_proposal_id, item_ids: input.item_ids },
       at: input.at,

@@ -2,7 +2,8 @@ import type { GoalMomentumGoalInput, GoalMomentumCadence, GoalMomentumCadenceBuc
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ACTIVE_RISK_STATES = new Set(["open", "triggered"]);
-const PROGRESS_EVENT_PREFIXES = ["run.", "evidence.", "review.", "contract_", "relation."];
+const PROGRESS_EVENT_PREFIXES = ["goal.work_event.", "goal.event_state.", "goal.event_config.", "contract_", "relation."];
+const WORK_EVENT_PREFIX = "goal.work_event.";
 export function time(value: string | null | undefined): number | null {
   const parsed = value ? Date.parse(value) : Number.NaN;
   return Number.isFinite(parsed) ? parsed : null;
@@ -22,17 +23,15 @@ function isProgressEvent(type: string): boolean {
 
 export function goalActivityTimes(goal: GoalMomentumGoalInput): number[] {
   return [
-    ...goal.runs.flatMap((run) => [time(run.started_at), time(run.ended_at)]),
-    ...goal.evidence.map((evidence) => time(evidence.captured_at)),
-    ...goal.reviews.map((review) => time(review.submitted_at)),
     ...goal.events.filter((event) => isProgressEvent(event.type)).map((event) => time(event.at)),
   ].filter((value): value is number => value !== null);
 }
 
-function firstExecutorStart(goal: GoalMomentumGoalInput): number | null {
-  const starts = goal.runs
-    .filter((run) => run.role === "executor")
-    .map((run) => time(run.started_at))
+/** Work on a Goal starts with its first recorded work event. */
+function firstWorkStart(goal: GoalMomentumGoalInput): number | null {
+  const starts = goal.events
+    .filter((event) => event.type.startsWith(WORK_EVENT_PREFIX))
+    .map((event) => time(event.at))
     .filter((value): value is number => value !== null)
     .sort((left, right) => left - right);
   return starts[0] ?? null;
@@ -84,7 +83,7 @@ export function cadenceFor(
   let stalled = 0;
   let historyIncomplete = 0;
   for (const goal of goals) {
-    const startedAt = firstExecutorStart(goal);
+    const startedAt = firstWorkStart(goal);
     if (within(startedAt)) {
       started += 1;
       const bucket = bucketMap.get(utcDateKey(startedAt));

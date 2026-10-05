@@ -141,17 +141,6 @@ export const GOALS_SCHEMA_SQL = `
   );
   CREATE INDEX policies_scope_idx ON policy_bindings(board_id, goal_id, state);
 
-  CREATE TABLE coverage_contract_revisions (
-    parent_goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    child_goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    parent_contract_revision INTEGER NOT NULL,
-    child_contract_revision INTEGER NOT NULL,
-    recorded_at TEXT NOT NULL,
-    PRIMARY KEY (parent_goal_id, child_goal_id, parent_contract_revision)
-  );
-  CREATE INDEX coverage_contract_revisions_child_idx
-    ON coverage_contract_revisions(child_goal_id, child_contract_revision);
-
   CREATE TABLE project_guidance_entries (
     guidance_id TEXT PRIMARY KEY,
     board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,

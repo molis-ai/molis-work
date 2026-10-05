@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { insertHistoricalClaim, insertHistoricalEvidence, insertHistoricalRun } from "./historical-sql-fixture.js";
 
 test("event document writes planning, report, concern, decision and closure through the production UI", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -264,7 +263,7 @@ test("event document writes planning, report, concern, decision and closure thro
   assert.ok(state.current_decisions.length >= 1);
 });
 
-test("legacy unfinished Goal history remains readable without writing owner or a retired transfer form", { timeout: 60_000 }, async (t) => {
+test("a Goal without event work stays readable without writing an owner or offering a retired transfer form", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
   const { store, origin, sessionId, command, evaluate, click, navigate, waitFor, reloadPage } = browser;
@@ -275,8 +274,6 @@ test("legacy unfinished Goal history remains readable without writing owner or a
   const originalWhy = "历史资料不能在更换界面时消失";
   const originalLogic = "从目标说明直接读取原字段";
   const originalConstraint = "原约束：只修改已确认的文案";
-  const evidenceId = "legacy-readonly-evidence";
-  const evidenceLocator = "historical-readonly://original-body";
   app.goals.commands.createGoal(DEMO_BOARD_ID, {
     goal_id: goalId,
     title: originalTitle,
@@ -290,36 +287,10 @@ test("legacy unfinished Goal history remains readable without writing owner or a
     promised_outputs: ["原输出：可读的最终说明文档"],
     acceptance_criteria: [],
   }, { actor_id: "history-fixture", idempotency_key: "legacy-readonly-create", reason: "隔离验收无 owner 历史阅读" });
-  insertHistoricalClaim(store.db, {
-    claim_id: "legacy-readonly-claim",
-    board_id: DEMO_BOARD_ID,
-    goal_id: goalId,
-    actor_id: "history-runtime",
-  });
-  insertHistoricalRun(store.db, {
-    run_id: "legacy-readonly-run",
-    board_id: DEMO_BOARD_ID,
-    goal_id: goalId,
-    claim_id: "legacy-readonly-claim",
-    actor_id: "history-runtime",
-    output_refs_json: JSON.stringify(["historical-readonly://run-output"]),
-  });
-  insertHistoricalEvidence(store.db, {
-    evidence_id: evidenceId,
-    board_id: DEMO_BOARD_ID,
-    goal_id: goalId,
-    producer_actor_id: "history-runtime",
-    locator: evidenceLocator,
-    kind: "artifact",
-    result: "passed",
-    run_id: "legacy-readonly-run",
-  });
   const before = store.snapshot(DEMO_BOARD_ID);
   const beforeGoal = before.goals.find((item) => item.goal_id === goalId)!;
-  const beforeEvidence = before.evidence.find((item) => item.evidence_id === evidenceId)!;
   assert.equal(app.goalEvents.isEventStateOwner(DEMO_BOARD_ID, goalId), false);
   assert.equal(beforeGoal.outcome, originalOutcome);
-  assert.equal(beforeEvidence.locator, evidenceLocator);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId));
     if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
@@ -338,25 +309,20 @@ test("legacy unfinished Goal history remains readable without writing owner or a
   assert.match(description, new RegExp(originalConstraint));
   await click("[data-goal-event-document]:not([hidden]) [data-event-back]");
   await waitFor(`document.querySelector('[data-event-reader-root]')?.hasAttribute('hidden') === true`);
-  const historyId = await evaluate(`document.querySelector('[data-source="legacy_evidence"]')?.dataset.timelineItem || ""`) as string;
-  assert.ok(historyId, "unowned historical Goal must keep the original Evidence timeline item");
+  const historyId = await evaluate(`document.querySelector('[data-source="journal"]')?.dataset.timelineItem || ""`) as string;
+  assert.ok(historyId, "an unowned Goal keeps its journal records in the timeline");
   await click(`[data-timeline-item="${historyId}"]`);
   await waitFor("document.querySelector('[data-event-sheet] .event')");
   const body = await evaluate("document.querySelector('[data-event-sheet]')?.textContent || ''") as string;
-  assert.match(body, new RegExp(evidenceId));
-  assert.match(body, /historical-readonly:\/\/original-body/);
-  assert.match(body, /原 Evidence/);
+  assert.match(body, /隔离验收无 owner 历史阅读/);
   await reloadPage();
   await waitFor(`document.querySelector('[data-goal-event-document]')?.dataset.goalView === ${JSON.stringify(goalId)}`);
   const after = store.snapshot(DEMO_BOARD_ID);
   const afterGoal = after.goals.find((item) => item.goal_id === goalId)!;
-  const afterEvidence = after.evidence.find((item) => item.evidence_id === evidenceId)!;
   assert.equal(app.goalEvents.isEventStateOwner(DEMO_BOARD_ID, goalId), false);
   assert.equal(afterGoal.title, beforeGoal.title);
   assert.equal(afterGoal.outcome, beforeGoal.outcome);
   assert.deepEqual(afterGoal.constraints, beforeGoal.constraints);
-  assert.equal(afterEvidence.locator, beforeEvidence.locator);
-  assert.deepEqual(after.evidence.filter((item) => item.goal_id === goalId), before.evidence.filter((item) => item.goal_id === goalId));
   assert.equal(await evaluate(`document.querySelector('[data-event-form-open="note"], [data-open-goal-edit], [data-event-form="continue"]')`), null);
 });
 
@@ -369,7 +335,8 @@ test("timeline pagination retries in place and preserves dates, type markers and
   for (let index = 0; index < 42; index += 1) {
     app.goalEvents.recordNote({ board_id: DEMO_BOARD_ID, goal_id: goal.goal_id, actor_id: "web-user", actor_kind: "user", idempotency_key: "paged-note-" + index, body: "最近的工作记录 " + index });
   }
-  insertHistoricalEvidence(store.db, { evidence_id: "paged-historical-result", board_id: DEMO_BOARD_ID, goal_id: goal.goal_id, producer_actor_id: "history-runtime", locator: "artifact://pagination-original", result: "passed", captured_at: "2026-09-01T16:40:00.000Z" });
+  store.appendEvent({ eventId: "paged-historical-result", boardId: DEMO_BOARD_ID, actorId: "web-user", type: "goal.updated", objectType: "goal",
+    objectId: goal.goal_id, reason: "更早的说明修订", payload: {}, at: "2026-09-01T16:40:00.000Z" });
   const before = store.snapshot(DEMO_BOARD_ID);
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setTimezoneOverride", { timezoneId: "Asia/Shanghai" }, sessionId);
@@ -388,9 +355,9 @@ test("timeline pagination retries in place and preserves dates, type markers and
   assert.equal(await evaluate("document.querySelector(" + JSON.stringify(older) + ").querySelector('time').textContent"), "00:40");
   assert.equal(await evaluate("[...document.querySelectorAll('[data-event-timeline] .day-label')].at(-1).textContent"), "2026-09-02");
   assert.equal(await evaluate("document.querySelector(" + JSON.stringify(older) + ").getAttribute('aria-expanded')"), "false");
-  assert.match(await evaluate<string>("document.querySelector(" + JSON.stringify(older) + ").querySelector('.timeline-type').textContent"), /完成依据/);
+  assert.match(await evaluate<string>("document.querySelector(" + JSON.stringify(older) + ").querySelector('.timeline-type').textContent"), /更新目标/);
   await click(older);
-  await waitFor("document.querySelector('[data-event-sheet]').textContent.includes('artifact://pagination-original')");
+  await waitFor("document.querySelector('[data-event-sheet]').textContent.includes('更早的说明修订')");
   assert.equal(await evaluate("document.querySelector('[data-event-sheet]').previousElementSibling.dataset.originalId"), "paged-historical-result");
   const ids = await evaluate<string[]>("[...document.querySelectorAll('[data-timeline-item]')].map(node=>node.dataset.timelineItem)");
   assert.equal(ids.length, new Set(ids).size);

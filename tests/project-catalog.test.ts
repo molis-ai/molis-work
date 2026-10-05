@@ -10,7 +10,6 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { insertHistoricalClaim, insertHistoricalRun } from "./historical-sql-fixture.js";
 
 async function withTemporaryDirectory<T>(run: (directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-project-catalog-"));
@@ -781,7 +780,7 @@ test("unbinding removes only the current Runtime entry and preserves the managed
   });
 });
 
-test("project deletion needs separate confirmation, protects active work, and records an idempotent receipt", async () => {
+test("project deletion needs separate confirmation and records an idempotent receipt", async () => {
   await withTemporaryDirectory(async (directory) => {
     const home = join(directory, "home", ".molis-work");
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
@@ -806,76 +805,6 @@ test("project deletion needs separate confirmation, protects active work, and re
         (error: unknown) =>
           error instanceof MolisWorkProjectCatalogError && error.code === "catalog.delete_confirmation_required",
       );
-
-      const store = new LocalProjectDatabase(project.database_path);
-      let runId = "";
-      try {
-        const coordinator = new GoalProjectApplication(store);
-        coordinator.goals.commands.createGoal(
-          project.board_id,
-          {
-            goal_id: "active-project-work",
-            title: "删除保护测试",
-            outcome: "删除期间不能丢失进行中的工作",
-            why: "验证项目删除门禁",
-            business_logic: "有有效 Claim 或未结束 Run 时，删除必须被拒绝。",
-            definition_state: "accepted",
-            decomposition_state: "closed_leaf",
-            acceptance_criteria: [
-              {
-                criterion_id: "active-project-work-check",
-                statement: "删除被拒绝",
-                decision_method: "automated_check",
-                pass_condition: "删除调用返回 active-work 拒绝",
-              },
-            ],
-          },
-          { actor_id: "user", idempotency_key: "create-active-project-work" },
-        );
-        insertHistoricalClaim(store.db, {
-          claim_id: "claim-active-project-work",
-          board_id: project.board_id,
-          goal_id: "active-project-work",
-          actor_id: "runtime-codex",
-          state: "active",
-          released_at: null,
-          release_reason: null,
-        });
-        insertHistoricalRun(store.db, {
-          run_id: "run-active-project-work",
-          board_id: project.board_id,
-          goal_id: "active-project-work",
-          claim_id: "claim-active-project-work",
-          actor_id: "runtime-codex",
-          state: "started",
-          ended_at: null,
-        });
-        runId = "run-active-project-work";
-      } finally {
-        store.close();
-      }
-
-      await assert.rejects(
-        () => catalog.deleteProject(deletionInput),
-        (error: unknown) =>
-          error instanceof MolisWorkProjectCatalogError && error.code === "catalog.project_active_work",
-      );
-      assert.equal(catalog.getProject(project.project_id).project_id, project.project_id);
-
-      const cleanupStore = new LocalProjectDatabase(project.database_path);
-      try {
-        new GoalProjectApplication(cleanupStore);
-        cleanupStore.db.prepare(`
-          UPDATE claims SET state = 'released', released_at = ?, release_reason = ?
-          WHERE claim_id = 'claim-active-project-work'
-        `).run("2026-09-02T00:10:00.000Z", "测试结束，允许删除");
-        cleanupStore.db.prepare(`
-          UPDATE runs SET state = 'abandoned', block_reason = ?, ended_at = ?
-          WHERE run_id = ?
-        `).run("测试结束，允许删除", "2026-09-02T00:10:00.000Z", runId);
-      } finally {
-        cleanupStore.close();
-      }
 
       const deleted = await catalog.deleteProject(deletionInput);
       assert.equal(deleted.replayed, false);

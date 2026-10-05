@@ -10,9 +10,9 @@ const render = createArtifactReferenceRenderer({
   text: L,
 });
 
-test("Workbench mounts Artifact links with unchanged file endpoint and exact Evidence identity", () => {
-  const html = render("project://notes/result.md#summary", "Results <2026>", "evidence&a");
-  assert.match(html, /href="\/api\/project-references\/project%3A%2F%2Fnotes%2Fresult.md%23summary\?evidence_id=evidence%26a"/);
+test("Workbench mounts Artifact links with the unchanged file endpoint", () => {
+  const html = render("project://notes/result.md#summary", "Results <2026>");
+  assert.match(html, /href="\/api\/project-references\/project%3A%2F%2Fnotes%2Fresult.md%23summary" data-project-reference/);
   // It opens in the workbench's overlay, not a new browser tab (specs/artifact-positioning P18).
   assert.match(html, /data-project-reference/);
   assert.doesNotMatch(html, /target="_blank"[^>]*data-project-reference/);

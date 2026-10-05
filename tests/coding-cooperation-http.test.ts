@@ -131,15 +131,5 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
     assert.deepEqual(replies.map((reply: any) => [reply.kind, reply.inReplyTo.id, reply.state, reply.attachments[0].id]),
       [["reply", id, "rejected", `coding-report:${encodeURIComponent(C)}:r1`], ["reply", id, "completed", `coding-report:${encodeURIComponent(C)}:r2`]]);
 
-    // A delegation kept before delegations went by letter is still shown, and read-only.
-    const install = (store.db.prepare("SELECT install_id FROM plugin_private_values WHERE item_key = 'configuration:A'").get() as { install_id: string }).install_id;
-    const old = { delegation_id: "old-1", from_session: "A", to_session: C, title: "旧的委派", task: "旧任务", materials: [], hops: 1, state: "delivered", revision: 2, deliveries: [],
-      receipts: [{ event: "submitted", state: "received", at, actor: "web-user" }, { event: "delivered", state: "delivered", at, actor: "web-user" }], created_by: "web-user", created_at: at, updated_at: at };
-    const put = store.db.prepare("INSERT INTO plugin_private_values (install_id, item_key, item_value) VALUES (?, ?, ?)");
-    put.run(install, "delegation:old-1", JSON.stringify(old)); put.run(install, "delegations:A", JSON.stringify(["old-1"]));
-    const listed = (await call(`/sessions/A/delegations`)).body.outgoing;
-    assert.deepEqual(listed.map((item: { delegation_id: string; legacy?: boolean }) => [item.delegation_id, item.legacy ?? false]), [[id, false], ["old-1", true]]);
-    const refused = await call(`/sessions/A/delegations/old-1`, "POST", { action: "cancel" });
-    assert.equal(refused.status, 400); assert.match(refused.body.error, /迁移前的委派记录，只读/);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

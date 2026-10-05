@@ -379,7 +379,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "modules/goals/src/guidance-commands.ts",
     "modules/goals/src/lifecycle-archive.ts",
     "modules/goals/src/lifecycle-commands.ts",
-    "modules/goals/src/lifecycle-ports.ts",
     "modules/goals/src/planning/engine.ts",
     "modules/goals/src/planning/goal-graph.ts",
     "modules/goals/src/planning/method-catalog.ts",
@@ -842,9 +841,7 @@ function checkExecutionValidationOwnership(repositoryRoot) {
       errors.push(`${appPath}: retired ${factory} public adapter must stay deleted`);
     }
     if (
-      app.includes("@molis-ai/molis-work-module-execution")
-      || app.includes("@molis-ai/molis-work-module-evidence-verification")
-      || app.includes("@molis-ai/molis-work-module-governance-collaboration")
+      app.includes("@molis-ai/molis-work-module-governance-collaboration")
       || /\b(?:SELECT|INSERT INTO|UPDATE|DELETE FROM)\b/iu.test(app)
       || /\b(?:SqliteMolisWorkStore|MolisWorkCoordinator)\b/u.test(app)
     ) {
@@ -1144,7 +1141,6 @@ function checkRuntimeHostOwnership(repositoryRoot) {
   for (const forbidden of [
     "MolisWorkSessionRegistry",
     "@molis-ai/molis-work-module-private-work-context",
-    "@molis-ai/molis-work-module-execution",
     "better-sqlite3",
     "SqliteMolisWorkStore",
     "src/web/server",

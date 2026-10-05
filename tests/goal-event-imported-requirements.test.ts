@@ -136,7 +136,6 @@ test("still-valid same-scope complete approval satisfies imported policy after t
     assert.equal(policy?.user_conclusion?.actor_id, original.actor_id);
     assert.equal(policy?.user_conclusion?.received_at, original.recorded_at);
     assert.equal(mixed.requirements.find((item) => item.requirement_id === "MIXED-C1")?.currently_satisfied, true);
-    assert.equal(mixed.imported_completion, null);
     assert.deepEqual(mixed.current_decisions.map((item) => item.decision_id), [original.decision_id]);
     const trustedBefore = (store.db.prepare("SELECT COUNT(*) AS n FROM goal_event_trusted_decisions").get() as { n: number }).n;
     const appliedBefore = (store.db.prepare("SELECT COUNT(*) AS n FROM goal_event_applied_decisions").get() as { n: number }).n;
@@ -205,7 +204,6 @@ test("real event closure stays distinct; explicit continue can reuse the same-sc
     assert.equal(mixed.work_status, "completed");
     assert.equal(mixed.completion_effect, true);
     assert.ok(mixed.closure);
-    assert.equal(mixed.imported_completion, null);
     const original = mixed.current_decisions.find((item) =>
       item.effects.some((effect) => effect.kind === "authorize_action" && effect.action === "complete"),
     );

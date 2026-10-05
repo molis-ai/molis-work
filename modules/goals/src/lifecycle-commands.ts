@@ -8,16 +8,12 @@ import type {
 
 import type { GoalsCommandContext } from "./command-support.js";
 import { GoalArchiveCommands } from "./lifecycle-archive.js";
-import type { GoalsLifecycleHooks } from "./lifecycle-ports.js";
 
 export class GoalLifecycleCommands implements GoalsLifecycleApi {
   private readonly archive: GoalArchiveCommands;
 
-  constructor(
-    context: GoalsCommandContext,
-    hooks: GoalsLifecycleHooks,
-  ) {
-    this.archive = new GoalArchiveCommands(context, hooks);
+  constructor(context: GoalsCommandContext) {
+    this.archive = new GoalArchiveCommands(context);
   }
 
   setArchived(
@@ -41,4 +37,3 @@ export class GoalLifecycleCommands implements GoalsLifecycleApi {
   }
 }
 
-export type { GoalsLifecycleHooks } from "./lifecycle-ports.js";

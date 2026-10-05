@@ -39,29 +39,6 @@ export const modulesGoalsContract = {
 } as const satisfies ContractDescriptor;
 
 export type GoalDefinitionState = "draft" | "accepted";
-export type ImpactAccess = "read" | "write" | "decide" | "exclusive";
-
-/** A Goal's resource declaration, not a cross-module ObjectRef relationship. */
-export interface ImpactBindingRecord {
-  binding_id: string;
-  board_id: string;
-  goal_id: string;
-  surface: string;
-  access: ImpactAccess;
-  input_snapshot: string | null;
-  state: "proposed" | "confirmed" | "inactive";
-  reason: string;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-  deactivated_at: string | null;
-  deactivation_reason: string | null;
-}
-
-export interface GoalsImpactApi {
-  list(boardId: string): ImpactBindingRecord[];
-  get(boardId: string, bindingId: string): ImpactBindingRecord | null;
-}
 export type GoalDecompositionState =
   | "abstract"
   | "frontier_open"
@@ -379,8 +356,7 @@ export type GoalTrashStatus =
   | "trashed"
   | "restored"
   | "already_trashed"
-  | "already_active"
-  | "blocked";
+  | "already_active";
 
 export interface GoalTrashResult {
   status: GoalTrashStatus;
@@ -389,8 +365,6 @@ export interface GoalTrashResult {
   deactivated_relation_ids: string[];
   restored_relation_ids: string[];
   pending_relation_ids: string[];
-  blocking_claim_ids: string[];
-  blocking_run_ids: string[];
 }
 
 export interface GoalArchiveResult {
@@ -591,7 +565,6 @@ export interface GoalsQueryApi {
   hasGoalIdentity(goalId: string): boolean;
   listLifecycleEvents(boardId: string): StoredModuleEvent[];
   listContractRevisions(boardId: string): GoalContractRevisionRecord[];
-  listCoverageRevisions(boardId: string): CoverageContractRevisionRecord[];
   getRelation(boardId: string, relationId: string): GoalRelationRecord | null;
   getRisk(boardId: string, riskId: string): RiskRecord | null;
   policyBindingState(boardId: string, bindingId: string): "active" | "replaced" | "withdrawn" | null;
@@ -740,7 +713,6 @@ export interface GoalsLifecycleApi {
 
 /** Public application-facing Goals capabilities; Apps bind this port without owning rules or Stores. */
 export interface GoalsApplicationApi {
-  impacts: GoalsImpactApi;
   commands: GoalsCommandApi;
   lifecycle: GoalsLifecycleApi;
   planning: GoalsPlanningApi;
@@ -803,7 +775,6 @@ export type {
   GoalEventDirectoryItem,
   GoalEventDirectoryPage,
   GoalEventDirectoryQuery,
-  GoalEventImportedCompletion,
   GoalEventReportSummary,
   GoalEventRequirementBinding,
   GoalEventRequirementCommitment,
@@ -881,10 +852,3 @@ export interface GoalContractRevisionRecord {
   created_at: string;
 }
 
-export interface CoverageContractRevisionRecord {
-  parent_goal_id: string;
-  child_goal_id: string;
-  parent_contract_revision: number;
-  child_contract_revision: number;
-  recorded_at: string;
-}

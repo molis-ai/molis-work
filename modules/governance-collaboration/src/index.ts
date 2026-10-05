@@ -10,11 +10,9 @@ import {
 } from "./repository.js";
 import { GovernanceRecordStore } from "./record-store.js";
 import { GovernanceProvenance } from "./provenance.js";
-import { GovernanceClarificationStore } from "./clarification-store.js";
 import { GovernanceDecisionTransactions } from "./decision-transactions.js";
 import { GovernanceEventDecisions } from "./event-decisions.js";
 import type { GovernanceErrorFactory } from "./errors.js";
-export { GovernanceClarificationStore } from "./clarification-store.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-governance-collaboration",
@@ -40,7 +38,6 @@ export interface GovernanceCollaborationModuleOptions {
 }
 
 export class GovernanceCollaborationModule implements GovernanceApplicationApi {
-  readonly clarification: GovernanceClarificationStore;
   readonly provenance: GovernanceProvenance;
   readonly repository: GovernanceRepository;
   readonly records: GovernanceRecordsApi;
@@ -49,7 +46,6 @@ export class GovernanceCollaborationModule implements GovernanceApplicationApi {
   readonly query: GovernanceQueryApi;
 
   constructor(options: GovernanceCollaborationModuleOptions) {
-    this.clarification = new GovernanceClarificationStore(options.db);
     this.provenance = new GovernanceProvenance(options.errorFactory);
     this.repository = new GovernanceRepository(options.db);
     this.records = new GovernanceRecordStore(options.db, options.errorFactory);
@@ -70,8 +66,6 @@ export {
   mapGoalTreeProposal,
   mapGoalTreeProposalDecision,
   mapGoalTreeProposalItem,
-  mapReview,
-  mapReviewObligation,
   parseJson as parseGovernanceJson,
 } from "./mappers.js";
 export {
@@ -93,28 +87,16 @@ export {
 } from "./record-store.js";
 export { assertGovernanceTransition, deriveGoalTreeProposalState } from "./state-machine.js";
 
-export { CLARIFICATION_SCHEMA_SQL } from "./clarification-schema.js";
-
 function governanceQueries(repository: GovernanceRepository): GovernanceQueryApi {
   return {
-      listLifecycleEvents: boardId => repository.listLifecycleEvents(boardId),
       eventCursor: (boardId) => repository.eventCursor(boardId),
       snapshot: (boardId) => repository.snapshot(boardId),
-      getReviewObligation: (boardId, obligationId) =>
-        repository.getReviewObligation(boardId, obligationId),
-      listReviewObligations: (boardId, goalId) =>
-        repository.listReviewObligations(boardId, goalId),
-      listReviews: (boardId, goalId) => repository.listReviews(boardId, goalId),
       getGoalTreeProposal: (boardId, proposalId) =>
         repository.getGoalTreeProposal(boardId, proposalId),
       listGoalTreeProposals: (boardId) => repository.listGoalTreeProposals(boardId),
     };
 }
 
-export function createGovernanceReadServices(db: GovernanceSqliteDatabase): {
-  query: GovernanceQueryApi;
-  clarification: Pick<GovernanceApplicationApi["clarification"], "listSessions" | "listTurns">;
-} {
-  const clarification = new GovernanceClarificationStore(db);
-  return { query: governanceQueries(new GovernanceRepository(db)), clarification };
+export function createGovernanceReadServices(db: GovernanceSqliteDatabase): { query: GovernanceQueryApi } {
+  return { query: governanceQueries(new GovernanceRepository(db)) };
 }

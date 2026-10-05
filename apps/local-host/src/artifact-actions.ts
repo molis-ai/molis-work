@@ -2,7 +2,7 @@ import type { ActionClient, ActionProviderRegistration, FileContent } from "@mol
 import { artifactsManifest, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
-import { readProjectReference } from "@molis-ai/molis-work-module-evidence-verification";
+import { readProjectReference } from "./project-file-reference.js";
 import { runWithMolisWorkHome, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";
 import { artifactPluginInputs, bindArtifactPluginInput } from "./artifact-plugin-inputs.js";
@@ -45,11 +45,8 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
         beforeSave: () => caller.beforeEffect(),
       })),
       openProjectReference: async input => {
-        const evidence = runtime.coordinator.evidenceVerification.query;
-        const source = input.evidence_id ? evidence.getProjectReferenceSource(runtime.board_id, input.evidence_id) : null;
-        const workspace = source?.locator_workspace_root ? null : await options.workspaceFor?.(runtime.project_id);
-        const opened = openArtifactProjectReference({ evidence, readProjectReference }, { boardId: runtime.board_id,
-          reference: input.reference, evidenceId: input.evidence_id, projectRoot: workspace?.canonical_path });
+        const workspace = await options.workspaceFor?.(runtime.project_id);
+        const opened = openArtifactProjectReference({ readProjectReference }, { reference: input.reference, projectRoot: workspace?.canonical_path });
         return { filename: opened.fileName, content_base64: Buffer.from(opened.content).toString("base64") };
       },
     }),

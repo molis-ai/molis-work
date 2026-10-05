@@ -66,7 +66,6 @@ export class GoalTreeDecisionFollowup {
       board_id: boardId,
       root_goal_id: proposal.root_goal_id,
       submitted_by: runtimeActorId ?? authority.actor_id,
-      discovered_in_run_id: proposal.discovered_in_run_id,
       submitted_session_id: proposal.submitted_session_id,
       state: "pending",
       version,

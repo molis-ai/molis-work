@@ -6,7 +6,6 @@ export interface GoalsDocumentItem extends GoalsTreeItem {
   goal: GoalsTreeItem["goal"] & Pick<GoalRecord, "outcome" | "why" | "business_logic" | "in_scope" | "out_of_scope" | "constraints" | "required_inputs" | "promised_outputs" | "definition_state" | "updated_at" | "accepted_by" | "archived_at" | "trashed_at" | "trashed_by" | "acceptance_criteria">;
   main_action_label: string;
   action_summary: string;
-  evidence: ReadonlyArray<{ evidence_id: string }>;
   events: ReadonlyArray<{ type: string; actor_id: string; reason: string }>;
   event_work?: boolean;
   /** Materials bound to this Goal (Goal-owned receipts); counted in the Goal info entry. */

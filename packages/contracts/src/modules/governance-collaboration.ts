@@ -39,39 +39,6 @@ export interface GoalTreeProposalDecisionResult<TTransition> {
   replayed: boolean;
 }
 
-export type GovernanceReviewRole =
-  | "self_verifier"
-  | "cross_reviewer"
-  | "adversarial_reviewer"
-  | "human_approver";
-export type GovernanceReviewVerdict = "pass" | "fail" | "needs_changes" | "inconclusive";
-
-export interface ReviewObligationRecord {
-  obligation_id: string;
-  board_id: string;
-  goal_id: string;
-  contract_revision: number;
-  role: GovernanceReviewRole;
-  required_count: number;
-  independence_rule: string;
-  criterion_scope: string[];
-  state: "pending" | "satisfied" | "waived";
-  created_at: string;
-}
-
-export interface ReviewRecord {
-  review_id: string;
-  board_id: string;
-  goal_id: string;
-  obligation_id: string;
-  claim_id: string | null;
-  actor_id: string;
-  verdict: GovernanceReviewVerdict;
-  evidence_refs: string[];
-  reasoning: string;
-  submitted_at: string;
-}
-
 export type DependencyProposalBasis =
   | "contract_output"
   | "code_reference"
@@ -111,70 +78,11 @@ export interface ContractFieldSource {
 export type ContractFieldSourceInput = Omit<ContractFieldSource, "status" | "requires_user_confirmation"> &
   Partial<Pick<ContractFieldSource, "status" | "requires_user_confirmation">>;
 
-export interface ClarificationFact {
-  statement: string;
-  source_kind: "user_answer" | "repository_fact" | "document_fact";
-  source_refs: string[];
-  confidence: number;
-  confirmed_by_user: boolean;
-}
-
-export interface ClarificationAssumption {
-  statement: string;
-  source_refs: string[];
-  confidence: number;
-  requires_user_confirmation: true;
-}
-
-export type ClarificationFactInput = Pick<ClarificationFact, "statement" | "source_kind"> &
-  Partial<Pick<ClarificationFact, "source_refs" | "confidence" | "confirmed_by_user">>;
-export type ClarificationAssumptionInput = Pick<ClarificationAssumption, "statement"> &
-  Partial<Pick<ClarificationAssumption, "source_refs" | "confidence">>;
-
-
-export type ClarificationSessionState = "clarifying" | "proposal_ready" | "closed";
-
-export interface ClarificationSessionRecord {
-  session_id: string;
-  board_id: string;
-  goal_id: string;
-  claim_id: string | null;
-  run_id: string | null;
-  rough_idea: string;
-  state: ClarificationSessionState;
-  current_understanding: string | null;
-  next_question: string | null;
-  proposal_summary: string | null;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-  closed_at: string | null;
-}
-
-export interface ClarificationTurnRecord {
-  turn_id: string;
-  session_id: string;
-  board_id: string;
-  goal_id: string;
-  run_id: string | null;
-  actor_id: string;
-  turn_index: number;
-  turn_kind: "rough_idea" | "user_answer";
-  user_message: string;
-  current_understanding: string | null;
-  known_facts: ClarificationFact[];
-  assumptions: ClarificationAssumption[];
-  next_question: string | null;
-  proposal_summary: string | null;
-  created_at: string;
-}
-
 export interface GovernanceProvenanceApi {
   normalizeProposalSource(input: Pick<GoalTreeProposalItemProvenanceInput, "source_refs" | "reason" | "confidence" | "requires_user_confirmation">, index: number): Pick<GoalTreeProposalItemRecord, "source_refs" | "reason" | "confidence"> & { requires_user_confirmation: true };
   validateEventDecisionAuthority(authority: GoalEventTrustedAuthority): GoalEventTrustedAuthority;
 }
 
-export type GoalTreeProposalOrigin = "native";
 export type GoalTreeProposalState =
   | "pending" | "superseded" | "approved" | "partially_applied"
   | "rejected" | "dismissed" | "closed";
@@ -269,10 +177,8 @@ export interface GoalTreeProposalItemRecord {
 export interface GoalTreeProposalRecord {
   proposal_id: string;
   board_id: string;
-  origin: GoalTreeProposalOrigin;
   root_goal_id: string | null;
   submitted_by: string;
-  discovered_in_run_id: string | null;
   submitted_session_id: string | null;
   state: GoalTreeProposalState;
   version: number;
@@ -406,7 +312,7 @@ export interface GoalTreeItemOwner {
 
 export type NewNativeGoalTreeProposal = Omit<
   GoalTreeProposalRecord,
-  "origin" | "items" | "decisions" | "decision" | "decided_at"
+  "items" | "decisions" | "decision" | "decided_at"
 >;
 
 export type NewNativeGoalTreeProposalItem = Omit<
@@ -415,18 +321,12 @@ export type NewNativeGoalTreeProposalItem = Omit<
 >;
 
 export interface GovernanceSnapshot {
-  review_obligations: ReviewObligationRecord[];
-  reviews: ReviewRecord[];
   goal_tree_proposals: GoalTreeProposalRecord[];
 }
 
 export interface GovernanceQueryApi {
-  listLifecycleEvents(boardId: string): import("../platform/storage.js").StoredModuleEvent[];
   eventCursor(boardId: string): number;
   snapshot(boardId: string): GovernanceSnapshot;
-  getReviewObligation(boardId: string, obligationId: string): ReviewObligationRecord | null;
-  listReviewObligations(boardId: string, goalId?: string): ReviewObligationRecord[];
-  listReviews(boardId: string, goalId?: string): ReviewRecord[];
   getGoalTreeProposal(boardId: string, proposalId: string): GoalTreeProposalRecord | null;
   listGoalTreeProposals(boardId: string): GoalTreeProposalRecord[];
 }
@@ -476,7 +376,7 @@ export interface GovernanceRecordsApi {
   };
   recordGoalTreeSubmission(input: {
     board_id: string; proposal_id: string; actor_id: string; root_goal_id: string | null;
-    discovered_in_run_id: string | null; base_event_cursor: number; version: number;
+    base_event_cursor: number; version: number;
     supersedes_proposal_id: string | null; item_ids: string[]; at: string;
   }): number;
   findGoalTreeItemOwner(itemId: string): GoalTreeItemOwner | null;
@@ -530,7 +430,6 @@ export interface GovernanceEventDecisionApi {
 }
 
 export interface GovernanceApplicationApi {
-  clarification: GovernanceClarificationApi;
   provenance: GovernanceProvenanceApi;
   query: GovernanceQueryApi;
   records: GovernanceRecordsApi;
@@ -538,8 +437,3 @@ export interface GovernanceApplicationApi {
   eventDecisions: GovernanceEventDecisionApi;
 }
 
-/** Historical dialogue records. Current work does not write clarification sessions. */
-export interface GovernanceClarificationApi {
-  listSessions(boardId: string): ClarificationSessionRecord[];
-  listTurns(boardId: string): ClarificationTurnRecord[];
-}

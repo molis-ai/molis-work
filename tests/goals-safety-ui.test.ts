@@ -3,7 +3,7 @@ import test from "node:test";
 import { createWorkbenchGoalsSafetyRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
 import { GOALS_SAFETY_UI_CONTRIBUTION_ID, type GoalsSafetyItem, type GoalsSafetyRisk } from "@molis-ai/molis-work-plugin-goals";
 import { icon } from "@molis-ai/molis-work-design-system";
-import { L, currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { L, currentLocale } from "@molis-ai/molis-work-app-local-host";
 
 const escapeHtml = (value: unknown) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const renderer = createWorkbenchGoalsSafetyRenderer({ translate: L, currentLocale, icon, escapeHtml,
@@ -16,9 +16,9 @@ function fixture() {
     blocking_mode: "completion", revisit_condition: "After rehearsal", owner: "release-owner", state: "open",
     resolution_basis: null, created_at: "2026-09-05", updated_at: "2026-09-05" };
   const item: GoalsSafetyItem = { goal: { goal_id: "goal-one", title: "Release", archived_at: null, priority: 10, created_at: "2026-09-05" },
-    status: "execution_pending", display_status: "continue", risks: [risk], impacts: [] };
+    status: "execution_pending", display_status: "continue", risks: [risk] };
   const archived: GoalsSafetyItem = { ...item, goal: { ...item.goal, goal_id: "archived", title: 'Old <release>', archived_at: "2026-09-05" },
-    display_status: "completed", risks: [], impacts: [] };
+    display_status: "completed", risks: [] };
   return { risk, item, archived, view: { goals: [item], archived_goals: [archived] } };
 }
 
@@ -40,7 +40,8 @@ test("archive and record views stay read-only", () => {
   assert.doesNotMatch(records, /<form|risk-decision-link/);
   item.goal.archived_at = "2026-09-05";
   assert.doesNotMatch(renderer.renderRiskWorkbench(item, view), /<form|<input|<textarea/);
-  assert.doesNotMatch(renderer.renderImpactWorkbench(item), /<form|<input|<textarea/);
+  item.risks = [];
+  assert.match(renderer.renderRiskWorkbench(item, view, false), /当前没有已记录的风险/);
 });
 
 test("resolved risk evidence and missing historical basis are displayed without rewriting state", () => {
@@ -57,20 +58,3 @@ test("resolved risk evidence and missing historical basis are displayed without 
   assert.match(html, /历史事实/);
 });
 
-test("impact history preserves escaped facts, deactivation reason and request locale", () => {
-  const { item, view } = fixture();
-  const impact = { binding_id: "impact-one", board_id: "board", goal_id: item.goal.goal_id, surface: 'release <files>',
-    access: "read" as const, input_snapshot: "commit://release", state: "confirmed" as const, reason: "Review release",
-    created_by: "user", created_at: "2026-09-05", updated_at: "2026-09-05", deactivated_at: null, deactivation_reason: null };
-  item.impacts = [impact, { ...impact, binding_id: "old-impact", state: "inactive", deactivated_at: "2026-09-05", deactivation_reason: "Replaced scope" }];
-  const html = renderer.renderImpactWorkbench(item);
-  assert.match(html, /release &lt;files&gt;/);
-  assert.match(html, /Replaced scope/);
-  const history = html.slice(html.indexOf('id="impact-old-impact"'));
-  assert.doesNotMatch(history, /<form/);
-  assert.doesNotMatch(html, /data-impact-edit-form|data-impact-create-form/);
-  const english = runWithLocale("en", () => renderer.renderRiskWorkbench(item, view) + renderer.renderImpactWorkbench(item));
-  assert.match(english, /Replaced scope/);
-  item.risks = [];
-  assert.match(renderer.renderRiskWorkbench(item, view, false), /当前没有已记录的风险/);
-});

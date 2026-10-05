@@ -1,28 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, LocalProjectDatabase, PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import { main as runPublicCli } from "../apps/desktop/launchers/cli/main.js";
-import {
-  ProjectReferenceError,
-  readProjectReference,
-  validateEvidenceLocator,
-} from "@molis-ai/molis-work-module-evidence-verification";
 import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
-import {
-  insertHistoricalClaim,
-  insertHistoricalClarificationSession,
-  insertHistoricalEvidence,
-  insertHistoricalRisk,
-  insertHistoricalRun,
-} from "./historical-sql-fixture.js";
-
-const execFileAsync = promisify(execFile);
+import { insertHistoricalRisk } from "./historical-sql-fixture.js";
 
 function fixture(start = "2026-08-15T00:00:00.000Z") {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-v1-"));
@@ -129,7 +114,7 @@ test("fresh SQLite authority creates a usable board and reopens idempotently", (
   store.close();
 
   const reopened = new LocalProjectDatabase(path);
-  assert.equal(reopened.db.pragma("user_version", { simple: true }), 2);
+  assert.equal(reopened.db.pragma("user_version", { simple: true }), PROJECT_DATABASE_BASELINE.version);
   assert.equal(reopened.snapshot("board-1").board.title, "产品目标");
   reopened.close();
 });
@@ -460,35 +445,6 @@ test("Goal trash preserves history, deactivates only active relations, and resto
     { actor_id: "user-1", idempotency_key: "trash-inactive-relation-deactivate" },
   );
 
-  insertHistoricalClaim(store.db, {
-    claim_id: "trash-history-claim",
-    board_id: "board-1",
-    goal_id: "trash-target",
-    actor_id: "runtime-trash",
-    state: "released",
-    release_reason: "保留历史后结束执行",
-  });
-  insertHistoricalRun(store.db, {
-    run_id: "trash-history-run",
-    board_id: "board-1",
-    goal_id: "trash-target",
-    claim_id: "trash-history-claim",
-    actor_id: "runtime-trash",
-    state: "completed",
-    ended_at: "2026-08-15T00:02:00.000Z",
-    output_refs_json: JSON.stringify(["test://trash-history"]),
-  });
-  insertHistoricalEvidence(store.db, {
-    evidence_id: "trash-history-evidence",
-    board_id: "board-1",
-    goal_id: "trash-target",
-    producer_actor_id: "runtime-trash",
-    criterion_ids: ["trash-target-criterion"],
-    kind: "test",
-    locator: "test://trash-history",
-    result: "passed",
-    run_id: "trash-history-run",
-  });
   insertHistoricalRisk(store.db, {
     risk_id: "trash-history-risk",
     board_id: "board-1",
@@ -520,9 +476,6 @@ test("Goal trash preserves history, deactivates only active relations, and resto
 
   const afterTrash = store.snapshot("board-1");
   assert.ok(afterTrash.goals.some((goal) => goal.goal_id === "trash-target" && goal.trashed_at));
-  assert.ok(afterTrash.claims.some((item) => item.claim_id === "trash-history-claim"));
-  assert.ok(afterTrash.runs.some((item) => item.run_id === "trash-history-run"));
-  assert.ok(afterTrash.evidence.some((item) => item.evidence_id === "trash-history-evidence"));
   assert.ok(afterTrash.risks.some((item) => item.risk_id === "trash-history-risk"));
   assert.equal(afterTrash.relations.find((item) => item.relation_id === activeRelation)?.state, "inactive");
   assert.equal(afterTrash.relations.find((item) => item.relation_id === inactiveRelation)?.state, "inactive");
@@ -583,7 +536,7 @@ test("Goal trash preserves history, deactivates only active relations, and resto
   store.close();
 });
 
-test("Goal trash protects active work and rolls the whole deletion transaction back on relation failure", () => {
+test("Goal trash rolls the whole deletion transaction back on relation failure", () => {
   const { store, coordinator } = fixture();
   createLeaf(coordinator, "trash-active-work");
   createLeaf(coordinator, "trash-active-peer");
@@ -593,47 +546,10 @@ test("Goal trash protects active work and rolls the whole deletion transaction b
       from_goal_id: "trash-active-work",
       to_goal_id: "trash-active-peer",
       type: "extends",
-      reason: "用于验证删除保护和事务回滚",
+      reason: "用于验证删除的事务回滚",
     },
     { actor_id: "user-1", idempotency_key: "trash-active-work-relation" },
   ).relation_id;
-  insertHistoricalClaim(store.db, {
-    claim_id: "trash-active-work-claim",
-    board_id: "board-1",
-    goal_id: "trash-active-work",
-    actor_id: "runtime-active",
-    state: "active",
-    released_at: null,
-    release_reason: null,
-  });
-  insertHistoricalRun(store.db, {
-    run_id: "trash-active-work-run",
-    board_id: "board-1",
-    goal_id: "trash-active-work",
-    claim_id: "trash-active-work-claim",
-    actor_id: "runtime-active",
-    state: "started",
-    ended_at: null,
-  });
-  const blocked = coordinator.goals.lifecycle.setTrashed(
-    "board-1",
-    { goal_id: "trash-active-work", trashed: true, reason: "活动工作不应被删除" },
-    { actor_id: "user-1", idempotency_key: "trash-active-work-blocked" },
-  );
-  assert.equal(blocked.status, "blocked");
-  assert.deepEqual(blocked.blocking_claim_ids, ["trash-active-work-claim"]);
-  assert.deepEqual(blocked.blocking_run_ids, ["trash-active-work-run"]);
-  assert.equal(store.goalsQuery.getGoal("board-1", "trash-active-work")?.trashed_at, null);
-  assert.equal(store.snapshot("board-1").relations.find((item) => item.relation_id === relationId)?.state, "active");
-
-  store.db.prepare(`
-    UPDATE claims SET state = 'released', released_at = ?, release_reason = ?
-    WHERE claim_id = 'trash-active-work-claim'
-  `).run("2026-08-15T00:10:00.000Z", "结束活动工作后才允许删除");
-  store.db.prepare(`
-    UPDATE runs SET state = 'failed', block_reason = ?, ended_at = ?
-    WHERE run_id = 'trash-active-work-run'
-  `).run("结束活动工作后才允许删除", "2026-08-15T00:10:00.000Z");
   store.db.exec(`
     CREATE TRIGGER trash_relation_failure
     BEFORE UPDATE OF state ON goal_relations
@@ -659,7 +575,7 @@ test("Goal trash protects active work and rolls the whole deletion transaction b
   assert.equal(
     coordinator.goals.lifecycle.setTrashed(
       "board-1",
-      { goal_id: "trash-active-work", trashed: true, reason: "活动工作结束后可以删除" },
+      { goal_id: "trash-active-work", trashed: true, reason: "注入的失败去掉后可以删除" },
       { actor_id: "user-1", idempotency_key: "trash-active-work-success" },
     ).status,
     "trashed",
@@ -777,123 +693,6 @@ test("user relation maintenance keeps direction, reason, history, and idempotenc
     .prepare("SELECT reason FROM events WHERE type = 'relation.deactivated' AND object_id = ?")
     .get(added.relation_id) as { reason: string } | undefined;
   assert.equal(event?.reason, "扩展结果已经并入新的独立 Goal");
-  store.close();
-});
-
-test("Evidence locator preflight verifies project Markdown anchors and marks opaque locators unverified", () => {
-  const { store } = fixture();
-  const projectRoot = mkdtempSync(join(tmpdir(), "molis-work-evidence-project-"));
-  writeFileSync(
-    join(projectRoot, "contract.md"),
-    "# Content Growth Studio\n\n## 平台差异化观察窗口\n\n已确认。\n\n## 重复章节\n\n## 重复章节-1\n\n## 重复章节\n",
-  );
-  const now = "2026-08-15T00:00:00.000Z";
-  const absoluteVerified = validateEvidenceLocator(join(projectRoot, "contract.md"), { projectRoot, now });
-  assert.equal(absoluteVerified.status, "verified");
-  assert.equal(absoluteVerified.normalized_locator, "project://contract.md");
-  const verified = validateEvidenceLocator("project://contract.md#平台差异化观察窗口", { projectRoot, now });
-  assert.equal(verified.status, "verified");
-  assert.match(verified.reason, /Markdown 文件与 anchor/);
-  const repoAlias = validateEvidenceLocator("repo:contract.md", { projectRoot, now });
-  assert.equal(repoAlias.status, "verified");
-  assert.equal(repoAlias.normalized_locator, "project://contract.md");
-  const opaque = validateEvidenceLocator("artifact://opaque-reference", { projectRoot, now });
-  assert.equal(opaque.status, "unverified");
-  assert.match(opaque.reason, /不透明或外部 locator/);
-  const external = validateEvidenceLocator("https://example.com/report", { projectRoot, now });
-  assert.equal(external.status, "unverified");
-  assert.match(external.reason, /外部 URL/);
-  store.close();
-});
-
-test("a file URI outside the current workspace is registered without reading the local file", () => {
-  const { store } = fixture();
-  const submitted = validateEvidenceLocator("file:///private/molis-work-casebook/not-present-in-test.md", {
-    projectRoot: "/current/runtime/workspace",
-  });
-  assert.equal(submitted.normalized_locator, "file:///private/molis-work-casebook/not-present-in-test.md");
-  assert.equal(submitted.status, "unverified");
-  assert.match(submitted.reason, /机器本地 locator/);
-  assert.match(submitted.reason, /不会读取或确认文件存在/);
-  assert.match(submitted.reason, /digest.*未核验/);
-  store.close();
-});
-
-test("Evidence verifies an uncommitted file in a registered worktree of the canonical Git repository", async () => {
-  const { store, coordinator } = fixture();
-  createLeaf(coordinator, "same-repository-worktree-evidence");
-  const repositoryRoot = mkdtempSync(join(tmpdir(), "molis-work-evidence-repository-"));
-  writeFileSync(join(repositoryRoot, "README.md"), "# Evidence repository\n");
-  await execFileAsync("git", ["-C", repositoryRoot, "init"]);
-  await execFileAsync("git", ["-C", repositoryRoot, "config", "user.name", "Molis Work Test"]);
-  await execFileAsync("git", ["-C", repositoryRoot, "config", "user.email", "molis-work-test@example.invalid"]);
-  await execFileAsync("git", ["-C", repositoryRoot, "add", "README.md"]);
-  await execFileAsync("git", ["-C", repositoryRoot, "commit", "-m", "test: initialize evidence repository"]);
-  const worktreeParent = mkdtempSync(join(tmpdir(), "molis-work-evidence-worktree-parent-"));
-  const worktreeRoot = join(worktreeParent, "isolated-worktree");
-  await execFileAsync("git", ["-C", repositoryRoot, "worktree", "add", "-b", "molis-work-evidence-worktree", worktreeRoot]);
-  const worktreeFile = join(worktreeRoot, "uncommitted-evidence.txt");
-  writeFileSync(worktreeFile, "fresh evidence from an isolated worktree\n");
-  const submitted = validateEvidenceLocator(worktreeFile, { projectRoot: repositoryRoot });
-  assert.equal(submitted.status, "verified");
-  assert.equal(submitted.normalized_locator, "project://uncommitted-evidence.txt");
-  assert.match(submitted.reason, /同一 Git 仓库.*worktree/);
-  insertHistoricalEvidence(store.db, {
-    evidence_id: "worktree-evidence",
-    board_id: "board-1",
-    goal_id: "same-repository-worktree-evidence",
-    producer_actor_id: "runtime-a",
-    kind: "test",
-    locator: submitted.normalized_locator,
-    locator_status: submitted.status,
-    locator_validation_reason: submitted.reason,
-    locator_checked_at: submitted.checked_at,
-    locator_workspace_root: submitted.verified_project_root ?? null,
-    result: "passed",
-  });
-  const recordedRoot = (
-    store.db.prepare("SELECT locator_workspace_root FROM evidence WHERE evidence_id = ?")
-      .get("worktree-evidence") as { locator_workspace_root: string }
-  ).locator_workspace_root;
-  assert.equal(recordedRoot, realpathSync(worktreeRoot));
-  assert.match(
-    readProjectReference(recordedRoot, submitted.normalized_locator).content.toString("utf8"),
-    /fresh evidence from an isolated worktree/,
-  );
-  const otherRepository = mkdtempSync(join(tmpdir(), "molis-work-evidence-other-repository-"));
-  await execFileAsync("git", ["-C", otherRepository, "init"]);
-  const otherFile = join(otherRepository, "other.txt");
-  writeFileSync(otherFile, "not the canonical repository\n");
-  assert.throws(
-    () => validateEvidenceLocator(otherFile, { projectRoot: repositoryRoot }),
-    (error: unknown) => error instanceof ProjectReferenceError,
-  );
-  const forgedDirectory = mkdtempSync(join(tmpdir(), "molis-work-evidence-forged-worktree-"));
-  writeFileSync(join(forgedDirectory, ".git"), `gitdir: ${join(repositoryRoot, ".git")}\n`);
-  const forgedFile = join(forgedDirectory, "forged.txt");
-  writeFileSync(forgedFile, "not registered by git worktree\n");
-  assert.throws(
-    () => validateEvidenceLocator(forgedFile, { projectRoot: repositoryRoot }),
-    (error: unknown) => error instanceof ProjectReferenceError,
-  );
-  const outsideFile = join(worktreeParent, "outside.txt");
-  writeFileSync(outsideFile, "outside registered worktree\n");
-  mkdirSync(join(worktreeRoot, "links"));
-  const escapingLink = join(worktreeRoot, "links", "outside.txt");
-  symlinkSync(outsideFile, escapingLink);
-  assert.throws(
-    () => validateEvidenceLocator(escapingLink, { projectRoot: repositoryRoot }),
-    (error: unknown) => error instanceof ProjectReferenceError,
-  );
-  await execFileAsync("git", ["-C", repositoryRoot, "worktree", "remove", "--force", worktreeRoot]);
-  assert.throws(
-    () => readProjectReference(recordedRoot, submitted.normalized_locator),
-    (error: unknown) => error instanceof ProjectReferenceError && error.status === 404,
-  );
-  assert.equal(
-    store.snapshot("board-1").evidence.find((item) => item.evidence_id === "worktree-evidence")?.locator_status,
-    "verified",
-  );
   store.close();
 });
 

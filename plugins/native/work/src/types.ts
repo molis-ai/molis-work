@@ -1,6 +1,4 @@
 import type { GoalRecord, RiskRecord } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { ExecutionRunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
-import type { EvidenceRecord } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
 import type {
   WorkSessionEventKind as SessionTimelineKind,
   WorkSessionEventSource as SessionEventSource,
@@ -21,8 +19,6 @@ export type { RuntimeSessionAdapterResult } from "@molis-ai/molis-work-contracts
 export interface SessionHandoffGoalContext {
   board: { board_id: string };
   goal: GoalRecord;
-  runs: readonly ExecutionRunRecord[];
-  evidence: readonly EvidenceRecord[];
   risks: readonly RiskRecord[];
   event_work: boolean;
   event_facts: {

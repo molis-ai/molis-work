@@ -1,6 +1,6 @@
 /** AP3 Workbench client segment: events-primary. */
 export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("aria-invalid");
-        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-risk-error], [data-impact-error], [data-policy-error]");
+        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-risk-error], [data-policy-error]");
         if (factorError) factorError.hidden = true;
       }
       if (handleTreeStatusChange(changed)) return;
@@ -9,10 +9,10 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     document.addEventListener("input", (event) => {
       const changed = event.target?.nodeType === 1 ? event.target : null;
       if (!changed) return;
-      const changedFactorForm = changed.closest("[data-relation-form], [data-risk-create-form], [data-risk-edit-form], [data-impact-create-form], [data-impact-edit-form], [data-policy-form]");
+      const changedFactorForm = changed.closest("[data-relation-form], [data-risk-create-form], [data-risk-edit-form], [data-policy-form]");
       if (changedFactorForm) {
         changed.removeAttribute("aria-invalid");
-        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-risk-error], [data-impact-error], [data-policy-error]");
+        const factorError = changedFactorForm.querySelector("[data-relation-error], [data-risk-error], [data-policy-error]");
         if (factorError) factorError.hidden = true;
       }
     });
@@ -275,13 +275,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
     document.addEventListener("click", async (event) => {
       const target = event.target?.nodeType === 1 ? event.target : null;
       if (!target) return;
-      const humanReviewJump = target.closest("[data-human-review-jump]");
-      if (humanReviewJump) {
-        const reviewForm = humanReviewJump.closest(".human-review-list")?.querySelector("[data-human-review-form]");
-        reviewForm?.scrollIntoView({ block: "start" });
-        requestAnimationFrame(() => reviewForm?.querySelector('[name="verdict"]')?.focus({ preventScroll: true }));
-        return;
-      }
       const activeProjectMenu = target.closest("[data-project-menu]");
       projectMenus.forEach((menu) => {
         if (menu.open && menu !== activeProjectMenu) menu.open = false;

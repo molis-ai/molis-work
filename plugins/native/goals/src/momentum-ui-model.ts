@@ -6,9 +6,6 @@ export interface GoalsMomentumItem extends GoalsTreeItem {
   work_state?: string;
   event_work?: boolean;
   reasons?: Array<{ code: string; severity: string; message: string }>;
-  runs: GoalMomentumGoalInput["runs"];
-  evidence: GoalMomentumGoalInput["evidence"];
-  reviews: GoalMomentumGoalInput["reviews"];
   risks: GoalMomentumGoalInput["risks"];
   events: GoalMomentumGoalInput["events"];
 }

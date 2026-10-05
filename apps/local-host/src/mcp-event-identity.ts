@@ -37,7 +37,7 @@ export function assertRuntimeOrdinaryToolInput(
     forged.push("user_confirmed");
   }
   if (name === "molis_work_v1_goal_tree_propose") {
-    for (const field of ["submitted_session_id", "discovered_in_run_id"]) {
+    for (const field of ["submitted_session_id"]) {
       if (Object.hasOwn(arguments_, field) && !forged.includes(field)) forged.push(field);
     }
   }

@@ -6,7 +6,6 @@ export interface GoalDecisionAttentionPorts {
   attention: Pick<AttentionApi, "commands" | "query">;
   listProposals(boardId: string): GoalTreeProposalRecord[];
   goalExists(boardId: string, goalId: string): boolean;
-  runGoalId(boardId: string, runId: string): string | null;
 }
 
 /** Goals owns Goal-decision Attention. Inbox only reads the resulting reference. */
@@ -26,7 +25,7 @@ export class GoalDecisionAttentionSync {
   reconcile(boardId: string): void {
     const pending = new Set<string>();
     for (const proposal of this.ports.listProposals(boardId)) {
-      if (proposal.origin !== "native" || !goalTreeProposalNeedsDecision(proposal)) continue;
+      if (!goalTreeProposalNeedsDecision(proposal)) continue;
       const goalId = this.goalId(boardId, proposal);
       if (goalId) pending.add(goalId);
     }
@@ -44,14 +43,12 @@ export class GoalDecisionAttentionSync {
     return goalTreeProposalAttentionGoalId(
       proposal,
       (goalId) => this.ports.goalExists(boardId, goalId),
-      (runId) => this.ports.runGoalId(boardId, runId),
     );
   }
 
   private needsDecision(boardId: string, goalId: string): boolean {
     return this.ports.listProposals(boardId).some((proposal) =>
-      proposal.origin === "native"
-      && goalTreeProposalNeedsDecision(proposal)
+      goalTreeProposalNeedsDecision(proposal)
       && this.goalId(boardId, proposal) === goalId,
     );
   }

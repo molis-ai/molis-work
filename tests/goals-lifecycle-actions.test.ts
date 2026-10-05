@@ -9,7 +9,6 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { goalsActions, setActiveGoalCapability, trashedGoalsCapability, createGoalEntryCompositionClient } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { insertHistoricalClaim, insertHistoricalRun } from "./historical-sql-fixture.js";
 
 async function recordDelivery(actions: BoundActionClient, goal_id: string) {
   await actions.invoke(goalsActions.configure, { goal_id, expected_version: 0, idempotency_key: `config-${goal_id}`,
@@ -108,7 +107,7 @@ test("lifecycle actions preserve old receipts, active Goal, relations, history, 
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("Web lifecycle routes obey live policy and report blocked historical work without deleting it", async () => {
+test("Web lifecycle routes obey live policy and the user's confirmation", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-lifecycle-http-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Lifecycle HTTP", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
@@ -121,10 +120,6 @@ test("Web lifecycle routes obey live policy and report blocked historical work w
   try {
     await bound.invoke(goalsActions.create, { goal_id: "web-goal", title: "Web lifecycle", outcome: "Deliver the web work",
       requirements: [{ requirement_id: "delivered", statement: "The agreed result is available" }], idempotency_key: "create" });
-    await host.withProject(ref, r => {
-      insertHistoricalClaim(r.store.db, { claim_id: "old-claim", board_id: project.board_id, goal_id: "web-goal", actor_id: "old-runtime", state: "active", expires_at: "2099-01-01T00:00:00Z", released_at: null, release_reason: null });
-      insertHistoricalRun(r.store.db, { run_id: "old-run", board_id: project.board_id, goal_id: "web-goal", claim_id: "old-claim", actor_id: "old-runtime", state: "started", ended_at: null });
-    });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`, base = `${origin}/projects/${project.project_id}/api/goals/web-goal`;
@@ -134,17 +129,11 @@ test("Web lifecycle routes obey live policy and report blocked historical work w
     assert.equal((await request("/active", { reason: "Current" })).status, 200);
     const trash = { trashed: true, user_confirmed: true, reason: "User confirmed trash" };
     assert.equal((await request("/trash", { ...trash, user_confirmed: false })).status, 400);
-    const blocked = await request("/trash", trash); assert.equal(blocked.status, 200);
-    const blockedResult = await blocked.json() as { status: string; blocking_claim_ids: string[]; blocking_run_ids: string[] };
-    assert.equal(blockedResult.status, "blocked"); assert.deepEqual(blockedResult.blocking_claim_ids, ["old-claim"]); assert.deepEqual(blockedResult.blocking_run_ids, ["old-run"]);
-    assert.deepEqual((await bound.invoke(goalsActions.trashed, {})).goals, []);
     for (const [path, action, body] of [["/active", goalsActions.active, { reason: "Current" }], ["/archive", goalsActions.archive, { archived: true }], ["/trash", goalsActions.trash, trash]] as const) {
       denied.add(action.capability_id);
       const response = await request(path, body); assert.equal(response.status, 400); assert.match(await response.text(), /Lifecycle disabled/);
     }
     denied.clear();
-    await host.withProject(ref, r => r.store.db.exec(`UPDATE claims SET state = 'released', released_at = '2026-09-25T00:00:00Z', release_reason = 'finished' WHERE claim_id = 'old-claim';
-      UPDATE runs SET state = 'failed', ended_at = '2026-09-25T00:00:00Z', block_reason = 'finished' WHERE run_id = 'old-run';`));
     const saved = await request("/trash", trash); assert.equal(saved.status, 200);
     assert.equal((await saved.json() as { status: string }).status, "trashed");
     assert.equal((await bound.invoke(goalsActions.trashed, {})).goals[0]?.trashed_by, "web-user");

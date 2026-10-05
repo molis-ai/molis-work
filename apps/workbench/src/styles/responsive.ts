@@ -8,14 +8,6 @@ export const RESPONSIVE_STYLES = `
     .policy-scope-note { grid-template-columns: auto minmax(0, 1fr); }
     .policy-scope-note a { grid-column: 2; }
     .document-subsection, .draft-editor-section { margin-left: 0; }
-    .human-review-list > header { display: grid; gap: 4px; }
-    .human-review-form > label, .human-review-form fieldset { grid-template-columns: 1fr; gap: 4px; }
-    .human-review-form > label > span, .human-review-form legend { padding-top: 0; }
-    .human-review-form footer { align-items: stretch; flex-direction: column; }
-    .human-review-form footer button { align-self: flex-end; }
-    .evidence-form-row { grid-template-columns: 1fr; }
-    .evidence-submit footer { align-items: stretch; flex-direction: column; }
-    .evidence-submit footer button { align-self: flex-end; }
     .event-ledger details > summary { grid-template-columns: 1fr; gap: 4px; }
     .event-ledger dl div { grid-template-columns: 1fr; gap: 4px; }
     .goal-situation { grid-template-columns: 1fr 1fr; }
@@ -57,17 +49,6 @@ export const RESPONSIVE_STYLES = `
     .risk-form footer, .risk-state-form footer { align-items: stretch; flex-direction: column; }
     .risk-form footer button, .risk-state-form footer button { align-self: flex-end; }
     .risk-resolution-fields { grid-template-columns: 1fr; }
-    .impact-facts, .impact-form { grid-template-columns: 1fr; }
-    .impact-facts { padding-left: 16px; }
-    .impact-fact-wide, .impact-form-wide { grid-column: 1; }
-    .impact-record > header { grid-template-columns: auto minmax(0, 1fr); }
-    .impact-record > header > div { grid-template-columns: 1fr; }
-    .impact-record > header > .impact-state { grid-column: 2; justify-self: start; }
-    .impact-access { margin-bottom: 4px; }
-    .impact-effect, .impact-readonly { margin-left: 16px; }
-    .impact-actions > details > summary, .impact-form, .impact-deactivate form { padding-left: 16px; }
-    .impact-form footer { align-items: stretch; flex-direction: column; }
-    .impact-form footer button { align-self: flex-end; }
     .goal-now > header, .goal-now-body { grid-template-columns: 1fr; display: grid; }
     .goal-now > header { gap: 8px; }
     .goal-now > header .goal-status { justify-self: start; }
@@ -154,14 +135,6 @@ export const RESPONSIVE_STYLES = `
     .runtime-grid > section { min-height: 0; border-right: 0 !important; border-bottom: 1px solid var(--line) !important; }
     .runtime-grid > section:last-child { border-bottom: 0 !important; }
     .contract-list section { grid-template-columns: 1fr; gap: 8px; }
-    .human-review-list > header { display: grid; gap: 4px; }
-    .human-review-form > label, .human-review-form fieldset { grid-template-columns: 1fr; gap: 4px; }
-    .human-review-form > label > span, .human-review-form legend { padding-top: 0; }
-    .human-review-form footer { align-items: stretch; flex-direction: column; }
-    .human-review-form footer button { align-self: flex-end; }
-    .evidence-form-row { grid-template-columns: 1fr; }
-    .evidence-submit footer { align-items: stretch; flex-direction: column; }
-    .evidence-submit footer button { align-self: flex-end; }
     .policy-effective { padding-inline: 16px; }
     .policy-effective dl { grid-template-columns: 1fr 1fr; }
     .policy-inheritance { grid-template-columns: 1fr; gap: 4px; }
@@ -211,7 +184,7 @@ ${GOALS_LEGACY_PROPOSAL_MOBILE_STYLES}
     .decision-actions { justify-content: flex-end; }
     .field-row--split, .goal-choice-list { grid-template-columns: 1fr; }
     .relation-field-heading, .relation-field > legend { grid-template-columns: 1fr; gap: 8px; }
-    .dialog-body input:not([type=checkbox]), .dialog-body textarea, .dialog-body select, .policy-form input:not([type=checkbox]), .policy-form textarea, .policy-form select, .human-review-form input:not([type=checkbox]), .human-review-form textarea, .human-review-form select, .evidence-submit textarea, .evidence-submit select, .draft-contract-form input:not([type=radio]), .draft-contract-form textarea, .draft-contract-form select, .draft-aux-form input, .draft-aux-form textarea, .draft-aux-form select, .relation-form input, .relation-form textarea, .relation-form select, .relation-deactivate-form textarea, .risk-form input:not([type=checkbox]), .risk-form textarea, .risk-form select, .risk-state-form textarea, .risk-state-form select, .impact-form input, .impact-form textarea, .impact-form select, .impact-deactivate textarea { font-size: 16px; }
+    .dialog-body input:not([type=checkbox]), .dialog-body textarea, .dialog-body select, .policy-form input:not([type=checkbox]), .policy-form textarea, .policy-form select, .draft-contract-form input:not([type=radio]), .draft-contract-form textarea, .draft-contract-form select, .draft-aux-form input, .draft-aux-form textarea, .draft-aux-form select, .relation-form input, .relation-form textarea, .relation-form select, .relation-deactivate-form textarea, .risk-form input:not([type=checkbox]), .risk-form textarea, .risk-form select, .risk-state-form textarea, .risk-state-form select { font-size: 16px; }
     .create-dialog { width: 100vw; max-width: none; height: 100vh; max-height: none; margin: 0; border-radius: 0; }
     .dialog-shell { max-height: 100vh; height: 100%; }
   }

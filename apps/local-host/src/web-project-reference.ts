@@ -1,7 +1,7 @@
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { artifactsActions, ArtifactProjectReferenceError } from "@molis-ai/molis-work-plugin-artifacts";
-import { ProjectReferenceError } from "@molis-ai/molis-work-module-evidence-verification";
+import { ProjectReferenceError } from "./project-file-reference.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 
 export async function handleLocalProjectReferenceHttp(request: IncomingMessage, response: ServerResponse, url: URL,
@@ -11,8 +11,7 @@ export async function handleLocalProjectReferenceHttp(request: IncomingMessage, 
   if (request.method === "GET" && projectReferenceMatch) {
     try {
       const reference = decodeURIComponent(projectReferenceMatch[1]);
-      const evidenceId = url.searchParams.get("evidence_id")?.trim() || null;
-      const opened = await actions.invoke(artifactsActions.projectReference, { reference, evidence_id: evidenceId });
+      const opened = await actions.invoke(artifactsActions.projectReference, { reference });
       response.writeHead(200, {
         "content-type": "text/plain; charset=utf-8",
         "cache-control": "no-store",

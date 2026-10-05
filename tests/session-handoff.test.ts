@@ -21,10 +21,7 @@ import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/ser
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import {
-  insertHistoricalClaim,
-  insertHistoricalEvidence,
   insertHistoricalRisk,
-  insertHistoricalRun,
   sessionHandoffGoalContext,
 } from "./historical-sql-fixture.js";
 import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
@@ -62,33 +59,6 @@ function createContract(databasePath: string, boardId: string, goalId: string) {
       requirement_id: `${goalId}-criterion`,
       statement: "目标 Session 收到 Handoff",
     }],
-  });
-  insertHistoricalClaim(store.db, {
-    claim_id: `${goalId}-claim`,
-    board_id: boardId,
-    goal_id: goalId,
-    actor_id: "runtime-history",
-    state: "released",
-  });
-  insertHistoricalRun(store.db, {
-    run_id: `${goalId}-run`,
-    board_id: boardId,
-    goal_id: goalId,
-    claim_id: `${goalId}-claim`,
-    actor_id: "runtime-history",
-    state: "completed",
-    ended_at: "2026-09-02T00:02:00.000Z",
-    output_refs_json: JSON.stringify(["artifact://handoff-history"]),
-  });
-  insertHistoricalEvidence(store.db, {
-    evidence_id: `${goalId}-evidence`,
-    board_id: boardId,
-    goal_id: goalId,
-    producer_actor_id: "runtime-history",
-    locator: "artifact://handoff-history",
-    result: "passed",
-    criterion_ids: [`${goalId}-criterion`],
-    run_id: `${goalId}-run`,
   });
   insertHistoricalRisk(store.db, {
     risk_id: `${goalId}-risk`,
@@ -618,7 +588,7 @@ test("current handoff acceptance uses live event requirements; original v35 crit
   }
 });
 
-test("completed Goal handoff names the public resume tool and keeps historical Run/Evidence/Risk out of current protocol", async () => {
+test("completed Goal handoff names the public resume tool and keeps the historical Risk out of current protocol", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-session-handoff-resume-"));
   const boardId = "project-handoff-resume";
   const goalId = "goal-handoff-resume";
@@ -691,10 +661,6 @@ test("completed Goal handoff names the public resume tool and keeps historical R
     assert.match(current, /必须显式继续/);
     assert.doesNotMatch(content, /resumeWork\(/);
     assert.doesNotMatch(current, /## 当前 Run|有效 Evidence|待检查角色/);
-    assert.match(historical, /## 历史 Run/);
-    assert.match(historical, new RegExp(`${goalId}-run`));
-    assert.match(historical, /## 历史 Evidence/);
-    assert.match(historical, /artifact:\/\/handoff-history/);
     assert.match(historical, /## 历史 Risk/);
     assert.match(historical, /历史交接风险/);
     assert.equal(openContract.goal.goal_id, goalId);

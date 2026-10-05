@@ -132,8 +132,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     const snapshot = await host.client(molisWorkHostProjectReference({
       databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
     })).invoke(snapshotBoardCapability, { board_id });
-    assert.equal(snapshot.claims.length, 0);
-    assert.equal(snapshot.runs.length, 0);
+    assert.equal("claims" in snapshot || "runs" in snapshot, false, "the retired claim/run protocol has no state");
 
     await mcp.close();
     mcp = new MolisWorkServer("runtime", {
@@ -225,8 +224,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     const persisted = await host.client(molisWorkHostProjectReference({
       databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
     })).invoke(snapshotBoardCapability, { board_id });
-    assert.equal(persisted.claims.length, 0);
-    assert.equal(persisted.runs.length, 0);
+    assert.equal("claims" in persisted || "runs" in persisted, false, "the retired claim/run protocol has no state");
   } finally {
     await mcp?.close();
     await host.close();

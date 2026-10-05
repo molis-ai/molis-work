@@ -42,13 +42,6 @@ export function createGoalDocumentIndex(
     ...risk,
     goal_ids: riskGoalIds.get(risk.risk_id) ?? [],
   }));
-  const evidenceByGoal = groupByKey(snapshot.evidence, (item) => item.goal_id);
-  const evidenceCorrectionsByGoal = groupByKey(snapshot.evidence_corrections, (item) => item.goal_id);
-  const reviewObligationsByGoal = groupByKey(snapshot.review_obligations, (item) => item.goal_id);
-  const reviewsByGoal = groupByKey(snapshot.reviews, (item) => item.goal_id);
-  const impactsByGoal = groupByKey(snapshot.impacts, (item) => item.goal_id);
-  const clarificationSessionsByGoal = groupByKey(snapshot.clarification_sessions, (item) => item.goal_id);
-  const clarificationTurnsByGoal = groupByKey(snapshot.clarification_turns, (item) => item.goal_id);
   const inputBindingsByGoal = groupByKey(inputBindings, (item) => item.goal_id);
   const policyBindingsByGoal = groupByKey(policyBindings, (item) => item.goal_id);
   const projectPolicyBindings = policyBindings.filter((item) => item.goal_id == null);
@@ -90,5 +83,5 @@ export function createGoalDocumentIndex(
     }
   }
   const createdByActor = new Map([...createdByGoal].map(([goalId, value]) => [goalId, value.actor]));
-  return { riskGoalIds, goalRiskIds, webRisks, evidenceByGoal, evidenceCorrectionsByGoal, reviewObligationsByGoal, reviewsByGoal, impactsByGoal, clarificationSessionsByGoal, clarificationTurnsByGoal, inputBindingsByGoal, policyBindingsByGoal, projectPolicyBindings, eventsByObject, relationsByGoal, goalTreeProposalsByGoal, createdByGoal: createdByActor };
+  return { riskGoalIds, goalRiskIds, webRisks, inputBindingsByGoal, policyBindingsByGoal, projectPolicyBindings, eventsByObject, relationsByGoal, goalTreeProposalsByGoal, createdByGoal: createdByActor };
 }

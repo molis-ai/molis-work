@@ -79,7 +79,7 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
 - 负责：Goals 的导航、界面、命令与组合（受保护的一方插件）。
 - 不负责：Goal 事实与 Store、其他插件的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-goals`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-module-evidence-verification`、`@molis-ai/molis-work-module-execution`、`@molis-ai/molis-work-module-goals`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-module-goals`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 状态变化只经 `modules/goals` 的公开入口，页面不另算完成。
   - CLI、管理 MCP 与 typed 入口薄转发同一动作；有幂等合同的写入沿用原事务与幂等键。

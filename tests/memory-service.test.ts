@@ -116,7 +116,6 @@ test("automatic writes follow the gate table, show in recent changes with their 
   assert.equal(undone.change.text, "");
   assert.ok(!(await memory.list(person())).items.some(item => item.text.includes("风险放最前面")));
   assert.equal((await memory.recall(assistant(), { query: "写周报" })).items.length, 0);
-  assert.equal(env.ledger().meta(auto.memory!.memory_id), null);
   assert.deepEqual(env.ledger().revisions(auto.memory!.memory_id), []);
   // Only the person undoes.
   await assert.rejects(memory.undo(assistant(), change!.change_id), /只有本人/);
@@ -184,7 +183,6 @@ test("deleting a memory leaves nothing behind: not in the store, the ledger, rec
   await memory.change(person(), { memory_id: kept.memory_id, action: "update", text: "周会在周四下午两点" });
   await memory.change(person(), { memory_id: kept.memory_id, action: "remove" });
   assert.equal((await memory.list(person())).items.length, 0);
-  assert.equal(env.ledger().meta(kept.memory_id), null);
   assert.deepEqual(env.ledger().revisions(kept.memory_id), []);
   assert.deepEqual(env.ledger().uses({ memory_id: kept.memory_id }), []);
   assert.ok(memory.changes(person()).every(change => !change.text.includes("周会")), "recent changes keep no deleted text");
@@ -244,7 +242,7 @@ test("interface signals are counted once per event; single events never form a m
   assert.equal((await report("event-0005", "ctx-3")).state, "off");
 });
 
-test("facts live on the Prologue entry itself: kind, source, applies and expiry in its metadata, switched off as the entry paused; ledger-era facts move over once", { timeout: 60_000 }, async t => {
+test("facts live on the Prologue entry itself: kind, source, applies and expiry in its metadata, switched off as the entry paused; an entry without them is not the platform's", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
   const kept = (await memory.write(assistant(), { scope: "personal", text: "周报用要点列表", said: "以后周报都用要点列表", applies: { task: "写周报时" }, expires_at: "2099-01-01T00:00:00.000Z" })).memory!;
@@ -256,15 +254,10 @@ test("facts live on the Prologue entry itself: kind, source, applies and expiry 
   await memory.change(person(), { memory_id: kept.memory_id, action: "enable" });
   assert.equal((await env.raw().list("personal", "web-user"))[0]!.paused, undefined);
 
-  // An entry from the ledger-era (facts kept by the Host, none on the entry): its facts move onto the entry on first read.
-  const old = await env.raw().write({ scope: "project", owner: "project-a", text: "发布前先跑回归", origin: "2026年9月30日 · 你在设置里添加", tags: ["manual", "convention"], meta: {} });
-  env.ledger().saveMeta({ memory_id: old.memory_id, scope: "project", owner: "project-a", kind: "experience", source: "manual", basis: "explicit", evidence: [], applies: { task: "发布前" },
-    state: "disabled", state_reason: "你停用了", expires_at: null, approved_by: { by: "person" }, plugin_id: null, created_at: "2026-09-30T00:00:00.000Z", updated_at: "2026-09-30T00:00:00.000Z" });
-  const moved = (await memory.list(person())).items.find(item => item.memory_id === old.memory_id)!;
-  assert.deepEqual([moved.kind, moved.state, moved.applies.task], ["experience", "disabled", "发布前"]);
-  const entry = (await env.raw().list("project", "project-a")).find(item => item.memory_id === old.memory_id)!;
-  assert.equal(entry.meta.kind, "experience");
-  assert.match(entry.paused?.reason ?? "", /^disabled:/);
+  // Every entry the platform writes carries its facts; one written without them is not listed, recalled or changed here.
+  const foreign = await env.raw().write({ scope: "project", owner: "project-a", text: "发布前先跑回归", origin: "别处写入", tags: [], meta: {} });
+  assert.equal((await memory.list(person())).items.some(item => item.memory_id === foreign.memory_id), false);
+  assert.ok((await env.raw().list("project", "project-a")).some(item => item.memory_id === foreign.memory_id), "the entry itself is left as it is");
 });
 
 test("a reworded second suggestion of what the gate already holds in the same work is not taken twice; instruction-like suggestions say why", { timeout: 60_000 }, async t => {

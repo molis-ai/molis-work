@@ -183,6 +183,8 @@ function readGoalTreeBrowserLayout(): Promise<GoalTreeBrowserLayout | null> {
   cachedGoalTreeBrowserLayout = new Promise((resolve, reject) => {
     const child = spawn(browser, [
       "--headless=new",
+      "--lang=zh-CN",
+      "--accept-lang=zh-CN",
       "--disable-gpu",
       "--no-sandbox",
       "--disable-dev-shm-usage",
@@ -320,6 +322,8 @@ function readDecisionDeepLinkBrowserState(
   return new Promise((resolve, reject) => {
     const child = spawn(browser, [
       "--headless=new",
+      "--lang=zh-CN",
+      "--accept-lang=zh-CN",
       "--disable-gpu",
       "--no-sandbox",
       "--disable-dev-shm-usage",
@@ -430,6 +434,8 @@ function readDesktopWorkTabBrowserLayout(
   return new Promise((resolve, reject) => {
     const child = spawn(browser, [
       "--headless=new",
+      "--lang=zh-CN",
+      "--accept-lang=zh-CN",
       "--disable-gpu",
       "--no-sandbox",
       "--disable-dev-shm-usage",

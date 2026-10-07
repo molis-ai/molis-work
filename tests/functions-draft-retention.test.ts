@@ -175,7 +175,7 @@ test("failed function saves keep the typed fields and shortcut submit uses the f
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await rm(directory, { recursive: true, force: true });
   });
-  child = spawn(chrome, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+  child = spawn(chrome, ["--headless=new", "--lang=zh-CN", "--accept-lang=zh-CN", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
     "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome")}`, "about:blank"],
   { stdio: ["ignore", "ignore", "pipe"] });
   const debuggerUrl = await new Promise<string>((resolve, reject) => {

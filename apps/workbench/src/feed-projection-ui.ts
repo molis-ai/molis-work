@@ -1,7 +1,4 @@
 import type {
-  AttentionEntryRecord,
-} from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import type {
   FeedUiEntry,
   FeedUiItem,
   FeedUiModel,
@@ -93,7 +90,7 @@ function renderFeedNativePluginPersistedDetail(
     route_prefix: routePrefix,
     entry_id: options.entryId ?? item.item_id,
     item: itemModel(item),
-    inbox_entry: options.inboxEntry ? attentionModel(options.inboxEntry) : null,
+    inbox_entry: options.inboxEntry ?? null,
     inbox_active: options.inboxActive ?? false,
     primitives: feedUiPrimitives,
   };
@@ -229,16 +226,9 @@ function itemModel(item: FeedItemRecord): FeedUiItem {
     source_updated_at: item.source_updated_at,
     imported_at: item.imported_at,
     updated_at: item.updated_at,
-    materials: item.materials.map((material) => ({
-      ...material,
-      project_id: material.project_id,
-    })),
+    materials: item.materials,
     suggested_behavior_ids: item.suggested_behavior_ids ?? [],
   };
-}
-
-function attentionModel(entry: InboxEntryRecord): AttentionEntryRecord {
-  return { ...entry, project_id: entry.project_id };
 }
 
 function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView): FeedUiSource {

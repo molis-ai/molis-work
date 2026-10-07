@@ -16,28 +16,23 @@ export type FeedSourceRunPhase = ListenerRunRecord["phase"];
 export type InboxEntrySubjectType = AttentionSubjectType;
 export type InboxEntryReason = AttentionReason;
 export type InboxEntryStatus = AttentionStatus;
-export interface FeedSourceRecord extends Omit<SourceRecord, "project_id" | "connection_ref"> {
-  project_id: string;
+export interface FeedSourceRecord extends Omit<SourceRecord, "connection_ref"> {
   item_count: number;
   cursor: unknown;
   credential_ref: string | null;
 }
-export interface FeedSourceRunRecord extends Omit<ListenerRunRecord, "project_id" | "connector_receipt"> {
-  project_id: string;
+export interface FeedSourceRunRecord extends Omit<ListenerRunRecord, "connector_receipt"> {
   receipt: Record<string, unknown> | null;
 }
-export interface InboxEntryRecord extends Omit<AttentionEntryRecord, "project_id"> {
-  project_id: string;
+export interface InboxEntryRecord extends AttentionEntryRecord {
   next_judgment?: import("@molis-ai/molis-work-contracts/modules/functions").JudgmentRecord | null;
   suggested_behavior_ids?: readonly string[];
 }
-export interface FeedMaterialRecord extends Omit<CanonicalFeedMaterial, "project_id"> {
-  project_id: string;
+export interface FeedMaterialRecord extends CanonicalFeedMaterial {
   /** Decrypted only for local detail/TUI display; never stored in SQLite. */
   content?: string | null;
 }
-export interface FeedItemRecord extends Omit<CanonicalFeedItem, "project_id" | "signal_id" | "signal_revision" | "materials"> {
-  project_id: string;
+export interface FeedItemRecord extends Omit<CanonicalFeedItem, "signal_id" | "signal_revision" | "materials"> {
   item_type: FeedItemType;
   materials: FeedMaterialRecord[];
   suggested_behavior_ids?: readonly string[];

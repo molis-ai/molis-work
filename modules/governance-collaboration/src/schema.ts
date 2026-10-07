@@ -16,7 +16,7 @@ export const GOVERNANCE_SCHEMA_SQL = `
     updated_at TEXT NOT NULL,
     decided_at TEXT
   );
-  CREATE INDEX goal_tree_proposals_board_idx
+  CREATE INDEX goal_tree_proposals_project_idx
     ON goal_tree_proposals(project_id, root_goal_id, state, created_at DESC, proposal_id);
   CREATE INDEX goal_tree_proposals_supersedes_idx
     ON goal_tree_proposals(supersedes_proposal_id);
@@ -47,7 +47,7 @@ export const GOVERNANCE_SCHEMA_SQL = `
   );
   CREATE INDEX goal_tree_proposal_items_proposal_idx
     ON goal_tree_proposal_items(proposal_id, ordinal, item_id);
-  CREATE INDEX goal_tree_proposal_items_board_idx
+  CREATE INDEX goal_tree_proposal_items_project_idx
     ON goal_tree_proposal_items(project_id, state, item_id);
 
   CREATE TABLE goal_tree_proposal_decisions (

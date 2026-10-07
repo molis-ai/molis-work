@@ -53,7 +53,7 @@ export function versionStoreSchemaSql(t: VersionStoreTables): string {
     created_at TEXT NOT NULL,
     UNIQUE (artifact_id, project_id)
   );
-  CREATE INDEX IF NOT EXISTS ${t.identities}_board_idx
+  CREATE INDEX IF NOT EXISTS ${t.identities}_project_idx
     ON ${t.identities}(project_id, created_at DESC, artifact_id);
 
   CREATE TABLE IF NOT EXISTS ${t.versions} (

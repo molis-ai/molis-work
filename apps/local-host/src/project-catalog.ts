@@ -60,7 +60,7 @@ import type {
 import {
   RuntimeContextBindingRepository, RuntimeProjectResolution, RuntimeProjectBindingCommands, createRuntimeProjectSetup, createRuntimeProjectBindingValidation,
 } from "@molis-ai/molis-work-module-private-work-context";
-import { seedDemoBoard } from "./demo-seed.js";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "./demo-seed.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 
@@ -206,7 +206,7 @@ export class MolisWorkProjectCatalog {
       this.projects,
       this.homeDirectory,
       this.projectsDirectory,
-      { seed: seedDemoBoard },
+      { projectId: DEMO_PROJECT_ID, seed: seedDemoBoard },
       this.projectDeletion,
       contextBindingValidation,
       this.commit,

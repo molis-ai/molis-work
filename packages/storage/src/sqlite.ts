@@ -150,7 +150,7 @@ export const LOCAL_JOURNAL_SCHEMA_SQL = `
           payload_json TEXT NOT NULL,
           at TEXT NOT NULL
         );
-        CREATE INDEX events_board_idx ON events(project_id, seq);
+        CREATE INDEX events_project_idx ON events(project_id, seq);
 `;
 
 export class LocalSqliteStorage extends LocalSqliteJournal {

@@ -98,7 +98,7 @@ export const LISTENER_HOST_SCHEMA_SQL = `
       PRIMARY KEY (project_id, run_id),
       UNIQUE (project_id, operation_id)
     );
-    CREATE INDEX IF NOT EXISTS feed_source_runs_board_source_idx
+    CREATE INDEX IF NOT EXISTS feed_source_runs_project_source_idx
       ON feed_source_runs(project_id, source_id, started_at DESC);
 `;
 

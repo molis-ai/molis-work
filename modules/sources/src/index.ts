@@ -67,7 +67,7 @@ const FEED_SOURCES_COLUMNS = `
  */
 export const SOURCES_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_sources (${FEED_SOURCES_COLUMNS});
-    CREATE INDEX IF NOT EXISTS feed_sources_board_updated_idx
+    CREATE INDEX IF NOT EXISTS feed_sources_project_updated_idx
       ON feed_sources(project_id, updated_at DESC, source_id);
 
     CREATE TABLE IF NOT EXISTS source_events (

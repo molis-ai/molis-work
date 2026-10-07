@@ -80,9 +80,9 @@ const INBOX_ENTRIES_COLUMNS = `
 /** The Inbox tables, as one current schema; the host composes them into the project database baseline. */
 export const ATTENTION_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS inbox_entries (${INBOX_ENTRIES_COLUMNS});
-    CREATE INDEX IF NOT EXISTS inbox_entries_board_status_idx
+    CREATE INDEX IF NOT EXISTS inbox_entries_project_status_idx
       ON inbox_entries(project_id, status, updated_at DESC, entry_id);
-    CREATE INDEX IF NOT EXISTS inbox_entries_board_subject_idx
+    CREATE INDEX IF NOT EXISTS inbox_entries_project_subject_idx
       ON inbox_entries(project_id, subject_type, subject_id);
 
     CREATE TABLE IF NOT EXISTS attention_events (

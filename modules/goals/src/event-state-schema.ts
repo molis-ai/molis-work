@@ -8,7 +8,7 @@ export const GOAL_EVENT_STATE_SCHEMA_SQL = `
     adopted_by TEXT NOT NULL,
     PRIMARY KEY (goal_id)
   );
-  CREATE INDEX IF NOT EXISTS goal_event_state_owners_board_idx
+  CREATE INDEX IF NOT EXISTS goal_event_state_owners_project_idx
     ON goal_event_state_owners(project_id, goal_id);
 
   CREATE TABLE IF NOT EXISTS goal_event_agreements (

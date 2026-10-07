@@ -72,7 +72,7 @@ export const CODING_SCHEMA_SQL = `
       background_json TEXT,
       PRIMARY KEY (project_id, session_id)
     );
-    CREATE INDEX IF NOT EXISTS coding_sessions_board_updated_idx
+    CREATE INDEX IF NOT EXISTS coding_sessions_project_updated_idx
       ON coding_sessions(project_id, updated_at DESC, session_id);
     CREATE TABLE IF NOT EXISTS coding_plan_drafts (
       project_id TEXT NOT NULL,

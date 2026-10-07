@@ -86,9 +86,9 @@ export const FEED_SCHEMA_SQL = `
       updated_at TEXT NOT NULL,
       PRIMARY KEY (project_id, item_id)
     );
-    CREATE INDEX IF NOT EXISTS feed_items_board_updated_idx
+    CREATE INDEX IF NOT EXISTS feed_items_project_updated_idx
       ON feed_items(project_id, disposition, source_updated_at DESC);
-    CREATE UNIQUE INDEX IF NOT EXISTS feed_items_board_source_external_idx
+    CREATE UNIQUE INDEX IF NOT EXISTS feed_items_project_source_external_idx
       ON feed_items(project_id, source_id, external_id)
       WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
     CREATE TABLE IF NOT EXISTS feed_materials (
@@ -113,7 +113,7 @@ export const FEED_SCHEMA_SQL = `
       PRIMARY KEY (project_id, material_id),
       FOREIGN KEY (project_id, item_id) REFERENCES feed_items(project_id, item_id) ON DELETE CASCADE
     );
-    CREATE INDEX IF NOT EXISTS feed_materials_board_item_idx
+    CREATE INDEX IF NOT EXISTS feed_materials_project_item_idx
       ON feed_materials(project_id, item_id, updated_at DESC, material_id);
 
     CREATE TABLE IF NOT EXISTS feed_item_events (
@@ -127,7 +127,7 @@ export const FEED_SCHEMA_SQL = `
     CREATE INDEX IF NOT EXISTS feed_item_events_project_item_idx
       ON feed_item_events(project_id, item_id, at, event_id);
 
-    CREATE UNIQUE INDEX IF NOT EXISTS feed_items_board_signal_idx
+    CREATE UNIQUE INDEX IF NOT EXISTS feed_items_project_signal_idx
       ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
 `;
 

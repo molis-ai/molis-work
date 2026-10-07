@@ -15,7 +15,8 @@ import {
   seedDemoPluginSurfaces,
   seedDemoProjectExtras,
 } from "./demo-plugin-seed.js";
-export interface DemoProjectSeedPort { seed(databasePath: string, projectId: string): void }
+/** The demo project has a fixed id; its seed writes under whichever project id it is given (an older demo keeps its own). */
+export interface DemoProjectSeedPort { projectId: string; seed(databasePath: string, projectId: string): void }
 /** Rebuild only explicitly classified demonstration data through the supplied production seed. */
 export class DemoProjectLifecycle {
   constructor(
@@ -37,6 +38,7 @@ export class DemoProjectLifecycle {
       return { status: "existing", project: existing };
     }
     const record = this.projects.lifecycle.prepareRecord({
+      project_id: this.demo.projectId,
       display_name: input.display_name ?? "Molis Work 示例项目",
       projects_directory: this.projectsDirectory,
       data_class: "regenerable_demo",

@@ -28,7 +28,7 @@ export const GOALS_SCHEMA_SQL = `
     updated_at TEXT NOT NULL
   );
 
-  CREATE INDEX goals_board_idx ON goals(project_id);
+  CREATE INDEX goals_project_idx ON goals(project_id);
   CREATE INDEX goals_ready_idx ON goals(project_id, definition_state, decomposition_state, validity_state, fulfillment_state);
   CREATE INDEX goals_trash_idx ON goals(project_id, trashed_at);
   CREATE INDEX goals_archive_idx ON goals(project_id, archived_at);
@@ -119,7 +119,7 @@ export const GOALS_SCHEMA_SQL = `
     UNIQUE(project_id, position),
     UNIQUE(project_id, kind, content_hash)
   );
-  CREATE INDEX project_guidance_board_idx
+  CREATE INDEX project_guidance_project_idx
     ON project_guidance_entries(project_id, position, guidance_id);
 
   CREATE TABLE project_guidance_revisions (
@@ -139,7 +139,7 @@ export const GOALS_SCHEMA_SQL = `
     created_at TEXT NOT NULL,
     UNIQUE(guidance_id, revision)
   );
-  CREATE INDEX project_guidance_revisions_board_idx
+  CREATE INDEX project_guidance_revisions_project_idx
     ON project_guidance_revisions(project_id, guidance_id, revision DESC);
 
   CREATE TABLE planning_method_packs (

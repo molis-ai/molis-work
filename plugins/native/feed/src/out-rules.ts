@@ -58,7 +58,7 @@ export const FEED_OUT_RULES_SCHEMA_SQL = `
       revision TEXT NOT NULL,
       PRIMARY KEY (project_id, rule_id)
     );
-    CREATE INDEX IF NOT EXISTS feed_out_rules_board_enabled_idx
+    CREATE INDEX IF NOT EXISTS feed_out_rules_project_enabled_idx
       ON feed_out_rules(project_id, enabled, created_at, rule_id);
 `;
 

@@ -9,7 +9,7 @@ import {
   type JudgmentRecord,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { FeedStoreError, assertSourceHistoryDecision } from "./application-errors.js";
-import { toLegacyAttentionEntry, toLegacyFeedItem, compatibleRun } from "./application-projection.js";
+import { feedItemRecord, sourceRunRecord } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import {
   feedOutRuleMatches,
@@ -27,10 +27,10 @@ export class FeedApplication {
   }
 
   snapshot(projectId: string): FeedSnapshot {
-    const sources = this.ports.sources.query.list(projectId).map((source) => this.compatibleSource(source));
-    const feedItems = this.ports.feed.query.list(projectId).map(toLegacyFeedItem);
-    const inboxEntries = this.ports.attention.query.list(projectId).map(toLegacyAttentionEntry);
-    const runs = this.ports.listener.listRuns(projectId).map(compatibleRun);
+    const sources = this.ports.sources.query.list(projectId).map((source) => this.sourceRecord(source));
+    const feedItems = this.ports.feed.query.list(projectId).map(feedItemRecord);
+    const inboxEntries = this.ports.attention.query.list(projectId);
+    const runs = this.ports.listener.listRuns(projectId).map(sourceRunRecord);
     return {
       sources,
       feed_items: feedItems,
@@ -41,31 +41,31 @@ export class FeedApplication {
   }
 
   getItem(projectId: string, itemId: string): FeedItemRecord {
-    return toLegacyFeedItem(this.callFeed(() => this.ports.feed.query.get(projectId, itemId)));
+    return feedItemRecord(this.callFeed(() => this.ports.feed.query.get(projectId, itemId)));
   }
 
   getFeedItem(projectId: string, itemId: string): FeedItemRecord {
-    return toLegacyFeedItem(this.callFeed(() => this.ports.feed.query.get(projectId, itemId)));
+    return feedItemRecord(this.callFeed(() => this.ports.feed.query.get(projectId, itemId)));
   }
 
   findLinkedGoalItem(projectId: string, goalId: string, itemId?: string): FeedItemRecord | null {
     const item = this.ports.feed.query.findByLinkedGoal(projectId, goalId, itemId);
-    return item ? toLegacyFeedItem(item) : null;
+    return item ? feedItemRecord(item) : null;
   }
 
   listInboxEntries(projectId: string): InboxEntryRecord[] {
-    return this.ports.attention.query.list(projectId).map(toLegacyAttentionEntry);
+    return this.ports.attention.query.list(projectId);
   }
 
   getInboxEntry(projectId: string, entryId: string): InboxEntryRecord {
-    return toLegacyAttentionEntry(this.callAttention(
+    return this.callAttention(
       () => this.ports.attention.query.get(projectId, entryId),
-    ));
+    );
   }
 
   getSource(projectId: string, sourceId: string): FeedSourceRecord {
     try {
-      return this.compatibleSource(this.ports.sources.query.get(projectId, sourceId));
+      return this.sourceRecord(this.ports.sources.query.get(projectId, sourceId));
     } catch (error) {
       if (error instanceof SourcesError && error.code === "source_not_found") {
         throw new FeedStoreError("feed_source_not_found", "找不到这个来源");
@@ -81,7 +81,7 @@ export class FeedApplication {
     configFingerprint?: string,
   ): FeedSourceRecord | null {
     const source = this.ports.sources.query.find(projectId, syncKind, definitionId, configFingerprint);
-    return source ? this.compatibleSource(source) : null;
+    return source ? this.sourceRecord(source) : null;
   }
 
   upsertSource(source: FeedSourceRecord): FeedSourceRecord {
@@ -107,12 +107,12 @@ export class FeedApplication {
       updated_at: source.updated_at,
     });
     this.ports.listener.writeCursor(source.project_id, source.source_id, source.cursor, source.updated_at);
-    return this.compatibleSource(saved);
+    return this.sourceRecord(saved);
   }
 
   setSourceEnabled(projectId: string, sourceId: string, enabled: boolean): FeedSourceRecord {
     try {
-      return this.compatibleSource(this.ports.sources.commands.setEnabled(projectId, sourceId, enabled));
+      return this.sourceRecord(this.ports.sources.commands.setEnabled(projectId, sourceId, enabled));
     } catch (error) {
       if (error instanceof SourcesError && error.code === "source_not_found") {
         throw new FeedStoreError("feed_source_not_found", "找不到这个来源");
@@ -134,7 +134,7 @@ export class FeedApplication {
         this.ports.attention.commands.deleteSubject(projectId, "source_fault", sourceId);
         this.ports.listener.deleteSourceState(projectId, sourceId);
       }
-      const retired = this.compatibleSource(
+      const retired = this.sourceRecord(
         this.ports.sources.commands.retire(projectId, sourceId, historyDecision, now),
       );
       this.ports.appendEvent(
@@ -170,7 +170,7 @@ export class FeedApplication {
       entry_id: input.entryId,
       at: input.at,
     }));
-    const entry = toLegacyAttentionEntry(result.entry);
+    const entry = result.entry;
     return { entry, created: result.created };
   }
 
@@ -183,7 +183,7 @@ export class FeedApplication {
     const result = this.callAttention(
       () => this.ports.attention.commands.ensureFeedItem(projectId, itemId, reason, detail),
     );
-    const entry = toLegacyAttentionEntry(result.entry);
+    const entry = result.entry;
     return { entry, created: result.created };
   }
 
@@ -205,23 +205,23 @@ export class FeedApplication {
     status: InboxEntryStatus,
     expectedRevision?: number,
   ): InboxEntryRecord {
-    return toLegacyAttentionEntry(this.callAttention(
+    return this.callAttention(
       () => this.ports.attention.commands.setStatus(
         projectId,
         entryId,
         status as ModuleAttentionStatus,
         expectedRevision,
       ),
-    ));
+    );
   }
 
   getSourceRunByOperationId(projectId: string, operationId: string): FeedSourceRunRecord | null {
     const run = this.ports.listener.getRunByOperationId(projectId, operationId);
-    return run ? compatibleRun(run) : null;
+    return run ? sourceRunRecord(run) : null;
   }
 
   upsertSourceRun(run: FeedSourceRunRecord): FeedSourceRunRecord {
-    return compatibleRun(this.ports.listener.saveRun({
+    return sourceRunRecord(this.ports.listener.saveRun({
       project_id: run.project_id,
       run_id: run.run_id,
       operation_id: run.operation_id,
@@ -284,7 +284,7 @@ export class FeedApplication {
         ...input.material,
       } : undefined,
     }));
-    const item = toLegacyFeedItem(result.item);
+    const item = feedItemRecord(result.item);
     if (result.created || result.updated) {
       try {
         this.captureAfterIngest(item);
@@ -409,17 +409,17 @@ export class FeedApplication {
     const item = this.callFeed(
       () => this.ports.feed.commands.setDisposition(projectId, itemId, disposition, expectedRevision),
     );
-    return toLegacyFeedItem(item);
+    return feedItemRecord(item);
   }
 
   restoreToFeed(projectId: string, itemId: string, expectedRevision?: number): FeedItemRecord {
-    return toLegacyFeedItem(this.callFeed(
+    return feedItemRecord(this.callFeed(
       () => this.ports.feed.commands.restore(projectId, itemId, expectedRevision),
     ));
   }
 
   markRead(projectId: string, itemId: string): FeedItemRecord {
-    return toLegacyFeedItem(this.callFeed(
+    return feedItemRecord(this.callFeed(
       () => this.ports.feed.commands.markRead(projectId, itemId),
     ));
   }
@@ -433,7 +433,7 @@ export class FeedApplication {
     const item = this.callFeed(
       () => this.ports.feed.commands.linkGoal(projectId, itemId, goalId, disposition),
     );
-    return toLegacyFeedItem(item);
+    return feedItemRecord(item);
   }
 
   private requireOutRules() {
@@ -505,7 +505,7 @@ export class FeedApplication {
     }
   }
 
-  private compatibleSource(source: SourceRecord): FeedSourceRecord {
+  private sourceRecord(source: SourceRecord): FeedSourceRecord {
     const checkpoint = this.ports.listener.checkpoint(source.project_id, source.source_id, source.updated_at);
     return {
       project_id: source.project_id,

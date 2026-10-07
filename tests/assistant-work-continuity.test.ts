@@ -46,7 +46,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const notes = new Map<string, { text: string; version: number }>();
   let next = 0;
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "project", storage_key: "memory:project" };
   const bump = (id: string, text: string, expected?: number) => {
     const current = notes.get(id);
     if (!current) throw new ActionError("notes.not_found", "没有这条笔记");

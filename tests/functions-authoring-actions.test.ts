@@ -179,7 +179,7 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
     await writeMcpActionGrant(home, createMcpActionGrant("runtime:codex", null, invokeView, true));
     for (const projectId of ["client-project-a", "client-project-b"]) {
       const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", {
-        projectId, projectId: projectId, databasePath: join(home, `${projectId}.sqlite`), webBaseUrl: origin,
+        projectId, databasePath: join(home, `${projectId}.sqlite`), webBaseUrl: origin,
       }, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: projectId, host_declares_stable: true } }, host);
       try {
         const result = JSON.parse(await mcp.callTool("molis_work_v1_action_functions.invoke__v1", { function_key: published[0]!.function_key, input: projectId }));

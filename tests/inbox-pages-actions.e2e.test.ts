@@ -16,8 +16,8 @@ for (const width of [1440, 390]) {
       return "本次观察来自研究摘要，全文仍待核对。[材料 1]";
     });
     if (!browser) return;
-    const { store, command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId, homeDirectory } = browser;
-    const projectId = store.goalsQuery.listProjectIds()[0]!;
+    const { store, command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, homeDirectory } = browser;
+    const projectId = browser.projectId!;
     const feed = createLocalFeedApplication(store.db);
     const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "research_library", repository: "fixture/observations", research_source: "summary" }).source;
     const item = feed.ingestItem({ source, externalId: "pages-ui-material", title: "产品研究摘要", summary: "仅阅读研究摘要，尚未核对全文", occurredAt: new Date().toISOString(), attention: false }).item;

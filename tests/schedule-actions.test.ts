@@ -86,7 +86,7 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     }
     const sdk = new Client({ name: "untrusted-name", version: "1" }); clients.push(sdk);
     await sdk.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
-      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, "scheduler", project.database_path, project.project_id], stderr: "pipe" }));
+      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, "scheduler", project.database_path], stderr: "pipe" }));
     const tools = (await sdk.listTools()).tools.map(tool => tool.name);
     assert.ok(tools.includes(hostActionToolName(s.createTask)));
     assert.ok(!tools.includes(hostActionToolName(s.archiveTask)), "ungranted actions are not exported");

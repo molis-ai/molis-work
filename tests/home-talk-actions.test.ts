@@ -7,7 +7,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineSubjectContextAction, subjectContext, resolveActionSubject } from "../packages/plugin-sdk/src/index.js";
 import { bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { homeTalkActions, HOME_TALK_PERMISSIONS, createHomeTalkHandlers } from "../apps/local-host/src/home-talk-actions.js";
 import { workActions } from "@molis-ai/molis-work-plugin-work";
 
@@ -50,8 +50,8 @@ test("unknown SDK plugin supplies subject context through formal Runtime registr
 
 test("Home resolves original Feed, Inbox, Goal and Session facts, and never defaults an unrelated conversation", async () => {
   const home = await mkdtemp(join(tmpdir(), "home-talk-actions-"));
-  const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  const databasePath = join(home, "project.db"); seedDemoBoard(databasePath, caller.project_id!);
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: caller.project_id! });
   const host = new MolisWorkLocalHost({ homeDirectory: home, runtimeSessionTransport: { async request() { throw new Error("preparation must not contact Runtime"); }, subscribe() { return () => undefined; } } });
   try {
     const runtime = await host.withProject(reference, runtime => runtime);

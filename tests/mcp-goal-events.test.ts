@@ -250,7 +250,7 @@ test("event report stays persisted when secondary Session indexing fails", async
     } finally { registry.close(); }
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, projectId: project.project_id,
-      projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
+      webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-events-activity", host_declares_stable: true },
@@ -299,7 +299,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
     const before = await host.client(reference).invoke(snapshotBoardCapability, { project_id: project.project_id });
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, projectId: project.project_id,
-      projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
+      webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false },
@@ -319,7 +319,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
     await mcp.close();
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, projectId: project.project_id,
-      projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
+      webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       nativeRuntimeSessionId: "native-session",
@@ -454,7 +454,7 @@ test("no-config note and combined report progress persist; implicit focus, illeg
     await grantGoalsMcp(host, homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, projectId: project.project_id,
-      projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
+      webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "thread-note", host_declares_stable: true },

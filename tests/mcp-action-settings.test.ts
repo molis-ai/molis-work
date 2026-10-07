@@ -16,7 +16,7 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "授权范围", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path, projectId: project.project_id });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   let connected = true, calls = 0;
   const id = `unknown.${randomUUID()}`;

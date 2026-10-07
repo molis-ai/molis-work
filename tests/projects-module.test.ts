@@ -43,13 +43,10 @@ test("Projects Module owns canonical project identity and workspace membership",
       display_name: "同名项目",
       projects_directory: directory,
       data_class: "user",
-      project_id: "legacy-board",
     });
     projects.lifecycle.register(first, "project.created", "user-1");
     projects.lifecycle.register(second, "project.created", "user-1");
 
-    assert.equal(first.project_id, first.project_id, "a newly created project uses project_id as its V1 board identity");
-    assert.equal(second.project_id, "legacy-board", "an explicit project_id is preserved");
     assert.equal(projects.query.listProjects().length, 2, "duplicate display names do not change identity");
     assert.deepEqual(projects.query.selections().map((project) => project.project_id), [first.project_id, second.project_id]);
 

@@ -90,7 +90,7 @@ test("existing project workspace capability is discoverable and executable throu
   const directory = await mkdtemp(join(tmpdir(), "host-actions-"));
   const workspace = { workspace_id: "a-root", canonical_path: "/authorized/a", realpath_verified: true, display_name: "A" };
   const host = new MolisWorkLocalHost({ workspacesFor: id => id === "a" ? [workspace] : [] });
-  const project = molisWorkHostProjectReference({ databasePath: join(directory, "a.sqlite"), projectId: "board-a" });
+  const project = molisWorkHostProjectReference({ databasePath: join(directory, "a.sqlite"), projectId: "a" });
   const c = context("a");
   try {
     const service = host.actionClient(project);

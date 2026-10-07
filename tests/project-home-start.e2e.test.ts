@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
@@ -74,7 +73,7 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
-  const before = store.snapshot(DEMO_PROJECT_ID);
+  const before = store.snapshot(projectId!);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `
     window.__homeErrors=[];addEventListener('error',e=>window.__homeErrors.push(e.message));
     window.__clock=new Date(2028,1,29,23,59).getTime();const RealDate=Date;
@@ -142,8 +141,8 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   const dialog = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(new URL("dialog-mobile.png", captures), Buffer.from(dialog.data, "base64"));
   assert.deepEqual(await evaluate("window.__homeErrors"), []);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).runs, before.runs);
+  assert.deepEqual(store.snapshot(projectId!).goals, before.goals);
+  assert.deepEqual(store.snapshot(projectId!).runs, before.runs);
 });
 
 test("Home opens original Inbox items and source groups, completes Inbox, and keeps an empty message unsent", { timeout: 90_000 }, async t => {
@@ -238,7 +237,7 @@ test("Home opens original Inbox items and source groups, completes Inbox, and ke
 test("Home shortcuts persist per project, open their destination, and preserve edits on failure", { timeout: 90_000 }, async t => {
   const browser=await openGoalBrowser(t,"seeded");if(!browser)return;
   const {command,sessionId,evaluate,waitFor,navigate,click,origin,projectId,reloadPage,store}=browser;
-  const before=store.snapshot(DEMO_PROJECT_ID);
+  const before=store.snapshot(projectId!);
   await command("Emulation.setDeviceMetricsOverride",{width:1024,height:768,deviceScaleFactor:1,mobile:false},sessionId);
   const url=origin+"/projects/"+projectId+"/";
   const key="molis-work:home-shortcuts:"+projectId;
@@ -306,6 +305,6 @@ test("Home shortcuts persist per project, open their destination, and preserve e
   await click('[data-home-shortcut-edit]');await click('[data-home-shortcut-remove]');
   assert.deepEqual(await saved(),[]);await reloadPage();
   assert.equal(await evaluate("document.querySelectorAll('[data-shortcut-id]').length"),0);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals,before.goals);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).runs,before.runs);
+  assert.deepEqual(store.snapshot(projectId!).goals,before.goals);
+  assert.deepEqual(store.snapshot(projectId!).runs,before.runs);
 });

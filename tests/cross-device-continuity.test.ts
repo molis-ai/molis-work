@@ -27,7 +27,7 @@ class Client {
 
 test("real Goal/Artifact actions survive phone retry, two members, revocation, restart and asset relocation", {timeout:120000}, async()=>{
   const directory=await mkdtemp(join(tmpdir(),'molis-continuity-'));
-  const projectId='shared-project',projectId='shared-board',goalId='PHONE-GOAL';
+  const projectId='shared-project',goalId='PHONE-GOAL';
   const dbPath=join(directory,'project.sqlite');
   const db=new LocalProjectDatabase(dbPath),app=new GoalProjectApplication(db);
   app.initializeBoard({project_id:projectId,title:'接续验证',actor_id:'desktop',idempotency_key:'init'});

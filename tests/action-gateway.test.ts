@@ -91,7 +91,7 @@ test("official MCP process uses the shared Host registry and durable writes with
     assert.equal((await rows()).length, 1);
     // Calls still go through the gateway URL; in one process the server shares the resident Host (one Runtime owner per Home).
     const formal = new LocalMcpServer(withCatalog, "runtime", { projectId: project.project_id,
-      databasePath: project.database_path, projectId: project.project_id, webBaseUrl: origin }, {
+      databasePath: project.database_path, webBaseUrl: origin }, {
       homeDirectory: home, webBaseUrl: origin, runtimeContext: { runtime_id: "gateway", stable_work_context_id: null, host_declares_stable: false },
     }, host, origin);
     const scopeEntered = new Promise<void>(resolve => { enter = resolve; });

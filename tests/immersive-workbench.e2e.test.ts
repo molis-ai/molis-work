@@ -88,7 +88,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const { store, projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
   const app = new GoalProjectApplication(store);
   for (const version of [1, 2]) app.artifacts.commands.registerVersion({ ...pinnedArtifact(version === 1 ? "Original result" : "Revised result", { kind: "item", id: "review-note" }, String(version)),
-    project_id: DEMO_PROJECT_ID, actor_id: "fixture", artifact_id: "review-note", version,
+    project_id: projectId!, actor_id: "fixture", artifact_id: "review-note", version,
     artifact_type_id: "example.note", schema_version: 1,
     producer: { plugin_id: "example.writer", plugin_version: "1.0.0", binding_signature: "fixture" },
     content: { kind: "inline", payload: { text: version === 1 ? "Original result" : "Revised result" } }, metadata: {},

@@ -11,7 +11,7 @@ import { artifactsActions, createArtifactActionHandlers } from "../plugins/nativ
 import { artifactsManifest } from "../plugins/native/artifacts/src/manifest.js";
 import { requireArtifactAnalysisRecord } from "../plugins/native/artifacts/src/browser.js";
 
-const projectId = "legacy-board", projectId = "canonical-project";
+const projectId = "canonical-project";
 const reference = { artifact_id: 'report/季度@2:["draft"]', version: 1 };
 const caller: ActionCallContext = { actor_id: "owner", project_id: projectId, audience: "user", permissions: ["artifacts:read"] };
 const subject = (value = reference) => ({ kind: "artifact", id: artifactSubjectId(value) });
@@ -20,7 +20,7 @@ function fixture(t: test.TestContext) {
   const db = new Database(":memory:");
   t.after(() => db.close());
   db.pragma("foreign_keys = ON");
-  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('legacy-board'), ('foreign-board'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);");
+  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('canonical-project'), ('foreign-board'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);");
   createArtifactsSchema(db);
   createContextLedgerSchema(db);
   const artifacts = new ArtifactsModule({ db, now: () => "2026-09-26T00:00:00.000Z",
@@ -35,7 +35,7 @@ function fixture(t: test.TestContext) {
   const actions = new ActionService();
   let enabled = true, reads = 0;
   const get = artifacts.query.getArtifactVersion.bind(artifacts.query);
-  artifacts.query.getArtifactVersion = (board, ref) => { reads++; return get(board, ref); };
+  artifacts.query.getArtifactVersion = (project, ref) => { reads++; return get(project, ref); };
   const unregister = actions.registerProvider({
     provider: { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: projectId },
     definitions: artifactsManifest.actions!,
@@ -83,10 +83,10 @@ test("resolveActionSubject discovers the original provider and reads an exact in
   assert.deepEqual(f.artifacts.query.listArtifacts(projectId), before, "context reads must not register or rewrite artifacts");
 });
 
-test("Artifact analysis rejects a foreign personal owner, board mismatch, withdrawn versions and file references", async t => {
+test("Artifact analysis rejects a foreign personal owner, project mismatch, withdrawn versions and file references", async t => {
   const f = fixture(t), first = f.publish();
   await assert.rejects(resolveActionSubject(f.actions, { ...caller, actor_id: "other-user" }, subject()), { code: "artifacts.forbidden" });
-  assert.throws(() => requireArtifactAnalysisRecord(first, { project_id: projectId, actor_id: caller.actor_id, reference }), { code: "actions.subject_unavailable" });
+  assert.throws(() => requireArtifactAnalysisRecord(first, { project_id: "foreign-board", actor_id: caller.actor_id, reference }), { code: "actions.subject_unavailable" });
   assert.throws(() => requireArtifactAnalysisRecord({ ...first, version: 2 }, { project_id: projectId, actor_id: caller.actor_id, reference }), { code: "actions.subject_unavailable" });
   const foreign = f.publish({ project_id: "foreign-board", artifact_id: "foreign-result" });
   await assert.rejects(resolveActionSubject(f.actions, caller, subject(foreign)), { code: "actions.subject_unavailable" });

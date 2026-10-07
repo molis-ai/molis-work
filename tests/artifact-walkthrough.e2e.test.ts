@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
@@ -12,12 +12,12 @@ for (const width of [1440, 390]) {
     const { command, sessionId, evaluate, waitFor, navigate, store, projectId, surfaceReady } = b;
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     const coordinator = new GoalProjectApplication(store);
-    coordinator.artifacts.commands.registerVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: "pages-brief", version: 1,
+    coordinator.artifacts.commands.registerVersion({ project_id: projectId!, actor_id: "web-user", artifact_id: "pages-brief", version: 1,
       artifact_type_id: "io.molis.work.pages.document", schema_version: 1,
       producer: { plugin_id: "io.molis.work.pages", plugin_version: "1.0.0", binding_signature: "official-pages-binding" },
       content: { kind: "inline", payload: { title: "需求说明", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "范围与验收" }] }] } } },
       ...pinnedArtifact("需求说明", { kind: "pages_document", id: "brief" }, "1") });
-    const scope = { kind: "personal" as const, id: DEMO_PROJECT_ID };
+    const scope = { kind: "personal" as const, id: projectId! };
     createContextLedger(store.db, { authorize: () => true }).commands.put({ actor_id: "web-user", scope }, { key: "goal.output:V1:fixture", type: "goal.output", cause: "goals.deliverable",
       source: { module: "goals", id: "V1", version: null, scope }, target: { module: "artifacts", id: "pages-brief", version: 1, scope } });
 

@@ -113,7 +113,7 @@ test("context_resolve restores Host and Session focus outside the discovery wind
     });
     const connection = {
       databasePath: project.database_path, projectId: project.project_id,
-      projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
+      webBaseUrl: "http://127.0.0.1:4173",
     };
     runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
     const views = await host.inspectActions({ actor_id: "runtime:codex", audience: "mcp", project_id: project.project_id, permissions: [] }, molisWorkHostProjectReference(connection));

@@ -28,7 +28,7 @@ test("Shelf project material confirms current full bytes, preserves original ver
   const localHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const shelfActions = bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS }));
   const projectShelf = (databasePath: string, projectId: string) => {
-    const reference = molisWorkHostProjectReference({ databasePath, projectId, projectId: projectId });
+    const reference = molisWorkHostProjectReference({ databasePath, projectId });
     return { title: "测试项目", actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: SHELF_PROJECT_ACTION_PERMISSIONS })) };
   };
   new CodingSessionStore(store.db).create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "Shelf 固定材料", runtime_id: "prologue", at: new Date().toISOString() });

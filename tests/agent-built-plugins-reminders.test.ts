@@ -30,7 +30,7 @@ test('a plugin reminder reaches the Inbox at its time, under the plugin\'s name,
     new SqlitePluginRuntimeRepository(store.db).save(installation());
     const reminders = createScheduleReminders({ db: store.db, projectId: DEMO_PROJECT_ID, schedule, now: () => clock,
       describe: identity => ({ title: '论语日课', link: '/plugins/' + identity.pluginId, generation: installation().installation_generation }) });
-    const plugin = { projectId: 'p', installationId: 'install-1', pluginId: 'io.molis.work.generated.a', namespace: 'installed' as const };
+    const plugin = { projectId: DEMO_PROJECT_ID, installationId: 'install-1', pluginId: 'io.molis.work.generated.a', namespace: 'installed' as const };
     const other = { ...plugin, installationId: 'install-2', pluginId: 'io.molis.work.generated.b' };
 
     assert.throws(() => reminders.add(plugin, { at: '2026-09-27 08:00', text: '复习' }), /带时区的时间/);
@@ -62,7 +62,7 @@ test('Host discovers and executes Schedule reminders without opening Studio; reo
   const paths = [join(home, 'one.db'), join(home, 'two.db')]; paths.forEach(path => seedDemoBoard(path));
   const refs = paths.map(databasePath => molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID }));
   const hosts = [new MolisWorkLocalHost({ projectRoutePrefix: () => '' }), new MolisWorkLocalHost()];
-  const caller = { actor_id: 'plugin:io.molis.work.generated.a', project_id: 'same-project', audience: 'plugin' as const, plugin_install_id: 'install-1', permissions: [] };
+  const caller = { actor_id: 'plugin:io.molis.work.generated.a', project_id: DEMO_PROJECT_ID, audience: 'plugin' as const, plugin_install_id: 'install-1', permissions: [] };
   const at = Date.now() + 1000;
   try {
     for (let i = 0; i < hosts.length; i++) await hosts[i]!.withProject(refs[i]!, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).save(installation()));
@@ -87,7 +87,7 @@ test('reminder registration, cancellation and Inbox delivery roll back on real p
   const home = await mkdtemp(join(tmpdir(), 'schedule-reminder-atomic-')), path = join(home, 'project.db'); seedDemoBoard(path);
   const store = new LocalProjectDatabase(path), clock = Date.parse('2026-09-27T00:00:00Z');
   try {
-    const schedule = scheduleServiceFor(store.db, () => new Date(clock)), identity = { projectId: 'p', installationId: 'install-1', pluginId: installation().plugin_id };
+    const schedule = scheduleServiceFor(store.db, () => new Date(clock)), identity = { projectId: DEMO_PROJECT_ID, installationId: 'install-1', pluginId: installation().plugin_id };
     new SqlitePluginRuntimeRepository(store.db).save(installation());
     const options = { db: store.db, projectId: DEMO_PROJECT_ID, schedule, now: () => clock, describe: () => ({ title: '插件', link: '/plugin', generation: installation().installation_generation }) };
     const reminders = createScheduleReminders(options);
@@ -120,7 +120,7 @@ test('a reused installation id cannot cancel or deliver the previous generation\
     repository.save(original);
     const schedule = scheduleServiceFor(store.db, () => new Date(clock));
     const reminders = hostScheduleReminders({ db: store.db, projectId: DEMO_PROJECT_ID, schedule, now: () => clock });
-    const identity = { projectId: 'p', pluginId: original.plugin_id, installationId: original.install_id };
+    const identity = { projectId: DEMO_PROJECT_ID, pluginId: original.plugin_id, installationId: original.install_id };
     const input = { at: new Date(clock + 1000).toISOString(), text: 'original owner' };
     const old = reminders.add(identity, input);
     // Simulate an orphan left by a legacy uninstall: every old identity field including the timestamp is reused.

@@ -32,7 +32,7 @@ async function probe(t: test.TestContext, databasePath: string, projectId: strin
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const copy = join(home, "project.sqlite"); copyFileSync(databasePath, copy);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const ref = molisWorkHostProjectReference({ databasePath: copy, projectId, projectId: projectId });
+  const ref = molisWorkHostProjectReference({ databasePath: copy, projectId });
   const broken: string[] = [], read = new Set<string>();
   try {
     const base = { actor_id: "web-user", project_id: projectId, audience: "user" as const, permissions: [] };

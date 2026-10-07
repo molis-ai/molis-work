@@ -5,7 +5,7 @@ import test from "node:test";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "../packages/plugin-sdk/src/index.js";
 import { bindActionClient, type ActionDefinition, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_PROJECT_ID, LocalMcpServer, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/src/functions-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -24,7 +24,7 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
   const browser = await openGoalBrowser(t, "seeded", undefined, null, undefined, functions); if (!browser) return;
   const { localHost, store, projectId, homeDirectory, command, sessionId, evaluate, waitFor, click, navigate, reloadPage, origin } = browser;
   assert.ok(localHost); assert.ok(projectId);
-  const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId: DEMO_PROJECT_ID, projectId });
+  const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   store.db.exec("CREATE TABLE fixture_agent_notes (id TEXT PRIMARY KEY, content TEXT NOT NULL, state TEXT NOT NULL)");
   store.db.prepare("INSERT INTO fixture_agent_notes VALUES ('note-1', '原插件笔记', 'new')").run();
   const note = () => store.db.prepare("SELECT content,state FROM fixture_agent_notes WHERE id = 'note-1'").get() as { content: string; state: string };
@@ -105,7 +105,7 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
       await writeMcpActionGrant(homeDirectory, createMcpActionGrant(caller.actor_id, view.action.scope === "home" ? null : projectId, view, enabled));
     };
     await grant(judgment); await grant(read); await grant(functionsActions.invoke);
-    external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId, projectId: DEMO_PROJECT_ID, databasePath: browser.databasePath, webBaseUrl: origin },
+    external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId, databasePath: browser.databasePath, webBaseUrl: origin },
       { homeDirectory: homeDirectory, runtimeContext: { runtime_id: "agent-notes", stable_work_context_id: null, host_declares_stable: false } }, localHost);
     let request = 0;
     const call = (definition: ActionDefinition, input: unknown) => external!.handleMessage({ id: ++request, method: "tools/call", params: { name: hostActionToolName(definition), arguments: input } }) as Promise<any>;

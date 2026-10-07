@@ -36,11 +36,10 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
   }
   try {
     assert.equal((await call<{ status: string }>("context_resolve", {})).status, "unbound");
-    const connected = await call<{ connection: { project_id: string; project_id: string }; status: string }>("context_create_and_bind", {
+    const connected = await call<{ connection: { project_id: string }; status: string }>("context_create_and_bind", {
       display_name: "协议验证项目", actor_id: "skill-runtime", user_confirmed: true, idempotency_key: "create-project",
     });
     assert.equal(connected.status, "bound");
-    assert.ok(connected.connection.project_id);
     assert.ok(connected.connection.project_id);
     const permissionsCatalog = await openMolisWorkProjectCatalog({ homeDirectory: host.homeDirectory });
     try { await grantGoalsMcp(null, host.homeDirectory, permissionsCatalog.getProject(connected.connection.project_id)); }
@@ -72,8 +71,7 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
     assert.equal(state.work_status, "open");
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: host.homeDirectory });
     try {
-      const project = catalog.listProjects().find((item) => item.project_id === connected.connection.project_id)
-        ?? catalog.listProjects().find((item) => item.project_id === connected.connection.project_id);
+      const project = catalog.listProjects().find((item) => item.project_id === connected.connection.project_id);
       assert.ok(project, "created project must resolve through the returned connection/catalog");
       const store = new LocalProjectDatabase(project.database_path);
       try {

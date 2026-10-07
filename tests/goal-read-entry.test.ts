@@ -23,7 +23,7 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
   const client = host.client(reference);
   const runtimeHost = { homeDirectory: directory, runtimeContext: { runtime_id: "codex", stable_work_context_id: "read-entry", host_declares_stable: true } };
   const management = new MolisWorkServer("management", null, null, host);
-  const runtime = new MolisWorkServer("runtime", { databasePath, projectId, projectId: reference.project_id, webBaseUrl: "https://example.com" }, runtimeHost, host);
+  const runtime = new MolisWorkServer("runtime", { databasePath, projectId, webBaseUrl: "https://example.com" }, runtimeHost, host);
   const snapshot = () => client.invoke(snapshotBoardCapability, { project_id: projectId });
   async function cli<T>(operation: string, input: Record<string, unknown>): Promise<T> {
     const lines: string[] = [];

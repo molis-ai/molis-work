@@ -11,7 +11,6 @@ for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵
   if (!browser) return;
   const { store, localHost, projectId, homeDirectory, command, sessionId, navigate, evaluate, waitFor, click, surfaceReady, origin } = browser;
   assert.ok(localHost); assert.ok(projectId);
-  const projectId = store.goalsQuery.listProjectIds()[0]!;
   await localHost.withProject(molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId }), () => undefined);
   const feed = createLocalFeedApplication(store.db);
   const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "research_library", repository: "fixture/todo", research_source: "current" }).source;

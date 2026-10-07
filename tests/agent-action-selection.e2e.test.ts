@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "../packages/plugin-sdk/src/index.js";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_PROJECT_ID, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
@@ -16,7 +16,7 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
   const { localHost, projectId, homeDirectory, command, sessionId, evaluate, waitFor, click } = b;
   assert.ok(localHost); assert.ok(projectId);
-  const project = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId: DEMO_PROJECT_ID, projectId });
+  const project = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId });
   const read: ActionDefinition = { capability_id: "unknown.character-notes.read", version: 2, operation: "query", action: {
     title: "读取校验笔记", description: "读取此插件的原始笔记", kind: "query", scope: "project", audiences: ["agent"], permissions: ["notes:read"], subject_kinds: [],
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } };

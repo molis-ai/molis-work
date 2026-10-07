@@ -15,7 +15,6 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const { store, localHost, projectId, homeDirectory, command, sessionId, navigate, evaluate, waitFor, click, origin } = browser;
   assert.ok(localHost); assert.ok(projectId);
-  const projectId = store.goalsQuery.listProjectIds()[0]!;
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   await localHost.withProject(reference, () => undefined);
   const feed = createLocalFeedApplication(store.db);

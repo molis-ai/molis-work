@@ -150,10 +150,10 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
     assert.ok(withoutState.includes(aliases.event), "revoking state does not revoke a separately granted event query");
     // In production these are separate processes on the same resident service; in one process they share its Host (one Runtime owner per Home).
     const other = new LocalMcpServer(withCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path,
-      projectId: project.project_id, webBaseUrl: origin }, { homeDirectory: home, runtimeContext: { ...context, runtime_id: "stranger" } }, host, origin);
+      webBaseUrl: origin }, { homeDirectory: home, runtimeContext: { ...context, runtime_id: "stranger" } }, host, origin);
     try { await assert.rejects(other.callTool(aliases.list, {}), { code: "mcp.tool_unknown" }, "a client without grants is not shown the action"); } finally { await other.close(); }
     const management = new LocalMcpServer(withCatalog, "management", { projectId: project.project_id, databasePath: project.database_path,
-      projectId: project.project_id, webBaseUrl: origin }, { homeDirectory: home, runtimeContext: context }, host, origin);
+      webBaseUrl: origin }, { homeDirectory: home, runtimeContext: context }, host, origin);
     try {
       assert.ok(JSON.parse(await management.callTool(aliases.list, {})).goals.some((goal: { goal_id: string }) => goal.goal_id === input.goal_id));
       await assert.rejects(management.callTool(aliases.create, { ...input, database_path: project.database_path, actor_id: "user" }), { code: "actions.input_invalid" });

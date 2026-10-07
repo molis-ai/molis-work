@@ -22,7 +22,7 @@ import { agentDefinitionsFor } from '../apps/local-host/src/agent-definitions/ag
 import { builtinRegistrations } from '../apps/local-host/src/agent-definitions/builtin-registrations.js';
 
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
-const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: 'project' };
+const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: DEMO_PROJECT_ID };
 
 async function publishedFixture(home: string, name: string, lookup = false) {
   const databasePath = join(home, name + '.sqlite'); seedDemoBoard(databasePath);
@@ -58,7 +58,7 @@ test('Host discovery and invocation refresh generated cost without rewriting ins
     dispose();
     const definition: ActionDefinition = { capability_id: 'fixture.lookup', version, operation: 'query', action: { title: 'Lookup', description: 'Fixture', kind: 'query', scope: 'project',
       audiences: ['plugin'], permissions: [], subject_kinds: [], execution: { cost }, input_schema: { type: 'null' }, output_schema: { type: 'string' } } };
-    dispose = host.actionRegistry(fixture.ref).registerProvider({ provider: { provider_id: 'fixture', title: 'Fixture', kind: 'system', project_id: 'project' }, definitions: [definition],
+    dispose = host.actionRegistry(fixture.ref).registerProvider({ provider: { provider_id: 'fixture', title: 'Fixture', kind: 'system', project_id: DEMO_PROJECT_ID }, definitions: [definition],
       handlers: [{ ...definition, handle: () => { calls++; return 'looked up'; } }] });
   };
   const action = (id: string, version = 1) => ({ capability_id: exposedActionId(fixture.release, id), version, provider_id: 'plugin:' + fixture.release.pluginId });
@@ -79,7 +79,7 @@ test('Host discovery and invocation refresh generated cost without rewriting ins
     // Invoke without a preceding discovery also refreshes the public declaration.
     assert.equal(await client.invoke(caller, action('lookup'), null), 'looked up');
     const installed = await host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
-      actions: { registry: host.actionRegistry(fixture.ref), client, project_id: 'project' } }));
+      actions: { registry: host.actionRegistry(fixture.ref), client, project_id: DEMO_PROJECT_ID } }));
     assert.equal((await installed.catalog()).find(entry => entry.id === action('lookup').capability_id)!.execution.cost, 'none');
     assert.equal(installed.records()[0]!.manifest_digest, fixture.install.manifest_digest);
     assert.equal(installed.records()[0]!.install_id, fixture.install.install_id);
@@ -105,7 +105,7 @@ test('an in-flight catalog inspection cannot restore generated registrations aft
   const store = new LocalProjectDatabase(fixture.databasePath), service = new ActionService();
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let hold = false;
   try {
-    const installed = await ensureInstalledPlugins({ store, projectId: DEMO_PROJECT_ID, homeDirectory: home, actions: { registry: service, client: service, project_id: 'project',
+    const installed = await ensureInstalledPlugins({ store, projectId: DEMO_PROJECT_ID, homeDirectory: home, actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID,
       inspect: async caller => { const snapshot = service.inspect(caller); if (hold) { entered.resolve(); await release.promise; } return snapshot; } } });
     hold = true;
     const pending = installed.catalog(); await entered.promise;
@@ -149,7 +149,7 @@ test('explicitly disabled installations stay disabled after Host restart and onl
   const home = await mkdtemp(join(tmpdir(), 'installed-disabled-')), fixture = await publishedFixture(home, 'project');
   let host = new MolisWorkLocalHost({ homeDirectory: home });
   const control = () => host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
-    actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: 'project' } }));
+    actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }));
   try {
     const installed = await control();
     const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';

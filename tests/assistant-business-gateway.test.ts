@@ -43,7 +43,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const notes = new DatabaseSync(":memory:");
   notes.exec("CREATE TABLE notes (body TEXT NOT NULL, project TEXT NOT NULL, actor TEXT NOT NULL, audit TEXT)");
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "project", storage_key: "memory:project" };
   const seen: unknown[] = [];
   const unregister = local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [write, count],
     handlers: [{ ...write, handle(context, input) { seen.push(input); notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, context.audit_actor_id ?? null); return { saved: true }; } },
@@ -187,7 +187,7 @@ test("business roles are declared narrowly and the Host keeps directories, MCP a
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "first round");
     const [work] = await f.service.list();
     const session = { session_id: work!.session_id!, runtime_id: "prologue" };
-    const base = { project_id: "board", plugin_id: "io.molis.work.assistant", install_id: "system", actor_id: "web-user", session, role_id: "assistant", workspace: "business" as const, task: "x" };
+    const base = { project_id: "project", plugin_id: "io.molis.work.assistant", install_id: "system", actor_id: "web-user", session, role_id: "assistant", workspace: "business" as const, task: "x" };
     const { ASSISTANT_AGENT, ASSISTANT_PROMPTS } = await import("../apps/local-host/src/assistant/assistant-agent.js");
     const authority = { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: ["/tmp"], actions: async () => ({ discover: async () => [], invoke: async () => null }) };
     for (const extra of [{ directory: { canonical_path: "/tmp", realpath_verified: true } }, { mcp_tools: [{ server: "s", tool: "t", version: "1" }] },

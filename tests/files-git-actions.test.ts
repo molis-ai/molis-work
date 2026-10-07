@@ -24,12 +24,12 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
       ? { available: false, code: "actions.plugin_disabled", reason: "已停用" } : { available: true },
     workspacesFor: async () => { if (++reads === pauseAt) { enter(); await barrier; } return [workspace]; },
   });
-  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "board" });
+  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project" });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"],
     validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "已撤权"); } };
   const client = host.actionClient(reference), bound = bindActionClient(client, () => caller);
   try {
-    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "board", title: "Workspace actions", actor_id: caller.actor_id, idempotency_key: "init" }));
+    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "project", title: "Workspace actions", actor_id: caller.actor_id, idempotency_key: "init" }));
     const directory = await client.discover(caller);
     // Actions that need the Host review backend: staging, its results, and commit/branch/push/PR with their log.
     const reviewActions = [gitActions.prepareIndex.capability_id, gitActions.results.capability_id, gitActions.saveResult.capability_id,
@@ -81,7 +81,7 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     assert.equal(git.view.phase, "ready"); assert.equal(git.view.staged[0]?.path[0], "note.txt");
     const diff = await bound.invoke(gitActions.selectDiff, { workspace_id: "fixture", path: ["note.txt"], side: "index" });
     assert.equal(diff.result.outcome, "diff"); assert.ok(diff.selected?.reference);
-    const published = await host.withProject(reference, runtime => runtime.coordinator.processItems.query.getArtifactVersion("board", diff.selected!.reference));
+    const published = await host.withProject(reference, runtime => runtime.coordinator.processItems.query.getArtifactVersion("project", diff.selected!.reference));
     assert.equal(published?.owner_actor_id, "web-user");
     for (const invalid of [{ ...input, actor_id: "other" }, { ...input, path: ["..", "secret"] }, { ...input, fingerprint: "stale" }]) {
       await assert.rejects(bound.invoke(filesActions.capture, invalid));
@@ -100,7 +100,7 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
       if (mode === "cancelled") controller.abort();
       release(); await rejection;
       allowed = true; enabled = true; pauseAt = -1;
-      assert.equal(await host.withProject(reference, runtime => runtime.coordinator.processItems.query.latestArtifactVersion("board", first.saved.artifact.artifact_id)?.version), 1, mode);
+      assert.equal(await host.withProject(reference, runtime => runtime.coordinator.processItems.query.latestArtifactVersion("project", first.saved.artifact.artifact_id)?.version), 1, mode);
     }
     const recovered = await bound.invoke(filesActions.capture, input);
     assert.equal(recovered.saved.artifact.version, 2);

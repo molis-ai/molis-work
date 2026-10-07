@@ -66,11 +66,11 @@ test("formal unknown plugins supply namespaced events and checked navigation thr
 
 test("native event providers project original Feed, Inbox, source state and project Sessions", async () => {
   const { mkdtemp, rm } = await import("node:fs/promises"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
-  const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, createLocalFeedApplication, createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
+  const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, createLocalFeedApplication, createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
   const { createFeedEvidenceContentStore } = await import("@molis-ai/molis-work-module-feed");
   const { runWithMolisWorkHome } = await import("@molis-ai/molis-work-storage");
-  const home = await mkdtemp(join(tmpdir(), "native-home-events-")); const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  const home = await mkdtemp(join(tmpdir(), "native-home-events-")); const databasePath = join(home, "project.db"); seedDemoBoard(databasePath, caller.project_id!);
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: caller.project_id! });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const owner = { ...caller, permissions: ["home:read", "feed:read", "inbox:read", "goals:read", "sessions:read"] };
   const now = new Date(); const range = { from: new Date(now.getTime() - 86400000).toISOString(), to: new Date(now.getTime() + 86400000).toISOString(), now: now.toISOString() };

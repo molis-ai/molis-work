@@ -9,7 +9,7 @@ import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runti
 import { createScheduledOperations, saveScheduledOperation, getScheduledOperation, saveScheduledOperationOccurrence, listScheduledOperationOccurrences,
   scheduleActions, SCHEDULE_ACTION_PERMISSIONS, SchedulePluginRouteTable, createScheduleRouteHandlers, type ScheduledOperationView } from '@molis-ai/molis-work-plugin-schedule';
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from '../apps/local-host/src/project-host.js';
-import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
+import { seedDemoBoard } from '../apps/local-host/src/demo-seed.js';
 import { scheduleServiceFor } from '../apps/local-host/src/schedule-runtime.js';
 import { bindInstalledOperationCaller } from '../apps/local-host/src/schedule-operations.js';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
@@ -21,7 +21,7 @@ const installation = (generation = 'original'): PluginInstanceRecord => ({ insta
 const descriptor = (generation = 'original') => ({ installationId: 'review-install', generation, version: '1.0.0', title: '笔记汇总', operations: [{ id: 'summarize', description: '汇总本周笔记' }] });
 const inputFor = (view: ScheduledOperationView) => ({ operation_id: view.id, decision: 'skip' as const, expected_revision: view.revision,
   expected_installation_id: view.installation!.installationId, expected_generation: view.installation!.generation, expected_version: view.installation!.version });
-function seedUnknown(db: Parameters<typeof scheduleServiceFor>[0], projectId: string, projectId: string) {
+function seedUnknown(db: Parameters<typeof scheduleServiceFor>[0], projectId: string) {
   const schedule = scheduleServiceFor(db), at = new Date(Date.now() + 86_400_000).toISOString();
   new SqlitePluginRuntimeRepository(db).save(installation());
   const plans = createScheduledOperations({ db, projectId, schedule, describe: () => descriptor(), link: () => '/original-link' });
@@ -34,13 +34,13 @@ function seedUnknown(db: Parameters<typeof scheduleServiceFor>[0], projectId: st
 }
 
 test('operation recovery is a public authorized Host/HTTP action; plugin callers, stale snapshots and other projects are refused', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'operation-recovery-host-')), databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
-  const host = new MolisWorkLocalHost(), ref = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  const home = await mkdtemp(join(tmpdir(), 'operation-recovery-host-')), databasePath = join(home, 'project.db'); seedDemoBoard(databasePath, 'p');
+  const host = new MolisWorkLocalHost(), ref = molisWorkHostProjectReference({ databasePath, projectId: 'p' });
   let stop = () => {};
   try {
     const id = await host.withProject(ref, runtime => {
-      const id = seedUnknown(runtime.store.db, DEMO_PROJECT_ID, 'p');
-      stop = bindInstalledOperationCaller(runtime.store.db, DEMO_PROJECT_ID, { describe: () => descriptor(), async call() { assert.fail('confirmation never invokes'); } }); return id;
+      const id = seedUnknown(runtime.store.db, 'p');
+      stop = bindInstalledOperationCaller(runtime.store.db, 'p', { describe: () => descriptor(), async call() { assert.fail('confirmation never invokes'); } }); return id;
     });
     const caller = { actor_id: 'owner', project_id: 'p', audience: 'user' as const, permissions: SCHEDULE_ACTION_PERMISSIONS };
     const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
@@ -62,7 +62,7 @@ test('operation recovery is a public authorized Host/HTTP action; plugin callers
 
 test('narrow Schedule UI reviews unknown outcomes, cancels safely and rejects a stale installation before an explicit skip', { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true, seedDemoBoard, null); if (!b) return;
-  const projectId = b.store.goalsQuery.listProjectIds()[0]!, projectId = b.projectId!;
+  const projectId = b.projectId!;
   const ref = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId });
   // The browser server imports the built Host, so bind to that owner and its database connection.
   const { bindInstalledOperationCaller: bind } = await import('../apps/local-host/dist/schedule-operations.js');

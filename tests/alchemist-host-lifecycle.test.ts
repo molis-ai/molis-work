@@ -13,7 +13,7 @@ async function setup(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "alchemist-host-lifecycle-")), hosts: MolisWorkLocalHost[] = [];
   const beforeClose: Array<() => void> = [];
   const { ai, requests } = controlledAlchemistAi();
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "board-a" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-a" });
   const open = async (actor: string) => {
     const host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai, pulseSourceMode: "fixture" } }); hosts.push(host);
     await host.withProject(ref, r => r.coordinator.initializeBoard({ project_id: ref.project_id, title: "Host lifecycle", actor_id: "setup", idempotency_key: "init" }));

@@ -43,7 +43,7 @@ test("migrated result reference copies exact text and handles denied clipboard p
     reason: "fixture", created_by: "fixture-user", created_at: new Date().toISOString() });
   server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory,
     controlToken: "artifact-clipboard-test-control-token-0123456789" });
-  child = spawn(chrome, ["--headless=new", "--disable-gpu", "--disable-background-networking",
+  child = spawn(chrome, ["--headless=new", "--lang=zh-CN", "--accept-lang=zh-CN", "--disable-gpu", "--disable-background-networking",
     "--disable-component-update", "--disable-extensions", "--no-first-run", "--no-default-browser-check",
     "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome-profile")}`, "about:blank"],
   { stdio: ["ignore", "ignore", "pipe"] });

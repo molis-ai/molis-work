@@ -194,7 +194,7 @@ pnpm desktop:start:macos
 - [CLI 与开发](docs/cli-and-development.md)
 - [Runtime Skill](skills/goal-advance/SKILL.md)
 - [Plugin 开发 Skill](skills/molis-plugin-dev/SKILL.md)
-- [Molis Work Bug 卡台账](docs/molis-work-bug-cards.md)
+- [Molis Work Bug 卡台账](docs/experience/molis-work-bug-cards.md)
 
 ## License
 

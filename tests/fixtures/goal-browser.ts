@@ -117,7 +117,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     connections.add(connection);
     connection.once("close", () => connections.delete(connection));
   });
-  child = spawn(chrome, ["--headless=new", "--disable-gpu", "--disable-background-networking",
+  child = spawn(chrome, ["--headless=new", "--lang=zh-CN", "--accept-lang=zh-CN", "--disable-gpu", "--disable-background-networking",
     "--disable-component-update", "--disable-extensions", "--disable-background-timer-throttling",
     "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", "--no-first-run", "--no-default-browser-check",
     "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome-profile")}`, "about:blank"],

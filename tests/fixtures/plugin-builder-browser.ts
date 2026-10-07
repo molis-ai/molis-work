@@ -22,7 +22,7 @@ export class ChromeHarness {
   static async start(directory: string) {
     const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"].find((path): path is string => Boolean(path && existsSync(path)));
     if (!chrome) return null;
-    const child = spawn(chrome, ["--headless=new", "--disable-gpu", "--disable-background-networking", "--disable-component-update", "--disable-extensions", "--no-first-run", "--no-default-browser-check", "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome")}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn(chrome, ["--headless=new", "--lang=zh-CN", "--accept-lang=zh-CN", "--disable-gpu", "--disable-background-networking", "--disable-component-update", "--disable-extensions", "--no-first-run", "--no-default-browser-check", "--remote-debugging-port=0", `--user-data-dir=${join(directory, "chrome")}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
     const url = await new Promise<string>((resolve, reject) => {
       let stderr = ""; const timer = setTimeout(() => reject(new Error("Chrome debugger startup timed out")), 8000);
       child.once("error", error => { clearTimeout(timer); reject(error); });

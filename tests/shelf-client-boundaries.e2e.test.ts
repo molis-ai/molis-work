@@ -92,7 +92,7 @@ async function openShelfBrowser(t: TestContext) {
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
-  child = spawn(chrome, ["--headless=new", "--disable-gpu", "--disable-background-networking", "--disable-extensions", "--no-first-run", "--no-default-browser-check", "--remote-debugging-port=0", `--user-data-dir=${join(home, "chrome")}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
+  child = spawn(chrome, ["--headless=new", "--lang=zh-CN", "--accept-lang=zh-CN", "--disable-gpu", "--disable-background-networking", "--disable-extensions", "--no-first-run", "--no-default-browser-check", "--remote-debugging-port=0", `--user-data-dir=${join(home, "chrome")}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
   const debuggerUrl = await new Promise<string>((resolve, reject) => {
     let output = "";
     const timeout = setTimeout(() => reject(new Error("Chrome debugger startup timed out")), 20_000);

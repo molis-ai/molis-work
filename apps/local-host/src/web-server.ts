@@ -57,11 +57,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // configured board is the authority; other project callers still use catalog policy.
     const actionAvailability = Object.assign((...args: Parameters<typeof catalogAvailability>) => {
       const [caller, action] = args;
-      return fixture && caller.project_id === fixture.boardId
+      return fixture && caller.project_id === fixture.projectId
         ? { available: true as const } : catalogAvailability(caller, action);
     }, {
       snapshotForDiscovery: async (caller: Parameters<typeof catalogAvailability>[0]) =>
-      fixture && caller.project_id === fixture.boardId
+      fixture && caller.project_id === fixture.projectId
         ? () => ({ available: true as const }) : catalogAvailability.snapshotForDiscovery(caller),
     });
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({
@@ -74,7 +74,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       homeDirectory: storageHome,
       actionAvailability,
       sceneAvailability: actionAvailability,
-      projectRoutePrefix: projectId => fixture && projectId === fixture.boardId ? "" : `/projects/${encodeURIComponent(projectId)}`,
+      projectRoutePrefix: projectId => fixture && projectId === fixture.projectId ? "" : `/projects/${encodeURIComponent(projectId)}`,
       workspacesFor: (projectId) => withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
       workspaceFor: (projectId) => {
         const configuredRoot = () => {
@@ -82,7 +82,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           const canonical_path = fs.realpathSync(serverOptions.projectRoot);
           return { workspace_id: `configured:${projectId}`, canonical_path, realpath_verified: true, display_name: path.basename(canonical_path) };
         };
-        if (fixture && projectId === fixture.boardId) return configuredRoot();
+        if (fixture && projectId === fixture.projectId) return configuredRoot();
         return withCatalog({ homeDirectory: storageHome }, catalog => workspaceRefFor(catalog, projectId) ?? configuredRoot());
       },
     });
@@ -103,7 +103,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
     const pty = { host: null as MolisWorkPtyHost | null };
     const im = createLocalImServer(storageHome, async id => {
-      if (fixture && id === fixture.boardId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
+      if (fixture && id === fixture.projectId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
       return withCatalog({homeDirectory:storageHome}, catalog => {
         try { const project=catalog.getProject(id); return {id:project.project_id,title:project.display_name}; }
         catch { return null; }
@@ -118,23 +118,23 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       return port ? [`http://127.0.0.1:${port}`, `http://localhost:${port}`, `http://[::1]:${port}`] : [];
     } });
     // The Assistant may look at and act on a project's page through Prologue (specs/archive/side-panel P5): one driver per page,
-    // found by the board its round works on; sites the person allowed or blocked are kept beside the browser profile.
+    // found by the project its round works on; sites the person allowed or blocked are kept beside the browser profile.
     const sites = new BrowserSiteDecisions(storageHome);
     const drivers = new Map<string, HostSurfaceDriver>();
     const unregisterSurfaces = registerBrowserSurfaces(localHost, {
       siteDecisions: () => sites.list(),
-      driverFor: async boardId => {
+      driverFor: async projectId => {
         // The person can turn the Assistant's use of the browser off altogether; rounds then get no browser tools.
         if (!sites.assistantEnabled || !locateBrowser()) return null;
-        const projectId = fixture && boardId === fixture.boardId ? fixture.boardId
-          : await withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().find(project => project.board_id === boardId)?.project_id ?? null);
-        if (!projectId) return null;
+        const known = fixture && projectId === fixture.projectId
+          || await withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().some(project => project.project_id === projectId));
+        if (!known) return null;
         let driver = drivers.get(projectId);
         if (!driver) drivers.set(projectId, driver = createBrowserSurfaceDriver(browserHost().page(projectId), origin => sites.blocked(origin), () => sites.assistantEnabled));
         return driver;
       },
     });
-    const projectExists = async (projectId: string) => (fixture && projectId === fixture.boardId)
+    const projectExists = async (projectId: string) => (fixture && projectId === fixture.projectId)
       || await withCatalog({ homeDirectory: storageHome }, catalog => { try { catalog.getProject(projectId); return true; } catch { return false; } });
     const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
@@ -174,7 +174,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             sendJson(response, ready ? 200 : 503, {
               status: ready ? "ok" : "starting", process_id: process.pid,
               service_process_id: serviceProcessId(), desktop_tui: Boolean(pty.host),
-              ...(fixture ? { board_id: fixture.boardId } : { project_count: catalogAccess.projectCount }),
+              ...(fixture ? { project_id: fixture.projectId } : { project_count: catalogAccess.projectCount }),
             });
             return;
           }

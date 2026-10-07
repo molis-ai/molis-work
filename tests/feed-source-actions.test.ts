@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { FeedPluginRouteTable, createFeedRouteHandlers, feedRouteErrorResponse, feedSourceActions as s, type FeedRouteHandlerPorts } from "@molis-ai/molis-work-plugin-feed";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
@@ -14,9 +14,9 @@ const PROJECT = "project-feed-sources";
 test("Feed sources are managed through registered actions; the Feed page route forwards and keeps its answers", { timeout: 120_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "feed-source-actions-"));
   const dbPath = join(home, "project.db");
-  seedDemoBoard(dbPath);
+  seedDemoBoard(dbPath, PROJECT);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const reference = molisWorkHostProjectReference({ databasePath: dbPath, boardId: DEMO_BOARD_ID, projectId: PROJECT });
+  const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: NATIVE_CONTENT_PERMISSIONS };
   const client = host.actionClient(reference);
   const actions = bindActionClient(client, () => caller);
@@ -43,7 +43,7 @@ test("Feed sources are managed through registered actions; the Feed page route f
     assert.ok(external.some(row => row.capability_id === s.register.capability_id));
 
     let changes = 0;
-    const table = new FeedPluginRouteTable(createFeedRouteHandlers({ actions, boardId: DEMO_BOARD_ID, routePrefix: "/projects/p", changed: () => { changes++; } } as unknown as FeedRouteHandlerPorts));
+    const table = new FeedPluginRouteTable(createFeedRouteHandlers({ actions, projectId: PROJECT, routePrefix: "/projects/p", changed: () => { changes++; } } as unknown as FeedRouteHandlerPorts));
     const call = (method: "POST" | "PATCH" | "PUT" | "DELETE", pathname: string, body: Record<string, unknown>) =>
       table.handle({ method, pathname, query: new URLSearchParams(), body }).catch(feedRouteErrorResponse);
     const created = await call("POST", "/api/feed/sources", { kind: "custom_rss", feed_url: "https://example.com/feed.xml", name: "示例", ignored: "extra field" });

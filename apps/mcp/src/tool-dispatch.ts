@@ -25,7 +25,7 @@ export async function dispatchMcpProjectTool(
     switch (name) {
       case "molis_work_v1_initialize":
         result = await client.invoke(initializeBoardCapability, {
-          board_id: String(arguments_.board_id),
+          project_id: String(arguments_.project_id),
           title: String(arguments_.title),
           idempotency_key: String(arguments_.idempotency_key),
         });
@@ -41,7 +41,7 @@ export async function dispatchMcpProjectTool(
           );
         }
         const { database_path: _database, web_base_url: _url, authority, ...input } = arguments_;
-        const decision = { ...input, authority: managementTreeAuthority(String(input.board_id), String(input.idempotency_key), authority) };
+        const decision = { ...input, authority: managementTreeAuthority(String(input.project_id), String(input.idempotency_key), authority) };
         result = await client.invoke(goalTreeCapabilities.decideGoalTreeProposal, [decision as unknown as GoalTreeProposalDecideInput]);
         break;
       }

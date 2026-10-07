@@ -36,7 +36,7 @@ import {
   SqlitePluginRuntimeRepository,
 } from "@molis-ai/molis-work-plugin-runtime";
 
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { OfficialIntegrationRegistry } from "@molis-ai/molis-work-app-local-host";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -46,7 +46,7 @@ const CONNECTION_ID = "connection-fd3-github";
 
 function saveSource(store: LocalProjectDatabase): void {
   new SourcesModule(store.db).commands.save({
-    project_id: DEMO_BOARD_ID,
+    project_id: DEMO_PROJECT_ID,
     source_id: SOURCE_ID,
     kind: "github",
     definition_id: "github",
@@ -145,14 +145,14 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
         signals.commands,
       );
       const first = await firstListener.run({
-        project_id: DEMO_BOARD_ID,
+        project_id: DEMO_PROJECT_ID,
         source_id: SOURCE_ID,
         connection_id: CONNECTION_ID,
         operation_id: "fd3-first-sync",
         adapter: firstContribution.signal_adapter,
       });
       assert.equal(first.created_count, 1);
-      const initialSignal = signals.query.list(DEMO_BOARD_ID, SOURCE_ID)[0]!;
+      const initialSignal = signals.query.list(DEMO_PROJECT_ID, SOURCE_ID)[0]!;
       assert.equal(initialSignal.adapter.plugin_id, githubIntegrationManifest.plugin_id);
       assert.equal(initialSignal.adapter.version, githubIntegrationManifest.version);
       assert.equal(initialSignal.provenance.provider_plugin_id, githubIntegrationManifest.plugin_id);
@@ -173,13 +173,13 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
         signals.commands,
       );
       await recoveredListener.run({
-        project_id: DEMO_BOARD_ID,
+        project_id: DEMO_PROJECT_ID,
         source_id: SOURCE_ID,
         connection_id: CONNECTION_ID,
         operation_id: "fd3-recovered-sync",
         adapter: recoveredContribution.signal_adapter,
       });
-      const revisedSignal = signals.query.list(DEMO_BOARD_ID, SOURCE_ID)[0]!;
+      const revisedSignal = signals.query.list(DEMO_PROJECT_ID, SOURCE_ID)[0]!;
       assert.equal(revisedSignal.signal_id, initialSignal.signal_id);
       assert.equal(revisedSignal.revision, 2);
       assert.equal(revisedSignal.payload.summary, "Review request updated");
@@ -187,7 +187,7 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
       await runtime.uninstall(installId, { retain_private_data: true });
       assert.equal(runtime.get(installId).state, "uninstalled");
       assert.equal(runtime.contribution(installId), null);
-      assert.equal(signals.query.list(DEMO_BOARD_ID, SOURCE_ID).length, 1);
+      assert.equal(signals.query.list(DEMO_PROJECT_ID, SOURCE_ID).length, 1);
     } finally {
       store.close();
     }
@@ -273,7 +273,7 @@ test("official Plugin composition restarts a source when Provider configuration 
     };
   });
   const source: FeedSourceRecord = {
-    board_id: DEMO_BOARD_ID,
+    project_id: DEMO_PROJECT_ID,
     source_id: "source-fd3-config",
     kind: "gmail",
     definition_id: "gmail",
@@ -633,7 +633,7 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
   const producerId = "io.molis.work.audit.producer";
   const consumerId = "io.molis.work.audit.consumer";
   const eventType = `${producerId}.changed`;
-  const boardId = "board-revoke";
+  const projectId = "board-revoke";
   const received: unknown[] = [];
   const delivered: PluginUpstreamReadyInputs[] = [];
   let consumerStarts = 0;
@@ -709,7 +709,7 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
 
   const artifacts = new Map<string, ArtifactVersionRecord>();
   const graph = new PluginInputGraph({
-    boardId,
+    projectId,
     lifecycle: supervisor,
     repository: new MemoryPluginWiringRepository(),
     artifacts: {
@@ -717,13 +717,13 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
     },
   });
   const bus = new PluginEventBus({
-    boardId,
+    projectId,
     lifecycle: supervisor,
     repository: new MemoryPluginEventsRepository(),
   });
   const router = new PluginRouteRouter(supervisor, [producer.manifest, consumer.manifest]);
   graph.bind({
-    board_id: boardId,
+    project_id: projectId,
     target_plugin_id: consumerId,
     target_port: "project",
     source_plugin_id: producerId,
@@ -735,7 +735,7 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
     const reference = { artifact_id: "artifact-project", version };
     artifacts.set(`${reference.artifact_id}@${reference.version}`, {
       ...reference,
-      board_id: boardId,
+      project_id: projectId,
       artifact_type_id: "audit.project",
       schema_version: 1,
       producer_plugin_id: producerId,
@@ -764,7 +764,7 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
     const installId = supervisor.state(producerId)?.install_id;
     assert.ok(installId);
     bus.publish(
-      { board_id: boardId, plugin_id: producerId, install_id: installId },
+      { project_id: projectId, plugin_id: producerId, install_id: installId },
       { event_type_id: eventType, type_version: 1, payload },
     );
   };

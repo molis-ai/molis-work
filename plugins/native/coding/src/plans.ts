@@ -88,7 +88,7 @@ export function confirmedPlan(context: PluginStartContext, sessionId: string, re
   const reference = planReference(sessionId, revision), record = context.services!.artifacts.read(reference);
   if (!record || record.artifact_type_id !== CODING_PLAN_TYPE || record.schema_version !== 1
     || record.producer_plugin_id !== context.plugin_id || record.producer_binding_signature !== "official-coding-binding"
-    || record.board_id !== context.board_id || record.content_kind !== "inline" || record.availability !== "available"
+    || record.project_id !== context.project_id || record.content_kind !== "inline" || record.availability !== "available"
     || record.lifecycle_state !== "active") throw new Error("确认计划不可读，请重新查看原计划");
   const plan = record.payload as unknown as CodingPlanDraft;
   if (plan?.revision !== revision || plan.source?.session_id !== sessionId || !plan.source?.run_id

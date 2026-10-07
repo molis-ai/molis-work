@@ -18,7 +18,7 @@ const item = (id: string, title = id, display_status: GoalsMomentumItem["display
   goal: { goal_id: id, title, priority: 1, created_at: "2026-08-01", updated_at: "2026-09-05", fulfillment_state: display_status === "completed" ? "satisfied" : "unmet", acceptance_criteria: [], outcome: `${id} outcome` },
   status: display_status === "completed" ? "satisfied" : "execution_pending", work_state: "execution_pending", display_status, passed_criteria: [], relations: [], reasons: [], runs: [], evidence: [], reviews: [], events: [] });
 const relation = (id: string, type: GoalRelationRecord["type"], from: string, to: string): GoalRelationRecord => ({
-  relation_id: id, board_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: "part",
+  relation_id: id, project_id: "board", type, from_goal_id: from, to_goal_id: to, state: "active", reason: "part",
   created_by: "user", created_at: "2026-09-05", deactivated_at: null });
 const view = (goals: GoalsMomentumItem[], relations: GoalRelationRecord[] = []): GoalsMomentumBoardView => ({
   goals, archived_goals: [item("ARCHIVED")], trashed_goals: [item("TRASHED")], snapshot: { relations } });

@@ -12,7 +12,7 @@ function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-02-tree-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ board_id: "board", title: "树", actor_id: "user-1", idempotency_key: "init" });
+  app.initializeBoard({ project_id: "board", title: "树", actor_id: "user-1", idempotency_key: "init" });
   return { directory, store, app };
 }
 
@@ -20,7 +20,7 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
   const data = fixture();
   try {
     const submitted = data.app.goalTreeSubmission.submitGoalTreeProposal({
-      board_id: "board",
+      project_id: "board",
       actor_id: "runtime:test:session",
       submitted_session_id: "session",
       summary: "创建两个 Goal 并建立父子关系",
@@ -57,13 +57,13 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
     });
     assert.equal(submitted.replayed, false);
     const checked = data.app.goalTreeCheck.checkGoalTreeProposal({
-      board_id: "board",
+      project_id: "board",
       proposal_id: submitted.proposal.proposal_id,
       actor_id: "runtime:test:session",
       idempotency_key: "check-1",
     });
     assert.deepEqual(checked.conflict_item_ids, []);
-    const pendingView = buildMolisWorkWebView(data.store, data.app, { boardId: "board" });
+    const pendingView = buildMolisWorkWebView(data.store, data.app, { projectId: "board" });
     assert.equal(pendingDecisionCount(pendingView), 1);
     assert.deepEqual(
       buildDecisionGroups(pendingView).flatMap((group) => group.goalTreeProposals.map((item) => item.proposal_id)),
@@ -71,7 +71,7 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
     );
     assert.throws(
       () => data.app.goalTreeDecision.decideGoalTreeProposal({
-        board_id: "board",
+        project_id: "board",
         proposal_id: submitted.proposal.proposal_id,
         authority: {
           ...hostEventDecisionAuthority("runtime_dialogue", "board", "forged-user", "forged-runtime"),
@@ -87,7 +87,7 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
       ),
     );
     const decided = data.app.goalTreeDecision.decideGoalTreeProposal({
-      board_id: "board",
+      project_id: "board",
       proposal_id: submitted.proposal.proposal_id,
       authority: {
         ...hostEventDecisionAuthority("web", "board", "web-user", "tree-dec-1"),
@@ -98,20 +98,20 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
       idempotency_key: "dec-1",
     });
     assert.equal(decided.applied_item_ids.length, 3);
-    const decidedView = buildMolisWorkWebView(data.store, data.app, { boardId: "board" });
+    const decidedView = buildMolisWorkWebView(data.store, data.app, { projectId: "board" });
     assert.equal(pendingDecisionCount(decidedView), 0);
     const child = data.app.goalEvents.readState("board", "tree-child");
     assert.equal(child.can_record, true);
     assert.equal(child.intent.source_kind, "tree");
     assert.equal(data.app.goalEvents.readState("board", "tree-parent").intent.source_kind, "tree");
     const note = data.app.goalEvents.recordNote({
-      board_id: "board", goal_id: "tree-child", actor_id: "runtime:test:session", actor_kind: "runtime",
+      project_id: "board", goal_id: "tree-child", actor_id: "runtime:test:session", actor_kind: "runtime",
       body: "无 Run 可直接记录", idempotency_key: "tree-note",
     });
     assert.equal(note.recorded, true);
     assert.throws(
       () => data.app.goalTreeSubmission.submitGoalTreeProposal({
-        board_id: "board",
+        project_id: "board",
         actor_id: "runtime:test:session",
         summary: "旧 kind",
         items: [{

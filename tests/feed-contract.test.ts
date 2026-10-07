@@ -8,7 +8,7 @@ import { toFeedPublicError } from "@molis-ai/molis-work-plugin-feed";
 import { PROVIDER_CONTRACT_FIXTURES } from "./fixtures/provider-contract.js";
 import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention separately", () => {
@@ -22,7 +22,7 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
       const now = "2026-08-30T00:00:00.000Z";
       const ingested = PROVIDER_CONTRACT_FIXTURES.map((fixture) => {
         const source: FeedSourceRecord = feed.upsertSource({
-          board_id: DEMO_BOARD_ID,
+          project_id: DEMO_PROJECT_ID,
           source_id: fixture.source.source_id,
           kind: fixture.provider,
           definition_id: fixture.provider,
@@ -55,21 +55,21 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
         });
       });
       assert.equal(ingested.every((result) => result.created), true);
-      const snapshot = feed.snapshot(DEMO_BOARD_ID);
+      const snapshot = feed.snapshot(DEMO_PROJECT_ID);
       assert.equal(snapshot.feed_items.length, 3);
       assert.equal(snapshot.feed_items.every((item) => item.item_type === "feed"), true);
       assert.equal(snapshot.inbox_entries.length, 2);
       assert.equal("items" in snapshot, false);
       assert.equal(snapshot.inbox_entries.every((entry) => !Object.hasOwn(entry, "body")), true);
       const goalDecision = feed.createInboxEntry({
-        boardId: DEMO_BOARD_ID,
+        projectId: DEMO_PROJECT_ID,
         subjectType: "goal_decision",
         subjectId: "CORE",
         reason: "goal_decision",
         detail: { obligation_id: "fixture-obligation" },
       });
       const sourceFault = feed.createInboxEntry({
-        boardId: DEMO_BOARD_ID,
+        projectId: DEMO_PROJECT_ID,
         subjectType: "source_fault",
         subjectId: PROVIDER_CONTRACT_FIXTURES[2]!.source.source_id,
         reason: "source_fault",
@@ -79,7 +79,7 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
       assert.equal(sourceFault.entry.subject_type, "source_fault");
 
       const github = PROVIDER_CONTRACT_FIXTURES[0]!;
-      const githubSource = feed.getSource(DEMO_BOARD_ID, github.source.source_id);
+      const githubSource = feed.getSource(DEMO_PROJECT_ID, github.source.source_id);
       const replay = feed.ingestItem({
         source: githubSource,
         externalId: github.source.external_id,
@@ -89,7 +89,7 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
         occurredAt: now,
       });
       assert.equal(replay.created, false);
-      assert.equal(feed.snapshot(DEMO_BOARD_ID).feed_items.length, 3);
+      assert.equal(feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 3);
 
       const secondGithubSource = feed.upsertSource({
         ...githubSource,
@@ -106,16 +106,16 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
         occurredAt: now,
       });
       assert.equal(sameProviderIdDifferentSource.created, true);
-      assert.equal(feed.snapshot(DEMO_BOARD_ID).feed_items.length, 4);
+      assert.equal(feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 4);
 
       const resolved = feed.setDisposition(
-        DEMO_BOARD_ID,
+        DEMO_PROJECT_ID,
         ingested[0]!.item.item_id,
         "saved",
         ingested[0]!.item.revision,
       );
       assert.equal(resolved.item_type, "feed");
-      assert.equal(feed.snapshot(DEMO_BOARD_ID).inbox_entries.find(
+      assert.equal(feed.snapshot(DEMO_PROJECT_ID).inbox_entries.find(
         (entry) => entry.subject_id === resolved.item_id,
       )?.status, "done");
     } finally {

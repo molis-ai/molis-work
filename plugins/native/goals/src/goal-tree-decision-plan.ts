@@ -110,7 +110,7 @@ export class GoalTreeDecisionPlan {
     }
 
     const planningIssues = this.ports.goals.planning.proposalGraphIssues(
-      input.board_id,
+      input.project_id,
       decisions
         .filter((decision) => decision.decision === "confirm")
         .map((decision) => itemsById.get(decision.item_id)!),

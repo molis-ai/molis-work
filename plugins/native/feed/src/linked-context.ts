@@ -12,7 +12,7 @@ export function readLinkedFeedContext<T extends LinkedFeedItem>(input: {
   goal_id: string;
   item_id?: string;
   materializer: ContextMaterializationApi;
-  readGoal(): { goal_id: string; board_id: string };
+  readGoal(): { goal_id: string; project_id: string };
   readItem(itemId: string): T | null;
   renderItem(item: T): string;
 }): { source_context: string } | null {
@@ -26,7 +26,7 @@ export function readLinkedFeedContext<T extends LinkedFeedItem>(input: {
     if (ref.module === "goals") {
       const goal = input.readGoal();
       return { state: "resolved", ref: { ...root, id: goal.goal_id, version: null,
-        scope: { ...scope, id: goal.board_id } }, value: { kind: "goal" } };
+        scope: { ...scope, id: goal.project_id } }, value: { kind: "goal" } };
     }
     if (ref.module !== "feed") return { state: "unavailable" };
     if (input.item_id && ref.id !== input.item_id) return { state: "unavailable" };

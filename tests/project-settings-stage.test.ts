@@ -129,7 +129,7 @@ test("workbench project gear opens a directory of categories and an exclusive se
   const html = renderMolisWorkWeb({
     snapshot: {
       board: {
-        board_id: "board-1",
+        project_id: "board-1",
         title: "工作台",
         active_goal_id: null,
         created_at: "2026-01-01T00:00:00.000Z",
@@ -221,7 +221,7 @@ test("project guidance keeps runtime notes on the title hint instead of the page
   const html = renderMolisWorkProjectGuidanceSettings({
     snapshot: {
       board: {
-        board_id: "board-1",
+        project_id: "board-1",
         title: "工作台",
         active_goal_id: null,
         created_at: "2026-09-17T00:00:00.000Z",

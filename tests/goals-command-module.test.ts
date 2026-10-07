@@ -35,7 +35,7 @@ test("Goals public Command API owns Goal, relation, and Guidance writes", () => 
   const store = new LocalProjectDatabase(join(directory, "molis-work.sqlite"));
   try {
     new GoalProjectApplication(store).initializeBoard({
-      board_id: "board-module",
+      project_id: "board-module",
       title: "Goals Module",
       actor_id: "user-1",
       idempotency_key: "initialize",
@@ -62,7 +62,7 @@ test("Goals public Command API owns Goal, relation, and Guidance writes", () => 
     assert.match(relation.relation_id, /^relation-/u);
 
     const guidance = goals.commands.addProjectGuidance({
-      board_id: "board-module",
+      project_id: "board-module",
       actor_id: "user-1",
       kind: "quality_bar",
       content: "迁移必须保持功能无损。",
@@ -101,7 +101,7 @@ test("Goals public Lifecycle API owns archive and trash", () => {
   const store = new LocalProjectDatabase(join(directory, "molis-work.sqlite"));
   try {
     const goals = new GoalsModule(store.db, {});
-    const initialize = { board_id: "board-lifecycle", title: "Goals Lifecycle", actor_id: "user-1", idempotency_key: "initialize" };
+    const initialize = { project_id: "board-lifecycle", title: "Goals Lifecycle", actor_id: "user-1", idempotency_key: "initialize" };
     store.db.exec(`CREATE TRIGGER reject_board_event BEFORE INSERT ON events
       WHEN NEW.type = 'board.created' BEGIN SELECT RAISE(ABORT, 'board event unavailable'); END`);
     assert.throws(() => goals.commands.initializeBoard(initialize), /board event unavailable/u);
@@ -113,7 +113,7 @@ test("Goals public Lifecycle API owns archive and trash", () => {
     assert.throws(() => goals.commands.initializeBoard({ ...initialize, title: "Changed" }),
       (error: unknown) => error instanceof GoalsCommandError && error.code === "request.idempotency_key_reused");
     assert.equal(goals.query.getBoard("board-lifecycle")?.title, "Goals Lifecycle");
-    assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE board_id = ? AND type = 'board.created'")
+    assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE project_id = ? AND type = 'board.created'")
       .get("board-lifecycle")?.count, 1, "retry does not duplicate the Board event");
     goals.commands.createGoal("board-lifecycle", acceptedGoal("goal-lifecycle", "Lifecycle Goal", "生命周期迁移无损"), {
       actor_id: "user-1",

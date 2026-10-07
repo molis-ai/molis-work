@@ -27,9 +27,9 @@ test("a connected external MCP tool is one directory action: local user, workflo
     storageRoot: join(home, "runtime"), modelConfiguration: async () => null, resolveCredential: () => null });
   let adapter = await openAdapter();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   let directory = createExternalMcpDirectory({ localHost: host, homeDirectory: home });
-  const owner = { board_id: project.board_id, plugin_id: "io.molis.work.coding" };
+  const owner = { project_id: project.project_id, plugin_id: "io.molis.work.coding" };
   let library = adapter.mcpLibrary!;
   const runtime = await host.withProject(reference, project => project) as MolisWorkProjectRuntime;
   const user: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, EXTERNAL_MCP_PERMISSION] };
@@ -61,7 +61,7 @@ test("a connected external MCP tool is one directory action: local user, workflo
       { plugin: "action", action: { ref: step.ref, title: step.title, group: step.group, mapping: { note: { from: "title" } } } }],
       links: [{ kind: "function", title_template: "", body_template: "{正文}", instructions: "" }] } });
     const { createLocalFeedApplication, createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
-    const source = createLocalFeedSourceService(runtime.store.db, project.board_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
+    const source = createLocalFeedSourceService(runtime.store.db, project.project_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
     createLocalFeedApplication(runtime.store.db).ingestItem({ source, externalId: "one", title: "工作流交来的标题", summary: "s", body: "正文", occurredAt: new Date().toISOString(), attention: false });
     const item = (await actions.invoke(w.stationItems, { plugin: "feed" })).items[0]!;
     const run = (await actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id })).instance;

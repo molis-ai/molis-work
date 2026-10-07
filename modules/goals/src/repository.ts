@@ -27,7 +27,7 @@ export interface GoalsSqliteDatabase {
 
 export interface GoalsEventInput {
   eventId: string;
-  boardId: string;
+  projectId: string;
   actorId: string;
   type: string;
   objectType: string;
@@ -38,7 +38,7 @@ export interface GoalsEventInput {
 }
 
 export interface GoalsIdempotencyInput {
-  boardId: string;
+  projectId: string;
   actorId: string;
   operation: string;
   key: string;
@@ -54,29 +54,29 @@ export class GoalsRepository {
     return this.db.transaction(operation).immediate();
   }
 
-  boardExists(boardId: string): boolean {
-    return Boolean(this.db.prepare("SELECT board_id FROM boards WHERE board_id = ?").get(boardId));
+  boardExists(projectId: string): boolean {
+    return Boolean(this.db.prepare("SELECT project_id FROM boards WHERE project_id = ?").get(projectId));
   }
 
-  createBoard(boardId: string, title: string, at: string): void {
-    this.db.prepare("INSERT INTO boards (board_id, title, active_goal_id, created_at, updated_at) VALUES (?, ?, NULL, ?, ?)")
-      .run(boardId, title, at, at);
+  createBoard(projectId: string, title: string, at: string): void {
+    this.db.prepare("INSERT INTO boards (project_id, title, active_goal_id, created_at, updated_at) VALUES (?, ?, NULL, ?, ?)")
+      .run(projectId, title, at, at);
   }
 
-  setActiveGoal(boardId: string, goalId: string | null, at: string): void {
-    this.db.prepare("UPDATE boards SET active_goal_id = ?, updated_at = ? WHERE board_id = ?")
-      .run(goalId, at, boardId);
+  setActiveGoal(projectId: string, goalId: string | null, at: string): void {
+    this.db.prepare("UPDATE boards SET active_goal_id = ?, updated_at = ? WHERE project_id = ?")
+      .run(goalId, at, projectId);
   }
 
-  clearActiveGoalIfMatches(boardId: string, goalId: string, at: string): boolean {
-    return this.db.prepare("UPDATE boards SET active_goal_id = NULL, updated_at = ? WHERE board_id = ? AND active_goal_id = ?")
-      .run(at, boardId, goalId).changes > 0;
+  clearActiveGoalIfMatches(projectId: string, goalId: string, at: string): boolean {
+    return this.db.prepare("UPDATE boards SET active_goal_id = NULL, updated_at = ? WHERE project_id = ? AND active_goal_id = ?")
+      .run(at, projectId, goalId).changes > 0;
   }
 
-  getBoard(boardId: string): GoalsBoardRecord | null {
-    const row = this.db.prepare("SELECT * FROM boards WHERE board_id = ?").get(boardId) as Row | undefined;
+  getBoard(projectId: string): GoalsBoardRecord | null {
+    const row = this.db.prepare("SELECT * FROM boards WHERE project_id = ?").get(projectId) as Row | undefined;
     return row ? {
-      board_id: text(row.board_id),
+      project_id: text(row.project_id),
       title: text(row.title),
       active_goal_id: nullableText(row.active_goal_id),
       created_at: text(row.created_at),
@@ -99,15 +99,15 @@ export class GoalsRepository {
     return mapGoal(row, criteria);
   }
 
-  listGoals(boardId: string): GoalRecord[] {
+  listGoals(projectId: string): GoalRecord[] {
     const rows = this.db
-      .prepare("SELECT * FROM goals WHERE board_id = ? ORDER BY priority DESC, created_at, goal_id")
-      .all(boardId) as Row[];
+      .prepare("SELECT * FROM goals WHERE project_id = ? ORDER BY priority DESC, created_at, goal_id")
+      .all(projectId) as Row[];
     const criteria = this.db.prepare(`
       SELECT ac.* FROM acceptance_criteria ac
       JOIN goals g ON g.goal_id = ac.goal_id
-      WHERE g.board_id = ? ORDER BY ac.criterion_id
-    `).all(boardId) as Row[];
+      WHERE g.project_id = ? ORDER BY ac.criterion_id
+    `).all(projectId) as Row[];
     const byGoal = new Map<string, Row[]>();
     for (const criterion of criteria) {
       const goalId = text(criterion.goal_id);
@@ -116,63 +116,63 @@ export class GoalsRepository {
     return rows.map((row) => mapGoal(row, byGoal.get(text(row.goal_id)) ?? []));
   }
 
-  listTrashedGoals(boardId: string): GoalRecord[] {
-    return this.listGoals(boardId).filter((goal) => goal.trashed_at !== null);
+  listTrashedGoals(projectId: string): GoalRecord[] {
+    return this.listGoals(projectId).filter((goal) => goal.trashed_at !== null);
   }
 
-  listRelations(boardId: string, goalId?: string): GoalRelationRecord[] {
+  listRelations(projectId: string, goalId?: string): GoalRelationRecord[] {
     const rows = goalId == null
       ? this.db
-        .prepare("SELECT * FROM goal_relations WHERE board_id = ? ORDER BY created_at, relation_id")
-        .all(boardId)
+        .prepare("SELECT * FROM goal_relations WHERE project_id = ? ORDER BY created_at, relation_id")
+        .all(projectId)
       : this.db.prepare(`
           SELECT * FROM goal_relations
-          WHERE board_id = ? AND (from_goal_id = ? OR to_goal_id = ?)
+          WHERE project_id = ? AND (from_goal_id = ? OR to_goal_id = ?)
           ORDER BY created_at, relation_id
-        `).all(boardId, goalId, goalId);
+        `).all(projectId, goalId, goalId);
     return (rows as Row[]).map(mapRelation);
   }
 
 
   replacePolicyBinding(input: {
-    board_id: string; goal_id: string | null; policy_binding_id: string;
+    project_id: string; goal_id: string | null; policy_binding_id: string;
     policy: GoalPolicyBindingRecord["policy"]; actor_id: string; reason: string; at: string;
   }): string[] {
-    const { board_id: boardId, goal_id: goalId } = input;
+    const { project_id: projectId, goal_id: goalId } = input;
     const replaced = (goalId
-      ? this.db.prepare("SELECT policy_binding_id FROM policy_bindings WHERE board_id = ? AND goal_id = ? AND scope = 'goal' AND state = 'active'").all(boardId, goalId)
-      : this.db.prepare("SELECT policy_binding_id FROM policy_bindings WHERE board_id = ? AND goal_id IS NULL AND scope = 'project_default' AND state = 'active'").all(boardId)) as Row[];
+      ? this.db.prepare("SELECT policy_binding_id FROM policy_bindings WHERE project_id = ? AND goal_id = ? AND scope = 'goal' AND state = 'active'").all(projectId, goalId)
+      : this.db.prepare("SELECT policy_binding_id FROM policy_bindings WHERE project_id = ? AND goal_id IS NULL AND scope = 'project_default' AND state = 'active'").all(projectId)) as Row[];
     if (goalId) {
-      this.db.prepare("UPDATE policy_bindings SET state = 'replaced' WHERE board_id = ? AND goal_id = ? AND scope = 'goal' AND state = 'active'").run(boardId, goalId);
+      this.db.prepare("UPDATE policy_bindings SET state = 'replaced' WHERE project_id = ? AND goal_id = ? AND scope = 'goal' AND state = 'active'").run(projectId, goalId);
     } else {
-      this.db.prepare("UPDATE policy_bindings SET state = 'replaced' WHERE board_id = ? AND goal_id IS NULL AND scope = 'project_default' AND state = 'active'").run(boardId);
+      this.db.prepare("UPDATE policy_bindings SET state = 'replaced' WHERE project_id = ? AND goal_id IS NULL AND scope = 'project_default' AND state = 'active'").run(projectId);
     }
     this.db.prepare(`INSERT INTO policy_bindings (
-      policy_binding_id, board_id, goal_id, scope, policy_json, state, created_by, reason, created_at
-    ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)`).run(input.policy_binding_id, boardId, goalId,
+      policy_binding_id, project_id, goal_id, scope, policy_json, state, created_by, reason, created_at
+    ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)`).run(input.policy_binding_id, projectId, goalId,
       goalId ? "goal" : "project_default", sqliteJson(input.policy), input.actor_id, input.reason, input.at);
     return replaced.map(row => text(row.policy_binding_id));
   }
 
-  deactivatePolicyBinding(boardId: string, bindingId: string): boolean {
-    return this.db.prepare("UPDATE policy_bindings SET state = 'replaced' WHERE board_id = ? AND policy_binding_id = ? AND state = 'active'")
-      .run(boardId, bindingId).changes === 1;
+  deactivatePolicyBinding(projectId: string, bindingId: string): boolean {
+    return this.db.prepare("UPDATE policy_bindings SET state = 'replaced' WHERE project_id = ? AND policy_binding_id = ? AND state = 'active'")
+      .run(projectId, bindingId).changes === 1;
   }
 
-  listActivePolicyBindings(boardId: string, goalId?: string): GoalPolicyBindingRecord[] {
+  listActivePolicyBindings(projectId: string, goalId?: string): GoalPolicyBindingRecord[] {
     const rows = goalId == null
       ? this.db.prepare(`
           SELECT scope, goal_id, policy_json FROM policy_bindings
-          WHERE board_id = ? AND state = 'active'
+          WHERE project_id = ? AND state = 'active'
           ORDER BY CASE scope WHEN 'project_default' THEN 0 WHEN 'ancestor_minimum' THEN 1 ELSE 2 END,
                    created_at
-        `).all(boardId)
+        `).all(projectId)
       : this.db.prepare(`
           SELECT scope, goal_id, policy_json FROM policy_bindings
-          WHERE board_id = ? AND state = 'active' AND (goal_id IS NULL OR goal_id = ?)
+          WHERE project_id = ? AND state = 'active' AND (goal_id IS NULL OR goal_id = ?)
           ORDER BY CASE scope WHEN 'project_default' THEN 0 WHEN 'ancestor_minimum' THEN 1 ELSE 2 END,
                    created_at
-        `).all(boardId, goalId);
+        `).all(projectId, goalId);
     return (rows as Row[]).map((row) => ({
       scope: text(row.scope) as GoalPolicyBindingRecord["scope"],
       goal_id: nullableText(row.goal_id),
@@ -180,26 +180,26 @@ export class GoalsRepository {
     }));
   }
 
-  listPlanningMethodPacks(boardId: string): PlanningMethodPack[] {
+  listPlanningMethodPacks(projectId: string): PlanningMethodPack[] {
     return (this.db
-      .prepare("SELECT pack_json FROM planning_method_packs WHERE board_id = ? ORDER BY method_id")
-      .all(boardId) as Row[])
+      .prepare("SELECT pack_json FROM planning_method_packs WHERE project_id = ? ORDER BY method_id")
+      .all(projectId) as Row[])
       .map((row) => parseJson<PlanningMethodPack | null>(row.pack_json, null))
       .filter((pack): pack is PlanningMethodPack => pack != null);
   }
 
-  putPlanningMethodPack(boardId: string, pack: PlanningMethodPack): void {
+  putPlanningMethodPack(projectId: string, pack: PlanningMethodPack): void {
     this.db.prepare(`
       INSERT INTO planning_method_packs (
-        board_id, method_id, version, enabled, pack_json, created_at, updated_at
+        project_id, method_id, version, enabled, pack_json, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(board_id, method_id) DO UPDATE SET
+      ON CONFLICT(project_id, method_id) DO UPDATE SET
         version = excluded.version,
         enabled = excluded.enabled,
         pack_json = excluded.pack_json,
         updated_at = excluded.updated_at
     `).run(
-      boardId,
+      projectId,
       pack.method_id,
       pack.version,
       pack.enabled ? 1 : 0,
@@ -209,46 +209,46 @@ export class GoalsRepository {
     );
   }
 
-  getRelation(boardId: string, relationId: string): GoalRelationRecord | null {
+  getRelation(projectId: string, relationId: string): GoalRelationRecord | null {
     const row = this.db
-      .prepare("SELECT * FROM goal_relations WHERE board_id = ? AND relation_id = ?")
-      .get(boardId, relationId) as Row | undefined;
+      .prepare("SELECT * FROM goal_relations WHERE project_id = ? AND relation_id = ?")
+      .get(projectId, relationId) as Row | undefined;
     return row ? mapRelation(row) : null;
   }
 
   listProjectGuidanceEntries(
-    boardId: string,
+    projectId: string,
     includeInactive = false,
   ): ProjectGuidanceEntryRecord[] {
     return (this.db.prepare(`
       SELECT * FROM project_guidance_entries
-      WHERE board_id = ?${includeInactive ? "" : " AND active = 1"}
+      WHERE project_id = ?${includeInactive ? "" : " AND active = 1"}
       ORDER BY position, guidance_id
-    `).all(boardId) as Row[]).map(mapGuidanceEntry);
+    `).all(projectId) as Row[]).map(mapGuidanceEntry);
   }
 
-  listProjectGuidanceRevisions(boardId: string): ProjectGuidanceRevisionRecord[] {
+  listProjectGuidanceRevisions(projectId: string): ProjectGuidanceRevisionRecord[] {
     return (this.db.prepare(`
       SELECT * FROM project_guidance_revisions
-      WHERE board_id = ? ORDER BY created_at DESC, guidance_id, revision DESC
-    `).all(boardId) as Row[]).map(mapGuidanceRevision);
+      WHERE project_id = ? ORDER BY created_at DESC, guidance_id, revision DESC
+    `).all(projectId) as Row[]).map(mapGuidanceRevision);
   }
 
-  eventCursor(boardId: string): number {
+  eventCursor(projectId: string): number {
     const row = this.db
-      .prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE board_id = ?")
-      .get(boardId) as Row;
+      .prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ?")
+      .get(projectId) as Row;
     return number(row.cursor);
   }
 
   appendEvent(input: GoalsEventInput): number {
     const result = this.db.prepare(`
       INSERT INTO events (
-        event_id, board_id, actor_id, type, object_type, object_id, reason, payload_json, at
+        event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       input.eventId,
-      input.boardId,
+      input.projectId,
       input.actorId,
       input.type,
       input.objectType,
@@ -261,15 +261,15 @@ export class GoalsRepository {
   }
 
   getIdempotency(
-    boardId: string,
+    projectId: string,
     actorId: string,
     operation: string,
     key: string,
   ): { request_hash: string; outcome: unknown } | null {
     const row = this.db.prepare(`
       SELECT request_hash, outcome_json FROM idempotency_records
-      WHERE board_id = ? AND actor_id = ? AND operation = ? AND idempotency_key = ?
-    `).get(boardId, actorId, operation, key) as Row | undefined;
+      WHERE project_id = ? AND actor_id = ? AND operation = ? AND idempotency_key = ?
+    `).get(projectId, actorId, operation, key) as Row | undefined;
     if (!row) return null;
     return {
       request_hash: text(row.request_hash),
@@ -280,10 +280,10 @@ export class GoalsRepository {
   putIdempotency(input: GoalsIdempotencyInput): void {
     this.db.prepare(`
       INSERT INTO idempotency_records (
-        board_id, actor_id, operation, idempotency_key, request_hash, outcome_json, created_at
+        project_id, actor_id, operation, idempotency_key, request_hash, outcome_json, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
-      input.boardId,
+      input.projectId,
       input.actorId,
       input.operation,
       input.key,
@@ -309,7 +309,7 @@ export function rowJson<T>(value: unknown, fallback: T): T {
 function mapGoal(row: Row, criteria: Row[]): GoalRecord {
   return {
     goal_id: text(row.goal_id),
-    board_id: text(row.board_id),
+    project_id: text(row.project_id),
     title: text(row.title),
     outcome: text(row.outcome),
     why: text(row.why),
@@ -352,7 +352,7 @@ function mapAcceptanceCriterion(row: Row): GoalAcceptanceCriterion {
 function mapRelation(row: Row): GoalRelationRecord {
   return {
     relation_id: text(row.relation_id),
-    board_id: text(row.board_id),
+    project_id: text(row.project_id),
     from_goal_id: text(row.from_goal_id),
     to_goal_id: text(row.to_goal_id),
     type: text(row.type) as GoalRelationRecord["type"],
@@ -367,7 +367,7 @@ function mapRelation(row: Row): GoalRelationRecord {
 function mapGuidanceEntry(row: Row): ProjectGuidanceEntryRecord {
   return {
     guidance_id: text(row.guidance_id),
-    board_id: text(row.board_id),
+    project_id: text(row.project_id),
     position: number(row.position),
     revision: number(row.revision),
     active: bool(row.active),
@@ -388,7 +388,7 @@ function mapGuidanceRevision(row: Row): ProjectGuidanceRevisionRecord {
   return {
     revision_id: text(row.revision_id),
     guidance_id: text(row.guidance_id),
-    board_id: text(row.board_id),
+    project_id: text(row.project_id),
     revision: number(row.revision),
     kind: text(row.kind) as ProjectGuidanceRevisionRecord["kind"],
     content: text(row.content),

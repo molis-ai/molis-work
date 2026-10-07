@@ -40,7 +40,7 @@ const requirementInput = object({ requirement_id: text, statement: text, bound_t
 export const binding = object({ type_id: text, requirement_id: text });
 const adopted = object({ method_id: text, version: count, source: planningSource });
 const configFields = { types: array(eventType), adopted_planning: array(adopted), extra_requirements: array(extraRequirement), requirement_bindings: array(binding) };
-export const goalConfigSchema = object({ board_id: text, goal_id: text, version: count, ...configFields, updated_at: maybeText, updated_by: maybeText });
+export const goalConfigSchema = object({ project_id: text, goal_id: text, version: count, ...configFields, updated_at: maybeText, updated_by: maybeText });
 export const scope = object({ requirement_ids: strings, event_ids: strings, concern_ids: strings, action: maybeText });
 export const artifactSource = object({ artifact_id: text, version: count, title: text, origin: object({ plugin_id: text, item_id: text }) });
 const progressFields = { summary: text, based_on_cursor: count, next_step: maybeText, next_actor: maybeText };
@@ -76,7 +76,7 @@ const requirement = object({ requirement_id: text, goal_id: text, statement: tex
 
 export const agreement = object({ version: count, outcome: text, has_minimum_result_agreement: boolean, missing: strings, updated_at: maybeText, updated_by: maybeText });
 
-export const goalStateSchema = object({ board_id: text, goal_id: text,
+export const goalStateSchema = object({ project_id: text, goal_id: text,
   intent: object({ title: text, why: text, business_logic: text, source_kind: enumeration([...goalIntentSourceKinds, null]) }),
   config: goalConfigSchema, requirements: array(requirement), latest_reports: array(object({ event_id: text, title: text, type_id: maybeText,
     type_version: maybeCount, received_at: text, journal_seq: count, judgments: array(judgment) })),
@@ -105,7 +105,7 @@ const systemPayload: ActionSchema = { anyOf: [
   operation("event_owner_continued", { previous_fulfillment: enumeration(["unmet", "satisfied"]), reopened: boolean, previous_work_status: nullable(workStatus) }),
   operation("observation_note", { body: text }), operation("intent_created", { source_kind: enumeration(goalIntentSourceKinds) }),
 ] };
-const eventBase = { event_id: text, board_id: text, goal_id: text, title: text, actor_id: text, actor_kind: actorKind, received_at: text,
+const eventBase = { event_id: text, project_id: text, goal_id: text, title: text, actor_id: text, actor_kind: actorKind, received_at: text,
   journal_seq: count, config_version: maybeCount, judgments: array(judgment) };
 export const goalReportEventSchema = object({ ...eventBase, kind: { const: "report" }, type: nullable(eventType), payload: { type: "object", additionalProperties: text } });
 // Always one event object, so tools return it as is rather than under `result`.

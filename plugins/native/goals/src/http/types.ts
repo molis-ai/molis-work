@@ -7,7 +7,7 @@ export interface GoalsHttpContext {
   search: URLSearchParams;
   readBody(): Promise<Record<string, unknown>>;
   respond(status: number, body: unknown): void;
-  options: { boardId: string; routePrefix: string; projectRoot?: string };
+  options: { projectId: string; routePrefix: string; projectRoot?: string };
   idempotencyHeader: string | string[] | undefined;
   changed(): void;
   actions: BoundActionClient;

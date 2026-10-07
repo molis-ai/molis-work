@@ -425,9 +425,9 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
           project_id: created.project.project_id,
           actor_id: "runtime-codex",
           user_confirmed: true,
-        }) as { connection: { board_id: string; project_id: string } };
+        }) as { connection: { project_id: string } };
         assert.equal(bound.connection.project_id, created.project.project_id);
-        assert.ok(bound.connection.board_id);
+        assert.equal("board_id" in bound.connection, false, "a connection names the project once");
         for (const capability_id of ["goals.create", "goals.note", "goals.list", "goals.state.read", "goals.events.list", "goals.events.read", "goals.events.configure", "goals.events.report", "goals.progress.record", "goals.concerns.apply", "goals.decisions.request", "goals.decisions.cite", "goals.agreement.set", "goals.closure.submit", "goals.work.resume"]) {
           const granted = await securePost(origin, token, "/api/settings/mcp/actions", {
             client_id: "runtime:codex", project_id: created.project.project_id, capability_id,
@@ -472,7 +472,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         await restartedMcp.initialize();
         const restored = await restartedMcp.call("molis_work_v1_context_resolve", {}) as {
           status: string;
-          connection: { project_id: string; board_id: string };
+          connection: { project_id: string };
         };
         assert.equal(restored.status, "bound");
         assert.equal(restored.connection.project_id, created.project.project_id);

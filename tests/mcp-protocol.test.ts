@@ -31,7 +31,7 @@ test("MCP invokes the application once with unchanged arguments and host-only me
   const ports: McpProtocolPorts = { serverInfo, tools,
     callTool: async (name, arguments_, context) => { calls.push({ name, arguments_, context }); return '{"result":"原始输出"}'; },
     formatToolError: () => assert.fail("Successful call formatted an error") };
-  const input = { board_id: "selected", _meta: { threadId: "model-input-not-host" }, idempotency_key: "unchanged-key" };
+  const input = { project_id: "selected", _meta: { threadId: "model-input-not-host" }, idempotency_key: "unchanged-key" };
   const cases: Array<[unknown, McpToolCallContext]> = [
     [{ "molis-work/sessionId": " dedicated ", threadId: "thread", sessionId: "session" }, { runtimeSessionId: "dedicated", runtimeSessionIdSource: "molis-work/sessionId" }],
     [{ "goalboard/sessionId": " legacy-session ", threadId: "thread", sessionId: "session" }, { runtimeSessionId: "thread", runtimeSessionIdSource: "threadId" }],

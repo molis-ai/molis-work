@@ -7,7 +7,7 @@ import type { FeedItemRecord, FeedMaterialRecord, FeedSourceRunRecord, InboxEntr
 
 export function toLegacyAttentionEntry(entry: ModuleAttentionEntryRecord): InboxEntryRecord {
   return {
-    board_id: entry.project_id,
+    project_id: entry.project_id,
     entry_id: entry.entry_id,
     subject_type: entry.subject_type,
     subject_id: entry.subject_id,
@@ -23,7 +23,7 @@ export function toLegacyAttentionEntry(entry: ModuleAttentionEntryRecord): Inbox
 
 export function toLegacyFeedMaterial(material: ModuleFeedMaterialRecord): FeedMaterialRecord {
   return {
-    board_id: material.project_id,
+    project_id: material.project_id,
     material_id: material.material_id,
     item_id: material.item_id,
     canonical_url: material.canonical_url,
@@ -46,7 +46,7 @@ export function toLegacyFeedMaterial(material: ModuleFeedMaterialRecord): FeedMa
 
 export function toLegacyFeedItem(item: ModuleFeedItemRecord): FeedItemRecord {
   return {
-    board_id: item.project_id,
+    project_id: item.project_id,
     item_id: item.item_id,
     source_id: item.source_id,
     item_type: "feed",
@@ -76,7 +76,7 @@ export function toLegacyFeedItem(item: ModuleFeedItemRecord): FeedItemRecord {
 
 export function compatibleRun(run: ListenerRunRecord): FeedSourceRunRecord {
   return {
-    board_id: run.project_id,
+    project_id: run.project_id,
     run_id: run.run_id,
     operation_id: run.operation_id,
     source_id: run.source_id,

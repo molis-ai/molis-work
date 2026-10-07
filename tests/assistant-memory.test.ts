@@ -40,8 +40,8 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-"));
   const learned: Array<{ work: string; said: string[] }> = [];
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const projectA = { project_id: "project-a", board_id: "board-a", storage_key: "memory:a" };
-  const projectB = { project_id: "project-b", board_id: "board-b", storage_key: "memory:b" };
+  const projectA = { project_id: "project-a", storage_key: "memory:a" };
+  const projectB = { project_id: "project-b", storage_key: "memory:b" };
   const requests: any[] = [];
   const script: Array<(body: any) => Response> = [];
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
@@ -149,7 +149,7 @@ test("recall words cover Chinese two-character pieces and Latin words", () => {
 test("a work suggests keeping a lesson only where the person allows it; nothing is kept until they accept, and a declined one is not suggested again", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-candidates-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project-a", board_id: "board-a", storage_key: "memory:a" };
+  const project = { project_id: "project-a", storage_key: "memory:a" };
   const requests: any[] = [];
   const script: Array<(body: any) => Response> = [];
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
@@ -214,7 +214,7 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
 test("memory switches hold the same when a Character carries the round; turning off learning keeps what this work was told", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-character-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project-a", board_id: "board-a", storage_key: "memory:a" };
+  const project = { project_id: "project-a", storage_key: "memory:a" };
   const requests: any[] = [];
   const script: Array<(body: any) => Response> = [];
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
@@ -228,7 +228,7 @@ test("memory switches hold the same when a Character carries the round; turning 
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const editor = { character_id: "editor", title: "严格的编辑", instructions: "你是严格的编辑：每次回答先列出三处可改进的地方。", host_tools: null,
-    source: { owner_actor_id: "web-user", draft_revision: 2 }, reference: { artifact_id: "character:board-a:editor", version: 2 }, board_id: "board-a",
+    source: { owner_actor_id: "web-user", draft_revision: 2 }, reference: { artifact_id: "character:project-a:editor", version: 2 }, project_id: "project-a",
     content_digest: "digest-2", producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.4.0", binding_signature: "sig" }, published_at: "2026-09-28T00:00:00.000Z" };
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,

@@ -7,7 +7,7 @@ import { treeProposalSchema } from "./tree-action-schemas.js";
 import { planningMethodSchema } from "./planning-action-schemas.js";
 
 const maybeText = nullable(text);
-const board = object({ board_id: text, title: text, active_goal_id: maybeText, created_at: text, updated_at: text });
+const board = object({ project_id: text, title: text, active_goal_id: maybeText, created_at: text, updated_at: text });
 const proposals = { goal_tree_proposals: array(treeProposalSchema) };
 export const boardSnapshotSchema = object({ cursor: count, board, goals: array(goalRecordSchema), relations: array(goalRelationSchema), ...proposals,
   planning_method_packs: array(planningMethodSchema), project_guidance: array(projectGuidanceEntrySchema) });

@@ -179,7 +179,7 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
     await writeMcpActionGrant(home, createMcpActionGrant("runtime:codex", null, invokeView, true));
     for (const projectId of ["client-project-a", "client-project-b"]) {
       const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", {
-        projectId, boardId: projectId, databasePath: join(home, `${projectId}.sqlite`), webBaseUrl: origin,
+        projectId, databasePath: join(home, `${projectId}.sqlite`), webBaseUrl: origin,
       }, { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: projectId, host_declares_stable: true } }, host);
       try {
         const result = JSON.parse(await mcp.callTool("molis_work_v1_action_functions.invoke__v1", { function_key: published[0]!.function_key, input: projectId }));
@@ -188,7 +188,7 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
     }
     const history = openFunctionsStore(home);
     try {
-      assert.deepEqual(history.listJudgments().filter(row => row.subject.board_id).map(row => row.subject.board_id).sort(), ["client-project-a", "client-project-b"]);
+      assert.deepEqual(history.listJudgments().filter(row => row.subject.project_id).map(row => row.subject.project_id).sort(), ["client-project-a", "client-project-b"]);
     } finally { history.close(); }
   } finally {
     if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));

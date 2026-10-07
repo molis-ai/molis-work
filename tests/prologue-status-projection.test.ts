@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PrologueAgentAdapter, type PrologueRuntimePort, type PrologueRestoredSession, type PrologueEvent } from "@molis-ai/molis-work-service-agent-host";
 
-const owner = { board_id: "status-board", plugin_id: "io.molis.work.coding", install_id: "status-install", actor_id: "person" };
+const owner = { project_id: "status-board", plugin_id: "io.molis.work.coding", install_id: "status-install", actor_id: "person" };
 const frozen = { role_id: "reader", role_version: 1, execution: "read-only" as const, model_id: "fixture", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null };
 const ref = { session_id: "status-session", runtime_id: "prologue" };
 

@@ -17,7 +17,7 @@ const MIXED_BODY = `Bumps [eslint](https://github.com/eslint/eslint) from 9.39.5
 
 function feedItem(overrides: Partial<FeedItemRecord> = {}): FeedItemRecord {
   return {
-    board_id: "board-test",
+    project_id: "board-test",
     item_id: "feed-rich-item",
     source_id: "github-source",
     item_type: "feed",

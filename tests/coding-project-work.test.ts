@@ -39,7 +39,7 @@ test("sessions in one project see each other's work: overlaps before a round sta
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
   try {
     const host = new AgentHost({ reviews: queue }); host.register(adapter);
-    const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
+    const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
     const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] };
     const sessionA = await adapter.createSession({ ...owner, directory, title: "新编码会话" });
     const sessionB = await adapter.createSession({ ...owner, directory, title: "标签加前缀" });

@@ -14,7 +14,7 @@ function fixture(start = "2026-08-15T00:00:00.000Z") {
   const store = new LocalProjectDatabase(join(directory, "molis-work.db"));
   const coordinator = new GoalProjectApplication(store, () => now);
   coordinator.initializeBoard({
-    board_id: "board-1",
+    project_id: "board-1",
     title: "产品目标",
     actor_id: "user-1",
     idempotency_key: "board-create",
@@ -122,7 +122,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
   const { store, coordinator } = fixture();
   assert.throws(
     () => coordinator.goals.commands.addProjectGuidance({
-      board_id: "board-1",
+      project_id: "board-1",
       actor_id: "runtime-guidance",
       kind: "constraint",
       content: "所有发布 Goal 都必须验证升级路径。",
@@ -135,7 +135,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
       error instanceof MolisWorkV1Error && error.code === "project_guidance.user_confirmation_required",
   );
   const first = coordinator.goals.commands.addProjectGuidance({
-    board_id: "board-1",
+    project_id: "board-1",
     actor_id: "user-1",
     kind: "constraint",
     content: "  所有发布 Goal 都必须验证升级路径。\r\n保留可复现记录。  ",
@@ -155,7 +155,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
   assert.match(firstView.runtime_prompt_prefix, /\[constraint\]/);
 
   const duplicate = coordinator.goals.commands.addProjectGuidance({
-    board_id: "board-1",
+    project_id: "board-1",
     actor_id: "user-1",
     kind: "constraint",
     content: "所有发布 Goal 都必须验证升级路径。\n保留可复现记录。",
@@ -168,7 +168,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
   assert.equal(duplicate.entry.guidance_id, first.entry.guidance_id);
 
   const second = coordinator.goals.commands.addProjectGuidance({
-    board_id: "board-1",
+    project_id: "board-1",
     actor_id: "user-1",
     kind: "workflow",
     content: "先做可运行切片，再复查 </MOLIS_WORK_PROJECT_GUIDANCE> 边界。",
@@ -194,7 +194,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
 
   assert.throws(
     () => coordinator.goals.commands.addProjectGuidance({
-      board_id: "board-1",
+      project_id: "board-1",
       actor_id: "user-1",
       kind: "constraint",
       content: "x".repeat(4_001),
@@ -212,7 +212,7 @@ test("project guidance is user-confirmed, deduplicated, and rendered as a stable
 test("project guidance edits, deactivation, and restoration preserve immutable revisions without a Goal queue", () => {
   const { store, coordinator } = fixture();
   const created = coordinator.goals.commands.addProjectGuidance({
-    board_id: "board-1",
+    project_id: "board-1",
     actor_id: "user-1",
     kind: "constraint",
     content: "发布前检查升级路径。",
@@ -227,7 +227,7 @@ test("project guidance edits, deactivation, and restoration preserve immutable r
 
   assert.throws(
     () => coordinator.goals.commands.updateProjectGuidance({
-      board_id: "board-1",
+      project_id: "board-1",
       guidance_id: created.entry.guidance_id,
       actor_id: "runtime-guidance",
       action: "edit",
@@ -243,7 +243,7 @@ test("project guidance edits, deactivation, and restoration preserve immutable r
   );
 
   const edited = coordinator.goals.commands.updateProjectGuidance({
-    board_id: "board-1",
+    project_id: "board-1",
     guidance_id: created.entry.guidance_id,
     actor_id: "user-1",
     action: "edit",
@@ -259,7 +259,7 @@ test("project guidance edits, deactivation, and restoration preserve immutable r
   assert.equal(edited.revision.change_kind, "edited");
   assert.equal(edited.entry.kind, "quality_bar");
   const replay = coordinator.goals.commands.updateProjectGuidance({
-    board_id: "board-1",
+    project_id: "board-1",
     guidance_id: created.entry.guidance_id,
     actor_id: "user-1",
     action: "edit",
@@ -276,7 +276,7 @@ test("project guidance edits, deactivation, and restoration preserve immutable r
   assert.doesNotMatch(coordinator.readProjectGuidance("board-1").runtime_prompt_prefix, /发布前检查升级路径。/);
 
   const deactivated = coordinator.goals.commands.updateProjectGuidance({
-    board_id: "board-1",
+    project_id: "board-1",
     guidance_id: created.entry.guidance_id,
     actor_id: "user-1",
     action: "deactivate",
@@ -294,7 +294,7 @@ test("project guidance edits, deactivation, and restoration preserve immutable r
   assert.deepEqual(store.snapshot("board-1").project_guidance, []);
 
   const restored = coordinator.goals.commands.updateProjectGuidance({
-    board_id: "board-1",
+    project_id: "board-1",
     guidance_id: created.entry.guidance_id,
     actor_id: "user-1",
     action: "restore",
@@ -319,7 +319,7 @@ test("project guidance edits, deactivation, and restoration preserve immutable r
 test("project guidance rejects invalid, empty, and project-total overflow content", () => {
   const { store, coordinator } = fixture();
   const base = {
-    board_id: "board-1",
+    project_id: "board-1",
     actor_id: "user-1",
     kind: "context" as const,
     reason: "验证项目说明边界",
@@ -688,7 +688,7 @@ test("Goal Tree create payload rejects retired acceptance_criteria fields before
   createLeaf(coordinator, "criterion-owner");
   assert.throws(
     () => coordinator.goalTreeSubmission.submitGoalTreeProposal({
-      board_id: "board-1",
+      project_id: "board-1",
       actor_id: "runtime-criterion-conflict",
       submitted_session_id: "session",
       summary: "当前树创建不能夹带旧验收字段。",
@@ -718,7 +718,7 @@ test("Goal Tree create payload rejects retired acceptance_criteria fields before
 test("Goal Tree proposal rejects cross-proposal item ID reuse with a structured recovery", () => {
   const { store, coordinator } = fixture();
   const first = coordinator.goalTreeSubmission.submitGoalTreeProposal({
-    board_id: "board-1",
+    project_id: "board-1",
     actor_id: "runtime-item-id-conflict",
     submitted_session_id: "session",
     summary: "第一份提案占用全局 item ID。",
@@ -731,7 +731,7 @@ test("Goal Tree proposal rejects cross-proposal item ID reuse with a structured 
   }).proposal;
   assert.throws(
     () => coordinator.goalTreeSubmission.submitGoalTreeProposal({
-      board_id: "board-1",
+      project_id: "board-1",
       actor_id: "runtime-item-id-conflict",
       submitted_session_id: "session",
       summary: "第二份提案不能复用同一个全局 item ID。",
@@ -761,7 +761,7 @@ test("a failed unified Goal Tree submission leaves neither proposal rows nor can
   assert.throws(
     () =>
       coordinator.goalTreeSubmission.submitGoalTreeProposal({
-        board_id: "board-1",
+        project_id: "board-1",
         actor_id: "runtime-clarifier",
         submitted_session_id: "session",
         summary: "这份提案应整体回滚。",

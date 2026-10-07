@@ -206,7 +206,7 @@ export class ShelfStore {
     // can be explicitly received again; deleted copies are new admissions.
     if (input.artifact_source) {
       const source = input.artifact_source;
-      const original = this.readCatalog().items.find(item => item.artifact_source?.board_id === source.board_id
+      const original = this.readCatalog().items.find(item => item.artifact_source?.project_id === source.project_id
         && item.artifact_source.project_path === source.project_path
         && item.artifact_source.reference.artifact_id === source.reference.artifact_id
         && item.artifact_source.reference.version === source.reference.version);

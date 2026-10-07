@@ -5,8 +5,8 @@ import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
 
 export interface GoalsDocumentReadPorts {
-  snapshot(boardId: string): BoardSnapshot;
-  events(boardId: string): GoalsDecisionEvent[];
+  snapshot(projectId: string): BoardSnapshot;
+  events(projectId: string): GoalsDecisionEvent[];
   goals: Pick<GoalReadApplication, "listPolicyHistory" | "listWorkEventGoalLinks" | "getResolvedGoalPolicy" | "listTrashedGoals">;
   inputs: Pick<GoalInputBindingsApi, "list" | "register" | "deactivate">;
   eventWork: Pick<GoalEventApplication, "readState">;

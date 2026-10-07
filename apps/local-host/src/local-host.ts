@@ -69,10 +69,9 @@ interface RuntimeEntry<Runtime> {
 function normalizeReference(reference: LocalHostProjectReference): LocalHostProjectReference {
   const normalized = {
     project_id: reference.project_id.trim(),
-    board_id: reference.board_id.trim(),
     storage_key: reference.storage_key.trim(),
   };
-  if (!normalized.project_id || !normalized.board_id || !normalized.storage_key) {
+  if (!normalized.project_id || !normalized.storage_key) {
     throw new LocalHostError("host.project_invalid", "Local Host Project reference 不能为空");
   }
   return normalized;
@@ -417,7 +416,7 @@ export class LocalHost<Runtime> {
     options?: HostCapabilityCallOptions,
   ): Promise<Output> {
     const beforeEffect = options?.before_effect, plugin = options?.plugin_caller;
-    if (plugin && (plugin.project_id !== reference.project_id || plugin.board_id !== reference.board_id)) throw new ActionError("actions.scope_mismatch", "插件调用不属于当前项目");
+    if (plugin && (plugin.project_id !== reference.project_id || plugin.project_id !== reference.project_id)) throw new ActionError("actions.scope_mismatch", "插件调用不属于当前项目");
     plugin?.assertActive();
     const caller: ActionCallContext = { actor_id: plugin?.actor_id ?? "local-host", project_id: reference.project_id, audience: "user", permissions: [],
       ...(options?.signal ? { signal: options.signal } : {}),
@@ -661,7 +660,7 @@ export class LocalHost<Runtime> {
     current: LocalHostProjectReference,
     next: LocalHostProjectReference,
   ): void {
-    if (current.project_id !== next.project_id || current.board_id !== next.board_id) {
+    if (current.project_id !== next.project_id || current.project_id !== next.project_id) {
       throw new LocalHostError(
         "host.project_identity_conflict",
         `同一 storage_key 不能映射到不同 Project: ${current.project_id} / ${next.project_id}`,

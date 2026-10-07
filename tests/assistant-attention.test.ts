@@ -45,7 +45,7 @@ function reply(text = "好的。"): Response {
 test("a round that finishes while the person is elsewhere raises one notice; their rule holds it where it applies; nothing repeats", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-attention-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "board", storage_key: "memory:project" };
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   t.mock.method(globalThis, "fetch", async () => { await gate; return reply(); });
@@ -85,7 +85,7 @@ test("a round that finishes while the person is elsewhere raises one notice; the
 test("a new work whose round fails at once, before anything looked, still raises its failure; a quiet rule with the failure exception lets it through", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-attention-fail-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const project = { project_id: "board", storage_key: "memory:project" };
   // The model cannot be reached: the round fails straight away (seen with an unreachable model address).
   t.mock.method(globalThis, "fetch", async () => { throw new TypeError("fetch failed"); });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });

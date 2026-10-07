@@ -26,7 +26,7 @@ import { renderMolisWorkWeb, renderMolisWorkWorkbenchClientScript, type MolisWor
 const PROJECT = "project-todo";
 
 function view(): MolisWorkWebView {
-  const board = { board_id: "board-todo", title: "待办", active_goal_id: null, created_at: "2026-09-28T00:00:00.000Z", updated_at: "2026-09-28T00:00:00.000Z" };
+  const board = { project_id: "board-todo", title: "待办", active_goal_id: null, created_at: "2026-09-28T00:00:00.000Z", updated_at: "2026-09-28T00:00:00.000Z" };
   return {
     snapshot: { board, cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [] },
     project: { project_id: PROJECT, display_name: "待办" },
@@ -89,7 +89,7 @@ test("HTTP routes map to the same actions; fixed paths are not read as ids; a pr
   await withHost(async (home, host) => {
     const personal = new TodoPluginRouteTable(createTodoRouteHandlers({ actions: bindActionClient(host.homeActionClient(),
       () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: TODO_ACTION_PERMISSIONS })) }));
-    const reference = molisWorkHostProjectReference({ projectId: PROJECT, boardId: PROJECT, databasePath: join(home, "project.sqlite") });
+    const reference = molisWorkHostProjectReference({ projectId: PROJECT, databasePath: join(home, "project.sqlite") });
     const inProject = new TodoPluginRouteTable(createTodoRouteHandlers({ actions: bindActionClient(host.actionClient(reference),
       () => ({ actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: TODO_ACTION_PERMISSIONS })) }));
     const call = async (table: TodoPluginRouteTable, method: "GET" | "POST", pathname: string, body: Record<string, unknown> = {}, query = new URLSearchParams()) => {

@@ -27,7 +27,7 @@ Desktop / Workbench / CLI / MCP
 - `Team` 是成员、权限和 Team Plugin 决策的边界。
 - `Project` 是 Goal、Artifact、共享关系和交换的工作边界。
 - `Space` 不进入当前正式模型。
-- `board_id` 是旧 V1 数据库身份；AP1 已把 `project_id` 固定为正式 Project identity。新普通 Project 两者同值，旧库迁移只保留原 `board_id` 做兼容，不创造平行的 Board 产品概念。
+- `project_id` 是唯一的 Project identity：目录条目、项目数据库与库里 Goals 的根记录都用它（2026-10 起不再有 `board_id`）。不创造平行的 Board 产品概念。
 
 本地 Plugin 默认个人安装、个人数据且不同步。只有用户在 Plugin 内选择“共享到某个 Team Project”后，Plugin 才通过 Goal 或 Artifact Contract 发布可交换内容。Server 上运行的 Team Plugin 由 Team 决定安装和授权。
 

@@ -50,13 +50,12 @@ export class ProjectsRepository {
   insertProject(record: ProjectRecord): void {
     this.db.prepare(`
       INSERT INTO projects (
-        project_id, display_name, board_id, database_path, source,
+        project_id, display_name, database_path, source,
         data_class, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
       record.project_id,
       record.display_name,
-      record.board_id,
       record.database_path,
       "created",
       record.data_class,
@@ -287,9 +286,9 @@ export class ProjectsRepository {
     this.db.prepare(`
       INSERT INTO project_deletions (
         deletion_id, actor_id, idempotency_key, request_fingerprint,
-        project_id, display_name, board_id, staged_directory, deleted_binding_count,
+        project_id, display_name, staged_directory, deleted_binding_count,
         cleanup_state, cleanup_error, deleted_at, cleaned_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       record.deletion_id,
       record.actor_id,
@@ -297,7 +296,6 @@ export class ProjectsRepository {
       record.request_fingerprint,
       record.project_id,
       record.display_name,
-      record.board_id,
       record.staged_directory,
       record.deleted_binding_count,
       record.cleanup_state,
@@ -324,7 +322,6 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
     CREATE TABLE IF NOT EXISTS projects (
       project_id TEXT PRIMARY KEY,
       display_name TEXT NOT NULL,
-      board_id TEXT NOT NULL,
       database_path TEXT NOT NULL UNIQUE,
       source TEXT NOT NULL CHECK (source IN ('created')),
       data_class TEXT NOT NULL CHECK (data_class IN ('user', 'regenerable_demo')),
@@ -384,7 +381,6 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       request_fingerprint TEXT NOT NULL,
       project_id TEXT NOT NULL,
       display_name TEXT NOT NULL,
-      board_id TEXT NOT NULL,
       staged_directory TEXT NOT NULL,
       deleted_binding_count INTEGER NOT NULL,
       cleanup_state TEXT NOT NULL CHECK (cleanup_state IN ('complete', 'pending')),
@@ -411,7 +407,6 @@ function mapProject(row: Row): ProjectRecord {
   return {
     project_id: text(row.project_id),
     display_name: text(row.display_name),
-    board_id: text(row.board_id),
     database_path: text(row.database_path),
     source: "created",
     data_class: projectDataClass(row.data_class),
@@ -442,7 +437,6 @@ function mapStoredProjectDeletion(row: Row): StoredProjectDeletion {
     request_fingerprint: text(row.request_fingerprint),
     project_id: text(row.project_id),
     display_name: text(row.display_name),
-    board_id: text(row.board_id),
     staged_directory: text(row.staged_directory),
     deleted_binding_count: numeric(row.deleted_binding_count),
     cleanup_state: text(row.cleanup_state) as StoredProjectDeletion["cleanup_state"],
@@ -457,7 +451,6 @@ function deletionRecord(record: StoredProjectDeletion): ProjectDeletionRecord {
     deletion_id: record.deletion_id,
     project_id: record.project_id,
     display_name: record.display_name,
-    board_id: record.board_id,
     actor_id: record.actor_id,
     deleted_binding_count: record.deleted_binding_count,
     cleanup_state: record.cleanup_state,

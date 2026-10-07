@@ -38,7 +38,7 @@ test("packed SDK avoids repeated compaction of protected prompts across real Nod
   let adapter = await make();
   try {
     const directory = { canonical_path: root, realpath_verified: true };
-    const session = await adapter.createSession({ title: "Growth", board_id: "test", plugin_id: "io.molis.work.coding", install_id: "test", actor_id: "test", directory });
+    const session = await adapter.createSession({ title: "Growth", project_id: "test", plugin_id: "io.molis.work.coding", install_id: "test", actor_id: "test", directory });
     const handle = await adapter.start({ plugin_id: "io.molis.work.coding", session, directory, role_id: "reader", task: "Read sample.txt six times, preserve all observations, then finish.",
       role: { role_id: "reader", version: 1, execution: "read-only", host_tools: ["read-file"],
         compaction: { above_tokens: 1000, prompt: { prompt_id: "compact", version: 1, layer: "base", body: "SELECT_ONLY: return original excerpt coordinates as JSON." } },
@@ -215,7 +215,7 @@ test("Node file observations include the tail of ordinary source files beyond 20
     modelConfiguration:async()=>({protocol:"anthropic-compatible",endpoint:"https://1.1.1.1/v1/messages",model:"fixture",credential_ref:"fixture"}),resolveCredential:()=>"test-only"});
   try {
     const directory={canonical_path:root,realpath_verified:true};
-    const session=await adapter.createSession({title:"Read source tail",board_id:"test",plugin_id:"io.molis.work.coding",install_id:"test",actor_id:"test",directory});
+    const session=await adapter.createSession({title:"Read source tail",project_id:"test",plugin_id:"io.molis.work.coding",install_id:"test",actor_id:"test",directory});
     const handle=await adapter.start({plugin_id:"io.molis.work.coding",session,directory,role_id:"reader",task:"Read layout.ts then finish.",
       role:{role_id:"reader",version:1,execution:"read-only",host_tools:["read-file"],prompts:[]}});
     let view=await adapter.read(handle.ref);const deadline=Date.now()+20_000;

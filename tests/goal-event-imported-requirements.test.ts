@@ -28,9 +28,9 @@ test("a fresh project's createIntent is immediately writable", () => {
     const trusted = store.db.prepare("PRAGMA table_info(goal_event_trusted_decisions)").all() as Array<{ name: string }>;
     assert.ok(trusted.some((column) => column.name === "change_json"));
     const app = new GoalProjectApplication(store);
-    app.initializeBoard({ board_id: "board-new", title: "新库", actor_id: "user-1", idempotency_key: "init" });
+    app.initializeBoard({ project_id: "board-new", title: "新库", actor_id: "user-1", idempotency_key: "init" });
     const created = app.goalEvents.createIntent({
-      board_id: "board-new", title: "新意图", actor_id: "user-1", actor_kind: "user",
+      project_id: "board-new", title: "新意图", actor_id: "user-1", actor_kind: "user",
       idempotency_key: "intent-1", source_kind: "web",
     });
     const state = app.goalEvents.readState("board-new", created.goal.goal_id);
@@ -38,7 +38,7 @@ test("a fresh project's createIntent is immediately writable", () => {
     assert.equal(state.intent.source_kind, "web");
     assert.equal("outcome" in state.intent, false);
     const note = app.goalEvents.recordNote({
-      board_id: "board-new", goal_id: created.goal.goal_id, actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: "board-new", goal_id: created.goal.goal_id, actor_id: "runtime-1", actor_kind: "runtime",
       body: "无规划也可记录", idempotency_key: "note-1",
     });
     assert.equal(note.recorded, true);
@@ -63,7 +63,7 @@ test("imported criterion and policy requirements follow the same user revise and
     };
     assert.throws(
       () => app.goalEvents.setAgreement({
-        board_id: BOARD, goal_id: "OLD-HUMAN", actor_id: "runtime-1", actor_kind: "runtime",
+        project_id: BOARD, goal_id: "OLD-HUMAN", actor_id: "runtime-1", actor_kind: "runtime",
         idempotency_key: "runtime-revise-imported-criterion", ...humanVersions,
         revise_requirements: [{ requirement_id: "OLD-HUMAN-C1", human_decision_required: false }],
       }),
@@ -74,7 +74,7 @@ test("imported criterion and policy requirements follow the same user revise and
     assert.equal(blockedHuman.requirements.find((item) => item.requirement_id === "OLD-HUMAN-C1")?.human_decision_required, true);
     assert.equal(blockedHuman.requirements.find((item) => item.requirement_id === "OLD-HUMAN-C1")?.origin.kind, "imported_acceptance_criterion");
     app.goalEvents.setAgreement({
-      board_id: BOARD, goal_id: "OLD-HUMAN", actor_id: "user-1", actor_kind: "user",
+      project_id: BOARD, goal_id: "OLD-HUMAN", actor_id: "user-1", actor_kind: "user",
       idempotency_key: "user-revise-imported-criterion", ...humanVersions,
       revise_requirements: [{ requirement_id: "OLD-HUMAN-C1", statement: "用户核对后仍要亲自验收迁入要求" }],
     });
@@ -93,7 +93,7 @@ test("imported criterion and policy requirements follow the same user revise and
     };
     assert.throws(
       () => app.goalEvents.setAgreement({
-        board_id: BOARD, goal_id: "OLD-POLICY", actor_id: "runtime-1", actor_kind: "runtime",
+        project_id: BOARD, goal_id: "OLD-POLICY", actor_id: "runtime-1", actor_kind: "runtime",
         idempotency_key: "runtime-retire-imported-policy", ...policyVersions,
         retire_requirement_ids: ["imported-policy:OLD-POLICY"],
       }),
@@ -101,7 +101,7 @@ test("imported criterion and policy requirements follow the same user revise and
     );
     assert.ok(app.goalEvents.readState(BOARD, "OLD-POLICY").requirements.some((item) => item.requirement_id === "imported-policy:OLD-POLICY"));
     app.goalEvents.setAgreement({
-      board_id: BOARD, goal_id: "OLD-POLICY", actor_id: "user-1", actor_kind: "user",
+      project_id: BOARD, goal_id: "OLD-POLICY", actor_id: "user-1", actor_kind: "user",
       idempotency_key: "user-retire-imported-policy", ...policyVersions,
       retire_requirement_ids: ["imported-policy:OLD-POLICY"],
     });
@@ -148,7 +148,7 @@ test("still-valid same-scope complete approval satisfies imported policy after t
       return { expected_config_version: state.config.version, expected_agreement_version: state.agreement.version };
     };
     const blocked = app.goalEvents.submitClosure({
-      board_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "approved-still-blocked", kind: "complete", result: "实际结果可读并已核对",
       reason: "风险未解决前不能完成", ...versions(),
     });
@@ -156,20 +156,20 @@ test("still-valid same-scope complete approval satisfies imported policy after t
     assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "event_closure.blocking_concern"));
 
     const note = app.goalEvents.recordNote({
-      board_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "approved-resolution-evidence",
       body: "批准时已知的输入缺口现已补齐，已逐条核对原始付款记录。",
     });
     for (const concern of app.goalEvents.readState(BOARD, "MIXED-OWNER").concerns.filter((item) => item.status === "open" && item.blocks_closure)) {
       app.goalEvents.applyConcern({
-        board_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
+        project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
         idempotency_key: `approved-resolve-${concern.concern_id}`, action: "resolve",
         concern_id: concern.concern_id, reason: "批准时已知的输入缺口现已补齐并核对",
         supporting_event_ids: [note.event_id],
       });
     }
     const closed = app.goalEvents.submitClosure({
-      board_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "reuse-original-valid-approval", kind: "complete", result: "实际结果可读并已核对",
       reason: "按迁入后的当前要求核对收尾", ...versions(),
     });
@@ -213,25 +213,25 @@ test("real event closure stays distinct; explicit continue can reuse the same-sc
       original.decision_id,
     );
     app.goalEvents.resumeWork({
-      board_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "continue-approved-current-scope",
       reason: "在原批准的当前结果范围内补齐已知输入缺口",
     });
     const note = app.goalEvents.recordNote({
-      board_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "approved-completed-resolution",
       body: "批准时已知的输入缺口现已补齐，已逐条核对原始付款记录。",
     });
     for (const concern of app.goalEvents.readState(BOARD, "MIXED-OWNER").concerns.filter((item) => item.status === "open" && item.blocks_closure)) {
       app.goalEvents.applyConcern({
-        board_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
+        project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
         idempotency_key: `approved-completed-resolve-${concern.concern_id}`, action: "resolve",
         concern_id: concern.concern_id, reason: "批准时已知的输入缺口现已补齐并核对",
         supporting_event_ids: [note.event_id],
       });
     }
     const closed = app.goalEvents.submitClosure({
-      board_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
+      project_id: BOARD, goal_id: "MIXED-OWNER", actor_id: "runtime-1", actor_kind: "runtime",
       idempotency_key: "reuse-completed-approval", kind: "complete", result: "实际结果可读并已核对",
       reason: "按迁入后的当前要求核对收尾",
       expected_config_version: app.goalEvents.readState(BOARD, "MIXED-OWNER").config.version,

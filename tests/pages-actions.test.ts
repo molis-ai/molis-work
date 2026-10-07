@@ -15,11 +15,11 @@ async function fixture(run: (f: { home: string; host: MolisWorkLocalHost; caller
   ref: ReturnType<typeof molisWorkHostProjectReference> }) => Promise<void>, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "pages-actions-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "legacy-board", projectId: "a" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PAGES_ACTION_PERMISSIONS };
   const client = host.actionClient(ref);
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: ref.board_id, title: "Pages", actor_id: "owner", idempotency_key: "init" }));
+    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Pages", actor_id: "owner", idempotency_key: "init" }));
     await run({ home, host, caller, client, ref, bound: bindActionClient(client, () => caller) });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 }
@@ -50,7 +50,7 @@ test("Pages auto-registers all business contracts; HTTP and workflow use the sam
     const promoted = await bound.invoke(actions.promote, { id: document.id });
     assert.equal(promoted.document.artifact_version, 1);
     await host.withProject(ref, runtime => {
-      const artifact = runtime.coordinator.artifacts.query.getArtifactVersion("legacy-board", promoted.artifact);
+      const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(ref.project_id, promoted.artifact);
       assert.ok(artifact); assert.match(JSON.stringify(artifact), /Edited/);
     });
     await bound.invoke(actions.updateFolder, { id: folder.id, title: "Moved" });

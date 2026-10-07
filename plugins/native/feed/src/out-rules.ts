@@ -30,7 +30,7 @@ export interface FeedPluginSqliteDatabase {
 
 export interface FeedArtifactProducer {
   registerVersion(input: RegisterArtifactVersionInput): ArtifactVersionResult;
-  latestVersion(boardId: string, artifactId: string): ArtifactVersionRecord | null;
+  latestVersion(projectId: string, artifactId: string): ArtifactVersionRecord | null;
 }
 
 export interface FeedOutRuleWrite {
@@ -46,7 +46,7 @@ type Row = Record<string, unknown>;
 /** The out rules table, as one current schema; the host composes it into the project database baseline. */
 export const FEED_OUT_RULES_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_out_rules (
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       rule_id TEXT NOT NULL,
       name TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
@@ -56,10 +56,10 @@ export const FEED_OUT_RULES_SCHEMA_SQL = `
       admission TEXT NOT NULL,
       judgment_json TEXT,
       revision TEXT NOT NULL,
-      PRIMARY KEY (board_id, rule_id)
+      PRIMARY KEY (project_id, rule_id)
     );
-    CREATE INDEX IF NOT EXISTS feed_out_rules_board_enabled_idx
-      ON feed_out_rules(board_id, enabled, created_at, rule_id);
+    CREATE INDEX IF NOT EXISTS feed_out_rules_project_enabled_idx
+      ON feed_out_rules(project_id, enabled, created_at, rule_id);
 `;
 
 export function feedCaptureArtifactId(itemId: string, ruleId: string): string {
@@ -71,24 +71,24 @@ export class FeedOutRuleStore {
     db.exec(FEED_OUT_RULES_SCHEMA_SQL);
   }
 
-  list(boardId: string): FeedOutRuleRecord[] {
+  list(projectId: string): FeedOutRuleRecord[] {
     return (this.db.prepare(
-      "SELECT * FROM feed_out_rules WHERE board_id = ? ORDER BY created_at, rule_id",
-    ).all(boardId) as Row[]).map(mapOutRule);
+      "SELECT * FROM feed_out_rules WHERE project_id = ? ORDER BY created_at, rule_id",
+    ).all(projectId) as Row[]).map(mapOutRule);
   }
 
-  get(boardId: string, ruleId: string): FeedOutRuleRecord {
+  get(projectId: string, ruleId: string): FeedOutRuleRecord {
     const row = this.db.prepare(
-      "SELECT * FROM feed_out_rules WHERE board_id = ? AND rule_id = ?",
-    ).get(boardId, ruleId) as Row | undefined;
+      "SELECT * FROM feed_out_rules WHERE project_id = ? AND rule_id = ?",
+    ).get(projectId, ruleId) as Row | undefined;
     if (!row) throw new FeedStoreError("feed_out_rule_not_found", "找不到这条捕捉规则");
     return mapOutRule(row);
   }
 
-  prepareCreate(boardId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
+  prepareCreate(projectId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
     const at = new Date().toISOString();
     const record: FeedOutRuleRecord = {
-      board_id: boardId,
+      project_id: projectId,
       rule_id: `feedoutrule-${randomUUID()}`,
       name: normalizeName(input.name),
       enabled: input.enabled !== false,
@@ -105,10 +105,10 @@ export class FeedOutRuleStore {
   saveCreate(record: FeedOutRuleRecord): FeedOutRuleRecord {
     this.db.prepare(`
       INSERT INTO feed_out_rules (
-        board_id, rule_id, name, enabled, match_json, created_at, updated_at, admission, judgment_json, revision
+        project_id, rule_id, name, enabled, match_json, created_at, updated_at, admission, judgment_json, revision
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      record.board_id,
+      record.project_id,
       record.rule_id,
       record.name,
       record.enabled ? 1 : 0,
@@ -122,12 +122,12 @@ export class FeedOutRuleStore {
     return record;
   }
 
-  create(boardId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
-    return this.saveCreate(this.prepareCreate(boardId, input));
+  create(projectId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
+    return this.saveCreate(this.prepareCreate(projectId, input));
   }
 
-  prepareUpdate(boardId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
-    const current = this.get(boardId, ruleId);
+  prepareUpdate(projectId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
+    const current = this.get(projectId, ruleId);
     const next: FeedOutRuleRecord = {
       ...current,
       name: patch.name != null ? normalizeName(patch.name) : current.name,
@@ -145,7 +145,7 @@ export class FeedOutRuleStore {
     const result = this.db.prepare(`
       UPDATE feed_out_rules
       SET name = ?, enabled = ?, match_json = ?, updated_at = ?, admission = ?, judgment_json = ?, revision = ?
-      WHERE board_id = ? AND rule_id = ? AND (? IS NULL OR revision = ?)
+      WHERE project_id = ? AND rule_id = ? AND (? IS NULL OR revision = ?)
     `).run(
       next.name,
       next.enabled ? 1 : 0,
@@ -154,7 +154,7 @@ export class FeedOutRuleStore {
       next.admission,
       next.judgment ? JSON.stringify(next.judgment) : null,
       next.revision,
-      next.board_id,
+      next.project_id,
       next.rule_id,
       expectedRevision ?? null,
       expectedRevision ?? null,
@@ -163,9 +163,9 @@ export class FeedOutRuleStore {
     return next;
   }
 
-  delete(boardId: string, ruleId: string): FeedOutRuleRecord {
-    const current = this.get(boardId, ruleId);
-    this.db.prepare("DELETE FROM feed_out_rules WHERE board_id = ? AND rule_id = ?").run(boardId, ruleId);
+  delete(projectId: string, ruleId: string): FeedOutRuleRecord {
+    const current = this.get(projectId, ruleId);
+    this.db.prepare("DELETE FROM feed_out_rules WHERE project_id = ? AND rule_id = ?").run(projectId, ruleId);
     return current;
   }
 }
@@ -210,9 +210,9 @@ export function registerFeedCaptureVersion(
 ): ArtifactVersionResult {
   const artifactId = feedCaptureArtifactId(item.item_id, rule.rule_id);
   const payload = feedCapturePayload(item);
-  const latest = artifacts.latestVersion(item.board_id, artifactId);
+  const latest = artifacts.latestVersion(item.project_id, artifactId);
   const input = (version: number, supersedes: number | null): RegisterArtifactVersionInput => ({
-    board_id: item.board_id,
+    project_id: item.project_id,
     artifact_id: artifactId,
     version,
     actor_id: actorId,
@@ -309,7 +309,7 @@ function normalizeMatch(match: FeedOutRuleMatch): FeedOutRuleMatch {
 
 function mapOutRule(row: Row): FeedOutRuleRecord {
   return {
-    board_id: String(row.board_id ?? ""),
+    project_id: String(row.project_id ?? ""),
     rule_id: String(row.rule_id ?? ""),
     name: String(row.name ?? ""),
     enabled: Number(row.enabled) === 1,

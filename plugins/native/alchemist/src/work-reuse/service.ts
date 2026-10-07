@@ -45,7 +45,7 @@ export class WorkReuseService {
     const caller = await this.caller(signal, ["alchemist:read"], actorId);
     const artifact = await this.d.host!.readArtifact(caller, reference);
     signal?.throwIfAborted();
-    if (!artifact || artifact.board_id !== this.d.host!.boardId || artifact.artifact_id !== reference.artifact_id || artifact.version !== reference.version)
+    if (!artifact || artifact.project_id !== this.d.host!.projectId || artifact.artifact_id !== reference.artifact_id || artifact.version !== reference.version)
       return fail("REUSE_SOURCE_UNAVAILABLE", "所选成果已不可读取，请重新选择固定版本。");
     if (artifact.lifecycle_state !== "active" || artifact.availability !== "available")
       return fail("REUSE_SOURCE_WITHDRAWN", "所选成果已归档或撤回，请移除它后重新确认计划。");

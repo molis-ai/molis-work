@@ -215,7 +215,7 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
   const view = {
     snapshot: {
       board: {
-        board_id: "board-schedule",
+        project_id: "board-schedule",
         title: "闹钟",
         active_goal_id: null,
         created_at: "2026-09-20T00:00:00.000Z",

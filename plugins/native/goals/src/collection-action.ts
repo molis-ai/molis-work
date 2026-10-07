@@ -26,6 +26,6 @@ export const goalsCollectionAction = goalAction<Record<string, never>, GoalsDocu
   object({ snapshot: boardSnapshotSchema, active_goal_id: nullable(text), goals: items, archived_goals: items, trashed_goals: items,
     counts: object(Object.fromEntries(GOALS_PRESENTATION_STATES.map(status => [status, count]))), input_bindings: inputs,
     policy_bindings: policies, events }));
-export function createGoalsCollectionActionHandler(boardId: string, ports: GoalsDocumentReadPorts): ActionHandlerBinding {
-  return { ...goalsCollectionAction, handle: () => buildGoalsDocumentCollection(ports, boardId) };
+export function createGoalsCollectionActionHandler(projectId: string, ports: GoalsDocumentReadPorts): ActionHandlerBinding {
+  return { ...goalsCollectionAction, handle: () => buildGoalsDocumentCollection(ports, projectId) };
 }

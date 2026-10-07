@@ -130,7 +130,7 @@ function artifactStore() {
       records.set(`${artifactId}@${version}`, {
         artifact_id: artifactId,
         version,
-        board_id: BOARD,
+        project_id: BOARD,
         artifact_type_id: PROJECT_TYPE,
         schema_version: 1,
         producer_plugin_id: PROJECTS,
@@ -169,7 +169,7 @@ function harness(definitions: PluginDefinition[]) {
   const supervisor = new PluginSupervisor(runtime);
   const artifacts = artifactStore();
   const graph = new PluginInputGraph({
-    boardId: BOARD,
+    projectId: BOARD,
     lifecycle: supervisor,
     repository: new MemoryPluginWiringRepository(),
     artifacts,
@@ -197,7 +197,7 @@ test("a consumer receives the complete fixed input set once every port resolves"
   const rig = harness([projects.definition, coding.definition]);
   await rig.start();
   rig.graph.bind({
-    board_id: BOARD,
+    project_id: BOARD,
     target_plugin_id: CODING,
     target_port: "project",
     source_plugin_id: PROJECTS,
@@ -241,7 +241,7 @@ test("an incomplete input set is never delivered", async () => {
     ["files", FILES, "selection"],
   ] as const) {
     rig.graph.bind({
-      board_id: BOARD,
+      project_id: BOARD,
       target_plugin_id: CODING,
       target_port: targetPort,
       source_plugin_id: sourcePluginId,
@@ -291,7 +291,7 @@ test("an invalidated source revokes the old context before the consumer is told"
   const rig = harness([projects.definition, coding.definition]);
   await rig.start();
   rig.graph.bind({
-    board_id: BOARD,
+    project_id: BOARD,
     target_plugin_id: CODING,
     target_port: "project",
     source_plugin_id: PROJECTS,
@@ -344,7 +344,7 @@ test("inputs from different scopes are refused before delivery", async () => {
     ["files", FILES, "selection"],
   ] as const) {
     rig.graph.bind({
-      board_id: BOARD,
+      project_id: BOARD,
       target_plugin_id: CODING,
       target_port: targetPort,
       source_plugin_id: sourcePluginId,
@@ -392,7 +392,7 @@ test("a binding whose types do not match is refused before it is persisted", asy
 
   assert.throws(
     () => rig.graph.bind({
-      board_id: BOARD,
+      project_id: BOARD,
       target_plugin_id: CODING,
       target_port: "files",
       source_plugin_id: PROJECTS,
@@ -427,7 +427,7 @@ test("an input group decides which ports are required", async () => {
   const rig = harness([projects.definition, files.definition, coding.definition]);
   await rig.start();
   rig.graph.bind({
-    board_id: BOARD,
+    project_id: BOARD,
     target_plugin_id: CODING,
     target_port: "project",
     source_plugin_id: PROJECTS,
@@ -472,7 +472,7 @@ test("the same version is not redelivered, and a new version is", async () => {
   const rig = harness([projects.definition, coding.definition]);
   await rig.start();
   rig.graph.bind({
-    board_id: BOARD,
+    project_id: BOARD,
     target_plugin_id: CODING,
     target_port: "project",
     source_plugin_id: PROJECTS,
@@ -516,7 +516,7 @@ test("a consumer that is not running is started when its inputs become ready", a
   assert.deepEqual(report.failed.map((state) => state.plugin_id), [CODING]);
 
   rig.graph.bind({
-    board_id: BOARD,
+    project_id: BOARD,
     target_plugin_id: CODING,
     target_port: "project",
     source_plugin_id: PROJECTS,
@@ -554,7 +554,7 @@ test("content that can no longer be read is reported instead of delivered", asyn
   const rig = harness([projects.definition, coding.definition]);
   await rig.start();
   rig.graph.bind({
-    board_id: BOARD,
+    project_id: BOARD,
     target_plugin_id: CODING,
     target_port: "project",
     source_plugin_id: PROJECTS,
@@ -587,7 +587,7 @@ for (const change of ['archive', 'unavailable'] as const) {
       onUnavailable: reason => reasons.push(reason) });
     const rig = harness([producer.definition, consumer.definition]);
     await rig.start();
-    rig.graph.bind({ board_id: BOARD, target_plugin_id: CODING, target_port: 'project', source_plugin_id: PROJECTS,
+    rig.graph.bind({ project_id: BOARD, target_plugin_id: CODING, target_port: 'project', source_plugin_id: PROJECTS,
       source_port: 'project', origin: 'user', actor_id: 'actor' });
     const reference = rig.artifacts.put('fixed', 1);
     rig.graph.publish({ plugin_id: PROJECTS, port: 'project', reference });
@@ -610,7 +610,7 @@ test('a source invalidated while startup is waiting never reaches the consumer',
   const rig = harness([producer.definition, consumer.definition]); await rig.start();
   const ensure = rig.supervisor.ensureStarted.bind(rig.supervisor), waiting = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   rig.supervisor.ensureStarted = async id => { waiting.resolve(); await release.promise; return ensure(id); };
-  rig.graph.bind({ board_id: BOARD, target_plugin_id: CODING, target_port: 'project', source_plugin_id: PROJECTS,
+  rig.graph.bind({ project_id: BOARD, target_plugin_id: CODING, target_port: 'project', source_plugin_id: PROJECTS,
     source_port: 'project', origin: 'user', actor_id: 'actor' });
   const reference = rig.artifacts.put('fixed', 1);
   rig.graph.publish({ plugin_id: PROJECTS, port: 'project', reference });
@@ -629,7 +629,7 @@ test('closing the input graph releases a waiting handler and refuses its late co
     try { context.beforeEffect(); writes++; } finally { finished.resolve(); }
   } });
   const rig = harness([producer.definition, consumer.definition]); await rig.start();
-  rig.graph.bind({ board_id: BOARD, target_plugin_id: CODING, target_port: 'project', source_plugin_id: PROJECTS,
+  rig.graph.bind({ project_id: BOARD, target_plugin_id: CODING, target_port: 'project', source_plugin_id: PROJECTS,
     source_port: 'project', origin: 'user', actor_id: 'actor' });
   rig.graph.publish({ plugin_id: PROJECTS, port: 'project', reference: rig.artifacts.put('fixed', 1) });
   rig.graph.evaluateAll(); await entered.promise;
@@ -645,7 +645,7 @@ test("an input port can be given a fixed 成果 version instead of another plugi
   const projects = portPlugin({ id: PROJECTS, outputs: [{ port: "project", type: PROJECT_TYPE }] });
   const coding = portPlugin({ id: CODING, inputs: [{ port: "project", type: PROJECT_TYPE }], onReady: (inputs) => { deliveries.push(inputs); } });
   const runtime = new PluginRuntime(), supervisor = new PluginSupervisor(runtime), store = artifactStore(), library = new Set<string>();
-  const graph = new PluginInputGraph({ boardId: BOARD, lifecycle: supervisor, repository: new MemoryPluginWiringRepository(),
+  const graph = new PluginInputGraph({ projectId: BOARD, lifecycle: supervisor, repository: new MemoryPluginWiringRepository(),
     artifacts: { read: (reference) => store.read(reference),
       library: (reference) => library.has(`${reference.artifact_id}@${reference.version}`) ? store.read(reference) : null } });
   await supervisor.start([projects.definition, coding.definition].map((definition) => ({ definition })));
@@ -681,7 +681,7 @@ test("an input port can be given a fixed 成果 version instead of another plugi
   store.read(pinned)!.availability = "available";
 
   // Another plugin's output on the same port replaces the fixed version; unbinding clears whichever is there.
-  graph.bind({ board_id: BOARD, target_plugin_id: CODING, target_port: "project", source_plugin_id: PROJECTS, source_port: "project", origin: "user", actor_id: "actor" });
+  graph.bind({ project_id: BOARD, target_plugin_id: CODING, target_port: "project", source_plugin_id: PROJECTS, source_port: "project", origin: "user", actor_id: "actor" });
   assert.deepEqual([port().artifact, port().source?.source_plugin_id], [undefined, PROJECTS]);
   give(pinned);
   assert.deepEqual([port().artifact?.artifact_id, port().source], ["report", undefined]);

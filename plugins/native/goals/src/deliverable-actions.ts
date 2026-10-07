@@ -68,7 +68,7 @@ export const goalsArtifactInputActions = {
 } as const;
 
 export interface GoalDeliverablePorts {
-  readonly boardId: string;
+  readonly projectId: string;
   goalExists(goalId: string): boolean;
   /** A version in the 成果库 (never a process item); null when it is not there. */
   readArtifact(reference: ArtifactReference): { title: string; artifact_type_id: string; availability: string; lifecycle_state: string } | null;
@@ -82,7 +82,7 @@ export interface GoalDeliverablePorts {
 }
 
 export function createGoalsDeliverableActionHandlers(ports: GoalDeliverablePorts): ActionHandlerBinding[] {
-  const access = (caller: ActionCallContext): ContextAccess => ({ actor_id: goalActor(caller).actor_id, scope: { kind: "personal", id: ports.boardId } });
+  const access = (caller: ActionCallContext): ContextAccess => ({ actor_id: goalActor(caller).actor_id, scope: { kind: "personal", id: ports.projectId } });
   const active = (at: ContextAccess, key: string) => { const edge = ports.ledger.query.get(at, key); return edge?.state === "active" ? edge : null; };
   const requireGoal = (goalId: string) => { if (!ports.goalExists(goalId)) throw new ActionError("goals.not_found", "找不到这个目标"); };
   const links = (role: LinkRole) => {

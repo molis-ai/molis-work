@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { feedSourceActions as s } from "@molis-ai/molis-work-plugin-feed";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
@@ -15,9 +15,9 @@ const PROJECT = "project-call-log";
 test("commands that ran are recorded with caller and outcome, queries are not, and inputs never reach the record", { timeout: 60_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "action-call-log-"));
   const dbPath = join(home, "project.db");
-  seedDemoBoard(dbPath);
+  seedDemoBoard(dbPath, PROJECT);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const reference = molisWorkHostProjectReference({ databasePath: dbPath, boardId: DEMO_BOARD_ID, projectId: PROJECT });
+  const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: NATIVE_CONTENT_PERMISSIONS };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
   try {

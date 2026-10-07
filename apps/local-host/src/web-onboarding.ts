@@ -24,7 +24,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
   return async function handleOnboarding(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, projectCount: number, localHost: MolisWorkLocalHost, controlToken: string): Promise<boolean> {
     if (await createContextOnboardingHttp({ ...ports, actions: async (home, projectId) => {
       const project = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId));
-      const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+      const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       return bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"] }));
     }, homeActions: (_home, signal) => bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user",
       permissions: ["todo:read", "todo:write", "model:invoke"], signal })) })(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
@@ -78,7 +78,6 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
           partialProjectPath = projectPath;
           const hostClient = localHost.client(molisWorkHostProjectReference({
             databasePath: project.database_path,
-            boardId: project.board_id,
             projectId: project.project_id,
           }));
           const title = input.outcome
@@ -87,7 +86,7 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
             .trim()
             .slice(0, 120) || input.projectName;
           const createdGoal = (await hostClient.invoke(createGoalIntentCapability, {
-            board_id: project.board_id,
+            project_id: project.project_id,
             title,
             outcome: input.outcome,
             why: "把第一次表达的目标保存为可继续澄清的共同事实",

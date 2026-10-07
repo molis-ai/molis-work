@@ -10,7 +10,7 @@ export function inspectProjectCatalogForUninstall(db: ProjectsSqliteDatabase): {
     const owner = (db.prepare("SELECT value FROM catalog_meta WHERE key = 'owner'").get() as { value?: unknown } | undefined)?.value;
     if (owner !== "molis-work-project-catalog-v1") return { owned: false, projects: [] };
     const rows = db.prepare(`
-      SELECT project_id, display_name, board_id, database_path, source,
+      SELECT project_id, display_name, project_id, database_path, source,
         data_class,
         created_at, updated_at
       FROM projects ORDER BY created_at, project_id
@@ -19,7 +19,6 @@ export function inspectProjectCatalogForUninstall(db: ProjectsSqliteDatabase): {
       projects: rows.map((row) => ({
         project_id: String(row.project_id),
         display_name: String(row.display_name),
-        board_id: String(row.board_id),
         database_path: String(row.database_path),
         source: "created" as const,
         data_class: projectDataClass(row.data_class),

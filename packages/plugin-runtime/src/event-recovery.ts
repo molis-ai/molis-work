@@ -10,14 +10,14 @@ import {
 import type { PluginHostLifecycle } from "./lifecycle.js";
 
 interface RecoveryPorts {
-  boardId: string;
+  projectId: string;
   lifecycle: PluginHostLifecycle;
   repository: PluginEventsRepository;
   closed: boolean;
 }
 
 function recoveryView(ports: RecoveryPorts, cursor: PluginEventCursorRecord): PluginEventRecoveryView {
-  const event = ports.repository.list(ports.boardId, {
+  const event = ports.repository.list(ports.projectId, {
     source_plugin_id: cursor.source_plugin_id, event_type_id: cursor.event_type_id,
     type_version: cursor.type_version, since_sequence: cursor.delivered_sequence, limit: 1,
   })[0] ?? null;
@@ -39,7 +39,7 @@ function recoveryView(ports: RecoveryPorts, cursor: PluginEventCursorRecord): Pl
 }
 
 export function readEventRecoveries(ports: RecoveryPorts): PluginEventRecoveryView[] {
-  return ports.repository.listCursors(ports.boardId).filter(cursor => cursor.state === "quarantined")
+  return ports.repository.listCursors(ports.projectId).filter(cursor => cursor.state === "quarantined")
     .map(cursor => recoveryView(ports, cursor));
 }
 
@@ -54,7 +54,7 @@ export function resolveEventRecovery(ports: RecoveryPorts & { now(): Date; busy(
       input.expected_install_id, input.expected_generation, input.expected_version].some(value => typeof value !== "string" || !value)) {
     throw new PluginEventError("event_recovery_invalid", "请重新读取待核对事件并填写处理依据");
   }
-  const previous = ports.repository.cursor(ports.boardId, input.subscriber_plugin_id, input,
+  const previous = ports.repository.cursor(ports.projectId, input.subscriber_plugin_id, input,
     { install_id: input.expected_install_id, installation_generation: input.expected_generation });
   if (!previous || previous.state !== "quarantined" || previous.revision !== input.expected_revision) {
     throw new PluginEventError("event_recovery_changed", "待核对事件已变化，请重新读取后确认");
@@ -66,7 +66,7 @@ export function resolveEventRecovery(ports: RecoveryPorts & { now(): Date; busy(
   }
   const at = ports.now().toISOString();
   const resolution: PluginEventResolutionRecord = {
-    board_id: ports.boardId, subscriber_plugin_id: previous.subscriber_plugin_id,
+    project_id: ports.projectId, subscriber_plugin_id: previous.subscriber_plugin_id,
     subscriber_install_id: previous.subscriber_install_id, subscriber_generation: previous.subscriber_generation,
     source_plugin_id: previous.source_plugin_id, event_type_id: previous.event_type_id, type_version: previous.type_version,
     event_id: view.event!.event_id, cursor_revision: previous.revision, subscriber_version: view.subscriber_version!,

@@ -100,7 +100,7 @@ test("real Host: the file tab lists and previews plugin files through the action
   const home = await mkdtemp(join(tmpdir(), "side-panel-files-"));
   const [a] = await withCatalog({ homeDirectory: home }, async catalog => [await catalog.createProject({ display_name: "侧栏项目", actor_id: "owner" })]);
   await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: a.project_id, plugin_id: "pages", actor_id: "owner" }));
-  const ref = molisWorkHostProjectReference({ databasePath: a.database_path, boardId: a.board_id, projectId: a.project_id });
+  const ref = molisWorkHostProjectReference({ databasePath: a.database_path, projectId: a.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const token = resolveWebControlToken({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });

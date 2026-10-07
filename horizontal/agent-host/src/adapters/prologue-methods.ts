@@ -6,13 +6,13 @@ const KIND = "molis-coding-method";
 interface MethodMeta extends AgentSkillOwner {
   skill_id: string; version: number; name: string; summary: string; source_label: string;
 }
-const ownerKey = (owner: AgentSkillOwner) => JSON.stringify([owner.board_id, owner.plugin_id]);
+const ownerKey = (owner: AgentSkillOwner) => JSON.stringify([owner.project_id, owner.plugin_id]);
 const sameOwner = (left: AgentSkillOwner, right: AgentSkillOwner) => ownerKey(left) === ownerKey(right);
 const summary = (value: string) => !value.trim() || /^---(?:\s|$)/.test(value.trim()) ? "本地方法；选择前请阅读完整正文。" : value.trim().slice(0, 200);
 const entry = (meta: MethodMeta): AgentSkillCatalogEntry => ({ skill_id: meta.skill_id, version: meta.version,
   name: meta.name, summary: summary(meta.summary), tools: [], source: "installed", enabled: true });
 function metadata(value: Readonly<Record<string, unknown>>): MethodMeta {
-  for (const key of ["board_id", "plugin_id", "skill_id", "name", "summary", "source_label"]) {
+  for (const key of ["project_id", "plugin_id", "skill_id", "name", "summary", "source_label"]) {
     if (typeof value[key] !== "string") throw new Error("已安装方法的记录损坏，不能作为可用方法执行");
   }
   if (value.version !== 1) throw new Error("已安装方法版本不可读");
@@ -39,7 +39,7 @@ export function createPrologueSkillLibrary(runtime: Runtime): AgentSkillLibrary 
       for (const record of listed.records) {
         if (record.tombstoned) continue;
         // A different project's record does not become a dependency of this project.
-        if (record.metadata.board_id !== owner.board_id || record.metadata.plugin_id !== owner.plugin_id) continue;
+        if (record.metadata.project_id !== owner.project_id || record.metadata.plugin_id !== owner.plugin_id) continue;
         result.push(entry(metadata(record.metadata)));
       }
       if (!listed.cursor) return result;

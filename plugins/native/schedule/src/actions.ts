@@ -19,11 +19,11 @@ const reminder = object({ text, plugin_id: id, plugin_title: text, needs_confirm
 // Jobs belong to other plugins' wakeups; their recurrence and last result stay owned by the scheduler service.
 const job = { type: "object", properties: { job_id: id, plugin_id: id, capability_id: id, object_ref: text, title: text, next_due_at: text, enabled: { type: "boolean" },
   created_at: text, updated_at: text, reminder }, required: ["job_id", "plugin_id", "capability_id", "object_ref", "title", "next_due_at", "enabled"] };
-const occurrence = object({ boardId: id, operationId: id, dueAt: text, state: { enum: ["pending", "running", "succeeded", "failed", "unknown", "skipped"] },
+const occurrence = object({ projectId: id, operationId: id, dueAt: text, state: { enum: ["pending", "running", "succeeded", "failed", "unknown", "skipped"] },
   detail: nullableText, startedAt: nullableText, finishedAt: nullableText,
   decisions: { type: "array", items: object({ decision: { enum: ["retry", "skip"] }, at: text, previousDetail: nullableText }) } },
-  ["boardId", "operationId", "dueAt", "state", "detail", "startedAt", "finishedAt"]);
-const operationView = object({ id, boardId: id, pluginId: id, installationId: nullableText, installationGeneration: nullableText, pluginTitle: text,
+  ["projectId", "operationId", "dueAt", "state", "detail", "startedAt", "finishedAt"]);
+const operationView = object({ id, projectId: id, pluginId: id, installationId: nullableText, installationGeneration: nullableText, pluginTitle: text,
   operationId: id, operationTitle: text, input: {}, inbox: { type: "boolean" }, link: text, jobId: id, jobOwner: id, repeat: { enum: ["none", "daily", "weekly"] }, at: text,
   state: { enum: ["enabled", "paused", "needs_confirmation", "needs_review", "completed"] }, detail: nullableText, revision: id,
   job: { anyOf: [{ type: "null" }, job] }, installation: { anyOf: [{ type: "null" }, object({ installationId: id, generation: id, title: text, version: text, publisher: text,

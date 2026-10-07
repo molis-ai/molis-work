@@ -428,7 +428,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此业务会话");
     }
     const session = await this.#runtime.sessions.create(input);
-    this.#sessions.set(session.ref.id, { title: input.title, workspace: input.workspace ?? "required", runs: [], owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id } });
+    this.#sessions.set(session.ref.id, { title: input.title, workspace: input.workspace ?? "required", runs: [], owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id } });
     return { session_id: session.ref.id, runtime_id: PROLOGUE_RUNTIME_ID };
   }
 

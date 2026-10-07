@@ -5,7 +5,7 @@ import test from "node:test";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "../packages/plugin-sdk/src/index.js";
 import { type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DEMO_BOARD_ID, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { feedCaptureScene } from "@molis-ai/molis-work-plugin-feed";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -17,10 +17,10 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
   assert.ok(localHost); assert.ok(projectId);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   catalog.addProjectPlugin({ project_id: projectId, plugin_id: "feed", actor_id: "fixture" }); catalog.close();
-  const reference = molisWorkHostProjectReference({ databasePath: b.databasePath, boardId: DEMO_BOARD_ID, projectId });
+  const reference = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId });
   await localHost.withProject(reference, () => undefined);
   const feed = createLocalFeedApplication(store.db);
-  const source = createLocalFeedSourceService(store.db, DEMO_BOARD_ID).register({ kind: "web_query", query: "capture-browser-" + randomUUID() }).source;
+  const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "web_query", query: "capture-browser-" + randomUUID() }).source;
   const item = feed.ingestItem({ source, externalId: "browser-item", title: "需要核对的插件消息", summary: "原材料", body: "判断读取这段原文", occurredAt: new Date().toISOString(), attention: false }).item;
   const definition: ActionDefinition = { capability_id: "fixture.feed.capture." + randomUUID(), version: 1, operation: "command", action: {
     title: "插件判断：需要跟进", description: "判断原材料是否需要跟进", kind: "judgment", scope: "project", audiences: ["user", "workflow", "mcp"], permissions: [], subject_kinds: ["feed_item"],
@@ -54,22 +54,22 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     await waitFor(`document.querySelector('${section} [data-feed-rule-preview]')?.textContent.includes('匹配') || document.querySelector('${section} [data-feed-rule-status]')?.dataset.error === 'true'`);
     assert.notEqual(await evaluate(`document.querySelector('${section} [data-feed-rule-status]')?.dataset.error`), 'true', await evaluate(`document.querySelector('${section}')?.innerText`));
     assert.equal(inputs.length, 1); assert.match(inputs[0]!, /判断读取这段原文/);
-    assert.ok(!feed.listInboxEntries(DEMO_BOARD_ID).some(entry => entry.subject_id === item.item_id));
+    assert.ok(!feed.listInboxEntries(projectId).some(entry => entry.subject_id === item.item_id));
     await click(section + ' [data-feed-out-rule-create]');
     await waitFor(`Array.from(document.querySelectorAll('${section} [data-feed-out-rule-row]')).some(row => row.textContent.includes('需要跟进的消息')) || document.querySelector('${section} [data-feed-rule-status]')?.dataset.error === 'true'`);
     assert.notEqual(await evaluate(`document.querySelector('${section} [data-feed-rule-status]')?.dataset.error`), 'true', await evaluate(`document.querySelector('${section}')?.innerText`));
-    const saved = feed.listOutRules(DEMO_BOARD_ID).find(rule => rule.name === "需要跟进的消息")!;
+    const saved = feed.listOutRules(projectId).find(rule => rule.name === "需要跟进的消息")!;
     assert.equal(saved.judgment?.capability_id, definition.capability_id); assert.ok(saved.judgment?.provider_id);
     await evaluate(`document.querySelector('${section} [data-feed-out-rules-evaluate]').closest('details').open = true`);
     await click(section + ' [data-feed-out-rules-evaluate]');
     await waitFor(`!document.querySelector('${section} [data-feed-out-rules-evaluate]')?.disabled`);
-    for (let i = 0; i < 30 && !feed.listInboxEntries(DEMO_BOARD_ID).some(entry => entry.subject_id === item.item_id); i++) await new Promise(resolve => setTimeout(resolve, 100));
-    assert.ok(feed.listInboxEntries(DEMO_BOARD_ID).some(entry => entry.subject_id === item.item_id && entry.reason === "source_rule"));
+    for (let i = 0; i < 30 && !feed.listInboxEntries(projectId).some(entry => entry.subject_id === item.item_id); i++) await new Promise(resolve => setTimeout(resolve, 100));
+    assert.ok(feed.listInboxEntries(projectId).some(entry => entry.subject_id === item.item_id && entry.reason === "source_rule"));
     assert.equal(inputs.length, 2);
     await runtime.stop(install.install_id);
     await click(section + ' [data-feed-rule-mode="existing"]');
     await waitFor(`document.querySelector('${section} [data-feed-rule-binding-status]')?.textContent !== '已启用'`);
-    assert.ok(feed.listOutRules(DEMO_BOARD_ID).find(rule => rule.rule_id === saved.rule_id)!.judgment, "stopping the provider preserves the exact saved reference");
+    assert.ok(feed.listOutRules(projectId).find(rule => rule.rule_id === saved.rule_id)!.judgment, "stopping the provider preserves the exact saved reference");
     const usages = await localHost.sceneClient(reference).usages({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: ["feed:read", "feed:write", "model:invoke"] });
     const usage = usages.find(usage => usage.binding_id === "feed.capture:" + saved.rule_id)!;
     assert.ok(usage.href);
@@ -83,7 +83,7 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     await writeFile(reviewEvidenceUrl("feed-capture/unavailable-narrow.png"), Buffer.from(screenshot.data, "base64"));
   } catch (error) {
     t.diagnostic(await evaluate(`JSON.stringify({ section: document.querySelector('${section}')?.innerText, busy: document.querySelector('${section} [data-feed-rule-composer]')?.getAttribute('aria-busy') })`));
-    t.diagnostic(JSON.stringify(feed.listOutRules(DEMO_BOARD_ID).filter(rule => rule.match.source_id === source.source_id)));
+    t.diagnostic(JSON.stringify(feed.listOutRules(projectId).filter(rule => rule.match.source_id === source.source_id)));
     throw error;
   } finally { await runtime.stop(install.install_id); }
 });

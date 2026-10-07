@@ -10,7 +10,7 @@ import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modu
 export interface GoalReadApplicationPorts {
   now(): Date;
 
-  goalTreeProposals(boardId: string, rootGoalId: string): GoalTreeProposalRecord[];
+  goalTreeProposals(projectId: string, rootGoalId: string): GoalTreeProposalRecord[];
 }
 
 /** Compose Goal facts with the Goal tree proposals about it. Current work status is event-owned. */
@@ -20,27 +20,27 @@ export class GoalReadApplication {
     private readonly ports: GoalReadApplicationPorts,
   ) {}
 
-  readProjectGuidance(boardId: string): ProjectGuidanceView {
-    return this.goals.readProjectGuidance(boardId);
+  readProjectGuidance(projectId: string): ProjectGuidanceView {
+    return this.goals.readProjectGuidance(projectId);
   }
 
-  listTrashedGoals(boardId: string): GoalRecord[] {
-    return this.goals.listTrashedGoals(boardId);
+  listTrashedGoals(projectId: string): GoalRecord[] {
+    return this.goals.listTrashedGoals(projectId);
   }
 
-  listPolicyHistory(boardId: string) { return this.goals.listPolicyHistory(boardId); }
-  listWorkEventGoalLinks(boardId: string) { return this.goals.listWorkEventGoalLinks(boardId); }
+  listPolicyHistory(projectId: string) { return this.goals.listPolicyHistory(projectId); }
+  listWorkEventGoalLinks(projectId: string) { return this.goals.listWorkEventGoalLinks(projectId); }
 
-  getResolvedGoalPolicy(input: { board_id: string; goal_id: string }): GoalPolicy {
-    return this.goals.resolvePolicy(input.board_id, input.goal_id);
+  getResolvedGoalPolicy(input: { project_id: string; goal_id: string }): GoalPolicy {
+    return this.goals.resolvePolicy(input.project_id, input.goal_id);
   }
 
-  getGoal(boardId: string, goalId: string): GoalRecord {
-    return this.goals.readGoal(boardId, goalId).goal;
+  getGoal(projectId: string, goalId: string): GoalRecord {
+    return this.goals.readGoal(projectId, goalId).goal;
   }
 
-  readGoalContract(boardId: string, goalId: string): GoalContractView {
-    const goalFacts = this.goals.readGoal(boardId, goalId);
+  readGoalContract(projectId: string, goalId: string): GoalContractView {
+    const goalFacts = this.goals.readGoal(projectId, goalId);
     return {
       board: goalFacts.board,
       observed_event_cursor: goalFacts.observed_event_cursor,
@@ -49,7 +49,7 @@ export class GoalReadApplication {
       parent_contract_coverage: goalFacts.parent_contract_coverage,
       relations: goalFacts.relations,
       resolved_policy: goalFacts.resolved_policy,
-      goal_tree_proposals: this.ports.goalTreeProposals(boardId, goalId),
+      goal_tree_proposals: this.ports.goalTreeProposals(projectId, goalId),
       project_guidance: goalFacts.project_guidance,
     };
   }

@@ -32,7 +32,7 @@ import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, standIn, type CatalogCapability,
 export interface AgentStudioModel { provider_id: string; model_id: string; label: string }
 export interface AgentStudioOptions {
   store: LocalProjectDatabase;
-  boardId: string;
+  projectId: string;
   homeDirectory?: string;
   routePrefix?: string;
   models(): Promise<readonly AgentStudioModel[]>;
@@ -124,13 +124,13 @@ export function builderPrompts(home: string): NonNullable<AgentBuilderPorts['pro
 async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
   let boards = studios.get(options.store);
   if (!boards) { boards = new Map(); studios.set(options.store, boards); }
-  const existing = boards.get(options.boardId);
+  const existing = boards.get(options.projectId);
   if (existing) return existing;
   const created = (async () => {
     const home = options.homeDirectory;
     if (!home) throw new Error('插件创作工作台需要本机数据目录');
     const installed = await ensureInstalledPlugins({ ...options, homeDirectory: home });
-    const storage = installed.storage, root = join(home, 'plugin-builder', options.boardId);
+    const storage = installed.storage, root = join(home, 'plugin-builder', options.projectId);
     const studio = { storage, root, runners: new Map() } as unknown as Studio;
     const selected = (): { provider_id: string; model_id: string } | null => { const raw = storage.get(MODEL_KEY); return raw ? JSON.parse(raw) : null; };
     const models = <T>(operation: (store: NonNullable<ReturnType<typeof openConfiguredModels>>['store'] | undefined) => T): T => {
@@ -195,7 +195,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       // A newer bundle replaces both lanes, so the trial never mixes versions.
       if (current) await stopRunner(build.id);
       const runner = createSandboxRunner({ bundlePath: bundle, contract: build.design.contract, grants: effects(build), services: previewFor(), limits: capabilityLimits(effects(build), capabilities),
-        identity: { projectId: options.boardId, installationId: STABLE_PREVIEW + build.id, pluginId: build.design.contract.pluginId, namespace: 'preview' } });
+        identity: { projectId: options.projectId, installationId: STABLE_PREVIEW + build.id, pluginId: build.design.contract.pluginId, namespace: 'preview' } });
       studio.runners.set(slot, { key, runner });
       runner.catch(() => { if (studio.runners.get(slot)?.runner === runner) studio.runners.delete(slot); });
       return runner;
@@ -219,7 +219,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       finally { trials.delete(key); await reset(); accepting.delete(trial.id); }
     };
     const ports: AgentBuilderPorts = {
-      projectId: options.boardId,
+      projectId: options.projectId,
       // What a design may use: the project's unified action directory, as offered to generated plugins.
       catalog: async () => (await studio.catalog()).filter(entry => entry.offered).map(entry => ({ id: entry.id, title: entry.title, source: entry.source.title + (entry.installed ? '' : '（这个项目还没启用；用到时会先问用户要不要启用）'), effect: entry.effect, execution: entry.execution,
         description: entry.description + (entry.execution.cost === 'metered' ? '（会产生费用：只放在由用户点击触发的 command 里）' : entry.execution.cost === 'unknown' ? '（提供方未声明费用）' : ''), input: entry.input, ...(entry.output ? { output: entry.output } : {}) })),
@@ -277,7 +277,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       },
       check: (build, operationIds, signal) => runPluginChecks({ root: build.directory!, contract: build.design!.contract, manifest: buildManifest(build.design!.contract),
         operationIds, services: previewFor(), mockServices: { capability: standIns, network }, grants: effects(build), signal, settled: settledFor(build.directory!),
-        identity: { projectId: options.boardId, installationId: 'checks:' + build.id, pluginId: build.design!.contract.pluginId, namespace: 'preview' } }),
+        identity: { projectId: options.projectId, installationId: 'checks:' + build.id, pluginId: build.design!.contract.pluginId, namespace: 'preview' } }),
       call: async (build, operationId, input) => {
         const capabilities = await studio.catalog();
         return (await runnerFor(build, slowOperations(build.design!.contract, capabilities).has(operationId) ? 'slow' : 'quick', capabilities)).call(operationId, input);
@@ -314,8 +314,8 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     await studio.workflow.initialize();
     return studio;
   })();
-  boards.set(options.boardId, created);
-  try { return await created; } catch (error) { boards.delete(options.boardId); throw error; }
+  boards.set(options.projectId, created);
+  try { return await created; } catch (error) { boards.delete(options.projectId); throw error; }
 }
 
 /** What the browser sees of a build: no host paths (build directory, bundles, release folders). */
@@ -484,10 +484,10 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
   }
 }
 
-export async function releaseAgentStudio(store: LocalProjectDatabase, boardId: string) {
-  const boards = studios.get(store), pending = boards?.get(boardId);
+export async function releaseAgentStudio(store: LocalProjectDatabase, projectId: string) {
+  const boards = studios.get(store), pending = boards?.get(projectId);
   if (!pending) return;
-  boards!.delete(boardId);
+  boards!.delete(projectId);
   const studio = await pending.catch(() => null);
   if (!studio) return;
   await studio.workflow.close();

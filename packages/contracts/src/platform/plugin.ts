@@ -345,7 +345,7 @@ export interface PluginStartContext {
   deployment: PluginDeployment;
   grants: readonly string[];
   /** Project scope this activation belongs to. Absent for project-less reference runs. */
-  board_id?: string;
+  project_id?: string;
   /** Trusted local owner for HTTP entrypoint binding; never read from business arguments. */
   readonly actor_id?: string;
   /** Input group the Host validated at activation. Undefined means no selection; never the first group. */

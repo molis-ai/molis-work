@@ -24,7 +24,7 @@ const configurationOnly = (id: string) => id.startsWith("scenes.enable:");
 test("every action that waits on a model runs beside the serial queue unless it is listed with a reason", async () => {
   const home = await mkdtemp(join(tmpdir(), "action-model-scheduling-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "a.sqlite"), boardId: "a", projectId: "a" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "a.sqlite"), projectId: "a" });
   const found = new Map<string, string | undefined>();
   try {
     for (const audience of ["user", "agent", "workflow", "mcp", "plugin"] as const) {
@@ -49,7 +49,7 @@ test("real Native AI declarations reach the Builder catalog and stop metered aut
   const { normalizeEffects } = await import('../plugins/native/plugin-builder/src/agent-authoring.js');
   const home = await mkdtemp(join(tmpdir(), 'native-execution-policy-'));
   const host = new MolisWorkLocalHost({ homeDirectory: home });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, 'a.sqlite'), boardId: 'a', projectId: 'a' });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, 'a.sqlite'), projectId: 'a' });
   try {
     const catalog = await capabilityCatalog({ registry: host.actionRegistry(ref), client: host.actionClient(ref), project_id: 'a', inspect: caller => host.inspectActions(caller, ref) }, 'web-user');
     for (const id of ['pages.ai', 'pages.generate', 'form.questions.ai', 'dataset.columns.ai', 'lingguang.conversation.message', 'jelly.plan.generate', 'cognia.knowledge.query', 'images.jobs.start', 'alchemist.reuse.assess']) {

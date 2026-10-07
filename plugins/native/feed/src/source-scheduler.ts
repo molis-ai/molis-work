@@ -20,7 +20,7 @@ export type FeedSourceSchedulerDispatch = (
 
 export class FeedSourceScheduler {
   constructor(
-    readonly boardId: string,
+    readonly projectId: string,
     private readonly createService: () => Pick<FeedSourceService, "dueSources" | "advanceSchedule" | "feed">,
     private readonly dispatch: FeedSourceSchedulerDispatch,
     private readonly now: () => Date = () => new Date(),
@@ -83,7 +83,7 @@ export class FeedSourceScheduler {
     }
     const feed = this.createService().feed;
     const stored = feed.createInboxEntry({
-      boardId: this.boardId,
+      projectId: this.projectId,
       subjectType: "source_fault",
       subjectId: source.source_id,
       reason: "source_fault",
@@ -97,7 +97,7 @@ export class FeedSourceScheduler {
       at: at.toISOString(),
     });
     if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
-      feed.setInboxEntryStatus(this.boardId, stored.entry.entry_id, "open", stored.entry.revision);
+      feed.setInboxEntryStatus(this.projectId, stored.entry.entry_id, "open", stored.entry.revision);
     }
     await feed.flushPendingJudgments();
   }

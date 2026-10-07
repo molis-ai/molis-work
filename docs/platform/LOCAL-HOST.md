@@ -37,7 +37,7 @@ AP2 保证一个 Local Host 实例内，每个 Project storage key 只有一份 
 
 ## 生命周期与刷新
 
-- 同一 storage key 如果被错误映射为另一个 `project_id`/`board_id`，Host 拒绝连接。
+- 同一 storage key 如果被错误映射为另一个 `project_id`，Host 拒绝连接。
 - Capability ID + version 重复注册或未注册调用会给出明确错误。
 - 关闭 Project Runtime 会等待当前使用者退出，再关闭 Store。
 - 个人规划方法是所有 Project Runtime 的构造输入；保存后由 Web 请求 Host 统一重开已发现的 Project Runtime，避免各入口持有不同版本。

@@ -14,15 +14,15 @@ import type { GoalTreeProposalDecisionResult, GoalTreeProposalListResult, GoalTr
 test("CLI and MCP share current Goal/Relation proposal decisions across Host restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-proposal-chain-"));
   const databasePath = join(directory, "project.db");
-  const boardId = "proposal-chain";
+  const projectId = "proposal-chain";
   const host = createMolisWorkLocalHost();
-  const reference = molisWorkHostProjectReference({ databasePath, boardId });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId });
   const client = host.client(reference);
   const runtimeHost = {
     homeDirectory: directory,
     runtimeContext: { runtime_id: "chain", stable_work_context_id: "session", host_declares_stable: true },
   };
-  const runtime = new MolisWorkServer("runtime", { databasePath, boardId, webBaseUrl: "http://127.0.0.1:4173" }, runtimeHost, host);
+  const runtime = new MolisWorkServer("runtime", { databasePath, projectId, webBaseUrl: "http://127.0.0.1:4173" }, runtimeHost, host);
   async function cli<T>(operation: string, input: object): Promise<T> {
     const lines: string[] = [];
     const original = console.log;
@@ -32,10 +32,10 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
       return JSON.parse(lines.at(-1)!) as T;
     } finally { console.log = original; }
   }
-  const snapshot = () => client.invoke(snapshotBoardCapability, { board_id: boardId });
+  const snapshot = () => client.invoke(snapshotBoardCapability, { project_id: projectId });
   try {
-    await client.invoke(initializeBoardCapability, { board_id: boardId, title: "Proposal chain", idempotency_key: "init" });
-    await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath }, "runtime:chain");
+    await client.invoke(initializeBoardCapability, { project_id: projectId, title: "Proposal chain", idempotency_key: "init" });
+    await grantGoalsMcp(host, directory, { project_id: projectId, database_path: databasePath }, "runtime:chain");
     const created = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.create__v1", {
       goal_id: "draft", title: "整理开发入口", outcome: "提案先保存，用户决定后生效", idempotency_key: "start",
     }));
@@ -49,7 +49,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     }));
     assert.equal(replayNote.replayed, true);
     const proposed = await cli<ReturnType<GoalTreeApplicationApi["submitGoalTreeProposal"]>>("goal-tree-propose", {
-      board_id: boardId, actor_id: "runtime:chain:session", root_goal_id: "draft",
+      project_id: projectId, actor_id: "runtime:chain:session", root_goal_id: "draft",
       summary: "新增一个仍需补全要求的子目标", idempotency_key: "propose",
       items: [{
         item_id: "child", kind: "goal", operation: "create",
@@ -68,7 +68,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
       proposal_id: proposed.proposal.proposal_id,
     }))) as GoalTreeProposalListResult;
     assert.equal(listed.proposals[0]!.proposal_id, proposed.proposal.proposal_id);
-    const checkInput = { board_id: boardId, proposal_id: proposed.proposal.proposal_id,
+    const checkInput = { project_id: projectId, proposal_id: proposed.proposal.proposal_id,
       actor_id: "runtime:chain:session", idempotency_key: "check-proposal" };
     const checked = await cli<ReturnType<GoalTreeApplicationApi["checkGoalTreeProposal"]>>("goal-tree-check", checkInput);
     assert.deepEqual(checked.conflict_item_ids, []);
@@ -91,7 +91,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     );
     assert.deepEqual(await snapshot(), beforeDenied);
     const decided = await cli<GoalTreeProposalDecisionResult>("goal-tree-decide", {
-      board_id: boardId, proposal_id: proposed.proposal.proposal_id,
+      project_id: projectId, proposal_id: proposed.proposal.proposal_id,
       authority: { conversation_ref: "conversation://proposal-chain", message_ref: "message://confirm-child" },
       decisions: [{ item_id: "child", decision: "confirm" }, { item_id: "child-parent", decision: "confirm" }],
       reason: "确认创建这个子目标及父子关系", idempotency_key: "decide",
@@ -105,12 +105,12 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     try {
       // An identity or provenance named in the arguments is refused, not swapped for the local person (§9.5 #6).
       await assert.rejects(() => management.callTool("molis_work_v1_goal_tree_decide", {
-        database_path: databasePath, board_id: boardId, proposal_id: proposed.proposal.proposal_id,
+        database_path: databasePath, project_id: projectId, proposal_id: proposed.proposal.proposal_id,
         authority: { actor_id: "someone-else", conversation_ref: "conversation://proposal-chain", message_ref: "message://confirm-child" },
         decisions: [{ item_id: "child", decision: "confirm" }], reason: "冒名", idempotency_key: "forged",
       }), /authority_source_invalid|不能带身份/);
       const replay = JSON.parse(await management.callTool("molis_work_v1_goal_tree_decide", {
-        database_path: databasePath, board_id: boardId, proposal_id: proposed.proposal.proposal_id,
+        database_path: databasePath, project_id: projectId, proposal_id: proposed.proposal.proposal_id,
         authority: { conversation_ref: "conversation://proposal-chain", message_ref: "message://confirm-child" },
         decisions: [{ item_id: "child", decision: "confirm" }, { item_id: "child-parent", decision: "confirm" }],
         reason: "确认创建这个子目标及父子关系", idempotency_key: "decide",
@@ -122,7 +122,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     await runtime.close();
     await host.close();
     const restarted = createMolisWorkLocalHost();
-    try { assert.deepEqual(await restarted.client(reference).invoke(snapshotBoardCapability, { board_id: boardId }), beforeReplay); }
+    try { assert.deepEqual(await restarted.client(reference).invoke(snapshotBoardCapability, { project_id: projectId }), beforeReplay); }
     finally { await restarted.close(); }
   } finally {
     await runtime.close();

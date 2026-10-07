@@ -7,7 +7,7 @@ import test from "node:test";
 import type { Server } from "node:http";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { createFeedEvidenceContentStore } from "@molis-ai/molis-work-module-feed";
-import { seedDemoBoard, DEMO_BOARD_ID, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard, DEMO_PROJECT_ID, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -81,7 +81,7 @@ test("explicit Web homes read only their own connections and survive service rec
   const homes = [join(root, "a"), join(root, "b")];
   const databases = homes.map((_, i) => join(root, `board-${i}.sqlite`));
   async function start(i: number) {
-    const server = createMolisWorkWebServer({ homeDirectory: homes[i], databasePath: databases[i], boardId: DEMO_BOARD_ID, controlToken });
+    const server = createMolisWorkWebServer({ homeDirectory: homes[i], databasePath: databases[i], projectId: DEMO_PROJECT_ID, controlToken });
     servers.push(server);
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();

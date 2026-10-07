@@ -17,27 +17,27 @@ export type InboxEntrySubjectType = AttentionSubjectType;
 export type InboxEntryReason = AttentionReason;
 export type InboxEntryStatus = AttentionStatus;
 export interface FeedSourceRecord extends Omit<SourceRecord, "project_id" | "connection_ref"> {
-  board_id: string;
+  project_id: string;
   item_count: number;
   cursor: unknown;
   credential_ref: string | null;
 }
 export interface FeedSourceRunRecord extends Omit<ListenerRunRecord, "project_id" | "connector_receipt"> {
-  board_id: string;
+  project_id: string;
   receipt: Record<string, unknown> | null;
 }
 export interface InboxEntryRecord extends Omit<AttentionEntryRecord, "project_id"> {
-  board_id: string;
+  project_id: string;
   next_judgment?: import("@molis-ai/molis-work-contracts/modules/functions").JudgmentRecord | null;
   suggested_behavior_ids?: readonly string[];
 }
 export interface FeedMaterialRecord extends Omit<CanonicalFeedMaterial, "project_id"> {
-  board_id: string;
+  project_id: string;
   /** Decrypted only for local detail/TUI display; never stored in SQLite. */
   content?: string | null;
 }
 export interface FeedItemRecord extends Omit<CanonicalFeedItem, "project_id" | "signal_id" | "signal_revision" | "materials"> {
-  board_id: string;
+  project_id: string;
   item_type: FeedItemType;
   materials: FeedMaterialRecord[];
   suggested_behavior_ids?: readonly string[];
@@ -50,7 +50,7 @@ export interface FeedOutRuleMatch {
 }
 
 export interface FeedOutRuleRecord {
-  board_id: string;
+  project_id: string;
   rule_id: string;
   name: string;
   enabled: boolean;

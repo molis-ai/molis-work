@@ -395,7 +395,7 @@ test("Functions client clears leftover preview text when switching records and h
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /subject_kinds: dest\?\.subject_kinds/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /selected = record;\s*records = records\.some/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/inbox\/judgment|\/api\/home\/dock-judgment/);
-  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.board_id \? " · " \+ row\.board_id/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.project_id \? " · " \+ row\.project_id/);
 });
 
 test("system judgment editor and connection settings render without plugin contributions", () => {

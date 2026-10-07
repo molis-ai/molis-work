@@ -12,7 +12,7 @@ const text = { type: "string" };
 const nullableText = { type: ["string", "null"] };
 const strings = { type: "array", items: text };
 const revision = { type: "integer", minimum: 1 };
-const entryProperties = { entry_id: text, project_id: text, board_id: text,
+const entryProperties = { entry_id: text, project_id: text,
   subject_type: { enum: ["feed_item", "goal_decision", "source_fault"] }, subject_id: text,
   reason: { enum: ["manual", "source_rule", "goal_decision", "source_fault", "artifact_out_failed"] },
   status: { enum: ["open", "in_progress", "done", "dismissed"] }, revision,
@@ -28,12 +28,12 @@ const documentProperties = { id: text, project_id: text, title: text,
   artifact_version: { type: "integer", minimum: 0 }, created_at: text, updated_at: text, version: revision };
 const documentSchema = { type: "object", properties: documentProperties, required: Object.keys(documentProperties) };
 const judgmentProperties = { judgment_id: text, function_key: text, function_version: { type: "integer", minimum: 0 },
-  subject: { type: "object", properties: { kind: { enum: ["feed_item", "inbox_entry", "home_event", "source", "session", "mcp_invoke"] }, id: text, board_id: text }, required: ["kind", "id"] },
+  subject: { type: "object", properties: { kind: { enum: ["feed_item", "inbox_entry", "home_event", "source", "session", "mcp_invoke"] }, id: text, project_id: text }, required: ["kind", "id"] },
   scene_id: nullableText, outcome: { enum: ["ok", "needs_review"] }, suggested_behavior_ids: strings,
   error_code: nullableText, created_at: text };
 const judgmentSchema = { type: "object", properties: judgmentProperties, required: Object.keys(judgmentProperties) };
 
-export type InboxActionEntry = AttentionEntryRecord & { board_id: string };
+export type InboxActionEntry = AttentionEntryRecord & { project_id: string };
 export type InboxPagesResult = Omit<PagesGenerationRecord, "inputs"> & { entry_ids: string[] };
 export interface InboxGeneratedPages { document: PagesRecord; replayed: boolean; request_id: string; entry_ids: string[] }
 

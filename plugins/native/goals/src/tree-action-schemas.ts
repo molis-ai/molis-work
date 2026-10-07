@@ -21,12 +21,12 @@ export const treeItemInputSchema = { oneOf: [
 ] };
 export const treeItemDecisionSchema = object({ item_id: text, decision: enumeration(["confirm", "reject", "revise"]), reason: text,
   revised_item: treeItemInputSchema }, ["item_id", "decision"]);
-const decision = object({ decision_id: text, board_id: text, proposal_id: text, item_id: text,
+const decision = object({ decision_id: text, project_id: text, proposal_id: text, item_id: text,
   decision: enumeration(["confirmed", "rejected", "revised", "conflict"]), actor_id: text,
   authority_source: enumeration(["runtime_dialogue", "web", "management"]), runtime_actor_id: maybeText,
   conversation_ref: text, message_ref: text, reason: text, revision_proposal_id: maybeText,
   materialized_objects: array(affected), created_at: text });
-const storedItem = object({ item_id: text, proposal_id: text, board_id: text, ordinal: count,
+const storedItem = object({ item_id: text, proposal_id: text, project_id: text, ordinal: count,
   kind: enumeration(["goal", "relation"]),
   operation: enumeration(["create", "deactivate"]), payload: record, source_refs: strings, reason: text,
   explanation: nullable(explanation), confidence: { type: "number" }, affected_objects: array(affected),
@@ -34,7 +34,7 @@ const storedItem = object({ item_id: text, proposal_id: text, board_id: text, or
   requires_user_confirmation: boolean, state: enumeration(["pending", "conflict", "superseded", "approved", "applied", "rejected", "dismissed"]),
   conflict: nullable(record), decision: nullable(decision), materialized_objects: array(affected),
   revision_proposal_id: maybeText, supersedes_item_id: maybeText, created_at: text, updated_at: text });
-export const treeProposalSchema = object({ proposal_id: text, board_id: text,
+export const treeProposalSchema = object({ proposal_id: text, project_id: text,
   root_goal_id: maybeText,
   submitted_by: text, submitted_session_id: maybeText,
   state: enumeration(["pending", "superseded", "approved", "partially_applied", "rejected", "dismissed", "closed"]), version: count,

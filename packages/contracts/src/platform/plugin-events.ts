@@ -67,7 +67,7 @@ export interface PluginEventType<Payload = unknown> extends PluginEventTypeDecla
 
 export interface PluginEventRef {
   event_id: string;
-  board_id: string;
+  project_id: string;
   /** Monotonic per board. Subscribers resume from it after a restart. */
   sequence: number;
   event_type_id: string;
@@ -101,7 +101,7 @@ export interface PluginEventsClient {
 }
 
 export interface PluginEventDeliveryContext {
-  board_id: string;
+  project_id: string;
   plugin_id: string;
   install_id: string;
   installation_generation: string;
@@ -121,7 +121,7 @@ export type PluginEventCursorState = "idle" | "delivering" | "retry_wait" | "qua
 export interface PluginEventCursorRecord {
   /** Changes on every persisted transition. */
   revision: string;
-  board_id: string;
+  project_id: string;
   subscriber_plugin_id: string;
   subscriber_install_id: string;
   subscriber_generation: string;
@@ -143,7 +143,7 @@ export type PluginEventDeliveryFailureCode =
 
 export interface PluginEventDeliveryFailure {
   code: PluginEventDeliveryFailureCode;
-  board_id: string;
+  project_id: string;
   subscriber_plugin_id: string;
   source_plugin_id: string;
   event_id: string;
@@ -163,23 +163,23 @@ export interface PluginEventLogQuery {
 
 export interface PluginEventsRepository {
   append(record: Omit<PluginEventRecord, "sequence">): PluginEventRecord;
-  list(boardId: string, query?: PluginEventLogQuery): PluginEventRecord[];
-  latestSequence(boardId: string): number;
+  list(projectId: string, query?: PluginEventLogQuery): PluginEventRecord[];
+  latestSequence(projectId: string): number;
   cursor(
-    boardId: string,
+    projectId: string,
     subscriberPluginId: string,
     source: PluginEventSubscribeSource,
     identity: PluginEventSubscriberIdentity,
   ): PluginEventCursorRecord | null;
-  listCursors(boardId: string, subscriberPluginId?: string): PluginEventCursorRecord[];
+  listCursors(projectId: string, subscriberPluginId?: string): PluginEventCursorRecord[];
   saveCursor(record: PluginEventCursorRecord): void;
   resolveCursor(previous: PluginEventCursorRecord, next: PluginEventCursorRecord, resolution: PluginEventResolutionRecord): boolean;
-  resolutions(boardId: string, subscriberPluginId?: string): PluginEventResolutionRecord[];
-  deleteCursors(boardId: string, subscriberPluginId: string): void;
+  resolutions(projectId: string, subscriberPluginId?: string): PluginEventResolutionRecord[];
+  deleteCursors(projectId: string, subscriberPluginId: string): void;
 }
 
 export interface PluginEventResolutionRecord {
-  board_id: string;
+  project_id: string;
   subscriber_plugin_id: string;
   subscriber_install_id: string;
   subscriber_generation: string;
@@ -224,7 +224,7 @@ export interface PluginEventSubscribeSource {
 }
 
 export interface PluginEventPublisherIdentity {
-  board_id: string;
+  project_id: string;
   plugin_id: string;
   install_id: string;
 }
@@ -235,12 +235,12 @@ export interface PluginEventBusApi {
     input: PluginEventPublishInput,
   ): PluginEventPublishResult;
   /** Drop pending delivery for one subscriber; durable cursors are kept. */
-  revoke(boardId: string, pluginId: string): void;
+  revoke(projectId: string, pluginId: string): void;
   /** Replay undelivered events from durable cursors after a restart. */
-  resume(boardId: string): Promise<number>;
+  resume(projectId: string): Promise<number>;
   observeFailures(listener: (failure: PluginEventDeliveryFailure) => void): () => void;
-  log(boardId: string, query?: PluginEventLogQuery): PluginEventRecord[];
-  cursors(boardId: string, subscriberPluginId?: string): PluginEventCursorRecord[];
+  log(projectId: string, query?: PluginEventLogQuery): PluginEventRecord[];
+  cursors(projectId: string, subscriberPluginId?: string): PluginEventCursorRecord[];
 }
 
 const EVENT_TOKEN = /^[a-z0-9][a-z0-9.-]*$/u;

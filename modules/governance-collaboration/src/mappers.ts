@@ -33,7 +33,7 @@ function number(value: unknown): number {
 
 export function mapGoalTreeProposalDecision(row: GovernanceRow): GoalTreeProposalDecisionRecord {
   return {
-    decision_id: text(row.decision_id), board_id: text(row.board_id),
+    decision_id: text(row.decision_id), project_id: text(row.project_id),
     proposal_id: text(row.proposal_id), item_id: text(row.item_id),
     decision: text(row.decision) as GoalTreeProposalDecisionRecord["decision"],
     actor_id: text(row.actor_id),
@@ -50,7 +50,7 @@ export function mapGoalTreeProposalItem(
   decision: GoalTreeProposalDecisionRecord | null,
 ): GoalTreeProposalItemRecord {
   return {
-    item_id: text(row.item_id), proposal_id: text(row.proposal_id), board_id: text(row.board_id),
+    item_id: text(row.item_id), proposal_id: text(row.proposal_id), project_id: text(row.project_id),
     ordinal: number(row.ordinal), kind: text(row.kind) as GoalTreeProposalItemRecord["kind"],
     operation: text(row.operation) as GoalTreeProposalItemRecord["operation"],
     payload: parseJson(row.payload_json, {}), source_refs: parseJson(row.source_refs_json, []),
@@ -73,7 +73,7 @@ export function mapGoalTreeProposal(
   decisions: GoalTreeProposalDecisionRecord[],
 ): GoalTreeProposalRecord {
   return {
-    proposal_id: text(row.proposal_id), board_id: text(row.board_id),
+    proposal_id: text(row.proposal_id), project_id: text(row.project_id),
     root_goal_id: optionalText(row.root_goal_id), submitted_by: text(row.submitted_by),
     submitted_session_id: optionalText(row.submitted_session_id),
     state: text(row.state) as GoalTreeProposalRecord["state"], version: number(row.version),

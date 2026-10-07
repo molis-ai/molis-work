@@ -8,12 +8,12 @@ const literal = (value: string) => {
   return `${fence}\n${value}\n${fence}`;
 };
 /** Host composes producer validation with Shelf's explicit copy import. */
-export function codingShelfMaterial(record: FixedVersionRecord, boardId: string, projectPath: string): ShelfArtifactPreview {
-  if (record.board_id !== boardId || record.lifecycle_state !== "active") throw new Error("原成果已归档或不属于当前项目");
+export function codingShelfMaterial(record: FixedVersionRecord, projectId: string, projectPath: string): ShelfArtifactPreview {
+  if (record.project_id !== projectId || record.lifecycle_state !== "active") throw new Error("原成果已归档或不属于当前项目");
   const report = codingReportPreview(record), changes = codingChangeSetPreview(record);
   if (!report && !changes) throw new Error("这份成果不是可接收的 Coding 固定报告或固定变更");
   const value = report ?? changes!;
-  const source = { board_id: boardId, project_path: projectPath, reference: value.reference,
+  const source = { project_id: projectId, project_path: projectPath, reference: value.reference,
     producer_plugin_id: record.producer_plugin_id, content_hash: createHash("sha256").update(JSON.stringify(record.payload)).digest("hex") };
   const heading = `# ${value.title}\n\n这是 Coding 固定成果的 Shelf 副本，不代表当前工作区状态或目标验收。编辑副本不改变原成果。\n来源：${source.reference.artifact_id} v${source.reference.version}\n保存时间：${value.saved_at}\n\n`;
   const text = heading + (report ? report.body_markdown : changes!.change.files.map((file, index) => {

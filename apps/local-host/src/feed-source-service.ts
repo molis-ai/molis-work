@@ -26,7 +26,7 @@ export function listFeedSourceCatalog(): FeedSourceCatalogView[] {
 
 export function createLocalFeedSourceService(
   db: SqliteDatabase,
-  boardId: string,
+  projectId: string,
   runtimeFactory: (db: SqliteDatabase, source?: FeedSourceRecord) => FeedSourceRuntime =
     (database, source) => createFeedSourceRuntime({ db: database, sourceCursor: source?.cursor }),
   now: () => Date = () => new Date(),
@@ -61,11 +61,11 @@ export function createLocalFeedSourceService(
         } } : {}),
       };
     }),
-    appendEvent: (boardId, sourceId, type, reason, payload = {}) => {
+    appendEvent: (projectId, sourceId, type, reason, payload = {}) => {
       const value = `${sourceId}\u0000${type}\u0000${Date.now()}\u0000${Math.random()}`;
       const eventId = `event-feed-${createHash("sha256").update(value).digest("hex").slice(0, 32)}`;
-      journal.appendEvent({ eventId, boardId, actorId: "feed-source-service", type,
+      journal.appendEvent({ eventId, projectId, actorId: "feed-source-service", type,
         objectType: "feed_source", objectId: sourceId, reason, payload, at: new Date().toISOString() });
     },
-  }, boardId, now);
+  }, projectId, now);
 }

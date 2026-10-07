@@ -1,8 +1,8 @@
 # Projects
 
-**定位：** Project 身份、Catalog、workspace membership、生命周期与存储定位的唯一 owner。正式概念是 `project_id`，`board_id` 只作为旧 V1 数据库身份保留。
+**定位：** Project 身份、Catalog、workspace membership、生命周期与存储定位的唯一 owner。`project_id` 是唯一身份：目录条目、项目数据库和库里 Goals 的根记录（`boards` 表）都用它。
 
-**当前已拥有：** Project metadata、workspace membership、数据库定位、创建/重命名/删除记录、Project Event 与 legacy `board_id` mapping。未来 Personal/Team owner reference、archive/access mode 仍需独立功能 Spec，AP1 没有伪造当前不存在的能力。
+**当前已拥有：** Project metadata、workspace membership、数据库定位、创建/重命名/删除记录与 Project Event。未来 Personal/Team owner reference、archive/access mode 仍需独立功能 Spec，AP1 没有伪造当前不存在的能力。
 
 **公开面：** `ProjectsModule.query` 提供列表、读取、选择、workspace 目录和删除记录；`ProjectsModule.commands` 提供重命名与 workspace membership 操作；本地 composition root 通过受控 `lifecycle` 端口完成文件落盘前后的注册、回滚、事件和删除收据。
 

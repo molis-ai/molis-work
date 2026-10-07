@@ -64,7 +64,7 @@ function adapterFor(input: {
     async readSession(): Promise<AgentSessionView> {
       return {
         session: { session_id: "session-1", runtime_id: input.runtimeId },
-        owner: { board_id: BOARD, plugin_id: PLUGIN, install_id: "install-1", actor_id: "tester" },
+        owner: { project_id: BOARD, plugin_id: PLUGIN, install_id: "install-1", actor_id: "tester" },
         title: "任务",
         runs: [],
         latest_run: null,
@@ -115,7 +115,7 @@ function adapterFor(input: {
 function startRequest(roleId: string, runtimeId = "prologue"): AgentStartRequest {
   return {
     session: { session_id: "session-1", runtime_id: runtimeId },
-    board_id: BOARD,
+    project_id: BOARD,
     plugin_id: PLUGIN,
     install_id: "install-1",
     actor_id: "tester",
@@ -282,7 +282,7 @@ function reviewRequest(reviewId: string, expiresAt: string | null = null): Agent
   return {
     review_id: reviewId,
     run: { run_id: "run-1", session_id: "session-1" },
-    board_id: BOARD,
+    project_id: BOARD,
     plugin_id: PLUGIN,
     kind: "text-edit",
     document: {
@@ -403,7 +403,7 @@ test("the Prologue adapter runs a read-only role and refuses a writing one", asy
   assert.equal(adapter.descriptor.capabilities.command, "unsupported");
 
   const session = await adapter.createSession({
-    board_id: BOARD,
+    project_id: BOARD,
     plugin_id: PLUGIN,
     install_id: "install-1",
     actor_id: "tester",
@@ -481,7 +481,7 @@ test("the control surface owns the run state, not the event stream", async () =>
     }),
   });
   const session = await adapter.createSession({
-    board_id: BOARD,
+    project_id: BOARD,
     plugin_id: PLUGIN,
     install_id: "install-1",
     actor_id: "tester",
@@ -549,14 +549,14 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
   host.register(adapterFor({ runtimeId: "prologue", supported: ["text-edit", "command"] }));
   host.register(adapterFor({ runtimeId: "cli-readonly" }));
 
-  interface Context { board_id: string }
+  interface Context { project_id: string }
   const registry = new CapabilityRegistry<Context>();
   const dispose = registerAgentHostCapabilities<Context>(registry, {
     agentHost: () => host,
     authority: () => ({ manifest, authorizedDirectories: [DIRECTORY] }),
-    boardId: (context) => context.board_id,
+    projectId: (context) => context.project_id,
   });
-  const context: Context = { board_id: BOARD };
+  const context: Context = { project_id: BOARD };
 
   assert.deepEqual(
     (await registry.invoke(context, agentHostCapabilities.listRuntimes, []))
@@ -572,7 +572,7 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
   );
 
   const ownedSession = {session_id:"session-1",runtime_id:"prologue"};
-  const otherContext = {board_id:"another-board"};
+  const otherContext = {project_id:"another-board"};
   for(const operation of [
     () => registry.invoke(otherContext, agentHostCapabilities.readSession, [ownedSession]),
     () => registry.invoke(otherContext, agentHostCapabilities.startRun, ["prologue",startRequest("reader")]),
@@ -658,9 +658,9 @@ test("review replay preserves consumed approval and refuses changed content unde
   assert.throws(() => queue.settle(request.review_id, { ok: false, error: "late wrong result" }), /不能用另一结果覆盖/);
   assert.throws(() => queue.consumeApproval(request.review_id), /没有可用的批准/);
   const changed = structuredClone(request);
-  changed.board_id = "another-board";
+  changed.project_id = "another-board";
   assert.throws(() => queue.request(changed), /不能替换/);
-  assert.equal(queue.get(request.review_id)?.board_id, request.board_id);
+  assert.equal(queue.get(request.review_id)?.project_id, request.project_id);
 });
 
 
@@ -694,7 +694,7 @@ test("MCP selections require declared authority, canonical provenance and exact 
   const host=new AgentHost();let starts=0,cancels=0;
   const adapter=adapterFor({runtimeId:'prologue',supported:['mcp','text-edit','command'],onCancel:()=>cancels++});
   const selected={server:'configured-server',tool:'write-note',version:'shape-1',configuration_version:3};
-  const granted={...authority,manifest:{...manifest,mcp:true},method_owner:{board_id:BOARD,plugin_id:PLUGIN}};
+  const granted={...authority,manifest:{...manifest,mcp:true},method_owner:{project_id:BOARD,plugin_id:PLUGIN}};
   adapter.mcpLibrary={
     list:async()=>[],save:async()=>{throw new Error('unused');},control:async()=>{},
     validateSources:async(_owner,refs)=>[...refs],
@@ -768,7 +768,7 @@ function cliAdapter(script: ReturnType<typeof scriptedCli>, runtimeId = "claude-
 
 async function cliSession(adapter: CliAgentAdapter, title: string) {
   return adapter.createSession({
-    board_id: BOARD,
+    project_id: BOARD,
     plugin_id: PLUGIN,
     install_id: "install-1",
     actor_id: "tester",
@@ -783,7 +783,7 @@ function cliRequest(
 ): AgentStartRequest {
   return {
     session,
-    board_id: BOARD,
+    project_id: BOARD,
     plugin_id: PLUGIN,
     install_id: "install-1",
     actor_id: "tester",

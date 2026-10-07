@@ -11,7 +11,7 @@ import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/
 export interface FeedNativePluginHttpOptions {
   readonly actions: BoundActionClient;
   readonly renderer: Pick<WorkbenchRenderer, "renderFeedWorkbenchFragment" | "renderPersistedFeedItemDetail">;
-  readonly boardId: string;
+  readonly projectId: string;
   readonly routePrefix: string;
   readonly store: LocalProjectDatabase;
   readonly readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>;

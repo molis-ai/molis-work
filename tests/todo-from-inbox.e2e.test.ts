@@ -11,12 +11,11 @@ for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵
   if (!browser) return;
   const { store, localHost, projectId, homeDirectory, command, sessionId, navigate, evaluate, waitFor, click, surfaceReady, origin } = browser;
   assert.ok(localHost); assert.ok(projectId);
-  const boardId = store.goalsQuery.listBoardIds()[0]!;
-  await localHost.withProject(molisWorkHostProjectReference({ databasePath: browser.databasePath, boardId, projectId }), () => undefined);
+  await localHost.withProject(molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId }), () => undefined);
   const feed = createLocalFeedApplication(store.db);
-  const source = createLocalFeedSourceService(store.db, boardId).register({ kind: "research_library", repository: "fixture/todo", research_source: "current" }).source;
+  const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "research_library", repository: "fixture/todo", research_source: "current" }).source;
   const item = feed.ingestItem({ source, externalId: "todo-from-inbox", title: "供应商报价需要回复", summary: "报价单", body: "请本周内确认报价", occurredAt: new Date().toISOString(), attention: false }).item;
-  const entry = feed.ensureInboxEntryForFeedItem(boardId, item.item_id, "manual").entry;
+  const entry = feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry;
   const todos = () => { const todo = openTodoStore(homeDirectory); try { return todo.list({ projectId, everything: true, actor: "user", actorId: "test" }); } finally { todo.close(); } };
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
@@ -46,7 +45,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵
   assert.equal(fromInbox!.title, "供应商报价需要回复");
   assert.deepEqual([fromInbox!.placement, fromInbox!.project_id], ["project", projectId], "Inbox 属于项目，转成的待办也在这个项目");
   assert.deepEqual([fromInbox!.sources[0]!.kind, fromInbox!.sources[0]!.subject, fromInbox!.sources[0]!.open], ["inbox", { kind: "inbox_entry", id: entry.entry_id }, { surface: "inbox", id: entry.entry_id }]);
-  assert.equal(feed.getInboxEntry(boardId, entry.entry_id).status, "open", "转为待办不替你处理 Inbox 条目");
+  assert.equal(feed.getInboxEntry(projectId, entry.entry_id).status, "open", "转为待办不替你处理 Inbox 条目");
   assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "不横向滚动");
   await screenshot("inbox");
 

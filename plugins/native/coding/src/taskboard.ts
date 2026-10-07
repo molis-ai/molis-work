@@ -14,7 +14,7 @@ export interface CodingTaskBoardPlan {
 
 export interface CodingStepVerdict {
   revision: number; status: "accepted" | "needs-work"; notes: string;
-  board_id: string; board_version: number; actor: string; at: string;
+  project_id: string; board_version: number; actor: string; at: string;
 }
 export const stepVerdictKey = (session: string, run: string, step: string) => `step-verdict:${session}:${run}:${step}`;
 

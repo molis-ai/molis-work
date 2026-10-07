@@ -26,14 +26,14 @@ function producerOf(manifest: { plugin_id: string; version: string; publisher: {
 
 export function registerFormArtifactVersion(
   coordinator: GoalProjectApplication,
-  boardId: string,
+  projectId: string,
   expectedProjectId: string,
   actorId: string,
 ): FormPublishArtifactPort {
   return (input) => {
     if (input.project_id !== expectedProjectId) throw new FormError("form.invalid", "问卷项目与当前项目不一致");
     const result = coordinator.artifacts.commands.registerVersion({
-      board_id: boardId,
+      project_id: projectId,
       actor_id: actorId,
       artifact_id: "form-" + input.record_id,
       version: input.version,
@@ -52,10 +52,10 @@ export function registerFormArtifactVersion(
   };
 }
 
-export function readFormArtifactVersion(coordinator: GoalProjectApplication, boardId: string, expectedProjectId: string, actorId: string): FormReadArtifactPort {
+export function readFormArtifactVersion(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string, actorId: string): FormReadArtifactPort {
   return input => {
     if (input.project_id !== expectedProjectId) throw new FormError("form.invalid", "问卷项目与当前项目不一致");
-    const artifact = coordinator.artifacts.query.getArtifactVersion(boardId, { artifact_id: "form-" + input.record_id, version: input.version });
+    const artifact = coordinator.artifacts.query.getArtifactVersion(projectId, { artifact_id: "form-" + input.record_id, version: input.version });
     if (!artifact) return null;
     if (artifact.owner_actor_id !== actorId) throw new FormError("form.publication_owner", "此成果属于其他发起者，不能替换或代为恢复");
     if (artifact.artifact_type_id !== FORM_ARTIFACT_TYPE_ID || artifact.schema_version !== FORM_ARTIFACT_SCHEMA_VERSION
@@ -70,14 +70,14 @@ export function readFormArtifactVersion(coordinator: GoalProjectApplication, boa
 
 export function registerDatasetArtifactVersion(
   coordinator: GoalProjectApplication,
-  boardId: string,
+  projectId: string,
   expectedProjectId: string,
   actorId: string,
 ): DatasetPublishArtifactPort {
   return (input) => {
     if (input.project_id !== expectedProjectId) throw new DatasetError("dataset.invalid", "数据表项目与当前项目不一致");
     const result = coordinator.artifacts.commands.registerVersion({
-      board_id: boardId,
+      project_id: projectId,
       actor_id: actorId,
       artifact_id: "dataset-" + input.record_id,
       version: input.version,
@@ -96,10 +96,10 @@ export function registerDatasetArtifactVersion(
   };
 }
 
-export function readDatasetArtifactVersion(coordinator: GoalProjectApplication, boardId: string, expectedProjectId: string, actorId: string): DatasetReadArtifactPort {
+export function readDatasetArtifactVersion(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string, actorId: string): DatasetReadArtifactPort {
   return input => {
     if (input.project_id !== expectedProjectId) throw new DatasetError("dataset.invalid", "数据表项目与当前项目不一致");
-    const artifact = coordinator.artifacts.query.getArtifactVersion(boardId, { artifact_id: "dataset-" + input.record_id, version: input.version });
+    const artifact = coordinator.artifacts.query.getArtifactVersion(projectId, { artifact_id: "dataset-" + input.record_id, version: input.version });
     if (!artifact) return null;
     if (artifact.owner_actor_id !== actorId) throw new DatasetError("dataset.publication_owner", "此成果属于其他发起者，不能替换或代为恢复");
     if (artifact.artifact_type_id !== DATASET_ARTIFACT_TYPE_ID || artifact.schema_version !== DATASET_ARTIFACT_SCHEMA_VERSION
@@ -114,14 +114,14 @@ export function readDatasetArtifactVersion(coordinator: GoalProjectApplication, 
 
 export function registerPptArtifactVersion(
   coordinator: GoalProjectApplication,
-  boardId: string,
+  projectId: string,
   expectedProjectId: string,
   actorId: string,
 ): PptPublishArtifactPort {
   return (input) => {
     if (input.project_id !== expectedProjectId) throw new PptError("ppt.invalid", "演示稿项目与当前项目不一致");
     const result = coordinator.artifacts.commands.registerVersion({
-      board_id: boardId,
+      project_id: projectId,
       actor_id: actorId,
       artifact_id: "ppt-" + input.record_id,
       version: input.version,
@@ -140,10 +140,10 @@ export function registerPptArtifactVersion(
   };
 }
 
-export function readPptArtifactVersion(coordinator: GoalProjectApplication, boardId: string, expectedProjectId: string, actorId: string): PptReadArtifactPort {
+export function readPptArtifactVersion(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string, actorId: string): PptReadArtifactPort {
   return input => {
     if (input.project_id !== expectedProjectId) throw new PptError("ppt.invalid", "演示稿项目与当前项目不一致");
-    const artifact = coordinator.artifacts.query.getArtifactVersion(boardId, { artifact_id: "ppt-" + input.record_id, version: input.version });
+    const artifact = coordinator.artifacts.query.getArtifactVersion(projectId, { artifact_id: "ppt-" + input.record_id, version: input.version });
     if (!artifact) return null;
     if (artifact.owner_actor_id !== actorId) throw new PptError("ppt.publication_owner", "此成果属于其他发起者，不能替换或代为恢复");
     if (artifact.artifact_type_id !== PPT_ARTIFACT_TYPE_ID || artifact.schema_version !== PPT_ARTIFACT_SCHEMA_VERSION

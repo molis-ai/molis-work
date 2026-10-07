@@ -25,7 +25,7 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
   const policy = projectActionAvailability(async (_options, run) => run(catalog), home);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: policy });
-  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   const clients: Client[] = [];
@@ -86,7 +86,7 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     }
     const sdk = new Client({ name: "untrusted-name", version: "1" }); clients.push(sdk);
     await sdk.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
-      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, "scheduler", project.database_path, project.board_id], stderr: "pipe" }));
+      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, "scheduler", project.database_path], stderr: "pipe" }));
     const tools = (await sdk.listTools()).tools.map(tool => tool.name);
     assert.ok(tools.includes(hostActionToolName(s.createTask)));
     assert.ok(!tools.includes(hostActionToolName(s.archiveTask)), "ungranted actions are not exported");

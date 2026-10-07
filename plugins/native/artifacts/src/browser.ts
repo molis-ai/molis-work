@@ -21,23 +21,23 @@ export class ArtifactBrowserError extends Error {
 
 export function readArtifactBrowser(
   query: ArtifactsQueryApi,
-  boardId: string,
+  projectId: string,
   reference: ArtifactReference | null = null,
   supportedTypes: ArtifactConsumerType[] = [],
 ): ArtifactBrowserView {
-  return { versions: query.listArtifacts(boardId), ...readArtifactSelection(query, boardId, reference, supportedTypes) };
+  return { versions: query.listArtifacts(projectId), ...readArtifactSelection(query, projectId, reference, supportedTypes) };
 }
 
 /** Shared exact selection for pages and embeds; embeds never load the Project directory. */
 export function readArtifactSelection(
-  query: ArtifactsQueryApi, boardId: string, reference: ArtifactReference | null,
+  query: ArtifactsQueryApi, projectId: string, reference: ArtifactReference | null,
   supportedTypes: ArtifactConsumerType[] = [],
 ): Omit<ArtifactBrowserView, "versions"> {
-  const selected = reference ? query.getArtifactVersion(boardId, reference) : null;
+  const selected = reference ? query.getArtifactVersion(projectId, reference) : null;
   return {
     selected,
     requested: reference,
-    compatibility: selected ? query.consumptionCompatibility(boardId,
+    compatibility: selected ? query.consumptionCompatibility(projectId,
       { artifact_id: selected.artifact_id, version: selected.version }, supportedTypes) : null,
   };
 }
@@ -45,9 +45,9 @@ export function readArtifactSelection(
 /** Called only after the original Action gate; this checks the owner's exact record, not grants. */
 export function requireArtifactAnalysisRecord(
   record: ArtifactVersionRecord | null,
-  access: { board_id: string; actor_id: string; reference: ArtifactReference },
+  access: { project_id: string; actor_id: string; reference: ArtifactReference },
 ): ArtifactVersionRecord {
-  if (!record || record.board_id !== access.board_id || record.artifact_id !== access.reference.artifact_id
+  if (!record || record.project_id !== access.project_id || record.artifact_id !== access.reference.artifact_id
     || record.version !== access.reference.version) throw new ActionError("actions.subject_unavailable", "当前项目中找不到这个成果版本");
   if (record.scope === "personal" && record.owner_actor_id !== access.actor_id) {
     throw new ActionError("artifacts.forbidden", "不能读取其他用户的个人成果");
@@ -115,8 +115,8 @@ export function artifactVersionPath(reference: ArtifactReference): string {
 }
 
 /** Read-only local interchange; no publication, registration or state change. */
-export function exportArtifactVersion(query: ArtifactsQueryApi, boardId: string, reference: ArtifactReference): string {
-  const artifact = query.getArtifactVersion(boardId, reference);
+export function exportArtifactVersion(query: ArtifactsQueryApi, projectId: string, reference: ArtifactReference): string {
+  const artifact = query.getArtifactVersion(projectId, reference);
   if (!artifact) throw new ArtifactBrowserError(404, "当前项目中找不到这个成果版本");
   return `${JSON.stringify(artifact, null, 2)}\n`;
 }

@@ -21,10 +21,10 @@ import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { hydrateFeedItemContent } from "./feed-content.js";
 
 /** New messages a source call brings in are judged with that caller's authority, as the Web route does for the local user. */
-function judgedAs(caller: ActionCallContext, scenes: ActionSceneClient, boardId: string): LocalFeedApplicationOptions {
+function judgedAs(caller: ActionCallContext, scenes: ActionSceneClient, projectId: string): LocalFeedApplicationOptions {
   const context = () => caller;
-  return { captureJudgment: createFeedCaptureTrigger({ scenes, boardId, context }), homeJudgment: createHomeJudgmentTrigger({ scenes, boardId, context }),
-    inboxJudgment: createInboxJudgmentTrigger({ scenes, boardId, context }) };
+  return { captureJudgment: createFeedCaptureTrigger({ scenes, projectId, context }), homeJudgment: createHomeJudgmentTrigger({ scenes, projectId, context }),
+    inboxJudgment: createInboxJudgmentTrigger({ scenes, projectId, context }) };
 }
 
 /** Native composition only supplies stores; protocol behavior and definitions belong to each plugin. */
@@ -34,41 +34,41 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
     definitions: manifest.actions!, handlers,
   });
   const hydrate = (item: Parameters<typeof hydrateFeedItemContent>[0]) => home ? runWithMolisWorkHome(home, () => hydrateFeedItemContent(item)) : hydrateFeedItemContent(item);
-  const scene = home && client && scenes ? createLocalFeedScene(home, runtime.project_id, runtime.board_id, feed, { actions: client, scenes, functions }) : undefined;
-  const providers = [provider(feedManifest, [...createFeedContentHandlers(feed, runtime.board_id,
+  const scene = home && client && scenes ? createLocalFeedScene(home, runtime.project_id, feed, { actions: client, scenes, functions }) : undefined;
+  const providers = [provider(feedManifest, [...createFeedContentHandlers(feed, runtime.project_id,
     hydrate, client ? async (subject, caller) => (await resolveActionSubject(client, caller, subject)).context : undefined),
-    ...createFeedQueryHandlers(feed, runtime.board_id, { hydrate,
+    ...createFeedQueryHandlers(feed, runtime.project_id, { hydrate,
       authStatus: () => feedConnectorAuthStatus(home),
       linkedContext: async (input, caller) => {
         if (!client) throw new ActionError("actions.connection_required", "尚未接通 Goal 服务");
         const nested = retainActionAuthority(caller, { ...feedQueryActions.linkedContext, provider_id: feedManifest.plugin_id });
         const { goal } = await client.invoke(nested, goalsActions.contract, { goal_id: input.goal_id }) as import("@molis-ai/molis-work-plugin-goals").GoalContractView;
         await caller.beforeEffect();
-        return readLinkedFeedContext({ project_id: runtime.board_id, goal_id: input.goal_id, item_id: input.item_id,
+        return readLinkedFeedContext({ project_id: runtime.project_id, goal_id: input.goal_id, item_id: input.item_id,
           materializer: createContextMaterializer(createContextLedger(runtime.store.db, {
-            authorize: access => access.scope.kind === "personal" && access.scope.id === runtime.board_id,
+            authorize: access => access.scope.kind === "personal" && access.scope.id === runtime.project_id,
           })),
           readGoal: () => goal,
           readItem: id => {
-            try { return feed.getItem(runtime.board_id, id); }
+            try { return feed.getItem(runtime.project_id, id); }
             catch (error) { if (error instanceof FeedStoreError && error.code === "feed_item_not_found") return null; throw error; }
           },
           renderItem: item => feedItemContext(hydrate(item)),
         });
       },
     }),
-    ...createFeedRuleHandlers(feed, runtime.board_id, hydrate, scene?.selection),
-    ...createFeedItemHandlers(feed, runtime.board_id, {
-      inboxActive: itemId => feed.listInboxEntries(runtime.board_id).some(entry => entry.subject_type === "feed_item" && entry.subject_id === itemId
+    ...createFeedRuleHandlers(feed, runtime.project_id, hydrate, scene?.selection),
+    ...createFeedItemHandlers(feed, runtime.project_id, {
+      inboxActive: itemId => feed.listInboxEntries(runtime.project_id).some(entry => entry.subject_type === "feed_item" && entry.subject_id === itemId
         && (entry.status === "open" || entry.status === "in_progress")),
       promote: input => createLocalFeedGoalPromotion(runtime.store.db, runtime.coordinator.goalEvents.createIntent.bind(runtime.coordinator.goalEvents),
         runtime.coordinator.goalInputs, feed)(input),
     }),
-    ...(scenes ? createFeedSourceHandlers(runtime.board_id, {
+    ...(scenes ? createFeedSourceHandlers(runtime.project_id, {
       feed: () => feed,
-      sources: caller => createLocalFeedSourceService(runtime.store.db, runtime.board_id, undefined, undefined, home, judgedAs(caller, scenes, runtime.board_id)),
-      connectorSync: caller => createLocalFeedConnectorSync(runtime.store.db, runtime.board_id, undefined,
-        createLocalFeedApplication(runtime.store.db, judgedAs(caller, scenes, runtime.board_id)), home),
+      sources: caller => createLocalFeedSourceService(runtime.store.db, runtime.project_id, undefined, undefined, home, judgedAs(caller, scenes, runtime.project_id)),
+      connectorSync: caller => createLocalFeedConnectorSync(runtime.store.db, runtime.project_id, undefined,
+        createLocalFeedApplication(runtime.store.db, judgedAs(caller, scenes, runtime.project_id)), home),
     }) : [])])];
   if (scene) Object.assign(providers[0]!, { scenes: feedManifest.action_scenes, scene_handlers: [scene.handler] });
   return providers;

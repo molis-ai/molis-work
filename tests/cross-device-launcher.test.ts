@@ -70,7 +70,7 @@ test('compiled standalone launcher starts headless, restores a real Catalog proj
     const destination=join(directory,'new-home');
     const restored=await command(['restore','--bundle',bundleFile,'--destination',destination]);assert.equal(restored.restored,1);assert.match(restored.project_id,/^project-onboarding-/);assert.ok(restored.warnings.some((warning:string)=>warning.includes('io.test.writer@1.0.0')));
     const read=await command(['read-assets','--destination',destination,'--project','headless-source']);
-    assert.equal(read.artifacts[0].board_id,restored.board_id);assert.equal(read.artifacts[0].payload.content,'CLI restored body');
+    assert.equal(read.artifacts[0].project_id,restored.project_id);assert.equal(read.artifacts[0].payload.content,'CLI restored body');
   } finally {
     if(server){server.child.kill('SIGKILL');await server.exited;}
     await rm(directory,{recursive:true,force:true});

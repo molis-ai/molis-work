@@ -75,7 +75,7 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results?
     bindOwnerPluginAction(context, shelfRuntimeActions.selectOutput, input => {
       const record = services!.artifacts.read(input.reference);
       const material = parseShelfTextMaterial(record?.payload);
-      if (input.reference.artifact_id !== "shelf-material:" + context.board_id + ":" + material.source.item_id) throw new ActionError("shelf.invalid", "Shelf 材料身份不一致");
+      if (input.reference.artifact_id !== "shelf-material:" + context.project_id + ":" + material.source.item_id) throw new ActionError("shelf.invalid", "Shelf 材料身份不一致");
       return { reference: outputs().select({ port: "material", reference: input.reference, expected_reference: input.expected_reference }) };
     }),
   ];

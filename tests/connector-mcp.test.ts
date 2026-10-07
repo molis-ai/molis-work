@@ -321,7 +321,7 @@ test("official MCP OAuth flows through Host into Agent selections, refreshes, an
     adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.connector-agent-review", appVersion: "1.0.0" },
       reviewQueue: new AgentReviewQueue(), storageRoot: join(temp, "runtime"), modelConfiguration: async () => null,
       resolveMcpConnection: ports.resolveMcpConnection, resolveCredential: ports.resolveMcpCredential, subscribeMcpConnections: ports.subscribeMcpConnections });
-    const owner = { board_id: "review", plugin_id: "io.molis.work.coding" };
+    const owner = { project_id: "review", plugin_id: "io.molis.work.coding" };
     const library = adapter.mcpLibrary!;
     const saved = await library.save(owner, { expected_version: 0, label: "Notion tools", transport: "http", enabled: true, timeout_ms: 5000,
       endpoint: remote.endpoint, auth: { kind: "connection", connection_id: started.connectionId } });

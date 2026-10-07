@@ -25,21 +25,21 @@ export const goalsLifecycleActions = {
     object({}), object({ goals: array(goalRecordSchema), observed_event_cursor: count })),
 } as const;
 
-export function createGoalsLifecycleActionHandlers(ports: GoalsLifecycleActionPorts, boardId: string): ActionHandlerBinding[] {
+export function createGoalsLifecycleActionHandlers(ports: GoalsLifecycleActionPorts, projectId: string): ActionHandlerBinding[] {
   return [
     { ...goalsLifecycleActions.active, handle: (caller, input) => {
       const { idempotency_key, ...goal } = input as ActiveInput;
-      return ports.setActiveGoal(boardId, goal, { ...goalActor(caller), idempotency_key });
+      return ports.setActiveGoal(projectId, goal, { ...goalActor(caller), idempotency_key });
     } },
     { ...goalsLifecycleActions.archive, handle: (caller, input) => {
       const { idempotency_key, ...goal } = input as ArchiveInput;
-      return ports.lifecycle.setArchived(boardId, goal, { ...goalActor(caller), idempotency_key });
+      return ports.lifecycle.setArchived(projectId, goal, { ...goalActor(caller), idempotency_key });
     } },
     { ...goalsLifecycleActions.trash, handle: (caller, input) => {
       const { idempotency_key, user_confirmed, ...goal } = input as TrashInput;
       if (!user_confirmed) throw new ActionError("goal.trash_confirmation_required", "移入或恢复回收站必须先由用户明确确认指定目标");
-      return ports.lifecycle.setTrashed(boardId, goal, { ...goalActor(caller), idempotency_key });
+      return ports.lifecycle.setTrashed(projectId, goal, { ...goalActor(caller), idempotency_key });
     } },
-    { ...goalsLifecycleActions.trashed, handle: () => ({ goals: ports.lifecycle.listTrashed(boardId), observed_event_cursor: ports.eventCursor() }) },
+    { ...goalsLifecycleActions.trashed, handle: () => ({ goals: ports.lifecycle.listTrashed(projectId), observed_event_cursor: ports.eventCursor() }) },
   ];
 }

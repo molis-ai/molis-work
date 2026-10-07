@@ -5,7 +5,7 @@ export type { GoalTreeProposalCheckResult } from "@molis-ai/molis-work-contracts
 import type { GoalTreeProposalRecord, GoalTreeProposalSubmitInput, GoalTreeProposalCheckInput, GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
 export interface GoalTreeProposalListQuery {
-  board_id: string;
+  project_id: string;
   proposal_id?: string;
   root_goal_id?: string;
 }

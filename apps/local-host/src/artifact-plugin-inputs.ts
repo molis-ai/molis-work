@@ -23,7 +23,7 @@ export function artifactPluginInputs(platform: PluginPlatform | null, artifact: 
  * fills it again, as when the plugins were first set up. The consumer is re-evaluated either way.
  */
 export function bindArtifactPluginInput(platform: PluginPlatform | null, artifact: ArtifactVersionRecord,
-  input: { plugin_id: string; port: string; restore: boolean }, actorId: string, boardId: string): ArtifactPluginInput[] {
+  input: { plugin_id: string; port: string; restore: boolean }, actorId: string, projectId: string): ArtifactPluginInput[] {
   if (!platform) throw new ActionError("artifacts.unavailable", "这里没有运行中的插件，不能改插件的输入");
   if (!artifactPluginInputs(platform, artifact).some(row => row.plugin_id === input.plugin_id && row.port === input.port)) {
     throw new ActionError("actions.invalid_input", "这个插件输入不接收这一版的类型");
@@ -31,7 +31,7 @@ export function bindArtifactPluginInput(platform: PluginPlatform | null, artifac
   try {
     if (input.restore) {
       platform.wiring.unbind(input.plugin_id, input.port);
-      bindWorkspaceCompanions(platform, boardId, actorId);
+      bindWorkspaceCompanions(platform, projectId, actorId);
     } else {
       platform.wiring.bindArtifact({ target_plugin_id: input.plugin_id, target_port: input.port, artifact_id: artifact.artifact_id, version: artifact.version, actor_id: actorId });
       platform.wiring.evaluate(input.plugin_id);

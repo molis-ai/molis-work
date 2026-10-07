@@ -6,7 +6,7 @@ import test from "node:test";
 import { createPrologueNodeAdapter, PrologueAgentAdapter, type PrologueRuntimePort, type PrologueEvent, type PrologueRunTiming } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-const owner = { board_id: "recovery-board", plugin_id: "io.molis.work.coding", install_id: "recovery-install" };
+const owner = { project_id: "recovery-board", plugin_id: "io.molis.work.coding", install_id: "recovery-install" };
 const model = { protocol: "anthropic-compatible", endpoint: "https://127.0.0.1:1/v1/messages", model: "offline-fixture", credential_ref: "fixture" };
 
 for (const result of ["saved", "failed"] as const) {

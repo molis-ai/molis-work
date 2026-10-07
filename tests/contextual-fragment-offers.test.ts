@@ -31,7 +31,7 @@ test("a plan becomes steps by clause; several selected parts become one step eac
 test("Goals and 灵光 fragment offers: prepared inputs run through the real actions and do what the card says", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "contextual-offers-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Offers", actor_id: "user" }));
-  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const caller: ActionCallContext = { actor_id: "web-user", actor_kind: "user", project_id: project.project_id, audience: "user",
     permissions: ["goals:read", "goals:write", "lingguang:read", "lingguang:write", "todo:read", "todo:write"] };
@@ -56,13 +56,13 @@ test("Goals and 灵光 fragment offers: prepared inputs run through the real act
     const offered = await invoke<{ offers: FragmentActionOffer[] }>(breakdown.source, fragment({ goal: { id: parent, title: "提升新用户留存" } }, "req-breakdown"));
     const plan = offered.offers.find(offer => offer.offer_id === "breakdown")!;
     assert.match(plan.summary!, /新建 2 个步骤，放在「提升新用户留存」下/);
-    const before = await host.withProject(ref, runtime => runtime.store.snapshot(project.board_id));
+    const before = await host.withProject(ref, runtime => runtime.store.snapshot(project.project_id));
     const submitted = await invoke<{ proposal: { proposal_id: string; items: unknown[]; root_goal_id: string | null }; replayed: boolean }>(plan.action, plan.input);
     assert.equal(submitted.proposal.root_goal_id, parent);
     assert.equal(submitted.proposal.items.length, 4, "two steps and their part_of relations");
     const again = await invoke<{ replayed: boolean }>(plan.action, plan.input);
     assert.equal(again.replayed, true, "the same request submits once");
-    const after = await host.withProject(ref, runtime => runtime.store.snapshot(project.board_id));
+    const after = await host.withProject(ref, runtime => runtime.store.snapshot(project.project_id));
     assert.equal(after.goals.length, before.goals.length, "a proposal creates no Goal before approval");
 
     // 记录进展: only for a ticked task in something that belongs to a Goal; it lands on that Goal at its current cursor.

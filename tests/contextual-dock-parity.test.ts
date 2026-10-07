@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { contextualCandidates } from "@molis-ai/molis-work-kernel";
@@ -20,7 +20,7 @@ import { prepareSubjectOffers } from "../apps/local-host/src/contextual/contextu
 test("the Dock and the contextual service see one set: same offers and keys, the rule recommends among them, the run is the same", async () => {
   const home = await mkdtemp(join(tmpdir(), "contextual-dock-parity-"));
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, boardId: DEMO_BOARD_ID, projectId: "parity-project" });
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, "inbox:write", ...GOALS_ACTION_PERMISSIONS] };
   const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
     async evaluate(_key, record) {
@@ -31,10 +31,10 @@ test("the Dock and the contextual service see one set: same offers and keys, the
   try {
     const runtime = await host.withProject(reference, runtime => runtime);
     const feed = createLocalFeedApplication(runtime.store.db);
-    const source = createLocalFeedSourceService(runtime.store.db, reference.board_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "parity" }).source;
+    const source = createLocalFeedSourceService(runtime.store.db, reference.project_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "parity" }).source;
     const items = [1, 2, 3].map(n => feed.ingestItem({ source, externalId: `parity-${n}`, title: `材料 ${n}`, summary: `摘要 ${n}`, body: `正文 ${n}`,
       occurredAt: new Date().toISOString(), attention: false }).item);
-    const entries = items.slice(0, 2).map(item => feed.ensureInboxEntryForFeedItem(reference.board_id, item.item_id, "manual").entry);
+    const entries = items.slice(0, 2).map(item => feed.ensureInboxEntryForFeedItem(reference.project_id, item.item_id, "manual").entry);
     const client = host.actionClient(reference);
     const actions = bindActionClient(client, () => caller);
     const directory = { discover: () => client.discover(caller), invoke: (target: ActionReference, input: unknown) => client.invoke(caller, target, input) };
@@ -75,7 +75,7 @@ test("the Dock and the contextual service see one set: same offers and keys, the
     const { availability: _availability, ...offer } = done;
     const ran = await actions.invoke(homeActions.execute, { subject: { kind: "inbox_entry", id: target.entry_id }, request_id, offer });
     assert.equal(ran.title, "做完了");
-    assert.equal(feed.getInboxEntry(reference.board_id, target.entry_id).status, "done");
-    assert.equal(feed.getInboxEntry(reference.board_id, entries[1]!.entry_id).status, "open", "only the chosen item changed");
+    assert.equal(feed.getInboxEntry(reference.project_id, target.entry_id).status, "done");
+    assert.equal(feed.getInboxEntry(reference.project_id, entries[1]!.entry_id).status, "open", "only the chosen item changed");
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

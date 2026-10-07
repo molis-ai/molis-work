@@ -56,7 +56,7 @@ export async function mcpAccessPageModel(options: {
   const missing = !!projectId && !project;
   if (missing && !missingProjects.includes(projectId)) missingProjects.push(projectId);
   const record = project ? await options.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(project.project_id)) : undefined;
-  const reference = record ? { project_id: record.project_id, board_id: record.board_id, storage_key: record.database_path } : undefined;
+  const reference = record ? { project_id: record.project_id, storage_key: record.database_path } : undefined;
   const access = clientId ? await readMcpActionAccess(home, host, { actor_id: clientId, project_id: projectId, audience: actionClientAudience(clientId), permissions: [] }, reference, missing, preference) : null;
   return { client_id: clientId, project_id: projectId, clients, entries: access?.entries ?? [],
     query: url.searchParams.get("q") ?? "", filter: url.searchParams.get("filter") ?? "", unavailable_projects: missingProjects,

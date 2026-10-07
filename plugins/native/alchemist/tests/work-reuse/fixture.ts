@@ -14,11 +14,11 @@ import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/a
 export async function fixture(options: { ai?: AlchemistAiPort; description?: string } = {}) {
   const home = mkdtempSync(join(tmpdir(), "work-reuse-"));
   const db = new Database(join(home, "artifacts.sqlite"));
-  db.exec("CREATE TABLE boards (board_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board-test')");
-  db.exec("CREATE TABLE events (seq INTEGER PRIMARY KEY, board_id TEXT NOT NULL)");
+  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('project-test')");
+  db.exec("CREATE TABLE events (seq INTEGER PRIMARY KEY, project_id TEXT NOT NULL)");
   createArtifactsSchema(db); createContextLedgerSchema(db);
   let event = 0, denied = false, badOutput = false, linkFailure = false, writeAllowed = true;
-  const artifacts = new ArtifactsModule({ db, appendEvent: input => { db.prepare("INSERT INTO events VALUES (?,?)").run(++event,input.boardId); return event; }, now: () => "2026-08-01T00:00:00.000Z" });
+  const artifacts = new ArtifactsModule({ db, appendEvent: input => { db.prepare("INSERT INTO events VALUES (?,?)").run(++event,input.projectId); return event; }, now: () => "2026-08-01T00:00:00.000Z" });
   const ledger = createContextLedger(db, { authorize: () => !denied });
   const scope = { kind: "personal" as const, id: "actor-local" }, access = { actor_id: "actor-local", scope };
   const requests: Parameters<AlchemistAiPort["generate"]>[0][] = [];
@@ -50,14 +50,14 @@ export async function fixture(options: { ai?: AlchemistAiPort; description?: str
     },
   };
   const host: WorkReuseHostPort = {
-    projectId: "project-test", boardId: "board-test",
+    projectId: "project-test",
     callerFor: async (actor_id, signal) => ({ actor_id, project_id: "project-test", permissions: ["alchemist:read", ...(writeAllowed ? ["alchemist:write"] : []), "alchemist:generate"], audience: "user", signal }),
-    listArtifacts: async () => artifacts.query.listArtifacts("board-test"),
-    readArtifact: async (_caller, ref) => denied || deniedReferences.has(ref.artifact_id) ? null : artifacts.query.getArtifactVersion("board-test", ref),
+    listArtifacts: async () => artifacts.query.listArtifacts("project-test"),
+    readArtifact: async (_caller, ref) => denied || deniedReferences.has(ref.artifact_id) ? null : artifacts.query.getArtifactVersion("project-test", ref),
     publishReport: async (caller, input) => {
       if (denied) throw new Error("denied");
       const reference = { artifact_id: `report:${input.report.id}`, version: input.report.revision };
-      artifacts.commands.registerVersion({ ...reference, board_id: "board-test", actor_id: caller.actor_id,
+      artifacts.commands.registerVersion({ ...reference, project_id: "project-test", actor_id: caller.actor_id,
         artifact_type_id: "alchemist.research", schema_version: 1, producer: { plugin_id: "alchemist", plugin_version: "1", binding_signature: "fixture" },
         content: { kind: "inline", payload: JSON.parse(JSON.stringify({ report: input.report, evidence: input.evidence })) }, metadata: { title: input.title },
         origin: { kind: "pinned", subject: { kind: "research_report", id: input.report.id }, revision: String(input.report.revision) }, title: input.title || input.report.id, media_type: "application/json" });

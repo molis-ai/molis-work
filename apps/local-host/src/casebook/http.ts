@@ -69,11 +69,10 @@ export async function handleCasebookHttp(request:IncomingMessage,response:Server
     }
     const resolved=await resolve(`/projects/${encodeURIComponent(project)}/`);
     if(resolved.kind!=='board') return fail('not_authorized');
-    const ref=molisWorkHostProjectReference({databasePath:resolved.options.databasePath,boardId:resolved.options.boardId,
-      projectId:resolved.options.project?.project_id ?? resolved.options.boardId});
+    const ref=molisWorkHostProjectReference({databasePath:resolved.options.databasePath,projectId:resolved.options.projectId});
     if(ref.project_id!==project) return fail('not_authorized');
     // The existing owner may recover only explicitly configured projects; no initialization/migration.
-    if(!host.status().projects.some(p=>p.project_id===ref.project_id && p.board_id===ref.board_id && p.storage_key===ref.storage_key && p.state==='ready')) {
+    if(!host.status().projects.some(p=>p.project_id===ref.project_id && p.storage_key===ref.storage_key && p.state==='ready')) {
       if (!connection&&!options.restoreProjects?.includes(project)) return fail('source_unavailable',503);
       await host.restoreExistingProject(ref);
     }

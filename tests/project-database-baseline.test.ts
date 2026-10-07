@@ -14,10 +14,10 @@ const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { 
 const shapeOf = (path: string) => { const db = new DatabaseSync(path, { readOnly: true }); try { return describeSqliteSchema(db); } finally { db.close(); } };
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of every owner's creation
-// statements. The fixture is that schema as of version 5: changing any owner's tables means a new version and a new
+// statements. The fixture is that schema as of version 6: changing any owner's tables means a new version and a new
 // fixture, never a silent drift.
-test("the project database baseline is version 5 and every owner's current tables", () => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 5);
+test("the project database baseline is version 6 and every owner's current tables", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 6);
   assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(readFileSync(new URL("./fixtures/project-database-schema.sql", import.meta.url), "utf8")));
 });
 
@@ -47,7 +47,7 @@ test("a project database at another version, or with tables but no version, is r
   const directory = mkdtempSync(join(tmpdir(), "project-database-refused-"));
   try {
     const unversioned = join(directory, "unversioned.db"), later = join(directory, "later.db");
-    const raw = new DatabaseSync(unversioned); raw.exec("CREATE TABLE boards (board_id TEXT PRIMARY KEY)"); raw.close();
+    const raw = new DatabaseSync(unversioned); raw.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY)"); raw.close();
     const ahead = new DatabaseSync(later); ahead.exec(PROJECT_DATABASE_BASELINE.schema); ahead.exec(`PRAGMA user_version = ${PROJECT_DATABASE_BASELINE.version + 1}`); ahead.close();
     for (const path of [unversioned, later]) {
       const before = shapeOf(path);

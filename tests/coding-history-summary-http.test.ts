@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore, HISTORY_DIGEST_MARKER, digestTask } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentDraftTextRequest, type AgentRunView, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -24,12 +24,12 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
   const root = mkdtempSync(join(tmpdir(), "coding-history-summary-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = new CodingSessionStore(store.db);
-  sessions.create({ board_id: DEMO_BOARD_ID, session_id: "long", title: "长会话", runtime_id: "prologue", at: new Date().toISOString() });
-  sessions.setRuntimeSession(DEMO_BOARD_ID, "long", "sdk", new Date().toISOString());
+  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "long", title: "长会话", runtime_id: "prologue", at: new Date().toISOString() });
+  sessions.setRuntimeSession(DEMO_PROJECT_ID, "long", "sdk", new Date().toISOString());
   const earlier: AgentRunView[] = [run(1, "给习惯加归档"), run(2, "周报跳过已归档的习惯")];
   const starts: AgentStartRequest[] = [], drafts: AgentDraftTextRequest[] = [];
   let draftFails = false;
-  const host = () => ({ store, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -96,5 +96,5 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
     assert.deepEqual(read.usage_total.digests, { calls: 2, tokens: { input: 10_000, output: 800 } });
     assert.deepEqual(read.usage_total.tokens, { input: 3 * 1000 + 10_000, output: 3 * 100 + 800 }, "the budget counts the summaries too");
     assert.equal(read.usage_total.rounds, 3, "a summary is not a round");
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

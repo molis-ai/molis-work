@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/src/project-plugins.js";
@@ -13,9 +13,9 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 test("background startup shares its instance with later UI execution adapters and closing revokes providers", async () => {
   const home = mkdtempSync(join(tmpdir(), "project-plugin-startup-")), file = join(home, "project.sqlite");
   seedDemoBoard(file);
-  const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_BOARD_ID);
+  const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
   let ready = 0, modelReads = 0, capabilityCalls = 0;
-  const ports = { store, boardId: DEMO_BOARD_ID, actorId: "web-user", homeDirectory: home, actions, goalTitle: () => undefined,
+  const ports = { store, projectId: DEMO_PROJECT_ID, actorId: "web-user", homeDirectory: home, actions, goalTitle: () => undefined,
     capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
       capabilityCalls++;
       if (definition.capability_id === agentHostCapabilities.listRuntimes.capability_id) return [] as O;
@@ -23,7 +23,7 @@ test("background startup shares its instance with later UI execution adapters an
       return { workspaces: [], selected: null } as O;
     } },
   };
-  const caller = { actor_id: "owner", project_id: DEMO_BOARD_ID, audience: "user" as const, permissions: ["artifact:read"] };
+  const caller = { actor_id: "owner", project_id: DEMO_PROJECT_ID, audience: "user" as const, permissions: ["artifact:read"] };
   try {
     const [first, concurrent] = await Promise.all([ensureProjectPlugins(ports), ensureProjectPlugins(ports)]);
     assert.equal(first, concurrent); assert.equal(first.running, true, first.error); assert.ok(first.platform);
@@ -44,7 +44,7 @@ test("background startup shares its instance with later UI execution adapters an
     for (const changed of [{ actorId: "other" }, { homeDirectory: home + "-other" }, { actions: { ...actions, project_id: "other" } }]) {
       await assert.rejects(ensureProjectPlugins({ ...ports, ...changed }), /身份不一致/);
     }
-    await releaseProjectPlugins(store, DEMO_BOARD_ID);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     assert.equal((await actions.client.discover(caller)).length, 0);
     await assert.rejects(actions.client.invoke(caller, count, { text: "closed" }));
     const reopened = await ensureProjectPlugins(ports);
@@ -58,8 +58,8 @@ test("background startup shares its instance with later UI execution adapters an
       if (++stopped === 1) throw new Error("one plugin stop failed");
       return receipt;
     };
-    await releaseProjectPlugins(store, DEMO_BOARD_ID);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     assert.ok(stopped > 1, "one failure cannot leave the other plugin providers live");
     assert.equal((await actions.client.discover(caller)).length, 0);
-  } finally { await releaseProjectPlugins(store, DEMO_BOARD_ID); store.close(); rmSync(home, { recursive: true, force: true }); }
+  } finally { await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(home, { recursive: true, force: true }); }
 });

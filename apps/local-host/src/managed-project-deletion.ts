@@ -67,7 +67,6 @@ async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjec
           request_fingerprint: requestFingerprint,
           project_id: project.project_id,
           display_name: project.display_name,
-          board_id: project.board_id,
           staged_directory: stagedDirectory,
           deleted_binding_count: deletedSessionBindingCount + deletedWorkspaceMembershipCount,
           cleanup_state: "pending",

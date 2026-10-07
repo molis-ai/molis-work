@@ -22,7 +22,7 @@ MOLIS_WORK_MCP_AUDIENCE="runtime" \
 
 > **宿主身份**：Molis Work 优先读取单次调用 `_meta["molis-work/sessionId"]`、`_meta.threadId`、`_meta.sessionId`，再沿用宿主启动时提供的身份。是否提供这些字段由 Runtime host 决定；不能假设所有版本都会提供。没有 Session 信号时，唯一已验证 workspace membership 仍可只读恢复；其他情况按返回的候选/未绑定状态处理。
 
-- `bound`：返回唯一项目与固定连接。后续普通调用省略 `board_id` 和操作者字段，由Host从该连接与Session注入；记录某个Goal时仍明确传 `goal_id`。
+- `bound`：返回唯一项目与固定连接。后续普通调用省略 `project_id` 和操作者字段，由Host从该连接与Session注入；记录某个Goal时仍明确传 `goal_id`。
 - `suggested`：新 Session 有 workspace 历史或其他宿主线索。结果只含候选项目和不泄露原始路径的通用原因，没有项目连接。若当前用户消息已经明确要求用 Molis Work 连接或推进一个已命名项目，且返回的现有项目中只有一个无歧义匹配，Skill 直接调用 `context_bind`；否则才展示候选并询问。
 - `unbound`：返回 `missing_stable_context` 或 `unknown_context`，不连接任何项目；同样先复用当前消息中对一个现有项目的明确选择，否则展示项目列表并询问选择或新建。
 - 用户明确拒绝某个 `suggested` 候选时，Skill 调用 `molis_work_v1_context_reject_suggestion` 并传入 `user_confirmed=true`。它只在这个 Session 不再提示该候选，随后可返回另一个候选或显式的项目列表／新建路径；不会解绑、删除或影响其他 Session。
@@ -55,7 +55,7 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 | 项目指导 | `goals.guidance.read`、`goals.guidance.add`、`goals.guidance.update` |
 | 回收站 | `goals.trash.set`（`trashed` 为真移入、为假恢复）、`goals.trash.list` |
 
-动作的输入只含业务字段：项目、操作者和创建渠道由宿主从连接与会话注入，不接受 `board_id`、数据库路径、Web URL、`actor_id` / `actor_kind` / `runtime_actor_id`、`source_kind`。Runtime 写入时，宿主用会话身份生成审计作者（`runtime:<runtime_id>:<会话>`），没有稳定会话身份时写入被拒绝。
+动作的输入只含业务字段：项目、操作者和创建渠道由宿主从连接与会话注入，不接受 `project_id`、数据库路径、Web URL、`actor_id` / `actor_kind` / `runtime_actor_id`、`source_kind`。Runtime 写入时，宿主用会话身份生成审计作者（`runtime:<runtime_id>:<会话>`），没有稳定会话身份时写入被拒绝。
 
 最短工作路径是 `goals.create` → `goals.note`，无需类型或规划。需要结构化结果时用 `goals.events.configure` / `goals.events.report`。报告可以含多个事实和进展，整批有效才保存，回执给出当前状态、差距和游标。
 

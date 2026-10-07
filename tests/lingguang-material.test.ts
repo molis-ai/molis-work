@@ -16,7 +16,7 @@ import { handleLingguangNativePluginHttp } from "../apps/local-host/src/lingguan
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
   const home = await mkdtemp(join(tmpdir(), "lingguang-material-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId: "a", projectId: "a" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS };
   const client = host.actionClient(ref);
   const server: Server = createServer((request, response) => {

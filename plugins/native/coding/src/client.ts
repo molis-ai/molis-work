@@ -914,8 +914,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       // The running plan sits right under the task it came from, kept in place by the same ordering as every entry.
       // A graph continued by a later round is shown once, on the round now working on it.
-      const planEntry=planEntries.find(entry=>entry.run_id===run.ref.run_id),boardId=planEntry?.board?.board_id;
-      const laterOnSameGraph=boardId && all.slice(all.indexOf(run)+1).some(later=>planEntries.find(entry=>entry.run_id===later.ref.run_id)?.board?.board_id===boardId);
+      const planEntry=planEntries.find(entry=>entry.run_id===run.ref.run_id),projectId=planEntry?.board?.project_id;
+      const laterOnSameGraph=projectId && all.slice(all.indexOf(run)+1).some(later=>planEntries.find(entry=>entry.run_id===later.ref.run_id)?.board?.project_id===projectId);
       if(laterOnSameGraph)block.querySelector(':scope > .coding-plan-progress')?.remove();
       // The latest plan round keeps its graph open to change when only ended conversation rounds came after it.
       const graphLatest=Boolean(planEntry?.board) && all.slice(all.indexOf(run)+1).every(later=>terminal(later.phase) && !planEntries.some(entry=>entry.run_id===later.ref.run_id));

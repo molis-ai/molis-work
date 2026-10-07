@@ -2,7 +2,7 @@
   "name": "@molis-ai/molis-work-module-projects",
   "version": "0.0.0",
   "private": true,
-  "description": "Project identity, Catalog, membership, lifecycle, and board_id migration facts.",
+  "description": "Project identity, Catalog, membership, lifecycle, and project_id migration facts.",
   "type": "module",
   "license": "MIT",
   "engines": {

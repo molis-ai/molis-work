@@ -188,7 +188,6 @@ export class LocalMcpServer {
     this.connectionState.accept({
       projectId: resolution.connection.project_id,
       databasePath: resolution.connection.database_path,
-      boardId: resolution.connection.board_id,
       webBaseUrl: host.webBaseUrl ?? "http://127.0.0.1:4173",
     }, host.runtimeContext);
   }
@@ -267,15 +266,14 @@ export class LocalMcpServer {
     if (storage.status === "missing") {
       throw new MolisWorkV1Error("store.not_found", `Molis Work 数据库不存在: ${databasePath}`);
     }
-    const boardId = String(
+    const projectId = String(
       this.audience === "runtime"
-        ? runtimeConnection!.boardId
-        : arguments_.board_id ?? `database:${databasePath}`,
+        ? runtimeConnection!.projectId
+        : arguments_.project_id ?? `database:${databasePath}`,
     );
     const reference = molisWorkHostProjectReference({
       databasePath,
-      boardId,
-      projectId: this.audience === "runtime" ? runtimeConnection!.projectId : undefined,
+      projectId,
     });
     const client = this.localHost.client(reference);
     return dispatchMcpProjectTool(client, name, arguments_, {

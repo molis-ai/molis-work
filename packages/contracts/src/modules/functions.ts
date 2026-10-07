@@ -212,7 +212,7 @@ export type JudgmentSubjectKind = string;
 export interface JudgmentSubject {
   readonly kind: JudgmentSubjectKind;
   readonly id: string;
-  readonly board_id?: string;
+  readonly project_id?: string;
 }
 
 export interface JudgmentRecord {

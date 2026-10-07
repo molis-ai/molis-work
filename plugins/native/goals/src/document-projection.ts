@@ -35,16 +35,16 @@ function archiveOrTrashPresentation(goal: Pick<GoalRecord, "trashed_at" | "archi
 }
 
 export function projectGoalDocument(goal: GoalRecord, input: {
-  boardId: string; snapshot: BoardSnapshot; ports: GoalsDocumentReadPorts;
+  projectId: string; snapshot: BoardSnapshot; ports: GoalsDocumentReadPorts;
   index: ReturnType<typeof createGoalDocumentIndex>;
 }): GoalsDocumentView {
-  const { boardId, ports } = input;
+  const { projectId, ports } = input;
   const {
     inputBindingsByGoal, policyBindingsByGoal,
     projectPolicyBindings, eventsByObject, workEventsByGoal, relationsByGoal,
     goalTreeProposalsByGoal,
   } = input.index;
-  const event = ports.eventWork.readState(boardId, goal.goal_id);
+  const event = ports.eventWork.readState(projectId, goal.goal_id);
   const eventOwned = Boolean(event.owner);
   const current = archiveOrTrashPresentation(goal)
     ?? eventDirectoryPresentation(event, goal)
@@ -56,7 +56,7 @@ export function projectGoalDocument(goal: GoalRecord, input: {
       action_summary: "这条 Goal 还没有当前事件归属，可阅读保留的历史记录。",
     };
   const resolvedPolicy = ports.goals.getResolvedGoalPolicy({
-    board_id: boardId,
+    project_id: projectId,
     goal_id: goal.goal_id,
   });
   const relations = relationsByGoal.get(goal.goal_id) ?? [];

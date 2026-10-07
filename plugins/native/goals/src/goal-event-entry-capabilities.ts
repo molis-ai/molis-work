@@ -47,7 +47,7 @@ export const readGoalEventStateCapability = {
   capability_id: "io.molis.work.goals.events.read-state",
   version: 1,
   operation: "query",
-} as HostCapabilityDefinition<{ board_id: string; goal_id: string }, ReturnType<GoalEventEntryApi["readState"]>>;
+} as HostCapabilityDefinition<{ project_id: string; goal_id: string }, ReturnType<GoalEventEntryApi["readState"]>>;
 
 export const configureGoalEventsCapability = {
   capability_id: "io.molis.work.goals.events.configure",
@@ -72,7 +72,7 @@ export const listGoalEventsCapability = {
   version: 1,
   operation: "query",
 } as HostCapabilityDefinition<{
-  board_id: string;
+  project_id: string;
   goal_id: string;
   after_cursor?: number;
   limit?: number;
@@ -83,7 +83,7 @@ export const listLatestGoalEventsCapability = {
   version: 1,
   operation: "query",
 } as HostCapabilityDefinition<{
-  board_id: string;
+  project_id: string;
   goal_id: string;
   before_cursor?: number;
   limit?: number;
@@ -94,7 +94,7 @@ export const listLatestGoalTimelineCapability = {
   version: 1,
   operation: "query",
 } as HostCapabilityDefinition<{
-  board_id: string;
+  project_id: string;
   goal_id: string;
   before_cursor?: number;
   limit?: number;
@@ -105,7 +105,7 @@ export const readGoalEventCapability = {
   version: 1,
   operation: "query",
 } as HostCapabilityDefinition<{
-  board_id: string;
+  project_id: string;
   goal_id: string;
   event_id: string;
 }, ReturnType<GoalEventEntryApi["readEvent"]>>;
@@ -116,20 +116,20 @@ export function createGoalEventEntryClient(client: LocalHostProjectClient) {
       client.invoke(createGoalIntentCapability, input),
     listGoals: (input: Parameters<GoalEventEntryApi["listGoals"]>[0]) =>
       client.invoke(listGoalDirectoryCapability, input),
-    readState: (boardId: string, goalId: string) =>
-      client.invoke(readGoalEventStateCapability, { board_id: boardId, goal_id: goalId }),
+    readState: (projectId: string, goalId: string) =>
+      client.invoke(readGoalEventStateCapability, { project_id: projectId, goal_id: goalId }),
     configure: (input: Parameters<GoalEventEntryApi["configure"]>[0]) =>
       client.invoke(configureGoalEventsCapability, input),
     report: (input: Parameters<GoalEventEntryApi["report"]>[0]) =>
       client.invoke(reportGoalEventsCapability, input),
-    listEvents: (boardId: string, goalId: string, query?: { after_cursor?: number; limit?: number }) =>
-      client.invoke(listGoalEventsCapability, { board_id: boardId, goal_id: goalId, ...query }),
-    listLatestEvents: (boardId: string, goalId: string, query?: { before_cursor?: number; limit?: number }) =>
-      client.invoke(listLatestGoalEventsCapability, { board_id: boardId, goal_id: goalId, ...query }),
-    listLatestTimeline: (boardId: string, goalId: string, query?: { before_cursor?: number; limit?: number }) =>
-      client.invoke(listLatestGoalTimelineCapability, { board_id: boardId, goal_id: goalId, ...query }),
-    readEvent: (boardId: string, goalId: string, eventId: string) =>
-      client.invoke(readGoalEventCapability, { board_id: boardId, goal_id: goalId, event_id: eventId }),
+    listEvents: (projectId: string, goalId: string, query?: { after_cursor?: number; limit?: number }) =>
+      client.invoke(listGoalEventsCapability, { project_id: projectId, goal_id: goalId, ...query }),
+    listLatestEvents: (projectId: string, goalId: string, query?: { before_cursor?: number; limit?: number }) =>
+      client.invoke(listLatestGoalEventsCapability, { project_id: projectId, goal_id: goalId, ...query }),
+    listLatestTimeline: (projectId: string, goalId: string, query?: { before_cursor?: number; limit?: number }) =>
+      client.invoke(listLatestGoalTimelineCapability, { project_id: projectId, goal_id: goalId, ...query }),
+    readEvent: (projectId: string, goalId: string, eventId: string) =>
+      client.invoke(readGoalEventCapability, { project_id: projectId, goal_id: goalId, event_id: eventId }),
     recordProgress: (input: Parameters<GoalEventEntryApi["recordProgress"]>[0]) =>
       client.invoke(recordGoalProgressCapability, input),
     applyConcern: (input: Parameters<GoalEventEntryApi["applyConcern"]>[0]) =>

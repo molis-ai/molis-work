@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { DEMO_BOARD_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -17,7 +17,7 @@ test("a pinned document shows when the original changed or was deleted, and whic
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
-  const server = createMolisWorkWebServer({ databasePath, boardId: DEMO_BOARD_ID, homeDirectory: directory, controlToken });
+  const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   assert.ok(address && typeof address === "object");
@@ -56,11 +56,11 @@ test("a pinned document shows when the original changed or was deleted, and whic
 
   // Goals that take it as input or hand it in are listed under 「被谁引用」, each opening the Goal.
   await post("/api/goals/V1/deliverables", { reference: pinned, delivered: true });
-  const scope = { kind: "personal" as const, id: DEMO_BOARD_ID };
+  const scope = { kind: "personal" as const, id: DEMO_PROJECT_ID };
   createContextLedger(store.db, { authorize: () => true }).commands.put({ actor_id: "fixture", scope }, { key: "input-fixture", type: "goal.input", cause: "fixture",
     source: { module: "goals", id: "PLATFORM", version: null, scope }, target: { module: "artifacts", id: pinned.artifact_id, version: pinned.version, scope } });
   const linked = await detail(pinned.artifact_id, pinned.version);
-  const v1 = coordinator.goalQueries.getGoal(DEMO_BOARD_ID, "V1")!.title, platform = coordinator.goalQueries.getGoal(DEMO_BOARD_ID, "PLATFORM")!.title;
+  const v1 = coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, "V1")!.title, platform = coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, "PLATFORM")!.title;
   const html = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   assert.ok(linked.includes(`href="/goals/V1">${html(v1)}</a><span>交付物</span>`), "the Goal that hands it in");
   assert.ok(linked.includes(`href="/goals/PLATFORM">${html(platform)}</a><span>输入</span>`), "the Goal that takes it as input");

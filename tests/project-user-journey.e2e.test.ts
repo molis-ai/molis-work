@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
-import { createLocalFeedApplication, DEMO_BOARD_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
+import { createLocalFeedApplication, DEMO_PROJECT_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
@@ -28,13 +28,13 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await fill('[data-create-form] [name=title]','完成跨页面工作流验收');
     await fill('[data-create-form] [name=outcome]','创建、记录、阅读与处理可以顺畅连续完成');
     await navigate(()=>click('[data-create-form] button[type=submit]'));
-    const goalId=b.store.snapshot(DEMO_BOARD_ID).goals.find(g=>g.title==='完成跨页面工作流验收')!.goal_id;
+    const goalId=b.store.snapshot(DEMO_PROJECT_ID).goals.find(g=>g.title==='完成跨页面工作流验收')!.goal_id;
     if(await evaluate("document.querySelector('[data-goal-frame-surface]')?.hidden!==false")){
       await showGoalStageList();
       await b.openGoalFrame(`[data-select-goal="${goalId}"]`);
     }
     await waitFor("document.querySelector('[data-goal-frame-surface]')?.hidden===false && document.querySelector('[data-goal-frame-surface]').dataset.frameGoal==="+JSON.stringify(goalId));
-    assert.equal(b.store.snapshot(DEMO_BOARD_ID).goals.find(g=>g.goal_id===goalId)?.title,'完成跨页面工作流验收');
+    assert.equal(b.store.snapshot(DEMO_PROJECT_ID).goals.find(g=>g.goal_id===goalId)?.title,'完成跨页面工作流验收');
     if (width < 760) {
       assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"), false, 'creation opens the new Goal content');
       // craft-finish round 4 retired the narrow directory drawer: plugins are reached from the bottom bar's picker,
@@ -51,7 +51,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await waitFor("!document.querySelector('[data-event-form=note]') || document.querySelector('[data-event-form=note]').hidden || document.querySelector('[data-event-form=note]').getClientRects().length===0");
     await waitFor("document.querySelector('[data-event-timeline]').textContent.includes('已经从项目首页创建目标')");
     const app=new GoalProjectApplication(b.store);
-    assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_BOARD_ID,goalId, {limit: 20})),/已经从项目首页创建目标/);
+    assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_PROJECT_ID,goalId, {limit: 20})),/已经从项目首页创建目标/);
     await capture('goal-recorded');
     await plugin('feed');await click('[data-feed-source-rail] [data-feed-add-toggle]');
     await click('[data-feed-choose-kind=custom_rss]');
@@ -61,7 +61,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await waitFor("document.querySelector('[data-feed-sources-dialog]').hidden && [...document.querySelectorAll('[data-feed-task]')].some(e=>e.textContent.includes('团队设计资料'))");
     await directory();
     const sourceId=await evaluate<string>("[...document.querySelectorAll('[data-feed-task]')].find(e=>e.textContent.includes('团队设计资料')).dataset.feedTask");
-    const feed=createLocalFeedApplication(b.store.db),source=feed.getSource(DEMO_BOARD_ID,sourceId);
+    const feed=createLocalFeedApplication(b.store.db),source=feed.getSource(DEMO_PROJECT_ID,sourceId);
     // External fetching is outside this UI journey; the source above is created by the actual form.
     const item=feed.ingestItem({source,externalId:'journey-item',title:'评审工作区的用户动线',summary:'明确需要确认的页面与处理动作。',body:'这是一条隔离验收资料。\n'+Array.from({length:30},(_,i)=>`检查 ${i+1}：内容在所属组件内滚动，操作入口保持可见。`).join('\n'),occurredAt:new Date().toISOString(),attention:false}).item;
     await b.reloadPage();
@@ -69,8 +69,8 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await evaluate(`document.querySelector('[data-feed-entry-id="${item.item_id}"]')?.click()`);
     await waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]')`);
     // Opening marks the item read with its own request; give it a bounded moment to land.
-    for(let i=0;i<40&&!feed.getItem(DEMO_BOARD_ID,item.item_id).read_at;i++)await new Promise(resolve=>setTimeout(resolve,50));
-    assert.ok(feed.getItem(DEMO_BOARD_ID,item.item_id).read_at);
+    for(let i=0;i<40&&!feed.getItem(DEMO_PROJECT_ID,item.item_id).read_at;i++)await new Promise(resolve=>setTimeout(resolve,50));
+    assert.ok(feed.getItem(DEMO_PROJECT_ID,item.item_id).read_at);
     await click(`[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]`);
     await waitFor("[...document.querySelectorAll('[data-inbox-row]')].some(row=>row.textContent.includes('评审工作区的用户动线'))");
     await plugin('inbox');
@@ -90,8 +90,8 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await waitFor(`document.querySelector('[data-inbox-stage-group="history"] [data-inbox-entry-id="${entryId}"]') && !document.querySelector('[data-inbox-stage-group="active"] [data-inbox-entry-id="${entryId}"]') && document.querySelector('[data-inbox-stage-shell]').dataset.expanded === 'false'`);
     const history=await (await fetch(prefix+'/api/inbox?filter=history')).json();
     assert.equal(history.entries.find((e:{entry_id:string})=>e.entry_id===entryId)?.status,'done');
-    assert.equal(feed.getItem(DEMO_BOARD_ID,item.item_id).body,item.body);
+    assert.equal(feed.getItem(DEMO_PROJECT_ID,item.item_id).body,item.body);
     await b.reloadPage();assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1'),true);
-    assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_BOARD_ID,goalId, {limit: 20})),/已经从项目首页创建目标/);
+    assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_PROJECT_ID,goalId, {limit: 20})),/已经从项目首页创建目标/);
   });
 }

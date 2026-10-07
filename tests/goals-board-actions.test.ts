@@ -9,9 +9,9 @@ import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from 
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 
-async function fixture(boardId: string) {
+async function fixture(projectId: string) {
   const home = await mkdtemp(join(tmpdir(), "goals-board-actions-"));
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), boardId });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId });
   let denied: string | undefined;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, view) =>
     view.capability_id === denied ? { available: false, code: "actions.plugin_disabled", reason: "管理动作已停用" } : { available: true } });
@@ -32,15 +32,15 @@ test("board initialization keeps original receipts and requires trusted manageme
     }
     await assert.rejects(client.invoke({ ...caller, user_action: undefined }, goalsActions.initialize, input), { code: "goals.management_required" });
     await assert.rejects(client.invoke({ ...caller, user_action: { ...caller.user_action!, source: "web" } }, goalsActions.initialize, input), { code: "goals.management_required" });
-    await assert.rejects(client.invoke(caller, goalsActions.initialize, { ...input, board_id: "other" } as never), { code: "actions.input_invalid" });
-    await assert.rejects(typed.invoke(initializeBoardCapability, { ...input, board_id: "other" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(client.invoke(caller, goalsActions.initialize, { ...input, project_id: "other" } as never), { code: "actions.input_invalid" });
+    await assert.rejects(typed.invoke(initializeBoardCapability, { ...input, project_id: "other" }), { code: "actions.scope_mismatch" });
     block(goalsActions.initialize.capability_id);
-    await assert.rejects(typed.invoke(initializeBoardCapability, { ...input, board_id: ref.board_id }), { code: "actions.plugin_disabled" });
-    assert.equal(await host.withProject(ref, r => r.store.goalsQuery.getBoard(ref.board_id)), null);
+    await assert.rejects(typed.invoke(initializeBoardCapability, { ...input, project_id: ref.project_id }), { code: "actions.plugin_disabled" });
+    assert.equal(await host.withProject(ref, r => r.store.goalsQuery.getBoard(ref.project_id)), null);
     block();
-    const old = await host.withProject(ref, r => r.coordinator.initializeBoard({ ...input, board_id: ref.board_id, actor_id: caller.actor_id }));
+    const old = await host.withProject(ref, r => r.coordinator.initializeBoard({ ...input, project_id: ref.project_id, actor_id: caller.actor_id }));
     assert.deepEqual(await client.invoke(caller, goalsActions.initialize, input), { ...old, replayed: true });
-    assert.deepEqual(await typed.invoke(initializeBoardCapability, { ...input, board_id: ref.board_id }), { ...old, replayed: true });
+    assert.deepEqual(await typed.invoke(initializeBoardCapability, { ...input, project_id: ref.project_id }), { ...old, replayed: true });
     const snapshot = await bindActionClient(client, () => caller).invoke(goalsActions.snapshot, {});
     assert.equal(snapshot.board.title, input.title);
     assert.equal(snapshot.cursor, old.observed_event_cursor);
@@ -49,6 +49,6 @@ test("board initialization keeps original receipts and requires trusted manageme
     const available = plugin.availability(initializeBoardCapability);
     assert.equal(available.available, false);
     assert.equal(!available.available && available.code, "actions.host_only");
-    await assert.rejects(plugin.invoke({ ...initializeBoardCapability, host_only: false }, { ...input, board_id: ref.board_id }), { code: "actions.host_only" });
+    await assert.rejects(plugin.invoke({ ...initializeBoardCapability, host_only: false }, { ...input, project_id: ref.project_id }), { code: "actions.host_only" });
   } finally { await f.close(); }
 });

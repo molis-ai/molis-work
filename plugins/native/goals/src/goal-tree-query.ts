@@ -14,25 +14,25 @@ export class GoalTreeQueryApplication implements Pick<GoalTreeApplicationApi, "l
     this.baselines = new GoalTreeBaselineQuery(ports.goals);
   }
 
-  readNative(boardId: string, proposalId: string) {
-    if (!this.ports.goals.getBoard(boardId)) throw this.ports.errorFactory("board.not_found", `Board 不存在: ${boardId}`);
-    const proposal = this.ports.governance.query.getGoalTreeProposal(boardId, proposalId);
+  readNative(projectId: string, proposalId: string) {
+    if (!this.ports.goals.getBoard(projectId)) throw this.ports.errorFactory("board.not_found", `Board 不存在: ${projectId}`);
+    const proposal = this.ports.governance.query.getGoalTreeProposal(projectId, proposalId);
     if (!proposal) throw this.ports.errorFactory("goal_tree_proposal.not_found", `找不到 Goal Tree 提案: ${proposalId}`);
     return proposal;
   }
 
   listGoalTreeProposals(input: GoalTreeProposalListQuery): GoalTreeProposalListResult {
-    if (!this.ports.goals.getBoard(input.board_id)) {
-      throw this.ports.errorFactory("board.not_found", `Board 不存在: ${input.board_id}`);
+    if (!this.ports.goals.getBoard(input.project_id)) {
+      throw this.ports.errorFactory("board.not_found", `Board 不存在: ${input.project_id}`);
     }
-    if (input.root_goal_id && !this.ports.goals.getGoal(input.board_id, input.root_goal_id)) {
+    if (input.root_goal_id && !this.ports.goals.getGoal(input.project_id, input.root_goal_id)) {
       throw this.ports.errorFactory("goal.not_found", `Goal 不存在: ${input.root_goal_id}`);
     }
-    const snapshot = this.ports.governance.query.snapshot(input.board_id);
+    const snapshot = this.ports.governance.query.snapshot(input.project_id);
     const proposals = snapshot.goal_tree_proposals
       .filter(proposal => !input.proposal_id || proposal.proposal_id === input.proposal_id)
       .filter(proposal => !input.root_goal_id || proposal.root_goal_id === input.root_goal_id)
       .sort((left, right) => right.created_at.localeCompare(left.created_at) || left.proposal_id.localeCompare(right.proposal_id));
-    return { observed_event_cursor: this.ports.governance.query.eventCursor(input.board_id), proposals };
+    return { observed_event_cursor: this.ports.governance.query.eventCursor(input.project_id), proposals };
   }
 }

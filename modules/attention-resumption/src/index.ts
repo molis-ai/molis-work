@@ -62,7 +62,7 @@ export const ATTENTION_STATUS_TRANSITIONS: Readonly<
 export { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 
 const INBOX_ENTRIES_COLUMNS = `
-      board_id TEXT NOT NULL REFERENCES boards(board_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
       subject_id TEXT NOT NULL,
@@ -73,17 +73,17 @@ const INBOX_ENTRIES_COLUMNS = `
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       completed_at TEXT,
-      PRIMARY KEY (board_id, entry_id),
-      UNIQUE (board_id, subject_type, subject_id, reason)
+      PRIMARY KEY (project_id, entry_id),
+      UNIQUE (project_id, subject_type, subject_id, reason)
 `;
 
 /** The Inbox tables, as one current schema; the host composes them into the project database baseline. */
 export const ATTENTION_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS inbox_entries (${INBOX_ENTRIES_COLUMNS});
-    CREATE INDEX IF NOT EXISTS inbox_entries_board_status_idx
-      ON inbox_entries(board_id, status, updated_at DESC, entry_id);
-    CREATE INDEX IF NOT EXISTS inbox_entries_board_subject_idx
-      ON inbox_entries(board_id, subject_type, subject_id);
+    CREATE INDEX IF NOT EXISTS inbox_entries_project_status_idx
+      ON inbox_entries(project_id, status, updated_at DESC, entry_id);
+    CREATE INDEX IF NOT EXISTS inbox_entries_project_subject_idx
+      ON inbox_entries(project_id, subject_type, subject_id);
 
     CREATE TABLE IF NOT EXISTS attention_events (
       event_id TEXT PRIMARY KEY,
@@ -152,13 +152,13 @@ export class AttentionModule implements AttentionApi {
 
   private list(projectId: string): AttentionEntryRecord[] {
     return (this.db.prepare(
-      "SELECT * FROM inbox_entries WHERE board_id = ? ORDER BY updated_at DESC, entry_id",
+      "SELECT * FROM inbox_entries WHERE project_id = ? ORDER BY updated_at DESC, entry_id",
     ).all(projectId) as Row[]).map(mapAttentionEntry);
   }
 
   private get(projectId: string, entryId: string): AttentionEntryRecord {
     const row = this.db.prepare(
-      "SELECT * FROM inbox_entries WHERE board_id = ? AND entry_id = ?",
+      "SELECT * FROM inbox_entries WHERE project_id = ? AND entry_id = ?",
     ).get(projectId, entryId) as Row | undefined;
     if (!row) throw new AttentionError("attention_entry_not_found", "找不到这个 Inbox Entry");
     return mapAttentionEntry(row);
@@ -171,7 +171,7 @@ export class AttentionModule implements AttentionApi {
   ): AttentionEntryRecord | null {
     const row = this.db.prepare(`
       SELECT * FROM inbox_entries
-      WHERE board_id = ? AND subject_type = ? AND subject_id = ?
+      WHERE project_id = ? AND subject_type = ? AND subject_id = ?
         AND status IN ('open', 'in_progress')
       ORDER BY CASE reason WHEN 'manual' THEN 0 ELSE 1 END, updated_at DESC, entry_id
       LIMIT 1
@@ -186,7 +186,7 @@ export class AttentionModule implements AttentionApi {
   ): AttentionEntryRecord[] {
     return (this.db.prepare(`
       SELECT * FROM inbox_entries
-      WHERE board_id = ? AND subject_type = ? AND subject_id = ?
+      WHERE project_id = ? AND subject_type = ? AND subject_id = ?
       ORDER BY updated_at DESC, entry_id
     `).all(projectId, subjectType, subjectId) as Row[]).map(mapAttentionEntry);
   }
@@ -199,7 +199,7 @@ export class AttentionModule implements AttentionApi {
     }
     const existing = this.db.prepare(`
       SELECT * FROM inbox_entries
-      WHERE board_id = ? AND subject_type = ? AND subject_id = ? AND reason = ?
+      WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND reason = ?
     `).get(input.project_id, input.subject_type, input.subject_id, input.reason) as Row | undefined;
     if (existing) return { entry: mapAttentionEntry(existing), created: false };
     const at = input.at ?? this.now().toISOString();
@@ -219,7 +219,7 @@ export class AttentionModule implements AttentionApi {
     assertShape(entry);
     this.db.prepare(`
       INSERT INTO inbox_entries (
-        board_id, entry_id, subject_type, subject_id, reason, status,
+        project_id, entry_id, subject_type, subject_id, reason, status,
         detail_json, revision, created_at, updated_at, completed_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -257,7 +257,7 @@ export class AttentionModule implements AttentionApi {
       this.db.prepare(`
         UPDATE inbox_entries
         SET status = ?, revision = revision + 1, updated_at = ?, completed_at = ?
-        WHERE board_id = ? AND entry_id = ?
+        WHERE project_id = ? AND entry_id = ?
       `).run(status, at, completedAt, projectId, entryId);
       const updated = this.get(projectId, entryId);
       this.appendEvent(updated, `inbox_entry.${status}`, at, `Inbox Entry 已标记为 ${status}`);
@@ -270,7 +270,7 @@ export class AttentionModule implements AttentionApi {
     if (entries.length === 0) return 0;
     const at = this.now().toISOString();
     this.db.prepare(
-      "DELETE FROM inbox_entries WHERE board_id = ? AND subject_type = ? AND subject_id = ?",
+      "DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = ? AND subject_id = ?",
     ).run(projectId, subjectType, subjectId);
     for (const entry of entries) this.appendEvent(entry, "inbox_entry.deleted", at, "Inbox 引用已删除");
     return entries.length;
@@ -379,7 +379,7 @@ function referenceMessage(subjectType: AttentionSubjectType): string {
 
 function mapAttentionEntry(row: Row): AttentionEntryRecord {
   const entry: AttentionEntryRecord = {
-    project_id: text(row.board_id),
+    project_id: text(row.project_id),
     entry_id: text(row.entry_id),
     subject_type: text(row.subject_type) as AttentionSubjectType,
     subject_id: text(row.subject_id),

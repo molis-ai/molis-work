@@ -65,7 +65,7 @@ export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, Moli
 export { initializeCatalog, assertOwnedCatalog, assertCurrentCatalog, type CatalogDesktopSchema } from "./catalog-schema.js";
 
 export * from "./project-catalog.js";
-export { seedDemoBoard, DEMO_BOARD_ID } from "./demo-seed.js";
+export { seedDemoBoard, DEMO_PROJECT_ID } from "./demo-seed.js";
 export {
   seedDemoPluginSurfaces,
   seedDemoProjectExtras,

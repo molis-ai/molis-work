@@ -45,7 +45,7 @@ function objectIdFor(input: PluginCommandInput, ports: GitPluginPorts): string |
 
 export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
   const subscriptions = new Map<string, () => void>();
-  const key = (context: PluginStartContext) => `${context.install_id}:${context.board_id}`;
+  const key = (context: PluginStartContext) => `${context.install_id}:${context.project_id}`;
   return {
     manifest: gitManifest,
     event_types: gitEventTypes,

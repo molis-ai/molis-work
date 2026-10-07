@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { codingBackgroundTasks } from "../apps/local-host/src/coding-background-tasks.js";
 
@@ -14,9 +14,9 @@ test("the background list shows Coding sessions under way or waiting in every pr
       const path = join(root, `${name}.db`); seedDemoBoard(path);
       const store = new LocalProjectDatabase(path), coding = new CodingSessionStore(store.db);
       for (const [id, state, at, steps] of sessions) {
-        coding.create({ board_id: DEMO_BOARD_ID, session_id: id, title: `${name} ${id}`, runtime_id: "prologue", at });
-        coding.setState(DEMO_BOARD_ID, id, state as never, at);
-        if (steps) coding.setSteps(DEMO_BOARD_ID, id, steps);
+        coding.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: `${name} ${id}`, runtime_id: "prologue", at });
+        coding.setState(DEMO_PROJECT_ID, id, state as never, at);
+        if (steps) coding.setSteps(DEMO_PROJECT_ID, id, steps);
       }
       store.close();
       return path;

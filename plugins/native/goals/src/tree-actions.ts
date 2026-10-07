@@ -4,7 +4,7 @@ import { goalAction, goalActor } from "./action-contract.js";
 import * as schema from "./tree-action-schemas.js";
 
 type Input<Key extends keyof GoalTreeApplicationApi> = Omit<Parameters<GoalTreeApplicationApi[Key]>[0],
-  "board_id" | "actor_id" | "submitted_session_id" | "runtime_actor_id" | "authority">;
+  "project_id" | "actor_id" | "submitted_session_id" | "runtime_actor_id" | "authority">;
 type Output<Key extends keyof GoalTreeApplicationApi> = ReturnType<GoalTreeApplicationApi[Key]>;
 const decide = goalAction<Input<"decideGoalTreeProposal">, Output<"decideGoalTreeProposal">>("goals.tree.decide", "审批结构提案",
   "保存用户通过受保护入口作出的逐项或整组决定；整组确认全有或全无。实际用户和操作出处由 Host 提供", "command", schema.treeDecideInputSchema, schema.treeDecisionResultSchema);
@@ -29,17 +29,17 @@ function authority(caller: ActionCallContext) {
     whole_confirmation_prompted: p.whole_confirmation_prompted,
     prompted_proposal_id: p.prompted_subject_id };
 }
-export function createGoalsTreeActionHandlers(tree: GoalTreeApplicationApi, boardId: string): ActionHandlerBinding[] {
+export function createGoalsTreeActionHandlers(tree: GoalTreeApplicationApi, projectId: string): ActionHandlerBinding[] {
   return [
     { ...goalsTreeActions.treeSubmit, handle: (caller, input) => tree.submitGoalTreeProposal({ ...input as Input<"submitGoalTreeProposal">,
-      board_id: boardId, actor_id: goalActor(caller).actor_id, submitted_session_id: caller.runtime_session_id }) },
-    { ...goalsTreeActions.treeRead, handle: (_caller, input) => tree.listGoalTreeProposals({ ...input as Input<"listGoalTreeProposals">, board_id: boardId }) },
+      project_id: projectId, actor_id: goalActor(caller).actor_id, submitted_session_id: caller.runtime_session_id }) },
+    { ...goalsTreeActions.treeRead, handle: (_caller, input) => tree.listGoalTreeProposals({ ...input as Input<"listGoalTreeProposals">, project_id: projectId }) },
     { ...goalsTreeActions.treeCheck, handle: (caller, input) => tree.checkGoalTreeProposal({ ...input as Input<"checkGoalTreeProposal">,
-      board_id: boardId, actor_id: goalActor(caller).actor_id }) },
+      project_id: projectId, actor_id: goalActor(caller).actor_id }) },
     { ...goalsTreeActions.treeDecide, availability(caller) {
       try { authority(caller); return { available: true }; }
       catch (error) { if (error instanceof ActionError) return { available: false, code: error.code, reason: error.message }; throw error; }
     }, handle: (caller, input) => tree.decideGoalTreeProposal({ ...input as Input<"decideGoalTreeProposal">,
-      board_id: boardId, authority: authority(caller), runtime_actor_id: caller.audit_actor_id }) },
+      project_id: projectId, authority: authority(caller), runtime_actor_id: caller.audit_actor_id }) },
   ];
 }

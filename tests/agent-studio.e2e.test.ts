@@ -10,7 +10,7 @@ import { ChromeHarness } from './fixtures/plugin-builder-browser.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { STUDIO_HARNESS_PATH, studioHarnessPage } from '../scripts/agent-studio-harness.mjs';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
-import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.js';
+import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
 import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/src/installed-plugin-host.js';
 import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '../apps/local-host/src/web-http.js';
@@ -26,7 +26,7 @@ test('studio: a request becomes a working, published plugin that the person can 
   const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0); let modelDelay = 0;
-  const options = { store, boardId: DEMO_BOARD_ID, homeDirectory: home, ...fixture,
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, ...fixture,
     generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => { await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
   let liveSubscriptions = 0, subscriptions = 0;
   const server: Server = createServer((request, response) => {
@@ -200,7 +200,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     await standalone.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('间隔复习比集中复习记得更久')`);
 
     const installedOwner = await ensureInstalledPlugins(options);
-    await releaseAgentStudio(store, DEMO_BOARD_ID);
+    await releaseAgentStudio(store, DEMO_PROJECT_ID);
     await installedPage.command('Page.reload');
     await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
     assert.equal(await ensureInstalledPlugins(options), installedOwner, 'closing authoring does not close or recreate installed execution');
@@ -242,7 +242,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     throw error;
   } finally {
     await browser.close();
-    await releaseAgentStudio(store, DEMO_BOARD_ID); await releaseInstalledPlugins(store, DEMO_BOARD_ID);
+    await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID);
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve())); store.close();
     await rm(home, { recursive: true, force: true });

@@ -12,8 +12,8 @@ export function scheduleActionProvider(runtime: MolisWorkProjectRuntime): Action
     provider: { provider_id: scheduleManifest.plugin_id, plugin_id: scheduleManifest.plugin_id, title: scheduleManifest.name, kind: "plugin", project_id: runtime.project_id },
     definitions: scheduleManifest.actions!,
     handlers: createScheduleActionHandlers(runtime.project_id, createScheduleActionPorts({ db: runtime.store.db, schedule,
-      operations: hostScheduledOperationManagement({ db: runtime.store.db, boardId: runtime.board_id, schedule }),
-      reminders: hostScheduleReminderManagement({ db: runtime.store.db, boardId: runtime.board_id, schedule }) })),
+      operations: hostScheduledOperationManagement({ db: runtime.store.db, projectId: runtime.project_id, schedule }),
+      reminders: hostScheduleReminderManagement({ db: runtime.store.db, projectId: runtime.project_id, schedule }) })),
   };
 }
 
@@ -21,6 +21,6 @@ export function scheduleActionProvider(runtime: MolisWorkProjectRuntime): Action
 export function scheduleReminderActionProvider(runtime: MolisWorkProjectRuntime, routePrefix?: string): ActionProviderRegistration {
   return { provider: { provider_id: SCHEDULE_REMINDER_PROVIDER_ID, title: "Schedule 提醒", kind: "system", project_id: runtime.project_id },
     definitions: REMINDER_ACTIONS,
-    handlers: createReminderActionHandlers(runtime.project_id, hostScheduleReminders({ db: runtime.store.db, boardId: runtime.board_id,
-      projectId: runtime.project_id, schedule: scheduleServiceFor(runtime.store.db), routePrefix })) };
+    handlers: createReminderActionHandlers(runtime.project_id, hostScheduleReminders({ db: runtime.store.db, projectId: runtime.project_id,
+      schedule: scheduleServiceFor(runtime.store.db), routePrefix })) };
 }

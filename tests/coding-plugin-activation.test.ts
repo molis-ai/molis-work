@@ -8,7 +8,7 @@ import test from "node:test";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
-  DEMO_BOARD_ID,
+  DEMO_PROJECT_ID,
   LocalProjectDatabase,
   createPluginPlatform,
   seedDemoBoard,
@@ -32,8 +32,8 @@ function project(directory: string) {
     appendEvent: (event) => store.appendEvent(event),
   });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) });
-  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID),
-    board_id: DEMO_BOARD_ID,
+  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID),
+    project_id: DEMO_PROJECT_ID,
     actor_id: "tester",
     db: store.db,
     artifacts,

@@ -17,7 +17,7 @@ test("local administrator grants through the protected owner API and gateway kee
   const home=await mkdtemp(join(tmpdir(),'continuity-gateway-'));
   const project=await withCatalog({homeDirectory:home},c=>c.createProject({display_name:'Shared gateway',actor_id:'user'}));
   const host=new MolisWorkLocalHost({homeDirectory:home,completeText:null});
-  const ref=molisWorkHostProjectReference({projectId:project.project_id,boardId:project.board_id,databasePath:project.database_path});
+  const ref=molisWorkHostProjectReference({projectId: project.project_id,databasePath:project.database_path});
   const local=host.actionClient(ref),owner={actor_id:'owner',project_id:project.project_id,audience:'user' as const,permissions:['goals:read','goals:write']};
   await local.invoke(owner,goalsActions.create,{goal_id:'gateway-goal',title:'跨进程记录',idempotency_key:'seed'});
   const web=createMolisWorkWebServer({homeDirectory:home,localHost:host});

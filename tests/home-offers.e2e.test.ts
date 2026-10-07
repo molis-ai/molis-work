@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineSubjectOffersAction } from "../packages/plugin-sdk/src/index.js";
 import type { ActionDefinition, SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -15,12 +15,12 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
   const { localHost, store, projectId, command, sessionId, evaluate, waitFor, click, navigate, origin, reloadPage } = browser;
   assert.ok(localHost); assert.ok(projectId);
-  const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, boardId: DEMO_BOARD_ID, projectId });
+  const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   const feed = createLocalFeedApplication(store.db);
-  const source = createLocalFeedSourceService(store.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "offers-browser" }).source;
+  const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "offers-browser" }).source;
   const item = feed.ingestItem({ source, externalId: "unknown-offer", title: "新插件可以处理的材料", summary: "检查插件自己的真实结果", body: "未核查的原始材料", occurredAt: new Date().toISOString(), attention: false }).item;
   const inboxItem = feed.ingestItem({ source, externalId: "inbox-offer", title: "完成这条 Inbox 事项", summary: "更新原始 Inbox 状态", body: "Inbox 正文", occurredAt: new Date().toISOString(), attention: false }).item;
-  const entry = feed.ensureInboxEntryForFeedItem(DEMO_BOARD_ID, inboxItem.item_id, "manual").entry;
+  const entry = feed.ensureInboxEntryForFeedItem(projectId, inboxItem.item_id, "manual").entry;
   await feed.flushPendingJudgments();
   store.db.exec("CREATE TABLE fixture_home_tags (id TEXT PRIMARY KEY, tag TEXT NOT NULL, revision INTEGER NOT NULL)");
   store.db.prepare("INSERT INTO fixture_home_tags VALUES (?, '', 1)").run(item.item_id);
@@ -112,8 +112,8 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
     await capture("mobile-inbox-actions");
     await click('[data-home-offer="0"]');
     await waitFor(`!document.querySelector('[data-home-subject-kind="inbox_entry"][data-home-subject-id="${entry.entry_id}"]') && document.querySelector('[data-work-surface="home"]')?.dataset.event === 'off'`);
-    assert.equal(feed.getInboxEntry(DEMO_BOARD_ID, entry.entry_id).status, "done");
-    assert.equal(feed.getInboxEntry(DEMO_BOARD_ID, entry.entry_id).revision, entry.revision + 1);
+    assert.equal(feed.getInboxEntry(projectId, entry.entry_id).status, "done");
+    assert.equal(feed.getInboxEntry(projectId, entry.entry_id).revision, entry.revision + 1);
     const requests = await evaluate<string[]>("window.__homeRequests");
     assert.ok(requests.some(path => path.endsWith('/api/home/actions/execute')));
     assert.ok(!requests.some(path => path.includes('/api/inbox/entries/') && path.endsWith('/status')));

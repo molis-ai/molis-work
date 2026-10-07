@@ -47,7 +47,7 @@ test("unmarked handlers never start synchronously; declared synchronous output i
 test("Host sync dispatch cannot bypass policy, cancellation or project lifetime", async () => {
   let writes = 0, policy: ActionAvailability | Promise<ActionAvailability> = { available: true };
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionAvailability: () => policy });
-  const reference = { project_id: "project", board_id: "board", storage_key: "memory:sync" };
+  const reference = { project_id: "project", storage_key: "memory:sync" };
   await host.withRuntime(reference, () => {});
   const client = host.syncActionClient(reference);
   host.actionRegistry(reference).registerProvider({ provider, definitions: [definition], handlers: [{ ...definition, execution: "sync", handle: () => ++writes }] });
@@ -77,7 +77,7 @@ test("sync SDK dispatch cannot enter public actions or skip an asynchronous depe
   const shared: ActionDefinition = { ...definition, capability_id: "fixture.public", action: { ...definition.action, audiences: ["plugin", "user"] } };
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionAvailability: (_context, view) =>
     view.capability_id === dependency.capability_id ? Promise.resolve({ available: true as const }) : { available: true as const } });
-  const reference = { project_id: "project", board_id: "board", storage_key: "memory:dependencies" };
+  const reference = { project_id: "project", storage_key: "memory:dependencies" };
   await host.withRuntime(reference, () => {});
   host.actionRegistry(reference).registerProvider({ provider, definitions: [root, dependency, shared], handlers: [root, dependency, shared].map(action => ({
     ...action, execution: "sync", handle: () => ++writes,

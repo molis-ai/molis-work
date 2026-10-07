@@ -9,7 +9,7 @@ import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
 import { createPrologueNodeAdapter, prologueModelConfiguration, AgentReviewQueue } from '@molis-ai/molis-work-service-agent-host';
 import { openConfiguredModels, selectConfiguredTextModel } from '../apps/local-host/src/configured-models.js';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
-import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.js';
+import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
 import { handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
 import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '../apps/local-host/src/web-http.js';
 import type { AgentBuild } from '@molis-ai/molis-work-plugin-builder';
@@ -27,7 +27,7 @@ const adapter = await createPrologueNodeAdapter({ app: { appId: 'io.molis.work.b
 const access = { modelConfiguration: async () => prologueModelConfiguration(configuration()), resolveCredential: (ref: string) => { const config = configuration(); return config?.provider.credential_ref === ref ? config.api_key : null; } };
 const databasePath = join(home, 'project.db'); if (homeArg < 0) seedDemoBoard(databasePath);
 const store = new LocalProjectDatabase(databasePath), token = randomUUID(), mutations = new Map<string, LocalMutationState>();
-const options = { store, boardId: DEMO_BOARD_ID, homeDirectory: home, models: async () => [{ ...selection, label: chosen.model.model_id }],
+const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, models: async () => [{ ...selection, label: chosen.model.model_id }],
   agents: async (build: AgentBuild, purpose: 'design' | 'code') => { const buildRoot = purpose === 'code' && build.directory ? build.directory : join(home, 'design', build.id); await mkdir(buildRoot, { recursive: true }); return adapter.createBuilderAgent({ buildRoot, storageRoot: join(home, 'runs', build.id), timeoutMs: 240_000, ...access }); },
   choice: { selectionAvailable: () => false, choose: async () => { throw new Error('Use the UI design preferences'); } } };
 const server = createServer((request, response) => {
@@ -65,4 +65,4 @@ try {
     await writeFile(join(evidence, name + '.json'), JSON.stringify({ model: chosen.model.model_id, home, elapsedMs: Date.now() - started, build }, null, 2));
     console.log(JSON.stringify({ sample: name, phase: build.phase, error: build.error, elapsedMs: Date.now() - started, runs: build.runs.length }));
   }
-} finally { await releaseAgentStudio(store, DEMO_BOARD_ID); await adapter.close(); await new Promise<void>(done => server.close(() => done())); store.close(); }
+} finally { await releaseAgentStudio(store, DEMO_PROJECT_ID); await adapter.close(); await new Promise<void>(done => server.close(() => done())); store.close(); }

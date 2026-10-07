@@ -19,14 +19,14 @@ for (const owned of [true, false]) {
         db.exec(`
           CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT);
           CREATE TABLE projects (
-            project_id TEXT PRIMARY KEY, display_name TEXT, board_id TEXT, database_path TEXT,
+            project_id TEXT PRIMARY KEY, display_name TEXT, database_path TEXT,
             source TEXT, data_class TEXT, created_at TEXT, updated_at TEXT
           );
         `);
         db.prepare("INSERT INTO catalog_meta VALUES ('owner', ?)").run(owned ? "molis-work-project-catalog-v1" : "other-app");
-        const insert = db.prepare("INSERT INTO projects VALUES (?, ?, ?, ?, 'created', 'user', ?, ?)");
-        insert.run("user-project", "用户项目", "board-user", join(home, "projects", "user.db"), "2026-01-01", "2026-01-01");
-        insert.run("second-project", "第二个项目", "board-second", join(home, "projects", "second.db"), "2026-01-02", "2026-01-02");
+        const insert = db.prepare("INSERT INTO projects VALUES (?, ?, ?, 'created', 'user', ?, ?)");
+        insert.run("user-project", "用户项目", join(home, "projects", "user.db"), "2026-01-01", "2026-01-01");
+        insert.run("second-project", "第二个项目", join(home, "projects", "second.db"), "2026-01-02", "2026-01-02");
       } finally { db.close(); }
       const before = await readFile(databasePath);
       const service = createLocalUninstallService({

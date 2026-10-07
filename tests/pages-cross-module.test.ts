@@ -19,7 +19,7 @@ async function fixture(t: any, completeText: HostCompleteText | null = async () 
   const created = await catalog.createProject({ display_name: "Pages", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
-  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: [...PAGES_ACTION_PERMISSIONS, ...INBOX_ACTION_PERMISSIONS] };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   await host.withProject(ref, () => undefined);
@@ -29,9 +29,9 @@ async function fixture(t: any, completeText: HostCompleteText | null = async () 
 async function material(f: Awaited<ReturnType<typeof fixture>>) {
   return f.host.withProject(f.ref, runtime => {
     const feed = createLocalFeedApplication(runtime.store.db);
-    const source = createLocalFeedSourceService(runtime.store.db, runtime.board_id).register({ kind: "research_library", repository: "fixture/research", research_source: "material" }).source;
+    const source = createLocalFeedSourceService(runtime.store.db, runtime.project_id).register({ kind: "research_library", repository: "fixture/research", research_source: "material" }).source;
     const item = feed.ingestItem({ source, externalId: "material-1", title: "Original", summary: "Original material boundary", occurredAt: new Date().toISOString(), attention: false }).item;
-    const entry = feed.ensureInboxEntryForFeedItem(runtime.board_id, item.item_id, "manual").entry;
+    const entry = feed.ensureInboxEntryForFeedItem(runtime.project_id, item.item_id, "manual").entry;
     return { item, entry };
   });
 }

@@ -53,7 +53,7 @@ export type GoalEventDocumentPorts = Pick<
 >;
 
 export function listGoalDocumentHistory(input: {
-  boardId: string;
+  projectId: string;
   goalId: string;
   ports: GoalEventDocumentPorts;
   snapshot: BoardSnapshot;
@@ -73,7 +73,7 @@ export function listGoalDocumentHistory(input: {
       return {
         items: [],
         next_cursor: null,
-        observed_event_cursor: input.ports.listLatestTimeline(input.boardId, input.goalId, { limit: 1 }).observed_event_cursor,
+        observed_event_cursor: input.ports.listLatestTimeline(input.projectId, input.goalId, { limit: 1 }).observed_event_cursor,
       };
     }
   }
@@ -81,7 +81,7 @@ export function listGoalDocumentHistory(input: {
   const workItems: GoalEventTimelineItem[] = [];
   let observed = 0;
   for (;;) {
-    const result = input.ports.listLatestTimeline(input.boardId, input.goalId, { before_cursor: workBefore, limit: 100 });
+    const result = input.ports.listLatestTimeline(input.projectId, input.goalId, { before_cursor: workBefore, limit: 100 });
     observed = result.observed_event_cursor;
     workItems.push(...result.items);
     const workIds = new Set(workItems.map((item) => item.event_id));
@@ -120,7 +120,7 @@ export function findHistoryIndexItem(
   const journalId = itemId.startsWith("journal:") ? itemId.slice("journal:".length) : null;
   if (!journalId) {
     try {
-      const event = input.ports.readEvent(input.boardId, goalId, itemId);
+      const event = input.ports.readEvent(input.projectId, goalId, itemId);
       return indexItemFromTimeline({
         event_id: event.event_id,
         journal_seq: event.journal_seq,
@@ -143,7 +143,7 @@ export function findHistoryIndexItem(
 }
 
 export function createGoalEventDocumentView(input: {
-  boardId: string;
+  projectId: string;
   goal: GoalRecord;
   ports: GoalEventDocumentPorts;
   snapshot: BoardSnapshot;
@@ -151,9 +151,9 @@ export function createGoalEventDocumentView(input: {
   events?: readonly GoalsDecisionEvent[];
   planning_methods?: readonly PlanningMethodPack[];
 }): GoalEventDocumentView {
-  const state = input.ports.readState(input.boardId, input.goal.goal_id);
+  const state = input.ports.readState(input.projectId, input.goal.goal_id);
   const timeline = listGoalDocumentHistory({
-    boardId: input.boardId,
+    projectId: input.projectId,
     goalId: input.goal.goal_id,
     ports: input.ports,
     snapshot: input.snapshot,

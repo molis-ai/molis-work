@@ -18,7 +18,7 @@ export function usableVersion(record: FixedVersionRecord | null): boolean {
 
 /** Every enabled plugin's output port that offers this type, except the consumer's own. */
 function candidatesFor(
-  input: { boardId: string; lifecycle: PluginHostLifecycle; repository: PluginWiringRepository },
+  input: { projectId: string; lifecycle: PluginHostLifecycle; repository: PluginWiringRepository },
   artifactTypeId: string,
   schemaVersion: number,
   excludePluginId: string,
@@ -30,7 +30,7 @@ function candidatesFor(
     const manifest = input.lifecycle.manifest(pluginId);
     for (const output of manifest?.ports?.outputs ?? []) {
       if (portTypeKey(output.artifact_type_id, output.schema_version) !== wanted) continue;
-      const record = input.repository.getOutput(input.boardId, pluginId, output.port);
+      const record = input.repository.getOutput(input.projectId, pluginId, output.port);
       candidates.push({
         source_plugin_id: pluginId,
         source_port: output.port,
@@ -48,13 +48,13 @@ function candidatesFor(
 
 /** What each enabled consumer's input ports are given right now: another plugin's output, a fixed 成果 version, or nothing. */
 export function buildWiringView(input: {
-  boardId: string;
+  projectId: string;
   lifecycle: PluginHostLifecycle;
   repository: PluginWiringRepository;
   artifacts: PluginArtifactReaderPort;
   selectedGroup(pluginId: string): string | undefined;
 }): PluginWiringView {
-  const { boardId, lifecycle, repository } = input;
+  const { projectId, lifecycle, repository } = input;
   const plugins = lifecycle.enabledPluginIds()
     .map((pluginId) => {
       const manifest = lifecycle.manifest(pluginId);
@@ -65,7 +65,7 @@ export function buildWiringView(input: {
       const ports: PluginInputPortView[] = inputs.map((port) => {
         const candidates = candidatesFor(input, port.artifact_type_id, port.schema_version, pluginId);
         const optional = port.optional === true || !required.has(port.port);
-        const fixed = repository.getArtifactBinding(boardId, pluginId, port.port);
+        const fixed = repository.getArtifactBinding(projectId, pluginId, port.port);
         if (fixed) {
           const readable = usableVersion(input.artifacts.library?.(fixed) ?? null);
           return {
@@ -75,9 +75,9 @@ export function buildWiringView(input: {
             ...(readable ? {} : { reason: "固定的那一版已不可读取" }), candidates,
           };
         }
-        const binding = repository.getBinding(boardId, pluginId, port.port);
+        const binding = repository.getBinding(projectId, pluginId, port.port);
         const output = binding
-          ? repository.getOutput(boardId, binding.source_plugin_id, binding.source_port)
+          ? repository.getOutput(projectId, binding.source_plugin_id, binding.source_port)
           : null;
         const state: PluginInputPortView["state"] = binding === null
           ? (candidates.length > 1 ? "ambiguous" : "missing")
@@ -116,5 +116,5 @@ export function buildWiringView(input: {
       };
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-  return { board_id: boardId, plugins };
+  return { project_id: projectId, plugins };
 }

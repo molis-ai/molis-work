@@ -11,7 +11,7 @@ import type { HostCompleteText } from "../apps/local-host/src/host-complete-text
 async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null) {
   const home = await mkdtemp(join(tmpdir(), "form-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "legacy-board" });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Form", actor_id: "owner", idempotency_key: "init" }));
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: FORM_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);

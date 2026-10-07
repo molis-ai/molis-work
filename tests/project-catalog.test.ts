@@ -7,7 +7,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { catalogSchemaCompatibilityError, type MolisWorkProjectCatalog, MolisWorkProjectCatalogError, type RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 async function withTemporaryDirectory<T>(run: (directory: string) => Promise<T>): Promise<T> {
@@ -211,6 +211,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
       const created = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
       assert.equal(created.status, "created");
       assert.equal(created.project.data_class, "regenerable_demo");
+      assert.equal(created.project.project_id, DEMO_PROJECT_ID);
       const demoId = created.project.project_id;
       assert.deepEqual(
         catalog.listProjectPlugins(created.project.project_id),

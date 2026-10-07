@@ -1,4 +1,4 @@
-PRAGMA user_version = 5;
+PRAGMA user_version = 6;
 PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
 CREATE TABLE boards (
@@ -1178,7 +1178,7 @@ CREATE TABLE casebook_interaction_audit_keys (board TEXT PRIMARY KEY, secret TEX
 CREATE TABLE casebook_interaction_actions (
  board TEXT NOT NULL, key TEXT NOT NULL, digest TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(board,key));
 INSERT INTO sqlite_sequence VALUES('events',56);
-CREATE INDEX goals_board_idx ON goals(project_id);
+CREATE INDEX goals_project_idx ON goals(project_id);
 CREATE INDEX goals_ready_idx ON goals(project_id, definition_state, decomposition_state, validity_state, fulfillment_state);
 CREATE INDEX goals_trash_idx ON goals(project_id, trashed_at);
 CREATE INDEX goals_archive_idx ON goals(project_id, archived_at);
@@ -1193,9 +1193,9 @@ CREATE INDEX goal_trash_records_goal_idx
 CREATE INDEX goal_trash_relation_records_relation_idx
     ON goal_trash_relation_records(relation_id, restored_at);
 CREATE INDEX policies_scope_idx ON policy_bindings(project_id, goal_id, state);
-CREATE INDEX project_guidance_board_idx
+CREATE INDEX project_guidance_project_idx
     ON project_guidance_entries(project_id, position, guidance_id);
-CREATE INDEX project_guidance_revisions_board_idx
+CREATE INDEX project_guidance_revisions_project_idx
     ON project_guidance_revisions(project_id, guidance_id, revision DESC);
 CREATE INDEX goal_event_types_goal_idx
     ON goal_event_types(project_id, goal_id, type_id, type_version);
@@ -1205,7 +1205,7 @@ CREATE INDEX goal_work_events_goal_seq_idx
     ON goal_work_events(project_id, goal_id, journal_seq);
 CREATE INDEX goal_work_event_judgments_requirement_idx
     ON goal_work_event_judgments(requirement_id, event_id);
-CREATE INDEX goal_event_state_owners_board_idx
+CREATE INDEX goal_event_state_owners_project_idx
     ON goal_event_state_owners(project_id, goal_id);
 CREATE INDEX goal_event_progress_summaries_goal_idx
     ON goal_event_progress_summaries(project_id, goal_id, recorded_at);
@@ -1219,30 +1219,30 @@ CREATE INDEX goal_event_requirement_conclusions_latest_idx
     ON goal_event_requirement_conclusions(project_id, goal_id, requirement_id, journal_seq);
 CREATE INDEX goal_event_closures_goal_idx
     ON goal_event_closures(project_id, goal_id, recorded_at);
-CREATE INDEX goal_tree_proposals_board_idx
+CREATE INDEX goal_tree_proposals_project_idx
     ON goal_tree_proposals(project_id, root_goal_id, state, created_at DESC, proposal_id);
 CREATE INDEX goal_tree_proposals_supersedes_idx
     ON goal_tree_proposals(supersedes_proposal_id);
 CREATE INDEX goal_tree_proposal_items_proposal_idx
     ON goal_tree_proposal_items(proposal_id, ordinal, item_id);
-CREATE INDEX goal_tree_proposal_items_board_idx
+CREATE INDEX goal_tree_proposal_items_project_idx
     ON goal_tree_proposal_items(project_id, state, item_id);
 CREATE INDEX goal_tree_proposal_decisions_item_idx
     ON goal_tree_proposal_decisions(proposal_id, item_id, created_at, decision_id);
 CREATE INDEX goal_event_trusted_decisions_goal_idx
     ON goal_event_trusted_decisions(project_id, goal_id, recorded_at);
-CREATE INDEX library_artifacts_board_idx
+CREATE INDEX library_artifacts_project_idx
     ON library_artifacts(project_id, created_at DESC, artifact_id);
 CREATE INDEX library_artifact_versions_type_idx
     ON library_artifact_versions(artifact_type_id, schema_version, scope, lifecycle_state);
-CREATE INDEX process_items_board_idx
+CREATE INDEX process_items_project_idx
     ON process_items(project_id, created_at DESC, artifact_id);
 CREATE INDEX process_item_versions_type_idx
     ON process_item_versions(artifact_type_id, schema_version, scope, lifecycle_state);
-CREATE INDEX events_board_idx ON events(project_id, seq);
+CREATE INDEX events_project_idx ON events(project_id, seq);
 CREATE INDEX context_edges_source_idx ON context_edges
     (scope_kind, scope_id, relation_type, json_extract(source_json, '$.module'), json_extract(source_json, '$.id'));
-CREATE INDEX feed_sources_board_updated_idx
+CREATE INDEX feed_sources_project_updated_idx
       ON feed_sources(project_id, updated_at DESC, source_id);
 CREATE INDEX source_events_project_source_idx
       ON source_events(project_id, source_id, at, event_id);
@@ -1252,26 +1252,26 @@ CREATE INDEX signal_events_project_source_idx
       ON signal_events(project_id, source_id, at, event_id);
 CREATE INDEX listener_deliveries_recovery_idx
       ON listener_deliveries(project_id, source_id, state, updated_at, raw_event_id);
-CREATE INDEX feed_source_runs_board_source_idx
+CREATE INDEX feed_source_runs_project_source_idx
       ON feed_source_runs(project_id, source_id, started_at DESC);
-CREATE INDEX inbox_entries_board_status_idx
+CREATE INDEX inbox_entries_project_status_idx
       ON inbox_entries(project_id, status, updated_at DESC, entry_id);
-CREATE INDEX inbox_entries_board_subject_idx
+CREATE INDEX inbox_entries_project_subject_idx
       ON inbox_entries(project_id, subject_type, subject_id);
 CREATE INDEX attention_events_project_entry_idx
       ON attention_events(project_id, entry_id, at, event_id);
-CREATE INDEX feed_items_board_updated_idx
+CREATE INDEX feed_items_project_updated_idx
       ON feed_items(project_id, disposition, source_updated_at DESC);
-CREATE UNIQUE INDEX feed_items_board_source_external_idx
+CREATE UNIQUE INDEX feed_items_project_source_external_idx
       ON feed_items(project_id, source_id, external_id)
       WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
-CREATE INDEX feed_materials_board_item_idx
+CREATE INDEX feed_materials_project_item_idx
       ON feed_materials(project_id, item_id, updated_at DESC, material_id);
 CREATE INDEX feed_item_events_project_item_idx
       ON feed_item_events(project_id, item_id, at, event_id);
-CREATE UNIQUE INDEX feed_items_board_signal_idx
+CREATE UNIQUE INDEX feed_items_project_signal_idx
       ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
-CREATE INDEX feed_out_rules_board_enabled_idx
+CREATE INDEX feed_out_rules_project_enabled_idx
       ON feed_out_rules(project_id, enabled, created_at, rule_id);
 CREATE UNIQUE INDEX plugin_events_board_sequence ON plugin_events (project_id, sequence);
 CREATE INDEX plugin_events_board_type_source
@@ -1283,6 +1283,6 @@ CREATE INDEX schedule_conversation_tasks_enabled_idx
 CREATE INDEX schedule_conversation_turns_task_idx
       ON schedule_conversation_turns(task_id, created_at);
 CREATE INDEX schedule_plugin_reminders_owner ON schedule_plugin_reminders(project_id, plugin_id, installation_id);
-CREATE INDEX coding_sessions_board_updated_idx
+CREATE INDEX coding_sessions_project_updated_idx
       ON coding_sessions(project_id, updated_at DESC, session_id);
 COMMIT;

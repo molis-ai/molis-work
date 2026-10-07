@@ -13,12 +13,11 @@ import { DEMO_PROJECT_ID, seedDemoBoard, MolisWorkLocalHost, type HostCompleteTe
 import { projectActionAvailability } from "../../apps/local-host/dist/project-action-availability.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
-import Database from "better-sqlite3";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
 
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
-export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed = seedDemoBoard, completion?: HostCompleteText | null,
+export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
   runtimeSessionTransport?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["runtimeSessionTransport"],
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"]) {
   const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -73,7 +72,6 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   let projectId: string | null = null;
   if (catalogMode === true || catalogMode === "seeded" || catalogMode === "user") {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
-    let catalogDatabasePath: string | undefined;
     try {
       if (catalogMode === "seeded" || catalogMode === "user") {
         const project = await catalog.createProject({ display_name: "目录交互验证", actor_id: "browser-test" });
@@ -84,28 +82,18 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
         }
         databasePath = project.database_path;
         projectId = project.project_id;
-        catalogDatabasePath = catalog.databasePath;
       } else {
         const project = (await catalog.ensureDemoProject({ actor_id: "browser-test", user_confirmed: true })).project;
         databasePath = project.database_path;
         projectId = project.project_id;
       }
     } finally { catalog.close(); }
-    if ((catalogMode === "seeded" || catalogMode === "user") && catalogDatabasePath && projectId) {
+    // A created project's database is replaced by the seed, under the project's own id.
+    if ((catalogMode === "seeded" || catalogMode === "user") && projectId) {
       await rm(databasePath, { force: true });
       await rm(`${databasePath}-wal`, { force: true });
       await rm(`${databasePath}-shm`, { force: true });
-      seed(databasePath);
-      const catalogDb = new Database(catalogDatabasePath);
-      let projectDb: LocalProjectDatabase | undefined;
-      try {
-        projectDb = new LocalProjectDatabase(databasePath);
-        const projectId = projectDb.goalsQuery.listProjectIds()[0];
-        if (projectId) catalogDb.prepare("UPDATE projects SET project_id = ? WHERE project_id = ?").run(projectId);
-      } finally {
-        projectDb?.close();
-        catalogDb.close();
-      }
+      seed(databasePath, projectId);
     }
   } else seed(databasePath);
   store = new LocalProjectDatabase(databasePath);
@@ -163,7 +151,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   await (await fetch(origin + "/health")).text();
-  const before = store.snapshot(DEMO_PROJECT_ID);
+  const before = store.snapshot(projectId ?? DEMO_PROJECT_ID);
   const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });

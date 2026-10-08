@@ -4,12 +4,17 @@
  */
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import type { SmokeBrief } from './smoke.mjs';
 
 export interface SmokeCommandOptions { root: string; briefs: string; out?: string; minutes: number; standIn?: boolean }
 
-const real = (path: string) => { try { return realpathSync(path); } catch { return resolve(path); } };
+/** The path with symlinks resolved as far as it exists: a Home that is not created yet is judged by where its nearest existing parent really is. */
+const real = (path: string): string => {
+  const absolute = resolve(path);
+  try { return realpathSync(absolute); } catch { const parent = dirname(absolute); return parent === absolute ? absolute : join(real(parent), relative(parent, absolute)); }
+};
+const inside = (outer: string, path: string) => { const step = relative(outer, path); return step === '' || (!step.startsWith('..') && !isAbsolute(step)); };
 
 /** How to give the isolated Home a model, printed whenever the smoke has none. */
 const HOW = (home: string) => [
@@ -32,7 +37,10 @@ export async function runSmokeCommand(options: SmokeCommandOptions): Promise<num
   const requested = process.env.MOLIS_WORK_HOME?.trim();
   if (!requested) return refuse('MOLIS_WORK_HOME is not set. The smoke only runs on an isolated Home (a scratch directory), never on the default one.\n' + HOW('<scratch dir>'));
   const home = resolve(requested);
-  if (real(home) === real(join(homedir(), '.molis-work'))) return refuse(`MOLIS_WORK_HOME is the real Home (${home}). Point it at a scratch directory.`);
+  // Not the real Home, not anywhere inside it (its tmp, a project's directory), and not a directory that holds it: the smoke writes under the Home it is given.
+  const realHome = real(join(homedir(), '.molis-work'));
+  if (inside(realHome, real(home))) return refuse(`MOLIS_WORK_HOME is the real Home or inside it (${home}). Point it at a scratch directory.`);
+  if (inside(real(home), realHome)) return refuse(`MOLIS_WORK_HOME (${home}) contains the real Home (${realHome}). Point it at a scratch directory.`);
   return execute(home, briefs, options, false);
 }
 

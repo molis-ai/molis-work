@@ -7,6 +7,23 @@
  *   pnpm studio:replay smoke --stand-in      the same wiring against a scripted local model: no key, no cost, says nothing about a Skill
  *
  * Method and what each part proves: docs/platform/STUDIO-SKILL-REPLAY.md.
+ *
+ * The committed corpus (tests/fixtures/studio-replay/corpus.json and builder-designer/minimax-notes-v1.json) is a SEED: hand-written
+ * entries that each exercise one host rule, and 3 real first proposals. It holds no real full-design answer, so the studio's headline
+ * number (the share of full designs accepted first time) is not measured by the default run, and the report says so. The real answers
+ * (66 on 2026-09-27) exist only in the real Home's run records; whether they may be read, and which may be committed, is pending a user
+ * decision that specs/repository-anti-corruption/spec.md §1 will record. Nothing here reads the real Home on its own: `--corpus` and
+ * `harvest` read the run-record directory they are given.
+ *
+ * Limits of the gate, in one place (the same list, with the reasons, is in the doc's §6):
+ *  - `--base` compares with the baseline file as the merge-base has it. If the merge-base has no baseline at that path (the commit that
+ *    adds it, or one that moved it together with DEFAULT_BASELINE below), only this tree's baseline is compared; the report says so loudly.
+ *    Moving the baseline therefore also needs an edit of this script and of the CI step, which review sees.
+ *  - The replay's checks are a copy of the workflow's (replay.mts). The parity test covers the committed corpus and the run-record shapes
+ *    its own scratch Home builds; a Home's own records are not covered until the workflow's pure checks are shared.
+ *  - A run record keeps only the actions the designer was shown, so an entry rebuilt from one is checked against that list, not against the
+ *    directory the host used (corpus.mts `shownCatalogOnly`, replay.mts `CATALOG_MISS`): such refusals are tagged, and some host refusals
+ *    (a metered action used in a query, a name clash with an action never shown) cannot be seen.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
@@ -45,6 +62,10 @@ function parse(argv: string[], flags: readonly string[], booleans: readonly stri
  * The baseline file as the merge-base of HEAD and `ref` has it (not as `ref`'s tip has it: a branch that is behind
  * `ref` has not seen what `ref` added since, and must not be failed for lacking it), so a baseline rewritten to forgive a
  * regression is still caught. The commit that was read is returned for the report.
+ *
+ * Whether the file is in that commit is asked of its tree (`git ls-tree`), never read off the wording of an error message, so
+ * a git in another language, or any failure other than "the file is not there", stops the command (exit 2) instead of passing
+ * as "no baseline yet".
  */
 function baselineAt(ref: string, file: string): { baseline: Baseline | undefined; commit: string } {
   const where = realpathSync(file), git = (...args: string[]) => spawnSync('git', ['-C', dirname(where), ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
@@ -53,11 +74,14 @@ function baselineAt(ref: string, file: string): { baseline: Baseline | undefined
   if (git('rev-parse', '--verify', '--quiet', ref + '^{commit}').status !== 0) throw new Usage(`--base ${ref} is not a commit here (fetch it first)`);
   const base = git('merge-base', 'HEAD', ref), commit = base.stdout.trim();
   if (base.status !== 0 || !commit) throw new Usage(`--base ${ref} has no history in common with HEAD here (deepen the clone: git fetch --unshallow)`);
-  const shown = git('show', `${commit}:${relative(realpathSync(top.stdout.trim()), where).split('\\').join('/')}`);
-  if (shown.status === 0) return { baseline: parseBaseline(shown.stdout, `${file} at ${commit.slice(0, 8)}`), commit };
-  // The file not being there yet is the first commit that adds it; any other failure is not an excuse to skip the comparison.
-  if (/exists on disk, but not in|does not exist in/.test(shown.stderr)) return { baseline: undefined, commit };
-  throw new Error(`could not read ${file} at ${commit.slice(0, 8)} (merge-base with ${ref}): ${shown.stderr.trim()}`);
+  const inRepository = relative(realpathSync(top.stdout.trim()), where).split('\\').join('/');
+  const listed = git('ls-tree', '--full-tree', '--name-only', commit, '--', inRepository);
+  if (listed.status !== 0) throw new Error(`could not look for ${file} in the merge-base with ${ref} (${commit.slice(0, 8)}): ${listed.stderr.trim()}`);
+  // Not in the commit: the first one that adds the file. Anything else that goes wrong is no excuse to skip the comparison.
+  if (listed.stdout.trim() === '') return { baseline: undefined, commit };
+  const shown = git('show', `${commit}:${inRepository}`);
+  if (shown.status !== 0) throw new Error(`could not read ${file} at ${commit.slice(0, 8)} (merge-base with ${ref}): ${shown.stderr.trim()}`);
+  return { baseline: parseBaseline(shown.stdout, `${file} at ${commit.slice(0, 8)}`), commit };
 }
 
 function replayCommand(argv: string[]): number {
@@ -84,9 +108,11 @@ function replayCommand(argv: string[]): number {
   }
   const previous = values.base?.[0] && baselineFile ? baselineAt(values.base[0], baselineFile) : undefined;
   const comparison = recorded ? compare(results, recorded, previous?.baseline) : undefined;
-  process.stdout.write(renderReport({ results, summary, skipped: loaded.skipped, sources: ['built-in prompt example', ...paths.map(path => relative(root, path))], ...(comparison ? { comparison } : {}),
-    baselineLabel: baselineFile ? relative(root, baselineFile) + (previous ? previous.baseline ? ` (also against the merge-base with ${values.base![0]}, ${previous.commit.slice(0, 8)})` : ` (the merge-base with ${values.base![0]}, ${previous.commit.slice(0, 8)}, has no baseline yet)` : '') : '', skill, skillProblems: notes.problems, skillChanged: notes.changed, verbose: set.has('verbose') }));
-  if (values.json?.[0]) writeFileSync(resolve(values.json[0]), JSON.stringify({ summary, results, comparison: comparison ?? null, skill }, null, 2) + '\n');
+  const unchecked = previous && !previous.baseline ? `the merge-base with ${values.base![0]} (${previous.commit.slice(0, 8)}) has no baseline at ${relative(root, baselineFile!)}, so only the baseline in this tree was compared. That is expected only for the commit that adds the baseline; if the file was moved or renamed, the record at the merge-base is NOT being checked.` : undefined;
+  process.stdout.write(renderReport({ results, summary, skipped: loaded.skipped, merged: loaded.merged, sources: ['built-in prompt example', ...paths.map(path => relative(root, path))], ...(comparison ? { comparison } : {}),
+    baselineLabel: baselineFile ? relative(root, baselineFile) + (previous ? previous.baseline ? ` (also against the merge-base with ${values.base![0]}, ${previous.commit.slice(0, 8)})` : ` (the merge-base with ${values.base![0]}, ${previous.commit.slice(0, 8)}, has no baseline yet)` : '') : '',
+    ...(unchecked ? { baselineWarning: unchecked } : {}), seed: paths.some(path => path === resolve(root, DEFAULT_CORPUS[0]!)), skill, skillProblems: notes.problems, skillChanged: notes.changed, verbose: set.has('verbose') }));
+  if (values.json?.[0]) writeFileSync(resolve(values.json[0]), JSON.stringify({ summary, results, merged: loaded.merged, comparison: comparison ?? null, skill }, null, 2) + '\n');
   let code = 0;
   if (comparison && failures(comparison)) code = 1;
   if (notes.problems.length) code = 1;
@@ -95,7 +121,9 @@ function replayCommand(argv: string[]): number {
     const need = Number(floor), first = results.filter(result => result.attempt === 0 && result.origin === 'recorded');
     if (!(need >= 0 && need <= 1)) throw new Usage('--min-pass is a number between 0 and 1');
     const rate = first.length ? first.filter(result => result.pass).length / first.length : 0;
-    if (rate < need) { process.stderr.write(`first-answer pass rate of recorded answers ${(100 * rate).toFixed(0)}% is below --min-pass ${floor}\n`); code = 1; }
+    // The floor counts a refusal for an action the run record does not show as a refusal: the safe side for a gate.
+    const gap = first.filter(result => result.catalogGap).length;
+    if (rate < need) { process.stderr.write(`first-answer pass rate of recorded answers ${(100 * rate).toFixed(0)}% is below --min-pass ${floor}${gap ? ` (${gap} of the refusals name an action the run record does not show and count as refused here)` : ''}\n`); code = 1; }
   }
   return code;
 }
@@ -108,7 +136,7 @@ function harvestCommand(argv: string[]): number {
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify({ format: 'studio-replay-corpus/1', entries: loaded.entries }, null, 2) + '\n');
   const first = loaded.entries.filter(entry => entry.attempt === 0).length;
-  process.stdout.write(`wrote ${loaded.entries.length} entries (${first} first answers) to ${out}; skipped ${loaded.skipped.length}\n`
+  process.stdout.write(`wrote ${loaded.entries.length} entries (${first} first answers) to ${out}; merged ${loaded.merged.length} identical run records; skipped ${loaded.skipped.length}\n`
     + 'They carry the proposals and designs a person asked for: read them before committing or sharing the file. Briefs and prompts are not copied.\n');
   return 0;
 }

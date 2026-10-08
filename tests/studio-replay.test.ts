@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
@@ -10,7 +10,7 @@ import { assertContract } from "@molis-ai/molis-work-plugin-sandbox";
 import type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { BuilderAgentRecord, BuilderAgentRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { entryDigest, entryFromRunRecord, loadCorpus, type ReplayEntry } from "../scripts/studio-replay/corpus.mjs";
-import { LIVE_ENTRY_IDS, builtinEntries, compare, parseBaseline, replayEntry, summarise } from "../scripts/studio-replay/replay.mjs";
+import { CATALOG_MISS, LIVE_ENTRY_IDS, builtinEntries, compare, parseBaseline, replayEntry, summarise } from "../scripts/studio-replay/replay.mjs";
 import { runSmoke } from "../scripts/studio-replay/smoke.mjs";
 import { standInAnswers } from "../scripts/studio-replay/stand-in.mjs";
 
@@ -42,6 +42,21 @@ test("the committed corpus replays exactly as its baseline records, and every sy
     else if (entry.origin === "synthetic") assert.equal(result.pass, true, `${entry.id}: ${result.message}`);
   }
   assert.ok(entries.filter(entry => entry.origin === "recorded").length >= 3, "the real MiniMax answers of tests/fixtures/builder-designer are part of the corpus");
+  const loaded = loadCorpus([path.join(corpusDirectory, "corpus.json"), proposalsFixture]);
+  assert.deepEqual(loaded.merged, [], "a committed corpus repeats no entry: merging identical records is for a Home's run history, not for the files we keep");
+  assert.deepEqual(loaded.skipped, []);
+});
+
+test("the committed corpus is a seed: it holds no real full-design answer, and the default report says so and says what is pending", () => {
+  // This is the fact the doc and the report state plainly. If a real detail answer is ever committed, this test is the place that changes, together with the doc's §2.2.
+  assert.equal(committed().filter(entry => entry.origin === "recorded" && entry.mode !== "propose").length, 0, "no real detail or revise answer is committed");
+  assert.equal(committed().filter(entry => entry.origin === "recorded").length, 3, "the real answers are the 3 first proposals of builder-designer/minimax-notes-v1.json");
+  const result = cli([]);
+  assert.equal(result.code, 0, result.out);
+  assert.match(result.out, /no recorded detail answers in this corpus\. The committed corpus is a seed/);
+  assert.match(result.out, /share of full designs accepted first time, is NOT measured here/);
+  assert.match(result.out, /pending a user decision, to be recorded in\s+specs\/repository-anti-corruption\/spec\.md §1/);
+  assert.doesNotMatch(cli(["--corpus", path.join(corpusDirectory, "smoke-briefs.json")]).out, /committed corpus is a seed/, "a corpus of one's own is not called the seed");
 });
 
 test("the prompt example is replayed from the prompt itself, so a prompt edit that breaks it fails here", () => {
@@ -152,11 +167,13 @@ const make = (name: string) => {
   return { directory, corpus, baseline, run, edit, editBaseline };
 };
 
+const gitIn = (directory: string) => (...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=replay", "-c", "user.email=replay@example.invalid", ...args], { cwd: directory, encoding: "utf8", stdio: "pipe" });
+
 /** A scratch repository around a made corpus, with its baseline committed on `main`. */
 const repository = (name: string, prepare: (made: ReturnType<typeof make>) => void = () => {}) => {
   const made = make(name);
   prepare(made);
-  const git = (...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=replay", "-c", "user.email=replay@example.invalid", ...args], { cwd: made.directory, encoding: "utf8", stdio: "pipe" });
+  const git = gitIn(made.directory);
   git("init", "-q", "-b", "main"); git("add", "-A"); git("commit", "-q", "-m", "base");
   const commit = (message: string) => { git("add", "-A"); git("commit", "-q", "--allow-empty", "-m", message); };
   return { ...made, git, commit };
@@ -255,6 +272,25 @@ test("--base reads the baseline at the merge-base, not at the tip of the ref: a 
   assert.equal(run("--base", fork).code, 0, "the merge-base itself reads the same baseline");
   git("checkout", "-q", "main");
   assert.equal(run("--base", "main").code, 0, "and main against itself holds");
+});
+
+test("--base asks the merge-base's tree whether the baseline is there: a baseline that is not there yet is a first comparison with a warning, any other failure stops the command", () => {
+  const first = make("first-baseline"), git = gitIn(first.directory);
+  git("init", "-q", "-b", "main"); git("add", "corpus"); git("commit", "-q", "-m", "corpus only");
+  git("checkout", "-q", "-b", "adds-baseline"); git("add", "baseline.json"); git("commit", "-q", "-m", "the baseline");
+  const adds = first.run("--base", "main");
+  assert.equal(adds.code, 0, adds.out);
+  assert.match(adds.out, /\(the merge-base with main, [0-9a-f]{8}, has no baseline yet\)/);
+  assert.match(adds.out, /\nWARNING: the merge-base with main \([0-9a-f]{8}\) has no baseline at \S*baseline\.json, so only the baseline in this tree was compared\..*the record at the merge-base is NOT being checked/, "said before the verdict, not buried in the label");
+  // The baseline is at the merge-base but its tree cannot be read: not "no baseline yet" (a localized git, a damaged object store).
+  const { run, git: other, directory } = repository("unreadable-base");
+  other("checkout", "-q", "-b", "work");
+  const tree = other("rev-parse", "main^{tree}").trim();
+  rmSync(path.join(directory, ".git", "objects", tree.slice(0, 2), tree.slice(2)), { force: true });
+  const broken = run("--base", "main");
+  assert.equal(broken.code, 2, broken.out);
+  assert.match(broken.out, /could not look for .*baseline\.json in the merge-base with main/);
+  assert.doesNotMatch(broken.out, /has no baseline yet|WARNING/, "an unreadable base is an error, never a skipped comparison");
 });
 
 test("an answer rewritten under the same id fails, whether or not it still passes; the baseline cannot be told to accept it", () => {
@@ -383,7 +419,7 @@ test("--min-pass holds a corpus of one's own to a floor on the first answers of 
 // ---------------------------------------------------------------------------------------------------------------------
 // Harvesting a Home's own recorded runs
 
-test("designer run records become corpus entries without the brief, and only the stages the replay checks", () => {
+test("designer run records become corpus entries without the brief, and only the stages the replay checks", async () => {
   const runs = path.join(scratch, "runs", "build-1", "builder-runs");
   mkdirSync(runs, { recursive: true });
   const corpus = loadCorpus([path.join(corpusDirectory, "corpus.json")]).entries, valid = corpus.find(item => item.id === "detail-notes-plain")!.answer, revision = corpus.find(item => item.id === "revise-notes-with-rework")!.answer;
@@ -402,7 +438,7 @@ test("designer run records become corpus entries without the brief, and only the
   const out = path.join(scratch, "harvested", "corpus.json");
   const result = cli(["harvest", "--runs", path.join(scratch, "runs"), "--out", out]);
   assert.equal(result.code, 0, result.out);
-  assert.match(result.out, /wrote 3 entries \(2 first answers\) to .*; skipped 3/);
+  assert.match(result.out, /wrote 3 entries \(2 first answers\) to .*; merged 0 identical run records; skipped 3/);
   const text = readFileSync(out, "utf8"), entries = (JSON.parse(text) as { entries: ReplayEntry[] }).entries;
   assert.doesNotMatch(text, /PRIVATE-/, "neither the brief nor the instruction leaves the Home");
   assert.deepEqual(entries.map(entry => [entry.mode, entry.origin, entry.attempt]).sort(), [["detail", "recorded", 0], ["detail", "recorded", 1], ["revise", "recorded", 0]]);
@@ -416,6 +452,91 @@ test("designer run records become corpus entries without the brief, and only the
   assert.match(replayed.out, /recorded revise\s+1\/1/, "a revision replays against the design recorded with it");
   assert.match(replayed.out, /answers to repair requests: 0\/1 accepted/);
   assert.equal(typeof entryFromRunRecord({ role: "designer", input: "{", output: "x" }, "t"), "string", "an unreadable task is skipped with a reason, never guessed at");
+  // The run-record shapes the harvest builds are checked by the same host code as the committed ones: the copy of the checks in the replay cannot drift on them unseen.
+  assert.ok(entries.every(entry => entry.shownCatalogOnly === true), "an entry rebuilt from a run record says its action list is only what the designer was shown");
+  for (const entry of entries) {
+    const replayed = replayEntry(entry), real = await throughWorkflow(entry);
+    assert.equal(replayed.pass, real.accepted, `${entry.id} (${entry.mode}, attempt ${entry.attempt}): replay ${replayed.pass ? "accepted" : "refused (" + replayed.message + ")"}, workflow ${real.accepted ? "accepted" : "refused (" + real.refusal + ")"}`);
+    if (!replayed.pass) assert.equal(replayed.message, real.refusal, `${entry.id}: the same words`);
+  }
+});
+
+/** A designer run record of the Agent host with the fields the replay reads. */
+const designerRecord = (id: string, task: Record<string, unknown>, output: string, over: Record<string, unknown> = {}) => ({ id, role: "designer", promptVersion: "designer/3.7.0+molis-plugin-dev.design@1", contractRevision: "draft",
+  instruction: "PRIVATE-INSTRUCTION", input: JSON.stringify(task), output, configuredModel: "m", reportedModels: [], phase: "completed", startedAt: "2026-10-01T00:00:00Z", activity: [], usage: [], ...over });
+const writeRecords = (home: string, files: Record<string, unknown>) => { for (const [file, value] of Object.entries(files)) { const target = path.join(home, file); mkdirSync(path.dirname(target), { recursive: true }); writeFileSync(target, JSON.stringify(value)); } };
+const committedEntry = (id: string) => loadCorpus([path.join(corpusDirectory, "corpus.json")]).entries.find(entry => entry.id === id)!;
+const detailTask = (proposal: unknown, extra: Record<string, unknown> = {}) => ({ mode: "detail", brief: "PRIVATE-BRIEF", proposal, capabilities: [], moreCapabilities: [], resources: [], ...extra });
+
+test("run records of one task and answer are one entry: the replay and the harvest merge them, say so and go on (a retried build keeps its runs twice)", () => {
+  const home = path.join(scratch, "dup-home"), notes = committedEntry("detail-notes-plain"), task = detailTask(notes.base);
+  writeRecords(home, {
+    "b1/builder-runs/r1.json": designerRecord("r1", task, notes.answer),
+    "b2/builder-runs/r2.json": designerRecord("r2", task, notes.answer, { configuredModel: "another", startedAt: "2026-10-02T00:00:00Z" }),
+    "b2/builder-runs/r3.json": designerRecord("r3", task, notes.answer.slice(0, 80)),
+  });
+  const replayed = cli(["--corpus", home]);
+  assert.equal(replayed.code, 0, "the command that prints a Home's pass rate does not stop on a repeated record: " + replayed.out);
+  assert.match(replayed.out, /recorded detail\s+1\/2/, "the two copies are one answer, the cut-off one is another");
+  assert.match(replayed.out, /Same task and answer met more than once, replayed once \(1\)\n\s+detail-[0-9a-f]{12}: .*r1\.json and .*r2\.json/);
+  const out = path.join(scratch, "dup-harvest", "corpus.json"), harvested = cli(["harvest", "--runs", home, "--out", out]);
+  assert.equal(harvested.code, 0, harvested.out);
+  assert.match(harvested.out, /wrote 2 entries \(2 first answers\) to .*; merged 1 identical run records; skipped 0/, "the harvest merges them the same way");
+  // The same entry in two corpus files is the same merge; the same id for two different answers is a mistake in a corpus and says where.
+  const clash = path.join(scratch, "dup-clash"), entry = (JSON.parse(readFileSync(out, "utf8")) as { entries: Array<Record<string, unknown>> }).entries[0]!;
+  mkdirSync(clash, { recursive: true });
+  const corpus = (value: Record<string, unknown>) => JSON.stringify({ format: "studio-replay-corpus/1", entries: [value] });
+  writeFileSync(path.join(clash, "a.json"), corpus(entry)); writeFileSync(path.join(clash, "b.json"), corpus({ ...entry, note: "a copy that only has another note" }));
+  const copy = cli(["--corpus", clash]);
+  assert.equal(copy.code, 0, copy.out);
+  assert.match(copy.out, /Same task and answer met more than once, replayed once \(1\)/);
+  writeFileSync(path.join(clash, "b.json"), corpus({ ...entry, answer: String(entry.answer) + " " }));
+  const mistaken = cli(["--corpus", clash]);
+  assert.equal(mistaken.code, 2, mistaken.out);
+  assert.match(mistaken.out, /two corpus entries are called detail-[0-9a-f]{12} but are not the same answer \(.*a\.json and .*b\.json\)/);
+  // A file in the Home's history that cannot be read is one more thing not replayed.
+  if (process.getuid?.() !== 0) {
+    const locked = path.join(home, "b2/builder-runs/locked.json");
+    writeFileSync(locked, "{}"); chmodSync(locked, 0);
+    try { const skipped = cli(["--corpus", home]); assert.equal(skipped.code, 0, skipped.out); assert.match(skipped.out, /locked\.json: could not be read/); }
+    finally { chmodSync(locked, 0o600); }
+  }
+});
+
+test("a refusal for an action the run record does not show is tagged and bounded, not counted as an ordinary refusal; with the action shown the same answer is accepted", () => {
+  const home = path.join(scratch, "gap-home"), ask = committedEntry("detail-model-ask-then-add"), task = (extra: Record<string, unknown> = {}) => detailTask(ask.base, extra);
+  writeRecords(home, {
+    "b/builder-runs/shown.json": designerRecord("shown", task({ capabilities: [{ id: "model.generate", execution: ask.capabilities[0]!.execution, input: { big: "schema" } }] }), ask.answer),
+    "b/builder-runs/summarised.json": designerRecord("summarised", task({ moreCapabilities: [{ source: "平台", count: 1, examples: ["model.generate — 模型"] }] }), ask.answer),
+    "b/builder-runs/unseen.json": designerRecord("unseen", task(), ask.answer),
+    "b/builder-runs/cut.json": designerRecord("cut", task({ capabilities: [{ id: "model.generate" }] }), ask.answer.slice(0, 100)),
+  });
+  const result = cli(["--corpus", home]);
+  assert.equal(result.code, 0, result.out);
+  assert.match(result.out, /recorded detail\s+2\/4\s+50%\s+\(1 of the 2 refused name an action the run record does not show; if the host accepted those, at most 75%\)/);
+  assert.match(result.out, /Refused for an action the run record does not show[^\n]*\n\s+detail-[0-9a-f]{12} \[validate\]: 项目能力目录中没有：model\.generate\n(?!\s+detail)/, "the cut-off answer is not in that list, only the one that names an action nobody showed");
+  assert.match(result.out, /4 of these answers were rebuilt from run records: their action list is what the designer was shown/);
+  const floor = cli(["--corpus", home, "--min-pass", "0.9"]);
+  assert.equal(floor.code, 1, floor.out);
+  assert.match(floor.out, /50% is below --min-pass 0\.9 \(1 of the refusals name an action the run record does not show and count as refused here\)/, "a floor counts the tagged refusal as a refusal");
+  assert.doesNotMatch(cli([]).out, /rebuilt from run records/, "nothing of the committed corpus was rebuilt from a run record");
+});
+
+test("the refusals the report tags as an action the run record does not show are the host's own words, at both stages that say them", async () => {
+  const detail: ReplayEntry = { ...committedEntry("detail-model-ask-then-add"), capabilities: [] }, replayed = replayEntry(detail);
+  assert.equal(replayed.pass, false);
+  assert.match(replayed.message!, CATALOG_MISS, "validateAgentDesign: " + replayed.message);
+  assert.equal((await throughWorkflow(detail)).refusal, replayed.message, "the workflow sends the designer back with those words");
+  const first = committedEntry("propose-two-candidates"), value = JSON.parse(first.answer) as { candidates: Array<{ operations: Array<Record<string, unknown>> }> };
+  value.candidates[0]!.operations[0]!.effects = { capabilities: ["goals.list"] };
+  const propose: ReplayEntry = { ...first, id: "propose-unlisted-action", answer: JSON.stringify(value) }, refused = replayEntry(propose);
+  assert.equal(refused.stage, "propose");
+  assert.match(refused.message!, CATALOG_MISS, "the propose stage: " + refused.message);
+  assert.equal((await throughWorkflow(propose)).refusal, refused.message);
+  assert.equal(replayEntry({ ...detail, shownCatalogOnly: true }).catalogGap, true, "tagged when the list is only what the designer was shown");
+  assert.equal(replayEntry(detail).catalogGap, undefined, "and never for an entry whose list is the whole directory");
+  assert.equal(replayEntry({ ...committedEntry("detail-notes-plain"), answer: "{", shownCatalogOnly: true }).catalogGap, undefined, "or for a refusal that is about something else");
+  assert.notEqual(entryDigest({ ...detail, shownCatalogOnly: true }), entryDigest(detail), "and the flag is part of what the baseline records of an entry");
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -430,6 +551,18 @@ test("the smoke only runs on an isolated Home with the file secret store, and sa
   const real = cli(["smoke"], { HOME: fakeUser, MOLIS_WORK_HOME: path.join(fakeUser, ".molis-work") });
   assert.equal(real.code, 2, real.out);
   assert.match(real.out, /REFUSED: MOLIS_WORK_HOME is the real Home/);
+  // Nowhere inside the real Home (its tmp, a project directory), by symlink either, and not a directory that holds it.
+  const inside = cli(["smoke"], { HOME: fakeUser, MOLIS_WORK_HOME: path.join(fakeUser, ".molis-work", "tmp") });
+  assert.equal(inside.code, 2, inside.out);
+  assert.match(inside.out, /REFUSED: MOLIS_WORK_HOME is the real Home or inside it/);
+  const holder = cli(["smoke"], { HOME: fakeUser, MOLIS_WORK_HOME: fakeUser });
+  assert.equal(holder.code, 2, holder.out);
+  assert.match(holder.out, /REFUSED: MOLIS_WORK_HOME \(.*\) contains the real Home/);
+  mkdirSync(path.join(fakeUser, ".molis-work"), { recursive: true });
+  symlinkSync(path.join(fakeUser, ".molis-work"), path.join(scratch, "link-to-real-home"));
+  const linked = cli(["smoke"], { HOME: fakeUser, MOLIS_WORK_HOME: path.join(scratch, "link-to-real-home", "later") });
+  assert.equal(linked.code, 2, linked.out);
+  assert.match(linked.out, /REFUSED: MOLIS_WORK_HOME is the real Home or inside it/);
   const keychain = cli(["smoke"], { MOLIS_WORK_HOME: home, MOLIS_WORK_SECRET_BACKEND: "keychain" });
   assert.equal(keychain.code, 2, keychain.out);
   assert.match(keychain.out, /MOLIS_WORK_SECRET_BACKEND must be "file"/);

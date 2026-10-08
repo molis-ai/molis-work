@@ -8,7 +8,12 @@
  *
  * The checks mirror `AgentBuilderWorkflow.acceptDesign` and the propose stage in
  * plugins/native/plugin-builder/src/agent-workflow.ts; tests/studio-replay.test.ts drives the real workflow with the
- * same answers and fails if the two ever disagree.
+ * same answers and fails if the two ever disagree. That test covers the committed corpus and the run-record shapes its own
+ * scratch Home builds, not an arbitrary Home: the copy of the workflow's checks below (`proposeAnswer`, the rework loop in
+ * `designAnswer`) can drift from the original for a corpus nobody committed, until the workflow's pure checks are pulled out
+ * of plugin-builder so that both call one function (docs/platform/STUDIO-SKILL-REPLAY.md §2.1).
+ *
+ * Entries rebuilt from a run record (`shownCatalogOnly`) know only the actions the designer was shown; see `CATALOG_MISS`.
  */
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { BUILDER_PROMPTS, expandDesign, normalizeProposal, parseModelJson, validateAgentDesign, type CatalogEntry } from '@molis-ai/molis-work-plugin-builder';
@@ -31,11 +36,24 @@ export interface ReplayResult {
   /** How many things the host tidied in the answer ("宿主整理" notes). */
   notes: number;
   shape?: string;
+  /** The entry's action list was rebuilt from a run record (`ReplayEntry.shownCatalogOnly`). */
+  shownCatalogOnly?: true;
+  /** Refused for an action that is not in the list the entry knows, and that list is only what the designer was shown: the host, which checked the whole directory, may have accepted it. */
+  catalogGap?: true;
   /** What the entry was when it was replayed (`entryDigest`); none for an entry read from the code itself (`live`). */
   digest?: string;
 }
 
 const PLUGIN_ID = 'io.molis.work.generated.replay', REVISION = 'replay';
+/**
+ * The host's two refusals for an action that is not in the directory it checked against: `项目能力目录中没有：` (validateAgentDesign,
+ * agent-validation.ts) and `用了能力目录里没有的「` (the propose stage, agent-workflow.ts); the words are the host's own, so they
+ * keep the old name of the action directory. A run record keeps only the actions the designer was shown, not the directory
+ * the host checked, so for an entry rebuilt from one (`shownCatalogOnly`) such a refusal may be the replay's artefact; the
+ * report tags it instead of counting it as an ordinary refusal. tests/studio-replay.test.ts feeds both messages from the real
+ * code through this pattern, so a reworded refusal fails there.
+ */
+export const CATALOG_MISS = /项目能力目录中没有：|用了能力目录里没有的「/u;
 const asCatalog = (entry: ReplayEntry): CatalogEntry[] => entry.capabilities.map(item => ({ id: item.id, description: '', ...(item.execution ? { execution: item.execution } : {}) }) as CatalogEntry);
 
 /** A refusal reduced to its kind: identifiers, numbers and quoted names out, so "operation x is unused" and "operation y is unused" group. */
@@ -86,11 +104,11 @@ function designAnswer(entry: ReplayEntry, env: ReplayEnv): Pick<ReplayResult, 'o
 }
 
 export function replayEntry(entry: ReplayEntry, env: ReplayEnv = defaultEnv): ReplayResult {
-  const head = { id: entry.id, mode: entry.mode, origin: entry.origin, attempt: entry.attempt, ...(entry.live ? {} : { digest: entryDigest(entry) }) };
+  const head = { id: entry.id, mode: entry.mode, origin: entry.origin, attempt: entry.attempt, ...(entry.live ? {} : { digest: entryDigest(entry) }), ...(entry.shownCatalogOnly ? { shownCatalogOnly: true as const } : {}) };
   try { return { ...head, pass: true, ...(entry.mode === 'propose' ? proposeAnswer(entry) : designAnswer(entry, env)) }; }
   catch (error) {
     const stopped = error instanceof Stopped ? error : new Stopped('expand', error instanceof Error ? error.message : String(error));
-    return { ...head, pass: false, stage: stopped.stage, message: stopped.message, reason: reasonKind(stopped.message), notes: 0 };
+    return { ...head, pass: false, stage: stopped.stage, message: stopped.message, reason: reasonKind(stopped.message), notes: 0, ...(entry.shownCatalogOnly && CATALOG_MISS.test(stopped.message) ? { catalogGap: true as const } : {}) };
   }
 }
 
@@ -112,9 +130,12 @@ export function builtinEntries(): ReplayEntry[] {
     base: { id: 'quick', title: '随手记', description: '写一句就保存', rationale: '最短路径', journey: ['写', '看'] }, note: 'the worked example in the designer prompt; a prompt edit that breaks it fails here' }];
 }
 
-export interface Group { label: string; passed: number; total: number }
+/** `gap`: of the refused answers, how many only name an action the entry does not know (`ReplayResult.catalogGap`): the host may have accepted them. */
+export interface Group { label: string; passed: number; total: number; gap: number }
 export interface Summary {
   total: number; passed: number;
+  /** Answers rebuilt from a run record, whose action list is what the designer was shown, not the directory the host checked. */
+  fromRunRecords: number;
   /** First answers only (attempt 0): the share the host accepted without sending anything back. */
   groups: Group[];
   reasons: Array<{ kind: string; count: number; ids: string[]; stage: ReplayStage | undefined; example: string }>;
@@ -123,8 +144,8 @@ export interface Summary {
 export function summarise(results: readonly ReplayResult[]): Summary {
   const first = results.filter(result => result.attempt === 0), groups = new Map<string, Group>();
   for (const result of first) {
-    const label = `${result.origin} ${result.mode}`, group = groups.get(label) ?? { label, passed: 0, total: 0 };
-    group.total++; if (result.pass) group.passed++; groups.set(label, group);
+    const label = `${result.origin} ${result.mode}`, group = groups.get(label) ?? { label, passed: 0, total: 0, gap: 0 };
+    group.total++; if (result.pass) group.passed++; if (result.catalogGap) group.gap++; groups.set(label, group);
   }
   const reasons = new Map<string, Summary['reasons'][number]>();
   for (const result of results.filter(item => !item.pass)) {
@@ -132,7 +153,7 @@ export function summarise(results: readonly ReplayResult[]): Summary {
     row.count++; row.ids.push(result.id); reasons.set(result.reason!, row);
   }
   const repairs = results.filter(result => result.attempt > 0);
-  return { total: results.length, passed: results.filter(result => result.pass).length, groups: [...groups.values()].sort((a, b) => a.label.localeCompare(b.label)),
+  return { total: results.length, passed: results.filter(result => result.pass).length, fromRunRecords: results.filter(result => result.shownCatalogOnly).length, groups: [...groups.values()].sort((a, b) => a.label.localeCompare(b.label)),
     reasons: [...reasons.values()].sort((a, b) => b.count - a.count || a.kind.localeCompare(b.kind)), repairRounds: { total: repairs.length, passed: repairs.filter(result => result.pass).length } };
 }
 

@@ -8,8 +8,6 @@ import { builderSkill } from '../../apps/local-host/src/plugin-builder/skill.js'
 import type { Baseline, SkillMount } from './replay.mjs';
 
 export const SKILL_STAGES = ['design', 'experience', 'ui', 'review', 'code'] as const;
-/** The cap on one mounted stage (MAX_BODY in skill.ts). */
-export const SKILL_BODY_LIMIT = 20_000;
 
 export function mountedSkill(directory?: string): NonNullable<Baseline['skill']> {
   const stages: Record<string, SkillMount> = {};

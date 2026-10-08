@@ -51,13 +51,14 @@ function taskCardsFrom(nodes: readonly JsonNode[]): JsonNode[] {
   const cards: JsonNode[] = [];
   walk(nodes, (node) => {
     if (node.type !== "task_item") return;
-    const title = textOf(node).trim();
+    // A card keeps only the first 80 characters, so a task is compared by those on both sides: a longer item is the same task next time.
+    const title = textOf(node).trim().slice(0, 80);
     if (!title || existing.has(title)) return;
     existing.add(title);
     cards.push({
       type: "task_card",
       attrs: {
-        title: title.slice(0, 80),
+        title,
         description: "",
         status: node.attrs?.checked === true ? "done" : "todo",
         due: "",

@@ -1,4 +1,4 @@
-import type { ActionClient, ActionProviderRegistration, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionProviderRegistration, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactsManifest, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
@@ -39,7 +39,7 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
       importSources: () => runWithMolisWorkHome(home, documentImportConnectionStatus),
       importConnections: () => documentImportConnections(home),
       importDocument: (input, caller) => runWithMolisWorkHome(home, () => importLocalArtifactDocument({ ...input }, {
-        projectId: runtime.project_id, actorId: caller.actor_id, routePrefix: `/projects/${encodeURIComponent(runtime.project_id)}`,
+        projectId: runtime.project_id, actorId: caller.actor_id, ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: `/projects/${encodeURIComponent(runtime.project_id)}`,
         artifacts: runtime.coordinator.artifacts, signal: caller.signal,
         beforeDispatch: () => caller.beforeEffect(),
         beforeSave: () => caller.beforeEffect(),

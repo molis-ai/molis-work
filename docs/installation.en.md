@@ -113,7 +113,7 @@ This runs the foreground `molis-work-web`; the page stops when the terminal or R
 "$HOME/.molis-work/bin/molis-work-web" --home "$HOME/.molis-work"
 ```
 
-After opening `http://127.0.0.1:4173`, you can create, import, rename, and open projects in Settings, and configure Runtime integration first. Selecting a project only changes what the page browses; it does not bind or switch the current Runtime Session. Existing legacy DBs are migrated into a project only after you explicitly select and confirm. On macOS you can use the Desktop installer or run `pnpm desktop` from the repository; both are window shells over the same pages and local data.
+After opening `http://127.0.0.1:4173`, you can create, rename, and open projects in Settings, and configure Runtime integration first. Selecting a project only changes what the page browses; it does not bind or switch the current Runtime Session. On macOS you can use the Desktop installer or run `pnpm desktop` from the repository; both are window shells over the same pages and local data.
 
 Running `molis-work-web` directly is still foreground mode, good for temporary debugging; closing the terminal closes the page too. On macOS you can instead use the user-level LaunchAgent persistent service — preview first, then confirm:
 

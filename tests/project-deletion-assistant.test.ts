@@ -3,7 +3,12 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { LocalHost } from "../apps/local-host/src/local-host.js";
+import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
+import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 import { ASSISTANT_STORE_NAME, AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { purgeAssistantProject } from "../apps/local-host/src/assistant/assistant-project-purge.js";
 
@@ -59,4 +64,44 @@ test("a Home without an Assistant library has nothing to clear and gets none", a
   assert.equal(await purgeAssistantProject(home, "project-gone"), 0);
   const { existsSync } = await import("node:fs");
   assert.equal(existsSync(join(home, "assistant")), false);
+});
+
+function reply(text: string): Response {
+  const events: string[] = [];
+  const emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
+  emit("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
+  emit("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
+  emit("content_block_delta", { index: 0, delta: { type: "text_delta", text } });
+  emit("content_block_stop", { index: 0 });
+  emit("message_delta", { delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
+  emit("message_stop", {});
+  return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
+}
+
+test("a running Assistant cancels the timed rounds the runtime queued for a deleted project's works", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-purge-live-"));
+  t.mock.method(globalThis, "fetch", async () => reply("好的。"));
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-purge-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
+  const store = new AssistantStore(db);
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, ACTOR);
+  t.after(async () => { db.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
+  assert.equal(await service.attachSchedule(), true);
+  const sent = await service.send({ text: "帮我跟进今天的工作", request_id: "req-purge-1" }, { project_ref: { project_id: "project-gone", storage_key: "memory:project" } });
+  for (let i = 0; i < 300 && (await service.read(sent.work.work_id)).work.state !== "completed"; i++) await new Promise(resolve => setTimeout(resolve, 20));
+  const due = new Date(Date.now() + 3_600_000);
+  const followUp = await service.saveFollowUp({ work_id: sent.work.work_id, text: "汇总今天的进展", at: due.toISOString(), repeat: "daily", label: "每天汇总" });
+  const key = `fu-${followUp.followup_id}-${due.getTime()}`;
+  assert.equal(adapter.schedule!.find(key)?.state, "queued");
+
+  const purged = await purgeAssistantProject(home, "project-gone", { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.removeFollowUp(id); } });
+
+  assert.equal(purged, 1);
+  assert.deepEqual(service.followUps(), []);
+  assert.notEqual(adapter.schedule!.find(key)?.state, "queued", "the runtime no longer holds the timed round");
+  assert.equal((await service.list()).length, 0);
 });

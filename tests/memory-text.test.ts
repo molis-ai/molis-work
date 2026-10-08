@@ -1,18 +1,59 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { followsFrom } from "@molis-ai/molis-work-service-memory";
+import { theirWords } from "@molis-ai/molis-work-service-memory";
+import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
+
+/*
+ * The corpus six rounds of review built against the fuzzy check that used to stand here (`followsFrom`, deleted): every way found to turn a request
+ * round, narrow it or add to it, and every restatement that check had to let through. The rule is now one line: a text is the person's words only
+ * when it is the whole of one of their messages. So everything that must not be theirs still must not be, and the restatements the fuzzy check
+ * accepted as theirs are the Assistant's suggestion now (the decision of 2026-10-07: paraphrases wait for the person): only the same words,
+ * whole, are theirs.
+ */
 
 /** One of the person's messages: 86 characters, 69 distinct keywords (recall keeps only the first 60 of them). */
 const LONG = "这周的周报请你帮我整理一下：先把本周完成的事项按项目列出来，再把遇到的风险和需要协调的资源写清楚，最后附上下周的计划，另外以后周报都先写风险，别放最后，语气保持克制不要夸张";
 const RISK_FIRST = "以后周报都先写风险，别放最后";
 
-/** [text, the words it rests on, the memory a correction replaces (its words are lent), the project's name (lent as a label)] */
-type Case = [text: string, quote: string, corrected?: string[], project?: string];
+/** [text, the message it is judged against]. The memory a correction replaces and the project's name used to be lent as well; they are still named in some, to show that lending them changes nothing. */
+type Case = [text: string, message: string, lentMemory?: string[], project?: string];
+const label = ([text, message, , project]: Case) => `${JSON.stringify(text)} from ${JSON.stringify(message.length > 40 ? `${message.slice(0, 40)}…` : message)}${project ? ` in ${JSON.stringify(project)}` : ""}`;
+const isTheirs = ([text, message]: Case) => theirWords(text, [message]) !== null;
 function check(cases: readonly Case[], expected: boolean) {
-  for (const [text, quote, corrected, project] of cases) assert.equal(followsFrom(text, quote, corrected, project), expected, `${JSON.stringify(text)} from ${JSON.stringify(quote.length > 40 ? `${quote.slice(0, 40)}…` : quote)}${project ? ` in ${JSON.stringify(project)}` : ""}`);
+  for (const one of cases) assert.equal(isTheirs(one), expected, label(one));
+}
+/** What the fuzzy check let through as a restatement. Now a text is theirs only when it is the very same words: an identical pair is, every other pair is a suggestion. */
+function restated(cases: readonly Case[]) {
+  for (const one of cases) assert.equal(isTheirs(one), one[0] === one[1], label(one));
 }
 
-test("a text that adds something the person did not say does not follow from their words: an appended clause in a short quote or a long one, a name, an address, a number", () => {
+test("everything the last two re-reviews found is never the person's words: a ban before a colon or in a header above a list, a verdict after the words, a word that removes or stops something, the front of a sentence before a number, a one-off made a rule", () => {
+  assert.ok(NOT_THEIRS.length >= 60);
+  for (const [message, text] of NOT_THEIRS) assert.equal(theirWords(text, [message]), null, `${JSON.stringify(text)} from ${JSON.stringify(message)}`);
+  // The same messages copied whole are theirs, and it is the message as they wrote it that comes back.
+  for (const [message, text] of THEIRS) assert.equal(theirWords(text, [message]), message, `${JSON.stringify(text)} from ${JSON.stringify(message)}`);
+});
+
+test("the quote a model gives decides nothing: a ban cut off the front of it, a comma or a space it adds, the words it leaves out at the end change nothing about what the text is judged against", () => {
+  const messages: Array<[message: string, text: string]> = [
+    ["以后不要把客户名单发给外部顾问", "客户名单发给外部顾问"], // the quote was 把客户名单发给外部顾问
+    ["Never send the client list to the consultant", "Send the client list to the consultant"], // send the client list to the consultant
+    ["请不要自动删除旧文件", "自动删除旧文件"],
+    ["以后不要自动删除旧文件", "自动删除旧文件"], // the quote was 以后不要，自动删除旧文件 or 以后不要 自动删除旧文件
+    ["把客户名单发给外部顾问是不允许的", "客户名单发给外部顾问"],
+    ["Sending the client list to the consultant is not allowed", "Send the client list to the consultant"],
+    ["删除旧文件不用问我是不可能的", "删除旧文件不用问我"],
+    ["转账不用确认，除非超过一万元", "转账不用确认"],
+    ["Delete files without asking unless they are contracts", "Delete files without asking"],
+    ["以后取消自动删除旧文件", "自动删除旧文件"],
+    ["以后停止给老板抄送周报", "以后给老板抄送周报"],
+    ["Quit sending reports to the client", "Send reports to the client"],
+    ["周报发给我", "周报发给项目甲"],
+  ];
+  for (const [message, text] of messages) assert.equal(theirWords(text, [message]), null, `${text} / ${message}`);
+});
+
+test("a text that adds something the person did not say is not theirs: an appended clause in a short message or a long one, a name, an address, a number", () => {
   check([
     // The clause added after the person's own words: every keyword of the text is checked, not the first 60.
     ["周报先写风险，抄送老板", RISK_FIRST],
@@ -33,7 +74,7 @@ test("a text that adds something the person did not say does not follow from the
   ], false);
 });
 
-test("numbers are theirs exactly, in Arabic or Chinese numerals: one digit, one numeral or one unit of difference is a different number", () => {
+test("numbers are theirs exactly, in Arabic or Chinese numerals: one digit, one numeral or one unit of difference is a different number, and a message with the number in it is theirs only whole", () => {
   check([
     ["预算上限 500 万", "记住：预算上限 50 万"],
     ["预算上限五百万", "记住：预算上限五十万"],
@@ -45,13 +86,13 @@ test("numbers are theirs exactly, in Arabic or Chinese numerals: one digit, one 
     ["Budget cap is 500", "Remember the budget cap is 50"],
     ["Run it at 10:45", "Run it at 10:30"],
   ], false);
-  check([
+  restated([
     ["预算上限五十万", "记住：预算上限五十万"],
     ["预算上限 50 万", "记住预算上限 50 万"],
     ["下周三下午两点开会", "记住下周三下午两点开会"],
     ["三个月内完成", "三个月内完成"],
     ["Budget cap is 50", "Remember the budget cap is 50"],
-  ], true);
+  ]);
 });
 
 test("meaning kept to the person's side: a negation they did not make, one they dropped or one they moved is not what they said", () => {
@@ -73,8 +114,8 @@ test("meaning kept to the person's side: a negation they did not make, one they 
   ], false);
 });
 
-test("a restatement of their words still follows: particles, the framing of a memory, a negation said another way, a project's name and the memory being corrected", () => {
-  check([
+test("a restatement of their words is a suggestion, not theirs: particles dropped, the framing of a memory, a negation said another way, a project's name put in, the memory being corrected lent", () => {
+  restated([
     ["回答用要点列表，每条一句", "以后回答都用要点列表，每条一句"],
     ["周报先写风险", RISK_FIRST],
     ["周报先写风险，别放最后", RISK_FIRST],
@@ -95,14 +136,14 @@ test("a restatement of their words still follows: particles, the framing of a me
     ["项目甲里 NSM 指北极星指标", "记住：NSM 是北极星指标", [], "项目甲"],
     ["Q4 plan 的周报先写风险", "记住 Q4 plan 周报先写风险", [], "Q4 plan"],
     ["回答用编号列表", "以后改用编号列表", ["回答用要点列表，每条一句"]],
-  ], true);
+  ]);
   // The corrected memory lends its words, not new ones.
   check([["回答用编号列表，抄送老板", "以后改用编号列表", ["回答用要点列表，每条一句"]]], false);
   // One string does for a single corrected memory.
-  assert.equal(followsFrom("回答用编号列表", "以后改用编号列表", "回答用要点列表，每条一句"), true);
+  assert.equal(theirWords("回答用编号列表", ["以后改用编号列表"]), null);
 });
 
-test("a negation is read where it stands: words the quote uses plainly in one clause and under a ban in another are not free to move from one to the other", () => {
+test("a clause is not the sentence it stands in: words a message uses plainly in one clause and under a ban in another are not free to move, and neither clause alone is theirs", () => {
   check([
     // “问我” is asked for before deleting and waived before renaming; each text keeps one of the two and puts it on the other.
     ["删文件前不用问我", "删文件前要问我，改名前不用问我"],
@@ -116,8 +157,8 @@ test("a negation is read where it stands: words the quote uses plainly in one cl
     ["Delete files without asking", "Ask before deleting files, rename files without asking"],
     ["Pay invoices without asking", "Pay nothing without asking. Check invoices without asking"],
   ], false);
-  // Each clause of theirs, kept as it was said, is still theirs.
-  check([
+  // One clause of a sentence taken alone is not theirs; the whole sentence, as they said it, is.
+  restated([
     ["删文件前要问我", "删文件前要问我，改名前不用问我"],
     ["改名前不用问我", "删文件前要问我，改名前不用问我"],
     ["删文件前要问我，改名前不用问我", "删文件前要问我，改名前不用问我"],
@@ -125,7 +166,7 @@ test("a negation is read where it stands: words the quote uses plainly in one cl
     ["周报发给外部顾问", "客户名单别发给外部顾问，周报发给外部顾问"],
     ["Rename files without asking", "Ask before deleting files, rename files without asking"],
     ["Check invoices without asking", "Pay nothing without asking. Check invoices without asking"],
-  ], true);
+  ]);
 });
 
 test("their clauses are not recombined into one they never said: a number, a recipient or a subject taken from one clause and put on another", () => {
@@ -143,8 +184,8 @@ test("their clauses are not recombined into one they never said: a number, a rec
     ["客户名单发给老板", "客户名单别外传，先发给老李，周报发给老板"],
     ["会议纪要发给 boss@example.com", "会议纪要发给我，boss@example.com 不要抄送"],
   ], false);
-  // A clause may still be said again as it was, or have its topic carried from the clause before it.
-  check([
+  // A clause said again, or with its topic carried from the clause before it, is a restatement; the whole sentence is theirs.
+  restated([
     ["人数上限三人", "预算上限五十万，人数上限三人"],
     ["预算上限五十万", "预算上限五十万，人数上限三人"],
     ["预算上限五十万，人数上限三人", "预算上限五十万，人数上限三人"],
@@ -152,10 +193,10 @@ test("their clauses are not recombined into one they never said: a number, a rec
     ["周报简洁", "周报不要太长，要简洁"],
     ["Send daily reports to Alice", "Send weekly reports to Bob, daily reports to Alice"],
     ["周报先写风险，并且每条一句", "周报先写风险。每条一句"],
-  ], true);
+  ]);
 });
 
-test("words lent to a correction are lent, not a way round: the quote must carry some of the text, and nothing lent hides a join between two of their clauses or two of the lent memory's", () => {
+test("nothing is lent to a correction: the words of the memory it replaces, kept or not, make no text theirs, whatever the message carries of it", () => {
   check([
     // Only the lent memory's words; the quote has nothing in it that the text uses.
     ["周报抄送老王", "好的", ["周报都抄送老王"]],
@@ -164,14 +205,14 @@ test("words lent to a correction are lent, not a way round: the quote must carry
     ["客户名单发给外部顾问", "客户名单别外传。外部顾问会参加评审", ["周报发给老板"]],
     ["客户名单发给老板", "好，老板", ["客户名单不要外传，周报发给老板"]],
   ], false);
-  check([
+  restated([
     // The slot they changed, with the rest of the corrected memory.
     ["回答用编号列表，每条一句", "以后改用编号列表", ["回答用要点列表，每条一句"]],
     ["项目甲里回答用编号列表", "以后改用编号列表", ["回答用要点列表，每条一句"], "项目甲"],
-  ], true);
+  ]);
 });
 
-test("no punctuation is needed to tell two statements apart: a word that joins or turns against, a ban with a word of its own, traditional characters, the sign of a number", () => {
+test("a word that joins or turns against, a ban with a word of its own, traditional characters and the sign of a number all change what a text says: a text that differs is not theirs, one that is the same words whole is", () => {
   check([
     // “但、不过、however、but” end a statement and a negation with it; “和、并且、and” end the statement but not the negation.
     ["删文件前不用问我", "删文件前要问我但改名前不用问我"],
@@ -214,7 +255,7 @@ test("no punctuation is needed to tell two statements apart: a word that joins o
     ["错误率 ≤ 5", "错误率 ≥ 5"],
     ["预算上限٦٠", "预算上限٥٠"],
   ], false);
-  check([
+  restated([
     ["不要用表格", "不要用表格但可以用图片"],
     ["可以用图片", "不要用表格但可以用图片"],
     ["不要用图片", "不要用表格和图片"],
@@ -230,7 +271,6 @@ test("no punctuation is needed to tell two statements apart: a word that joins o
     ["Use bullet points instead of tables", "Use bullet points instead of tables"],
     ["Ask before deleting files unless they are drafts", "Ask before deleting files unless they are drafts"],
     ["所有文件都抄送老板，除非是周报", "所有文件都抄送老板，除非是周报"],
-    ["预算上限 ￥500", "预算上限 ¥500"],
     ["用图片", "不是用表格而是用图片"],
     ["不用表格", "不是用表格而是用图片"],
     ["转账小于100元时不用确认", "记住转账小于100元时不用确认"],
@@ -241,11 +281,11 @@ test("no punctuation is needed to tell two statements apart: a word that joins o
     // A bullet the person typed is not a negation.
     ["周报先写风险", "◆ 周报先写风险"],
     ["Use tables", "◇ Use tables"],
-  ], true);
+  ]);
 });
 
-test("everyday restatements keep passing: the filler of a request left out, a word of position or time dropped, a sentence of two kept as it was said", () => {
-  check([
+test("everyday restatements are suggestions now: the filler of a request left out, a word of position or time dropped, one of two sentences taken alone", () => {
+  restated([
     ["回复用中文", "以后回复我都用中文"],
     ["写代码用 TypeScript，不要用 JavaScript", "写代码以后用 TypeScript，不要再用 JavaScript 了"],
     ["每周五下午发周报", "每周五下午记得发周报"],
@@ -266,13 +306,13 @@ test("everyday restatements keep passing: the filler of a request left out, a wo
     ["Avoid semicolons in JavaScript", "Never use semicolons in JavaScript"],
     ["Summaries under 200 words", "Keep summaries under 200 words"],
     ["Weekly reports go to alice@example.com", "Weekly reports should go to alice@example.com"],
-  ], true);
+  ]);
   // The same words with a middle part left out of a sentence that has an address in it are only suggested: an edit does not fall among the words before a number or an address.
   check([["会议纪要发给 boss@example.com", "会议纪要整理好以后发给 boss@example.com"]], false);
 });
 
-test("English restates the same way: inflection, function words and the framing of a memory do not count, a word the person did not use does", () => {
-  check([
+test("English restates the same way and waits the same way: inflection, function words and the framing of a memory changed make a suggestion, not their words", () => {
+  restated([
     ["Prefers dark mode", "Remember that I prefer dark mode"],
     ["The user prefers concise answers", "From now on keep your answers concise"],
     ["Weekly reports list risks first", "From now on, put the risks first in weekly reports"],
@@ -286,7 +326,7 @@ test("English restates the same way: inflection, function words and the framing 
     ["Cc manager on weekly reports", "Cc my manager on weekly reports"],
     ["Sign emails as Bob", "Sign my emails as Bob"],
     ["Use bullet points", "Don't use tables, use bullet points"],
-  ], true);
+  ]);
   check([
     ["Keep replies short", "Keep answers short please"],
     ["Sign emails as Alice", "Sign my emails as Bob"],
@@ -294,7 +334,7 @@ test("English restates the same way: inflection, function words and the framing 
   ], false);
 });
 
-test("what a stretch leaves out after it is judged like what it leaves out in front: a ban said after the words it is about, a number after them, or an exception to them is not dropped", () => {
+test("what a text leaves out after the words it is about is not theirs: a ban said after them, a number after them, or an exception to them is never dropped", () => {
   check([
     // The ban comes after the words it is about, in the same sentence.
     ["客户名单发给外部顾问", "把客户名单发给外部顾问是不允许的"],
@@ -334,7 +374,7 @@ test("what a stretch leaves out after it is judged like what it leaves out in fr
     ["Use bullet points", "Use bullet points instead of tables"],
     ["用图片", "用图片代替表格"],
   ], false);
-  check([
+  restated([
     // Said whole, with the ban or the exception, they are theirs.
     ["客户名单发给外部顾问是不允许的", "把客户名单发给外部顾问是不允许的"],
     ["转账不用确认，除非超过一万元", "转账不用确认，除非超过一万元"],
@@ -349,10 +389,10 @@ test("what a stretch leaves out after it is judged like what it leaves out in fr
     ["转账不用确认", "转账不用确认，查余额也一样"],
     ["回答控制在三百字", "回答控制在三百字以内"],
     ["Reply in Chinese", "Reply in Chinese please, every time"],
-  ], true);
+  ]);
 });
 
-test("a ban has the same words in both languages: leaving out the verb that says no turns the request round in Chinese as in English", () => {
+test("a ban has the same words in both languages: leaving out the verb that says no turns the request round in Chinese as in English, and keeping the ban in other words is a restatement", () => {
   // [Chinese, English]: every one of them is a way to say “don't”, whichever language the person writes in.
   const bans: Array<[string, string]> = [
     ["停止", "stop"], ["停掉", "quit"], ["停用", "disable"], ["取消", "cancel"], ["关闭", "turn off"], ["关掉", "switch off"], ["禁用", "ban"], ["跳过", "skip"],
@@ -363,18 +403,18 @@ test("a ban has the same words in both languages: leaving out the verb that says
       ["自动删除旧文件", `以后${han}自动删除旧文件`],
       ["Delete old files automatically", `Please ${english} deleting old files automatically`],
     ], false);
-    check([
+    restated([
       [`${han}自动删除旧文件`, `以后${han}自动删除旧文件`],
       [`${english} deleting old files automatically`, `Please ${english} deleting old files automatically`],
-    ], true);
+    ]);
   }
   // The ban is one ban whichever verb says it, and the ban of another language's word is not another thing.
-  check([
+  restated([
     ["不要自动删除旧文件", "以后停止自动删除旧文件"],
     ["别自动删除旧文件", "以后取消自动删除旧文件"],
     ["Don't send reports to the client", "Quit sending reports to the client"],
     ["Avoid emojis", "Cancel emojis"],
-  ], true);
+  ]);
   // Fewer of something is not something: 少 and less / fewer are bans on it, a bare "less than" or "at least" is a comparison.
   check([
     ["回复用表情", "回复少用表情"],
@@ -387,17 +427,17 @@ test("a ban has the same words in both languages: leaving out the verb that says
     ["Send reports to the client", "Quit sending reports to the client"],
     ["Send reports to the client", "Cease sending reports to the client"],
   ], false);
-  check([
+  restated([
     ["回复少用表情", "以后回复少用表情"],
     ["Use fewer emojis", "From now on use fewer emojis"],
     ["至少写三条要点", "记住至少写三条要点"],
     ["回答不少于三条", "回答不少于三条"],
     ["Summaries less than 200 words", "Keep summaries less than 200 words"],
     ["Unless they are drafts, ask first", "Unless they are drafts, ask first"],
-  ], true);
+  ]);
 });
 
-test("a project's name is lent as a label for the memory's scope, whole and between whole statements: it never stands in for words the person's statement leaves out", () => {
+test("a project's name is not lent: put in for words the message leaves out, set into it or in front of it, it makes no text theirs", () => {
   check([
     // The name in place of what the person said last, or first, in the statement the text takes from.
     ["周报发给王总", "周报发给我", [], "王总季度汇报"],
@@ -422,7 +462,7 @@ test("a project's name is lent as a label for the memory's scope, whole and betw
     // A name that is not the project's.
     ["Molis 项目的周报先写风险", "以后周报都先写风险", [], "Atlas"],
   ], false);
-  check([
+  restated([
     // A label in front of a whole statement of theirs, or after one: the project, with or without the word for it.
     ["Molis 项目的周报先写风险", "以后周报都先写风险", [], "Molis"],
     ["Molis project: weekly reports go first", "From now on, weekly reports go first", [], "Molis"],
@@ -436,7 +476,7 @@ test("a project's name is lent as a label for the memory's scope, whole and betw
     // Their own words when they name the project themselves.
     ["Q4 plan 的周报先写风险", "记住 Q4 plan 周报先写风险", [], "Q4 plan"],
     ["Send weekly reports to Alice", "Send weekly reports to Alice", [], "Alice onboarding"],
-  ], true);
+  ]);
 });
 
 test("a ban turns the request round wherever it is said and whichever way: in front of the words, after them, in a clause or a sentence of its own, as an exception", () => {
@@ -458,9 +498,9 @@ test("a ban turns the request round wherever it is said and whichever way: in fr
       const lower = base.charAt(0).toLowerCase() + base.slice(1);
       check([...prefixes[language].map((ban): Case => [base, language === "zh" ? `${ban}${base}` : `${ban} ${lower}`]),
         ...[...after[language], ...except[language]].map((tail): Case => [base, `${base}${tail}`])], false);
-      // Said with it, whole, they are theirs.
-      check([...prefixes[language].map((ban): Case => { const said = language === "zh" ? `${ban}${base}` : `${ban} ${lower}`; return [said, said]; }),
-        ...[...after[language], ...except[language]].map((tail): Case => [`${base}${tail}`, `${base}${tail}`])], true);
+      // Said with it, whole, they are theirs: the same words are the same.
+      restated([...prefixes[language].map((ban): Case => { const said = language === "zh" ? `${ban}${base}` : `${ban} ${lower}`; return [said, said]; }),
+        ...[...after[language], ...except[language]].map((tail): Case => [`${base}${tail}`, `${base}${tail}`])]);
     }
   }
 });

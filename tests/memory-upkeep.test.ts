@@ -88,7 +88,7 @@ test("upkeep switches off expired and long-unused automatic memories, merges aut
   const auto2 = (await memory.offer(assistant("work-2"), { scope: "project", text: "周报把风险放在最前面。", kind: "convention", basis: "repeated", why: "两次", from: "extraction" }));
   assert.equal(auto2.outcome, "duplicate", "the gate already refuses an exact repeat");
   const auto3 = (await memory.offer(assistant("work-3"), { scope: "project", text: "周报要把风险放到最前面", kind: "convention", basis: "repeated", why: "两次", from: "extraction" })).memory!;
-  const said1 = (await memory.write(assistant(), { scope: "personal", text: "回答用要点列表", said: "以后回答都用要点列表" })).memory!;
+  const said1 = (await memory.write(assistant(), { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" })).memory!;
   const said2 = (await memory.write(person(), { scope: "personal", text: "回答要用要点列表" })).memory!;
   const oldAuto = (await memory.offer(assistant("work-4"), { scope: "personal", text: "邮件落款写全名", kind: "preference", basis: "repeated", why: "两次", from: "extraction" })).memory!;
 
@@ -129,8 +129,8 @@ test("contradictions the model finds go to the person; until settled, recall tak
   const env = await memoryHome(t, clock);
   const memory = await env.open();
   const table = (await memory.offer(assistant("work-1"), { scope: "project", text: "周报用表格", kind: "convention", basis: "repeated", why: "两次", from: "extraction" })).memory!;
-  const bullets = (await memory.write(assistant(), { scope: "project", text: "周报用要点列表", said: "周报以后都用要点列表" })).memory!;
-  const doc = (await memory.write(assistant(), { scope: "project", text: "方案结构按「背景-目标-计划」", said: "记住这份方案的结构：背景-目标-计划", rests_on: { kind: "page", id: "page-1" } })).memory!;
+  const bullets = (await memory.write(assistant(), { scope: "project", text: "周报用要点列表", said: "周报用要点列表" })).memory!;
+  const doc = (await memory.write(assistant(), { scope: "project", text: "方案结构按「背景-目标-计划」", said: "方案结构按「背景-目标-计划」", rests_on: { kind: "page", id: "page-1" } })).memory!;
   const report = await memory.upkeep(person(), { projects: ["project-a"],
     tidy: async entries => ({ duplicates: [], conflicts: entries.some(item => item.memory_id === table.memory_id) ? [{ a: table.memory_id, b: bullets.memory_id, why: "周报格式一个说表格一个说要点" }] : [] }),
     objectState: async ref => ref.id === "page-1" ? "missing" : "unknown" });

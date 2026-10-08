@@ -34,9 +34,9 @@ const texts = (items: ReadonlyArray<{ text: string }>) => items.map(item => item
 
 test("a Character's memory is used only in work that Character carries: not by another Character, not without one, not in another project; the person sees and switches it off in the project", { timeout: 60_000 }, async t => {
   const { service } = await memoryHome(t);
-  await service.write(work(null), { scope: "personal", text: "周报用要点列表", said: "以后周报用要点列表" });
-  await service.write(work(null), { scope: "project", text: "Q4 plan 的周报先写风险", said: "记住 Q4 plan 周报先写风险" });
-  const kept = await service.write(work(writer), { scope: "character", text: "写周报时语气克制，不用感叹号", said: "你以后写周报语气克制点，别用感叹号" });
+  await service.write(work(null), { scope: "personal", text: "周报用要点列表", said: "周报用要点列表" });
+  await service.write(work(null), { scope: "project", text: "Q4 plan 的周报先写风险", said: "Q4 plan 的周报先写风险" });
+  const kept = await service.write(work(writer), { scope: "character", text: "写周报时语气克制，不用感叹号", said: "写周报时语气克制，不用感叹号" });
   assert.equal(kept.outcome, "written");
   assert.equal(kept.memory!.scope, "character");
   assert.equal(kept.memory!.character_id, writer.id);
@@ -76,7 +76,7 @@ test("a Character's memory is used only in work that Character carries: not by a
   // Clearing the project clears what its page shows, its Characters' memories included; a change after the preview stops it.
   const preview = await service.previewScope(personIn("project-q4"), "project");
   assert.equal(preview.count, 2);
-  await service.write(work(analyst), { scope: "character", text: "图表先给结论", said: "以后图表先给结论" });
+  await service.write(work(analyst), { scope: "character", text: "图表先给结论", said: "图表先给结论" });
   await assert.rejects(service.clearScope(personIn("project-q4"), "project", preview.fingerprint), /重新预览/);
   assert.equal((await service.list(personIn("project-q4"))).items.filter(item => item.scope !== "personal").length, 3, "nothing went");
   const again = await service.previewScope(personIn("project-q4"), "project");

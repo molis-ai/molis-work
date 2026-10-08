@@ -59,6 +59,7 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
 
     const second = await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "timed round");
     assert.match(second.rounds[1]!.text, /每天六点汇总.*汇总今天的进展/);
+    assert.deepEqual(store.rounds(sent.work.work_id).map(round => round.written_by ?? "person"), ["person", "host"], "a timed round is marked as the Host's words when it is written");
     const after = service.followUps(sent.work.work_id)[0]!;
     assert.equal(after.last?.outcome, "started");
     assert.equal(after.next_at, new Date(due.getTime() + 86_400_000).toISOString(), "tomorrow at the same time");

@@ -92,9 +92,9 @@
       "lines": 373,
       "methods": 18
     },
-    "file horizontal/memory/src/service.ts": 1276,
+    "file horizontal/memory/src/service.ts": 1274,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1092,
+      "lines": 1091,
       "methods": 51
     },
     "class horizontal/placement/src/index.ts#PlacementService": {

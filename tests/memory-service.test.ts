@@ -8,6 +8,7 @@ import { MemoryService, MEMORY_GATE_RULE, SIGNAL_THRESHOLD, type MemoryCaller } 
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import { prologueMemoryBackend } from "../apps/local-host/src/memory/memory-host.js";
+import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
 
 /** A real Prologue runtime (its Memory is the store) and the Host ledger in a scratch Home; restartable. */
 async function memoryHome(t: { after(fn: () => Promise<void> | void): void }, clock?: () => Date) {
@@ -37,7 +38,7 @@ const assistant = (project: string | null = "project-a", work = { work_id: "work
 test("the write gate keeps explicit requests, refuses secrets, holds instruction-like text, and never lets an inference override what the person said", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
-  const kept = await memory.write(assistant(), { scope: "personal", text: "回答用要点列表，每条一句", said: "以后回答都用要点列表，每条一句" });
+  const kept = await memory.write(assistant(), { scope: "personal", text: "以后回答都用要点列表，每条一句", said: "以后回答都用要点列表，每条一句" });
   assert.equal(kept.outcome, "written");
   assert.equal(kept.applies_text, "在你以后的所有工作里使用（个人）");
   assert.equal(kept.memory!.source, "said");
@@ -45,7 +46,7 @@ test("the write gate keeps explicit requests, refuses secrets, holds instruction
   assert.doesNotMatch(kept.memory!.origin, /工作「/, "a personal memory's provenance names no work of the project it was said in");
   assert.deepEqual(kept.memory!.evidence.map(item => item.text), ["以后回答都用要点列表，每条一句"]);
 
-  const project = await memory.write(assistant(), { scope: "project", text: "周报先写风险", said: "记住：周报先写风险" });
+  const project = await memory.write(assistant(), { scope: "project", text: "记住：周报先写风险", said: "记住：周报先写风险" });
   assert.equal(project.memory!.kind, "convention", "a project memory is a convention unless said otherwise");
   assert.equal(project.applies_text, "只在项目「项目甲」里使用");
   assert.match(project.memory!.origin, /^工作「季度复盘」· /);
@@ -66,25 +67,25 @@ test("the write gate keeps explicit requests, refuses secrets, holds instruction
   assert.equal(restated.outcome, "candidate");
   assert.match(restated.reason, /像是在给 AI 下指令/);
   // Said again: already kept.
-  assert.equal((await memory.write(assistant(), { scope: "personal", text: "回答用要点列表，每条一句。", said: "再说一遍" })).outcome, "duplicate");
+  assert.equal((await memory.write(assistant(), { scope: "personal", text: "以后回答都用要点列表，每条一句。", said: "再说一遍" })).outcome, "duplicate");
 
   // A newer explicit request replaces the old one; the old version stays in history and can be restored.
-  const replaced = await memory.write(assistant(), { scope: "personal", text: "回答用编号列表", said: "以后改用编号列表", replaces: kept.memory!.memory_id });
+  const replaced = await memory.write(assistant(), { scope: "personal", text: "以后改用编号列表", said: "以后改用编号列表", replaces: kept.memory!.memory_id });
   assert.equal(replaced.outcome, "replaced");
   const history = await memory.history(person(), kept.memory!.memory_id);
-  assert.deepEqual(history.revisions.map(item => [item.version, item.text, item.change]), [[1, "回答用要点列表，每条一句", "created"], [2, "回答用编号列表", "replaced"]]);
+  assert.deepEqual(history.revisions.map(item => [item.version, item.text, item.change]), [[1, "以后回答都用要点列表，每条一句", "created"], [2, "以后改用编号列表", "replaced"]]);
   // An inference cannot override what the person said: it is only a candidate.
   const inferred = await memory.offer(assistant(), { scope: "personal", text: "回答用表格", kind: "preference", basis: "inferred", why: "这次看起来喜欢表格", from: "extraction", supersedes: kept.memory!.memory_id });
   assert.equal(inferred.outcome, "candidate");
-  assert.equal((await memory.list(person())).items.find(item => item.memory_id === kept.memory!.memory_id)!.text, "回答用编号列表");
+  assert.equal((await memory.list(person())).items.find(item => item.memory_id === kept.memory!.memory_id)!.text, "以后改用编号列表");
   const restored = await memory.change(person(), { memory_id: kept.memory!.memory_id, action: "restore", version: 1 });
-  assert.equal(restored.memory!.text, "回答用要点列表，每条一句");
+  assert.equal(restored.memory!.text, "以后回答都用要点列表，每条一句");
 
   // A personal work cannot keep project memories.
   await assert.rejects(memory.write(assistant(null), { scope: "project", text: "x", said: "记住 x" }), /没有项目/);
 });
 
-test("the gate records 'said' only when the quote carries the text: a fragment, or words about something else, leave the Assistant's suggestion and never the person's memory", { timeout: 60_000 }, async t => {
+test("the gate records 'said' only when the text is the quote whole: a fragment, or words about something else, leave the Assistant's suggestion and never the person's memory", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
   const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
@@ -112,18 +113,20 @@ test("the gate records 'said' only when the quote carries the text: a fragment, 
   assert.equal((await memory.list(person())).items.find(item => item.memory_id === auto.memory!.memory_id)!.source, "auto", "still the gate's, still takeable back");
 
   // The same for replacing what the person kept: a fragment cannot overwrite it.
-  const kept = await memory.write(work(8), { scope: "personal", text: "回答用要点列表", said: "以后回答都用要点列表" });
+  const kept = await memory.write(work(8), { scope: "personal", text: "以后回答都用要点列表", said: "以后回答都用要点列表" });
   assert.equal(kept.outcome, "written");
   const replaced = await memory.write(work(9), { scope: "personal", text: "所有回答都用英文", said: "以后", replaces: kept.memory!.memory_id });
   assert.equal(replaced.outcome, "candidate");
-  assert.equal((await memory.list(person(), { scope: "personal" })).items.find(item => item.memory_id === kept.memory!.memory_id)!.text, "回答用要点列表");
+  assert.equal((await memory.list(person(), { scope: "personal" })).items.find(item => item.memory_id === kept.memory!.memory_id)!.text, "以后回答都用要点列表");
 
-  // A restatement that really is in the quote is still the person's words, and so is a quote with extra words around it.
-  const scoped = await memory.write(work(10), { scope: "project", text: "项目甲里 NSM 指北极星指标", said: "记住：NSM 是北极星指标" });
+  // A restatement of the quote, or the project's name put in front of it, is the Assistant's suggestion (paraphrases wait for the person); the quote whole is theirs.
+  const named = await memory.write(work(10), { scope: "project", text: "项目甲里 NSM 指北极星指标", said: "记住：NSM 是北极星指标" });
+  assert.deepEqual([named.outcome, named.candidate?.basis, named.memory], ["candidate", "inferred", null]);
+  const scoped = await memory.write(work(11), { scope: "project", text: "记住：NSM 是北极星指标", said: "记住：NSM 是北极星指标" });
   assert.deepEqual([scoped.outcome, scoped.memory!.source], ["written", "said"]);
 });
 
-test("the gate records 'said' only when every part of the text is in the quote: a clause added to a short or a long quote, a Chinese numeral, a negation turned round are the Assistant's suggestion; restatements in either language stay the person's words", { timeout: 60_000 }, async t => {
+test("the gate records 'said' only when the text is the quote whole: a clause added to a short or a long quote, a Chinese numeral, a negation turned round, a restatement in either language are the Assistant's suggestion; the same words whole stay the person's", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
   const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
@@ -156,32 +159,47 @@ test("the gate records 'said' only when every part of the text is in the quote: 
   }
   assert.equal((await memory.list(person())).items.length, 0, "nothing was recorded as the person's words");
 
-  // Restated, they still said it: the same particles and framing dropped or added, 别 as 不要, and English with another inflection.
+  // Restated, it is the Assistant's suggestion and waits (paraphrases wait for the person): particles and framing dropped or added, 别 as 不要, English with another inflection, one of two clauses, a topic carried to the sentence after it.
   const restated: Array<[string, string]> = [
     ["周报先写风险，不要放最后", riskFirst],
     ["Prefers dark mode", "Remember that I prefer dark mode"],
     ["The user prefers concise answers", "From now on keep your answers concise"],
     ["Weekly reports list risks first", "From now on, put the risks first in weekly reports"],
-    ["周报先写风险", "周报别放最后，先写风险"], // a topic carried to the sentence after it
-    ["改名前不用问我", "删文件前要问我，改名前不用问我"], // one of two sentences, as they said it
+    ["周报先写风险", "周报别放最后，先写风险"],
+    ["改名前不用问我", "删文件前要问我，改名前不用问我"],
   ];
   for (const [index, [text, said]] of restated.entries()) {
     const result = await memory.write(work(20 + index), { scope: "personal", text, said });
+    assert.deepEqual([result.outcome, result.candidate?.basis, result.memory], ["candidate", "inferred", null], text);
+  }
+  assert.equal((await memory.list(person())).items.length, 0, "no restatement was recorded as the person's words");
+
+  // The same words whole (apart from case, width, spacing and the mark at the end) are theirs, and the evidence is the quote as it stands.
+  const whole: Array<[string, string]> = [
+    ["以后周报都先写风险，别放最后。", riskFirst],
+    ["remember that i prefer dark mode", "Remember that I prefer dark mode"],
+    ["From now on, put the risks first in weekly reports", "From now on, put the risks first in weekly reports"],
+    ["删文件前要问我，改名前不用问我", "删文件前要问我，改名前不用问我"],
+  ];
+  for (const [index, [text, said]] of whole.entries()) {
+    const result = await memory.write(work(30 + index), { scope: "personal", text, said });
     assert.deepEqual([result.outcome, result.memory?.source, result.memory?.basis], ["written", "said", "explicit"], text);
     assert.equal(result.memory!.evidence[0]!.text, said);
   }
 
-  // A correction names its target: the words of the memory it corrects are lent to it, and nothing else.
-  const kept = (await memory.write(work(30), { scope: "personal", text: "回答用要点列表，每条一句", said: "以后回答都用要点列表，每条一句" })).memory!;
-  const added = await memory.write(work(31), { scope: "personal", text: "回答用编号列表，抄送老板", said: "以后改用编号列表", replaces: kept.memory_id });
+  // A correction names its target and borrows nothing from it: its text is theirs only when it is the quote whole.
+  const kept = (await memory.write(work(40), { scope: "personal", text: "以后回答都用要点列表，每条一句", said: "以后回答都用要点列表，每条一句" })).memory!;
+  const added = await memory.write(work(41), { scope: "personal", text: "以后改用编号列表，抄送老板", said: "以后改用编号列表", replaces: kept.memory_id });
   assert.equal(added.outcome, "candidate");
   assert.equal(added.candidate!.basis, "inferred");
-  assert.equal((await memory.list(person(), { scope: "personal" })).items.find(item => item.memory_id === kept.memory_id)!.text, "回答用要点列表，每条一句");
-  const corrected = await memory.write(work(32), { scope: "personal", text: "回答用编号列表", said: "以后改用编号列表", replaces: kept.memory_id });
-  assert.deepEqual([corrected.outcome, corrected.memory!.source, corrected.memory!.text], ["replaced", "said", "回答用编号列表"]);
+  const borrowed = await memory.write(work(42), { scope: "personal", text: "回答用编号列表，每条一句", said: "以后改用编号列表", replaces: kept.memory_id });
+  assert.deepEqual([borrowed.outcome, borrowed.candidate?.basis], ["candidate", "inferred"], "the words of the memory it corrects are not lent");
+  assert.equal((await memory.list(person(), { scope: "personal" })).items.find(item => item.memory_id === kept.memory_id)!.text, "以后回答都用要点列表，每条一句");
+  const corrected = await memory.write(work(43), { scope: "personal", text: "以后改用编号列表", said: "以后改用编号列表", replaces: kept.memory_id });
+  assert.deepEqual([corrected.outcome, corrected.memory!.source, corrected.memory!.text], ["replaced", "said", "以后改用编号列表"]);
 });
 
-test("a correction borrows the words of the memory it replaces only when that memory is the person's own: an automatic memory is never made theirs by a quote that does not carry the text, and a quote must bring something of its own", { timeout: 60_000 }, async t => {
+test("a correction borrows no words from the memory it replaces, the person's own or the gate's: an automatic memory is never made theirs by a quote that is not the text, and a quote must be the text whole", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
   const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
@@ -206,18 +224,21 @@ test("a correction borrows the words of the memory it replaces only when that me
   assert.deepEqual(await sources(), ["周报先写风险 · auto", "周报都抄送老王 · auto", "日报都抄送老李 · auto"].sort());
   assert.deepEqual([undoable(second.change_id), undoable(third.change_id)], [true, true]);
 
-  // The person's own memory does lend its words: the slot they changed comes from their quote, the rest from the memory.
-  const mine = (await memory.write(work(4), { scope: "project", text: "代码评审先看测试，提交信息用中文", said: "记住：代码评审先看测试，提交信息用中文" })).memory!;
+  // The person's own memory lends nothing either: the slot they changed comes from their quote, and the rest of the text from the memory would be words they did not say.
+  const mine = (await memory.write(work(4), { scope: "project", text: "记住：代码评审先看测试，提交信息用中文", said: "记住：代码评审先看测试，提交信息用中文" })).memory!;
   const fixed = await memory.write(work(5), { scope: "project", text: "代码评审先看测试，提交信息用英文", said: "提交信息改用英文", replaces: mine.memory_id });
-  assert.deepEqual([fixed.outcome, fixed.memory!.source, fixed.memory!.text], ["replaced", "said", "代码评审先看测试，提交信息用英文"]);
-  // ...but a quote with nothing in it that the text uses brings nothing of its own, and the text is not theirs.
+  assert.deepEqual([fixed.outcome, fixed.candidate?.basis, fixed.memory], ["candidate", "inferred", null]);
+  // ...and a quote with nothing in it that the text uses brings nothing of its own.
   const trimmed = await memory.write(work(6), { scope: "project", text: "代码评审先看测试", said: "好的", replaces: mine.memory_id });
   assert.equal(trimmed.outcome, "candidate");
-  assert.equal((await memory.list(person(), { scope: "project" })).items.find(item => item.memory_id === mine.memory_id)!.text, "代码评审先看测试，提交信息用英文");
+  assert.equal((await memory.list(person(), { scope: "project" })).items.find(item => item.memory_id === mine.memory_id)!.text, "记住：代码评审先看测试，提交信息用中文");
+  // The correction they mean is theirs when it is their words whole.
+  const spoken = await memory.write(work(9), { scope: "project", text: "提交信息改用英文", said: "提交信息改用英文", replaces: mine.memory_id });
+  assert.deepEqual([spoken.outcome, spoken.memory!.source, spoken.memory!.text], ["replaced", "said", "提交信息改用英文"]);
 
-  // Said again over an automatic memory that equals the text, with the person's memory named as the one it replaces: the words lent by that memory
-  // are not a way to make the automatic one the person's. The quote alone has to carry the text, and "附上行动项" does not carry "会议纪要用中文，附上行动项".
-  const kept = (await memory.write(work(7), { scope: "project", text: "会议纪要用中文", said: "记住：会议纪要用中文" })).memory!;
+  // Said again over an automatic memory that equals the text, with the person's memory named as the one it replaces: that memory is not a way to make the
+  // automatic one the person's. The quote has to be the text whole, and "附上行动项" is not "会议纪要用中文，附上行动项".
+  const kept = (await memory.write(work(7), { scope: "project", text: "记住：会议纪要用中文", said: "记住：会议纪要用中文" })).memory!;
   const long = await auto("会议纪要用中文，附上行动项");
   const upgraded = await memory.write(work(8), { scope: "project", text: "会议纪要用中文，附上行动项", said: "附上行动项", replaces: kept.memory_id });
   assert.equal(upgraded.outcome, "duplicate");
@@ -265,8 +286,8 @@ test("automatic writes follow the gate table, show in recent changes with their 
 test("recall is scoped, filtered and bounded, honours each consumer's switch, and records where each memory was used", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
-  const style = (await memory.write(assistant(), { scope: "personal", text: "回答用要点列表", said: "以后回答都用要点列表" })).memory!;
-  const nsm = (await memory.write(assistant(), { scope: "project", text: "NSM 指北极星指标", kind: "fact", said: "记住 NSM 是北极星指标" })).memory!;
+  const style = (await memory.write(assistant(), { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" })).memory!;
+  const nsm = (await memory.write(assistant(), { scope: "project", text: "NSM 指北极星指标", kind: "fact", said: "NSM 指北极星指标" })).memory!;
   const pages = (await memory.write(person(), { scope: "personal", text: "在 Pages 里标题不超过十个字", applies: { plugin_ids: ["io.molis.work.pages"] } })).memory!;
   const old = (await memory.write(person(), { scope: "personal", text: "九月底前周报发给王总", expires_at: "2026-01-01T00:00:00.000Z" })).memory!;
 
@@ -319,7 +340,7 @@ test("recall is scoped, filtered and bounded, honours each consumer's switch, an
 test("deleting a memory leaves nothing behind: not in the store, the ledger, recent changes, uses, or after a restart", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   let memory = await env.open();
-  const kept = (await memory.write(assistant(), { scope: "personal", text: "周会在周三下午两点", said: "记住周会在周三下午两点" })).memory!;
+  const kept = (await memory.write(assistant(), { scope: "personal", text: "周会在周三下午两点", said: "周会在周三下午两点" })).memory!;
   await memory.recall(assistant(), { query: "周会" });
   await memory.change(person(), { memory_id: kept.memory_id, action: "update", text: "周会在周四下午两点" });
   await memory.change(person(), { memory_id: kept.memory_id, action: "remove" });
@@ -337,7 +358,7 @@ test("moving between personal and project keeps the text and drops project prove
   const now = { value: new Date("2026-09-30T08:00:00.000Z") };
   const env = await memoryHome(t, () => now.value);
   const memory = await env.open();
-  const project = (await memory.write(assistant(), { scope: "project", text: "发布前先跑全量回归", said: "记住发布前先跑全量回归" })).memory!;
+  const project = (await memory.write(assistant(), { scope: "project", text: "发布前先跑全量回归", said: "发布前先跑全量回归" })).memory!;
   const moved = await memory.change(person(), { memory_id: project.memory_id, action: "move", to: "personal" });
   assert.equal(moved.memory!.scope, "personal");
   assert.doesNotMatch(moved.memory!.origin, /工作「/);
@@ -386,10 +407,10 @@ test("interface signals are counted once per event; single events never form a m
 test("facts live on the Prologue entry itself: kind, source, applies and expiry in its metadata, switched off as the entry paused; an entry without them is not the platform's", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
-  const kept = (await memory.write(assistant(), { scope: "personal", text: "周报用要点列表", said: "以后周报都用要点列表", applies: { task: "写周报时" }, expires_at: "2099-01-01T00:00:00.000Z" })).memory!;
+  const kept = (await memory.write(assistant(), { scope: "personal", text: "周报用要点列表", said: "周报用要点列表", applies: { task: "写周报时" }, expires_at: "2099-01-01T00:00:00.000Z" })).memory!;
   const [raw] = await env.raw().list("personal", "web-user");
   assert.deepEqual([raw!.meta.kind, raw!.meta.source, raw!.meta.basis, raw!.meta.applies_when?.task, raw!.meta.expires_at_ms, raw!.meta.approved_by], ["preference", "said", "explicit", "写周报时", Date.parse("2099-01-01T00:00:00.000Z"), { by: "person" }]);
-  assert.equal(raw!.meta.evidence?.[0]?.text, "以后周报都用要点列表");
+  assert.equal(raw!.meta.evidence?.[0]?.text, "周报用要点列表");
   await memory.change(person(), { memory_id: kept.memory_id, action: "disable" });
   assert.match((await env.raw().list("personal", "web-user"))[0]!.paused?.reason ?? "", /^disabled:/);
   await memory.change(person(), { memory_id: kept.memory_id, action: "enable" });
@@ -422,7 +443,7 @@ test("undoing an automatic write cannot delete what the person has since said, a
   // Said again after the automatic write: it is the person's memory now, and the automatic write's undo is gone.
   const first = await auto("周报先写风险");
   assert.equal(change(first.change_id).undoable, true);
-  const said = await memory.write(assistant("project-a", { work_id: "work-2", title: "别的" }), { scope: "project", text: "周报先写风险", said: "记住：周报先写风险" });
+  const said = await memory.write(assistant("project-a", { work_id: "work-2", title: "别的" }), { scope: "project", text: "周报先写风险", said: "周报先写风险" });
   assert.equal(said.outcome, "duplicate");
   assert.equal(said.memory!.source, "said");
   assert.equal(change(first.change_id).undoable, false, "recent changes no longer offer to take back what the person said themselves");
@@ -445,7 +466,7 @@ test("undoing an automatic write cannot delete what the person has since said, a
 
   // Replaced by something the person said.
   const third = await auto("评审前先自测");
-  const replaced = await memory.write(assistant(), { scope: "project", text: "评审前先自测并贴截图", said: "以后评审前先自测并贴截图", replaces: third.memory!.memory_id });
+  const replaced = await memory.write(assistant(), { scope: "project", text: "评审前先自测并贴截图", said: "评审前先自测并贴截图", replaces: third.memory!.memory_id });
   assert.equal(replaced.outcome, "replaced");
   assert.equal(change(third.change_id).undoable, false);
   assert.ok((await sources()).some(([text, source]) => text === "评审前先自测并贴截图" && source === "said"));
@@ -501,52 +522,53 @@ test("the Assistant can only switch a memory off, recorded as its own and takeab
   assert.deepEqual([own.change.by, own.change.undoable], ["person", false]);
 });
 
-test("the gate judges the text against the person's saved message when the Host gives it, and the model's quote is only the evidence: a ban cut off the quote, a ban after it or an exception after it leave the Assistant's suggestion", { timeout: 60_000 }, async t => {
+test("the gate judges the text against the messages the Host saved when it gives them, and the model's quote is only a pointer: a ban cut off, a ban or an exception after the words, a project's name put in leave the Assistant's suggestion; the message whole is theirs", { timeout: 120_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
   const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
-  // [what the person wrote, the text, the quote the model gives]: the quote is cut out of the message, or has a comma or a space the message has not.
-  const cases: Array<[string, string, string]> = [
-    ["以后不要把客户名单发给外部顾问", "客户名单发给外部顾问", "把客户名单发给外部顾问"],
-    ["Never send the client list to the consultant", "Send the client list to the consultant", "send the client list to the consultant"],
-    ["请不要自动删除旧文件", "自动删除旧文件", "自动删除旧文件"],
-    ["以后不要自动整理旧文件", "自动整理旧文件", "以后不要，自动整理旧文件"],
+  // Whatever the model quotes (the message cut, a comma or a space in it, nothing like it), a text that is not the message is not theirs.
+  const quotes: Array<[message: string, text: string, said: string]> = [
     ["以后不要自动归档旧文件", "自动归档旧文件", "以后不要 自动归档旧文件"],
-    ["把采购合同发给外部顾问是不允许的。", "采购合同发给外部顾问", "把采购合同发给外部顾问"],
-    ["Sending the budget to the consultant is not allowed.", "Send the budget to the consultant", "Sending the budget to the consultant"],
-    ["转账不用确认。除非超过一万元。", "转账不用确认", "转账不用确认"],
-    ["Delete files without asking. Unless they are contracts.", "Delete files without asking", "Delete files without asking"],
-    ["周报发给我", "周报发给项目甲", "周报发给我"],
+    ["以后不要自动清空回收站", "自动清空回收站", "自动清空回收站"],
+    ["以后不要自动整理草稿箱", "自动整理草稿箱", "以后不要，自动整理草稿箱"],
+    ["Never auto-archive the old tickets", "Auto-archive the old tickets", "auto-archive the old tickets"],
   ];
-  for (const [index, [message, text, said]] of cases.entries()) {
+  for (const [index, [message, text, said]] of quotes.entries()) {
     const result = await memory.write(work(index), { scope: "project", text, said }, { originals: [message] });
-    assert.equal(result.outcome, "candidate", `${text} / ${message}`);
+    assert.deepEqual([result.outcome, result.candidate?.basis, result.memory], ["candidate", "inferred", null], `${text} / ${message}`);
     assert.match(result.reason, /原话/);
+  }
+  // Everything the last two re-reviews found: a ban before a colon or in a header above a list, a verdict after the words, a word that removes or stops something,
+  // the front of a sentence before a number, a one-off made a rule, a ban or an exception dropped, a project's name put in.
+  for (const [index, [message, text]] of NOT_THEIRS.entries()) {
+    const result = await memory.write(work(100 + index), { scope: "project", text, said: message }, { originals: [message] });
+    assert.equal(result.outcome, "candidate", `${text} / ${message}`);
     assert.equal(result.candidate!.basis, "inferred", "waits as the Assistant's own suggestion, never as something the person said");
     assert.equal(result.memory, null);
   }
   assert.equal((await memory.list(person())).items.length, 0, "nothing was recorded as the person's words");
 
-  // The same messages, restated without taking the ban, the exception or the object away, are theirs; the evidence is the quote the model gave.
-  const kept: Array<[string, string, string]> = [
-    ["以后不要把客户名单发给外部顾问", "不要把客户名单发给外部顾问", "把客户名单发给外部顾问"],
-    ["Never send the client list to the consultant", "Never send the client list to the consultant", "send the client list to the consultant"],
-    ["转账不用确认。除非超过一万元。", "转账不用确认，除非超过一万元", "转账不用确认"],
-    ["周报都先写风险，别放最后。", "周报先写风险", "周报都先写风险"],
-    ["周报先写风险", "项目甲里周报先写风险", "周报先写风险"],
-  ];
-  for (const [index, [message, text, said]] of kept.entries()) {
-    const result = await memory.write(work(20 + index), { scope: "project", text, said }, { originals: [message] });
+  // The same messages whole (apart from case, width, spacing, quotation marks and the mark at the end) are theirs, whatever the model quotes; what is recorded as the evidence
+  // is the message as they wrote it, not the text or the quote the model gave.
+  for (const [index, [message, text]] of THEIRS.entries()) {
+    const result = await memory.write(work(200 + index), { scope: "project", text, said: index % 2 ? message.slice(0, 6) : message }, { originals: [message] });
     assert.deepEqual([result.outcome, result.memory?.source, result.memory?.basis], ["written", "said", "explicit"], text);
-    assert.equal(result.memory!.evidence[0]!.text, said);
+    assert.equal(result.memory!.evidence[0]!.text, message.trim().slice(0, 200));
+    assert.match(result.memory!.origin, /你说：“/);
   }
 
-  // The quote may be in more than one message of theirs, and then each of them has to carry the text: where they disagree, the quote proves nothing.
-  // An Agent that is not the Assistant has no saved message: its quote is all the gate has.
-  const agreeing = await memory.write(work(30), { scope: "personal", text: "自动备份文件", said: "自动备份文件" }, { originals: ["记住自动备份文件", "以后自动备份文件"] });
-  assert.deepEqual([agreeing.outcome, agreeing.memory?.source], ["written", "said"]);
-  const disagreeing = await memory.write(work(31), { scope: "personal", text: "自动导出文件", said: "自动导出文件" }, { originals: ["不要自动导出文件", "以后自动导出文件"] });
-  assert.equal(disagreeing.outcome, "candidate");
-  const agent = await memory.write({ ...work(32), consumer: "agent" }, { scope: "personal", text: "自动合并分支", said: "自动合并分支" });
+  // Several messages: the text is the whole of one, found among others; one that goes on past it or says no to it makes it unclear; none saved means nothing is theirs.
+  const among = await memory.write(work(300), { scope: "personal", text: "自动备份文件", said: "自动备份文件" }, { originals: ["记住这个", "自动备份文件", "好的"] });
+  assert.deepEqual([among.outcome, among.memory?.source], ["written", "said"]);
+  const unclear = await memory.write(work(301), { scope: "personal", text: "自动导出文件", said: "自动导出文件" }, { originals: ["自动导出文件", "不要自动导出文件"] });
+  assert.equal(unclear.outcome, "candidate");
+  const joined = await memory.write(work(302), { scope: "personal", text: "自动导出文件到共享盘", said: "自动导出文件到共享盘" }, { originals: ["自动导出文件", "到共享盘"] });
+  assert.equal(joined.outcome, "candidate");
+  const none = await memory.write(work(303), { scope: "personal", text: "自动清空草稿", said: "自动清空草稿" }, { originals: [] });
+  assert.equal(none.outcome, "candidate", "no saved message at all does not fall back on the quote the model gives");
+  // An Agent that is not the Assistant has no saved message: its quote is the one message there is.
+  const agent = await memory.write({ ...work(304), consumer: "agent" }, { scope: "personal", text: "自动合并分支", said: "自动合并分支" });
   assert.deepEqual([agent.outcome, agent.memory?.source], ["written", "said"]);
+  const paraphrase = await memory.write({ ...work(305), consumer: "agent" }, { scope: "personal", text: "合并分支要自动做", said: "自动合并分支" });
+  assert.deepEqual([paraphrase.outcome, paraphrase.candidate?.basis], ["candidate", "inferred"]);
 });

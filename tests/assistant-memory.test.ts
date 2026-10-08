@@ -12,6 +12,7 @@ import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-a
 import { prologueMemoryBackend } from "../apps/local-host/src/memory/memory-host.js";
 import { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
 
 /** The platform memory over the test's own runtime (Prologue Memory) and a ledger in its Home, as the Host wires it (the projects' names included: a project memory may carry its project's name). */
 function platformMemory(host: AgentHost, home: string, t: { after(fn: () => void): void }): MemoryService {
@@ -68,21 +69,24 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
   };
   const recalled = (body: any) => JSON.stringify(body.messages);
   try {
-    // Asked to keep two things: a personal preference and a project convention.
+    // Asked to keep two things, in two messages, each of them the whole of what is kept: a project convention and a personal preference.
     script.push(
-      () => reply({ name: "remember", input: { text: "回答用要点列表", scope: "personal", said: "以后回答都用要点列表" } }),
-      () => reply({ name: "remember", input: { text: "项目甲里 NSM 指北极星指标", scope: "project", said: "记住：NSM 是北极星指标" } }),
-      () => reply(undefined, "记下了：回答用要点列表（个人）；NSM 指北极星指标（项目甲）。"));
-    const first = await round("以后回答都用要点列表；另外记住：NSM 是北极星指标", projectA, "req-memory-001");
+      () => reply({ name: "remember", input: { text: "项目甲里 NSM 指北极星指标", scope: "project", said: "项目甲里 NSM 指北极星指标" } }),
+      () => reply(undefined, "记下了：NSM 指北极星指标（项目甲）。"));
+    const first = await round("项目甲里 NSM 指北极星指标", projectA, "req-memory-001");
     // A finished round hands the person's own words to the platform memory's learning (once per round).
     await until(async () => { await service.list(); return learned.find(item => item.work === first.work.work_id); }, "learning handed over");
-    assert.deepEqual(learned.find(item => item.work === first.work.work_id)!.said, ["以后回答都用要点列表；另外记住：NSM 是北极星指标"]);
+    assert.deepEqual(learned.find(item => item.work === first.work.work_id)!.said, ["项目甲里 NSM 指北极星指标"]);
     assert.ok(first.first.tools.some((tool: { name: string }) => tool.name === "remember"), "the round may remember");
+    script.push(
+      () => reply({ name: "remember", input: { text: "回答用要点列表", scope: "personal", said: "回答用要点列表" } }),
+      () => reply(undefined, "记下了：回答用要点列表（个人）。"));
+    await round("回答用要点列表", projectA, "req-memory-001b", first.work.work_id);
     const kept = await service.memories("project-a");
     assert.deepEqual(kept.map(item => [item.scope, item.text, item.disabled]), [["personal", "回答用要点列表", false], ["project", "项目甲里 NSM 指北极星指标", false]]);
-    assert.match(kept[0]!.origin, /^.* · 你说：“以后回答都用要点列表”$/);
+    assert.match(kept[0]!.origin, /^.* · 你说：“回答用要点列表”$/);
     assert.doesNotMatch(kept[0]!.origin, /工作「/, "a personal memory's origin carries nothing of the project it was said in");
-    assert.match(kept[1]!.origin, /工作「以后回答都用要点列表；另外记住：NSM 是北极星指标」/);
+    assert.match(kept[1]!.origin, /工作「项目甲里 NSM 指北极星指标」/);
 
     // Another project sees the personal preference, never project A's convention.
     const inB = await round("总结一下本周进展", projectB, "req-memory-002");
@@ -130,9 +134,9 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     script.push(
       () => reply({ name: "list-memories", input: {} }),
       () => reply(undefined, "记下了：周会在周三下午两点，以后在本项目里都按这个来。"),
-      body => { assert.match(JSON.stringify(body.messages), /no remember call succeeded/); return reply({ name: "remember", input: { text: "周会在周三下午两点", scope: "project", said: "记住：周会在周三下午两点" } }); },
+      body => { assert.match(JSON.stringify(body.messages), /no remember call succeeded/); return reply({ name: "remember", input: { text: "周会在周三下午两点", scope: "project", said: "周会在周三下午两点" } }); },
       () => reply(undefined, "记下了：周会在周三下午两点（只在项目甲里生效）。"));
-    await round("记住：周会在周三下午两点", projectA, "req-memory-010");
+    await round("周会在周三下午两点", projectA, "req-memory-010");
     assert.ok((await service.memories("project-a")).some(item => item.text === "周会在周三下午两点"), "held once, then kept for real");
 
     // Forming memories switched off: the round is not given the tools at all; what is kept is still used.
@@ -250,8 +254,8 @@ test("memory switches hold the same when a Character carries the round; turning 
     return { work: sent.work, first: requests[before] };
   };
   try {
-    script.push(() => reply({ name: "remember", input: { text: "回答用要点列表", scope: "personal", said: "以后回答都用要点列表" } }), () => reply(undefined, "记下了。"));
-    await round({ text: "以后回答都用要点列表", request_id: "req-mc-1" }, 1);
+    script.push(() => reply({ name: "remember", input: { text: "回答用要点列表", scope: "personal", said: "回答用要点列表" } }), () => reply(undefined, "记下了。"));
+    await round({ text: "回答用要点列表", request_id: "req-mc-1" }, 1);
     assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["回答用要点列表"]);
 
     // With a Character: while the switches allow it, the same memory and tools reach its round.
@@ -261,8 +265,8 @@ test("memory switches hold the same when a Character carries the round; turning 
     assert.match(JSON.stringify(on.first.messages), /回答用要点列表/);
 
     // The Character keeps something of its own: used in work it carries, never in work without it (spec M5).
-    script.push(() => reply({ name: "remember", input: { text: "先列问题再给改法", scope: "character", said: "你以后都先列问题再给改法" } }), () => reply(undefined, "记下了。"));
-    await round({ text: "你以后都先列问题再给改法", request_id: "req-mc-2b", work_id: on.work.work_id }, 2);
+    script.push(() => reply({ name: "remember", input: { text: "先列问题再给改法", scope: "character", said: "先列问题再给改法" } }), () => reply(undefined, "记下了。"));
+    await round({ text: "先列问题再给改法", request_id: "req-mc-2b", work_id: on.work.work_id }, 2);
     const own = (await service.memories("project-a")).find(item => item.scope === "character");
     assert.equal(own?.text, "先列问题再给改法");
     const withIt = await round({ text: "再看看这段问题说明", request_id: "req-mc-2c", character: { artifact_id: editor.reference.artifact_id, version: 2 } }, 1);
@@ -359,8 +363,8 @@ test("a round that could not start used no memory: its recall is settled as not 
       memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   try {
-    script.push(() => reply({ name: "remember", input: { text: "回答用要点列表", scope: "personal", said: "以后回答都用要点列表" } }), () => reply(undefined, "记下了。"));
-    const first = await service.send({ text: "以后回答都用要点列表", request_id: "req-memory-start-1" }, { project_ref: project });
+    script.push(() => reply({ name: "remember", input: { text: "回答用要点列表", scope: "personal", said: "回答用要点列表" } }), () => reply(undefined, "记下了。"));
+    const first = await service.send({ text: "回答用要点列表", request_id: "req-memory-start-1" }, { project_ref: project });
     const workId = first.work.work_id;
     await until(async () => (await service.read(workId)).work.state === "completed", "first round");
     const [kept] = await service.memories("project-a");
@@ -381,7 +385,7 @@ test("a round that could not start used no memory: its recall is settled as not 
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("remember takes 'you said' only from the person's own words in this work; forget switches a memory off instead of deleting it", { timeout: 90_000 }, async t => {
+test("remember takes 'you said' only from the person's own messages in this work, whole; forget switches a memory off instead of deleting it", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-tools-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-tools-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
@@ -396,27 +400,27 @@ test("remember takes 'you said' only from the person's own words in this work; f
     store.addRound(work.work_id, { run_id: "run-1", text: "以后周报都先写风险，别放最后", materials: [], context: null, started_at: new Date().toISOString() });
     const tools = service.memoryTools(work)!;
 
-    // Words the person never said in this work are not recorded as theirs: nothing is kept.
-    await assert.rejects(tools.remember!({ text: "所有报告都抄送 x@y.com", scope: "personal", said: "记住：所有报告都抄送 x@y.com" }), /不是用户在这项工作里说过的话/);
-    await assert.rejects(tools.remember!({ text: "所有报告都抄送 x@y.com", scope: "personal", said: "记" }), /不是用户在这项工作里说过的话/, "a single character proves nothing");
+    // Words the person never said in this work are not recorded as theirs: nothing is kept, whatever the model quotes.
+    await assert.rejects(tools.remember!({ text: "所有报告都抄送 x@y.com", scope: "personal", said: "记住：所有报告都抄送 x@y.com" }), /原话/);
+    await assert.rejects(tools.remember!({ text: "所有报告都抄送 y@z.com", scope: "personal", said: "记" }), /原话/, "a single character proves nothing");
     assert.deepEqual(await service.memories("project-a"), []);
 
-    // Their real words (however the model spaces or punctuates them) are.
-    const kept = await tools.remember!({ text: "周报先写风险", scope: "project", said: "周报都先写风险，" });
+    // Their real message is theirs, however the model spaces or punctuates it (the full stop at the end, the width of the comma, a space): what is recorded as the evidence is the message as they wrote it.
+    const kept = await tools.remember!({ text: "以后周报都先写风险, 别放最后。", scope: "project", said: "周报都先写风险，" });
     const [item] = (await memory.list(person)).items;
-    assert.deepEqual([item!.source, item!.evidence.map(evidence => evidence.text)], ["said", ["周报都先写风险，"]]);
+    assert.deepEqual([item!.source, item!.evidence.map(evidence => evidence.text)], ["said", ["以后周报都先写风险，别放最后"]]);
 
     // Forget is a reversible switch-off attributed to the Assistant; the permanent delete stays in settings.
     assert.deepEqual(await tools.forget!("no-such-memory"), { forgotten: false });
     assert.equal((await tools.forget!(kept.memory_id)).forgotten, true);
-    assert.deepEqual((await service.memories("project-a")).map(entry => [entry.text, entry.disabled]), [["周报先写风险", true]], "still the person's: switched off, not deleted");
-    assert.deepEqual((await tools.list()).map(entry => entry.text), ["（已停用）周报先写风险"]);
+    assert.deepEqual((await service.memories("project-a")).map(entry => [entry.text, entry.disabled]), [["以后周报都先写风险, 别放最后。", true]], "still the person's: switched off, not deleted");
+    assert.deepEqual((await tools.list()).map(entry => entry.text), ["（已停用）以后周报都先写风险, 别放最后。"]);
     const [change] = memory.changes(person, { scope: "project" });
     assert.deepEqual([change!.kind, change!.by, change!.undoable, change!.work?.work_id], ["disabled", "assistant", true, work.work_id]);
   } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("remember records 'you said' only for a real stretch of their words that carries the text: a fragment, or their words about something else, leave a suggestion and never the person's memory", { timeout: 90_000 }, async t => {
+test("remember records 'you said' only for the whole of a message: a fragment, a clause, or their words about something else leave a suggestion and never the person's memory", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-fragment-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-fragment-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
@@ -432,27 +436,27 @@ test("remember records 'you said' only for a real stretch of their words that ca
     return work;
   };
   try {
-    // The person's only message: a few words in it are no more than words.
+    // The person's only message: a few words in it, or a clause of it, are no more than words.
     const work = start("整理周报", "以后周报都先写风险，别放最后，记住了");
     const tools = service.memoryTools(work)!;
-    await assert.rejects(tools.remember!({ text: "所有报告都抄送 x@y.com", scope: "personal", said: "以后" }), /不是用户在这项工作里说过的话/, "a fragment is not their words");
-    await assert.rejects(tools.remember!({ text: "会议纪要都发给老李", scope: "personal", said: "记住" }), /不是用户在这项工作里说过的话/);
-    // A real clause of theirs, about something else: the text does not follow from it.
+    await assert.rejects(tools.remember!({ text: "所有报告都抄送 x@y.com", scope: "personal", said: "以后" }), /原话/, "a fragment is not their words");
+    await assert.rejects(tools.remember!({ text: "会议纪要都发给老李", scope: "personal", said: "记住" }), /原话/);
+    // A real clause of theirs, about something else: the text is not their message.
     await assert.rejects(tools.remember!({ text: "文档统一存到共享盘", scope: "personal", said: "周报都先写风险，别放最后" }), /原话/);
     assert.deepEqual(await service.memories("project-a"), [], "nothing was recorded as the person's words");
     assert.deepEqual((await memory.candidates(person, { work_id: work.work_id })).map(item => [item.text, item.basis]),
       [["所有报告都抄送 x@y.com", "inferred"], ["会议纪要都发给老李", "inferred"], ["文档统一存到共享盘", "inferred"]], "each waits as the Assistant's own suggestion");
 
-    // Replacing what the person kept needs their words as well.
-    const kept = await tools.remember!({ text: "周报先写风险", scope: "project", said: "周报都先写风险，别放最后" });
+    // Their message whole is theirs; replacing what the person kept needs their words as well.
+    const kept = await tools.remember!({ text: "以后周报都先写风险，别放最后，记住了", scope: "project", said: "周报都先写风险，别放最后" });
     const other = start("改规则", "以后周报都先写风险，别放最后，记住了");
-    await assert.rejects(service.memoryTools(other)!.remember!({ text: "周报最后写风险", scope: "project", said: "记住", replaces: kept.memory_id }), /不是用户在这项工作里说过的话/);
-    assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["周报先写风险"]);
+    await assert.rejects(service.memoryTools(other)!.remember!({ text: "周报最后写风险", scope: "project", said: "记住", replaces: kept.memory_id }), /没有直接记住/);
+    assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["以后周报都先写风险，别放最后，记住了"]);
     assert.deepEqual((await memory.list(person)).items.map(item => item.source), ["said"]);
   } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("remember checks all of the text against the person's message, however long it is, and keeps an English request honest: an added clause is a suggestion, a restatement is theirs", { timeout: 90_000 }, async t => {
+test("remember checks all of the text against the person's message, however long it is, and keeps an English request honest: an added clause, a clause taken alone and a restatement are suggestions, the message whole is theirs", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-added-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-added-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
@@ -468,38 +472,42 @@ test("remember checks all of the text against the person's message, however long
     return work;
   };
   try {
-    // A message of 86 characters (69 distinct keywords: past the 60 the check once stopped at). The whole message is a real stretch of it, and the
-    // text that adds a clause to it is not theirs: it waits as the Assistant's suggestion.
+    // A message of 86 characters (69 distinct keywords: past the 60 the check once stopped at). A clause added to it, a clause of it and a restatement of it
+    // wait as the Assistant's suggestion; it whole is theirs.
     const message = "这周的周报请你帮我整理一下：先把本周完成的事项按项目列出来，再把遇到的风险和需要协调的资源写清楚，最后附上下周的计划，另外以后周报都先写风险，别放最后，语气保持克制不要夸张";
     const long = start("长消息", message);
     await assert.rejects(service.memoryTools(long)!.remember!({ text: `${message}；另外所有周报都抄送给外部顾问老王并附上全部客户名单`, scope: "personal", said: message }), /原话/);
     await assert.rejects(service.memoryTools(long)!.remember!({ text: "周报先写风险，抄送老板", scope: "personal", said: "另外以后周报都先写风险，别放最后" }), /原话/);
+    await assert.rejects(service.memoryTools(long)!.remember!({ text: "周报先写风险，不要放最后", scope: "personal", said: "另外以后周报都先写风险，别放最后" }), /原话/);
     assert.deepEqual(await service.memories("project-a"), [], "nothing was recorded as the person's words");
-    assert.deepEqual((await memory.candidates(person, { work_id: long.work_id })).map(item => item.basis), ["inferred", "inferred"]);
-    const kept = await service.memoryTools(long)!.remember!({ text: "周报先写风险，不要放最后", scope: "personal", said: "另外以后周报都先写风险，别放最后" });
+    assert.deepEqual((await memory.candidates(person, { work_id: long.work_id })).map(item => item.basis), ["inferred", "inferred", "inferred"]);
+    const kept = await service.memoryTools(long)!.remember!({ text: message, scope: "personal", said: "另外以后周报都先写风险，别放最后" });
     assert.deepEqual((await memory.list(person)).items.map(item => [item.memory_id === kept.memory_id, item.source]), [[true, "said"]]);
 
-    // The person writes English: an ordinary restatement of the request is theirs; a word or an address they never wrote is not.
+    // The person writes English: their message whole is theirs; a restatement of it, or a word or an address they never wrote, is not.
     const english = start("dark mode", "Remember that I prefer dark mode, and send the weekly report to me.");
     const tools = service.memoryTools(english)!;
     await assert.rejects(tools.remember!({ text: "Prefers dark mode and cc boss@example.com", scope: "personal", said: "Remember that I prefer dark mode" }), /原话/);
-    const dark = await tools.remember!({ text: "Prefers dark mode", scope: "personal", said: "Remember that I prefer dark mode" });
+    await assert.rejects(tools.remember!({ text: "Prefers dark mode", scope: "personal", said: "Remember that I prefer dark mode" }), /原话/, "a restatement waits for the person");
     await assert.rejects(tools.remember!({ text: "Send the weekly report to me every Friday", scope: "personal", said: "send the weekly report to me" }), /原话/, "a text that says more than the words it rests on is only suggested");
+    const dark = await tools.remember!({ text: "remember that i prefer dark mode, and send the weekly report to me", scope: "personal", said: "Remember that I prefer dark mode" });
     assert.ok(dark.memory_id);
-    assert.deepEqual((await memory.list(person)).items.filter(item => item.source === "said").map(item => item.text).sort(), ["Prefers dark mode", "周报先写风险，不要放最后"]);
+    assert.deepEqual((await memory.list(person)).items.filter(item => item.source === "said").map(item => item.text).sort(), ["remember that i prefer dark mode, and send the weekly report to me", message]);
 
-    // Two sentences of theirs with the same words, one asking and one not: each is theirs as they said it, and the ban is never put on the other.
-    const rules = service.memoryTools(start("规则", "删文件前要问我，改名前不用问我"))!;
+    // Two clauses of theirs with the same words, one asking and one not: neither clause is theirs alone, and the ban is never put on the other. The sentence whole is.
     const both = "删文件前要问我，改名前不用问我";
+    const rules = service.memoryTools(start("规则", both))!;
     await assert.rejects(rules.remember!({ text: "删文件前不用问我", scope: "personal", said: both }), /原话/);
     await assert.rejects(rules.remember!({ text: "改名前要问我", scope: "personal", said: both }), /原话/);
-    const renamed = await rules.remember!({ text: "改名前不用问我", scope: "personal", said: both });
-    assert.deepEqual((await memory.list(person)).items.filter(item => item.memory_id === renamed.memory_id).map(item => [item.text, item.source]), [["改名前不用问我", "said"]]);
-    assert.deepEqual((await memory.candidates(person, { scope: "personal" })).map(item => [item.text, item.basis]).filter(([text]) => /问我/.test(text!)), [["删文件前不用问我", "inferred"], ["改名前要问我", "inferred"]], "the swapped ones wait as the Assistant's suggestions");
+    await assert.rejects(rules.remember!({ text: "改名前不用问我", scope: "personal", said: both }), /原话/, "one of the two clauses, as they said it, is not their sentence");
+    const sentence = await rules.remember!({ text: both, scope: "personal", said: both });
+    assert.deepEqual((await memory.list(person)).items.filter(item => item.memory_id === sentence.memory_id).map(item => [item.text, item.source]), [[both, "said"]]);
+    assert.deepEqual((await memory.candidates(person, { scope: "personal" })).map(item => [item.text, item.basis]).filter(([text]) => /问我/.test(text!)),
+      [["删文件前不用问我", "inferred"], ["改名前要问我", "inferred"], ["改名前不用问我", "inferred"]], "each of the clauses waits as the Assistant's suggestion");
   } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("remember judges the text against the message the Host saved, not against the quote the model gives: a ban cut off the quote, a comma the model put in, a ban or an exception after the quote leave a suggestion and never the person's words", { timeout: 90_000 }, async t => {
+test("remember judges the text against the messages the Host saved, not against the quote the model gives: every reversed, narrowed or added request found in review leaves a suggestion and never the person's words; the message whole is theirs", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-saved-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-saved-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
@@ -515,47 +523,36 @@ test("remember judges the text against the message the Host saved, not against t
     return work;
   };
   try {
-    // [what the person wrote (the Host's saved round), the text the model asks to keep, the quote it gives as theirs]
-    const reversed: Array<[string, string, string]> = [
-      ["以后不要把客户名单发给外部顾问", "客户名单发给外部顾问", "把客户名单发给外部顾问"], // the ban in front is cut off the quote
-      ["Never send the client list to the consultant", "Send the client list to the consultant", "send the client list to the consultant"],
-      ["请不要自动删除旧文件", "自动删除旧文件", "自动删除旧文件"], // the quote is the text
-      ["以后不要自动整理旧文件", "自动整理旧文件", "以后不要，自动整理旧文件"], // a comma the message has not: in the quote the ban no longer reaches the rest
-      ["以后不要自动归档旧文件", "自动归档旧文件", "以后不要 自动归档旧文件"], // a space
-      ["把采购合同发给外部顾问是不允许的", "采购合同发给外部顾问", "把采购合同发给外部顾问是不允许的"], // the ban after the words, dropped by the text
-      ["Sending the budget to the consultant is not allowed", "Send the budget to the consultant", "Sending the budget to the consultant is not allowed"],
-      ["删除旧文件不用问我是不可能的", "删除旧文件不用问我", "删除旧文件不用问我是不可能的"],
-      ["转账不用确认。除非超过一万元。", "转账不用确认", "转账不用确认"], // an exception said in the next sentence
-      ["以后取消自动备份旧文件", "自动备份旧文件", "以后取消自动备份旧文件"], // 取消 says no
-      ["以后停止给老板抄送周报", "以后给老板抄送周报", "以后停止给老板抄送周报"],
-      ["Quit sending reports to the client", "Send reports to the client", "Quit sending reports to the client"],
-      ["周报发给我", "周报发给项目甲", "周报发给我"], // the project's name put in for what the quote left out
+    // [what the person wrote (the Host's saved round), the text the model asks to keep, the quote it gives as theirs]: the quote is cut out of the message, has a comma or a space the message has not, or is the message itself.
+    const quotes: Array<[string, string, string]> = [
+      ["以后不要自动归档旧文件", "自动归档旧文件", "以后不要 自动归档旧文件"],
+      ["以后不要自动整理草稿箱", "自动整理草稿箱", "以后不要，自动整理草稿箱"],
+      ["Never auto-archive the old tickets", "Auto-archive the old tickets", "auto-archive the old tickets"],
     ];
-    for (const [index, [message, text, said]] of reversed.entries()) {
-      await assert.rejects(service.memoryTools(start(`反着说${index}`, message))!.remember!({ text, scope: "project", said }), /原话/, `${text} / ${message}`);
+    for (const [index, [message, text, said]] of quotes.entries()) {
+      await assert.rejects(service.memoryTools(start(`引文${index}`, message))!.remember!({ text, scope: "project", said }), /没有直接记住/, `${text} / ${message}`);
+    }
+    // Everything the last two re-reviews found: a ban before a colon or in a header above a list, a verdict after the words, a word that removes or stops something,
+    // the front of a sentence before a number, a one-off made a rule, a ban or an exception dropped, a project's name put in.
+    for (const [index, [message, text]] of NOT_THEIRS.entries()) {
+      await assert.rejects(service.memoryTools(start(`反着说${index}`, message))!.remember!({ text, scope: "project", said: message }), /没有直接记住/, `${text} / ${message}`);
     }
     assert.deepEqual(await service.memories("project-a"), [], "nothing was recorded as the person's words");
     assert.deepEqual((await memory.list(person)).items.map(item => item.source), []);
     assert.ok((await memory.candidates(person, { scope: "project" })).every(item => item.basis === "inferred"), "each waits as the Assistant's own suggestion");
 
-    // The same messages, restated with their ban, their exception and their object, are theirs; the memory shows the quote the model gave as the evidence.
-    const kept: Array<[string, string, string]> = [
-      ["以后不要把客户名单发给外部顾问", "不要把客户名单发给外部顾问", "把客户名单发给外部顾问"],
-      ["Never send the client list to the consultant", "Never send the client list to the consultant", "send the client list to the consultant"],
-      ["转账不用确认。除非超过一万元。", "转账不用确认，除非超过一万元", "转账不用确认"],
-      ["以后停止给老板抄送周报", "停止给老板抄送周报", "以后停止给老板抄送周报"],
-      ["周报都先写风险，别放最后。谢谢", "周报先写风险", "周报都先写风险"],
-    ];
-    for (const [index, [message, text, said]] of kept.entries()) {
-      const result = await service.memoryTools(start(`原样${index}`, message))!.remember!({ text, scope: "project", said });
+    // The same messages whole, with the small differences that do not count, are theirs; the memory shows the message as they wrote it as the evidence, whatever the model quoted.
+    for (const [index, [message, text]] of THEIRS.entries()) {
+      const result = await service.memoryTools(start(`原样${index}`, message))!.remember!({ text, scope: "project", said: index % 2 ? message.slice(0, 6) : message });
       const item = (await memory.list(person)).items.find(entry => entry.memory_id === result.memory_id)!;
-      assert.deepEqual([item.text, item.source, item.evidence.map(evidence => evidence.text)], [text, "said", [said]]);
+      assert.deepEqual([item.text, item.source, item.evidence.map(evidence => evidence.text)], [text, "said", [message.trim()]]);
     }
 
-    // A quote that is in two of their messages has to be carried by both: said once as a ban and once in a question, it proves nothing; said twice the same way, it does.
+    // The same text said in two of their messages: the same words twice are theirs; once whole and once inside a message that goes on or says no, they are not.
     const twice = (title: string, first: string, second: string) => { const work = start(title, first); store.addRound(work.work_id, { run_id: `run-${title}-2`, text: second, materials: [], context: null, started_at: new Date().toISOString() }); return work; };
-    await assert.rejects(service.memoryTools(twice("两次不一样", "不要自动清理旧日志", "自动清理旧日志的功能怎么样了"))!.remember!({ text: "自动清理旧日志", scope: "project", said: "自动清理旧日志" }), /原话/);
-    const agreed = await service.memoryTools(twice("两次一样", "以后自动清理旧缓存", "记住自动清理旧缓存"))!.remember!({ text: "自动清理旧缓存", scope: "project", said: "自动清理旧缓存" });
+    await assert.rejects(service.memoryTools(twice("两次不一样", "自动清理旧日志", "不要自动清理旧日志"))!.remember!({ text: "自动清理旧日志", scope: "project", said: "自动清理旧日志" }), /没有直接记住/);
+    await assert.rejects(service.memoryTools(twice("两次也不一样", "自动清理旧快照", "自动清理旧快照的功能怎么样了"))!.remember!({ text: "自动清理旧快照", scope: "project", said: "自动清理旧快照" }), /没有直接记住/);
+    const agreed = await service.memoryTools(twice("两次一样", "自动清理旧缓存", "自动清理旧缓存。"))!.remember!({ text: "自动清理旧缓存", scope: "project", said: "自动清理旧缓存" });
     assert.equal((await memory.list(person)).items.find(entry => entry.memory_id === agreed.memory_id)!.source, "said");
   } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -632,10 +629,59 @@ test("a delegated sub-task is given neither remember nor forget: its words are t
     const child = await until(async () => { const view = await service.read(done.delegated![0]!.work_id); return view.work.state === "completed" ? view : undefined; }, "child completion");
     assert.ok(parentTools[0]!.includes("remember") && parentTools[0]!.includes("forget-memory"), "the person's own work may keep and forget");
     assert.ok(childTools[0]!.includes("list-memories") && !childTools[0]!.includes("remember") && !childTools[0]!.includes("forget-memory"), "a delegated work may only read what is kept");
+    assert.equal(store.rounds(child.work.work_id)[0]!.written_by, "assistant", "the brief is the Assistant's words, marked when the round is written");
     assert.equal(service.memoryTools(store.get("web-user", child.work.work_id))!.remember, undefined);
     assert.equal(service.memoryTools(store.get("web-user", child.work.work_id))!.forget, undefined);
     assert.match(JSON.stringify(childReplies[0].messages), /no tools to keep or forget memories/, "the held claim says it cannot, instead of telling it to call a tool it was not given");
     assert.doesNotMatch(JSON.stringify(childReplies[0].messages), /Call remember now/);
     assert.deepEqual(await service.memories("project-a"), [], "nothing the brief said was kept as the person's");
+  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("a timed round is written by the Host: it is marked, it is not among the person's words, and a remember that quotes it is only a suggestion", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-timed-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project-a", storage_key: "memory:a" };
+  const learned: Array<{ work: string; said: string[]; run: string }> = [];
+  t.mock.method(globalThis, "fetch", async () => reply());
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-timed-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const memory = platformMemory(host, home, t);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      memory: (task: string) => service.memoryForRound(work, task) }),
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory,
+    learnFromRound: input => learned.push({ work: input.work.work_id, said: input.said, run: input.run_id }) }, "web-user");
+  const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
+  try {
+    assert.equal(await service.attachSchedule(), true);
+    const sent = await service.send({ text: "帮我跟进今天的工作", request_id: "req-timed-1" }, { project_ref: project });
+    const workId = sent.work.work_id;
+    await until(async () => (await service.read(workId)).work.state === "completed", "first round");
+    // The person asks for a standing request; when its time comes the Host starts a round with its own wrapper around those words.
+    const standing = "以后周报都先写风险";
+    await service.saveFollowUp({ work_id: workId, text: standing, at: new Date(Date.now() + 700).toISOString(), label: "每天汇总" });
+    await until(async () => { const view = await service.read(workId); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "timed round");
+    const rounds = store.rounds(workId);
+    assert.deepEqual(rounds.map(round => round.written_by ?? "person"), ["person", "host"], "the timed round is marked as the Host's when it is written");
+    assert.match(rounds[1]!.text, /每天汇总.*以后周报都先写风险/);
+
+    // Its text, copied whole, and the standing request inside it are the Host's words: only suggested, whatever the model quotes.
+    const tools = service.memoryTools(store.get("web-user", workId))!;
+    await assert.rejects(tools.remember!({ text: rounds[1]!.text, scope: "personal", said: rounds[1]!.text }), /没有直接记住/);
+    await assert.rejects(tools.remember!({ text: standing, scope: "personal", said: standing }), /没有直接记住/);
+    assert.deepEqual(await service.memories(null), [], "nothing the timed round said was kept as the person's");
+    assert.ok((await memory.candidates(person, { work_id: workId })).every(item => item.basis === "inferred"), "each waits as the Assistant's suggestion");
+
+    // The person's own message in the same work still counts.
+    const kept = await tools.remember!({ text: "帮我跟进今天的工作", scope: "personal", said: "帮我跟进今天的工作" });
+    assert.equal((await memory.list(person)).items.find(item => item.memory_id === kept.memory_id)!.source, "said");
+
+    // What learning from the finished timed round is handed is what the person typed, not the timed round's own text.
+    const handed = await until(async () => { await service.list(); return learned.find(item => item.work === workId); }, "learning handed over");
+    assert.deepEqual([handed.run, handed.said], [rounds[1]!.run_id, ["帮我跟进今天的工作"]]);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

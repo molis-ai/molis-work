@@ -31,7 +31,7 @@ test("memory is one system.memory provider in the shared directory: the person m
   const asPerson = bindActionClient(client, () => person), asAgent = bindActionClient(client, () => agent);
   // An agent keeps something only with the person's words; it is the local person's personal memory.
   await assert.rejects(asAgent.invoke(memoryActions.write, { scope: "personal", text: "喜欢简短" }), /原话/);
-  const kept = await asAgent.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表", said: "以后回答都用要点列表" });
+  const kept = await asAgent.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" });
   assert.equal(kept.outcome, "written");
   assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items.map(item => [item.text, item.source]), [["回答用要点列表", "said"]]);
   // The person's page recalls as the interface consumer; an agent as Agent work.
@@ -66,7 +66,7 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
   const service = memoryHostFor(host)!.service;
   const client = host.homeActionClient();
   const asAgent = bindActionClient(client, () => agent);
-  await asAgent.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表", said: "以后回答都用要点列表" });
+  await asAgent.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" });
   const recallRef = { capability_id: memoryActions.recall.capability_id, version: 1, provider_id: MEMORY_PROVIDER_ID };
 
   // The call is stopped while it is reading the store: the read finishes, the call's own effect check refuses, and no receipt is written.

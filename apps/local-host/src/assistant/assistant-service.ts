@@ -18,7 +18,7 @@ import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from ".
 import { identity } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, type DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
-import { AssistantStoreError, type AssistantStore, type StoredCard, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
+import { AssistantStoreError, typedTexts, type AssistantStore, type StoredCard, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
 import { assistantMemoryTools } from "./assistant-memory-tools.js";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -547,7 +547,7 @@ export class AssistantService {
   private readonly images = new Map<string, { revision: number; media_type: string }>();
   /** The recall receipt of the round a work is starting, until the round is recorded. */
   private readonly recalled = new Map<string, string>();
-  /** What the person said in the round a work is starting, until the round is recorded: the round's own tools may already be asked to rest on it. */
+  /** What the person typed in the round a work is starting, until the round is recorded: the round's own tools may already be asked to rest on it. A round the Host or the Assistant writes is not kept here. */
   private readonly starting = new Map<string, string>();
   /** The memories chosen for the round a work is starting (null: none), until it starts. */
   private readonly chosenMemory = new Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>();
@@ -588,7 +588,7 @@ export class AssistantService {
     // What the person said in this work may hold a standing wish worth keeping: the platform memory decides (a sub-task's
     // words are the delegating work's, not the person's, so it never learns from those).
     if (state === "completed" && before !== "completed" && !work.delegated_by && round !== "none")
-      this.ports.learnFromRound?.({ work, said: this.store.rounds(work.work_id).map(item => item.text).slice(-6), run_id: round });
+      this.ports.learnFromRound?.({ work, said: typedTexts(this.store.rounds(work.work_id)).slice(-6), run_id: round });
   }
 
   /** Open notices, each saying whether one of the person's rules holds it here and now (on this surface). */
@@ -798,7 +798,7 @@ export class AssistantService {
       const state = await this.stateFor(host, work);
       if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = "上一轮还没结束，这一次没有开始"; }
       else {
-        try { await this.send({ work_id: work.work_id, text: `（按你的定时安排「${followUp.label}」）${followUp.text}`, request_id: `fu-${followUp.followup_id}-${Date.parse(due)}` }, {}); }
+        try { await this.send({ work_id: work.work_id, text: `（按你的定时安排「${followUp.label}」）${followUp.text}`, request_id: `fu-${followUp.followup_id}-${Date.parse(due)}` }, {}, "host"); }
         catch (error) { outcome = "failed"; detail = error instanceof Error ? error.message : String(error); }
       }
     }
@@ -994,7 +994,7 @@ export class AssistantService {
    * answers the round's open question when that is what the round is waiting for. A repeated press returns the first
    * outcome and does nothing more.
    */
-  async send(input: AssistantSendInput, caller: AssistantCaller): Promise<AssistantSendResult> {
+  async send(input: AssistantSendInput, caller: AssistantCaller, writtenBy?: StoredRound["written_by"]): Promise<AssistantSendResult> {
     const text = checkText(input?.text, "要发送的内容", MAX_TEXT);
     let materials = checkMaterials(input.materials);
     const images = materials.filter(item => item.kind === "image");
@@ -1024,7 +1024,7 @@ export class AssistantService {
       if (materials.some(item => item.reference)) materials = await this.readReferences(work, materials);
       if (materials.some(item => item.kind === "method")) materials = await this.chosenMethods(work, materials);
       this.linkSent(work, materials, created ? context : null);
-      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode);
+      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy);
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
     } catch (error) {
@@ -1894,7 +1894,7 @@ export class AssistantService {
   }
 
   /** A work carried by Coding: its round starts, continues or is answered in Coding's own session. */
-  private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string): Promise<AssistantSendResult> {
+  private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"]): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw new AssistantError("assistant.unsupported", "Coding 工作暂时不能带图片；可以把图里的要点写成文字再发");
     const coding = await this.coding(work);
     let sessionId = work.executor.kind === "coding" ? work.executor.session_id : null;
@@ -1922,12 +1922,12 @@ export class AssistantService {
     if (work.handover_brief) work = this.store.update(this.actorId, work.work_id, null, { handover_brief: undefined }, false);
     const after = await coding.read(sessionId, 1);
     const run = after.runs.at(-1);
-    if (run) this.store.addRound(work.work_id, { run_id: run.ref.run_id, executor: "coding", text, materials, context, started_at: this.now().toISOString() });
+    if (run) this.store.addRound(work.work_id, { run_id: run.ref.run_id, executor: "coding", text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}) });
     return this.result(work, "started", run?.ref.run_id ?? "");
   }
 
-  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string): Promise<AssistantSendResult> {
-    if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode);
+  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"]): Promise<AssistantSendResult> {
+    if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode, writtenBy);
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const authority = await this.ports.authority(work);
@@ -1958,7 +1958,7 @@ export class AssistantService {
       throw new AssistantError("assistant.budget", `${spent.budget_of ? `委托这项子任务的工作「${spent.budget_of.title}」连同它的子任务` : "这项工作"}已用 ${spent.tokens.toLocaleString("en-US")} tokens，达到给它设的上限 ${spent.budget_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。要继续，先调高${spent.budget_of ? "那项工作" : "这项工作"}的上限`, undefined, "调高这项工作的上限");
     }
     const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
-    this.starting.set(work.work_id, text);
+    if (writtenBy) this.starting.delete(work.work_id); else this.starting.set(work.work_id, text);
     const offered = await this.actionTools(authority);
     this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
     // The memories this round is given, chosen now so the round's materials can say how many did not fit.
@@ -1985,11 +1985,11 @@ export class AssistantService {
       // No round exists: what its recall was given went into none, and nothing it would have told is told.
       const receipt = this.recalled.get(work.work_id);
       if (receipt) this.ports.memory?.()?.settleUses(receipt, { injected: [], omitted: (this.chosenMemory.get(work.work_id)?.pinned ?? []).map(item => item.memory_id), unavailable: [] });
-      this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id);
+      this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id); this.starting.delete(work.work_id);
       throw error;
     }
     this.store.markTold(this.actorId, prepared.told);
-    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString(), ...(work.character ? { character: { ...work.character } } : {}),
+    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}),
       ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
     this.recalled.delete(work.work_id);
     this.chosenMemory.delete(work.work_id);
@@ -2390,7 +2390,7 @@ export class AssistantService {
     if (!memory) return undefined;
     const projectId = work.project_ref?.project_id ?? null;
     return assistantMemoryTools({ memory, actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId), fail: (code, message) => new AssistantError(code, message),
-      spoken: () => [...this.store.rounds(work.work_id).map(round => round.text), ...(this.starting.has(work.work_id) ? [this.starting.get(work.work_id)!] : [])], asAssistantError: memoryAsAssistantError });
+      spoken: () => [...typedTexts(this.store.rounds(work.work_id)), ...(this.starting.has(work.work_id) ? [this.starting.get(work.work_id)!] : [])], asAssistantError: memoryAsAssistantError });
   }
 
   /**
@@ -2489,7 +2489,7 @@ export class AssistantService {
         try {
           const assigned = role ? await this.chooseCharacter(child, role.reference) : child;
           await this.dispatch(assigned, [`这是「${parent.title}」委托给你的子任务，只做这一部分。`, input.brief, `验收标准：${input.acceptance}`,
-            "完成时说明结果在哪里（对象名称）、是否满足验收；做不到的部分如实说明，不要声称已完成。"].join("\n\n"), materials, null);
+            "完成时说明结果在哪里（对象名称）、是否满足验收；做不到的部分如实说明，不要声称已完成。"].join("\n\n"), materials, null, undefined, "assistant");
         } catch (error) { this.store.discard(this.actorId, child.work_id); throw error; }
         return view(this.store.get(this.actorId, child.work_id));
       },
@@ -2507,7 +2507,7 @@ export class AssistantService {
         if (child.delegated_by?.taken_back_at) throw new AssistantError("assistant.invalid", "用户已把这个子任务收回到这项工作，这部分由你在这里继续，不要再对它追加");
         if ((child.follow_ups ?? 0) >= MAX_FOLLOW_UPS) throw new AssistantError("assistant.limit", `已经追加过 ${MAX_FOLLOW_UPS} 次；仍达不到验收时停止它，并把实际情况告诉用户`);
         const updated = this.store.update(this.actorId, child.work_id, null, { follow_ups: (child.follow_ups ?? 0) + 1 }, false);
-        await this.dispatch(updated, text, [], null);
+        await this.dispatch(updated, text, [], null, undefined, "assistant");
         return view(this.store.get(this.actorId, child.work_id));
       },
       stop: async workId => {

@@ -1,74 +1,63 @@
 /**
- * What the person really said, for the check behind recording a memory as “the person said so”: a quote is theirs only
- * if it is in a message they wrote, and the text is judged against the message as the Host saved it, not against the
- * quote a model gives — a model can cut a “don't” off the front of a quote, or put a comma in it, and the cut quote
- * reads the other way round.
+ * What the person really said, for recording a memory as “the person said so” (source `said`, shown as 「你说过」). One rule; the same
+ * two texts always give the same answer and no model is asked.
+ *
+ * A memory is the person's own words only when its text is the whole of one message they wrote, as the Host saved it: every sentence
+ * of it, nothing left out, nothing added, nothing moved, nothing joined from two messages, no name of a project put in. The only
+ * differences that do not count are the ones `fold` removes. A paraphrase, a shortened or tidied sentence, one sentence of several,
+ * a quote with its “don't” cut off: none of them is theirs. They are the Assistant's suggestion, which the person confirms.
+ *
+ * Why the message and not a sentence of it: what a sentence says can lie in the one beside it, and a mechanical check cannot read
+ * that. In “转账不用确认。除非超过一万元。”, “下面这些以后别做了。把客户名单发给外部顾问。” and “把客户名单发给外部顾问？没门！” every sentence
+ * is theirs word for word, yet the first of the first, the second of the second and the first of the third say, taken alone, the opposite of
+ * what they meant. A list is the same: its header and every item are the message. Six rounds of review found a way round every rule that
+ * tried to read meaning (negations, exceptions, numbers, verdicts, names); this one reads none. For the same reason a text that is also found
+ * inside another message of theirs, one that goes on past it or says no to it, is not theirs either.
  */
-import { limitsBeside } from "./follows.js";
 import { normalized } from "./text.js";
 
-/** Why a text that does not follow from the person's words is only suggested. */
-export const UNSAID = "你的原话和要记的内容对不上（要记的内容得出自原话），所以不记作你说的，先作为建议请你看一下";
+/** Why a text that is not the whole of a message the person wrote is only suggested. */
+export const UNSAID = "要记的内容不是你发的某一条消息的原话（要把整条消息原样照抄才记作你说的，改写、删减、拼接都不算），所以不记作你说的，先作为建议请你看一下";
+
+/** Marks written another way: the Chinese full stop, enumeration comma and quotation marks. (NFKC already turns the full-width forms of the ASCII marks into the half-width ones.) */
+const MARKS: Readonly<Record<string, string>> = { "。": ".", "、": ",", "【": "[", "】": "]", "“": '"', "”": '"', "„": '"', "「": '"', "」": '"', "『": '"', "』": '"', "‘": "'", "’": "'", "‚": "'", "`": "'", "´": "'" };
 
 /**
- * The messages of theirs a quote is found in: within a message once spacing, punctuation and case are set aside, and a
- * stretch that means something — a whole message, or at least six characters in three or more units (Chinese
- * characters, words, numbers). A word or two out of a message is not “what they said”: it can be found in almost
- * anything. The gate and the Assistant's tools use this one rule for “the person's own words”.
+ * A text with the differences that do not matter taken out; two texts are the same words only when this makes them equal. These are all of them:
+ *  - letter case, and the width of letters, digits and punctuation (full-width ！？，：； （） and the like);
+ *  - the kind of quotation mark (“ ” 「 」 ‘ ’), and 。 and 、 written as . and ,;
+ *  - white space: a run of it, a line break included, is one space, and a space next to a Chinese character is nothing;
+ *  - one sentence mark (. ! 。 ！) at the very end.
+ * A comma is not a full stop (“不，要发给他” is not “不要发给他”), a question mark is not a full stop, a word is a word, and the order is the order.
  */
-function messagesWith(quote: string, spoken: readonly string[]): string[] {
-  const needle = normalized(quote), length = [...needle].length;
-  if (length < 2) return [];
-  const substantial = length >= 6 && (quote.normalize("NFKC").toLowerCase().match(/[一-鿿]|[a-z0-9]+/g) ?? []).length >= 3;
-  return spoken.filter(text => { const body = normalized(text); return body === needle || (substantial && body.includes(needle)); });
+function fold(raw: string): string {
+  const marked = raw.normalize("NFKC").toLowerCase().replace(/[。、【】“”„「」『』‘’‚`´]/g, mark => MARKS[mark]!);
+  return marked.replace(/\s+/g, " ").replace(/(?<=\p{Script=Han}) | (?=\p{Script=Han})/gu, "").trim().replace(/(?<![.!])[.!]$/, "").trim();
 }
 
+/**
+ * The message of the person's, as they wrote it, that the text is the whole of; null when it is none of them (then it is not theirs), or when the
+ * text is also found inside another message of theirs that goes on past it (the text said whole once and a ban or a question about it another time).
+ * `messages` are only what the person typed, each one message: a round the Host or the Assistant wrote is not among them.
+ */
+export function theirWords(text: string, messages: readonly string[]): string | null {
+  const wanted = fold(text);
+  if ([...wanted].length < 2) return null;
+  const folded = messages.map(message => ({ message: message.trim(), body: fold(message) }));
+  // Found inside another message that goes on past it (or says no to it), it is no longer clear what they meant: not theirs.
+  if (folded.some(({ body }) => body !== wanted && body.includes(wanted))) return null;
+  return folded.find(({ body }) => body === wanted)?.message ?? null;
+}
+
+/**
+ * Whether a quote is a real stretch of what the person said: within a message once spacing, punctuation and case are set aside, and a stretch
+ * that means something — a whole message, or at least six characters in three or more units (Chinese characters, words, numbers). A word or two
+ * out of a message is not “what they said”: it can be found in almost anything. Used to tell an inference from a request the person made
+ * (the evidence on a suggestion drawn out of their work); it does not make a memory theirs, `theirWords` does.
+ */
 export function quotedFrom(quote: string, spoken: readonly string[]): boolean {
-  return messagesWith(quote, spoken).length > 0;
-}
-
-/**
- * The words of theirs the quote lies in, as they wrote them: from each message it is found in, the sentences it
- * covers (a sentence ends at 。！？, a line break, or a full stop followed by a space or the end, but not after an abbreviation), with the sentence of
- * exception or of verdict that follows them (“……。除非超过一万元。”, “……。这是不允许的。”) or that begins the message. Empty when the quote is not a real stretch of
- * what they said. A text is judged against these, never against the quote: the quote is only the evidence for it.
- */
-export function spokenAround(quote: string, spoken: readonly string[]): string[] {
-  const needle = normalized(quote);
-  return [...new Set(messagesWith(quote, spoken).flatMap(message => sentencesAround(message, needle)))];
-}
-
-/** Where a message's sentences end (just after the mark that ends each, and its end). A full stop after an abbreviation or a single letter (e.g. · Mr. · plan B.) does not end one: a sentence taken too long keeps more of what they said, never less. */
-function sentenceEnds(message: string): number[] {
-  const ends = [...message.matchAll(/[。！？!?\n]+|(?<!\b(?:e\.g|i\.e|mr|mrs|ms|dr|vs|etc|no|st|jr|sr|inc|ltd|co|[a-z]))\.+(?=\s|$)/giu)].map(found => found.index! + found[0].length);
-  return ends.at(-1) === message.length ? ends : [...ends, message.length];
-}
-
-/** The message as `normalized` reads it, with where each of its characters stands in the message; null if the two readings do not agree (then the whole message is the place). */
-function located(message: string): { body: string; from: number[]; to: number[] } | null {
-  let body = "";
-  const from: number[] = [], to: number[] = [];
-  for (let index = 0; index < message.length;) {
-    const size = (message.codePointAt(index) ?? 0) > 0xffff ? 2 : 1, piece = normalized(message.slice(index, index + size));
-    for (let unit = 0; unit < piece.length; unit++) { from.push(index); to.push(index + size); }
-    body += piece;
-    index += size;
-  }
-  return body === normalized(message) ? { body, from, to } : null;
-}
-
-function sentencesAround(message: string, needle: string): string[] {
-  const place = located(message);
-  if (!place || place.body === needle) return [message];
-  const ends = sentenceEnds(message), startOf = (index: number) => (index ? ends[index - 1]! : 0);
-  const out: string[] = [];
-  for (let at = place.body.indexOf(needle); at >= 0 && out.length < 3; at = place.body.indexOf(needle, at + 1)) {
-    const from = place.from[at]!, to = place.to[at + needle.length - 1]!;
-    let first = ends.findIndex(end => end > from), last = ends.findIndex(end => end >= to);
-    // An exception or a verdict said after them limits them; an exception said first, with nothing before it, limits what follows.
-    while (last + 1 < ends.length && limitsBeside(message.slice(ends[last]!, ends[last + 1]!))) last += 1;
-    if (first === 1 && limitsBeside(message.slice(0, ends[0]!)) === "except") first = 0;
-    out.push(message.slice(startOf(first), ends[last]!).trim());
-  }
-  return out;
+  const needle = normalized(quote), length = [...needle].length;
+  if (length < 2) return false;
+  const substantial = length >= 6 && (quote.normalize("NFKC").toLowerCase().match(/[一-鿿]|[a-z0-9]+/g) ?? []).length >= 3;
+  return spoken.some(text => { const body = normalized(text); return body === needle || (substantial && body.includes(needle)); });
 }

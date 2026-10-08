@@ -6,7 +6,7 @@
 
 - [ ] 对照上个 tag 以来的变化选次版本或补丁（[POLICY.md](POLICY.md) 第 2 节）。库版本有没有变，看第 3 节的表：`git diff <上个 tag> -- <表里的定义处文件>`。
 - [ ] 改版本号：根 `package.json`；`apps/desktop/src-tauri/` 的 `tauri.conf.json`、`Cargo.toml`、`Cargo.lock` 里的 `molis-work-desktop`；`apps/local-host/src/feed-source-runtime.ts` 的 `APP_VERSION`；`horizontal/runtime-host/src/adapters/codex-app-server.ts` 的 `clientInfo.version`（[POLICY.md](POLICY.md) 第 1 节）。
-- [ ] 内置插件的清单版本（`plugins/native/*/src/manifest.ts`）没有被改到低于已有安装记录的版本：Runtime 对更低的内置清单既不降级也不报错，已装的旧代码会悄悄继续跑（[POLICY.md](POLICY.md) 第 7 节，处理办法等用户决定，决定前不动这些版本）。动过这些版本的发布，第 4.5 节的安装记录核对不能跳过。
+- [ ] 内置插件的清单（`plugins/native/*/src/manifest.ts`，`git diff <上个 tag> -- 'plugins/native/*/src/manifest.ts'`）：版本没有被改到低于已有安装记录的版本，内容改了的清单版本也升了。Runtime 对这两种都既不跟也不报错，已装的旧代码会悄悄继续跑（[POLICY.md](POLICY.md) 第 7 节的情形一和情形二；处理办法等用户决定，决定前照现在的做法：清单一改就升它自己的版本，不降版本）。动过内置清单的发布，第 4.5 节的安装记录核对不能跳过。
 - [ ] [CHANGELOG.md](CHANGELOG.md)：`[Unreleased]` 改成 `[<版本>] - <日期>`，上面另起一个空的 `[Unreleased]`，页尾比较链接（若有）跟着改。
 - [ ] 写 `docs/releases/v<版本>.md`，包含「兼容与升级」（哪些库的版本变了、旧 Home 要做什么、Runtime 要不要重新接入）和「发布范围与验证」（真实的回归数字、已知失败、没验证的东西）。
 - [ ] `node scripts/verify-release-versions.mjs` 通过（打 tag 时再加 `--tag v<版本>`）。
@@ -23,7 +23,7 @@
 
 每个库只认一个当前版本，不符时的处理在最后一列。表里有两类东西：Home 里的 SQLite 库，和两个版本不符就让全部凭据或授权失效的 JSON 文件（`feed/secrets.json` 拒绝读取，`config/mcp-tools.json` 读成空）。其他带版本字段的小 JSON 文件（`shelf/catalog.json`、`browser/sites.json`、`jelly/preferences.json`、`config/` 下的各个文件，包括 `config/installation.json`）不在表里：它们的版本见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md) 第 6 节的「种类 · 版本」列，版本不符时各自怎样没有逐个核对过，改其中任何一个的版本，就在发布说明的「兼容与升级」里写明。每个库的 owner、表、备份与卸载规则也在 HOME-DATA.md。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
 
-`scripts/verify-release-versions.mjs` 对照代码核对这张表，下面几种情况 CI 会失败：某行的版本和定义处的代码不一致；定义处不存在；包的 `src/` 里有一个 `SqliteBaseline` 常量（带类型标注、`satisfies` 或 `as` 都算）没有列进表；`applySqliteBaseline`、`openBaselineHomeSqlite` 收到的不是一个已声明的常量（内联对象不行）；标「无」的库的定义处文件加上了版本标记。它找不到的是完全不经 `applySqliteBaseline` 的新库（比如又一个只靠 `CREATE TABLE IF NOT EXISTS` 的库）和表以外的 JSON 文件，这类只能靠 HOME-DATA.md 的清单和评审发现。
+`scripts/verify-release-versions.mjs` 对照代码核对这张表，下面几种情况 CI 会失败：某行的版本和定义处的代码不一致；定义处不存在；包的 `src/` 里有一个 `SqliteBaseline` 常量（`const X: SqliteBaseline = {…}`、`const X = {…} satisfies SqliteBaseline`、`… as SqliteBaseline` 三种写法都算）没有列进表，或者它的版本不是对象里写成数字的 `version: N`（引用别的常量，脚本读不出来）；`applySqliteBaseline`、`openBaselineHomeSqlite` 收到的不是一个已声明的常量（内联对象不行）；标「无」的库的定义处文件加上了版本标记。它找不到的是完全不经 `applySqliteBaseline` 的新库（比如又一个只靠 `CREATE TABLE IF NOT EXISTS` 的库）和表以外的 JSON 文件，这类只能靠 HOME-DATA.md 的清单和评审发现。
 
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
@@ -98,7 +98,19 @@
 
 - [ ] 只读核对第 3 节每个库在真实 Home 里的版本、`integrity_check`、`foreign_key_check`；项目数与动之前一致；抽查一个项目的 Goal、成果版本和会话内容能读。
 - [ ] 核对 `config/mcp-tools.json` 的授权条数没有莫名变少（版本不符时它读成空，不报错）。
-- [ ] 内置插件的安装记录版本等于这个构建的清单版本。对每个项目库（只读，停写时在快照拷贝上做最稳妥）：`SELECT json_extract(record_json,'$.plugin_id'), json_extract(record_json,'$.version'), json_extract(record_json,'$.state') FROM plugin_runtime_installs;`，和 `plugins/native/<id>/src/manifest.ts` 的 `version` 对：`apps/local-host/src/project-plugins.ts` 交给监督器的 Characters、Shelf、Coding、Files、Diff、Git、TextStats 每个项目最多一条（项目撤下的插件除外）。记录版本比清单高，说明 Runtime 没有跟上，旧代码在悄悄运行，也没有任何报错（[POLICY.md](POLICY.md) 第 7 节）。
+- [ ] 内置插件的安装记录等于这个构建的清单，版本和摘要都要一致（[POLICY.md](POLICY.md) 第 7 节）。先在构建好的仓库根目录打出这个构建里每个内置插件清单的版本与摘要：
+
+  ```sh
+  node --input-type=module -e '
+  import { pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
+  const keys = { characters: "charactersManifest", shelf: "shelfManifest", coding: "codingManifest", files: "filesManifest", diff: "diffManifest", git: "gitManifest", "text-stats": "textStatsManifest" };
+  for (const [name, key] of Object.entries(keys)) {
+    const manifest = (await import(`@molis-ai/molis-work-plugin-${name}`))[key];
+    console.log(manifest.plugin_id, manifest.version, pluginManifestDigest(manifest));
+  }'
+  ```
+
+  （Characters 并进宿主、不再交给监督器之后，从上面的 `keys` 和下面的名单里去掉它。）再对每个项目库取安装记录（只读，停写时在快照拷贝上做最稳妥）：`SELECT json_extract(record_json,'$.plugin_id'), json_extract(record_json,'$.version'), json_extract(record_json,'$.manifest_digest'), json_extract(record_json,'$.state') FROM plugin_runtime_installs;`。`apps/local-host/src/project-plugins.ts` 交给监督器的 Characters、Shelf、Coding、Files、Diff、Git、TextStats 每个项目最多一条（项目撤下的插件除外），记录的版本与摘要要和上面打出的相同。记录版本比清单高，或版本相同而摘要不同，都说明 Runtime 没有跟上：旧代码在悄悄运行，也没有任何报错。第 7 节的决定落地后按所选的做法改这一项（例如选了「同版本自我声明」，记录里的摘要永远是第一次安装的，要改成查 `plugin_runtime_release_artifacts` 里有没有这个构建的版本与摘要）。
 - [ ] Home 里没有来路不明的东西。把 Home 的目录和 [HOME-DATA.md](../system/HOME-DATA.md) 对一遍，不在里面的文件夹、旧备份、没有表的空库、孤儿文件、旧的 `goalboard-*` 安装版，都算残留。残留先核对（谁写的、有没有引用、里面有没有数据），有用的搬到 `~/molis-work-backups`，确认没用的才删，不批量删。用户 2026-10-08 为开发机的真实 Home 定了一次性清理：保留 2026-10-07 维护前的整份备份和 `runtime-configs`，维护替换下来的旧文件搬到 `~/molis-work-backups`，其余旧备份、孤儿文件、空库、旧 `goalboard-*` 安装版核对后删；动手前先整份备份。同一个决定里还有目录库 v22 的路径派生（W5-17）和给实验库标版本 1（W2-05）；三件事都经用户批准，先在拷贝上演练再动真库。
 - [ ] 版本不符被拒绝是正常的保护：不要回滚库，也不要用 SQLite 命令绕过；用与它相符的构建打开，或从备份恢复。
 

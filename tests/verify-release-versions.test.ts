@@ -212,6 +212,35 @@ test("a baseline declared with satisfies or as, or handed over inline, cannot hi
   assert.equal(run().code, 0, run().out);
 });
 
+// The detection and the version reader agree on every spelling: a baseline that has to be listed can be listed and checked.
+test("a baseline written with satisfies or as is listed and read like an annotated one", () => {
+  put("apps/alpha/src/more.ts", [
+    "// the store that's second",
+    "export const MORE_BASELINE = { meta: { version: 9 }, version: 4, schema: `CREATE TABLE m (id TEXT); -- don't` } satisfies SqliteBaseline;",
+    "export const LAST_BASELINE = {",
+    '  /* a comment with a " quote */',
+    "  schema: ``,",
+    "  version: 2,",
+    "} as SqliteBaseline;",
+  ].join("\n"));
+  const withRows = (more: string, last: string) => put("docs/releases/CHECKLIST.md", `# Checklist\n\n## 3. 各库版本表\n\n${TABLE}\n`
+    + `| More | \`more/more.db\` | ${more} | \`user_version\` | \`apps/alpha/src/more.ts#MORE_BASELINE\` | 拒绝 |\n`
+    + `| Last | \`last/last.db\` | ${last} | \`user_version\` | \`apps/alpha/src/more.ts#LAST_BASELINE\` | 拒绝 |\n`);
+  failsWith(run(), "apps/alpha/src/more.ts#MORE_BASELINE is a SqliteBaseline the 各库版本表 does not list",
+    "apps/alpha/src/more.ts#LAST_BASELINE is a SqliteBaseline the 各库版本表 does not list");
+  withRows("4", "2");
+  assert.equal(run().code, 0, run().out);
+  assert.match(run().out, /7 stores/);
+  withRows("9", "2");
+  failsWith(run(), "More: the table says 9, the code (apps/alpha/src/more.ts#MORE_BASELINE) says 4");
+  withRows("4", "3");
+  failsWith(run(), "Last: the table says 3, the code (apps/alpha/src/more.ts#LAST_BASELINE) says 2");
+  // A version the script cannot read as a number is a failure, not a pass.
+  put("apps/alpha/src/more.ts", "const V = 4;\nexport const MORE_BASELINE = { version: V, schema: `` } satisfies SqliteBaseline;\nexport const LAST_BASELINE = { version: 2, schema: `` } as SqliteBaseline;\n");
+  withRows("4", "2");
+  failsWith(run(), "More: apps/alpha/src/more.ts has no MORE_BASELINE with a version");
+});
+
 test("a database listed as having no version fails once it gets one", () => {
   put("apps/alpha/src/plain.ts", "db.exec('PRAGMA user_version = 1');\n");
   failsWith(run(), "Plain: apps/alpha/src/plain.ts now carries a version marker; give the table a number");

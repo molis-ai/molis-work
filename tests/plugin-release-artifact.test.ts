@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import Database from "better-sqlite3";
 
@@ -204,31 +205,155 @@ test("a bundled Manifest below the installed version is not followed: the stored
   }
 });
 
+// docs/releases/POLICY.md section 7, the second shape. Once the Manifest versions equal the product version and the version only
+// changes in the release PR, every later change to a built-in Manifest has the same version as the install record and another
+// digest (`pluginManifestDigest` covers the whole Manifest). That is not "directly usable" either: the stored build of the
+// recorded digest keeps running, or, without it, the plugin does not start. When the rule changes (W5-15), replace these
+// tests with the new rule's; do not just delete them.
+test("a bundled Manifest changed without a new version is not followed: the stored build keeps running, or the plugin does not start", async () => {
+  for (const storedRelease of [true, false]) {
+    const db = new Database(":memory:");
+    try {
+      const started: string[] = [];
+      const buildA = definition("0.3.0", started, undefined, undefined, { build: "A" });
+      const buildB = definition("0.3.0", started, undefined, undefined, { build: "B" });
+      assert.notEqual(pluginManifestDigest(buildA.manifest), pluginManifestDigest(buildB.manifest), "one field of the Manifest differs");
+      const firstRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
+      const first = new PluginSupervisor(firstRuntime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
+      await first.start([{ definition: buildA, bundled: true, releaseArtifact: { capture: () => "native-A", restore: () => buildA } }]);
+      const installId = first.state(PLUGIN_ID)?.install_id;
+      assert.ok(installId);
+      await firstRuntime.stop(installId);
+      if (!storedRelease) db.exec("DELETE FROM plugin_runtime_release_artifacts");
+
+      const restartedRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
+      const restarted = new PluginSupervisor(restartedRuntime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
+      const report = await restarted.start([{ definition: buildB, bundled: true,
+        releaseArtifact: { capture: () => "native-B", restore: source => source === "native-A" ? buildA : buildB } }]);
+
+      const record = restartedRuntime.get(installId);
+      assert.equal(record.version, "0.3.0");
+      assert.equal(record.manifest_digest, pluginManifestDigest(buildA.manifest), "the record keeps the digest of the build it was installed from");
+      // docs/releases/CHECKLIST.md 4.5 finds this by comparing the record's version and digest with the build's.
+      assert.deepEqual(db.prepare(checklistInstalledRecordsQuery()).all().map(row => Object.values(row as Record<string, unknown>).slice(0, 3)),
+        [[PLUGIN_ID, "0.3.0", pluginManifestDigest(buildA.manifest)]]);
+      assert.equal(new SqlitePluginRuntimeReleaseArtifactRepository(db).get(PLUGIN_ID, SIGNATURE, "0.3.0", pluginManifestDigest(buildB.manifest)), null,
+        "the changed build was never directly usable, so its release was not stored");
+      assert.deepEqual(restarted.upgradeCandidates(), [], "the same version is not offered as an upgrade");
+      assert.ok(!started.includes("0.3.0 B"), "the changed build's code never runs");
+      if (storedRelease) {
+        assert.deepEqual(report.running, [PLUGIN_ID], "no error: the old build keeps running");
+        assert.equal(restarted.manifest(PLUGIN_ID)?.name, "Release fixture A");
+        assert.equal(started.at(-1), "0.3.0 A");
+      } else {
+        assert.deepEqual(report.running, []);
+        assert.equal(report.failed[0]?.code, "plugin_release_artifact_missing");
+      }
+    } finally {
+      db.close();
+    }
+  }
+});
+
+test("PluginRuntime.install refuses the same version with another Manifest, and only a same-version declaration lets it through", () => {
+  const db = new Database(":memory:");
+  try {
+    const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
+    const buildA = definition("0.3.0", [], undefined, undefined, { build: "A" });
+    runtime.install({ definition: buildA, deployment: "local", bundled: true });
+    assert.throws(() => runtime.install({ definition: definition("0.3.0", [], undefined, undefined, { build: "B" }), deployment: "local", bundled: true }),
+      (error: unknown) => (error as { code?: string }).code === "plugin_definition_conflict" && /请递增版本/.test((error as Error).message));
+    // The one way through is the Manifest naming its own version as a compatible source (the Manifest contract allows exactly that).
+    const declared = definition("0.3.0", [], undefined, { compatible_from_versions: ["0.3.0"] }, { build: "B" });
+    assert.doesNotThrow(() => runtime.install({ definition: declared, deployment: "local", bundled: true }));
+  } finally {
+    db.close();
+  }
+});
+
+test("a same-version declaration lets the changed build run without touching the record, but only while the grants stay the same", async () => {
+  const db = new Database(":memory:");
+  try {
+    const started: string[] = [];
+    const permission = { permission: "artifact:read", required: true, reason: "读取绑定的文本快照" } as const;
+    const buildA = definition("0.3.0", started, undefined, undefined, { build: "A", permissions: [permission] });
+    const firstRuntime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
+    const first = new PluginSupervisor(firstRuntime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
+    await first.start([{ definition: buildA, bundled: true, releaseArtifact: { capture: () => "native-A", restore: () => buildA } }]);
+    const installId = first.state(PLUGIN_ID)?.install_id;
+    assert.ok(installId);
+    await firstRuntime.stop(installId);
+
+    const startWith = async (candidate: PluginDefinition, tag: string) => {
+      const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), new NativePluginExecutor());
+      const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db) });
+      const report = await supervisor.start([{ definition: candidate, bundled: true,
+        releaseArtifact: { capture: () => tag, restore: source => source === "native-A" ? buildA : candidate } }]);
+      const record = runtime.get(installId);
+      await runtime.stop(installId).catch(() => undefined);
+      return { report, record };
+    };
+    const declaration = { compatible_from_versions: ["0.3.0"] };
+
+    const changedBuild = definition("0.3.0", started, undefined, declaration, { build: "B", permissions: [permission] });
+    const changed = await startWith(changedBuild, "native-B");
+    assert.deepEqual(changed.report.running, [PLUGIN_ID]);
+    assert.equal(started.at(-1), "0.3.0 B", "the changed build's code runs");
+    assert.equal(changed.record.manifest_digest, pluginManifestDigest(buildA.manifest), "the record keeps the digest of the first build");
+    assert.ok(new SqlitePluginRuntimeReleaseArtifactRepository(db).get(PLUGIN_ID, SIGNATURE, "0.3.0", pluginManifestDigest(changedBuild.manifest)),
+      "the release table has the build that runs, which is where to look when the record's digest is the first build's");
+
+    const again = await startWith(definition("0.3.0", started, undefined, declaration, { build: "C", permissions: [permission] }), "native-C");
+    assert.deepEqual(again.report.running, [PLUGIN_ID]);
+    assert.equal(started.at(-1), "0.3.0 C");
+    assert.equal(again.record.manifest_digest, pluginManifestDigest(buildA.manifest), "the stored digest is never updated, so it cannot say which build runs");
+
+    const extraPermission = { permission: "artifact:write", required: true, reason: "写入结果" } as const;
+    const widened = await startWith(definition("0.3.0", started, undefined, declaration, { build: "D", permissions: [permission, extraPermission] }), "native-D");
+    assert.deepEqual(widened.report.running, [], "a Manifest that needs another grant does not start without a version bump");
+    assert.equal(widened.report.failed[0]?.code, "plugin_state_invalid");
+    assert.ok(!started.includes("0.3.0 D"));
+  } finally {
+    db.close();
+  }
+});
+
 test("a Manifest cannot declare an upgrade source that is not older than itself, so a lower version cannot list the higher install", () => {
   assert.throws(() => parsePluginManifest(definition("0.3.0", [], undefined, { compatible_from_versions: ["1.44.0"] }).manifest),
     /升级来源版本必须早于当前 Manifest 版本/);
 });
 
+// The query docs/releases/CHECKLIST.md 4.5 tells the releaser to run on a project database, read out of the checklist itself.
+function checklistInstalledRecordsQuery(): string {
+  const checklist = readFileSync(new URL("../docs/releases/CHECKLIST.md", import.meta.url), "utf8");
+  const query = checklist.match(/SELECT json_extract\(record_json,'\$\.plugin_id'\)[^`]*FROM plugin_runtime_installs;/)?.[0];
+  assert.ok(query, "the checklist carries the installed-record query");
+  return query;
+}
+
 function restartedRepositoryCount(repository: SqlitePluginRuntimeReleaseArtifactRepository): number {
   return repository.list(PLUGIN_ID, SIGNATURE).length;
 }
 
+// `variant` makes a second build of the same version: another name (so another Manifest digest), the build tag the start
+// records, and optionally another permission list.
 function definition(
   version: string,
   started: string[],
   validateUpgrade?: PluginDefinition["validateUpgrade"],
   upgradeCompatibility?: PluginManifest["upgrade_compatibility"],
+  variant?: { build?: string; permissions?: PluginManifest["permissions"] },
 ): PluginDefinition {
   const manifest: PluginManifest = {
     schema_version: 2,
     host_api_version: 2,
     plugin_id: PLUGIN_ID,
     version,
-    name: "Release fixture",
+    name: variant?.build ? `Release fixture ${variant.build}` : "Release fixture",
     kind: "app",
     publisher: { publisher_id: "fixture", signature: SIGNATURE },
     entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-    permissions: [],
+    permissions: variant?.permissions ?? [],
     capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] },
     ui: { contributions: [] },
@@ -238,7 +363,7 @@ function definition(
     manifest,
     ...(validateUpgrade ? { validateUpgrade } : {}),
     async start() {
-      started.push(version);
+      started.push(variant?.build ? `${version} ${variant.build}` : version);
       return { kind: "app", views: [] };
     },
   };

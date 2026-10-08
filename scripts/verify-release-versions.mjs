@@ -143,15 +143,80 @@ function tableRows(text) {
 }
 
 const escapeRegExp = text => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// If a string, template literal or comment starts at `index`, the index just after it; otherwise `index`.
+function skipLiteral(text, index) {
+  const char = text[index];
+  if (char === "/" && text[index + 1] === "/") { const end = text.indexOf("\n", index); return end < 0 ? text.length : end; }
+  if (char === "/" && text[index + 1] === "*") { const end = text.indexOf("*/", index + 2); return end < 0 ? text.length : end + 2; }
+  if (char === '"' || char === "'" || char === "`") {
+    for (let cursor = index + 1; cursor < text.length; cursor++) {
+      if (text[cursor] === "\\") cursor++;
+      else if (text[cursor] === char) return cursor + 1;
+    }
+    return text.length;
+  }
+  return index;
+}
+
+// The index of the bracket closing the one at `open`, or -1.
+function closingBracket(text, open) {
+  let depth = 0;
+  for (let index = open; index < text.length; index++) {
+    const skipped = skipLiteral(text, index);
+    if (skipped !== index) { index = skipped - 1; continue; }
+    if ("([{".includes(text[index])) depth++;
+    else if (")]}".includes(text[index]) && --depth === 0) return index;
+  }
+  return -1;
+}
+
+// The number in `version: N` at the top level of an object literal such as `{ version: 3, schema: `…` }`, or null.
+function objectVersion(object) {
+  let depth = 0;
+  for (let index = 0; index < object.length; index++) {
+    const skipped = skipLiteral(object, index);
+    if (skipped !== index) { index = skipped - 1; continue; }
+    const char = object[index];
+    if ("([{".includes(char)) depth++;
+    else if (")]}".includes(char)) depth--;
+    else if (depth === 1 && object.startsWith("version", index) && !/\w/.test(object[index - 1] ?? "")) {
+      const found = /^version\s*:\s*(\d+)\b/.exec(object.slice(index, index + 40));
+      if (found) return found[1];
+    }
+  }
+  return null;
+}
+
+// A baseline is `const NAME: SqliteBaseline = {…}`, `const NAME = {…} satisfies SqliteBaseline` or `… as SqliteBaseline`. The names
+// declared in one source text: each is a database the table has to list.
+function baselineNames(text) {
+  const names = new Set();
+  if (!text.includes("SqliteBaseline")) return [];
+  for (const match of text.matchAll(/\bconst\s+(\w+)\s*:\s*SqliteBaseline\s*=/g)) names.add(match[1]);
+  for (const match of text.matchAll(/\b(?:satisfies|as)\s+SqliteBaseline\b/g)) {
+    const owner = [...text.slice(0, match.index).matchAll(/\bconst\s+(\w+)\s*=/g)].pop()?.[1];
+    if (owner !== undefined) names.add(owner);
+  }
+  return [...names];
+}
+
+// The version of the baseline constant `name` in `text`, whichever of the three spellings declares it: the `version:` number
+// of its object literal. null when the constant is not an object literal with a literal version.
+function baselineVersion(text, name) {
+  const declaration = new RegExp(`\\bconst\\s+${escapeRegExp(name)}\\s*(?::\\s*SqliteBaseline\\s*)?=\\s*\\{`).exec(text);
+  if (declaration === null) return null;
+  const open = declaration.index + declaration[0].length - 1;
+  const close = closingBracket(text, open);
+  return close < 0 ? null : objectVersion(text.slice(open, close + 1));
+}
+
 // What the code says about one table row: its version, "无" when the file carries no version marker at all, or null when
 // the declared definition cannot be found.
 function codeVersion(source, name) {
   if (name === undefined) return /SqliteBaseline|user_version|schema_version/.test(source) ? null : "无";
-  const patterns = name === "PRAGMA user_version" ? [/PRAGMA user_version = (\d+)/]
-    : [new RegExp(`\\b${escapeRegExp(name)}\\s*:\\s*SqliteBaseline\\s*=\\s*\\{\\s*version:\\s*(\\d+)`),
-       new RegExp(`\\bconst\\s+${escapeRegExp(name)}\\s*=\\s*"?(\\d+)"?\\s*;`)];
-  for (const pattern of patterns) { const found = source.match(pattern)?.[1]; if (found !== undefined) return found; }
-  return null;
+  if (name === "PRAGMA user_version") return source.match(/PRAGMA user_version = (\d+)/)?.[1] ?? null;
+  return baselineVersion(source, name) ?? source.match(new RegExp(`\\bconst\\s+${escapeRegExp(name)}\\s*=\\s*"?(\\d+)"?\\s*;`))?.[1] ?? null;
 }
 
 function sourceFiles(directory) {
@@ -167,33 +232,26 @@ function sourceFiles(directory) {
   return files;
 }
 
-// A baseline is a `const NAME: SqliteBaseline = …`, `const NAME = {…} satisfies SqliteBaseline` or `… as SqliteBaseline`.
-// Each one in package sources is a database the table has to list.
+// Each baseline in package sources is a database the table has to list, as `file#NAME`.
 function declaredBaselines(directories) {
   const found = [];
   for (const directory of directories) {
     for (const file of sourceFiles(directory)) {
-      const text = readFileSync(path.join(root, file), "utf8");
-      if (!text.includes("SqliteBaseline")) continue;
-      for (const match of text.matchAll(/\bconst\s+(\w+)\s*:\s*SqliteBaseline\s*=/g)) found.push(`${file}#${match[1]}`);
-      for (const match of text.matchAll(/\b(?:satisfies|as)\s+SqliteBaseline\b/g)) {
-        const owner = [...text.slice(0, match.index).matchAll(/\bconst\s+(\w+)\s*=/g)].pop()?.[1];
-        if (owner !== undefined) found.push(`${file}#${owner}`);
-      }
+      for (const name of baselineNames(readFileSync(path.join(root, file), "utf8"))) found.push(`${file}#${name}`);
     }
   }
   return found;
 }
 
-// The arguments of the call whose "(" is at `open`, split at top-level commas; strings and template literals are skipped.
+// The arguments of the call whose "(" is at `open`, split at top-level commas; strings, template literals and comments are skipped.
 function callArguments(text, open) {
   const args = [];
-  let depth = 0, quote = null, start = open + 1;
+  let depth = 0, start = open + 1;
   for (let index = open; index < text.length; index++) {
+    const skipped = skipLiteral(text, index);
+    if (skipped !== index) { index = skipped - 1; continue; }
     const char = text[index];
-    if (quote !== null) { if (char === "\\") index++; else if (char === quote) quote = null; continue; }
-    if (char === '"' || char === "'" || char === "`") quote = char;
-    else if ("([{".includes(char)) depth++;
+    if ("([{".includes(char)) depth++;
     else if (")]}".includes(char)) {
       depth--;
       if (depth === 0) { args.push(text.slice(start, index).trim()); return args; }

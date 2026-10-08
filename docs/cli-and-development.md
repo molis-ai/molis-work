@@ -186,6 +186,12 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 `workspace:check` 只核对 F2 包清单；`boundary:check` 扫描真实 import、依赖方向、Contract 入口、依赖环和 Huge Class 临时名单；`workspace:verify` 是本地与 CI 共用的完整 package 门禁。
 
+推送前扫描密钥：先 `git fetch origin main`，再跑 `pnpm secrets:check`。它逐个提交扫描本分支相对 `origin/main` 合并基点新增的行（`scripts/check-secrets.mjs`），找 OpenAI/Anthropic key（`sk-…`、`sk-ant-…`）、GitHub 令牌（`ghp_…`、`github_pat_…`）、Slack 令牌、AWS access key（`AKIA…`）、Google API key（`AIza…`）、私钥块、JWT，以及 `api_key`、`secret`、`password`、`token` 这类名字后面带引号、至少 12 位且字母数字混合的字面量（引用、`${…}`、占位符和网址不算）。命中只打印文件、行号、规则和值的前 4 位，不打印整条。CI 里的 Secret scan 任务跑同一条命令（拉取完整历史；PR 取其基线分支，推送 main 取推送前的提交），并且是 `Verify` 的前置。
+
+- 真凭据：不要只在后一个提交里删掉，它已经在历史里；用 rebase 或 squash 从所有提交里去掉，再轮换这把密钥。密钥进 Home 的密钥库或环境变量，代码里只放引用。
+- 已在 main 上的测试数据：把确切值（或一条用 `^…$` 锚定的 `/正则/`）连同理由写进 `tooling/gates/secret-allowlist.txt`，每行一条：`<值>  # 理由`。没有理由的行会让扫描报错退出。不要为让扫描通过去放宽规则。
+- `node scripts/check-secrets.mjs --all` 审计整棵树；`--base <ref>` 换基线。它不读 YAML 里不带引号的值，不看二进制文件，也不认识没有固定形状的口令。
+
 当前 Desktop payload 包含根 dist、正式 workspace 运行依赖、Runtime Skill、Node 和 vendor 来源/许可资产，不包含第二套业务实现。npm 使用 `pnpm package:npm`：先完整构建，再由 Local Host tooling 在临时目录生成 `release/npm/*.tgz`。需要其他输出目录时用 `pnpm package:npm /absolute/output`。不要直接在源码根执行 npm/pnpm pack；它会提示正确命令，避免生成含 workspace:* 的不可安装包。
 
 npm 产物随包交付实际依赖的 workspace 与 vendor JavaScript 包，按各包 files 声明保留发布资产；注册表依赖由消费者正常安装，SQLite/PTY 不带入构建机二进制，也不附 Node。消费环境需要 Node 24+。本地验收先在新目录执行 `npm install /absolute/archive.tgz`（不能跳过安装脚本），再执行 `node tests/npm-distribution-smoke.mjs /absolute/consumer`。该检查通过实际产品入口验证 CLI、SQLite 持久化、PTY、方法资产、Home 安装及源包不可用时的 MCP 握手；只支持当前 Unix 测试宿主，不声称验证其他平台。

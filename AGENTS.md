@@ -37,8 +37,9 @@ Molis Work：本地优先的工作台，Goals 是权威真相源，插件经统�
 - 测试截图默认写入已忽略的 `.impeccable/qa/review/`；要刷新仓库里的评审截图才设 `MOLIS_WORK_REVIEW_EVIDENCE=1`。
 - 不为变绿而跳过、放宽或删除断言；先分清产品回归、预期变化、测试缺陷、环境与时序。
 - `pnpm health:check`（CI 里也跑）：巨大单元、测试引用包内部、vendored SDK 份数、就地补表、spec 状态句只许减少；源码里的兼容标记（`legacy`、`compat`、`@deprecated`、`backfill`）按文件计数，也只许减少，新文件从零开始——要么删掉旧路径，要么把保留的机制写进 `specs/repository-anti-corruption` 再更新基线。改小了就在同一个 PR 里 `node scripts/check-health-gates.mjs --update` 更新 `tooling/gates/baseline.json`；不要靠更新基线放过变大的。
+- 推送前跑 `pnpm secrets:check`（先 `git fetch origin main`；CI 的 Secret scan 任务跑同一条命令，纳入 `Verify`）：逐个提交扫描本分支新增的行，找各类 API key、令牌、私钥、JWT 和 `api_key|secret|password|token = "…"` 字面量，只显示文件、行号和值的前 4 位。真凭据用 rebase 或 squash 从所有提交里去掉（后一个提交只删它不够）再轮换；已在 main 上的测试数据，把确切值（或锚定的 `/正则/`）连同理由写进 `tooling/gates/secret-allowlist.txt`，不要为过关放宽规则。详见 `docs/cli-and-development.md`。
 
 ## 协作
 
 - 同一台机器上常有多个会话与工作树：开工前看 `git worktree list` 与其他会话在做什么；不重置、不覆盖别人的未提交改动，只提交自己的。
-- 主检出常被真实 Home 的服务（4207）使用，改动前先确认；推送、开 PR、发布先问用户。
+- 主检出常被真实 Home 的服务（4207）使用，改动前先确认；推送、开 PR、发布先问用户；推送前先跑 `pnpm secrets:check`。

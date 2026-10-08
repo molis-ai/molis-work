@@ -65,17 +65,47 @@ jobs:
       - name: Alchemist plugin tests
         run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
 
+  # No dependencies and no build: it reads git history only, so it starts at once and is cheap to keep on every change.
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      # The scan reads every commit the change adds since its merge base with the target branch, so it needs the history
+      # and not a depth-1 clone.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # API keys, GitHub/Slack tokens, AWS keys, private keys, JWTs and `api_key|secret|password|token = "…"` literals in
+      # the lines this change adds. Known test fixtures are listed in tooling/gates/secret-allowlist.txt, each with a reason.
+      # Pull request: since its base branch tip. Push to main: since the tip before the push. Manual run: the whole tree.
+      - name: No credentials in the commits this change adds
+        env:
+          SECRET_SCAN_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            node scripts/check-secrets.mjs --all
+          else
+            node scripts/check-secrets.mjs
+          fi
+
   verify:
     name: Verify
-    needs: architecture-boundaries
+    needs: [architecture-boundaries, secret-scan]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection.
-    # The full product suite runs locally; package boundaries and the contract subset run here.
+    # The full product suite runs locally; package boundaries, the contract subset and the secret scan run here.
     runs-on: ubuntu-latest
     steps:
       - name: Required package gate passed
         env:
           PACKAGE_BOUNDARIES_RESULT: ${{ needs.architecture-boundaries.result }}
+          SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
         run: |
           test "$PACKAGE_BOUNDARIES_RESULT" = "success"
-          echo "Package boundary, Contract, typecheck, build and action contract verification passed."
+          test "$SECRET_SCAN_RESULT" = "success"
+          echo "Package boundary, Contract, typecheck, build, action contract and secret scan verification passed."

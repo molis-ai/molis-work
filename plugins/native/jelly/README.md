@@ -2,15 +2,15 @@
 
 Status: `partial`
 
-Jelly 的日历与笔记工作区，使用 Molis Work 控件与舞台。收想法只在灵光（2026-10-01 起，见 `specs/post-merge-review` PMR-22）：Jelly 不再有灵感页，也不再读取文件与网页。个人数据独立存于 `{home}/jelly/jelly.db`；不会访问或覆盖原 Jelly 数据。功能目标与差异见 `specs/archive/jelly-plugin/`。
+Jelly 的日历与笔记工作区，使用 Molis Work 控件与舞台。收想法只在灵光（2026-10-01 起，见 `specs/archive/post-merge-review/spec.md` PMR-22）：Jelly 不再有灵感页，也不再读取文件与网页。个人数据独立存于 `{home}/jelly/jelly.db`；不会访问或覆盖原 Jelly 数据。功能目标与差异见 `specs/archive/jelly-plugin/`。
 
 Contract: `@molis-ai/molis-work-contracts/platform/plugin` 与 `@molis-ai/molis-work-contracts/modules/jelly`。
 Migration Goal: `goal-reorg-f2`。
 
-Host 通过包公开接口注入模型能力；`completeJson` 使用 Prologue 的公共格式解码，Jelly 只验证领域内容。模型调用前后都复查原 Action 权限；MCP 默认关闭。AI 提案只有在用户确认后才写入日历或笔记。当前实现、工程证据、实际体验和真人验收分别记录，不将本地构建视为完整复刻验收。
+Host 通过包公开接口注入模型能力；`completeJson` 使用 Prologue 的公共格式解码，Jelly 只验证领域内容。模型调用前后都复查原 Action 权限；MCP 客户端须在「能力 → 对外接入」逐项授权。AI 提案只有在用户确认后才写入日历或笔记。当前实现、工程证据、实际体验和真人验收分别记录，不将本地构建视为完整复刻验收。
 
 
-动作服务：Manifest 声明 53 项能力，由插件的 `actions.ts`、`command-actions.ts`、`service-actions.ts` 和 `content-actions.ts` 提供合同及处理器。Host 只注入原 Store 和模型端口；HTTP 与旧 MCP 名称转发到同一客户端。写入携带当前 workspace revision，导入及永久删除仍需原确认预览。模型等待使用声明式并发调度。`content-actions.ts` 是工作流内容站点「jelly」：交来的内容（灵光的「转成 Jelly 笔记」、工作流的一步）成为一篇笔记，同一次交接只建一篇。
+动作服务：Manifest 声明 53 项能力，由插件的 `actions.ts`、`command-actions.ts`、`service-actions.ts` 和 `content-actions.ts` 提供合同及处理器。Host 只注入原 Store 和模型端口；HTTP 转发到同一动作客户端，MCP 只经授权的动作工具。写入携带当前 workspace revision，导入及永久删除仍需原确认预览。模型等待使用声明式并发调度。`content-actions.ts` 是工作流内容站点「jelly」：交来的内容（灵光的「转成 Jelly 笔记」、工作流的一步）成为一篇笔记，同一次交接只建一篇。
 
 Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个人内容或模型设置权限。工程、MCP 和桌面/窄屏实操证据见 `specs/action-architecture/migration.md`，系统全量迁移和用户本人验收仍在进行。
 

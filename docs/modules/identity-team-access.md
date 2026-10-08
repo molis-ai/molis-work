@@ -8,4 +8,4 @@
 
 **不负责：** 不保存 Project 内容、Plugin 私有数据、Secret 或 Goal/Artifact；不因为用户是管理员就自动公开 Personal 数据。
 
-**当前状态：** 无完整实现。F2 创建 `contract-only` package；Team/Server 产品行为需要未来独立 Spec，不能由本轮伪造。
+**当前状态：** 无实现，也没有包（占位包已删除）；Team/Server 产品行为需要未来独立 Spec，不能由本轮伪造。

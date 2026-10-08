@@ -3,12 +3,10 @@ import type { AttentionReason as ModuleAttentionReason, AttentionStatus as Modul
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedOutRuleRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
 import { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
-import { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
-import { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import {
   type JudgmentRecord,
 } from "@molis-ai/molis-work-contracts/modules/functions";
-import { FeedStoreError, assertSourceHistoryDecision } from "./application-errors.js";
+import { FeedStoreError, assertSourceHistoryDecision, callAttention, callFeed } from "./application-errors.js";
 import { feedItemRecord, sourceRunRecord } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import {
@@ -41,11 +39,11 @@ export class FeedApplication {
   }
 
   getItem(projectId: string, itemId: string): FeedItemRecord {
-    return feedItemRecord(this.callFeed(() => this.ports.feed.query.get(projectId, itemId)));
+    return feedItemRecord(callFeed(() => this.ports.feed.query.get(projectId, itemId)));
   }
 
   getFeedItem(projectId: string, itemId: string): FeedItemRecord {
-    return feedItemRecord(this.callFeed(() => this.ports.feed.query.get(projectId, itemId)));
+    return feedItemRecord(callFeed(() => this.ports.feed.query.get(projectId, itemId)));
   }
 
   findLinkedGoalItem(projectId: string, goalId: string, itemId?: string): FeedItemRecord | null {
@@ -58,7 +56,7 @@ export class FeedApplication {
   }
 
   getInboxEntry(projectId: string, entryId: string): InboxEntryRecord {
-    return this.callAttention(
+    return callAttention(
       () => this.ports.attention.query.get(projectId, entryId),
     );
   }
@@ -133,6 +131,14 @@ export class FeedApplication {
         this.ports.feed.commands.deleteBySource(projectId, sourceId);
         this.ports.attention.commands.deleteSubject(projectId, "source_fault", sourceId);
         this.ports.listener.deleteSourceState(projectId, sourceId);
+      } else {
+        // Only a successful sync resolves a fault, and a retired source can no longer sync. The entry stays as a
+        // closed reference, like the retained items' own entries, instead of asking for a fix that cannot happen.
+        for (const entry of this.ports.attention.query.findForSubject(projectId, "source_fault", sourceId)) {
+          if (entry.status === "open" || entry.status === "in_progress") {
+            this.ports.attention.commands.setStatus(projectId, entry.entry_id, "dismissed", entry.revision);
+          }
+        }
       }
       const retired = this.sourceRecord(
         this.ports.sources.commands.retire(projectId, sourceId, historyDecision, now),
@@ -161,7 +167,7 @@ export class FeedApplication {
     entryId?: string;
     at?: string;
   }): { entry: InboxEntryRecord; created: boolean } {
-    const result = this.callAttention(() => this.ports.attention.commands.create({
+    const result = callAttention(() => this.ports.attention.commands.create({
       project_id: input.projectId,
       subject_type: input.subjectType as ModuleAttentionSubjectType,
       subject_id: input.subjectId,
@@ -180,7 +186,11 @@ export class FeedApplication {
     reason: Extract<InboxEntryReason, "manual" | "source_rule">,
     detail: Record<string, unknown> = {},
   ): { entry: InboxEntryRecord; created: boolean } {
-    const result = this.callAttention(
+    // An ignored item comes back through restore, not by being admitted to the Inbox again.
+    if (this.isArchived(projectId, itemId)) {
+      throw new FeedStoreError("feed_invalid_transition", "请先恢复这条已忽略的 Feed Item");
+    }
+    const result = callAttention(
       () => this.ports.attention.commands.ensureFeedItem(projectId, itemId, reason, detail),
     );
     const entry = result.entry;
@@ -205,7 +215,7 @@ export class FeedApplication {
     status: InboxEntryStatus,
     expectedRevision?: number,
   ): InboxEntryRecord {
-    return this.callAttention(
+    return callAttention(
       () => this.ports.attention.commands.setStatus(
         projectId,
         entryId,
@@ -248,6 +258,8 @@ export class FeedApplication {
     source: FeedSourceRecord;
     externalId: string;
     signal?: { signal_id: string; revision: number };
+    /** A source without Signals declares that this existing item's content changed. */
+    refresh?: boolean;
     title: string;
     summary: string;
     body?: string | null;
@@ -263,13 +275,14 @@ export class FeedApplication {
     };
     material?: Omit<FeedMaterialRecord, "project_id" | "item_id" | "imported_at" | "updated_at">;
   }): { item: FeedItemRecord; created: boolean; updated: boolean } {
-    const result = this.callFeed(() => this.ports.feed.commands.ingest({
+    const result = callFeed(() => this.ports.feed.commands.ingest({
       project_id: input.source.project_id,
       source_id: input.source.source_id,
       source_kind: input.source.kind,
       source_label: input.source.name,
       external_id: input.externalId,
       signal: input.signal,
+      refresh: input.refresh,
       title: input.title,
       summary: input.summary,
       body: input.body,
@@ -388,7 +401,9 @@ export class FeedApplication {
     if (judgment.subject.kind !== "feed_item" || judgment.subject.id !== item.item_id || judgment.subject.project_id !== item.project_id) {
       throw new FeedStoreError("feed_invalid_transition", "判断结果与当前 Feed 消息不符");
     }
-    if (rule.admission === "inbox" && (judgment.outcome === "needs_review" || judgment.suggested_behavior_ids.includes("inbox.admit"))) {
+    // The judgment arrives after a model wait; the person may have ignored the item meanwhile, and a rule does not overrule that.
+    if (rule.admission === "inbox" && (judgment.outcome === "needs_review" || judgment.suggested_behavior_ids.includes("inbox.admit"))
+      && !this.isArchived(item.project_id, item.item_id)) {
       const admission = this.ensureInboxEntryForFeedItem(item.project_id, item.item_id, "source_rule", {
         rule_id: rule.rule_id, rule_name: rule.name, judgment_id: judgment.judgment_id,
         function_key: judgment.function_key, function_version: judgment.function_version, needs_review: judgment.outcome === "needs_review",
@@ -406,20 +421,20 @@ export class FeedApplication {
     disposition: FeedItemDisposition,
     expectedRevision?: number,
   ): FeedItemRecord {
-    const item = this.callFeed(
+    const item = callFeed(
       () => this.ports.feed.commands.setDisposition(projectId, itemId, disposition, expectedRevision),
     );
     return feedItemRecord(item);
   }
 
   restoreToFeed(projectId: string, itemId: string, expectedRevision?: number): FeedItemRecord {
-    return feedItemRecord(this.callFeed(
+    return feedItemRecord(callFeed(
       () => this.ports.feed.commands.restore(projectId, itemId, expectedRevision),
     ));
   }
 
   markRead(projectId: string, itemId: string): FeedItemRecord {
-    return feedItemRecord(this.callFeed(
+    return feedItemRecord(callFeed(
       () => this.ports.feed.commands.markRead(projectId, itemId),
     ));
   }
@@ -430,10 +445,14 @@ export class FeedApplication {
     goalId: string,
     disposition: "promoted" | "processing",
   ): FeedItemRecord {
-    const item = this.callFeed(
+    const item = callFeed(
       () => this.ports.feed.commands.linkGoal(projectId, itemId, goalId, disposition),
     );
     return feedItemRecord(item);
+  }
+
+  private isArchived(projectId: string, itemId: string): boolean {
+    return this.ports.feed.query.exists(projectId, itemId) && this.getFeedItem(projectId, itemId).disposition === "archived";
   }
 
   private requireOutRules() {
@@ -448,7 +467,8 @@ export class FeedApplication {
     const matched = rules.filter((rule) => feedOutRuleMatches(rule, item));
     if (matched.length === 0) return;
     for (const rule of matched) {
-      if (rule.admission === "inbox" && !rule.judgment) {
+      // A rule does not bring an ignored item back to the Inbox.
+      if (rule.admission === "inbox" && !rule.judgment && !this.isArchived(item.project_id, item.item_id)) {
         this.ensureInboxEntryForFeedItem(item.project_id, item.item_id, "source_rule", { rule_id: rule.rule_id, rule_name: rule.name });
       }
     }
@@ -477,7 +497,7 @@ export class FeedApplication {
 
   private recordArtifactOutFailure(item: FeedItemRecord, ruleIds: string[], errorCodes: string[]): void {
     try {
-      const { entry } = this.callAttention(() => this.ports.attention.commands.create({
+      const { entry } = callAttention(() => this.ports.attention.commands.create({
         project_id: item.project_id,
         subject_type: "feed_item",
         subject_id: item.item_id,
@@ -530,33 +550,6 @@ export class FeedApplication {
       imported_at: source.imported_at,
       updated_at: source.updated_at,
     };
-  }
-
-  private callFeed<T>(operation: () => T): T {
-    try {
-      return operation();
-    } catch (error) {
-      if (error instanceof FeedError) {
-        throw new FeedStoreError(error.code, error.message);
-      }
-      throw error;
-    }
-  }
-
-  private callAttention<T>(operation: () => T): T {
-    try {
-      return operation();
-    } catch (error) {
-      if (error instanceof AttentionError) {
-        const code = error.code === "attention_entry_not_found"
-          ? "inbox_entry_not_found"
-          : error.code === "attention_revision_conflict"
-            ? "feed_revision_conflict"
-            : "feed_invalid_transition";
-        throw new FeedStoreError(code, error.message);
-      }
-      throw error;
-    }
   }
 
 }

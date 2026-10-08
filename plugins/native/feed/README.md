@@ -40,6 +40,8 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
+定时拉取失败也花掉当次计划：同步在失败时自己会把中断记在来源上（状态、错误码、更新时间），调度器随后只确认授权、来源未删除未暂停、配置与人改过的名称/说明/计划没有变化，再记录需要处理的故障并推进下次拉取；已被拒绝的执行仍然保持拒绝。删除来源并保留历史时，该来源未关闭的故障 Inbox 条目一并标为已忽略（来源再也无法同步），保留下来的消息各自的 Inbox 引用不动。插件提醒和定时操作结果由 Scheduler 的 wakeup 送进 Feed，项目装配时绑定与其他事件相同的判断触发器，投递提交后才执行；判断失败不撤销已投递的提醒。
+
 来源拉取和规则判断在项目队列外等待。Host 为同一数据库/项目/来源提供共享活动租约；不同幂等键也不能并发拉取同一来源。来源配置改变或原调用取消/撤权后，旧响应不提交结果和失败状态，原运行可在新调用中恢复。账号链路把相同执行检查传到 Listener 的每个异步提交点。
 
 `createFeedExactRouteResolver` 只负责 Feed 的 catalog RSS、自定义 RSS 和 YouTube 来源。公共 web query 路由、SEL intent 装配与证据密文保存由 Host/Storage 提供；Feed 通过注入端口使用它们，继续拥有来源策略、游标和同步提交。

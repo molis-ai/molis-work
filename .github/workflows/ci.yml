@@ -22,6 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Two commits: on a pull request that is the merge commit GitHub builds and its two parents, on a push the new tip
+          # and its parent. The health gates below need the commit to compare with, not the whole history; when the
+          # shallow clone lacks it, scripts/ci-health-base.mjs fetches it (and deepens only as far as needed).
+          fetch-depth: 2
 
       - uses: actions/setup-node@v6
         with:
@@ -36,10 +41,28 @@ jobs:
       - name: Verify package contracts and boundaries
         run: pnpm workspace:verify
 
-      # Numbers that may only go down: giant units, tests reaching into package internals, vendored SDK packages,
-      # in-place schema patches, and a status line on every spec in specs/ (specs/repository-anti-corruption §5a).
-      - name: Health gates
-        run: pnpm health:check
+      # Numbers that may only go down: giant units (class lines and methods apart), tests reaching into package
+      # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers (per source
+      # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a).
+      # The head and the merge-base are both measured here by the same script and compared, so rewriting
+      # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the
+      # gate itself (script, limits.json, this step), which is reviewed. The committed baseline.json is not read.
+      # The comparison commit: on a pull request, HEAD is the merge commit GitHub builds (refs/pull/N/merge), so it is the
+      # merged result against the base branch as it was merged (HEAD^1); on a push to main it is the previous tip.
+      # scripts/ci-health-base.mjs picks it and fetches it when the shallow checkout lacks it.
+      - name: Health gates (against the merge-base)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base="$(node scripts/ci-health-base.mjs)"
+          node scripts/check-health-gates.mjs --base "$base"
+
+      # Each gate rule is mutation-verified on a scratch repository: one violation added on a branch fails, and so does
+      # the same branch after `--update` rewrote the baseline.
+      - name: Health gates reject what they claim to
+        run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts
 
       - name: Verify Goal boundaries, storage baselines and release assets
         run: |

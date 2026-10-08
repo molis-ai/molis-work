@@ -65,7 +65,7 @@ After updating MCP or the Skill, also open a new Runtime Session, because an alr
 
 ### Final-artifact acceptance after a Release
 
-A release operator may mark a consumer-visible fix installed only after checking every applicable layer:
+The full pre-release checklist (version rules, the per-database version table, real-Home backup and maintenance) is [releases/CHECKLIST.md](releases/CHECKLIST.md); it is written in Chinese. A release operator may mark a consumer-visible fix installed only after checking every applicable layer:
 
 1. The Git tag, Release assets, and checksums come from the same commit; the App-embedded Runtime and the `~/.molis-work` install manifest report the same version.
 2. The persistent service follows the action returned by `status`, reaches `running`, and has one consistent LaunchAgent, listener, and `/health` identity.

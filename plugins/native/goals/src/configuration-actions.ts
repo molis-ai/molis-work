@@ -47,7 +47,7 @@ export const goalsConfigurationActions = {
     "读取当前项目的规则绑定历史，保留作用范围、原作者及 active、replaced、withdrawn 状态；历史绑定不代表当前最终生效规则", "query",
     object({}), object({ bindings: array(goalPolicyBindingSchema), observed_event_cursor: count })),
   policyResolve: goalAction<{ goal_id: string }, { policy: GoalPolicy; observed_event_cursor: number }>("goals.policy.resolve", "读取目标生效规则",
-    "按原业务规则合并项目基线与目标要求，返回指定目标当前真正生效的规则；不会变更历史领取或审阅记录", "query",
+    "合并项目默认规则、上级最低要求与目标覆盖，返回指定目标当前生效的规则（是否需要人工确认）；只读，不改变规则历史", "query",
     object({ goal_id: identifier }), object({ policy, observed_event_cursor: count })),
   policySave: userOperation(goalAction<SavePolicyInput, ReturnType<GoalsCommandApi["saveProjectPolicy"]>>("goals.policy.save", "保存项目默认规则",
     "用户明确确认后替换当前项目默认规则，保留历史绑定和原幂等回执；不创建目标单独规则，也不产生目标审批决定", "command",

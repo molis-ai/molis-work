@@ -148,8 +148,8 @@ export function renderPluginRail(
       attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: resident ? L("固定在底栏右侧") : L("常驻 Dock"), ...(resident ? { "data-resident": "true" } : {}) } });
   };
   // One button, two states: a plus while the plugin is not in the project, a red trash can once it is. Both glyphs are in the
-  // button, so a change of state is the tile's class and nothing more; the stylesheet shows the one that fits. Goals is the
-  // project's core and stays.
+  // button, so a change of state is the tile's class and nothing more; the stylesheet shows the one that fits. Goals is created
+  // with the project and stays.
   const toggleButton = (plugin: { id: string; label: string }, owned: boolean, along: readonly string[]) => {
     const locked = owned && plugin.id === "goals";
     const sites = sitesOf.get(plugin.id) ?? [];
@@ -157,7 +157,7 @@ export function renderPluginRail(
     const button = renderButton({ variant: owned ? "secondary" : "primary", size: "sm", icon: "plus", iconOnly: true, className: "plugin-toggle", disabled: locked,
       label: `${owned ? L("移除") : L("添加")}：${plugin.label}`,
       attrs: { "data-plugin-toggle": plugin.id, "data-state": owned ? "added" : "available",
-        title: locked ? L("Goals 是项目的核心，不能移除") : owned ? L("从本项目移除") : `${L("添加到本项目")}${alongNote}${sites.length ? `；${L("会在侧栏浏览器里使用")}：${sites.join("、")}` : ""}` } });
+        title: locked ? L("Goals 随项目一起创建，不能从项目移除") : owned ? L("从本项目移除") : `${L("添加到本项目")}${alongNote}${sites.length ? `；${L("会在侧栏浏览器里使用")}：${sites.join("、")}` : ""}` } });
     return button.replace(glyph("plus"), glyph("plus", "plugin-toggle-add") + glyph("trash", "plugin-toggle-remove"));
   };
   // At rest the end of the tile shows only a small pin when the plugin is kept; looked at, the buttons replace it.

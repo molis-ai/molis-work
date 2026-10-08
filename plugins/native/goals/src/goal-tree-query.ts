@@ -15,7 +15,7 @@ export class GoalTreeQueryApplication implements Pick<GoalTreeApplicationApi, "l
   }
 
   readNative(projectId: string, proposalId: string) {
-    if (!this.ports.goals.getBoard(projectId)) throw this.ports.errorFactory("board.not_found", `Board 不存在: ${projectId}`);
+    if (!this.ports.goals.getBoard(projectId)) throw this.ports.errorFactory("board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
     const proposal = this.ports.governance.query.getGoalTreeProposal(projectId, proposalId);
     if (!proposal) throw this.ports.errorFactory("goal_tree_proposal.not_found", `找不到 Goal Tree 提案: ${proposalId}`);
     return proposal;
@@ -23,7 +23,7 @@ export class GoalTreeQueryApplication implements Pick<GoalTreeApplicationApi, "l
 
   listGoalTreeProposals(input: GoalTreeProposalListQuery): GoalTreeProposalListResult {
     if (!this.ports.goals.getBoard(input.project_id)) {
-      throw this.ports.errorFactory("board.not_found", `Board 不存在: ${input.project_id}`);
+      throw this.ports.errorFactory("board.not_found", `这个项目还没有初始化目标资料库: ${input.project_id}`);
     }
     if (input.root_goal_id && !this.ports.goals.getGoal(input.project_id, input.root_goal_id)) {
       throw this.ports.errorFactory("goal.not_found", `Goal 不存在: ${input.root_goal_id}`);

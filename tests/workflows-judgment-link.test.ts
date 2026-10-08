@@ -72,6 +72,9 @@ test("a judgment link hands content on only for the ticked results and records w
     assert.equal(held.stopped?.from, 0);
     assert.equal(held.stopped?.verdict?.choice, "skip");
     assert.match(held.stopped?.reason ?? "", /skip/);
+    // The reason is a fact of the run, not of that one reply: reading the run again gives it back.
+    const reread = (await actions.invoke(w.instance, { id: held.instance_id })).instance;
+    assert.deepEqual(reread.stopped, held.stopped);
     assert.equal(pages().length, before, "held content reaches nothing");
     assert.equal(judged.length, 2);
   } finally {

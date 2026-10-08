@@ -34,11 +34,15 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 
 关键词预览读取该来源最近五条原消息，不调用模型、不保存规则、不产生捕捉成果或 Inbox 条目。`feed.rules.judgments` 从共同目录返回带版本、提供方和可用状态的判断能力；`preview-judgment` 对原消息调用所选兼容能力，不保存捕捉结果或入箱；`evaluate` 才应用原规则并实际消费结果。界面不维护另一份 Functions 下拉名单，插件判断也使用相同预览、保存和运行路径。
 
-规则与精确判断引用保存在原 `feed_out_rules`，每次编辑更新 revision，异步验证后以 revision 比较保存。Host 首次接通场景时，将旧函数键解析成精确引用；项目提交后清理对应旧全局绑定，历史不删。未能恢复的旧键保留为失效配置，不能自动变为关键词入箱规则。未知或停用能力可保留并编辑其他字段；重新启用须通过当前共同兼容检查。
+规则与精确判断引用保存在原 `feed_out_rules`，每次编辑更新 revision，异步验证后以 revision 比较保存。未知或停用能力可保留并编辑其他字段；重新启用须通过当前共同兼容检查。
 
 `feed.capture` 自己实现 prepare/consume/failed：用原消息准备内容，结果落地前复核规则 revision、消息内容、提供方和授权。只有 admission=inbox 时，inbox.admit 或 needs_review 才进入 Inbox。原判断历史增加绑定和消息版本依据，`feed.rules.recommendations` 只返回当前仍有效的建议；停用、改绑、内容变化或撤权后撤下建议，历史保留。系统“已用在哪”链接可直接打开来源内的具体捕捉规则。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
+
+定时拉取失败也花掉当次计划：同步在失败时自己会把中断记在来源上（状态、错误码、更新时间），调度器随后只确认授权、来源未删除未暂停、配置与人改过的名称/说明/计划没有变化，再记录需要处理的故障并推进下次拉取；已被拒绝的执行仍然保持拒绝。删除来源并保留历史时，该来源未关闭的故障 Inbox 条目一并标为已忽略（来源再也无法同步），保留下来的消息各自的 Inbox 引用不动。插件提醒和定时操作结果由 Scheduler 的 wakeup 送进 Feed，项目装配时绑定与其他事件相同的判断触发器，投递提交后才执行；判断失败不撤销已投递的提醒。
+
+连同本地历史删除来源时，同一次删除还清理拉取留在 Home 里的东西：先在事务内记下来源的 Material 与拉取收据所指的加密正文和各次拉取的 SEL 记录，提交后由 Host 注入的 `history` 端口删掉 SEL 记录，再把没有任何项目的 Material 或拉取收据引用的正文删掉；仍被别的来源或别的项目引用的正文保留，任何项目库读不出来时一律保留。每次拉取在运行收据的 `content_refs` 里记下它的 SEL 记录持有的正文（含没有留下 Item 的和中断的拉取），这是「SEL 记录引用什么」的 Molis 侧凭据。保留历史的删除不动它们。结果记在事件 `feed_source.history_released`。
 
 来源拉取和规则判断在项目队列外等待。Host 为同一数据库/项目/来源提供共享活动租约；不同幂等键也不能并发拉取同一来源。来源配置改变或原调用取消/撤权后，旧响应不提交结果和失败状态，原运行可在新调用中恢复。账号链路把相同执行检查传到 Listener 的每个异步提交点。
 
@@ -71,8 +75,10 @@ node --import tsx --test --test-concurrency=1 tests/feed-native-plugin.test.ts t
   - 不拥有 Source、Signal、Feed 的表，不直接实现 GitHub 或 Gmail 协议。
   - Provider 失败、部分接收与重试不能混成同一个成功状态；指定来源必须属于当前项目。
   - 关键词预览读最近五条原消息，不调模型、不保存规则、不入箱。
+  - 已忽略（归档）的 Item 只能先恢复：不能被加入 Inbox、不能重开它已关闭的条目，捕捉失败也不为它记条目。
+  - 连同本地历史删除来源时，只删没有任何项目的 Material 或拉取收据引用的加密正文；数不清引用（有项目库读不出来）就一律保留。
   - 停用、改绑、内容变化或撤权后撤下建议，历史保留；外部内容是不可信输入。
-- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts tests/feed-inbox-pages-loop.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts tests/feed-inbox-lifecycle.test.ts tests/feed-local-history-delete.test.ts tests/feed-inbox-pages-loop.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/feed-capture.e2e.test.ts`
 - 相关手册：[docs/modules/feed.md](../../../docs/modules/feed.md)、[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

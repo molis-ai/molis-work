@@ -95,7 +95,7 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
   {
     name: "molis_work_v1_project_delete",
     description:
-      "在当前对话获得独立删除确认后，删除一个 Molis Work 托管项目、其绑定和数据库；有有效 Claim 或未结束 Run 时拒绝删除。",
+      "在当前对话获得独立删除确认后，删除一个 Molis Work 托管项目：移除它的 Session 绑定、工作目录关联和项目目录（含数据库），并留下删除回执；同一请求键重试返回原回执；个人空间不能删除。",
     inputSchema: {
       type: "object",
       properties: {

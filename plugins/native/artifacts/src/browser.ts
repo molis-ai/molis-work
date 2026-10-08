@@ -42,16 +42,16 @@ export function readArtifactSelection(
   };
 }
 
-/** Called only after the original Action gate; this checks the owner's exact record, not grants. */
+/**
+ * Called only after the original Action gate; this checks the exact record, not grants. A personal 成果 belongs to the
+ * Home's person whoever produced it, so who is reading it is the Action gate's question, not the record's.
+ */
 export function requireArtifactAnalysisRecord(
   record: ArtifactVersionRecord | null,
-  access: { project_id: string; actor_id: string; reference: ArtifactReference },
+  access: { project_id: string; reference: ArtifactReference },
 ): ArtifactVersionRecord {
   if (!record || record.project_id !== access.project_id || record.artifact_id !== access.reference.artifact_id
     || record.version !== access.reference.version) throw new ActionError("actions.subject_unavailable", "当前项目中找不到这个成果版本");
-  if (record.scope === "personal" && record.owner_actor_id !== access.actor_id) {
-    throw new ActionError("artifacts.forbidden", "不能读取其他用户的个人成果");
-  }
   if (record.lifecycle_state !== "active" || record.availability !== "available") {
     throw new ActionError("actions.subject_unavailable", "这个成果版本已归档或不可用");
   }

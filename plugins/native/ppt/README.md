@@ -8,7 +8,7 @@
 
 JSON 导出由动作服务读取已保存的演示稿，返回文件名、MIME 类型与完整 JSON；浏览器下载同一结果。`ppt.pptx` 导出 PowerPoint 文件（标题、要点、讲者备注与配色，不含图片与图表）。不生成 SVG。
 
-编辑携带读取版本，保存排队；冲突保留当前输入并阻止发布、导出和离开，重新读取前确认丢弃。幻灯片 ID、顺序、要点、讲者备注和配色继续保存在原库。Artifact 发布保存固定快照，关联中断后可恢复原版本，保留后来编辑；下一次明确发布可另存一版。
+编辑携带读取版本，保存排队；冲突保留当前输入并阻止发布、导出和离开，重新读取前确认丢弃。幻灯片 ID、顺序、要点、讲者备注和配色继续保存在原库。Artifact 发布保存固定快照，固定下来的版本归本机的人，固定它的行为者记在 `created_by`；演示稿移走又移回后下一次固定接着项目成果库里已有的最高版号，关联中断后可恢复原版本，保留后来编辑；下一次明确发布可另存一版。
 
 验证与系统剩余范围见 [动作体系迁移记录](../../../specs/action-architecture/migration.md)。插件作者接入见 [Plugin 开发 · 对外 MCP](../../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 
@@ -26,5 +26,5 @@ JSON 导出由动作服务读取已保存的演示稿，返回文件名、MIME �
   - 冲突保留当前输入，并阻止发布、导出和离开。
   - 发布保存固定快照；中断后恢复原版本并保留后来的编辑。
   - 项目被删除时由宿主调用 `purgePptProject`（`src/project-data.ts`）清掉演示稿，连同复制回执；只读库文件，库不存在时不创建，重复运行没有副作用。
-- 改动后必跑：`node scripts/run-tests.mjs tests/ppt-actions.test.ts tests/ppt-mcp.test.ts tests/creative-artifact-promote.test.ts tests/project-deletion-owners.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/ppt-actions.test.ts tests/ppt-mcp.test.ts tests/creative-artifact-promote.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

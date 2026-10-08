@@ -54,7 +54,7 @@
     "file apps/workbench/src/functions/client.ts": 1299,
     "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 227,
     "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 191,
-    "file apps/workbench/src/i18n/en.ts": 3619,
+    "file apps/workbench/src/i18n/en.ts": 3380,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 381,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2813,
@@ -276,7 +276,7 @@
       "methods": 28
     },
     "function plugins/native/work/src/actions.ts#createWorkActionHandlers": 169,
-    "function plugins/native/work/src/http/panels.ts#handleWorkPanelHttp": 164,
+    "function plugins/native/work/src/http/panels.ts#handleWorkPanelHttp": 163,
     "function plugins/native/work/src/terminal/client.ts#startWorkTerminalClient": 438,
     "function plugins/native/work/src/terminal/panels.ts#createTerminalPanels": 365,
     "function plugins/native/work/src/ui/render.ts#renderWorkSessionSurface": 350,

@@ -174,15 +174,15 @@ export function seedDemoBoard(databasePath: string, projectId = DEMO_PROJECT_ID)
         goal_id: "CORE",
         title: "让每项工作都有可信的完成依据",
         outcome: "用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成",
-        why: "只有进度标签而没有结果、证据和复核，用户仍然无法相信工作真的完成了",
-        business_logic: "Runtime 选择一项已经准备好的工作并标记开始；完成后提交对应验收条件的证据，必要复核通过后，这项工作才会显示为已完成。",
+        why: "只有进度标签而没有结果和完成依据，用户仍然无法相信工作真的完成了",
+        business_logic: "Runtime 开始一项已约定的工作，并把进展和结果作为事实上报；每条要求都有当前结果支持、没有挡住收尾的 Concern 或待决定时，这项工作才能显式收尾并显示为已完成。",
         definition_state: "accepted" as const,
         decomposition_state: "closed_leaf" as const,
         priority: 90,
         acceptance_criteria: [
           {
             criterion_id: "CORE-C1",
-            statement: "工作从开始到证据和复核形成完整记录",
+            statement: "工作从约定、报告到收尾形成完整记录",
             decision_method: "automated_check" as const,
             pass_condition: "生命周期自动化测试通过",
           },
@@ -200,7 +200,7 @@ export function seedDemoBoard(databasePath: string, projectId = DEMO_PROJECT_ID)
         acceptance_criteria: [
           {
             criterion_id: "INTERFACES-C1",
-            statement: "不同入口读取到一致的可做工作和占用状态",
+            statement: "不同入口读取到一致的 Goal 状态和下一步",
             decision_method: "automated_check" as const,
             pass_condition: "跨入口自动化测试通过",
           },
@@ -229,7 +229,7 @@ export function seedDemoBoard(databasePath: string, projectId = DEMO_PROJECT_ID)
         title: "让用户打开页面就看懂目标和下一步",
         outcome: "用户不用理解内部协议，也能看出项目要解决什么、当前进展、谁该做什么和为什么被阻塞",
         why: "底层规则正确并不代表产品容易理解；信息组织混乱会让用户放弃继续使用",
-        business_logic: "用户打开项目后先看到目标树和当前目标，再按结果、完成标准、推进情况、风险和历史阅读；搜索、状态筛选和待决定事项都放在统一导航中。",
+        business_logic: "用户打开项目后先看到目标树和当前目标，再按结果、完成标准、推进情况和历史阅读；搜索、状态筛选和待决定事项都放在统一导航中。",
         definition_state: "accepted" as const,
         decomposition_state: "closed_compound" as const,
         priority: 70,
@@ -512,7 +512,7 @@ export function seedDemoBoard(databasePath: string, projectId = DEMO_PROJECT_ID)
       outcome: "用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成",
       new_requirements: [{
         requirement_id: "CORE-C1",
-        statement: "工作从开始到证据和复核形成完整记录",
+        statement: "工作从约定、报告到收尾形成完整记录",
         bound_type_id: "lifecycle",
       }],
     });
@@ -536,7 +536,7 @@ export function seedDemoBoard(databasePath: string, projectId = DEMO_PROJECT_ID)
       goal_id: "CORE",
       actor_id: DEMO_ACTOR,
       actor_kind: "user",
-      body: "演示项目用当前事件记录说明这项工作为什么可以算完成，不再领取角色或提交旧 Evidence。",
+      body: "演示项目用当前事件记录说明这项工作为什么可以算完成。",
       idempotency_key: "demo-core-note",
     });
     closeComplete(coordinator, projectId, "CORE", "demo-core", "可用的生命周期记录", "约定要求已有支持事实，演示收尾");

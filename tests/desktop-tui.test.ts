@@ -379,7 +379,7 @@ test("advance prompt names no retired role, run or proposal stage", () => {
     });
     assert.match(prompt, /当前状态/);
     assert.match(prompt, /已决定：接受完成要求/);
-    assert.doesNotMatch(prompt, /领取|Run|Proposal|澄清|Draft Goal|合同/);
+    assert.doesNotMatch(prompt, /领取|\bRun\b|Proposal|澄清|Draft Goal|合同/);
     assert.doesNotMatch(prompt, /一次只问用户一个问题/);
     assert.doesNotMatch(prompt, /拆分 Goal Tree 并提交 Proposal/);
   }

@@ -422,7 +422,7 @@
   - **演练**（2026-10-08，临时目录，没有打开真实 Home）：① `tests/catalog-maintenance-v22.test.ts`（5 个用例）：v21 目录库被拒且不被改动；脚本跑完与新建 Home 的 v22 目录库逐项相同（表、列、索引、外键、CHECK、`catalog_meta`）、项目与回执不变、`integrity_check` ok、外键 0；维护后的目录库能打开，旧回执步骤为空（没收尾的那张由宿主收尾）、示例项目能重建、新删除记步骤；版本不是 21、owner 不对、表已被占用都整个回滚；只认 21 的构建对 v22 报 `reader_too_old`。该文件和 SQL 在维护四做完后删除（目录库再变时它会先失败）。② 另用 origin/main（4d59cd4d）的干净构建写出 v21 目录库（一个保留的项目、一个删除的项目、建了又删的示例项目），取 SQLite 备份 API 的拷贝跑同一份脚本：`integrity_check` ok、外键 0、只多 `project_deletion_steps` 一张表、其余表结构不变、与新 Home 的 v22 目录库逐项相同、项目 1 个、回执 2 个都在；新构建能打开并列出两张回执（步骤 0，状态仍完成）；再跑一遍被拒（`catalog_meta.schema_version is 21`）；原构建（只认 21）报 `catalog.reader_too_old: schema=22，当前 reader 支持 1..21`。
   - **步骤**（按维护三的做法，对着 [发布前检查清单](../../docs/releases/CHECKLIST.md) 第 4 节逐项过）：1. 用户批准并定时机（弹窗）；2. 停掉连着真实 Home 的进程（4207、4208、4173、各会话的 MCP），按 pid 精确停；3. 动手前只读核对目录库确是 v21，整份备份（APFS 克隆 `~/molis-work-backups/<日期>-before-maint4`，逐个比对）；4. 在 `catalog.db` 的拷贝（SQLite 备份 API，不用 cp）上先演一遍，只开拷贝里的目录库文件，不用产品代码去打开项目——目录库存的是项目库的绝对路径，维护三演练时误开过真实项目库；5. 对真实 Home 的 `projects/catalog.db` 跑脚本（就地改，不换文件，所以没有被换下的原库要搬走；要退回就用第 3 步的整份备份）；6. 用新 main 的干净构建重装 Home 安装版（装过桌面端 App 的话，它也是只认 21 的构建，要用就一并重装），主检出快进并构建（§1 10-07「维护后真实 Home 用哪份代码」）；7. 只读核对：版本 22、`project_deletion_steps` 在且为空、项目数与回执数同维护前、新构建能列出项目。
 
-**各库的当前版本（2026-10-08，main 4d59cd4d 加分支 `fix/project-deletion-owners`）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。表里是代码要求的版本；真实 Home 的目录库仍是 21，做完维护四才到 22，在那之前这份代码打不开它。
+**各库的当前版本（2026-10-08，main 1cdb31dd 加分支 `fix/project-deletion-owners`；与 `docs/releases/CHECKLIST.md` 的各库版本表一致，那张表由 `node scripts/verify-release-versions.mjs` 对着代码核对）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。表里是代码要求的版本；真实 Home 的目录库仍是 21，做完维护四才到 22，在那之前这份代码打不开它。
 
 | 库 | 版本 | 记在 |
 | --- | --- | --- |

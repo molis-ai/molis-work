@@ -10,7 +10,7 @@ createMolisWorkLocalHost 为项目创建运行实例与 Host Client；同一项�
 
 Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git 后台服务，由 LocalHost 持有，同一 Host 只装配一次。正式 stdio launcher 有明确 Runtime Home 时，通过 `LocalActionGatewayClient` 将公共动作发现和调用转发到常驻 Web Host，不再装配另一个 Agent 执行器；页面无需打开。嵌入者关闭借用 Host 的传输后，仍须在整个 Host 不再使用时 `await host.close()`。能力注册不会启动 SDK、CLI 或请求模型，实际操作才初始化执行器。独立嵌入者仍受原存储目录的独占锁保护，避免相互误恢复。
 
-通道使用 Runtime 的 `webBaseUrl`（默认 `http://127.0.0.1:4173`）和同一 Home 已有控制凭据，只接受数字 loopback HTTP，拒绝重定向；常驻服务校验 Home/实例、从原目录解析项目，并使用原逐客户端动作授权。项目/主体更换或 MCP 关闭会取消旧请求，连接丢失不自动重试或退回本地执行。服务离线时只列出上下文工具，其余调用返回 `actions.service_unavailable`。判断函数以及 Form、Dataset、PPT、Pages、Cognia、Jelly 的旧名称也已转发并共用动作授权，旧开关不自行授予调用权。插件兼容声明列出完整的 required_actions，全部引用可用后才显示旧工具；原参数和结果适配仍归插件。旧平台工具仍有进程内路径，Files/Git 的跨调用者成果归属也未完成。
+通道使用 Runtime 的 `webBaseUrl`（默认 `http://127.0.0.1:4173`）和同一 Home 已有控制凭据，只接受数字 loopback HTTP，拒绝重定向；常驻服务校验 Home/实例、从原目录解析项目，并使用原逐客户端动作授权。项目/主体更换或 MCP 关闭会取消旧请求，连接丢失不自动重试或退回本地执行。服务离线时只列出连接工具，其余调用返回 `actions.service_unavailable`。MCP 目录只有平台工具（连接与受信管理入口）加已授权的动作，没有旧名称或旧开关；Files/Git 的跨调用者成果归属仍未完成。
 
 ## 从哪里读代码
 
@@ -45,9 +45,6 @@ Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定�
 ## 公共搜索与证据
 
 `createSearchEvidenceRuntime` 装配 SEL 的公共 web query、可信身份、intent 持久化和 Storage 正文端口；关闭时取消并等待在途操作和传输，再由数据库所有者关闭连接。`createFeedSourceRuntime` 注入 RSS Runtime、来源路由、条件请求游标和 receipt。Alchemist 直接使用公共装配和受限的 AnySearch 传输，不初始化 Feed/RSS；研究查询、预算和可引用摘要仍由 Alchemist 决定。历史存储名称及引用保留，不改写已有数据。
-
-## SDK 兼容发布面
-
 
 ## 本地开发
 

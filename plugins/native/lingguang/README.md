@@ -10,7 +10,7 @@
 
 编辑页的“转为待办”由 Workbench 调 Todo 组合，带上屏幕上的标题和正文（正文作为待办的依据原文）；灵光本身保留。“转成 Jelly 笔记”经放置服务交给 Jelly 的内容站点，笔记里记着它来自这条灵光。
 
-灵光是收想法的唯一地方（2026-10-01，`specs/post-merge-review` PMR-22）。“导入文件”“读取链接”经 Host 的文件与网页读取（`lingguang.material.read`、`lingguang.source.read`；文字提取、图片识别、音视频转写，需要下载本机语音模型时先问），读到的文字由用户记成一条灵光；读取本身不保存灵光。带 `?stream=1` 时逐行回报进度，关掉进度框即停止。上传副本存在 `{home}/lingguang/imports`。正文上限 20 万字，头脑风暴给模型时每条只带开头一部分。
+灵光是收想法的唯一地方（2026-10-01，`specs/archive/post-merge-review/spec.md` PMR-22）。“导入文件”“读取链接”经 Host 的文件与网页读取（`lingguang.material.read`、`lingguang.source.read`；文字提取、图片识别、音视频转写，需要下载本机语音模型时先问），读到的文字由用户记成一条灵光；读取本身不保存灵光。带 `?stream=1` 时逐行回报进度，关掉进度框即停止。上传副本存在 `{home}/lingguang/imports`。正文上限 20 万字，头脑风暴给模型时每条只带开头一部分。
 
 工作台使用项目路由，自动保存携带版本检查，发送期间防止重复提交。数据保留原 SQLite 表和稳定 ID。对外客户端的正式授权产品仍随系统动作服务迁移推进。
 

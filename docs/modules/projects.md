@@ -12,4 +12,4 @@
 
 ## 当前项目设置读取
 
-目录关联仍由本模块唯一管理。插件通过 `projectSettingsCapabilities.workspaces / browsingWorkspace` 按项读取当前项目，Host 不返回其他项目关联。浏览偏好仅存目录 ID，位于 Local Host 的项目数据库；迁移旧 Workspace 选择。设置 UI、权限、归属与兼容细则见 [当前项目设置](../platform/PROJECT-SETTINGS.md)。
+目录关联仍由本模块唯一管理。插件通过 `projectSettingsCapabilities.workspaces / browsingWorkspace` 按项读取当前项目，Host 不返回其他项目关联。浏览偏好仅存目录 ID，位于 Local Host 的项目数据库。设置 UI、权限与归属细则见 [当前项目设置](../platform/PROJECT-SETTINGS.md)。

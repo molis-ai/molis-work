@@ -112,7 +112,10 @@ export function authorizeLocalWebRequest(
     return false;
   }
   mutationKeys.set(idempotencyKey, "in_flight");
-  response.once("finish", () => {
+  let settled = false;
+  const settle = () => {
+    if (settled) return;
+    settled = true;
     if (response.statusCode >= 200 && response.statusCode < 400) {
       mutationKeys.set(idempotencyKey, "complete");
       while (mutationKeys.size > 4096) {
@@ -123,6 +126,16 @@ export function authorizeLocalWebRequest(
     } else {
       mutationKeys.delete(idempotencyKey);
     }
+  };
+  response.once("finish", settle);
+  // A client that goes away (a closed dialog, a timeout) before the answer is written never makes the response "finish", yet
+  // the handler still runs to its end. The key settles with what the handler ends the response with, not with the socket:
+  // until then it stays in flight, and the retry the page really makes is not refused for good.
+  response.once("close", () => {
+    if (settled) return;
+    if (response.writableEnded) return settle();
+    const end = response.end;
+    response.end = function (this: ServerResponse, ...args: Parameters<ServerResponse["end"]>) { const result = end.apply(this, args); settle(); return result; } as ServerResponse["end"];
   });
   return true;
 }

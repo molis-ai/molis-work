@@ -6,7 +6,7 @@ import { createFeedHomeEventsHandler } from "./home-events.js";
 import { feedArtifactPreviewHandler } from "./artifact-preview.js";
 
 export const feedContentActions = defineWorkflowContentActions({ id: "feed", title: "Feed", icon: "rss", subject_kind: "feed_item",
-  read_permissions: ["feed:read"], write_permissions: ["feed:write"] });
+  read_permissions: ["feed:read"], write_permissions: ["feed:write"], receive_scheduling: "concurrent" });
 
 export const feedSubjectAction = defineSubjectContextAction("feed.subject.read", "feed_item", "Feed 材料", ["feed:read"]);
 export const feedSourceSubjectAction = defineSubjectContextAction("feed.source.subject.read", "source", "来源状态", ["feed:read"]);

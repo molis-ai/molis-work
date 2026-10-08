@@ -76,7 +76,7 @@ Directory candidates and browsing preferences come from the [current-project set
   - 目标变化拒绝旧确认，同一确认的重试读取原回执；不替换下一轮关联、不自动发起任务或验收目标。
   - 提示词与方法正文随目录条目声明，Manifest 只写声明。
   - 路由只做装配：委派信件的视图（`delegation-view.ts`）与等待/唤醒的判断和文本（`waits.ts`）是纯函数，不读存储、不调宿主。
-- 改动后必跑：`node scripts/run-tests.mjs tests/coding-actions.test.ts tests/coding-artifacts.test.ts tests/coding-capabilities.test.ts tests/coding-commands.test.ts tests/coding-companion-inputs.test.ts tests/coding-delegation-waits.test.ts tests/builtin-plugin-agent-texts.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/coding-actions.test.ts tests/coding-artifacts.test.ts tests/coding-capabilities.test.ts tests/coding-commands.test.ts tests/coding-companion-inputs.test.ts tests/coding-delegation-waits.test.ts tests/coding-history-summary-http.test.ts tests/builtin-plugin-agent-texts.test.ts`
 - 相关手册：[docs/platform/PROLOGUE-AI.md](../../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[specs/coding-plugin/spec.md](../../../specs/coding-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 Coding 客户端及子面板共享 Host 注入的 UI 挂载生命周期；隐藏时停止会话/目录/审查轮询和时间显示，返回后刷新，卸载取消本机请求并释放监听、观察器和定时器。草稿仍按原业务规则保存；界面关闭不会停止服务端运行。

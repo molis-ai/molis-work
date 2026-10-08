@@ -20,6 +20,7 @@ export { createLingguangRouteHandlers, lingguangRouteErrorResponse } from "./rou
 export type { LingguangRoutePorts } from "./route-handlers.js";
 export { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest } from "./manifest.js";
 export { openLingguangStore, LingguangStore, LINGGUANG_STORE_BASELINE } from "./store.js";
+export { purgeLingguangProject } from "./project-data.js";
 export { LingguangError } from "./error.js";
 
 export { lingguangContentActions, createLingguangContentHandlers } from "./content-actions.js";

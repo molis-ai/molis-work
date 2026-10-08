@@ -51,7 +51,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `apps/desktop` | macOS 外壳、生命周期、Native Bridge | Native Bridge、Panel、Capsule 与发布工具；Tauri 配置在 apps/desktop/src-tauri | `partial` | AP4/DV4/Cutover；实际平台安装证据见验证报告 | 应用：@yijunw0212 |
 | `apps/workbench` | 本地产品 UI 与页面组合 | Shell、导航、页面组合与注册 UI contribution；通用呈现边界，不拥有 Goal 完成算法；无数据库实现 | `partial` | AP3/FD4/GW5/EX4/AR3/WK3/Cutover | 共享核心：@yijunw0212 |
 | `apps/local-host` | 本地唯一业务 composition root 和 single writer | 唯一项目数据库和业务装配；统一动作服务的宿主侧（能力目录合成、系统动作、逐客户端 MCP 授权、调用记录、跨进程动作网关）；可信身份与 Web/CLI/MCP 装配；各 Native 插件的组合适配（注入存储位置、模型、Artifact 发布等端口）；凭据与本机 IO | `partial` | AP2/Cutover；动作服务见 `specs/action-architecture/` | 共享核心：@yijunw0212 |
-| `apps/server` | 轻量交换、Team 控制面、Team Plugin Host | 实验性：`server/`（身份、设备、项目访问、接续回执、事件传输、IM 领域）与 `apps/server`（本地可部署启动器）约 1,200 行已存在，所有业务读写调用现有 Action Host；没有产品入口、不随 Desktop/npm 发布，也不是正式的交换/Team 控制面 | `partial`（实验，无产品入口） | `specs/archive/molis-work-im/spec.md`；正式 Server/Exchange 仍待独立功能 Spec | 应用：@yijunw0212 |
+| `apps/server` | 轻量交换、Team 控制面、Team Plugin Host | 实验性：`apps/server` 是 `server/`（身份、设备、项目访问、接续回执、事件传输、IM 领域）的本地可部署启动器，所有业务读写调用现有 Action Host；启动器没有产品入口、不随 Desktop/npm 发布，也不是正式的交换/Team 控制面。`server/` 里的 IM 另有用处：右栏「讨论」页签用它，见 `server` 行 | `partial`（实验，无产品入口） | `specs/archive/molis-work-im/spec.md`；正式 Server/Exchange 仍待独立功能 Spec | 应用：@yijunw0212 |
 | `apps/cli` | 参数、协议和终端展示适配 | 协议参数、命令分发与公开应用 adapter；root bin 仅注入启动环境 | `partial` | DV1/Cutover；CLI 协议和真实进程验证 | 应用：@yijunw0212 |
 | `apps/mcp` | MCP schema、audience 和 Capability 适配 | 平台工具只有项目连接工具（含 Goals 接续摘要）和受保护的管理入口（`initialize`、`event_decide`、`goal_tree_decide`）；Goals 与各插件的能力都是 Host 按动作目录合成、逐客户端授权的动作工具；Host 注入普通调用的项目与身份；用户决定仅受保护入口可执行 | `partial` | DV1/DV2/Cutover；#269 | 应用：@yijunw0212 |
 
@@ -69,9 +69,9 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `packages/design-system` | Token、基础组件、图标和可访问性基线 | Soft Workbench token（`palette.ts` 唯一来源）、主题、密度、字体、icon、`mw-*` 原语、终层与组件板 `/__ui/catalog`；规范见 `DESIGN.md`；旧 visual-foundation 已删除 | `partial` | AP3/Cutover；Soft Workbench 迁移（`specs/archive/soft-workbench-rollout`）；Native 包布局待验 | 平台包：@yijunw0212 |
 | `packages/observability` | 结构化日志、trace、diagnostic 与安全脱敏 | 各入口零散日志 | `absent` | F2、F3、保证 Goal | — |
 | `packages/test-kit` | 无业务判断的公共测试工具和 fake capability | F3 boundary policy；测试中的重复 harness 待迁移 | `partial` | F2、F3；后续测试基础设施 Goal | 平台包：@yijunw0212 |
-| `packages/im-ui` | 群聊（IM）页面、样式与浏览器控制器 | 由 `apps/server` 的 IM 页面和 Workbench 的“项目讨论”分屏消费；不拥有消息事实 | `partial`（实验） | `specs/archive/molis-work-im/spec.md` | 平台包：@yijunw0212 |
+| `packages/im-ui` | 群聊（IM）页面、样式与浏览器控制器 | 由 Workbench 右栏「讨论」页签（`apps/workbench/src/side-panel.ts` 嵌入 `/im`）和 `apps/server` 的 IM 页面消费；不拥有消息事实。这是在用、还会迭代的功能，不是待删的实验（spec §1，2026-10-08「右栏『讨论』页签与 IM 代码」） | `partial` | `specs/archive/molis-work-im/spec.md` | 平台包：@yijunw0212 |
 | `packages/plugin-sandbox` | 生成插件的 macOS 沙箱进程与宿主通道 | 插件创作台生成的后端在独立沙箱进程里运行，只经宿主通道使用平台能力 | `partial` | `specs/archive/plugin-builder/work-items/agent-built-plugins/spec.md`（S0 执行底座）；整体路线见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md` | 平台包：@yijunw0212 |
-| `server` | 共享身份、设备、项目访问、HTTP、SSE 与接续回执；聊天领域在 `src/im` | 实验性，没有产品入口；`apps/server` 是本地可部署启动器，共享同一份实现；所有业务读写调用现有 Action Host，不启动模型运行时 | `partial`（实验） | `specs/archive/molis-work-im/spec.md` | 平台包：@yijunw0212 |
+| `server` | 共享身份、设备、项目访问、HTTP、SSE 与接续回执；聊天领域在 `src/im` | 右栏「讨论」页签的后端：本地宿主在 `/im` 挂载它的群聊（`apps/local-host/src/im-server.ts`），库是 Home 里的 `server/server.sqlite`；这是在用、还会迭代的功能（spec §1，2026-10-08「右栏『讨论』页签与 IM 代码」）。`apps/server` 是同一份实现的本地可部署启动器；所有业务读写调用现有 Action Host，不启动模型运行时。该决定要修的账目还没做完：宿主不再直接读它的表（`im-server.ts` 现在读 `mw_projects`、`mw_members`），包的归类改成业务包（此行暂在本节，`scripts/workspace-packages.mjs` 里仍记作 `foundation`） | `partial` | `specs/archive/molis-work-im/spec.md` | 平台包：@yijunw0212 |
 | `tooling/plugin-cli` | Plugin 作者的 validate、create、pack、identity、sign、verify 命令，以及经 Host 的本地开发验证 | `create` 默认生成 v2 Integration 插件；`pack` 生成显式文件列表的 JSON bundle；签名与验证用 Plugin Runtime 的公开包验证接口；`dev` 经注入的 `PluginCliHost` 使用真实 Local Host；由 `apps/desktop/launchers/cli/main.ts` 装配 | `partial` | DV3；入口表见 §8 | 工具：@yijunw0212 |
 
 `packages/contracts/modules`、`services`、`platform` 是同一个发布包的 subpath 分区，不是三个独立 npm package。
@@ -138,7 +138,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `plugins/native/files` | 工作区文件树与阅读：取有界文本快照与选区（`app`，Coding 家族） | Runtime 托管；目录与文件由 Host 经项目工作区设置能力读取，插件把结果变成树、预览和过程项（集合描述、`before`/`after` 文本快照、用户选中的文字） | `partial` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/git` | Git 工作区变更、提交草稿与被接受的变更集（`app`，Coding 家族） | Runtime 托管；`git` 由 Host 运行，插件解析 porcelain v1、把每处改动发布为可对比的变更集，并保管“是否接受一次 Coding Run 的改动”这个决定（决定由人做） | `partial` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/diff` | 对比界面：同一处理三种输入（`app`，Coding 家族） | Runtime 托管；输入是 Files 的两个快照、Coding Run 准备的变更集、Git 工作区里的改动；变更集过程项类型 `diff.changeset.v1` 按这个消费者定义 | `partial` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212、@jingxusandra-gif |
-| `plugins/native/text-stats` | 对已取得的文件快照数字符、UTF-8 字节和行（`app`，Coding 家族） | Runtime 托管；只消费一个文件快照输入，没有动作、输出、事件和存储 | `partial` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
+| `plugins/native/text-stats` | 对已取得的文件快照数字符、UTF-8 字节和行（`app`，Coding 家族） | Runtime 托管；消费一个文件快照输入；两个查询动作（`text-stats.state` 读取已固定快照的统计，`text-stats.count` 统计给定文本），没有输出端口、事件和存储 | `partial` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/images` | 个人生图与项目生成记录 | 见下文「图片生成插件」；生成经 Prologue | `partial` | `specs/archive/images-plugin/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/jelly` | 个人日历与笔记（收想法在灵光） | 见下文「Jelly 私人工作区」 | `partial` | `specs/archive/jelly-plugin/` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/cognia` | 个人知识库（现行 native 版） | 见下文「Cognia 个人知识库」；Cognia 2（生成插件方向）需求书未实施 | `partial` | `specs/archive/cognia-plugin/spec.md`；`specs/archive/cognia-plugin/v2/spec.md` | 内置插件：@yijunw0212 |

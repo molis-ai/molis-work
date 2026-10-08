@@ -1,6 +1,6 @@
 # 多会话并行开发
 
-状态：现行规范（2026-10-08 入库）。同一台机器上常有几个会话（人和 Agent）、很多个工作树、几个在途 PR 同时在改这个仓库。这份文档写它们怎样不互相踩：开工、改枢纽文件、构建与测试排时段、合并、清理。每条规则后面写了依据；还没定的在最后一节「还没定、还没有」。`AGENTS.md`「协作」一节指到这里。
+状态：现行规范（2026-10-08 入库）。同一台机器上常有几个会话（人和 Agent）、很多个工作树、几个在途 PR 同时在改这个仓库。这份文档写它们怎样不互相踩：开工、改枢纽文件、构建与测试排时段、合并、清理。每条规则后面写了依据；还没做、还开着的在最后一节「还没做、还开着」。`AGENTS.md`「协作」一节指到这里。
 
 文中的「路线图」是 `specs/repository-anti-corruption/roadmap-2026-10-07.md`，`W1-13` 这样的编号是它排出的切片，进度以 `specs/repository-anti-corruption/spec.md` §10 为准；「spec」指该目录的 `spec.md`。
 
@@ -23,16 +23,27 @@
 
 ## 2. 枢纽文件
 
-枢纽是每条需求线都会顺手改一下的聚合文件：翻译词典、内置插件名单、路由分发、公共合同、登记表。它们是冲突的主要来源。名单依据 spec §2.2（自 09-28 起被最多 PR 改过的文件）和路线图 §4.7 的逐文件统计，各文件现在的改动比例看那两处，这里不抄数字。
+枢纽是每条需求线都会顺手改一下的聚合文件：翻译词典、内置插件名单、路由分发、公共合同、登记表。它们是冲突的主要来源。
+
+名单怎么来的：自 09-28 起合入 main 的 PR（`git log --first-parent`，到 2026-10-08 在 origin/main `f8ea20b9` 上共 205 个）里，下列文件各被至少 7 个改过；只属于一个插件的文件（如 `plugins/native/artifacts/src/actions.ts`）是单线热点，不是聚合，不列。spec §2.2 是同一方法在更早一天的结果，路线图 §4.7 点名了结构枢纽。重数：
+
+```sh
+# 某个文件被多少个合入 main 的 PR 改过
+git log origin/main --first-parent --since=2026-09-28 --format=%H -- <文件> | wc -l
+# 哪些文件被改得最多
+git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m; do git diff --name-only $m^1 $m; done | sort | uniq -c | sort -rn | head -60
+```
 
 | 类 | 文件 |
 | --- | --- |
-| 工作台聚合 | `apps/workbench/src/i18n/en.ts`（总词典）、`builtin-plugins.ts`、`ui-composition.ts`、`page-assets.ts`、`immersive-shell.ts`、`scripts/client/initialization.ts`；`packages/design-system/src/styles/craft-finish.ts`（总样式） |
-| 宿主聚合 | `apps/local-host/src/web-request.ts`（路由分发）、`web-catalog.ts`、`project-host.ts`、`project-plugins.ts`、`index.ts`（出口） |
-| 公共合同 | `packages/contracts/src/platform/plugin.ts`、`platform/actions.ts`、`services/agent-host.ts` |
-| 登记与门禁 | `scripts/workspace-packages.mjs`、根 `package.json` 与 `pnpm-lock.yaml`、`tooling/gates/baseline.json`、`tooling/gates/limits.json`、`.github/workflows/ci.yml`、`scripts/check-health-gates.mjs`、`scripts/check-secrets.mjs` |
-| 文档 | `AGENTS.md`、`docs/SSOT-MATRIX.md`、`specs/repository-anti-corruption/spec.md`、`specs/BACKLOG.md` |
-| 巨大文件 | `apps/workbench/src/scripts/client/assistant-island.ts`、`horizontal/agent-host/src/adapters/prologue-node.ts`、`apps/local-host/src/assistant/assistant-service.ts` |
+| 工作台聚合（`apps/workbench/src/` 下） | `i18n/en.ts`（总词典）、`index.ts`、`builtin-plugins.ts`、`plugin-catalog.ts`、`ui-composition.ts`、`renderer.ts`、`goals-page-renderer.ts`、`page-assets.ts`、`immersive-shell.ts`、`scripts/client/initialization.ts`、`scripts/client/plugin-workbench.ts`；另有 `packages/design-system/src/styles/craft-finish.ts`（总样式） |
+| 宿主聚合（`apps/local-host/src/` 下） | `web-request.ts`（路由分发）、`web-catalog.ts`、`project-host.ts`、`index.ts`（出口） |
+| 公共合同（`packages/contracts/src/` 下） | `platform/plugin.ts`、`platform/actions.ts`、`services/agent-host.ts`、`services/assistant.ts` |
+| 登记与门禁 | `scripts/workspace-packages.mjs`、`scripts/check-package-boundaries.mjs`、根 `package.json` 与 `pnpm-lock.yaml`、`tooling/gates/baseline.json`、`.github/workflows/ci.yml` |
+| 文档 | `AGENTS.md`、`DESIGN.md`、`docs/SSOT-MATRIX.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/README.md`、`specs/BACKLOG.md`、`specs/repository-anti-corruption/spec.md` |
+| 巨大文件 | `apps/workbench/src/scripts/client/assistant-island.ts`、`horizontal/agent-host/src/adapters/prologue-node.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`horizontal/agent-host/src/adapters/announce-guard.ts` |
+
+`apps/local-host/src/project-plugins.ts` 不到 7 次，但 `AGENTS.md` 把每个新内置插件的装配点指到它的监督器条目，按枢纽对待。
 
 动枢纽的规矩：
 
@@ -46,9 +57,9 @@
 2. 只加自己的几行，写在自己的位置上。不顺手重排、重命名、换格式；那类改动单独一个 PR，不夹逻辑改动。
 3. 解冲突时两边的条目都要留，不整块取「我的」或「对方的」。解完重跑 `pnpm boundary:check` 和健康门禁。`tooling/gates/baseline.json` 冲突时不手工合并：合入 main 后重跑 `node scripts/check-health-gates.mjs --update --base origin/main`。CI 不读这份文件（`AGENTS.md`「构建与测试」）。
 4. 两个 PR 动同一个枢纽：先准备好的先合；后一个合入 main 再重跑相关用例。
-5. 门禁脚本、`tooling/gates/`、`limits.json`、CI 工作流的改动单独一个 PR：它们是唯一能放宽数字的地方，要过评审（`AGENTS.md` 的健康门禁一条）。这几处在 `.github/CODEOWNERS` 里只请求 @yijunw0212。
+5. 门禁脚本、`tooling/gates/`、`limits.json`、CI 工作流的改动单独一个 PR：它们是唯一能放宽数字的地方（`AGENTS.md` 的健康门禁一条）。这几处在 `.github/CODEOWNERS` 里只请求 @yijunw0212 评审；这是请求，不是强制（必需批准数是 0，见第 3 节）。放宽数字的 PR 在描述里写清放宽哪一项、为什么。
 
-枢纽名单会随结构变短：翻译词典按主人拆、内置插件名单与路由改成声明式登记（路线图 W5-02、W5-03）落地后，对应文件不再逐个点名插件，就从上表删掉。
+枢纽名单会随结构变短：翻译改用稳定键、词典按主人分（用户 2026-10-08 定，spec §1「界面翻译」），内置插件名单与路由改成声明式登记（路线图 W5-02、W5-03）落地后，对应文件不再逐个点名插件，就从上表删掉。
 
 ## 3. 合并
 
@@ -56,6 +67,7 @@
 - 合并前把分支同步到最新 main（spec §1，2026-10-03）。main 的分支保护（2026-10-08 用 `gh api repos/molis-ai/molis-work/branches/main/protection` 读到）：必需检查只有 `Verify`（对应 `.github/workflows/ci.yml` 的 `verify` 作业，它等 `architecture-boundaries` 和 `secret-scan` 两个作业都成功；改这个作业的名字就等于改保护规则），并且要求分支与 main 同步；必需的批准数是 0，没有开「必须由代码所有者批准」。
 - 不开合并队列，不强制评审（spec §1，2026-10-02）。`.github/CODEOWNERS` 只自动请求评审，不改分支保护；谁评审、评审哪些包见 `docs/SSOT-MATRIX.md` 的「归属」列。
 - PR 描述按 `.github/pull_request_template.md` 写，包括验证结果、基线比对、API 影响和基本合同检查。
+- 产品用例子集进 CI 的做法（用户 2026-10-08 定，spec §1「CI 产品子集是否挡合并」）：先作一个单独的作业，不挡合并，跑约两周；隔离掉不稳定的用例后并入 `Verify`，不改分支保护。怎么并入（比如让 `verify` 作业 `needs` 它）由路线图 W2-16 定。这个作业现在还没有：`ci.yml` 里只有 `architecture-boundaries`、`secret-scan` 和 `verify` 三个作业，全量产品用例在本机跑。
 
 ## 4. PR 体量
 
@@ -141,7 +153,8 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
   ```
 
 - 基线工作树、集成工作树、集成分支用完即删。删集成分支或 `wip/*` 救援分支之前先逐个核对里面有没有只在那里的提交。
-- 只清已合入且干净的；别人的工作树和分支不动（spec §1，2026-10-02「他人的工作树与分支」）。远端已合入分支留给用户在 GitHub 上删；要不要开启「自动删除已合并分支」是仓库设置，等用户决定（路线图待决 #24）。
+- 只清已合入且干净的；别人的工作树和分支不动（spec §1，2026-10-02「他人的工作树与分支」）。
+- 谁清什么（用户 2026-10-08 定，spec §1「工作树、分支与仓库设置」）：本地已合入且干净的工作树和分支，由做防腐整改的 Agent 会话清；`wip/*` 与整合分支逐个对比、确认没有只在那里的提交后才删；救援分支与 Codex 的 d62d 不动。远端已合入的分支（决定时 147 个）和 GitHub 仓库设置里的「合并后自动删除分支」由用户来做。这个设置现在还是关的（`gh api repos/molis-ai/molis-work --jq .delete_branch_on_merge` 为 `false`，2026-10-08 读到），打开之前远端已合入分支会继续积累。日常的做法照上面：合入后各会话清自己的。
 - 工作树占地方：2026-10-07 普查时 `.claude/worktrees` 占 13 GB（路线图待决 #24 的说明），每个工作树都有自己的 `node_modules` 和 `dist`。
 - 自己起的预览服务、浏览器、Chrome 调试进程用完关掉；端口不要占着。
 
@@ -152,11 +165,13 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 - 方向已定（spec §1，2026-10-08「Prologue SDK 收敛与私有包」）：把来源分支 `feat/molis-side-panel-surfaces-on-memory` 推到 Prologue 远端的特性分支，按一个合成流程、一个负责人收敛到上游基线；删掉重建用不着的历史补丁，记下 sha256 与来源；`prologue-sdk`、`adeptify intelligence-client`、`search-evidence-layer` 的 tgz 改从私有 registry 或 release 附件取，不再放进公开仓库。这些都还没做，方案由路线图 W1-20 出；做完之前上面的做法照旧。推送 Prologue 远端、删除 vendored 文件按用户当次的授权办。
 - 合成负责人：还没有指定人。上面的决定要求设一个，W1-20 出方案时提名。在那之前，谁要换包谁做，并把 README 写全；`/vendor/` 在 `.github/CODEOWNERS` 里走默认规则，只请求 @yijunw0212。指定之后，把负责人写在这一节。
 
-## 12. 还没定、还没有
+## 12. 还没做、还开着
 
 - 合成包负责人和流程：方向已定，人选与方案等路线图 W1-20（见上一节）。
+- 读取兼容的合同流程：起点已定为第一个装到开发机之外的版本（用户 2026-10-08），日期到时写进 [合同变更流程](CONTRACT-CHANGES.md)；在那之前不留兼容期。
 - 挑相关用例的脚本：路线图 W2-17。
 - 测试并发隔离（每个测试文件一个 Home 和密钥库，非浏览器用例并发）：路线图 W5-12。在那之前全量约 76–78 分钟。
-- CI 里的产品用例子集、浏览器冒烟、隔离名单：路线图 W1-11、W2-16；是否阻塞合并等用户决定（路线图待决 #14）。
+- CI 里的产品用例子集、浏览器冒烟、隔离名单：路线图 W1-11、W2-16。是否挡合并已定（先不挡，约两周后并入 `Verify`，见第 3 节），作业还没有。
+- 远端已合入分支的清理与「合并后自动删除分支」：用户来做（见第 10 节），还没做。
 - 第 4 节的 PR 体量数字是建议；要改成门禁，先量再定。
 - 从零安装到跑起预览与测试的步骤和耗时（新成员上手）：还没写。

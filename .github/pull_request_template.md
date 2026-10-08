@@ -22,9 +22,9 @@ CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base）及其�
 
 ## 只许减少的数字
 
-<!-- 巨大单元、测试引用包内部、兼容标记、就地补表、vendored SDK 份数：贴 `node scripts/check-health-gates.mjs --base origin/main` 里相对 merge-base 变化的几项。变大的放不过；要放宽只能另开 PR 改门禁本身（脚本、limits.json、CI），并过评审。 -->
+<!-- 巨大单元、测试引用包内部、兼容标记、就地补表、vendored SDK 份数。通过与否、怎样更新 baseline.json 看上面「验证」里的健康门禁一项；这里只写变化的数字。变大的放不过；要放宽只能另开 PR 改门禁本身（脚本、limits.json、CI），那个 PR 会请求 @yijunw0212 评审（`.github/CODEOWNERS` 只请求，不强制）。 -->
 
-- [ ] 各项都没有比 merge-base 变大；变小的已用 `--update --base origin/main` 更新 `tooling/gates/baseline.json`
+- [ ] 相对 merge-base 变小的项（项目、旧值 → 新值），没有变大的；不涉及就写“无变化”：
 
 ## 基本合同检查
 

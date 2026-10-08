@@ -1,6 +1,6 @@
 # 调用链
 
-状态：现行。对照 main（91e7b382）逐环节读码写成（2026-10-08）；链 4、5、8 此前没有逐环节记录，这次首次读码核对。凡写「已定」的，出处是 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md#10-42419-普查与路线2026-10-07) 里用户的决定（§1 的 10-07、10-08 各行与 §10 的 27 项决定表，下称「决定 n」）；已定而代码里还没做的，都标「目标」，并写明今天是什么样。
+状态：现行。对照 main（33067cbe）逐环节读码写成（2026-10-08）；链 4、5、8 此前没有逐环节记录，这次首次读码核对。凡写「已定」的，出处是 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md#10-42419-普查与路线2026-10-07) 里用户的决定（§1 的 10-07、10-08 各行与 §10 的 27 项决定表，下称「决定 n」）；已定而代码里还没做的，都标「目标」，并写明今天是什么样。
 
 这份文档回答一个问题：一件事从入口走到落库，中间经过谁、带着什么身份、怎样被拒绝、留下什么痕迹。八条链路来自 `docs/prompts/repository-anti-corruption.md` §4.2，每条链一张环节表：
 
@@ -154,16 +154,16 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 谁来叫醒 | `apps/local-host/src/web-server.ts` 的 30 秒定时器，对 `feedSchedulers` 里每个项目各调一次拉取和一次 Schedule 的 `tick` | 定时 → 触发 | 无调用者；触发里自己装配上下文 | 单个项目抛错被吞掉，下一次再来 | 有变化时清该项目的页面视图缓存 |
 | 2 | 项目登记 | `apps/local-host/src/web-request.ts`：某个项目第一次被网页请求打开时，才创建它的拉取器并登记 | 项目打开 → 登记 | — | — | 见缺口 |
-| 3 | 到期拉取 | 动作 `feed.sources.tick`（`plugins/native/feed/src/source-actions.ts`）→ `FeedSourceScheduler.tick`（`plugins/native/feed/src/source-scheduler.ts`） | 空输入 → 已到期来源数、完成、失败、跳过 | 受众只有 `user`，权限 `feed:read`、`feed:write`；`scheduling: "concurrent"`，等网络时不占项目队列 | 单个来源失败只记该来源，不影响其他；失去授权时整个调用终止，不再推进计划 | 同一来源同一计划时间幂等键相同；进程内 `inFlight` 防重叠 |
+| 3 | 到期拉取 | 动作 `feed.sources.tick`（`plugins/native/feed/src/source-actions.ts`）→ `FeedSourceScheduler.tick`（`plugins/native/feed/src/source-scheduler.ts`） | 空输入 → 已到期来源数、完成、失败、跳过 | 受众只有 `user`，权限 `feed:read`、`feed:write`；`scheduling: "concurrent"`，等网络时不占项目队列 | 单个来源失败只记该来源，不影响其他，失败的拉取也花掉当次计划（`advanceSchedule`），不会每 30 秒重拉；失去授权，或拉取期间人改了来源的名称、说明、启停、计划或配置，整个调用终止，不再推进计划 | 同一来源同一计划时间幂等键相同；进程内 `inFlight` 防重叠 |
 | 4 | 同步一个来源 | 动作 `feed.sources.sync`；公开来源 `FeedSourceService.sync`，账号来源 `FeedConnectorSync.sync`（`plugins/native/feed/src/connector-sync.ts`） | 来源 id、幂等键 → 新增与去重条数 | 每次异步等待后用 `beforeEffect` 核对来源仍启用、未删除、配置和账号引用没变 | `feed_source_paused`；`connector_needs_auth`；`feed_source_sync_interrupted`；`feed_source_connection_changed` | 来源状态加事件 `feed_connector.sync_completed`、`feed_connector.sync_failed`、`feed_connector.sync_interrupted`；进程内的同步租约（`feedSourceSyncLease`）让同一个来源不会被两个连接实例同时拉取，再入报 `feed_source_sync_interrupted` |
 | 5 | 监听与信号 | `apps/local-host/src/feed-connector-sync.ts`：`ConnectorHost` 加官方集成的 driver，`ListenerHost.run` 保存 cursor 和 lease、去重，`SignalsModule` 保存信号 | 一次运行 → 信号草稿被接受 | 凭据只给引用 | 运行没取得终态：来源标 `error`，报 `feed_source_sync_interrupted`，可安全重试 | 每个被接受的信号回调给 Feed |
 | 6 | 收进 Feed | `FeedApplication.ingestItem`（`plugins/native/feed/src/application.ts`）→ `modules/feed` 的 `commands.ingest` | 信号 → Feed 条目（按外部 id 去重） | Feed 是条目的 owner | Feed 的领域错误（`FeedDomainError`、`FeedStoreError`） | 新增或更新的条目进入待判断队列（只在进程内存里） |
-| 7 | 规则与判断 | `FeedApplication.flushPendingJudgments` → `captureJudgment`、`homeJudgment`、`inboxJudgment` 三个触发器（`createFeedCaptureTrigger` 在 `plugins/native/feed/src/scenes.ts`，`createHomeJudgmentTrigger` 在 `apps/local-host/src/home-actions.ts`）；场景处理器 `apps/local-host/src/feed-scene.ts`、`apps/local-host/src/inbox-scene.ts` | 条目 → 场景判断（经 Functions，模型走 Prologue） | 触发器自带上下文（网页触发为 `user`，项目运行环境打开时装配的为 `workflow-events`） | 判断失败不阻止收件 | 判断结果记在 Functions 模块的判断记录里 |
-| 8 | 入 Inbox | `modules/attention-resumption`（`attention.commands.ensureFeedItem` / `create`），经 Feed 应用调用 | 条目 + 原因 → Inbox 条目 | Inbox 条目属于关注模块 | — | 来源的不可重试故障（授权、配置、游标失效）会建一条 `source_fault` 条目，之后同步成功自动关闭 |
+| 7 | 规则与判断 | `FeedApplication.flushPendingJudgments` → `captureJudgment`、`homeJudgment`、`inboxJudgment` 三个触发器（`createFeedCaptureTrigger` 在 `plugins/native/feed/src/scenes.ts`，`createHomeJudgmentTrigger` 在 `apps/local-host/src/home-actions.ts`）；场景处理器 `apps/local-host/src/feed-scene.ts`、`apps/local-host/src/inbox-scene.ts` | 条目 → 场景判断（经 Functions，模型走 Prologue） | 触发器自带上下文：网页请求打开项目时装配的为 `web-user`、`user`；Host 自己把条目带进 Feed 或 Inbox 时（工作流、来源的定时拉取、Schedule 的唤醒）为 `workflow-events`、受众 `workflow`，权限串在 `apps/local-host/src/workflow-feed-options.ts` 里写死 | 判断失败不阻止收件 | 判断结果记在 Functions 模块的判断记录里 |
+| 8 | 入 Inbox | `modules/attention-resumption`（`attention.commands.ensureFeedItem` / `create`），经 Feed 应用调用 | 条目 + 原因 → Inbox 条目 | Inbox 条目属于关注模块 | — | 来源的不可重试故障（授权、配置、游标失效）会建一条 `source_fault` 条目，之后同步成功自动关闭，来源退役时也关闭（连同本地历史删除时一并删掉） |
 
 另外两条入箱路径：
 
-- **插件提醒**：Schedule 的唤醒（`scheduler.wakeup.v1`，`horizontal/scheduler`）到点调用 `deliverHostReminder`（`apps/local-host/src/schedule-reminders.ts`），把提醒写成 Feed 里 `plugin-reminders` 来源的条目并带 `source_rule` 关注原因，随后进 Inbox。安装已卸载或世代不符的提醒不投递。
+- **插件提醒**：Schedule 的唤醒（`scheduler.wakeup.v1`，`horizontal/scheduler`）到点调用 `deliverHostReminder`（`apps/local-host/src/schedule-reminders.ts`），把提醒写成 Feed 里 `plugin-reminders` 来源的条目并带 `source_rule` 关注原因，随后进 Inbox。安装已卸载或世代不符的提醒不投递。投递提交之后，`apps/local-host/src/schedule-runtime.ts` 的 `judgeDelivered` 再运行这条条目启动的捕捉规则与 Inbox 下一步判断（由 `bindScheduleDeliveryFeed` 装配，身份同上）；判断失败不会撤销投递。插件定时操作的结果同样以 `plugin-runs` 来源进 Feed（`apps/local-host/src/schedule-operations.ts`）。
 - **到期提醒**：Todo 的 `todo.reminders.window` 由助理每分钟询问一次（`AssistantService.sweepReminders`），每个提醒只通知一次，错过的会标明「错过的提醒」。
 
 **通知有三处，没有系统级通知**（`docs/platform/DESKTOP.md` 说明系统通知尚未实现）：
@@ -179,7 +179,7 @@
 - **定时拉取只对本进程里被打开过的项目生效**（步骤 2）：服务重启后，没人打开的项目不会自己开始拉取。同一个 30 秒定时器里的 `schedule.tick()` 驱动 Schedule 的提醒唤醒和 Agent 定时任务，它们的运行器（`bindScheduledTaskRunner`）也只在项目被网页请求打开时绑定（`apps/local-host/src/web-request.ts`），所以同样受这个限制。统一的周期任务登记是 W4-09。
 - Feed 的 `FeedSourceScheduler` 和 Schedule 的 `horizontal/scheduler` 是两套并行的定时机制（`docs/SSOT-MATRIX.md` §6 已写明）。
 - 待判断队列只在进程内存里（`pendingFeedJudgments`、`pendingInboxJudgments`），按这两个名字的全部引用核对，代码里没有从库重建它的路径；进程在拉取和判断之间退出，条目已落库，判断不会补做。
-- 定时拉取失败后每 30 秒重拉、归档只关一条 Inbox 等问题已列入 Feed/Inbox 一组，修复中（#50、#51、#53、#54、#57、#58）；本表按 main 的现状写，修复合入后以代码为准。
+- Feed/Inbox 一组逻辑问题（#50、#51、#53、#54、#57、#58）已由 PR #302 合入 main，表中按合入后的代码写：失败的定时拉取也花掉当次计划；对一条 Item 的归档、保存、开始处理、升格和恢复，对它所有未关闭的 Inbox 条目一并生效；已忽略的 Item 不能被加入或重开 Inbox 条目，来源再次看到它也不会把它带回 Inbox；来源退役时关闭它的故障条目，连同本地历史删除时还删没有任何项目引用的加密正文和搜索记录。
 
 ## 7. 链 6：搜索、@ 引用与放置
 

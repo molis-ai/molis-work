@@ -1169,7 +1169,7 @@
 
 方案与拍板见 [`benchmark.md`](benchmark.md) 末两节。这一期做"每一步都有负责人、看得出谁在做"和"任务图摘要"。
 
-**SDK（vendored `prologue-sdk-0.0.0-rc.1-claims.tgz`，累计补丁 [`claims.patch`](../../vendor/prologue-sdk/claims.patch)）**
+**SDK（vendored `prologue-sdk-0.0.0-rc.1-claims.tgz`，累计补丁 `claims.patch`；2026-10-08 起树里只留补丁的大小、SHA-256 与来源，见 [vendor/prologue-sdk/README.md](../../vendor/prologue-sdk/README.md)）**
 
 - 任务图的负责人从"只能是角色"扩成三种：角色、会话（包括子任务自己的会话）、人。
   - 只有负责人能报告这一步；报别人名下的步骤明确失败，错误里写着现在归谁。

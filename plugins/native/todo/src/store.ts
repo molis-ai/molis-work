@@ -75,6 +75,16 @@ const RELATIONS: readonly TodoRelation[] = ["blocked_by", "blocks", "split_from"
 const SOURCE_KINDS: readonly TodoSource["kind"][] = ["manual", "material", "assistant", "onboarding", "inbox", "lingguang"];
 const MAX_BATCH = 200;
 
+/**
+ * What makes two requests one: who asked, from which project (or none), and the id they chose. The store is one
+ * Home-wide database and callers choose their own ids, so the id alone would hand one caller another caller's todo.
+ * Both the todo receipts and the organizer's batches keep requests under this key.
+ */
+export function todoRequestKey(access: Pick<TodoAccess, "actorId" | "projectId">, requestId: string | undefined): string | null {
+  const id = requestId?.trim();
+  return id ? JSON.stringify([access.actorId, access.projectId, id]) : null;
+}
+
 export class TodoStore {
   constructor(private readonly db: DatabaseSync, private readonly now: () => Date = () => new Date()) {}
 
@@ -109,9 +119,9 @@ export class TodoStore {
   }
 
   create(input: TodoCreateInput, access: TodoAccess, batchId: string | null = null): { item: TodoItem; change_id: string; replayed: boolean } {
-    const requestId = input.request_id?.trim();
-    if (requestId) {
-      const seen = this.db.prepare("SELECT item_id FROM todo_requests WHERE request_id = ?").get(requestId) as { item_id: string } | undefined;
+    const requestKey = todoRequestKey(access, input.request_id);
+    if (requestKey) {
+      const seen = this.db.prepare("SELECT item_id FROM todo_requests WHERE request_id = ?").get(requestKey) as { item_id: string } | undefined;
       if (seen) {
         const change = this.db.prepare("SELECT change_id FROM todo_changes WHERE item_id = ? AND kind = 'create'").get(seen.item_id) as { change_id: string } | undefined;
         return { item: this.get(seen.item_id, access), change_id: change?.change_id ?? "", replayed: true };
@@ -152,7 +162,7 @@ export class TodoStore {
       this.insert(item);
       this.record({ change_id: changeId, item_id: item.id, batch_id: batchId, kind: "create", actor: access.actor, at, before: null,
         after: { title: item.title }, revision_after: 1 });
-      if (requestId) this.db.prepare("INSERT INTO todo_requests (request_id, item_id, created_at) VALUES (?, ?, ?)").run(requestId, item.id, at);
+      if (requestKey) this.db.prepare("INSERT INTO todo_requests (request_id, item_id, created_at) VALUES (?, ?, ?)").run(requestKey, item.id, at);
     });
     return { item, change_id: changeId, replayed: false };
   }

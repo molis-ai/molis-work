@@ -1,6 +1,6 @@
 # 第三方插件：安装方案
 
-状态：方案，2026-10-08 按 origin/main `817e21af` 核实。本步只写计划，不实现。信任模型用户 2026-10-08 已定（`specs/repository-anti-corruption/spec.md` §1 的 2026-10-08「第三方插件的安装与信任」一行，第五批，PR #312 合入前不在 main 上）：用 `molis-work plugin install <bundle>` 本地装；首次安装时确认并记住发布者密钥；在独立进程的沙箱里运行。其余各节是在现有代码上的设计，待评审。
+状态：方案，2026-10-08 按 origin/main `31c357df` 核实。本步只写计划，不实现。信任模型用户 2026-10-08 已定（`specs/repository-anti-corruption/spec.md` §1 的 2026-10-08「第三方插件的安装与信任」一行，第五批，PR #312 合入前不在 main 上）：用 `molis-work plugin install <bundle>` 本地装；首次安装时确认并记住发布者密钥；在独立进程的沙箱里运行。其余各节是在现有代码上的设计，待评审。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「第三方插件」：用户自行安装插件的路径目前不存在，给出方案（安装命令、签名信任、市场入口、沙箱边界），不在本步实现。扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md) 3.2，内置插件的迁移计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)。
 

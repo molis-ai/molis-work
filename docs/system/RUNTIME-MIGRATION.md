@@ -1,6 +1,6 @@
 # 内置插件迁到 Plugin Runtime：计划
 
-状态：计划，2026-10-08 按 origin/main `817e21af` 核实（行号与计数都在这个提交上重量过）。还没有合入的迁移样板：第一个样板 Form 是路线图 W4-04，依赖 W3-06 的平台服务，两者都未开始。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进宿主（第 5.4 节）。
+状态：计划，2026-10-08 按 origin/main `31c357df` 核实（行号与计数都在这个提交上重量过）。还没有合入的迁移样板：第一个样板 Form 是路线图 W4-04，依赖 W3-06 的平台服务，两者都未开始。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进宿主（第 5.4 节）。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「装配统一」；路线图 W1-15、W3-06、W4-01、W4-02、W4-04、W5-01、W5-02、W6-01、W6-02（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）；扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md)，第三方插件见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。
 
@@ -110,7 +110,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
      - **算键的字面量**：`apps/local-host/src/functions-host.ts` 第 16 行用 `"io.molis.work.inbox"` 算内置首页规则的推荐选项键；键里含源提供方的 `provider_id`，并且没有它就不给算（`packages/kernel/src/subject-offer-choices.ts` 第 35–39 行），Inbox 迁后这个键就对不上 Inbox 实际给出的选项。
      - 指向批准的构建期例外的不受影响，例外期间它们的 `provider_id` 不变：Goals（`apps/local-host/src/project-capabilities.ts` 第 64、66 行，`plugins/native/feed/src/query-actions.ts` 第 25 行）、Sessions（`apps/local-host/src/work-actions.ts` 第 10 行，`home-talk-actions.ts` 第 16、29 行）。
      - **还没逐个核对的**：下列地方也读写带 `provider_id` 的引用，本文没有确认它们迁移后会不会失配，设计稿要查全：搜索索引的 `search_sources` 表（`packages/storage/src/adapters/text-search-index.ts` 第 148 行）和搜索命中编号（`horizontal/search/src/index.ts` 第 110 行的 `encodeSearchHitId`）、角色可选能力的引用（`plugins/native/characters/src/actions.ts` 第 10 行、`plugin.ts` 第 59 行）。
-     - **清点命令**：`git grep -n -E 'provider_id: *([A-Za-z_.]*(PLUGIN_ID|plugin_id)|"io\.molis\.work\.[a-z.]+")' -- apps packages plugins modules horizontal ':!tests' ':!*.md' | grep -v -E 'provider_id: [A-Za-z]+\.plugin_id, plugin_id:'`。`grep -v` 滤掉的是各 `*-actions.ts` 登记自己提供方的行，形状是 `provider_id: <X>Manifest.plugin_id, plugin_id: …`。在 origin/main `817e21af` 上输出 20 行：`personal-planning-actions.ts` 那行登记的是系统提供方，不是钉死；指向例外的 6 行不受影响；剩 13 行，分布在 11 个文件，就是上面逐条列的。命令只认 `provider_id: …` 的写法，经变量传递的要在设计稿里另查。
+     - **清点命令**：`git grep -n -E 'provider_id: *([A-Za-z_.]*(PLUGIN_ID|plugin_id)|"io\.molis\.work\.[a-z.]+")' -- apps packages plugins modules horizontal ':!tests' ':!*.md' | grep -v -E 'provider_id: [A-Za-z]+\.plugin_id, plugin_id:'`。`grep -v` 滤掉的是各 `*-actions.ts` 登记自己提供方的行，形状是 `provider_id: <X>Manifest.plugin_id, plugin_id: …`。在 origin/main `31c357df` 上输出 20 行：`personal-planning-actions.ts` 那行登记的是系统提供方，不是钉死；指向例外的 6 行不受影响；剩 13 行，分布在 11 个文件，就是上面逐条列的。命令只认 `provider_id: …` 的写法，经变量传递的要在设计稿里另查。
   - **选项。**
     - (a) **对内置实例让 `provider_id` 保持 `plugin_id`（倾向这个）。** 上面三类后果都不出现：存量授权、步骤、规则和代码里的钉死值都仍然等于登记的 `provider_id`，迁 Pages 也不会让 Inbox 的动作失效，迁移顺序不受牵制。要改的是把 `provider_id` 当 `install_id` 用的查找：`apps/local-host/src/local-web-actions.ts` 第 13 行按 `install_id` 建表，第 17、27、41 行再用 `view.provider.provider_id` 去查；范围要在设计稿里量。
     - (b) **在真实 Home 维护里改写存量引用**（需要用户批准，走备份和拷贝演练）。只覆盖第 1、2 类的数据，改不了第 3 类写死在代码里的值，这些代码也要改：Feed、Inbox、Workflows 对自己的钉死（`retainActionAuthority` 的 `provider_id` 必填）要改成不写死，自身身份从哪来，例如 `ActionCallContext.plugin_install_id`（`packages/contracts/src/platform/actions.ts` 第 70 行）是否够用，要在设计稿里核，可能要宿主或合同补一项；跨插件的钉死（Inbox 对 Pages、`information.plan` 对 Feed 与 Inbox）可以去掉 `provider_id`，因为合同里它是可省略的（`ActionReference.provider_id` 可选，同文件第 34–39 行），代价是放弃「固定原提供方」的保证（该字段的合同注释写的就是这个用途）；首页规则的推荐选项键要改成运行时按目录里 Inbox 的实际提供方算。

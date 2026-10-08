@@ -26,7 +26,7 @@ export interface ArtifactBrowserUiModel {
   /** The plugins that can start new work from the selected version (A4b, 「从这一版继续」), as the host found them declared. */
   readonly continuers?: ReadonlyArray<{ plugin_id: string; plugin_title: string }>;
   /** Who refers to the selected version (A4b, 「被谁引用」), read by the host through `artifacts.links`. */
-  readonly links?: { readonly goals: ReadonlyArray<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" }>; readonly other: number;
+  readonly links?: { readonly goals: ReadonlyArray<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" | "proposed_input" }>; readonly other: number;
     /** Objects of other plugins that link to the version (a Pages document), each opening in its plugin (五.1). */
     readonly referrers?: ReadonlyArray<{ title: string; open: { surface: string; id: string }; plugin_title: string }> };
   /** Plugin input ports that take the selected version's type, and what they read now (artifact-positioning, 2026-10-04). */
@@ -186,7 +186,7 @@ function handoffActions(artifact: NonNullable<ArtifactBrowserView["selected"]>, 
   return `<p class="artifact-continue-actions" data-artifact-handoff ${data}><button class="mw-btn" type="button" data-artifact-hand="assistant">${p.text("交给助理")}</button><button class="mw-btn" type="button" data-artifact-hand="coding" hidden>${p.text("交给 Coding")}</button></p>`;
 }
 
-const LINK_ROLES = { input: "输入", deliverable: "交付物", proposed: "提议的交付物" } as const;
+const LINK_ROLES = { input: "输入", deliverable: "交付物", proposed: "提议的交付物", proposed_input: "提议的输入" } as const;
 /** 「被谁引用」: the Goals that use this version, each opening in the workbench, the Assistant's works, and how many other links there are. */
 function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, routePrefix: string, p: ArtifactBrowserUiModel["primitives"], artifact: NonNullable<ArtifactBrowserView["selected"]>): string {
   const goals = links.goals.map(link => `<li><a href="${p.escape(`${routePrefix}/goals/${encodeURIComponent(link.goal_id)}`)}">${p.escape(link.title)}</a><span>${p.text(LINK_ROLES[link.role])}</span></li>`).join("");

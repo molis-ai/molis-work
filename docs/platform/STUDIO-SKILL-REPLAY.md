@@ -19,7 +19,7 @@
 ```
 pnpm studio:replay                      # 默认语料 + 基线，报告通过率
 pnpm studio:replay --verbose            # 逐条列出拒绝原因与接受结果
-pnpm studio:replay --base origin/main   # 同时对照合并基点上的基线（CI 用）
+pnpm studio:replay --base origin/main   # 同时对照 HEAD 与 origin/main 的合并基点（git merge-base）上的基线（CI 用）
 pnpm studio:replay --corpus <文件或目录> [--min-pass 0.8]   # 回放自己的语料，没有基线，可设下限
 ```
 
@@ -45,7 +45,7 @@ pnpm studio:replay --corpus <文件或目录> [--min-pass 0.8]   # 回放自己�
 | 真实录制 | 3 份 MiniMax 对「随手记」的首轮方案（旧格式） | `tests/fixtures/builder-designer/minimax-notes-v1.json` |
 | 自己的 Home | 创作台每次设计者运行都留一份记录：`<Home>/plugin-builder/<项目>/runs/<构建>/builder-runs/<id>.json`（`horizontal/agent-host/src/adapters/plugin-builder.ts`） | 见 2.3 |
 
-**现状要说清：** 能证明「完整设计一次通过率」的真实 `detail` 答卷（2026-09-27 的 66 份，之后 studio-v3 回放到 227 份，见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md`）只在用户真实 Home 的运行记录里，没有进仓库。当前提交的语料里没有一条真实 `detail` 答卷，报告会如实写出这一点，而不是用手写条目凑一个好看的比例。
+**现状要说清：** 能证明「完整设计一次通过率」的真实 `detail` 答卷（2026-09-27 的 66 份，之后 studio-v3 回放到 227 份，见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md`）只在用户真实 Home 的运行记录里，没有进仓库。当前提交的语料里没有一条真实 `detail` 答卷，报告会如实写出这一点，而不是用手写条目凑一个好看的比例。补上它们要用 `harvest` 只读真实 Home 的运行记录，而那些是用户自己写下的方案与设计：读哪个 Home、哪些答卷可以进仓库，由用户决定（见 2.3），在那之前不读、不提交。
 
 ### 2.3 把 Home 的运行记录变成语料
 
@@ -60,17 +60,22 @@ pnpm studio:replay harvest --runs <Home>/plugin-builder/<项目>/runs --out <文
 
 ### 2.4 基线
 
-`tests/fixtures/studio-replay/baseline.json` 记每条语料现在的结果：接受，或拒绝及原因的种类。规则：
+`tests/fixtures/studio-replay/baseline.json` 记每条语料现在的结果：接受，或拒绝及原因的种类，加上这条语料的摘要（`digest`，`scripts/studio-replay/corpus.mts` 的 `entryDigest`：阶段、答卷、给它的上下文、来源类别、必须保持的拒绝，不含「出处」「用途」这类关于它的话）。内置的提示词示例每次从提示词里取，没有固定文字，记 `live`。规则对接受的和被拒的条目一视同仁：
 
 | 情况 | 结果 |
 | --- | --- |
 | 基线里接受的条目，现在被拒 | 失败（回归） |
-| 基线里接受的条目，不在语料里了 | 失败；真要去掉，在基线 `retired` 里写条目编号和原因 |
+| 基线里的条目（接受或被拒），不在语料里了 | 失败；真要去掉，在基线 `retired` 里写条目编号和原因 |
+| 基线里的条目，同一编号下答卷或上下文变了（哪怕仍被接受） | 失败；旧条目留着，新答卷用新编号，旧编号写进 `retired` 并写明原因 |
+| `retired` 里的编号又出现在语料里 | 失败；退役的编号不再使用 |
 | 语料里有基线没记的条目 | 失败，用 `--write-baseline` 记下 |
 | 基线里拒绝的条目，现在被接受 | 失败，用 `--write-baseline` 把改进记下 |
 | 仍被拒，但原因种类变了 | 只提示 |
-| `--write-baseline` 遇到回归或缺失 | 拒绝写入，不能靠改基线放过 |
-| `--base <ref>` | 同时读合并基点上的基线：那里接受过的条目现在仍须接受，所以在分支上手改基线文件也放不过 |
+| 基线里的条目缺 `digest` | 不是基线（退出码 2） |
+| `--write-baseline` 遇到回归、缺失或答卷变了 | 拒绝写入，不能靠改基线放过 |
+| `--base <ref>` | 同时读 HEAD 与 `<ref>` 的合并基点（`git merge-base HEAD <ref>`）上的基线，不是 `<ref>` 当前的尖端：落后于 `<ref>` 的分支不会因为缺了 `<ref>` 后来加的条目而失败。合并基点上记的每条条目（接受的、被拒的）现在仍须在语料里、答卷未变，接受过的仍须接受，所以在分支上手改基线文件、改写或删掉语料条目都放不过 |
+
+没有 `--base` 时只比较工作区里的基线与语料：同时改基线和语料可以让本地检查变绿，所以 CI 一律带 `--base`（`.github/workflows/ci.yml` 的 Studio Skill replay）。合并基点上还没有这个基线文件时（加它的那一次提交），没有可比的，只做本地比较。
 
 基线里还记着各阶段 Skill 的版本号和提示词版本，只用于提示「挂载的文字变了」，不影响通过与否，这样并行改 Skill 的分支不会在这几行上互相卡住。
 

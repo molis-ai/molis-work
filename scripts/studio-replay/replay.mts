@@ -12,7 +12,7 @@
  */
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { BUILDER_PROMPTS, expandDesign, normalizeProposal, parseModelJson, validateAgentDesign, type CatalogEntry } from '@molis-ai/molis-work-plugin-builder';
-import type { DesignBase, ReplayEntry } from './corpus.mjs';
+import { entryDigest, type DesignBase, type ReplayEntry } from './corpus.mjs';
 
 export interface ReplayEnv { validateContract(contract: unknown): void }
 export const defaultEnv: ReplayEnv = { validateContract: contract => assertContract(contract) };
@@ -31,6 +31,8 @@ export interface ReplayResult {
   /** How many things the host tidied in the answer ("宿主整理" notes). */
   notes: number;
   shape?: string;
+  /** What the entry was when it was replayed (`entryDigest`); none for an entry read from the code itself (`live`). */
+  digest?: string;
 }
 
 const PLUGIN_ID = 'io.molis.work.generated.replay', REVISION = 'replay';
@@ -84,7 +86,7 @@ function designAnswer(entry: ReplayEntry, env: ReplayEnv): Pick<ReplayResult, 'o
 }
 
 export function replayEntry(entry: ReplayEntry, env: ReplayEnv = defaultEnv): ReplayResult {
-  const head = { id: entry.id, mode: entry.mode, origin: entry.origin, attempt: entry.attempt };
+  const head = { id: entry.id, mode: entry.mode, origin: entry.origin, attempt: entry.attempt, ...(entry.live ? {} : { digest: entryDigest(entry) }) };
   try { return { ...head, pass: true, ...(entry.mode === 'propose' ? proposeAnswer(entry) : designAnswer(entry, env)) }; }
   catch (error) {
     const stopped = error instanceof Stopped ? error : new Stopped('expand', error instanceof Error ? error.message : String(error));
@@ -95,10 +97,10 @@ export function replayEntry(entry: ReplayEntry, env: ReplayEnv = defaultEnv): Re
 /** Entries that are always replayed: the worked example the designer prompt itself teaches, which must stay a valid design. */
 export function builtinEntries(): ReplayEntry[] {
   const text = BUILDER_PROMPTS.designer.text, marker = '【mode = "detail" 的完整回答示例】', start = text.indexOf(marker);
-  if (start < 0) return [{ id: 'prompt-example', mode: 'detail', origin: 'synthetic', source: 'BUILDER_PROMPTS.designer', attempt: 0, capabilities: [], resources: [], answer: '',
+  if (start < 0) return [{ id: 'prompt-example', mode: 'detail', origin: 'synthetic', source: 'BUILDER_PROMPTS.designer', attempt: 0, capabilities: [], resources: [], answer: '', live: true,
     note: `the designer prompt ${BUILDER_PROMPTS.designer.version} no longer has the worked example marker ${marker}` }];
   const from = start + marker.length, example = text.slice(from, text.indexOf('\n\nmode = "propose"', from)).trim();
-  return [{ id: 'prompt-example', mode: 'detail', origin: 'synthetic', source: `BUILDER_PROMPTS.designer ${BUILDER_PROMPTS.designer.version}`, attempt: 0, capabilities: [], resources: [], answer: example,
+  return [{ id: 'prompt-example', mode: 'detail', origin: 'synthetic', source: `BUILDER_PROMPTS.designer ${BUILDER_PROMPTS.designer.version}`, attempt: 0, capabilities: [], resources: [], answer: example, live: true,
     base: { id: 'quick', title: '随手记', description: '写一句就保存', rationale: '最短路径', journey: ['写', '看'] }, note: 'the worked example in the designer prompt; a prompt edit that breaks it fails here' }];
 }
 
@@ -128,12 +130,14 @@ export function summarise(results: readonly ReplayResult[]): Summary {
 
 export const BASELINE_FORMAT = 'studio-replay-baseline/1';
 export interface SkillMount { version: number | null; chars: number | null; error?: string }
+/** What the baseline keeps of one entry: how the host treated it, and (`digest`) which answer that was. `live`: read from the code itself, no fixed text. */
+export interface BaselineEntry { pass: boolean; reason?: string; digest?: string; live?: true }
 export interface Baseline {
   format: typeof BASELINE_FORMAT;
   /** The mounted Skill and prompt versions when the baseline was written: informational, see `skillNotes`. */
   skill?: { stages: Record<string, SkillMount>; prompts: Record<string, string> };
-  entries: Record<string, { pass: boolean; reason?: string }>;
-  /** Entries taken out of the corpus on purpose, each with why. A passing entry may not just disappear. */
+  entries: Record<string, BaselineEntry>;
+  /** Entries taken out of the corpus on purpose, each with why. An entry, accepted or refused, may not just disappear or change under its id. */
   retired?: Record<string, string>;
 }
 export function parseBaseline(text: string, where: string): Baseline {
@@ -142,42 +146,46 @@ export function parseBaseline(text: string, where: string): Baseline {
   const row = json as Partial<Baseline> | null;
   if (!row || row.format !== BASELINE_FORMAT || !row.entries || typeof row.entries !== 'object' || Object.values(row.entries).some(value => typeof value?.pass !== 'boolean'))
     throw new Error(`${where}: not a ${BASELINE_FORMAT} file`);
+  for (const [id, entry] of Object.entries(row.entries)) if (!(typeof entry.digest === 'string' && entry.digest) && entry.live !== true) throw new Error(`${where}: entry ${id} needs the digest of its answer (run --write-baseline)`);
   for (const [id, why] of Object.entries(row.retired ?? {})) if (typeof why !== 'string' || !why.trim()) throw new Error(`${where}: retired entry ${id} needs the reason it was retired`);
   return row as Baseline;
 }
 export function baselineFrom(results: readonly ReplayResult[], skill: Baseline['skill'], retired: Baseline['retired']): Baseline {
-  const entries = Object.fromEntries([...results].sort((a, b) => a.id.localeCompare(b.id)).map(result => [result.id, result.pass ? { pass: true } : { pass: false, reason: result.reason }]));
+  const entries = Object.fromEntries([...results].sort((a, b) => a.id.localeCompare(b.id)).map(result => [result.id,
+    { pass: result.pass, ...(result.pass ? {} : { reason: result.reason }), ...(result.digest ? { digest: result.digest } : { live: true as const }) }]));
   return { format: BASELINE_FORMAT, ...(skill ? { skill } : {}), entries, ...(retired && Object.keys(retired).length ? { retired } : {}) };
 }
 
 export interface Comparison {
   /** Each of these fails the check. */
-  regressions: string[]; removed: string[]; unrecorded: string[]; behind: string[];
+  regressions: string[]; removed: string[]; changed: string[]; unrecorded: string[]; behind: string[];
   /** Informational. */
   reasonChanged: string[];
 }
 /**
- * `baseline` is the committed record; `previous` is the same file as it was at the merge-base, when known. An entry that
- * passed in either must still be in the corpus and still pass, so rewriting the baseline cannot hide a regression.
+ * `baseline` is the committed record; `previous` is the same file as it was at the merge-base, when known. Every entry
+ * either of them records, accepted or refused, must still be in the corpus with the answer it had; one that was accepted
+ * must still be accepted. The only way out is `retired` with a reason, and a retired id is not used again. So neither
+ * rewriting the baseline nor rewriting or deleting corpus entries hides a regression: the merge-base's record stands.
  */
 export function compare(results: readonly ReplayResult[], baseline: Baseline, previous?: Baseline): Comparison {
-  const byId = new Map(results.map(result => [result.id, result])), retired = baseline.retired ?? {};
-  const out: Comparison = { regressions: [], removed: [], unrecorded: [], behind: [], reasonChanged: [] };
-  const mustPass = new Map<string, string>();
-  for (const [id, row] of Object.entries(previous?.entries ?? {})) if (row.pass && !(id in retired)) mustPass.set(id, ' (it passed at the base)');
-  for (const [id, row] of Object.entries(baseline.entries)) if (row.pass && !(id in retired)) mustPass.set(id, '');
-  for (const [id, where] of mustPass) {
-    const now = byId.get(id);
-    if (!now) out.removed.push(`${id}${where}: no longer in the corpus; to retire it, list it under "retired" in the baseline with the reason`);
-    else if (!now.pass) out.regressions.push(`${id}${where}: passed, now refused at ${now.stage}: ${now.message}`);
+  const byId = new Map(results.map(result => [result.id, result])), retired = { ...previous?.retired, ...baseline.retired };
+  const out: Comparison = { regressions: [], removed: [], changed: [], unrecorded: [], behind: [], reasonChanged: [] };
+  for (const id of new Set([...Object.keys(previous?.entries ?? {}), ...Object.keys(baseline.entries)])) {
+    if (id in retired) continue;
+    const there = previous?.entries[id], here = baseline.entries[id], rows = [there, here].filter((row): row is BaselineEntry => !!row), now = byId.get(id);
+    const where = here ? '' : ' (at the base)', accepted = rows.some(row => row.pass);
+    if (!now) { out.removed.push(`${id}${where}: no longer in the corpus (it was ${accepted ? 'accepted' : 'refused'}); to retire it, list it under "retired" in the baseline with the reason`); continue; }
+    if (rows.some(row => row.digest && row.digest !== now.digest)) out.changed.push(`${id}${where}: its answer, or what it was given, is not the one recorded; keep the old entry, add the new one under a new id and list the old id under "retired" with the reason`);
+    if (accepted && !now.pass) out.regressions.push(`${id}${here?.pass ? '' : ' (it passed at the base)'}: passed, now refused at ${now.stage}: ${now.message}`);
   }
   for (const result of results) {
     const row = baseline.entries[result.id];
-    if (!row) out.unrecorded.push(`${result.id}: not in the baseline; run --write-baseline to record it`);
+    if (result.id in retired) out.changed.push(`${result.id}: retired (${retired[result.id]}) but back in the corpus; a retired id is not used again, give the entry a new id`);
+    else if (!row) out.unrecorded.push(`${result.id}: not in the baseline; run --write-baseline to record it`);
     else if (!row.pass && result.pass) out.behind.push(`${result.id}: refused before, accepted now; run --write-baseline to keep the gain`);
     else if (!row.pass && !result.pass && row.reason !== result.reason) out.reasonChanged.push(`${result.id}: still refused, for a different reason: ${row.reason} → ${result.reason}`);
   }
-  for (const id of Object.keys(baseline.entries)) if (!byId.has(id) && !baseline.entries[id]!.pass && !(id in retired)) out.removed.push(`${id}: refused entry no longer in the corpus; list it under "retired" with the reason, or restore it`);
   return out;
 }
-export const failures = (comparison: Comparison) => comparison.regressions.length + comparison.removed.length + comparison.unrecorded.length + comparison.behind.length;
+export const failures = (comparison: Comparison) => comparison.regressions.length + comparison.removed.length + comparison.changed.length + comparison.unrecorded.length + comparison.behind.length;

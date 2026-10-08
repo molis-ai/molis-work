@@ -36,77 +36,98 @@
   },
   "entries": {
     "detail-books-filter-bar": {
-      "pass": true
+      "pass": true,
+      "digest": "877df61acded187e"
     },
     "detail-broken-references": {
       "pass": false,
-      "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 read 绑定了不存在的操作 x；（#）组件 x 的 submit 绑定了不存在的操作 x"
+      "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 read 绑定了不存在的操作 x；（#）组件 x 的 submit 绑定了不存在的操作 x",
+      "digest": "e313a9ee164629e2"
     },
     "detail-empty-store-example": {
       "pass": false,
-      "reason": "操作 x 第 # 个示例：查询示例在空存储上运行，output/includes 不能期望已有记录；空列表写 output: []，需要已有"
+      "reason": "操作 x 第 # 个示例：查询示例在空存储上运行，output/includes 不能期望已有记录；空列表写 output: []，需要已有",
+      "digest": "ee07ad780f0856e6"
     },
     "detail-expenses-filter-submit": {
-      "pass": true
+      "pass": true,
+      "digest": "1b00f260e8cd5136"
     },
     "detail-metered-capability-in-query": {
       "pass": false,
-      "reason": "操作 x：查询（query）不能调用收费能力：打开页面就会自动调用、产生费用；请放进 command，由按钮触发，回答存下来再由 query"
+      "reason": "操作 x：查询（query）不能调用收费能力：打开页面就会自动调用、产生费用；请放进 command，由按钮触发，回答存下来再由 query",
+      "digest": "14cae9a574a0541b"
     },
     "detail-model-ask-then-add": {
-      "pass": true
+      "pass": true,
+      "digest": "1b6146c996c88b2d"
     },
     "detail-notes-plain": {
-      "pass": true
+      "pass": true,
+      "digest": "25820eb8fd844a5d"
     },
     "detail-notes-root-closed-early": {
-      "pass": true
+      "pass": true,
+      "digest": "4ef307e7947265f0"
     },
     "detail-notes-think-and-fence": {
-      "pass": true
+      "pass": true,
+      "digest": "4ab5a0be76c4e6cf"
     },
     "detail-notes-truncated": {
       "pass": false,
-      "reason": "模型输出不是完整 JSON，第 # 个字符附近"
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "078395cb31678e14"
     },
     "detail-order-text-not-typed": {
       "pass": false,
-      "reason": "浏览器用例需要具体操作与断言"
+      "reason": "浏览器用例需要具体操作与断言",
+      "digest": "2e2b40fcfaf4e17a"
     },
     "minimax-notes-v1#1": {
-      "pass": true
+      "pass": true,
+      "digest": "31356a638b9fb586"
     },
     "minimax-notes-v1#2": {
       "pass": false,
-      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）"
+      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）",
+      "digest": "97859d30a641d9b7"
     },
     "minimax-notes-v1#3": {
       "pass": false,
-      "reason": "模型输出不是完整 JSON，第 # 个字符附近"
+      "reason": "模型输出不是完整 JSON，第 # 个字符附近",
+      "digest": "9bdcb3ab74c128ff"
     },
     "prompt-example": {
-      "pass": true
+      "pass": true,
+      "live": true
     },
     "propose-one-candidate": {
       "pass": false,
-      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）"
+      "reason": "初次要给 #–# 个在页面结构或关键行为上有实质差异的方案（candidates）",
+      "digest": "6cf5c148b301bf9a"
     },
     "propose-questions-first-round": {
-      "pass": true
+      "pass": true,
+      "digest": "a556a1d60bee10c6"
     },
     "propose-questions-second-round": {
       "pass": false,
-      "reason": "已经澄清过一次，这次必须直接给出方案，把仍不确定的地方写成假设放进 summary"
+      "reason": "已经澄清过一次，这次必须直接给出方案，把仍不确定的地方写成假设放进 summary",
+      "digest": "bfd292d1a35e3ac0"
     },
     "propose-two-candidates": {
-      "pass": true
+      "pass": true,
+      "digest": "ca909e339ee53ce0"
     },
     "revise-notes-with-rework": {
-      "pass": true
+      "pass": true,
+      "digest": "67c538fa0aeb2d60"
     },
     "revise-rework-unknown-operation": {
       "pass": false,
-      "reason": "rework 引用了不存在的操作：x"
+      "reason": "rework 引用了不存在的操作：x",
+      "digest": "bec264504f2f2cac"
     }
   }
 }

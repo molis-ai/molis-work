@@ -41,17 +41,23 @@ function parse(argv: string[], flags: readonly string[], booleans: readonly stri
   return { values, set };
 }
 
-/** The baseline file as the merge-base has it, so a baseline rewritten to forgive a regression is still caught. */
-function baselineAt(ref: string, file: string): Baseline | undefined {
+/**
+ * The baseline file as the merge-base of HEAD and `ref` has it (not as `ref`'s tip has it: a branch that is behind
+ * `ref` has not seen what `ref` added since, and must not be failed for lacking it), so a baseline rewritten to forgive a
+ * regression is still caught. The commit that was read is returned for the report.
+ */
+function baselineAt(ref: string, file: string): { baseline: Baseline | undefined; commit: string } {
   const where = realpathSync(file), git = (...args: string[]) => spawnSync('git', ['-C', dirname(where), ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const top = git('rev-parse', '--show-toplevel');
   if (top.status !== 0) throw new Usage(`--base needs the baseline to be inside a git repository: ${file}`);
   if (git('rev-parse', '--verify', '--quiet', ref + '^{commit}').status !== 0) throw new Usage(`--base ${ref} is not a commit here (fetch it first)`);
-  const shown = git('show', `${ref}:${relative(realpathSync(top.stdout.trim()), where).split('\\').join('/')}`);
-  if (shown.status === 0) return parseBaseline(shown.stdout, `${file} at ${ref}`);
+  const base = git('merge-base', 'HEAD', ref), commit = base.stdout.trim();
+  if (base.status !== 0 || !commit) throw new Usage(`--base ${ref} has no history in common with HEAD here (deepen the clone: git fetch --unshallow)`);
+  const shown = git('show', `${commit}:${relative(realpathSync(top.stdout.trim()), where).split('\\').join('/')}`);
+  if (shown.status === 0) return { baseline: parseBaseline(shown.stdout, `${file} at ${commit.slice(0, 8)}`), commit };
   // The file not being there yet is the first commit that adds it; any other failure is not an excuse to skip the comparison.
-  if (/exists on disk, but not in|does not exist in/.test(shown.stderr)) return undefined;
-  throw new Error(`could not read ${file} at ${ref}: ${shown.stderr.trim()}`);
+  if (/exists on disk, but not in|does not exist in/.test(shown.stderr)) return { baseline: undefined, commit };
+  throw new Error(`could not read ${file} at ${commit.slice(0, 8)} (merge-base with ${ref}): ${shown.stderr.trim()}`);
 }
 
 function replayCommand(argv: string[]): number {
@@ -70,16 +76,16 @@ function replayCommand(argv: string[]): number {
     const before = existsSync(baselineFile!) ? parseBaseline(readFileSync(baselineFile!, 'utf8'), baselineFile!) : undefined;
     // Writing the baseline never forgives a loss by itself: an entry that passed must still pass, or be retired with a reason.
     const lost = before ? compare(results, before) : undefined;
-    if (lost && (lost.regressions.length || lost.removed.length)) { process.stderr.write(['Refusing to write the baseline over a loss:', ...lost.regressions, ...lost.removed].join('\n  ') + '\n'); return 1; }
+    if (lost && (lost.regressions.length || lost.removed.length || lost.changed.length)) { process.stderr.write(['Refusing to write the baseline over a loss:', ...lost.regressions, ...lost.removed, ...lost.changed].join('\n  ') + '\n'); return 1; }
     mkdirSync(dirname(baselineFile!), { recursive: true });
     writeFileSync(baselineFile!, JSON.stringify(baselineFrom(results, skill, before?.retired), null, 2) + '\n');
     process.stdout.write(`wrote ${relative(process.cwd(), baselineFile!)}: ${results.filter(result => result.pass).length}/${results.length} accepted\n`);
     return 0;
   }
   const previous = values.base?.[0] && baselineFile ? baselineAt(values.base[0], baselineFile) : undefined;
-  const comparison = recorded ? compare(results, recorded, previous) : undefined;
+  const comparison = recorded ? compare(results, recorded, previous?.baseline) : undefined;
   process.stdout.write(renderReport({ results, summary, skipped: loaded.skipped, sources: ['built-in prompt example', ...paths.map(path => relative(root, path))], ...(comparison ? { comparison } : {}),
-    baselineLabel: baselineFile ? relative(root, baselineFile) + (values.base ? ` (also against ${values.base[0]})` : '') : '', skill, skillProblems: notes.problems, skillChanged: notes.changed, verbose: set.has('verbose') }));
+    baselineLabel: baselineFile ? relative(root, baselineFile) + (previous ? previous.baseline ? ` (also against the merge-base with ${values.base![0]}, ${previous.commit.slice(0, 8)})` : ` (the merge-base with ${values.base![0]}, ${previous.commit.slice(0, 8)}, has no baseline yet)` : '') : '', skill, skillProblems: notes.problems, skillChanged: notes.changed, verbose: set.has('verbose') }));
   if (values.json?.[0]) writeFileSync(resolve(values.json[0]), JSON.stringify({ summary, results, comparison: comparison ?? null, skill }, null, 2) + '\n');
   let code = 0;
   if (comparison && failures(comparison)) code = 1;

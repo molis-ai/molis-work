@@ -41,13 +41,28 @@ export interface ReplayEntry {
   expectFailure?: string;
   /** What the entry is for. */
   note?: string;
+  /** The answer is read from the current code on every run (the prompt's own example), so there is no fixed text to take a digest of. */
+  live?: boolean;
 }
 export const CORPUS_FORMAT = 'studio-replay-corpus/1';
+
 export interface Skipped { file: string; reason: string }
 export interface LoadedCorpus { entries: ReplayEntry[]; skipped: Skipped[] }
 
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const MODES: readonly string[] = ['propose', 'detail', 'revise'];
+
+/** Keys in a fixed order, so the same value always serialises to the same text. */
+const canonical = (value: unknown): string => Array.isArray(value) ? `[${value.map(canonical).join(',')}]`
+  : record(value) ? `{${Object.keys(value).filter(key => value[key] !== undefined).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}` : JSON.stringify(value) ?? 'null';
+/**
+ * What an entry is, for the baseline: everything that decides how the host treats it or how the report counts it (the
+ * stage, the answer, the context it was given, whether it is a model's own or a hand-written one, the refusal it must
+ * keep). Where it came from and what it is for are words about it and are not part of it. A baseline that keeps this
+ * digest notices an answer rewritten under the same id, which would otherwise keep its recorded "accepted" for free.
+ */
+export const entryDigest = (entry: ReplayEntry): string => createHash('sha256').update(canonical({ mode: entry.mode, origin: entry.origin, attempt: entry.attempt, base: entry.base, capabilities: entry.capabilities,
+  resources: entry.resources, clarificationAllowed: entry.clarificationAllowed, answer: entry.answer, expectFailure: entry.expectFailure })).digest('hex').slice(0, 16);
 
 function checkEntry(raw: unknown, where: string): ReplayEntry {
   if (!record(raw)) throw new Error(`${where}: an entry is an object`);

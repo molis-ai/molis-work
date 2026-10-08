@@ -9,7 +9,7 @@ import { AgentBuilderWorkflow, type AgentBuilderPorts, type CatalogEntry } from 
 import { assertContract } from "@molis-ai/molis-work-plugin-sandbox";
 import type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { BuilderAgentRecord, BuilderAgentRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { entryFromRunRecord, loadCorpus, type ReplayEntry } from "../scripts/studio-replay/corpus.mjs";
+import { entryDigest, entryFromRunRecord, loadCorpus, type ReplayEntry } from "../scripts/studio-replay/corpus.mjs";
 import { builtinEntries, compare, parseBaseline, replayEntry, summarise } from "../scripts/studio-replay/replay.mjs";
 import { runSmoke } from "../scripts/studio-replay/smoke.mjs";
 import { standInAnswers } from "../scripts/studio-replay/stand-in.mjs";
@@ -35,7 +35,7 @@ test("the committed corpus replays exactly as its baseline records, and every sy
   const entries = committed(), results = entries.map(entry => replayEntry(entry));
   const baseline = parseBaseline(readFileSync(path.join(corpusDirectory, "baseline.json"), "utf8"), "baseline.json");
   const comparison = compare(results, baseline);
-  assert.deepEqual(comparison, { regressions: [], removed: [], unrecorded: [], behind: [], reasonChanged: [] }, "every answer still gets the result, and the reason, the baseline recorded");
+  assert.deepEqual(comparison, { regressions: [], removed: [], changed: [], unrecorded: [], behind: [], reasonChanged: [] }, "every answer still gets the result, and the reason, the baseline recorded");
   for (const entry of entries) {
     const result = results.find(item => item.id === entry.id)!;
     if (entry.expectFailure) { assert.equal(result.pass, false, `${entry.id} is meant to be refused`); assert.match(result.message!, new RegExp(entry.expectFailure), `${entry.id} is refused for its own reason`); }
@@ -146,10 +146,20 @@ const make = (name: string) => {
     const file = path.join(corpus, "corpus.json"), json = JSON.parse(readFileSync(file, "utf8")) as { entries: Array<Record<string, unknown>> };
     writeFileSync(file, JSON.stringify({ ...json, entries: change(json.entries) }, null, 2));
   };
-  const editBaseline = (change: (value: { entries: Record<string, { pass: boolean; reason?: string }>; retired?: Record<string, string> }) => void) => {
+  const editBaseline = (change: (value: { entries: Record<string, { pass: boolean; reason?: string; digest?: string }>; retired?: Record<string, string> }) => void) => {
     const value = JSON.parse(readFileSync(baseline, "utf8")); change(value); writeFileSync(baseline, JSON.stringify(value, null, 2));
   };
   return { directory, corpus, baseline, run, edit, editBaseline };
+};
+
+/** A scratch repository around a made corpus, with its baseline committed on `main`. */
+const repository = (name: string, prepare: (made: ReturnType<typeof make>) => void = () => {}) => {
+  const made = make(name);
+  prepare(made);
+  const git = (...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=replay", "-c", "user.email=replay@example.invalid", ...args], { cwd: made.directory, encoding: "utf8", stdio: "pipe" });
+  git("init", "-q", "-b", "main"); git("add", "-A"); git("commit", "-q", "-m", "base");
+  const commit = (message: string) => { git("add", "-A"); git("commit", "-q", "--allow-empty", "-m", message); };
+  return { ...made, git, commit };
 };
 
 test("unchanged, the command holds and prints the pass rates and why answers were refused", () => {
@@ -194,14 +204,15 @@ test("an entry the baseline has not seen fails until it is recorded", () => {
 });
 
 test("a refused answer the host now accepts fails until the baseline keeps the gain", () => {
-  const { run, edit, corpus, baseline } = make("behind");
-  const valid = JSON.parse(readFileSync(path.join(corpusDirectory, "corpus.json"), "utf8")).entries.find((entry: { id: string }) => entry.id === "detail-notes-plain").answerJson;
-  edit(entries => entries.map(entry => entry.id === "detail-notes-truncated" ? { ...entry, answer: JSON.stringify(valid) } : entry));
+  // The baseline says the host refused this answer; today the host accepts it, as it would after a fix to the host.
+  const { run, editBaseline, corpus, baseline } = make("behind");
+  editBaseline(value => { value.entries["detail-notes-plain"] = { pass: false, reason: "细化方案：有 # 处要一起改", digest: value.entries["detail-notes-plain"]!.digest! }; });
   const result = run();
   assert.equal(result.code, 1, result.out);
-  assert.match(result.out, /detail-notes-truncated: refused before, accepted now/);
+  assert.match(result.out, /detail-notes-plain: refused before, accepted now/);
   assert.equal(cli(["--corpus", corpus, "--baseline", baseline, "--write-baseline"]).code, 0);
   assert.equal(run().code, 0);
+  assert.equal(JSON.parse(readFileSync(baseline, "utf8")).entries["detail-notes-plain"].pass, true, "the gain is kept");
 });
 
 test("writing the baseline never forgives a loss", () => {
@@ -214,21 +225,98 @@ test("writing the baseline never forgives a loss", () => {
 });
 
 test("a baseline edited by hand to forgive a regression passes locally but not against the merge-base", () => {
-  const { directory, corpus, baseline, run, edit, editBaseline } = make("launder-base");
-  const git = (...args: string[]) => execFileSync("git", ["-c", "commit.gpgsign=false", "-c", "user.name=replay", "-c", "user.email=replay@example.invalid", ...args], { cwd: directory, encoding: "utf8", stdio: "pipe" });
-  git("init", "-q", "-b", "main"); git("add", "-A"); git("commit", "-q", "-m", "base");
-  assert.equal(run("--base", "main").code, 0, "nothing changed");
+  // The host once accepted this answer: the baseline at the base says so, and the corpus is untouched. Today the host refuses it.
+  const { corpus, baseline, run, editBaseline, git } = repository("launder-base", made => made.editBaseline(value => { value.entries["detail-broken-references"] = { pass: true, digest: value.entries["detail-broken-references"]!.digest! }; }));
   git("checkout", "-q", "-b", "launder");
-  edit(entries => entries.map(entry => entry.id === "detail-notes-plain" ? { ...entry, answerJson: undefined, answer: JSON.stringify(entry.answerJson).replace('"notes.add"', '"notes.append"') } : entry));
-  const result = run();
-  editBaseline(value => { value.entries["detail-notes-plain"] = { pass: false, reason: "细化方案：有 # 处要一起改" }; });
-  void result;
+  const visible = run();
+  assert.equal(visible.code, 1, visible.out);
+  assert.match(visible.out, /detail-broken-references: passed, now refused at expand/);
+  editBaseline(value => { value.entries["detail-broken-references"] = { pass: false, reason: "细化方案：有 # 处要一起改", digest: value.entries["detail-broken-references"]!.digest! }; });
   const local = run();
   assert.equal(local.code, 0, "rewriting the baseline silences the local check; " + local.out);
   const against = run("--base", "main");
   assert.equal(against.code, 1, against.out);
-  assert.match(against.out, /detail-notes-plain \(it passed at the base\): passed, now refused/);
+  assert.match(against.out, /detail-broken-references \(it passed at the base\): passed, now refused/);
   assert.equal(cli(["--corpus", corpus, "--baseline", baseline, "--base", "no-such-ref"]).code, 2, "a base that is not a commit is an error, not a pass");
+});
+
+test("--base reads the baseline at the merge-base, not at the tip of the ref: a branch behind main is not failed for what main added since", () => {
+  const { corpus, baseline, run, edit, git, commit } = repository("behind-main");
+  const fork = git("rev-parse", "HEAD").trim();
+  git("checkout", "-q", "-b", "work"); commit("work: a change that has nothing to do with the corpus");
+  git("checkout", "-q", "main");
+  edit(entries => [...entries, { ...entries.find(entry => entry.id === "detail-notes-plain")!, id: "detail-notes-added-on-main" }]);
+  assert.equal(cli(["--corpus", corpus, "--baseline", baseline, "--write-baseline"]).code, 0);
+  commit("main: a corpus entry that passes, and its baseline row");
+  git("checkout", "-q", "work");
+  const behind = run("--base", "main");
+  assert.equal(behind.code, 0, "work has not seen the entry main added after the fork, and is not asked to have it: " + behind.out);
+  assert.match(behind.out, new RegExp(`also against the merge-base with main, ${fork.slice(0, 8)}`), "the report names the commit it read");
+  assert.equal(run("--base", fork).code, 0, "the merge-base itself reads the same baseline");
+  git("checkout", "-q", "main");
+  assert.equal(run("--base", "main").code, 0, "and main against itself holds");
+});
+
+test("an answer rewritten under the same id fails, whether or not it still passes; the baseline cannot be told to accept it", () => {
+  const { corpus, baseline, run, edit, editBaseline, git } = repository("rewrite-answer");
+  git("checkout", "-q", "-b", "rewrite");
+  // The move the review reproduced: every operation renamed in a design that is still valid, so it keeps passing.
+  edit(entries => entries.map(entry => entry.id === "detail-notes-plain" ? { ...entry, answerJson: JSON.parse(JSON.stringify(entry.answerJson).replaceAll("notes.add", "notes.create")) } : entry));
+  const local = run();
+  assert.equal(local.code, 1, local.out);
+  assert.match(local.out, /detail-notes-plain: its answer, or what it was given, is not the one recorded/);
+  assert.match(local.out, /list the old id under "retired" with the reason/);
+  const write = cli(["--corpus", corpus, "--baseline", baseline, "--write-baseline"]);
+  assert.equal(write.code, 1, "writing the baseline does not accept it either: " + write.out);
+  assert.match(write.out, /Refusing to write the baseline over a loss[\s\S]*detail-notes-plain: its answer/);
+  const digest = entryDigest(loadCorpus([corpus]).entries.find(entry => entry.id === "detail-notes-plain")!);
+  editBaseline(value => { value.entries["detail-notes-plain"]!.digest = digest; });
+  assert.equal(run().code, 0, "a baseline edited to match the new answer silences the local check");
+  const against = run("--base", "main");
+  assert.equal(against.code, 1, against.out);
+  assert.match(against.out, /detail-notes-plain: its answer, or what it was given, is not the one recorded/, "the merge-base's record of the answer still stands");
+});
+
+test("a refused entry, the guard that proves the host still refuses a broken design, cannot be deleted from the corpus and the baseline together", () => {
+  const { run, edit, editBaseline, git } = repository("delete-guard");
+  git("checkout", "-q", "-b", "delete");
+  edit(entries => entries.filter(entry => entry.id !== "detail-broken-references"));
+  editBaseline(value => { delete value.entries["detail-broken-references"]; });
+  assert.equal(run().code, 0, "deleting the entry from both files leaves nothing for the local check to compare");
+  const against = run("--base", "main");
+  assert.equal(against.code, 1, against.out);
+  assert.match(against.out, /detail-broken-references \(at the base\): no longer in the corpus \(it was refused\)/);
+  editBaseline(value => { value.retired = { "detail-broken-references": "the rule it guarded moved to the host's own tests" }; });
+  assert.equal(run("--base", "main").code, 0, "retiring it with a reason is the way out");
+});
+
+test("a changed answer takes a new id and retires the old one with a reason; a retired id is not used again", () => {
+  const { corpus, baseline, run, edit, editBaseline, git } = repository("retire-and-replace");
+  git("checkout", "-q", "-b", "replace");
+  edit(entries => entries.map(entry => entry.id === "detail-notes-plain" ? { ...entry, id: "detail-notes-plain-v2", answerJson: JSON.parse(JSON.stringify(entry.answerJson).replaceAll("notes.add", "notes.create")) } : entry));
+  const open = run("--base", "main");
+  assert.equal(open.code, 1, open.out);
+  assert.match(open.out, /detail-notes-plain: no longer in the corpus[\s\S]*detail-notes-plain-v2: not in the baseline/);
+  editBaseline(value => { delete value.entries["detail-notes-plain"]; value.retired = { "detail-notes-plain": "operations renamed; replaced by detail-notes-plain-v2" }; });
+  assert.equal(cli(["--corpus", corpus, "--baseline", baseline, "--write-baseline"]).code, 0, "the new id is recorded, the retirement kept");
+  assert.equal(JSON.parse(readFileSync(baseline, "utf8")).retired["detail-notes-plain"], "operations renamed; replaced by detail-notes-plain-v2");
+  assert.equal(run("--base", "main").code, 0, run("--base", "main").out);
+  edit(entries => [...entries, { ...entries.find(entry => entry.id === "detail-notes-plain-v2")!, id: "detail-notes-plain" }]);
+  const reused = run();
+  assert.equal(reused.code, 1, reused.out);
+  assert.match(reused.out, /detail-notes-plain: retired \(operations renamed.*\) but back in the corpus/);
+});
+
+test("a baseline row without the digest of its answer is not a baseline, and a digest tells the answer from the words about it", () => {
+  const { run, editBaseline } = make("no-digest");
+  editBaseline(value => { delete value.entries["detail-notes-plain"]!.digest; });
+  const bare = run();
+  assert.equal(bare.code, 2, bare.out);
+  assert.match(bare.out, /entry detail-notes-plain needs the digest of its answer/);
+  const entry = loadCorpus([path.join(corpusDirectory, "corpus.json")]).entries.find(item => item.id === "detail-notes-plain")!;
+  assert.equal(entryDigest({ ...entry, note: "another sentence", source: "somewhere else" }), entryDigest(entry), "words about the entry are not the entry");
+  for (const changed of [{ answer: entry.answer + " " }, { origin: "recorded" as const }, { attempt: 1 }, { capabilities: [{ id: "x" }] }, { base: { ...entry.base!, title: "other" } }, { expectFailure: "x" }])
+    assert.notEqual(entryDigest({ ...entry, ...changed }), entryDigest(entry), `${Object.keys(changed)[0]} is part of the entry`);
 });
 
 test("a Skill that no longer mounts fails the command; a Skill that changed is reported as outside what this replay can judge", () => {

@@ -1,6 +1,6 @@
 /** The pass-rate report of a replay: what was replayed, how many first answers the host accepted, why it refused the rest, and how that compares with the baseline. */
 import type { Skipped } from './corpus.mjs';
-import type { Baseline, Comparison, ReplayResult, Summary } from './replay.mjs';
+import { failures, type Baseline, type Comparison, type ReplayResult, type Summary } from './replay.mjs';
 
 export interface ReportInput {
   results: readonly ReplayResult[];
@@ -34,10 +34,10 @@ export function renderReport(input: ReportInput): string {
     ...Object.entries(input.skill.stages).map(([stage, mount]) => `${stage.padEnd(11)} ${mount.error ? 'ERROR ' + mount.error : `${mount.chars} chars, version ${mount.version}`}`),
     `prompts: ${Object.entries(input.skill.prompts).map(([name, version]) => `${name} ${version}`).join(', ')}`]));
   if (comparison) {
-    const lists: Array<[string, readonly string[]]> = [['Regressions: answers the host used to accept', comparison.regressions], ['Missing from the corpus', comparison.removed], ['Not in the baseline', comparison.unrecorded],
+    const lists: Array<[string, readonly string[]]> = [['Regressions: answers the host used to accept', comparison.regressions], ['Missing from the corpus', comparison.removed], ['Changed under the same id, or a retired id used again', comparison.changed], ['Not in the baseline', comparison.unrecorded],
       ['Baseline is behind (the host now accepts these)', comparison.behind], ['Refused for a different reason (informational)', comparison.reasonChanged]];
     for (const [title, lines] of lists) out.push(...section(title, lines));
-    const bad = comparison.regressions.length + comparison.removed.length + comparison.unrecorded.length + comparison.behind.length;
+    const bad = failures(comparison);
     out.push('', bad ? `Baseline ${input.baselineLabel}: FAILED (${bad})` : `Baseline ${input.baselineLabel}: every recorded result still holds`);
   }
   out.push(...section('Skill mount problems', input.skillProblems));

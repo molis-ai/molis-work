@@ -44,7 +44,8 @@ jobs:
       # Numbers that may only go down: giant units (class lines and methods apart), tests reaching into package
       # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers (per source
       # file), conflicting translations (per Chinese key), and a status line on every spec in specs/
-      # (specs/repository-anti-corruption §5a). A translator call with no English fails outright (scripts/gates/translations.mjs).
+      # (specs/repository-anti-corruption §5a). A translator call with no English fails outright, and so does a `*_EN` dictionary
+      # that the catalog built in apps/workbench/src/i18n/en.ts never reaches (scripts/gates/translations.mjs).
       # The head and the merge-base are both measured here by the same script and compared, so rewriting
       # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the
       # gate itself (script, limits.json, this step), which is reviewed. The committed baseline.json is not read.

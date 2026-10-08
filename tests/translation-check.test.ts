@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
-import { analyse, isProductSource, missingErrors, ownerTable, scanFile, scanTree, summarise, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
+import { SERVED_ROOT, analyse, isProductSource, missingErrors, ownerTable, scanFile, scanTree, summarise, unservedDictionaries, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
 // specs/repository-anti-corruption decision #16 (W1-08): the translation check scans every translator call and every
 // dictionary instead of a list of files. It is a health-gate metric, so these tests drive scripts/check-health-gates.mjs on a
@@ -33,15 +33,18 @@ const branch = (name: string, mutate: () => void) => {
   commit(name);
 };
 
-// A scratch product: the Workbench dictionary, two plugins with a dictionary each ("说明" is translated two ways, the one
+// A scratch product: the Workbench dictionary (apps/workbench/src/i18n/en.ts builds the catalog the Host serves from the two
+// plugins' dictionaries and its own entries), two plugins with a dictionary each ("说明" is translated two ways, the one
 // frozen conflict), a server-rendered UI, and a browser script in a template literal. "旧的" is a dead key.
 const base = () => {
   put("tooling/gates/limits.json", JSON.stringify({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }, null, 2) + "\n");
   put("specs/demo/spec.md", "# Demo\n\n状态：进行中\n");
   put("apps/workbench/src/i18n/en.ts", [
     'import { ALPHA_EN } from "@scratch/alpha";',
+    'import { BETA_EN } from "@scratch/beta";',
     'export const EN: Record<string, string> = {',
     "  ...ALPHA_EN,",
+    "  ...BETA_EN,",
     '  "设置": "Settings",',
     '  "保存": "Save",',
     "};",
@@ -79,6 +82,10 @@ before(() => {
 });
 after(() => { if (repo) rmSync(repo, { recursive: true, force: true }); });
 
+// A third plugin's dictionary, added to the catalog the way a plugin does it: an import and a spread in the Workbench's en.ts.
+const gamma = (entries: string) => 'export const GAMMA_EN: Record<string, string> = {\n' + entries + '\n};\n';
+const addToRoot = (import_: string, use: string) => put("apps/workbench/src/i18n/en.ts", read("apps/workbench/src/i18n/en.ts").replace('import { ALPHA_EN } from "@scratch/alpha";', `import { ALPHA_EN } from "@scratch/alpha";\n${import_}`).replace("  ...ALPHA_EN,", `  ...ALPHA_EN,\n${use}`));
+const addGamma = (entries: string) => { put("plugins/native/gamma/src/en.ts", gamma(entries)); addToRoot('import { GAMMA_EN } from "@scratch/gamma";', "  ...GAMMA_EN,"); };
 const messages = (owner: string, entries: string) => `export const ${owner.toUpperCase()}_MESSAGES = {\n${entries}\n};\n`;
 
 type Scenario = { name: string; mutate: () => void; expect: RegExp[] };
@@ -112,13 +119,38 @@ const missing: Scenario[] = [
     expect: [/no English for "新的" \(plugins\/native\/alpha\/src\/ui\.ts:2\)/] },
   { name: "a translate() call", mutate: () => put("plugins/native/alpha/src/ui.ts", `${read("plugins/native/alpha/src/ui.ts")}export const viaTranslate = (translate: (value: string) => string) => translate("新的");\n`),
     expect: [/no English for "新的"/] },
+  // Under String.raw the browser gets the text as written. Read as cooked text, `'\n'` is a real line break inside a quoted
+  // string and `\/\/` loses its backslashes, so `/^https?:\/\//` turns into a `//` comment: the parse breaks there and every
+  // call after it on the line is lost.
+  { name: "an L() after '\\n' and a regular expression in a String.raw browser script", mutate: () => put("plugins/native/beta/src/raw-client.ts", [
+    "export const RAW_SCRIPT = String.raw`",
+    "  const parts = text.split('\\n');",
+    "  const web = /^https?:\\/\\//.test(value); document.title = L('新的');",
+    "  console.log(parts, web);",
+    "`;",
+    "",
+  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/raw-client\.ts:3\); add its English to plugins\/native\/beta\/src\/en\.ts/] },
+  { name: "an L() after '\\n' in a String.raw browser script with a substitution", mutate: () => put("plugins/native/beta/src/raw-client.ts", [
+    "const ID = 'x';",
+    "export const RAW_SCRIPT = String.raw`",
+    "  const parts = text.split('\\n'), id = '${ID}'; note = L('新的');",
+    "  const again = L('载入') + /\\d+\\/\\//.test(id) + L('也新的');",
+    "`;",
+    "",
+  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/raw-client\.ts:3\)/, /no English for "也新的" \(plugins\/native\/beta\/src\/raw-client\.ts:4\)/] },
+  { name: "an L() after an escaped newline in an ordinary template", mutate: () => put("plugins/native/beta/src/cooked-client.ts", [
+    "export const COOKED_SCRIPT = `",
+    "  const parts = text.split('\\\\n'); document.title = L('新的');",
+    "`;",
+    "",
+  ].join("\n")), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/cooked-client\.ts:2\)/] },
   { name: "a key with placeholders that no dictionary has", mutate: () => put("apps/workbench/src/renderer.ts", `${read("apps/workbench/src/renderer.ts")}export const n = (L: (zh: string, vars?: Record<string, number>) => string) => L("共 {count} 项", { count: 3 });\n`),
     expect: [/no English for "共 \{count\} 项"/] },
 ];
 
-for (const scenario of missing) {
+const failsAndStaysFailing = (scenario: Scenario) => {
   test(`${scenario.name} fails, and --update does not hide it`, () => {
-    branch("missing", scenario.mutate);
+    branch("absolute", scenario.mutate);
     const caught = gate("--base", "main");
     assert.equal(caught.code, 1, caught.out);
     for (const pattern of scenario.expect) assert.match(caught.out, pattern);
@@ -128,6 +160,45 @@ for (const scenario of missing) {
     assert.equal(still.code, 1, still.out);
     for (const pattern of scenario.expect) assert.match(still.out, pattern);
   });
+};
+for (const scenario of missing) failsAndStaysFailing(scenario);
+
+// A dictionary only counts when the English catalog the Host serves (`EN`, built in apps/workbench/src/i18n/en.ts) reaches it:
+// writing `FOO_EN` and never adding it there leaves the English interface showing Chinese, which no test of the key set sees.
+const gammaText = gamma('  "伽马": "Gamma",');
+const rootText = () => read("apps/workbench/src/i18n/en.ts");
+const unserved: Scenario[] = [
+  { name: "a dictionary that no served dictionary imports", mutate: () => put("plugins/native/gamma/src/en.ts", gammaText),
+    expect: [/dictionary GAMMA_EN \(plugins\/native\/gamma\/src\/en\.ts:1\) is not part of the English the Host serves, so its texts are never shown in English; import GAMMA_EN in apps\/workbench\/src\/i18n\/en\.ts/] },
+  { name: "a dictionary that is imported but never added to EN", mutate: () => { put("plugins/native/gamma/src/en.ts", gammaText); addToRoot('import { GAMMA_EN } from "@scratch/gamma";', ""); },
+    expect: [/dictionary GAMMA_EN \(plugins\/native\/gamma\/src\/en\.ts:1\) is not part of the English the Host serves/] },
+  { name: "a dictionary that is only re-exported by a barrel file", mutate: () => { put("plugins/native/gamma/src/en.ts", gammaText); put("plugins/native/gamma/src/index.ts", 'export { GAMMA_EN } from "./en.js";\n'); },
+    expect: [/dictionary GAMMA_EN \(plugins\/native\/gamma\/src\/en\.ts:1\) is not part of the English the Host serves/] },
+  { name: "a dictionary that a served dictionary's file only re-exports", mutate: () => { put("plugins/native/gamma/src/en.ts", gammaText); put("plugins/native/alpha/src/en.ts", `${read("plugins/native/alpha/src/en.ts")}export { GAMMA_EN } from "@scratch/gamma";\n`); },
+    expect: [/dictionary GAMMA_EN \(plugins\/native\/gamma\/src\/en\.ts:1\) is not part of the English the Host serves/] },
+  { name: "a dictionary that another file only fills with Object.assign", mutate: () => { put("plugins/native/gamma/src/en.ts", gammaText); put("plugins/native/gamma/src/more.ts", 'import { GAMMA_EN } from "./en.js";\nObject.assign(GAMMA_EN, { "更多伽马": "More gamma" });\n'); },
+    expect: [/dictionary GAMMA_EN \(plugins\/native\/gamma\/src\/en\.ts:1\) is not part of the English the Host serves/] },
+  { name: "a second dictionary in a served file that nothing uses", mutate: () => put("plugins/native/alpha/src/en.ts", `${read("plugins/native/alpha/src/en.ts")}export const ALPHA_LATER_EN: Record<string, string> = { "更晚": "Later" };\n`),
+    expect: [/dictionary ALPHA_LATER_EN \(plugins\/native\/alpha\/src\/en\.ts:\d+\) is not part of the English the Host serves/] },
+];
+for (const scenario of unserved) failsAndStaysFailing(scenario);
+
+// The three ways a dictionary does reach EN: spread by the root, merged by it, or spread by a dictionary the root imports.
+const served: Array<{ name: string; mutate: () => void }> = [
+  { name: "spread into EN", mutate: () => addGamma('  "伽马": "Gamma",') },
+  { name: "merged into EN with Object.assign, under another name", mutate: () => { put("plugins/native/gamma/src/en.ts", gammaText); put("apps/workbench/src/i18n/en.ts", `import { GAMMA_EN as G } from "@scratch/gamma";\n${rootText()}Object.assign(EN, G);\n`); } },
+  { name: "spread by a served dictionary of another plugin", mutate: () => {
+    put("plugins/native/gamma/src/en.ts", gammaText);
+    put("plugins/native/alpha/src/en.ts", `import { GAMMA_EN } from "@scratch/gamma";\n${read("plugins/native/alpha/src/en.ts").replace('export const ALPHA_EN: Record<string, string> = {', "export const ALPHA_EN: Record<string, string> = {\n  ...GAMMA_EN,")}`);
+  } },
+];
+for (const scenario of served) {
+  test(`a dictionary ${scenario.name} is served`, () => {
+    branch("served", scenario.mutate);
+    const run = gate("--base", "main");
+    assert.equal(run.code, 0, run.out);
+    assert.match(gate("--report").out, /unserved dictionaries: 0/);
+  });
 }
 
 // Conflicts are frozen: the baseline lists today's, a new one or one more variant fails, and rewriting the baseline in the
@@ -135,7 +206,7 @@ for (const scenario of missing) {
 const conflicts: Scenario[] = [
   { name: "a new conflict between two dictionaries", mutate: () => put("plugins/native/beta/src/en.ts", 'export const BETA_EN: Record<string, string> = {\n  "说明": "Notes",\n  "载入": "Load",\n  "保存": "Store",\n};\n'),
     expect: [/new translation conflict: "保存" is translated 2 ways: "Save" \(apps\/workbench\/src\/i18n\/en\.ts:\d+\) \| "Store" \(plugins\/native\/beta\/src\/en\.ts:\d+\)/] },
-  { name: "one more variant of the frozen conflict", mutate: () => put("plugins/native/gamma/src/en.ts", 'export const GAMMA_EN: Record<string, string> = {\n  "说明": "Caption",\n};\n'),
+  { name: "one more variant of the frozen conflict", mutate: () => addGamma('  "说明": "Caption",'),
     expect: [/translation conflict grew: "说明" has 3 different English texts, was 2/] },
   { name: "a new conflict inside one file (a later block overrides)", mutate: () => put("apps/workbench/src/i18n/en.ts", `${read("apps/workbench/src/i18n/en.ts")}Object.assign(EN, { "设置": "Preferences" });\n`),
     expect: [/new translation conflict: "设置" is translated 2 ways: "Settings" \(apps\/workbench\/src\/i18n\/en\.ts:\d+\) \| "Preferences"/] },
@@ -161,7 +232,7 @@ for (const scenario of conflicts) {
 }
 
 test("a third dictionary that repeats an existing English text adds no conflict", () => {
-  branch("same-english", () => put("plugins/native/gamma/src/en.ts", 'export const GAMMA_EN: Record<string, string> = {\n  "说明": "Notes",\n};\n'));
+  branch("same-english", () => addGamma('  "说明": "Notes",'));
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
 });
@@ -226,6 +297,7 @@ test("renaming or moving a dictionary does not make its frozen conflict new", ()
   branch("moved-dictionary", () => {
     git("mv", "plugins/native/beta/src/en.ts", "plugins/native/beta/src/translations.ts");
     put("plugins/native/beta/src/translations.ts", read("plugins/native/beta/src/translations.ts").replace("BETA_EN", "BETA_FIXED_EN"));
+    put("apps/workbench/src/i18n/en.ts", read("apps/workbench/src/i18n/en.ts").replaceAll("BETA_EN", "BETA_FIXED_EN"));
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
@@ -242,7 +314,7 @@ test("dead keys, comments, tests and build output are reported or ignored, never
   const report = JSON.parse(gate("--report", "--json").out);
   assert.equal(report.head.translations.deadKeys, 2, "旧的 and 更旧的 are mentioned nowhere");
   assert.equal(report.head.translations.missingKeys, 0);
-  assert.match(gate("--report").out, /missing English: 0; stable-key problems: 0; dead keys \(reported only\): 2/);
+  assert.match(gate("--report").out, /missing English: 0; unserved dictionaries: 0; stable-key problems: 0; dead keys \(reported only\): 2/);
 });
 
 test("a key built from a stable prefix keeps the keys of that family from being dead", () => {
@@ -296,6 +368,34 @@ test("this repository: nothing is missing, and the scan covers every kind of cal
   assert.ok(count((call) => !roots.has(call.callee)) > 250, "calls of wrappers and of translators injected as typed parameters");
   assert.ok(count((call) => call.callee === "this.t") > 20 && count((call) => call.callee === "p.L") > 20, "this.t(…) and p.L(…)");
   assert.ok(count((call) => call.callee === "text") > 10, "an injected translator typed as a parameter (text: (value: string, values?: Record<string, string | number>) => string)");
+});
+
+test("this repository: every dictionary is part of the English the Host serves, and the rule is really looking at it", () => {
+  const { scan, summary } = real;
+  assert.deepEqual(scan.unserved, []);
+  assert.equal(summary.unservedDictionaries, 0);
+  // The rule is off when its root cannot be found, so pin the root: it exists, builds `EN`, and uses the dictionaries.
+  const root = scan.files.find((file: { file: string }) => file.file === SERVED_ROOT);
+  assert.ok(root, `${SERVED_ROOT} is not a scanned file: move SERVED_ROOT in scripts/gates/translations.mjs with it`);
+  assert.ok(root.dictionaries.some((item: { name: string }) => item.name === "EN"));
+  const rootUses = new Set([...root.usesBy.values()].flatMap((names: Set<string>) => [...names]));
+  assert.ok(rootUses.size >= 30 && rootUses.has("IMAGES_EN") && rootUses.has("FUNCTIONS_EN"), `the root uses ${rootUses.size} dictionaries`);
+  // Mutations on the real tree: the root stops using a plugin's dictionary, or a new dictionary appears that nothing uses.
+  const without = (name: string) => scan.files.map((file: { file: string; usesBy: Map<string, Set<string>> }) => (file.file === SERVED_ROOT
+    ? { ...file, usesBy: new Map([...file.usesBy].map(([owner, names]) => [owner, new Set([...names].filter((use) => use !== name))])) } : file));
+  assert.deepEqual(unservedDictionaries(without("IMAGES_EN")).map((item: { name: string; file: string }) => `${item.name} ${item.file}`), ["IMAGES_EN plugins/native/images/src/en.ts"]);
+  const extra = scanFile("plugins/native/images/src/more-en.ts", 'export const IMAGES_MORE_EN: Record<string, string> = { "更多": "More" };\n');
+  assert.deepEqual(unservedDictionaries([...scan.files, extra]).map((item: { name: string }) => item.name), ["IMAGES_MORE_EN"]);
+  const spread = scanFile("plugins/native/images/src/en.ts", `${readFileSync(path.join(repoRoot, "plugins/native/images/src/en.ts"), "utf8")}\nexport const IMAGES_LATER_EN = { ...IMAGES_MORE_EN, "后来": "Later" };\n`);
+  assert.deepEqual(unservedDictionaries([...scan.files.filter((file: { file: string }) => file.file !== spread.file), spread, extra]).map((item: { name: string }) => item.name).sort(), ["IMAGES_LATER_EN", "IMAGES_MORE_EN"]);
+});
+
+test("without the catalog root there is nothing to serve from, and the rule stays quiet", () => {
+  const files = [scanFile("plugins/native/gamma/src/en.ts", 'export const GAMMA_EN: Record<string, string> = { "伽马": "Gamma" };\n')];
+  assert.deepEqual(unservedDictionaries(files), []);
+  assert.deepEqual(unservedDictionaries([...files, scanFile(SERVED_ROOT, "export const NOT_THE_CATALOG = 1;\n")]), []);
+  const withRoot = [...files, scanFile(SERVED_ROOT, 'export const EN: Record<string, string> = { "设置": "Settings" };\n')];
+  assert.deepEqual(unservedDictionaries(withRoot).map((item: { name: string }) => item.name), ["GAMMA_EN"]);
 });
 
 test("this repository: every dictionary file is found, wherever it lives", () => {

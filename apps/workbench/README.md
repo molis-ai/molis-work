@@ -57,13 +57,14 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
 | 规则 | 怎样算 | 结果 |
 | --- | --- | --- |
 | 缺英文 | 翻译调用里的中文字面量，在所有词典里都没有 | 失败；头上必须为零 |
+| 词典没接上 | 某本 `*_EN` 词典，[`src/i18n/en.ts`](src/i18n/en.ts) 建的 `EN` 从来没有引用它（直接，或经它引用的另一本词典：`GOALS_EN` 里的 `...GOALS_DIALOGS_EN`、`Object.assign(EN, X_EN)`）。只写了 import、只在别处 `export … from` 转发、只给它 `Object.assign` 填内容，都不算引用——英文照样显示不出来 | 失败；头上必须为零 |
 | 冲突 | 同一句中文有两条译文不同的条目（跨词典，或同一词典的前后两块） | 冻结在 `tooling/gates/baseline.json` 的 `translationConflicts`（键 → 有几种译法）。新键、或老键多一种译法就失败；`--base` 时对照 merge-base 自己的扫描，改基线放不过。冲突少了，用 `--update --base origin/main` 降基线 |
 | 无用键 | 词典里的键，源码里没有任何地方以字面量出现 | 只报告。动态拼出的键先改成常量或稳定键，再删（[路线图](../../specs/repository-anti-corruption/roadmap-2026-10-07.md) W5-03） |
 | 稳定键 | 见下 | 一出现就检查 |
 
-算翻译调用的有：`L(…)`、`x.L(…)`、`p.text(…)`、`translate(…)`、`this.t(…)`；类型写成 `(text: string, values?: Record<string, string | number>) => string` 的参数；同一文件里把参数转交给翻译调用的函数（如 `const t = v => p.escape(p.text(v))`）；模板字符串里的浏览器脚本（按 JavaScript 解析）。`L(a ? "x" : "y")` 和 `L(表[键])`（同一文件里的常量表）按字面量读。`L(变量)` 只计数；别的文件里定义的包装函数不跟。没有汉字的名字（Gmail）两种语言相同，不要英文。
+算翻译调用的有：`L(…)`、`x.L(…)`、`p.text(…)`、`translate(…)`、`this.t(…)`；类型写成 `(text: string, values?: Record<string, string | number>) => string` 的参数；同一文件里把参数转交给翻译调用的函数（如 `const t = v => p.escape(p.text(v))`）；模板字符串里的浏览器脚本（按 JavaScript 解析；`String.raw` 的模板按原文解析，不先转义，否则 `'\n'` 会变成换行、`/^https?:\/\//` 会变成注释，后面的调用都读不到；本身不完整的片段按容错解析读）。`L(a ? "x" : "y")` 和 `L(表[键])`（同一文件里的常量表）按字面量读。`L(变量)` 只计数；别的文件里定义的包装函数不跟。没有汉字的名字（Gmail）两种语言相同，不要英文。
 
-看数字和细节：`node scripts/check-health-gates.mjs --report`；`node scripts/gates/translations.mjs --missing | --conflicts | --dead | --calls | --owners`。规则的变异测试在 [`tests/translation-check.test.ts`](../../tests/translation-check.test.ts)；[`tests/i18n.test.ts`](../../tests/i18n.test.ts) 另查扫描读到的键与 Host 实际提供的 `EN` 完全一致。缺英文时检查会指出该加到哪个词典（Workbench 渲染器与宿主文件加到 [`src/i18n/renderer-gap-en.ts`](src/i18n/renderer-gap-en.ts)）。
+看数字和细节：`node scripts/check-health-gates.mjs --report`；`node scripts/gates/translations.mjs --missing | --conflicts | --dead | --calls | --owners`。规则的变异测试在 [`tests/translation-check.test.ts`](../../tests/translation-check.test.ts)；[`tests/i18n.test.ts`](../../tests/i18n.test.ts)（要先构建，CI 不跑）另查扫描读到的键与 Host 实际提供的 `EN` 完全一致。「词典没接上」一条靠名字追引用，不需要构建，所以 CI 里就能拦；它认的根是 `translations.mjs` 里的 `SERVED_ROOT`，`EN` 以后换地方组装时要一起改（`tests/translation-check.test.ts` 钉住了根还在）。缺英文时检查会指出该加到哪个词典（Workbench 渲染器与宿主文件加到 [`src/i18n/renderer-gap-en.ts`](src/i18n/renderer-gap-en.ts)）。
 
 ### 目标：稳定键
 
@@ -106,9 +107,9 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
 | 借用别的主人词典里的键 | 3 | 迁的时候要给它们建自己的键 |
 | 冲突键 | 2：`图片`（Workbench 译 Image，这里译 Images）、`生成结果`（这里是 Generation result，Shelf 译 Results） | 刚好能演示冲突怎么消：每个意思一个键；同列的 schedule 8、ppt 14、dataset 17 |
 | 无用键 | 6，都是文案改过后留下的旧条目 | 迁的时候顺手删 |
-| 其他 | 1,430 行；上次改界面是 2026-10-02；在途的 `fix/project-deletion-owners` 只动 `store.ts`、`service.ts`（删项目时清数据），不碰 `ui.ts`、`client.ts`、`en.ts`；有 `tests/images-plugin.test.ts`、`tests/images-plugin.e2e.test.ts` | 改动小、有现成回归 |
+| 其他 | `src/*.ts` 共 1,441 行（main 上 1,430，本次补英文加了 11）；main 上次改界面是 2026-10-02；在途的 `fix/project-deletion-owners` 动 `store.ts`、`service.ts`、`index.ts` 和 README（删项目时清数据），不碰 `ui.ts`、`client.ts`、`en.ts`；有 `tests/images-plugin.test.ts`、`tests/images-plugin.e2e.test.ts` | 改动小、有现成回归 |
 
-没选的：Feed（一个文件 372 处调用，但 205 个键是 Workbench 的通用词）、Todo（328 处、64 个键别人也用）、Goals（39 个文件、438 个无用键）、Workbench 自己（78 个文件，`common.*` 在这里定义，放最后）。样板之后按同一张表挑下一个：schedule、lingguang、ppt。
+没选的：Feed（一个文件 372 处调用，但 205 个键借自 Workbench 的词典）、Todo（328 处、64 个键别人也用）、Goals（39 个文件、1,064 处调用、444 个键借自别人的词典，另有 215 个无用键）、Workbench 自己（78 个文件，`common.*` 在这里定义，放最后）。样板之后按同一张表挑下一个：schedule、lingguang、ppt。
 
 ## 开发要求
 
@@ -120,7 +121,7 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
   - 导航与区域从 Manifest 派生（`BUILTIN_PLUGIN_CATALOG`），不按插件名写分支。
   - 内置 build 只在 `builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 绑定一次 Manifest、目录信息、Agent 正文与 UI/静态资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；新的内置插件只走 Plugin Runtime 装配，但仍在同一目录登记一条（该测试要求每个 Runtime 装配的 id 都有目录条目），所以目录本身不是冻结名单；`plugin-catalog.ts` 和 `plugin-workbench.ts` 派生相应投影。资源 order 保持 CSS 与客户端初始化顺序，不改变 Manifest 的导航 order。公共动作发现与授权仍归 Kernel/Host。
   - 插件的 Agent 提示词与方法正文随目录条目的 `agent` 声明，Manifest 只写声明。
-  - 界面文字走 i18n，新增中文文案同时补英文，缺英文由 `pnpm health:check` 拦下（CI 里也跑；做法与稳定键的迁移见上节「界面文字」）；控件只用 design-system，不引入系统弹窗或原生下拉。
+  - 界面文字走 i18n，新增中文文案同时补英文，缺英文、词典没并进 `EN` 由 `pnpm health:check` 拦下（CI 里也跑；做法与稳定键的迁移见上节「界面文字」）；控件只用 design-system，不引入系统弹窗或原生下拉。
   - `development: true` 只标明隔离预览，不能当作真实团队接通的证明。
   - 浏览器端程序由 `src/scripts/client/*` 字符串片段拼成，类型检查看不到里面：改动后跑 `tests/client-script-undeclared.test.ts`，它检查拼接结果里没有未声明的名称（页面全局在测试里列白名单）；进入工作台之前的三段程序（选择页、引导、动效）也在其中。
   - 进入工作台之前的页面是一个框架（标题栏 · 舞台 · 常驻底栏，`arrival/shell.ts`）和一张样式表（`/assets/molis-work-arrival.css`，`styles/arrival.ts`）：页面之间是整页跳转，框架不动；控件与部件只用 design-system 的 `mw-*`，页面样式只排版，不另画一套。

@@ -10,6 +10,8 @@
 //             committed baseline lists today's conflicts (key -> number of different English texts) and a conflict may only
 //             disappear or stay as it is. A new key, or one more variant of an old key, fails. With --base the comparison is
 //             the merge-base's own scan, so rewriting the baseline in a PR hides nothing.
+//   unserved  a `*_EN` dictionary that the English catalog the Host serves (SERVED_ROOT, `EN`) never imports, directly or through
+//             a dictionary that it imports: its English would never be shown. Absolute: the head must have none.
 //   dead      a dictionary key no source file mentions as a literal. Reported, not enforced: dynamic keys have to become
 //             constants or stable keys first (W5-03). The count is printed; `--dead` lists the keys.
 //   stable    the target scheme: a key such as `jelly.calendar.empty` with `{ zh, en }` in its owner's dictionary. Checked as
@@ -44,6 +46,10 @@ const SHARED_OWNER = "common";
 // Where English goes for a renderer or host file that has no dictionary of its own: the Workbench's list of renderer gaps.
 const GAP_DICTIONARY = "apps/workbench/src/i18n/renderer-gap-en.ts";
 const FUNCTIONS_DICTIONARY = "apps/workbench/src/functions/en.ts";
+// The one file that builds the catalog the Host serves (`EN`, read by apps/workbench/src/i18n.ts): it imports the plugins'
+// dictionaries, the Workbench's own and functions/en.ts. Keep this in step with it when the catalog is assembled elsewhere.
+export const SERVED_ROOT = "apps/workbench/src/i18n/en.ts";
+const SERVED_CATALOG = "EN";
 
 // ---- who owns a file ----------------------------------------------------------------------------------------------------
 export const ownerOf = (file) => {
@@ -226,12 +232,43 @@ const stableEntryOf = (property, source) => {
   return { key, zh: zh ? literalText(zh.initializer) : null, en: en ? literalText(en.initializer) : null, line: lineAt(source, property, 1) };
 };
 const mentionable = (text) => text.length <= 600 && (HAN.test(text) || STABLE_KEY.test(text));
+// The dictionaries a file refers to, by the dictionary they feed: `{ A_EN: Set(B_EN, C_EN) }` for `const A_EN = { ...B_EN }` and
+// `Object.assign(A_EN, C_EN)`, and `""` for a use that feeds none (a function, an array). A use is every mention of a `*_EN` name
+// under its exported name (`import { A_EN as B_EN }` makes B_EN mean A_EN), except where the name is declared, filled
+// (`Object.assign(X_EN, …)`, first argument), a property key, or imported or re-exported.
+const dictionaryUses = (source) => {
+  const aliases = new Map();
+  const collect = (node) => {
+    if (ts.isImportSpecifier(node) && node.propertyName) aliases.set(node.name.text, node.propertyName.text);
+    ts.forEachChild(node, collect);
+  };
+  collect(source);
+  const usesBy = new Map();
+  const visit = (node, owner) => {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return;
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && DICTIONARY_NAME.test(node.name.text)) {
+      if (node.initializer) visit(node.initializer, node.name.text);
+      return;
+    }
+    if (ts.isCallExpression(node) && calleeText(node.expression) === "Object.assign" && node.arguments[0] && ts.isIdentifier(node.arguments[0])) {
+      const target = aliases.get(node.arguments[0].text) ?? node.arguments[0].text;
+      if (DICTIONARY_NAME.test(target)) { node.arguments.slice(1).forEach((argument) => visit(argument, target)); return; }
+    }
+    if (ts.isIdentifier(node) && !(ts.isPropertyAssignment(node.parent) && node.parent.name === node)) {
+      const exported = aliases.get(node.text) ?? node.text;
+      if (DICTIONARY_NAME.test(exported)) usesBy.set(owner, (usesBy.get(owner) ?? new Set()).add(exported));
+    }
+    ts.forEachChild(node, (child) => visit(child, owner));
+  };
+  visit(source, "");
+  return usesBy;
+};
 
 /** Everything one file says about translations. */
 export function scanFile(file, text) {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const declared = declaredTranslators(source);
-  const result = { file, entries: [], stable: [], calls: [], dynamic: [], mentions: new Set() };
+  const result = { file, entries: [], stable: [], dictionaries: [], usesBy: dictionaryUses(source), calls: [], dynamic: [], mentions: new Set() };
 
   // One syntax tree: the file itself, or a browser script found in one of its template literals (`first` is the line the
   // template starts on). Only the file itself holds dictionaries.
@@ -242,13 +279,14 @@ export function scanFile(file, text) {
       if (!embedded) {
         if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && DICTIONARY_NAME.test(node.name.text)) {
           const literal = objectOf(node.initializer);
-          if (literal) { result.entries.push(...entriesOf(literal, tree)); return; }
+          if (literal) { result.dictionaries.push({ name: node.name.text, line: lineAt(tree, node, 1) }); result.entries.push(...entriesOf(literal, tree)); return; }
         }
         if (ts.isCallExpression(node) && calleeText(node.expression) === "Object.assign" && node.arguments[0] && ts.isIdentifier(node.arguments[0]) && DICTIONARY_NAME.test(node.arguments[0].text)) {
           for (const argument of node.arguments.slice(1)) {
             const literal = objectOf(argument);
             if (literal) result.entries.push(...entriesOf(literal, tree));
           }
+          result.dictionaries.push({ name: node.arguments[0].text, line: lineAt(tree, node, 1) });
           return;
         }
         if (ts.isPropertyAssignment(node)) {
@@ -268,8 +306,13 @@ export function scanFile(file, text) {
       }
       if (ts.isStringLiteralLike(node) && mentionable(node.text)) result.mentions.add(node.text);
       if (!embedded && (ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateExpression(node))) {
-        const body = ts.isNoSubstitutionTemplateLiteral(node) ? node.text
-          : node.head.text + node.templateSpans.map((span, index) => `__SUB${index}__${span.literal.text}`).join("");
+        // The program the browser gets is the cooked text of the template, except under String.raw, where it is the text as
+        // written: there `'\n'` stays an escape inside a string and `/^https?:\/\//` stays a regular expression, instead of
+        // a real line break and a `//` comment that would hide every call after it on the line.
+        const raw = ts.isTaggedTemplateExpression(node.parent) && node.parent.template === node && calleeText(node.parent.tag) === "String.raw";
+        const part = (literal) => (raw ? literal.rawText ?? "" : literal.text);
+        const body = ts.isNoSubstitutionTemplateLiteral(node) ? part(node)
+          : part(node.head) + node.templateSpans.map((span, index) => `__SUB${index}__${part(span.literal)}`).join("");
         if (/(?:^|[^\w$])L\(/.test(body)) {
           const script = ts.createSourceFile(`${file}#script`, body, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
           visitTree(script, lineAt(tree, node, first), true);
@@ -295,6 +338,37 @@ export function scanTree(snapshot, isSource) {
     if (text !== null) files.push(scanFile(file, text));
   }
   return analyse(files);
+}
+
+/**
+ * The dictionaries the served catalog never reaches. `EN` is served; a name is served when a served dictionary uses it
+ * (`GOALS_EN` spreads `GOALS_DIALOGS_EN`, the root merges `Object.assign(EN, X_EN)`), or when it is used outside any
+ * dictionary of a file that declares a served one. It follows names, not module paths, so it needs no resolver for package
+ * specifiers; the cost is that two files declaring the same name are served together.
+ */
+export function unservedDictionaries(files) {
+  const root = files.find((file) => file.file === SERVED_ROOT);
+  if (!root || !root.dictionaries.some((item) => item.name === SERVED_CATALOG)) return [];
+  // `EN` is the root's own; another file's `EN` is not the catalog.
+  const isCatalog = (file, name) => name === SERVED_CATALOG && file === root;
+  const declaredBy = new Map();
+  for (const file of files) for (const { name } of file.dictionaries) if (name !== SERVED_CATALOG || isCatalog(file, name)) declaredBy.set(name, [...(declaredBy.get(name) ?? []), file]);
+  const served = new Set([SERVED_CATALOG]), queue = [SERVED_CATALOG];
+  const reach = (name) => { if (!served.has(name)) { served.add(name); queue.push(name); } };
+  while (queue.length) {
+    const name = queue.pop();
+    for (const file of declaredBy.get(name) ?? []) for (const owner of [name, ""]) file.usesBy.get(owner)?.forEach(reach);
+  }
+  const seen = new Set(), unserved = [];
+  for (const file of files) {
+    for (const item of file.dictionaries) {
+      const id = `${file.file}\0${item.name}`;
+      if ((served.has(item.name) && (item.name !== SERVED_CATALOG || isCatalog(file, item.name))) || seen.has(id)) continue;
+      seen.add(id);
+      unserved.push({ name: item.name, file: file.file, line: item.line });
+    }
+  }
+  return unserved;
 }
 
 export function analyse(files) {
@@ -356,7 +430,7 @@ export function analyse(files) {
   for (const [key, list] of stableByKey) {
     if (!mentions.has(key) && !families.some((prefix) => key.startsWith(prefix))) dead.push({ key, kind: "stable", files: [...new Set(list.map((item) => item.file))] });
   }
-  return { files, dictionaryFiles, entryCount, byKey, duplicated, conflicts, stableByKey, stableErrors, calls, dynamicCalls, missing, dead };
+  return { files, dictionaryFiles, entryCount, byKey, duplicated, conflicts, stableByKey, stableErrors, calls, dynamicCalls, missing, dead, unserved: unservedDictionaries(files) };
 }
 
 // ---- numbers for the gate and the report -----------------------------------------------------------------------------------------
@@ -382,6 +456,7 @@ export function summarise(scan) {
     dynamicCalls: scan.dynamicCalls.length,
     deadKeys: scan.dead.length,
     missingKeys: missing.length,
+    unservedDictionaries: scan.unserved.length,
     stableErrors: scan.stableErrors.length,
   };
   Object.defineProperty(result, "detail", { value: { scan, missing }, enumerable: false });
@@ -410,6 +485,9 @@ export function missingErrors(result) {
   return lines;
 }
 
+export const unservedErrors = (result) => result.detail.scan.unserved.map((item) =>
+  `dictionary ${item.name} (${item.file}:${item.line}) is not part of the English the Host serves, so its texts are never shown in English; import ${item.name} in ${SERVED_ROOT} (or in a dictionary that it imports) and spread it into ${SERVED_CATALOG}`);
+
 /** The conflict rule: against the merge-base's (or the committed baseline's) key -> variants, nothing may be new or grow. */
 export function conflictGrowth(head, reference) {
   const errors = [];
@@ -436,7 +514,7 @@ export function createTranslationMetric(host) {
       host.requireShape(host.isRecord(json.translationConflicts) && Object.values(json.translationConflicts).every(Number.isInteger), "translationConflicts");
       return { conflicts: json.translationConflicts };
     },
-    absolute: (result) => [...missingErrors(result), ...result.detail.scan.stableErrors],
+    absolute: (result) => [...missingErrors(result), ...unservedErrors(result), ...result.detail.scan.stableErrors],
     grew: (head, reference) => conflictGrowth(head, reference),
     lowered: (head, reference) => Object.keys(head.conflicts).length < Object.keys(reference.conflicts).length
       || Object.entries(head.conflicts).some(([key, count]) => reference.conflicts[key] !== undefined && count < reference.conflicts[key]),
@@ -444,14 +522,14 @@ export function createTranslationMetric(host) {
       const top = env.top ?? 10;
       const out = [`Translations: ${head.dictionaries} dictionaries, ${head.entries} entries (${head.distinctKeys} distinct keys, ${head.duplicatedKeys} defined more than once), ${head.stableKeys} stable keys`,
         `  ${head.calls} translator calls with a literal key in ${head.callFiles} files, ${head.dynamicCalls} dynamic calls`,
-        `  missing English: ${head.missingKeys}; stable-key problems: ${head.stableErrors}; dead keys (reported only): ${head.deadKeys}`,
+        `  missing English: ${head.missingKeys}; unserved dictionaries: ${head.unservedDictionaries}; stable-key problems: ${head.stableErrors}; dead keys (reported only): ${head.deadKeys}`,
         `  conflicting keys: ${Object.keys(head.conflicts).length}${head.conflictsInOneFile ? ` (${head.conflictsInOneFile} inside one file)` : ""}${reference ? `, base ${Object.keys(reference.conflicts).length}` : ""}; most variants first:`];
       const rows = Object.entries(head.conflicts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh"));
       for (const [key, count] of rows.slice(0, top)) out.push(`  ${String(count).padStart(5)}${reference ? String(reference.conflicts[key] ?? "new").padStart(7) : ""}  ${quote(key)}`);
       if (rows.length > top) out.push(`  … ${rows.length - top} more (--top N, or node scripts/gates/translations.mjs --conflicts)`);
       return out;
     },
-    summary: (result) => `${Object.keys(result.conflicts).length} translation conflicts, ${result.missingKeys} missing English`,
+    summary: (result) => `${Object.keys(result.conflicts).length} translation conflicts, ${result.missingKeys} missing English, ${result.unservedDictionaries} unserved dictionaries`,
   };
 }
 
@@ -506,7 +584,7 @@ export function main(argv) {
   const result = summarise(scan);
   if (flags.has("--json")) { console.log(JSON.stringify(result, null, 2)); return 0; }
   console.log(createTranslationMetric({ isSource: isProductSource }).lines(result, undefined, { top: 0 }).slice(0, 4).join("\n"));
-  if (flags.has("--missing")) for (const line of missingErrors(result)) console.log(`missing: ${line}`);
+  if (flags.has("--missing")) for (const line of [...missingErrors(result), ...unservedErrors(result)]) console.log(`missing: ${line}`);
   if (flags.has("--conflicts")) {
     for (const [key, list] of [...scan.conflicts].sort(([a], [b]) => a.localeCompare(b, "zh"))) {
       console.log(`\n${quote(key)}: ${variantsOf(list)} English texts`);
@@ -521,7 +599,7 @@ export function main(argv) {
     for (const row of ownerTable(scan)) console.log(`${row.owner.padEnd(16)}${columns.map((name) => String(row[name]).padStart(13)).join("")}`);
     console.log("\nembedded: calls inside browser scripts; foreign: keys it uses that another owner's dictionary defines; usedByOthers: keys of its own dictionary another owner also uses.");
   }
-  return result.missingKeys || result.stableErrors ? 1 : 0;
+  return result.missingKeys || result.unservedDictionaries || result.stableErrors ? 1 : 0;
 }
 
 // exitCode, not exit(): a pipe is not drained when the process exits at once, and --dead is long.

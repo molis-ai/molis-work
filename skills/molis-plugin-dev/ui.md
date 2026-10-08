@@ -119,7 +119,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 ## 文案与 i18n
 
-- UI 字符串用中文当 key：`p.text("加入 Inbox")`。英文写插件 `src/en.ts`，**还要**在 `apps/workbench/src/i18n/en.ts` 里 `import { X_EN }` 并展开进总表。只写插件文件，英文界面仍是中文 key。缺英文由 `pnpm health:check` 拦下（CI 也跑），`node scripts/gates/translations.mjs --missing` 列出缺哪句、该加到哪个词典。
+- UI 字符串用中文当 key：`p.text("加入 Inbox")`。英文写插件 `src/en.ts`，**还要**在 `apps/workbench/src/i18n/en.ts` 里 `import { X_EN }` 并展开进总表。只写插件文件，英文界面仍是中文 key。两种漏写都由 `pnpm health:check` 拦下（CI 也跑）：调用的中文原文没有英文，和 `X_EN` 写了却没并进总表；`node scripts/gates/translations.mjs --missing` 列出缺哪句、该加到哪个词典，哪本词典没接上。检查靠变量名以 `_EN` 结尾认词典。
 - 按钮说人做的事，不说机制（不要「提交 Attention Command」）。
 - 空态说明下一步能做什么，不要空讲架构。
 

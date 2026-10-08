@@ -41,6 +41,26 @@ jobs:
       - name: Verify package contracts and boundaries
         run: pnpm workspace:verify
 
+      # Page resource budget (specs/repository-anti-corruption §4.8/§4.13, decision #17): every asset the host sends under
+      # /assets/ (the three stylesheets, the workbench client scripts, the Pages editor, the plugin client packs, the fonts)
+      # is frozen at its current size and may only fall. It is measured from the build the step above just made, so it must
+      # come after it. tooling/gates/page-assets.json is compared with the merge-base's copy (the one the health gates
+      # use): a PR cannot raise a number or add an asset by editing that file, only by changing the gate, which is reviewed.
+      - name: Page asset budgets (against the merge-base)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base="$(node scripts/ci-health-base.mjs)"
+          node scripts/gates/page-assets.mjs --base "$base"
+
+      # The budget rules are mutation-verified on a scratch repository and on a fake host build: a grown asset, a new asset,
+      # a raised budget, a slack left unlowered and a missing build each fail, and so does the laundering move after
+      # `--update` or after the budget file was raised by hand. The last case runs the real gate on this build.
+      - name: Page asset budget rules reject what they claim to
+        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts
+
       # Numbers that may only go down: giant units (class lines and methods apart), tests reaching into package
       # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers (per source
       # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a).

@@ -537,6 +537,7 @@
 | vendored 包数量 | `vendor/prologue-sdk/*.tgz` 不超过 2 份 | #170 合入后 1 份 | 放回一份旧包 |
 | spec 状态句与根目录 | `specs/` 根目录每份都有状态句；只许在做的与现行规范 | 当前根目录 | 新建一份没有状态句的 spec |
 | 兼容逻辑不回流 | 源码不再出现 `ALTER TABLE`、`ensureSqliteColumn`、旧产品名与兼容标记（建库基线与允许名单除外） | 删兼容后为 0 | 加一处 `ALTER TABLE` |
+| 页面资源预算（§4.8，用户决定 #17） | 宿主 `apps/local-host/src/web-assets.ts` 声明的每个 `/assets/` 路径（三份样式表、工作台与能力两份脚本、Pages 编辑器、各插件客户端包、字体）向构建产物要内容，量发出去的字节数；CI 在 `workspace:verify` 之后跑，预算文件与 merge-base 里的那份比，调大数字、加条目都放不过；数字必须等于实测 | `tooling/gates/page-assets.json`（先冻结，只许变小；旧皮肤删完后再定真实上限） | 工作台样式表多一个字节；新增一个 `/assets/` 路由；手改预算调大 |
 | 独立整页（artifact-positioning S7） | 除例外清单外没有路由返回完整 HTML；插件内容里不出现自带外壳；站内链接不跳出工作台 | [artifact-positioning §4](../artifact-positioning/spec.md) | 加一个返回整页的路由 |
 | 成果库声明（artifact-positioning A7） | manifest 声明与实际写入一致；可见类型必须有预览；交换数据不进用户可见列表 | 同上 | 写一个未声明的类型 |
 
@@ -547,6 +548,7 @@
 - 突变验证四项都失败。
 - 实例：基线若从 98984bf7 起算，#171 会被拦下。它让 `events-primary.ts`、`navigation-feed.ts`、`craft-finish.ts` 三个超长文件又变长，并新增 2 处测试内部引用。
 - 静态检查规则集与公开 API 快照放下一批：要加 ESLint 依赖或生成 `.d.ts` 清单。
+- 页面资源预算（W1-07）已做：`scripts/gates/page-assets.mjs`、`pnpm page-assets:check`，CI 在 `workspace:verify` 之后一步，规则用例 `tests/page-assets-budget.test.ts`（临时仓库 + 假宿主构建 + 本仓库真构建）。冻结时（`31c357df` 上的构建）量到 29 个文件、11,481,575 字节：工作台样式表 1,946,506、设置样式表 1,341,060、开场样式表 1,022,266、工作台脚本 1,414,769、Pages 编辑器 1,051,178、21 个插件客户端包（coding、files、git、diff、text-stats 各约 498 KB，合计 3,442,954）、两个字体。这是冻结值，不是目标，现行数字以 `tooling/gates/page-assets.json` 为准：旧皮肤删完后再定真实上限（`VISUAL_FOUNDATION_STYLES` 现在把五套旧皮肤拼进每个页面）。宿主不压缩这些响应，所以量的是原始字节。没覆盖：首屏 HTML 的大小与首屏时间（要带数据的宿主）、终端客户端 `dist/web/pty-client.js`（根 `pnpm build:pty-client` 生成，CI 不跑）。
 
 CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.yml`）；以上门禁都以非浏览器用例或脚本形式加到 `architecture-boundaries` 作业里，时间预算 3 分钟以内。
 
@@ -707,7 +709,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | §4.10 新合同全链路 | 部分：成果库的预览、固定、比较、继续协议都有门禁与用例；其余合同待做 | artifact-positioning A4–A7 |
 | §4.11 数据与可靠性 | 待做；真实 Home 旧成果表已删 | §1 |
 | §4.12 卫生与文档 | 部分：vendored 已收到一份；`MIGRATION.md` 未归档；工作树清理按用户决定做了一部分 | §7 |
-| §4.13 门禁 | 第一批已接（健康门禁、整页门禁、成果类型与声明门禁）；静态检查、API 快照、页面资源预算待做 | §5a |
+| §4.13 门禁 | 第一批已接（健康门禁、整页门禁、成果类型与声明门禁），页面资源预算已接（冻结值，`scripts/gates/page-assets.mjs`）；静态检查、API 快照待做 | §5a |
 | §4.14 手册与 Skill | 部分：插件开发 Skill 写明了成果类型的 title、preview、pin、compare、continue | `skills/molis-plugin-dev/elements.md` |
 | §4.15 术语表 | 待做 | — |
 | §4.16 静态检查 | 待做：仓库没有 lint/format 脚本 | `package.json` |

@@ -32,8 +32,9 @@ jobs:
         with:
           node-version: 24
 
+      # The version is the root package.json "packageManager" (pnpm@x.y.z), so local, CI and release use one pin.
       - name: Install pnpm
-        run: npm install --global pnpm@11.9.0
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -46,7 +47,9 @@ jobs:
       # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a).
       # The head and the merge-base are both measured here by the same script and compared, so rewriting
       # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the
-      # gate itself (script, limits.json, this step), which is reviewed. The committed baseline.json is not read.
+      # gate itself (script, limits.json, this step), which is reviewed. tooling/gates/giant-exceptions.json is no way around
+      # it: an entry only records why a unit that is already giant at the merge-base has to stay long, and admits nothing
+      # new. The committed baseline.json is not read.
       # The comparison commit: on a pull request, HEAD is the merge commit GitHub builds (refs/pull/N/merge), so it is the
       # merged result against the base branch as it was merged (HEAD^1); on a push to main it is the previous tip.
       # scripts/ci-health-base.mjs picks it and fetches it when the shallow checkout lacks it.
@@ -63,6 +66,15 @@ jobs:
       # the same branch after `--update` rewrote the baseline.
       - name: Health gates reject what they claim to
         run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts tests/package-inventory-gate.test.ts
+
+      # One product version (docs/releases/POLICY.md): the root package, the Tauri shell and the two version strings in
+      # code agree, workspace packages stay private 0.0.0, the current version has release notes and a CHANGELOG
+      # section, and the per-database version table in docs/releases/CHECKLIST.md is the one the code has. The test
+      # mutation-verifies each rule on a scratch tree.
+      - name: Release versions agree
+        run: |
+          node scripts/verify-release-versions.mjs
+          node scripts/run-tests.mjs tests/verify-release-versions.test.ts
 
       - name: Verify Goal boundaries, storage baselines and release assets
         run: |

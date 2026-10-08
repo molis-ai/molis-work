@@ -1,6 +1,6 @@
 # 术语表
 
-状态：现行（2026-10-08，按 main `e4bdeb12` 的代码核对，并按同日全部 27 项用户决定修订）。第 4 节的界面用词等用户批准；第 5 节的代码改名尚未执行。
+状态：现行（2026-10-08，按 main `bf99c8cb` 的代码核对，并按同日全部 27 项用户决定修订）。第 4 节的界面用词等用户批准；第 5 节的代码改名尚未执行。
 
 这份表回答「同一个东西在仓库里该叫什么」。依据是用户 2026-10-08 的决定（`specs/repository-anti-corruption/spec.md` §1「术语表收敛范围」）：文档里一个概念一个名字、一个定义；代码内部标识符随之改名；用户看得见的用词变化先列清单、经用户批准再发。任务来源是 `docs/prompts/repository-anti-corruption.md` §4.15。
 
@@ -212,7 +212,7 @@
 | --- | --- | --- |
 | `project_plugin_id` | 项目里启用与隐藏、插件切换器、工作面都用的短 id（`ProjectPluginId`） | `goals`、`form`、`plugin-builder` |
 | `manifest.plugin_id` | 插件的身份键，安装记录、事件订阅、发行物留存、提示词覆盖（`owner_id`）等都以它为键；签名变了同样视为另一个插件，旧授权、存储和绑定不继承（`docs/platform/PLUGIN-PLATFORM.md` §2） | `io.molis.work.sessions` |
-| `manifest.name` | Manifest 里的名字。它不只是导航标题缺省时的显示名：成果类型声明、「继续」与「被谁引用」入口里的 `plugin_title` 取它（`apps/workbench/src/plugin-catalog.ts:305,313,322`），成果预览里的「在 X 打开原对象」用它（`apps/local-host/src/artifact-native-plugin-http.ts:59`），动作提供方的标题也取它（`apps/local-host/src/content-action-providers.ts:33`），所以会出现在界面上 | `Forms`、`待办` |
+| `manifest.name` | Manifest 里的名字。它不只是导航标题缺省时的显示名：成果类型声明、「继续」与「被谁引用」入口里的 `plugin_title` 取它（`apps/workbench/src/plugin-catalog.ts:305,313,322`），成果预览里的「在 X 打开原对象」用它（`apps/local-host/src/artifact-native-plugin-http.ts:61`），动作提供方的标题也取它（`apps/local-host/src/content-action-providers.ts:33`），所以会出现在界面上 | `Forms`、`待办` |
 | 界面显示名 | `manifest.ui.views[].title`，插件切换器和标签页标题用它 | `Forms`、`角色` |
 | 目录与包名 | `plugins/native/<目录>`，`@molis-ai/molis-work-plugin-<目录>` | `plugins/native/work` |
 
@@ -261,7 +261,7 @@
 
 1. **Manifest 的 `plugin_id` 多一段 `.native.`**：只有工作流程（`plugins/native/workflows/src/model.ts:7`）。它是安装记录、事件订阅、发行物留存和提示词覆盖（`owner_id`，`plugins/native/workflows/src/prompts.ts:5`）的键，改名属 R-B8。
 2. **UI 描述里的 `plugin_id` 与 Manifest 不一致**：6 个插件共 19 个描述写成 `io.molis.work.native.<x>`，而它们的 Manifest 是 `io.molis.work.<x>`（会话插件的 Manifest 是 `io.molis.work.sessions`，描述却是 `io.molis.work.native.work`）。位置：Goals 12 个（`plugins/native/goals/src/` 下的 `context-ui.ts:20`、`decision-results-ui.ts:13`、`dialogs-ui.ts:94`、`document-ui.ts:60`、`factors-ui.ts:64`、`momentum-ui.ts:70`、`planning-ui.ts:26`、`policy-ui.ts:147`、`proposal-ui.ts:203`、`relation-ui.ts:145`、`status-ui.ts:81`、`tree-ui.ts:256`），Feed `ui.ts:164`，Inbox `ui.ts:37`，Schedule `ui.ts:33`，成果 `browser-ui.ts:223` 与 `reference-ui.ts:33`，会话 `ui/contribution.ts:9` 与 `ui/terminal.ts:16`。Plugin Runtime 对经它装配的插件的视图描述会拒绝这种不一致（`packages/plugin-runtime/src/contribution.ts:51`），构建期装配的插件没有这道检查，所以没被发现。`descriptor.plugin_id` 只被这道检查和已安装插件的客户端加载（`packages/ui-host/src/plugin-client.ts:31`）读取，我没有找到把它存进库的地方，所以改名属 R-A9，不属 R-B。但 `tests/builtin-plugin-composition.test.ts:44-48` 的注释写着构建期 UI 的「旧公开身份保持稳定」，并断言了其中两个描述的 `plugin_id`，改前要先确认那条断言想钉的是 `plugin_id` 还是只是 `contribution_id`。
-3. **成果版本里记着一个不同的生产者 id**：Feed 的出站规则生成成果版本时，生产者写的是 `FEED_ARTIFACT_PRODUCER`（`plugins/native/feed/src/out-rules.ts:16-17,221`），`plugin_id` 为 `io.molis.work.native.feed`，`binding_signature` 为 `native:feed`；Feed 的 Manifest 是 `io.molis.work.feed`（`plugins/native/feed/src/identity.ts:1`）。生产者存进成果表的 `producer_plugin_id`（`modules/artifacts/src/repository.ts:51`），所以这是已存数据，改名属 R-B9。它还有一个后果：宿主按声明检查内置插件的写入时用生产者的 `plugin_id` 查内置目录，查不到的生产者放行（`apps/local-host/src/declared-types.ts:11-17`），所以这条写入没有被对照 Feed 的 `artifacts.produces` 检查。
+3. **成果版本里记着一个不同的生产者 id**：Feed 的出站规则生成成果版本时，生产者写的是 `FEED_ARTIFACT_PRODUCER`（`plugins/native/feed/src/out-rules.ts:16-17,221`），`plugin_id` 为 `io.molis.work.native.feed`，`binding_signature` 为 `native:feed`；Feed 的 Manifest 是 `io.molis.work.feed`（`plugins/native/feed/src/identity.ts:1`）。生产者存进成果表的 `producer_plugin_id`（`modules/artifacts/src/repository.ts:52`），所以这是已存数据，改名属 R-B9。它还有一个后果：宿主按声明检查内置插件的写入时用生产者的 `plugin_id` 查内置目录，查不到的生产者放行（`apps/local-host/src/declared-types.ts:11-17`），所以这条写入没有被对照 Feed 的 `artifacts.produces` 检查。
 4. **贡献 id（`contribution_id`）不是插件 id**：多数内置插件的贡献 id 以 `io.molis.work.native.<x>.` 开头（如 `io.molis.work.native.todo.ui.v1`，`plugins/native/todo/src/ui.ts:4`）。这是贡献 id 的命名空间，不要拿它推 `plugin_id`；它不在改名范围内。
 
 
@@ -365,13 +365,13 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 
 ## 5. 代码改名后续清单
 
-按类别分。规模是 2026-10-08 在 main `e4bdeb12` 上数的，只用来估大小，落地前要重数：「源码」指已追踪的 `.ts`、`.mts`、`.mjs` 文件，不含任何 `tests/` 目录、`*.test.*`、`.impeccable/` 和 `vendor/`；「测试」指 `tests/` 目录和 `*.test.*`；名字按单词边界数（`@molis-ai/molis-work-plugin-work` 要避开 `-workflows`）。新名字是建议，落地时可调整；落地归路线表里的 W5-14（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）。
+按类别分。规模是 2026-10-08 在 main `bf99c8cb` 上数的，只用来估大小，落地前要重数：「源码」指已追踪的 `.ts`、`.mts`、`.mjs` 文件，不含任何 `tests/` 目录、`*.test.*`、`.impeccable/` 和 `vendor/`；「测试」指 `tests/` 目录和 `*.test.*`；名字按单词边界数（`@molis-ai/molis-work-plugin-work` 要避开 `-workflows`）。新名字是建议，落地时可调整；落地归路线表里的 W5-14（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）。
 
 ### R-A　只改标识符（不动持久化数据，不动合同 id；编译和现有测试可以校验）
 
 | # | 旧标识符 | 建议新名 | 规模 | 说明 |
 | --- | --- | --- | --- | --- |
-| R-A1 | `GoalsBoardRecord`、`getBoard`、`requireBoard`、`checkGoalBoard`、`validateManagedBoard`、`readManagedBoard`、`initializeBoard`（含 `InitializeBoardInput`、`InitializeBoardOutput`、`initializeBoardCapability`）、`BoardSnapshot*`（含 `boardSnapshotSchema`、`snapshotBoardCapability`）、`MolisWorkCommands`（在 `board-commands.ts`）、`GOAL_BOARDS_SCHEMA_SQL` | 去掉 Board：目标资料库（Goals 根记录）写 `GoalsLibrary*`（如 `GoalsLibraryRecord`、`getGoalsLibrary`、`requireGoalsLibrary`、`initializeGoalsLibrary`）；`BoardSnapshot*` 去掉 Board 前缀，具体名落地时定（`GoalsQuerySnapshot` 已存在，避开）；`MolisWorkCommands` 改 `GoalsLibraryCommands` | 源码：`GoalsBoardRecord` 4 个文件、`getBoard` 10、`requireBoard` 10、`checkGoalBoard` 1（36 处）、`validateManagedBoard`/`readManagedBoard` 4、`initializeBoard` 系 14、`BoardSnapshot` 13；测试：`initializeBoard` 系 56 | 表名 `boards` 保留（2026-10-06 决定）。`initializeBoard` 在测试里是初始化项目的目标资料库的公用写法，改名要连测试一起 |
+| R-A1 | `GoalsBoardRecord`、`getBoard`、`requireBoard`、`checkGoalBoard`、`validateManagedBoard`、`readManagedBoard`、`initializeBoard`（含 `InitializeBoardInput`、`InitializeBoardOutput`、`initializeBoardCapability`）、`BoardSnapshot*`（含 `boardSnapshotSchema`、`snapshotBoardCapability`）、`MolisWorkCommands`（在 `board-commands.ts`）、`GOAL_BOARDS_SCHEMA_SQL` | 去掉 Board：目标资料库（Goals 根记录）写 `GoalsLibrary*`（如 `GoalsLibraryRecord`、`getGoalsLibrary`、`requireGoalsLibrary`、`initializeGoalsLibrary`）；`BoardSnapshot*` 去掉 Board 前缀，具体名落地时定（`GoalsQuerySnapshot` 已存在，避开）；`MolisWorkCommands` 改 `GoalsLibraryCommands` | 源码：`GoalsBoardRecord` 4 个文件、`getBoard` 10、`requireBoard` 10、`checkGoalBoard` 1（36 处）、`validateManagedBoard`/`readManagedBoard` 4、`initializeBoard` 系 14、`BoardSnapshot` 13；测试：`initializeBoard` 系 58 | 表名 `boards` 保留（2026-10-06 决定）。`initializeBoard` 在测试里是初始化项目的目标资料库的公用写法，改名要连测试一起 |
 | R-A2 | 文件 `modules/goals/src/board-commands.ts`、`plugins/native/goals/src/board-actions.ts`、`board-entry-capabilities.ts`、`board-snapshot-query.ts`；`tests/goals-board-actions.test.ts` | 去掉 `board-` 前缀 | 5 个文件 | 引用这些路径的 README 和 `docs/` 同步 |
 | R-A3 | 判断规则的 TypeScript 类型：`FunctionRecord`、`FunctionDraftPatch`、`FunctionSummary`、`FunctionDescribe`、`FunctionSample`、`FunctionCriteria`、`FunctionInvokeResult`、`FunctionsPrimitive`、`FunctionStatus`、`FunctionAuthoring*` | `JudgmentRule*` | 源码 9 个文件、测试 3 个 | 只改类型名；`function_key`、表和动作 id 见 R-B2 |
 | R-A4 | 包 `@molis-ai/molis-work-module-functions`、目录 `modules/functions`、`apps/workbench/src/functions/`、`apps/local-host/src/functions-*.ts` | `judgment-rules` | 源码 15 个文件、测试 20 个文件导入这个包名 | Home 里的 `functions` 库名属合同，见 R-B2 |

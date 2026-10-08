@@ -6,7 +6,10 @@
 //   darwin   touches macOS-only paths or tools (platform guards, Seatbelt, Keychain, launchctl, Swift helpers, /Applications).
 //            Run, and marked: a failure here is read as "platform", a failure without the mark as "look at this first".
 //   live     reaches a real model or service when its opt-in is present (live-* files, MOLIS_WORK_LIVE_*, real-network opt-ins,
-//            a model API key it requires). Run without those opt-ins, so they skip; marked so a skip is not read as a pass.
+//            a model API key it requires). Run without those opt-ins, so the live tests inside skip. A file with nothing else
+//            is recorded as `skipped` (never a pass); a file that also has tests which are not live (the real
+//            tests/plugin-sandbox-network.test.ts has six of them) is a `pass` whose skips are counted, and the summary lists it
+//            under "Passed with some tests skipped". The mark is how a reader tells such a pass from a plain one.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 

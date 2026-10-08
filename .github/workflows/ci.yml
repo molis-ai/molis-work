@@ -92,8 +92,9 @@ jobs:
         run: node scripts/run-tests.mjs tests/secret-scan.test.ts
 
       # The Linux probe's own rules (the linux-probe job below only reports): browser files are left out and the rest marked
-      # darwin or live from their own source, every result is recorded as what it is, a process a test leaves behind is stopped.
-      # Runs fake test files in a scratch directory; about ten seconds.
+      # darwin or live from their own source, every result is recorded as what it is, a process a test leaves behind is stopped,
+      # and a run that is cancelled or killed still leaves a report of what it had. Runs fake test files in a scratch directory;
+      # about half a minute.
       - name: Linux probe rules
         run: node scripts/run-tests.mjs tests/ci-linux-probe.test.ts
 
@@ -153,13 +154,18 @@ jobs:
   # protection is untouched. scripts/ci-linux-probe.mjs runs the test files one at a time (one MOLIS_WORK_HOME each, two at a
   # time, one retry for a failure), marks each file darwin / live / browser from its own source, and leaves report.json,
   # pass.txt and summary.md (also in this run's summary). A test file that fails is a result, not an error of the job.
+  # This workflow cancels a run when a newer push to the same pull request or to main arrives (concurrency above), and a run
+  # of about 100 minutes meets that often. The probe rewrites its three files after every file and, on the SIGINT/SIGTERM a
+  # cancel or the time limit sends, stops the running tests and writes a final partial report (unfinished files are `not-run`,
+  # `endedBy` says why); the upload step below is `if: always()`, so a cancelled run still keeps what it had.
   # After about two weeks of runs: quarantine the flaky files, keep the passing ones as tests/ci-product-subset.txt (W2-16),
   # then add this job to `verify`'s needs and drop `continue-on-error`.
   linux-probe:
     name: Linux probe (not required)
     runs-on: ubuntu-latest
     continue-on-error: true
-    # The probe stops starting files after 85 minutes and still writes its report; this is the hard stop around it.
+    # The probe stops starting files after 85 minutes and still writes its report; this is the hard stop around it. Reaching it
+    # cancels the job like a newer push does, and the probe writes its partial report on that signal.
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
@@ -178,8 +184,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # `exec` makes the probe the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
       - name: Run the non-browser test files and record which pass
-        run: node scripts/ci-linux-probe.mjs --expect-platform linux --out "$RUNNER_TEMP/linux-probe" --jobs 2 --timeout-seconds 600 --retries 1 --budget-minutes 85
+        run: exec node scripts/ci-linux-probe.mjs --expect-platform linux --out "$RUNNER_TEMP/linux-probe" --jobs 2 --timeout-seconds 600 --retries 1 --budget-minutes 85
 
       - name: Keep the report
         if: ${{ always() }}

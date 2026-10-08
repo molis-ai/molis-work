@@ -33,6 +33,14 @@ export function failureDetail(output) {
   return text.length > DETAIL_CHARS ? `${text.slice(0, DETAIL_CHARS)}…` : text;
 }
 
+// Process groups of the attempts running now. They are detached, so a signal to the probe does not reach them: a cancelled probe
+// stops them itself (stopRunning).
+const running = new Set();
+export function stopRunning() {
+  for (const pid of running) { try { process.kill(-pid, "SIGKILL"); } catch { /* already gone */ } }
+  running.clear();
+}
+
 // One attempt: the whole process group is killed on timeout and again after the run, so a server a test left behind cannot
 // keep the job alive.
 export function runOnce(root, file, timeoutMs) {
@@ -44,11 +52,13 @@ export function runOnce(root, file, timeoutMs) {
     child.stdout.setEncoding("utf8").on("data", keep);
     child.stderr.setEncoding("utf8").on("data", keep);
     const killGroup = () => { try { process.kill(-child.pid, "SIGKILL"); } catch { /* already gone */ } };
+    if (child.pid) running.add(child.pid);
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; killGroup(); }, timeoutMs);
     const finish = (code, signal, error) => {
       clearTimeout(timer);
       killGroup();
+      running.delete(child.pid);
       resolve({ code, signal, timedOut, error, output: tail, seconds: Math.round((Date.now() - started) / 100) / 10 });
     };
     child.once("error", (error) => finish(null, null, String(error.message)));
@@ -56,8 +66,9 @@ export function runOnce(root, file, timeoutMs) {
   });
 }
 
-// pass     ran, nothing failed, at least one test body ran
-// skipped  ran, nothing failed, no test body ran (all skipped: a platform guard, a live opt-in)
+// pass     ran, nothing failed, at least one test body ran (the tests that skip inside the file, a platform guard or a live
+//          opt-in, are only counted: `skipped` in the record)
+// skipped  ran, nothing failed, no test body ran (every test in the file skipped)
 // fail     a test failed, the file did not load, or the process ended abnormally
 // timeout  killed after the per-file time limit
 export function statusOf(result) {
@@ -91,16 +102,19 @@ export async function runFile(root, entry, { timeoutMs, retries }) {
 }
 
 // Starts files in order, `jobs` at a time, and stops starting new ones when the time budget has run out; those are `not-run`.
-export async function runAll(root, entries, { jobs, timeoutMs, retries, deadline, onDone }) {
+// onStart(entry) is called when a file starts, onDone(result) when it has a result: the caller keeps its report current from them.
+export async function runAll(root, entries, { jobs, timeoutMs, retries, deadline, onStart, onDone }) {
   const results = new Array(entries.length);
   let next = 0;
   const worker = async () => {
     while (next < entries.length) {
       const index = next++;
       const entry = entries[index];
-      results[index] = Date.now() >= deadline
-        ? { file: entry.file, status: "not-run", marks: entry.marks, detail: "the time budget was used up before this file started" }
-        : await runFile(root, entry, { timeoutMs, retries });
+      if (Date.now() >= deadline) results[index] = { file: entry.file, status: "not-run", marks: entry.marks, detail: "the time budget was used up before this file started" };
+      else {
+        onStart?.(entry);
+        results[index] = await runFile(root, entry, { timeoutMs, retries });
+      }
       onDone?.(results[index]);
     }
   };

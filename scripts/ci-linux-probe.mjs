@@ -15,13 +15,17 @@
 //     --retries <n>            extra attempts for a file that failed; a later pass is `flaky` (default 1)
 //     --budget-minutes <n>     stop starting files after this long; the rest are `not-run` (default: no limit)
 //     --expect-platform <p>    exit 2 before running anything unless process.platform is <p> (CI: linux)
-// Exit: 0 finished (whatever the test results), 2 the probe itself could not run (usage, nothing selected, wrong platform).
+// The three files are written again after every file, so a run that is killed outright still leaves everything up to its last
+// file; SIGINT, SIGTERM and SIGHUP (what CI sends a run it cancels or whose job reached its time limit) stop the test processes
+// that are running and write a final partial report first: files without a result are `not-run`, report.json says `endedBy`.
+// Exit: 0 finished (whatever the test results), 2 the probe itself could not run (usage, nothing selected, wrong platform),
+// 128 + the signal number (130, 143, 129) cut off by a signal, with the partial report written.
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeReport, totals, STATUSES } from "./ci-linux-probe/report.mjs";
-import { runAll } from "./ci-linux-probe/run.mjs";
+import { writeReport, STATUSES } from "./ci-linux-probe/report.mjs";
+import { runAll, stopRunning } from "./ci-linux-probe/run.mjs";
 import { MARKS, selectTests } from "./ci-linux-probe/select.mjs";
 
 const USAGE = "usage: ci-linux-probe.mjs [--list] [--root <dir>] [--out <dir>] [--only <regex>] [--jobs <n>] [--timeout-seconds <n>] [--retries <n>] [--budget-minutes <n>] [--expect-platform <p>]";
@@ -69,20 +73,59 @@ console.log(`ci-linux-probe: ${overview}`);
 console.log(`ci-linux-probe: ${process.platform} ${process.arch}, node ${process.version}, ${options.jobs} at a time, ${options.timeoutSeconds} s per file, ${options.retries} retry, budget ${Number.isFinite(options.budgetMinutes) ? `${options.budgetMinutes} min` : "none"}`);
 
 const started = Date.now();
-let finished = 0;
-const ran = await runAll(root, toRun, {
-  jobs: options.jobs, timeoutMs: options.timeoutSeconds * 1000, retries: options.retries,
-  deadline: Number.isFinite(options.budgetMinutes) ? started + options.budgetMinutes * 60_000 : Infinity,
-  onDone: (result) => console.log(`[${++finished}/${toRun.length}] ${result.status}${result.attempts > 1 ? ` (${result.attempts} tries)` : ""}  ${result.file}${result.seconds !== undefined ? `  ${result.seconds}s` : ""}`),
-});
-const byFile = new Map(ran.map((result) => [result.file, result]));
-const results = selection.map((entry) => byFile.get(entry.file) ?? { file: entry.file, status: "excluded", marks: entry.marks, detail: "needs a browser; the probe is the non-browser suite" });
-
 const out = path.resolve(options.out ?? path.join(tmpdir(), "molis-linux-probe"));
-const meta = {
+const finishedResults = new Map(); // file -> its result, as each file finishes
+const inFlight = new Set();        // files started and not finished
+const meta = (endedBy) => ({
   platform: process.platform, arch: process.arch, node: process.version, commit,
   jobs: options.jobs, timeoutSeconds: options.timeoutSeconds, retries: options.retries, budgetMinutes: Number.isFinite(options.budgetMinutes) ? options.budgetMinutes : null,
-  minutes: Math.round((Date.now() - started) / 6000) / 10,
-};
-const report = writeReport(out, { results, meta });
-console.log(`ci-linux-probe: ${STATUSES.map((status) => `${status} ${report.totals[status]}`).join(", ")} (of ${totals(results).files}) in ${meta.minutes} min; report in ${out}`);
+  minutes: Math.round((Date.now() - started) / 6000) / 10, endedBy,
+});
+// Every selected file with what is known now. A file with no result yet is `not-run`, and its detail says why.
+const unfinished = (endedBy, file) => endedBy === "running"
+  ? (inFlight.has(file) ? "running when this report was written; the run did not report a result for it" : "not started when this report was written")
+  : (inFlight.has(file) ? `was running when the run was cut off by ${endedBy}; its result is lost` : `the run was cut off by ${endedBy} before this file started`);
+const snapshot = (endedBy) => selection.map((entry) => entry.run
+  ? finishedResults.get(entry.file) ?? { file: entry.file, status: "not-run", marks: entry.marks, detail: unfinished(endedBy, entry.file) }
+  : { file: entry.file, status: "excluded", marks: entry.marks, detail: "needs a browser; the probe is the non-browser suite" });
+const write = (endedBy, jobSummary) => writeReport(out, { results: snapshot(endedBy), meta: meta(endedBy) }, { jobSummary });
+
+// The report is current after every file, so even a run that is killed outright (no chance to run any handler) leaves
+// everything up to its last file.
+const keepCurrent = () => { try { write("running", false); } catch (error) { console.error(`ci-linux-probe: could not update the report: ${error.message}`); } };
+keepCurrent();
+
+// CI cancels a run when a newer push to the same pull request or to main arrives (cancel-in-progress) and stops a job at its
+// time limit: both send SIGINT or SIGTERM. The test processes are detached from this one and are stopped here, then the
+// partial report is written (and appended to the job summary) before the exit.
+let cutOff = false;
+for (const [signal, number] of [["SIGINT", 2], ["SIGHUP", 1], ["SIGTERM", 15]]) {
+  process.on(signal, () => {
+    if (cutOff) return;
+    cutOff = true;
+    stopRunning();
+    try {
+      write(signal, true);
+      console.error(`ci-linux-probe: cut off by ${signal} after ${finishedResults.size} of ${toRun.length} files; the partial report is in ${out}`);
+    } catch (error) {
+      console.error(`ci-linux-probe: cut off by ${signal}; the partial report could not be written: ${error.message}`);
+    }
+    process.exit(128 + number);
+  });
+}
+
+let finished = 0;
+await runAll(root, toRun, {
+  jobs: options.jobs, timeoutMs: options.timeoutSeconds * 1000, retries: options.retries,
+  deadline: Number.isFinite(options.budgetMinutes) ? started + options.budgetMinutes * 60_000 : Infinity,
+  onStart: (entry) => inFlight.add(entry.file),
+  onDone: (result) => {
+    inFlight.delete(result.file);
+    finishedResults.set(result.file, result);
+    console.log(`[${++finished}/${toRun.length}] ${result.status}${result.attempts > 1 ? ` (${result.attempts} tries)` : ""}  ${result.file}${result.seconds !== undefined ? `  ${result.seconds}s` : ""}`);
+    keepCurrent();
+  },
+});
+
+const report = write("finished", true);
+console.log(`ci-linux-probe: ${STATUSES.map((status) => `${status} ${report.totals[status]}`).join(", ")} (of ${selection.length}) in ${report.minutes} min; report in ${out}`);

@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
-import { passed } from "../scripts/ci-linux-probe/report.mjs";
+import { passed, writeReport } from "../scripts/ci-linux-probe/report.mjs";
 import { failureDetail, parseCounts, statusOf, testEnvironment } from "../scripts/ci-linux-probe/run.mjs";
 import { selectTests } from "../scripts/ci-linux-probe/select.mjs";
 
 // specs/repository-anti-corruption §4.7 (W1-11, decision #14): the Linux probe that CI runs as a non-blocking job. Each rule is
 // mutation-verified here on a scratch repository of small fake test files: a file is excluded as a browser file by its name,
 // its text or a fixture it imports; marked darwin or live by what it says; and every result (pass, partial pass, all skipped,
-// fail, did-not-load, flaky, timeout, not run) is recorded as such. Breaking any one rule makes one of these fail.
+// fail, did-not-load, flaky, timeout, not run) is recorded as such. A run that CI cancels (a newer push, the job's time limit)
+// or that is killed outright still leaves the results it had. Breaking any one rule makes one of these fail.
 //
 // The words the probe marks files by are spelled in pieces below, so that this file does not carry the marks of the fixtures
 // it writes (it would be a browser, darwin and live file itself, and the probe would leave it out).
@@ -76,14 +77,22 @@ before(() => {
   put("tests/model-live.test.ts", spec(`test("calls a model", { skip: true }, () => {});`));
   put("tests/optin-env.test.ts", spec(`test("the opt-in is not handed on", () => {\n  assert.equal(process.env.${LIVE_ACCEPTANCE}, undefined);\n  assert.equal(process.env.MINIMAX_API_KEY, undefined);\n});`));
   put("tests/needs-key.test.ts", spec(`test("a model", { skip: "${KEY_REQUIRED}" }, () => {});`));
+  // A live file that also has tests which are not live (the real tests/plugin-sandbox-network.test.ts is one): the live test
+  // skips, the rest runs, so the file is a pass with a skip and not "skipped".
+  put("tests/mixed-optin.test.ts", spec(`test("an ordinary test", () => assert.equal(1, 1));\ntest("the live one", { skip: process.env.${NETWORK_E2E} !== "1" }, () => {});`));
   // A process the test leaves running must not outlive the file.
   put("tests/leftover.test.ts", spec(`import { spawn } from "node:child_process";\ntest("starts a process and does not stop it", () => {\n  const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { stdio: "ignore" });\n  child.unref();\n  writeFileSync(\`\${process.env.PROBE_STATE}/leftover-pid\`, String(child.pid));\n});`));
+  // Used by the runs that are cut off only: the first file passes at once, the second never finishes and writes its pid, the
+  // third is never reached (one file at a time).
+  put("tests/cancel-1-fast.test.ts", spec(`test("done at once", () => {});`));
+  put("tests/cancel-2-hang.test.ts", spec(`test("never finishes", async () => {\n  writeFileSync(\`\${process.env.PROBE_STATE}/hang-pid\`, String(process.pid));\n  await new Promise((resolve) => setTimeout(resolve, 60_000));\n});`));
+  put("tests/cancel-3-later.test.ts", spec(`test("never started", () => {});`));
   // Used by the budget run only.
   put("tests/a-sleep.test.ts", spec(`test("takes a while", async () => { await new Promise((resolve) => setTimeout(resolve, 1500)); });`));
   put("tests/b-after.test.ts", spec(`test("starts too late", () => {});`));
 
   writeFileSync(summaryFile, "earlier job summary\n");
-  run = probe(["--out", out, "--jobs", "4", "--timeout-seconds", "8", "--retries", "1", "--only", "tests/(?!a-sleep|b-after)"],
+  run = probe(["--out", out, "--jobs", "4", "--timeout-seconds", "8", "--retries", "1", "--only", "tests/(?!a-sleep|b-after|cancel-)"],
     { GITHUB_STEP_SUMMARY: summaryFile, [LIVE_ACCEPTANCE]: "1", MINIMAX_API_KEY: "not-a-real-key" });
   const report = JSON.parse(readFileSync(path.join(out, "report.json"), "utf8"));
   files = new Map((report.files as Entry[]).map((entry) => [entry.file, entry]));
@@ -98,6 +107,7 @@ after(() => {
 });
 
 const entry = (name: string) => { const found = files.get(`tests/${name}`); assert.ok(found, `${name} is in the report`); return found; };
+const section = (title: string) => summary.split("### ").find((part) => part.startsWith(title)) ?? "";
 
 test("a probe with failing test files still finishes with exit 0 and says what it did", () => {
   assert.equal(run.code, 0, run.text);
@@ -133,6 +143,21 @@ test("live files are marked by name, by an opt-in variable and by a required key
   assert.deepEqual(entry("optin-env.test.ts").marks, ["live"]);
   assert.deepEqual(entry("needs-key.test.ts").marks, ["live"]);
   assert.equal(entry("optin-env.test.ts").status, "pass", `the probe was started with the live opt-ins set: ${entry("optin-env.test.ts").detail}`);
+});
+
+test("a live file whose other tests run is a pass with skips; a file with only live tests is skipped", () => {
+  // The live switches are not handed to the tests, so the live tests skip. What the file is then depends on what else it has.
+  assert.deepEqual(entry("mixed-optin.test.ts").marks, ["live"]);
+  assert.equal(entry("mixed-optin.test.ts").status, "pass");
+  assert.equal(entry("mixed-optin.test.ts").pass, 1);
+  assert.equal(entry("mixed-optin.test.ts").skipped, 1);
+  assert.ok(passList.includes("tests/mixed-optin.test.ts"));
+  assert.match(section("Passed with some tests skipped"), /tests\/mixed-optin\.test\.ts/);
+  for (const name of ["model-live.test.ts", "needs-key.test.ts"]) {
+    assert.equal(entry(name).status, "skipped", name);
+    assert.ok(!passList.includes(`tests/${name}`), `${name} is not a pass`);
+    assert.match(section("Skipped everything"), new RegExp(`tests/${name.replace(/\./g, "\\.")}`));
+  }
 });
 
 test("each result is recorded as what it is", () => {
@@ -171,7 +196,6 @@ test("pass.txt holds exactly the files that passed, sorted, one per line", () =>
 });
 
 test("the summary puts an unexplained failure apart from a failure on a darwin or live file, and is appended to the job summary", () => {
-  const section = (title: string) => summary.split("### ").find((part) => part.startsWith(title)) ?? "";
   const unmarked = section("Failed, without a darwin or live mark");
   const marked = section("Failed, marked darwin or live");
   assert.match(unmarked, /tests\/fail\.test\.ts/);
@@ -184,6 +208,80 @@ test("the summary puts an unexplained failure apart from a failure on a darwin o
   assert.match(section("Skipped everything"), /tests\/allskip\.test\.ts/);
   assert.match(section("Passed with some tests skipped"), /tests\/partial\.test\.ts/);
   assert.equal(readFileSync(summaryFile, "utf8"), `earlier job summary\n${summary}\n`);
+});
+
+// A run that is cut off. CI cancels a run when a newer push arrives (the workflow's concurrency is cancel-in-progress) and stops a
+// job at its time limit; the upload step still runs, so what the probe wrote by then is all there is. The second file hangs, so the
+// run is cut off with one file done, one running and one not started.
+const until = async (done: () => boolean, ms: number, what: string) => {
+  for (let waited = 0; !done(); waited += 50) { assert.ok(waited < ms, `gave up waiting for ${what}`); await new Promise((resolve) => setTimeout(resolve, 50)); }
+};
+const readJson = (file: string) => { try { return JSON.parse(readFileSync(file, "utf8")); } catch { return null; } };
+const fileOf = (report: { files: Entry[] }, name: string) => { const found = report.files.find((item) => item.file === `tests/${name}`); assert.ok(found, `${name} is in the report`); return found; };
+
+async function cutOff(name: string, signal: NodeJS.Signals) {
+  const dir = path.join(root, name);
+  const jobSummary = path.join(root, `${name}-job-summary.md`);
+  const hangPid = path.join(state, "hang-pid");
+  rmSync(hangPid, { force: true });
+  const child = spawn(process.execPath, [script, "--root", root, "--out", dir, "--only", "tests/cancel-", "--jobs", "1", "--timeout-seconds", "120", "--retries", "0"],
+    { env: { ...process.env, PROBE_STATE: state, GITHUB_STEP_SUMMARY: jobSummary } });
+  let output = "";
+  child.stdout.on("data", (chunk) => { output += chunk; });
+  child.stderr.on("data", (chunk) => { output += chunk; });
+  const ended = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => child.once("close", (code, by) => resolve({ code, signal: by })));
+  let group = 0;
+  try {
+    await until(() => existsSync(hangPid), 60_000, "the second file to start");
+    const pid = Number(readFileSync(hangPid, "utf8"));
+    group = Number(execFileSync("ps", ["-o", "pgid=", "-p", String(pid)], { encoding: "utf8" }).trim());
+    const before = { report: readJson(path.join(dir, "report.json")), jobSummaryWritten: existsSync(jobSummary) };
+    child.kill(signal);
+    const exit = await Promise.race([ended, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`the probe did not exit after ${signal}\n${output}`)), 20_000))]);
+    for (let waited = 0; alive(pid) && waited < 3000; waited += 100) await new Promise((resolve) => setTimeout(resolve, 100));
+    const read = (file: string) => (existsSync(path.join(dir, file)) ? readFileSync(path.join(dir, file), "utf8") : null);
+    return { ...exit, output, before, pid, testStillRunning: alive(pid), report: readJson(path.join(dir, "report.json")), pass: read("pass.txt"), summary: read("summary.md"), jobSummary: existsSync(jobSummary) ? readFileSync(jobSummary, "utf8") : null };
+  } finally {
+    child.kill("SIGKILL");
+    if (group) { try { process.kill(-group, "SIGKILL"); } catch { /* already gone */ } }
+  }
+}
+
+test("a run that CI cancels leaves a partial report: the test running is stopped, unfinished files are not-run, the exit code is 128 + the signal", async () => {
+  for (const [signal, code] of [["SIGTERM", 143], ["SIGINT", 130], ["SIGHUP", 129]] as const) {
+    const cut = await cutOff(`cut-${signal}`, signal);
+    // What was on disk before the signal: written after the first file, not by a handler.
+    assert.equal(cut.before.report?.endedBy, "running", `${signal}: a report exists after the first file`);
+    assert.equal(fileOf(cut.before.report, "cancel-1-fast.test.ts").status, "pass");
+    assert.equal(cut.before.jobSummaryWritten, false, `${signal}: the job summary is appended once, at the end, not after every file`);
+    // What the cancel leaves.
+    assert.equal(cut.code, code, `${signal}: ${cut.output}`);
+    assert.equal(cut.testStillRunning, false, `${signal}: the test file that was running is still running`);
+    assert.ok(cut.report, `${signal}: report.json is there and is valid JSON`);
+    assert.equal(cut.report.endedBy, signal);
+    assert.equal(fileOf(cut.report, "cancel-1-fast.test.ts").status, "pass");
+    assert.equal(fileOf(cut.report, "cancel-2-hang.test.ts").status, "not-run");
+    assert.match(fileOf(cut.report, "cancel-2-hang.test.ts").detail ?? "", new RegExp(`was running when the run was cut off by ${signal}`));
+    assert.equal(fileOf(cut.report, "cancel-3-later.test.ts").status, "not-run");
+    assert.match(fileOf(cut.report, "cancel-3-later.test.ts").detail ?? "", new RegExp(`cut off by ${signal} before this file started`));
+    assert.equal(cut.report.totals.pass, 1);
+    assert.equal(cut.report.totals["not-run"], 2);
+    assert.equal(cut.pass, "tests/cancel-1-fast.test.ts\n");
+    assert.match(cut.summary ?? "", new RegExp(`Incomplete: the run was cut off by ${signal} .* after 1 of 3 files`));
+    assert.equal((cut.jobSummary ?? "").split("## Linux probe").length - 1, 1, `${signal}: the summary was appended to the job summary once`);
+    assert.match(cut.jobSummary ?? "", /Incomplete: the run was cut off by/);
+  }
+});
+
+test("a run that is killed outright (SIGKILL, no handler can run) still leaves the report of its last finished file", async () => {
+  const cut = await cutOff("cut-KILL", "SIGKILL");
+  assert.equal(cut.signal, "SIGKILL");
+  assert.equal(cut.report?.endedBy, "running", "report.json is the last per-file report and says the run did not end properly");
+  assert.equal(fileOf(cut.report, "cancel-1-fast.test.ts").status, "pass");
+  assert.equal(fileOf(cut.report, "cancel-2-hang.test.ts").status, "not-run");
+  assert.equal(cut.pass, "tests/cancel-1-fast.test.ts\n");
+  assert.match(cut.summary ?? "", /Incomplete: this is the last report the run wrote, after 1 of 3 files/);
+  assert.equal(cut.jobSummary, null, "no handler ran, so nothing was appended to the job summary");
 });
 
 test("the time budget stops new files from starting, and they are recorded as not run", () => {
@@ -203,7 +301,7 @@ test("--list shows the selection and marks and runs nothing", () => {
   assert.match(result.text, /^excluded {2}tests\/shell\.e2e\.test\.ts {2}\[browser\]$/m);
   assert.match(result.text, /^run {7}tests\/darwin-guard\.test\.ts {2}\[darwin\]$/m);
   assert.match(result.text, /^run {7}tests\/pass\.test\.ts$/m);
-  assert.match(result.text, /marks over all: browser 3, darwin 3, live 3/);
+  assert.match(result.text, /marks over all: browser 3, darwin 3, live 4/);
   assert.equal(existsSync(listOut), false, "--list wrote a report");
 });
 
@@ -272,6 +370,22 @@ test("pass.txt takes only the passes, whatever order the results come in", () =>
   assert.deepEqual(passed([list("pass", "tests/b.test.ts"), list("flaky", "tests/c.test.ts"), list("pass", "tests/a.test.ts"), list("skipped", "tests/d.test.ts"), list("fail", "tests/e.test.ts")]), ["tests/a.test.ts", "tests/b.test.ts"]);
 });
 
+test("a report is written under a temporary name and renamed: a write that fails leaves the previous report whole, none is left behind", () => {
+  const dir = path.join(root, "atomic-out");
+  const meta = { platform: "linux", arch: "x64", node: "v0", commit: "c", jobs: 1, timeoutSeconds: 1, retries: 0, budgetMinutes: null, minutes: 0, endedBy: "running" };
+  const one = [{ file: "tests/a.test.ts", status: "pass", marks: [] as string[] }];
+  const two = [...one, { file: "tests/b.test.ts", status: "pass", marks: [] as string[] }];
+  writeReport(dir, { results: one, meta });
+  const previous = readFileSync(path.join(dir, "report.json"), "utf8");
+  mkdirSync(path.join(dir, "report.json.tmp")); // the temporary name cannot be written, as if the disk or the process failed there
+  assert.throws(() => writeReport(dir, { results: two, meta }));
+  assert.equal(readFileSync(path.join(dir, "report.json"), "utf8"), previous, "the previous report is untouched");
+  rmSync(path.join(dir, "report.json.tmp"), { recursive: true });
+  writeReport(dir, { results: two, meta });
+  assert.deepEqual(readdirSync(dir).sort(), ["pass.txt", "report.json", "summary.md"], "no temporary file is left behind");
+  assert.equal(readFileSync(path.join(dir, "pass.txt"), "utf8"), "tests/a.test.ts\ntests/b.test.ts\n");
+});
+
 test("on this repository: no browser file is run, known darwin and live files are marked, and this test is not left out", () => {
   const repo = fileURLToPath(new URL("..", import.meta.url));
   const all = selectTests(repo);
@@ -300,7 +414,11 @@ test("ci.yml: the Linux probe is an ubuntu job that cannot fail the workflow and
   assert.match(probeJob, /^    runs-on: ubuntu-latest$/m);
   assert.match(probeJob, /^    continue-on-error: true$/m, "a red probe must not turn the workflow red");
   assert.match(probeJob, /node scripts\/ci-linux-probe\.mjs --expect-platform linux /, "the probe refuses to record results from another platform");
+  assert.match(probeJob, /run: exec node scripts\/ci-linux-probe\.mjs /, "the probe is the step's own process, so a cancel's signal reaches it and not only the shell around it");
   assert.match(probeJob, /uses: actions\/upload-artifact@/);
+  // The workflow cancels a superseded run (cancel-in-progress) and the job has a time limit; the report is kept for those too.
+  assert.match(probeJob, /- name: Keep the report\n\s+if: \$\{\{ always\(\) \}\}\n\s+uses: actions\/upload-artifact@/, "the upload runs when the job is cancelled or timed out");
+  assert.match(probeJob, /^    timeout-minutes: \d+$/m, "a stuck run is stopped by the job, which cancels it and lets the probe write its partial report");
   const needs = workflow.split("\n").filter((line) => /^\s*needs:|^\s+- \S+\s*$/.test(line) && !/^\s+- (name|uses|run):/.test(line));
   assert.ok(needs.every((line) => !line.includes("linux-probe")), `no job needs linux-probe: ${needs.join(" | ")}`);
   assert.match(jobBlock("verify"), /^    name: Verify$/m, "the required check keeps its name");

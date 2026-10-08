@@ -96,7 +96,7 @@ export class GoalsQueryService implements GoalsQueryApi {
 
   snapshot(projectId: string): GoalsQuerySnapshot {
     const board = this.repository.getBoard(projectId);
-    if (!board) throw this.context.error("board.not_found", `Board 不存在: ${projectId}`);
+    if (!board) throw this.context.error("board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
     return {
       board,
       observed_event_cursor: this.repository.eventCursor(projectId),

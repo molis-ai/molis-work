@@ -302,7 +302,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
   }
 
   private requireBoard(projectId: string): void {
-    if (!this.ports.goals.query.getBoard(projectId)) throw this.ports.errorFactory("board.not_found", `Board 不存在: ${projectId}`);
+    if (!this.ports.goals.query.getBoard(projectId)) throw this.ports.errorFactory("board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
   }
   private requiredText(value: string, code: string, message: string): string {
     const text = value.trim();

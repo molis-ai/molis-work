@@ -1,12 +1,12 @@
 # 交付物身份与版本
 
-保存 Artifact 身份、版本、内容引用、隐私范围及生产者信息，让交付物能被精确引用和读取。
+保存两套固定版本：成果库（人要留存、引用的版本）与过程项（插件之间交接的数据），各自带身份、版本、内容引用、隐私范围与生产者信息，让它们能被精确引用和读取。
 
 包名：`@molis-ai/molis-work-module-artifacts`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-ArtifactsModule 通过 query/commands 发布和读取；身份与版本分开记录，引用使用 artifact_id + version。内容服务保存规范化的 opaque JSON 或经存储端口验证的外部内容引用。
+ArtifactsModule（成果库）与 ProcessItemsModule（过程项）通过 query/commands 发布和读取；身份与版本分开记录，引用使用 artifact_id + version。内容服务保存规范化的 opaque JSON 或经存储端口验证的外部内容引用。
 
 ## 从哪里读代码
 
@@ -14,7 +14,7 @@ ArtifactsModule 通过 query/commands 发布和读取；身份与版本分开记
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | ArtifactsModule |
+| [src/index.ts](src/index.ts) | ArtifactsModule、ProcessItemsModule |
 | [src/service.ts](src/service.ts) | 身份与版本写入规则 |
 | [src/content.ts](src/content.ts) | opaque 内容处理 |
 | [src/repository.ts](src/repository.ts) | 记录与查询 |
@@ -46,7 +46,7 @@ node --import tsx --test --test-concurrency=1 tests/artifacts-module.test.ts
 
 ## 开发要求
 
-- 负责：Artifact 身份、版本、类型、内容引用、范围与来源。
+- 负责：成果库与过程项的身份、版本、类型、内容引用、范围与来源。
 - 不负责：插件实现、跨对象关系、传输回执、插件私有草稿。
 - 公开入口：`@molis-ai/molis-work-module-artifacts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/artifacts`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。

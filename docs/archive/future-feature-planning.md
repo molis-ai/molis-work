@@ -1,8 +1,8 @@
 # 将来的功能规划
 
-状态：工作草案
+状态：已被取代（2026-10-07）。产品已是插件基座加多插件，未做事项以 [specs/BACKLOG.md](../../specs/BACKLOG.md) 为准；本文只保留 2026-09-01 的规划输入，其中 Claim/Run/Evidence/Review 等已退役。
 更新日期：2026-09-01
-用途：作为 Molis Work 后续功能规划、研发分工和阶段验收的共同输入。
+当时的用途：作为 Molis Work 后续功能规划、研发分工和阶段验收的共同输入。
 
 配套会议分工盘：[future-feature-planning.html](future-feature-planning.html)
 

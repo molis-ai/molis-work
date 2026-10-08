@@ -24,7 +24,7 @@ export function pagesActionProvider(home: string, runtime: MolisWorkProjectRunti
       withStore,
       prepareImport: (files, caller) => preparePagesFileImport(files, { signal: caller.signal }),
       publishArtifact: (input, caller) => registerPagesArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id, caller.actor_id)(input),
-      readArtifact: (input, caller) => readPagesArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id, caller.actor_id)(input),
+      readArtifact: input => readPagesArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id)(input),
       lineHead: input => pagesArtifactLineHead(runtime.coordinator, runtime.project_id, runtime.project_id)(input),
       modelAvailability: () => {
         try { return model() ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先配置文字模型，再使用写作助手" }; }

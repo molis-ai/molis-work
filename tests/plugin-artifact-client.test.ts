@@ -94,8 +94,8 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
       && error.code === "plugin_grant_denied");
     assert.throws(() => wrongSchema.client.read(value), (error: unknown) => error instanceof PluginArtifactAccessError
       && error.code === "plugin_artifact_incompatible");
-    assert.throws(() => otherUser.client.read(value), (error: unknown) => error instanceof PluginArtifactAccessError
-      && error.code === "plugin_artifact_denied");
+    // A personal 成果 belongs to the Home's person whoever produced it: another actor's installation reads it by type, not by being its producer.
+    assert.deepEqual(otherUser.client.read(value), first.artifact);
     assert.throws(() => producer.client.publish({ ...value, artifact_id: "not-created", schema_version: 2 }),
       PluginArtifactAccessError);
     assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), before);

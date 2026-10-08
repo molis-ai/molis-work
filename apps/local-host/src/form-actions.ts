@@ -15,7 +15,7 @@ export function formActionProvider(home: string, runtime: MolisWorkProjectRuntim
     handlers: [...createFormActionHandlers({
       withStore,
       publishArtifact: (input, caller) => registerFormArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id, caller.actor_id)(input),
-      readArtifact: (input, caller) => readFormArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id, caller.actor_id)(input),
+      readArtifact: input => readFormArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id)(input),
       lineHead: input => formArtifactLineHead(runtime.coordinator, runtime.project_id, runtime.project_id)(input),
       modelAvailability: () => {
         try { return model() ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" }; }

@@ -35,10 +35,13 @@ export function promoteDataset(
   options: { actorId: string; expectedVersion?: number; readArtifact?: DatasetReadArtifactPort; lineHead?: DatasetLineHeadPort },
 ): { dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean } {
   const current = store.get(id, projectId);
-  const version = nextPinnedVersion({ recorded: current.artifact_version, pending: current.publication_pending?.version ?? null,
-    head: options.lineHead?.({ project_id: projectId, record_id: id }) ?? null });
+  const head = options.lineHead?.({ project_id: projectId, record_id: id }) ?? null;
+  const version = nextPinnedVersion({ recorded: current.artifact_version, pending: current.publication_pending?.version ?? null, head });
   const existing = options.readArtifact?.({ project_id: projectId, record_id: id, version });
-  if (current.artifact_version > 0) options.readArtifact?.({ project_id: projectId, record_id: id, version: current.artifact_version });
+  // Check the newest version already written for this line too, not only the one the record counted: after a move out and
+  // back the record counts none, and a version that cannot be continued must be refused before an intent is recorded.
+  const written = Math.max(current.artifact_version, head?.version ?? 0);
+  if (written > 0) options.readArtifact?.({ project_id: projectId, record_id: id, version: written });
   const intent = store.beginPublication(id, projectId, options.actorId, options.expectedVersion ?? current.version, existing ?? undefined, version);
   if (existing && !isDeepStrictEqual(existing, intent.content)) throw new DatasetError("dataset.publication_conflict", "成果与原发布快照不同，数据表及快照已保留");
   const published = existing ? { artifact_id: "dataset-" + id, version: intent.version } : publishArtifact({

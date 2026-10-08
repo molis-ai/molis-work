@@ -133,7 +133,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
       const reference = parseArtifactSubjectId(input.subject_id);
       if (!reference) throw new ActionError("actions.invalid_input", "成果事项必须包含准确的成果 ID 和版本");
       const artifact = requireArtifactAnalysisRecord(ports.artifacts.query.getArtifactVersion(ports.projectId, reference),
-        { project_id: ports.projectId, actor_id: caller.actor_id, reference });
+        { project_id: ports.projectId, reference });
       const scope = { kind: "personal" as const, id: ports.projectId };
       // Edges in this project's ledger name this project or no project (Goals' input bindings name none).
       const currentProject = (project: string | null | undefined) => project == null || project === ports.projectId;

@@ -16,7 +16,7 @@ export function pptActionProvider(home: string, runtime: MolisWorkProjectRuntime
     handlers: [...createPptActionHandlers({
       withStore,
       publishArtifact: (input, caller) => registerPptArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id, caller.actor_id)(input),
-      readArtifact: (input, caller) => readPptArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id, caller.actor_id)(input),
+      readArtifact: input => readPptArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id)(input),
       lineHead: input => pptArtifactLineHead(runtime.coordinator, runtime.project_id, runtime.project_id)(input),
       modelAvailability: () => {
         try { return model() ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" }; }

@@ -25,7 +25,7 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
     content: { kind: "inline", payload: { workspace: { workspace_id: "work", name: "fixture" }, path: ["cart.mjs"], text } },
   });
   publish("before", 1, "旧版🌲\r\nconst quantity = -1;\n");
-  publish("before", 2, "新版，内容不同"); publish("large", 1, "长".repeat(20_001)); publish("other-user", 1, "private", "other-user");
+  publish("before", 2, "新版，内容不同"); publish("large", 1, "长".repeat(20_001));
   publish("other-project", 1, "private board", "web-user", "other-project");
   const refs = [{ artifact_id: "before", version: 1 }];
   const sessions = new CodingSessionStore(store.db);
@@ -53,7 +53,9 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
   };
   const start = (materials: unknown) => request("/runs", "POST", { task: "只读材料", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", materials });
   try {
-    for (const id of ["large", "other-user", "other-project", "missing"]) { const result = await start([{ artifact_id: id, version: 1 }]); assert.equal(result.status, 400, id + JSON.stringify(result.body)); }
+    // Another actor's version of the same Home is not "another user's" (one Home, one person: a version made by a workflow or an
+    // Agent is readable like any other); what is refused is a version too long, in another project, or missing.
+    for (const id of ["large", "other-project", "missing"]) { const result = await start([{ artifact_id: id, version: 1 }]); assert.equal(result.status, 400, id + JSON.stringify(result.body)); }
     assert.equal(created, 0); assert.equal(starts.length, 0);
     assert.equal((await request("", "PATCH", { materials: refs, draft: "保留草稿" })).status, 200);
     const choices = await request("/materials"); assert.equal(choices.status, 200, JSON.stringify(choices));

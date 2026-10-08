@@ -16,6 +16,8 @@
 
 **个人与 Team：** 本地 Plugin 新建 Artifact 默认是 personal。只有用户在 Plugin 内明确选择共享，或 Team Plugin 已获得 Team 授权，才能注册 `team_project` 版本；同步机制由 Exchange/Sync 负责，不由本 Module 实现。
 
+**归属：** 版本的生产者（工作流、Agent、MCP 客户端、人）记在 `created_by`；归属 `owner_actor_id` 另给。一个人的 Home 装配 `homeOwner` 后，这个 Home 里的个人成果一律归这个人，不论谁生产，也不要求读它的行为者就是生产者；固定与导入端口传本机的人。已存的、归在行为者名下的身份读作这个人的，不迁移数据。`team_project` 仍归共享它的行为者。
+
 **当前实现：** AR1 已建立 public Contract、`artifacts` / `artifact_versions` Repository、migration 31、版本/owner/producer binding/digest/scope 校验和 root composition。旧代码没有正式 Artifact 表，Run/Evidence/Feed/Session 的现有字符串引用不会被猜测回填；其浏览、下载和明确转换归 AR3。
 
 **文档导入：** Native Artifacts Plugin 可将 Notion、飞书/Lark docx、Google Docs 或本地 Markdown/TXT/HTML 转成 `io.molis.work.document` v1 的个人正文快照。读取外部 API 由官方 catalog integration 负责，凭据与 HTTP 由 Local Host 注入；本 Module 继续只保存通用 Artifact 事实，不理解文档供应商、不抓取外部内容、不承担同步。使用入口、版本规则和格式限制见 [Artifact Plugin README](../../plugins/native/artifacts/README.md#从文档工具导入)。

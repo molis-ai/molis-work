@@ -1,5 +1,5 @@
 {
-  "giantUnits": 165,
+  "giantUnits": 164,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 261,
     "file apps/local-host/src/assistant/assistant-service.ts": 2692,
@@ -67,7 +67,6 @@
     "class horizontal/placement/src/index.ts#PlacementService": 419,
     "function horizontal/scheduler/src/index.ts#createScheduleService": 282,
     "class horizontal/search/src/index.ts#SearchService": 444,
-    "class modules/artifacts/src/service.ts#ArtifactsService": 342,
     "class modules/feed/src/index.ts#FeedModule": 510,
     "file modules/functions/src/store.ts": 939,
     "class modules/functions/src/store.ts#FunctionsStore": 336,

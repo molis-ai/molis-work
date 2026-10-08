@@ -95,6 +95,7 @@ export function createLocalFeedApplication(
   }
   const artifactsModule = new ArtifactsModule({
     db: db as unknown as ArtifactsSqliteDatabase,
+    homeOwner: LOCAL_PERSON_ACTOR_ID,
     appendEvent: (input) => journal.appendEvent({
       eventId: input.eventId,
       projectId: input.projectId,

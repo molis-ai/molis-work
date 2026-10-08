@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, nextPinnedVersion, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, nextPinnedVersion, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { pagesActions, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
 import { formActions, FORM_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-form";
@@ -50,7 +50,10 @@ async function fixture(t: test.TestContext, permissions: readonly string[]) {
   await host.withProject(refB, runtime => runtime.coordinator.initializeBoard({ project_id: "pb", title: "B", actor_id: "owner", idempotency_key: "b" }));
   const a = bindActionClient(host.actionClient(refA), () => callerA), b = bindActionClient(host.actionClient(refB), () => callerB);
   const versions = (ref: typeof refA, project: string, artifactId: string) => host.withProject(ref, runtime => runtime.coordinator.artifacts.query.listArtifactVersions(project, artifactId));
-  return { host, refA, refB, a, b, versions };
+  // The same project as another actor of the Home: a workflow, an Agent or an MCP client.
+  const as = (ref: typeof refA, project: string, actor_id: string, audience: ActionCallContext["audience"]) =>
+    bindActionClient(host.actionClient(ref), () => ({ ...callerA, project_id: project, actor_id, audience }));
+  return { host, refA, refB, a, b, as, versions };
 }
 
 for (const kind of kinds) {
@@ -80,6 +83,44 @@ for (const kind of kinds) {
     // The next pin goes on from there.
     const third = await f.a.invoke(kind.promote, { id }) as any;
     assert.deepEqual([third.artifact.version, third.recovered], [3, false]);
+  });
+
+  test(`${kind.name}: a document an Agent, workflow or MCP client pinned stays pinnable by the person, also after a move away and back`, async t => {
+    const f = await fixture(t, kind.permissions);
+    const created = (await f.a.invoke(kind.create, kind.seed("First"))) as Record<string, any>;
+    const id = created[kind.record].id as string, artifactId = kind.prefix + id;
+    const agent = f.as(f.refA, "pa", "agent-x", "agent"), mcp = f.as(f.refA, "pa", "claude-code", "mcp"), workflow = f.as(f.refA, "pa", "workflow-events", "workflow");
+    const pending = async () => (((await f.a.invoke(kind.get, { id })) as Record<string, any>)[kind.record].publication_pending ?? null);
+    const edit = async (title: string) => (((await f.a.invoke(kind.update, { id, ...kind.edit(title), expected_version: (((await f.a.invoke(kind.get, { id })) as Record<string, any>)[kind.record]).version })) as Record<string, any>)[kind.record]);
+
+    const away = async () => {
+      await f.a.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: "pb" });
+      await f.b.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: "pa" });
+    };
+    const pin = async (client: typeof f.a, title: string) => { await edit(title); return await client.invoke(kind.promote, { id }) as any; };
+
+    assert.deepEqual([(await agent.invoke(kind.promote, { id }) as any).artifact.version], [1], "the Agent pins it first");
+    // Away and back: the record counts no fixed version, the 成果库 holds the Agent's. The person's pin goes on from it.
+    await away();
+    const person = await pin(f.a, "Second");
+    assert.deepEqual([person.artifact.version, person.recovered], [2, false]);
+    assert.equal(await pending(), null, "a pin that went through leaves no pending publication");
+    const byMcp = await pin(mcp, "Third");
+    assert.deepEqual([byMcp.artifact.version, byMcp.recovered], [3, false]);
+    // The other way round: the newest version is an MCP client's, the document goes away and back, the person pins.
+    await away();
+    const again = await pin(f.a, "Fourth");
+    assert.deepEqual([again.artifact.version, again.recovered], [4, false]);
+    assert.equal(await pending(), null);
+    assert.equal((await pin(workflow, "Fifth")).artifact.version, 5);
+    assert.equal(await pending(), null);
+    // Nothing is stuck: the document can still be moved.
+    await f.a.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: "pb" });
+
+    const saved = await f.versions(f.refA, "pa", artifactId);
+    assert.deepEqual(saved.map(version => version.version), [1, 2, 3, 4, 5]);
+    assert.deepEqual(saved.map(version => version.owner_actor_id), Array(5).fill(LOCAL_PERSON_ACTOR_ID), "a pinned document belongs to the person");
+    assert.deepEqual(saved.map(version => version.created_by), ["agent-x", "owner", "claude-code", "owner", "workflow-events"], "who pinned it is recorded as its producer");
   });
 
   test(`${kind.name}: each project's fixed versions are numbered by what that project already holds`, async t => {

@@ -77,9 +77,6 @@ export function createPluginArtifactClient(input: {
       const pinned = api.query.getArtifactVersion(project_id, reference);
       const artifact = pinned ?? process.query.getArtifactVersion(project_id, reference);
       if (!artifact) return null;
-      if (artifact.scope === "personal" && artifact.owner_actor_id !== actor_id) {
-        throw new PluginArtifactAccessError("plugin_artifact_denied", "不能读取其他用户的个人成果");
-      }
       const compatibility = pinned ? api.query.consumptionCompatibility(project_id, reference, manifest.artifacts.consumes)
         : process.query.consumptionCompatibility(project_id, reference, manifest.process_items?.consumes ?? []);
       if (!compatibility.consumable) {

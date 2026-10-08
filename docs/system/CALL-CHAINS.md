@@ -104,7 +104,7 @@
 **现状与缺口**
 
 - Coding 的 Agent 轮次、`agent.run.start.v1` 等能力和 Character 冻结在 [Prologue AI 手册](../platform/PROLOGUE-AI.md#agent-轮次以-coding-为例) 里有逐步说明，结构与上表第 3 到 7 步相同，只是动作工具来自角色的精确 `action_tools`。
-- 助理的 `remember`（#28）把本人在这项工作里自己打的消息（宿主保存的轮次；定时安排拼出的轮次和助理写给子任务的话在写入时标了 `written_by`，不算）交给写入门，写入门只在要记的内容就是其中某一整条消息的全文时记作「你说过」（`apps/local-host/src/assistant/assistant-memory-tools.ts`、`horizontal/memory/src/spoken.ts` 的 `theirWords`；只容许大小写、全角半角、空格、引号样式和最后一个句号的差别）；改写、删减、只取其中一句、拼接都不是，一律作为建议等本人认可，不再读意思。「忘掉」是停用，记成助理做的、本人可撤销，彻底删除留给本人；子任务没有记住和忘掉。经 `memory.write` 动作调用的其他 Agent 宿主没有它和本人的对话，仍只拿它交来的 `said` 当那一条消息核对。
+- 助理的 `remember`（#28）把本人在这项工作里自己打的消息（宿主保存的轮次；定时安排拼出的轮次和助理写给子任务的话在写入时标了 `written_by`，不算）交给写入门，写入门只在要记的内容就是其中某一整条消息的全文时记作「你说过」，记下来的是那条消息本身，不是模型交来的版本（`apps/local-host/src/assistant/assistant-memory-tools.ts`、`horizontal/memory/src/spoken.ts` 的 `theirWords`；只容许 `horizontal/memory/src/text.ts` 的 `fold` 列出的大小写、全角半角、空白、引号样式和最后一个句号的差别，不做 Unicode 归一化）；改写、删减、只取其中一句、拼接都不是，一律作为建议等本人认可，不再读意思。已有的自动记忆只在它自己的正文与本人的某条消息是同样的话时才变成「你说过」；判断“已经记着”也按同样的话，逗号、符号、问号不同的是另一条。「忘掉」是停用，记成助理做的、本人可撤销，彻底删除留给本人；子任务没有记住和忘掉。经 `memory.write` 动作调用的其他 Agent（Coding 会话、插件里的 Agent）宿主没有它和本人的对话，没有可核对的原话，它交来的 `said` 不算消息，所以它写的一律作为建议等本人认可。
 - 助理和 Agent 的运行记录在 Prologue 与助理库里，没有调用标识把它们和调用记录里的行连起来（W3-01）。
 - 助理的实现 `AssistantService`（`apps/local-host/src/assistant/assistant-service.ts`）是一个巨大单元；已定（决定 3）先就地按包形边界拆、再搬成独立包，第一刀是提醒与跟进的协作者（W4-05）。
 - 实验里本地 `grok` 与 `laya` 的调用不经这条链，见 §10。

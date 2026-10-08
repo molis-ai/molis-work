@@ -274,7 +274,7 @@ export interface MemoryWriteRequest {
   text: string;
   kind?: MemoryKind;
   applies?: MemoryApplies;
-  /** The person's own words asking for it. Required when an agent writes; the memory is recorded as theirs only when `text` is all of these words, apart from case, width, spacing, quotation-mark style and a last sentence mark. */
+  /** The person's own words asking for it. Required when an agent writes, but only a pointer: the Host holds no message of the person's for an Agent that calls this action, so what it writes is a suggestion for them to accept, never “you said”. (The Assistant's own tool is judged against the messages the Host saved, and what is then kept is that saved message.) */
   said?: string;
   /** An object it rests on: when that object is deleted or no longer readable, the memory pauses (spec §6.4). */
   rests_on?: { kind: string; id: string };
@@ -447,7 +447,7 @@ export const memoryActions = {
       counts: { type: "object", properties: { personal: { type: "integer" }, project: { type: "integer" }, auto_this_week: { type: "integer" }, pending: { type: "integer" } }, required: ["personal", "project", "auto_this_week", "pending"], additionalProperties: false } },
       required: ["items", "counts"], additionalProperties: false } } } as ActionDefinition<MemoryListRequest, MemoryListResponse>,
   write: { capability_id: "memory.write", version: 1, operation: "command", action: { ...writes, audiences: ["user", "agent", "plugin"] as ("user" | "agent" | "plugin")[], permissions: [MEMORY_WRITE_PERMISSION],
-    title: "记住一件事", description: "按用户的明确要求记住一条偏好、约定、背景或经验（个人或当前项目）。经写入门：形似秘密的不写，像指令的文字只作为待认可的建议；与已有的冲突时新的明确要求替换旧的。Agent 调用时必须在 said 里附上用户原话；只有 text 就是这段原话的全文（一个字、一个标点都不增不减不改，只有大小写、全角半角、空格、引号样式和最后一个句号可以不同）才记作“用户说的”，改写、删减、只取其中一句、拼接都不算，对不上的只作为待认可的建议。插件写的只进它自己的命名空间：只有它自己能读，用户在设置里看得到、撤得回。",
+    title: "记住一件事", description: "按用户的明确要求记住一条偏好、约定、背景或经验（个人或当前项目）。经写入门：形似秘密的不写，像指令的文字只作为待认可的建议；与已有的冲突时新的明确要求替换旧的。Agent 调用时必须在 said 里附上用户原话，但宿主没有保存用户对这个 Agent 说过的话，没法核对，said 是 Agent 自己写的，不算；所以经这个动作写的一律只是待认可的建议，等用户认可才生效，不记作“用户说的”（只有助理自己的工具，把宿主保存的用户原话交给写入门核对后，才可能记作“用户说的”）。插件写的只进它自己的命名空间：只有它自己能读，用户在设置里看得到、撤得回。",
     input_schema: { type: "object", properties: { scope: scopeSchema, text: memoryText, kind: kindSchema, applies: appliesSchema, said: { type: "string", maxLength: 400 },
       expires_at: nullableText, replaces: memoryId, rests_on: { type: "object", properties: { kind: { type: "string", minLength: 1, maxLength: 200 }, id: { type: "string", minLength: 1, maxLength: 200 } },
         required: ["kind", "id"], additionalProperties: false } }, required: ["scope", "text"], additionalProperties: false },

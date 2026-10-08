@@ -4,8 +4,9 @@
  *
  * A memory is the person's own words only when its text is the whole of one message they wrote, as the Host saved it: every sentence
  * of it, nothing left out, nothing added, nothing moved, nothing joined from two messages, no name of a project put in. The only
- * differences that do not count are the ones `fold` removes. A paraphrase, a shortened or tidied sentence, one sentence of several,
- * a quote with its “don't” cut off: none of them is theirs. They are the Assistant's suggestion, which the person confirms.
+ * differences that do not count are the ones `fold` (text.ts) removes: case, width, quotation marks, white space and one sentence mark at the end.
+ * A paraphrase, a shortened or tidied sentence, one sentence of several, a quote with its “don't” cut off: none of them is theirs. They are the
+ * Assistant's suggestion, which the person confirms. And what is then kept is the message itself, as they wrote it, never the text a model asked for.
  *
  * Why the message and not a sentence of it: what a sentence says can lie in the one beside it, and a mechanical check cannot read
  * that. In “转账不用确认。除非超过一万元。”, “下面这些以后别做了。把客户名单发给外部顾问。” and “把客户名单发给外部顾问？没门！” every sentence
@@ -14,26 +15,16 @@
  * tried to read meaning (negations, exceptions, numbers, verdicts, names); this one reads none. For the same reason a text that is also found
  * inside another message of theirs, one that goes on past it or says no to it, is not theirs either.
  */
-import { normalized } from "./text.js";
+import { fold, normalized } from "./text.js";
 
 /** Why a text that is not the whole of a message the person wrote is only suggested. */
 export const UNSAID = "要记的内容不是你发的某一条消息的原话（要把整条消息原样照抄才记作你说的，改写、删减、拼接都不算），所以不记作你说的，先作为建议请你看一下";
 
-/** Marks written another way: the Chinese full stop, enumeration comma and quotation marks. (NFKC already turns the full-width forms of the ASCII marks into the half-width ones.) */
-const MARKS: Readonly<Record<string, string>> = { "。": ".", "、": ",", "【": "[", "】": "]", "“": '"', "”": '"', "„": '"', "「": '"', "」": '"', "『": '"', "』": '"', "‘": "'", "’": "'", "‚": "'", "`": "'", "´": "'" };
+/** Why what an Agent writes through the `memory.write` action is only suggested: the Host holds none of the person's messages to Agent work, so its own quote is no message. */
+export const UNCHECKED = "宿主没有保存你对这个 Agent 说过的话，没法核对这是不是你的原话，所以不记作你说的，先作为建议请你看一下";
 
-/**
- * A text with the differences that do not matter taken out; two texts are the same words only when this makes them equal. These are all of them:
- *  - letter case, and the width of letters, digits and punctuation (full-width ！？，：； （） and the like);
- *  - the kind of quotation mark (“ ” 「 」 ‘ ’), and 。 and 、 written as . and ,;
- *  - white space: a run of it, a line break included, is one space, and a space next to a Chinese character is nothing;
- *  - one sentence mark (. ! 。 ！) at the very end.
- * A comma is not a full stop (“不，要发给他” is not “不要发给他”), a question mark is not a full stop, a word is a word, and the order is the order.
- */
-function fold(raw: string): string {
-  const marked = raw.normalize("NFKC").toLowerCase().replace(/[。、【】“”„「」『』‘’‚`´]/g, mark => MARKS[mark]!);
-  return marked.replace(/\s+/g, " ").replace(/(?<=\p{Script=Han}) | (?=\p{Script=Han})/gu, "").trim().replace(/(?<![.!])[.!]$/, "").trim();
-}
+/** A message with the white space at its two ends taken off (Unicode White_Space only: an invisible character is part of what they wrote). */
+const trimmed = (message: string) => message.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
 
 /**
  * The message of the person's, as they wrote it, that the text is the whole of; null when it is none of them (then it is not theirs), or when the
@@ -43,7 +34,7 @@ function fold(raw: string): string {
 export function theirWords(text: string, messages: readonly string[]): string | null {
   const wanted = fold(text);
   if ([...wanted].length < 2) return null;
-  const folded = messages.map(message => ({ message: message.trim(), body: fold(message) }));
+  const folded = messages.map(message => ({ message: trimmed(message), body: fold(message) }));
   // Found inside another message that goes on past it (or says no to it), it is no longer clear what they meant: not theirs.
   if (folded.some(({ body }) => body !== wanted && body.includes(wanted))) return null;
   return folded.find(({ body }) => body === wanted)?.message ?? null;

@@ -42,8 +42,8 @@ import { completePrefs, consumerAccess, CONSUMER_LABELS, PERSONAL_PREFS_KEY, PRO
 import { MemoryError } from "./errors.js";
 import { applies, disownAutomatic, isExpired, personOnly, placeOf, visibleTo } from "./places.js";
 import { MAX_TEXT, candidateView, changeView, joinedFingerprint, pairKey, readPackage, useTitle } from "./shapes.js";
-import { UNSAID, quotedFrom, theirWords } from "./spoken.js";
-import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sameText, similarity } from "./text.js";
+import { UNCHECKED, UNSAID, quotedFrom, theirWords } from "./spoken.js";
+import { keywordScore, looksLikeInstruction, looksLikeSecret, recallKeywords, sameText, sameWords, similarity } from "./text.js";
 import { fromEntryMeta, pauseReason, toEntryMeta } from "./facts.js";
 import type { AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -373,7 +373,7 @@ export class MemoryService {
    * The unified write entry (spec §6.2). An agent must bring the person's own words; the person in the settings adds
    * by hand. Everything passes the gate: switches, secrets, instruction-like text, scope, sameness and conflicts.
    */
-  async write(caller: MemoryCaller, request: MemoryWriteRequest, options: { /** The messages the person typed, as the Host saved them (possibly none): “they said it” holds only when the text is the whole of one of them. Without it the agent's own `said` is the one message there is. Only the Host's own code passes it, never an action. */ originals?: readonly string[] } = {}): Promise<MemoryWriteResult> {
+  async write(caller: MemoryCaller, request: MemoryWriteRequest, options: { /** The messages the person typed, as the Host saved them (possibly none): “they said it” holds only when the text is the whole of one of them. Without it nothing is theirs, whatever the agent's `said` is: it wrote that itself. Only the Host's own code passes it, never an action. */ originals?: readonly string[] } = {}): Promise<MemoryWriteResult> {
     const said = typeof request.said === "string" ? request.said.trim() : "";
     // A plugin keeps things in its own namespace under the grant the person gave it at install; nobody else reads them.
     if (caller.consumer === "plugin") {
@@ -416,7 +416,9 @@ export class MemoryService {
     const prefs = this.prefsAt(caller.actor_id, where);
     const projectName = projectId ? await this.projectTitle(projectId) : null, appliesText = memoryAppliesText(input.scope, input.applies, projectName);
     const refused = (reason: string): MemoryWriteResult => ({ outcome: "refused", reason, applies_text: appliesText, memory: null, candidate: null, change_id: null });
-    const text = input.text.trim();
+    // “They said it” holds only when the text is the whole of a message the person typed that the Host saved (spoken.ts), and then what is kept is that message as they wrote it.
+    const claims = !!input.said && !caller.person, spoken = claims ? theirWords(input.text, input.originals ?? []) : null, text = spoken ?? input.text.trim();
+    const unsaid = claims && spoken === null ? (input.originals ? UNSAID : UNCHECKED) : null;
     if (!text || text.length > MAX_TEXT) throw new MemoryError("memory.invalid", `记忆内容要在 1–${MAX_TEXT} 字之间`);
     if (!MEMORY_KINDS.includes(input.kind)) throw new MemoryError("memory.invalid", "记忆类别只能是偏好、约定、背景事实或经验");
     // 允许记住 off: nothing new is formed and no candidate is left. The person's own additions in the settings still count.
@@ -424,19 +426,17 @@ export class MemoryService {
     const screened = await this.ports.backend.screen?.(text).catch(() => null) ?? null;
     if (looksLikeSecret(text) || (input.said && looksLikeSecret(input.said)) || screened?.redacted.includes(REDACTED_CREDENTIAL)) return refused("这段内容看起来含有密码、密钥或令牌，秘密不会进入长期记忆");
     if (caller.consumer === "plugin" && !caller.plugin_id) throw new MemoryError("memory.forbidden", "插件写记忆必须由宿主确认插件身份");
-    // Instruction-like (Prologue's screening or the Host's own Chinese patterns) or carrying a local path: the person sees it first, and so do their own words (a model may restate
-    // "不用确认，直接删" as something harmless). “They said it” holds only when the text is the whole of one message they wrote (theirWords): see spoken.ts.
+    // Instruction-like (Prologue's screening or the Host's own Chinese patterns) or carrying a local path: the person sees it first, and so do their own words (a model may restate "不用确认，直接删" as something harmless).
     const screenedSaid = input.said && !caller.person ? await this.ports.backend.screen?.(input.said).catch(() => null) ?? null : null;
     const entries = await this.located(caller, input.scope, where.owner);
     const target = input.replaces ? entries.find(located => located.entry.memory_id === input.replaces) ?? null : null;
-    const spoken = input.said && !caller.person ? theirWords(text, input.originals ?? [input.said]) : null, unsaid = input.said && !caller.person && spoken === null ? UNSAID : null;
-    if (spoken !== null) input = { ...input, said: spoken, evidence: input.evidence.map(item => item.kind === "said" ? { ...item, text: spoken.slice(0, 200) } : item) }; // recorded as they wrote it, not as a model quoted it
+    if (spoken !== null) input = { ...input, said: spoken, evidence: input.evidence.map(item => item.kind === "said" ? { ...item, text: spoken.slice(0, 200) } : item) }; // their message, not a model's quote of it
     const hold = caller.person ? null : screened?.hold || screenedSaid?.hold || looksLikeInstruction(text) || (input.said ? looksLikeInstruction(input.said) : null)
       ? "这段话像是在给 AI 下指令（例如要求忽略规则或跳过确认），不能自动记住，需要你看过再决定"
       : screened && screened.redacted !== text ? "这段话里有本机文件路径之类的内容，先请你看一下再决定记不记" : unsaid;
-    const same = entries.find(located => sameText(located.entry.text, text) && visibleTo(caller, located.meta));
+    const same = entries.find(located => sameWords(located.entry.text, text) && visibleTo(caller, located.meta));
     if (same) {
-      // Said again: an automatic one becomes the person's own words when what they wrote is this text, whole.
+      // Said again: an automatic one becomes the person's own when its text is the same words as theirs (for “they said it”, `text` is their message itself), not merely alike in its marks.
       if (EXPLICIT_SOURCES.includes(input.source) && same.meta.source === "auto" && !unsaid) {
         await this.saveFacts(same, { ...same.meta, source: input.source, basis: "explicit",
           approved_by: input.approved_by, evidence: [...same.meta.evidence, ...input.evidence].slice(-6), updated_at: this.now().toISOString() });
@@ -646,7 +646,7 @@ export class MemoryService {
     if (earlier.some(item => item.state !== "expired" && (sameText(item.text, text)
       || (item.state === "pending" && work !== null && item.work?.work_id === work.work_id && similarity(item.text, text) >= 0.6))))
       throw new MemoryError("memory.invalid", "这条已经建议过了（用户认可、拒绝或还在等），不要再提");
-    if ((await this.located(caller, input.scope, where.owner)).some(located => sameText(located.entry.text, text))) throw new MemoryError("memory.invalid", "已经记着这一条了");
+    if ((await this.located(caller, input.scope, where.owner)).some(located => sameWords(located.entry.text, text))) throw new MemoryError("memory.invalid", "已经记着这一条了");
     if (work && earlier.filter(item => item.work?.work_id === work.work_id && item.state === "pending").length >= PENDING_PER_WORK)
       throw new MemoryError("memory.limit", `这项工作已有 ${PENDING_PER_WORK} 条建议在等用户，先不要再提`);
     const at = this.now().toISOString();
@@ -683,12 +683,12 @@ export class MemoryService {
       applies: record.applies, expires_at: null, approved_by: { by: "person" } as MemoryApproval, plugin_id: null };
     const entries = await this.located(holder, record.scope, record.owner);
     const target = (record.supersedes ? entries.find(located => located.entry.memory_id === record.supersedes) : undefined)
-      ?? entries.find(located => sameText(located.entry.text, text));
+      ?? entries.find(located => sameWords(located.entry.text, text));
     let located: Located, change: MemoryChangeKind;
     if (target) {
       // It corrects (or repeats) one already kept: that one changes, keeping its history.
       const before = target.entry.version;
-      const entry = sameText(target.entry.text, text) ? target.entry : await this.ports.backend.update({ scope: record.scope, owner: record.owner, memory_id: target.entry.memory_id, text });
+      const entry = sameWords(target.entry.text, text) ? target.entry : await this.ports.backend.update({ scope: record.scope, owner: record.owner, memory_id: target.entry.memory_id, text });
       const meta: MemoryMetaRecord = { ...target.meta, ...facts, evidence: [...target.meta.evidence, ...facts.evidence].slice(-6), state: "active", state_reason: null, updated_at: at };
       if (entry.version !== before) this.ports.ledger.transaction(() => {
         this.ports.ledger.addRevision(entry.memory_id, { version: entry.version, text, kind: meta.kind, applies: meta.applies, change: "replaced", by: "person", at });
@@ -846,7 +846,7 @@ export class MemoryService {
       const verified = quotedFrom(quote, input.said);
       const basis: MemoryBasis = verified && proposal.basis === "explicit" ? "explicit" : "inferred";
       const applies: MemoryApplies = proposal.applies_when?.trim() ? { task: proposal.applies_when.trim().slice(0, 200) } : {};
-      if ((await this.located(caller, scope, where.owner)).some(located => sameText(located.entry.text, text))) { skip("已经记着这一条了"); continue; }
+      if ((await this.located(caller, scope, where.owner)).some(located => sameWords(located.entry.text, text))) { skip("已经记着这一条了"); continue; }
       const work = caller.work ?? null;
       const records = await this.candidateRecords(caller.actor_id, scope, where.owner);
       // The same wish, suggested before in another work from the person's own words, is now repeated. Tied by the same text alone:

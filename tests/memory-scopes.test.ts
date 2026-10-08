@@ -7,7 +7,7 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-a
 import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, type MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 import { prologueMemoryBackend } from "../apps/local-host/src/memory/memory-host.js";
 
@@ -31,19 +31,21 @@ const writer = { id: "character:project-onboarding-a2b1f6ba-bd73-43db-bcb7-e32f0
   analyst = { id: "character:project-onboarding-a2b1f6ba-bd73-43db-bcb7-e32f0d25fb3d:0b2c9d7e-1111-4a2b-9c3d-000000000002", title: "数据分析师" };
 const personIn = (project: string | null): MemoryCaller => ({ actor_id: "web-user", project_id: project, consumer: "ui", person: true });
 const texts = (items: ReadonlyArray<{ text: string }>) => items.map(item => item.text).sort();
+/** The Assistant's way of keeping something: the Host hands the gate the messages the person typed (the third argument), and `said` points at one of them. These tests state that message in `said`. */
+const keep = (service: MemoryService, caller: MemoryCaller, request: MemoryWriteRequest) => service.write(caller, request, { originals: request.said ? [request.said] : [] });
 
 test("a Character's memory is used only in work that Character carries: not by another Character, not without one, not in another project; the person sees and switches it off in the project", { timeout: 60_000 }, async t => {
   const { service } = await memoryHome(t);
-  await service.write(work(null), { scope: "personal", text: "周报用要点列表", said: "周报用要点列表" });
-  await service.write(work(null), { scope: "project", text: "Q4 plan 的周报先写风险", said: "Q4 plan 的周报先写风险" });
-  const kept = await service.write(work(writer), { scope: "character", text: "写周报时语气克制，不用感叹号", said: "写周报时语气克制，不用感叹号" });
+  await keep(service, work(null), { scope: "personal", text: "周报用要点列表", said: "周报用要点列表" });
+  await keep(service, work(null), { scope: "project", text: "Q4 plan 的周报先写风险", said: "Q4 plan 的周报先写风险" });
+  const kept = await keep(service, work(writer), { scope: "character", text: "写周报时语气克制，不用感叹号", said: "写周报时语气克制，不用感叹号" });
   assert.equal(kept.outcome, "written");
   assert.equal(kept.memory!.scope, "character");
   assert.equal(kept.memory!.character_id, writer.id);
   assert.equal(kept.memory!.character_title, "写作顾问");
   assert.match(kept.memory!.origin, /写周报/, "provenance names the work it was said in");
   // Without a Character carrying the work, there is nowhere to keep it.
-  await assert.rejects(service.write(work(null), { scope: "character", text: "x", said: "记住 x" }), /角色/);
+  await assert.rejects(keep(service, work(null), { scope: "character", text: "x", said: "记住 x" }), /角色/);
 
   const query = { query: "写周报 语气 风险 要点" };
   assert.deepEqual(texts((await service.recall(work(writer), query)).items), ["Q4 plan 的周报先写风险", "写周报时语气克制，不用感叹号", "周报用要点列表"]);
@@ -76,7 +78,7 @@ test("a Character's memory is used only in work that Character carries: not by a
   // Clearing the project clears what its page shows, its Characters' memories included; a change after the preview stops it.
   const preview = await service.previewScope(personIn("project-q4"), "project");
   assert.equal(preview.count, 2);
-  await service.write(work(analyst), { scope: "character", text: "图表先给结论", said: "图表先给结论" });
+  await keep(service, work(analyst), { scope: "character", text: "图表先给结论", said: "图表先给结论" });
   await assert.rejects(service.clearScope(personIn("project-q4"), "project", preview.fingerprint), /重新预览/);
   assert.equal((await service.list(personIn("project-q4"))).items.filter(item => item.scope !== "personal").length, 3, "nothing went");
   const again = await service.previewScope(personIn("project-q4"), "project");

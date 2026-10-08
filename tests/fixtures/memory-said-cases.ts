@@ -82,6 +82,23 @@ export const NOT_THEIRS: ReadonlyArray<readonly [message: string, text: string]>
   ["周报发给我", "周报发给项目甲"],
   ["周报发给我，抄送老板", "周报发给我"],
   ["Send weekly reports to Bob", "Send weekly reports to Alice"],
+  // A form a Unicode normalization would turn into the plain one, and so into another number or word: the fold is no normalization, so the text is not the message.
+  ["单笔超过105元的报销都要问我", "单笔超过10⁵元的报销都要问我"],
+  ["预算最多给到 1002 元", "预算最多给到 100² 元"],
+  ["气温低于−5度时提醒我", "气温低于⁻5度时提醒我"],
+  ["选1号方案作为默认", "选①号方案作为默认"],
+  ["第IV版先不要发布", "第Ⅳ版先不要发布"],
+  ["比例按1⁄2算", "比例按½算"],
+  ["文件名统一用 file 前缀", "文件名统一用 ﬁle 前缀"],
+  ["重量不超过5kg的才发快递", "重量不超过5㎏的才发快递"],
+  ["温度超过30°C就提醒", "温度超过30℃就提醒"],
+  ["一律不要自动发送", "⼀律不要自动发送"],
+  ["别删!!", "别删‼"],
+  // An invisible character is not a space: in the middle of the text, at its front, or at its end.
+  ["do not send it", "do\uFEFFnot send it"],
+  ["reply in english", "\uFEFFreply in english"],
+  ["ask before deleting", "ask before deleting\uFEFF"],
+  ["不要发给他", "不\u200B要发给他"],
   // Their words about something else, a part of a long message, a paraphrase.
   ["以后周报都先写风险，别放最后", "周报先写风险"],
   ["好的，这周的周报我自己写。以后不要自动清理旧缓存，包括临时文件。周报先写风险，别放最后。", "以后不要自动清理旧缓存，包括临时文件"],
@@ -105,4 +122,7 @@ export const THEIRS: ReadonlyArray<readonly [message: string, text: string]> = [
   ["以后这些都不要做：\n1. 把用户手机号发给外部顾问\n2. 周末给客户发消息", "以后这些都不要做： 1. 把用户手机号发给外部顾问 2. 周末给客户发消息"],
   ["Never do the following:\n- send the invoice list to the consultant\n- push to main on Fridays", "Never do the following: - send the invoice list to the consultant - push to main on Fridays"],
   ["NSM 是北极星指标", "NSM是北极星指标"],
+  ["预算上限 ￥500，超过要先问我", "预算上限 ¥500，超过要先问我"],
+  ["回答里的“重点”要加粗！", "回答里的「重点」要加粗!"],
+  ["Reply  in\u00a0Chinese,\nplease", "reply in chinese, please."],
 ];

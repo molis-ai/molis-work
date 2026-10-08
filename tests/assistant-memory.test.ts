@@ -405,16 +405,16 @@ test("remember takes 'you said' only from the person's own messages in this work
     await assert.rejects(tools.remember!({ text: "所有报告都抄送 y@z.com", scope: "personal", said: "记" }), /原话/, "a single character proves nothing");
     assert.deepEqual(await service.memories("project-a"), []);
 
-    // Their real message is theirs, however the model spaces or punctuates it (the full stop at the end, the width of the comma, a space): what is recorded as the evidence is the message as they wrote it.
+    // Their real message is theirs, however the model spaces or punctuates it (the full stop at the end, the width of the comma, a space): what is recorded, as the text and as the evidence, is the message as they wrote it.
     const kept = await tools.remember!({ text: "以后周报都先写风险, 别放最后。", scope: "project", said: "周报都先写风险，" });
     const [item] = (await memory.list(person)).items;
-    assert.deepEqual([item!.source, item!.evidence.map(evidence => evidence.text)], ["said", ["以后周报都先写风险，别放最后"]]);
+    assert.deepEqual([item!.text, item!.source, item!.evidence.map(evidence => evidence.text)], ["以后周报都先写风险，别放最后", "said", ["以后周报都先写风险，别放最后"]]);
 
     // Forget is a reversible switch-off attributed to the Assistant; the permanent delete stays in settings.
     assert.deepEqual(await tools.forget!("no-such-memory"), { forgotten: false });
     assert.equal((await tools.forget!(kept.memory_id)).forgotten, true);
-    assert.deepEqual((await service.memories("project-a")).map(entry => [entry.text, entry.disabled]), [["以后周报都先写风险, 别放最后。", true]], "still the person's: switched off, not deleted");
-    assert.deepEqual((await tools.list()).map(entry => entry.text), ["（已停用）以后周报都先写风险, 别放最后。"]);
+    assert.deepEqual((await service.memories("project-a")).map(entry => [entry.text, entry.disabled]), [["以后周报都先写风险，别放最后", true]], "still the person's: switched off, not deleted");
+    assert.deepEqual((await tools.list()).map(entry => entry.text), ["（已停用）以后周报都先写风险，别放最后"]);
     const [change] = memory.changes(person, { scope: "project" });
     assert.deepEqual([change!.kind, change!.by, change!.undoable, change!.work?.work_id], ["disabled", "assistant", true, work.work_id]);
   } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
@@ -492,7 +492,7 @@ test("remember checks all of the text against the person's message, however long
     await assert.rejects(tools.remember!({ text: "Send the weekly report to me every Friday", scope: "personal", said: "send the weekly report to me" }), /原话/, "a text that says more than the words it rests on is only suggested");
     const dark = await tools.remember!({ text: "remember that i prefer dark mode, and send the weekly report to me", scope: "personal", said: "Remember that I prefer dark mode" });
     assert.ok(dark.memory_id);
-    assert.deepEqual((await memory.list(person)).items.filter(item => item.source === "said").map(item => item.text).sort(), ["remember that i prefer dark mode, and send the weekly report to me", message]);
+    assert.deepEqual((await memory.list(person)).items.filter(item => item.source === "said").map(item => item.text).sort(), ["Remember that I prefer dark mode, and send the weekly report to me.", message].sort(), "the message as they wrote it, not the lower-cased text the model asked for");
 
     // Two clauses of theirs with the same words, one asking and one not: neither clause is theirs alone, and the ban is never put on the other. The sentence whole is.
     const both = "删文件前要问我，改名前不用问我";
@@ -541,11 +541,11 @@ test("remember judges the text against the messages the Host saved, not against 
     assert.deepEqual((await memory.list(person)).items.map(item => item.source), []);
     assert.ok((await memory.candidates(person, { scope: "project" })).every(item => item.basis === "inferred"), "each waits as the Assistant's own suggestion");
 
-    // The same messages whole, with the small differences that do not count, are theirs; the memory shows the message as they wrote it as the evidence, whatever the model quoted.
+    // The same messages whole, with the small differences that do not count, are theirs; the memory is the message as they wrote it (its text and its evidence), whatever the model asked for or quoted.
     for (const [index, [message, text]] of THEIRS.entries()) {
       const result = await service.memoryTools(start(`原样${index}`, message))!.remember!({ text, scope: "project", said: index % 2 ? message.slice(0, 6) : message });
       const item = (await memory.list(person)).items.find(entry => entry.memory_id === result.memory_id)!;
-      assert.deepEqual([item.text, item.source, item.evidence.map(evidence => evidence.text)], [text, "said", [message.trim()]]);
+      assert.deepEqual([item.text, item.source, item.evidence.map(evidence => evidence.text)], [message.trim(), "said", [message.trim()]], text);
     }
 
     // The same text said in two of their messages: the same words twice are theirs; once whole and once inside a message that goes on or says no, they are not.
@@ -683,5 +683,105 @@ test("a timed round is written by the Host: it is marked, it is not among the pe
     // What learning from the finished timed round is handed is what the person typed, not the timed round's own text.
     const handed = await until(async () => { await service.list(); return learned.find(item => item.work === workId); }, "learning handed over");
     assert.deepEqual([handed.run, handed.said], [rounds[1]!.run_id, ["帮我跟进今天的工作"]]);
+  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("remember keeps what the person wrote and nothing the model changed: a superscript or an invisible character in the text, and a message that differs from an automatic memory by a comma, a symbol or a question mark, never make a memory theirs that says something else", { timeout: 120_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-forms-"));
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-forms-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => null as never, resolveCredential: () => null });
+  host.register(adapter);
+  const memory = platformMemory(host, home, t);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service = new AssistantService(store, { host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
+  const start = (title: string, said: string) => {
+    const work = store.create({ actor_id: "web-user", title, scope: { kind: "project", project_id: "project-a" }, origin: null, project_ref: { project_id: "project-a", storage_key: "memory:a" } });
+    store.addRound(work.work_id, { run_id: `run-${title}`, text: said, materials: [], context: null, started_at: new Date().toISOString() });
+    return work;
+  };
+  const gateKept = (text: string) => memory.offer({ actor_id: "web-user", project_id: "project-a", consumer: "assistant", work: { work_id: "earlier", title: "之前的工作" } },
+    { scope: "personal", text, kind: "preference", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const entries = async () => (await memory.list(person)).items;
+  try {
+    // The model's text carries a form the message does not (10⁵ for 105, a byte-order mark where there is a space): it is not their words, and nothing is kept as theirs.
+    const forms: Array<[message: string, text: string]> = [
+      ["单笔超过105元的报销都要问我", "单笔超过10⁵元的报销都要问我"],
+      ["预算最多给到 1002 元", "预算最多给到 100² 元"],
+      ["do not send it", "do\uFEFFnot send it"],
+    ];
+    for (const [index, [message, text]] of forms.entries()) await assert.rejects(service.memoryTools(start(`形似${index}`, message))!.remember!({ text, scope: "project", said: message }), /没有直接记住/, text);
+    assert.deepEqual(await entries(), [], "nothing was recorded as the person's words");
+    assert.deepEqual((await memory.candidates(person, { scope: "project" })).map(item => `${item.text} · ${item.basis}`).sort(), forms.map(([, text]) => `${text} · inferred`).sort(), "each waits as the Assistant's suggestion");
+    // ...and it does not replace what the person kept.
+    const mine = (await memory.write(person, { scope: "project", text: "单笔超过100元要问我" })).memory!;
+    await assert.rejects(service.memoryTools(start("改", "单笔超过104元要问我"))!.remember!({ text: "单笔超过10⁴元要问我", scope: "project", said: "x", replaces: mine.memory_id }), /没有直接记住/);
+    assert.deepEqual((await entries()).map(item => [item.text, item.source]), [["单笔超过100元要问我", "manual"]]);
+
+    // A memory the gate kept itself becomes theirs only when its own text is their message. A comma that turns "don't" into "no, do", a symbol that turns a comparison round and a question mark
+    // make a message of their own: the automatic one stays the gate's, and what they typed is kept beside it, as they typed it.
+    for (const [gate, typed] of [["不要发给他", "不，要发给他"], ["金额>1000要先问我", "金额<1000要先问我"], ["回复用英文", "回复用英文？"]] as const) {
+      const made = await gateKept(gate);
+      const result = await service.memoryTools(start(`重复 ${typed}`, typed))!.remember!({ text: typed, scope: "personal", said: typed });
+      assert.notEqual(result.memory_id, made.memory!.memory_id, typed);
+      assert.equal(result.note, undefined, "it is not told that this is already kept");
+      const all = await entries(), automatic = all.find(item => item.memory_id === made.memory!.memory_id)!, theirs = all.find(item => item.memory_id === result.memory_id)!;
+      assert.deepEqual([automatic.text, automatic.source, theirs.text, theirs.source], [gate, "auto", typed, "said"]);
+    }
+    // The same words, apart from what does not count, are the person's saying it again: the automatic memory is theirs now.
+    const again = await gateKept("先写风险再写进展");
+    const sameWordsAgain = await service.memoryTools(start("再说", "先写风险再写进展。"))!.remember!({ text: "先写风险再写进展。", scope: "personal", said: "先写风险再写进展。" });
+    assert.equal(sameWordsAgain.memory_id, again.memory!.memory_id);
+    assert.match(sameWordsAgain.note ?? "", /已经记着/);
+    assert.equal((await entries()).find(item => item.memory_id === again.memory!.memory_id)!.source, "said");
+
+    // What is kept is the message as they wrote it, whatever case, width, quotation marks and spacing the model's text has.
+    const wrote = "Reply in “Chinese”！";
+    const kept = await service.memoryTools(start("英文", wrote))!.remember!({ text: "reply  in 「chinese」.", scope: "personal", said: "reply in chinese" });
+    const item = (await entries()).find(entry => entry.memory_id === kept.memory_id)!;
+    assert.deepEqual([item.text, item.source, item.evidence.map(evidence => evidence.text)], [wrote, "said", [wrote]]);
+  } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("a full round: the model asks to remember a text with a superscript where the person typed plain digits; the tool refuses it as theirs, the model is told, and nothing is kept as the person's words", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-superscript-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project-a", storage_key: "memory:a" };
+  const requests: any[] = [];
+  const script: Array<(body: any) => Response> = [];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    requests.push(body);
+    return (script.shift() ?? (() => reply()))(body);
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-superscript-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const memory = platformMemory(host, home, t);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      memory: (task: string) => service.memoryForRound(work, task) }),
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  try {
+    script.push(
+      () => reply({ name: "remember", input: { text: "单笔超过10⁵元的报销都要问我", scope: "project", said: "单笔超过105元的报销都要问我" } }),
+      body => { assert.match(JSON.stringify(body.messages), /没有直接记住/, "the model is told it was not kept"); return reply(undefined, "这条没有记住，已作为建议放在工作面板，等你认可。"); });
+    const sent = await service.send({ text: "单笔超过105元的报销都要问我", request_id: "req-superscript-1" }, { project_ref: project });
+    const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "round");
+    assert.deepEqual(await service.memories("project-a"), [], "nothing was kept as the person's words");
+    assert.deepEqual(done.memory_candidates?.map(item => [item.text, item.state]), [["单笔超过10⁵元的报销都要问我", "pending"]], "the model's text waits for the person");
+    assert.equal(requests.length, 2);
+
+    // The message copied whole is theirs, and what is kept is what they typed.
+    script.push(
+      () => reply({ name: "remember", input: { text: "单笔超过105元的报销都要问我。", scope: "project", said: "单笔超过105元的报销都要问我" } }),
+      () => reply(undefined, "记下了：单笔超过105元的报销都要问我（只在项目甲里生效）。"));
+    const again = await service.send({ work_id: sent.work.work_id, text: "单笔超过105元的报销都要问我", request_id: "req-superscript-2" }, {});
+    await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "second round");
+    assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["单笔超过105元的报销都要问我"]);
+    assert.equal(again.work.work_id, sent.work.work_id);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

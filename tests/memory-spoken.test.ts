@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { quotedFrom, theirWords } from "@molis-ai/molis-work-service-memory";
+import { quotedFrom, sameWords, theirWords } from "@molis-ai/molis-work-service-memory";
 
 const said = (text: string, ...messages: string[]) => theirWords(text, messages) !== null;
 
@@ -57,6 +57,92 @@ test("only these differences are ignored: case, width, quotation marks, spacing 
     ["Use tables", "◇ Use tables"],
   ];
   for (const [text, message] of different) assert.equal(theirWords(text, [message]), null, `${JSON.stringify(text)} / ${JSON.stringify(message)}`);
+});
+
+test("the fold is no Unicode normalization: a superscript, a circled or parenthesized digit, a Roman numeral, a fraction, a ligature, a unit sign, a Kangxi radical or a doubled mark is not the plain form it looks like", () => {
+  // [the plain form, the look-alike]: each pair is the same under a Unicode compatibility normalization, and they say different things to a reader (10⁵ is a hundred thousand), so neither is the other's words.
+  const looksAlike: Array<[plain: string, other: string]> = [
+    ["单笔超过105元的报销都要问我", "单笔超过10⁵元的报销都要问我"],
+    ["预算最多给到 1002 元", "预算最多给到 100² 元"],
+    ["预算翻 x2", "预算翻 x²"],
+    ["h2o", "H₂O"],
+    ["温度−5度以下提醒", "温度⁻5度以下提醒"],
+    ["选1号方案", "选①号方案"],
+    ["选10号方案", "选⑩号方案"],
+    ["选(1)号方案", "选⑴号方案"],
+    ["第IV版不要发", "第Ⅳ版不要发"],
+    ["比例按1⁄2算", "比例按½算"],
+    ["比例按1⁄4算", "比例按¼算"],
+    ["file", "ﬁle"],
+    ["off the record", "oﬀ the record"],
+    ["重量不超过5kg", "重量不超过5㎏"],
+    ["温度超过30°C", "温度超过30℃"],
+    ["tm", "™"],
+    ["No 5", "№ 5"],
+    ["一律不用确认", "⼀律不用确认"],
+    ["别删!!", "别删‼"],
+    ["等等...", "等等…"],
+    ["不,要发", "不﹐要发"],
+    ["ǆ", "dž"],
+  ];
+  for (const [plain, other] of looksAlike) {
+    assert.equal(theirWords(other, [plain]), null, `${JSON.stringify(other)} from ${JSON.stringify(plain)}`);
+    assert.equal(theirWords(plain, [other]), null, `${JSON.stringify(plain)} from ${JSON.stringify(other)}`);
+  }
+  // Half-width katakana and hangul are not widened either; only the full-width forms of the ASCII characters are narrowed.
+  assert.equal(said("ｱｲｳ", "アイウ"), false);
+  assert.equal(said("アイウ", "ｱｲｳ"), false);
+  // The Kelvin sign, the Angstrom sign and the Ohm sign are not letters in another case.
+  assert.equal(said("keep it 300k", "Keep it 300K"), false);
+  assert.equal(said("5 å", "5 Å"), false);
+});
+
+test("only a real space is a space: the no-break space, the ideographic space and a line separator are; a byte-order mark and the zero-width characters are not, wherever they stand", () => {
+  for (const space of [" ", "　", " ", " ", "\t", "\r\n", "\u0085"]) {
+    assert.equal(theirWords("Reply in Chinese", [`Reply${space}in Chinese`]), `Reply${space}in Chinese`.trim(), JSON.stringify(space));
+    assert.equal(theirWords(`Reply${space}in Chinese`, ["Reply in Chinese"]), "Reply in Chinese", JSON.stringify(space));
+  }
+  for (const invisible of ["﻿", "​", "‌", "‍", "⁠", "­", "‎", "᠎", "️"]) {
+    const label = JSON.stringify(invisible);
+    // Instead of a space, in the middle of a word, at the front, at the end.
+    assert.equal(said(`do${invisible}not send it`, "do not send it"), false, `${label} for a space`);
+    assert.equal(said("do not send it", `do${invisible}not send it`), false, `${label} for a space, the other way round`);
+    assert.equal(said(`do not${invisible}send it`, "do not send it"), false, `${label} in a word break`);
+    assert.equal(said("不要发给他", `不${invisible}要发给他`), false, `${label} in a Chinese word`);
+    assert.equal(said(`${invisible}do not send it`, "do not send it"), false, `${label} at the front`);
+    assert.equal(said(`do not send it${invisible}`, "do not send it"), false, `${label} at the end`);
+    assert.equal(said("do not send it", `do not send it${invisible}`), false, `${label} at the end of the message`);
+  }
+});
+
+test("the full-width forms of the ASCII characters and the full-width signs are narrowed, nothing else is widened or narrowed", () => {
+  assert.equal(theirWords("预算上限 ¥500", ["预算上限 ￥500"]), "预算上限 ￥500");
+  assert.equal(theirWords("预算上限＄５００", ["预算上限$500"]), "预算上限$500");
+  assert.equal(theirWords("ＡＢＣ　ｄｅｆ", ["abc def"]), "abc def");
+  assert.equal(theirWords("a～b", ["a~b"]), "a~b");
+  assert.equal(theirWords("（备注：先问我）", ["(备注:先问我)"]), "(备注:先问我)");
+  // The same character in a form that is not the full-width form of an ASCII one is another character.
+  assert.equal(said("预算上限 ¢5", "预算上限 ¤5"), false);
+  assert.equal(said("预算上限 500", "预算上限 ５00　"), true, "a full-width digit and an ideographic space at the end are the full-width forms");
+  assert.equal(said("预算上限 500", "预算上限 ①00"), false);
+  assert.equal(said("先写风险｡再写进展", "先写风险.再写进展"), false, "the half-width ideographic full stop is not the Chinese full stop");
+  assert.equal(said("先写风险【重点】", "先写风险[重点]"), false, "black lenticular brackets are not square brackets");
+  assert.equal(said("don`t send it", "don't send it"), false, "a backtick is not an apostrophe");
+  assert.equal(said("„no“", '"no"'), false, "low quotation marks are not in the list");
+});
+
+test("the same words: a text is the same as another only apart from case, width, quotation marks, white space and one sentence mark at the end; a comma, a symbol or a question mark makes another text", () => {
+  for (const [left, right] of [
+    ["回复用英文", "回复用英文。"], ["Reply in English", "reply in english!"], ["NSM 是北极星指标", "NSM是北极星指标"], ["预算 ￥500", "预算 ¥500"],
+    ["先写风险。再写进展", "先写风险.再写进展"], ["“周报”先写风险", "「周报」先写风险"], ["Reply  in English", "Reply in English"],
+  ] as const) assert.equal(sameWords(left, right), true, `${left} / ${right}`);
+  for (const [left, right] of [
+    ["不要发给他", "不，要发给他"], ["金额>1000要先问我", "金额<1000要先问我"], ["回复用英文", "回复用英文？"], ["预算 50", "预算 50%"], ["a+b", "a-b"], ["回复用英文", "回复用英文..."],
+    ["单笔超过105元要问我", "单笔超过10⁵元要问我"], ["do not send it", "do﻿not send it"], ["别删", "别删!!"],
+  ] as const) assert.equal(sameWords(left, right), false, `${left} / ${right}`);
+  // Marks alone are no words: two texts that are nothing but a mark are not "the same".
+  assert.equal(sameWords("。", "!"), false);
+  assert.equal(sameWords("", ""), false);
 });
 
 test("a part of a message is not theirs, whichever part: what a sentence says can lie in the one beside it, and nothing here reads that", () => {

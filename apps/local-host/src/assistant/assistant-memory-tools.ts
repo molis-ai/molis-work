@@ -40,8 +40,8 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
     ...(work.delegated_by ? {} : { remember: async (request: Parameters<NonNullable<AgentMemoryTools["remember"]>>[0]) => {
       if (request.scope === "project" && !projectId) throw fail("assistant.scope", "这是个人工作，没有项目；只能记为个人偏好");
       if (request.scope === "character" && !caller.character) throw fail("assistant.scope", "这一轮不是由某个角色承担的，不能记为角色记忆");
-      // “You said” is the person's only when the text is the whole of a message they typed in this work: the gate judges it against these saved messages (not against the quote the model gives),
-      // and a paraphrase, a part of a message or anything else is the Assistant's own suggestion, which waits for the person.
+      // “You said” is the person's only when the text is the whole of a message they typed in this work: the gate judges it against these saved messages (not against the quote the model gives), and what is kept
+      // is that message as they wrote it. A paraphrase, a part of a message or anything else is the Assistant's own suggestion, which waits for the person.
       let result;
       try { result = await memory.write(caller, { scope: request.scope, text: request.text, said: request.said, ...(request.kind ? { kind: request.kind } : {}), ...(request.replaces ? { replaces: request.replaces } : {}) }, { originals: input.spoken() }); }
       catch (error) { throw asAssistantError(error); }

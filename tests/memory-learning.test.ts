@@ -169,3 +169,14 @@ test("wishes that share wording are different wishes: the model's same_as never 
     assert.deepEqual((await waitingTexts()).filter(text => text === first.text || text === second.text), [first.text, second.text].sort(), "both wait for the person");
   }
 });
+
+test("a wish drawn out of work that is the same words as a memory already kept is skipped; one that differs by a symbol or a comma says something else, so it waits for the person", { timeout: 60_000 }, async t => {
+  const { service } = await memoryHome(t);
+  await service.write(person, { scope: "project", text: "金额>1000要先问我" });
+  const said = ["以后金额<1000要先问我"];
+  const same = await service.learnFromWork(inWork("work-1", "报销"), { said, proposals: [{ ...riskFirst, text: "金额>1000要先问我。", quote: "金额<1000要先问我" }] });
+  assert.deepEqual(same.map(item => [item.outcome, item.reason]), [["skipped", "已经记着这一条了"]]);
+  const flipped = await service.learnFromWork(inWork("work-2", "报销"), { said, proposals: [{ ...riskFirst, text: "金额<1000要先问我", quote: "金额<1000要先问我" }] });
+  assert.deepEqual(flipped.map(item => item.outcome), ["candidate"]);
+  assert.deepEqual((await service.candidates(person, { scope: "project" })).map(item => item.text), ["金额<1000要先问我"]);
+});

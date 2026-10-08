@@ -29,11 +29,15 @@ test("memory is one system.memory provider in the shared directory: the person m
   assert.deepEqual(agentViews, ["memory.list", "memory.recall", "memory.write"], "agents see reading and the gated write, never management");
 
   const asPerson = bindActionClient(client, () => person), asAgent = bindActionClient(client, () => agent);
-  // An agent keeps something only with the person's words; it is the local person's personal memory.
+  // An agent must bring a quote of the person's words, but the Host holds none of the person's messages for it to be checked against: what an agent writes is a suggestion, never "you said".
   await assert.rejects(asAgent.invoke(memoryActions.write, { scope: "personal", text: "喜欢简短" }), /原话/);
-  const kept = await asAgent.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" });
-  assert.equal(kept.outcome, "written");
-  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items.map(item => [item.text, item.source]), [["回答用要点列表", "said"]]);
+  const suggested = await asAgent.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" });
+  assert.deepEqual([suggested.outcome, suggested.memory, suggested.candidate?.text, suggested.candidate?.basis], ["candidate", null, "回答用要点列表", "inferred"]);
+  assert.match(suggested.reason, /没有保存/);
+  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, [], "nothing was recorded as the person's words");
+  // It becomes a memory when the person accepts it: the local person's personal memory, as accepted.
+  const kept = await asPerson.invoke(memoryActions.accept, { candidate_id: suggested.candidate!.candidate_id });
+  assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items.map(item => [item.text, item.source]), [["回答用要点列表", "accepted"]]);
   // The person's page recalls as the interface consumer; an agent as Agent work.
   const recalled = await asAgent.invoke(memoryActions.recall, { query: "总结一下", used_for: "Coding 工作" });
   assert.deepEqual(recalled.items.map(item => item.text), ["回答用要点列表"]);
@@ -65,8 +69,8 @@ test("memory.recall cancelled while it waits for the store settles nothing: no r
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const service = memoryHostFor(host)!.service;
   const client = host.homeActionClient();
-  const asAgent = bindActionClient(client, () => agent);
-  await asAgent.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" });
+  const asAgent = bindActionClient(client, () => agent), asPerson = bindActionClient(client, () => person);
+  await asPerson.invoke(memoryActions.write, { scope: "personal", text: "回答用要点列表" });
   const recallRef = { capability_id: memoryActions.recall.capability_id, version: 1, provider_id: MEMORY_PROVIDER_ID };
 
   // The call is stopped while it is reading the store: the read finishes, the call's own effect check refuses, and no receipt is written.

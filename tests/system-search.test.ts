@@ -24,7 +24,8 @@ import { homeSqlitePath, openTextSearchIndex } from "@molis-ai/molis-work-storag
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, todoActions, todoManifest } from "@molis-ai/molis-work-plugin-todo";
 
-type Note = { id: string; title: string; body: string; version: number; secret?: boolean };
+/** `refuse`: the object is still listed, but its reader will not hand it over now (a locked document, a version kept only as a file reference). */
+type Note = { id: string; title: string; body: string; version: number; secret?: boolean; refuse?: { code: string; text: string } };
 interface Source {
   notes: Map<string, Note>;
   lists: number;
@@ -61,6 +62,7 @@ function register(service: ActionService, state: Source, provider: { provider_id
         state.reads += 1;
         const note = state.notes.get((input as { subject_id: string }).subject_id);
         if (!note) throw new ActionError("actions.subject_unavailable", "笔记已删除");
+        if (note.refuse) throw new ActionError(note.refuse.code, note.refuse.text);
         return subjectContext({ subject: { kind: "note", id: note.id }, revision: String(note.version), title: note.title, content: note.body, goal_ids: [], session_id: null });
       } },
     ],
@@ -245,6 +247,64 @@ test("open verifies the object: a deleted one is reported and leaves the index",
   assert.equal(missing.state, "missing");
   assert.deepEqual(ids(await ask(f, owner("a"), "临时")), []);
   await assert.rejects(f.search.open({ client: f.actions, caller: owner("a") }, { hit_id: "not-a-hit" }), (error: { code?: string }) => error.code === "actions.input_invalid");
+});
+
+test("open on a listed object whose reader refuses reports it unavailable and keeps it searchable; only the owner's listing proves it gone", async t => {
+  const f = await fixture(t);
+  const notes = source([
+    { id: "open", title: "预算 公开", body: "正文", version: 1 },
+    { id: "locked", title: "预算 加密", body: "", version: 1, secret: true, refuse: { code: "actions.subject_unavailable", text: "文档已加密锁定，解锁后才能读取" } },
+  ]);
+  register(f.actions, notes, { provider_id: "notes-a", project_id: "a" });
+  const first = await ask(f, owner("a"), "预算");
+  assert.deepEqual(ids(first), ["locked", "open"]);
+  const hit = first.hits.find(candidate => candidate.subject.id === "locked")!;
+  const refused = await f.search.open({ client: f.actions, caller: owner("a") }, { hit_id: hit.hit_id });
+  assert.equal(refused.state, "unavailable", "the owner still lists it: it is locked, not deleted");
+  assert.match(refused.state === "unavailable" ? refused.reason : "", /加密锁定/);
+  // The source's own listing is unchanged, so the next pass must not need a change to bring the hit back.
+  const lists = notes.lists;
+  f.tick(61_000);
+  const later = await ask(f, owner("a"), "预算");
+  assert.ok(notes.lists > lists, "the source was checked again after the fresh window");
+  assert.deepEqual(ids(later), ["locked", "open"], "a refusal never removes a listed object from the shared index");
+  assert.equal(later.status, "complete");
+  // Once the owner stops listing it, opening confirms the deletion and the object leaves the index.
+  notes.notes.delete("locked");
+  assert.equal((await f.search.open({ client: f.actions, caller: owner("a") }, { hit_id: hit.hit_id })).state, "missing");
+  assert.deepEqual(ids(await ask(f, owner("a"), "预算")), ["open"]);
+});
+
+test("the wording of a reader's refusal never decides that an object was deleted", async t => {
+  const f = await fixture(t);
+  const notes = source([
+    { id: "busy", title: "周报 忙", body: "", version: 1, secret: true, refuse: { code: "notes.busy", text: "笔记库忙，这条内容已删除或不存在的说法只是个误报" } },
+    { id: "odd", title: "周报 反常", body: "", version: 1, secret: true, refuse: { code: "notes.not_found", text: "找不到" } },
+  ]);
+  register(f.actions, notes, { provider_id: "notes-a", project_id: "a" });
+  const found = await ask(f, owner("a"), "周报");
+  assert.deepEqual(ids(found), ["busy", "odd"]);
+  for (const hit of found.hits) {
+    const opened = await f.search.open({ client: f.actions, caller: owner("a") }, { hit_id: hit.hit_id });
+    assert.equal(opened.state, "unavailable", `${hit.subject.id}: the reader says no, the listing still has it`);
+  }
+  assert.deepEqual(ids(await ask(f, owner("a"), "周报")), ["busy", "odd"]);
+});
+
+test("an on-demand source has no listing to confirm a deletion, so a refusing reader means unavailable", async t => {
+  const f = await fixture(t);
+  let reads = 0;
+  f.actions.registerProvider({ provider: { provider_id: "memos", plugin_id: "memos", title: "备忘插件", kind: "plugin" }, definitions: [personalEntries, personalQuery, personalReader],
+    handlers: [
+      bindSearchEntriesHandler(personalEntries, () => []),
+      { ...personalQuery, handle: () => ({ hits: [{ subject: { kind: "memo", id: "live" }, revision: "1", title: "按需", snippet: "只在查询时出现的正文", updated_at: null, open: null }] }) },
+      { ...personalReader, handle: () => { reads += 1; throw new ActionError("actions.subject_unavailable", "备忘已锁定"); } },
+    ] });
+  const hit = (await ask(f, owner("a"), "查询时")).hits[0]!;
+  const opened = await f.search.open({ client: f.actions, caller: owner("a") }, { hit_id: hit.hit_id });
+  assert.equal(reads, 1, "the owner's reader was asked");
+  assert.equal(opened.state, "unavailable");
+  assert.match(opened.state === "unavailable" ? opened.reason : "", /锁定/);
 });
 
 test("a failing source keeps what it had, reports it, and recovers", async t => {

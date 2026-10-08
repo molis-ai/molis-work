@@ -11,6 +11,7 @@ import { rm } from "node:fs/promises";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { pluginBuilderProjectOwner } from "./plugin-builder/project-data.js";
+import { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 
 /**
  * The owners whose data of a project is plain files in the Home: the personal libraries partitioned by `project_id`.
@@ -32,5 +33,7 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     // Without a running Host there is no studio to close, only its directory to remove; the Host's own owner replaces this one.
     { id: "alchemist", label: "炼金术士的研究空间", clear: projectId => rm(alchemistProjectDirectory(home, projectId), { recursive: true, force: true }) },
     pluginBuilderProjectOwner(home),
+    // Without a running Assistant nothing is queued or running for these works, so their rows are all there is to clear.
+    { id: "assistant", label: "助理在这个项目里的工作", clear: async projectId => { await purgeAssistantProject(home, projectId); } },
   ];
 }

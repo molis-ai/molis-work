@@ -16,7 +16,8 @@ import {
   type MemorySignalReport,
   type MemoryWriteRequest,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { MemoryError, MemoryService, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { MemoryError, MemoryService, purgeProjectMemories, type MemoryBackendPort, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { projectDeletedHooksFor } from "../project-deleted-hooks.js";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
@@ -88,7 +89,8 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     if (!memory) throw new MemoryError("memory.off", "当前运行时没有记忆能力");
     return memory;
   };
-  const service = new MemoryService({ backend: prologueMemoryBackend(store), ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) });
+  const backend = prologueMemoryBackend(store);
+  const service = new MemoryService({ backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) });
   const caller = (context: ActionCallContext, work?: { work_id: string; title: string } | null): MemoryCaller => {
     const consumer: MemoryConsumer = context.audience === "plugin" ? "plugin" : context.audience === "mcp" ? "mcp" : context.audience === "user" ? "ui" : "agent";
     return { actor_id: LOCAL_PERSON, project_id: context.project_id, consumer, plugin_id: context.host_plugin?.plugin_id ?? null, work: work ?? null,
@@ -175,6 +177,10 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     void scheduleUpkeep(new Date()).catch(error => console.warn("[memory] 没有排上整理", error));
   };
   void ports.started?.().then(attachQueue).catch(() => undefined);
+  // Deleting a project clears its memories and its Characters' from the runtime, and the ledger forgets their history.
+  let closed = false;
+  projectDeletedHooksFor(ports.homeDirectory).register({ id: "memory", label: "这个项目及其角色的记忆", alive: () => !closed,
+    clear: async projectId => { await ports.ready(); await purgeProjectMemories({ backend, ledger }, projectId); } });
   const host: MemoryHost = {
     service,
     caller,
@@ -190,7 +196,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
       const queued = await schedule.enqueue({ key: `memory-learn:${request.key}`, session_id: request.session_id, kind: LEARN_KIND, payload, due_at: new Date().toISOString(), max_attempts: 2 });
       if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn queued", queued.key, queued.state, queued.due_at);
     },
-    close: () => { dispose(); ledger.close(); hosts.delete(ports.localHost); },
+    close: () => { closed = true; dispose(); ledger.close(); hosts.delete(ports.localHost); },
   };
   hosts.set(ports.localHost, { home: ports.homeDirectory, host });
   return host;

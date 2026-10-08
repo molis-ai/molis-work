@@ -113,7 +113,9 @@ test("a running Host's owners clear what only they can: pictures being made, the
 
     const owners = projectDeletedHooksFor(home).owners().map(owner => owner.id);
     for (const id of ["project-runtime", "images", "alchemist", "search", "plugin-builder"]) assert.ok(owners.includes(id), `${id} is registered`);
+    for (const id of ["assistant", "memory"]) assert.ok(owners.includes(id), `${id} is registered`);
     assert.ok(owners.indexOf("project-runtime") < owners.indexOf("alchemist"), "the runtime closes before the data it ran on goes");
+    assert.ok(owners.indexOf("assistant") < owners.indexOf("memory"), "the Assistant's works stop before the memories they could still add to go");
 
     const result = await catalog.deleteProject(deletion(project.project_id));
     assert.equal(result.deletion.cleanup_state, "complete", JSON.stringify(result.deletion.owner_steps.filter(step => step.state !== "complete")));

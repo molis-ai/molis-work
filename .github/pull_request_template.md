@@ -19,11 +19,11 @@ CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base）及其�
 <!-- 合同怎样变更见 docs/system/CONTRACT-CHANGES.md：起点之前不留兼容期，同一个 PR 改完所有消费者。 -->
 
 - [ ] 没有改 `packages/contracts` 的导出、`packages/plugin-sdk` 的出口、动作的输入输出 schema、插件 Manifest 格式、MCP 工具名或对外合同 id
-- [ ] 改了：写明改了哪几项、版本号怎么变、消费者清单（仓库内、外部）和是否都在本 PR 改完；公开 API 快照可用后（路线图 W1-04）贴快照的 diff 与兼容影响：
+- [ ] 改了：写明改了哪几项、版本号怎么变、消费者清单（仓库内、外部）和是否都在本 PR 改完；公开 API 快照（`tooling/gates/api/`）的 diff 与兼容影响：
 
 ## 只许减少的数字
 
-<!-- 巨大单元、测试引用包内部、兼容标记、就地补表、vendored SDK 份数。通过与否、怎样更新 baseline.json 看上面「验证」里的健康门禁一项；这里只写变化的数字。变大的放不过；要放宽只能另开 PR 改门禁本身（脚本、limits.json、CI），那个 PR 会请求 @yijunw0212 评审（`.github/CODEOWNERS` 只请求，不强制）。 -->
+<!-- 巨大单元、测试引用包内部、兼容标记、就地补表、vendored SDK 份数、空 catch、`as unknown as`、旧名。通过与否、怎样更新 baseline.json 看上面「验证」里的健康门禁一项；这里只写变化的数字。变大的放不过；要放宽只能另开 PR 改门禁本身（脚本、limits.json、CI），那个 PR 会请求 @yijunw0212 评审（`.github/CODEOWNERS` 只请求，不强制）。 -->
 
 - [ ] 相对 merge-base 变小的项（项目、旧值 → 新值），没有变大的；不涉及就写“无变化”：
 

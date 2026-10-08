@@ -55,7 +55,7 @@ const definitions: Array<[string, string, Counts, boolean?]> = [
   ["board_id in its spellings", "const a = x.board_id; const b = boardId; const c = existing_board_id; const d = listBoardId; const e = BOARD_ID; const f = boardIds;", { oldNames: 6 }, true],
   ["names that merely contain board", "const a = dashboard_id; const b = dashboardId; const c = keyboardId; const d = boardIdentity; const e = DASHBOARD_ID; const f = KEYBOARD_IDS;", {}, true],
   ["BOARD_ID as the tail of an upper-case name", "const a = CONFLICTING_BOARD_ID; const b = BOARD_IDS;", { oldNames: 2 }, true],
-  ["goal-board and GOAL_BOARDS are the board view and its styles, not the old name", "const css = '.goal-board-switch'; export const GOAL_BOARDS_SCHEMA_SQL = 1;", {}, true],
+  ["goal-board (the kanban class) and GOAL_BOARDS_SCHEMA_SQL are neither of the two counted spellings", "const css = '.goal-board-switch'; export const GOAL_BOARDS_SCHEMA_SQL = 1;", {}, true],
   ["old names are not read in tests", "const a = 'goalboard'; const b = board_id;", {}, false],
   ["a catch in a string is not a script in a test file (a fixture)", "export const fixture = 'try { f(); } catch {}';", {}, false],
 ];

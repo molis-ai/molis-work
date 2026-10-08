@@ -19,7 +19,8 @@
 // declarations that an export refers to but that no entry exports are listed after the exports (HELPERS below). Every
 // statement is its own block, so the overloads of a function, and a type and a const that share a name, are all there; the
 // overloads keep their source order, which decides which one a call resolves to. Which file declares a name is not
-// recorded, so moving code between files of a package (W5-09) leaves the snapshot alone. A name that the plugin SDK
+// recorded, so moving code between files of a package (W5-09) leaves the snapshot alone, except for one case written
+// down at stableImports below (a file that no subpath exports and that the compiler names with `import("./x.js")`). A name that the plugin SDK
 // re-exports from the contracts is one line pointing at the contracts subpath that carries its declaration, so a
 // contract change shows up once.
 //
@@ -153,7 +154,10 @@ export const buildApiSnapshots = (root) => {
     if (name.endsWith(".d.ts") && sourceFiles?.[0]) emitted.set(path.resolve(sourceFiles[0].fileName), text);
   }, undefined, true);
   // Where the compiler wrote `import("./actions.js").Name` (a type it could not name any other way), the snapshot says which
-  // exported subpath that is, or else the path from the package's src/: either way moving a file around changes nothing.
+  // exported subpath that is (when the file is some subpath's source), so renaming or moving it changes nothing. If it is no
+  // subpath's source the snapshot has only the path from the package's src/ to say, and moving THAT file changes it: a
+  // false positive, cleared with `pnpm api:update` (the diff is then a changed path and nothing else). None of the committed
+  // snapshots has such a reference today: all 33 `import(...)` references in them name a subpath.
   const entryBySource = new Map(entries.map((entry) => [entry.source, entry]));
   const stableImports = (file) => (text) => text.replace(/import\("(\.{1,2}\/[^"]+?)(?:\.js)?"\)/g, (whole, specifier) => {
     const target = path.resolve(path.dirname(file), `${specifier}.ts`);

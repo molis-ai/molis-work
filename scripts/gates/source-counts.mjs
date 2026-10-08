@@ -29,9 +29,18 @@
 //                       GOALBOARD_HOME), and the old id name for the project id: board_id, boardId, BoardId, BOARD_ID,
 //                       plural too, as a whole name or the tail of a longer one (conflicting_board_id, existingBoardId,
 //                       CONFLICTING_BOARD_ID) but not inside another word (dashboard_id, dashboardId, DASHBOARD_ID,
-//                       KEYBOARD_IDS). Not counted: `goal-board` and GOAL_BOARDS, which are the board/kanban view and its
-//                       styles, not the old name. Tests are out of scope: they name old names to assert that they are
-//                       refused. What the baseline keeps today (tooling/gates/baseline.json, oldNames): the key-derivation
+//                       KEYBOARD_IDS). Only these two spellings are counted. `goal-board` (the kanban view's
+//                       `.goal-board-switch` class and CSS container name) is not the old name and is not counted.
+//                       GOAL_BOARDS_SCHEMA_SQL (the DDL of the per-project `boards` table) is not counted either, but not
+//                       because it is the view: it is one of the other "Board as the project" names (getBoard,
+//                       initializeBoard, ...) that docs/system/GLOSSARY.md R-A1 lists for renaming (roadmap W5-14 carries
+//                       the renames); this rule neither sees nor guards them. Tests are out of scope: they name old names to assert that
+//                       they are refused. Within a TypeScript source the count reads the plain text, so a comment or a string
+//                       counts like code. Not seen, so a return would not be caught (a known limit, not a decision): the kebab
+//                       spelling `board-id` (the CLI flag before #287) and every file that is not one of the sources above,
+//                       such as examples/draft-goal.json and examples/leaf-goal.json, which still carry `"board_id"` and are
+//                       shipped through the root package.json `files`. Closing it needs a rule per file type, not a regex.
+//                       What the baseline keeps today (tooling/gates/baseline.json, oldNames): the key-derivation
 //                       salt `goalboard-feed-secretstore-v1` in packages/storage/src/adapters/file-secret-store.ts (its code
 //                       comment: changing the string would invalidate existing ciphertext), the local function
 //                       `checkGoalBoard` in apps/local-host/src/project-capabilities.ts, and two unused `_boardId` names in

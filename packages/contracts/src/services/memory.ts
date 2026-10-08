@@ -601,6 +601,13 @@ export interface MemoryUseRecord {
 export interface MemoryLedgerPort {
   /** Forget everything the ledger knows about a deleted memory: its history and uses; changes keep no text. */
   forget(memoryId: string): void;
+  /**
+   * Scopes that no longer exist (a deleted project and its Characters): their changes go entirely, with the notes on their
+   * held candidates, the pairs raised in them, the owner notes, and the named switches, interface counts and markers.
+   * The memories themselves are forgotten one by one with `forget`.
+   */
+  forgetScopes(input: { scopes: ReadonlyArray<{ scope: MemoryScope; owner: string }>; project_id: string;
+    prefs_keys: readonly string[]; signal_prefixes: readonly string[]; marker_keys: readonly string[] }): void;
   revisions(memoryId: string): MemoryRevision[];
   addRevision(memoryId: string, revision: MemoryRevision): void;
   /** The Host's notes about candidates (why, from which work, why held back); the candidates themselves are Prologue's. */
@@ -621,6 +628,11 @@ export interface MemoryLedgerPort {
   /** Owners that stand for something (a Character in a project): its id, as the owner is only a short storage key. */
   owners(projectId: string): Array<{ scope: MemoryScope; owner: string; title: string; subject: string | null }>;
   noteOwner(input: { scope: MemoryScope; owner: string; project_id: string | null; title: string; subject?: string | null }): void;
+  /**
+   * Scopes that hold a note about a waiting candidate in a project, found from the notes themselves: a Character's
+   * suggestion made before its owner was noted still has its scope here.
+   */
+  candidateOwners(projectId: string): Array<{ scope: MemoryScope; owner: string }>;
   /** Pairs waiting for the person, and the pair keys ever raised (a pair kept both is not raised again). */
   pairs(actorId: string): Array<MemoryPair & { owner: string; state: "pending" | "resolved" }>;
   savePair(actorId: string, pair: MemoryPair & { owner: string; state: "pending" | "resolved" }): void;

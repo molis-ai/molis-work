@@ -11,9 +11,9 @@
  * The committed corpus (tests/fixtures/studio-replay/corpus.json and builder-designer/minimax-notes-v1.json) is a SEED: hand-written
  * entries that each exercise one host rule, and 3 real first proposals. It holds no real full-design answer, so the studio's headline
  * number (the share of full designs accepted first time) is not measured by the default run, and the report says so. The real answers
- * (66 on 2026-09-27) exist only in the real Home's run records; whether they may be read, and which may be committed, is pending a user
- * decision that specs/repository-anti-corruption/spec.md §1 will record. Nothing here reads the real Home on its own: `--corpus` and
- * `harvest` read the run-record directory they are given.
+ * (66 on 2026-09-27) exist only in the real Home's run records. The user decided on 2026-10-08 (specs/repository-anti-corruption/spec.md
+ * §1) that they are exported read-only from a copy of that Home and committed after each entry is reviewed for personal data; that export
+ * is not done. Nothing here reads the real Home on its own: `--corpus` and `harvest` read the run-record directory they are given.
  *
  * Limits of the gate, in one place (the same list, with the reasons, is in the doc's §6):
  *  - `--base` compares with the baseline file as the merge-base has it. If the merge-base has no baseline at that path (the commit that

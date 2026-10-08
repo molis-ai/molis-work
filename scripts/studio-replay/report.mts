@@ -26,8 +26,9 @@ const NO_DETAIL_NOTICE = ['(no recorded detail answers in this corpus: the studi
 export const SEED_NOTICE = [
   '(no recorded detail answers in this corpus. The committed corpus is a seed: hand-written entries that each exercise one host rule, and 3 real first proposals.',
   ' The studio\'s headline number, the share of full designs accepted first time, is NOT measured here. The real full-design answers (66 on 2026-09-27) exist',
-  ' only in the real Home\'s run records; whether they may be read and which of them may be committed is pending a user decision, to be recorded in',
-  ' specs/repository-anti-corruption/spec.md §1. To measure your own: pnpm studio:replay --corpus <Home>/plugin-builder/<project>/runs; see docs/platform/STUDIO-SKILL-REPLAY.md)'] as const;
+  ' only in the real Home\'s run records. The user decided on 2026-10-08 (specs/repository-anti-corruption/spec.md §1) that they are exported read-only from a copy',
+  ' of that Home and committed after each is reviewed for personal data. That export is not done, and nothing in this repository reads the real Home.',
+  ' To measure answers you have: pnpm studio:replay --corpus <runs dir>; see docs/platform/STUDIO-SKILL-REPLAY.md)'] as const;
 
 const percent = (passed: number, total: number) => total ? `${Math.round(100 * passed / total)}%` : '–';
 const section = (title: string, lines: readonly string[]) => lines.length ? ['', title, ...lines.map(line => '  ' + line)] : [];

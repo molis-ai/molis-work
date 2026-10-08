@@ -55,7 +55,7 @@ test("the committed corpus is a seed: it holds no real full-design answer, and t
   assert.equal(result.code, 0, result.out);
   assert.match(result.out, /no recorded detail answers in this corpus\. The committed corpus is a seed/);
   assert.match(result.out, /share of full designs accepted first time, is NOT measured here/);
-  assert.match(result.out, /pending a user decision, to be recorded in\s+specs\/repository-anti-corruption\/spec\.md §1/);
+  assert.match(result.out, /The user decided on 2026-10-08 \(specs\/repository-anti-corruption\/spec\.md §1\) that they are exported read-only from a copy\s+of that Home and committed after each is reviewed for personal data\. That export is not done/);
   assert.doesNotMatch(cli(["--corpus", path.join(corpusDirectory, "smoke-briefs.json")]).out, /committed corpus is a seed/, "a corpus of one's own is not called the seed");
 });
 

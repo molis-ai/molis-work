@@ -701,7 +701,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | §4.4 包级清单 | 初稿 | §5 |
 | §4.5 巨大单元 | 门禁已接（只减不增，181 个）；拆分待做 | `tooling/gates/baseline.json` |
 | §4.6 扩展点与插件平台 | 待做；装配名单冻结 19 个、未减少 | `tests/builtin-plugin-assembly-gate.test.ts` |
-| §4.7 多人并行 | 待做；CODEOWNERS 用户 10-02 已定要加，尚未加；`docs/system/PARALLEL-DEVELOPMENT.md` 不存在 | §1 |
+| §4.7 多人并行 | 部分（W1-13 已做）：`docs/system/PARALLEL-DEVELOPMENT.md`（枢纽文件、排时段、集成分支、基线比对、Agent 锁、清理、PR 体量）、`docs/system/CONTRACT-CHANGES.md`（现在不留兼容期；读取兼容从第一个装到开发机之外的版本开始，日期未到）、`.github/CODEOWNERS` 与 SSOT 各表「归属」列（由 `scripts/package-owners.mjs` 生成，`pnpm boundary:check` 校验）、PR 模板新栏目、`AGENTS.md` 指针。待做：公开 API 快照 W1-04、动作合同快照 W2-15、挑相关用例脚本 W2-17、CI 产品子集 W1-11/W2-16、插件回放工具 W4-01、测试并发隔离 W5-12、Prologue SDK 合成负责人（W1-20 提名）；CODEOWNERS 现在只路由包根目录，Coding、Jelly、Shelf 在宿主与外壳里的代码未路由 | §1、`docs/system/PARALLEL-DEVELOPMENT.md` |
 | §4.8 改需求的便利 | 待做 | — |
 | §4.9 体检报告逐项闭环 | 进行中 | §3、§9.3 |
 | §4.10 新合同全链路 | 部分：成果库的预览、固定、比较、继续协议都有门禁与用例；其余合同待做 | artifact-positioning A4–A7 |
@@ -709,7 +709,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | §4.12 卫生与文档 | 部分：vendored 已收到一份；`MIGRATION.md` 未归档；工作树清理按用户决定做了一部分 | §7 |
 | §4.13 门禁 | 第一批已接（健康门禁、整页门禁、成果类型与声明门禁）；静态检查、API 快照、页面资源预算待做 | §5a |
 | §4.14 手册与 Skill | 部分：插件开发 Skill 写明了成果类型的 title、preview、pin、compare、continue | `skills/molis-plugin-dev/elements.md` |
-| §4.15 术语表 | 待做 | — |
+| §4.15 术语表 | 部分：`docs/system/GLOSSARY.md` 已写（一概念一名一定义；术语到翻译稳定键的对应；界面用词待批清单；代码改名清单分内部改名与合同改名；Characters 按「设置的一节」写，讨论按在用功能写）；代码改名、旧术语门禁、两套能力机制的收敛未做 | `docs/system/GLOSSARY.md`、§1 |
 | §4.16 静态检查 | 待做：仓库没有 lint/format 脚本 | `package.json` |
 | §4.17 依赖与 SDK | 待做 | — |
 | §4.18 安全不变量 | 初稿 | §6 |
@@ -903,6 +903,8 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 **评审发现的覆盖缺口**（已并入路线）：静态检查、安全不变量测试、术语表、依赖普查、创作台 Skill 回放工具、逐插件结论、AI 入口清单、前端质感走查、第一步场景与快照的回归比对、「明显下降」没有数字目标、开工与收尾的 §3 指标对比；另有两个库没有版本（experiments `private.sqlite`、alchemist `search.sqlite`，与 §4.1「每个库一份当前 schema」相冲突，W2-05 补）。
 
+**C 端就绪方案**（§4.19、交付第 22 项，W1-21）：[c-end-readiness.md](c-end-readiness.md)。三个里程碑（M1 能装到第二台 mac、M2 保持更新不丢数据、M3 不止 macOS）、各项成本与依赖、5 个探针，以及它们与各波的对应（它的 §4.1）：M1 的前置片在第 4、5 波，所以 M1 最早在第 5 波之后收口。还要用户定的 7 项在它的 §8，用到的已定决定在它的 §0.1；用户决定后各写成 §1 表的一行。
+
 **普查之间的矛盾，按日常取舍定**（记入 §1）：宿主测试不加 `./testing` 子路径，测试走公开入口与 test-kit 助手；助理先就地按包形边界拆、再搬包；`goals-page-renderer.ts` 是外壳页面渲染器，改名留在工作台；门禁基线先加「与合并基点比对」，baseline.json 暂不拆；Home 库登记放在 storage、插件库由插件声明；插件模型端口做成 Runtime 插件服务（由 agent-host 支撑），不新增 typed capability；`stamp-store-baselines.mjs` 等 W2-05 用完再删；调用 id 只在 W3-01 做一次；探针插件夹具只做一套；实验的 grok/laya 本地调用登记为例外，删除条件随 Prologue 收敛口径。
 
 **用户决定**（27 项，10-07 至 10-08 分 7 批弹窗，全部已定；原因与细节见 §1 各行）：
@@ -936,6 +938,8 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | 25 | Prologue SDK 与私有包 | 推上游分支，私有包不再随仓库发 |
 | 26 | Characters 的代码身份 | 并进宿主，变成设置的一节 |
 | 27 | 术语合并范围 | 文档一个定义、内部名跟着改、界面用词另列审批 |
+
+**第 1 波产出**：W1-20 依赖清单与 Prologue SDK 收敛方案（2026-10-08）见 [dependencies-and-sdk-plan.md](dependencies-and-sdk-plan.md)；根 `package.json` 已固定 `packageManager`（pnpm 11.9.0），CI 与发布工作流读它。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

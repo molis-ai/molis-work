@@ -341,6 +341,46 @@ test("a claim of keeping made before the call that then failed is held at the en
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+test("a round that could not start used no memory: its recall is settled as not used, and nothing of it is carried to the round that does start", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-start-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project-a", storage_key: "memory:a" };
+  const script: Array<(body: any) => Response> = [];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => (script.shift() ?? (() => reply()))(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array))));
+  const flags = { model: true };
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-start-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const memory = platformMemory(host, home, t);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      memory: (task: string) => service.memoryForRound(work, task) }),
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  try {
+    script.push(() => reply({ name: "remember", input: { text: "回答用要点列表", scope: "personal", said: "以后回答都用要点列表" } }), () => reply(undefined, "记下了。"));
+    const first = await service.send({ text: "以后回答都用要点列表", request_id: "req-memory-start-1" }, { project_ref: project });
+    const workId = first.work.work_id;
+    await until(async () => (await service.read(workId)).work.state === "completed", "first round");
+    const [kept] = await service.memories("project-a");
+
+    // The memory is recalled for a send, and then the round cannot start.
+    flags.model = false;
+    await assert.rejects(service.send({ work_id: workId, text: "总结一下", request_id: "req-memory-start-2" }, {}), /模型/);
+    const attempted = memory.uses({ work_id: workId });
+    assert.ok(attempted.length > 0, "the attempt did recall the memory");
+    assert.deepEqual([...new Set(attempted.map(use => use.state))], ["omitted"], "but it went into no round, so it was not used");
+
+    // The memory is switched off, and the next send starts: its round carries no receipt left over from the attempt.
+    await service.changeMemory({ memory_id: kept!.memory_id, action: "disable" }, "project-a");
+    flags.model = true;
+    await service.send({ work_id: workId, text: "总结一下", request_id: "req-memory-start-3" }, {});
+    await until(async () => { const v = await service.read(workId); return v.rounds.length === 2 && v.work.state === "completed"; }, "second round");
+    assert.equal(store.rounds(workId)[1]!.memory_receipt, undefined);
+  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
 test("remember takes 'you said' only from the person's own words in this work; forget switches a memory off instead of deleting it", { timeout: 90_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-tools-"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });

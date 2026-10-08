@@ -14,11 +14,15 @@
 //                     outside the action directory
 //   register-calls    registrations and uses of a typed definition, whatever the file calls them:
 //                     - `registerCapability(…)`;
-//                     - `.register(…)` on a receiver that is declared in the same file with a type that registers typed
-//                       capabilities (LocalHost, CapabilityRegistry, the Agent and Schedule registrars: classes and interfaces
-//                       with a `register` or `registerCapability` method whose first parameter is a typed definition; found in
-//                       the snapshot too), built with `new`, held in a `typeof` of such a receiver, or reached through a function
-//                       in this file or an exported function whose declared return type is such a type (`getHost().register(…)`);
+//                     - `.register(…)` (or `["register"](…)`) on a receiver that is declared in the same file with a type that
+//                       registers typed capabilities (LocalHost, CapabilityRegistry, the Agent and Schedule registrars: classes and
+//                       interfaces with a `register` or `registerCapability` method whose first parameter is a typed definition;
+//                       found in the snapshot too), built with `new`, held in a `typeof` of such a receiver, or reached through a
+//                       function in this file or an exported function whose declared return type is such a type
+//                       (`getHost().register(…)`);
+//                     - a reference to a receiver's `register` that is not a direct call: `host.register.bind(host)`, `.call(…)`,
+//                       `.apply(…)`, `const add = host.register`, `const { register } = host`, `list.forEach(host.register)`: each is
+//                       one, and the name it is bound to is followed like the local helper below;
 //                     - a call of a function whose first parameter is a typed definition: one declared in this file (the local
 //                       `register` helper of horizontal/agent-host/src/capability-registration.ts carries more than 40 of them; the
 //                       kernel's normalizedDescriptor is a use, not a registration, and counts too) or an exported one found in
@@ -29,17 +33,30 @@
 //                     - a call of something named `register` or `registerCapability` whose first argument is an inline
 //                       descriptor literal (`capability_id` and `operation` or a spread, no `action`), whatever its receiver's
 //                       type.
-// Each may only fall; a file with no record starts at 0, so a new typed capability, a new registrar and a new consumer all
-// fail. The runtime count (708 descriptors, 609 actions, 99 typed without action) is the same list seen from the registry.
+// Each may only fall; a file with no record starts at 0, so a new typed definition, a new registration point and a new file
+// that registers or declares one all fail. The runtime count (708 descriptors, 609 actions, 99 typed without action) is the
+// same list seen from the registry.
 //
 // A literal that merely has the shape of a descriptor is counted too, because the cast is what a new author would leave out:
 // today two of them are not registrations (a queue key in local-host.ts and an event projection in casebook/observer.ts).
-// What it does not see (review does; there is no type checker behind it): a descriptor derived by spread without a literal id
-// (`{ ...base, capability_id: id }`) and registered by variable through a receiver whose type is not written in the file that
-// calls it (or only through a `typeof` of something imported); a wrapper in another file whose first parameter is untyped; an
-// exported function that returns a registrar without saying so in its signature. The type names and functions it finds today
-// (HostMethodCapability; LocalHost, MolisWorkLocalHost, CapabilityRegistry and the two registrar interfaces) are read back in
-// tests/health-gates-structure.test.ts.
+//
+// What it does not see (there is no type checker behind it; review does):
+//   - a CALL of an existing typed capability, `client.invoke(existingDefinition, input)`, `host.invoke(…)`: the gate counts
+//     definitions and registrations, not consumers, so any file, with or without a record, can start calling a typed capability
+//     that already exists without the count moving unless it also names the type (a new file that does so fails through the
+//     plugin-outside-mentions count, not through this one). N-12 says "no new entries", and a call adds none;
+//   - a descriptor derived by spread without a literal id (`{ ...base, capability_id: id }`) and registered by variable through
+//     a receiver whose type is not written in the file that calls it (or only through a `typeof` of something imported);
+//   - a receiver reached under a computed key (`host[name](…)`), `Reflect.apply(host.register, …)`, a registrar held in an array
+//     or a map, a destructured parameter (`({ register }) => register(…)`);
+//   - a wrapper in another file whose first parameter is untyped; an exported function that returns a registrar without saying
+//     so in its signature;
+//   - a file under `tests/`, `dist/` or `node_modules/` (a `fixtures/` directory outside `tests/` is scanned: the entry's
+//     isStructureSource).
+// Counting is per file: a refactor that splits a file with typed entries carries them into a new file, which starts at 0. Only
+// the half that git recognises as the rename keeps its record, so such a split is a visible change to the gate.
+// The type names and functions it finds today (HostMethodCapability; LocalHost, MolisWorkLocalHost, CapabilityRegistry and the
+// Agent and Schedule registrars; createMolisWorkLocalHost) are read back in tests/health-gates-structure.test.ts.
 import ts from "typescript";
 import { recordMetric } from "./record-metric.mjs";
 
@@ -142,7 +159,13 @@ function returnTypeOf(node) {
   if ((ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) || ts.isVariableDeclaration(node) || ts.isParameter(node)) && node.type && ts.isFunctionTypeNode(node.type)) return node.type.type;
   return undefined;
 }
-const calleeName = (callee) => (ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : undefined);
+/** `object.name` or `object["name"]`: the object and the name of a member access whose name is written out. */
+const memberOf = (node) => {
+  if (ts.isPropertyAccessExpression(node)) return { object: node.expression, name: node.name.text };
+  if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression)) return { object: node.expression, name: node.argumentExpression.text };
+  return undefined;
+};
+const calleeName = (callee) => (ts.isIdentifier(callee) ? callee.text : memberOf(callee)?.name);
 
 /**
  * What the counts need to know about a snapshot: the type names that mean a typed capability (HostCapabilityDefinition and the
@@ -248,7 +271,8 @@ export function createTypedCapabilityIndex(snapshot, files) {
     const returning = declarations(source, (candidate) => functionName(candidate) !== undefined && returnTypeOf(candidate) !== undefined);
     const isReceiver = (expression) => {
       if (ts.isIdentifier(expression)) return receivers.has(expression.text);
-      if (ts.isPropertyAccessExpression(expression)) return receivers.has(expression.name.text);
+      const member = memberOf(expression);
+      if (member) return receivers.has(member.name);
       if (ts.isNonNullExpression(expression) || ts.isParenthesizedExpression(expression) || ts.isAwaitExpression(expression)) return isReceiver(expression.expression);
       if (ts.isCallExpression(expression)) { const name = calleeName(expression.expression); return name !== undefined && chain.has(name); }
       if (ts.isNewExpression(expression)) return ts.isIdentifier(expression.expression) && registrars.has(expression.expression.text);
@@ -277,12 +301,38 @@ export function createTypedCapabilityIndex(snapshot, files) {
         && (hasProperty(first, "operation") || hasSpread(first));
     };
     const methodWrappers = new Set();
+    // `host.register` named as a value, whatever follows it (`.bind(host)`, `.call(…)`, an assignment, an argument).
+    const isRegisterReference = (node) => {
+      const member = memberOf(node);
+      return Boolean(member) && REGISTER_METHODS.has(member.name) && isReceiver(member.object);
+    };
+    const isRegisterBinding = (element) => {
+      const pattern = element.parent;
+      const declaration = pattern?.parent;
+      return ts.isObjectBindingPattern(pattern) && ts.isVariableDeclaration(declaration) && declaration.initializer !== undefined
+        && REGISTER_METHODS.has(nameText(element.propertyName ?? element.name)) && isReceiver(unwrap(declaration.initializer));
+    };
+    /** Does the expression come down to a receiver's `register`: itself, or `…register.bind(…)`? */
+    const referencesRegister = (expression) => {
+      const node = unwrap(expression);
+      if (!node) return false;
+      if (isRegisterReference(node)) return true;
+      const member = ts.isCallExpression(node) ? memberOf(node.expression) : undefined;
+      return Boolean(member) && member.name === "bind" && referencesRegister(member.object);
+    };
+    // The names such a reference is kept under are followed like the local `register` helper: every call of one is a registration.
+    declarations(source, (candidate) => candidate.kind !== ts.SyntaxKind.SourceFile).forEach((node) => {
+      if (ts.isVariableDeclaration(node) && node.initializer && ts.isIdentifier(node.name) && referencesRegister(node.initializer)) wrappers.add(node.name.text);
+      if (ts.isBindingElement(node) && ts.isIdentifier(node.name) && isRegisterBinding(node)) wrappers.add(node.name.text);
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(node.left) && referencesRegister(node.right)) wrappers.add(node.left.text);
+    });
     const isRegisterCall = (call) => {
       const callee = call.expression;
       const name = calleeName(callee);
       if (name === "registerCapability") return true;
       if (ts.isIdentifier(callee) && wrappers.has(callee.text)) return true;
-      if (ts.isPropertyAccessExpression(callee) && name === "register" && isReceiver(callee.expression)) return true;
+      const member = memberOf(callee);
+      if (member && member.name === "register" && isReceiver(member.object)) return true;
       if (ts.isPropertyAccessExpression(callee) && callee.expression.kind === ts.SyntaxKind.ThisKeyword && methodWrappers.has(name)) return true;
       // A descriptor written inline in a call of `register`: a registration, whatever the type of what it is called on.
       return REGISTER_METHODS.has(name) && inlineDescriptor(call);
@@ -336,6 +386,10 @@ export function createTypedCapabilityIndex(snapshot, files) {
       if ((ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isMethodDeclaration(node)) && isTypedType(node.type)) functionReturns(node).forEach(noteLiteral);
       if (ts.isObjectLiteralExpression(node) && isDescriptorShaped(node)) descriptors.add(node);
       if (ts.isCallExpression(node) && isRegisterCall(node)) counts["register-calls"]++;
+      // A reference that is not a direct call (a direct call is counted above): bound, copied, destructured, handed on.
+      if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && isRegisterReference(node)
+        && !(ts.isCallExpression(node.parent) && node.parent.expression === node)) counts["register-calls"]++;
+      if (ts.isBindingElement(node) && isRegisterBinding(node)) counts["register-calls"]++;
       ts.forEachChild(node, visit);
     };
     visit(source);

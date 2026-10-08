@@ -446,7 +446,7 @@
 
 列的口径：
 
-- 层：登记里的 `kind`（基础是 `foundation`，官方接入是 `integration-plugin`）。`server` 与 `packages/im-ui` 现在登记为基础包，但它们是在用、还会迭代的产品功能（右栏「讨论」页签，`apps/workbench/src/side-panel.ts:42`、`:115` 嵌入 `/im`），归类改成业务是 2026-10-08「右栏『讨论』页签与 IM 代码」一行已定的待办（PR #312）。
+- 层：登记里的 `kind`（基础是 `foundation`，官方接入是 `integration-plugin`）。`server` 与 `packages/im-ui` 是在用、还会迭代的产品功能（右栏「讨论」页签，`apps/workbench/src/side-panel.ts:42`、`:115` 嵌入 `/im`）。2026-10-08「右栏『讨论』页签与 IM 代码」一行把归类改成业务列为待办（PR #312）：`server` 已改登记为 `module`（本表标「模块」，结构门禁按 Module 规则查它）；`packages/im-ui` 是界面包、不拥有事实，仍登记为 `foundation`，要不要也改，等用户另定。
 - 源文件、行数：`<包>/src/` 下的 `.ts`、`.mts`，不含 `.d.ts`、测试、`dist`、`fixtures`；行数是按换行切开的段数，与巨大单元门禁（`scripts/check-health-gates.mjs`）同一口径。最大文件的路径相对 `src/`。
 - 公开入口：`package.json` 的 `exports` 条数。依赖内部包：`package.json` 的 `dependencies` 里 workspace 包的个数。被依赖：反方向的个数。
 - 状态、计划深度、审查：见 §5.2。

@@ -166,6 +166,25 @@ const violations: Scenario[] = [
     expect: [/contracts function grew to 23 lines .* in packages\/contracts\/src\/platform\/validator\.ts#long-fn:inspectThing/] },
   { name: "a long arrow function and a long class method in contracts", mutate: () => put("packages/contracts/src/platform/forms.ts", `export const long = () => {\n${pad(19)}  return 1;\n};\nexport class Walker {\n  walk() {\n${pad(19)}    return 1;\n  }\n}\n`),
     expect: [/new contracts function of 22 lines .* in packages\/contracts\/src\/platform\/forms\.ts#long-fn:long/, /forms\.ts#long-fn:Walker\.walk/] },
+  // Found by the reviewer of the third version: functions that are not top-level declarations, and state that is not let/var/new Map.
+  { name: "a long method and a long arrow member of an object literal in contracts", mutate: () => put("packages/contracts/src/platform/validators.ts", `export const validators = {\n  validateThing(input: unknown) {\n${pad(21)}    return input;\n  },\n  check: (input: unknown) => {\n${pad(21)}    return input;\n  },\n};\n`),
+    expect: [/new contracts function of \d+ lines .* in packages\/contracts\/src\/platform\/validators\.ts#long-fn:validators\.validateThing/, /validators\.ts#long-fn:validators\.check/] },
+  { name: "a long constructor, accessor and class property function in contracts", mutate: () => put("packages/contracts/src/platform/shapes.ts", `export class Shape {\n  constructor() {\n${pad(21)}  }\n  get area() {\n${pad(21)}    return 1;\n  }\n  draw = () => {\n${pad(21)}    return 1;\n  };\n}\n`),
+    expect: [/shapes\.ts#long-fn:Shape\.constructor/, /shapes\.ts#long-fn:Shape\.area/, /shapes\.ts#long-fn:Shape\.draw/] },
+  { name: "a long function handed to a call, and a long default export, in contracts", mutate: () => put("packages/contracts/src/platform/handlers.ts", `export const handler = wrap((value: unknown) => {\n${pad(21)}  return value;\n});\ndeclare function wrap<T>(value: T): T;\nexport default function () {\n${pad(21)}  return 1;\n}\n`),
+    expect: [/handlers\.ts#long-fn:handler/, /handlers\.ts#long-fn:default/] },
+  { name: "module-level object and array literals that the file writes to, in contracts", mutate: () => put("packages/contracts/src/platform/registry.ts", [
+    "export const registry: Record<string, number> = {};",
+    "export const record = (key: string) => { registry[key] = (registry[key] ?? 0) + 1; };",
+    "const items: string[] = [];",
+    "export const add = (item: string) => items.push(item);",
+    "const settings = {};",
+    "export const configure = () => Object.assign(settings, { a: 1 });",
+    "const counts = { hits: 0 };",
+    "export const hit = () => { counts.hits++; };",
+    "",
+  ].join("\n")),
+    expect: [/contracts purity mutable-state 0 → 4 in packages\/contracts\/src\/platform\/registry\.ts#mutable-state/] },
 
   // ---- Host entry --------------------------------------------------------------------------------------------------------
   { name: "another export * in the Host entry", launder: true, mutate: () => put("apps/local-host/src/index.ts", read("apps/local-host/src/index.ts") + 'export * from "./another.js";\n'),
@@ -324,6 +343,29 @@ const violations: Scenario[] = [
   ].join("\n")),
     expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-typeof\.ts 0 → 1/] },
 
+  // Found by the reviewer of the third version: other spellings of the same registration, each verified on a scratch clone.
+  { name: "a registration written as host[\"register\"] in a file that already has records", launder: true, mutate: () => {
+    const file = "apps/local-host/src/casebook/integration.ts";
+    put(file, read(file).replace("  host.register(write, (_runtime, input) => input);\n", "  host.register(write, (_runtime, input) => input);\n  host[\"register\"]({ ...read, capability_id: String(Date.now()) }, (_runtime, input) => input);\n"));
+  }, expect: [/typed Host capability register-calls in apps\/local-host\/src\/casebook\/integration\.ts 2 → 3/] },
+  { name: "a registrar bound to a name and called through it", mutate: () => put("apps/local-host/src/wiring-bind.ts", [
+    "import type { LocalHost } from './local-host.js';",
+    "export const wire = (host: LocalHost, definition: never) => {",
+    "  const register = host.register.bind(host);",
+    "  register(definition, () => 1);",
+    "};",
+    "",
+  ].join("\n")),
+    expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-bind\.ts 0 → 2/] },
+  { name: "a registrar called through .call", mutate: () => put("apps/local-host/src/wiring-call.ts", "import type { LocalHost } from './local-host.js';\nexport const wire = (host: LocalHost, definition: never) => host.register.call(host, definition, () => 1);\n"),
+    expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-call\.ts 0 → 1/] },
+  { name: "a registrar destructured from a LocalHost", mutate: () => put("apps/local-host/src/wiring-destructure.ts", "import type { LocalHost } from './local-host.js';\nexport const wire = (host: LocalHost, definition: never) => {\n  const { register } = host;\n  register(definition, () => 1);\n};\n"),
+    expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-destructure\.ts 0 → 2/] },
+  { name: "a registrar handed on as a value", mutate: () => put("apps/local-host/src/wiring-value.ts", "import type { LocalHost } from './local-host.js';\nexport const wire = (host: LocalHost, definitions: never[]) => definitions.forEach(host.register);\n"),
+    expect: [/typed Host capability register-calls in apps\/local-host\/src\/wiring-value\.ts 0 → 1/] },
+  { name: "a typed descriptor in a production file under fixtures/ (it is scanned; one under tests/ is not)", mutate: () => put("apps/local-host/src/fixtures/extra-capability.ts", 'export const extra = { capability_id: "io.example.extra", version: 1, operation: "query" };\n'),
+    expect: [/typed Host capability without-action in apps\/local-host\/src\/fixtures\/extra-capability\.ts 0 → 1/] },
+
   // ---- Module repositories: the packages that the workspace list calls modules -------------------------------------------
   { name: "the server package exports a Store (it is a Module by classification)", mutate: () => put("server/src/index.ts", read("server/src/index.ts") + "export class ServerShadowStore {}\n"),
     expect: [/Module entry exposes a Repository: server#export:ServerShadowStore 0 → 1/] },
@@ -445,6 +487,26 @@ test("things the structure gates do not count", () => {
     put("plugins/native/one/src/own.ts", 'export const self = "@fx/plugin-one";\n'); // a plugin may name itself
     put("apps/local-host/src/prefix.ts", 'export const other = "@fx/plugin-onefold";\n'); // a longer package name that starts with "…plugin-one"
     put("apps/local-host/src/project-host.ts", read("apps/local-host/src/project-host.ts") + "export const registerProviderHint = 'registerProvider(x)';\n"); // text, not a call
+    // Contracts forms that are not impure: a readonly literal, an `as const` table, a short method, and a local that shadows a module literal.
+    put("packages/contracts/src/platform/tables.ts", [
+      "export const frozen: Readonly<Record<string, number>> = { a: 1 };",
+      "export const table = { a: 1 } as const;",
+      "const base = { a: 1 };",
+      "export const copy = () => { const base = { a: 2 }; base.a = 3; return base; };",
+      "export const read = () => ({ ...base });",
+      "export const checks = { short(input: unknown) { return input; } };",
+      "",
+    ].join("\n"));
+    // Not scanned: a fixtures/ directory under tests/. Not counted either: a file that calls a typed capability that already exists
+    // (the gate counts definitions and registrations, not consumers; documented in scripts/gates/typed-capabilities.mjs), and a
+    // `.register` bound on something that registers nothing typed.
+    put("plugins/native/two/tests/fixtures/typed.ts", 'export const fixture = { capability_id: "io.example.two.fixture", version: 1, operation: "query" };\n');
+    put("plugins/native/two/src/consumer.ts", [
+      'import { entry } from "../../one/src/entry-capabilities.js";',
+      "export const call = (client: { invoke(capability: unknown, input: unknown): unknown }) => client.invoke(entry, {});",
+      "export const other = (thing: { register(value: unknown): void }) => [thing.register.bind(thing)];",
+      "",
+    ].join("\n"));
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
@@ -517,7 +579,8 @@ test("on this repository the typed capability rule finds the alias and the regis
   }
   assert.ok(!index.typeNames.has("HostCapabilityInput"), "a type that only reads a definition is not an alias");
   assert.ok(!index.typeNames.has("ActionDefinition"), "an interface that extends the definition is the action path, not an alias");
-  for (const registrar of ["LocalHost", "CapabilityRegistry"]) assert.ok(index.registrarTypes.has(registrar), `${registrar} registers typed capabilities`);
+  for (const registrar of ["LocalHost", "MolisWorkLocalHost", "CapabilityRegistry", "AgentCapabilityRegistrar", "ScheduleCapabilityRegistrar"]) assert.ok(index.registrarTypes.has(registrar), `${registrar} registers typed capabilities`);
+  assert.ok(index.registrarFunctions.has("createMolisWorkLocalHost"), "an exported function that returns the Host is followed (`createMolisWorkLocalHost().register(…)`)");
   const counts = index.countsOf("apps/local-host/src/project-capabilities.ts");
   assert.ok(counts["register-calls"] > 0, "the Host's own registrations through `host.register(…)` are counted");
   // The Agent Host registers about 40 typed capabilities through a local helper whose first parameter is the definition.

@@ -129,7 +129,7 @@
 | 2026-10-08 | 右栏「讨论」页签与 IM 代码（#4，弹窗；两次说明后用户答「后面还要迭代的」） | 保留可见但冻结（推荐）；藏到实验开关后；从 main 删掉 | 保留并继续迭代，不冻结 | 这是在用、还会迭代的产品功能，不是待删的实验。只修三处账目：`server/server.sqlite` 登记进 Home 数据与备份表；宿主不再直接读它的表（`apps/local-host/src/im-server.ts`）；包的归类改成业务（不是基础包）。`apps/server` 独立启动器的去留随功能迭代另定 |
 | 2026-10-08 | 系统助理怎么拆、放哪（#3，弹窗） | 先就地拆、再搬成独立包（推荐）；拆和搬一起做；只登记例外 | 先就地拆、再搬成独立包 | — |
 | 2026-10-08 | 备份范围与「卸载并清除数据」（#20，弹窗） | 离线快照命令、清除覆盖所有登记的库（推荐）；只写计划；连定时在线备份一起做 | 离线快照命令、清除覆盖所有登记的库 | 统一库登记表；经常驻宿主暂停后拍一致快照（带清单与版本核对）；定时在线备份留给 C 端计划 |
-| 2026-10-08 | 真实 Home 的残留物（#21，弹窗） | 核对后清理、路径改推导（推荐）；只搬走备份和孤儿文件；不动 | 核对后清理、路径改推导 | 保留 10-07 维护前整份备份与 runtime-configs；维护替换下来的旧文件搬到 `~/molis-work-backups`；其余旧备份、孤儿文件、空库、旧 goalboard-* 安装版核对后删；目录库 v22 用 Home+项目 id 推导路径；实验库在拷贝上演练后标 v1；动手前先整份备份 |
+| 2026-10-08 | 真实 Home 的残留物（#21，弹窗） | 核对后清理、路径改推导（推荐）；只搬走备份和孤儿文件；不动 | 核对后清理、路径改推导 | 保留 10-07 维护前整份备份与 runtime-configs；维护替换下来的旧文件搬到 `~/molis-work-backups`；其余旧备份、孤儿文件、空库、旧 goalboard-* 安装版核对后删；目录库用 Home+项目 id 推导路径（问的时候写作 v22；v22 之后被删除收据的所有者步骤占用，所以是 v23，W5-17）；实验库在拷贝上演练后标 v1；动手前先整份备份 |
 | 2026-10-08 | 工作树、分支与仓库设置（#24，弹窗） | 我清本地、用户清远端并开自动删除（推荐）；只清本地；都不动 | 我清本地、用户清远端并开自动删除 | 本会话删已合并且干净的工作树与本地分支，wip 与整合分支逐个对比后再删；147 个已合并远端分支与「合并后自动删除分支」由用户做；救援分支与 Codex d62d 不动 |
 | 2026-10-08 | 问卷已停止收集或还是草稿时的非本人提交（逻辑复查 #46 附带，弹窗） | 一律拒绝、只留本人预览试填（推荐）；照旧接收；草稿拒绝、已停止的接收 | 一律拒绝、只留本人预览试填 | Agent、MCP、工作流、插件来源的提交在非「收集中」时拒绝 |
 | 2026-10-08 | Runtime 与安装插件声明的 methods（#18，弹窗） | 和内置插件一样注册（推荐）；非内置不许声明；维持现状写进文档 | 和内置插件一样注册 | 启动时注册，停用、卸载、升级时收回 |
@@ -392,6 +392,7 @@
 | [#287](https://github.com/molis-ai/molis-work/pull/287) | e1cd4906 | 一个项目身份：`board_id` 全仓改为 `project_id`（项目库 v6、Functions v3、目录库 v21）；batch Q 全量 3,678 个用例 3,670 过、7 跳过、1 败（已修） |
 | [#288](https://github.com/molis-ai/molis-work/pull/288) | d81b12cb | Feed 的记录就是模块记录（删 toLegacy* 投影，兼容标记 53 → 20） |
 | [#289](https://github.com/molis-ai/molis-work/pull/289) | 排队 | 最后几处名不副实的兼容标记（20 → 17，剩下的都是保留机制） |
+| 分支 `fix/project-deletion-owners`（PR 待开） | 未合入 | 删除项目时各数据所有者一起清、可重试（§1 10-07）：删除收据里每个所有者一步（目录库新表 `project_deletion_steps`，目录库 v21 → v22）；真实 Home 要先做维护四（下面），做之前这份代码打不开它 |
 
 - 全量回归：batch K（C2 栈顶）3,685 个用例 3,674 过、4 败（均为 C2 预期变化或缺 #274，已修，重跑通过）；batch L（#277–#282 栈顶）3,680 个用例 3,659 过、13 败（11 个是本栈自己的用例仍用旧字段，已修；2 个是负载超时，单独重跑通过；受影响的 32 个用例在栈顶重跑全过）。
 - batch M（#284 加 `board_id` 只改存储列的试做）3,679 个用例 3,656 过、16 败：6 个是 #284 自己的用例仍发内联 instructions（已修，#284 单独验证 192/192）；其余都来自「只改存储列」造成的行与记录字段错位，于是改为一次改完（§1）。
@@ -409,13 +410,20 @@
   7. Runtime 接入：三处客户端配置还是早先的 goalboard 条目（旧的 `GOALBOARD_*` 环境变量，新代码只认 `MOLIS_WORK_*`），新代码报「MCP 宿主没有提供 Runtime 标识」；用户弹窗定「备份后换成产品接入」：三份配置与三个 goal-advance 链接、三张 9 月 11 日的旧接入收据备份到 `~/molis-work-backups/2026-10-07-runtime-configs/`，删掉旧条目后用产品自己的 Runtime 接入（prepare→confirm）给 Claude Code、Codex、Grok Build 写入 `molis-work` 条目与技能；按配置启动的 MCP 能列出真实 Home 的项目。已开着的会话要重开才会用上。
   8. 主检出：另一会话 10-07 8:59–9:27 留下的 26 个文件改动与两个新 spec（用户弹窗定「本会话处理」）先存成补丁并提交到本地分支 `wip/main-checkout-2026-10-07`（4cb5e28f），主检出 fast-forward 到 main（d81b12cb）后把它重新放回为未提交改动（按改名三方合并，`boardId` 改为 `projectId`），构建通过，它改过的 16 个测试文件 73/73 通过。
 - 演练（rehearsal-1007、rehearsal-1007b，拷贝只读取自真实 Home）：两次结果相同；演练检查时一次误开了真实 Home 的一个项目库（目录库存的是绝对路径），版本不符被拒、文件未变，检查脚本已限定只开拷贝。
+- 真实 Home 维护四（目录库 v21 → v22）——**待做，要用户批准；批准前不动真实 Home**，时机待用户定（§7）。分支 `fix/project-deletion-owners` 给目录库加了一张表 `project_deletion_steps`（删除收据里每个数据所有者一步，`modules/projects/src/deletion-steps.ts:7`），`CATALOG_SCHEMA_VERSION` 因此从 21 升到 22（`apps/local-host/src/project-catalog-contract.ts:1`）。别的库的结构与版本都没变（项目库 v6、会话库 v7、Functions v3……）。真实 Home 的目录库是 v21（维护三之后），所以这个分支合入后它与代码对不上，两个方向都要处理：
+  - **跑新代码的进程拒绝 v21**，什么都不写：`catalog.unsupported_schema`「项目目录数据库的版本是 21，这个版本只认 22，不就地升级」（`apps/local-host/src/catalog-schema.ts:32-42`）。主检出快进到新 main 并构建之后，4207 和主检出的命令行就打不开真实 Home；Home 安装版换成新 main 的构建后，新起的 MCP 也一样；都要等做完维护四；
+  - **做完以后跑旧代码的进程拒绝 v22**：维护三用 e1cd4906 重装的 Home 安装版只认 21，遇到 v22 报 `catalog.reader_too_old`（`apps/local-host/src/project-catalog-contract.ts:51-68`），要用新 main 的干净构建重装；已开着的会话里的 MCP 同样报它，要重开会话（`docs/installation.md:76` 同一段说明）。
+  - **做什么**：对 `projects/catalog.db` 跑 `tests/fixtures/catalog-maintenance-v22.sql`，一个事务：新建 `project_deletion_steps`，把 `catalog_meta.schema_version` 由 21 改为 22。库不是项目目录库、版本不是 21、表已存在，整个脚本回滚，什么都不改（用 `node:sqlite` 的 `exec` 或 `sqlite3 -bail` 跑，遇到第一个错就停；不加 `-bail` 的 sqlite3 出错后会接着往下跑并提交，试过）。
+  - **旧回执**：新表是空的。此前删除项目留下的回执没有步骤（「早于所有者步骤的回执」），宿主不替它们补跑：它们的 `owner_steps` 为空、`cleanup_state` 不变（还没收尾的旧回执，宿主启动时只收尾暂存目录，没有步骤可跑）；固定 id 的示例项目再创建前，由各所有者先清一遍（`apps/local-host/src/demo-project-lifecycle.ts:47-49`，用例 `tests/project-deletion-hooks.test.ts` 的 “a fixed-id demo whose earlier deletion has no owner steps”）。旧删除留在各所有者库里的数据不在这次维护范围；要清，另起一项。
+  - **演练**（2026-10-08，临时目录，没有打开真实 Home）：① `tests/catalog-maintenance-v22.test.ts`（5 个用例）：v21 目录库被拒且不被改动；脚本跑完与新建 Home 的 v22 目录库逐项相同（表、列、索引、外键、CHECK、`catalog_meta`）、项目与回执不变、`integrity_check` ok、外键 0；维护后的目录库能打开，旧回执步骤为空（没收尾的那张由宿主收尾）、示例项目能重建、新删除记步骤；版本不是 21、owner 不对、表已被占用都整个回滚；只认 21 的构建对 v22 报 `reader_too_old`。该文件和 SQL 在维护四做完后删除（目录库再变时它会先失败）。② 另用 origin/main（4d59cd4d）的干净构建写出 v21 目录库（一个保留的项目、一个删除的项目、建了又删的示例项目），取 SQLite 备份 API 的拷贝跑同一份脚本：`integrity_check` ok、外键 0、只多 `project_deletion_steps` 一张表、其余表结构不变、与新 Home 的 v22 目录库逐项相同、项目 1 个、回执 2 个都在；新构建能打开并列出两张回执（步骤 0，状态仍完成）；再跑一遍被拒（`catalog_meta.schema_version is 21`）；原构建（只认 21）报 `catalog.reader_too_old: schema=22，当前 reader 支持 1..21`。
+  - **步骤**（按维护三的做法）：1. 用户批准并定时机（弹窗）；2. 停掉连着真实 Home 的进程（4207、4208、4173、各会话的 MCP），按 pid 精确停；3. 动手前只读核对目录库确是 v21，整份备份（APFS 克隆 `~/molis-work-backups/<日期>-before-maint4`，逐个比对）；4. 在 `catalog.db` 的拷贝（SQLite 备份 API，不用 cp）上先演一遍，只开拷贝里的目录库文件，不用产品代码去打开项目——目录库存的是项目库的绝对路径，维护三演练时误开过真实项目库；5. 对真实 Home 的 `projects/catalog.db` 跑脚本；6. 用新 main 的干净构建重装 Home 安装版，主检出快进并构建（§1 10-07「维护后真实 Home 用哪份代码」）；7. 只读核对：版本 22、`project_deletion_steps` 在且为空、项目数与回执数同维护前、新构建能列出项目。
 
-**各库的当前版本（2026-10-07，main d81b12cb）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。
+**各库的当前版本（2026-10-08，main 4d59cd4d 加分支 `fix/project-deletion-owners`）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。表里是代码要求的版本；真实 Home 的目录库仍是 21，做完维护四才到 22，在那之前这份代码打不开它。
 
 | 库 | 版本 | 记在 |
 | --- | --- | --- |
 | 项目库 `projects/<id>/molis-work.db` | 6 | `user_version`（`PROJECT_DATABASE_BASELINE`） |
-| 目录库 `projects/catalog.db` | 21 | `catalog_meta.schema_version` |
+| 目录库 `projects/catalog.db` | 22 | `catalog_meta.schema_version`（`CATALOG_SCHEMA_VERSION`，`apps/local-host/src/project-catalog-contract.ts:1`） |
 | 会话库 `sessions/sessions.db` | 7 | `session_meta.schema_version` |
 | Functions | 3 | `user_version` |
 | Form、记忆、助理 | 2 | `user_version` |
@@ -580,6 +588,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 ## 7. 需要用户操作的事项
 
+- **真实 Home 维护四的时机（目录库 v21 → v22，待弹窗答复）**：`fix/project-deletion-owners` 合入后，更新了的主检出打不开真实 Home 的目录库，做完维护四后装着的 Home 安装版（只认 21）又打不开 v22，要重装（§4.1）。真实 Home 的写操作要你批准，并定它相对合入的时机：① 合入后立刻做，主检出和安装版在做完之前不更新（推荐，与维护三同一做法）；② 先做维护、再合入（真实 Home 先到 22，现在的主检出和安装版立刻打不开它，直到合入并重装）；③ 合入后先不做，和 #21 的真实 Home 清理（§1 10-08）并成一次维护窗口，主检出和安装版在那之前不更新。答复后在 §1 记一行，并把 §4.1 维护四的“时机待用户定”改成结论。
 - **常驻服务 4173 要装新版**：10-03 已停（`launchctl bootout gui/<uid>/com.adeptify.goalboard.web`，plist 未改）。它是安装版 0.2.0，读写已删除的旧成果表，不能再用；装新版或改指向新构建后，用 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.adeptify.goalboard.web.plist` 启动。
 - **旧成果表的备份**：`~/.molis-work-backups/2026-10-03-drop-old-artifact-tables/`（18 个项目库，148 MB，逐个 `integrity_check` 通过、行数与删除前一致）。确认不再需要后由用户删除。
 - ~~**anti-rot**~~：已于 10-03 删除（工作树、本地与远端分支，见 §1），不再需要用户操作。

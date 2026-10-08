@@ -61,6 +61,12 @@ jobs:
       - name: 成果 types have owner previews; writes match Manifests; process items stay out of user lists
         run: node scripts/run-tests.mjs tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts
 
+      # The secret scan's own rules (the scan job above has no dependencies installed): a planted key is caught, files whose
+      # names git quotes are read, a type annotation or a secretKey name does not hide a literal, fixtures stay allow-listed.
+      # If the scanner ever passed everything, this is the step that goes red. About a second.
+      - name: Secret scan rules
+        run: node scripts/run-tests.mjs tests/secret-scan.test.ts
+
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests
         run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test

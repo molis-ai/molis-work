@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { isAllowed, parseAllowlist, redact, scanLine } from "../scripts/check-secrets.mjs";
+import { diffHeaderPath, isAllowed, parseAllowlist, printablePath, redact, scanLine, unquoteGitPath } from "../scripts/check-secrets.mjs";
 
 // Secret scan (repository-anti-corruption §4.18): the lines a branch adds are checked for credential shapes, and a value
 // that is known test data can be allow-listed. Every credential below is assembled at run time from harmless pieces, so
@@ -47,6 +47,45 @@ test("assignments of a hard-coded secret are caught in the notations code and co
     join2("authToken", " := `", value, "`"),
     join2("SERVICE_PASSWORD", ": '", value, "'"),
   ]) assert.deepEqual(ruleIds(line), ["assigned-secret"], line.replace(value, redact(value)));
+});
+
+test("an assignment is caught with a type annotation before the equals sign and for the names a secret half goes by", () => {
+  const value = PLANTED["assigned-secret"];
+  for (const line of [
+    join2("const apiKey", ": string = \"", value, "\";"),
+    join2("export const API_TOKEN", ": string | undefined = '", value, "';"),
+    join2("let password", ": Readonly<string> = `", value, "`;"),
+    join2("val clientSecret", ": String = \"", value, "\""),
+    join2("api_key", ": str = \"", value, "\""),
+    join2("let secret", ": &'static str = \"", value, "\";"),
+    join2("secretKey", ": \"", value, "\","),
+    join2("SecretKey", "=\"", value, "\""),
+    join2("private_key", " = '", value, "'"),
+    join2("\"privateKey\"", ": \"", value, "\""),
+    join2("aws_secret_access_key", " = \"", value, "\""),
+    join2("AWS_SECRET_ACCESS_KEY", "=\"", value, "\""),
+    join2("accessKey", ": \"", value, "\","),
+    join2("client_key", ": '", value, "'"),
+    join2("authKey", " = \"", value, "\""),
+    join2("signingKey", ": \"", value, "\","),
+    join2("encryption_key", ": \"", value, "\","),
+    join2("client_token", " = \"", value, "\""),
+    join2("private_token", ": \"", value, "\","),
+  ]) assert.deepEqual(ruleIds(line), ["assigned-secret"], line.replace(value, redact(value)));
+});
+
+test("a name that only ends in key, a comparison and a type with no value are not reported as assignments", () => {
+  const value = PLANTED["assigned-secret"];
+  for (const line of [
+    join2("const monkey", " = \"", value, "\";"),
+    join2("const turkey", ": string = \"", value, "\";"),
+    join2("if (token", " === \"", value, "\") return;"),
+    join2("if (apiKey", ": string == \"", value, "\") return;"),
+    join2("const apiKey", ": string = process.env.", "SERVICE_API_KEY;"),
+    join2("const secretKey", ": string = \"${", "SERVICE_SECRET_KEY}", "\";"),
+    join2("private_key", " = \"secret://", "home/signing-key-1\""),
+    join2("interface Options { apiKey", ": string; secretKey: string }"),
+  ]) assert.deepEqual(ruleIds(line), [], line.replace(value, redact(value)));
 });
 
 test("references, placeholders, short values and ordinary words are not reported", () => {
@@ -104,6 +143,31 @@ test("the checked-in allow-list parses and covers the known fixtures without cov
   for (const finding of [...scanLine(`apiKey = "${PLANTED["assigned-secret"]}"`), ...scanLine(PLANTED["anthropic-key"])]) {
     assert.ok(!isAllowed(entries, finding.value), `${redact(finding.value)} is not covered by the allow-list`);
   }
+});
+
+test("git's quoted diff header paths are decoded, and an unknown header form is scanned under its raw text", () => {
+  assert.equal(unquoteGitPath('"b/we\\"ird.ts"'), "b/we\"ird.ts");
+  assert.equal(unquoteGitPath('"b/back\\\\slash.ts"'), "b/back\\slash.ts");
+  assert.equal(unquoteGitPath('"b/tab\\there.ts"'), "b/tab\there.ts");
+  assert.equal(unquoteGitPath('"b/new\\nline.ts"'), "b/new\nline.ts");
+  assert.equal(unquoteGitPath('"b/caf\\303\\251.ts"'), "b/caf\u00e9.ts", "octal escapes are UTF-8 bytes");
+  assert.equal(unquoteGitPath('"b/caf\u00e9 \\"x\\".ts"'), 'b/caf\u00e9 "x".ts', "raw non-ASCII characters stay as they are");
+  assert.equal(unquoteGitPath("b/plain.ts"), "b/plain.ts", "an unquoted path is returned as is");
+  assert.equal(unquoteGitPath('"b/unterminated.ts'), null, "a broken quote is not guessed at");
+  assert.equal(unquoteGitPath('"b/bad\\q.ts"'), null, "an escape git never writes is not guessed at");
+
+  assert.equal(diffHeaderPath("b/src/plain.ts"), "src/plain.ts");
+  assert.equal(diffHeaderPath("b/sp ace.ts\t"), "sp ace.ts", "git ends a name that holds a space with a tab");
+  assert.equal(diffHeaderPath('"b/we\\"ird.ts"'), 'we"ird.ts');
+  assert.equal(diffHeaderPath('"b/caf\\303\\251.ts"'), "caf\u00e9.ts");
+  assert.equal(diffHeaderPath("/dev/null"), null, "there is nothing to scan behind /dev/null");
+  assert.equal(diffHeaderPath("c/src/other.ts"), "c/src/other.ts", "another prefix is kept as written, not dropped");
+  assert.equal(diffHeaderPath('"b/unterminated.ts'), '"b/unterminated.ts', "a header that cannot be decoded is scanned under its raw text");
+
+  assert.equal(printablePath("src/plain.ts"), "src/plain.ts");
+  assert.equal(printablePath("we\"ird.ts"), 'we"ird.ts');
+  assert.equal(printablePath("new\nline.ts"), "new\\nline.ts", "a newline in a name cannot start a line of its own in a log");
+  assert.equal(printablePath("esc\u001b[31m.ts"), "esc\\x1b[31m.ts");
 });
 
 // The same steps a CI run takes: a real repository, a base branch, a branch that adds lines.
@@ -207,4 +271,46 @@ test("an unknown base is refused with exit 2 and a hint, not silently passed", t
   const malformed = repo.scan("--all", "--allowlist", noReason);
   assert.equal(malformed.status, 2);
   assert.match(malformed.out, /needs a reason/);
+});
+
+test("files whose names git quotes in diff headers are scanned like any other", t => {
+  const repo = repository(t);
+  repo.write("README.md", "# project\n");
+  const base = repo.commit("base");
+  repo.git("checkout", "-q", "-b", "feature");
+  const line = `const k = "${PLANTED["aws-access-key"]}";\n`;
+  const names = ['we"ird.ts', "back\\slash.ts", "tab\there.ts", "new\nline.ts", "sp ace.ts", "caf\u00e9.ts", "src/\u4e2d\u6587 \"quoted\".ts"];
+  for (const name of names) repo.write(name, line);
+  repo.commit("add files with names git quotes");
+
+  const result = repo.scan("--base", base);
+  assert.equal(result.status, 1, result.out);
+  const reported = result.out.split("\n").filter(row => row.includes("(aws-access-key)")).map(row => row.trim().split(":1 ")[0]);
+  assert.deepEqual(reported.sort(), ['back\\slash.ts', 'caf\u00e9.ts', 'new\\nline.ts', 'sp ace.ts', 'src/\u4e2d\u6587 "quoted".ts', 'tab\\there.ts', 'we"ird.ts'].sort(), result.out);
+  assert.ok(!result.out.includes(PLANTED["aws-access-key"]), "the key is never printed");
+
+  const audit = repo.scan("--all");
+  assert.equal(audit.status, 1, audit.out);
+  assert.equal(audit.out.split("\n").filter(row => row.includes("(aws-access-key)")).length, names.length, "--all reads quoted names too");
+});
+
+test("a git config in the scanner's environment does not change which lines it reads", t => {
+  const repo = repository(t);
+  repo.write("README.md", "# project\n");
+  const base = repo.commit("base");
+  repo.git("checkout", "-q", "-b", "feature");
+  // A textconv filter from a user's attributes file rewrites the patch git shows (the repository itself has no .gitattributes),
+  // and diff.noprefix drops the b/ prefix of every header; the scan must read the real added lines under both.
+  writeFileSync(join(repo.root, ".git", "info", "attributes"), "*.ts diff=mask\n");
+  repo.git("config", "diff.mask.textconv", "sed -e s/AKIA/xxxx/");
+  repo.git("config", "diff.noprefix", "true");
+  repo.write("src/client.ts", `const k = "${PLANTED["aws-access-key"]}";\n`);
+  repo.write("b/lib.ts", `const k = "${PLANTED["aws-access-key"]}";\n`);
+  repo.commit("add client");
+
+  const result = repo.scan("--base", base);
+  assert.equal(result.status, 1, result.out);
+  assert.match(result.out, /^ {2}src\/client\.ts:1 {2}AWS access key id/m);
+  assert.match(result.out, /^ {2}b\/lib\.ts:1 {2}AWS access key id/m, "a directory called b keeps its name when diff.noprefix is set");
+  assert.equal(repo.scan("--all").status, 1, "the tree audit reads the same lines");
 });

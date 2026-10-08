@@ -21,6 +21,12 @@
 //
 // What it does not do: read values that are not quoted (`password: hunter2hunter2` in YAML), look inside binary files,
 // or know a secret that has no recognisable shape. It is a net for the common accidents, not a vault.
+//
+// The patch is read with the repository's own settings switched off where they change what a line looks like: no external
+// diff driver, no textconv filter (a user's attributes file could otherwise rewrite the lines this reads), fixed a/ b/
+// prefixes (diff.noprefix), and quotepath off. A path that git writes as a C-style quoted string in a header (a name with a
+// quote, a backslash or a control character) is decoded; a header that cannot be decoded is scanned under its raw text, so
+// no added line is ever dropped for the way its file is named.
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -34,7 +40,13 @@ const DEFAULT_ALLOWLIST = "tooling/gates/secret-allowlist.txt";
 // then `=`, `:` or `:=`, then a QUOTED value of 12 or more characters without spaces. Values that only point at a secret
 // or stand in for one are not secrets. The name is not matched with a leading wildcard: that would be quadratic on a long
 // base64 line.
-const NAME = String.raw`(?:api[_-]?key|secret|passw(?:or)?d|token|credential)s?`;
+// A key name needs a word in front that says it is the secret half (secretKey, private_key, aws_secret_access_key, clientKey,
+// signing_key): a bare `key` is a map key, a cache key or a React key far more often than a credential. Token and secret
+// names already end the same way (access_token, client_secret, authToken).
+const NAME = String.raw`(?:api[_-]?key|(?:secret|private|access|client|auth|signing|encryption)[_-]?key|secret|passw(?:or)?d|token|credential)s?`;
+// A type annotation between the name and the equals sign (`const apiKey: string = "…"`, `api_key: str = "…"`,
+// `let secret: &'static str = "…"`): a short run of type characters, so the scan cannot run away on a long line.
+const TYPE_ANNOTATION = String.raw`:\s*[A-Za-z_$&][\w$.<>\[\]|&'\s]{0,60}?\s*=(?![=>])`;
 const REFERENCE_VALUE = /^(?:\$|<|\{\{|%|--|process\.env|import\.meta\.env|secret:|keychain:|env:|environment:|vault:|ref:|file:|[a-z][a-z0-9+.-]*:\/\/)/i;
 const PLACEHOLDER_VALUE = /\$\{|\{\{|\.\.\.|…|<[^>]*>|x{4,}|\*{4,}|example|placeholder|change[-_]?me|redacted|dummy|your[-_ ]|my[-_]secret|todo/i;
 
@@ -53,7 +65,7 @@ export const RULES = [
   { id: "google-api-key", label: "Google API key", re: /\bAIza[0-9A-Za-z_-]{35}(?![0-9A-Za-z_-])/g },
   { id: "jwt", label: "JSON Web Token", re: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g },
   { id: "assigned-secret", label: "Hard-coded secret assignment",
-    re: new RegExp(String.raw`${NAME}["']?\s*(?::=|=>|[:=])\s*["'\`](?<value>[^"'\`\s]{12,})["'\`]`, "gi"),
+    re: new RegExp(String.raw`${NAME}["']?\s*(?:${TYPE_ANNOTATION}|:=|=>|[:=])\s*["'\`](?<value>[^"'\`\s]{12,})["'\`]`, "gi"),
     valueGroup: "value",
     // A random secret mixes letters and digits; a word, a path or an identifier usually has no digit.
     accept: (value) => !REFERENCE_VALUE.test(value) && !PLACEHOLDER_VALUE.test(value) && /[A-Za-z]/.test(value) && /\d/.test(value) },
@@ -145,13 +157,61 @@ function resolveRange(cwd, options) {
   return { mode: "commits", from: mergeBase, head, description: `commits since ${mergeBase.slice(0, 10)} (merge base of ${options.base} and ${options.head})` };
 }
 
+const C_ESCAPES = { a: 7, b: 8, f: 12, n: 10, r: 13, t: 9, v: 11, '"': 34, "\\": 92 };
+
+/**
+ * Decode a path that git wrote as a C-style quoted string (`"b/we\"ird.ts"`, `"b/tab\there.ts"`, `"b/caf\303\251.ts"`): the
+ * escapes git writes are \a \b \f \n \r \t \v \" \\ and three-digit octal bytes (UTF-8). Every other character is kept as it
+ * is (core.quotepath=off leaves non-ASCII names unescaped). A path that is not quoted is returned unchanged; one whose
+ * quoting is broken gives null, and the caller falls back to the raw text instead of guessing.
+ */
+export function unquoteGitPath(text) {
+  if (!text.startsWith('"')) return text;
+  const chars = Array.from(text);
+  const bytes = [];
+  for (let i = 1; i < chars.length; i++) {
+    const ch = chars[i];
+    if (ch === '"') return Buffer.from(bytes).toString("utf8");
+    if (ch !== "\\") { bytes.push(...Buffer.from(ch, "utf8")); continue; }
+    const octal = /^[0-7]{3}$/.exec(chars.slice(i + 1, i + 4).join(""));
+    if (octal) { bytes.push(parseInt(octal[0], 8)); i += 3; continue; }
+    const code = C_ESCAPES[chars[i + 1]];
+    if (code === undefined) return null;
+    bytes.push(code);
+    i++;
+  }
+  return null;
+}
+
+/**
+ * The file a "+++ " header names, for the label of the lines under it. Git writes `b/<path>`, quoted when the name has a
+ * quote, a backslash or a control character, and ends a name that holds a space with a tab. null only for /dev/null (a
+ * deletion has no added lines). Anything this cannot decode or does not recognise is returned as the raw header text, so
+ * the lines under it are still scanned.
+ */
+export function diffHeaderPath(header) {
+  if (header === "/dev/null") return null;
+  if (header.startsWith('"')) {
+    const path = unquoteGitPath(header);
+    if (path === null) return header;
+    return path.startsWith("b/") ? path.slice(2) : path;
+  }
+  const bare = header.replace(/\t.*$/, "");
+  return bare.startsWith("b/") ? bare.slice(2) : bare;
+}
+
+/** A path for the log: control characters are written as escapes, so a name cannot start a line or paint the terminal. */
+export const printablePath = (file) => file.replace(/[\u0000-\u001f\u007f]/g, (ch) => ({ "\n": "\\n", "\r": "\\r", "\t": "\\t" })[ch] ?? `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`);
+
 /**
  * Stream the patch text and call `onLine(file, lineNumber, text, commit)` for every added line. A "commits" range is read
  * with `git log -p`, one commit at a time (`commit` is its short id; merge commits add nothing of their own); a "tree" range
  * is read as one diff from the empty tree (`commit` is null).
  */
 function forEachAddedLine(cwd, range, onLine) {
-  const common = ["--unified=0", "--no-color", "--no-ext-diff", "--find-renames", "--diff-filter=ACMRT"];
+  // --no-ext-diff and --no-textconv: read the added lines as committed, not as a driver from the user's own git
+  // configuration or attributes file would rewrite them. The prefixes are fixed so diff.noprefix cannot change the headers.
+  const common = ["--unified=0", "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames", "--diff-filter=ACMRT"];
   const args = range.mode === "tree"
     ? ["diff", ...common, EMPTY_TREE, range.head, "--"]
     : ["log", "-p", "--no-merges", ...common, "--format=commit:%H", `${range.from}..${range.head}`, "--"];
@@ -169,7 +229,7 @@ function forEachAddedLine(cwd, range, onLine) {
       // At zero context every hunk line starts with +, - or a backslash, so a "commit:" line can only be a record header.
       if (text.startsWith("commit:")) { commit = text.slice(7, 15); file = null; inHunk = false; return; }
       if (text.startsWith("diff --git ")) { file = null; inHunk = false; return; }
-      if (!inHunk && text.startsWith("+++ ")) { file = text.startsWith("+++ b/") ? text.slice(6).replace(/\t.*$/, "") : null; return; }
+      if (!inHunk && text.startsWith("+++ ")) { file = diffHeaderPath(text.slice(4)); return; }
       if (text.startsWith("@@")) {
         inHunk = true;
         const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(text);
@@ -212,7 +272,7 @@ async function main() {
     return;
   }
   console.error(`secrets:check: ${findings.length} possible secret${findings.length === 1 ? "" : "s"} in ${range.description}:`);
-  for (const finding of findings) console.error(`  ${finding.file}:${finding.line}  ${finding.label} (${finding.rule})  ${redact(finding.value)}${finding.commit ? `  in ${finding.commit}` : ""}`);
+  for (const finding of findings) console.error(`  ${printablePath(finding.file)}:${finding.line}  ${finding.label} (${finding.rule})  ${redact(finding.value)}${finding.commit ? `  in ${finding.commit}` : ""}`);
   console.error([
     "",
     "A real credential: take it out of the commits (rebase or squash, a later commit that only deletes it is not enough), rotate it, and keep it in the sealed secret store or an environment variable.",

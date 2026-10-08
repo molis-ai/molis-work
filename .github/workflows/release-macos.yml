@@ -28,8 +28,9 @@ jobs:
         with:
           node-version: 24
 
+      # The version is the root package.json "packageManager" (pnpm@x.y.z), so local, CI and release use one pin.
       - name: Install pnpm
-        run: npm install --global pnpm@11.9.0
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
 
       - uses: dtolnay/rust-toolchain@stable
 

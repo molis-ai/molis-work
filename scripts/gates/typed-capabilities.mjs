@@ -43,8 +43,10 @@
 // What it does not see (there is no type checker behind it; review does):
 //   - a CALL of an existing typed capability, `client.invoke(existingDefinition, input)`, `host.invoke(…)`: the gate counts
 //     definitions and registrations, not consumers, so any file, with or without a record, can start calling a typed capability
-//     that already exists without the count moving unless it also names the type (a new file that does so fails through the
-//     plugin-outside-mentions count, not through this one). N-12 says "no new entries", and a call adds none;
+//     that already exists without the count moving unless it also names the type (a new file that imports the definition from a
+//     plugin package outside that plugin fails through the plugin-outside-mentions count, not through this one; a definition
+//     held in packages/contracts, a file inside the plugin's own package, or a call by id string passes every gate). N-12 says
+//     "no new entries", and a call adds none;
 //   - a descriptor derived by spread without a literal id (`{ ...base, capability_id: id }`) and registered by variable through
 //     a receiver whose type is not written in the file that calls it (or only through a `typeof` of something imported);
 //   - a receiver reached under a computed key (`host[name](…)`), `Reflect.apply(host.register, …)`, a registrar held in an array

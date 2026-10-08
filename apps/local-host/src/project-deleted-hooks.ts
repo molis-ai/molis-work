@@ -16,6 +16,8 @@ export interface ProjectDeletedOwner {
   readonly label: string | null;
   /** Owners run in ascending order of this (default 0), those with the same value in registration order. */
   readonly priority?: number;
+  /** False once the service that registered this owner has been closed; such an owner is dropped, not run. */
+  alive?(): boolean;
   /**
    * Clears this owner's data of the project. Idempotent: running it again after it succeeded changes nothing, because a
    * failed receipt is retried and the fixed-id demo project is cleared before it is made again. Throws when something is
@@ -55,6 +57,10 @@ export class ProjectDeletedHooks implements ProjectDeletedPort {
   }
 
   owners(): ReadonlyArray<ProjectDeletedOwner> {
+    for (const [id, stack] of this.stacks) {
+      for (let at = stack.length - 1; at >= 0; at -= 1) if (stack[at]!.alive?.() === false) stack.splice(at, 1);
+      if (!stack.length) this.stacks.delete(id);
+    }
     return [...this.stacks.values()].map(stack => stack[stack.length - 1]!)
       .map((owner, position) => ({ owner, position }))
       .sort((a, b) => (a.owner.priority ?? 0) - (b.owner.priority ?? 0) || a.position - b.position)
@@ -62,8 +68,7 @@ export class ProjectDeletedHooks implements ProjectDeletedPort {
   }
 
   async clear(ownerId: string, projectId: string): Promise<boolean> {
-    const stack = this.stacks.get(ownerId);
-    const owner = stack?.[stack.length - 1];
+    const owner = this.owners().find(item => item.id === ownerId);
     if (!owner) return false;
     await owner.clear(projectId);
     return true;

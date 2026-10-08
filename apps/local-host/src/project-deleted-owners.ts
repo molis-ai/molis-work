@@ -7,7 +7,10 @@ import { purgeTodoProject } from "@molis-ai/molis-work-plugin-todo";
 import { purgeLingguangProject } from "@molis-ai/molis-work-plugin-lingguang";
 import { purgeImagesProject } from "@molis-ai/molis-work-plugin-images";
 import { purgeFunctionsProject } from "@molis-ai/molis-work-module-functions";
+import { rm } from "node:fs/promises";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
+import { alchemistProjectDirectory } from "./alchemist-paths.js";
+import { pluginBuilderProjectOwner } from "./plugin-builder/project-data.js";
 
 /**
  * The owners whose data of a project is plain files in the Home: the personal libraries partitioned by `project_id`.
@@ -26,5 +29,8 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "functions", label: "判断规则在这个项目里的场景绑定和判断记录", clear: projectId => purgeFunctionsProject(home, projectId) },
     { id: "lingguang", label: "灵光里的想法与对话", clear: projectId => purgeLingguangProject(home, projectId) },
     { id: "images", label: "图片生成记录和已生成的图片", clear: projectId => purgeImagesProject(home, projectId) },
+    // Without a running Host there is no studio to close, only its directory to remove; the Host's own owner replaces this one.
+    { id: "alchemist", label: "炼金术士的研究空间", clear: projectId => rm(alchemistProjectDirectory(home, projectId), { recursive: true, force: true }) },
+    pluginBuilderProjectOwner(home),
   ];
 }

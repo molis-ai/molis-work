@@ -46,7 +46,7 @@ export {
   PROJECT_DATABASE_FILENAME,
 } from "./adapters/local-security-paths.js";
 
-export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, KeychainUnavailableError, holdSecretsLockForTest, createFileSecretStore, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, readSecretsFileMeta } from "./adapters/file-secret-store.js";
+export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, KeychainUnavailableError, holdSecretsLockForTest, createFileSecretStore, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, deleteSecretEntriesWithPrefix, readSecretsFileMeta } from "./adapters/file-secret-store.js";
 
 export * from "./adapters/search-storage.js";
 

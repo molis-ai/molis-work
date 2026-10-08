@@ -559,7 +559,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         const labels = {
           inbox: [L("已进入 Inbox"), L("Inbox 只保存需处理引用；原消息仍在 Feed")],
           save: [L("已保存为资料"), L("当前页面演示状态，不写入数据库")],
-          promote: [L("已准备升格 Goal"), L("正式 Goal 创建留给后续功能")],
+          promote: [L("演示：未真正创建 Goal"), L("真实消息可在详情里升格为 Goal")],
           ignore: [L("已忽略"), L("消息仍可从 Feed 历史追溯")],
         }[action] || [L("演示状态已更新"), L("没有发生真实写入")];
         if (destination) {

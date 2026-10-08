@@ -55,3 +55,64 @@ test("a Coding report in the 成果库 can be given to Shelf's report input and 
   assert.equal(restored.body.inputs.find((row: any) => row.port === "coding-report").source, "plugin");
   assert.match(shelfRow(await detail()), /现在跟着 Coding/u);
 });
+
+// A fixed version given to a plugin input stays what the input reads until the person changes it: the Host's default wiring
+// (run on every project open and again when any port is put back) fills only the ports that read nothing, and "put back" from
+// a page that is out of date does not undo a later choice.
+test("a version given to Shelf's report input survives a Host restart, and a stale 'put back' click leaves a later choice alone", async t => {
+  const home = mkdtempSync(join(tmpdir(), "artifact-plugin-inputs-pin-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const project = await catalog.createProject({ display_name: "端口输入", actor_id: "web-user" });
+  for (const plugin_id of ["coding", "artifacts"]) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "web-user" });
+  catalog.close();
+  const prefix = "/projects/" + project.project_id, token = "artifact-plugin-inputs-pin-control-token-123456789";
+  const store = new LocalProjectDatabase(project.database_path), app = new GoalProjectApplication(store);
+  t.after(async () => { await releaseCodingSurface(store, project.project_id); store.close(); rmSync(home, { recursive: true, force: true }); });
+  const openHost = async () => {
+    const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address !== "string");
+    return { server, origin: `http://127.0.0.1:${address.port}` };
+  };
+  let host = await openHost();
+  t.after(async () => { await new Promise<void>(resolve => host.server.close(() => resolve())); });
+  const post = async (path: string, body: unknown) => {
+    const response = await fetch(host.origin + prefix + path, { method: "POST", headers: { origin: host.origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(),
+      "x-molis-work-control-token": token }, body: JSON.stringify(body) });
+    return { status: response.status, body: await response.json().catch(() => null) as any };
+  };
+  const first = { artifact_id: "coding-report:session:first", version: 1 }, second = { artifact_id: "coding-report:session:second", version: 1 };
+  for (const reference of [first, second]) {
+    app.artifacts.commands.registerVersion({ ...pinnedArtifact(reference.artifact_id), project_id: project.project_id, actor_id: "web-user", ...reference,
+      artifact_type_id: "coding.report.v1", schema_version: 1, producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.50.0", binding_signature: "official-coding-binding" },
+      content: { kind: "inline", payload: { title: reference.artifact_id, run_id: "run", source: { session_id: "session" }, body_markdown: "## 报告" } } });
+  }
+  const open = async () => assert.equal((await fetch(host.origin + prefix + "/api/plugins/io.molis.work.shelf/project-results")).status, 200);
+  const shelfRow = async (reference: { artifact_id: string; version: number }) => ((await (await fetch(host.origin + prefix + `/artifacts/${encodeURIComponent(reference.artifact_id)}/versions/${reference.version}`,
+    { headers: { "x-molis-work-fragment": "detail" } })).text()).match(/<li data-artifact-port data-plugin-id="io\.molis\.work\.shelf" data-port="coding-report">[\s\S]*?<\/li>/u)?.[0] ?? "")
+    .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const input = { plugin_id: "io.molis.work.shelf", port: "coding-report" };
+  await open();
+  assert.match(await shelfRow(first), /现在跟着 Coding/u);
+
+  assert.equal((await post("/api/artifacts/plugin-inputs", { reference: first, ...input })).status, 200);
+  assert.match(await shelfRow(first), /正在读这一版/u);
+
+  // A fresh Host start on the same Home runs the default wiring again.
+  await new Promise<void>(resolve => host.server.close(() => resolve()));
+  host = await openHost();
+  await open();
+  assert.match(await shelfRow(first), /正在读这一版/u, "the default wiring does not replace a version the person gave the input");
+
+  // The person gives the input a later version; a page that still shows the first one puts the input back.
+  assert.equal((await post("/api/artifacts/plugin-inputs", { reference: second, ...input })).status, 200);
+  assert.match(await shelfRow(first), /另一版固定的成果/u);
+  const stale = await post("/api/artifacts/plugin-inputs", { reference: first, ...input, restore: true });
+  assert.equal(stale.status, 200, JSON.stringify(stale.body));
+  assert.equal(stale.body.inputs.find((row: any) => row.port === "coding-report").source, "another-version");
+  assert.match(await shelfRow(second), /正在读这一版/u, "putting back a version the input no longer reads does not undo the later choice");
+
+  const restored = await post("/api/artifacts/plugin-inputs", { reference: second, ...input, restore: true });
+  assert.equal(restored.status, 200, JSON.stringify(restored.body));
+  assert.match(await shelfRow(second), /现在跟着 Coding/u);
+});

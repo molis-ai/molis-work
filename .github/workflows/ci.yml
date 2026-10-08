@@ -43,7 +43,10 @@ jobs:
 
       # Numbers that may only go down: giant units (class lines and methods apart), tests reaching into package
       # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers (per source
-      # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a).
+      # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a). The structure numbers
+      # (scripts/gates/, docs/system/PACKAGE-BOUNDARIES.md §6) fall too: contracts purity, the Host entry's `export *`, Module
+      # Repository/Store exports, typed HostCapabilityDefinition sites, plugin-named Host files, registerProvider lines,
+      # hybrid plugins, and the files that name a built-in plugin outside its package.
       # The head and the merge-base are both measured here by the same script and compared, so rewriting
       # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the
       # gate itself (script, limits.json, this step), which is reviewed. The committed baseline.json is not read.
@@ -62,7 +65,7 @@ jobs:
       # Each gate rule is mutation-verified on a scratch repository: one violation added on a branch fails, and so does
       # the same branch after `--update` rewrote the baseline.
       - name: Health gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts
+        run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts tests/health-gates-structure.test.ts
 
       - name: Verify Goal boundaries, storage baselines and release assets
         run: |

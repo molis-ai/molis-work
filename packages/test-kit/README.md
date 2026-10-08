@@ -14,7 +14,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/boundaries.ts](src/boundaries.ts) | 导入边界与依赖环规则 |
+| [src/boundaries.ts](src/boundaries.ts) | 导入边界与依赖环规则（含层与层之间的方向：Module 不向上依赖 Horizontal、Plugin、App；Plugin 不依赖 App、Horizontal、Module；App 之间只有登记的边；例外名单按包路径记，只许减少） |
 | [src/index.ts](src/index.ts) | 公开检查 API |
 | [tests](tests) | 规则回归 |
 

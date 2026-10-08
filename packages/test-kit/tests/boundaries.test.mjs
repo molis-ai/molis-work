@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  APP_IMPORT_ALLOWLIST,
+  PLUGIN_MODULE_IMPORT_ALLOWLIST,
   evaluateImportBoundary,
   extractImportSpecifiers,
   findDependencyCycles,
@@ -388,12 +390,17 @@ test("allows Host composition, storage adapters, Contract subpaths, and colocate
     [contracts.name],
   );
   const pages = boundaryPackage("@molis-ai/molis-work-plugin-pages", "plugins/native/pages", "native-plugin");
-  const goalsPlugin = boundaryPackage(
-    "@molis-ai/molis-work-plugin-goals",
-    "plugins/native/goals",
+  const shelfModule = boundaryPackage("@molis-ai/molis-work-module-shelf", "modules/shelf", "module");
+  const shelfPlugin = boundaryPackage(
+    "@molis-ai/molis-work-plugin-shelf",
+    "plugins/native/shelf",
     "native-plugin",
-    [goals.name],
+    [shelfModule.name],
   );
+  const localHostApp = boundaryPackage("@molis-ai/molis-work-app-local-host", "apps/local-host", "app", [
+    "@molis-ai/molis-work-app-workbench",
+  ]);
+  const workbenchApp = boundaryPackage("@molis-ai/molis-work-app-workbench", "apps/workbench", "app");
 
   const allowed = [
     {
@@ -489,15 +496,160 @@ test("allows Host composition, storage adapters, Contract subpaths, and colocate
       specifier: "better-sqlite3",
       sourceFile: "modules/goals/src/planning/personal-methods.ts",
     },
+    // The two listed layer exceptions (APP_IMPORT_ALLOWLIST, PLUGIN_MODULE_IMPORT_ALLOWLIST): debts that exist today.
     {
-      importer: goalsPlugin,
-      target: goals,
-      specifier: goals.name,
-      sourceFile: "plugins/native/goals/src/index.ts",
+      importer: shelfPlugin,
+      target: shelfModule,
+      specifier: shelfModule.name,
+      sourceFile: "plugins/native/shelf/src/recipes.ts",
+    },
+    {
+      importer: localHostApp,
+      target: workbenchApp,
+      specifier: workbenchApp.name,
+      sourceFile: "apps/local-host/src/web-server.ts",
     },
   ];
 
   for (const observation of allowed) {
     assert.deepEqual(evaluateImportBoundary(observation), [], observation.specifier);
   }
+});
+
+const layerPackages = () => ({
+  contracts: boundaryPackage("@molis-ai/molis-work-contracts", "packages/contracts", "foundation"),
+  app: boundaryPackage("@molis-ai/molis-work-app-workbench", "apps/workbench", "app"),
+  modulePackage: boundaryPackage("@molis-ai/molis-work-module-goals", "modules/goals", "module"),
+  otherModule: boundaryPackage("@molis-ai/molis-work-module-artifacts", "modules/artifacts", "module"),
+  nativePlugin: boundaryPackage("@molis-ai/molis-work-plugin-feed", "plugins/native/feed", "native-plugin"),
+  integration: boundaryPackage("@molis-ai/molis-work-integration-github", "plugins/official-integrations/github", "integration-plugin"),
+  horizontal: boundaryPackage("@molis-ai/molis-work-service-scheduler", "horizontal/scheduler", "horizontal"),
+  kernel: boundaryPackage("@molis-ai/molis-work-kernel", "packages/kernel", "foundation"),
+  sdk: boundaryPackage("@molis-ai/molis-work-plugin-sdk", "packages/plugin-sdk", "foundation"),
+});
+
+test("rejects a Module importing a Horizontal Service, an App or a Plugin", () => {
+  const { app, modulePackage, nativePlugin, integration, horizontal, kernel, contracts, otherModule } = layerPackages();
+  for (const target of [app, nativePlugin, integration, horizontal]) {
+    assert.deepEqual(
+      [...violationCodes({
+        importer: boundaryPackage(modulePackage.name, modulePackage.path, modulePackage.kind, [target.name]),
+        target,
+        specifier: target.name,
+        sourceFile: "modules/goals/src/index.ts",
+      })],
+      ["module-upward-dependency"],
+      target.name,
+    );
+  }
+  // The same rule covers a manifest dependency, which check-package-boundaries.mjs feeds through the same function.
+  const declared = evaluateImportBoundary({
+    importer: boundaryPackage(modulePackage.name, modulePackage.path, modulePackage.kind, [horizontal.name]),
+    target: horizontal,
+    specifier: horizontal.name,
+    sourceFile: "modules/goals/package.json",
+  });
+  assert.deepEqual(declared.map((item) => item.code), ["module-upward-dependency"]);
+  // Not this rule: platform packages stay legal, and another Module has its own, older rule.
+  for (const target of [kernel, contracts]) {
+    assert.ok(!violationCodes({
+      importer: boundaryPackage(modulePackage.name, modulePackage.path, modulePackage.kind, [target.name]),
+      target,
+      specifier: target.name,
+      sourceFile: "modules/goals/src/index.ts",
+    }).has("module-upward-dependency"), target.name);
+  }
+  assert.ok(violationCodes({
+    importer: boundaryPackage(modulePackage.name, modulePackage.path, modulePackage.kind, [otherModule.name]),
+    target: otherModule,
+    specifier: otherModule.name,
+    sourceFile: "modules/goals/src/index.ts",
+  }).has("cross-module-implementation"));
+});
+
+test("rejects a Plugin importing an App, a Horizontal Service or a Module, except the listed Shelf import", () => {
+  const { app, modulePackage, nativePlugin, integration, horizontal, sdk, kernel } = layerPackages();
+  for (const importerBase of [nativePlugin, integration]) {
+    for (const target of [app, modulePackage, horizontal]) {
+      assert.ok(
+        violationCodes({
+          importer: boundaryPackage(importerBase.name, importerBase.path, importerBase.kind, [target.name]),
+          target,
+          specifier: target.name,
+          sourceFile: `${importerBase.path}/src/index.ts`,
+        }).has("plugin-upward-dependency"),
+        `${importerBase.name} -> ${target.name}`,
+      );
+    }
+    for (const target of [sdk, kernel]) {
+      assert.deepEqual(
+        evaluateImportBoundary({
+          importer: boundaryPackage(importerBase.name, importerBase.path, importerBase.kind, [target.name]),
+          target,
+          specifier: target.name,
+          sourceFile: `${importerBase.path}/src/index.ts`,
+        }),
+        [],
+        `${importerBase.name} -> ${target.name}`,
+      );
+    }
+  }
+  // The Goals plugin declared the Goals Module without importing it; the decision is that it declares nothing upward.
+  const goalsPlugin = boundaryPackage("@molis-ai/molis-work-plugin-goals", "plugins/native/goals", "native-plugin", [modulePackage.name]);
+  assert.ok(violationCodes({
+    importer: goalsPlugin,
+    target: modulePackage,
+    specifier: modulePackage.name,
+    sourceFile: "plugins/native/goals/package.json",
+  }).has("plugin-upward-dependency"));
+  // Listed: Shelf's Module. Any other Module, and the Shelf plugin importing a different Module, stay rejected.
+  const shelfModule = boundaryPackage("@molis-ai/molis-work-module-shelf", "modules/shelf", "module");
+  const shelfPlugin = boundaryPackage("@molis-ai/molis-work-plugin-shelf", "plugins/native/shelf", "native-plugin", [shelfModule.name, modulePackage.name]);
+  assert.deepEqual(violationCodes({ importer: shelfPlugin, target: shelfModule, specifier: shelfModule.name, sourceFile: "plugins/native/shelf/src/index.ts" }), new Set());
+  assert.ok(violationCodes({ importer: shelfPlugin, target: modulePackage, specifier: modulePackage.name, sourceFile: "plugins/native/shelf/src/index.ts" }).has("plugin-upward-dependency"));
+});
+
+test("rejects an App importing another App unless the edge is listed", () => {
+  const apps = Object.fromEntries(["desktop", "local-host", "cli", "mcp", "workbench", "server"].map((name) => [name,
+    boundaryPackage(`@molis-ai/molis-work-app-${name}`, `apps/${name}`, "app")]));
+  const root = boundaryPackage("@molis-ai/molis-work", ".", "app");
+  const edge = (from, to) => violationCodes({
+    importer: boundaryPackage(from.name, from.path, from.kind, [to.name]),
+    target: to,
+    specifier: to.name,
+    sourceFile: `${from.path}/src/index.ts`,
+  });
+  for (const [from, to] of [[apps.workbench, apps.cli], [apps.cli, apps["local-host"]], [apps.mcp, apps.workbench], [apps["local-host"], apps.desktop], [apps.desktop, apps.server], [root, apps.workbench], [root, apps.cli]]) {
+    assert.ok(edge(from, to).has("app-dependency-not-allowed"), `${from.name} -> ${to.name}`);
+  }
+  for (const entry of APP_IMPORT_ALLOWLIST) {
+    const [from, to] = entry.split(" -> ");
+    const importer = from === root.path ? root : Object.values(apps).find((item) => item.path === from);
+    const target = Object.values(apps).find((item) => item.path === to);
+    assert.ok(importer && target, entry);
+    assert.deepEqual(edge(importer, target), new Set(), entry);
+  }
+  // Only App → App is covered: an App may use any Module, Horizontal Service, Plugin or platform package it declares.
+  const { modulePackage, horizontal, nativePlugin, kernel } = layerPackages();
+  for (const target of [modulePackage, horizontal, nativePlugin, kernel]) {
+    assert.ok(!edge(apps["local-host"], target).has("app-dependency-not-allowed"), target.name);
+  }
+});
+
+test("the layer exceptions are exactly the edges that exist today", () => {
+  // A change here is a decision that shows up in review: the lists only shrink as the debts are paid. Keyed by package path.
+  assert.deepEqual([...PLUGIN_MODULE_IMPORT_ALLOWLIST], [
+    "plugins/native/shelf -> modules/shelf",
+  ]);
+  assert.deepEqual([...APP_IMPORT_ALLOWLIST], [
+    ". -> apps/desktop",
+    ". -> apps/local-host",
+    ". -> apps/mcp",
+    "apps/desktop -> apps/local-host",
+    "apps/local-host -> apps/cli",
+    "apps/local-host -> apps/mcp",
+    "apps/local-host -> apps/workbench",
+    "apps/server -> apps/desktop",
+    "apps/server -> apps/local-host",
+  ]);
 });

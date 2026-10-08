@@ -16,6 +16,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
 const fail = (message) => { console.error(message); process.exit(2); };
@@ -63,7 +64,7 @@ const isSource = (file) => AREAS.test(file) && /\.(ts|mts)$/.test(file) && !file
   && !/(^|\/)(tests?|dist|node_modules|fixtures)\//.test(file) && !/\.test\.(ts|mts)$/.test(file);
 const isTestFile = (file) => /^tests\/.*\.(ts|mts|mjs)$/.test(file);
 const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
-const needsText = (file) => isSource(file) || isTestFile(file);
+const needsText = (file) => isSource(file) || isTestFile(file) || structureWantsText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -323,6 +324,8 @@ const compatMarkers = {
 };
 
 const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMarkers];
+// The structure gates (W1-05) live in scripts/gates/: each module says what to count, this file compares.
+METRICS.push(...structureMetrics({ isSource, perFile, rekey, rekeyUnit, sumOf }));
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 

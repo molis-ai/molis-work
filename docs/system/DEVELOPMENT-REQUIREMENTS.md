@@ -27,12 +27,12 @@
 
 ## 按层的通用要求
 
-- **App 与组合根**（`apps/*`）：只装配与做 IO，不写业务规则；不直接写业务数据库。一个 Home 只有一个执行进程，其他入口转发给它。
+- **App 与组合根**（`apps/*`）：只装配与做 IO，不写业务规则；不直接写业务数据库。一个 Home 只有一个执行进程，其他入口转发给它。App 之间只有登记的启动器边（`APP_IMPORT_ALLOWLIST`，见 [包边界规则](PACKAGE-BOUNDARIES.md)第 2 节）。
 - **平台包**（`packages/*`、`server`）：只依赖合同与更低层平台包；不拥有 Goal、Artifact、Feed、Session 等业务事实。
-- **Module**（`modules/*`）：自己的事实只由自己写；跨 Module 只走公开合同，不导入另一个 Module 的实现或 Store；结果合同只认现行取值，存量数据由维护改成现行形状。
+- **Module**（`modules/*`）：自己的事实只由自己写；跨 Module 只走公开合同，不导入另一个 Module 的实现或 Store，也不导入 Horizontal Service、App 或 Plugin；入口不再新增 Repository/Store 导出；结果合同只认现行取值，存量数据由维护改成现行形状。
 - **横向运行服务**（`horizontal/` 下的 `connector-host`、`listener-host`、`scheduler`、`runtime-host`、`agent-host`）：提供机制（运行时、连接、监听、叫醒），不决定业务状态。模型调用只经 `horizontal/agent-host`。
 - **平台产品服务**（记忆、放置、搜索、情境排序；现在在 `horizontal/memory`、`horizontal/placement`、`horizontal/search` 与 `packages/kernel` 的 `contextual.ts`）：可以持有跨插件的策略和本服务自己的机制记录，不拥有业务事实——对象事实总向所有者读取，不改写插件或 Module 的事实。见 [系统架构 §3](ARCHITECTURE.md)。
-- **插件**（`plugins/*`）：按 [插件开发 Skill](../../skills/molis-plugin-dev/SKILL.md) 写；能力注册一次进共同动作目录；等模型或外部服务的动作声明 `scheduling: "concurrent"`；被取消或撤权的调用不写任何记录。调模型或跑 Agent 时按 [Prologue AI Skill](../../skills/molis-prologue-ai/SKILL.md)。
+- **插件**（`plugins/*`）：按 [插件开发 Skill](../../skills/molis-plugin-dev/SKILL.md) 写；不导入 App、Horizontal Service 或 Module 的实现包（`plugins/native/shelf` 对 `modules/shelf` 是在册的待还例外）；能力注册一次进共同动作目录，不新增 typed `HostCapabilityDefinition`；等模型或外部服务的动作声明 `scheduling: "concurrent"`；被取消或撤权的调用不写任何记录。调模型或跑 Agent 时按 [Prologue AI Skill](../../skills/molis-prologue-ai/SKILL.md)。
 - **工具**（`tooling/*`）：只依赖合同与 plugin-runtime；不启动插件、不自动发布。
 
 ## 写法

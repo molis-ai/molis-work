@@ -295,7 +295,7 @@ export class FormStore {
     ).get(id) as { count: number };
     return { form_id: id, submission_count: Number(row.count) };
   }
-  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: FormPublicationSnapshot): FormPublicationIntent {
+  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: FormPublicationSnapshot, version?: number): FormPublicationIntent {
     return this.transaction(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
       const pending = this.publicationIntent(id);
@@ -304,7 +304,7 @@ export class FormStore {
         return pending;
       }
       const intent: FormPublicationIntent = { content: existing ?? { title: current.title, description: current.description, status: current.status, questions: current.questions },
-        version: current.artifact_version + 1, source_version: current.version, actor_id: actorId };
+        version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
       this.db.prepare("UPDATE forms SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
       return intent;
     });

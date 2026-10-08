@@ -1,5 +1,5 @@
 {
-  "giantUnits": 165,
+  "giantUnits": 164,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 261,
     "file apps/local-host/src/assistant/assistant-service.ts": 2692,
@@ -103,12 +103,8 @@
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 282,
     "class horizontal/search/src/index.ts#SearchService": {
-      "lines": 444,
-      "methods": 30
-    },
-    "class modules/artifacts/src/service.ts#ArtifactsService": {
-      "lines": 342,
-      "methods": 12
+      "lines": 436,
+      "methods": 28
     },
     "class modules/feed/src/index.ts#FeedModule": {
       "lines": 501,

@@ -8,7 +8,7 @@
 
 “按题目加题”只做本地追加；“AI 拟题加题”显式使用系统文字模型和连接，另需 `model:invoke`。缺模型禁用 AI，保留本地操作。模型等待期间问卷被编辑、删除，或调用取消、连接撤销时不追加过期结果。
 
-“标记已发布”只保存本机状态和稳定 `share_id`，不产生外网填写链接。“存成 Artifact”保存问卷内容，不包含答卷。发布中断后恢复上次固定快照；后续编辑保留，可另存一版。
+“标记已发布”只保存本机状态和稳定 `share_id`，不产生外网填写链接。“存成 Artifact”保存问卷内容，不包含答卷；固定下来的版本归本机的人，固定它的行为者记在 `created_by`。发布中断后恢复上次固定快照；后续编辑保留，可另存一版。问卷移走又移回后，下一次固定接着项目成果库里已有的最高版号，不把旧版当作中断记录交回。
 
 只有收集中（`published`）的问卷接受提交：草稿和已停止收集（`closed`）的问卷只收本人的试填，其余来源被拒绝，规则见下面的不变量。
 
@@ -33,5 +33,5 @@
   - 答卷来源由调用方的 audience 决定：只有本机界面（user）的填写页和试填可以用输入里的 `source` 自称 `fill` 或 `preview`；助理、MCP、流程、插件的答卷记为各自的来源，输入的 `source` 对它们无效。
   - 只有收集中（`published`）的问卷接受提交。草稿和已停止收集的问卷只收本人的试填（本机界面的 `preview`）：填写页（`fill`）和助理、MCP、流程、插件来源的提交以 `form.closed`（HTTP 409）拒绝，不写任何答卷，重新开始收集后恢复。判断在 `FormStore.submit` 的事务里，入口不各写一份。导入答卷文件（`form.answers.import`）是另一条路径，不看收集状态：停止收集后本人仍可导入返回的答卷文件。
   - 流程交来的标题和题目列表按问卷的上限（标题 80 字、40 题）截取后再收，不因超限而整次拒收。
-- 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-mcp.test.ts tests/creative-tools-plugins.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-mcp.test.ts tests/creative-tools-plugins.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

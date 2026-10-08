@@ -6,7 +6,7 @@ import { parsePagesBody } from "./document.js";
 import { PAGES_ARTIFACT_TYPE_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_AI_COMMANDS, runPagesAi, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
-import { promotePagesDocument, type PagesPublishArtifactPort, type PagesReadArtifactPort } from "./promote.js";
+import { promotePagesDocument, type PagesLineHeadPort, type PagesPublishArtifactPort, type PagesReadArtifactPort } from "./promote.js";
 import type { PagesStore } from "./store.js";
 import { generatePagesFromMaterials } from "./generate.js";
 import { pagesTemplateSummaries } from "./templates.js";
@@ -117,6 +117,7 @@ export interface PagesActionPorts {
   prepareImport(files: readonly PagesImportFile[], caller: ActionExecutionContext): Promise<PreparedPagesImport>;
   publishArtifact?: (input: Parameters<PagesPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<PagesPublishArtifactPort>;
   readArtifact?: (input: Parameters<PagesReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<PagesReadArtifactPort>;
+  lineHead?: PagesLineHeadPort;
 }
 export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandlerBinding[] {
   const prepareImport = async (files: readonly PagesImportFile[], caller: ActionExecutionContext) => {
@@ -133,7 +134,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}),
   });
   const promote = (id: string, caller: ActionCallContext, goalId?: string, expectedVersion?: number) => ports.withStore(store => promotePagesDocument(store, id, project(caller),
-    value => ports.publishArtifact!(value, caller), goalId, { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined }));
+    value => ports.publishArtifact!(value, caller), goalId, { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead }));
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "pages.unavailable", reason: "当前环境不能发出成果" };
   return [
     // The whole document (整篇) is prepared from its stored text; preparing never writes.
@@ -252,7 +253,9 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.promote, (input, caller) => promote(input.id, caller, input.goal_id, input.expected_version), publishable),
     bind(pagesActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
     bindArtifactCompare(pagesActions.artifactCompare, PAGES_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
-      (payload, object) => sameArtifactFields(payload, object, ["title", "body"])),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "body"]),
+      // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.
+      id => ports.withStore(store => objectOrMissing(() => store.get(id)) !== null)),
     bind(pagesActions.extract, (input, caller) => ports.withStore(store => store.extract(input.id, project(caller)))),
   ];
 }

@@ -2,7 +2,7 @@ import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contract
 import { FORM_DRAFT_QUESTION } from "./prompts.js";
 import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FORM_ARTIFACT_TYPE_ID, FORM_PROJECT_PLUGIN_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord, type FormSubmissionSource } from "@molis-ai/molis-work-contracts/modules/form";
-import { promoteForm, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
+import { promoteForm, type FormLineHeadPort, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
 import type { FormStore } from "./store.js";
 import { createFormSearchHandlers, formSearchActions } from "./search.js";
 import { formFillPageFilename, formFillPageHtml, formResultsCsv, formResultsCsvFilename } from "./fillpage.js";
@@ -68,6 +68,7 @@ export interface FormActionPorts {
   completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
   publishArtifact?: (input: Parameters<FormPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<FormPublishArtifactPort>;
   readArtifact?: (input: Parameters<FormReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<FormReadArtifactPort>;
+  lineHead?: FormLineHeadPort;
 }
 /**
  * Where an answer came from is the call's, not the caller's word: the fill page and the trial fill are a person at the
@@ -80,7 +81,7 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promoteForm(store, id, project(caller), value => ports.publishArtifact!(value, caller),
-    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined }));
+    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead }));
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "form.unavailable", reason: "当前环境不能发出成果" };
   return [
     formArtifactPreviewHandler,
@@ -142,7 +143,9 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       return { surface: FORM_PROJECT_PLUGIN_ID, id: created.id, title: created.title };
     })),
     bindArtifactCompare(formActions.artifactCompare, FORM_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
-      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "questions"])),
+      (payload, object) => sameArtifactFields(payload, object, ["title", "description", "questions"]),
+      // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.
+      id => ports.withStore(store => objectOrMissing(() => store.get(id)) !== null)),
     ...createFormSearchHandlers(ports.withStore),
   ];
 }

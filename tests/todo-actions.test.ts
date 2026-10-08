@@ -29,7 +29,7 @@ function fixture(t: { after(fn: () => void): void }, now = () => new Date("2026-
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
   const as = (project_id: string | null, audience: ActionCallContext["audience"] = "user") =>
     bindActionClient(service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: TODO_ACTION_PERMISSIONS }));
-  return { service, home, me: as(null), inA: as("project-a"), inB: as("project-b"), agentA: as("project-a", "agent"), agentHome: as(null, "agent") };
+  return { service, home, store, me: as(null), inA: as("project-a"), inB: as("project-b"), agentA: as("project-a", "agent"), agentHome: as(null, "agent") };
 }
 
 const titles = (result: TodoListResult) => result.items.map(item => item.title).sort();
@@ -145,6 +145,50 @@ test("undoing a create removes it; request_id replays instead of creating twice;
   await assert.rejects(f.me.invoke(actions.remove, { id: other.item.id, expected_revision: 9 }), { code: "todo.conflict" });
   assert.deepEqual(await f.me.invoke(actions.remove, { id: other.item.id, expected_revision: 1 }), { deleted: true, id: other.item.id });
   await assert.rejects(f.me.invoke(actions.revert, { change_id: other.change_id }), { code: "todo.not_found" });
+});
+
+test("a request id belongs to the caller and project that chose it: another caller's identical id is another request, never a replay of someone else's todo", async t => {
+  const f = fixture(t);
+  const inA = await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project", request_id: "todo-req-1" });
+  // Another project cannot see A's todo: reusing the id used to fail with not_found, and now creates its own.
+  const inB = await f.inB.invoke(actions.create, { title: "B 项目的事", placement: "project", request_id: "todo-req-1" });
+  assert.equal(inB.replayed, false);
+  assert.notEqual(inB.item.id, inA.item.id);
+  assert.equal(inB.item.title, "B 项目的事");
+  // Another caller reusing the person's id for a visible personal todo used to get that todo back as a replay.
+  const mine = await f.me.invoke(actions.create, { title: "我的个人事", placement: "personal", request_id: "todo-req-2" });
+  const assistant = await f.agentHome.invoke(actions.create, { title: "助理另记的事", request_id: "todo-req-2" });
+  assert.equal(assistant.replayed, false);
+  assert.equal(assistant.item.title, "助理另记的事");
+  assert.notEqual(assistant.item.id, mine.item.id);
+  // The same caller in a project and at Home are different places too.
+  const home = await f.me.invoke(actions.create, { title: "个人空间里的另一件", request_id: "todo-req-1" });
+  assert.deepEqual([home.replayed, home.item.title], [false, "个人空间里的另一件"]);
+  // Each caller's own retry still finds its own todo.
+  const retried = [
+    [await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project", request_id: "todo-req-1" }), inA],
+    [await f.inB.invoke(actions.create, { title: "B 项目的事", placement: "project", request_id: "todo-req-1" }), inB],
+    [await f.me.invoke(actions.create, { title: "我的个人事", placement: "personal", request_id: "todo-req-2" }), mine],
+    [await f.agentHome.invoke(actions.create, { title: "助理另记的事", request_id: "todo-req-2" }), assistant],
+  ] as const;
+  for (const [retry, first] of retried) assert.deepEqual([retry.replayed, retry.item.id], [true, first.item.id], first.item.title);
+});
+
+test("a request row written before ids were kept per caller holds the raw id: it no longer matches (a retry makes a new todo) and nothing fails on it", async t => {
+  const f = fixture(t);
+  const before = (await f.me.invoke(actions.create, { title: "之前转过的收件" })).item;
+  const rows = f.store.database();
+  // How an Inbox conversion looks in a Home that kept the caller's id as it came.
+  rows.prepare("INSERT INTO todo_requests (request_id, item_id, created_at) VALUES (?, ?, ?)").run("inbox:entry-1", before.id, "2026-09-01T00:00:00.000Z");
+  const again = await f.me.invoke(actions.create, { title: "之前转过的收件", request_id: "inbox:entry-1" });
+  assert.deepEqual([again.replayed, again.item.id === before.id], [false, false], "an old retry is a new request: it does not dedupe");
+  const retry = await f.me.invoke(actions.create, { title: "之前转过的收件", request_id: "inbox:entry-1" });
+  assert.deepEqual([retry.replayed, retry.item.id], [true, again.item.id], "and from then on it is kept under the caller's key");
+  // The old row is still a plain row of its todo: deleting or undoing that todo takes it away, and the id is free again.
+  assert.equal((rows.prepare("SELECT COUNT(*) AS n FROM todo_requests WHERE item_id = ?").get(before.id) as { n: number }).n, 1);
+  await f.me.invoke(actions.remove, { id: before.id, expected_revision: before.revision });
+  assert.equal((rows.prepare("SELECT COUNT(*) AS n FROM todo_requests WHERE item_id = ?").get(before.id) as { n: number }).n, 0);
+  assert.deepEqual((await f.me.invoke(actions.list, { view: "all" })).items.map(item => item.id), [again.item.id]);
 });
 
 test("links: todo relations read from both ends; unreachable todos cannot be linked; unlinking undoes", async t => {

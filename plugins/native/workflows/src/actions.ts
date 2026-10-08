@@ -1,7 +1,7 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { presentActionResult, type ActionResultPresentation, ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  WorkflowError, advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
+  WorkflowError, advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, holdInstance, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
   isActionStation, mapActionInput, WORKFLOW_PAYLOAD_FIELDS, WORKFLOWS_PLUGIN_ID,
   type Workflow, type WorkflowActionStep, type WorkflowChain, type WorkflowHandoff, type WorkflowInstance, type WorkflowItemRef, type WorkflowLink, type WorkflowPayload, type WorkflowStation, type WorkflowVerdict,
 } from "./model.js";
@@ -300,7 +300,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
         await caller.beforeEffect();
         const at = new Date().toISOString();
         const reason = verdict.status === "needs_review" ? "判断需要人确认，这一次没有交过去" : `判断结果是「${verdict.choice ?? "无"}」，不在可以交过去的结果里`;
-        return { stopped: await ports.withStore(store => store.saveInstance(current, { ...current, status: "stopped", stopped: { at, from, reason, verdict }, updated_at: at })) };
+        return { stopped: await ports.withStore(store => store.saveInstance(current, holdInstance(current, from, { at, reason, verdict }))) };
       }
       output = handed; actor = "judgment"; judged = verdict;
       rule = link.judgment!.title ?? link.judgment!.capability_id;
@@ -438,7 +438,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       const { attempted_at: _attempted, attempt_error: _error, ...recorded } = pending;
       try {
         const base = current;
-        return changed({ instance: await ports.withStore(store => store.saveInstance(base, advanceInstance(base, from, recorded, arrived, recorded.at, arrival))) });
+        return changed({ instance: await ports.withStore(store => store.saveInstance(base, advanceInstance(base, from, recorded, arrived, new Date().toISOString(), arrival))) });
       } catch (error) {
         // Another call already recorded this exact delivery: reuse it rather than report a failure that did not happen.
         const latest = await ports.withStore(store => store.instance(current.instance_id, projectId));

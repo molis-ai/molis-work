@@ -2,13 +2,15 @@
 
 **English** | [简体中文](README.zh.md)
 
-Molis Work is a Goal ledger and workbench shared by different AI Runtimes.
+Molis Work is a local-first work platform: a plugin base with many plugins, where you and the AI Runtimes you use work on the same goals, sessions, feeds, code, documents and calendar, each kept by the plugin that owns it.
 
-Long-running work fails in a boring way: a new Session cannot see the last one, the original outcome drifts as local decisions pile up, and “done” is a sentence with nothing to check. What is missing is not a smarter model. It is one project record every Runtime can read: the accepted Goal, how it was split, what is blocked, who is working, and the evidence for completion.
+The platform is one resident host per Home, a shared action catalog with grants, the plugin runtime, the workbench shell, and one AI runtime. Every project has Goals and can add Sessions, Inbox, Feed, Schedule, Artifacts and the Coding family as needed; personal plugins such as Jelly (calendar and notes), Todo, Pages, 灵光 and Cognia work in every project. Each plugin registers its capabilities once in the action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted.
+
+The Goals plugin is for a boring way long-running work fails: a new Session cannot see the last one, the original outcome drifts as local decisions pile up, and “done” is a sentence with nothing to check. What is missing is not a smarter model. It is one project record every Runtime can read: the accepted Goal, how it was split, what is blocked, and what counts as done.
 
 Molis Work keeps that record locally. Codex, Claude Code, OpenCode, or another connected Harness updates the same Goal. You confirm material changes. You can see how far the work has got without asking the model to recap.
 
-It does not host a model and does not dispatch an agent team. Execution stays in the Harness you already use.
+It does not ship a model: you configure models and keys in Settings, and plugins such as Coding, the Assistant, Schedule and the plugin studio run through the Home's one Prologue Runtime. External Harnesses still read and write through MCP; Molis Work does not dispatch work for you.
 
 The longer derivation (WeChat article, link forthcoming): *[placeholder — 公众号文章待发布]*. Draft: [From conversational facts to ledger facts](https://github.com/adeptify/article/blob/main/AI%E9%95%BF%E7%A8%8B%E4%BB%BB%E5%8A%A1-%E4%BB%8E%E5%AF%B9%E8%AF%9D%E6%80%81%E4%BA%8B%E5%AE%9E%E5%88%B0%E8%B4%A6%E6%9C%AC%E6%80%81%E4%BA%8B%E5%AE%9E.md).
 
@@ -49,7 +51,7 @@ The same local project in a browser. Desktop and Web share data under `~/.molis-
 
 ![Molis Work Web: Goal Tree (historical workspace surface)](docs/screenshots/showcase/web-workspace-en-dark.jpg)
 
-These images show the workspace, Goal list, Goal-bound terminal, and macOS status item. They are historical product surfaces, not the current Goal event document. The current Goal page keeps the live judgment, what is already done, the next step, and risks at the top; a time index on the left; and the selected event body on the right.
+These images show the workspace, Goal list, Goal-bound terminal, and macOS status item. They are historical product surfaces, not the current Goal event document. The current Goal opens as a document: title, outcome, the current status callout, requirements and the timeline, whose events expand in place; the terminal is one switch away in the header.
 
 Built-in Runtime recipes cover Codex, Claude Code, OpenCode, Pi Agent, and Grok Build. Other Harnesses can use the same project through Molis Work's MCP server and shared Skill.
 
@@ -75,6 +77,10 @@ Built-in Runtime recipes cover Codex, Claude Code, OpenCode, Pi Agent, and Grok 
 
 Plain use, and the problem each one is for.
 
+### One base, plugins as you need them
+
+Every project has Goals; add Sessions, Inbox, Feed, Schedule, Artifacts and the Coding family in place from the plugin switcher, while personal plugins such as Jelly, Todo, Pages, 灵光, Cognia and Shelf work in every project. Each plugin's capabilities are registered once in the shared action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted. The sections below are the Goals plugin.
+
 ### See the Goal, what is done, and what to do next
 
 Open a Goal. The page should answer three questions without reading the chat: what we are trying to get, what is already done, and what to do next. A parent Goal can record its own integration or acceptance. The number of child Goals does not prove the parent is complete.
@@ -85,7 +91,7 @@ The Graph is for when the list is no longer enough. Parent/child describes struc
 
 ### You confirm material changes
 
-A Runtime may discover new work, a new dependency, or a risk. It can propose. It cannot quietly replace an agreed outcome or weaken its requirements, and it cannot fill in a user identity. Trusted user decisions are recorded in Host Web or the management entry. The Decision Center puts the question, why it matters now, the evidence or the gap, and what each choice changes in one place.
+A Runtime can propose new work or a new dependency as a structure proposal and can record a concern that blocks completion. It cannot quietly replace an agreed outcome or weaken its requirements, and it cannot fill in a user identity. Trusted user decisions are recorded in Host Web or the management entry. The Decision Center puts the question, why it matters now, the evidence or the gap, and what each choice changes in one place.
 
 ### Keep the terminal on the Goal
 
@@ -99,7 +105,7 @@ Completion is not a sentence in chat. Ordinary reports save partial results and 
 
 Requirements can optionally require human acceptance. A Runtime report cannot replace that decision. Completed or cancelled work can explicitly resume with a reason; adding an unrelated note does not silently reopen it.
 
-If something new shows up while you work, attach an ordinary note with **Add a note**. Changes to promises, authorization, or completion requirements go through the event form or a trusted user decision, not a silent rewrite.
+If something new shows up while you work, attach an ordinary note with **Add entry**. Changes to promises, authorization, or completion requirements go through the event form or a trusted user decision, not a silent rewrite.
 
 ### Tell the Runtime how this project should be split
 
@@ -107,7 +113,7 @@ A new intent can be saved without a plan or type, then followed by an ordinary n
 
 ### Connect a Runtime on purpose
 
-Molis Work works as a board with no Runtime connected. Connect Codex, Claude Code, or another tool only when it should read and advance Goals directly. Integration configuration changes are previewed and applied after confirmation; a failed apply rolls back. Ordinary Goal notes and reports follow your existing work authorization. After connecting, open a **new Session** — tools load at Session start.
+With no Runtime connected Molis Work is still a full workbench: plugins work as usual and Goals can be advanced by hand. Connect Codex, Claude Code, or another tool only when it should read and advance project work directly. Integration configuration changes are previewed and applied after confirmation; a failed apply rolls back. Ordinary Goal notes and reports follow your existing work authorization. After connecting, open a **new Session** — tools load at Session start.
 
 ## Try it in 3 minutes
 
@@ -141,7 +147,7 @@ pnpm install:local
 "$HOME/.molis-work/bin/molis-work" demo create --confirm
 ```
 
-Open `http://127.0.0.1:4173` and enter the demo project. In “Settings → Runtime,” preview and confirm an integration, then **open a new Runtime Session**:
+Open `http://127.0.0.1:4173` and enter the demo project. In “Settings → AI & execution tools,” preview and confirm an integration, then **open a new Runtime Session**:
 
 > Use Molis Work to connect to the demo project, open a Goal, and tell me the current judgment, what is already done, the next step, and the completion requirements.
 
@@ -174,16 +180,16 @@ pnpm desktop:install:macos
 pnpm desktop:start:macos
 ```
 
-Each architecture ships separately because Molis Work's SQLite and PTY native addons must match both the bundled Node runtime and the Mac CPU. Pushing a `v*` tag makes GitHub Actions build Apple Silicon and Intel DMGs, but the public Release is published only after signing and notarization succeed. Credentials are read only from GitHub Secrets and never committed to the repository.
+Each architecture ships separately because Molis Work's SQLite and PTY native addons must match both the bundled Node runtime and the Mac CPU. The release workflow is currently manual-only (the automatic `v*` tag trigger is paused); it builds Apple Silicon and Intel DMGs separately, and the public Release is published only after signing and notarization succeed. Credentials are read only from GitHub Secrets and never committed to the repository.
 
 ## Product boundaries
 
-- The authoritative project state is stored in local SQLite; Molis Work does not bundle a model.
+- Content is stored in local SQLite under the Home (one database per project, and Home-level databases for personal plugins); Molis Work does not bundle a model.
 - Opening a page does not bind a Session, start a Runtime, or send a command.
 - Runtime integration, terminal launch, and accepted Goal changes require explicit action or confirmation.
-- All current work uses event records. Database upgrades and V3 import preserve real history and connect Goals to current state; old Draft/Claim/Run writes are retired.
-- Molis Work manages Goal facts and the execution loop; it does not replace a Harness or Agent Orchestration.
-- v0.2.0 introduces the event workflow and retires the legacy Runtime write protocol. See the [release notes](docs/releases/v0.2.0.md) for compatibility and upgrade steps. Public macOS installers remain pending Developer ID signing and Apple notarization.
+- All current work uses event records. A project database has one current schema and is refused, never upgraded in place, at any other version; old Claim/Run/Evidence/Review history, V3 import and old-database upgrades have been removed.
+- Molis Work is a plugin base and its plugins: each plugin manages its own facts (Goals manages Goals and their closure); it does not replace a Harness or Agent Orchestration.
+- v0.2.0 introduced the event workflow and retired the legacy Runtime write protocol ([release notes](docs/releases/v0.2.0.md)); main has since removed the old-database upgrade path, so a project database at another version is refused and those upgrade steps no longer apply. Public macOS installers remain pending Developer ID signing and Apple notarization.
 
 ## Further reading
 

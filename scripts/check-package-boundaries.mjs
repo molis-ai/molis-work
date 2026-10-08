@@ -921,7 +921,8 @@ function checkArtifactsOwnership(repositoryRoot) {
     }
   }
 
-  const service = read("modules/artifacts/src/service.ts");
+  // The lifecycle rules live in the service and in the registration it checks a version with (service.ts, registration.ts).
+  const service = read("modules/artifacts/src/service.ts") + read("modules/artifacts/src/registration.ts");
   for (const required of [
     "artifact.version_not_increasing",
     "artifact.version_conflict",
@@ -931,7 +932,7 @@ function checkArtifactsOwnership(repositoryRoot) {
     '"consumer_missing"',
   ]) {
     if (!service.includes(required)) {
-      errors.push(`modules/artifacts/src/service.ts: Artifact lifecycle is missing ${required}`);
+      errors.push(`modules/artifacts/src/{service,registration}.ts: Artifact lifecycle is missing ${required}`);
     }
   }
   if (/plugins\/(?:native|official-integrations)\//u.test(service + repository)) {

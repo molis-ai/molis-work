@@ -263,7 +263,7 @@ export class PagesStore {
     return next;
   }
 
-  beginPublication(id: string, projectId: string, actorId: string, goalId?: string, expectedVersion?: number, existing?: PagesPublicationSnapshot): PagesPublicationIntent {
+  beginPublication(id: string, projectId: string, actorId: string, goalId?: string, expectedVersion?: number, existing?: PagesPublicationSnapshot, version?: number): PagesPublicationIntent {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const current = this.get(id, projectId);
@@ -276,7 +276,7 @@ export class PagesStore {
       }
       const intent: PagesPublicationIntent = { title: existing?.title ?? current.title, body: existing?.body ?? current.body,
         goal_id: existing?.goal_id ?? normalizeGoalId(goalId ?? current.goal_id), original_goal_id: existing?.goal_id ?? current.goal_id,
-        version: current.artifact_version + 1, source_version: current.version, actor_id: actorId };
+        version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
       this.db.prepare("UPDATE pages SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
       this.db.exec("COMMIT"); return intent;
     } catch (error) { this.db.exec("ROLLBACK"); throw error; }

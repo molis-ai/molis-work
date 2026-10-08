@@ -2,6 +2,7 @@ import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runti
 import { createScheduledOperationManagement, runScheduledOperation,
   type ScheduledOperation, type ScheduledOperationInstallation, type ScheduledOperationOutcome } from "@molis-ai/molis-work-plugin-schedule";
 import type { ScheduleSqliteDatabase, ScheduleService, ScheduleWakeupInput, ScheduleWakeupControl } from "@molis-ai/molis-work-service-scheduler";
+import type { FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication } from "./feed-application.js";
 
 export interface InstalledOperationCaller {
@@ -31,7 +32,10 @@ export function bindInstalledOperationCaller(db: ScheduleSqliteDatabase, project
 }
 
 /** Runtime supplies identity, the installed owner supplies execution, and Inbox remains a same-db Host port. */
-export function runHostScheduledOperation(db: ScheduleSqliteDatabase, input: ScheduleWakeupInput, control: ScheduleWakeupControl) {
+export function runHostScheduledOperation(
+  db: ScheduleSqliteDatabase, input: ScheduleWakeupInput, control: ScheduleWakeupControl,
+  feed: FeedApplication = createLocalFeedApplication(db as Parameters<typeof createLocalFeedApplication>[0]),
+) {
   const repository = new SqlitePluginRuntimeRepository(db);
   return runScheduledOperation(db, input, control, {
     currentInstallation(run) {
@@ -54,7 +58,7 @@ export function runHostScheduledOperation(db: ScheduleSqliteDatabase, input: Sch
       } };
     },
     deliver(run, dueAt, outcome, text) {
-      const feed = createLocalFeedApplication(db as Parameters<typeof createLocalFeedApplication>[0]), stamp = new Date().toISOString();
+      const stamp = new Date().toISOString();
       const source = feed.snapshot(run.projectId).sources.find(item => item.source_id === "plugin-runs") ?? feed.upsertSource({
         project_id: run.projectId, source_id: "plugin-runs", kind: "plugin", definition_id: null, sync_kind: "manual",
         name: "插件定时执行", description: "你安装的插件按时自动运行的结果", status: "active", enabled: true, origin: "molis_work",

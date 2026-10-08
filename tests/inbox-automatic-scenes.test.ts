@@ -9,7 +9,10 @@ import test from "node:test";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService,
-  createLocalFeedConnectorSync, createLocalFeedSourceScheduler, listFeedSourceCatalog, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
+  createLocalFeedConnectorSync, createLocalFeedSourceScheduler, listFeedSourceCatalog, scheduleServiceFor, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
+import { createScheduleReminders, getScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
+import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger, inboxActions, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -191,6 +194,67 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     assert.equal(localCalls, 5);
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("a plugin reminder gets the saved Inbox next step like every other arrival, and a failing judgment never un-delivers it", { timeout: 60_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "automatic-inbox-reminder-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const created = await catalog.createProject({ display_name: "提醒判断", actor_id: "test" });
+  const project = catalog.getProject(created.project_id);
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "test" });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
+  const inputs: string[] = [];
+  let failure = false;
+  const functions: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
+    async evaluate(_key, record, input) {
+      inputs.push(input);
+      if (failure) throw new Error("provider down");
+      return { primitive: "choice", choice: "inbox.done", noul: null, score: null, legend: null,
+        probabilities: { "inbox.done": 1 }, confidence: null, model: record.model };
+    },
+  } };
+  const policy = projectActionAvailability(async (_options, run) => run(catalog as unknown as Parameters<typeof run>[0]), home);
+  const host = new MolisWorkLocalHost({ homeDirectory: home, functions, actionAvailability: policy, sceneAvailability: policy });
+  const history = () => withFunctionsService(home, service => service.listJudgments(), functions);
+  try {
+    await host.actionClient(reference).invoke(caller, inboxActions.writeJudgment, { function_key: "system_pick_inbox_next" });
+    const runtime = await host.withProject(reference, runtime => runtime);
+    const feed = createLocalFeedApplication(runtime.store.db);
+    const installedAt = "2026-01-01T00:00:00.000Z";
+    const installation: PluginInstanceRecord = { install_id: "install-1", installation_generation: "install-1@" + installedAt, plugin_id: "io.molis.work.generated.a",
+      version: "1.0.0", publisher_id: "test", publisher_signature: "test", manifest_digest: "test", deployment: "local", selected_entrypoint: "./plugin.mjs",
+      grants: ["storage:private"], execution: "sandbox", state: "running", recovery_count: 0, last_error_code: null, installed_at: installedAt, updated_at: installedAt,
+      uninstalled_at: null, retain_private_data: false };
+    new SqlitePluginRuntimeRepository(runtime.store.db).save(installation);
+    let clock = Date.parse("2026-09-27T00:00:00Z");
+    const schedule = scheduleServiceFor(runtime.store.db, () => new Date(clock));
+    const reminders = createScheduleReminders({ db: runtime.store.db, projectId: runtime.project_id, schedule, now: () => clock,
+      describe: identity => ({ title: "论语日课", link: "/plugins/" + identity.pluginId, generation: installation.installation_generation }) });
+    const plugin = { projectId: runtime.project_id, installationId: installation.install_id, pluginId: installation.plugin_id, namespace: "installed" as const };
+    const entryOf = (text: string) => {
+      const item = feed.snapshot(runtime.project_id).feed_items.find(row => row.source_id === "plugin-reminders" && row.summary === text)!;
+      return feed.listInboxEntries(runtime.project_id).find(entry => entry.subject_id === item.item_id)!;
+    };
+
+    reminders.add(plugin, { at: "2026-09-27T08:00:00+08:00", text: "复习《学而》" });
+    clock = Date.parse("2026-09-27T00:30:00Z");
+    await schedule.tick(new Date(clock));
+    const first = entryOf("复习《学而》");
+    assert.equal(first.status, "open");
+    assert.equal(history().filter(record => record.subject.id === first.entry_id).length, 1, "the reminder's Inbox entry got its next-step judgment");
+    assert.deepEqual(history().find(record => record.subject.id === first.entry_id)!.suggested_behavior_ids, ["inbox.done"]);
+
+    failure = true;
+    const second = reminders.add(plugin, { at: "2026-09-27T09:00:00+08:00", text: "复习《为政》" });
+    clock = Date.parse("2026-09-27T01:30:00Z");
+    await schedule.tick(new Date(clock));
+    assert.equal(entryOf("复习《为政》").status, "open", "a judgment failure does not take the reminder out of the Inbox");
+    assert.equal(getScheduleReminder(runtime.store.db, second.reminderId), null, "the one-off reminder was consumed by its delivery");
+    assert.ok(inputs.length >= 2, "the failing judgment was attempted");
+  } finally {
     await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
   }
 });

@@ -5,6 +5,7 @@ import type {
   ArtifactMetadata,
   ArtifactOrigin,
   ArtifactReference,
+  ArtifactScope,
   ArtifactVersionRecord,
   FixedVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -106,10 +107,21 @@ export function createProcessItemsSchema(db: ArtifactsSqliteDatabase): void {
 }
 
 export class ArtifactsRepository<R extends FixedVersionRecord = ArtifactVersionRecord> {
-  constructor(readonly db: ArtifactsSqliteDatabase, readonly tables: VersionStoreTables = ARTIFACT_TABLES) {}
+  /**
+   * `homeOwner`: the person this Home belongs to. Every personal 成果 of the Home belongs to them, whoever produced it, so the
+   * owner of such a version (and of an identity written before this rule, which names its producer) is read as them; nothing
+   * stored is rewritten. Only the 成果库 reads this way: process items belong to the plugin that produced them.
+   */
+  constructor(readonly db: ArtifactsSqliteDatabase, readonly tables: VersionStoreTables = ARTIFACT_TABLES, private readonly homeOwner?: string) {}
+
+  /** The owner a stored owner is read as for a version of this scope. */
+  readOwner(stored: string, scope: ArtifactScope): string {
+    return this.homeOwner && this.tables.library && scope === "personal" ? this.homeOwner : stored;
+  }
 
   private map(row: Row): R {
-    return (this.tables.library ? mapArtifactVersion(row) : mapFixedVersion(row)) as R;
+    const record = (this.tables.library ? mapArtifactVersion(row) : mapFixedVersion(row)) as R;
+    return { ...record, owner_actor_id: this.readOwner(record.owner_actor_id, record.scope) };
   }
 
   immediate<T>(operation: () => T): T {

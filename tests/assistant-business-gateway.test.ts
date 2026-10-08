@@ -462,6 +462,39 @@ test("background work a round or a card starts is followed through the plugin's 
   } finally { await f.close(); }
 });
 
+test("running a card whose action starts a background job follows that job once, as the card's own: one entry, one notice", { timeout: 60_000 }, async t => {
+  let state = "running";
+  const start: ActionDefinition = { capability_id: "fixture.jobs.start", version: 1, operation: "command", action: { title: "Start research", description: "Start a research run in the background", kind: "operation", scope: "project",
+    audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { topic: { type: "string", title: "主题" } }, required: ["topic"], additionalProperties: false },
+    background_job: { status: { capability_id: "fixture.jobs.status", version: 1 }, id: "run.jobId", input: "id", state: "status", done: ["completed"], failed: ["failed"] } } };
+  const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
+    audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false } } };
+  const f = await fixture(t, [
+    () => reply({ name: "suggest-action", input: { title: "研究一次", summary: "开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }),
+    () => reply(undefined, "给了一个按钮。"),
+  ]);
+  let next = 0;
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.jobs", kind: "plugin", title: "Research" }, definitions: [start, status],
+    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => ({ status: state }) }] });
+  (f.service as any).ports.scopeActions = async () => ({ discover: () => f.local.actionClient(f.project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }),
+    invoke: (action: any, input: unknown) => f.local.actionClient(f.project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }, action, input) });
+  try {
+    const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000037" }, { project_ref: f.project });
+    const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
+    const ran = await f.service.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
+    assert.deepEqual([ran.status, ran.outcome, next], ["running", "已开始，后台进行中", 1]);
+    // One start, one followed job: it belongs to the card, and the work lists it once.
+    const jobs = f.store.jobs("web-user", sent.work.work_id);
+    assert.deepEqual(jobs.map(job => [job.job_id, job.card_id ?? null]), [["job-1", ran.card_id]]);
+    assert.equal((await f.service.read(sent.work.work_id)).jobs!.length, 1);
+    state = "completed";
+    for (const job of f.store.jobs("web-user", sent.work.work_id)) await f.service.checkJob(job.key);
+    assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
+    const after = (await f.service.read(sent.work.work_id)).cards.find(card => card.card_id === ran.card_id)!;
+    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成（completed）"]);
+  } finally { await f.close(); }
+});
+
 test("stopping a round withdraws its held change: nothing runs and nothing is left to approve", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "never" } } }),

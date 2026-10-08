@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { formActions as actions, FORM_ACTION_PERMISSIONS, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
@@ -56,7 +56,8 @@ test("Form actions share original data, six question types and snapshot-backed s
   const promoted = await invoke("promote", { id });
   await f.host.withProject(f.ref, runtime => {
     const artifact = runtime.coordinator.artifacts.query.getArtifactVersion(f.ref.project_id, promoted.artifact)!;
-    assert.equal(artifact.owner_actor_id, "owner"); assert.equal((artifact.payload as any).questions.length, 2);
+    // A pinned form belongs to the Home's person; the actor who pinned it is its producer.
+    assert.equal(artifact.owner_actor_id, LOCAL_PERSON_ACTOR_ID); assert.equal(artifact.created_by, "owner"); assert.equal((artifact.payload as any).questions.length, 2);
     assert.equal((artifact.payload as any).answers, undefined);
   });
   const store = openFormStore(f.home);

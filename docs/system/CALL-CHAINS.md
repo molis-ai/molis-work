@@ -90,7 +90,7 @@
 
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 页面发送 | `apps/workbench/src/scripts/client/assistant-island.ts` → `apps/local-host/src/assistant/assistant-http.ts`（`/api/assistant/send`） | 文字、材料、`request_id` → 一次 Send | 链 1 的步骤 2 到 4；项目只决定新工作的范围 | `AssistantError` → HTTP：`assistant.not_found` 404、`assistant.scope` 403、冲突类 409、其余 400；未预期错误 500 `assistant.failed` | 无 |
+| 1 | 页面发送 | `apps/workbench/src/scripts/client/assistant-island.ts` → `apps/local-host/src/assistant/assistant-http.ts`（`/api/assistant/send`） | 文字、材料、`request_id`（页面自己写的话另带 `written_by: "page"`，路由只认这个值）→ 一次 Send | 链 1 的步骤 2 到 4；项目只决定新工作的范围 | `AssistantError` → HTTP：`assistant.not_found` 404、`assistant.scope` 403、冲突类 409、其余 400；未预期错误 500 `assistant.failed` | 无 |
 | 2 | 去重与建工作 | `AssistantService.send`（`apps/local-host/src/assistant/assistant-service.ts`） | `request_id` 先认领 → 新建或取回工作 | 同一 `request_id` 只执行一次，重复请求返回第一次的结果 | 失败时释放认领，未发出的话留作草稿 | 助理库 `{home}/assistant/assistant.db` 里的工作、材料、关系 |
 | 3 | 派出一轮 | `AssistantService.dispatch` → `horizontal/agent-host/src/index.ts`（`AgentHost.start`） | 任务、材料、`action_gateway: true`、预算 → 一个运行句柄 | Host 从插件声明冻结角色；核对工作区方式、会话归属（项目、插件、安装、actor 必须一致）、预算与日用量上限 | `assistant.budget`；`assistant.needs_check`；`agent.role_not_declared`、`agent.capability_unavailable`、`agent.session_unknown` 等 | 助理记下这一轮（`addRound`）；Prologue 持久保存运行 |
 | 4 | 授权来源 | `apps/local-host/src/assistant/assistant-authority.ts`（`assistantAuthority`） | → 每次调用重新计算的上下文 | 本工作范围内对 `agent` 开放的动作，减去人关掉的；`validate_authority` 在每次派发时重读目录 | `assistant.action_revoked` | 无 |
@@ -104,7 +104,7 @@
 **现状与缺口**
 
 - Coding 的 Agent 轮次、`agent.run.start.v1` 等能力和 Character 冻结在 [Prologue AI 手册](../platform/PROLOGUE-AI.md#agent-轮次以-coding-为例) 里有逐步说明，结构与上表第 3 到 7 步相同，只是动作工具来自角色的精确 `action_tools`。
-- 助理的 `remember`（#28）把本人在这项工作里自己打的消息（宿主保存的轮次；定时安排拼出的轮次和助理写给子任务的话在写入时标了 `written_by`，不算）交给写入门，写入门只在要记的内容就是其中某一整条消息的全文时记作「你说过」，记下来的是那条消息本身，不是模型交来的版本（`apps/local-host/src/assistant/assistant-memory-tools.ts`、`horizontal/memory/src/spoken.ts` 的 `theirWords`；只容许 `horizontal/memory/src/text.ts` 的 `fold` 列出的大小写、全角半角、空白、引号样式和最后一个句号的差别，不做 Unicode 归一化）；改写、删减、只取其中一句、拼接都不是，一律作为建议等本人认可，不再读意思。已有的自动记忆只在它自己的正文与本人的某条消息是同样的话时才变成「你说过」；判断“已经记着”也按同样的话，逗号、符号、问号不同的是另一条。「忘掉」是停用，记成助理做的、本人可撤销，彻底删除留给本人；子任务没有记住和忘掉。经 `memory.write` 动作调用的其他 Agent（Coding 会话、插件里的 Agent）宿主没有它和本人的对话，没有可核对的原话，它交来的 `said` 不算消息，所以它写的一律作为建议等本人认可。
+- 助理的 `remember`（#28）把本人在这项工作里自己打的消息（宿主保存的轮次；定时安排拼出的轮次、助理写给子任务的话、页面自己写的话——浏览器交还的那一句、卡片失效后请助理重新准备的那一句、插件页替本人发出的交办——在写入时标了 `written_by`，不算；之前的构建存下的轮次没有标记，要等维护补）交给写入门，写入门只在要记的内容就是其中某一整条消息的全文时记作「你说过」，记下来的是那条消息本身，不是模型交来的版本（`apps/local-host/src/assistant/assistant-memory-tools.ts`、`horizontal/memory/src/spoken.ts` 的 `theirWords`；只容许 `horizontal/memory/src/text.ts` 的 `fold` 列出的大小写、全角半角、空白、引号样式和最后一个句号的差别，不做 Unicode 归一化）；改写、删减、只取其中一句、拼接都不是，一律作为建议等本人认可，不再读意思。已有的自动记忆只在它自己的正文与本人的某条消息是同样的话时才变成「你说过」；判断“已经记着”也按同样的话，逗号、符号、问号不同的是另一条。「忘掉」是停用，记成助理做的、本人可撤销，彻底删除留给本人；子任务没有记住和忘掉。经 `memory.write` 动作调用的其他 Agent（Coding 会话、插件里的 Agent）宿主没有它和本人的对话，没有可核对的原话，它交来的 `said` 不算消息，所以它写的一律作为建议等本人认可。
 - 助理和 Agent 的运行记录在 Prologue 与助理库里，没有调用标识把它们和调用记录里的行连起来（W3-01）。
 - 助理的实现 `AssistantService`（`apps/local-host/src/assistant/assistant-service.ts`）是一个巨大单元；已定（决定 3）先就地按包形边界拆、再搬成独立包，第一刀是提醒与跟进的协作者（W4-05）。
 - 实验里本地 `grok` 与 `laya` 的调用不经这条链，见 §10。

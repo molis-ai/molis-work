@@ -29,7 +29,7 @@ const trimmed = (message: string) => message.replace(/^\p{White_Space}+|\p{White
 /**
  * The message of the person's, as they wrote it, that the text is the whole of; null when it is none of them (then it is not theirs), or when the
  * text is also found inside another message of theirs that goes on past it (the text said whole once and a ban or a question about it another time).
- * `messages` are only what the person typed, each one message: a round the Host or the Assistant wrote is not among them.
+ * `messages` are only what the person typed, each one message: a round the Host, the Assistant or a page wrote is not among them.
  */
 export function theirWords(text: string, messages: readonly string[]): string | null {
   const wanted = fold(text);

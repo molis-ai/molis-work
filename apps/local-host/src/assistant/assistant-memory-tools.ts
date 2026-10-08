@@ -9,7 +9,7 @@ export interface AssistantMemoryToolsInput {
   /** The work's project, when it has one. */
   projectId: string | null;
   caller: MemoryCaller;
-  /** What the person typed in this work, one message each: the rounds the Host keeps that they wrote, plus the one being started. A round the Host or the Assistant wrote is not among them. */
+  /** What the person typed in this work, one message each: the rounds the Host keeps that they wrote, plus the one being started. A round the Host, the Assistant or a page wrote is not among them. */
   spoken(): readonly string[];
   /** The Assistant's own errors (this module does not import the service that owns them). */
   fail(code: string, message: string): Error;

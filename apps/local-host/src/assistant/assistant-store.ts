@@ -103,8 +103,8 @@ export interface StoredRound {
   executor?: "coding";
   /** The Character that carried it, as frozen at its start. */
   character?: AssistantCharacter;
-  /** Who wrote `text` when it was not the person: the Host (a timed round: its wrapper and the standing request) or the Assistant (a sub-task's brief, a follow-up to it). Absent: the person typed it. Only what they typed is their words (memory's “you said”, what learning draws on). */
-  written_by?: "host" | "assistant";
+  /** Who wrote `text` when it was not the person: the Host (a timed round: its wrapper and the standing request), the Assistant (a sub-task's brief, a follow-up to it) or a page (what the bottom bar composes itself, or a plugin's page sends for them). Absent: the person typed it. Only what they typed is their words (memory's “you said”, what learning draws on). */
+  written_by?: "host" | "assistant" | "page";
   text: string;
   materials: AssistantMaterial[];
   context: AssistantContextSnapshot | null;
@@ -115,7 +115,7 @@ export interface StoredRound {
   memory_receipt?: string;
 }
 
-/** What the person typed in these rounds, in order: a round the Host or the Assistant wrote is not their words. */
+/** What the person typed in these rounds, in order: a round the Host, the Assistant or a page wrote is not their words. */
 export const typedTexts = (rounds: readonly StoredRound[]): string[] => rounds.filter(round => !round.written_by).map(round => round.text);
 
 /** A card as stored: the public view's facts plus the exact reference and input it runs. */

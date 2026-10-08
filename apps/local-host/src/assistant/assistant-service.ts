@@ -547,7 +547,7 @@ export class AssistantService {
   private readonly images = new Map<string, { revision: number; media_type: string }>();
   /** The recall receipt of the round a work is starting, until the round is recorded. */
   private readonly recalled = new Map<string, string>();
-  /** What the person typed in the round a work is starting, until the round is recorded: the round's own tools may already be asked to rest on it. A round the Host or the Assistant writes is not kept here. */
+  /** What the person typed in the round a work is starting, until the round is recorded: the round's own tools may already be asked to rest on it. A round the Host, the Assistant or a page writes is not kept here. */
   private readonly starting = new Map<string, string>();
   /** The memories chosen for the round a work is starting (null: none), until it starts. */
   private readonly chosenMemory = new Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>();
@@ -992,7 +992,7 @@ export class AssistantService {
   /**
    * One press of Send. It starts a round when the work is idle, reaches the running round when one is under way, and
    * answers the round's open question when that is what the round is waiting for. A repeated press returns the first
-   * outcome and does nothing more.
+   * outcome and does nothing more. A round whose words the person did not write is marked (`writtenBy` for Host code, `input.written_by` from a page).
    */
   async send(input: AssistantSendInput, caller: AssistantCaller, writtenBy?: StoredRound["written_by"]): Promise<AssistantSendResult> {
     const text = checkText(input?.text, "要发送的内容", MAX_TEXT);
@@ -1024,7 +1024,7 @@ export class AssistantService {
       if (materials.some(item => item.reference)) materials = await this.readReferences(work, materials);
       if (materials.some(item => item.kind === "method")) materials = await this.chosenMethods(work, materials);
       this.linkSent(work, materials, created ? context : null);
-      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy);
+      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by);
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
     } catch (error) {

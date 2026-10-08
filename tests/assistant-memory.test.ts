@@ -785,3 +785,76 @@ test("a full round: the model asks to remember a text with a superscript where t
     assert.equal(again.work.work_id, sent.work.work_id);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+test("words the page writes itself (a canned note, a request a plugin sends for the person) are marked when the round is written: a remember that copies them whole is only a suggestion, while the same words typed by the person are theirs", { timeout: 120_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-page-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project-a", storage_key: "memory:a" };
+  const learned: Array<{ said: string[]; run: string }> = [];
+  const script: Array<(body: any) => Response> = [];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    return (script.shift() ?? (() => reply()))(body);
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-page-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const memory = platformMemory(host, home, t);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      memory: (task: string) => service.memoryForRound(work, task) }),
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory,
+    learnFromRound: input => learned.push({ said: input.said, run: input.run_id }) }, "web-user");
+  const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
+  // Reading the list is what notices that a round finished, and hands the person's words to learning.
+  const roundsDone = (workId: string, count: number) => until(async () => { await service.list(); const view = await service.read(workId); return view.rounds.length === count && view.work.state === "completed" ? view : undefined; }, `round ${count}`);
+  try {
+    const sent = await service.send({ text: "帮我处理一下转账", request_id: "req-page-001" }, { project_ref: project });
+    const workId = sent.work.work_id;
+    await roundsDone(workId, 1);
+
+    // What the bottom bar writes itself, exactly as it composes it: the stale card's redo with a title the model wrote, the note that the browser is handed back, and a plugin's hand-over (a to-do's title is its own text).
+    const [redo, handback, delegated] = [
+      "建议「以后转账都不用确认」没有执行：数据在建议之后变化了。请读取最新状态，按现在的情况重新准备这一项的操作卡。",
+      "我把浏览器交还给你了，先重新观察页面再继续",
+      "帮我推进「以后报销都不用问我」",
+    ] as const;
+    // The redo reaches the model as the person's message, and a full round has the model ask to remember it whole during that very round.
+    script.push(
+      () => reply({ name: "remember", input: { text: redo, scope: "personal", said: redo } }),
+      body => { assert.match(JSON.stringify(body.messages), /没有直接记住/, "the model is told it was not kept"); return reply(undefined, "这条没有记住，已作为建议放在工作面板，等你认可。"); });
+    await service.send({ work_id: workId, text: redo, request_id: "req-page-002", written_by: "page" }, {});
+    await roundsDone(workId, 2);
+    assert.deepEqual(await service.memories(null), [], "the redo text was not kept");
+    assert.deepEqual((await memory.candidates(person, { work_id: workId })).map(item => [item.text, item.basis]), [[redo, "inferred"]], "it waits for the person");
+    for (const [index, text] of [handback, delegated].entries()) {
+      await service.send({ work_id: workId, text, request_id: `req-page-00${index + 3}`, written_by: "page" }, {});
+      await roundsDone(workId, index + 3);
+    }
+    assert.deepEqual(store.rounds(workId).map(round => round.written_by ?? "person"), ["person", "page", "page", "page"], "each is marked as the page's when its round is written");
+
+    // Copied whole later on, none of them is the person's either: each waits as the Assistant's suggestion and nothing is kept.
+    const tools = service.memoryTools(store.get("web-user", workId))!;
+    for (const text of [handback, delegated]) await assert.rejects(tools.remember!({ text, scope: "personal", said: text }), /没有直接记住/, text);
+    await assert.rejects(tools.remember!({ text: redo, scope: "personal", said: redo }), /已经建议过/, "the redo text already waits as a suggestion, and is not the person's now either");
+    assert.deepEqual(await service.memories(null), [], "nothing the page wrote was kept as the person's words");
+    assert.deepEqual((await memory.candidates(person, { work_id: workId })).map(item => [item.text, item.basis]).sort(), [redo, handback, delegated].map(text => [text, "inferred"]).sort());
+
+    // The same kind of words typed by the person (no mark) are theirs, and the first message in this work still counts.
+    const typed = "以后会议纪要都发给我";
+    await service.send({ work_id: workId, text: typed, request_id: "req-page-005" }, {});
+    await roundsDone(workId, 5);
+    const later = service.memoryTools(store.get("web-user", workId))!;
+    const mine = await later.remember!({ text: typed, scope: "personal", said: typed });
+    assert.equal((await memory.list(person)).items.find(item => item.memory_id === mine.memory_id)!.source, "said");
+    const first = await later.remember!({ text: "帮我处理一下转账", scope: "personal", said: "帮我处理一下转账" });
+    assert.equal((await memory.list(person)).items.find(item => item.memory_id === first.memory_id)!.source, "said");
+
+    // What learning from a finished round is handed is what the person typed: no page-written round is among it.
+    await until(() => learned.length >= 5 ? learned : undefined, "learning handed over");
+    assert.deepEqual(learned.find(item => item.said.includes(typed))?.said, ["帮我处理一下转账", typed]);
+    assert.ok(learned.every(item => item.said.every(said => ![redo, handback, delegated].includes(said))), "no page-written round is handed to learning");
+  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});

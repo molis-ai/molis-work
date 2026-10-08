@@ -227,7 +227,7 @@
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 263,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
-      "lines": 123,
+      "lines": 122,
       "methods": 28
     },
     "class plugins/native/feed/src/application.ts#FeedApplication": {

@@ -59,8 +59,8 @@ AP2 保证一个 Local Host 实例内，每个 Project storage key 只有一份 
 | --- | --- |
 | `local-host.ts`、`project-host.ts`、`project-*`、`managed-project-*`、`catalog-*` | Runtime、项目生命周期、项目库与目录 |
 | `action-*`、`mcp-*`、`scene-configuration-actions.ts`、`local-owner-permissions.ts` | 统一动作服务的宿主侧：系统动作、授权、调用记录、MCP 网关与目录 |
-| `<插件>-actions.ts`、`<插件>-native-plugin-http.ts` | 冻结的旧装配：构建期组合的内置插件（名单冻结、只许减少，以 `tests/builtin-plugin-assembly-gate.test.ts` 为准）在这里注入存储位置、模型、Artifact 发布等端口，路由只转发到动作。**不再新增**：新的内置插件经 Plugin Runtime 装配（`project-plugins.ts` 的监督器条目），HTTP 由 Manifest 声明、挂在 `/api/plugins/<plugin_id>/`，宿主里没有它自己的文件。业务规则留在插件包里。迁移计划见 [RUNTIME-MIGRATION.md](../system/RUNTIME-MIGRATION.md) |
-| `coding-surface.ts`、`characters-host.ts` | Plugin Runtime 插件在宿主里的工作面渲染和端口（监督器条目在 `project-plugins.ts`，属 `project-*`）。今天仍按插件写，目标是由声明产生，见 [EXTENSION-POINTS.md](../system/EXTENSION-POINTS.md) |
+| `<插件>-actions.ts`、`<插件>-native-plugin-http.ts` | 冻结的旧装配：构建期组合的内置插件（名单冻结、只许减少，以 `tests/builtin-plugin-assembly-gate.test.ts` 为准）在这里注入存储位置、模型、Artifact 发布等端口，路由只转发到动作。**不再新增**：新的内置插件经 Plugin Runtime 装配（`project-plugins.ts` 的监督器条目），HTTP 由 Manifest 声明、挂在 `/api/plugins/<plugin_id>/`，宿主里不再为它写 `<插件>-native-plugin-http.ts` 和 `<插件>-actions.ts`（下一行的舞台渲染和端口文件今天仍要写）。业务规则留在插件包里。迁移计划见 [RUNTIME-MIGRATION.md](../system/RUNTIME-MIGRATION.md) |
+| `coding-surface.ts`、`characters-host.ts` | Plugin Runtime 插件在宿主里的工作面渲染和端口（监督器条目在 `project-plugins.ts`，属 `project-*`）。今天仍按插件写，目标是由声明产生，见 [EXTENSION-POINTS.md](../system/EXTENSION-POINTS.md)。Characters 已定并进宿主（[RUNTIME-MIGRATION.md](../system/RUNTIME-MIGRATION.md) 5.4），`characters-host.ts` 里的 Characters 端口随之改写，Coding 用的 `codingCharacterPorts` 留下 |
 | `connector-*`、`<服务>-oauth.ts`、`<服务>-connector.ts` | 服务连接、凭据、OAuth 与连接器驱动 |
 | `agent-*`、`system-agent-service.ts`、`prologue-inference-host.ts`、`host-complete-text.ts`、`configured-models.ts` | Agent Host 装配、Home 推理绑定、模型选择 |
 | `web-*` | Web 入口：请求路由、页面视图投影、设置页 |

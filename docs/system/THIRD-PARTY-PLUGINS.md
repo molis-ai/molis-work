@@ -1,6 +1,6 @@
 # 第三方插件：安装方案
 
-状态：方案，2026-10-08 按 origin/main `35d7f320` 核实。本步不实现。信任模型（第 4 节）来自调研的推荐，用户还没有决定（路线图「决定 11」，不在 `specs/repository-anti-corruption/spec.md` §1 的已定行里）；其余各节是在现有代码上的设计，也待评审。
+状态：方案，2026-10-08 按 origin/main `f8ea20b9` 核实（代码与 `35d7f320` 相同）。本步只写计划，不实现。信任模型用户 2026-10-08 已定（`specs/repository-anti-corruption/spec.md` §1 的 2026-10-08「第三方插件的安装与信任」一行，第五批，PR #312 合入前不在 main 上）：用 `molis-work plugin install <bundle>` 本地装；首次安装时确认并记住发布者密钥；在独立进程的沙箱里运行。其余各节是在现有代码上的设计，待评审。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「第三方插件」：用户自行安装插件的路径目前不存在，给出方案（安装命令、签名信任、市场入口、沙箱边界），不在本步实现。扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md) 3.2，内置插件的迁移计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)。
 
@@ -53,18 +53,18 @@ molis-work plugin trust list | revoke <publisher_identity>
 5. 以 `execution: "sandbox"` 安装，保留发行物（升级和回滚用）。
 6. 启动，报告结果；失败只影响这个插件。
 
-命令只做解析和请求转发，真正的安装由常驻宿主里的安装服务做（落点：`apps/local-host`，由 `apps/desktop/launchers/cli/main.ts` 注入，和 `plugin dev` 的 `PluginCliHost` 同一接线方式）。工作台里的入口：设置的插件页「从文件安装」，走同一个服务，同一个确认对话框。
+命令只做解析和请求转发，真正的安装由常驻宿主里的安装服务做，CLI 进程里不新建宿主（落点：`apps/local-host`）。接线点是 `tooling/plugin-cli/src/cli.ts` 的 `PluginCliHost`（`runPluginCli` 的第三个参数），由 `apps/desktop/launchers/cli/main.ts` 注入。注意今天注入的 `runDevelopment` 是 `runLocalPluginDevelopment`（`apps/local-host/src/local-plugin-development.ts`），它在 CLI 进程里自己建一个 `createMolisWorkLocalHost()`、用隔离的状态目录，那不是转发，`install` 不能照搬这种接法。`install` 要新增的成员必须是常驻宿主的客户端（其他进程经动作网关转给常驻 Web 宿主，见 `docs/platform/LOCAL-HOST.md` 第 52 行）；宿主没在运行就明确报错，不自己起一个。工作台里的入口：设置的插件页「从文件安装」，走同一个服务，同一个确认对话框。
 
-## 4. 签名信任（待用户决定）
+## 4. 签名信任（用户 2026-10-08 已定）
 
-调研推荐的模型是**本地侧载加发布者密钥固定**：
+定下的模型是**本地侧载加发布者密钥固定**：
 
 - 第一次安装某个发布者的包时，界面展示指纹并要求确认；确认后把指纹固定到受信表。之后同一指纹的包验签通过就可以安装或升级，不再弹确认（权限提升仍要确认）。
 - 指纹在 Manifest 里（`publisher.signature`）。但今天的包只带签名，不带公钥（`PluginPackageBundle` 只有 `payload` 和 `signature`）：第一次安装要么给包加一个公钥字段，要么 `install` 带 `--publisher-key <公钥.pem>`。两种做法都先核对「公钥的指纹等于 Manifest 的 `publisher.signature`」，再用这把公钥调 `verifyPluginPackage`。受信表固定的是指纹，不是某一个包；之后的包用受信表里存的公钥验签。
 - 撤销：`trust revoke` 之后，这个发布者所有已装插件停用、不可再升级，数据保留。
 - 官方目录的签名：官方索引（第 6 节）用官方密钥签名，官方公钥随发行物内置。这与内置插件的标签式 `publisher.signature` 无关。
 
-另两种做法，推荐前者之外的备选：
+用户没有采纳的另两种做法：
 
 - **只认官方签名**：市场就是官方目录，没有侧载。最简单，但用户自己做的、同事之间传的插件装不上。
 - **本步不开第三方路径**：把缺口记进 C 端计划（路线图 W1-21）。
@@ -76,6 +76,7 @@ molis-work plugin trust list | revoke <publisher_identity>
 - 第三方安装一律 `execution: "sandbox"`。安装服务在装入前检查，`host` 执行只接受 `bundled: true` 的内置条目。
 - **阶段一的形态与生成插件相同**：一份 JSON 的 `operations` 合同（查询或命令，严格的 schema 子集）加平台 UI 目录的界面声明；网络、存储、模型、其他动作都只经宿主服务，每次调用复查调用方、授权和 `beforeEffect()`。这样阶段一不需要新的运行机制，只需要把「已验签的包」翻译成现有的 `sandboxedPluginDefinition` 的输入。
 - 第三方不能：在宿主进程里执行代码；在页面里放脚本；直接读写文件或联网；读别的插件的私有存储。
+- **`methods`**（2026-10-08 决定）：第三方 Manifest 声明的 `methods`（给其他 Agent 的方法）和内置插件一样登记：安装启动时登记，停用、卸载、升级时收回（切片 W4-02）。校验沿用 Manifest 的规则（`tools` 只能是业务工具），没有正文的方法不登记（`docs/platform/PLUGIN-DEVELOPMENT.md`「给其他 Agent 的方法」）。方法正文是文本不是代码，怎样随包携带由 W4-02 的设计定。
 - 需要扩展的地方：沙箱合同今天只表达 `operations`，而第三方包的 Manifest 可以有 `routes`、`ui.views`、`events`、`ports`。阶段一只接受 Manifest 里这些字段能映射到沙箱合同的子集（动作和平台目录里的界面），映射不了的在安装时明确拒绝并说明。`kind: "integration"`（轮询外部服务）需要一个「轮询操作加信号草稿」的沙箱合同，放到阶段二。
 - **平台限制**：Seatbelt 只在 macOS 上有；在别的系统上，第三方安装要明确拒绝（失败即关闭，沿用 `UNSUPPORTED_PLATFORM`），直到 C 端计划里的无 `sandbox-exec` 沙箱落地。
 
@@ -102,8 +103,8 @@ molis-work plugin trust list | revoke <publisher_identity>
 
 | 切片 | 内容 | 依赖 |
 | --- | --- | --- |
-| P-1 | 受信表与信任判定（端口、存储、`trust` 命令） | 用户定信任模型；W4-11（Home 存储登记） |
-| P-2 | 安装服务与 `install`、`list`、`uninstall`（只收沙箱形态的子集） | P-1；W4-01（探针夹具能走完安装、发现、调用、升级、停用、卸载） |
+| P-1 | 受信表与信任判定（端口、存储、`trust` 命令） | W4-11（Home 存储登记） |
+| P-2 | 安装服务与 `install`、`list`、`uninstall`（只收沙箱形态的子集） | P-1；W4-01（探针夹具能走完安装、发现、调用、升级、停用、卸载）；W4-02（`methods` 随安装生命周期登记） |
 | P-3 | 工作台确认对话框与「从文件安装」 | P-2 |
 | P-4 | 目录索引与官方索引签名 | P-2；BL-058 |
 | P-5 | 沙箱合同扩展（轮询与信号） | P-2；C 端计划里的跨平台沙箱 |
@@ -112,8 +113,10 @@ molis-work plugin trust list | revoke <publisher_identity>
 
 ## 9. 待决
 
-1. **信任模型**：本地侧载加发布者密钥固定（推荐）、只认官方签名、本步不开第三方路径。
-2. **阶段一的表达力**：接受只有「动作加平台目录界面」的第三方插件，还是要等 `kind: "integration"` 的沙箱合同再开放。
-3. **非 macOS**：第三方安装在非 macOS 上明确拒绝，还是等跨平台沙箱。
-4. **受信表的存储**：新建 Home 级存储，还是挂到现有的 Home 配置文件。
+信任模型、安装命令和沙箱形态已定（第 4 节开头）；下面是实现前还要评审的设计问题：
+
+1. **阶段一的表达力**：接受只有「动作加平台目录界面」的第三方插件，还是要等 `kind: "integration"` 的沙箱合同再开放。
+2. **非 macOS**：第三方安装在非 macOS 上明确拒绝，还是等跨平台沙箱。
+3. **受信表的存储**：新建 Home 级存储，还是挂到现有的 Home 配置文件。
+4. **公钥怎么到达**：给包加一个公钥字段，还是 `install` 带 `--publisher-key`（第 4 节第二条）。
 5. **市场与审核**：官方索引何时做、谁审核（BL-058）。

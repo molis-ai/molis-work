@@ -78,6 +78,7 @@ export class GoalProjectApplication {
   ) {
     const artifactsModule = new ArtifactsModule({
       db: this.store.db as unknown as ArtifactsSqliteDatabase,
+      homeOwner: LOCAL_PERSON_ACTOR_ID,
       now: () => this.clock().toISOString(),
       errorFactory: (code, message, details) => new MolisWorkV1Error(code, message, details),
       appendEvent: (input) => this.store.appendEvent(input),

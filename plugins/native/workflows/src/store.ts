@@ -8,7 +8,9 @@ import {
   type WorkflowInstanceStatus,
   type WorkflowItemRef,
   type WorkflowStep,
+  nextUpdatedAt,
   startInstanceSteps,
+  stoppedOf,
 } from "./model.js";
 
 interface WorkflowRow {
@@ -143,13 +145,20 @@ export class WorkflowsStore {
     return instance;
   }
 
-  /** Writes only when the stored instance is still the one the change was computed from. */
+  /**
+   * Writes only when the stored instance is still the one the change was computed from. `updated_at` is that
+   * comparison, so every write leaves a later one than it started from (`nextUpdatedAt`), and what comes back is what a
+   * reload gives: the stop reason is read from the held step, not taken from `next.stopped`.
+   */
   saveInstance(previous: WorkflowInstance, next: WorkflowInstance): WorkflowInstance {
+    const updatedAt = nextUpdatedAt(previous.updated_at, next.updated_at);
     const result = this.db.prepare(
       "UPDATE instances SET title = ?, status = ?, current = ?, chain_json = ?, steps_json = ?, updated_at = ? WHERE instance_id = ? AND updated_at = ?",
-    ).run(next.title, next.status, next.current, JSON.stringify(next.chain), JSON.stringify(next.steps), next.updated_at, next.instance_id, previous.updated_at);
+    ).run(next.title, next.status, next.current, JSON.stringify(next.chain), JSON.stringify(next.steps), updatedAt, next.instance_id, previous.updated_at);
     if (Number(result.changes) !== 1) throw new WorkflowError("workflows.conflict", "这一次刚被推进过，请刷新后再看");
-    return next;
+    const { stopped: _derived, ...saved } = next;
+    const stopped = stoppedOf(next.status, next.steps);
+    return { ...saved, updated_at: updatedAt, ...(stopped ? { stopped } : {}) };
   }
 
   stopInstance(instanceId: string, projectId: string): WorkflowInstance {
@@ -222,15 +231,19 @@ function fromWorkflowRow(row: WorkflowRow): Workflow {
 }
 
 function fromInstanceRow(row: InstanceRow): WorkflowInstance {
+  const status = (["active", "done", "stopped"].includes(row.status) ? row.status : "active") as WorkflowInstanceStatus;
+  const steps = JSON.parse(row.steps_json) as WorkflowStep[];
+  const stopped = stoppedOf(status, steps);
   return {
     instance_id: row.instance_id,
     workflow_id: row.workflow_id,
     project_id: row.project_id,
     title: row.title,
-    status: (["active", "done", "stopped"].includes(row.status) ? row.status : "active") as WorkflowInstanceStatus,
+    status,
     current: row.current,
     chain: JSON.parse(row.chain_json) as WorkflowChain,
-    steps: JSON.parse(row.steps_json) as WorkflowStep[],
+    steps,
+    ...(stopped ? { stopped } : {}),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

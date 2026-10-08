@@ -20,7 +20,9 @@ export function artifactPluginInputs(platform: PluginPlatform | null, artifact: 
 
 /**
  * Give one input port this version, or put back its former source: the port is cleared and the Host's default wiring
- * fills it again, as when the plugins were first set up. The consumer is re-evaluated either way.
+ * fills it again, as when the plugins were first set up. Other ports keep what they read. Putting back applies only while
+ * the port still reads this version; otherwise nothing changes and the caller gets the ports as they are. The consumer is
+ * re-evaluated whenever something changed.
  */
 export function bindArtifactPluginInput(platform: PluginPlatform | null, artifact: ArtifactVersionRecord,
   input: { plugin_id: string; port: string; restore: boolean }, actorId: string, projectId: string): ArtifactPluginInput[] {
@@ -30,8 +32,12 @@ export function bindArtifactPluginInput(platform: PluginPlatform | null, artifac
   }
   try {
     if (input.restore) {
-      platform.wiring.unbind(input.plugin_id, input.port);
-      bindWorkspaceCompanions(platform, projectId, actorId);
+      // Only an input that still reads this very version is put back: a page that is out of date must not undo a later choice.
+      const reading = platform.wiring.view().plugins.find(plugin => plugin.plugin_id === input.plugin_id)?.ports.find(port => port.port === input.port)?.artifact;
+      if (reading?.artifact_id === artifact.artifact_id && reading.version === artifact.version) {
+        platform.wiring.unbind(input.plugin_id, input.port);
+        bindWorkspaceCompanions(platform, projectId, actorId);
+      }
     } else {
       platform.wiring.bindArtifact({ target_plugin_id: input.plugin_id, target_port: input.port, artifact_id: artifact.artifact_id, version: artifact.version, actor_id: actorId });
       platform.wiring.evaluate(input.plugin_id);

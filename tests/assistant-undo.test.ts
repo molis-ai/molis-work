@@ -132,3 +132,116 @@ test("a round that makes exactly an offered undo's change spends that undo: the 
   service.recordResult(work, view(remove), { note_id: "note-1" }, { removed: true });
   assert.deepEqual(store.undos("web-user", work.work_id).map(undo => undo.state), ["undone"]);
 });
+
+/** The undo fixture's service over a runtime whose model can be switched off, and a notes provider whose removal takes a moment. */
+async function undoFixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>) {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-undo-"));
+  const notes = new DatabaseSync(":memory:");
+  notes.exec("CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL)");
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project", storage_key: "memory:project" };
+  let next = 0;
+  const removes: string[] = [];
+  const unregister = local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [add, remove],
+    handlers: [{ ...add, handle(_context, input) { const id = `note-${++next}`; notes.prepare("INSERT INTO notes VALUES (?, ?)").run(id, (input as { text: string }).text); return { note: { id } }; } },
+      { ...remove, async handle(_context, input) {
+        removes.push((input as { note_id: string }).note_id);
+        await new Promise(resolve => setTimeout(resolve, 30));
+        if (!notes.prepare("DELETE FROM notes WHERE id = ?").run((input as { note_id: string }).note_id).changes) throw Object.assign(new Error("note not_found"), { code: "notes.not_found" });
+        return { removed: true };
+      } }] });
+  const requests: string[] = [];
+  let turn = 0;
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
+    requests.push(body);
+    return (script[turn++] ?? (() => reply()))(JSON.parse(body));
+  });
+  const flags = { model: true };
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-undo-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), undefined, (view, input, output) => service.recordResult(work, view, input, output),
+      undefined, undefined, undefined, () => store.confirmAlways("web-user")),
+    scopeActions: async () => ({ discover: async () => local.actionClient(project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:write"] }),
+      invoke: async (action, input) => local.actionClient(project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:write"] }, action, input) }),
+    projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
+  const noteAdded = () => reply({ name: "change-reversible", input: { capability_id: "fixture.notes.add", version: 1, provider_id: "fixture.notes", input: { text: "周三前交方案" } } });
+  return { service, store, requests, flags, removes, project, notes, noteAdded,
+    close: async () => { unregister(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
+}
+
+test("a round that could not start has told the next one nothing: undone changes, ended background work and settled changes are still to be told", { timeout: 60_000 }, async t => {
+  const f = await undoFixture(t, [() => f.noteAdded(), () => reply(undefined, "记下了。"), () => reply(undefined, "好的。"), () => reply(undefined, "好的。")]);
+  try {
+    const sent = await f.service.send({ text: "记一下：周三前交方案", request_id: "undo-told-1" }, { project_ref: f.project });
+    const workId = sent.work.work_id;
+    const done = await until(async () => { const v = await f.service.read(workId); return v.work.state === "completed" ? v : undefined; }, "round");
+    await f.service.undo(workId, done.undoable![0]!.undo_id);
+    // Background work that ended and a change that settled after a stop: both for the next round to hear once.
+    const at = new Date().toISOString();
+    f.store.saveJob("web-user", { key: "job-key-1", job_id: "job-1", work_id: workId, title: "Research · Start research", state: "completed", last_state: "completed", started_at: at, ended_at: at,
+      status: { capability_id: "fixture.jobs.status", version: 1, provider_id: "fixture.jobs" }, input: "id", path: "status", done: ["completed"], failed: ["failed"], checks: 1 });
+    f.store.saveUnsettled("web-user", { change_id: "chg-1", work_id: workId, title: "Notes · Add a note", started_at: at, state: "completed", settled_at: at });
+    const untold = () => ({ undos: f.store.undos("web-user", workId).filter(undo => undo.state === "undone" && !undo.told).length,
+      jobs: f.store.jobs("web-user", workId).filter(job => !job.told).length, unsettled: f.store.unsettled("web-user", workId, true).length });
+    assert.deepEqual(untold(), { undos: 1, jobs: 1, unsettled: 1 });
+
+    // The send fails before any round exists (no model): nothing was told.
+    f.flags.model = false;
+    await assert.rejects(f.service.send({ text: "继续", request_id: "undo-told-2", work_id: workId }, {}), /模型/);
+    assert.deepEqual(untold(), { undos: 1, jobs: 1, unsettled: 1 }, "a round that never started told nobody");
+    assert.equal((await f.service.read(workId)).rounds.length, 1);
+
+    // The next round that does start hears all three, and then they are told.
+    f.flags.model = true;
+    await f.service.send({ text: "继续", request_id: "undo-told-3", work_id: workId }, {});
+    await until(async () => { const v = await f.service.read(workId); return v.rounds.length === 2 && v.work.state === "completed"; }, "second round");
+    // The role's own text names these sections, so what counts is the data line each puts in the round.
+    const told = (body: string) => ({ undo: body.includes("用户已经撤销；除非用户再次要求"), job: body.includes("（任务 job-1）"), unsettled: body.includes("停止后已完成：不要再次提交") });
+    assert.deepEqual(told(f.requests.at(-1)!), { undo: true, job: true, unsettled: true }, "the round that started was told all three");
+    assert.deepEqual(untold(), { undos: 0, jobs: 0, unsettled: 0 }, "told once the round has started");
+    await f.service.send({ text: "再继续", request_id: "undo-told-4", work_id: workId }, {});
+    await until(async () => { const v = await f.service.read(workId); return v.rounds.length === 3 && v.work.state === "completed"; }, "third round");
+    assert.ok(!told(f.requests.at(-1)!).undo && !told(f.requests.at(-1)!).job && !told(f.requests.at(-1)!).unsettled, "and not told again");
+  } finally { await f.close(); }
+});
+
+test("two undo requests at once run the owner's undo once and agree on the outcome; a later failure never overwrites 'undone'", { timeout: 60_000 }, async t => {
+  const f = await undoFixture(t, [() => f.noteAdded(), () => reply(undefined, "记下了。")]);
+  try {
+    const sent = await f.service.send({ text: "记一下：周三前交方案", request_id: "undo-claim-1" }, { project_ref: f.project });
+    const workId = sent.work.work_id;
+    const done = await until(async () => { const v = await f.service.read(workId); return v.work.state === "completed" ? v : undefined; }, "round");
+    const undoId = done.undoable![0]!.undo_id;
+    const results = await Promise.allSettled([f.service.undo(workId, undoId), f.service.undo(workId, undoId)]);
+    assert.deepEqual(results.map(result => result.status), ["fulfilled", "fulfilled"], JSON.stringify(results.map(result => result.status === "rejected" ? String(result.reason) : "ok")));
+    assert.equal(f.removes.length, 1, "the owner's undo ran once");
+    assert.deepEqual(f.store.undos("web-user", workId).map(undo => [undo.state, undo.detail ?? null]), [["undone", null]]);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
+
+    // The owner cannot take it back, but the round itself had already removed the note meanwhile: the undo is spent, not failed.
+    const second = await f.service.send({ text: "再记一条", request_id: "undo-claim-2", work_id: workId }, {});
+    assert.equal(second.outcome, "started");
+    await until(async () => { const v = await f.service.read(workId); return v.rounds.length === 2 && v.work.state === "completed"; }, "second round");
+    const work = f.store.get("web-user", workId);
+    const view = { ...remove, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } } as never;
+    f.service.recordResult(work, { ...add, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } } as never, { text: "x" }, { note: { id: "note-gone" } });
+    const fresh = f.store.undos("web-user", workId).find(undo => undo.state === "available")!;
+    const running = f.service.undo(workId, fresh.undo_id);
+    f.service.recordResult(work, view, { note_id: "note-gone" }, { removed: true });
+    const settled = await running;
+    assert.deepEqual(settled.undoable!.find(undo => undo.undo_id === fresh.undo_id)!.state, "undone", "the owner's later 'not found' did not turn a spent undo into a failed one");
+    // A genuine failure is still a failure, and can be tried again.
+    f.service.recordResult(work, { ...add, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } } as never, { text: "y" }, { note: { id: "note-gone-2" } });
+    const failing = f.store.undos("web-user", workId).find(undo => undo.state === "available")!;
+    await assert.rejects(f.service.undo(workId, failing.undo_id), /没能撤销/);
+    assert.equal(f.store.undos("web-user", workId).find(undo => undo.undo_id === failing.undo_id)!.state, "failed");
+    f.notes.prepare("INSERT INTO notes VALUES ('note-gone-2', 'back')").run();
+    await f.service.undo(workId, failing.undo_id);
+    assert.equal(f.store.undos("web-user", workId).find(undo => undo.undo_id === failing.undo_id)!.state, "undone", "a failed undo can be tried again");
+  } finally { await f.close(); }
+});

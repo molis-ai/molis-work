@@ -28,7 +28,7 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 
 `research_library` 来源由 Host 注入 `syncRepository`，沿用 Sources 的 `public_source` 同步入口与计划。GitHub integration 验证固定提交上的发布包和哈希，Feed 每条研究发现保存正文、原始引用、阅读范围与包版本。来源规则默认 `admission: "suggest"`；明确选 `inbox` 时，Feed 将匹配内容或需复核的判断结果写入 Attention。`evaluateItems` 可对最近至多 20 条消息重新运行规则；Functions 本身不执行写入。
 
-入箱后的下一步判断走 `inboxJudgment` 注入端口，Host 将它接到统一 `inbox.next` 场景。`subscribeInboxCreated` 连接 Attention 的实际创建事件，覆盖直接携带 attention 的导入及来源故障；去重后在业务提交后的 `flushPendingJudgments` 中执行。已回滚或关闭的事项不触发判断。每个应用实例拥有自己的队列，来源、连接器、定时器和工作流须传入绑定可信调用上下文的 `feedOptions`；仅传 Home 路径不产生 Inbox 调用授权。首页建议通过 homeJudgment 接到共同 Home 场景。Feed 筛选通过 captureJudgment 接到本插件声明的 feed.capture 场景；手动处理和工作流向后续判断传递原调用者。捕捉结果由常驻实例入箱时，该实例立即消费新 Inbox 事件，避免把事件留在另一实例的队列。
+入箱后的下一步判断走 `inboxJudgment` 注入端口，Host 将它接到统一 `inbox.next` 场景。`subscribeInboxCreated` 连接 Attention 的实际创建事件，覆盖直接携带 attention 的导入及来源故障；去重后在业务提交后的 `flushPendingJudgments` 中执行。已回滚或关闭的事项不触发判断。每个应用实例拥有自己的队列，来源、连接器、定时器和工作流须传入绑定可信调用上下文的 `feedOptions`；仅传 Home 路径不产生 Inbox 调用授权。首页建议通过 homeJudgment 接到共同 Home 场景。Feed 筛选通过 captureJudgment 接到本插件声明的 feed.capture 场景；手动处理和工作流向后续判断传递原调用者；等判断的并发动作（工作流收取 `ingestItemJudged`、试跑 `evaluateItems`、入箱）只判断自己导入的消息和由此产生的 Inbox 事项，不排空其他生产方的队列。捕捉结果由常驻实例入箱时，该实例立即消费新 Inbox 事件，避免把事件留在另一实例的队列。
 
 捕捉规则的目录、创建、修改、删除和关键词预览由本插件的 `feed.rules.*` 能力提供，定义及处理器位于 [src/rule-actions.ts](src/rule-actions.ts)。Host 只提供原 FeedApplication、项目范围和原文读取；HTTP 将旧字段转换后调用同一能力，MCP 按具体动作与项目授权。读规则和预览需要 `feed:read`，修改配置另需 `feed:write`；输入不能指定其他项目。指定来源必须属于当前项目，已有失效来源引用在修改其他字段时仍保留。
 
@@ -39,6 +39,10 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 `feed.capture` 自己实现 prepare/consume/failed：用原消息准备内容，结果落地前复核规则 revision、消息内容、提供方和授权。只有 admission=inbox 时，inbox.admit 或 needs_review 才进入 Inbox。原判断历史增加绑定和消息版本依据，`feed.rules.recommendations` 只返回当前仍有效的建议；停用、改绑、内容变化或撤权后撤下建议，历史保留。系统“已用在哪”链接可直接打开来源内的具体捕捉规则。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
+
+定时拉取失败也花掉当次计划：同步在失败时自己会把中断记在来源上（状态、错误码、更新时间），调度器随后只确认授权、来源未删除未暂停、配置与人改过的名称/说明/计划没有变化，再记录需要处理的故障并推进下次拉取；已被拒绝的执行仍然保持拒绝。删除来源并保留历史时，该来源未关闭的故障 Inbox 条目一并标为已忽略（来源再也无法同步），保留下来的消息各自的 Inbox 引用不动。插件提醒和定时操作结果由 Scheduler 的 wakeup 送进 Feed，项目装配时绑定与其他事件相同的判断触发器，投递提交后才执行；判断失败不撤销已投递的提醒。
+
+连同本地历史删除来源时，同一次删除还清理拉取留在 Home 里的东西：先在事务内记下来源的 Material 与拉取收据所指的加密正文和各次拉取的 SEL 记录，提交后由 Host 注入的 `history` 端口删掉 SEL 记录，再把没有任何项目的 Material 或拉取收据引用的正文删掉；仍被别的来源或别的项目引用的正文保留，任何项目库读不出来时一律保留。每次拉取在运行收据的 `content_refs` 里记下它的 SEL 记录持有的正文（含没有留下 Item 的和中断的拉取），这是「SEL 记录引用什么」的 Molis 侧凭据。保留历史的删除不动它们。结果记在事件 `feed_source.history_released`。
 
 来源拉取和规则判断在项目队列外等待。Host 为同一数据库/项目/来源提供共享活动租约；不同幂等键也不能并发拉取同一来源。来源配置改变或原调用取消/撤权后，旧响应不提交结果和失败状态，原运行可在新调用中恢复。账号链路把相同执行检查传到 Listener 的每个异步提交点。
 
@@ -71,8 +75,10 @@ node --import tsx --test --test-concurrency=1 tests/feed-native-plugin.test.ts t
   - 不拥有 Source、Signal、Feed 的表，不直接实现 GitHub 或 Gmail 协议。
   - Provider 失败、部分接收与重试不能混成同一个成功状态；指定来源必须属于当前项目。
   - 关键词预览读最近五条原消息，不调模型、不保存规则、不入箱。
+  - 已忽略（归档）的 Item 只能先恢复：不能被加入 Inbox、不能重开它已关闭的条目，捕捉失败也不为它记条目。
+  - 连同本地历史删除来源时，只删没有任何项目的 Material 或拉取收据引用的加密正文；数不清引用（有项目库读不出来）就一律保留。
   - 停用、改绑、内容变化或撤权后撤下建议，历史保留；外部内容是不可信输入。
-- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts tests/feed-inbox-lifecycle.test.ts tests/feed-local-history-delete.test.ts tests/feed-inbox-pages-loop.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/feed-capture.e2e.test.ts`
 - 相关手册：[docs/modules/feed.md](../../../docs/modules/feed.md)、[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

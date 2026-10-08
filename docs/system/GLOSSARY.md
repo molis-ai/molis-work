@@ -1,6 +1,6 @@
 # 术语表
 
-状态：现行（2026-10-08，按 main `33067cbe` 的代码核对，并按同日全部 27 项用户决定修订）。第 4 节的界面用词等用户批准；第 5 节的代码改名尚未执行。
+状态：现行（2026-10-08，按 main `e4bdeb12` 的代码核对，并按同日全部 27 项用户决定修订）。第 4 节的界面用词等用户批准；第 5 节的代码改名尚未执行。
 
 这份表回答「同一个东西在仓库里该叫什么」。依据是用户 2026-10-08 的决定（`specs/repository-anti-corruption/spec.md` §1「术语表收敛范围」）：文档里一个概念一个名字、一个定义；代码内部标识符随之改名；用户看得见的用词变化先列清单、经用户批准再发。任务来源是 `docs/prompts/repository-anti-corruption.md` §4.15。
 
@@ -28,8 +28,8 @@
 | 规划方法 | Goals 里可选采用的规划方法包 | 规划方法 | 方法包（method pack） |
 | 研究方法 | 炼金术士里用户确认保存、可沿用的研究做法 | 研究方法 | playbook |
 | 连接方式 | 一个服务的授权途径（OAuth、命令行、令牌、MCP） | 连接方式 | method（代码里的 `ConnectorMethod*`） |
-| Agent | 多轮、带工具、按角色运行并受审查的 AI 工作者 | 内置 Agent、外部 Agent、原生 Agent | 把外部 AI 工具这个产品叫 Agent（它是 Runtime） |
-| Runtime（AI Runtime） | 能运行 Agent 或与用户对话的 AI 环境 | Runtime、执行工具 | 与 Plugin Runtime、项目运行对象混写（见 2.3） |
+| Agent | 多轮、带工具、按角色运行并受审查的 AI 工作者；外部的叫外部 Agent，是在外部 Runtime 里运行的工作者 | 内置 Agent、外部 Agent（另有「原生 Agent」等写法，见 U6） | 把 Claude Code、Codex 这类产品叫 Agent（它们是 Runtime） |
+| Runtime（AI Runtime） | 能运行 Agent 或与用户对话的 AI 环境，含外部 AI 工具这个产品（Claude Code、Codex 等） | Runtime、执行工具（另有处写「本地 Agent」「Agent」指它，见 U6） | 把外部产品叫 Agent；与 Plugin Runtime、项目运行对象混写（见 2.3） |
 | Agent role | 插件或系统声明的 Agent 工作方式，起跑时被冻结 | 角色（「系统与插件带来的角色」） | 角色、role、Character（指它时） |
 | Character | 个人拥有、可发布成固定版本的 AI 做事方式；是宿主设置里的一节，不是插件 | 角色（「我的角色」） | 角色（泛称）、Characters 插件 |
 | 项目（Project） | 唯一的工作边界与身份，`project_id` | 项目 | Board（指项目时） |
@@ -98,8 +98,12 @@
 **Agent**
 
 - 定义：按一个角色运行、有多轮循环和工具、经动作服务使用被授权的动作、副作用进入审查队列的 AI 工作者。一次有界的文字、结构化、图片或判断调用不是 Agent（`docs/platform/PROLOGUE-AI.md` §2）。
-- 内置 Agent 由 `horizontal/agent-host` 经 Prologue 运行（动作的可调用者 `agent`，客户端 id `agent:prologue`）；系统级的助理（Assistant）是其中一个，角色 id 是 `assistant`（`apps/local-host/src/assistant/assistant-agent.ts`）；插件用 Manifest 的 `agent` 块声明自己的 Agent（`AgentManifest`）。外部 Agent 指 Claude Code、Codex 等本机 AI 工具，经 MCP 使用动作（可调用者 `mcp`），也可由 `horizontal/runtime-host` 启动。
-- 文档里区分两面：说 Claude Code、Codex 这类产品或环境（被探测、被接入、被启动的东西）时写 Runtime，说它们跑起来的那个工作者（在做事、调用动作、被审查的东西）时写 Agent；外部 AI 工具里跑的工作者叫「外部 Agent」。外部 AI 工具在界面里有几种叫法（原生 Agent、外部 Agent、本地 Agent、执行工具、Runtime），见第 4 节 U6，建议界面也按这两面分。
+- 内置 Agent 由 `horizontal/agent-host` 经 Prologue 运行（动作的可调用者 `agent`，客户端 id `agent:prologue`）；系统级的助理（Assistant）是其中一个，角色 id 是 `assistant`（`apps/local-host/src/assistant/assistant-agent.ts`）；插件用 Manifest 的 `agent` 块声明自己的 Agent（`AgentManifest`）。外部 Agent 是在 Claude Code、Codex 等外部 Runtime 里运行的工作者，经 MCP 使用动作（可调用者 `mcp`）；它所在的外部 Runtime 可由 `horizontal/runtime-host` 启动、恢复。
+- 文档里区分两面，一个词只指其中一面：
+  - 写 Runtime（已知是哪个产品时写产品名，如 Claude Code）：说的是产品或环境，是被探测、被选用、被当作导入来源、被扫描、被启动、被连接的对象，连同它的命令行、配置目录和进程。
+  - 写 Agent（外部的写「外部 Agent」）：说的是在 Runtime 里运行的工作者，是做事、使用自己的登录与权限、请求授权和提问、调用动作、被审查的对象。
+  - 判法：看句子里它在做什么。在做事，写 Agent；在被选、被找、被启动，写 Runtime。所以「Claude Code 是一个 Agent」「扫描本地 Agent」都是把产品叫成了工作者，不再这样写；「外部 Agent 使用自己的权限」是对的。
+- 外部 AI 工具在界面里有许多叫法（原生 Agent、本地 Agent、本机 Agent、外部原生 Agent、外部 Agent、Agent CLI、单写的 Agent、执行工具、Runtime），多数指的是产品而不是工作者。第 4 节 U6 把它们逐条分成两组，建议界面也按这两面写。
 
 **Runtime（AI Runtime）**
 
@@ -131,7 +135,7 @@
 
 **其余三种「方法」（必须写全名）**
 
-- 规划方法（planning method）：Goals 拥有、规划时可选采用的方法包（`PlanningMethodPack`，`modules/goals/src/planning/method-packs.ts`），按「项目 > 个人 > 内置冷启包」生效；内置包是 `modules/goals/methods/` 下的 Markdown。
+- 规划方法（planning method）：Goals 拥有、规划时可选采用的方法包（类型 `PlanningMethodPack` 在 `packages/contracts/src/modules/goals.ts:209`，解析与内置包在 `modules/goals/src/planning/method-packs.ts`），按「项目 > 个人 > 内置冷启包」生效；内置包是 `modules/goals/methods/` 下的 Markdown。
 - 研究方法（research method）：炼金术士里用户确认保存、可在新研究里沿用的做法，代码里叫 playbook（`memory.playbook.*`，`plugins/native/alchemist/src/studio/shared/contracts/actions.ts`）。
 - 连接方式（connection method）：一个服务可用的授权途径，`ConnectorMethodOption`（`kind` 为 `oauth`、`cli`、`token`、`mcp`，`packages/contracts/src/services/connector-host.ts`）。
 
@@ -267,7 +271,7 @@
 
 **U1　动作叫「能力」还是「动作」**
 
-- 现状：界面把动作目录叫「能力」：顶栏「能力」「打开能力服务」（`apps/workbench/src/arrival/shell.ts`），页面「能力库」（`apps/workbench/src/capabilities.ts`、`apps/workbench/src/settings-sections.ts`），创作台「能力板」（`plugins/native/plugin-builder/src/agent-studio.ts`），角色页「角色可选能力」（`plugins/native/characters/src/actions.ts`），助理提示词里的「可用能力目录」（`apps/local-host/src/assistant/assistant-service.ts`），报错「能力未注册或版本已失效」（`packages/kernel/src/action-service.ts`）。在 `apps/workbench/src`、`plugins/native`、`apps/local-host/src` 里，「能力」出现 264 行，「动作」199 行（只数 `.ts/.mts/.mjs`，不含测试和英文翻译文件；含注释、提示词和动作说明，不全是界面文字）。
+- 现状：界面把动作目录叫「能力」：顶栏「能力」「打开能力服务」（`apps/workbench/src/arrival/shell.ts`），页面「能力库」（`apps/workbench/src/capabilities.ts`、`apps/workbench/src/settings-sections.ts`），创作台「能力板」（`plugins/native/plugin-builder/src/agent-studio.ts`），角色页「角色可选能力」（`plugins/native/characters/src/actions.ts`），助理提示词里的「可用能力目录」（`apps/local-host/src/assistant/assistant-service.ts`），报错「能力未注册或版本已失效」（`packages/kernel/src/action-service.ts`）。在 `apps/workbench/src`、`plugins/native`、`apps/local-host/src` 里，「能力」出现 264 行，「动作」200 行（只数 `.ts/.mts/.mjs`，不含测试和英文翻译文件；含注释、提示词和动作说明，不全是界面文字）。
 - 同一页里两个词并用：判断规则编辑器里既有「从动作库加入」「原动作不可用」（`apps/workbench/src/functions/client.ts`），又有「搜索能力」「没有匹配的能力」（`apps/workbench/src/functions/ui.ts`、`client.ts`）。
 - 同一组页面两个名字：顶栏进入的是「能力 · 系统服务」，设置里同样四页（能力库、服务连接、对外接入、调用记录）却放在「工具与接入」组下（`apps/workbench/src/settings-sections.ts`）。该组还含「AI 与执行工具」，范围比前者大，所以这一条不要求合并，只请确认。
 - 建议：界面统一用「能力」指目录里的条目（它已是顶栏、页面名和设置项的名字）：把「动作库」「原动作」两处改成「能力库」「原能力」；页面上给用户的下一步仍叫「动作」（「页面动作」「推荐动作」）。代码与文档仍写 Action，术语表记录「界面叫能力」。
@@ -297,11 +301,60 @@
 - 建议：余下的统一写「目标资料库」或「项目」，与 #299 一致：「目标资料库已存在」「项目 ID 和名称不能为空」「……必须是当前目标资料库已观察到的事件游标」「项目数据库必须恰好包含一个目标资料库」。错误码 `board.not_found` 等属合同，随第 5 节 R-B3 决定，不在这一条。
 - 备选：保持现状。
 
-**U6　「角色」同时指 Character 和 Agent role，外部 AI 工具有几个叫法**
+**U6　「角色」同时指 Character 和 Agent role；外部 AI 工具和它里面的工作者都被叫成「Agent」**
 
-- 现状：「角色」页把「我的角色」（Character）和「系统与插件带来的角色」（Agent role）放在一页（`plugins/native/characters/src/ui.ts`）；Coding 的提示同一句里写「已发布角色」和「左侧 Characters」（`plugins/native/coding/src/characters-client.ts`）。外部 AI 工具里跑起来的那个工作者，在界面里有四种写法：「原生 Agent」（含按钮「启动原生 Agent」，`apps/local-host/src/character-native-execution.ts`、`apps/workbench/src/character-terminal-client.ts`、`plugins/native/characters/src/import-ui.ts`）、「本地 Agent」（`plugins/native/characters/src/import-ui.ts`）、「外部原生 Agent」（`plugins/native/characters/src/ui.ts`）、「外部 Agent」（`apps/workbench/src/settings-assistant.ts`）；而讲这个工具作为环境的地方写「Runtime」和「执行工具」（`apps/workbench/src/settings-renderer.ts` 的「AI 与执行工具」页，如「没有可探测的 Runtime」）。
-- 建议：界面也按 2.3 的两面来分，与文档一致。工作者统一写「外部 Agent」（替换「原生 Agent」「本地 Agent」「外部原生 Agent」，按钮写「启动外部 Agent」）；环境和被探测、被接入的工具保持「Runtime」，设置页标题「AI 与执行工具」不变（它是工具清单，不是概念名）。「角色」保留为设置页的统称，两个小节标题已经分开；Coding 里的「左侧 Characters」改成「设置 › 角色」（Characters 是设置的一节，不在左侧）。
-- 备选：把「我的角色」改叫「Character」；外部工作者和环境都写「Runtime」；保持现状。
+- 现状（角色）：「角色」页把「我的角色」（Character）和「系统与插件带来的角色」（Agent role）放在一页（`plugins/native/characters/src/ui.ts:63,69`）；Coding 的提示同一句里写「已发布角色」和「左侧 Characters」（`plugins/native/coding/src/characters-client.ts:41`）。
+- 现状（Agent 一词）：界面里指外部 AI 工具的地方写过「原生 Agent」「本地 Agent」「本机 Agent」「外部原生 Agent」「外部 Agent」「终端 Agent」「Agent CLI」，还有单写的「Agent」（导入对话框的下拉框标签，选项却是 Codex、Claude Code、Cursor 这样的产品；Shelf 的缺省运行工具名）；设置页「AI 与执行工具」写的是「Runtime」和「执行工具」（`apps/workbench/src/settings-renderer.ts:73-74`）。按 2.3 的判法逐条分，绝大多数是产品、导入来源或运行环境，只有几条在说工作者本身。
+- 范围：按字面搜过源码里带中文的「Agent」（不含测试、规格、文档和词典文件），指外部 AI 工具或其中工作者的都在下面两张表里。指内置 Agent、插件自己的 Agent（Coding、插件创作台的「代码 Agent」、Schedule 的项目 Agent）和 Agent 这个概念的，不在此列。下面是请你批准的完整字面清单，只换名词，不动别的字。
+- 词典：Characters 的这些字符串在词典里没有对应条目（按字面搜过各 `*en.ts`），只改源码。Shelf 的有：`plugins/native/shelf/src/en.ts` 里对应的键和英文值（如「未发现终端 Agent。」译作 No terminal agent found.）按 2.7 第 1 点同批改。
+
+A　指产品、导入来源或运行环境的（按 2.3 是 Runtime；已知是哪个产品时写产品名，`plugins/native/characters/src/import-client.ts:99` 已经写「本地 Claude Code」这样的名字，那一条不改）
+
+| 位置 | 现在 | 建议 |
+| --- | --- | --- |
+| `plugins/native/characters/src/import-ui.ts:3` | 把 Codex、Claude Code 等 Agent 已有的规则、Skills 和附件带进来 | 把 Codex、Claude Code 等已有的规则、Skills 和附件带进来 |
+| `import-ui.ts:5` | 下拉框标签「Agent」，选项是 Codex、Claude Code、Cursor 等 | 标签改「Runtime」 |
+| `import-ui.ts:7` | 列表的朗读标签「发现的本地 Agent」 | 「发现的本地 Runtime」 |
+| `plugins/native/characters/src/import-client.ts:52` | 指定配置目录时，请先选择 Agent。 | 指定配置目录时，请先选择 Runtime。 |
+| `import-client.ts:56` | 可以指定 Agent 配置目录后重试 | 可以指定 Runtime 配置目录后重试 |
+| `plugins/native/characters/src/ui.ts:66` | 从 Codex、Claude Code 等本机 Agent 导入已有的规则与 Skills | 从 Codex、Claude Code 等导入已有的规则与 Skills |
+| `import-ui.ts:16` | 小节标题「本地 Agent」（来源未知时的缺省；与 `import-ui.ts:15` 的「Molis 内置引擎」并列，两节是一对环境） | 「本地 Runtime」 |
+| `import-ui.ts:16` | 按钮「启动原生 Agent」 | 「启动本地 Runtime」 |
+| `import-ui.ts:21` | 再选在 Coding（内置引擎）或本机原生 Agent 里执行 | 再选在 Coding（内置引擎）或本机 Runtime 里执行 |
+| `apps/local-host/src/characters-host.ts:33` | 预览已过期，请重新扫描本地 Agent | 预览已过期，请重新扫描本地 Runtime |
+| `apps/local-host/src/character-native-execution.ts:67` | 此角色没有本地 Agent 来源 | 此角色没有本地 Runtime 来源 |
+| `character-native-execution.ts:81` | 未发现对应 Agent CLI，请安装后重新检查；不会替换为其他引擎 | 未发现对应 Runtime 的命令行，请安装后重新检查；不会替换为其他引擎 |
+| `plugins/native/characters/src/plugin.ts:47` | 本地 Agent 导入服务尚未接通 | 本地 Runtime 导入服务尚未接通 |
+| `apps/local-host/src/character-import-discovery.ts:75,82`、`packages/contracts/src/modules/character-import.ts:42` | 不支持的 Agent 来源 | 不支持的 Runtime 来源 |
+| `character-import-discovery.ts:83` | 手动目录必须指定对应 Agent | 手动目录必须指定对应 Runtime |
+| `apps/local-host/src/character-import-plugins.ts:91` | 此 Agent 的插件启用索引尚未支持…… | 此 Runtime 的插件启用索引尚未支持…… |
+| `horizontal/agent-host/src/character-import.ts:16,20` | 请使用本地 Agent（两条报错） | 请使用本地 Runtime |
+| `plugins/native/coding/src/characters-client.ts:36` | 技能名后的「· 需要原生 Agent」 | 「· 需要本地 Runtime」 |
+| `apps/workbench/src/character-terminal-client.ts:71` | 正在连接原生 Agent… | 正在连接本地 Runtime… |
+| `plugins/native/characters/src/actions.ts:43,44,48,53,57` | 五个动作的标题与说明里的「用本机 Agent 运行」「查找可导入的 Agent」「本机 Agent 配置目录」「本机 Agent 设定」「启动本机 Agent 执行任务」（能力库和 Agent 看得到） | 同样只把「Agent」换成「Runtime」 |
+| `modules/shelf/src/runtimes.ts:182,186` | 未发现 Agent；未发现终端 Agent。 | 未发现 Runtime；未发现终端 Runtime。 |
+| `modules/shelf/src/runtimes.ts:195`、`plugins/native/shelf/src/client.ts:82,1452` | 还没有选定运行工具时的缺省名「Agent」 | 「Runtime」 |
+| `plugins/native/shelf/src/client.ts:231,1450,1457,1682` | 没有 Agent 也可以先提取 PDF 里的字；未发现终端 Agent。（及其后接「文件已留在架子上。」的两处） | 同样把「Agent」换成「Runtime」 |
+| `plugins/native/shelf/src/settings-ui.ts:209,213,224` | 本机文字提取不调用 Agent；不需要 Agent、授权或联网；未发现终端 Agent。暂存、预览、拖出和本机文字提取仍然可用。 | 同样把「Agent」换成「Runtime」 |
+| `plugins/native/shelf/src/terminal-client.ts:169` | 未发现终端 Agent。装一个再来对话。 | 未发现终端 Runtime。装一个再来对话。 |
+
+B　说工作者本身的（做事、用自己的权限、请求授权和提问；按 2.3 写「外部 Agent」）
+
+| 位置 | 现在 | 建议 |
+| --- | --- | --- |
+| `apps/local-host/src/character-native-execution.ts:10` | 原生 Agent 使用自己的登录、模型和权限，仍会读取本机实时规则、插件与 MCP。…… | 外部 Agent 使用自己的登录…… |
+| `plugins/native/characters/src/ui.ts:88` | 外部原生 Agent 使用自己的工具与权限 | 外部 Agent 使用自己的工具与权限 |
+| `apps/workbench/src/character-terminal-client.ts:42` | 原生 Agent · 授权、提问和操作状态显示在终端中 | 外部 Agent · 授权、提问和操作状态显示在终端中 |
+| `modules/shelf/src/runtimes.ts:176` | Workspace Sandbox：Agent 只能写任务工作区 | Workspace Sandbox：外部 Agent 只能写任务工作区 |
+
+不在两张表里的几处：
+
+- 已经一致、不改：`apps/workbench/src/settings-assistant.ts:8` 的「不影响 Coding、外部 Agent 或你自己在页面里操作」（说使用动作的工作者，是 B 组的写法）；`apps/workbench/src/settings-renderer.ts:73-74` 的「AI 与执行工具」「没有可探测的 Runtime」（A 组的写法）；「Molis 内置引擎」（`plugins/native/characters/src/import-ui.ts:15`、`plugins/native/characters/src/ui.ts:88`）是内置 Runtime 的叫法，不是把产品叫成 Agent。
+- 提示词正文：`plugins/native/shelf/src/prompts.ts:58` 的「不要调用终端 Agent」是登记的提示词（`SHELF_INSTRUCTIONS`，`version: 1`）的一部分，不是界面文案；改它要升提示词版本，所以不随这一批改，另议。
+- 词典里没有使用处的键：`plugins/native/shelf/src/en.ts:132,137,200,283` 的四个含「Agent」「本机 Agent」的键，源码里没有对应的使用处（按字面搜过），翻译换成稳定键时作为无用键处理（2.7 第 5 点）。
+
+- 建议：批准上面两张表。A 组换成 Runtime，B 组写「外部 Agent」，这样不会把产品叫成工作者，「Agent」在界面里也只剩工作者一个意思。设置页标题「AI 与执行工具」不变（它是工具清单，不是概念名）。「角色」保留为设置页的统称，两个小节标题已经分开；Coding 里的「左侧 Characters」改成「设置 › 角色」（Characters 是设置的一节，不在左侧）。
+- 备选：A 组的泛称改用「执行工具」（设置页标题已用它指外部 Runtime，见 2.5），不用「Runtime」；A 组也写「外部 Agent」（不推荐：就是 §1 列为易混的写法，用户会把产品当成工作者）；把「我的角色」改叫「Character」；保持现状。
 - 关联：Characters 已定为设置的一节（2.3），上面涉及 `plugins/native/characters` 的文案随它并入宿主时一起搬，不单独改。
 
 **U7　插件显示名中英混用，连接说明里又写英文 id**
@@ -312,20 +365,20 @@
 
 ## 5. 代码改名后续清单
 
-按类别分。规模是 2026-10-08 在 main `33067cbe` 上用 `git grep` 数的，只用来估大小，落地前要重数：「源码」指已追踪的 `.ts`、`.mts`、`.mjs` 文件，不含任何 `tests/` 目录、`*.test.*`、`.impeccable/` 和 `vendor/`；「测试」指 `tests/` 目录和 `*.test.*`；名字按单词边界数（`@molis-ai/molis-work-plugin-work` 要避开 `-workflows`）。新名字是建议，落地时可调整；落地归路线表里的 W5-14（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）。
+按类别分。规模是 2026-10-08 在 main `e4bdeb12` 上数的，只用来估大小，落地前要重数：「源码」指已追踪的 `.ts`、`.mts`、`.mjs` 文件，不含任何 `tests/` 目录、`*.test.*`、`.impeccable/` 和 `vendor/`；「测试」指 `tests/` 目录和 `*.test.*`；名字按单词边界数（`@molis-ai/molis-work-plugin-work` 要避开 `-workflows`）。新名字是建议，落地时可调整；落地归路线表里的 W5-14（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）。
 
 ### R-A　只改标识符（不动持久化数据，不动合同 id；编译和现有测试可以校验）
 
 | # | 旧标识符 | 建议新名 | 规模 | 说明 |
 | --- | --- | --- | --- | --- |
-| R-A1 | `GoalsBoardRecord`、`getBoard`、`requireBoard`、`checkGoalBoard`、`validateManagedBoard`、`readManagedBoard`、`initializeBoard`（含 `InitializeBoardInput`、`InitializeBoardOutput`、`initializeBoardCapability`）、`BoardSnapshot*`（含 `boardSnapshotSchema`、`snapshotBoardCapability`）、`MolisWorkCommands`（在 `board-commands.ts`）、`GOAL_BOARDS_SCHEMA_SQL` | 去掉 Board：目标资料库（Goals 根记录）写 `GoalsLibrary*`（如 `GoalsLibraryRecord`、`getGoalsLibrary`、`requireGoalsLibrary`、`initializeGoalsLibrary`）；`BoardSnapshot*` 去掉 Board 前缀，具体名落地时定（`GoalsQuerySnapshot` 已存在，避开）；`MolisWorkCommands` 改 `GoalsLibraryCommands` | 源码：`GoalsBoardRecord` 4 个文件、`getBoard` 10、`requireBoard` 10、`checkGoalBoard` 1（36 处）、`validateManagedBoard`/`readManagedBoard` 4、`initializeBoard` 系 14、`BoardSnapshot` 13；测试：`initializeBoard` 系 55 | 表名 `boards` 保留（2026-10-06 决定）。`initializeBoard` 在测试里是初始化项目的目标资料库的公用写法，改名要连测试一起 |
+| R-A1 | `GoalsBoardRecord`、`getBoard`、`requireBoard`、`checkGoalBoard`、`validateManagedBoard`、`readManagedBoard`、`initializeBoard`（含 `InitializeBoardInput`、`InitializeBoardOutput`、`initializeBoardCapability`）、`BoardSnapshot*`（含 `boardSnapshotSchema`、`snapshotBoardCapability`）、`MolisWorkCommands`（在 `board-commands.ts`）、`GOAL_BOARDS_SCHEMA_SQL` | 去掉 Board：目标资料库（Goals 根记录）写 `GoalsLibrary*`（如 `GoalsLibraryRecord`、`getGoalsLibrary`、`requireGoalsLibrary`、`initializeGoalsLibrary`）；`BoardSnapshot*` 去掉 Board 前缀，具体名落地时定（`GoalsQuerySnapshot` 已存在，避开）；`MolisWorkCommands` 改 `GoalsLibraryCommands` | 源码：`GoalsBoardRecord` 4 个文件、`getBoard` 10、`requireBoard` 10、`checkGoalBoard` 1（36 处）、`validateManagedBoard`/`readManagedBoard` 4、`initializeBoard` 系 14、`BoardSnapshot` 13；测试：`initializeBoard` 系 56 | 表名 `boards` 保留（2026-10-06 决定）。`initializeBoard` 在测试里是初始化项目的目标资料库的公用写法，改名要连测试一起 |
 | R-A2 | 文件 `modules/goals/src/board-commands.ts`、`plugins/native/goals/src/board-actions.ts`、`board-entry-capabilities.ts`、`board-snapshot-query.ts`；`tests/goals-board-actions.test.ts` | 去掉 `board-` 前缀 | 5 个文件 | 引用这些路径的 README 和 `docs/` 同步 |
-| R-A3 | 判断规则的 TypeScript 类型：`FunctionRecord`、`FunctionDraftPatch`、`FunctionSummary`、`FunctionDescribe`、`FunctionSample`、`FunctionCriteria`、`FunctionInvokeResult`、`FunctionsPrimitive`、`FunctionStatus`、`FunctionAuthoring*` | `JudgmentRule*` | 源码 12 个文件、测试 6 个 | 只改类型名；`function_key`、表和动作 id 见 R-B2 |
+| R-A3 | 判断规则的 TypeScript 类型：`FunctionRecord`、`FunctionDraftPatch`、`FunctionSummary`、`FunctionDescribe`、`FunctionSample`、`FunctionCriteria`、`FunctionInvokeResult`、`FunctionsPrimitive`、`FunctionStatus`、`FunctionAuthoring*` | `JudgmentRule*` | 源码 9 个文件、测试 3 个 | 只改类型名；`function_key`、表和动作 id 见 R-B2 |
 | R-A4 | 包 `@molis-ai/molis-work-module-functions`、目录 `modules/functions`、`apps/workbench/src/functions/`、`apps/local-host/src/functions-*.ts` | `judgment-rules` | 源码 15 个文件、测试 20 个文件导入这个包名 | Home 里的 `functions` 库名属合同，见 R-B2 |
-| R-A5 | `FunctionAuthoringBehavior`、`behavior-catalog.ts`、`liveHostFunctionAuthoringCatalog`、常量 `*_BEHAVIOR_ID`（如 `HOME_TALK_BEHAVIOR_ID`） | `…Option`、`recommendation-catalog.ts`、`*_OPTION_ID` | 源码 5 个文件（`FunctionAuthoringBehavior`、`behavior-catalog`）；`behavior_id(s)`、`*_BEHAVIOR_ID` 共 32 个文件 | 常量的值（`inbox.admit` 等）不变；编辑器目录是宿主与编辑器之间的形状，未持久化，可一起改 |
+| R-A5 | `FunctionAuthoringBehavior`、`behavior-catalog.ts`、`liveHostFunctionAuthoringCatalog`、常量 `*_BEHAVIOR_ID`（如 `HOME_TALK_BEHAVIOR_ID`） | `…Option`、`recommendation-catalog.ts`、`*_OPTION_ID` | 源码 5 个文件（`FunctionAuthoringBehavior`、`behavior-catalog`）；`behavior_id` 字样（含 `suggested_behavior_ids`）源码 31 个文件、测试 23 个，`*_BEHAVIOR_ID` 常量源码 5 个文件、测试 3 个 | 常量的值（`inbox.admit` 等）不变；编辑器目录是宿主与编辑器之间的形状，未持久化，可一起改 |
 | R-A6 | `AgentMethodView`、`AgentMethodRegistration`、`METHOD_TOOLS`、`inspectMethodDeclarations`、`method_owner`、`codingMethods`/`pagesMethods`/`todoMethods` 及其所在文件（`plugins/native/coding/src/methods.ts`、`plugins/native/pages/src/methods.ts`、`plugins/native/todo/src/roles.ts`） | `AgentSkill*`、`SKILL_TOOLS`、`inspectSkillDeclarations`、`skill_owner`、`*Skills`、`skills.ts` | 前五项源码 7 个文件，`codingMethods`/`pagesMethods`/`todoMethods` 11 个文件 | 只含类型、函数和文件名。Manifest 的 `methods` 键、`assistant.methods.*`、字段 `method_id` 和助理物料种类值 `"method"` 都是合同或已存数据，见 R-B5 |
 | R-A7 | 目录 `plugins/native/work`、包 `@molis-ai/molis-work-plugin-work` | 目录改叫 `sessions`，包改 `@molis-ai/molis-work-plugin-sessions` | 源码 21 个文件、测试 16 个文件导入（不含 `package.json`） | 同步 `scripts/workspace-packages.mjs`、SSOT、各 README |
-| R-A8 | 翻译表里找不到字面使用处、又含旧术语的键 | 删除 | 11 条：`apps/workbench/src/i18n/en.ts` 5 条（含「Functions 行为总表」「Functions 出站动作」「判断函数 key」「Board 级事项」）、`i18n/information-loop-en.ts` 3 条、`apps/workbench/src/functions/en.ts` 1 条、`plugins/native/feed/src/en.ts` 2 条 | 只按字面搜过。翻译换成稳定键（2.7，W5-03）后这些条目不带进新词典，所以不单独做；W1-08 的翻译检查落地后以它报告的无用键为准 |
+| R-A8 | 翻译表里找不到字面使用处、又含旧术语的键 | 删除 | 11 条：`apps/workbench/src/i18n/en.ts` 5 条（键里的字样有「Functions 行为总表」「Functions 出站动作」「判断函数 key」「Board 级事项」，前一个出现在一整句的键里）、`i18n/information-loop-en.ts` 3 条、`apps/workbench/src/functions/en.ts` 1 条、`plugins/native/feed/src/en.ts` 2 条 | 只按字面搜过。翻译换成稳定键（2.7，W5-03）后这些条目不带进新词典，所以不单独做；W1-08 的翻译检查落地后以它报告的无用键为准 |
 | R-A9 | 6 个插件共 19 个 UI 描述的 `plugin_id: "io.molis.work.native.<x>"`（Goals 12、Feed、Inbox、Schedule、成果 2、会话 2，位置见 3.3 表后第 2 条） | 与各自 Manifest 的 `plugin_id` 相同：`io.molis.work.<x>`，会话是 `io.molis.work.sessions` | 源码 19 个文件；测试：`tests/builtin-plugin-composition.test.ts:47-48` 断言了 Goals 提案与会话终端的旧值 | 描述没找到持久化的位置（见 3.3）。改后可以让构建期装配也过 Plugin Runtime 同样的一致性检查。该测试的注释写着「旧公开身份保持稳定」，改前先确认它钉的是 `plugin_id` 还是只是 `contribution_id`，再按预期变化改断言 |
 | R-A10 | 工作台右栏的 dock 窗口 id `im`：`dock-window-im`、`data-dock-window="im"`、`data-dock-toggle="im"`、`navigation-presentation.ts:60` 里的 `id==='im'` | `side`（讨论页签的内嵌框 `data-dock-frame="im"` 可改 `discussion`） | 源码 3 个文件（`apps/workbench/src/side-panel.ts`、`apps/workbench/src/immersive-shell.ts`、`apps/workbench/src/scripts/client/navigation-presentation.ts`），测试 2 个（`tests/desktop-tui.test.ts`、`tests/lingguang-plugin.test.ts`） | 这个 id 指整个右栏，不是讨论页签（2.6）。落地前先确认它没有写进本地存储的键 |
 | R-A11 | 注释与局部变量里把项目叫 board/Board 的，以及把 Agent role 叫 Characters 的 | 项目；Agent role | 无法按名计数，改 R-A1 时顺带 | 例：`modules/functions/src/store.ts` 的局部变量 `board`；`plugins/native/goals/src/document-collection.ts` 与 `goal-tree-materialization-order.ts` 里未用的 `_boardId` 参数；`packages/contracts/src/modules/goals.ts` 的注释；`plugins/native/characters/src/client.ts` 的注释把系统与插件的角色叫 Characters |

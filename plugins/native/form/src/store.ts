@@ -166,10 +166,16 @@ export class FormStore {
   /**
    * Answer files people sent back from the exported fill page. Each file is untrusted: it must name this form, carry
    * its own question snapshot and valid answers. The same answer imported twice counts once.
+   *
+   * `source` is who imports, in the words of a submission's source: the person at the Host's own page (`preview`, the
+   * default) or the audience that called. Whoever imports, what comes in is recorded as `file`. While the form is not
+   * collecting, only the person imports; any other caller is refused as a whole, before a file is read.
    */
-  importAnswers(id: string, files: readonly { name: string; content: string }[], projectId?: string): { imported: number; skipped: number; rejected: { name: string; reason: string }[] } {
+  importAnswers(id: string, files: readonly { name: string; content: string }[], projectId?: string,
+    options: { source?: Exclude<FormSubmissionSource, "file"> } = {}): { imported: number; skipped: number; rejected: { name: string; reason: string }[] } {
     return this.transaction(() => {
       const form = this.get(id, projectId);
+      assertTakesAnswers(form, options.source ?? "preview", "import");
       let imported = 0, skipped = 0;
       const rejected: { name: string; reason: string }[] = [];
       for (const file of files) {
@@ -401,18 +407,20 @@ function submissionFromRow(row: SubmissionRow): FormSubmissionRecord {
 }
 
 /**
- * A form takes answers while it is collecting (`published`). A draft, and a form whose collection stopped, take only the
- * person's own trial fill (`preview`): the fill page is for collecting, and what an agent, an external tool, a workflow
- * or a plugin sends is refused until the person starts collecting. Checked in the submit transaction, so a form that is
- * stopped between the check and the write cannot take the answer.
+ * A form takes answers while it is collecting (`published`). A draft, and a form whose collection stopped, take only what
+ * the person does at the Host's own page (`preview`): the trial fill, and importing the answer files people sent back,
+ * which the page promises still works after collection stops. The fill page is for collecting, and what an agent, an
+ * external tool, a workflow or a plugin submits or imports is refused until the person starts collecting. Checked in the
+ * submit or import transaction, so a form that is stopped between the check and the write cannot take the answer.
  */
-function assertTakesAnswers(form: FormRecord, source: Exclude<FormSubmissionSource, "file">): void {
+function assertTakesAnswers(form: FormRecord, source: Exclude<FormSubmissionSource, "file">, how: "submit" | "import" = "submit"): void {
   if (form.status === "published" || source === "preview") return;
   const stopped = form.status === "closed", reason = stopped ? "这份问卷已停止收集答卷" : "这份问卷还没有开始收集答卷";
   if (source === "fill") throw new FormError("form.closed", reason);
+  const what = how === "import" ? "导入答卷文件" : "提交";
   throw new FormError("form.closed", reason + (stopped
-    ? "，助理、外部工具、工作流和插件不能再提交；需要继续收集时，请本人在问卷里重新开始收集"
-    : "，助理、外部工具、工作流和插件暂时不能提交；请本人先在问卷里开始收集"));
+    ? `，助理、外部工具、工作流和插件不能再${what}；需要继续收集时，请本人在问卷里重新开始收集`
+    : `，助理、外部工具、工作流和插件暂时不能${what}；请本人先在问卷里开始收集`));
 }
 
 function normalizeProjectId(value: string): string {

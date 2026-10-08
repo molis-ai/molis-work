@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { FORM_ANSWER_FORMAT, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
@@ -23,6 +23,11 @@ test("Form standard MCP preserves submissions and publications across processes 
     const result = await client.callTool({name:`form.${name}__v1`, arguments:args});
     assert.equal(result.isError, false, JSON.stringify(result)); return result.structuredContent as any;
   };
+  // A form that is not collecting refuses an external tool with its own code and reason, not a generic failure.
+  const refused = async (client: Client, name: string, args: Record<string, unknown>, reason: RegExp) => {
+    const result = await client.callTool({name:`form.${name}__v1`, arguments:args}); assert.equal(result.isError, true);
+    const error = JSON.parse((result.content as {text:string}[])[0]!.text); assert.equal(error.code, "form.closed"); assert.match(error.message, reason);
+  };
   try {
     const writer = await connect("a"), reader = await connect("a", "read"), other = await connect("b");
     assert.deepEqual((await writer.listTools()).tools.map(t => t.name).filter(n => n.startsWith("form.")).sort(),
@@ -37,7 +42,7 @@ test("Form standard MCP preserves submissions and publications across processes 
       assert.equal((await client.callTool({name:`form.${name}__v1`,arguments:args})).isError,true);
     }
     // An external tool's answer is taken only while the form is collecting: a draft refuses it and saves nothing.
-    assert.equal((await writer.callTool({name:"form.submit__v1",arguments:{id,answers:{[form.questions[0].id]:"草稿阶段"},request_id:"draft-submission"}})).isError,true);
+    await refused(writer,"submit",{id,answers:{[form.questions[0].id]:"草稿阶段"},request_id:"draft-submission"},/还没有开始收集答卷/u);
     assert.equal((await call(reader,"results",{id})).analysis.submission_count,0);
     form = (await call(writer,"publish",{id,expected_version:form.version})).form;
     const input = {id,answers:{[form.questions[0].id]:"保留原答案"},expected_version:form.version,request_id:"stable-submission"};
@@ -79,8 +84,23 @@ test("Form standard MCP preserves submissions and publications across processes 
     try {assert.deepEqual(store.get(id,"a"),recovered.form);assert.deepEqual(store.listSubmissions(id,"a"),[submission]);} finally {store.close();}
     // Collection stopped: an external tool's answer is refused again, and the one already in stays.
     const stopped = (await call(restarted,"close",{id,expected_version:recovered.form.version})).form;
-    assert.equal((await restarted.callTool({name:"form.submit__v1",arguments:{id,answers:{[stopped.questions[0].id]:"停止后"},request_id:"stopped-submission"}})).isError,true);
+    await refused(restarted,"submit",{id,answers:{[stopped.questions[0].id]:"停止后"},request_id:"stopped-submission"},/已停止收集答卷/u);
     assert.equal((await call(reader,"results",{id})).analysis.submission_count,1);
+    // Answer files obey the same gate for an external tool: refused while the form is not collecting, taken once it is.
+    let filed = (await call(restarted,"create",{title:"MCP 答卷文件"})).form; const fileForm = filed.id;
+    filed = (await call(restarted,"questions.add",{id:fileForm,prompt:"导入题",expected_version:filed.version})).form;
+    const file = (answerId:string,value:string) => ({name:`${answerId}.molis-answer.json`,content:JSON.stringify({format:FORM_ANSWER_FORMAT,form_id:fileForm,form_version:filed.version,answer_id:answerId,
+      submitted_at:"2026-10-08T01:02:03.000Z",questions:filed.questions,answers:{[filed.questions[0].id]:value}})});
+    // The refusal is the form's own (not a bad input): the same file shape is taken once the form is collecting.
+    const refusedImport = (answerId:string,value:string,reason:RegExp) => refused(restarted,"answers.import",{id:fileForm,files:[file(answerId,value)]},reason);
+    await refusedImport("mcp-draft-0001","草稿阶段",/还没有开始收集答卷/u);
+    assert.equal((await call(reader,"results",{id:fileForm})).analysis.submission_count,0);
+    filed = (await call(restarted,"publish",{id:fileForm,expected_version:filed.version})).form;
+    assert.equal((await call(restarted,"answers.import",{id:fileForm,files:[file("mcp-open-0001","收集中")]})).imported,1);
+    filed = (await call(restarted,"close",{id:fileForm,expected_version:filed.version})).form;
+    await refusedImport("mcp-stopped-0001","停止后",/已停止收集答卷/u);
+    assert.equal((await call(reader,"results",{id:fileForm})).analysis.submission_count,1);
+    await call(restarted,"delete",{id:fileForm,expected_version:filed.version});
     await call(restarted,"delete",{id,expected_version:stopped.version}); assert.deepEqual((await call(reader,"list")).forms,[]);
   } finally {await Promise.all(clients.map(c=>c.close()));await rm(home,{recursive:true,force:true});}
 });

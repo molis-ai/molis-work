@@ -3,8 +3,9 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { formActions as actions, FORM_ACTION_PERMISSIONS, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import { formActions as actions, FORM_ACTION_PERMISSIONS, FORM_ANSWER_FORMAT, FormPluginRouteTable, createFormRouteHandlers, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
@@ -23,6 +24,11 @@ const questions = [
   { id: "rating", type: "rating" as const, title: "评分" }, { id: "date", type: "date" as const, title: "日期" },
 ];
 const answers = { text: "第一份回答", singleChoice: "是", multiChoice: "是\n否", dropdown: "否", rating: "5", date: "2026-09-25" };
+/** What the exported fill page hands back: one answer file that names its form and the questions it answered (question `q`). */
+function answerFile(form: FormRecord, answerId: string, value: string) {
+  return { name: `${answerId}.molis-answer.json`, content: JSON.stringify({ format: FORM_ANSWER_FORMAT, form_id: form.id, form_version: form.version, answer_id: answerId,
+    submitted_at: "2026-10-08T01:02:03.000Z", questions: form.questions, answers: { q: value } }) };
+}
 
 test("Form actions share original data, six question types and snapshot-backed submissions", async t => {
   const f = await fixture(t);
@@ -151,6 +157,7 @@ test("a form that is not collecting takes no answer from an agent, MCP, a workfl
     for (const audience of outside) for (const claimed of [undefined, "preview", "fill"] as const) {
       const label = `${audience} claiming ${claimed ?? "nothing"}`;
       await assert.rejects(as(audience).invoke(actions.submit, { id, answers: { q: label }, ...(claimed ? { source: claimed } : {}) }), error => {
+        assert.ok(error instanceof ActionError, `${label}: an MCP client is told the code and reason of an ActionError only`);
         assert.equal((error as { code?: string }).code, "form.closed", label);
         assert.match((error as Error).message, reason, label);
         assert.match((error as Error).message, remedy, label);
@@ -207,4 +214,80 @@ test("the store itself refuses every source but the trial fill while a form is n
   refused("stopped");
   assert.equal(store.submit(form.id, { q: "c" }, "p", { source: "preview" }).source, "preview");
   assert.equal(store.listSubmissions(form.id, "p").length, 2 + 6 + 1, "a refused call leaves no answer behind");
+});
+
+test("answer files go into a form that is not collecting only when the person imports them; every other caller is refused", async t => {
+  const f = await fixture(t);
+  const as = (audience: ActionAudience) => bindActionClient(f.client, () => ({ ...f.caller, audience }));
+  const outside = ["agent", "mcp", "workflow", "plugin"] as const;
+  let { form } = await f.bound.invoke(actions.create, { title: "答卷文件" });
+  const id = form.id;
+  form = (await f.bound.invoke(actions.update, { id, questions: [{ id: "q", type: "text", title: "Q?" }], expected_version: form.version })).form;
+  const stored = async () => (await f.bound.invoke(actions.results, { id })).submissions.map(submission => `${submission.source}:${submission.answers.q}`).sort();
+  const imports = (audience: ActionAudience, phase: string, label: string) => as(audience).invoke(actions.importAnswers, { id, files: [answerFile(form, `${phase}-${audience}-0001`, label)] });
+  // Refused before any file is read, whatever the file holds: the call's audience decides, the refusal says why and what to do,
+  // and nothing is written.
+  const refuse = async (phase: string, reason: RegExp, remedy: RegExp) => {
+    for (const audience of outside) {
+      const label = `${audience} importing in ${phase}`;
+      await assert.rejects(imports(audience, phase, label), error => {
+        assert.ok(error instanceof ActionError, `${label}: an MCP client is told the code and reason of an ActionError only`);
+        assert.equal((error as { code?: string }).code, "form.closed", label);
+        for (const pattern of [reason, /导入答卷文件/u, remedy]) assert.match((error as Error).message, pattern, label);
+        return true;
+      }, label);
+    }
+    await assert.rejects(as("agent").invoke(actions.importAnswers, { id, files: [{ name: "not-an-answer.txt", content: "not json" }] }), { code: "form.closed" }, "a file nobody could read is refused as a whole, not listed as a bad file");
+  };
+
+  // A draft is not collecting yet: only the person's own import goes in.
+  await refuse("draft", /还没有开始收集答卷/u, /请本人先在问卷里开始收集/u);
+  assert.deepEqual(await stored(), []);
+  assert.deepEqual(await f.bound.invoke(actions.importAnswers, { id, files: [answerFile(form, "person-draft-0001", "草稿时本人导入")] }), { imported: 1, skipped: 0, rejected: [] });
+
+  // Collecting: every caller can import, and what comes in is an answer file whoever brought it.
+  form = (await f.bound.invoke(actions.publish, { id, expected_version: form.version })).form;
+  for (const audience of outside) assert.deepEqual(await imports(audience, "open", `收集中 ${audience}`), { imported: 1, skipped: 0, rejected: [] }, audience);
+
+  // Collection stopped: the same refusal, with the way back, also for a file that came in before; the answers already in stay.
+  form = (await f.bound.invoke(actions.close, { id, expected_version: form.version })).form;
+  await refuse("stopped", /已停止收集答卷/u, /请本人在问卷里重新开始收集/u);
+  await assert.rejects(imports("agent", "open", "收集中 agent"), { code: "form.closed" }, "a file that was imported before is refused, not counted as skipped");
+  // The person still imports: the page promises it after stopping, and the same answer counts once.
+  assert.deepEqual(await f.bound.invoke(actions.importAnswers, { id, files: [answerFile(form, "person-stopped-0001", "停止后本人导入")] }), { imported: 1, skipped: 0, rejected: [] });
+  assert.deepEqual(await f.bound.invoke(actions.importAnswers, { id, files: [answerFile(form, "person-stopped-0001", "停止后本人导入")] }), { imported: 0, skipped: 1, rejected: [] });
+  // Through the workbench's own route, which is always the person.
+  const routes = new FormPluginRouteTable(createFormRouteHandlers({ projectId: "a", actions: f.bound }));
+  const viaRoute = await routes.handle({ method: "POST", pathname: `/api/form/${id}/answers`, query: new URLSearchParams(), body: { project_id: "a", files: [answerFile(form, "page-stopped-0001", "停止后经页面导入")] } });
+  assert.equal(viaRoute?.status, 200); assert.deepEqual(viaRoute?.body, { imported: 1, skipped: 0, rejected: [] });
+
+  // Starting again opens the form to every caller again.
+  await f.bound.invoke(actions.publish, { id, expected_version: form.version });
+  for (const audience of outside) assert.deepEqual(await imports(audience, "again", `重新收集 ${audience}`), { imported: 1, skipped: 0, rejected: [] }, audience);
+
+  assert.deepEqual(await stored(), [
+    "file:草稿时本人导入", "file:停止后本人导入", "file:停止后经页面导入",
+    ...outside.flatMap(audience => [`file:收集中 ${audience}`, `file:重新收集 ${audience}`]),
+  ].sort());
+});
+
+test("the store itself refuses an answer-file import from anyone but the person while a form is not collecting", async t => {
+  const home = await mkdtemp(join(tmpdir(), "form-collecting-import-")), store = openFormStore(home);
+  t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
+  const draft = store.create({ project_id: "p", title: "F" });
+  const form = store.update(draft.id, { questions: [{ id: "q", title: "Q?" }], expected_version: draft.version }, "p");
+  const outside = ["agent", "mcp", "workflow", "plugin"] as const;
+  const refused = (phase: string) => { for (const source of outside) assert.throws(() => store.importAnswers(form.id, [answerFile(form, `${phase}-${source}-0001`, source)], "p", { source }), { name: "FormError", code: "form.closed" }, `${source} on a ${phase} form`); };
+
+  refused("draft");
+  assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0001", "a")], "p", { source: "preview" }).imported, 1);
+  assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0002", "b")], "p").imported, 1, "a call that names no caller is the person");
+  store.publish(form.id, "p");
+  for (const source of outside) assert.equal(store.importAnswers(form.id, [answerFile(form, `open-${source}-0001`, source)], "p", { source }).imported, 1, source);
+  store.closeCollection(form.id, "p");
+  refused("stopped");
+  assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0003", "c")], "p").imported, 1);
+  const rows = store.listSubmissions(form.id, "p");
+  assert.equal(rows.length, 2 + outside.length + 1, "a refused call leaves no answer behind");
+  assert.ok(rows.every(row => row.source === "file"), "imported answers are answer files whoever imports them");
 });

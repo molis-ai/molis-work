@@ -200,9 +200,8 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | `jelly/preferences.json` | `apps/local-host/src/jelly-model.ts:16`：Jelly 选中的模型 | JSON · `schema_version` = 1 | 必备份 | purge（`jelly` 目录） |
 | `characters/runs/character-*/` | `apps/local-host/src/character-native-execution.ts:18-20`：交给外部 Agent 执行时临时写出的角色包 | 目录 | 临时 | 否 |
 | `images/assets/` | `plugins/native/images/src/service.ts:37`：生成的图片文件 | 文件目录 · 无版本 | 必备份 | purge（`images` 目录） |
-| `lingguang/imports/<sha256><ext>` | 宿主；`apps/local-host/src/jelly-native-material.ts:36-37` 建目录并按内容哈希命名，`:46` 用硬链接放进去，同一内容只存一份。这是用户上传素材的原始副本；代码把它放在灵光名下（`:35` 的注释），没有代码按路径读回，提取结果只带 `source_sha256` | 文件目录 · 无版本 · 目录 0700、文件 0600 | 必备份（用户上传的原件，不能再得） | purge（`lingguang` 目录） |
-| `lingguang/material-upload-*/` | 同一文件 `:39` 建、`:56` 在 `finally` 里删：写上传内容的暂存目录 | 目录 | 临时 | purge（`lingguang` 目录） |
-| `lingguang/models/` | 同一文件 `:68`：音视频素材转写用的模型缓存目录（报错文案里叫“素材模型缓存目录”），用户允许下载时本机辅助程序往里下载（`apps/local-host/src/material-native.ts:52`、`:61`）；只在上传音视频素材时创建 | 目录 · 无版本 | 可重建（重新下载） | purge（`lingguang` 目录） |
+| `lingguang/imports/<sha256><ext>` | 旧版本留下的上传原始副本；现行 `apps/local-host/src/jelly-native-material.ts` 不再写，也没有代码读，上传的文件只在内存里提取文字（读取不保存灵光，副本没有读者也没有主人）。旧 Home 里已有的文件可以直接删除 | 文件目录 · 无版本 | 可重建（不会再被读取；删除不影响任何记录） | purge（`lingguang` 目录） |
+| `lingguang/models/` | `apps/local-host/src/jelly-native-material.ts` 的 `modelCacheDirectory`：音视频素材转写用的模型缓存目录（报错文案里叫“素材模型缓存目录”），用户允许下载时本机辅助程序往里下载（`apps/local-host/src/material-native.ts:52`、`:61`）；只在上传音视频素材时创建 | 目录 · 无版本 | 可重建（重新下载） | purge（`lingguang` 目录） |
 | `directory-access/bookmarks.json` | `apps/desktop/adapters/tauri/src/context_directories.rs:109-125`：桌面壳保存的目录授权书签。设了 `MOLIS_WORK_HOME` 时在 Home 里，否则在应用数据目录（第 8 节） | JSON · 无版本 | 授权书签与机器绑定，换机后失效，按可重建对待 [推断，未读格式] | 否 |
 
 ### 6.3 配置、日志与安装物
@@ -305,7 +304,6 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 - Images 的 runner 锁文件无人回收，CLI 与管理 MCP 的默认库路径相对当前目录（W2-04）。
 - `purge` 漏 12 个一级条目，旧 `goalboard-*` 的 release 与启动脚本卸载不认，而 `bin/goalboard-mcp` 还有进程在用（W4-11 的清除范围决策）。
 - purge 的用例清单是写死的：`tests/uninstall.test.ts` 只盖 16 个库里的 10 个，其余 6 个只在 `tests/personal-plugins-review-fixes.test.ts` 的遍历用例里盖到；`sessions/`、`shelf/`、`logs/`、`backups/`、`runtime-integrations/` 的清除没有用例。W4-11 的统一登记落地后，用例应读登记，而不是各写一份名单。
-- `lingguang/imports/` 是用户上传素材的原件，由宿主的 `apps/local-host/src/jelly-native-material.ts` 写，却放在灵光的目录里，灵光的代码不读它；它放在哪里、归 Jelly 还是灵光，路线图里没有条目提到。
 - 结构由宿主文件定义的库（assistant、placement、agent-definitions、context-onboarding、connectors、项目库的几段）按“库归 owner 包”看是错放，处理在 W3-06 与 W5-01。
 
 维护：新增、改名或删除 Home 里任何库或文件的改动，同一个 PR 里改本表对应的行（路径、owner、版本、备份类、卸载覆盖）；提高某个库的基线版本时同时改“现行版本”和 `tests/home-store-baselines.test.ts`。这张表目前没有门禁，是否漏登靠评审。统一登记落地后，本表改成登记的说明，并由登记校验。

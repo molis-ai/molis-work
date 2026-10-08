@@ -195,19 +195,19 @@
 
 ## 3. 体检报告附录 A 复核
 
-状态：2026-10-08 在 main `cad49419` 上逐项重新量过，§4.9 闭环完成（W1-01）。附录 A 的每一项（含皮肤、Goals UI、Server 与 C 组）、体检报告 §5 的 6 步、§7.5 的 5 条、第一步交接清单（[post-merge-review §12](../archive/post-merge-review/spec.md#12-交给第二步的清单)）的每一项，都有结论、证据和归属。
+状态：2026-10-08 在 main `33067cbe` 上逐项重新量过，§4.9 闭环完成（W1-01）。附录 A 的每一项（含皮肤、Goals UI、Server 与 C 组）、体检报告 §5 的 6 步、§7.5 的 5 条、第一步交接清单（[post-merge-review §12](../archive/post-merge-review/spec.md#12-交给第二步的清单)）的每一项，都有结论、证据和归属。
 
 **读法**：
 
 - 结论分四档：**已修复**（附证据）、**部分**（做了什么、还缺什么）、**仍然成立**（附方案与顺序）、**不再成立**（附依据）。
-- 标签：[已确认] 是这次在 `cad49419` 上跑命令量到的；[引用] 是引用 [roadmap](roadmap-2026-10-07.md) 或本 spec 里带日期的记录、这次没有重跑；[未验证] 没有量。
+- 标签：[已确认] 是这次在 `33067cbe` 上跑命令量到的；[引用] 是引用 [roadmap](roadmap-2026-10-07.md) 或本 spec 里带日期的记录、这次没有重跑；[未验证] 没有量。
 - 归属写 roadmap 路线表的切片编号（`W<波>-<序>`，表在 [roadmap-2026-10-07.md](roadmap-2026-10-07.md) 开头）；「决定 #n」是 §10 的 27 项用户决定；`BL-nnn` 是 [BACKLOG](../BACKLOG.md) 的条目。路线表里没有对应切片的，写「补记」并指定到最近的一片，这些也列在本节末尾。
 - 数字口径：`git grep` 只扫 `apps`、`packages`、`plugins`、`horizontal`、`modules` 五个目录（另有说明的除外）；空 catch、`as unknown as`、Error 子类、`escapeHtml` 与 `readBody` 的定义用 TypeScript AST 数。量度脚本是一次性的、没有入库，其中几项由 W1-04、W1-09 的门禁固化。
 - 与 roadmap 不一致处，以这里为准：#295–#298（文档对齐）、#293（健康门禁）、#294（密钥扫描）在 roadmap 写完之后合入，已改变若干行的现状。
 
 ### 3.1 附录 A 逐项闭环
 
-| 编号 | 结论 | 证据（`cad49419`） | 归属 |
+| 编号 | 结论 | 证据（`33067cbe`） | 归属 |
 | --- | --- | --- | --- |
 | R-01 | 仍然成立 [已确认] | `tests/builtin-plugin-assembly-gate.test.ts` 冻结 19 个构建期插件（`BUILD_TIME_ASSEMBLED`，含 todo）、7 个经 Runtime（`RUNTIME_ASSEMBLED`）；`apps/local-host/src/*-native-plugin-http.ts` 18 个；`project-host.ts` 26 处 `registerProvider`；`apps/workbench/src/builtin-plugins.ts` 27 个目录条目、33 条 import。新插件只走 Runtime 的规则已写进 AGENTS.md:26 与 `skills/molis-plugin-dev/host.md`（#298） | §4.6：W1-05（装配门禁加严）、W4-04（Form 样板）、W5-01、W5-02、W6-01。决定 #9：Goals、Artifacts、Sessions、插件创作台是批准的构建期例外，其余 15 个逐族迁移；决定 #10：Form 先、Todo 第二 |
 | R-02 | 已修复 [已确认] | #269（`aab032d0`）删除 `apps/local-host/src/mcp-native-plugins.ts`、`apps/mcp/src/goal-action-aliases.ts`，并改了 `skills/goal-advance`；`legacyMcp`、`LEGACY_FUNCTIONS_MCP`、`LEGACY_GOALS_MCP` 在五个目录里 0 处。现存的 `molis_work_v1_*` 是现行工具命名空间，不是别名。同一条线的剩余入口见 §3.4 的 BL-081 | — |
@@ -763,7 +763,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 ### 9.2 对照任务要求的补查
 
-2026-10-08 刷新：#290（本 spec 的进度合入）、#293–#298 已在 main，本节按 `cad49419` 重对一遍；10-03 的初版结论保留在 git 历史里。
+2026-10-08 刷新：#290（本 spec 的进度合入）、#293–#298 已在 main，本节按 `33067cbe` 重对一遍；10-03 的初版结论保留在 git 历史里。
 
 **第一步任务书（main 上的新版）**：新版比归档时的旧版多两条要求——
 

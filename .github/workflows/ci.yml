@@ -64,6 +64,12 @@ jobs:
       - name: Health gates reject what they claim to
         run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts
 
+      # The document and repository-shape rules run inside the health gates above (links, cited paths and ids, spec index,
+      # BACKLOG rows, root allow-list, .impeccable files, placeholder contract subpaths); scripts/gates/README.md lists them.
+      # Each one is broken once on a scratch repository here, and the gate must go red.
+      - name: Document gates reject what they claim to
+        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts
+
       - name: Verify Goal boundaries, storage baselines and release assets
         run: |
           node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs

@@ -1,0 +1,11 @@
+{
+  "AGENTS.md": {
+    "tooling/gates/giant-exceptions.json": "AGENTS.md says in the same sentence that this exception file is planned and does not exist yet (W1-19 adds it); the exception goes stale, and this entry is then rejected, the day the file is added"
+  },
+  "skills/molis-plugin-dev/elements.md": {
+    "modules/<id>.ts": "a path inside the plugin's own project (its modules/ folder), not this repository's modules/"
+  },
+  "skills/molis-plugin-dev/generated-code.md": {
+    "tests/operations/<序号>.ts": "a path inside a generated plugin's project (its tests/ folder), not this repository's tests/"
+  }
+}

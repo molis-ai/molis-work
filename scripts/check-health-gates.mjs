@@ -16,6 +16,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { docGateInputs, docGateMetrics, docGateProblems } from "./gates/doc-gates.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
 const fail = (message) => { console.error(message); process.exit(2); };
@@ -63,7 +64,7 @@ const isSource = (file) => AREAS.test(file) && /\.(ts|mts)$/.test(file) && !file
   && !/(^|\/)(tests?|dist|node_modules|fixtures)\//.test(file) && !/\.test\.(ts|mts)$/.test(file);
 const isTestFile = (file) => /^tests\/.*\.(ts|mts|mjs)$/.test(file);
 const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
-const needsText = (file) => isSource(file) || isTestFile(file);
+const needsText = (file) => isSource(file) || isTestFile(file) || docGateInputs(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -322,7 +323,7 @@ const compatMarkers = {
   summary: (counts) => `${sumOf(counts)} compat markers`,
 };
 
-const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMarkers];
+const METRICS = [giantUnits, testImports, vendoredSdk, schemaPatches, compatMarkers, ...docGateMetrics({ perFile })];
 const measureAll = (snapshot) => Object.fromEntries(METRICS.map((metric) => [metric.id, metric.measure(snapshot)]));
 const summaryOf = (measured) => METRICS.map((metric) => metric.summary(measured[metric.id])).join(", ");
 
@@ -382,7 +383,7 @@ const limitErrors = () => {
   const before = parseLimits(git(["cat-file", "blob", `${mergeBase}:${limitsFile}`]), `${mergeBase.slice(0, 8)}:${limitsFile}`);
   return LIMIT_KEYS.filter((key) => limits[key] > before[key]).map((key) => `limit "${key}" loosened ${before[key]} → ${limits[key]} in tooling/gates/limits.json; limits only get tighter`);
 };
-const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems()];
+const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...docGateProblems(workingTree())];
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "tooling/gates/baseline.json";
 
 // ---- --report --------------------------------------------------------------------------------------------------------
@@ -396,6 +397,8 @@ if (report) {
   for (const metric of METRICS) console.log("\n" + metric.lines(head[metric.id], reference?.[metric.id], env).join("\n"));
   const problems = specProblems();
   console.log(`\nSpec status lines: ${problems.length ? problems.join("; ") : "every specs/ root directory has one"}`);
+  const docProblems = docGateProblems(workingTree());
+  console.log(`\nDocument references: ${docProblems.length ? `${docProblems.length} problems\n- ${docProblems.join("\n- ")}` : "none broken"}`);
   process.exit(0);
 }
 

@@ -522,6 +522,8 @@
 | 兼容逻辑不回流 | 源码不再出现 `ALTER TABLE`、`ensureSqliteColumn`、旧产品名与兼容标记（建库基线与允许名单除外） | 删兼容后为 0 | 加一处 `ALTER TABLE` |
 | 独立整页（artifact-positioning S7） | 除例外清单外没有路由返回完整 HTML；插件内容里不出现自带外壳；站内链接不跳出工作台 | [artifact-positioning §4](../artifact-positioning/spec.md) | 加一个返回整页的路由 |
 | 成果库声明（artifact-positioning A7） | manifest 声明与实际写入一致；可见类型必须有预览；交换数据不进用户可见列表 | 同上 | 写一个未声明的类型 |
+| 文档引用（W1-06） | 活文档（`archive/` 之外的 `.md`）没有断链（含标题锚点）；`skills/`、`AGENTS.md`、`docs/system/CALL-CHAINS.md` 引用的路径、`pnpm` 脚本与能力 id 存在；`specs/README.md` 索引与根目录分类一致；`specs/BACKLOG.md` 没有完成行 | 从 0 开始，没有基线；有意的例外在 `tooling/gates/doc-citation-exceptions.json`（带理由，不再需要就要删） | 加一处断链、引用一个不存在的 id、少列一份 spec、留一行已完成 |
+| 仓库形状（W1-06） | 根目录只放 `tooling/gates/root-allowlist.json` 里的名字；`.impeccable/` 入库文件按组只许减少；`contracts` 不许有只导出描述符且没人用的占位子路径 | 对照 merge-base 只许减少（开工时：根目录 3 个越界条目、1,104 个 `.impeccable` 文件、6 个占位子路径） | 根目录加一个文件、往评审组加一张图、加一个占位子路径 |
 
 **进度**：
 
@@ -530,6 +532,7 @@
 - 突变验证四项都失败。
 - 实例：基线若从 98984bf7 起算，#171 会被拦下。它让 `events-primary.ts`、`navigation-feed.ts`、`craft-finish.ts` 三个超长文件又变长，并新增 2 处测试内部引用。
 - 静态检查规则集与公开 API 快照放下一批：要加 ESLint 依赖或生成 `.d.ts` 清单。
+- 文档与仓库形状门禁（W1-06，`scripts/gates/`，说明见 [scripts/gates/README.md](../../scripts/gates/README.md)）：接进 `pnpm health:check`，突变用例在 `tests/doc-reference-gates.test.ts`（CI 单独一步）。开工时门禁量到 7 处断链，已改：`plugins/native/plugin-builder/DESIGN.md` 5 处指向 S1b 已删的文件、`specs/molis-work-architecture-reorganization/f2-validation.md` 2 处指向已删的 `docs/system/MIGRATION.md`，都改成不带链接的说明；Skill `elements.md` 里引用的 `functions.evaluate.v1` 在代码里没有，改成真实的 `functions.query.v1`。根目录的 `outputs/` 不是文档目录、不查链接（W1-23 移走）；`contracts` 的 6 个占位子路径由 W2-01 删，删完这条规则就是「一个也没有」。
 
 CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.yml`）；以上门禁都以非浏览器用例或脚本形式加到 `architecture-boundaries` 作业里，时间预算 3 分钟以内。
 

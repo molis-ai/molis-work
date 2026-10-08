@@ -141,6 +141,8 @@
 | 2026-10-08 | 发版细则（发布策略 §2、§3，弹窗） | 确认（推荐）；版本号随时可改 | 确认 | 0.x 改任一库结构或对外名称升次版本、只修问题升补丁；产品版本只在发布 PR 里改 |
 | 2026-10-08 | 官方集成的版本（发布策略 §1，弹窗） | 各自独立（推荐）；也跟产品版本 | 各自独立 | 它们没有持久的安装记录，不会停在旧代码上 |
 | 2026-10-08 | 创作台 Skill 回放用的真实设计答卷（W1-12，弹窗） | 从拷贝里只读导出、审过再提交（推荐）；只放本机不提交；隔离 Home 重新生成 | 从拷贝里只读导出、审过再提交 | 真实 Home 先 APFS 克隆到会话临时目录，只读打开拷贝（目录库里的绝对路径映射到拷贝）；导出需求原文与设计答卷；逐条审有没有个人信息，有就去掉；不读密钥 |
+| 2026-10-08 | 真实 Home 维护四的时机（目录库 v21 → v22，弹窗） | 合入后立刻做（推荐）；合入后先不做、等下次目录库改版一起；先维护再合入 | 合入后立刻做 | 与维护三同一做法：合入后一次窗口里停进程、整份备份、拷贝上演练、应用、重装安装版、主检出快进并构建；做完前主检出与安装版不更新；做完要重开各 Runtime 会话 |
+| 2026-10-08 | 以前删项目留在别的主人库里的孤儿数据（弹窗） | 顺带清掉（推荐）；不清 | 顺带清掉 | 维护四里先在拷贝上列出各库、各多少条给用户看，再在真库上删；整份备份里保留 |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -414,7 +416,7 @@
   7. Runtime 接入：三处客户端配置还是早先的 goalboard 条目（旧的 `GOALBOARD_*` 环境变量，新代码只认 `MOLIS_WORK_*`），新代码报「MCP 宿主没有提供 Runtime 标识」；用户弹窗定「备份后换成产品接入」：三份配置与三个 goal-advance 链接、三张 9 月 11 日的旧接入收据备份到 `~/molis-work-backups/2026-10-07-runtime-configs/`，删掉旧条目后用产品自己的 Runtime 接入（prepare→confirm）给 Claude Code、Codex、Grok Build 写入 `molis-work` 条目与技能；按配置启动的 MCP 能列出真实 Home 的项目。已开着的会话要重开才会用上。
   8. 主检出：另一会话 10-07 8:59–9:27 留下的 26 个文件改动与两个新 spec（用户弹窗定「本会话处理」）先存成补丁并提交到本地分支 `wip/main-checkout-2026-10-07`（4cb5e28f），主检出 fast-forward 到 main（d81b12cb）后把它重新放回为未提交改动（按改名三方合并，`boardId` 改为 `projectId`），构建通过，它改过的 16 个测试文件 73/73 通过。
 - 演练（rehearsal-1007、rehearsal-1007b，拷贝只读取自真实 Home）：两次结果相同；演练检查时一次误开了真实 Home 的一个项目库（目录库存的是绝对路径），版本不符被拒、文件未变，检查脚本已限定只开拷贝。
-- 真实 Home 维护四（目录库 v21 → v22）——**待做，要用户批准；批准前不动真实 Home**，时机待用户定（§7）。分支 `fix/project-deletion-owners` 给目录库加了一张表 `project_deletion_steps`（删除收据里每个数据所有者一步，`modules/projects/src/deletion-steps.ts:7`），`CATALOG_SCHEMA_VERSION` 因此从 21 升到 22（`apps/local-host/src/project-catalog-contract.ts:1`）。别的库的结构与版本都没变（项目库 v6、会话库 v7、Functions v3……）。真实 Home 的目录库是 v21（维护三之后），所以这个分支合入后它与代码对不上，两个方向都要处理：
+- 真实 Home 维护四（目录库 v21 → v22）——**用户 2026-10-08 批准：合入后立刻做，顺带清掉以前删项目留下的孤儿数据**（§1）；做完之前主检出与安装版不更新。分支 `fix/project-deletion-owners` 给目录库加了一张表 `project_deletion_steps`（删除收据里每个数据所有者一步，`modules/projects/src/deletion-steps.ts:7`），`CATALOG_SCHEMA_VERSION` 因此从 21 升到 22（`apps/local-host/src/project-catalog-contract.ts:1`）。别的库的结构与版本都没变（项目库 v6、会话库 v7、Functions v3……）。真实 Home 的目录库是 v21（维护三之后），所以这个分支合入后它与代码对不上，两个方向都要处理：
   - **跑新代码的进程拒绝 v21**，什么都不写：`catalog.unsupported_schema`「项目目录数据库的版本是 21，这个版本只认 22，不就地升级」（`apps/local-host/src/catalog-schema.ts:32-42`）。主检出快进到新 main 并构建之后，4207 和主检出的命令行就打不开真实 Home；Home 安装版换成新 main 的构建后，新起的 MCP 也一样；都要等做完维护四；
   - **做完以后跑旧代码的进程拒绝 v22**：维护三用 e1cd4906 重装的 Home 安装版只认 21，遇到 v22 报 `catalog.reader_too_old`（`apps/local-host/src/project-catalog-contract.ts:51-68`），要用新 main 的干净构建重装；已开着的会话里的 MCP 同样报它，要重开会话（`docs/installation.md:76` 同一段说明）。
   - **做什么**：对 `projects/catalog.db` 跑 `tests/fixtures/catalog-maintenance-v22.sql`，一个事务：新建 `project_deletion_steps`，把 `catalog_meta.schema_version` 由 21 改为 22。库不是项目目录库、版本不是 21、表已存在，整个脚本回滚，什么都不改（用 `node:sqlite` 的 `exec` 或 `sqlite3 -bail` 跑，遇到第一个错就停；不加 `-bail` 的 sqlite3 出错后会接着往下跑并提交：在版本 20 的库上它建出了表、版本没动，试过）。
@@ -622,7 +624,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 
 ## 7. 需要用户操作的事项
 
-- **真实 Home 维护四的时机（目录库 v21 → v22，待弹窗答复）**：`fix/project-deletion-owners` 合入后，更新了的主检出打不开真实 Home 的目录库，做完维护四后装着的 Home 安装版（只认 21）又打不开 v22，要重装（§4.1）。真实 Home 的写操作要你批准，并定它相对合入的时机：① 合入后立刻做，主检出和安装版在做完之前不更新（推荐，与维护三同一做法）；② 先做维护、再合入（真实 Home 先到 22，现在的主检出和安装版立刻打不开它，直到合入并重装）；③ 合入后先不做，和 #21 的真实 Home 清理（§1 10-08）并成一次维护窗口，主检出和安装版在那之前不更新。答复后在 §1 记一行，并把 §4.1 维护四的“时机待用户定”改成结论。
+- ~~真实 Home 维护四的时机~~：已定（§1 2026-10-08）：合入后立刻做，并在同一窗口里清掉以前删项目留下的孤儿数据（先在拷贝上列出各库、各多少条给用户看，再在真库上删；整份备份里保留）。
 - **常驻服务 4173 要装新版**：10-03 已停（`launchctl bootout gui/<uid>/com.adeptify.goalboard.web`，plist 未改）。它是安装版 0.2.0，读写已删除的旧成果表，不能再用；装新版或改指向新构建后，用 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.adeptify.goalboard.web.plist` 启动。
 - **旧成果表的备份**：`~/.molis-work-backups/2026-10-03-drop-old-artifact-tables/`（18 个项目库，148 MB，逐个 `integrity_check` 通过、行数与删除前一致）。确认不再需要后由用户删除。
 - ~~**anti-rot**~~：已于 10-03 删除（工作树、本地与远端分支，见 §1），不再需要用户操作。

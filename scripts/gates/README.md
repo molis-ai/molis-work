@@ -29,9 +29,15 @@
 
 - **路径**：以根目录允许名单里的顶层文件夹开头（`apps/`、`docs/`、`packages/`、`plugins/`、`tests/`、`tooling/` …；名单之外的 `outputs/` 不读）。`<名>`、`{名}`、`*`、`{a,b}` 表示「这里是什么」，至少一个入库的文件要匹配。末尾的 `:行号`、`#锚点`、`()` 会去掉。被 `.gitignore` 忽略的目录（`dist/`、`.impeccable/qa/`）下的路径算存在。
 - **命令**：`pnpm <脚本>` 的脚本要在根 `package.json` 里（或是 pnpm 自带命令）；带 `--filter` 的不读。
-- **动作 id**：`owner.名词.动词`、`molis_work_v1_action_<id>__v<N>`、以 `.vN` 结尾的类型化 id。只读首段是插件、模块或横向服务目录名（`plugins/native/<x>`、`modules/<x>`、`horizontal/<x>`）的写法；`ui.views`、`services.events` 这类 Manifest 字段与 SDK 成员不读。id 要么整串是源码里的字符串字面量，要么去掉首段后是该目录里的字面量（插件写 `define("reminders.recover")`，目录给它加上 `schedule.`），要么匹配某个拼 id 的模板字面量（`` `${station.id}.content.${role}` ``）。只在测试、`fixtures/`、构建产物或 `tooling/gates/` 自己的数据文件里出现的 id 不算（后者是「这条被豁免了」的记录，不是定义）。
+- **动作 id**：`owner.名词.动词`、`molis_work_v1_action_<id>__v<N>`、以 `.vN` 结尾的类型化 id。只读首段是插件、模块或横向服务目录名（`plugins/native/<x>`、`modules/<x>`、`horizontal/<x>`）的写法；`ui.views`、`services.events` 这类 Manifest 字段与 SDK 成员不读。id 要么整串是源码里的字符串字面量，要么去掉首段后是该目录里的字面量（插件写 `define("reminders.recover")`，目录给它加上 `schedule.`），要么匹配某个拼 id 的模板字面量（`` `${station.id}.content.${role}` ``）；模板在首段之后至少要有一段固定文字，只固定了插件名的（`` `pages.${name}` ``、`` `shelf.${recipe}.${optionId}` ``）不算，否则这个插件的任何拼写错误、已删除的 id 都会被放过。只在测试、`fixtures/`、构建产物或 `tooling/gates/` 自己的数据文件里出现的 id 不算（后者是「这条被豁免了」的记录，不是定义）。
 
-门禁读不到的：`.cursor/rules/*.mdc` 的 glob、没有放进行内代码的路径、`owner` 不是目录名的 id（如 `schedules.add`，它整串存在时不会失败，但写错也不会被发现）。
+门禁读不到的（读不到的地方，写文档的人自己要核对）：
+
+- `.cursor/rules/*.mdc` 的 glob，没有放进行内代码的路径。
+- `owner` 不是目录名的动作 id（如 `schedules.add`）：整串存在时不会失败，写错也不会被发现。
+- 动作 id 的模板匹配：`` `${station.id}.content.${role}` `` 让任何 `<插件>.content.<角色>` 都算有定义（`goals.content.receive` 这类不存在的 id 会通过）；要收紧得解析 `station.id` 的取值范围，不值当。其余模板见上，已收紧。
+- MCP 工具名只认 `molis_work_v1_action_<id>__v<N>` 这一种：`molis_work_v1_context_resolve` 这类上下文工具（例如 `skills/goal-advance/references/service-start.md` 里）不读，写错也不会被发现。
+- BACKLOG 完成行只认单元格被划线、或单元格以 已完成、已实现、已做完、已关闭、完成、done 开头：写成「已修复（#300）」「已合入 main」的行不会失败（「待你验收」一节的行本来就是做完了等试用，写「已合入 main」是正常的，按这类字样判会误报，所以不加进规则）。做完就删行是纪律，不是这条规则能全部兜住的。
 
 ## 怎么加一条规则
 

@@ -18,7 +18,14 @@
 //                          tooling, examples; not tests, fixtures, build output or tooling/gates/'s own data);
 //               owner      the id minus its owner prefix is a literal under that owner's directory (a plugin writes
 //                          define("reminders.recover") and the catalog prefixes it with schedule.);
-//               template   the id matches a template literal that builds ids (`${station.id}.content.${role}`).
+//               template   the id matches a template literal that builds ids (`${station.id}.content.${role}`). A template
+//                          counts only when it has a fixed segment after the first: `pages.${name}` or `shelf.${recipe}.${id}`
+//                          would accept every misspelling and every removed id of their owner, so they are ignored. What
+//                          `${station.id}.content.${role}` still accepts, any `<owner>.content.<role>`, is a blind spot
+//                          (scripts/gates/README.md, 门禁读不到的).
+// Not read (scripts/gates/README.md, 门禁读不到的): MCP tool names other than molis_work_v1_action_<id>__v<N> (the context
+// tools, molis_work_v1_context_resolve and its siblings), ids whose owner is not a directory name (schedules.add), paths and
+// ids that are not inside an inline code span, and `.cursor/rules/*.mdc` globs.
 // An exception goes in tooling/gates/doc-citation-exceptions.json as { "<file>": { "<token>": "<why it is not a problem>" } }
 // with a reason; an exception that is no longer needed is an error itself, so the file cannot rot. No baseline: starts at 0.
 import { fileIndex, readMarkdown } from "./markdown.mjs";
@@ -96,8 +103,10 @@ function idUniverse(snapshot) {
     for (const m of text.matchAll(/`([^`\n]*\$\{[^`\n]*)`/g)) {
       const segments = m[1].replace(/\$\{[^}]*\}/g, "\u0000").split(".");
       if (segments.length < 2 || !segments.every((segment) => /^[a-z0-9_\u0000-]*$/i.test(segment))) continue;
-      // Needs a fixed segment of its own, or `${a}.${b}` would accept every id there is.
-      if (!segments.some((segment) => segment && !segment.includes("\u0000"))) continue;
+      // Needs a fixed segment after the owner: with none, `${a}.${b}` would accept every id there is, and `pages.${name}` (or
+      // `shelf.${recipe}.${optionId}`) every misspelling and every removed id of that owner. A template is therefore only read
+      // when something between the placeholders pins the id down (`${station.id}.content.${role}`).
+      if (!segments.slice(1).some((segment) => segment && !segment.includes("\u0000"))) continue;
       templates.push(new RegExp(`^${segments.map((segment) => segment.split("\u0000").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[a-z0-9_-]+")).join("\\.")}$`));
     }
   }

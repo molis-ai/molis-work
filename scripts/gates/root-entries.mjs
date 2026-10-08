@@ -57,5 +57,6 @@ export const rootStrays = {
   grewWhat: "tracked files at the repository root outside the allow-list",
   grewHint: `move it into docs/, specs/, tooling/ or another home, or name it in ${ROOT_ALLOWLIST} with a reason`,
   title: "Root entries outside the allow-list (tracked files)",
+  unit: { many: "root entries", one: "entry" },
   summary: (strays) => `${Object.keys(strays).length} root strays`,
 };

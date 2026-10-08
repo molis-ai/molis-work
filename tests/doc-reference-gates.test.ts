@@ -70,7 +70,11 @@ before(() => {
     'export const run = define("alpha.run");', 'export const sub = define("sub.do");',
     "export const content = (station: string, role: string) => `${station}.content.${role}`;",
     // No fixed segment: the gate must not let this template stand for every two-part id (the real repo has dozens).
-    "export const joined = (owner: string, name: string) => `${owner}.${name}`;"));
+    "export const joined = (owner: string, name: string) => `${owner}.${name}`;",
+    // Only the owner is fixed (the real repo has `pages.${name}`, `todo.${name}`, `shelf.${recipe}.${optionId}`): such a template
+    // would accept every misspelling and every removed id of its owner, so the gate ignores it.
+    "export const named = (name: string) => `alpha.${name}`;",
+    "export const deeper = (recipe: string, option: string) => `alpha.${recipe}.${option}`;"));
 
   put("specs/README.md", lines("# 规格书怎么放", "", "## 在做的", "", "- [alpha](alpha/spec.md)：in progress", "",
     "## 现行规范", "", "- [beta](beta/spec.md)：a norm", "", "## 还没做的事", "", "都在 [BACKLOG.md](BACKLOG.md)。"));
@@ -159,6 +163,12 @@ const violations: Scenario[] = [
     expect: [/bad citation: AGENTS\.md:\d+: `pnpm nosuchscript` names pnpm script "nosuchscript"/] },
   { kind: "absolute", name: "a skill cites an id its owner does not define", mutate: () => append("skills/dev/SKILL.md", "\nCall `alpha.vanished` next.\n"),
     expect: [/bad citation: skills\/dev\/SKILL\.md:\d+: `alpha\.vanished` is not an id the code defines/] },
+  { kind: "absolute", name: "a typo of a two-part id whose owner has a template that fixes only the owner", mutate: () => append("skills/dev/SKILL.md", "\nCall `alpha.rnu` next.\n"),
+    expect: [/`alpha\.rnu` is not an id the code defines/] },
+  { kind: "absolute", name: "a three-part id made up under an owner whose template fixes only the owner", mutate: () => append("skills/dev/SKILL.md", "\nCall `alpha.made.up` next.\n"),
+    expect: [/`alpha\.made\.up` is not an id the code defines/] },
+  { kind: "absolute", name: "an id an owner used to define, after its definition is removed", mutate: () => put("plugins/native/alpha/src/actions.ts", read("plugins/native/alpha/src/actions.ts").replace('define("alpha.run")', 'define("alpha.other")')),
+    expect: [/`alpha\.run` is not an id the code defines/, /`molis_work_v1_action_alpha\.run__v1` is not an id the code defines/] },
   { kind: "absolute", name: "a skill cites an MCP tool name for an id that is gone", mutate: () => append("skills/dev/SKILL.md", "\nThe tool is `molis_work_v1_action_alpha.vanished__v1`.\n"),
     expect: [/`molis_work_v1_action_alpha\.vanished__v1` is not an id the code defines/] },
   { kind: "absolute", name: "a typed id with a version suffix that is not defined", mutate: () => append("skills/dev/SKILL.md", "\nThe typed id is `alpha.run.v1`.\n"),
@@ -375,9 +385,9 @@ test("a spec in the index may carry an anchor, and a heading link may use the he
 test("--report lists the document problems and the new counts", () => {
   branch("report", () => append("docs/guide.md", "\n[gone](missing.md)\n"));
   const text = gate("--report").out;
-  assert.match(text, /Root entries outside the allow-list \(tracked files\): 4 in 2 files/);
-  assert.match(text, /Files under \.impeccable \(per group\): 6 in 5 files/);
-  assert.match(text, /Placeholder subpaths in @molis-ai\/molis-work-contracts: 1 in 1 files/);
+  assert.match(text, /Root entries outside the allow-list \(tracked files\): 4 in 2 root entries\n  count  entry/);
+  assert.match(text, /Files under \.impeccable \(per group\): 6 in 5 groups\n  count  group/);
+  assert.match(text, /Placeholder subpaths in @molis-ai\/molis-work-contracts: 1 in 1 subpaths\n  count  subpath/);
   assert.match(text, /Document references: 1 problems\n- broken link: docs\/guide\.md:\d+: link missing\.md/);
 });
 

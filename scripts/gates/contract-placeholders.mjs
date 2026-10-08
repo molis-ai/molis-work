@@ -69,5 +69,6 @@ export const contractPlaceholders = {
   grewWhat: "descriptor-only, unused contracts subpath",
   grewHint: "put the types or functions in the subpath, or do not add it (a contract starts when something uses it)",
   title: "Placeholder subpaths in @molis-ai/molis-work-contracts",
+  unit: { many: "subpaths", one: "subpath" },
   summary: (placeholders) => `${Object.keys(placeholders).length} placeholder contract subpaths`,
 };

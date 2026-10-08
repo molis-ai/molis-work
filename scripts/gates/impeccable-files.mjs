@@ -32,5 +32,6 @@ export const impeccableFiles = {
   grewWhat: "tracked files under .impeccable",
   grewHint: "write review evidence to the ignored .impeccable/qa/review/ (the default), and delete sets no current spec, document or test points at",
   title: "Files under .impeccable (per group)",
+  unit: { many: "groups", one: "group" },
   summary: (groups) => `${Object.values(groups).reduce((sum, count) => sum + count, 0)} .impeccable files`,
 };

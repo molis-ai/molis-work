@@ -4,6 +4,8 @@
 // A row (a table line that starts with a BL-nnn id) is a done row when a cell is struck through (~~text~~) or says the work
 // is complete: 已完成, 已实现, 已做完, 已关闭, 完成, done. A row waiting for the user's own trial sits under "待你验收" and
 // does not say any of these. An id used on two rows is an error too: ids are never reused.
+// Not read (scripts/gates/README.md, 门禁读不到的): a row that says it in other words ("已修复（#300）", "已合入 main"). Under "待你验收"
+// a row is finished work waiting for the user's trial, so "已合入 main" is a normal status there and cannot be a rule.
 const ROW = /^\|\s*(BL-\d+)\s*\|/;
 const DONE_CELL = /^(?:已完成|已实现|已做完|已关闭|完成|done)(?![一-龥a-z])/i;
 

@@ -17,6 +17,7 @@
 
 # The gates and the CI workflow stay with the lead alone
 /scripts/check-health-gates.mjs @yijunw0212
+/scripts/gates/ @yijunw0212
 /scripts/ci-health-base.mjs @yijunw0212
 /scripts/check-secrets.mjs @yijunw0212
 /tooling/gates/ @yijunw0212

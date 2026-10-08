@@ -269,9 +269,10 @@ const perFile = {
     return json[key];
   },
   lowered: (head, ref) => sumOf(head) < sumOf(ref) || Object.entries(head).some(([file, count]) => ref[file] !== undefined && count < ref[file]),
-  lines(title, head, ref, { top }) {
+  // `unit` names what the keys are when they are not files (a root entry, a group, a subpath); the default is the per-file count.
+  lines(title, head, ref, { top }, unit = { many: "files", one: "file" }) {
     const rows = Object.entries(head).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-    const out = [`${title}: ${sumOf(head)} in ${rows.length} files`, `  ${"count".padStart(5)}${ref ? "   base" : ""}  file`];
+    const out = [`${title}: ${sumOf(head)} in ${rows.length} ${unit.many}`, `  ${"count".padStart(5)}${ref ? "   base" : ""}  ${unit.one}`];
     for (const [file, count] of rows.slice(0, top)) out.push(`  ${String(count).padStart(5)}${ref ? String(ref[file] ?? "new").padStart(7) : ""}  ${file}`);
     if (top && rows.length > top) out.push(`  … ${rows.length - top} more (omit --top to see all)`);
     return out;

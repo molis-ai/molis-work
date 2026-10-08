@@ -84,7 +84,7 @@ export class CogniaStore {
         const material = { ...file.material, id: current?.id ?? file.material.id, revision: (current?.revision ?? 0) + 1 };
         this.put(material, file.data); receipt[current ? "updated" : "added"]++; receipt.material_ids.push(material.id);
       }
-      this.db.prepare("UPDATE cognia_previews SET receipt=? WHERE id=?").run(JSON.stringify(receipt), id); return receipt;
+      this.db.prepare("UPDATE cognia_previews SET body=?,receipt=? WHERE id=?").run(JSON.stringify({ ...preview, files: [] }), JSON.stringify(receipt), id); return receipt; // the receipt replays a repeated commit; the staged bytes have done their job
     });
   }
   private put(material: Material, data: string): void {
@@ -109,7 +109,7 @@ export class CogniaStore {
     const material: Material = { ...current, ...metadata(body, title), title, body, domain_id, revision: current.revision + 1, hash: contentHash(body), bytes: Buffer.byteLength(body), updated_at: new Date().toISOString() };
     return this.transaction(() => { this.put(material, Buffer.from(body).toString("base64")); return material; });
   }
-  deleteMaterial(id: string): void { const result = this.db.prepare("DELETE FROM cognia_materials WHERE id=?").run(id); requireCognia(Number(result.changes) === 1, "资料不存在", 404); }
+  deleteMaterial(id: string): void { this.transaction(() => { const result = this.db.prepare("DELETE FROM cognia_materials WHERE id=?").run(id); requireCognia(Number(result.changes) === 1, "资料不存在", 404); for (const draft of this.allDrafts().filter(d => d.saved_id === id)) this.db.prepare("UPDATE cognia_drafts SET body=? WHERE id=?").run(JSON.stringify({ ...draft, saved_id: null }), draft.id); }); } // an adopted draft is no longer adopted
   private allDrafts(): Draft[] { return this.db.prepare("SELECT body FROM cognia_drafts ORDER BY rowid DESC").all().map(r => parse<Draft>(r)!); }
   drafts(): Draft[] { return this.db.prepare("SELECT body FROM cognia_drafts WHERE archived=0 ORDER BY rowid DESC").all().map(r => parse<Draft>(r)!); }
   addDraft(draft: Draft): Draft { return this.transaction(() => {
@@ -120,7 +120,7 @@ export class CogniaStore {
   archiveDraft(id: string): void { const result = this.db.prepare("UPDATE cognia_drafts SET archived=1 WHERE id=? AND archived=0").run(id); requireCognia(Number(result.changes) === 1, "草稿不存在", 404); }
   saveDraft(id: string): Material {
     return this.transaction(() => {
-      const draft = parse<Draft>(this.db.prepare("SELECT body FROM cognia_drafts WHERE id=? AND archived=0").get(id)); requireCognia(draft, "草稿不存在", 404); if (draft.saved_id) return this.read(draft.saved_id);
+      const draft = parse<Draft>(this.db.prepare("SELECT body FROM cognia_drafts WHERE id=? AND archived=0").get(id)); requireCognia(draft, "草稿不存在", 404); if (draft.saved_id && this.db.prepare("SELECT 1 FROM cognia_materials WHERE id=?").get(draft.saved_id)) return this.read(draft.saved_id);
       const materialId = randomUUID(), source: Source = { id: "knowledge", name: "知识库", kind: "markdown", locator: "knowledge", domain_id: null };
       this.db.prepare("INSERT OR IGNORE INTO cognia_sources VALUES (?,?)").run(source.id, JSON.stringify(source));
       const material: Material = { ...metadata(draft.body, draft.title), title: draft.title, id: materialId, source_id: source.id, path: materialId + ".md", domain_id: draft.domain_id, role: "wiki", revision: 1, hash: contentHash(draft.body), bytes: Buffer.byteLength(draft.body), body: draft.body, mime: "text/plain; charset=utf-8", updated_at: new Date().toISOString() };

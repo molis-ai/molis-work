@@ -2,11 +2,11 @@
 
 写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 走完整路径：对象与时刻 → Manifest → UI/客户端 → HTTP → 现场动作 → 判断场景 → MCP → Artifact / 事件 / ports → 按 kind 接到 Host 或 CLI。本文件是命令、MCP 登记、动作录取和打包的手册，不替代那份顺序。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
 
-Native 新工作面除 catalog / Workbench pack 外，还需 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts` 的实际 mount 和页面调用；否则底栏插件切换器里可见但正文为空。
+新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：在 `apps/local-host/src/project-plugins.ts` 加监督器条目，运行中的插件自己提供目录面板与主区（`plugin_panels` / `plugin_stages`），不再手接 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts`，也不再往 `builtin-plugins.ts` 加构建期条目。
 
 平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
-内置 build 的组合声明在 `apps/workbench/src/builtin-plugins.ts`：每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。目录、Workbench UI 注册/样式/客户端从同一条目派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
+现存的构建期内置条目在 `apps/workbench/src/builtin-plugins.ts`（名单冻结、只许减少，见 `tests/builtin-plugin-assembly-gate.test.ts`）：每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。目录、Workbench UI 注册/样式/客户端从同一条目派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
 
 ## 安装 Skill
 
@@ -44,7 +44,7 @@ Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plug
 - Host 服务或嵌套 Action 超时后，外部结果可能未知。可信 Host 将 unknown 保留到沙箱调用、安装 HTTP、公开 Action（`actions.outcome_unknown`）及 Schedule 恢复记录；插件 catch 错误或返回替代值不能清除该状态，也不能继续写入。worker 不能伪造这个标记；用户下一次明确调用使用独立状态，旧操作不自动重放。
 - 到点提醒（`reminders.*`）由 Schedule 在公共目录提供，按项目和安装实例隔离；到点将文字放入收件箱，不运行插件代码，也不依赖打开创作台。定时执行（`schedules.*`）同样由 Schedule 保存计划和每次执行记录，实际 operation 由当前安装的沙箱执行，结果可进收件箱。Host 在项目恢复和发现时登记执行入口，关闭 Studio 不影响安装运行；登记本身不清空队列或补跑，真正派出必须取得新的 Scheduler lease。
 - `schedules.add` 的插件/安装身份来自调用上下文，每个安装世代最多 20 个未完成计划；daily/weekly 保持固定 24 小时/7 天。尚未派出的 pending 可以等待执行入口，running 中断后的未知结果停止后续排期，不能当普通失败自动重放。输入、计划、结果与 Inbox 的事务规则属于 Schedule；Scheduler 只管排期和 lease，插件仍拥有实际业务实现。
-- 旧记录和整个 pending 队列一次性迁入 Schedule，保留任务、job、时间、输入、链接和收据；归属不明的旧任务先暂停，丢失定义的引用留作不可执行历史。管理者先通过 `schedule.tasks.list` 或页面核对，再用 `schedule.operations.recover` 明确恢复、重试或跳过未知结果。Action 拒绝过期的任务/历史 revision 与安装世代/版本，声明 `plugin: false`，新插件不能借此继承旧任务。重试可能重复外部副作用，决定及原说明保留；确认只调整计划，不在管理请求中运行插件代码。
+- 旧创作台提醒与定时执行不再导入 Schedule（用户已定旧数据不留兼容路径）；重装后把提醒或定时执行交给新安装、以及未知结果的处理，都由管理者先通过 `schedule.tasks.list` 或页面核对，再用 `schedule.operations.recover` 明确恢复、重试或跳过。Action 拒绝过期的任务/历史 revision 与安装世代/版本，声明 `plugin: false`，新插件不能借此继承旧任务。重试可能重复外部副作用，决定及原说明保留；确认只调整计划，不在管理请求中运行插件代码。
 - `installed-plugin-host.ts` 复用原发布版本、批准记录、Manifest 指纹和 Action id，恢复已安装插件不初始化创作 Workflow。正常 Host 关闭使用 Runtime.stop 的 `preserve_enabled`，保留 startable 的 installed 状态；显式停用留下 disabled，重启不自动启用。批准或发布记录缺失会报告恢复失败，不能改用 release.permissions 自动补权；缺少批准记录时可卸载并保留数据，再重新确认安装。
 - 通用提醒的提供方是 Host 装配的 `schedule.reminders`，不要求启用可选的 Schedule 对话页面；调用仍检查真实安装身份与原能力授权。不要把可发现误当成已授权。
 - 联网（`networkDomains`）：只能 https、访问批准的确切域名、公网地址；安装前只读，写入用替身。本机代理用 fake-IP 模式时，域名会解析到 198.18.0.0/15；按用户决定，这一段放行（插件只能按批准的域名访问，不能直接写地址）。
@@ -57,7 +57,7 @@ Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plug
 
 这条路径用于开发者运行自己信任的源码，完成第一次真实的插件结果；不是官方市场安装，也不是不可信代码沙箱。当前样例是 polling Integration Plugin。它每次运行产生一个个人 Artifact 版本、读回该版本、保存私人计数，并返回 UI HTML。
 
-先构建仓库和 Plugin SDK、Contracts、Plugin Runtime、Plugin CLI、Local Host。根目录的 `pnpm build` 包含这些构建。当前工作区的 pnpm 依赖自动检查曾要求重建 node_modules，尚未执行该重建；本轮验证使用现有 TypeScript 构建产物，标准干净安装/发布链由 DV4 继续验收。
+先构建仓库：根目录的 `pnpm build` 包含 Plugin SDK、Contracts、Plugin Runtime、Plugin CLI 与 Local Host；安装与构建命令见仓库根的 `AGENTS.md`。
 
 SDK 的 0.0.0 是本地开发版本，不假设 npm 已有发行物。以下命令在仓库根目录运行，把作者项目和安装数据放在新临时目录：
 
@@ -91,7 +91,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 ## 当前项目设置
 
-跨模块读取当前项目目标目录、创建意图或补充便笺可引用 Goals 的 `goalsActions.list/create/note`。公共动作输入只有业务字段，board 与 actor 由可信调用上下文绑定；不要把内部 typed Capability 的 actor 字段复制进动作 JSON。权限分别为 `goals:read` / `goals:write`，写入重试保留原 idempotency key。Actor 的审计分类及兼容适配器保留的 `audit_actor_id` 属于可信上下文，不是业务参数，不改变客户端授权，也不授予决策权限。三项旧 MCP 名称同样依赖对应动作授权；其他 Goals 事件能力仍按其现有接口和审批合同使用，迁移状态见 Goals 包 README。
+跨模块读取当前项目目标目录、创建意图或补充便笺可引用 Goals 的 `goalsActions.list/create/note`。公共动作输入只有业务字段，项目与 actor 由可信调用上下文绑定；不要把内部 typed Capability 的 actor 字段复制进动作 JSON。权限分别为 `goals:read` / `goals:write`，写入重试保留原 idempotency key。Goals 的写入声明 `authorship: "session"`，审计作者由宿主写进 `caller.audit_actor_id`，它属于可信上下文，不是业务参数，不改变客户端授权，也不授予决策权限；外部客户端只看到被授予的动作工具。其他 Goals 事件能力仍按其现有接口和审批合同使用，见 Goals 包 README。
 
 已由当前项目 Runtime 注册的插件，HTTP 路由从 Manifest `routes` 与运行中的 `contribution.routes` 派生，挂在 `/projects/<project>/api/plugins/<plugin_id>/...`。不需要追加 Host 的插件 ID 正则名单；后续注册也不会移除先前插件的路由。路由适配器使用 `bindPluginActionRoute` 调用同一动作服务，输入和权限检查不会因 HTTP 入口而绕过。Web 写入仍须通过原控制令牌、origin 和一次性请求键检查，停用后不得靠请求或 restart 自动重新启用。
 
@@ -140,7 +140,7 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 
 无需再手写一份 MCP 管理工具。Host 会从上述合同生成查看位置、启用、停用三项动作，沿用场景的版本、提供方和生命周期，进入现有能力目录及对外授权设置。只有消费场景、没有自定义动作的插件也适用。配置权限与运行权限独立；缺少模型或执行权限时，有配置权的用户仍能停用原绑定。外部客户端须获具体管理动作的授权，不能借其他动作的同名权限执行。
 
-当前范围：Home、Inbox、Feed 的绑定与真实触发已进入共同场景；工作流交接保留原调用者并按交付键幂等。规则编辑器与 Agent 的可选能力都从动作目录派生；Manifest 不再有 `behaviors`、`function_scenes`、`judgment_subjects`。以下 `mcp_exports` 仅用于维护已有兼容入口，不作为新增能力再建目录或名单的理由。
+当前范围：Home、Inbox、Feed 的绑定与真实触发已进入共同场景；工作流交接保留原调用者并按交付键幂等。规则编辑器与 Agent 的可选能力都从动作目录派生；Manifest 不再有 `behaviors`、`function_scenes`、`judgment_subjects` 或 `mcp_exports`，对外只有按客户端授权的动作工具。
 
 ## 连续工作：对象上下文、版本前提与助理
 

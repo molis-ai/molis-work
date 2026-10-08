@@ -18,11 +18,11 @@
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 
-动作服务迁移：插件自己的 `actions.ts` 声明并实现 18 项公开业务能力（文档、文件夹、模板、文件导入、已解析材料保存、生成及历史、写作、提取、发布）。Manifest 注册这些能力和四项内容交接合同；Host 组合原 Store、模型和 Artifact owner，HTTP 不再自行打开文档库。工作流内容处理器调用同一业务动作并保留调用者身份与权限。旧八个 MCP 名称从动作合同派生并薄转发；旧 list 组合模板查询，旧 translate_new 组合候选生成和新建文档，保留原响应语义。
+动作服务迁移：插件自己的 `actions.ts` 声明并实现 18 项公开业务能力（文档、文件夹、模板、文件导入、已解析材料保存、生成及历史、写作、提取、发布）。Manifest 注册这些能力和四项内容交接合同；Host 组合原 Store、模型和 Artifact owner，HTTP 不再自行打开文档库。工作流内容处理器调用同一业务动作并保留调用者身份与权限。MCP 只经授权的动作工具。
 
 内部与 MCP 的项目来自可信调用上下文；HTTP 的项目由 Host 绑定，query/body 中声明不同项目会拒绝。`pages.update` 接受 `expected_version`，编辑器自动使用服务器版本，冲突保留草稿并阻止离开。提取任务/知识页和删除文件夹各自在原 SQLite 库事务内完成。原表、文档 ID、导入请求和历史均保留。
 
-Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读写文稿；项目上下文采纳通过 `pages.documents.import` 保存来源与摘要。`request_id` 与 `request_hash` 表示调用方已确认的稳定意图，保留旧值以支持历史重试，不用它们证明权限或来源。旧 board 分区仅在原项目目录证明唯一归属时，事务迁移到 canonical project_id；保留文档和请求 ID、快照、编辑与引用，冲突或仍在生成则保留原数据并明确拒绝。
+Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读写文稿；项目上下文采纳通过 `pages.documents.import` 保存来源与摘要。`request_id` 与 `request_hash` 表示调用方已确认的稳定意图，保留旧值以支持历史重试，不用它们证明权限或来源。文档按 canonical project_id 分区；库只认当前 schema 基线（`PAGES_STORE_BASELINE`）。
 
 `pages.promote` 在原 `pages` 行保存未完成发布快照后才调用 Artifact owner；失败后继续原快照和版本。已存成 Artifact、尚未回写文稿关联时，重试读取并核对原 Artifact，恢复关联而不重复发布。旧版中断记录没有快照时也从原 Artifact 恢复。完成关联与清除快照在同一文稿事务提交，保留后续正文和 Goal 编辑；其他发起者不能冒充原 owner 恢复。
 

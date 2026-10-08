@@ -1,6 +1,6 @@
 # Molis Work 架构与包重组需求书
 
-状态：现行规范（2026-10-01 合入后梳理确认）。架构与包重组需求书，ARCHITECTURE 与 SSOT 以它为基线；Outbox 留后续（[BL-070](../BACKLOG.md)）。
+状态：现行规范（2026-10-01 合入后梳理确认；2026-10-07 补注）。包分层与依赖规则仍是 ARCHITECTURE 与 SSOT 的基线；§20.12 `modules/execution`、§20.14 `modules/evidence-verification`、迁移链、V3 导入与 Coordinator 兼容相关条目已于 2026-10-04/05 删除（#252、#262、#268），以 SSOT 为准。Outbox 留后续（[BL-070](../BACKLOG.md)）。
 
 2026-09-06 范围澄清（用户明确确认）：**Outbox 的实现与重放验收留到后续，本期只重组现有功能。** 下文 Storage/Exchange/Materialization 中的 Outbox 设计仍保留为目标架构，不再表述为本期已有能力；本期完整保留并验证已实现的事务、幂等、失败重试与恢复。此澄清不减免旧代码清零、Huge Class治理、包边界、全产品前后端E2E及清理后复验。Molis Work对应验收条目的正式修订当前遇到澄清入口冲突，见 [验证与范围记录](assurance-validation.md)，未冒充canonical已更新。
 

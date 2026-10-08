@@ -1,6 +1,6 @@
 # 交付物浏览与 Plugin 客户端
 
-把 Artifact 事实展示为项目可引用、可浏览、可导出的交付物，并给 Plugin 提供受授权约束的读写客户端。
+把成果库里人要留存、引用的固定版本展示为项目可引用、可浏览、可导出的成果，并给 Plugin 提供受授权约束的读写客户端；插件之间交接的过程项不在这里出现。
 
 ## 从文档工具导入
 
@@ -11,11 +11,11 @@
 | Notion | 单个页面的 Markdown 正文 | Notion 连接有读取权限，且页面已共享给该连接 |
 | 飞书 / Lark | 新版 docx 文档、指向 docx 的知识库节点，纯文本正文 | 各自区域的自建应用 `app_id:app_secret`；文档读取及共享权限；知识库另需节点读取权限 |
 | Google Docs | 单个 Google 文档，纯文本正文 | Google Drive 访问令牌，含 `drive.readonly` 或适用于该文件的 `drive.file` 权限 |
-| 导出文件 | `.md`、`.markdown`、`.txt`、`.html`、`.htm`，UTF-8，最多 2 MB | 无需连接；适用于其他文档工具导出的这些格式 |
+| 本地文件 | 任何文件；`.md`/`.markdown`/`.txt`/`.html`/`.htm` 读出正文（UTF-8，最多 2 MB），其他文件保存原件（最多 6 MB） | 无需连接 |
 
 每次导入都是当前正文的个人快照。在线同源文档内容变化时新增版本，旧版本和精确引用保留；相同快照复用当前可用版本。本地文件按文件名和内容标识，同名但内容不同的文件保存成独立 Artifact，避免误覆盖。HTML 提取为 Markdown 文本，同时在版本数据中保留原 HTML。
 
-当前不递归导入整个空间、数据库、子页面或附件文件，不自动同步和回写。Google Docs / 飞书 / Lark 的排版、图片、附件、评论及嵌入内容不承诺保留；Notion 的附件链接可能到期。PDF、DOCX 和 ZIP 请先转换为支持的格式。空正文、超限、权限错误和 Notion 明确返回的截断结果不会产生成功 Artifact。
+当前不递归导入整个空间、数据库、子页面或附件文件，不自动同步和回写。Google Docs / 飞书 / Lark 的排版、图片、附件、评论及嵌入内容不承诺保留；Notion 的附件链接可能到期。非文本类的本地文件（如 PDF、DOCX、ZIP）只保存原件、不读出正文，可读预览由 `artifacts.documents.preview` 提供。空正文、超限、权限错误和 Notion 明确返回的截断结果不会产生成功 Artifact。
 
 实现分工：本插件编排导入并通过 `ArtifactsApplicationApi` 注册 `io.molis.work.document` v1；官方 catalog integration 只读取文档工具 API；Local Host 读取凭据、校验本地控制请求并注入端口。没有新增存储表、后台同步任务或跨插件私有存储。
 
@@ -32,11 +32,14 @@
 | `artifacts.browse` | 可选精确引用与支持类型，返回版本目录、所选版本和兼容状态 |
 | `artifacts.read` | `reference: { artifact_id, version }`，返回固定版本；不存在时保留请求引用 |
 | `artifacts.export` | 精确引用，返回原记录的 JSON 文本、文件名和 MIME |
-| `artifacts.import.file` | 文件名、UTF-8 正文、可选标题，保存或复用个人快照 |
+| `artifacts.import.file` | 文件名，文本文件的 UTF-8 正文或任意文件的原件（`original_file`，base64），可选标题；保存或复用个人快照 |
 | `artifacts.import.external` | 来源与文档链接，读取当前 Home 已连接账号并保存快照 |
 | `artifacts.import.sources` | 返回支持来源的连接布尔状态，不返回凭据 |
 | `artifacts.goals.embeds` | Goal ID，读取 Ledger 明确关联的固定输入/输出版本 |
-| `artifacts.references.open` | `project://` 或历史相对路径引用及可选 Evidence ID，返回有界文件内容的 base64 |
+| `artifacts.references.open` | 当前工作区里的 `project://` 或相对路径引用，返回有界文件内容的 base64 |
+| `artifacts.links` | 这一版被哪些目标作为输入、交付物或提议交付物引用，以及其他引用的数量 |
+| `artifacts.plugin_inputs`、`artifacts.plugin_inputs.bind` | 列出能接收这一版类型的插件输入端口；`bind` 让某个端口固定读这一版（或改回原来的来源），仅限本人操作 |
+| `artifacts.documents.preview`、`artifacts.files.entries`、`artifacts.search.entries`、`artifacts.subject.read` | 导入文件的可读预览、侧栏文件、系统搜索条目与固定版本的对象读取（标准动作，均不修改数据） |
 
 以上动作使用 `artifacts:read`；导入另需 `artifacts:write`，外部抓取另需 `connectors:document:read`，项目文件读取另需 `workspace:read`。Host 注入项目、actor 与工作区，业务参数不能覆盖身份、producer、scope 或根目录。外部读取完成后再次检查授权、插件状态与取消状态，再写入。生产 MCP 客户端须在系统「对外接入」中按项目和具体能力授权。
 
@@ -88,8 +91,6 @@ node --import tsx --test --test-concurrency=1 tests/artifact-document-import.tes
 ```
 
 2026-09-22 本地验证：全构建、相关类型检查与上述回归通过；浏览器使用中文 Markdown 文件走通主工作台入口、文件选择、保存、正文读取、重复导入复用、服务重启恢复和缺少凭据后的恢复操作，矮窗口可滚动到提交按钮。在线文档 API 只核对了官方文档并通过模拟响应测试；真实 Notion、飞书、Lark、Google 账号联调及用户验收仍为 `UNVERIFIED`。正文当前是保留换行的安全文本预览，不提供完整 Markdown 富文本排版。
-
-全仓 `boundary:check` 仍被基线的 `plugins/native/pages` 依赖清单不一致阻挡：其 `package.json` 已包含 highlight.js、lowlight、prosemirror-dropcursor 与 prosemirror-gapcursor，但 `scripts/workspace-packages.mjs` 的既有清单未同步；本次没有修改这两个文件，也没有新增依赖或边界豁免。
 
 ## 开发要求
 

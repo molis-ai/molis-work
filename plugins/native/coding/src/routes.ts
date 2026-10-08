@@ -19,7 +19,7 @@ import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/mol
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 import { codingContinuation, CONTINUATION_MARKER } from "./continuation.js";
 import { COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
-import { codingHistoryDigest, historySummaryMaterial, nextHistoryMode, summaryDigest } from "./history-digest.js";
+import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./history-digest.js";
 import { asAttachment, delegationViewOf, isDelegation } from "./delegation-view.js";
 import { OPEN_WAIT, appData, holdReason, waitViewOf, wakeBodyOf } from "./waits.js";
 import { DELEGATION_ENDED, MAX_DELEGATION_HOPS } from "./cooperation.js";
@@ -401,7 +401,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
    * done. The same checks run either way; nothing about a queued round is decided at the moment it starts.
    */
   const startRound = async (record: ReturnType<typeof selected>, body: Record<string, unknown>, actorId: string,
-    api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts) => {
+    api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts, beforeWrite: () => Promise<void> = async () => {}) => {
         // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
     const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "被继续的轮次", 200);
     if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("继续计划需要原计划修订，并以执行或并行写入方式开始");
@@ -475,22 +475,14 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     // The digest is written by the round's own model from the rounds' records, building on the one the latest digest
     // round carried; the call runs beside the project's other operations. If it cannot be written, the Host's own
     // record-based digest carries the round and the page says why. Either way it is written once per round.
-    let digest: { text: string; source: "model" | "records"; usage?: { input: number; output: number }; problem?: string } | undefined;
-    const digestFor = async () => digest ??= await (async () => {
-  const runs = await earlierRuns();
-  try {
-    const draft = await api!.invoke(agent.draftText, { purpose: "整理前面的对话", prompt: CODING_HISTORY_SUMMARY.prompt_id,
-      material: historySummaryMaterial(runs), model_selection: { provider_id: model.provider_id, model_id: model.model_id } });
-    if (draft.usage) {
-      const spent = savedDigestUsage(record.session_id) ?? { calls: 0, tokens: { input: 0, output: 0 } };
-      context.services!.storage!.set(`digest-usage:${record.session_id}`, JSON.stringify({ calls: spent.calls + 1,
-        tokens: { input: spent.tokens.input + draft.usage.input, output: spent.tokens.output + draft.usage.output } }));
-    }
-    return { text: summaryDigest(runs, draft.text, task), source: "model" as const, ...(draft.usage ? { usage: draft.usage } : {}) };
-  } catch (error) {
-    return { text: codingHistoryDigest(runs, task), source: "records" as const, problem: error instanceof Error ? error.message : "模型没有写出摘要" };
-  }
-    })();
+    let digest: HistoryDigest | undefined;
+    const digestFor = async () => digest ??= await writeHistoryDigest(await earlierRuns(), task,
+      material => api!.invoke(agent.draftText, { purpose: "整理前面的对话", prompt: CODING_HISTORY_SUMMARY.prompt_id, material, model_selection: { provider_id: model.provider_id, model_id: model.model_id } }), beforeWrite,
+      usage => {
+        const spent = savedDigestUsage(record.session_id) ?? { calls: 0, tokens: { input: 0, output: 0 } };
+        context.services!.storage!.set(`digest-usage:${record.session_id}`, JSON.stringify({ calls: spent.calls + 1,
+          tokens: { input: spent.tokens.input + usage.input, output: spent.tokens.output + usage.output } }));
+      });
     const start = async (mode: "session" | "digest") => api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task: mode === "digest" ? (await digestFor()).text : task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
   ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: executionSteps(plan.content) } } : {}),
   ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
@@ -514,7 +506,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     if (session.runtime_id === "prologue") await startDelegation(record, api!, session.session_id).catch(() => undefined);
     if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
     // A session named by default takes its name from the first task, the way a person would label it.
-    if (firstRound && record.title === DEFAULT_SESSION_TITLE) execution.sessions.rename(projectId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
+    if (firstRound && execution.sessions.get(projectId, record.session_id).title === DEFAULT_SESSION_TITLE) execution.sessions.rename(projectId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
     execution.sessions.setState(projectId, record.session_id, "running", new Date().toISOString());
     // How this round was started, so a round woken later (an answer arrived) starts the same way.
     // A round woken later is a plain round in the same way of working: without the plan it ran or the directory split.
@@ -627,12 +619,12 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       body: { error: error instanceof Error ? error.message : "Coding 操作失败", ...(code ? { code } : {}) } };
   };
   const unassembled = () => Object.assign(new Error("Coding 执行入口尚未装配"), { code: "actions.unredeemed" });
-  const route = (route_id: string, handle: (request: PluginRouteRequest, api: NonNullable<PluginStartContext["services"]>["capabilities"], execution: CodingExecutionPorts) => Promise<unknown>): PluginRouteBinding => {
-    const execute = async (request: PluginRouteRequest) => {
+  const route = (route_id: string, handle: (request: PluginRouteRequest, api: NonNullable<PluginStartContext["services"]>["capabilities"], execution: CodingExecutionPorts, beforeWrite: () => Promise<void>) => Promise<unknown>): PluginRouteBinding => {
+    const execute = async (request: PluginRouteRequest, beforeWrite: () => Promise<void> = async () => {}) => {
       const api = context.services?.capabilities;
       if (!ports || !api || !projectId) throw unassembled();
       await ports.ready();
-      return handle(request, api, ports);
+      return handle(request, api, ports, beforeWrite);
     };
     const action = codingRouteActions[route_id];
     if (!action) return { route_id, async handle(request) {
@@ -640,7 +632,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       catch (error) { return (error as { code?: string }).code === "actions.unredeemed" ? { status: 503, body: { error: "Coding 执行入口尚未装配" } } : failure(error); }
     } };
     // The business surface is one owner-bound action; the route only translates its old parameters and status codes.
-    actions.push(bindOwnerPluginAction(context, action.definition, input => execute({ ...action.toRequest(input), pathname: "", actor_id: context.actor_id! })));
+    actions.push(bindOwnerPluginAction(context, action.definition, (input, beforeWrite) => execute({ ...action.toRequest(input), pathname: "", actor_id: context.actor_id! }, beforeWrite)));
     return { route_id, async handle(request) {
       if (!context.actor_id || request.actor_id !== context.actor_id) return { status: 403, body: { error: "调用者与当前插件入口不一致", code: "actions.forbidden" } };
       try {
@@ -709,7 +701,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     const actorId = request.actor_id;
     if (!actorId) throw new Error("当前操作缺少用户身份");
     if (!write) {
-      const receipt = await api!.invoke(goalProgressCapabilities.receipt, { goal_id: goalId, actor_id: actorId, idempotency_key: idempotencyKey });
+      const receipt = await api!.invoke(goalProgressCapabilities.receipt, { goal_id: goalId, idempotency_key: idempotencyKey });
       if (receipt) return { report_goal: report.goal, reference, title: report.title, recorded: receipt, current: null };
       const current = await api!.invoke(goalContextCapabilities.read, { goal_id: goalId });
       return { report_goal: report.goal, reference, title: report.title, recorded: null, current };
@@ -720,7 +712,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     // The original Goal transaction checks replay first, then versions and write.
     // Nothing is derived from a browser-supplied report, Goal id, or source body.
     return api!.invoke(goalProgressCapabilities.record, {
-      goal_id: goalId, actor_id: actorId, actor_kind: "user", idempotency_key: idempotencyKey,
+      goal_id: goalId, idempotency_key: idempotencyKey,
       based_on_cursor: cursor, expected_goal_cursor: cursor,
       summary: text(body.summary, "进展内容", 10000),
       ...(body.next_step ? { next_step: text(body.next_step, "下一步", 10000) } : {}),
@@ -1421,7 +1413,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       if (materials) context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify(materials));
       return { session: title === undefined ? record : execution.sessions.rename(projectId, record.session_id, title, new Date().toISOString()) };
     }),
-    route("coding.start-run", async (request, api, execution) => {
+    route("coding.start-run", async (request, api, execution, beforeWrite) => {
       const record = selected(request, execution);
       if (record.archived) throw new Error("会话已归档，不能再运行");
       if (busy.has(record.session_id)) throw Object.assign(new Error("这个会话正在提交任务"), { code: "agent.session_busy" });
@@ -1449,7 +1441,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
           wakeLoop(api!, execution, record.runtime_id);
           return { queued: { work_id: item.work_id, ...(item.wait_id ? { wait_id: item.wait_id } : {}), after: target } };
         }
-        return await startRound(record, body, request.actor_id, api!, execution);
+        return await startRound(record, body, request.actor_id, api!, execution, beforeWrite);
       }
       finally { busy.delete(record.session_id); }
     }),

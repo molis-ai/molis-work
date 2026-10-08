@@ -30,6 +30,27 @@ export function isArtifactPinAction(action: { input_type?: string; output_type?:
   return action.input_type === ARTIFACT_PIN_INPUT_TYPE && action.output_type === ARTIFACT_PIN_OUTPUT_TYPE;
 }
 
+/**
+ * What a project's 成果库 holds of one work object's line of pinned versions: its newest version, and the revision of the
+ * object that version pinned (null when it names none, as a version written before pins kept their snapshot first).
+ */
+export interface ArtifactLineHead { version: number; source_revision: number | null }
+
+/**
+ * The version number an object's next pin gets. The object's own record counts the versions it has seen written
+ * (`recorded`); the line in the 成果库 can hold more, because a move lets the record go of its count while the old
+ * project keeps its versions. A pin that was started keeps its number. A written version the record never saw and that
+ * names no source revision is an interrupted pin from before snapshots: it is finished, not repeated. Any other version
+ * beyond the record's count was written and recorded once (the object left and came back, or its record was restored from
+ * an older copy), so numbering goes on after it; it is never handed back as the result of a pin of what the object says now.
+ */
+export function nextPinnedVersion(input: { recorded: number; pending: number | null; head: ArtifactLineHead | null }): number {
+  if (input.pending !== null) return input.pending;
+  const { recorded, head } = input;
+  if (!head || head.version <= recorded) return recorded + 1;
+  return head.version === recorded + 1 && head.source_revision === null ? recorded + 1 : head.version + 1;
+}
+
 /** The kinds of work object the caller can pin right now: one owner each. */
 export async function pinnableSubjectKinds(client: ActionClient, caller: ActionCallContext): Promise<string[]> {
   const kinds = (await client.discover(caller)).filter(view => isArtifactPinAction(view.action) && view.availability.available).flatMap(view => view.action.subject_kinds);
@@ -56,7 +77,8 @@ export async function pinActionSubject(client: ActionClient, caller: ActionCallC
  */
 export const ARTIFACT_COMPARE_INPUT_TYPE = "molis.artifacts.compare.request.v1";
 export const ARTIFACT_COMPARE_OUTPUT_TYPE = "molis.artifacts.compare.v1";
-export type ArtifactCompareState = "same" | "changed" | "missing";
+/** `moved`: the object still exists in this Home, in another place than the project holding the version; `missing`: it is gone. */
+export type ArtifactCompareState = "same" | "changed" | "moved" | "missing";
 export interface ArtifactCompareInput { artifact: ArtifactVersionRecord }
 export interface ArtifactCompareResult { state: ArtifactCompareState }
 
@@ -66,7 +88,7 @@ export function defineArtifactCompareAction(capabilityId: string, typeTitle: str
     kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], plugin: false, permissions: [...permissions], subject_kinds: [],
     input_type: ARTIFACT_COMPARE_INPUT_TYPE, output_type: ARTIFACT_COMPARE_OUTPUT_TYPE,
     input_schema: { type: "object", properties: { artifact: { type: "object" } }, required: ["artifact"], additionalProperties: false },
-    output_schema: { type: "object", properties: { state: { enum: ["same", "changed", "missing"] } }, required: ["state"], additionalProperties: false } } };
+    output_schema: { type: "object", properties: { state: { enum: ["same", "changed", "moved", "missing"] } }, required: ["state"], additionalProperties: false } } };
 }
 
 export function isArtifactCompareAction(action: { input_type?: string; output_type?: string }): boolean {
@@ -75,15 +97,20 @@ export function isArtifactCompareAction(action: { input_type?: string; output_ty
 
 /**
  * The owner's half: the work object a version was pinned from (origin `pinned`, this owner's type), read as it is now and
- * compared with the version's content; null when the object is gone.
+ * compared with the version's content. `current` reads it in the project holding the version and answers null when it is
+ * not there; `elsewhere` then says whether the owner still has it outside that project (it was moved: only a delete is
+ * "missing").
  */
 export function bindArtifactCompare(definition: ActionDefinition<ArtifactCompareInput, ArtifactCompareResult>, artifactTypeId: string,
-  current: (objectId: string, caller: ActionCallContext) => unknown | null, same: (payload: unknown, object: unknown) => boolean): ActionHandlerBinding {
+  current: (objectId: string, caller: ActionCallContext) => unknown | null, same: (payload: unknown, object: unknown) => boolean,
+  elsewhere?: (objectId: string, caller: ActionCallContext) => boolean): ActionHandlerBinding {
   return { capability_id: definition.capability_id, version: definition.version, execution: "sync", handle: (caller, input) => {
     const artifact = (input as ArtifactCompareInput).artifact;
     if (artifact?.artifact_type_id !== artifactTypeId || artifact.origin?.kind !== "pinned") throw new ActionError("actions.input_invalid", "这一版不是这个插件固定下来的");
-    const object = current(artifact.origin.subject.id, caller);
-    return { state: object == null ? "missing" : same(artifact.payload, object) ? "same" : "changed" } satisfies ArtifactCompareResult;
+    const objectId = artifact.origin.subject.id;
+    const object = current(objectId, caller);
+    if (object == null) return { state: elsewhere?.(objectId, caller) ? "moved" : "missing" } satisfies ArtifactCompareResult;
+    return { state: same(artifact.payload, object) ? "same" : "changed" } satisfies ArtifactCompareResult;
   } };
 }
 

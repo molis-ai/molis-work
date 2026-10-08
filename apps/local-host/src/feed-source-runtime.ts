@@ -23,6 +23,8 @@ type FetchPort = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 export interface FeedSourceRuntime extends SearchEvidenceRuntime {
   publicFeedReceipt?(): RssFetchReceipt | null;
+  /** Evidence bodies this runtime has written, whether or not its pull reached a result. */
+  writtenContentRefs?(): readonly string[];
 }
 
 /** Feed contributes source selection, HTTP cursors and receipts to the common SEL composition. */
@@ -36,7 +38,16 @@ export function createFeedSourceRuntime(options: {
   queryTransport?: SearchHostTransportPort;
 }): FeedSourceRuntime {
   const secretStore = options.secretStore ?? createFileSecretStore();
-  const content = options.content ?? createEvidenceContentStore({ secretStore });
+  const store = options.content ?? createEvidenceContentStore({ secretStore });
+  const written = new Set<string>();
+  const content: EvidenceContentStore = {
+    ...store,
+    write(markdown) {
+      const stored = store.write(markdown);
+      written.add(stored.contentRef);
+      return stored;
+    },
+  };
   const httpState = readRssHttpState(options.sourceCursor);
   let publicFeedReceipt: RssFetchReceipt | null = null;
   const rssHost = createPortBackedNodeSearchHost({
@@ -66,5 +77,5 @@ export function createFeedSourceRuntime(options: {
       }),
     },
   });
-  return { ...shared, publicFeedReceipt() { return publicFeedReceipt; } };
+  return { ...shared, publicFeedReceipt() { return publicFeedReceipt; }, writtenContentRefs() { return [...written]; } };
 }

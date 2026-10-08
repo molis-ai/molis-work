@@ -356,33 +356,33 @@ test("advance prompt names the Goal and omits the five-chapter contract", () => 
   assert.match(prompt, /^<MOLIS_WORK_CURRENT_GOAL>/);
 });
 
-test("onboarding advance prompt starts one-question-at-a-time clarification and Goal Tree proposal", () => {
+test("onboarding advance prompt starts by reading goal_state and saving a recognisable intent", () => {
   const prompt = desktopAdvancePrompt({
     goal_id: "ROOT-DRAFT-1",
     title: "第一次体验优化",
     onboarding: true,
   });
-  assert.match(prompt, /新项目的第一次 Goal 澄清/);
-  assert.match(prompt, /一次只问用户一个问题/);
-  assert.match(prompt, /项目规划组合/);
-  assert.match(prompt, /拆分 Goal Tree 并提交 Proposal/);
-  assert.match(prompt, /等待用户确认/);
-  assert.match(prompt, /不要自动接受 Proposal/);
+  assert.match(prompt, /新项目的第一次 Goal 工作/);
+  assert.match(prompt, /第一次体验优化/);
+  assert.match(prompt, /goal_state/);
+  assert.match(prompt, /先保存能辨认的意图即可/);
+  assert.match(prompt, /不要自动完成/);
 });
 
-test("event-work advance prompt does not force Proposal or role stages", () => {
-  const prompt = desktopAdvancePrompt({
-    goal_id: "EVENT-1",
-    title: "事件目标",
-    event_work: true,
-    current_facts: "已决定：接受完成要求",
-    onboarding: true,
-  });
-  assert.match(prompt, /当前状态/);
-  assert.match(prompt, /已决定：接受完成要求/);
-  assert.match(prompt, /不要领取角色/);
-  assert.doesNotMatch(prompt, /一次只问用户一个问题/);
-  assert.doesNotMatch(prompt, /拆分 Goal Tree 并提交 Proposal/);
+test("advance prompt names no retired role, run or proposal stage", () => {
+  for (const onboarding of [false, true]) {
+    const prompt = desktopAdvancePrompt({
+      goal_id: "EVENT-1",
+      title: "事件目标",
+      current_facts: "已决定：接受完成要求",
+      onboarding,
+    });
+    assert.match(prompt, /当前状态/);
+    assert.match(prompt, /已决定：接受完成要求/);
+    assert.doesNotMatch(prompt, /领取|\bRun\b|Proposal|澄清|Draft Goal|合同/);
+    assert.doesNotMatch(prompt, /一次只问用户一个问题/);
+    assert.doesNotMatch(prompt, /拆分 Goal Tree 并提交 Proposal/);
+  }
 });
 
 test("advance prompt keeps confirmed project guidance before dynamic Goal and untrusted source data", () => {
@@ -924,9 +924,10 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     const onboardingPrompt = await webFetch(`${origin}${prefix}/api/goals/TUI-GOAL/advance-prompt?onboarding=1`);
     assert.equal(onboardingPrompt.status, 200);
     const onboardingPromptBody = await onboardingPrompt.json() as { prompt: string };
-    assert.match(onboardingPromptBody.prompt, /新项目的第一次 Goal 澄清/);
-    assert.match(onboardingPromptBody.prompt, /一次只问用户一个问题/);
-    assert.match(onboardingPromptBody.prompt, /拆分 Goal Tree 并提交 Proposal/);
+    assert.match(onboardingPromptBody.prompt, /新项目的第一次 Goal 工作/);
+    assert.match(onboardingPromptBody.prompt, /TUI-GOAL/);
+    assert.match(onboardingPromptBody.prompt, /先保存能辨认的意图即可/);
+    assert.doesNotMatch(onboardingPromptBody.prompt, /Proposal|领取|Run/);
 
     const listed = await webFetch(panelsUrl);
     const listedBody = await listed.json() as { panels: Array<{ panel_id: string }> };

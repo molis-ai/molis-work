@@ -1,6 +1,6 @@
 # Runtime 协议：约定、事实与收尾
 
-Molis Work 保存目标、实际工作与当前结果。Runtime 在已有授权内推进工作，用户可以看到做了什么、还差什么，以及哪些变化需要自己决定。普通工作不需要领取角色、Run、完整规划或默认模板。
+本文是 AI Runtime 使用 Goals 插件的协议：Goals 保存目标、实际工作与当前结果（其他插件的能力同样以动作经 MCP 对外，见 [MCP 接入](mcp.md)）。Runtime 在已有授权内推进工作，用户可以看到做了什么、还差什么，以及哪些变化需要自己决定。普通工作不需要完整规划或默认模板。
 
 ## 当前工作模型
 
@@ -78,6 +78,6 @@ goals.state.read → 核对当前约定、要求、依赖与决定
 
 切换Goal不会自动改绑终端或发送消息。Host Session、终端进程与面板继续承担各自职责。
 
-旧库升级和V3导入把当前工作接入事件状态，保留原始来源、关系和真实历史。旧Claim、Run、Evidence、Review仍可按原记录阅读，原有批准不会被伪造或重新编造；这些历史记录不提供另一套可继续执行的工作协议。旧领取、Run写入、Contract/Candidate/Rewire写工具已退役。
+项目库只认当前 schema 版本，不就地升级；V3 导入已删除。事件之前的 Claim、Run、Evidence、Review 历史已删除（#268），事件是唯一的工作协议。
 
 实际可调用示例与必要恢复细节见 [Runtime Skill](../skills/goal-advance/SKILL.md)。

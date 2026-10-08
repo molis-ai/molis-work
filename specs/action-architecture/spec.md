@@ -167,7 +167,7 @@ Session 接续执行：先将项目 Session 目录、内容读取和原生恢复
 
 - [行为目录](../../apps/local-host/src/behavior-catalog.ts)、[首页白名单](../../packages/contracts/src/modules/functions.ts)、[首页点击处理](../../apps/workbench/src/scripts/client/project-home.ts)。
 - [判断触发](../../plugins/native/feed/src/application.ts)、[判断服务](../../modules/functions/src/service.ts)、[判断模型调用](../../modules/functions/src/provider.ts)、[判断结果投影](../../apps/local-host/src/web-view.ts)。
-- [工作流程模板转换](../../plugins/native/workflows/src/model.ts)、[Actions 定位](../../docs/modules/actions.md)、[历史 Execution 边界](../../modules/execution/README.md)。
+- [工作流程模板转换](../../plugins/native/workflows/src/model.ts)、[Actions 定位](../../docs/modules/actions.md)、历史 Execution 边界（`modules/execution` 已于 #268 删除）。
 - [现有对外 MCP Server](../../apps/local-host/src/mcp-server.ts)、[MCP 目录](../../apps/local-host/src/mcp-catalog.ts)、[协议适配](../../apps/mcp/src/protocol.ts)、[Agent 外部 MCP 接入](../../horizontal/agent-host/src/adapters/prologue-mcp.ts)。现有协议入口的 resources/list 返回空列表，不能把宣告支持 resources 视为内容已经打通。
 - [工作流程手写支持名单与分发](../../apps/local-host/src/workflows-native-plugin-http.ts)、[函数固定目的地](../../packages/contracts/src/modules/functions.ts)。它们是此次必须替换的扩展障碍。
 

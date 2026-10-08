@@ -68,7 +68,9 @@ before(() => {
     "Build with `pnpm build`; `pnpm --filter x run y` is not read.", "", "```", "`packages/gone.ts` and `alpha.nothing` in a fence", "```"));
   put("plugins/native/alpha/src/actions.ts", lines("declare const define: (id: string) => unknown;",
     'export const run = define("alpha.run");', 'export const sub = define("sub.do");',
-    "export const content = (station: string, role: string) => `${station}.content.${role}`;"));
+    "export const content = (station: string, role: string) => `${station}.content.${role}`;",
+    // No fixed segment: the gate must not let this template stand for every two-part id (the real repo has dozens).
+    "export const joined = (owner: string, name: string) => `${owner}.${name}`;"));
 
   put("specs/README.md", lines("# 规格书怎么放", "", "## 在做的", "", "- [alpha](alpha/spec.md)：in progress", "",
     "## 现行规范", "", "- [beta](beta/spec.md)：a norm", "", "## 还没做的事", "", "都在 [BACKLOG.md](BACKLOG.md)。"));

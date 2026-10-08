@@ -36,7 +36,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - 跑测试：`node scripts/run-tests.mjs <文件…>`；浏览器用例需要本机 Chrome。判断是否自己引入的失败，用干净的基线工作树（`git worktree add --detach`）跑同一批文件对比。
 - 测试截图默认写入已忽略的 `.impeccable/qa/review/`；要刷新仓库里的评审截图才设 `MOLIS_WORK_REVIEW_EVIDENCE=1`。
 - 不为变绿而跳过、放宽或删除断言；先分清产品回归、预期变化、测试缺陷、环境与时序。
-- `pnpm health:check`（CI 里也跑）：巨大单元、测试引用包内部、vendored SDK 份数、就地补表、spec 状态句只许减少；源码里的兼容标记（`legacy`、`compat`、`@deprecated`、`backfill`）按文件计数，也只许减少，新文件从零开始——要么删掉旧路径，要么把保留的机制写进 `specs/repository-anti-corruption` 再更新基线。改小了就在同一个 PR 里 `node scripts/check-health-gates.mjs --update` 更新 `tooling/gates/baseline.json`；不要靠更新基线放过变大的。
+- `pnpm health:check`：巨大单元（类的行数与方法数分开记，各自超限的那一项不许超过基准；行数与方法数中较大的那个也不许变大）、测试引用包内部（按测试文件，用 AST 数 `import`、`export … from`、`import()`、`require()`，含 `server/src`；新测试文件从 0 开始）、vendored SDK 份数、就地补表、spec 状态句只许减少；源码里的兼容标记（`legacy`、`compat`、`@deprecated`、`backfill`）按文件计数，也只许减少，新文件从零开始——只能删掉旧路径，把保留的机制写进 `specs/repository-anti-corruption` 放不过变大的。阈值在 `tooling/gates/limits.json`，只许收紧。**CI 与 `--base <ref>` 对照 merge-base 比**：把当前树和 `<ref>` 的 merge-base 用同一份脚本各量一遍再比（`node scripts/check-health-gates.mjs --base origin/main`；PR 上 CI 检出的是合并结果，比较对象是它合并时目标分支的末端，push 到 main 时是推送前的末端），完全不读 PR 里提交的 `tooling/gates/baseline.json`（缺失、旧格式、被改过都不影响结果）。所以**在 PR 里没有办法把数字调大**：`--update`、改基线、改 spec 都放不过；唯一的路是改门禁本身（脚本、`limits.json`、CI 步骤），那要过评审；确需例外，只走评审过的例外文件（计划中的 `tooling/gates/giant-exceptions.json`，现在还没有），不靠改数字。不带 `--base` 只对照已提交的 baseline.json，快，但它是自己改得动的，推送前以 `--base` 为准。改小了就跑 `node scripts/check-health-gates.mjs --update --base origin/main` 在同一个 PR 里更新这份本地快查（有任何东西比 merge-base 大时拒绝写入）；`--report [--top N]` 打印逐文件、逐单元的数字。
 
 ## 协作
 

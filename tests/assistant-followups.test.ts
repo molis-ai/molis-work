@@ -5,10 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { ActionService } from "@molis-ai/molis-work-kernel";
+import type { AssistantFollowUp } from "@molis-ai/molis-work-contracts/services/assistant";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
-import { AssistantService, sameLocalTimeLater } from "../apps/local-host/src/assistant/assistant-service.js";
+import { AssistantError, AssistantService, sameLocalTimeLater } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
 import { ASSISTANT_FOLLOW_UP_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/src/assistant/assistant-rule-actions.js";
 
@@ -121,4 +122,60 @@ test("a daily time keeps the person's wall-clock time across a daylight-saving c
   assert.equal(new Date(sameLocalTimeLater(Date.parse("2026-11-01T01:00:00.000Z"), 1, "America/Los_Angeles")).toISOString(), "2026-11-02T02:00:00.000Z");
   assert.equal(new Date(sameLocalTimeLater(Date.parse("2026-09-29T10:00:00.000Z"), 7, "Asia/Shanghai")).toISOString(), "2026-10-06T10:00:00.000Z");
   assert.equal(new Date(sameLocalTimeLater(Date.parse("2026-09-29T10:00:00.000Z"), 1, "Not/AZone")).toISOString(), "2026-09-30T10:00:00.000Z", "an unknown zone falls back to 24 hours");
+});
+
+test("archiving a work puts its timed rounds away: queued times are cancelled, a time that still arrives starts nothing, and a round in progress blocks it", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-followups-archive-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "board", storage_key: "memory:project" };
+  const requests: any[] = [];
+  let hold: Promise<void> | null = null;
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => { if (hold) await hold; requests.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array))); return reply("好的。"); });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-followups-archive-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
+  const schedule = adapter.schedule!;
+  let release: (() => void) | undefined;
+  try {
+    assert.equal(await service.attachSchedule(), true);
+    const sent = await service.send({ text: "帮我跟进今天的工作", request_id: "req-followups-archive-1" }, { project_ref: project });
+    const workId = sent.work.work_id;
+    await until(async () => (await service.read(workId)).work.state === "completed", "first round");
+    const due = new Date(Date.now() + 1500);
+    const standing = await service.saveFollowUp({ work_id: workId, text: "汇总今天的进展", at: due.toISOString(), repeat: "daily", label: "每天汇总" });
+    const key = `fu-${standing.followup_id}-${due.getTime()}`;
+    assert.equal(schedule.find(key)?.state, "queued");
+
+    // A round of this work is under way: it is stopped first, not archived out from under.
+    hold = new Promise(resolve => { release = resolve; });
+    await service.send({ work_id: workId, text: "再补一句", request_id: "req-followups-archive-2" }, {});
+    await until(async () => (await service.read(workId)).work.state === "running", "a round in progress");
+    await assert.rejects(service.archive(workId, true), (error: unknown) => error instanceof AssistantError && error.code === "assistant.state" && /先停止/.test(error.message));
+    assert.equal(store.get("web-user", workId).archived, false);
+    hold = null; release!();
+    await until(async () => (await service.read(workId)).work.state === "completed", "that round ends");
+
+    // Archived: its timed rounds are put away with it — the queued time is cancelled and the follow-up says why.
+    const archived = await service.archive(workId, true);
+    assert.equal(archived.archived, true);
+    const away = service.followUps(workId)[0]!;
+    assert.deepEqual([away.enabled, away.next_at ?? null, away.last?.outcome, away.last?.detail], [false, null, "skipped", "这项工作已归档，定时已停用"]);
+    assert.equal(schedule.find(key)?.state, "cancelled");
+    await assert.rejects(service.saveFollowUp({ work_id: workId, text: "x", at: new Date(Date.now() + 60_000).toISOString(), label: "归档后" }), (error: unknown) => error instanceof AssistantError && error.code === "assistant.state");
+
+    // A time that still reaches a work archived since (it was queued before the Host last started) starts nothing and is not repeated.
+    const straggler: AssistantFollowUp = { followup_id: "fu-straggler-1", work_id: workId, label: "漏网的一次", text: "不该运行", repeat: "daily", next_at: new Date(Date.now() + 300).toISOString(),
+      time_zone: "Asia/Shanghai", enabled: true, created_at: new Date().toISOString() };
+    store.saveFollowUp("web-user", straggler);
+    await schedule.enqueue({ key: `fu-${straggler.followup_id}-${Date.parse(straggler.next_at!)}`, session_id: sent.work.session_id ?? store.get("web-user", workId).session_id!, kind: "assistant.follow-up",
+      payload: { followup_id: straggler.followup_id }, due_at: straggler.next_at!, max_attempts: 1 });
+    const settled = await until(() => service.followUps(workId).find(item => item.followup_id === straggler.followup_id && item.last), "the straggler is decided");
+    assert.deepEqual([settled.last!.outcome, settled.enabled, settled.next_at ?? null], ["skipped", false, null]);
+    await new Promise(resolve => setTimeout(resolve, 1800));
+    assert.equal((await service.read(workId)).rounds.length, 2, "no timed round ran for the archived work");
+    assert.equal(requests.length, 2);
+  } finally { hold = null; release?.(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

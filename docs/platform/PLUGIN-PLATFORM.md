@@ -83,7 +83,7 @@ v2 已在 Coding、Files、Diff、Git、Text Stats、Shelf、Characters 的正�
 
 Runtime 以稳定 `install_id` 关联安装记录和私有数据。启动只恢复已安装版本，不会因 Host 提供了较新 Manifest 就改写版本或授权。Manifest 可用 `upgrade_compatibility.compatible_from_versions` 声明新实现可直接兼容的精确来源版本，或用 `migratable_from_versions` 声明仅可经用户手动升级的数据来源；可迁移升级要求插件提供只能读 `storage:private.get` 的 `validateUpgrade` 预检。Host 不做数据迁移；预检通过后目标实现必须直接使用原数据。项目插件市场展示当前项目的候选版本与新旧版本，用户触发升级后 Runtime 校验来源声明、权限保留和数据预检，再切换版本。更高版本升级仍需提高版本号；同版本 Manifest 变更仅在声明兼容当前精确版本时允许继续运行，安装记录指纹保持不变，也不会产生市场候选。内置插件是例外（随 Host 发布，监督器条目标 `bundled`）：启动时安装记录改成 Host 这个构建的清单，版本更高、更低或同版本摘要不同都一样，保留 `install_id` 与私有数据，不恢复旧发行物，也不进市场候选（[发布策略](../releases/POLICY.md)第 7 节）。
 
-Runtime 管理的首方 Native 插件会把其工厂实现打成单文件模块，保存在该项目现有 SQLite 的 `plugin_runtime_release_artifacts` 表中，以插件 ID、发布者签名、版本和 Manifest 指纹绑定。Host 重启后若当前候选不兼容已安装版本，就从该表恢复精确旧版，或恢复明确声明兼容该安装版本的已留存实现；兼容候选可以直接运行，但安装记录不变。首次安装、首次运行兼容实现和用户手动升级前都会保存对应发行物。项目关闭、Host 启动和发布新版本都不会升级安装记录；用户手动升级才调用 Runtime 的预检、切换和回滚路径。发行物不进入插件私有数据，也不另建目录。Plugin Builder 本体也保留 Native 实现；Builder 创建的每个不可变插件发布仍随 Builder 私有数据保存，Host 重启时按 Runtime 安装记录恢复对应发布；发布新版只登记候选，库页手动升级才调用相同的 Runtime 路径。作者约定见 [插件版本升级](PLUGIN-DEVELOPMENT.md#插件版本升级)。
+Runtime 管理的首方 Native 插件会把其工厂实现打成单文件模块，保存在该项目现有 SQLite 的 `plugin_runtime_release_artifacts` 表中，以插件 ID、发布者签名、版本和 Manifest 指纹绑定。内置插件（监督器条目标 `bundled`）在 Host 启动时跟随当前构建，不从该表恢复旧版：当前构建的发行物照旧写入，但恢复只对不带 `bundled` 的条目生效（`apps/local-host/src/project-plugins.ts` 里带发行物的监督器条目目前都标了 `bundled`，所以这条恢复路径在正式装配里不会触发），此外只有 Schedule 提醒读这张表，按安装记录的版本与摘要取插件显示名。不带 `bundled` 的条目在 Host 重启后若当前候选不兼容已安装版本，就从该表恢复精确旧版，或恢复明确声明兼容该安装版本的已留存实现；兼容候选可以直接运行，但安装记录不变。首次安装、首次运行兼容实现和用户手动升级前都会保存对应发行物。除内置插件外，项目关闭、Host 启动和发布新版本都不会升级安装记录；用户手动升级才调用 Runtime 的预检、切换和回滚路径。发行物不进入插件私有数据，也不另建目录。Plugin Builder 本体也保留 Native 实现；Builder 创建的每个不可变插件发布仍随 Builder 私有数据保存，Host 重启时按 Runtime 安装记录恢复对应发布；发布新版只登记候选，库页手动升级才调用相同的 Runtime 路径。作者约定见 [插件版本升级](PLUGIN-DEVELOPMENT.md#插件版本升级)。
 
 ## 8. FD3 历史实现边界
 
@@ -93,7 +93,7 @@ Runtime 管理的首方 Native 插件会把其工厂实现打成单文件模块�
 - 同一 `plugin_id + version + signature` 的 Manifest 内容不能静默变化；代码变化必须由 Plugin 自己递增 version。
 - Runtime 不理解 GitHub/Gmail payload，也不拥有 Source、Signal、Feed 或 Attention 数据。
 - Plugin crash 会撤销当前 contribution，可在上限内恢复；uninstall 撤销代码 contribution，但不删除已经形成的 Signal。
-- 项目 Runtime SQLite 保留 Runtime 管理的首方 Native 发行物，支持 Host 重启后恢复当前安装实现；其他仍由构建期组合装配的 Native 插件不因此获得版本恢复。已有安装若从未保存过精确发行物，Host 只能在当前候选明确兼容该安装版本时安全接续并归档当前实现；不兼容且没有历史发行物时会保留安装记录并报告不可恢复，不会执行候选代码。Native 插件仍是可信 Host 进程内代码，Runtime 不提供 JavaScript 沙箱；插件创作工作台生成的插件由 Host 放进独立的 macOS 沙箱进程运行（`packages/plugin-sandbox`）。Server entrypoint 仍是后续实现。
+- 项目 Runtime SQLite 保留 Runtime 管理的首方 Native 发行物；不带 `bundled` 的条目靠它在 Host 重启后恢复当前安装实现，内置插件（`bundled`）则在启动时跟随当前构建，不靠它恢复（见第 7 节）。其他仍由构建期组合装配的 Native 插件不因此获得版本恢复。不带 `bundled` 的条目若已有安装从未保存过精确发行物，Host 只能在当前候选明确兼容该安装版本时安全接续并归档当前实现；不兼容且没有历史发行物时会保留安装记录并报告不可恢复，不会执行候选代码。Native 插件仍是可信 Host 进程内代码，Runtime 不提供 JavaScript 沙箱；插件创作工作台生成的插件由 Host 放进独立的 macOS 沙箱进程运行（`packages/plugin-sandbox`）。Server entrypoint 仍是后续实现。
 
 当前项目目录通过按项声明的 [项目设置能力](PROJECT-SETTINGS.md) 读取；Workspace 已退出产品导航和运行图。设置槽、项目说明和私有存储保持各自边界。
 

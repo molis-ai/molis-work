@@ -27,16 +27,21 @@
 //                       `as any as Target`. Tests are included: the number the program tracks (spec §9.3, R-12) includes them.
 // oldNames              In sources: the old product name, `goalboard` as ONE word in any case (GoalBoard, goalboard-v1-demo,
 //                       GOALBOARD_HOME), and the old id name for the project id: board_id, boardId, BoardId, BOARD_ID,
-//                       plural too, as a whole name or the tail of a longer one (conflicting_board_id, existingBoardId) but
-//                       not inside another word (dashboard_id). Not counted: `goal-board` and GOAL_BOARDS, which are the
-//                       board/kanban view and its styles, not the old name. Tests are out of scope: they name old names to
-//                       assert that they are refused. A kept exception (the key-derivation salt, a demo project id) stays in
-//                       the baseline like any other count; it can only fall.
+//                       plural too, as a whole name or the tail of a longer one (conflicting_board_id, existingBoardId,
+//                       CONFLICTING_BOARD_ID) but not inside another word (dashboard_id, dashboardId, DASHBOARD_ID,
+//                       KEYBOARD_IDS). Not counted: `goal-board` and GOAL_BOARDS, which are the board/kanban view and its
+//                       styles, not the old name. Tests are out of scope: they name old names to assert that they are
+//                       refused. What the baseline keeps today (tooling/gates/baseline.json, oldNames): the key-derivation
+//                       salt `goalboard-feed-secretstore-v1` in packages/storage/src/adapters/file-secret-store.ts (its code
+//                       comment: changing the string would invalidate existing ciphertext), the local function
+//                       `checkGoalBoard` in apps/local-host/src/project-capabilities.ts, and two unused `_boardId` names in
+//                       plugins/native/goals/src (a destructuring rename in document-collection.ts, a parameter in
+//                       goal-tree-materialization-order.ts). Each stays in the baseline like any other count; it can only fall.
 import ts from "typescript";
 
 const CATCH_SHAPE = /catch\s*(?:\([^)]*\))?\s*\{\s*\}/g;
 const OLD_PRODUCT_NAME = /goalboard/gi;
-const OLD_ID_NAME = /(?<![A-Za-z])(?:board_ids?|boardIds?)(?![a-z])|(?<![A-Z])BoardIds?(?![a-z])|BOARD_IDS?(?![A-Z])/g;
+const OLD_ID_NAME = /(?<![A-Za-z])(?:board_ids?|boardIds?)(?![a-z])|(?<![A-Z])BoardIds?(?![a-z])|(?<![A-Z])BOARD_IDS?(?![A-Z])/g;
 
 const IS_STRING_LIKE = (node) => ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)
   || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node);

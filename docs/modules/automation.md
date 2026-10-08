@@ -8,4 +8,4 @@
 
 **不负责：** Scheduler 只负责到点唤醒；Listener/Signals 只提供外部事件；Actions 决定和执行实际操作；Automation 不直接调用 Provider 或写 Action Store。
 
-**当前状态：** 无正式实现。F2 创建 `contract-only` package，未来首个真实自动化用例另立 Spec。
+**当前状态：** 无正式实现，也没有包（占位包已删除）；未来首个真实自动化用例另立 Spec。

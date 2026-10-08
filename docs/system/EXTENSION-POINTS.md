@@ -1,8 +1,8 @@
 # 扩展点清单：怎么加、现在要改几处、目标几处
 
-状态：2026-10-08 按 origin/main `33067cbe` 核实（数字都在这个提交上重量过）。15 个方向各写「怎么加」「现在要改的位置」「目标」；第 4 节用六个下一步功能推演一遍；迁移到 Plugin Runtime 的计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)，第三方插件的安装方案见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。除内置插件和服务集成的少数方向外，目标大多还没有对应实现，写出来是为了让后面的切片有数字可对。
+状态：2026-10-08 按 origin/main `817e21af` 核实（数字都在这个提交上重量过）。15 个方向各写「怎么加」「现在要改的位置」「目标」；第 4 节用六个下一步功能推演一遍；迁移到 Plugin Runtime 的计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)，第三方插件的安装方案见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。除内置插件和服务集成的少数方向外，目标大多还没有对应实现，写出来是为了让后面的切片有数字可对。
 
-用户决定见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-07 与 2026-10-08 各行；其中 2026-10-08 的第五批（第三方插件信任、Characters 并进宿主、Runtime 插件的 methods 等）在 PR #312，合入前不在 main 上。
+用户决定见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-07 与 2026-10-08 各行；其中 2026-10-08 的第五批（宿主设置写入、界面翻译、调用编号上界面、右栏「讨论」页签与 IM、第三方插件信任、Characters 并进宿主、Runtime 插件的 methods 等）在 PR #312，合入前不在 main 上。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6；路线图切片 W1-15（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）；用户决定见 `specs/repository-anti-corruption/spec.md` §1（2026-10-07「插件平台范围」「第一个迁到 Runtime 的样板」「两套能力机制收敛」「记忆、放置与情境启发式的层次」等行）。
 
@@ -12,7 +12,7 @@ Molis Work 是插件基座加多个插件。想加一个东西时，最好只动
 
 ## 1. 口径
 
-- **基线**：origin/main `33067cbe`。数字都是从这个提交的代码量出来的，每个方向列出了具体文件，读者可以逐个核对；代码改了，数字跟着改。
+- **基线**：origin/main `817e21af`。数字都是从这个提交的代码量出来的，每个方向列出了具体文件，读者可以逐个核对；代码改了，数字跟着改。
 - **一处 = 一个文件。** 计入新功能自己的包之外、必须新增或修改的源码和配置文件（含在宿主里新建的文件）。不计测试、文档、`pnpm-lock.yaml` 和生成物。
 - **分两栏记**，「现在」和「目标」都按同一口径：
   - **登记**：不改它功能起不来或不可见（包依赖、装配条目、目录条目、渲染接线）。
@@ -47,7 +47,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | 11 | 新横向服务 | 6 | 4 | 同上 |
 | 12 | 新 Agent Runtime | Agent Host 内 CLI 1、自写适配器 3；外部 Runtime 接入 6，接入加角色导入 11–15 | 1 / 3 / 2 | 无切片，建议新增 |
 | 13 | 界面插槽 | 5 | 2 | 无切片 |
-| 14 | 界面语言 | 6 个代码文件 + 42 份词典 | 1 + 每个词典所有者各交一份 | W5-03 覆盖一部分 |
+| 14 | 界面语言 | 6 个代码文件 + 42 份词典 | 1 + 每个词典所有者各交一份 | W5-03（2026-10-08 改为稳定键）覆盖一部分 |
 | 15 | 操作系统平台 | 20 个 macOS 专用文件 | 4 个适配器 | 属 W1-21（C 端计划），本阶段不实现 |
 
 ## 3. 逐个方向
@@ -105,7 +105,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 公开来源型 | RSS、YouTube | 5–7 | 3 处包登记（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`，RSS 另有 `apps/workbench/package.json`）+ `apps/local-host/src/feed-source-runtime.ts`、`feed-source-service.ts`（RSS 还有 `apps/workbench/src/feed-projection-ui.ts`） |
 | 自带 OAuth 或专属协议型 | GitHub、Gmail | 12 | 包登记 3（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`）；宿主新文件 2（`<id>-connector.ts`、`<id>-oauth.ts`）；宿主分支 5（`official-integrations.ts` 的 `definitionFor`/`defaultProviderFor`、`connector-directory.ts`、`web-connectors-settings.ts`、`feed-connector-sync.ts`、`connector-account-actions.ts`）；`packages/contracts/src/services/connector-host.ts` 的 `ConnectorAuthKind`；`scripts/check-package-boundaries.mjs` 里按服务列出的禁用主机 |
 
-**目标：1。** 服务只在自己的集成包里声明（鉴权形态、同步、目录卡片、OAuth 参数）。token 型已经达到。OAuth 型靠 W5-11（连接器设置和 OAuth 移入集成包，或登记为宿主例外，待「宿主设置写入」那一项决定）；若登记为例外，OAuth 型的目标是 5（上表的 5 个宿主分支），不是 1。公开来源型的接线是 `feed-source-service.ts` 里按来源种类（`rss`、`youtube`、`customRss`）写的对象，W5-11 不覆盖，建议随 W5-02 的声明式登记一起做。
+**目标：1。** 服务只在自己的集成包里声明（鉴权形态、同步、目录卡片、OAuth 参数）。token 型已经达到。OAuth 型靠 W5-11（连接器设置和 OAuth 移入各自的官方接入包）。「宿主设置写入」那一项用户 2026-10-08 已定（决定 #7，`specs/repository-anti-corruption/spec.md` §1「宿主设置里的写入只走 HTTP」，PR #312）：宿主设置里的写入留作管理接口并登记例外，其中连接器路由以后搬进各自的官方接入插件。所以 OAuth 型的目标就是 1，不再有「登记为宿主例外、目标是 5」的一支；上表的 5 个宿主分支里，`web-connectors-settings.ts` 就是这类要搬走的连接器路由；目标 1 还要求其余 4 个分支也由集成包的声明取代，这属于 W5-11 的范围，由那一片的设计确认。公开来源型的接线是 `feed-source-service.ts` 里按来源种类（`rss`、`youtube`、`customRss`）写的对象，W5-11 不覆盖，建议随 W5-02 的声明式登记一起做。
 
 ### 3.4 AI 能力、Agent 角色、提示词
 
@@ -205,9 +205,11 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 
 **怎么加**：此前没有写。中文原文是 key，英文是词典（`apps/workbench/src/i18n.ts`）。现行做法：在 `i18n.ts` 里加语言值，并让 `isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin` 认识它；在 `renderLocaleSwitch` 和设置页的语言开关里加一项；客户端 `L`（`clientI18nScript`）今天写死了 `MOLIS_WORK_EN` 和「非中文即英文」的判断，要一并改；给「现在」列出的 42 份词典各补一份同形的目标语言词典并在汇总处接入；跑 `tests/i18n.test.ts`。
 
-**现在：6 个代码文件 + 42 份词典。** 代码里 `"zh" | "en"` 字面量和两项开关在：`apps/workbench/src/i18n.ts`（`WebLocale`、`WEB_LOCALES`、`isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin`、`renderLocaleSwitch`、客户端 `L`）、`apps/workbench/src/decision-center.ts`、`settings-appearance.ts`、`settings-directory.ts`、`settings-renderer.ts`、`plugins/native/goals/src/safety-ui-model.ts`。词典 42 份：工作台 14 份（`apps/workbench/src/i18n/*-en.ts`、`functions/en.ts`），插件 28 份（16 个插件的 `en.ts` 加 Goals 的 12 份 `*-en.ts`），汇总在 `apps/workbench/src/i18n/en.ts`。
+**现在：6 个代码文件 + 42 份词典。** 代码里 `"zh" | "en"` 字面量和两项开关在：`apps/workbench/src/i18n.ts`（`WebLocale`、`WEB_LOCALES`、`isWebLocale`、`htmlLang`、`dateTimeLocale`、`listJoin`、`renderLocaleSwitch`、客户端 `L`）、`apps/workbench/src/decision-center.ts`、`settings-appearance.ts`、`settings-directory.ts`、`settings-renderer.ts`、`plugins/native/goals/src/safety-ui-model.ts`。词典 42 份：工作台 14 份（`apps/workbench/src/i18n/` 下 12 份 `*-en.ts`，主词典也是汇总的 `apps/workbench/src/i18n/en.ts` 本身，加 `functions/en.ts`），插件 28 份（16 个插件各一份，加 Goals 的 12 份 `*-en.ts`），汇总处是 `apps/workbench/src/i18n/en.ts`。
 
-**目标：1 + 每个词典所有者各交一份。** 语言清单声明一处，词典按所有者注册（W5-03 把插件词典从 `en.ts` 的 import 里拆出，W1-08 加缺失检查）。翻译内容是内容工作，不计改动处。加语言的清单项（字面量联合和开关）W5-03 不一定覆盖，要在那一片里明确。
+**用户 2026-10-08 的决定（#16，`specs/repository-anti-corruption/spec.md` §1「界面翻译」，PR #312；用户没有选推荐的「中文作键」）：全部换成稳定键。** 约 164 个源文件改用稳定键（spec 该行给的数字），词典按所有者分，CI 查缺失、无用与冲突；第 5 波的「翻译按主人分」改成「稳定键」，并先做一个插件样板（W5-03）。换完以后键不再是中文原文，所以中文也要有自己的词典，加语言的做法随之变成：语言清单加一项，每个词典所有者各交一份该语言的词典；上面「怎么加」里客户端 `L` 写死的「非中文即英文」判断因此要改成按词典查。「怎么加」和「现在」写的是换成稳定键之前的做法和数字。
+
+**目标：1 + 每个词典所有者各交一份。** 语言清单声明一处，词典按所有者注册、键是稳定键（W5-03 把插件词典从 `en.ts` 的 import 里拆出，W1-08 加缺失检查）。翻译内容是内容工作，不计改动处。加语言的清单项（字面量联合和开关）W5-03 不一定覆盖，要在那一片里明确。
 
 ### 3.15 操作系统平台
 
@@ -237,7 +239,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | F1 | 风险记录插件 | 12（带 AI 建议时 13），外加 2 | 1，外加 2 | 1，外加 2 | W3-06、W4-03、W5-02、W5-06 加 X-1 |
 | F2 | Coding 质量保证 | 2 | 0 | 0 | X-5（项目库基线由 owner 声明）；端口走服务 |
 | F3 | 新的外部服务（自带 OAuth） | 12 | 1 | 1 | W5-11 |
-| F4 | 团队与权限（成员、角色、访问决定） | 约 48（推演） | 10 | 10 | X-1、X-2、X-5、X-7、W4-11 |
+| F4 | 团队与权限（成员、角色、访问决定） | 约 52（推演） | 10 | 10 | X-1、X-2、X-5、X-7、W4-11 |
 | F5 | 自动化规则（事件触发动作） | 约 21（推演），外加 2 | 6，外加 2 | 6，外加 2 | X-1、X-6 加 4 项已有切片 |
 | F6 | 调用诊断（按调用编号追查、导出诊断包） | 约 12（推演） | 3 | 3 | W3-01、W3-02、W5-13 |
 
@@ -257,17 +259,17 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 **F3 新的外部服务（自带 OAuth，GitHub、Gmail 形）**（来源：BL-060、BL-061）。
 
 - 现在：12（3.3）。其中 token 型服务只要 1 处，所以先问能不能走目录连接器。
-- 补什么：W5-11 把连接器设置和 OAuth 移入集成包。**再推演：1**；若该项决定为「登记为宿主例外」，则是 5。
+- 补什么：W5-11 把连接器设置和 OAuth 移入集成包（决定 #7，2026-10-08：宿主设置的写入留作登记过的管理接口，连接器路由以后搬进各自的官方接入插件）。**再推演：1。**
 
 **F4 团队与权限**（`docs/modules/identity-team-access.md` 目标；BL-071；第一步：项目有多个成员、成员有角色、调用动作前做访问决定）。
 
-- 现在（推演，约 48）：
+- 现在（推演，约 52）：
   - 新 Module 6，表建在项目库再加 1：7；
-  - 单人身份常量 `LOCAL_PERSON_ACTOR_ID`（`packages/contracts/src/platform/local-person.ts`）被 29 个非测试源码文件点名（`git grep -l LOCAL_PERSON_ACTOR_ID -- . ':!tests' ':!docs' ':!specs' ':!skills' ':!*.md' ':!*.html'`：`apps/local-host` 21、`apps/mcp` 1、`packages/contracts` 1、`plugins/native` 6），要逐个复核：29；
+  - 单人身份常量 `LOCAL_PERSON_ACTOR_ID`（`packages/contracts/src/platform/local-person.ts`）被 33 个非测试源码文件点名（`git grep -l LOCAL_PERSON_ACTOR_ID -- . ':!tests' ':!docs' ':!specs' ':!skills' ':!*.md' ':!*.html'`：`apps/local-host` 25、`apps/mcp` 1、`packages/contracts` 1、`plugins/native` 6），要逐个复核：33；
   - 访问决定的落点：`packages/kernel/src/action-service.ts`、`apps/local-host/src/local-owner-permissions.ts`、`apps/local-host/src/mcp-action-grants.ts`：3；
   - 成员设置页，按 3.6 的宿主自有分区：9。
-- 超过目标：身份常量的 29 处和设置分区的 9 处。
-- 补什么：X-7「入口调用者解析集中」——Web 入口与宿主各处（`apps/local-host` 的 21 个文件）和 `apps/mcp` 的一个文件直接写死 `LOCAL_PERSON_ACTOR_ID` 来构造调用上下文（CLI 不用这个常量，身份从命令输入的 `actor_id` 读），改成入口只调一个解析函数，其余文件不再点名；X-1 包登记生成（新 Module 6 变 4）；X-2 设置分区登记表（9 变 2）；X-5；W4-11。**再推演：10** = 新 Module 4 + 入口解析 1 + 访问决定 3 + 目录库或项目库表 1 + 设置分区 2 − 1（访问决定与入口解析共用 `local-owner-permissions.ts`）。该功能还涉及实验性的 `server/`、`apps/server`，不计入。
+- 超过目标：身份常量的 33 处和设置分区的 9 处。
+- 补什么：X-7「入口调用者解析集中」——Web 入口与宿主各处（`apps/local-host` 的 25 个文件）和 `apps/mcp` 的一个文件直接写死 `LOCAL_PERSON_ACTOR_ID`，用来构造调用上下文，或像 `ArtifactsModule` 的 `homeOwner` 那样指定个人范围成果的主人（CLI 不用这个常量，身份从命令输入的 `actor_id` 读），改成入口只调一个解析函数，其余文件不再点名；X-1 包登记生成（新 Module 6 变 4）；X-2 设置分区登记表（9 变 2）；X-5；W4-11。**再推演：10** = 新 Module 4 + 入口解析 1 + 访问决定 3 + 目录库或项目库表 1 + 设置分区 2 − 1（访问决定与入口解析共用 `local-owner-permissions.ts`）。该功能还会碰到 `server/` 与 `apps/server`（`server/README.md`：公共身份、设备、项目访问与事件传输，另有 `/im` 群聊）。右栏「讨论」页签与 IM 代码按 2026-10-08 决定 #4 是在用、继续迭代的产品功能，不是实验；`apps/server` 独立启动器的去留另定。这几处不在上面的计数里。
 
 **F5 自动化规则**（`docs/modules/automation.md`：Trigger、Rule、Run；Automation 是动作的触发来源，不是另一套执行系统）。
 
@@ -281,7 +283,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 **F6 调用诊断**（`packages/contracts/src/platform/observability.ts` 是占位；`docs/platform/CONTRACTS-AND-OPERATIONS.md` 写明 `packages/observability` 尚未创建；路线 W3-01 的调用编号）。
 
 - 现在（推演，约 12）：内核给每次调用编号（`packages/kernel/src/action-service.ts`、`packages/contracts/src/platform/actions.ts`）2；六类入口各自带出编号：Web（`apps/local-host/src/web-request.ts`）、MCP（`apps/mcp/src/action-tools.ts`）、助理（`apps/local-host/src/assistant/assistant-service.ts`）、Agent 工具（`horizontal/agent-host/src/adapters/prologue-action-gateway.ts`）、CLI（`apps/cli/src/command-dispatch.ts`）、调度（`apps/local-host/src/schedule-task-runner.ts`）6；调用记录 `apps/local-host/src/action-call-log.ts` 1；诊断界面 `apps/local-host/src/web-capabilities.ts`、`apps/workbench/src/capabilities.ts`、`apps/workbench/src/settings-agent-diagnostics.ts` 3。宿主里还有 60 处 `console.*` 在 10 个文件，没有统一日志器。
-- 补什么：W3-01（编号贯通）、W3-02（一个错误模型）、W5-13（结构化日志）。这些是一次性铺设，不是每个功能都付的成本。**再推演：3**（面板、导出路由、登记一项）。
+- 补什么：W3-01（编号贯通）、W3-02（一个错误模型）、W5-13（结构化日志）。这些是一次性铺设，不是每个功能都付的成本。界面形态按用户 2026-10-08 的决定 #5（`specs/repository-anti-corruption/spec.md` §1「调用编号是否上界面」，PR #312）：错误详情里显示可复制的短编号，「设置 › 诊断」按编号列出最近的调用。**再推演：3**（面板、导出路由、登记一项）。
 
 ### 4.3 补充的扩展点（不在 §10 的 87 片内，待用户并入路线时定）
 
@@ -293,7 +295,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | X-4 | 外部 Runtime 描述表 | 3.12 的 6–15 处降到 2 处 | — |
 | X-5 | 项目库基线由各 owner 包声明的 SQL 汇总，版本由声明推出 | `project-database-schema.ts` 不再逐个 import；Module 和插件加表不碰宿主 | F2、F4 |
 | X-6 | 领域事件订阅口（项目库事件流，按声明订阅） | 构建期插件发的事件也能触发规则 | F5 |
-| X-7 | 入口调用者解析集中：Web、MCP 入口和宿主各处不再直接写 `LOCAL_PERSON_ACTOR_ID`，入口只调一个解析函数（与 W2-07「5 个 MCP 连接工具的身份取自可信会话」同方向，但只覆盖 MCP 的一部分） | F4 的身份常量 29 处降到 1 处 | F4 |
+| X-7 | 入口调用者解析集中：Web、MCP 入口和宿主各处不再直接写 `LOCAL_PERSON_ACTOR_ID`，入口只调一个解析函数（与 W2-07「5 个 MCP 连接工具的身份取自可信会话」同方向，但只覆盖 MCP 的一部分） | F4 的身份常量 33 处降到 1 处 | F4 |
 
 这些都只是建议：X-1 是把路线图普查里已有的一条写进 W5-02，X-2 到 X-7 是新增的，都要用户同意并入路线。没有写进路线之前，上面带 X 的「目标」不算承诺。
 

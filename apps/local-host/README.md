@@ -88,7 +88,9 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
   - 系统搜索只在这里装配：`system.search` 注册一次；建索引用本机用户上下文，调用者按自己的项目或 Home 客户端访问；成功的命令与提供方注册/撤下都通知搜索，不另建能力名单或权限。
   - `material-web.ts` 负责显式网页捕获的 HTTP(S)、最多 5 次重定向、12 秒总时限和解压后 4 MiB 正文限制；每次派出复查权限，超限拒绝正文并取消流。Shelf 保留产品组织和链接失败提示，Artifacts 复用 Host HTML 解析，不跨模块导入 Shelf 解析器。
   - Artifacts 外部文档沿用连接器请求生命周期；每个供应商 API 请求前复查原 Action、取消与账号 revision，最终异步授权检查之后再核对连接。撤权、断开或取消不继续读取正文、不刷新凭据，也不保存迟到结果。
+  - 助理（`src/assistant/`）只在一轮真的开始之后才把「只告诉一次」的事记为已告知：撤销、已结束的后台任务、停止后落定的修改；开轮失败（无模型、`storage_busy`、Character 版本）不留任何已告知标记，记忆召回按未使用结算，下一轮照样告知。一个后台任务只跟一次（同一工作、同一状态查询的同一 job 不重复登记，卡片接手既有的那条）；撤销先占用再调用所有者，并发的第二次请求得到同一结果，已撤销不被迟到的失败覆盖；归档要求这项工作和它的子任务都没有在进行的一轮，并停用它的定时；归档的子任务仍计入委托它的工作的用量、上限和停止；子任务的首轮开不了就不留孤儿工作。
 - 改动后必跑：`node scripts/run-tests.mjs tests/local-host.test.ts tests/local-host-actions.test.ts tests/action-before-effect.test.ts tests/action-model-scheduling.test.ts tests/action-read-compatibility.test.ts tests/installer-symlink-dependencies.test.ts tests/system-search-host.test.ts tests/project-arrival.test.ts`
+- 助理逻辑验证：`node scripts/run-tests.mjs tests/assistant-undo.test.ts tests/assistant-business-gateway.test.ts tests/assistant-followups.test.ts tests/assistant-delegation.test.ts tests/assistant-memory.test.ts`。
 - 安装插件执行链额外验证：`node scripts/run-tests.mjs tests/installed-plugin-host.test.ts tests/installed-plugin-execution.test.ts tests/installed-plugin-policy.test.ts tests/generated-action-costs.test.ts tests/agent-built-plugins-reminders.test.ts tests/agent-built-plugins-network.test.ts`。
 - 生成式提示词身份/版本验证：`node scripts/run-tests.mjs tests/generated-plugin-prompt-binding.test.ts tests/generated-plugin-prompts.test.ts tests/plugin-model-generation.test.ts tests/agent-definitions.test.ts tests/prompt-registration.test.ts`。
 - 网页材料与导入验证：`node scripts/run-tests.mjs tests/material-web.test.ts tests/material-extraction.test.ts tests/artifact-document-import.test.ts tests/shelf-actions.test.ts`。

@@ -23,13 +23,13 @@ const candidates = await context.services!.capabilities!.invoke(projectSettingsC
 
 只需要浏览目录的插件仅声明 `browsingWorkspace`。只需要候选目录的 Coding/创作台仅声明 `workspaces`。路径读取能力不等于文件读写授权；文件与 Git 操作仍经过各自 Host 能力并重新核对关联。项目说明不是此协议的一项。
 
-## 数据、迁移和刷新
+## 数据和刷新
 
-目录事实唯一来源仍是 catalog 的 `workspaces / workspace_project_memberships`，不复制目录到设置存储。Local Host 的项目数据库 `project_browsing_settings` 只保存 board 与所选 workspace ID；第一次读取时迁移旧 Workspace 插件的 `selected-workspace`。旧值仅在当前关联且可用时生效。无关联返回 null，只有一个关联且无历史选择时自动使用该目录，多目录未选择时返回 null。关联被移除或目录不可用后返回 null，用户重新选择。
+目录事实唯一来源仍是 catalog 的 `workspaces / workspace_project_memberships`，不复制目录到设置存储。Local Host 的项目数据库 `project_browsing_settings` 只保存 `project_id` 与所选 workspace ID，不迁移旧 Workspace 插件的选择。所选目录仅在当前关联且可用时生效。无关联返回 null，只有一个关联且未选择时自动使用该目录，多目录未选择时返回 null。关联被移除或目录不可用后返回 null，用户重新选择。
 
 受保护的项目 Web 页面使用 `/projects/<id>/api/project-settings/workspaces` GET 读取列表与选择、POST `{ workspace_id }` 切换；关联及目录选择器复用既有 `/api/workspaces`、`/api/workspaces/pick`。这些是可信 Host UI 路由，不是给插件绕过 Manifest 的 SDK。插件用 typed capability。读接口不提供写设置能力。
 
-Workspace 不再进入产品 catalog 或启动图，也没有 navigator view。Files/Git 从设置读取；Workspace Artifact 连线不再控制它们。旧安装数据和历史 Artifact 保留以便迁移，不再更新。旧 `projects.workspaces.list.v1 / projects.workspace.read.v1` 为已有调用方保留兼容；后者仍是执行目录默认值语义，不等于浏览选择。新消费者使用设置能力。
+Workspace 不再进入产品 catalog 或启动图，也没有 navigator view。Files/Git 从设置读取；Workspace Artifact 连线不再控制它们。旧安装数据和历史 Artifact 保留但不再更新，也不迁移。旧 `projects.workspaces.list.v1 / projects.workspace.read.v1` 为已有调用方保留兼容；后者仍是执行目录默认值语义，不等于浏览选择。新消费者使用设置能力。
 
 Files/Git 每次读取检查当前浏览目录，异步读取后再次核对；Host 在伴随插件请求前同步 Files 的设置状态，使旧目录的当前快照输出失效，历史固定版本保留。工作面打开或点击刷新后重新读取当前选择。
 

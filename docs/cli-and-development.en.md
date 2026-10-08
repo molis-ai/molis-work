@@ -2,13 +2,13 @@
 
 ## Installer ownership during development
 
-`pnpm build` cleans generated workspace outputs, then builds all 56 packages in declared dependency order before the root entrypoints and PTY bundle. `build:migrated-packages` reuses `workspace:build`: deleted or moved sources must not leave stale JavaScript in npm/DMG artifacts. This removes generated dist only, not node_modules or user data. The Plugin CLI launcher exists in source, so a clean frozen-lockfile install followed by build makes `pnpm exec molis-work-plugin --help` available. Boundary checks cover JavaScript/TypeScript under src, tooling and bin.
+`pnpm build` cleans generated workspace outputs, then builds all 71 workspace packages in declared dependency order before the root entrypoints and PTY bundle. `build:migrated-packages` reuses `workspace:build`: deleted or moved sources must not leave stale JavaScript in npm/DMG artifacts. This removes generated dist only, not node_modules or user data. The Plugin CLI launcher exists in source, so a clean frozen-lockfile install followed by build makes `pnpm exec molis-work-plugin --help` available. Boundary checks cover JavaScript/TypeScript under src, tooling and bin.
 
 Desktop release scripts belong to `apps/desktop/tooling/`; root `pnpm desktop:*` commands are unchanged. They call Local Host's `createMolisWorkRuntimePayload` instead of running npm install against an isolated workspace:* manifest. Failed preparation preserves old resources; vendor provenance, SBOM and license assets survive both payload generation and Home installation.
 
 Home installation, Runtime integration, managed Web service and uninstall implementations live under `apps/local-host/src/installer/`, exposed through `@molis-ai/molis-work-app-local-host`. The old `src/install/` implementations are removed. CLI/Web callers must not duplicate preview, confirmation, ownership, rollback or cleanup policy.
 
-`installMolisWorkHome` requires an explicit `sourceDirectory`; only the product-root CLI derives its default from its own entry location. Calling that CLI from another working directory without `--source` still installs the same product. Uninstall requires injected `UninstallProjectAccess`; `src/local-host/uninstall.ts` composes the read-only connection and existing Demo deletion lifecycle. Projects owns catalog interpretation, and preview never runs database migrations.
+`installMolisWorkHome` requires an explicit `sourceDirectory`; only the product-root CLI derives its default from its own entry location. Calling that CLI from another working directory without `--source` still installs the same product. Uninstall requires injected `UninstallProjectAccess`; `apps/local-host/src/local-uninstall.ts` composes the read-only connection and existing Demo deletion lifecycle. Projects owns catalog interpretation, and preview never runs database migrations.
 
 Rebuild after changing workspace sources. At the end of `pnpm build`, `apps/local-host/tooling/write-build-manifest.mjs` invokes the Local Host build-record API over root and workspace source/configuration plus build scripts. Never stamp an old build as fresh. Update fingerprint package discovery and build lists when introducing a workspace level. Targeted tests are `tests/install.test.ts`, `tests/service.test.ts`, `tests/uninstall.test.ts`, and `tests/uninstall-catalog.test.ts`, supplemented by Web/Desktop integration tests. Full DV4 release acceptance remains pending; these checks are not release certification.
 
@@ -27,26 +27,26 @@ init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-Complex inputs can be passed with `--json` or `--file payload.json`. Old create-goal, Claim/Run, Evidence/Review, and Contract/Candidate/Rewire commands are retired and return an unknown-operation error. Everyday notes, reports, agreements, closure, and resume use MCP or Web; CLI does not provide duplicate event-write commands. CLI is a user/management and local debugging entry, not a fallback for Runtime service failures. Management commands write as the person on this machine; their arguments carry no identity.
+Complex inputs can be passed with `--json` or `--file payload.json`. Old create-goal, Claim/Run, Evidence/Review, and Contract/Candidate/Rewire commands are retired and return an unknown-operation error. Everyday notes, reports, agreements, closure, and resume use MCP or Web; CLI does not provide duplicate event-write commands. CLI is a user/management and local debugging entry, not a fallback for Runtime service failures. `init` and `goal-tree-decide` write as the person on this machine and their arguments carry no identity; `goal-tree-propose`, `goal-tree-check`, and `active-goal` still take their author from the `actor_id` argument (`goal-tree-propose` also takes `submitted_session_id` from the arguments) rather than a Host-injected identity (a known gap).
 
 ## Project structure
 
-> The repository is now a monorepo: 18 target packages remain `contract-only`, while 30 packages have a real migrated slice and are marked `partial`. The root `@molis-ai/molis-work` package continues to carry the working product and release compatibility surface. A package directory does not mean every responsibility has migrated; see the [Architecture SSOT](SSOT-MATRIX.md) for truthful status and migration ownership.
+> The repository is a plugin base plus many plugins in one monorepo: of 71 workspace packages, 70 are `partial` and one (contracts) is `contract-only`; the root package only assembles the product launchers and exports no code. See the [Architecture SSOT](SSOT-MATRIX.md) for status and ownership.
 
 ```text
 apps/                        Six product-entry and composition-root boundaries
-packages/                    Ten foundation packages; contracts exposes 30 public subpaths
-modules/                     Sixteen business-fact owner boundaries
-horizontal/                  Four horizontal runtime-service boundaries
-plugins/                     Six native and five official integration plugin boundaries
+packages/                    Ten foundation packages (plus the root server/); contracts exposes 63 public subpaths
+modules/                     Thirteen business-fact owners
+horizontal/                  Eight packages: five horizontal runtime services and three platform product services (Memory, Placement, Search)
+plugins/                     26 native plugins and six official integration plugins
 packages/plugin-runtime/     FD3 local Plugin lifecycle reference implementation
 packages/plugin-sdk/         FD3 Manifest and Integration Plugin definition API
 plugins/official-integrations/
                              Official Manifests, Provider adapters, and install packages
-apps/workbench/              Shell, slots, assets, current Goal navigation, and native Plugin pages
+apps/workbench/              Workbench shell: bottom bar, plugin picker, Manifest-derived navigation, and plugin page wiring
 apps/desktop/                AP4 Desktop shell, panels, Capsule, and Tauri native adapter
 apps/cli/                    Current management command parsing, Host invocation, and output
-apps/mcp/                    Current tool schemas, connection, event/structure commands, and receipts
+apps/mcp/                    Platform MCP schemas, protocol and project tool dispatch; plugin contributions are composed by the Host from Manifests
 packages/ui-host/            UI Contribution registry, surface rendering, and Slot mount validation
 packages/design-system/      AP3 theme preferences, browser visual foundation, and layered styles
 plugins/native/feed/         FD4 Feed/Attention/Source UI and HTTP route table
@@ -55,8 +55,7 @@ modules/governance-collaboration/
                              Current user decisions, finite structure proposals, provenance, and history
 tooling/plugin-cli/          Plugin CLI boundary; DV3 implements the real developer tool
 scripts/workspace-packages.mjs
-                             Inventory, manifest, entrypoint, README, and Contract wiring check
-src/index.ts, sdk-*.ts        0.1.x SDK compatibility exports backed by owner packages
+                             Inventory (71 packages), manifest, entrypoint, README, and Contract wiring check
 apps/desktop/launchers/mcp/server.ts            MCP launcher; protocol in apps/mcp, composition in Local Host
 apps/desktop/launchers/web/server.ts            Web launcher; Host owns HTTP/resources, Workbench/Native Plugins own pages
 apps/desktop/               Desktop platform and native adapters; old src/desktop removed
@@ -65,7 +64,7 @@ apps/local-host/src/installer/
 apps/local-host/tooling/     Build manifest and npm packaging through public Local Host APIs
 apps/desktop/tooling/        macOS build, Runtime payload, install and launch tooling
 apps/desktop/launchers/cli/main.ts              CLI launcher; commands in apps/cli, composition in Local Host
-desktop/                     macOS Cargo/Tauri distribution config; source lives under apps/desktop/adapters/tauri
+apps/desktop/src-tauri/      macOS Cargo/Tauri config; the Rust entry lives under apps/desktop/adapters/tauri
 examples/seed-demo.mts       Dev script calling the product demo lifecycle
 docs/screenshots/            README product screenshots
 skills/goal-advance/         Runtime working protocol
@@ -89,8 +88,8 @@ PRODUCT.md                   Product definition
 DESIGN.md                    Shipped UI design system
 docs/SSOT-MATRIX.md          Canonical architecture, package status, and migration-owner index
 docs/system/                 Layers, dependencies, migration, and huge-class exit rules
-docs/modules/                Fact ownership and API boundaries for all 16 Modules
-docs/horizontal/             Technical boundaries for the four horizontal services
+docs/modules/                Fact ownership and API boundaries for Modules (pages do not yet match the 13 Modules one to one: characters has no page, and pages remain for 4 future owners and retired modules; SSOT-MATRIX is authoritative)
+docs/horizontal/             Technical boundaries for the services under `horizontal/` (Memory and Placement: see their package READMEs)
 docs/platform/               Plugin, Storage, Exchange, and UI platform mechanisms
 specs/molis-work-architecture-reorganization/spec.md
                              Accepted full contract for this reorganization
@@ -98,7 +97,7 @@ specs/molis-work-architecture-reorganization/spec.md
 
 ### Development rules during the reorganization
 
-- Root `pnpm` commands continue to verify the current product; `workspace:*` commands verify the 48 new packages, and `*:all` commands cover both.
+- Root `pnpm build` builds all 71 workspace packages and then compiles the launchers; `workspace:*` commands run only the workspace packages, and `*:all` commands run both.
 - Cross-owner calls use public entrypoints only; deep imports, cross-Module Store access, and App database writes are forbidden.
 - `contract-only` means a real boundary without a fake provider, store, UI entry, or success response.
 - Every migration slice updates its package README and the affected Module/Service document.
@@ -115,7 +114,7 @@ Once a shared control, state variant, or micro-interaction meets the product’s
 ## Development verification
 
 ```bash
-# Target package tree
+# All workspace packages
 pnpm workspace:check
 pnpm boundary:test
 pnpm boundary:check
@@ -123,11 +122,11 @@ pnpm workspace:verify
 pnpm workspace:typecheck
 pnpm workspace:build
 
-# Current product compatibility surface plus target packages
+# Root launchers plus all workspace packages
 pnpm typecheck:all
 pnpm build:all
 
-# Current-product regression and release contents
+# Product regression and release contents
 pnpm typecheck
 pnpm test
 pnpm package:npm
@@ -144,8 +143,14 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 `workspace:check` validates only the F2 package inventory. `boundary:check` scans real imports, dependency direction, Contract entrypoints, cycles, and the legacy Huge Class allowlist. `workspace:verify` is the complete package gate shared by local development and CI.
 
+Scan for secrets before pushing: run `git fetch origin main`, then `pnpm secrets:check`. It reads every commit of your branch since its merge base with `origin/main` (`scripts/check-secrets.mjs`) and looks for OpenAI/Anthropic keys (`sk-…`, `sk-ant-…`), GitHub tokens (`ghp_…`, `github_pat_…`), Slack tokens, AWS access keys (`AKIA…`), Google API keys (`AIza…`), private key blocks, JWTs, and quoted literals of 12 or more mixed letters and digits assigned to a name that ends in `api_key`, `secret`, `password` or `token` (references, `${…}`, placeholders and URLs do not count). Names also include `secretKey`, `private_key`, `aws_secret_access_key` and `clientKey`, that is a key preceded by secret, private, access, client, auth, signing or encryption (a bare `key` does not count), and a type annotation may sit between the name and the `=` (`const apiKey: string = "…"`). Files whose names git quotes in diff headers (a quote, backslash or control character) are scanned too, and control characters in a file name are escaped in the log. The diff is read with external diff drivers, textconv and `diff.noprefix` switched off, so a local git configuration cannot change what the scan sees. A hit prints the file, line, rule and the first four characters of the value, never the whole value. The CI Secret scan job runs the same command with full history (a pull request against its base branch, a push to main against the tip before the push) and `Verify` waits for it. The rules themselves are tested by `tests/secret-scan.test.ts`, which the Package boundaries job runs.
+
+- A real credential: deleting it in a later commit is not enough because it is already in the history. Remove it from every commit with a rebase or squash, then rotate the key. Secrets live in the Home's secret store or the environment, and code carries only a reference.
+- Test data that is already on main: add the exact value (or a `/regex/` anchored with `^…$`) with a reason to `tooling/gates/secret-allowlist.txt`, one entry per line as `<value>  # reason`. A line without a reason makes the scan exit with an error. Do not loosen the rules to get a pass.
+- `node scripts/check-secrets.mjs --all` audits the whole tree and `--base <ref>` changes the base. It does not read unquoted YAML values, binary files, or passwords with no recognizable shape.
+
 The Desktop payload contains root dist, production workspace dependencies, Runtime Skill, Node and vendor provenance/license assets, not a second business implementation. For npm, use `pnpm package:npm`: it builds the workspace and invokes Local Host tooling to stage `release/npm/*.tgz`. Pass an absolute output directory as its argument when needed. Direct npm/pnpm pack at the source root prints this command instead of producing an uninstallable workspace:* archive.
 
 The npm archive bundles required workspace and vendor JavaScript packages using their declared files. Consumers install registry dependencies normally, including target-platform SQLite/PTY binaries; Node itself is not bundled and Node 24+ is required. In a new consumer directory run `npm install /absolute/archive.tgz` without skipping install scripts, then run `node tests/npm-distribution-smoke.mjs /absolute/consumer` from this repository. This checks the actual CLI, SQLite persistence, PTY, planning assets, Home installation and source-independent MCP handshake. The smoke script targets a Unix host; passing locally does not certify other platforms.
 
-That sentence describes the current release. DV4 and the final Cutover Goal will update and verify monorepo packaging, installation, and release commands in a clean environment.
+That sentence describes the current release; DV4's full release acceptance in a clean environment is still pending.

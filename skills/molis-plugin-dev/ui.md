@@ -86,7 +86,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 要做：打开列表、点一行、主按钮、返回、空态、错误、搜索。只服务端渲 HTML、不写客户端，主路径点不动。
 
-搜索：Pages 族用 `searchRow: { selector, idDataset }`，例如 `[data-page-id]`。Feed/Inbox/Goals 的全局搜索在 `global-search.ts` 写死，只配 searchRow 不会进那份名单。
+搜索：内容来自系统搜索，插件声明搜索来源即可（见 [search.md](search.md)）。打开到对象时，用 `searchRow: { selector, idDataset }`（例如 `[data-page-id]`）让工作台点那一行；按标签打开（`molis-work:select-item`）的插件列在 `global-search.ts` 的 `SEARCH_ITEM_TAB_SURFACES`。
 
 确认用 `dialog.mw-dialog`，不要 `window.confirm` / `alert` / `prompt`。异步失败 `showNote`。
 

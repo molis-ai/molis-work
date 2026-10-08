@@ -22,6 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Two commits: on a pull request that is the merge commit GitHub builds and its two parents, on a push the new tip
+          # and its parent. The health gates below need the commit to compare with, not the whole history; when the
+          # shallow clone lacks it, scripts/ci-health-base.mjs fetches it (and deepens only as far as needed).
+          fetch-depth: 2
 
       - uses: actions/setup-node@v6
         with:
@@ -36,10 +41,28 @@ jobs:
       - name: Verify package contracts and boundaries
         run: pnpm workspace:verify
 
-      # Numbers that may only go down: giant units, tests reaching into package internals, vendored SDK packages,
-      # in-place schema patches, and a status line on every spec in specs/ (specs/repository-anti-corruption §5a).
-      - name: Health gates
-        run: pnpm health:check
+      # Numbers that may only go down: giant units (class lines and methods apart), tests reaching into package
+      # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers (per source
+      # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a).
+      # The head and the merge-base are both measured here by the same script and compared, so rewriting
+      # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the
+      # gate itself (script, limits.json, this step), which is reviewed. The committed baseline.json is not read.
+      # The comparison commit: on a pull request, HEAD is the merge commit GitHub builds (refs/pull/N/merge), so it is the
+      # merged result against the base branch as it was merged (HEAD^1); on a push to main it is the previous tip.
+      # scripts/ci-health-base.mjs picks it and fetches it when the shallow checkout lacks it.
+      - name: Health gates (against the merge-base)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base="$(node scripts/ci-health-base.mjs)"
+          node scripts/check-health-gates.mjs --base "$base"
+
+      # Each gate rule is mutation-verified on a scratch repository: one violation added on a branch fails, and so does
+      # the same branch after `--update` rewrote the baseline.
+      - name: Health gates reject what they claim to
+        run: node scripts/run-tests.mjs tests/health-gates-merge-base.test.ts
 
       - name: Verify Goal boundaries, storage baselines and release assets
         run: |
@@ -61,21 +84,57 @@ jobs:
       - name: 成果 types have owner previews; writes match Manifests; process items stay out of user lists
         run: node scripts/run-tests.mjs tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts
 
+      # The secret scan's own rules (the scan job above has no dependencies installed): a planted key is caught, files whose
+      # names git quotes are read, a type annotation or a secretKey name does not hide a literal, fixtures stay allow-listed.
+      # If the scanner ever passed everything, this is the step that goes red. About a second.
+      - name: Secret scan rules
+        run: node scripts/run-tests.mjs tests/secret-scan.test.ts
+
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests
         run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
 
+  # No dependencies and no build: it reads git history only, so it starts at once and is cheap to keep on every change.
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      # The scan reads every commit the change adds since its merge base with the target branch, so it needs the history
+      # and not a depth-1 clone.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # API keys, GitHub/Slack tokens, AWS keys, private keys, JWTs and `api_key|secret|password|token = "…"` literals in
+      # the lines this change adds. Known test fixtures are listed in tooling/gates/secret-allowlist.txt, each with a reason.
+      # Pull request: since its base branch tip. Push to main: since the tip before the push. Manual run: the whole tree.
+      - name: No credentials in the commits this change adds
+        env:
+          SECRET_SCAN_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            node scripts/check-secrets.mjs --all
+          else
+            node scripts/check-secrets.mjs
+          fi
+
   verify:
     name: Verify
-    needs: architecture-boundaries
+    needs: [architecture-boundaries, secret-scan]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection.
-    # The full product suite runs locally; package boundaries and the contract subset run here.
+    # The full product suite runs locally; package boundaries, the contract subset and the secret scan run here.
     runs-on: ubuntu-latest
     steps:
       - name: Required package gate passed
         env:
           PACKAGE_BOUNDARIES_RESULT: ${{ needs.architecture-boundaries.result }}
+          SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
         run: |
           test "$PACKAGE_BOUNDARIES_RESULT" = "success"
-          echo "Package boundary, Contract, typecheck, build and action contract verification passed."
+          test "$SECRET_SCAN_RESULT" = "success"
+          echo "Package boundary, Contract, typecheck, build, action contract and secret scan verification passed."

@@ -34,7 +34,7 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 
 关键词预览读取该来源最近五条原消息，不调用模型、不保存规则、不产生捕捉成果或 Inbox 条目。`feed.rules.judgments` 从共同目录返回带版本、提供方和可用状态的判断能力；`preview-judgment` 对原消息调用所选兼容能力，不保存捕捉结果或入箱；`evaluate` 才应用原规则并实际消费结果。界面不维护另一份 Functions 下拉名单，插件判断也使用相同预览、保存和运行路径。
 
-规则与精确判断引用保存在原 `feed_out_rules`，每次编辑更新 revision，异步验证后以 revision 比较保存。Host 首次接通场景时，将旧函数键解析成精确引用；项目提交后清理对应旧全局绑定，历史不删。未能恢复的旧键保留为失效配置，不能自动变为关键词入箱规则。未知或停用能力可保留并编辑其他字段；重新启用须通过当前共同兼容检查。
+规则与精确判断引用保存在原 `feed_out_rules`，每次编辑更新 revision，异步验证后以 revision 比较保存。未知或停用能力可保留并编辑其他字段；重新启用须通过当前共同兼容检查。
 
 `feed.capture` 自己实现 prepare/consume/failed：用原消息准备内容，结果落地前复核规则 revision、消息内容、提供方和授权。只有 admission=inbox 时，inbox.admit 或 needs_review 才进入 Inbox。原判断历史增加绑定和消息版本依据，`feed.rules.recommendations` 只返回当前仍有效的建议；停用、改绑、内容变化或撤权后撤下建议，历史保留。系统“已用在哪”链接可直接打开来源内的具体捕捉规则。
 

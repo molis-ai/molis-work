@@ -36,7 +36,8 @@ export const ARRIVAL_EN: Record<string, string> = {
   "昨天 {time}": "Yesterday {time}",
   // Brief
   "只有你能看到": "Only you can see this",
-  "未设目标": "No goals set",
+  "目标已完成": "Goals done",
+  "目标进行中": "Goals in progress",
   "最近打开": "Last opened",
   "演示数据，可随时重建": "Demo data, can be rebuilt any time",
   "还没有项目描述。进入项目后，在项目设置里补一句它要做什么。": "No description yet. Open the project and add a line in its settings about what it is for.",
@@ -50,7 +51,7 @@ export const ARRIVAL_EN: Record<string, string> = {
   "可以收尾，或为这个项目定下新的目标。": "You can wrap up, or set new goals for this project.",
   "暂时读不到事项，进入项目可以看到。": "Can't read items right now. Open the project to see them.",
   "没有待推进的事。": "Nothing waiting to move forward.",
-  "目标定下来之后，要推进的事会出现在这里。": "Once goals are set, what needs moving will show here.",
+  "各插件有要推进或等你确认的事时，会出现在这里。": "When a plugin has something to move or confirm, it will show here.",
   "暂时读不到动静。": "Can't read recent activity right now.",
   "还没有动静。": "Nothing yet.",
   "项目简介暂时读不到": "Can't read the project summary right now",

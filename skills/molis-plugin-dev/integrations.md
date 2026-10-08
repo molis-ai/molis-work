@@ -32,9 +32,7 @@ export function createGithubIntegrationPlugin(input: { provider: IntegrationProv
 
 ## OAuth 与账号
 
-GitHub、Gmail 有独立的 oauth 模块：配置、pending、token 生命周期、按账号隔离。whoami / 连接 / 断开是设置页动作，进 Agent 或设置，**不进** `feed.capture`。
-
-`github.whoami` 登记为 behavior，`subject_kinds` 是 `mcp_invoke` / `session`，不是 `feed_item`。
+GitHub、Gmail 有独立的 oauth 模块：配置、pending、token 生命周期、按账号隔离。账号检查（whoami）用连接器动作 `connectors.account.read`（GitHub 1.2.0 起，Catalog 连接器 1.1.0 起），不是插件自己登记的 behavior；连接 / 断开是设置页动作。这些都**不进** `feed.capture`。
 
 ## Catalog 连接器
 

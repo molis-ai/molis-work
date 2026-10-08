@@ -1,6 +1,9 @@
 import type { PluginPlatform } from "./plugin-platform.js";
 
-/** Install declared defaults only where no source was previously chosen. */
+/**
+ * Install declared defaults only where nothing was previously chosen: a port that already reads another plugin's output or a
+ * fixed 成果 version the person gave it keeps what it reads (installing a default would also drop that fixed version).
+ */
 export function bindWorkspaceCompanions(platform: PluginPlatform, projectId: string, actorId: string): void {
   const prefix = "io.molis.work.";
   for (const [target, targetPort, source, sourcePort] of [
@@ -24,7 +27,8 @@ export function bindWorkspaceCompanions(platform: PluginPlatform, projectId: str
     const sourceManifest = platform.supervisor.manifest(sourceId);
     if (!targetManifest?.ports?.inputs.some(port => port.port === targetPort)
       || !sourceManifest?.ports?.outputs.some(port => port.port === sourcePort)) continue;
-    if (platform.wiring.view().plugins.find(plugin => plugin.plugin_id === targetId)?.ports.find(port => port.port === targetPort)?.source) continue;
+    const current = platform.wiring.view().plugins.find(plugin => plugin.plugin_id === targetId)?.ports.find(port => port.port === targetPort);
+    if (current?.source || current?.artifact) continue;
     platform.wiring.bind({ project_id: projectId, actor_id: actorId, target_plugin_id: targetId, target_port: targetPort,
       source_plugin_id: sourceId, source_port: sourcePort, origin: "default" });
   }

@@ -34,7 +34,7 @@ platform packages
 - Module implementation 或 Store 导入另一个 Module implementation 或 Store。
 - Plugin 导入另一个 Plugin implementation、Store 或未公开 UI 组件。
 - App Shell、CLI、MCP、Workbench 或 Desktop 直接写业务数据库。
-- Horizontal Service 决定 Goal、Signal、Action、Session、Run 等业务状态。
+- Horizontal Service 或平台产品服务（记忆、放置、搜索、情境排序）拥有或决定 Goal、Signal、Action、Session 等插件或 Module 的业务事实。
 - Server Core 导入 Plugin payload schema 或完整 Local Module 状态机。
 - `packages/contracts` 依赖 App、Module implementation、Plugin implementation、数据库或网络客户端。
 - 通过 deep import 绕过 package public entrypoint。
@@ -90,7 +90,7 @@ pnpm boundary:check  # 扫描当前实际 workspace package
 pnpm workspace:verify # 门禁 + 所有目标 package 的 typecheck/build
 ```
 
-`.github/workflows/ci.yml` 在 pull request 和 `main` push 上运行同一条 `workspace:verify`，并运行 Goal Query/Storage 边界变异回归、真实存储迁移及发布资产选择测试。当前 legacy 产品全量测试仍按原计划暂停，但这些定向行为回归和 package 边界检查持续执行。
+`.github/workflows/ci.yml` 在 pull request 和 `main` push 上运行同一条 `workspace:verify`，并运行健康门禁（`health:check`）、Goal 查询/存储边界、存储基线、发布资产、启动器类型检查、动作与插件合同、单一工作台外壳与成果门禁。全量产品测试仍在本地跑（见 PR 模板），但这些定向行为回归和 package 边界检查持续执行。
 
 门禁由两层组成：
 

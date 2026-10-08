@@ -1,6 +1,6 @@
 # Web 产品界面与页面组合
 
-组合目标、信息流、会话、设置和首次使用页面，让各 Native Plugin 的功能在同一个工作区中呈现。
+工作台外壳：底栏、插件选择、按 Manifest 派生的导航、设置，以及进入工作台之前的页面，让每个插件的内容挂在同一个工作区里。
 
 包名：`@molis-ai/molis-work-app-workbench`。工作区内部包，通过仓库构建和 Host 装配使用。
 
@@ -15,7 +15,7 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 | 文件 | 用途 |
 | --- | --- |
 | [src/ui-composition.ts](src/ui-composition.ts) | UI 组合 |
-| [src/goals-page-renderer.ts](src/goals-page-renderer.ts) | 目标页面装配 |
+| [src/goals-page-renderer.ts](src/goals-page-renderer.ts) | 工作台整页装配（文件名沿用旧称） |
 | [src/scripts/client/initialization.ts](src/scripts/client/initialization.ts) | 客户端初始化与恢复 |
 | [src/browser-assets.ts](src/browser-assets.ts) | 浏览器资产入口 |
 
@@ -54,7 +54,7 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
   - 导航与区域从 Manifest 派生（`BUILTIN_PLUGIN_CATALOG`），不按插件名写分支。
-  - 内置 build 只在 `builtin-plugins.ts` 绑定一次 Manifest、目录信息、Agent 正文、UI/静态资源及可选历史 MCP 适配器；`plugin-catalog.ts` 和 `plugin-workbench.ts` 派生相应投影。资源 order 保持 CSS 与客户端初始化顺序，不改变 Manifest 的导航 order。公共动作发现与授权仍归 Kernel/Host。
+  - 内置 build 只在 `builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 绑定一次 Manifest、目录信息、Agent 正文与 UI/静态资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；新的内置插件只走 Plugin Runtime 装配，但仍在同一目录登记一条（该测试要求每个 Runtime 装配的 id 都有目录条目），所以目录本身不是冻结名单；`plugin-catalog.ts` 和 `plugin-workbench.ts` 派生相应投影。资源 order 保持 CSS 与客户端初始化顺序，不改变 Manifest 的导航 order。公共动作发现与授权仍归 Kernel/Host。
   - 插件的 Agent 提示词与方法正文随目录条目的 `agent` 声明，Manifest 只写声明。
   - 界面文字走 i18n，新增中文文案同时补英文；控件只用 design-system，不引入系统弹窗或原生下拉。
   - `development: true` 只标明隔离预览，不能当作真实团队接通的证明。
